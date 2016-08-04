@@ -323,6 +323,7 @@ initial_state({route, From, ToNick,
               #xmlel{name = <<"presence">>} = Presence}, StateData) ->
     %% this should never happen so crash if it does
     <<>> = exml_query:attr(Presence, <<"type">>, <<>>),
+    owner = get_affiliation(From, StateData), %% prevent race condition (2 users create same room)
     XNamespaces = exml_query:paths(Presence, [{element, <<"x">>}, {attr, <<"xmlns">>}]),
     case lists:member(?NS_MUC, XNamespaces) of
         true ->
@@ -413,9 +414,6 @@ locked_state({route, From, ToNick,
         _ ->
             locked_error(Call, locked_state, StateData)
     end;
-locked_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) ->
-    NewStateData = handle_http_auth_result(AuthPid, Result, From, Nick, Packet, Role, StateData),
-    destroy_temporary_room_if_empty(NewStateData, locked_state);
 locked_state(Call, StateData) ->
     locked_error(Call, locked_state, StateData).
 
@@ -520,19 +518,12 @@ normal_state({route, From, ToNick,
     end,
     {next_state, normal_state, StateData};
 normal_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) ->
-    NewStateData = handle_http_auth_result(AuthPid, Result, From, Nick, Packet, Role, StateData),
+    AuthPids = StateData#state.http_auth_pids,
+    StateDataWithoutPid = StateData#state{http_auth_pids = lists:delete(AuthPid, AuthPids)},
+    NewStateData = handle_http_auth_result(Result, From, Nick, Packet, Role, StateDataWithoutPid),
     destroy_temporary_room_if_empty(NewStateData, normal_state);
 normal_state(_Event, StateData) ->
     {next_state, normal_state, StateData}.
-
-handle_http_auth_result(AuthPid, Result, From, Nick, Packet, Role, StateData) ->
-    AuthPids = StateData#state.http_auth_pids,
-    StateWithoutPid = StateData#state{http_auth_pids = lists:delete(AuthPid, AuthPids)},
-    case Result of
-        allowed -> do_add_new_user(From, Nick, Packet, Role, StateWithoutPid);
-        {invalid_password, ErrorMsg} -> reply_not_authorized(From, Nick, Packet, StateData, ErrorMsg);
-        error -> reply_service_unavailable(From, Nick, Packet, StateData, <<"Internal server error">>)
-    end.
 
 %%----------------------------------------------------------------------
 %% Func: handle_event/3
@@ -943,7 +934,7 @@ rewrite_next_state(_, {stop, normal, StateData}) ->
 -spec destroy_temporary_room_if_empty(state(), atom()) -> fsm_return().
 destroy_temporary_room_if_empty(StateData=#state{config=C=#config{}}, NextState) ->
     case (not C#config.persistent) andalso is_empty_room(StateData)
-        andalso StateData#state.http_auth_pids == [] of
+        andalso StateData#state.http_auth_pids =:= [] of
         true ->
             ?INFO_MSG("Destroyed MUC room ~s because it's temporary and empty",
                   [jid:to_binary(StateData#state.jid)]),
@@ -1874,30 +1865,49 @@ add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet, StateDa
             route_error(Nick, From, Err, StateData);
         http_auth ->
             Password = extract_password(Els),
-            RoomPid = self(),
-            RoomJid = StateData#state.jid,
-            Pool = StateData#state.http_auth_pool,
-            Pid = spawn_link(fun() -> make_http_auth_request(From, Nick, Packet, Role, RoomJid,
-                                                             RoomPid, Password, Pool)
-                             end),
-            AuthPids = StateData#state.http_auth_pids,
-            StateData#state{http_auth_pids = [Pid | AuthPids]};
+            perform_http_auth(From, Nick, Packet, Role, Password, StateData);
         allowed ->
             do_add_new_user(From, Nick, Packet, Role, StateData)
     end.
 
-make_http_auth_request(From, Nick, Packet, Role, RoomJid, RoomPid, Password, Pool) ->
+perform_http_auth(From, Nick, Packet, Role, Password, StateData) ->
+    RoomPid = self(),
+    RoomJid = StateData#state.jid,
+    Pool = StateData#state.http_auth_pool,
+    case is_empty_room(StateData) of
+        true ->
+            Result = make_http_auth_request(From, RoomJid, Password, Pool),
+            handle_http_auth_result(Result, From, Nick, Packet, Role, StateData);
+        false ->
+            %% Perform the request in a separate process to prevent room freeze
+            Pid = spawn_link(
+                    fun() ->
+                            Result = make_http_auth_request(From, RoomJid, Password, Pool),
+                            gen_fsm:send_event(RoomPid, {http_auth, self(), Result,
+                                                         From, Nick, Packet, Role})
+                    end),
+            AuthPids = StateData#state.http_auth_pids,
+            StateData#state{http_auth_pids = [Pid | AuthPids]}
+    end.
+
+make_http_auth_request(From, RoomJid, Password, Pool) ->
     FromVal = uri_encode(jid:to_binary(From)),
     RoomJidVal = uri_encode(jid:to_binary(RoomJid)),
     PassVal = uri_encode(Password),
     Path = <<"/check_password?from=", FromVal/binary,
              "&to=", RoomJidVal/binary,
              "&pass=", PassVal/binary>>,
-    Result = case mod_http_client:get(Pool, Path, []) of
-                 {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
-                 _ -> error
-             end,
-    gen_fsm:send_event(RoomPid, {http_auth, self(), Result, From, Nick, Packet, Role}).
+    case mod_http_client:get(Pool, Path, []) of
+        {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
+        _ -> error
+    end.
+
+handle_http_auth_result(Result, From, Nick, Packet, Role, StateData) ->
+    case Result of
+        allowed -> do_add_new_user(From, Nick, Packet, Role, StateData);
+        {invalid_password, ErrorMsg} -> reply_not_authorized(From, Nick, Packet, StateData, ErrorMsg);
+        error -> reply_service_unavailable(From, Nick, Packet, StateData, <<"Internal server error">>)
+    end.
 
 uri_encode(Bin) ->
     list_to_binary(http_uri:encode(binary_to_list(Bin))).
