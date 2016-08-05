@@ -26,7 +26,10 @@
 start(Opts) ->
     ejabberd_redis:start_link(Opts),
     %% Clean current node's sessions from previous life
-    cleanup(node()).
+    {Elapsed, RetVal} = timer:tc(fun() -> cleanup(node()) end),
+    ?WARNING_MSG("cleanup on start took=~pms~n",
+                 [erlang:round(Elapsed / 1000)]),
+    RetVal.
 
 
 -spec get_sessions() -> [ejabberd_sm:ses_tuple()].
