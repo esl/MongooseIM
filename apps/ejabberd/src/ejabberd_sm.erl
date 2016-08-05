@@ -388,7 +388,8 @@ unregister_iq_handler(Host, XMLNS) ->
 %%====================================================================
 
 node_cleanup(Node) ->
-    gen_server:call(?MODULE, {node_cleanup, Node}).
+    Timeout = timer:minutes(1),
+    gen_server:call(?MODULE, {node_cleanup, Node}, Timeout).
 
 %%====================================================================
 %% gen_server callbacks
