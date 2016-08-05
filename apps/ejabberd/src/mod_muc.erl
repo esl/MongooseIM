@@ -113,7 +113,7 @@
                 history_size        :: integer(),
                 default_room_opts   :: list(),
                 room_shaper         :: shaper:shaper(),
-                http_auth_pool      :: mod_http_client:pool()
+                http_auth_pool      :: mongoose_http_client:pool()
               }).
 
 -type state() :: #state{}.
@@ -287,7 +287,7 @@ init([Host, Opts]) ->
     AccessPersistent = gen_mod:get_opt(access_persistent, Opts, all),
     HttpAuthPool = case gen_mod:get_opt(http_auth_pool, Opts, none) of
                        none -> none;
-                       PoolName -> mod_http_client:get_pool(Host, PoolName)
+                       PoolName -> mongoose_http_client:get_pool(PoolName)
                    end,
     HistorySize = gen_mod:get_opt(history_size, Opts, 20),
     DefRoomOpts = gen_mod:get_opt(default_room_options, Opts, []),
@@ -627,7 +627,7 @@ check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
 
 -spec load_permanent_rooms(Host :: ejabberd:server(), Srv :: ejabberd:server(),
         Access :: access(), HistorySize :: 'undefined' | integer(),
-        RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mod_http_client:pool()) -> 'ok'.
+        RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool()) -> 'ok'.
 load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool) ->
     case catch mnesia:dirty_select(
                  muc_room, [{#muc_room{name_host = {'_', Host}, _ = '_'},
@@ -662,7 +662,7 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
 -spec start_new_room(Host :: 'undefined' | ejabberd:server(),
         Srv :: ejabberd:server(), Access :: access(), room(),
         HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
-        HttpAuthPool :: none | mod_http_client:pool(), From :: ejabberd:jid(), nick(),
+        HttpAuthPool :: none | mongoose_http_client:pool(), From :: ejabberd:jid(), nick(),
         DefRoomOpts :: 'undefined' | [any()])
             -> {'error',_}
              | {'ok','undefined' | pid()}

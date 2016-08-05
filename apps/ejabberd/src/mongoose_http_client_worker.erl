@@ -13,34 +13,13 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 %%==============================================================================
--module(mod_http_client_sup).
-
--behaviour(supervisor).
+-module(mongoose_http_client_worker).
 
 %% API
 -export([start_link/1]).
 
-%% supervisor callbacks
--export([init/1]).
-
 %%------------------------------------------------------------------------------
 %% API
 
--spec(start_link(term()) ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(SupName) ->
-    supervisor:start_link({local, SupName}, ?MODULE, []).
-
-%%------------------------------------------------------------------------------
-%% supervisor callbacks
-
--spec init(Args :: term()) -> {ok, {{one_for_all, pos_integer(), pos_integer()}, []}}.
-init([]) ->
-    RestartStrategy = one_for_all,
-    MaxRestarts = 1000,
-    MaxSecondsBetweenRestarts = 3600,
-
-    SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-
-    {ok, {SupFlags, []}}.
-
+start_link([Host, Opts]) ->
+    fusco:start_link(Host, Opts).

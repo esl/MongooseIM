@@ -572,6 +572,8 @@ process_term(Term, State) ->
             add_option(max_fsm_queue, N, State);
         {sasl_mechanisms, Mechanisms} ->
             add_option(sasl_mechanisms, Mechanisms, State);
+        {http_connections, HttpConnections} ->
+            add_option(http_connections, HttpConnections, State);
         {_Opt, _Val} ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)

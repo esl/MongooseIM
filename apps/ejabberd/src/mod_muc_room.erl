@@ -153,7 +153,7 @@
 %%%----------------------------------------------------------------------
 -spec start(Host :: ejabberd:server(), ServerHost :: ejabberd:server(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
-            RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mod_http_client:pool(),
+            RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
             Creator :: ejabberd:jid(), Nick :: mod_muc:nick(),
             DefRoomOpts :: list()) -> {'error',_}
                                           | {'ok','undefined' | pid()}
@@ -165,7 +165,7 @@ start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
 
 -spec start(Host :: ejabberd:server(), ServerHost :: ejabberd:server(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
-            RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mod_http_client:pool(),
+            RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
             Opts :: list()) -> {'error',_}
                                    | {'ok','undefined' | pid()}
                                    | {'ok','undefined' | pid(),_}.
@@ -1894,10 +1894,10 @@ make_http_auth_request(From, RoomJid, Password, Pool) ->
     FromVal = uri_encode(jid:to_binary(From)),
     RoomJidVal = uri_encode(jid:to_binary(RoomJid)),
     PassVal = uri_encode(Password),
-    Path = <<"/check_password?from=", FromVal/binary,
+    Path = <<"check_password?from=", FromVal/binary,
              "&to=", RoomJidVal/binary,
              "&pass=", PassVal/binary>>,
-    case mod_http_client:get(Pool, Path, []) of
+    case mongoose_http_client:get(Pool, Path, []) of
         {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
         _ -> error
     end.

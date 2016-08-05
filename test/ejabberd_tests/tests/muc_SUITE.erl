@@ -275,33 +275,30 @@ init_per_group(disco_rsm, Config) ->
     [Alice | _] = ?config(escalus_users, Config1),
     start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
 
-init_per_group(TC, Config) when TC =:= http_auth_no_server;
-                                TC =:= http_auth ->
-    ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
-    dynamic_modules:ensure_modules(domain(), required_modules(http_auth)),
-    case TC of
+init_per_group(G, Config) when G =:= http_auth_no_server;
+                               G =:= http_auth ->
+    ejabberd_node_utils:call_fun(mongoose_http_client, start, [[]]),
+    ok = ejabberd_node_utils:call_fun(mongoose_http_client, start_pool, [muc_http_auth_test,
+                                                                         [{host, "http://localhost:8080"},
+                                                                          {path_prefix, "/muc/auth/"},
+                                                                          {pool_size, 5}]]),
+    case G of
         http_auth -> http_helper:start(8080, "/muc/auth/check_password", fun handle_http_auth/1);
         _ -> ok
     end,
+    ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
+    dynamic_modules:ensure_modules(domain(), required_modules(http_auth)),
     ConfigWithModules;
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
 required_modules(http_auth) ->
-    [{mod_http_client, [{pools, [
-                                 {muc_http_auth, [{host, "http://localhost:8080"},
-                                                  {path_prefix, "/muc/auth"},
-                                                  {pool_size, 5}]
-                                 }
-                                ]
-                        }]
-     },
-     {mod_muc, [
+    [{mod_muc, [
                 {host, "muc.@HOST@"},
                 {access, muc},
                 {access_create, muc_create},
-                {http_auth_pool, muc_http_auth},
+                {http_auth_pool, muc_http_auth_test},
                 {default_room_options, [{password_protected, true}]}
                ]}
     ].
@@ -329,9 +326,13 @@ end_per_group(disco_rsm, Config) ->
     destroy_rsm_rooms(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 
-end_per_group(TC, Config) when TC =:= http_auth_no_server;
-                               TC =:= http_auth ->
-    http_helper:stop(),
+end_per_group(G, Config) when G =:= http_auth_no_server;
+                              G =:= http_auth ->
+    case G of
+        http_auth -> http_helper:stop();
+        _ -> ok
+    end,
+    ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [muc_http_auth_test]),
     dynamic_modules:restore_modules(domain(), Config);
 
 end_per_group(_GroupName, Config) ->
