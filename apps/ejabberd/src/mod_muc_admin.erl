@@ -22,7 +22,7 @@
 -behaviour(gen_mod).
 -export([start/2, stop/1]).
 
--export([create_room/4]).
+-export([create_instant_room/4]).
 -export([invite_to_room/5]).
 -export([send_message_to_room/4]).
 
@@ -41,7 +41,7 @@ commands() ->
       {category, mucs},
       {desc, "Create a MUC room."},
       {module, ?MODULE},
-      {function, create_room},
+      {function, create_instant_room},
       {action, create},
       {identifiers, [host]},
       {args,
@@ -90,12 +90,26 @@ commands() ->
 
     ].
 
-create_room(Host, Name, Owner, Nick) ->
-    O = jid:from_binary(Owner),
-    try mod_muc:create_instant_room(Host, Name, O, Nick, default) of
-        ok -> Name
-    catch
-        Class:Reason -> {error, {Class, Reason}}
+create_instant_room(Host, Name, Owner, Nick) ->
+    %% Because these stanzas are sent on the owner's behalf, they will
+    %% certainly recieve stanzas as a consequence, even if their
+    %% client(s) did not initiate anything.
+    OwnerJID = jid:from_binary(Owner),
+    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc,
+                                            <<"muc.@HOST@">>),
+    UserRoomJID = jid:make(Name, MUCHost, Nick),
+    BareRoomJID = jid:make(Name, MUCHost, <<"">>),
+    %% Send presence to create a room.
+    ejabberd_router:route(OwnerJID, UserRoomJID, presence()),
+    %% Send IQ set to unlock the room.
+    ejabberd_router:route(OwnerJID, BareRoomJID, declination()),
+    case mod_muc_room:can_access_room(BareRoomJID, OwnerJID) of
+        {ok, true} ->
+            Name;
+        {ok, false} ->
+            {error, room_remains_locked};
+        {error, not_found} = E ->
+            E
     end.
 
 invite_to_room(Host, Name, Sender, Recipient, Reason) ->
@@ -115,7 +129,7 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
 
 send_message_to_room(Host, Name, Sender, Message) ->
     S = jid:from_binary(Sender),
-    Room = jid:from_binary(room_jid(Name, Host)),
+    Room = jid:from_binary(room_jid(Name, Host)), %% Go for jid:make/3 instead.
     X = #xmlel{
            name = <<"body">>,
            children =
@@ -136,3 +150,25 @@ room_jid(Name, Host) ->
     MUCHost = gen_mod:get_module_opt_host(Host, mod_muc,
                                             <<"muc.@HOST@">>),
     <<Name/binary, $@, MUCHost/binary>>.
+
+presence() ->
+    #xmlel{
+       name = <<"presence">>,
+       children = [ #xmlel{
+                       name = <<"x">>,
+                       attrs = [{<<"xmlns">>, ?NS_MUC}]} ]}.
+
+declination() ->
+    #xmlel{
+       name = <<"iq">>,
+       attrs = [{<<"type">>, <<"set">>}],
+       children = [ data_submission() ]}.
+
+data_submission() ->
+    #xmlel{
+       name = <<"query">>,
+       attrs = [{<<"xmlns">>, ?NS_MUC_OWNER}],
+       children = [ #xmlel{
+                       name = <<"x">>,
+                       attrs = [{<<"xmlns">>, ?NS_XDATA},
+                                {<<"type">>, <<"submit">>}]} ]}.
