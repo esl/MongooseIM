@@ -19,7 +19,7 @@
 %%%                              user's roster
 %%% * config_schema (undefined) - Custom list of configuration options for a room;
 %%%                               WARNING! Lack of `roomname` field will cause room names in
-%%%                               Disco results and Roster items be set to null string.
+%%%                               Disco results and Roster items be set to empty string.
 %%%
 %%% Allowed `config_schema` list items (may be mixed):
 %%% * Just field name: "field" - will be expanded to "field" of type 'binary'
@@ -459,7 +459,11 @@ handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
 get_rooms_info([]) ->
     [];
 get_rooms_info([RoomUS | RRooms]) ->
-    {ok, RoomName, Version} = ?BACKEND:get_config(RoomUS, roomname),
+    {ok, Config, Version} = ?BACKEND:get_config(RoomUS),
+    RoomName = case lists:keyfind(roomname, 1, Config) of
+                   false -> <<>>;
+                   {_, RoomName0} -> RoomName0
+               end,
     [{RoomUS, RoomName, Version} | get_rooms_info(RRooms)].
 
 -spec apply_rsm(RoomsInfo :: [disco_room_info()], RoomsInfoLen :: non_neg_integer(),
