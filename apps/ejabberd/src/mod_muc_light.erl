@@ -30,7 +30,7 @@
 %%% Allowed `config_schema` list items (may be mixed):
 %%% * Just field name: "field" - will be expanded to "field" of type 'binary'
 %%% * Field name and type: {"field", integer}
-%%% * Field binary name, atom and the type: {"field", field, float} - useful only for debugging
+%%% * Field name, atom and the type: {"field", field, float} - useful only for debugging
 %%%                 or unusual applications
 %%% Sample valid list: `["roomname", {"subject", binary}, {"priority", priority, integer}]`
 %%%
