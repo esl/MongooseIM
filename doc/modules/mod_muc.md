@@ -19,6 +19,7 @@ This module implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/x
 * `user_message_shaper` (atom, default: `none`): Shaper for user messages processed by a room (global for the room).
 * `user_presence_shaper` (atom, default: `none`): Shaper for user presences processed by a room (global for the room).
 * `max_user_conferences` (non-negative, default: 10): Specifies the number of rooms that a user can occupy simultaneously.
+* `http_auth_pool` (atom, default: `none`): If an external HTTP service is chosen to check passwords for password-protected rooms, this option specifies the HTTP pool name to use (see [External HTTP Authentication](#external-http-authentication) below).
 * `default_room_options` (list of key-value tuples, default: `[]`): List of room configuration options to be overridden in initial state.
     * `title` (binary, default: `<<>>`): Room title, short free text.
     * `description` (binary, default: `<<>>`): Room description, long free text.
@@ -48,4 +49,44 @@ This module implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/x
              {access, muc},
              {access_create, muc_create}
             ]},
+```
+
+### External HTTP Authentication
+
+MUC rooms can be protected by password that is set by the room owner. However, MongooseIM supports another custom solution, where each attept to enter or create a room requires the password be checked by an external HTTP service. To enable this option, you need to:
+
+* Configure an [HTTP connection pool](../Advanced-configuration.md#outgoing-http-connections).
+* Set the name of the connection pool as the value of the `http_auth_pool` option of `mod_muc`.
+* Enable the `password_protected` default room option (without setting the password itself).
+
+Whenever a user tries to enter or create a room, the server will receive a GET request to the `check_password` path. It should return code 200 with a JSON object `{"code": Code, "msg": Message}` in the response body.
+
+* `Code` is the status code: 0 indicates successful authenctication, any other value means authentication failure.
+* `Message` is a string containing the message to be sent back to the XMPP client indicating the reason of failed authentication. For successful authentication it is ignored and can eg. contain the string `"OK"`.
+
+**Example:**
+
+```
+
+{http_connections, [
+                    {my_auth_pool, [{host, "http://my_server:8000"}]}
+                   ]}.
+
+
+{modules, [
+
+  (...)
+
+  {mod_muc, [
+             {host, "muc.example.com"},
+             {access, muc},
+             {access_create, muc_create},
+             {http_auth_pool, my_auth_pool},
+             {default_room_options, [{password_protected, true}]}
+            ]},
+
+  (...)
+
+]}.
+
 ```
