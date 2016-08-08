@@ -25,7 +25,8 @@
                         ValueType :: schema_value_type()}.
 -type config_schema() :: [schema_item()].
 
--type config() :: [{Key :: atom(), Value :: term()}].
+-type config_item() :: {Key :: atom(), Value :: term()}.
+-type config() :: [config_item()].
 -type raw_config() :: [{Key :: binary(), Value :: binary()}].
 
 -type aff() :: owner | member | none.

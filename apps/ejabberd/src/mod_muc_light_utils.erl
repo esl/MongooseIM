@@ -25,7 +25,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([make_config_schema/1]).
+-export([make_config_schema/1, make_default_config/2]).
 -export([process_raw_config/3, config_to_raw/2]).
 -export([change_aff_users/2]).
 -export([b2aff/1, aff2b/1]).
@@ -41,6 +41,9 @@
                                     | schema_item().
 -type user_defined_schema() :: [user_defined_schema_item()].
 
+-type user_config_defaults_item() :: {FieldName :: string(), FieldValue :: term()}.
+-type user_config_defaults() :: [user_config_defaults_item()].
+
 -type change_aff_success() :: {ok, NewAffUsers :: aff_users(), ChangedAffUsers :: aff_users(),
                                JoiningUsers :: [ejabberd:simple_bare_jid()],
                                LeavingUsers :: [ejabberd:simple_bare_jid()]}.
@@ -53,9 +56,23 @@
 %% API
 %%====================================================================
 
--spec make_config_schema(UserDefinedSchema :: user_defined_schema() | undefined) -> config_schema().
-make_config_schema(undefined) -> default_config_schema();
-make_config_schema(UserDefinedSchema) -> lists:map(fun expand_config_field/1, UserDefinedSchema).
+-spec make_config_schema(UserDefinedSchema :: user_defined_schema()) -> config_schema().
+make_config_schema(UserDefinedSchema) ->
+    lists:map(fun expand_config_schema_field/1, UserDefinedSchema).
+
+-spec make_default_config(UserConfigDefaults :: user_config_defaults(),
+                         ConfigSchema :: config_schema()) -> config().
+make_default_config(UserConfigDefaults, ConfigSchema) ->
+    DefaultConfigCandidate = lists:map(fun process_config_field/1, UserConfigDefaults),
+    lists:foreach(fun({Key, Value}) ->
+                          try
+                              {_, _, ValueType} = lists:keyfind(Key, 2, ConfigSchema),
+                              value2b(Value, ValueType)
+                          catch
+                              _:Error -> error({invalid_default_config, Key, Value, Error})
+                          end
+                  end, DefaultConfigCandidate),
+    DefaultConfigCandidate.
 
 %% Guarantees that config will have unique fields
 -spec process_raw_config(
@@ -161,23 +178,23 @@ filter_out_loop(_FromUS, _BlockingQuery, _RoomsPerUser, []) ->
 
 %% ---------------- Configuration processing ----------------
 
--spec default_config_schema() -> config_schema().
-default_config_schema() ->
-    [
-     {<<"roomname">>, roomname, binary},
-     {<<"subject">>, subject, binary}
-    ].
-
--spec expand_config_field(UserDefinedSchemaItem :: user_defined_schema_item()) -> schema_item().
-expand_config_field({FieldName, Type}) ->
+-spec expand_config_schema_field(UserDefinedSchemaItem :: user_defined_schema_item()) ->
+    schema_item().
+expand_config_schema_field({FieldName, Type}) ->
     {_, true} = {FieldName, is_valid_config_type(Type)},
     {list_to_binary(FieldName), list_to_atom(FieldName), Type};
-expand_config_field({FieldNameBin, FieldName, Type} = SchemaItem)
+expand_config_schema_field({FieldNameBin, FieldName, Type} = SchemaItem)
   when is_binary(FieldNameBin) andalso is_atom(FieldName) ->
     {_, true} = {FieldName, is_valid_config_type(Type)},
     SchemaItem;
-expand_config_field(Name) ->
+expand_config_schema_field(Name) ->
     {list_to_binary(Name), list_to_atom(Name), binary}.
+
+-spec process_config_field(UserConfigDefaultsItem :: user_config_defaults_item()) -> config_item().
+process_config_field({Key, Value}) when is_list(Value) ->
+    process_config_field({Key, list_to_binary(Value)});
+process_config_field({Key, Value}) ->
+    {list_to_atom(Key), Value}.
 
 -spec process_raw_config_opt(
         KeyBin :: binary(), ValBin :: binary(), ConfigSchema :: config_schema()) ->

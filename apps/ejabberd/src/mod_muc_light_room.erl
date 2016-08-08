@@ -140,7 +140,7 @@ process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
 
 -spec process_config_set(ConfigReq :: #config{}, RoomUS :: ejabberd:simple_bare_jid(),
                          UserAff :: member | owner, AffUsers :: aff_users(),
-                         AllCanConfigure :: boolean()) ->
+                         UserAllowedToConfigure :: boolean()) ->
     {set, #config{}} | {error, not_allowed} | validation_error().
 process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, RoomUS, UserAff,
                    AffUsers, false) ->

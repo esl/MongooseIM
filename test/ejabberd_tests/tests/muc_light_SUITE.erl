@@ -5,6 +5,9 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-export([ % service
+         mismatched_default_config_is_rejected/1
+        ]).
 -export([ % entity
          disco_service/1,
          disco_features/1,
@@ -15,6 +18,7 @@
          disco_rooms_created_page_infinity/1,
          disco_rooms_rsm/1,
          rooms_in_rosters/1,
+         no_roomname_in_schema_doesnt_break_disco_and_roster/1,
          unauthorized_stanza/1
     ]).
 -export([ % occupant
@@ -24,6 +28,8 @@
          all_can_configure/1,
          set_config_deny/1,
          get_room_config/1,
+         custom_schema_works_with_standard_default_config/1,
+         custom_default_config_works/1,
          get_room_occupants/1,
          get_room_info/1,
          leave_room/1,
@@ -38,6 +44,8 @@
          destroy_room_get_disco_items_empty/1,
          destroy_room_get_disco_items_one_left/1,
          set_config/1,
+         set_config_with_custom_schema/1,
+         deny_config_change_that_conflicts_with_schema/1,
          assorted_config_doesnt_lead_to_duplication/1,
          remove_and_add_users/1,
          explicit_owner_change/1,
@@ -104,7 +112,7 @@
 
 all() ->
     [
-     {group, disco},
+     {group, service},
      {group, entity},
      {group, occupant},
      {group, owner},
@@ -114,18 +122,20 @@ all() ->
 
 groups() ->
     [
-        {disco, [sequence],[
-            disco_rooms_created_page_1,
-            disco_rooms_created_page_infinity,
-            disco_rooms_empty_page_infinity,
-            disco_rooms_empty_page_1             %% Doesn't pass !
-        ]},
+     {service, [sequence], [
+                            mismatched_default_config_is_rejected
+                           ]},
      {entity, [sequence], [
                             disco_service,
                             disco_features,
                             disco_rooms,
                             disco_rooms_rsm,
+                            disco_rooms_created_page_1,
+                            disco_rooms_created_page_infinity,
+                            disco_rooms_empty_page_infinity,
+                            disco_rooms_empty_page_1,
                             rooms_in_rosters,
+                            no_roomname_in_schema_doesnt_break_disco_and_roster,
                             unauthorized_stanza
                          ]},
      {occupant, [sequence], [
@@ -135,6 +145,8 @@ groups() ->
                              all_can_configure,
                              set_config_deny,
                              get_room_config,
+                             custom_schema_works_with_standard_default_config,
+                             custom_default_config_works,
                              get_room_occupants,
                              get_room_info,
                              leave_room,
@@ -149,6 +161,8 @@ groups() ->
                           destroy_room_get_disco_items_empty,
                           destroy_room_get_disco_items_one_left,
                           set_config,
+                          set_config_with_custom_schema,
+                          deny_config_change_that_conflicts_with_schema,
                           assorted_config_doesnt_lead_to_duplication,
                           remove_and_add_users,
                           explicit_owner_change,
@@ -193,23 +207,48 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
-init_per_testcase(mam_simple, Config) ->
-    escalus:init_per_testcase(mam_simple, Config);
 init_per_testcase(disco_rooms_rsm, Config) ->
     set_default_mod_config(),
     set_mod_config(rooms_per_page, 1),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     create_room(?ROOM2, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     escalus:init_per_testcase(disco_rooms_rsm, Config);
-init_per_testcase(disco_rooms_empty_page_1, Config) ->
-    escalus:init_per_testcase(disco_room_empty, Config);
-init_per_testcase(disco_rooms_empty_page_infinity, Config) ->
-    escalus:init_per_testcase(disco_room_empty2, Config);
+init_per_testcase(RoomLessCase, Config)
+  when RoomLessCase =:= disco_rooms_empty_page_infinity
+       orelse RoomLessCase =:= disco_rooms_empty_page_1
+       orelse RoomLessCase =:=  mismatched_default_config_is_rejected ->
+    set_default_mod_config(),
+    escalus:init_per_testcase(RoomLessCase, Config);
+init_per_testcase(custom_schema_works_with_standard_default_config = CaseName, Config) ->
+    set_default_mod_config(),
+    set_custom_config(["roomname", "subject", "background", "music"], standard_default_config()),
+    create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
+    escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(CustomConfigCase, Config)
+  when        CustomConfigCase =:= set_config_with_custom_schema
+       orelse CustomConfigCase =:= deny_config_change_that_conflicts_with_schema
+       orelse CustomConfigCase =:= no_roomname_in_schema_doesnt_break_disco_and_roster
+       orelse CustomConfigCase =:= custom_default_config_works ->
+    set_default_mod_config(),
+    CustomDefaultConfig = [{atom_to_list(K), binary_to_list(V)}
+                           || {K, V} <- custom_default_config()],
+    set_custom_config(["background", "music"], CustomDefaultConfig),
+    create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
+    escalus:init_per_testcase(CustomConfigCase, Config);
 init_per_testcase(CaseName, Config) ->
     set_default_mod_config(),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(CustomConfigCase, Config)
+  when        CustomConfigCase =:= set_config_with_custom_schema
+       orelse CustomConfigCase =:= deny_config_change_that_conflicts_with_schema
+       orelse CustomConfigCase =:= no_roomname_in_schema_doesnt_break_disco_and_roster
+       orelse CustomConfigCase =:= custom_schema_works_with_standard_default_config
+       orelse CustomConfigCase =:= custom_default_config_works ->
+    set_custom_config(standard_config_schema(), standard_default_config()),
+    clear_db(),
+    escalus:end_per_testcase(CustomConfigCase, Config);
 end_per_testcase(CaseName, Config) ->
     clear_db(),
     escalus:end_per_testcase(CaseName, Config).
@@ -229,6 +268,13 @@ clear_db() ->
 %%--------------------------------------------------------------------
 %% MUC light tests
 %%--------------------------------------------------------------------
+
+%% ---------------------- Service ----------------------
+
+mismatched_default_config_is_rejected(_Config) ->
+    {'EXIT', _} = (catch set_custom_config(["background", "music"], standard_default_config())),
+    {'EXIT', _} = (catch set_custom_config(["background", "music"], ["misfit"])),
+    ok.
 
 %% ---------------------- Disco ----------------------
 
@@ -278,8 +324,6 @@ disco_rooms_created_page_1(Config) ->
 disco_rooms_created_page_infinity(Config) ->
     set_mod_config(rooms_per_page, infinity),
     escalus:story(Config, [{alice, 1}], fun verify_user_has_one_room/1).
-
-
 
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
@@ -346,6 +390,18 @@ rooms_in_rosters(Config) ->
             ProperVer = exml_query:path(Item, [{element, <<"version">>}, cdata])
         end).
 
+no_roomname_in_schema_doesnt_break_disco_and_roster(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            [DiscoItem] = get_disco_rooms(Alice),
+            ?ROOM = exml_query:attr(DiscoItem, <<"name">>),
+
+            escalus:send(Alice, escalus_stanza:roster_get()),
+            RosterResult = escalus:wait_for_stanza(Alice),
+            [RosterItem] = exml_query:paths(
+                       RosterResult, [{element, <<"query">>}, {element, <<"item">>}]),
+            ?ROOM = exml_query:attr(RosterItem, <<"name">>)
+        end).
+
 unauthorized_stanza(Config) ->
     escalus:story(Config, [{alice, 1}, {kate, 1}], fun(Alice, Kate) ->
             {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config, ver(0)),
@@ -384,10 +440,8 @@ change_roomname(Config) ->
         StanzaCheck = stanza_config_get(?ROOM, ver(1)),
         escalus:send(Alice, StanzaCheck),
         Res = escalus:wait_for_stanza(Alice),
-        Elements = exml_query:paths(Res, [{element, <<"query">>}, {element, <<"roomname">>}]),
-        1 = length(Elements)
+        [_] = exml_query:paths(Res, [{element, <<"query">>}, {element, <<"roomname">>}])
         end).
-
 
 all_can_configure(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -420,6 +474,23 @@ get_room_config(Config) ->
             escalus:assert(is_iq_result, IQRes),
             undefined = exml_query:subelement(IQRes, <<"query">>)
         end).
+
+custom_schema_works_with_standard_default_config(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            Stanza = stanza_config_get(?ROOM, <<"oldver">>),
+            ConfigKV = [{version, ver(1)} | default_config()],
+            ConfigKVBin = [{atom_to_binary(Key, utf8), Val} || {Key, Val} <- ConfigKV],
+            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKVBin))
+        end).
+
+custom_default_config_works(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            Stanza = stanza_config_get(?ROOM, <<"oldver">>),
+            ConfigKV = [{version, ver(1)} | custom_default_config()],
+            ConfigKVBin = [{atom_to_binary(Key, utf8), Val} || {Key, Val} <- ConfigKV],
+            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKVBin))
+        end).
+
 
 get_room_occupants(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -557,6 +628,23 @@ set_config(Config) ->
             escalus:send(Alice, stanza_config_set(?ROOM, ConfigChange)),
             foreach_recipient([Alice, Bob, Kate], config_msg_verify_fun(ConfigChange)),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+set_config_with_custom_schema(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            ConfigChange = [{<<"background">>, <<"builtin:unicorns">>},
+                            {<<"music">>, <<"builtin:rainbow">>}],
+            escalus:send(Alice, stanza_config_set(?ROOM, ConfigChange)),
+            foreach_recipient([Alice, Bob, Kate], config_msg_verify_fun(ConfigChange)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+deny_config_change_that_conflicts_with_schema(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            ConfigChange = [{<<"roomname">>, <<"The Coven">>}],
+            escalus:send(Alice, stanza_config_set(?ROOM, ConfigChange)),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                           escalus:wait_for_stanza(Alice))
         end).
 
 assorted_config_doesnt_lead_to_duplication(Config) ->
@@ -1031,8 +1119,7 @@ bin_aff_users(AffUsers) ->
       || {User, Aff} <- AffUsers ].
 
 -spec room_bin_jid(Room :: binary()) -> binary().
-room_bin_jid(Room) ->
-    <<Room/binary, $@, (?MUCHOST)/binary>>.
+room_bin_jid(Room) -> <<Room/binary, $@, (?MUCHOST)/binary>>.
 
 -spec to_lus(Config :: list(), UserAtom :: atom()) -> {binary(), binary()}.
 to_lus(UserAtom, Config) ->
@@ -1040,12 +1127,19 @@ to_lus(UserAtom, Config) ->
      lbin(escalus_users:get_server(Config, UserAtom))}.
 
 -spec lbin(Bin :: binary()) -> binary().
-lbin(Bin) ->
-    list_to_binary(string:to_lower(binary_to_list(Bin))).
+lbin(Bin) -> list_to_binary(string:to_lower(binary_to_list(Bin))).
 
 -spec default_config() -> list().
-default_config() ->
-    rpc(mod_muc_light, default_config, []).
+default_config() -> rpc(mod_muc_light, default_config, [?MUCHOST]).
+
+-spec standard_default_config() -> list().
+standard_default_config() -> rpc(mod_muc_light, standard_default_config, []).
+
+-spec custom_default_config() -> list().
+custom_default_config() -> [{background, <<"builtin:hell">>}, {music, <<"builtin:screams">>}].
+
+-spec standard_config_schema() -> list().
+standard_config_schema() -> rpc(mod_muc_light, standard_config_schema, []).
 
 -spec set_default_mod_config() -> ok.
 set_default_mod_config() ->
@@ -1060,6 +1154,16 @@ set_default_mod_config() ->
        {max_occupants, infinity},
        {rooms_per_page, infinity}
       ]).
+
+-spec set_custom_config(RawSchema :: list(), RawDefaultConfig :: list()) -> true.
+set_custom_config(RawSchema, RawDefaultConfig) ->
+    ConfigSchema = rpc(mod_muc_light_utils, make_config_schema, [RawSchema]),
+    _ = hd(ConfigSchema), %% checks if is a list
+    set_mod_config(config_schema, ConfigSchema),
+
+    DefaultConfig = rpc(mod_muc_light_utils, make_default_config, [RawDefaultConfig, ConfigSchema]),
+    _ = hd(DefaultConfig), %% checks if is a list
+    set_mod_config(default_config, DefaultConfig).
 
 -spec set_mod_config(K :: atom(), V :: any()) -> ok.
 set_mod_config(K, V) ->
