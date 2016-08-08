@@ -85,10 +85,10 @@
 %% API
 %%====================================================================
 
--spec standard_config_schema() -> config_schema().
+-spec standard_config_schema() -> [Field :: string()].
 standard_config_schema() -> ["roomname", "subject"].
 
--spec standard_default_config() -> config().
+-spec standard_default_config() -> [{K :: string(), V :: string()}].
 standard_default_config() -> [{"roomname", "Untitled"}, {"subject", ""}].
 
 -spec default_config(MUCServer :: ejabberd:lserver()) -> config().
