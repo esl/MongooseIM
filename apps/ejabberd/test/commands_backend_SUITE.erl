@@ -27,70 +27,71 @@ backend_module() ->
 
 all() ->
     [
-        {group, simple_backend},
-        {group, get_advanced_backend},
-        {group, post_advanced_backend},
-        {group, delete_advanced_backend},
-        {group, simple_client}
+     {group, simple_backend},
+     {group, get_advanced_backend},
+     {group, post_advanced_backend},
+     {group, delete_advanced_backend},
+      {group, simple_client}
     ].
 
 groups() ->
     [
-        {simple_backend, [sequence],
-            [
-                get_simple,
-                post_simple,
-                delete_simple,
-                put_simple
-            ]
-        },
-        {get_advanced_backend, [sequence],
-            [
-                get_two_args,
-                get_wrong_path,
-                get_wrong_arg_number,
-                get_no_command,
-                get_wrong_arg_type
-            ]
-        },
-        {post_advanced_backend, [sequence],
-            [
-                post_different_arg_order,
-                post_wrong_arg_number,
-                post_wrong_arg_name,
-                post_wrong_arg_type,
-                post_no_command
-            ]
-        },
-        {delete_advanced_backend, [sequence],
-            [
-                delete_wrong_arg_order,
-                delete_wrong_arg_types
-            ]
-        },
-        {put_advanced_backend, [sequence],
-            [
-                put_wrong_type,
-                put_wrong_param_type,
-                put_wrong_bind_type,
-                put_different_params_order,
-                put_wrong_binds_order,
-                put_too_less_params,
-                put_too_less_binds,
-                put_wrong_bind_name,
-                put_wrong_param_name
-            ]
-        },
-        {simple_client, [sequence],
-            [
-                get_simple_client,
-                get_two_args_client,
-                get_bad_auth,
-                post_simple_client,
-                put_simple_client,
-                delete_simple_client
-            ]
-        }
+     {simple_backend, [sequence],
+      [
+       get_simple,
+       post_simple,
+       delete_simple,
+       put_simple
+      ]
+     },
+     {get_advanced_backend, [sequence],
+      [
+       get_two_args,
+       get_wrong_path,
+       get_wrong_arg_number,
+       get_no_command,
+       get_wrong_arg_type
+      ]
+     },
+     {post_advanced_backend, [sequence],
+      [
+       post_simple_with_subcategory,
+       post_different_arg_order,
+       post_wrong_arg_number,
+       post_wrong_arg_name,
+       post_wrong_arg_type,
+       post_no_command
+      ]
+     },
+     {delete_advanced_backend, [sequence],
+      [
+       delete_wrong_arg_order,
+       delete_wrong_arg_types
+      ]
+     },
+     {put_advanced_backend, [sequence],
+      [
+       put_wrong_type,
+       put_wrong_param_type,
+       put_wrong_bind_type,
+       put_different_params_order,
+       put_wrong_binds_order,
+       put_too_less_params,
+       put_too_less_binds,
+       put_wrong_bind_name,
+       put_wrong_param_name
+      ]
+     },
+     {simple_client, [sequence],
+      [
+       get_simple_client,
+       get_two_args_client,
+       get_bad_auth,
+       post_simple_client,
+       put_simple_client,
+       delete_simple_client
+      ]
+     }
     ].
 
 setup(Module) ->
@@ -119,6 +120,7 @@ teardown() ->
     meck:unload(ejabberd_auth),
     meck:unload(ejabberd_hooks),
     meck:unload(supervisor),
+    mc_holder_proc ! stop,
     ok.
 
 init_per_suite(C) ->
@@ -177,6 +179,16 @@ post_simple(_Config) ->
     check_status_code(Response, 201),
     check_location_header(Response, list_to_binary(build_path_prefix()++"/api/weather/" ++ Result)).
 
+post_simple_with_subcategory(_Config) ->
+    Arg1 = {arg1, 10},
+    Arg2 = {arg2, 2},
+    Args = [Arg2],
+    Path = <<"/api/weather/10/subcategory">>,
+    Result = binary_to_list(post_simple_command(element(2, Arg1), element(2, Arg2))),
+    {ok, Response} = request(Path, "POST", Args, admin),
+    check_status_code(Response, 201),
+    check_location_header(Response, list_to_binary(build_path_prefix()++"/api/weather/10/subcategory/" ++ Result)).
+
 put_simple(_Config) ->
     Binds = [{arg1, <<"username">>}, {arg2,<<"localhost">>}],
     Args = [{arg3, <<"newusername">>}],
@@ -203,12 +215,12 @@ get_two_args_different_types(_Config) ->
     check_response_body(Response, ExpectedBody).
 
 get_wrong_path(_Config) ->
-    Path = <<"/api/animals/1/2">>,
+    Path = <<"/api/animals2/1/2">>,
     {ok, Response} = request(Path, "GET", admin),
     check_status_code(Response, 404).
 
 get_wrong_arg_number(_Config) ->
-    Path = <<"/api/animals/arg1/1/arg2/2/arg3/3">>,
+    Path = <<"/api/animals/1/2/3">>,
     {ok, Response} = request(Path, "GET", admin),
     check_status_code(Response, 404).
 
@@ -218,7 +230,7 @@ get_no_command(_Config) ->
     check_status_code(Response, 404).
 
 get_wrong_arg_type(_Config) ->
-    Path = <<"/api/animals/arg1/1/arg2/wrong">>,
+    Path = <<"/api/animals/1/wrong">>,
     {ok, Response} = request(Path, "GET", admin),
     check_status_code(Response, 400).
 
@@ -262,7 +274,7 @@ delete_wrong_arg_order(_Config) ->
     Arg2 = {arg2, 2},
     Base = "/api/music",
     {ok, Response} = request(create_path_with_binds(Base, [Arg2, Arg1]), "DELETE", admin),
-    check_status_code(Response, 404).
+    check_status_code(Response, 400).
 
 delete_wrong_arg_types(_Config) ->
     Arg1 = {arg1, 2},
@@ -396,151 +408,163 @@ delete_simple_client(_Config) ->
 
 commands_client() ->
     [
-        [
-            {name, get_simple_client},
-            {category, clients},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, get_simple_client_command},
-            {action, read},
-            {identifiers, []},
-            {security_policy, [user]},
-            {args, [{caller, binary}, {arg1, binary}]},
-            {result, {result, binary}}
-        ],
-        [
-            {name, get_two_args_client},
-            {category, message},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, get_two_args_client_command},
-            {action, read},
-            {identifiers, []},
-            {security_policy, [user]},
-            {args, [{caller, binary}, {other, binary}, {limit, integer}]},
-            {result, {result, binary}}
-        ],
-        [
-            {name, post_simple_client},
-            {category, ohmyromeo},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, post_simple_client_command},
-            {action, create},
-            {identifiers, []},
-            {security_policy, [user]},
-            {args, [{caller, binary}, {title, binary}, {content, binary}]},
-            {result, {result, binary}}
-        ],
-        [
-            {name, put_simple_client},
-            {category, superusers},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, put_simple_client_command},
-            {action, update},
-            {identifiers, [caller]},
-            {security_policy, [user]},
-            {args, [{caller, binary}, {password, binary}]},
-            {result, ok}
-        ],
-        [
-            {name, delete_simple_client},
-            {category, bikes},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, delete_simple_client_command},
-            {action, delete},
-            {identifiers, []},
-            {security_policy, [user]},
-            {args, [{caller, binary}, {name, binary}]},
-            {result, ok}
-        ]
+     [
+      {name, get_simple_client},
+      {category, clients},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, get_simple_client_command},
+      {action, read},
+      {identifiers, []},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {arg1, binary}]},
+      {result, {result, binary}}
+     ],
+     [
+      {name, get_two_args_client},
+      {category, message},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, get_two_args_client_command},
+      {action, read},
+      {identifiers, []},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {other, binary}, {limit, integer}]},
+      {result, {result, binary}}
+     ],
+     [
+      {name, post_simple_client},
+      {category, ohmyromeo},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, post_simple_client_command},
+      {action, create},
+      {identifiers, []},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {title, binary}, {content, binary}]},
+      {result, {result, binary}}
+     ],
+     [
+      {name, put_simple_client},
+      {category, superusers},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, put_simple_client_command},
+      {action, update},
+      {identifiers, [caller]},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {password, binary}]},
+      {result, ok}
+     ],
+     [
+      {name, delete_simple_client},
+      {category, bikes},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, delete_simple_client_command},
+      {action, delete},
+      {identifiers, []},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {name, binary}]},
+      {result, ok}
+     ]
     ].
 
 commands_admin() ->
     [
-        [
-            {name, get_simple},
-            {category, users},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, get_simple_command},
-            {action, read},
-            {identifiers, []},
-            {args, [{arg1, binary}]},
-            {result, {result, binary}}
-        ],
-        [
-            {name, get_advanced},
-            {category, animals},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, get_two_args_command},
-            {action, read},
-            {identifiers, []},
-            {args, [{arg1, integer}, {arg2, integer}]},
-            {result, {result, binary}}
-        ],
-        [
-            {name, get_advanced2},
-            {category, books},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, get_two_args2_command},
-            {action, read},
-            {identifiers, []},
-            {args, [{one, integer}, {two, binary}]},
-            {result, {result, integer}}
-        ],
-        [
-            {name, post_simple},
-            {category, weather},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, post_simple_command},
-            {action, create},
-            {identifiers, []},
-            {args, [{arg1, integer}, {arg2, integer}]},
-            {result, {result, binary}}
-        ],
-        [
-            {name, delete_simple},
-            {category, music},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, delete_simple_command},
-            {action, delete},
-            {identifiers, []},
-            {args, [{arg1, binary}, {arg2, integer}]},
-            {result, ok}
-        ],
-        [
-            {name, put_simple},
-            {category, users},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, put_simple_command},
-            {action, update},
-            {args, [{arg1, binary}, {arg2, binary}, {arg3, binary}]},
-            {identifiers, [arg1, arg2]},
-            {result, ok}
-        ],
-        [
-            {name, put_advanced},
-            {category, dragons},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, put_advanced_command},
-            {action, update},
-            {args, [{username, binary},
-                    {domain, binary},
-                    {age, integer},
-                    {kids, integer}]},
-            {identifiers, [username, domain]},
-            {result, ok}
-        ]
-        ].
+     [
+      {name, get_simple},
+      {category, users},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, get_simple_command},
+      {action, read},
+      {identifiers, []},
+      {args, [{arg1, binary}]},
+      {result, {result, binary}}
+     ],
+     [
+      {name, get_advanced},
+      {category, animals},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, get_two_args_command},
+      {action, read},
+      {identifiers, []},
+      {args, [{arg1, integer}, {arg2, integer}]},
+      {result, {result, binary}}
+     ],
+     [
+      {name, get_advanced2},
+      {category, books},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, get_two_args2_command},
+      {action, read},
+      {identifiers, []},
+      {args, [{one, integer}, {two, binary}]},
+      {result, {result, integer}}
+     ],
+     [
+      {name, post_simple},
+      {category, weather},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, post_simple_command},
+      {action, create},
+      {identifiers, []},
+      {args, [{arg1, integer}, {arg2, integer}]},
+      {result, {result, binary}}
+     ],
+     [
+      {name, post_simple2},
+      {category, weather},
+      {subcategory, <<"subcategory">>},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, post_simple_command},
+      {action, create},
+      {identifiers, [arg1]},
+      {args, [{arg1, integer}, {arg2, integer}]},
+      {result, {result, binary}}
+     ],
+     [
+      {name, delete_simple},
+      {category, music},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, delete_simple_command},
+      {action, delete},
+      {identifiers, []},
+      {args, [{arg1, binary}, {arg2, integer}]},
+      {result, ok}
+     ],
+     [
+      {name, put_simple},
+      {category, users},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, put_simple_command},
+      {action, update},
+      {args, [{arg1, binary}, {arg2, binary}, {arg3, binary}]},
+      {identifiers, [arg1, arg2]},
+      {result, ok}
+     ],
+     [
+      {name, put_advanced},
+      {category, dragons},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, put_advanced_command},
+      {action, update},
+      {args, [{username, binary},
+              {domain, binary},
+              {age, integer},
+              {kids, integer}]},
+      {identifiers, [username, domain]},
+      {result, ok}
+     ]
+    ].
 
 commands_new() ->
     commands_admin() ++ commands_client().
@@ -615,7 +639,7 @@ maybe_add_auth_header(admin) ->
 -spec create_path_with_binds(string(), list()) -> binary().
 create_path_with_binds(Base, ArgList) when is_list(ArgList) ->
     list_to_binary(
-        lists:flatten(Base ++ ["/" ++ to_list(ArgName) ++ "/" ++ to_list(ArgValue)
+        lists:flatten(Base ++ ["/" ++ to_list(ArgValue)
                                || {ArgName, ArgValue} <- ArgList])).
 
 to_list(Int) when is_integer(Int) ->
@@ -652,17 +676,20 @@ request(Path, Method, BodyData, {{_User, _Pass} = Auth, Authorized}) ->
     AcceptHeader = maybe_add_accepted_headers(Method),
     do_request(Path, Method, Body, {headers, AuthHeader ++ AcceptHeader});
 request(Path, Method, BodyData, admin) ->
+    ct:pal("~p, ~p, ~p", [Path, Method, BodyData]),
     setup(backend_module()),
     Body = maybe_add_body(BodyData),
     AcceptHeader = maybe_add_accepted_headers(Method),
     do_request(Path, Method, Body, {headers, AcceptHeader}).
 
 mc_holder() ->
+    erlang:register(mc_holder_proc, self()),
     mongoose_commands:init(),
     mongoose_commands:register(commands_new()),
     receive
         _ -> ok
-    end.
+    end,
+    erlang:unregister(mc_holder_proc).
 
 check_status_code(Response, Code) when is_integer(Code) ->
     {{ResCode, _}, _, _, _, _} = Response,

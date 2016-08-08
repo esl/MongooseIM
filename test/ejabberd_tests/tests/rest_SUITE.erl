@@ -51,25 +51,23 @@
 
 all() ->
     [
-        {group, adminside}
-        %{group, userside}
+        {group, admin}
     ].
 
 groups() ->
-    [{adminside, [], test_cases()},
-     {userside, [], user_test_cases()}
+    [{admin, [], test_cases()}
     ].
 
 test_cases() ->
-    [assertions,
-     basic,
-     sessions,
-     messages,
-     changepassword].
-
-user_test_cases() ->
-    [user_messages].
-
+    [commands_are_listed,
+     non_existent_command_returns_404,
+     user_can_be_registered_and_removed,
+     sessions_are_listed,
+     session_can_be_kicked,
+     messages_are_sent_and_received,
+     messages_are_archived,
+     password_can_be_changed
+     ].
 
 suite() ->
     escalus:suite().
@@ -166,7 +164,7 @@ end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
 
 init_per_testcase(CaseName, Config) ->
-    MAMTestCases = [messages, user_messages],
+    MAMTestCases = [messages_are_archived],
     maybe_skip_mam_test_cases(lists:member(CaseName, MAMTestCases), CaseName, Config).
 
 maybe_skip_mam_test_cases(false, CaseName, Config) ->
@@ -182,79 +180,73 @@ maybe_skip_mam_test_cases(true, CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
-%%--------------------------------------------------------------------
-%% Message tests
-%%--------------------------------------------------------------------
-
-assertions(_Config) ->
-    Lst = [<<"a">>, <<"b">>, <<"c">>],
-    assert_inlist(<<"a">>, Lst),
-    assert_inlist(<<"b">>, Lst),
-    assert_inlist(<<"c">>, Lst),
-    assert_notinlist(<<"d">>, Lst),
-    Maplst = [#{a => 1, b => 2}, #{a => 1, b => 3}, #{a => 4, b => 5}],
-    assert_inlist(#{a => 1}, Maplst),
-    assert_inlist(#{a => 1, b => 2}, Maplst),
-    assert_inlist(#{a => 4}, Maplst),
-    assert_notinlist(#{a => 5}, Maplst),
-    assert_notinlist(#{a => 1, b => 1}, Maplst).
-
-
-basic(_Config) ->
-    % list commands
-    {?OK, Lcmds} = gett(<<"/list">>),
+commands_are_listed(_C) ->
+    {?OK, Lcmds} = gett(<<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
-    assert_inlist(#{name => <<"listmethods">>}, DecCmds),
-    % nonexistent command
-    {?NOT_FOUND, _} = gett(<<"/isitthereornot">>),
+    assert_inlist(#{name => <<"listmethods">>}, DecCmds).
+
+non_existent_command_returns_404(_C) ->
+    {?NOT_FOUND, _} = gett(<<"/isitthereornot">>).
+
+user_can_be_registered_and_removed(_Config) ->
     % list users
-    {?OK, Lusers} = gett(<<"/user/host/localhost">>),
+    {?OK, Lusers} = gett(<<"/users/localhost">>),
     assert_inlist(<<"alice@localhost">>, Lusers),
     % create user
     CrUser = #{user => <<"mike">>, password => <<"nicniema">>},
-    {?CREATED, _} = post(<<"/user/host/localhost">>, CrUser),
-    {?OK, Lusers1} = gett(<<"/user/host/localhost">>),
+    {?CREATED, _} = post(<<"/users/localhost">>, CrUser),
+    {?OK, Lusers1} = gett(<<"/users/localhost">>),
     assert_inlist(<<"mike@localhost">>, Lusers1),
     % try to create the same user
-    {?ERROR, _} = post(<<"/user/host/localhost">>, CrUser),
+    {?ERROR, _} = post(<<"/users/localhost">>, CrUser),
     % delete user
-    {?OK, _} = delete(<<"/user/jid/mike@localhost">>),
-    {?OK, Lusers2} = gett(<<"/user/host/localhost">>),
+    {?OK, _} = delete(<<"/users/localhost/mike">>),
+    {?OK, Lusers2} = gett(<<"/users/localhost">>),
     assert_notinlist(<<"mike@localhost">>, Lusers2),
     ok.
 
 
-sessions(Config) ->
+sessions_are_listed(_) ->
     % no session
-    {?OK, Sessions} = gett("/session/host/localhost"),
-    [] = Sessions,
+    {?OK, Sessions} = gett("/sessions/localhost"),
+    [] = Sessions.
+
+session_can_be_kicked(Config) ->
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
-            % Alice is connected
-            {?OK, Sessions1} = gett("/session/host/localhost"),
-            assert_inlist(<<"alice@localhost/res1">>, Sessions1),
-            % kick alice
-            {?OK, _} = delete("/session/jid/alice@localhost%2Fres1"),
-            {?OK, Sessions2} = gett("/session/host/localhost"),
-            [] = Sessions2
-        end),
-    ok.
+        % Alice is connected
+        {?OK, Sessions1} = gett("/sessions/localhost"),
+        assert_inlist(<<"alice@localhost/res1">>, Sessions1),
+        % kick alice
+        {?OK, _} = delete("/sessions/localhost/alice/res1"),
+        {?OK, Sessions2} = gett("/sessions/localhost"),
+        [] = Sessions2
+    end).
 
-
-messages(Config) ->
+messages_are_sent_and_received(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {M1, M2} = send_messages(Alice, Bob),
+        Res = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_chat_message, [maps:get(msg, M1)], Res),
+        Res1 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_chat_message, [maps:get(msg, M2)], Res1)
+    end).
 
+send_messages(Alice, Bob) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         M = #{caller => BobJID, to => AliceJID, msg => <<"hello from Bob">>},
-        {?OK, _} = post(<<"/message">>, M),
-        Res = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_chat_message, [<<"hello from Bob">>], Res),
+        {?OK, _} = post(<<"/messages">>, M),
         M1 = #{caller => AliceJID, to => BobJID, msg => <<"hello from Alice">>},
-        {?OK, _} = post(<<"/message">>, M1),
-        Res1 = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_chat_message, [<<"hello from Alice">>], Res1),
-        GetPath = lists:flatten(["/message/caller/",binary_to_list(AliceJID),
-                                 "/other/",binary_to_list(BobJID),"/limit/10"]),
+        {?OK, _} = post(<<"/messages">>, M1),
+        {M, M1}.
+
+messages_are_archived(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {M1, _M2} = send_messages(Alice, Bob),
+        AliceJID = maps:get(to, M1),
+        BobJID = maps:get(caller, M1),
+        GetPath = lists:flatten(["/messages/",binary_to_list(AliceJID),
+                                 "/",binary_to_list(BobJID),"/10"]),
         mam_helper:maybe_wait_for_yz(Config),
         {?OK, Msgs} = gett(GetPath),
         ?PRT("Msgs", Msgs),
@@ -267,26 +259,25 @@ messages(Config) ->
         BobJID = maps:get(sender, Previous)
     end).
 
-
-changepassword(Config) ->
+password_can_be_changed(Config) ->
     % bob logs in with his regular password
     escalus:story(Config, [{bob, 1}], fun(_Bob) ->
             skip
         end),
     % we change password
-    {?OK, _} = putt("/user/caller/bob@localhost", #{newpass => <<"niemakrolika">>}),
+    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"niemakrolika">>}),
     % he logs with his alternative password
     escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
             ignore
         end),
     % we can't log with regular passwd anymore
     try escalus:story(Config, [{bob, 1}], fun(Bob) -> ?PRT("Bob", Bob) end) of
-        _ -> ct:fail("this shouldn't have worked")
+        _ -> ct:fail("bob connected with old password")
     catch error:{badmatch, _} ->
         ok
     end,
     % we change it back
-    {?OK, _} = putt("/user/caller/bob@localhost", #{newpass => <<"makrolika">>}),
+    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"makrolika">>}),
     % now he logs again with the regular one
     escalus:story(Config, [{bob, 1}], fun(_Bob) ->
             just_dont_do_anything
@@ -297,3 +288,4 @@ to_list(V) when is_binary(V) ->
     binary_to_list(V);
 to_list(V) when is_list(V) ->
     V.
+	

@@ -147,6 +147,7 @@ fusco_request(Method, Path, Body, HeadersIn, Port) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, false}, [], 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>} | HeadersIn],
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
+    fusco_cp:stop(Client),
     Result.
 
 mapfromlist(L) ->

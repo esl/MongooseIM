@@ -87,7 +87,8 @@ reload_dispatches(_Command) ->
 
 -spec create_admin_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_admin_url_path(Command) ->
-    ["/", category_to_resource(mongoose_commands:category(Command)), maybe_add_bindings(Command, admin)].
+    ["/", category_to_resource(mongoose_commands:category(Command)),
+          maybe_add_bindings(Command, admin), maybe_add_subcategory(Command)].
 
 -spec create_user_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_user_url_path(Command) ->
@@ -275,7 +276,7 @@ get_allowed_methods(Entity) ->
     Commands = mongoose_commands:list(Entity),
     [action_to_method(mongoose_commands:action(Command)) || Command <- Commands].
 
--spec maybe_add_bindings(mongoose_commands:t(), admin|user) -> string().
+-spec maybe_add_bindings(mongoose_commands:t(), admin|user) -> iolist().
 maybe_add_bindings(Command, Entity) ->
     Action = mongoose_commands:action(Command),
     Args = mongoose_commands:args(Command),
@@ -289,6 +290,15 @@ maybe_add_bindings(Command, Entity) ->
             add_bindings(Args, Entity)
     end.
 
+maybe_add_subcategory(Command) ->
+    SubCategory = mongoose_commands:subcategory(Command),
+    case SubCategory of
+        undefined ->
+            [];
+        _ ->
+            ["/", SubCategory]
+    end.
+
 -spec both_bind_and_body(mongoose_commands:command_action()) -> boolean().
 both_bind_and_body(update) ->
     true;
@@ -300,13 +310,13 @@ both_bind_and_body(delete) ->
     false.
 
 add_bindings(Args, Entity) ->
-    lists:flatten([add_bind(A, Entity) || A <- Args]).
+    [add_bind(A, Entity) || A <- Args].
 
 %% skip "caller" arg for frontend command
 add_bind({caller, _}, user) ->
     "";
 add_bind({ArgName, _}, _Entity) ->
-    ["/", atom_to_list(ArgName), "/:", atom_to_list(ArgName)];
+    lists:flatten(["/:", atom_to_list(ArgName)]);
 add_bind(Other, _) ->
     throw({error, bad_arg_spec, Other}).
 

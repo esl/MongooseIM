@@ -1,5 +1,11 @@
 %% backend state for HTTP API
--record(http_api_state, {allowed_methods, bindings, parameters, command_category, entity = admin, opts = []}).
+-record(http_api_state, {allowed_methods,
+                         bindings,
+                         parameters,
+                         command_category,
+                         command_subcategory,
+                         entity = admin,
+                         opts = []}).
 %% Error messages
 -define(ARGS_LEN_ERROR, <<"Bad parameters length.">>).
 -define(ARGS_SPEC_ERROR, <<"Bad name of the parameter.">>).
