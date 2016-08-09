@@ -80,8 +80,9 @@ create_room(Config) ->
         Domain = <<"localhost">>,
         Path = <<"/muc-lights", $/, Domain/binary>>,
         Name = <<"wonderland">>,
-        Body = #{name => Name,
-                 creator => escalus_utils:get_jid(Alice)
+        Body = #{ name => Name,
+                  creator => escalus_utils:get_jid(Alice),
+                  subject => <<"Lewis Carol">>
                 },
         {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
         [Item] = get_disco_rooms(Alice),

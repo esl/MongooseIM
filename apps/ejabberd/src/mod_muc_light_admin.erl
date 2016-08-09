@@ -22,7 +22,7 @@
 -behaviour(gen_mod).
 -export([start/2, stop/1]).
 
--export([create_room/3]).
+-export([create_unique_room/4]).
 
 -include("mod_muc_light.hrl").
 -include("ejabberd.hrl").
@@ -51,13 +51,14 @@ commands() ->
       {category, 'muc-lights'},
       {desc, "Create a MUC room."},
       {module, ?MODULE},
-      {function, create_room},
+      {function, create_unique_room},
       {action, create},
       {identifiers, [domain]},
       {args,
        [{domain, binary}, %% The `domain' under which MUC Light is configured.
         {name, binary},
-        {creator, binary}
+        {creator, binary},
+        {subject, binary}
        ]},
       {result, {name, binary}}]
     ].
@@ -67,25 +68,23 @@ commands() ->
 %% Internal procedures
 %%--------------------------------------------------------------------
 
-create_room(Domain, RoomName, Creator) ->
+create_unique_room(Domain, RoomName, Creator, Subject) ->
     C = jid:to_lus(jid:from_binary(Creator)),
-    RoomJID = jid:from_binary(room_jid(RoomName, Domain)),
-    try mod_muc_light:create_room_just_with_validation(C, RoomJID, #create{}) of
-        {RoomName, _} ->
-                 RoomName;
-        {error, Reason} = E ->
+    MUCLightDomain = gen_mod:get_module_opt_host(Domain, mod_muc,
+                                            <<"muclight.@HOST@">>),
+    MUCService = jid:make(<<>>, MUCLightDomain, <<>>),
+    Config = make_room_config(RoomName, Subject),
+    case mod_muc_light:try_to_create_room(C, MUCService, Config) of
+        {ok, RoomUS, _} ->
+            jid:to_binary(RoomUS);
+        {error, _Reason} = E ->
             E
-    catch
-        Class:Reason ->
-             {error, {Class, Reason}}
     end.
-
 
 %%--------------------------------------------------------------------
 %% Ancillary
 %%--------------------------------------------------------------------
 
-room_jid(Name, Domain) ->
-    MUCLightDomain = gen_mod:get_module_opt_host(Domain, mod_muc,
-                                            <<"muclight.@HOST@">>),
-        <<Name/binary, $@, MUCLightDomain/binary>>.
+make_room_config(Name, Subject) ->
+    #create{ raw_config = [ {<<"roomname">>, Name},
+                            {<<"subject">>, Subject} ] }.
