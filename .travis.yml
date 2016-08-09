@@ -63,24 +63,9 @@ matrix:
         - otp_release: 17.5
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
 
-notifications:
-    webhooks:
-        # trigger Buildtime Trend Service to parse Travis CI log
-        - https://buildtimetrend.herokuapp.com/travis
-
 cache:
         directories:
                 - dialyzer
 
 before_cache:
         - rm -f dialyzer/apps.*
-
-deploy:
-  provider: releases
-  api-key: $GITHUB_TOKEN
-  skip_cleanup: true
-  file: mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
-  on:
-    tags: true
-    condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
-
