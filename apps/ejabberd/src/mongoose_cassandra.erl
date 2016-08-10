@@ -12,12 +12,7 @@
 -callback prepared_queries() -> list({term(), string()}).
 
 start() ->
-    case get_pools() of
-        undefined ->
-            ignore;
-        Pools ->
-            [start_pool(Pool) || Pool <- Pools]
-    end.
+    [start_pool(Pool) || Pool <- get_pools()].
 
 start_pool({PoolName, PoolConfig}) ->
     PoolConfig1 = deduplicate_proplist(expand_config(PoolConfig)),
