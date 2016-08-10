@@ -41,7 +41,8 @@ groups() ->
 
 success_response() ->
 
-    [create_room].
+    [create_room,
+     send_message_to_room].
 
 
 %%--------------------------------------------------------------------
@@ -59,10 +60,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice, bob])).
+    escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])).
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -90,6 +91,29 @@ create_room(Config) ->
         is_room(<<Name/binary, $@, MUCLightDomain/binary>>, Item)
     end).
 
+send_message_to_room(Config) ->
+    Domain = <<"localhost">>,
+    Name = <<"wonderland">>,
+    Path = <<"/muc-lights",$/,Domain/binary,$/,
+             Name/binary,$/,"messages">>,
+    Text = <<"Hello everyone!">>,
+    escalus:fresh_story(Config,
+      [{alice, 1}, {bob, 1}, {kate, 1}],
+      fun(Alice, Bob, Kate) ->
+        %% XMPP: Alice creates a room.
+        escalus:send(Alice, muc_light_SUITE:stanza_create_room(undefined,
+            [{<<"roomname">>, Name}], [{Bob, member}, {Kate, member}])),
+        %% XMPP: Get Bob and Kate recieve their affiliation information.
+        [ escalus:wait_for_stanza(U) || U <- [Bob, Kate] ],
+        %% HTTP: Alice sends a message to the MUC room.
+        Body = #{ sender => escalus_utils:get_jid(Alice),
+                  message => Text
+                },
+        {{<<"200">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        %% XMPP: Both Bob and Kate see the message.
+        [ see_message_from_user(U, Alice, Text) || U <- [Bob, Kate] ]
+    end).
+
 
 %%--------------------------------------------------------------------
 %% Ancillary (borrowed and adapted from the MUC and MUC Light suites)
@@ -106,6 +130,14 @@ get_disco_rooms(User) ->
 
 is_room(JID, Item) ->
     JID == exml_query:attr(Item, <<"jid">>).
+
+see_message_from_user(User, Sender, Contents) ->
+    Stanza = escalus:wait_for_stanza(User),
+    #xmlel{ name = <<"message">> } = Stanza,
+    SenderJID = escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Sender)),
+    From = exml_query:path(Stanza, [{attr, <<"from">>}]),
+    {_, _} = binary:match(From, SenderJID),
+    Contents = exml_query:path(Stanza, [{element, <<"body">>}, cdata]).
 
 
 %%--------------------------------------------------------------------

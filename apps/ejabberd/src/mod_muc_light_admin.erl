@@ -23,6 +23,7 @@
 -export([start/2, stop/1]).
 
 -export([create_unique_room/4]).
+-export([send_message/4]).
 
 -include("mod_muc_light.hrl").
 -include("ejabberd.hrl").
@@ -47,9 +48,9 @@ stop(_) ->
 commands() ->
 
     [
-     [{name, create_muc_room},
+     [{name, create_muc_light_room},
       {category, 'muc-lights'},
-      {desc, "Create a MUC room."},
+      {desc, "Create a MUC Light room."},
       {module, ?MODULE},
       {function, create_unique_room},
       {action, create},
@@ -60,7 +61,23 @@ commands() ->
         {creator, binary},
         {subject, binary}
        ]},
-      {result, {name, binary}}]
+      {result, {name, binary}}],
+
+     [{name, send_message_to_muc_light_room},
+      {category, 'muc-lights'},
+      {subcategory, <<"messages">>},
+      {desc, "Send a message to a MUC Light room."},
+      {module, ?MODULE},
+      {function, send_message},
+      {action, create},
+      {identifiers, [domain, name]},
+      {args,
+       [{domain, binary},
+        {name, binary},
+        {sender, binary},
+        {message, binary}
+       ]},
+      {result, ok}]
     ].
 
 
@@ -81,6 +98,24 @@ create_unique_room(Domain, RoomName, Creator, Subject) ->
             E
     end.
 
+send_message(Domain, RoomName, Sender, Message) ->
+    Body = #xmlel{ name = <<"body">>,
+                   children = [ #xmlcdata{ content = Message } ] },
+    Stanza = #xmlel{ name = <<"message">>,
+                     attrs = [{<<"type">>, <<"groupchat">>}],
+                     children = [ Body ] },
+    S = jid:from_binary(Sender),
+    case get_user_rooms(S) of
+        [] ->
+            {error, given_user_does_not_occupy_any_room};
+        RoomJIDs when is_list(RoomJIDs) ->
+            {RU, RS} = lists:foldl(find_room_with_name(RoomName),
+                                   none, RoomJIDs),
+            true = is_subdomain(RS, Domain),
+            R = jid:make(RU, RS, <<>>),
+            ejabberd_router:route(S, R, Stanza)
+    end.
+
 %%--------------------------------------------------------------------
 %% Ancillary
 %%--------------------------------------------------------------------
@@ -88,3 +123,33 @@ create_unique_room(Domain, RoomName, Creator, Subject) ->
 make_room_config(Name, Subject) ->
     #create{ raw_config = [ {<<"roomname">>, Name},
                             {<<"subject">>, Subject} ] }.
+
+get_user_rooms(UserJID) ->
+    mod_muc_light_db_mnesia:get_user_rooms(jid:to_lus(UserJID)).
+
+name_of_room_with_jid(RoomJID) ->
+    case mod_muc_light_db_mnesia:get_info(RoomJID) of
+        {ok, Cfg, _, _} ->
+            {roomname, N} = lists:keyfind(roomname, 1, Cfg),
+            N
+    end.
+
+find_room_with_name(RoomName) ->
+    fun (RoomJID, none) ->
+            case name_of_room_with_jid(RoomJID) of
+                RoomName ->
+                    RoomJID;
+                _ ->
+                    none
+            end;
+        (_, Acc) when Acc =/= none ->
+            Acc
+    end.
+
+is_subdomain(Child, Parent) ->
+    %% Example input Child = <<"muclight.localhost">> and Parent =
+    %% <<"localhost">>
+    case binary:match(Child, Parent) of
+        nomatch -> false;
+        {_, _} -> true
+    end.
