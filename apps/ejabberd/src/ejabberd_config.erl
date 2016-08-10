@@ -604,8 +604,10 @@ process_host_term(Term, Host, State) ->
             add_option({odbc_server, Host}, ODBC_server, State);
         {riak_server, RiakConfig} ->
             add_option(riak_server, RiakConfig, State);
-        {cassandra_servers, CassandraConfig} ->
-            add_option(cassandra_servers, CassandraConfig, State);
+        {cassandra_server, CassandraConfig} ->
+            add_option({cassandra_server, default, global}, CassandraConfig, State);
+        {cassandra_server, Pool, CassandraConfig} ->
+            add_option({cassandra_server, Pool, global}, CassandraConfig, State);
         {Opt, Val} ->
             add_option({Opt, Host}, Val, State)
     end.
@@ -1003,7 +1005,8 @@ handle_config_change({_Key, _OldValue, _NewValue}) ->
 %% ----------------------------------------------------------------
 handle_local_config_add(#local_config{key = riak_server}) ->
     mongoose_riak:start();
-handle_local_config_add(#local_config{key = cassandra_servers}) ->
+handle_local_config_add(#local_config{key = {cassandra_server,_,_}}) ->
+    mongoose_cassandra:stop(),
     mongoose_cassandra:start();
 handle_local_config_add(#local_config{key=Key} = El) ->
     case Key of
@@ -1015,7 +1018,8 @@ handle_local_config_add(#local_config{key=Key} = El) ->
 
 handle_local_config_del(#local_config{key = riak_server}) ->
     mongoose_riak:stop();
-handle_local_config_del(#local_config{key = cassandra_servers}) ->
+handle_local_config_del(#local_config{key = {cassandra_server,_,_}}) ->
+    mongoose_cassandra:stop(),
     mongoose_cassandra:start();
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
@@ -1034,7 +1038,7 @@ handle_local_config_change({riak_server, _Old, _New}) ->
     mongoose_riak:stop(),
     mongoose_riak:start(),
     ok;
-handle_local_config_change({cassandra_servers, _Old, _New}) ->
+handle_local_config_change({{cassandra_server,_,_}, _Old, _New}) ->
     mongoose_cassandra:stop(),
     mongoose_cassandra:start(),
     ok;
