@@ -3,7 +3,7 @@
 ### Default cassandra configuration
 
 ```erlang
-{cassandra_servers, [{default, []}]}.
+{cassandra_server, []}.
 ```
 
 MongooseIM will create one pool with one worker to connect to localhost:9042.
@@ -11,10 +11,15 @@ MongooseIM will create one pool with one worker to connect to localhost:9042.
 
 ### Options
 
-* servers - a list of servers to connect. Each server is `{Address, Port, NumberOfWorkers}` where
-    * `Address` is DNS-name or IP address;
-    * `Port` is an integer TCP port;
-    * `NumberOfWorkers` is number of connections to this server.
+* address - host name. It's a string of IP addresses or DNS names separated
+  with pipe sign. Examples:
+  * "localhost"
+  * "127.0.0.1"
+  * "127.0.0.1|127.0.0.2"
+  * "127.0.0.1:9042|127.0.0.1:9043"
+  * "cassandra.example.com"
+* port - default port;
+* pool_size - number of workers;
 * keyspace - keyspace to use;
 * connect_timeout - connection timeout, 5 seconds is good enough;
 * credentials - name and password. Format `[{"username", "mongooseim"}, {"password", "secret"}]`.
@@ -29,25 +34,12 @@ Configuration example below includes:
 * Custom credentials.
 
 ```erlang
-{cassandra_servers,
- [
-  {default,
-   [
-    {servers,
-     [
-      {"10.0.0.1", 9042, 5},
-      {"10.0.0.2", 9042, 5},
-      {"10.0.0.3", 9042, 5},
-      {"10.0.0.4", 9042, 5}
-     ]
-    },
+{cassandra_server, [
+    {address, "10.0.0.1|10.0.0.2|10.0.0.3|10.0.0.4"},
     {keyspace, "big_mongoose"},
     {connect_timeout, 5000}, % five seconds
     {credentials, [{"username", "mongooseim"}, {"password", "secret"}]}
-   ]
-  }
- ]
-}.
+   ]}.
 ```
 
 ### Alternative configuration example 2
@@ -59,7 +51,8 @@ Two pools: for mam and for mam_muc
 * Module mod_mam_muc_cassandra_arch uses pool "mam_muc" and keyspace "mam_muc_space"
 
 ```erlang
-{cassandra_servers, [{mam, [{keyspace, "mam_space"}]}, {mam_muc, [{keyspace, "mam_muc_space"}]}]}.
+{cassandra_server, mam, [{keyspace, "mam_space"}]}.
+{cassandra_server, mam_muc, [{keyspace, "mam_muc_space"}]}.
 ```
 
 Set pool_name for modules:
