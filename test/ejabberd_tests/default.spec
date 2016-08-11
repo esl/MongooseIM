@@ -21,6 +21,7 @@
 {suites, "tests", connect_SUITE}.
 {suites, "tests", component_SUITE}.
 {suites, "tests", ejabberdctl_SUITE}.
+{suites, "tests", auth_jwt_SUITE}.
 {suites, "tests", last_SUITE}.
 {suites, "tests", login_SUITE}.
 {suites, "tests", mam_SUITE}.
