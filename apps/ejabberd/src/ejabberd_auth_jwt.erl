@@ -75,11 +75,15 @@ authorize(Creds) ->
                      LServer :: ejabberd:lserver(),
                      Password :: binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
-    Key = list_to_binary(os:getenv("JWT_KEY")),
-    Options = maps:from_list(
-                [{key, Key},
-                 {alg, <<"HS256">>}
-                ]),
+    Key = case get_auth_opt(LServer, jwt_key) of
+              Key1 when is_binary(Key1) ->
+                  Key1;
+              Key1 when is_list(Key1) ->
+                  list_to_binary(Key1);
+              {env, Var} ->
+                  list_to_binary(os:getenv(Var))
+          end,
+    Options = #{key => Key, alg => <<"HS256">>},
     case jwerl:verify(Password, Options) of
         {ok, TokenData} ->
             %% Example: bookingNumber => <<"10857838">>
