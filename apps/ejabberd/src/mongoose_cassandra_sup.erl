@@ -50,7 +50,7 @@ supervisor_spec(PoolName, Config) ->
 worker_spec(PoolName, Addr, Port, WorkerNumber, ClientOptions) ->
     {{PoolName, Addr, Port, WorkerNumber},
      {mongoose_cassandra_worker, start_link, [PoolName, Addr, Port, ClientOptions]},
-     {permanent, 10}, %% Delay is 10 seconds
+     permanent,
      infinity,
      worker,
      [mongoose_cassandra_worker]}.
