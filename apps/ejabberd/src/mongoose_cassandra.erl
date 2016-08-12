@@ -9,6 +9,8 @@
 -export([now_timestamp/0]).
 -export([status/0, get_pools/0]).
 
+-include_lib("ejabberd/include/ejabberd.hrl").
+
 -callback prepared_queries() -> list({term(), string()}).
 
 start() ->
@@ -27,12 +29,23 @@ expand_config(PoolConfig) ->
 
 expand_servers(PoolConfig) ->
     Address     = proplists:get_value(address, PoolConfig),
-    DefaultPort = proplists:get_value(port, PoolConfig, 9042),
     Servers     = proplists:get_value(servers, PoolConfig, []),
-    PoolSize    = proplists:get_value(pool_size, PoolConfig),
-    AddressServers = expand_address(Address, DefaultPort, PoolSize),
-    AllServers = AddressServers ++ Servers,
-    [{servers, AllServers} | PoolConfig].
+    expand_servers(Address, Servers, PoolConfig).
+
+expand_servers(undefined, undefined, PoolConfig) ->
+    [{servers, [{"localhost", 9042, 1}]}];
+expand_servers(undefined, Servers, PoolConfig) ->
+    PoolConfig;
+expand_servers(Address, undefined, PoolConfig) ->
+    DefaultPort = proplists:get_value(port, PoolConfig, 9042),
+    PoolSize    = proplists:get_value(pool_size, PoolConfig, 5),
+    Servers = expand_address(Address, DefaultPort, PoolSize),
+    [{servers, Servers} | PoolConfig];
+expand_servers(_Address, _Servers, PoolConfig) ->
+    ?ERROR_MSG("issue=config_error, details=\"Both servers and address options "
+               "can't be specified at the same time\", pool_config=~1000p",
+               [PoolConfig]),
+    erlang:error(config_error).
 
 %% "localhost:9042|otherhost" => [{"localhost", 9042, 50}, {"otherhost", 9042, 50}]
 expand_address(Address, DefaultPort, PoolSize) when is_integer(DefaultPort),

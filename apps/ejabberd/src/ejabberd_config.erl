@@ -1255,7 +1255,9 @@ get_global_config() ->
 is_not_host_specific( Key ) when is_atom(Key) ->
     true;
 is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
-    false.
+    false;
+is_not_host_specific({cassandra_server,_,global}) ->
+    true.
 
 -spec categorize_options([term()]) -> {GlobalConfig, LocalConfig, HostsConfig} when
       GlobalConfig :: list(),
