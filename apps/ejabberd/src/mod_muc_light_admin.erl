@@ -24,6 +24,7 @@
 
 -export([create_unique_room/4]).
 -export([send_message/4]).
+-export([invite_to_room/4]).
 
 -include("mod_muc_light.hrl").
 -include("ejabberd.hrl").
@@ -56,12 +57,30 @@ commands() ->
       {action, create},
       {identifiers, [domain]},
       {args,
-       [{domain, binary}, %% The `domain' under which MUC Light is configured.
+       [
+        %% The parent `domain' under which MUC Light is
+        %% configured.
+        {domain, binary},
         {name, binary},
         {creator, binary},
         {subject, binary}
        ]},
       {result, {name, binary}}],
+
+     [{name, invite_to_room},
+      {category, 'muc-lights'},
+      {desc, "Invite to a MUC Light room."},
+      {module, ?MODULE},
+      {function, invite_to_room},
+      {action, update},
+      {identifiers, [domain, name]},
+      {args,
+       [{domain, binary},
+        {name, binary},
+        {sender, binary},
+        {recipient, binary}
+       ]},
+      {result, ok}],
 
      [{name, send_message_to_muc_light_room},
       {category, 'muc-lights'},
@@ -98,6 +117,12 @@ create_unique_room(Domain, RoomName, Creator, Subject) ->
             E
     end.
 
+invite_to_room(Domain, RoomName, Sender, Recipient) ->
+    R = muc_light_room_name_to_jid(jid:from_binary(Sender), RoomName, Domain),
+    S = jid:from_binary(Sender),
+    Changes = query(?NS_MUC_LIGHT_AFFILIATIONS, [affiliate(Recipient, <<"member">>)]),
+    ejabberd_router:route(S, R, iq(<<"set">>, [Changes])).
+
 send_message(Domain, RoomName, Sender, Message) ->
     Body = #xmlel{ name = <<"body">>,
                    children = [ #xmlcdata{ content = Message } ] },
@@ -124,11 +149,22 @@ make_room_config(Name, Subject) ->
     #create{ raw_config = [ {<<"roomname">>, Name},
                             {<<"subject">>, Subject} ] }.
 
+muc_light_room_name_to_jid(Participant, RoomName, Domain) ->
+    case get_user_rooms(Participant) of
+        [] ->
+            {error, given_user_does_not_occupy_any_room};
+        RoomJIDs when is_list(RoomJIDs) ->
+            {RU, RS} = lists:foldl(find_room_with_name(RoomName),
+                                   none, RoomJIDs),
+            true = is_subdomain(RS, Domain),
+            jid:make(RU, RS, <<>>)
+    end.
+
 get_user_rooms(UserJID) ->
-    mod_muc_light_db_mnesia:get_user_rooms(jid:to_lus(UserJID)).
+    ?BACKEND:get_user_rooms(jid:to_lus(UserJID)).
 
 name_of_room_with_jid(RoomJID) ->
-    case mod_muc_light_db_mnesia:get_info(RoomJID) of
+    case ?BACKEND:get_info(RoomJID) of
         {ok, Cfg, _, _} ->
             {roomname, N} = lists:keyfind(roomname, 1, Cfg),
             N
@@ -153,3 +189,19 @@ is_subdomain(Child, Parent) ->
         nomatch -> false;
         {_, _} -> true
     end.
+
+iq(T, C) when is_binary(T), is_list(C) ->
+    #xmlel{ name = <<"iq">>,
+            attrs = [{<<"type">>, T}],
+            children = C }.
+
+query(NS, C) when is_binary(NS), is_list(C) ->
+    #xmlel{ name = <<"query">>,
+            attrs = [{<<"xmlns">>, NS}],
+            children = C }.
+
+affiliate(JID, Kind) when is_binary(JID), is_binary(Kind) ->
+    #xmlel{ name = <<"user">>,
+            attrs = [{<<"affiliation">>, Kind}],
+            children = [ #xmlcdata{ content = JID } ] }.
+
