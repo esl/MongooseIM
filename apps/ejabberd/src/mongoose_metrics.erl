@@ -16,6 +16,7 @@
 -module(mongoose_metrics).
 
 -include("ejabberd.hrl").
+-include("mongoose_metrics_definitions.hrl").
 
 %% API
 -export([init/0,
@@ -23,9 +24,8 @@
          init_predefined_host_metrics/1,
          init_subscriptions/0,
          create_generic_hook_metric/2,
-         update/2,
-         create/2,
-         ensure_metric/2,
+         update/3,
+         ensure_metric/3,
          start_host_metrics_subscriptions/3,
          start_vm_metrics_subscriptions/2,
          start_global_metrics_subscriptions/2,
@@ -46,6 +46,8 @@
 
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
+-type proper_counter_name() :: [ejabberd:server() | atom(), ...].
+
 %% ---------------------------------------------------------------------
 %% API
 %% ---------------------------------------------------------------------
@@ -56,15 +58,15 @@ init() ->
     lists:foreach(
         fun(Host) ->
             mongoose_metrics:init_predefined_host_metrics(Host)
-        end, ?HOSTS),
+        end, ?MYHOSTS),
     init_subscriptions().
 
 create_global_metrics() ->
     lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
         FunSpecTuple = list_to_tuple(FunSpec ++ [DataPoints]),
         catch exometer:new(Metric, FunSpecTuple)
-    end, get_vm_stats()),
-    lists:foreach(fun({Metric, Spec}) -> create(Metric, Spec) end,
+    end, ?VM_STATS),
+    lists:foreach(fun({Metric, Spec}) -> ensure_metric(undefined, Metric, Spec) end,
                   ?GLOBAL_COUNTERS),
     create_data_metrics().
 
@@ -84,25 +86,29 @@ init_subscriptions() ->
 
 -spec create_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {ok, already_present}.
 create_generic_hook_metric(Host, Hook) ->
-    do_create_generic_hook_metric([Host, filter_hook(Hook)]).
+    FilteredHookName = filter_hook(Hook),
+    do_create_generic_hook_metric([Host, FilteredHookName], [global, FilteredHookName]).
 
--spec update({term(), term()} | list(), term()) -> any().
-update(Name, Change) when is_tuple(Name)->
-    update(tuple_to_list(Name), Change);
-update(Name, Change) ->
-    exometer:update(Name, Change).
+-spec update({term(), term()} | list(), {term(), term()} | list(), term()) -> any().
+update(NamePerHost, NameGlobal, Change) when is_tuple(NamePerHost)->
+    update(tuple_to_list(NamePerHost), NameGlobal, Change);
+update(NamePerHost, NameGlobal, Change) when is_tuple(NameGlobal)->
+    update(NamePerHost, tuple_to_list(NameGlobal), Change);
+update(NamePerHost, NameGlobal, Change) ->
+    exometer:update(name_by_all_metrics_global(NamePerHost, NameGlobal), Change).
 
--spec create(list(), term()) -> ok | {error, term()}.
-create(Metric, Spec) ->
-    ensure_metric(Metric, Spec).
-
-ensure_metric(Metric, Type) when is_tuple(Type) ->
-    ensure_metric(Metric, Type, element(1, Type));
-ensure_metric(Metric, Type) ->
-    ensure_metric(Metric, Type, Type).
+-spec ensure_metric(list() | undefined, list(), term()) -> ok | {error, term()}.
+ensure_metric(MetricPerHost, MetricGlobal, Type) when is_tuple(Type) ->
+    ensure_metric(MetricPerHost, MetricGlobal, Type, element(1, Type));
+ensure_metric(MetricPerHost, MetricGlobal, Type) ->
+    ensure_metric(MetricPerHost, MetricGlobal, Type, Type).
 
 start_host_metrics_subscriptions(Reporter, Host, Interval) ->
-    do_start_metrics_subscriptions(Reporter, Interval, [Host]).
+    Prefix = case all_metrics_are_global() of
+                 true -> [global];
+                 _ -> [Host]
+             end,
+    do_start_metrics_subscriptions(Reporter, Interval, Prefix).
 
 start_vm_metrics_subscriptions(Reporter, Interval) ->
     do_start_vm_metrics_subscriptions(Reporter, Interval).
@@ -137,7 +143,8 @@ get_aggregated_values(Metric) ->
 
 -spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {error, any()}.
 increment_generic_hook_metric(Host, Hook) ->
-    do_increment_generic_hook_metric([Host, filter_hook(Hook)]).
+    FilteredHook = filter_hook(Hook),
+    do_increment_generic_hook_metric([Host, FilteredHook], [global, FilteredHook]).
 
 get_odbc_data_stats() ->
     RegularODBCWorkers = [catch ejabberd_odbc_sup:get_pids(Host) || Host <- ?MYHOSTS],
@@ -165,149 +172,38 @@ remove_all_metrics() ->
                   exometer:find_entries([])).
 
 %% ---------------------------------------------------------------------
-%% Metrics definitions
-%% ---------------------------------------------------------------------
-
--define(GENERAL_COUNTERS, [
-    sessionSuccessfulLogins,
-    sessionAuthAnonymous,
-    sessionAuthFails,
-    sessionLogouts,
-    xmppMessageSent,
-    xmppMessageReceived,
-    xmppMessageBounced,
-    xmppPresenceSent,
-    xmppPresenceReceived,
-    xmppIqSent,
-    xmppIqReceived,
-    xmppStanzaSent,
-    xmppStanzaReceived,
-    xmppStanzaDropped,
-    xmppStanzaCount,
-    xmppErrorTotal,
-    xmppErrorIq,
-    xmppErrorMessage,
-    xmppErrorPresence,
-    modRosterSets,
-    modRosterGets,
-    modPresenceSubscriptions,
-    modPresenceUnsubscriptions,
-    modRosterPush,
-    modRegisterCount,
-    modUnregisterCount,
-    modPrivacySets,
-    modPrivacySetsActive,
-    modPrivacySetsDefault,
-    modPrivacyPush,
-    modPrivacyGets,
-    modPrivacyStanzaDenied,
-    modPrivacyStanzaBlocked,
-    modPrivacyStanzaAll,
-    modMamPrefsSets,
-    modMamPrefsGets,
-    modMamArchiveRemoved,
-    modMamLookups,
-    modMamForwarded,
-    modMamArchived,
-    modMamFlushed,
-    modMamDropped,
-    modMamDropped2,
-    modMamDroppedIQ,
-    modMamSinglePurges,
-    modMamMultiplePurges,
-    modMucMamPrefsSets,
-    modMucMamPrefsGets,
-    modMucMamArchiveRemoved,
-    modMucMamLookups,
-    modMucMamForwarded,
-    modMucMamArchived,
-    modMucMamSinglePurges,
-    modMucMamMultiplePurges,
-    modCSIInactive,
-    modCSIActive
-]).
-
--define(TOTAL_COUNTERS, [
-    sessionCount
-]).
-
--define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}],[value]}).
-
--define(GLOBAL_COUNTERS,
-        [{[global, totalSessionCount],
-          {function, ejabberd_sm, get_total_sessions_number, [],
-           eval, ?EX_EVAL_SINGLE_VALUE}},
-         {[global, uniqueSessionCount],
-          {function, ejabberd_sm, get_unique_sessions_number, [],
-           eval, ?EX_EVAL_SINGLE_VALUE}},
-         {[global, nodeSessionCount],
-          {function, ejabberd_sm, get_node_sessions_number, [],
-           eval, ?EX_EVAL_SINGLE_VALUE}},
-         {[global, nodeUpTime],
-          {function, mongoose_metrics, get_up_time, [],
-           tagged, [value]}}
-        ]
-).
-
--define(GLOBAL_HISTOGRAMS, [[data, xmpp, received, encrypted_size],
-                            [data, xmpp, received, compressed_size],
-                            [data, xmpp, received, xml_stanza_size],
-                            [data, xmpp, sent, encrypted_size],
-                            [data, xmpp, sent, compressed_size],
-                            [data, xmpp, sent, xml_stanza_size]]).
-
--define(DATA_FUN_METRICS,
-        [{[data, odbc, regular],
-          {function, mongoose_metrics, get_odbc_data_stats, [], proplist, [workers | ?INET_STATS]}},
-         {[data, odbc, mam_async],
-          {function, mongoose_metrics, get_odbc_mam_async_stats, [], proplist, [workers | ?INET_STATS]}},
-         {[data, dist],
-          {function, mongoose_metrics, get_dist_data_stats, [], proplist, [connections | ?INET_STATS]}}]).
-
-
--define(INET_STATS, [recv_oct,
-                     recv_cnt,
-                     recv_max,
-                     send_oct,
-                     send_max,
-                     send_cnt,
-                     send_pend
-                    ]).
-
--define(EMPTY_INET_STATS, [{recv_oct,0},
-                           {recv_cnt,0},
-                           {recv_max,0},
-                           {send_oct,0},
-                           {send_max,0},
-                           {send_cnt,0},
-                           {send_pend,0}
-                          ]).
-
-get_vm_stats() ->
-    [{[erlang, system_info], [function, erlang, system_info, ['$dp'], value],
-        [port_count, port_limit, process_count, process_limit, ets_limit]},
-     {[erlang, memory], [function, erlang, memory, ['$dp'], value],
-      [total, processes_used, atom_used, binary, ets, system]}].
-
-%% ---------------------------------------------------------------------
 %% Internal functions
 %% ---------------------------------------------------------------------
+
+-spec all_metrics_are_global() -> boolean() | undefined.
+all_metrics_are_global() ->
+    ejabberd_config:get_local_option(all_metrics_are_global).
+
+-spec name_by_all_metrics_global(NamePerHost :: list() | undefined, NameGlobal :: list()) -> list().
+name_by_all_metrics_global(undefined, NameGlobal) ->
+    NameGlobal;
+name_by_all_metrics_global(NamePerHost, NameGlobal) ->
+    case all_metrics_are_global() of
+        true -> NameGlobal;
+        _ -> NamePerHost
+    end.
 
 get_report_interval() ->
     application:get_env(exometer, mongooseim_report_interval,
                         ?DEFAULT_REPORT_INTERVAL).
 
--spec do_create_generic_hook_metric(list()) -> ok | {ok, already_present}.
-do_create_generic_hook_metric([_, skip]) ->
+-spec do_create_generic_hook_metric(PerHost :: list() | undefined, Global :: list()) ->
+    ok | {ok, already_present}.
+do_create_generic_hook_metric([_, skip], _) ->
     ok;
-do_create_generic_hook_metric(MetricName) ->
-    ensure_metric(MetricName, spiral).
+do_create_generic_hook_metric(PerHostMetricName, GlobalMetricName) ->
+    ensure_metric(PerHostMetricName, GlobalMetricName, spiral).
 
--spec do_increment_generic_hook_metric(list()) -> ok | {error, any()}.
-do_increment_generic_hook_metric([_, skip]) ->
+-spec do_increment_generic_hook_metric(PerHost :: list(), Global :: list()) -> ok | {error, any()}.
+do_increment_generic_hook_metric([_, skip], _) ->
     ok;
-do_increment_generic_hook_metric(MetricName) ->
-    update(MetricName, 1).
+do_increment_generic_hook_metric(PerHostMetricName, GlobalMetricName) ->
+    update(PerHostMetricName, GlobalMetricName, 1).
 
 get_odbc_stats(ODBCWorkers) ->
     ODBCConnections = [catch ejabberd_odbc:get_db_info(Pid) || Pid <- ODBCWorkers],
@@ -392,19 +288,20 @@ filter_hook(mam_muc_purge_multiple_messages) -> skip;
 
 filter_hook(Hook) -> Hook.
 
-
-
 -spec create_metrics(ejabberd:server()) -> 'ok'.
 create_metrics(Host) ->
-    lists:foreach(fun(Name) -> ensure_metric(Name, spiral) end,
+    lists:foreach(fun({PerHostName, GlobalName}) ->
+                          ensure_metric(PerHostName, GlobalName, spiral) end,
                   get_general_counters(Host)),
 
-    lists:foreach(fun(Name) -> ensure_metric(Name, counter) end,
+    lists:foreach(fun({PerHostName, GlobalName}) ->
+                          ensure_metric(PerHostName, GlobalName, counter) end,
                   get_total_counters(Host)).
 
-ensure_metric(Metric, Type, ShortType) when is_list(Metric) ->
+ensure_metric(MetricPerHost, MetricGlobal, Type, ShortType) when is_list(MetricGlobal) ->
     %% the split into ShortType and Type is needed because function metrics are
     %% defined as tuples (that is Type), while exometer:info returns only 'function'
+    Metric = name_by_all_metrics_global(MetricPerHost, MetricGlobal),
     case exometer:info(Metric, type) of
         ShortType -> {ok, already_present};
         undefined -> exometer:new(Metric, Type)
@@ -416,11 +313,13 @@ metrics_hooks(Op, Host) ->
         apply(ejabberd_hooks, Op, Hook)
     end, mongoose_metrics_hooks:get_hooks(Host)).
 
--spec get_general_counters(ejabberd:server()) -> [[ejabberd:server() | atom(), ...]].
+-spec get_general_counters(ejabberd:server()) ->
+    [{PerHost :: proper_counter_name(), Global :: proper_counter_name()}].
 get_general_counters(Host) ->
     get_counters(Host, ?GENERAL_COUNTERS).
 
--spec get_total_counters(ejabberd:server()) -> [[ejabberd:server() | atom(), ...]].
+-spec get_total_counters(ejabberd:server()) ->
+    [{PerHost :: proper_counter_name(), Global :: proper_counter_name()}].
 get_total_counters(Host) ->
     get_counters(Host, ?TOTAL_COUNTERS).
 
@@ -430,12 +329,14 @@ create_data_metrics() ->
     lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
         ?DATA_FUN_METRICS).
 
+-spec get_counters(Host :: ejabberd:lserver(), Counters :: [atom()]) ->
+    [{PerHost :: proper_counter_name(), Global :: proper_counter_name()}].
 get_counters(Host, Counters) ->
-    [[Host, Counter] || Counter <- Counters].
+    [{[Host, Counter], [global, Counter]} || Counter <- Counters].
 
 do_start_vm_metrics_subscriptions(Reporter, Interval) ->
     [exometer_report:subscribe(Reporter, Metric, DataPoints, Interval)
-     || {Metric, _, DataPoints} <- get_vm_stats()].
+     || {Metric, _, DataPoints} <- ?VM_STATS].
 
 do_start_global_metrics_subscriptions(Reporter, Interval) ->
     [exometer_report:subscribe(Reporter, Metric, default, Interval)
@@ -456,7 +357,12 @@ subscribe_to_all(Reporter, Interval) ->
     start_global_metrics_subscriptions(Reporter, Interval),
     start_backend_metrics_subscriptions(Reporter, Interval),
     start_data_metrics_subscriptions(Reporter, Interval),
+    SubscriptionHosts = case all_metrics_are_global() of
+                            true -> [global];
+                            _ -> ?MYHOSTS
+                        end,
     lists:foreach(
       fun(Host) ->
               start_host_metrics_subscriptions(Reporter, Host, Interval)
-      end, ?MYHOSTS).
+      end, SubscriptionHosts).
+

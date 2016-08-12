@@ -18,6 +18,10 @@
 -define(DEFAULT_POOL_NAME, http_pool).
 -define(DEFAULT_PATH, "").
 
+-define(SENT_METRIC(Host), [Host, mod_http_notifications, sent]).
+-define(FAILED_METRIC(Host), [Host, mod_http_notifications, failed]).
+-define(RESPONSE_METRIC(Host), [Host, mod_http_notifications, response_time]).
+
 start(Host, _Opts) ->
     ensure_metrics(Host),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
@@ -77,16 +81,16 @@ make_req(Host, Sender, Receiver, Message) ->
     ok.
 
 ensure_metrics(Host) ->
-    mongoose_metrics:ensure_metric([Host, mod_http_notifications, sent], spiral),
-    mongoose_metrics:ensure_metric([Host, mod_http_notifications, failed], spiral),
-    mongoose_metrics:ensure_metric([Host, mod_http_notifications, response_time], histogram),
+    mongoose_metrics:ensure_metric(?SENT_METRIC(Host), ?SENT_METRIC(global), spiral),
+    mongoose_metrics:ensure_metric(?FAILED_METRIC(Host), ?FAILED_METRIC(global), spiral),
+    mongoose_metrics:ensure_metric(?RESPONSE_METRIC(Host), ?RESPONSE_METRIC(global), histogram),
     ok.
 record_result(Host, ok, Elapsed) ->
-    mongoose_metrics:update([Host, mod_http_notifications, sent], 1),
-    mongoose_metrics:update([Host, mod_http_notifications, response_time], Elapsed),
+    mongoose_metrics:update(?SENT_METRIC(Host), ?SENT_METRIC(global), 1),
+    mongoose_metrics:update(?RESPONSE_METRIC(Host), ?RESPONSE_METRIC(global), Elapsed),
     ok;
 record_result(Host, {error, Reason}, _) ->
-    mongoose_metrics:update([Host, mod_http_notifications, failed], 1),
+    mongoose_metrics:update(?FAILED_METRIC(Host), ?FAILED_METRIC(global), 1),
     ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
     ok.
 

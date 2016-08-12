@@ -574,6 +574,8 @@ process_term(Term, State) ->
             add_option(sasl_mechanisms, Mechanisms, State);
         {http_connections, HttpConnections} ->
             add_option(http_connections, HttpConnections, State);
+        {all_metrics_are_global, Value} ->
+            add_option(all_metrics_are_global, Value, State);
         {_Opt, _Val} ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)

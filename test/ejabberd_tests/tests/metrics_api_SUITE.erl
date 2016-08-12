@@ -244,9 +244,13 @@ find(CounterName, CounterList) ->
         {CounterName, Val} -> Val end.
 
 fetch_counter_value(Counter, Config) ->
-    Params = [{host, ct:get_config(ejabberd_domain)},
-              {metric, atom_to_list(Counter)}],
-    {_, _, _, Vars, _} = katt_helper:run(metric, Config, Params),
+    {Blueprint, ParamsTail}
+    = case metrics_helper:all_metrics_are_global() of
+               true -> {global, []};
+               _ -> {metric, [{host, ct:get_config(ejabberd_domain)}]}
+           end,
+    Params = [{metric, atom_to_list(Counter)} | ParamsTail],
+    {_, _, _, Vars, _} = katt_helper:run(Blueprint, Config, Params),
     HostValue = proplists:get_value("value_host", Vars),
     HostValueList = proplists:get_value("value_host_list", Vars),
     TotalValue = proplists:get_value("value_total", Vars),

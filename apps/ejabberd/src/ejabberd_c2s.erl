@@ -867,13 +867,13 @@ session_established({xmlstreamelement,
                       session_established, StateData);
 session_established({xmlstreamelement,
                      #xmlel{name = <<"inactive">>} = El}, State) ->
-    mongoose_metrics:update([State#state.server, modCSIInactive], 1),
+    mongoose_metrics:update([State#state.server, modCSIInactive], [global, modCSIInactive], 1),
 
     maybe_inactivate_session(xml:get_tag_attr_s(<<"xmlns">>, El), State);
 
 session_established({xmlstreamelement,
                      #xmlel{name = <<"active">>} = El}, State) ->
-    mongoose_metrics:update([State#state.server, modCSIActive], 1),
+    mongoose_metrics:update([State#state.server, modCSIActive], [global, modCSIActive], 1),
 
     maybe_activate_session(xml:get_tag_attr_s(<<"xmlns">>, El), State);
 
@@ -1526,7 +1526,7 @@ change_shaper(StateData, JID) ->
 send_text(StateData, Text) ->
     ?DEBUG("Send XML on stream = ~p", [Text]),
     Size = size(Text),
-    mongoose_metrics:update([data, xmpp, sent, xml_stanza_size], Size),
+    mongoose_metrics:update(undefined, [data, xmpp, sent, xml_stanza_size], Size),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 -spec maybe_send_element_safe(state(), El :: jlib:xmlel()) -> any().

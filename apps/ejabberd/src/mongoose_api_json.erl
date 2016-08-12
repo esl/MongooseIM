@@ -52,6 +52,8 @@ do_serialize(Data) ->
 
 prepare_struct({Key, Value}) ->
     {struct, [{Key, prepare_struct(Value)}]};
+prepare_struct([]) ->
+    [];
 prepare_struct(List) when is_list(List) ->
     case is_proplist(List) of
         true  ->

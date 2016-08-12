@@ -126,7 +126,7 @@ server_ping_pong(Config) ->
 
 server_ping_pang(ConfigIn) ->
     Domain = ct:get_config(ejabberd_domain),
-    Metrics = [{[Domain, user_ping_timeout], 1}],
+    Metrics = [{metrics_helper:make_metric_name(Domain, user_ping_timeout), 1}],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:story(Config, [{alice, 1}],
         fun(Alice) ->

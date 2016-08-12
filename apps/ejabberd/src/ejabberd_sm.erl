@@ -118,7 +118,7 @@
 %%--------------------------------------------------------------------
 -spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
-    mongoose_metrics:ensure_metric(?UNIQUE_COUNT_CACHE, gauge),
+    mongoose_metrics:ensure_metric(undefined, ?UNIQUE_COUNT_CACHE, gauge),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
@@ -338,7 +338,7 @@ get_session_pid(User, Server, Resource) ->
 get_unique_sessions_number() ->
     try
         C = ?SM_BACKEND:unique_count(),
-        mongoose_metrics:update(?UNIQUE_COUNT_CACHE, C),
+        mongoose_metrics:update(undefined, ?UNIQUE_COUNT_CACHE, C),
         C
     catch
         _:_ ->

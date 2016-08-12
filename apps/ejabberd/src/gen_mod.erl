@@ -160,10 +160,10 @@ generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
     FS = atom_to_list(F),
 %%     returned is the following
 %%     {Time, Result} = timer:tc(Backend, F, Args),
-%%     mongoose_metrics:update(?METRIC(Backend, F), Time),
+%%     mongoose_metrics:update(undefined, ?METRIC(Backend, F), Time),
 %%     Result.
     ["    {Time, Result} = timer:tc(",RealBackendModule,", ",FS,", [",Args,"]),\n",
-     "    mongoose_metrics:update(",
+     "    mongoose_metrics:update(undefined, ",
           io_lib:format("~p", [?METRIC(BaseModule, F)]),
           ", Time),\n",
      "    Result.\n"].
