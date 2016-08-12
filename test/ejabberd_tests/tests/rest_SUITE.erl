@@ -51,11 +51,13 @@
 
 all() ->
     [
-        {group, admin}
+     {group, admin},
+     {group, dynamic_module}
     ].
 
 groups() ->
-    [{admin, [], test_cases()}
+    [{admin, [], test_cases()},
+     {dynamic_module, [], [stop_start_command_module]}
     ].
 
 test_cases() ->
@@ -284,8 +286,20 @@ password_can_be_changed(Config) ->
         end),
     ok.
 
+stop_start_command_module(_) ->
+    %% Precondition: module responsible for resource is started. If we
+    %% stop the module responsible for this resource then the same
+    %% test will fail. If we start the module responsible for this
+    %% resource then the same test will succeed. With the precondition
+    %% described above we test both transition from `started' to
+    %% `stopped' and from `stopped' to `started'.
+    {?OK, _} = gett(<<"/commands">>),
+    {atomic, ok} = stop_module(host(), mongoose_admin),
+    {?NOT_FOUND, _} = gett(<<"/commands">>),
+    ok = init_module(host(), mongoose_admin, []),
+    {?OK, _} = gett(<<"/commands">>).
+
 to_list(V) when is_binary(V) ->
     binary_to_list(V);
 to_list(V) when is_list(V) ->
     V.
-	

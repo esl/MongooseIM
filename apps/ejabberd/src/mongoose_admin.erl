@@ -2,7 +2,7 @@
 -author('bartlomiej.gorny@erlang-solutions.com').
 
 -export([start/0, stop/0,
-         start/2, stop/2,
+         start/2, stop/1,
          register/3,
          unregister/2,
          registered_commands/0,
@@ -24,7 +24,7 @@ stop() ->
     mongoose_commands:unregister(commands()).
 
 start(_, _) -> start().
-stop(_, _) -> stop().
+stop(_) -> stop().
 
 %%%
 %%% mongoose commands
