@@ -435,3 +435,40 @@ paths:
       responses:
         200:
           description: Password is changed
+  /muc-lights/{XMPPHost}/{roomName}:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The MUC Light room's **name** (i.e. **not** the room's JID)
+        required: true
+        type: string
+    put:
+      description: Invite one user on behalf of another.
+      consumes:
+        - application/json
+      parameters:
+        -
+          name: invite
+          in: body
+          description: The invite itself
+          required: true
+          schema:
+            title: invite
+            type: object
+            properties:
+              sender:
+                type: string
+                description: The inviter's JID
+              recipient:
+                type: string
+                description: The invitee's JID
+      responses: 
+        200:
+          description: An invite was sent out
