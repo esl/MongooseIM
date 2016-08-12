@@ -33,8 +33,8 @@ reload_dev: quick_compile
 	done
 
 ct: deps quick_compile
-	@(if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
-		else ./rebar ct skip_deps=true; fi) > $(LOG)
+	@(if [ "$(SUITE)" ]; then ./rebar $(OPTS) ct suite=$(SUITE) skip_deps=true;\
+		else ./rebar $(OPTS) ct skip_deps=true; fi) > $(LOG)
 
 # This compiles and runs one test suite. For quick feedback/TDD.
 # Example:
