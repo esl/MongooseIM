@@ -21,7 +21,7 @@ start_pool({PoolName, PoolConfig}) ->
     mongoose_cassandra_sup:start(PoolName, PoolConfig1).
 
 expand_config(PoolConfig) ->
-    expand_servers(PoolConfig)
+    expand_servers(expand_credentials(PoolConfig))
     ++ [{servers, [{"localhost", 9042, 1}]},
         {socket_options, [{connect_timeout, 4000}]},
         {keyspace, "mongooseim"},
@@ -46,6 +46,17 @@ expand_servers(_Address, _Servers, PoolConfig) ->
                "can't be specified at the same time\", pool_config=~1000p",
                [PoolConfig]),
     erlang:error(config_error).
+
+expand_credentials(PoolConfig) ->
+    Username = proplists:get_value(username, PoolConfig, ""),
+    Password = proplists:get_value(password, PoolConfig, ""),
+    case {Username, Password} of
+        {"", ""} ->
+            PoolConfig;
+        _ ->
+            Cred = [{"username", Username}, {"password", Password}],
+            [{credentials, Cred}|PoolConfig]
+    end.
 
 %% "localhost:9042|otherhost" => [{"localhost", 9042, 50}, {"otherhost", 9042, 50}]
 expand_address(Address, DefaultPort, PoolSize) when is_integer(DefaultPort),

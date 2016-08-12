@@ -22,7 +22,8 @@ MongooseIM will create one pool with one worker to connect to localhost:9042.
 * pool_size - number of workers;
 * keyspace - keyspace to use;
 * connect_timeout - connection timeout, 5 seconds is good enough;
-* credentials - name and password. Format `[{"username", "mongooseim"}, {"password", "secret"}]`.
+* username - cassandra username;
+* password - cassandra password.
 
 ### Alternative configuration example 1
 
@@ -38,7 +39,8 @@ Configuration example below includes:
     {address, "10.0.0.1|10.0.0.2|10.0.0.3|10.0.0.4"},
     {keyspace, "big_mongoose"},
     {connect_timeout, 5000}, % five seconds
-    {credentials, [{"username", "mongooseim"}, {"password", "secret"}]}
+    {username, "mongooseim"},
+    {password, "secret"}
    ]}.
 ```
 
