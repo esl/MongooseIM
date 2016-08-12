@@ -42,6 +42,7 @@ groups() ->
 success_response() ->
 
     [create_room,
+     invite_to_room,
      send_message_to_room].
 
 
@@ -91,6 +92,25 @@ create_room(Config) ->
         is_room(<<Name/binary, $@, MUCLightDomain/binary>>, Item)
     end).
 
+invite_to_room(Config) ->
+    Domain = <<"localhost">>,
+    Name = <<"wonderland">>,
+    Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary>>,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+      fun(Alice, Bob, Kate) ->
+        %% XMPP: Alice creates a room.
+        escalus:send(Alice, muc_light_SUITE:stanza_create_room(undefined,
+            [{<<"roomname">>, Name}], [{Kate, member}])),
+        %% HTTP: Invite Bob (change room affiliation) on Alice's behalf.
+        Body = #{ sender => escalus_utils:get_jid(Alice),
+                  recipient => escalus_utils:get_jid(Bob)
+                },
+        {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
+        %% XMPP: Get Bob recieves affiliation information.
+        Stanza = escalus:wait_for_stanza(Bob),
+        member_is_affiliated(Stanza, Bob)
+      end).
+
 send_message_to_room(Config) ->
     Domain = <<"localhost">>,
     Name = <<"wonderland">>,
@@ -139,6 +159,10 @@ see_message_from_user(User, Sender, Contents) ->
     {_, _} = binary:match(From, SenderJID),
     Contents = exml_query:path(Stanza, [{element, <<"body">>}, cdata]).
 
+member_is_affiliated(Stanza, User) ->
+    MemberJID = escalus_utils:jid_to_lower(escalus_utils:get_short_jid(User)),
+    Data = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"user">>}, cdata]),
+    MemberJID == Data.
 
 %%--------------------------------------------------------------------
 %% Constants
