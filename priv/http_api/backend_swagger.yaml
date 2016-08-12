@@ -110,6 +110,52 @@ paths:
           schema:
             title: successMessage
             type: string
+  /sessions/{XMPPHost}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname.
+        required: true
+        type: string
+        format: hostname
+    get:
+      description: Retrieve a list of sessions.
+      responses:
+        200:
+          description: A list of sessions.
+          schema:
+            title: userList
+            type: array
+            items:
+              title: JID
+              type: string
+              format: JID
+  /sessions/{XMPPHost}/{username}/{resource}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname.
+        required: true
+        type: string
+        format: hostname
+      - name: username
+        in: path
+        description: The leading part of a user's JID.
+        required: true
+        type: string
+      - name: resource
+        in: path
+        description: A resource name for the given user.
+        required: true
+        type: string
+    delete:
+      description: Terminate this session (connection).
+      responses:
+        200:
+          description: Session (connection) terminated.
+          schema:
+            title: userList
+            type: string
   /:
     get:
       description: List the resources on this MongooseIM node.
