@@ -14,6 +14,102 @@ basePath: /api
 produces:
   - application/json
 paths:
+  /commands:
+    get:
+      description: List the available commands for administering MongooseIM.
+      responses:
+        200:
+          description: A list of information for all the currently available commands
+          schema:
+            title: commandList
+            type: array
+            items:
+              title: commandDescription
+              type: object
+              properties:
+                name:
+                  type: string
+                category:
+                  type: string
+                action:
+                  type: string
+                desc:
+                  type: string
+  /users/{XMPPHost}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname under which users will be registered. I.e. the later part of their JID
+        required: true
+        type: string
+        format: hostname
+    get:
+      description: Retrieve a list of users registered under the given XMPP hostname.
+      responses:
+        200:
+          description: A list of users registered under the given XMPP hostname.
+          schema:
+            title: userList
+            type: array
+            items:
+              title: JID
+              type: string
+              format: JID
+    post:
+      parameters:
+        - name: Credentials
+          in: body
+          description: Credentials with which to register the user
+          required: true
+          schema:
+            title: Credentials
+            type: object
+            properties:
+              username:
+                type: string
+              password:
+                type: string
+      description: Register a user under the given domain.
+      responses:
+        201:
+          description: A user with the given username and password has been registered
+          schema:
+            title: successMessage
+            type: string
+  /users/{XMPPHost}/{username}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname under which the user is registered. I.e. the later part of their JID
+        required: true
+        type: string
+        format: hostname
+      - name: username
+        in: path
+        description: The username part of the user's JID
+        required: true
+        type: string
+    put:
+      parameters:
+        - name: password
+          in: body
+          description: The new password for the user
+          required: true
+          schema:
+            title: newpass
+            type: string
+      description: Change the user's password.
+      responses:
+        200:
+          description: Password has been changed
+    delete:
+      description: Cancel a user's registration under the given domain.
+      responses:
+        200:
+          description: The user's registration has been successfully canceled
+          schema:
+            title: successMessage
+            type: string
   /:
     get:
       description: List the resources on this MongooseIM node.
