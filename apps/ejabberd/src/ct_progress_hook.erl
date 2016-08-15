@@ -26,51 +26,42 @@ init(_Id, _Opts) ->
     {ok, #state{  }}.
 
 post_init_per_suite(_SuiteName, _Config, Return, State) ->
-    handle_init_return(Return),
+    handle_return(Return, false),
     {Return, State}.
 
 post_init_per_group(_GroupName, _Config, Return, State) ->
-    handle_init_return(Return),
+    handle_return(Return, false),
     {Return, State}.
 
 post_init_per_testcase(_TC, _Config, Return, State) ->
-    handle_init_return(Return),
+    handle_return(Return, false),
     {Return, State}.
 
 post_end_per_suite(_SuiteName, _Config, Return, State) ->
-    handle_end_return(Return),
+    handle_return(Return, false),
     {Return, State}.
 
 post_end_per_group(_GroupName, _Config, Return, State) ->
-    handle_end_return(Return),
+    handle_return(Return, false),
     {Return, State}.
 
 %% @doc Called after each test case.
 post_end_per_testcase(_TC, _Config, Return, State) ->
-    ct:pal("Return ~p", [Return]),
-    handle_end_return(Return),
+    handle_return(Return, true),
     {Return, State}.
 
-handle_init_return(Return) ->
+handle_return(Return, ReportSuccess) ->
     case Return of
         {'EXIT', _} ->
             file:write_file("/tmp/progress", "-", [append]);
         {fail, _} ->
             file:write_file("/tmp/progress", "-", [append]);
+        {error, _} ->
+            file:write_file("/tmp/progress", "-", [append]);
         {skip, _} ->
             file:write_file("/tmp/progress", "?", [append]);
+        _ when ReportSuccess ->
+            file:write_file("/tmp/progress", "+", [append]);
         _ ->
             ok
-    end.
-
-handle_end_return(Return) ->
-    case Return of
-        {'EXIT', _} ->
-            file:write_file("/tmp/progress", "-", [append]);
-        {fail, _} ->
-            file:write_file("/tmp/progress", "-", [append]);
-        {skip, _} ->
-            file:write_file("/tmp/progress", "?", [append]);
-        _ ->
-            file:write_file("/tmp/progress", "+", [append])
     end.
