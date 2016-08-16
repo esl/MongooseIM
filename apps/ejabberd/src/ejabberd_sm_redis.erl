@@ -26,7 +26,7 @@
 start(Opts) ->
     ejabberd_redis:start_link(Opts),
     %% Clean current node's sessions from previous life
-    {Elapsed, RetVal} = timer:tc(fun() -> cleanup(node()) end),
+    {Elapsed, RetVal} = timer:tc(?MODULE, cleanup, [node()]),
     ?WARNING_MSG("cleanup on start took=~pms~n",
                  [erlang:round(Elapsed / 1000)]),
     RetVal.
