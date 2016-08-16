@@ -9,7 +9,7 @@ echo "" > /tmp/progress
 tail -f /tmp/progress &
 
 # Kill children
-trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM EXIT
 
 echo ${BASE}
 
