@@ -1,5 +1,9 @@
 .PHONY: rel deps test show_test_results
 LOG=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log; exit 1))
+SILENCE_COVER =  | grep -v "logs.*\\.coverdata"
+SILENCE_COVER += | grep -v "Analysis includes data from imported files"
+SILENCE_COVER += | grep -v "WARNING: Deleting data for module"
+LOG_SILENCE_COVER=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log $(SILENCE_COVER); exit 1))
 EJABBERD_DIR = apps/ejabberd
 EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
@@ -36,8 +40,10 @@ reload_dev: quick_compile
 # Example to run apps/ejabberd/test/cassandra_SUITE.erl:
 # make ct SUITE=cassandra
 ct: deps quick_compile
-	@(if [ "$(SUITE)" ]; then ./rebar $(OPTS) ct suite=$(SUITE) skip_deps=true;\
-		else ./rebar $(OPTS) ct skip_deps=true; fi) > $(LOG)
+	@(if [ "$(SUITE)" ]; \
+		then ./rebar $(OPTS) ct suite=$(SUITE) skip_deps=true; \
+		else ./rebar $(OPTS) ct skip_deps=true; fi) \
+		> $(LOG_SILENCE_COVER)
 
 # This compiles and runs one test suite. For quick feedback/TDD.
 # Example:
