@@ -40,8 +40,8 @@
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
     ejabberd_cowboy:implemented_result() | ejabberd_cowboy:default_result().
 cowboy_router_paths(Base, _Opts) ->
-    ejabberd_hooks:add(register_command, global, mongoose_api_utils, reload_dispatches, 50),
-    ejabberd_hooks:add(unregister_command, global, mongoose_api_utils, reload_dispatches, 50),
+    ejabberd_hooks:add(register_command, global, mongoose_api_common, reload_dispatches, 50),
+    ejabberd_hooks:add(unregister_command, global, mongoose_api_common, reload_dispatches, 50),
         try
             Commands = mongoose_commands:list(admin),
             [handler_path(Base, Command) || Command <- Commands]
@@ -60,16 +60,15 @@ init({_Transport, _}, Req, Opts) ->
 
 rest_init(Req, Opts) ->
     {Bindings, Req1} = cowboy_req:bindings(Req),
-    CommandCategory =
-        case lists:keytake(command_category, 1, Opts) of
-            {value, {command_category, Name},  _Opts1} ->
-                Name;
-            false ->
-                undefined
-        end,
+    CommandCategory = proplists:get_value(command_category, Opts),
+    CommandSubCategory = proplists:get_value(command_subcategory, Opts),
     State = #http_api_state{allowed_methods = mongoose_api_common:get_allowed_methods(admin),
-        bindings = Bindings, command_category = CommandCategory},
+                            bindings = Bindings,
+                            command_category = CommandCategory,
+                            command_subcategory = CommandSubCategory},
     {ok, Req1, State}.
+
+
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
     CommandList = mongoose_commands:list(admin, Name),
@@ -103,15 +102,17 @@ to_json(Req, #http_api_state{command_category = Category} = State) ->
 
 
 %% @doc Called for a method of type "POST" and "PUT"
-from_json(Req, #http_api_state{command_category = Category} = State) ->
+from_json(Req, #http_api_state{command_category = Category,
+                               command_subcategory = SubCategory} = State) ->
     {Method, Req2} = cowboy_req:method(Req),
-    [Command] = mongoose_commands:list(admin, Category, method_to_action(Method)),
+    [Command] = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
     mongoose_api_common:process_request(Method, Command, Req2, State).
 
 
 -spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:path().
 handler_path(Base, Command) ->
     {[Base, mongoose_api_common:create_admin_url_path(Command)],
-        ?MODULE, [{command_category, mongoose_commands:category(Command)}]}.
+        ?MODULE, [{command_category, mongoose_commands:category(Command)},
+                  {command_subcategory, mongoose_commands:subcategory(Command)}]}.
 
 

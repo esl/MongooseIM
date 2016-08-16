@@ -2,14 +2,14 @@
 -author('bartlomiej.gorny@erlang-solutions.com').
 
 -export([start/0, stop/0,
-         start/2, stop/2,
+         start/2, stop/1,
          register/3,
-         unregister/1,
+         unregister/2,
          registered_commands/0,
          registered_users/1,
-         change_user_password/2,
+         change_user_password/3,
          listsessions/1,
-         kick_this_session/1,
+         kick_session/3,
          get_recent_messages/3,
          send_message/3
         ]).
@@ -24,17 +24,17 @@ stop() ->
     mongoose_commands:unregister(commands()).
 
 start(_, _) -> start().
-stop(_, _) -> stop().
+stop(_) -> stop().
+
 %%%
 %%% mongoose commands
 %%%
-
 
 commands() ->
     [
         [
             {name, listmethods},
-            {category, list},
+            {category, commands},
             {desc, "List commands"},
             {module, ?MODULE},
             {function, registered_commands},
@@ -44,7 +44,7 @@ commands() ->
         ],
         [
             {name, listusers},
-            {category, user},
+            {category, users},
             {desc, "List registered users on this host"},
             {module, ?MODULE},
             {function, registered_users},
@@ -54,37 +54,27 @@ commands() ->
         ],
         [
             {name, registeruser},
-            {category, user},
+            {category, users},
             {desc, "Register a user"},
             {module, ?MODULE},
             {function, register},
             {action, create},
-            {args, [{user, binary}, {host, binary}, {password, binary}]},
+            {args, [{host, binary}, {user, binary}, {password, binary}]},
             {result, {msg, binary}}
         ],
         [
             {name, unregisteruser},
-            {category, user},
+            {category, users},
             {desc, "UnRegister a user"},
             {module, ?MODULE},
             {function, unregister},
             {action, delete},
-            {args, [{jid, binary}]},
+            {args, [{host, binary}, {user, binary}]},
             {result, {msg, binary}}
         ],
-%%        [
-%%            {name, getuserresources},
-%%            {category, session},
-%%            {desc, "Get user resources"},
-%%            {module, ?MODULE},
-%%            {function, get_user_resources},
-%%            {action, read},
-%%            {args, [{jid, binary}]},
-%%            {result, []}
-%%        ],
         [
             {name, listsessions},
-            {category, session},
+            {category, sessions},
             {desc, "Get session list"},
             {module, ?MODULE},
             {function, listsessions},
@@ -94,17 +84,17 @@ commands() ->
         ],
         [
             {name, kickuser},
-            {category, session},
+            {category, sessions},
             {desc, "Terminate user connection"},
             {module, ?MODULE},
-            {function, kick_this_session},
+            {function, kick_session},
             {action, delete},
-            {args, [{jid, binary}]},
+            {args, [{host, binary}, {user, binary}, {res, binary}]},
             {result, {msg, binary}}
         ],
         [
             {name, sendmessage},
-            {category, message},
+            {category, messages},
             {desc, "Send chat message from to"},
             {module, ?MODULE},
             {function, send_message},
@@ -115,7 +105,7 @@ commands() ->
         ],
         [
             {name, getmessages},
-            {category, message},
+            {category, messages},
             {desc, "Get recent messages"},
             {module, ?MODULE},
             {function, get_recent_messages},
@@ -126,25 +116,20 @@ commands() ->
         ],
         [
             {name, changepassword},
-            {category, user},
+            {category, users},
             {desc, "Change user password"},
             {module, ?MODULE},
             {function, change_user_password},
             {action, update},
             {security_policy, [user]},
-            {identifiers, [caller]},
-            {args, [{caller, binary}, {newpass, binary}]},
+            {identifiers, [host, user]},
+            {args, [{host, binary}, {user, binary}, {newpass, binary}]},
             {result, ok}
         ]
     ].
 
-%%get_user_resources(Jid) ->
-%%    J = jid:from_binary(Jid),
-%%    ejabberd_sm:get_user_resources(J#jid.user, J#jid.server).
-
-
-kick_this_session(Jid) ->
-    J = jid:from_binary(Jid),
+kick_session(Host, User, Resource) ->
+    J = jid:make(User, Host, Resource),
     ejabberd_sm:route(
         jid:make(<<"">>, <<"">>, <<"">>),
         J,
@@ -167,7 +152,7 @@ registered_users(Host) ->
     lists:map(fun({U, S}) -> <<U/binary, "@", S/binary>> end, SUsers).
 
 
-register(User, Host, Password) ->
+register(Host, User, Password) ->
     case ejabberd_auth:try_register(User, Host, Password) of
         ok ->
             list_to_binary(io_lib:format("User ~s@~s successfully registered", [User, Host]));
@@ -181,9 +166,8 @@ register(User, Host, Password) ->
             throw({error, String})
     end.
 
-unregister(Jid) ->
-    J = jid:from_binary(Jid),
-    ejabberd_auth:remove_user(J#jid.luser, J#jid.lserver),
+unregister(Host, User) ->
+    ejabberd_auth:remove_user(User, Host),
     <<"">>.
 
 
@@ -213,9 +197,8 @@ get_recent_messages(Caller, Other, Limit) ->
     lists:map(fun record_to_map/1, Res).
 
 
-change_user_password(User, Password) ->
-    Jid = jid:from_binary(User),
-    ejabberd_auth:set_password(Jid#jid.luser, Jid#jid.lserver, Password).
+change_user_password(Host, User, Password) ->
+    ejabberd_auth:set_password(User, Host, Password).
 
 
 record_to_map({Id, From, Msg}) ->

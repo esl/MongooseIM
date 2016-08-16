@@ -343,6 +343,17 @@ commands_new_temp() ->
             {result, {msg, binary}}
         ],
         [
+            {name, command_one_two},
+            {category, user},
+            {subcategory, <<"rosters">>},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, read},
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ],
+        [
             {name, command_temp2},
             {category, user},
             {desc, "this one specifies identifiers"},

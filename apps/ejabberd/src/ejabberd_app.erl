@@ -51,6 +51,7 @@ start(normal, _Args) ->
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),
     ejabberd_commands:init(),
+    mongoose_commands:init(),
     gen_mod:start(),
     ejabberd_config:start(),
     ejabberd_check:config(),
