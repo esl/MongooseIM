@@ -168,6 +168,82 @@ paths:
             items:
               title: nodeResource
               type: string
+  /messages:
+    get:
+      description: Retrieve a list of users registered under the given XMPP hostname.
+      responses:
+        200:
+          description: A list of users registered under the given XMPP hostname.
+          schema:
+            title: userList
+            type: array
+            items:
+              title: JID
+              type: string
+              format: JID
+    post:
+      parameters:
+        - name: chatStanza
+          in: body
+          description: The chat stanza (with a sender and recipient)
+          required: true
+          schema:
+            title: chatStanza
+            type: object
+            properties:
+              caller:
+                description: the sender of the message
+                type: string
+                format: JID
+              to:
+                description: the recipient of the message
+                type: string
+                format: JID
+              msg:
+                description: the message text
+                type: string
+      description: Send a chat message from one user to another.
+      responses:
+        200:
+          description: Message was sent
+  /messages/{caller}/{other}/{limit}:
+    get:
+      parameters:
+        - name: caller
+          in: path
+          description: The user archive in question
+          required: true
+          type: string
+        - name: other
+          in: path
+          description: The other party
+          required: true
+          type: string
+        - name: limit
+          in: path
+          description: An upper bound on the number of messages to fetch from the archive
+          required: true
+          type: integer
+      description: Retrieve recent message from archive.
+      responses:
+        200:
+          description: The messages archived for the given user and the other party
+          schema:
+            title: records
+            type: array
+            items:
+              title: record
+              type: object
+              properties:
+                sender:
+                  type: string
+                  format: JID
+                timestamp:
+                  type: integer
+                message_id:
+                  type: string
+                body:
+                  type: string
   /status:
     get:
       description: The status of MongooseIM on the given host.
