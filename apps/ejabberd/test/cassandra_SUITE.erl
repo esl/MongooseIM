@@ -66,6 +66,13 @@ check_connection(Config) ->
 
 check_connection2(Config) ->
     ejabberd_helper:start_ejabberd_with_config(Config, "ejabberd.cfg"),
+    try
+        check_connection3(Config)
+    after
+        ejabberd_helper:stop_ejabberd()
+    end.
+
+check_connection3(Config) ->
     %% Wait for cassandra workers to connect
     wait_for_cassandra(20),
     case mongoose_cassandra:status() of
