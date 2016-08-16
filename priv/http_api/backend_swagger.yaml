@@ -262,8 +262,8 @@ paths:
               subject:
                 type: string
       responses:
-        200:
-          description: An invite was sent out
+        201:
+          description: Room was created
           schema:
             title: roomName
             type: string
@@ -334,10 +334,124 @@ paths:
             properties:
               sender:
                 type: string
-                description: The senders JID. Message will be sent on their behalf
+                description: The sender's JID. Message will be sent on their behalf
               message:
                 type: string
                 description: The message text
       responses:
         200:
           description: Message was sent to the MUC Light room
+  /mucs/{XMPPHost}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname under which to create the MUC room
+        required: true
+        type: string
+    post:
+      description: Create a MUC room under the given XMPP hostname.
+      consumes:
+        - application/json
+      parameters:
+        - name: roomDetails
+          in: body
+          description: Details for the room to be created
+          required: true
+          schema:
+            title: roomDetails
+            type: object
+            properties:
+              name:
+                type: string
+                description: A name for the room (the leading part of the JID)
+              owner:
+                type: string
+                description: JID of the room's owner.
+              nick:
+                type: string
+                description: A nickname for the owner.
+      responses:
+        201:
+          description: An invite was sent out
+          schema:
+            title: roomName
+            type: string
+  /mucs/{XMPPHost}/{roomName}:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The leading part of the MUC room's JID
+        required: true
+        type: string
+    put:
+      description: Invite one user on behalf of another.
+      consumes:
+        - application/json
+      parameters:
+        -
+          name: invite
+          in: body
+          description: The invite itself
+          required: true
+          schema:
+            title: invite
+            type: object
+            properties:
+              sender:
+                type: string
+                format: JID
+                description: The inviter's JID
+              recipient:
+                type: string
+                format: JID
+                description: The invitee's JID
+              reason:
+                type: string
+                description: Initial text sent along with the invite
+      responses:
+        200:
+          description: An invite was sent out
+  /mucs/{XMPPHost}/{roomName}/messages:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The leading part of the MUC room's JIDs
+        required: true
+        type: string
+    put:
+      description: Send message to the MUC room on behalf of a user.
+      consumes:
+        - application/json
+      parameters:
+        -
+          name: chatMessage
+          in: body
+          description: The message details
+          required: true
+          schema:
+            title: chatMessage
+            type: object
+            properties:
+              sender:
+                type: string
+                description: The sender's JID. Message will be sent on their behalf
+              message:
+                type: string
+                description: The message text
+      responses:
+        200:
+          description: Message was sent to the MUC room
