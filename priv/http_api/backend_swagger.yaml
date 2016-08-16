@@ -232,6 +232,41 @@ paths:
                   type: string
                 body:
                   type: string
+  /muc-lights/{XMPPHost}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname under which to create the MUC Light room
+        required: true
+        type: string
+    post:
+      description: Create a MUC Light room under the given XMPP hostname.
+      consumes:
+        - application/json
+      parameters:
+        - name: roomDetails
+          in: body
+          description: Details for the room to be created
+          required: true
+          schema:
+            title: roomDetails
+            type: object
+            properties:
+              creator:
+                type: string
+                format: JID
+                description: The user's JID on whose behalf to create the room
+              name:
+                type: string
+                description: The name of the room. **NOT** the room's JID. This is the name that goes into the room's configuration.
+              subject:
+                type: string
+      responses:
+        200:
+          description: An invite was sent out
+          schema:
+            title: roomName
+            type: string
   /muc-lights/{XMPPHost}/{roomName}:
     parameters:
       -
@@ -269,3 +304,40 @@ paths:
       responses: 
         200:
           description: An invite was sent out
+  /muc-lights/{XMPPHost}/{roomName}/messages:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The MUC Light room's **name** (i.e. **not** the room's JID)
+        required: true
+        type: string
+    put:
+      description: Send message to the MUC Light room on behalf of a user.
+      consumes:
+        - application/json
+      parameters:
+        -
+          name: chatMessage
+          in: body
+          description: The message details
+          required: true
+          schema:
+            title: chatMessage
+            type: object
+            properties:
+              sender:
+                type: string
+                description: The senders JID. Message will be sent on their behalf
+              message:
+                type: string
+                description: The message text
+      responses:
+        200:
+          description: Message was sent to the MUC Light room
