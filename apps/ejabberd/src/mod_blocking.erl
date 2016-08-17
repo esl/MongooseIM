@@ -89,7 +89,7 @@ process_iq_set(Val, _, _, _) ->
 %%
 -spec process_blocking_iq_set(Type :: block | unblock, LUser:: binary(), LServer:: binary(),
                               CurrList :: [listitem()], Users :: [binary()]) ->
-    {ok, [binary()], [listitem()], block | unblock}
+    {ok, [binary()], [listitem()], block | unblock | unblock_all}
     | {error, jlib:xmlel()}.
 %% fail if current default list could not be retrieved
 process_blocking_iq_set(_, _, _, {error, _}, _) ->
@@ -125,7 +125,7 @@ complete_iq_set(blocking_command, LUser, LServer, {ok, Changed, List, Type}) ->
 %%    {result, []}.
 
 -spec blocking_list_modify(Type :: block | unblock, New :: [binary()], Old :: [listitem()]) ->
-    {[binary()], [listitem()]}.
+    {block|unblock|unblock_all, [binary()], [listitem()]}.
 blocking_list_modify(block, Change, Old) ->
     N = make_blocking_list(Change),
     {_, O} = remove_from(Change, Old),
