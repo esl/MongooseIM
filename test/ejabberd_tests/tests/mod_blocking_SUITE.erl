@@ -136,8 +136,6 @@ get_block_list(Config) ->
         Config, [{alice, 1}],
         fun(User1) ->
             Result = get_blocklist(User1),
-%%            io:format("Received stanza is ~n~p~n",[Result]),
-%%            ct:pal("RESULT ~p", [Result]),
             escalus:assert(is_iq_result, Result),
             escalus:assert(fun is_blocklist_result_empty/1, Result)
         end).
@@ -321,7 +319,6 @@ blocking_and_relogin_many(Config) ->
             client_gets_blocking_error(User1),
             message_is_delivered(User1, [User2], <<"House of th rising sun">>),
             BlockList = get_blocklist(User1),
-%%            ct:pal("blocklist ~p", [BlockList ]),
             blocklist_contains_jid(BlockList, User3)
         end).
 
@@ -381,7 +378,6 @@ notify_blockee(Config) ->
 %%
 get_blocklist(User) ->
     IQGet = get_blocklist_stanza(),
-%%    ct:pal("SEND ~p", [IQGet]),
     escalus_client:send(User, IQGet),
     escalus_client:wait_for_stanza(User).
 
@@ -501,6 +497,11 @@ is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
     {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),
     true.
 
+is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = []}]}=Stanza) ->
+    is_xep191_push(Type, Stanza);
+is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = Items}]}) ->
+    ct:pal("JIDs: should be empty contains, ~p", [Items]),
+    false;
 is_xep191_push(Type, JIDs, #xmlel{attrs = A, children = [#xmlel{name = Type,
     attrs = Attrs, children = Items}]}=Stanza) ->
     true = escalus_pred:is_iq_set(Stanza),
@@ -529,10 +530,8 @@ get_blocklist_items(Items) ->
 user_blocks(Blocker, Blockees) when is_list(Blockees) ->
     BlockeeJIDs = [ escalus_utils:jid_to_lower(escalus_client:short_jid(B)) || B <- Blockees ],
     AddStanza = block_users_stanza(BlockeeJIDs),
-    ct:pal("add stanza ~p", [AddStanza]),
     escalus_client:send(Blocker, AddStanza),
     Res = escalus:wait_for_stanzas(Blocker, 2),
-    ct:pal("Two stanzas: ~p", [Res]),
     CheckPush = fun(E) -> is_xep191_push(<<"block">>, BlockeeJIDs, E) end,
     Preds = [is_iq_result, CheckPush], %% why it sends additional presence from alice to alice, I don't know
     escalus:assert_many(Preds, Res).
@@ -556,23 +555,23 @@ user_unblocks(Unblocker, Unblockees) when is_list(Unblockees) ->
 user_unblocks(Unblocker, Unblockee) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Unblockee)),
     escalus_client:send(Unblocker, unblock_user_stanza(JID)),
-    user_gets_remove_result(Unblocker).
+    user_gets_remove_result(Unblocker, [JID]).
 
 blocklist_doesnt_contain_jid(BlockList, Client) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Client)),
     escalus:assert(is_iq_result, BlockList),
     ?assertNot(blocklist_result_has(JID, BlockList)).
 
-user_gets_remove_result(Client) ->
+user_gets_remove_result(Client, ContactList) ->
     RemoveResult = escalus:wait_for_stanzas(Client, 2),
-    CheckPush = fun(E) -> is_xep191_push(<<"unblock">>, E) end,
+    CheckPush = fun(E) -> is_xep191_push(<<"unblock">>, ContactList, E) end,
     Preds = [is_iq_result, CheckPush],
     escalus:assert_many(Preds, RemoveResult).
 
 
 user_unblocks_all(User) ->
     escalus_client:send(User, unblock_all_stanza()),
-    user_gets_remove_result(User).
+    user_gets_remove_result(User, []).
 
 message(From, To, MsgTxt) ->
     escalus_client:send(From, escalus_stanza:chat_to(To, MsgTxt)).
@@ -603,7 +602,6 @@ client_has_no_messages(C) -> escalus_assert:has_no_stanzas(C).
 
 client_gets_blocking_error(C) ->
     Stanza = escalus_client:wait_for_stanza(C),
-    ct:pal("Stanza ~p", [Stanza]),
     escalus:assert(fun is_xep191_not_available/1, [], Stanza).
 
 client_gets_block_iq(C) ->

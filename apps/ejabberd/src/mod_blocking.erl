@@ -89,7 +89,7 @@ process_iq_set(Val, _, _, _) ->
 %%
 -spec process_blocking_iq_set(Type :: block | unblock, LUser:: binary(), LServer:: binary(),
                               CurrList :: [listitem()], Users :: [binary()]) ->
-    {ok, [binary()], [listitem()], block | unblock}
+    {ok, [binary()], [listitem()], block | unblock | unblock_all}
     | {error, jlib:xmlel()}.
 %% fail if current default list could not be retrieved
 process_blocking_iq_set(_, _, _, {error, _}, _) ->
@@ -99,14 +99,14 @@ process_blocking_iq_set(block, _, _, _, []) ->
     {error, ?ERR_BAD_REQUEST};
 process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs) ->
     %% check who is being added / removed
-    {Changed, NewList} = blocking_list_modify(Type, Usrs, CurrList),
+    {NType, Changed, NewList} = blocking_list_modify(Type, Usrs, CurrList),
     case ?BACKEND:replace_privacy_list(LUser, LServer, <<"blocking">>, NewList) of
         {error, E} ->
             {error, E};
         ok ->
             case ?BACKEND:set_default_list(LUser, LServer, <<"blocking">>) of
                 ok ->
-                    {ok, Changed, NewList, Type};
+                    {ok, Changed, NewList, NType};
                 {error, not_found} ->
                     {error, ?ERR_ITEM_NOT_FOUND};
                 {error, _Reason} ->
@@ -125,21 +125,21 @@ complete_iq_set(blocking_command, LUser, LServer, {ok, Changed, List, Type}) ->
 %%    {result, []}.
 
 -spec blocking_list_modify(Type :: block | unblock, New :: [binary()], Old :: [listitem()]) ->
-    {[binary()], [listitem()]}.
+    {block|unblock|unblock_all, [binary()], [listitem()]}.
 blocking_list_modify(block, Change, Old) ->
     N = make_blocking_list(Change),
     {_, O} = remove_from(Change, Old),
     %% we treat all items on the "to block" list as changed becase they might have been present on the
     %% old list with different settings
     %% and we need to set order numbers, doesn't matter how but it has to be unique
-    {Change, set_order(N ++ O)};
+    {block, Change, set_order(N ++ O)};
 blocking_list_modify(unblock, [], Old) ->
     %% unblock with empty list means unblocking all contacts
     Rem = [jid:to_binary(J#listitem.value) || J <- Old],
-    {Rem,[]};
+    {unblock_all, Rem,[]};
 blocking_list_modify(unblock, Change, Old) ->
     {Removed, O} = remove_from(Change, Old),
-    {Removed, O}.
+    {unblock, Removed, O}.
 
 set_order(L) ->
     set_order(1, [], L).
@@ -189,6 +189,9 @@ make_blocking_list_entry(J) ->
     end.
 
 %% @doc send iq confirmation to all of the user's resources
+%% if we unblock all contacts then we don't list who's been unblocked
+broadcast_blocking_command(LUser, LServer, _Changed, unblock_all) ->
+    broadcast_blocking_command(LUser, LServer, [], unblock);
 broadcast_blocking_command(LUser, LServer, Changed, Type) ->
     case jid:make(LUser, LServer, <<>>) of
         error ->
