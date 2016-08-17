@@ -35,7 +35,7 @@ all() ->
     [{group, positive}].
 
 groups() ->
-    [{positive, [shuffle], success_response() ++ complex()}].
+    [{positive, [parallel], success_response() ++ complex()}].
 
 success_response() ->
     [
@@ -61,6 +61,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
@@ -69,11 +70,12 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
-init_per_testcase(CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config).
+init_per_testcase(CaseName, Config0) ->
+    Config1 = [{room_name, make_distinct_name(<<"wonderland">>)}|Config0],
+    escalus:init_per_testcase(CaseName, Config1).
 
 end_per_testcase(CaseName, Config) ->
-    muc_helper:destroy_room(muc_helper:muc_host(), <<"wonderland">>),
+    muc_helper:destroy_room(muc_helper:muc_host(), ?config(room_name, Config)),
     escalus:end_per_testcase(CaseName, Config).
 
 
@@ -85,7 +87,7 @@ create_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Host = <<"localhost">>,
         Path = <<"/mucs/", Host/binary>>,
-        Name = <<"wonderland">>,
+        Name = ?config(room_name, Config),
         Body = #{name => Name,
                  owner => escalus_utils:get_jid(Alice),
                  nick => <<"ali">>},
@@ -103,7 +105,8 @@ create_room(Config) ->
 
 invite_online_user_to_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Path = <<"/mucs/localhost/wonderland">>,
+        Name = ?config(room_name, Config),
+        Path = <<"/mucs/localhost/", Name/binary>>,
         Reason = <<"I think you'll like this room!">>,
         Body = #{sender => escalus_utils:get_jid(Alice),
                  recipient => escalus_utils:get_jid(Bob),
@@ -115,18 +118,18 @@ invite_online_user_to_room(Config) ->
     end).
 
 send_message_to_room(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(_Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(_Alice, Bob) ->
+        Name = ?config(room_name, Config),
         %% Alice creates a MUC room.
         muc_helper:start_room([], escalus_users:get_user_by_name(alice),
-                              <<"wonderland">>, <<"ali">>, []),
+                              Name, <<"ali">>, []),
         %% Bob enters the room.
         escalus:send(Bob,
-                     muc_helper:stanza_muc_enter_room(<<"wonderland">>,
+                     muc_helper:stanza_muc_enter_room(Name,
                                                       <<"bobcat">>)),
         escalus:wait_for_stanzas(Bob, 2),
         %% Parameters for this test.
         Host = <<"localhost">>,
-        Name = <<"wonderland">>,
         Path = <<"/mucs",$/,Host/binary,$/,Name/binary,$/,"messages">>,
         Message = <<"Greetings!">>,
         Body = #{sender => escalus_utils:get_jid(Bob),
@@ -142,12 +145,12 @@ send_message_to_room(Config) ->
 multiparty_multiprotocol(Config) ->
     Host = <<"localhost">>,
     MUCPath = <<"/mucs/", Host/binary>>,
-    Room = <<"wonderland">>,
-    RoomPath = <<MUCPath/binary, "/wonderland">>,
+    Room = ?config(room_name, Config),
+    RoomPath = <<MUCPath/binary, $/, Room/binary>>,
     Reason = <<"I think you'll like this room!">>,
     MessagePath = <<"/mucs",$/,Host/binary,$/,Room/binary,$/,"messages">>,
     Message = <<"Greetings!">>,
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, Kate) ->
             %% XMPP: Bob does not see a MUC room called 'wonderland'.
             false = user_sees_room(Bob, Room),
@@ -204,13 +207,20 @@ multiparty_multiprotocol(Config) ->
               || {U, M} <- [{Bob, <<"I'm Bob.">>}, {Kate, <<"I'm Kate.">>}] ],
             %% XMPP: Alice recieves the messages from Bob and Kate.
             [<<"I'm Bob.">>, <<"I'm Kate.">>] =
-                user_sees_message_from(Alice, [<<"bobcat">>, <<"kitkat">>])
+                user_sees_message_from(Alice, [<<"bobcat">>, <<"kitkat">>], Room)
         end).
 
 
 %%--------------------------------------------------------------------
 %% Ancillary (adapted from the MUC suite)
 %%--------------------------------------------------------------------
+
+make_distinct_name(Prefix) ->
+    {_, S, US} = erlang:now(),
+    L = lists:flatten([integer_to_list(S rem 100), ".", integer_to_list(US)]),
+    Suffix = list_to_binary(L),
+    %% The bove is adapted from `escalus_fresh'.
+    <<Prefix/binary, $-, Suffix/binary>>.
 
 stanza_get_rooms() ->
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), <<"to">>,
@@ -262,14 +272,14 @@ user_sends_message_to_room(User, Message, Room) ->
     Stanza = escalus_stanza:setattr(Chat, <<"type">>, <<"groupchat">>),
     escalus:send(User, muc_helper:stanza_to_room(Stanza, Room)).
 
-user_sees_message_from(User, Nicks) ->
-    user_sees_message_from(User, Nicks, []).
+user_sees_message_from(User, Nicks, Room) ->
+    user_sees_message_from(User, Nicks, Room, []).
 
-user_sees_message_from(_, [], Messages) ->
+user_sees_message_from(_, [], _, Messages) ->
     lists:reverse(Messages);
-user_sees_message_from(User, [Nick|Rest], Messages) ->
+user_sees_message_from(User, [Nick|Rest], Room,  Messages) ->
     Stanza = escalus:wait_for_stanza(User),
-    UserRoomJID = muc_helper:room_address(<<"wonderland">>, Nick),
+    UserRoomJID = muc_helper:room_address(Room, Nick),
     UserRoomJID = exml_query:path(Stanza, [{attr, <<"from">>}]),
     Body = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
-    user_sees_message_from(User, Rest, [Body|Messages]).
+    user_sees_message_from(User, Rest, Room, [Body|Messages]).

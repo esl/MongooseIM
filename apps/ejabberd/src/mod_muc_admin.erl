@@ -95,8 +95,7 @@ create_instant_room(Host, Name, Owner, Nick) ->
     %% certainly recieve stanzas as a consequence, even if their
     %% client(s) did not initiate anything.
     OwnerJID = jid:from_binary(Owner),
-    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc,
-                                            <<"muc.@HOST@">>),
+    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
     UserRoomJID = jid:make(Name, MUCHost, Nick),
     BareRoomJID = jid:make(Name, MUCHost, <<"">>),
     %% Send presence to create a room.
@@ -116,29 +115,24 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
     S = jid:from_binary(Sender),
     R = jid:from_binary(Recipient),
     %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
-    X = #xmlel{
-           name = <<"x">>,
-           attrs =
-               [ {<<"xmlns">>, ?NS_CONFERENCE},
-                 {<<"jid">> , room_jid(Name, Host)},
-                 {<<"reason">>, Reason}
-               ]
-          },
+    X = #xmlel{name = <<"x">>,
+               attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
+                        {<<"jid">> , room_jid(Name, Host)},
+                        {<<"reason">>, Reason}]
+              },
     Invite = #xmlel{name = <<"message">>, children = [ X ]},
     ejabberd_router:route(S, R, Invite).
 
 send_message_to_room(Host, Name, Sender, Message) ->
     S = jid:from_binary(Sender),
-    Room = jid:from_binary(room_jid(Name, Host)), %% Go for jid:make/3 instead.
-    X = #xmlel{
-           name = <<"body">>,
-           children =
-               [ #xmlcdata{ content = Message } ]
-          },
-    Stanza = #xmlel{
-                 name = <<"message">>, 
-                 attrs = [{<<"type">>, <<"groupchat">>}],
-                 children = [ X ]},
+    Room = jid:from_binary(room_jid(Name, Host)),
+    X = #xmlel{name = <<"body">>,
+               children = [ #xmlcdata{ content = Message } ]
+              },
+    Stanza = #xmlel{name = <<"message">>,
+                    attrs = [{<<"type">>, <<"groupchat">>}],
+                    children = [ X ]
+                   },
     ejabberd_router:route(S, Room, Stanza).
 
 
@@ -147,28 +141,25 @@ send_message_to_room(Host, Name, Sender, Message) ->
 %%--------------------------------------------------------------------
 
 room_jid(Name, Host) ->
-    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc,
-                                            <<"muc.@HOST@">>),
+    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
     <<Name/binary, $@, MUCHost/binary>>.
 
 presence() ->
-    #xmlel{
-       name = <<"presence">>,
-       children = [ #xmlel{
-                       name = <<"x">>,
-                       attrs = [{<<"xmlns">>, ?NS_MUC}]} ]}.
+    #xmlel{name = <<"presence">>,
+           children = [#xmlel{name = <<"x">>,
+                              attrs = [{<<"xmlns">>, ?NS_MUC}]}]
+          }.
 
 declination() ->
-    #xmlel{
-       name = <<"iq">>,
-       attrs = [{<<"type">>, <<"set">>}],
-       children = [ data_submission() ]}.
+    #xmlel{name = <<"iq">>,
+           attrs = [{<<"type">>, <<"set">>}],
+           children = [ data_submission() ]
+          }.
 
 data_submission() ->
-    #xmlel{
-       name = <<"query">>,
-       attrs = [{<<"xmlns">>, ?NS_MUC_OWNER}],
-       children = [ #xmlel{
-                       name = <<"x">>,
-                       attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                {<<"type">>, <<"submit">>}]} ]}.
+    #xmlel{name = <<"query">>,
+           attrs = [{<<"xmlns">>, ?NS_MUC_OWNER}],
+           children = [#xmlel{name = <<"x">>,
+                              attrs = [{<<"xmlns">>, ?NS_XDATA},
+                                       {<<"type">>, <<"submit">>}]}]
+          }.
