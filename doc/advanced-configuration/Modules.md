@@ -60,10 +60,6 @@ This module implements [XEP-0016: Privacy Lists)](http://xmpp.org/extensions/xep
 ### [mod_private](../modules/mod_private.md)
 Implements [XEP-0049 (Private XML Storage)](http://xmpp.org/extensions/xep-0049.html) to store and query private user data in XML format.
 
-### [mod_pubsub](../modules/mod_pubsub.md)
-This module implements [XEP-0060: Publish-Subscribe)](http://xmpp.org/extensions/xep-0060.html), for enabling or disabling communication with other entities on a network.
-
-
 ### [mod_register](../modules/mod_register.md)
 Implements [XEP-0077: In-Band Registration)](http://xmpp.org/extensions/xep-0077.html), that enables to create an account and change password once connected. This does not provide a solution to the forgotten password use case, via SMS or email.
 

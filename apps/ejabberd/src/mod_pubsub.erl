@@ -51,6 +51,7 @@
 -xep([{xep, 60}, {version, "1.13-1"}]).
 -xep([{xep, 163}, {version, "1.2"}]).
 -xep([{xep, 248}, {version, "0.2"}]).
+-xep([{xep, 277}, {version, "0.6.1"}]).
 
 -include("ejabberd.hrl").
 -include("adhoc.hrl").
