@@ -124,11 +124,13 @@ invite_to_room(Domain, RoomName, Sender, Recipient) ->
     ejabberd_router:route(S, R, iq(<<"set">>, [Changes])).
 
 send_message(Domain, RoomName, Sender, Message) ->
-    Body = #xmlel{ name = <<"body">>,
-                   children = [ #xmlcdata{ content = Message } ] },
-    Stanza = #xmlel{ name = <<"message">>,
-                     attrs = [{<<"type">>, <<"groupchat">>}],
-                     children = [ Body ] },
+    Body = #xmlel{name = <<"body">>,
+                  children = [ #xmlcdata{ content = Message } ]
+                 },
+    Stanza = #xmlel{name = <<"message">>,
+                    attrs = [{<<"type">>, <<"groupchat">>}],
+                    children = [ Body ]
+                   },
     S = jid:from_binary(Sender),
     case get_user_rooms(S) of
         [] ->
@@ -146,8 +148,9 @@ send_message(Domain, RoomName, Sender, Message) ->
 %%--------------------------------------------------------------------
 
 make_room_config(Name, Subject) ->
-    #create{ raw_config = [ {<<"roomname">>, Name},
-                            {<<"subject">>, Subject} ] }.
+    #create{raw_config = [{<<"roomname">>, Name},
+                          {<<"subject">>, Subject}]
+           }.
 
 muc_light_room_name_to_jid(Participant, RoomName, Domain) ->
     case get_user_rooms(Participant) of
@@ -191,17 +194,20 @@ is_subdomain(Child, Parent) ->
     end.
 
 iq(T, C) when is_binary(T), is_list(C) ->
-    #xmlel{ name = <<"iq">>,
-            attrs = [{<<"type">>, T}],
-            children = C }.
+    #xmlel{name = <<"iq">>,
+           attrs = [{<<"type">>, T}],
+           children = C
+          }.
 
 query(NS, C) when is_binary(NS), is_list(C) ->
-    #xmlel{ name = <<"query">>,
-            attrs = [{<<"xmlns">>, NS}],
-            children = C }.
+    #xmlel{name = <<"query">>,
+           attrs = [{<<"xmlns">>, NS}],
+           children = C
+          }.
 
 affiliate(JID, Kind) when is_binary(JID), is_binary(Kind) ->
-    #xmlel{ name = <<"user">>,
-            attrs = [{<<"affiliation">>, Kind}],
-            children = [ #xmlcdata{ content = JID } ] }.
+    #xmlel{name = <<"user">>,
+           attrs = [{<<"affiliation">>, Kind}],
+           children = [ #xmlcdata{ content = JID } ]
+          }.
 

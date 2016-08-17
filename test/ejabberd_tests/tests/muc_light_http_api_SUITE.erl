@@ -37,7 +37,7 @@ all() ->
 
 groups() ->
 
-    [{positive, [shuffle], success_response()}].
+    [{positive, [parallel], success_response()}].
 
 success_response() ->
 
@@ -57,6 +57,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     dynamic_modules:stop(<<"localhost">>, mod_muc_light),
     escalus:end_per_suite(Config).
 
