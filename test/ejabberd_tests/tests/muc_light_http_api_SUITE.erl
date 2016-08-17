@@ -102,12 +102,16 @@ invite_to_room(Config) ->
         %% XMPP: Alice creates a room.
         escalus:send(Alice, muc_light_SUITE:stanza_create_room(undefined,
             [{<<"roomname">>, Name}], [{Kate, member}])),
+        %% XMPP: Alice recieves a affiliation message to herself and
+        %% an IQ result when creating the MUC Light room.
+        escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
         %% HTTP: Invite Bob (change room affiliation) on Alice's behalf.
         Body = #{ sender => escalus_utils:get_jid(Alice),
                   recipient => escalus_utils:get_jid(Bob)
                 },
         {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
-        %% XMPP: Get Bob recieves affiliation information.
+        %% XMPP: Bob recieves affiliation information.
         Stanza = escalus:wait_for_stanza(Bob),
         member_is_affiliated(Stanza, Bob)
       end).

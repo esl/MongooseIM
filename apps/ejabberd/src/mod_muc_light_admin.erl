@@ -119,9 +119,10 @@ create_unique_room(Domain, RoomName, Creator, Subject) ->
 
 invite_to_room(Domain, RoomName, Sender, Recipient) ->
     R = muc_light_room_name_to_jid(jid:from_binary(Sender), RoomName, Domain),
-    S = jid:from_binary(Sender),
+    S = jid:replace_resource(jid:from_binary(Sender), <<>>),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS, [affiliate(Recipient, <<"member">>)]),
-    ejabberd_router:route(S, R, iq(<<"set">>, [Changes])).
+    ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
+                                   <<"set">>, [Changes])).
 
 send_message(Domain, RoomName, Sender, Message) ->
     Body = #xmlel{name = <<"body">>,
@@ -193,9 +194,12 @@ is_subdomain(Child, Parent) ->
         {_, _} -> true
     end.
 
-iq(T, C) when is_binary(T), is_list(C) ->
+iq(S, R, T, C) when is_binary(S),
+                    is_binary(R), is_binary(T), is_list(C) ->
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"type">>, T}],
+           attrs = [{<<"from">>, S},
+                    {<<"to">>, R},
+                    {<<"type">>, T}],
            children = C
           }.
 
