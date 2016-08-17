@@ -1,4 +1,4 @@
--module(mongoose_admin).
+-module(mod_mongoose_admin).
 -author('bartlomiej.gorny@erlang-solutions.com').
 
 -export([start/0, stop/0,
