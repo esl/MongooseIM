@@ -87,7 +87,7 @@
                 activity = treap:empty() :: treap:treap(),
                 room_shaper              :: shaper:shaper(),
                 room_queue = queue:new(),
-                http_auth_pool = none :: none | mod_http_client:pool(),
+                http_auth_pool = none :: none | mongoose_http_client:pool(),
                 http_auth_pids = [] :: [pid()]
                }).
 

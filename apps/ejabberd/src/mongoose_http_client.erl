@@ -22,7 +22,7 @@
 -export([start/1]).
 
 -record(pool, {name :: atom(),
-               http_host :: string(),
+               server :: string(),
                size :: pos_integer(),
                max_overflow :: pos_integer(),
                path_prefix :: binary(),
@@ -98,7 +98,7 @@ start(Opts) ->
 
 make_pool(Name, Opts) ->
     #pool{name = Name,
-          http_host = gen_mod:get_opt(host, Opts, "http://localhost"),
+          server = gen_mod:get_opt(server, Opts, "http://localhost"),
           size = gen_mod:get_opt(pool_size, Opts, 20),
           max_overflow = gen_mod:get_opt(max_overflow, Opts, 5),
           path_prefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
@@ -106,7 +106,7 @@ make_pool(Name, Opts) ->
           request_timeout = gen_mod:get_opt(request_timeout, Opts, 2000)}.
 
 do_start_pool(#pool{name = Name,
-                    http_host = HttpHost,
+                    server = Server,
                     size = PoolSize,
                     max_overflow = MaxOverflow}) ->
     ProcName = pool_proc_name(Name),
@@ -116,7 +116,7 @@ do_start_pool(#pool{name = Name,
                 {worker_module, mongoose_http_client_worker}],
     {ok, _} = supervisor:start_child(
                 sup_proc_name(),
-                poolboy:child_spec(ProcName, PoolOpts, [HttpHost, []])),
+                poolboy:child_spec(ProcName, PoolOpts, [Server, []])),
     ok.
 
 pool_proc_name(PoolName) ->

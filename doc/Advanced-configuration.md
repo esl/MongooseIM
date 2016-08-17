@@ -224,7 +224,7 @@ The `http_connections` option configures a list of named pools of outgoing HTTP 
 
 Following pool options are recognized - all of them are optional.
 
-* `{host, HostName}` - string, default: `"http://localhost"` - the URL of the destination host (including port number if needed).
+* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including port number if needed).
 * `{pool_size, Number}` - positive integer, default: `20` - number of workers in the connection pool.
 * `{max_overflow, Number}` - non-negative integer, default: `5` - maximum number of extra workers that can be allocated when the whole pool is busy.
 * `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
@@ -233,7 +233,7 @@ Following pool options are recognized - all of them are optional.
 
 **Example:**
 ```
-{http_connections, [{conn1, [{host, "http://my.host:8080"},
+{http_connections, [{conn1, [{server, "http://my.server:8080"},
                              {pool_size, 50},
                              {path_prefix, "/my/path/"}]}
                    ]}.

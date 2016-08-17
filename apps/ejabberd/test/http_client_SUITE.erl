@@ -56,17 +56,17 @@ end_per_suite(_Config) ->
     whereis(test_helper) ! stop.
 
 init_per_testcase(request_timeout_test, Config) ->
-    mongoose_http_client:start_pool(tmp_pool, [{host, "http://localhost:8080"},
+    mongoose_http_client:start_pool(tmp_pool, [{server, "http://localhost:8080"},
                                                {request_timeout, 10}]),
     Config;
 init_per_testcase(pool_timeout_test, Config) ->
-    mongoose_http_client:start_pool(tmp_pool, [{host, "http://localhost:8080"},
+    mongoose_http_client:start_pool(tmp_pool, [{server, "http://localhost:8080"},
                                                {pool_size, 1},
                                                {max_overflow, 0},
                                                {pool_timeout, 10}]),
     Config;
 init_per_testcase(_TC, Config) ->
-    mongoose_http_client:start_pool(tmp_pool, [{host, "http://localhost:8080"}]),
+    mongoose_http_client:start_pool(tmp_pool, [{server, "http://localhost:8080"}]),
     Config.
 
 end_per_testcase(_TC, _Config) ->

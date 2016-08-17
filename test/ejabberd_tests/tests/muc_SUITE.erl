@@ -279,7 +279,7 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
                                G =:= http_auth ->
     ejabberd_node_utils:call_fun(mongoose_http_client, start, [[]]),
     ok = ejabberd_node_utils:call_fun(mongoose_http_client, start_pool, [muc_http_auth_test,
-                                                                         [{host, "http://localhost:8080"},
+                                                                         [{server, "http://localhost:8080"},
                                                                           {path_prefix, "/muc/auth/"},
                                                                           {pool_size, 5}]]),
     case G of

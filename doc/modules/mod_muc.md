@@ -59,9 +59,9 @@ MUC rooms can be protected by password that is set by the room owner. However, M
 * Set the name of the connection pool as the value of the `http_auth_pool` option of `mod_muc`.
 * Enable the `password_protected` default room option (without setting the password itself).
 
-Whenever a user tries to enter or create a room, the server will receive a GET request to the `check_password` path. It should return code 200 with a JSON object `{"code": Code, "msg": Message}` in the response body.
+Whenever a user tries to enter or create a room, the server will receive a GET request to the `check_password` path. It should return code 200 with a JSON object `{"code": Code, "msg": Message}` in the response body. If the server returns a different code, an error presence will be sent back to the client.
 
-* `Code` is the status code: 0 indicates successful authenctication, any other value means authentication failure.
+* `Code` is the status code: 0 indicates successful authentication, any other value means authentication failure.
 * `Message` is a string containing the message to be sent back to the XMPP client indicating the reason of failed authentication. For successful authentication it is ignored and can eg. contain the string `"OK"`.
 
 **Example:**
@@ -69,7 +69,7 @@ Whenever a user tries to enter or create a room, the server will receive a GET r
 ```
 
 {http_connections, [
-                    {my_auth_pool, [{host, "http://my_server:8000"}]}
+                    {my_auth_pool, [{server, "http://my_server:8000"}]}
                    ]}.
 
 
