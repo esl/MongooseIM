@@ -19,42 +19,54 @@
 %%%===================================================================
 
 all() ->
-    [{group, mod_http_notification_tests}].
+    [
+        {group, mod_http_notification_tests},
+        {group, mod_http_notification_tests_with_prefix}
+        ].
 
 all_tests() ->
     [simple_message, simple_message_no_listener, simple_message_failing_listener].
 
 groups() ->
-    [{mod_http_notification_tests, [sequence], all_tests()}].
+    [{mod_http_notification_tests, [sequence], all_tests()},
+    {mod_http_notification_tests_with_prefix, [sequence], all_tests()}].
 
 
 suite() ->
     escalus:suite().
 
-set_worker_timeout() ->
+set_worker() ->
     dynamic_modules:start(host(), mod_http_notification, [{worker_timeout, 500}, {host, "http://localhost:8000"}]),
+    ok.
+
+set_worker(Prefix) ->
+    dynamic_modules:start(host(), mod_http_notification, [{worker_timeout, 500}, {host, "http://localhost:8000"},
+        {prefix_path, Prefix}]),
     ok.
 
 host() -> <<"localhost">>.
 
 init_per_suite(Config0) ->
     Config1 = escalus:init_per_suite(Config0),
-    set_worker_timeout(),
     escalus:create_users(Config1, escalus:get_users({by_name, [alice, bob]})).
 
 end_per_suite(Config) ->
-    dynamic_modules:stop(host(), mod_http_notification),
     escalus:delete_users(Config, {by_name, [alice, bob]}),
     escalus:end_per_suite(Config).
 
-init_per_group(_GroupName, Config) ->
+init_per_group(mod_http_notification_tests, Config) ->
+    set_worker(),
+    Config;
+init_per_group(mod_http_notification_tests_with_prefix, Config) ->
+    set_worker("/prefix"),
     Config.
 
 end_per_group(_GroupName, _Config) ->
+    dynamic_modules:stop(host(), mod_http_notification),
     ok.
 
 init_per_testcase(CaseName, Config) ->
-    start_http_listener(CaseName),
+    start_http_listener(CaseName, get_prefix(Config)),
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
@@ -65,13 +77,13 @@ start_mod_http_notification(Opts) ->
     Domain = ct:get_config(ejabberd_domain),
     dynamic_modules:start(Domain, mod_http_notification, Opts).
 
-start_http_listener(simple_message) ->
+start_http_listener(simple_message, Prefix) ->
     Pid = self(),
-    http_helper:start(8000, "/", fun(Req) -> process_notification(Req, Pid) end);
-start_http_listener(simple_message_no_listener) ->
+    http_helper:start(8000, Prefix, fun(Req) -> process_notification(Req, Pid) end);
+start_http_listener(simple_message_no_listener, _) ->
     ok;
-start_http_listener(simple_message_failing_listener) ->
-    http_helper:start(8000, "/", fun(Req) -> Req end).
+start_http_listener(simple_message_failing_listener, Prefix) ->
+    http_helper:start(8000, Prefix, fun(Req) -> Req end).
 
 process_notification(Req, Pid) ->
     {ok, Body, Req1} = cowboy_req:body(Req),
@@ -133,3 +145,12 @@ login_send_presence(Config, User) ->
     {ok, Client} = escalus_client:start(Config, Spec, <<"dummy">>),
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Client.
+
+get_prefix(mod_http_notification_tests) ->
+    "/";
+get_prefix(mod_http_notification_tests_with_prefix) ->
+    "/prefix";
+get_prefix(Config) ->
+    GroupName = proplists:get_value(name, proplists:get_value(tc_group_properties, Config)),
+    get_prefix(GroupName).
+

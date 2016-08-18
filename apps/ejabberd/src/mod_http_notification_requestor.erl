@@ -56,7 +56,7 @@ init(Opts) ->
     {_, Timeout} = proplists:lookup(timeout, Opts),
     {_, PathPrefix} = proplists:lookup(path_prefix, Opts),
     {ok, Conn} = fusco:start_link(HttpHost, []),
-    {ok, #state{httphost = HttpHost, timeout = Timeout, pathprefix = PathPrefix, connection = Conn}}.
+    {ok, #state{httphost = HttpHost, timeout = Timeout, pathprefix = to_binary(PathPrefix), connection = Conn}}.
 
 handle_call(Request, _From, #state{connection = Connection, pathprefix = Path, timeout = Timeout} = State) ->
     {Host, Sender, Receiver, Message} = Request,
@@ -92,3 +92,7 @@ make_req(Connection, Host, Path, Sender, Receiver, Message, Timeout) ->
             Else
     end.
 
+to_binary(P) when is_list(P) ->
+    list_to_binary(P);
+to_binary(P) when is_binary(P) ->
+    P.
