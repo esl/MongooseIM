@@ -245,7 +245,7 @@ category(Cmd) ->
 subcategory(Cmd) ->
     Cmd#mongoose_command.subcategory.
 
--spec desc(t()) -> list().
+-spec desc(t()) -> binary().
 desc(Cmd) ->
     Cmd#mongoose_command.desc.
 
