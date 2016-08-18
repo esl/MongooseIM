@@ -33,8 +33,8 @@ expand_servers(PoolConfig) ->
     expand_servers(Address, Servers, PoolConfig).
 
 expand_servers(undefined, undefined, PoolConfig) ->
-    [{servers, [{"localhost", 9042, 1}]}];
-expand_servers(undefined, Servers, PoolConfig) ->
+    [{servers, [{"localhost", 9042, 1}]}|PoolConfig];
+expand_servers(undefined, _Servers, PoolConfig) ->
     PoolConfig;
 expand_servers(Address, undefined, PoolConfig) ->
     DefaultPort = proplists:get_value(port, PoolConfig, 9042),
