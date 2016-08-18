@@ -64,7 +64,7 @@
 %% * log suite start/end events in the MongooseIM console
 %% * ensure preset value is passed to ct Config
 %% * check server's purity after SUITE
-{ct_hooks, [ct_tty_hook, ct_mongoose_hook]}.
+{ct_hooks, [ct_tty_hook, ct_mongoose_hook, ct_progress_hook]}.
 
 %% To enable printing group and case enters on server side
 %%{ct_hooks, [{ct_mongoose_hook, [print_group, print_case]}]}.
