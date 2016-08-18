@@ -205,7 +205,7 @@ new_list(_C) ->
     Rlist = mongoose_commands:list(admin),
     [Cmd] = [C || C <- Rlist, mongoose_commands:name(C) == command_one],
     command_one = mongoose_commands:name(Cmd),
-    "do nothing and return" = mongoose_commands:desc(Cmd),
+    <<"do nothing and return">> = mongoose_commands:desc(Cmd),
     %% list by category
     [_] = mongoose_commands:list(admin, <<"user">>),
     [] = mongoose_commands:list(admin, <<"nocategory">>),
@@ -288,7 +288,7 @@ commands_new() ->
         [
             {name, command_one},
             {category, <<"user">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, read},
@@ -298,7 +298,7 @@ commands_new() ->
         [
             {name, command_noreturn},
             {category, <<"message">>},
-            {desc, "do nothing and return nothing"},
+            {desc, <<"do nothing and return nothing">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, create},
@@ -308,7 +308,7 @@ commands_new() ->
         [
             {name, command_foruser},
             {category, <<"another">>},
-            {desc, "this is available for a user"},
+            {desc, <<"this is available for a user">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, read},
@@ -319,7 +319,7 @@ commands_new() ->
         [
             {name, command_withcaller},
             {category, <<"another">>},
-            {desc, "this has a 'caller' argument, returns caller ++ msg"},
+            {desc, <<"this has a 'caller' argument, returns caller ++ msg">>},
             {module, ?MODULE},
             {function, cmd_concat},
             {action, create},
@@ -335,7 +335,7 @@ commands_new_temp() ->
         [
             {name, command_temp},
             {category, <<"user">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, create},
@@ -346,7 +346,7 @@ commands_new_temp() ->
             {name, command_one_two},
             {category, <<"user">>},
             {subcategory, <<"rosters">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, read},
@@ -356,7 +356,7 @@ commands_new_temp() ->
         [
             {name, command_temp2},
             {category, <<"user">>},
-            {desc, "this one specifies identifiers"},
+            {desc, <<"this one specifies identifiers">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, update},
@@ -372,7 +372,7 @@ commands_new_temp2() ->
         [
             {name, command_two},
             {category, <<"animals">>},
-            {desc, "some"},
+            {desc, <<"some">>},
             {module, ?MODULE},
             {function, the_same_types},
             {action, read},
@@ -382,7 +382,7 @@ commands_new_temp2() ->
         [
             {name, command_three},
             {category, <<"music">>},
-            {desc, "two args, different types"},
+            {desc, <<"two args, different types">>},
             {module, ?MODULE},
             {function, different_types},
             {action, read},
@@ -403,7 +403,7 @@ commands_new_lame() ->
         [
             {name, command_one},
             {category, <<"user">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, andnowforsomethingcompletelydifferent} %% not one of allowed values
@@ -411,7 +411,7 @@ commands_new_lame() ->
         [
             {name, command_one},
             {category, <<"user">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, delete},
@@ -432,7 +432,7 @@ commands_new_lame() ->
         [
             {name, command_one},
             {category, <<"another">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, update}, %% an 'update' command has to specify identifiers
@@ -442,7 +442,7 @@ commands_new_lame() ->
         [
             {name, command_one},
             {category, <<"another">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, update},
@@ -453,7 +453,7 @@ commands_new_lame() ->
         [
             {name, command_one},
             {category, <<"another">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, update},
@@ -464,7 +464,7 @@ commands_new_lame() ->
         [
             {name, command_seven}, %% name is different...
             {category, <<"user">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, read}, %% ...but another command with the same category and action is already registered
@@ -474,7 +474,7 @@ commands_new_lame() ->
         [
             {name, command_seven},
             {category, <<"user">>},
-            {desc, "do nothing and return"},
+            {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
             {action, delete},

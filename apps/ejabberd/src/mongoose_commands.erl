@@ -13,9 +13,9 @@
 %% with the following keys:
 %%      name :: atom()
 %% name of the command by which we refer to it
-%%      category :: [atom()]
+%%      category :: binary()
 %% this defines what group the command belongs to, like user, chatroom etc
-%%      desc :: string()
+%%      desc :: binary()
 %% long description
 %%      module :: module()
 %% module to call
@@ -436,7 +436,7 @@ check_value(subcategory, V) when is_binary(V) ->
     V;
 check_value(subcategory, undefined) ->
     undefined;
-check_value(desc, V) when is_list(V) ->
+check_value(desc, V) when is_binary(V) ->
     V;
 check_value(module, V) when is_atom(V) ->
     V;

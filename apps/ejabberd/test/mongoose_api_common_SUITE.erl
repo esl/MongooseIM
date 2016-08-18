@@ -33,7 +33,7 @@ create_cmd() ->
     Props = [
              {name, registeruser},
              {category, <<"users">>},
-             {desc, "Register a user"},
+             {desc, <<"Register a user">>},
              {module, ?MODULE},
              {function, register},
              {action, create},
@@ -47,7 +47,7 @@ read_cmd() ->
     Props = [
             {name, listusers},
             {category, <<"users">>},
-            {desc, "List registered users on this host"},
+            {desc, <<"List registered users on this host">>},
             {module, ?MODULE},
             {function, registered_users},
             {action, read},
@@ -61,7 +61,7 @@ read_cmd2() ->
             {name, listusers},
             {category, <<"users">>},
             {subcategory, <<"rosters">>},
-            {desc, "List registered users on this host"},
+            {desc, <<"List registered users on this host">>},
             {module, ?MODULE},
             {function, registered_users},
             {action, read},
