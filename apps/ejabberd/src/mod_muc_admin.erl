@@ -91,10 +91,10 @@ commands() ->
     ].
 
 create_instant_room(Host, Name, Owner, Nick) ->
-    %% Because these stanzas are sent on the owner's behalf, they will
-    %% certainly recieve stanzas as a consequence, even if their
-    %% client(s) did not initiate anything.
-    OwnerJID = jid:from_binary(Owner),
+    %% Because these stanzas are sent on the owner's behalf through
+    %% the HTTP API, they will certainly recieve stanzas as a
+    %% consequence, even if their client(s) did not initiate this.
+    OwnerJID = binary_to_bare(Owner),
     MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
     UserRoomJID = jid:make(Name, MUCHost, Nick),
     BareRoomJID = jid:make(Name, MUCHost, <<"">>),
@@ -112,8 +112,8 @@ create_instant_room(Host, Name, Owner, Nick) ->
     end.
 
 invite_to_room(Host, Name, Sender, Recipient, Reason) ->
-    S = jid:from_binary(Sender),
-    R = jid:from_binary(Recipient),
+    S = binary_to_bare(Sender),
+    R = binary_to_bare(Recipient),
     %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
     X = #xmlel{name = <<"x">>,
                attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
@@ -124,7 +124,7 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
     ejabberd_router:route(S, R, Invite).
 
 send_message_to_room(Host, Name, Sender, Message) ->
-    S = jid:from_binary(Sender),
+    S = binary_to_bare(Sender),
     Room = jid:from_binary(room_jid(Name, Host)),
     X = #xmlel{name = <<"body">>,
                children = [ #xmlcdata{ content = Message } ]
@@ -163,3 +163,6 @@ data_submission() ->
                               attrs = [{<<"xmlns">>, ?NS_XDATA},
                                        {<<"type">>, <<"submit">>}]}]
           }.
+
+binary_to_bare(JID) ->
+    jid:to_bare(jid:from_binary(JID)).
