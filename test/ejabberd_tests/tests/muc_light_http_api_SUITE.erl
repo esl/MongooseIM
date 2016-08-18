@@ -106,14 +106,18 @@ invite_to_room(Config) ->
         %% an IQ result when creating the MUC Light room.
         escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
-        %% HTTP: Invite Bob (change room affiliation) on Alice's behalf.
+        %% (*) HTTP: Invite Bob (change room affiliation) on Alice's behalf.
         Body = #{ sender => escalus_utils:get_jid(Alice),
                   recipient => escalus_utils:get_jid(Bob)
                 },
         {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
-        %% XMPP: Bob recieves affiliation information.
-        Stanza = escalus:wait_for_stanza(Bob),
-        member_is_affiliated(Stanza, Bob)
+        %% XMPP: Bob recieves his affiliation information.
+        member_is_affiliated(escalus:wait_for_stanza(Bob), Bob),
+        %% XMPP: Alice recieves Bob's affiliation infromation.
+        member_is_affiliated(escalus:wait_for_stanza(Alice), Bob),
+        %% XMPP: Alice does NOT recieve an IQ result stanza following
+        %% her HTTP request to invite Bob in story point (*).
+        escalus_assert:has_no_stanzas(Alice)
       end).
 
 send_message_to_room(Config) ->
