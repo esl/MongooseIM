@@ -49,6 +49,9 @@
 -include_lib("exml/include/exml.hrl").
 
 -record(state, {pool_name,
+                address,
+                port,
+                client_options,
                 conn,
                 prepared_queries,
                 query_refs,
@@ -370,8 +373,11 @@ forward_query_respond(ResultF, QueryRef,
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([PoolName, Addr, Port, ClientOptions]) ->
-    async_spawn(Addr, Port, ClientOptions),
-    State = #state{pool_name = PoolName},
+    self() ! async_init,
+    State = #state{pool_name = PoolName,
+                   address = Addr,
+                   port = Port,
+                   client_options = ClientOptions},
     {ok, State}.
 
 init_connection(ConnPid, Conn, State = #state{pool_name = PoolName}) ->
@@ -456,14 +462,20 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 
-handle_info({connection_result, {ok, ConnPid, Conn}},
-            State = #state{conn = undefined}) ->
-    State2 = init_connection(ConnPid, Conn, State),
-    {noreply, State2};
-handle_info({connection_result, Reason}, State = #state{conn = undefined}) ->
-    ?ERROR_MSG("issue=\"Fail to connect to Cassandra\", reason=~1000p", [Reason]),
-    {stop, {connection_result, Reason}, State};
-handle_info(_, State = #state{conn = undefined}) ->
+handle_info(async_init, State = #state{address = Addr,
+                                       port = Port,
+                                       client_options = ClientOptions}) ->
+    case connect_to_cassandra(Addr, Port, ClientOptions) of
+        {ok, ConnPid, Conn} ->
+            State2 = init_connection(ConnPid, Conn, State),
+            {noreply, State2};
+        Reason ->
+            ?ERROR_MSG("issue=\"Fail to connect to Cassandra\", reason=~1000p",
+                       [Reason]),
+            {stop, {connection_result, Reason}, State}
+    end;
+handle_info(Msg, State = #state{conn = undefined}) ->
+    ?WARNING_MSG("issue=\"Unexpected info message\", message=~1000p", [Msg]),
     {noreply, State};
 handle_info({seestar_response, QueryRef, ResultF}, State) ->
     {noreply, forward_query_respond(ResultF, QueryRef, State)};
@@ -494,28 +506,15 @@ code_change(_OldVsn, State, _Extra) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-async_spawn(Addr, Port, ClientOptions) ->
+connect_to_cassandra(Addr, Port, ClientOptions) ->
     ?INFO_MSG("issue=\"Connecting to Cassandra\", address=~p, port=~p",
               [Addr, Port]),
-    Parent = self(),
-    proc_lib:spawn_link(fun() ->
-          ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
-          ?DEBUG("issue=\"seestar_session:start_link\", address=~p, port=~p, "
-                 "client_options=~p, connect_options=~p",
-                 [Addr, Port, ClientOptions, ConnectOptions]),
-          Res = (catch seestar_session:start_link(
-                         Addr, Port, ClientOptions, ConnectOptions)),
-          ?DEBUG("issue=\"seestar_session:start_link result\", result=~p",
-                 [Res]),
-          Parent ! {connection_result, Res},
-          case Res of
-              {ok, Pid} ->
-                  Mon = erlang:monitor(process, Pid),
-                  receive
-                      {'DOWN', Mon, process, Pid, _} -> ok
-                  end;
-              _ ->
-                ok
-          end
-      end).
-
+    ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
+    ?DEBUG("issue=\"seestar_session:start_link\", address=~p, port=~p, "
+           "client_options=~p, connect_options=~p",
+           [Addr, Port, ClientOptions, ConnectOptions]),
+    Res = (catch seestar_session:start_link(
+                   Addr, Port, ClientOptions, ConnectOptions)),
+    ?DEBUG("issue=\"seestar_session:start_link result\", result=~p",
+           [Res]),
+    Res.
