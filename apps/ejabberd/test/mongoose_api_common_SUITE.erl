@@ -17,22 +17,22 @@ all() ->
 url_is_correct_for_create_command(_) ->
     Cmd = create_cmd(),
     Url = mongoose_api_common:create_admin_url_path(Cmd),
-    ?aq(["/","users",["/:host"], []], Url).
+    ?aq(["/",<<"users">>,["/:host"], []], Url).
 
 url_is_correct_for_read_command(_) ->
     Cmd = read_cmd(),
     Url = mongoose_api_common:create_admin_url_path(Cmd),
-    ?aq(["/","users",["/:host"],[]], Url).
+    ?aq(["/",<<"users">>,["/:host"],[]], Url).
 
 url_is_correct_for_read_command_with_subcategory(_) ->
     Cmd = read_cmd2(),
     Url = mongoose_api_common:create_admin_url_path(Cmd),
-    ?aq(["/","users",["/:host"],["/", <<"rosters">>]], Url).
+    ?aq(["/",<<"users">>,["/:host"],["/", <<"rosters">>]], Url).
 
 create_cmd() ->
     Props = [
              {name, registeruser},
-             {category, users},
+             {category, <<"users">>},
              {desc, "Register a user"},
              {module, ?MODULE},
              {function, register},
@@ -46,7 +46,7 @@ create_cmd() ->
 read_cmd() ->
     Props = [
             {name, listusers},
-            {category, users},
+            {category, <<"users">>},
             {desc, "List registered users on this host"},
             {module, ?MODULE},
             {function, registered_users},
@@ -59,7 +59,7 @@ read_cmd() ->
 read_cmd2() ->
     Props = [
             {name, listusers},
-            {category, users},
+            {category, <<"users">>},
             {subcategory, <<"rosters">>},
             {desc, "List registered users on this host"},
             {module, ?MODULE},

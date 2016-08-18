@@ -34,7 +34,7 @@ commands() ->
     [
         [
             {name, listmethods},
-            {category, commands},
+            {category, <<"commands">>},
             {desc, "List commands"},
             {module, ?MODULE},
             {function, registered_commands},
@@ -44,7 +44,7 @@ commands() ->
         ],
         [
             {name, listusers},
-            {category, users},
+            {category, <<"users">>},
             {desc, "List registered users on this host"},
             {module, ?MODULE},
             {function, registered_users},
@@ -54,7 +54,7 @@ commands() ->
         ],
         [
             {name, registeruser},
-            {category, users},
+            {category, <<"users">>},
             {desc, "Register a user"},
             {module, ?MODULE},
             {function, register},
@@ -64,7 +64,7 @@ commands() ->
         ],
         [
             {name, unregisteruser},
-            {category, users},
+            {category, <<"users">>},
             {desc, "UnRegister a user"},
             {module, ?MODULE},
             {function, unregister},
@@ -74,7 +74,7 @@ commands() ->
         ],
         [
             {name, listsessions},
-            {category, sessions},
+            {category, <<"sessions">>},
             {desc, "Get session list"},
             {module, ?MODULE},
             {function, listsessions},
@@ -84,7 +84,7 @@ commands() ->
         ],
         [
             {name, kickuser},
-            {category, sessions},
+            {category, <<"sessions">>},
             {desc, "Terminate user connection"},
             {module, ?MODULE},
             {function, kick_session},
@@ -94,7 +94,7 @@ commands() ->
         ],
         [
             {name, sendmessage},
-            {category, messages},
+            {category, <<"messages">>},
             {desc, "Send chat message from to"},
             {module, ?MODULE},
             {function, send_message},
@@ -105,7 +105,7 @@ commands() ->
         ],
         [
             {name, getmessages},
-            {category, messages},
+            {category, <<"messages">>},
             {desc, "Get recent messages"},
             {module, ?MODULE},
             {function, get_recent_messages},
@@ -116,7 +116,7 @@ commands() ->
         ],
         [
             {name, changepassword},
-            {category, users},
+            {category, <<"users">>},
             {desc, "Change user password"},
             {module, ?MODULE},
             {function, change_user_password},

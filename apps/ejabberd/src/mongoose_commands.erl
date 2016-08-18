@@ -108,9 +108,9 @@
 
 -record(mongoose_command, {
           name :: atom(),                             %% name of the command by which we refer to it
-          category :: atom(),                         %% groups commands releated to the same functionality (user managment, messages/archive)
+          category :: binary(),                       %% groups commands releated to the same functionality (user managment, messages/archive)
           subcategory = undefined :: undefined | binary(),          %% optimal subcategory
-          desc :: string(),                           %% long description
+          desc :: binary(),                           %% long description
           module :: module(),                         %% module to call
           function :: atom(),                         %% function to call
           action :: action(),                         %% so that the HTTP side can decide which verb to require
@@ -430,7 +430,7 @@ check_command(Cmd, PL, [N|Tail]) ->
 
 check_value(name, V) when is_atom(V) ->
     V;
-check_value(category, V) when is_atom(V) ->
+check_value(category, V) when is_binary(V) ->
     V;
 check_value(subcategory, V) when is_binary(V) ->
     V;

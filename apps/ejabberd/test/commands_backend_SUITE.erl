@@ -410,7 +410,7 @@ commands_client() ->
     [
      [
       {name, get_simple_client},
-      {category, clients},
+      {category, <<"clients">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, get_simple_client_command},
@@ -422,7 +422,7 @@ commands_client() ->
      ],
      [
       {name, get_two_args_client},
-      {category, message},
+      {category, <<"message">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, get_two_args_client_command},
@@ -434,7 +434,7 @@ commands_client() ->
      ],
      [
       {name, post_simple_client},
-      {category, ohmyromeo},
+      {category, <<"ohmyromeo">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, post_simple_client_command},
@@ -446,7 +446,7 @@ commands_client() ->
      ],
      [
       {name, put_simple_client},
-      {category, superusers},
+      {category, <<"superusers">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, put_simple_client_command},
@@ -458,7 +458,7 @@ commands_client() ->
      ],
      [
       {name, delete_simple_client},
-      {category, bikes},
+      {category, <<"bikes">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, delete_simple_client_command},
@@ -474,7 +474,7 @@ commands_admin() ->
     [
      [
       {name, get_simple},
-      {category, users},
+      {category, <<"users">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, get_simple_command},
@@ -485,7 +485,7 @@ commands_admin() ->
      ],
      [
       {name, get_advanced},
-      {category, animals},
+      {category, <<"animals">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, get_two_args_command},
@@ -496,7 +496,7 @@ commands_admin() ->
      ],
      [
       {name, get_advanced2},
-      {category, books},
+      {category, <<"books">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, get_two_args2_command},
@@ -507,7 +507,7 @@ commands_admin() ->
      ],
      [
       {name, post_simple},
-      {category, weather},
+      {category, <<"weather">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, post_simple_command},
@@ -518,7 +518,7 @@ commands_admin() ->
      ],
      [
       {name, post_simple2},
-      {category, weather},
+      {category, <<"weather">>},
       {subcategory, <<"subcategory">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
@@ -530,7 +530,7 @@ commands_admin() ->
      ],
      [
       {name, delete_simple},
-      {category, music},
+      {category, <<"music">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, delete_simple_command},
@@ -541,7 +541,7 @@ commands_admin() ->
      ],
      [
       {name, put_simple},
-      {category, users},
+      {category, <<"users">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, put_simple_command},
@@ -552,7 +552,7 @@ commands_admin() ->
      ],
      [
       {name, put_advanced},
-      {category, dragons},
+      {category, <<"dragons">>},
       {desc, "do nothing and return"},
       {module, ?MODULE},
       {function, put_advanced_command},

@@ -87,12 +87,12 @@ reload_dispatches(_Command) ->
 
 -spec create_admin_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_admin_url_path(Command) ->
-    ["/", category_to_resource(mongoose_commands:category(Command)),
+    ["/", mongoose_commands:category(Command),
           maybe_add_bindings(Command, admin), maybe_add_subcategory(Command)].
 
 -spec create_user_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_user_url_path(Command) ->
-    ["/", category_to_resource(mongoose_commands:category(Command)), maybe_add_bindings(Command, user)].
+    ["/", mongoose_commands:category(Command), maybe_add_bindings(Command, user)].
 
 -spec process_request(method(), mongoose_commands:ct(), any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
@@ -265,10 +265,6 @@ convert_arg(_, _Binary) ->
 -spec create_params_proplist(list({binary(), binary()})) -> args_applied().
 create_params_proplist(ArgList) ->
     lists:sort([{to_atom(Arg), Value} || {Arg, Value} <- ArgList]).
-
--spec category_to_resource(atom()) -> string().
-category_to_resource(Category) when is_atom(Category) ->
-    atom_to_list(Category).
 
 %% @doc Returns list of allowed methods.
 -spec get_allowed_methods(admin | user) -> list(method()).

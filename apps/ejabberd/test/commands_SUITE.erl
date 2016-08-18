@@ -207,11 +207,11 @@ new_list(_C) ->
     command_one = mongoose_commands:name(Cmd),
     "do nothing and return" = mongoose_commands:desc(Cmd),
     %% list by category
-    [_] = mongoose_commands:list(admin, user),
-    [] = mongoose_commands:list(admin, nocategory),
+    [_] = mongoose_commands:list(admin, <<"user">>),
+    [] = mongoose_commands:list(admin, <<"nocategory">>),
     %% list by category and action
-    [_] = mongoose_commands:list(admin, user, read),
-    [] = mongoose_commands:list(admin, user, update),
+    [_] = mongoose_commands:list(admin, <<"user">>, read),
+    [] = mongoose_commands:list(admin, <<"user">>, update),
     %% get definition
     Rget = mongoose_commands:get_command(admin, command_one),
     command_one = mongoose_commands:name(Rget),
@@ -287,7 +287,7 @@ commands_new() ->
     [
         [
             {name, command_one},
-            {category, user},
+            {category, <<"user">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -297,7 +297,7 @@ commands_new() ->
         ],
         [
             {name, command_noreturn},
-            {category, message},
+            {category, <<"message">>},
             {desc, "do nothing and return nothing"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -307,7 +307,7 @@ commands_new() ->
         ],
         [
             {name, command_foruser},
-            {category, another},
+            {category, <<"another">>},
             {desc, "this is available for a user"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -318,7 +318,7 @@ commands_new() ->
         ],
         [
             {name, command_withcaller},
-            {category, another},
+            {category, <<"another">>},
             {desc, "this has a 'caller' argument, returns caller ++ msg"},
             {module, ?MODULE},
             {function, cmd_concat},
@@ -334,7 +334,7 @@ commands_new_temp() ->
     [
         [
             {name, command_temp},
-            {category, user},
+            {category, <<"user">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -344,7 +344,7 @@ commands_new_temp() ->
         ],
         [
             {name, command_one_two},
-            {category, user},
+            {category, <<"user">>},
             {subcategory, <<"rosters">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
@@ -355,7 +355,7 @@ commands_new_temp() ->
         ],
         [
             {name, command_temp2},
-            {category, user},
+            {category, <<"user">>},
             {desc, "this one specifies identifiers"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -371,7 +371,7 @@ commands_new_temp2() ->
     [
         [
             {name, command_two},
-            {category, animals},
+            {category, <<"animals">>},
             {desc, "some"},
             {module, ?MODULE},
             {function, the_same_types},
@@ -381,7 +381,7 @@ commands_new_temp2() ->
     ],
         [
             {name, command_three},
-            {category, music},
+            {category, <<"music">>},
             {desc, "two args, different types"},
             {module, ?MODULE},
             {function, different_types},
@@ -398,11 +398,11 @@ commands_new_lame() ->
         ],
         [
             {name, command_one},
-            {category, []} %% should be an atom
+            {category, []} %% should be binary
         ],
         [
             {name, command_one},
-            {category, user},
+            {category, <<"user">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -410,7 +410,7 @@ commands_new_lame() ->
         ],
         [
             {name, command_one},
-            {category, user},
+            {category, <<"user">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -431,7 +431,7 @@ commands_new_lame() ->
 %%        ],
         [
             {name, command_one},
-            {category, another},
+            {category, <<"another">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -441,7 +441,7 @@ commands_new_lame() ->
         ],
         [
             {name, command_one},
-            {category, another},
+            {category, <<"another">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -452,7 +452,7 @@ commands_new_lame() ->
         ],
         [
             {name, command_one},
-            {category, another},
+            {category, <<"another">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -463,7 +463,7 @@ commands_new_lame() ->
         ],
         [
             {name, command_seven}, %% name is different...
-            {category, user},
+            {category, <<"user">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
@@ -473,7 +473,7 @@ commands_new_lame() ->
         ],
         [
             {name, command_seven},
-            {category, user},
+            {category, <<"user">>},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
