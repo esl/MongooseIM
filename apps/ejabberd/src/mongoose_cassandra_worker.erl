@@ -48,16 +48,20 @@
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
--record(state, {
-    pool_name,
-    conn,
-    prepared_queries,
-    query_refs,
-    query_refs_count}).
+-record(state, {pool_name,
+                conn,
+                prepared_queries,
+                query_refs,
+                query_refs_count
+               }).
 
--record(prepared_query, {
-          query_id,
-          query_types}).
+-record(prepared_query, {query_id, query_types}).
+
+-type cql_batch_type() :: logged | unlogged | counter.
+-type cql_query_name() :: term().
+-type cql_query_params() :: list().
+-type cql_queries() :: [{cql_query_name(), cql_query_params()}].
+-type cql_pool_name() :: term().
 
 %%====================================================================
 %% Internal functions
@@ -92,6 +96,10 @@ cql_query_multi_async(Worker, _UserJID, Module, QueryName, MultiParams)
   when is_pid(Worker) ->
     gen_server:cast(Worker, {multi_async_cql_query, Module, QueryName, MultiParams}).
 
+-spec cql_batch(Worker :: pid(), UserJID :: ejabberd:jid(),
+                Module :: module(), Queries :: cql_queries(),
+                BatchType :: not_batch | cql_batch_type()) ->
+        {ok, list()} | {error, term()}.
 cql_batch(Worker, UserJID, Module, Queries, not_batch) ->
     cql_query_multi(Worker, UserJID, Module, Queries);
 cql_batch(Worker, _UserJID, Module, Queries, BatchType) ->
@@ -111,6 +119,9 @@ cql_batch(Worker, _UserJID, Module, Queries, BatchType) ->
     end.
 
 %% @doc Run queries, abort if an error. No rollback
+-spec cql_query_multi(Worker :: pid(), UserJID :: ejabberd:jid(),
+                      Module :: module(), Queries :: cql_queries()) ->
+        {ok, list()} | {error, term()}.
 cql_query_multi(Worker, UserJID, Module, Queries) ->
     cql_query_multi(Worker, UserJID, Module, Queries, []).
 
@@ -124,6 +135,10 @@ cql_query_multi(Worker, UserJID, Module, [{QueryName, Params}|Queries], Results)
 cql_query_multi(_Worker, _UserJID, _Module, [], Results) ->
     {ok, lists:reverse(Results)}.
 
+-spec cql_batch_pool(PoolName :: cql_pool_name(), UserJID :: ejabberd:jid(),
+                     Module :: module(), Queries :: cql_queries(),
+                     BatchType :: not_batch | cql_batch_type()) ->
+        {ok, list()} | {error, term()}.
 cql_batch_pool(PoolName, UserJID, Module, Queries, BatchType) ->
     Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
     cql_batch(Worker, UserJID, Module, Queries, BatchType).
@@ -135,14 +150,26 @@ cql_batch_pool(PoolName, UserJID, Module, Queries) ->
     cql_batch_pool(PoolName, UserJID, Module, Queries, unlogged).
 
 %% @doc Select worker and do cql query
+-spec cql_query_pool(PoolName :: cql_pool_name(), UserJID :: ejabberd:jid(),
+                     Module :: module(), QueryName :: cql_query_name(),
+                     Params :: cql_query_params()) ->
+        {ok, term()} | {error, term()}.
 cql_query_pool(PoolName, UserJID, Module, QueryName, Params) ->
     Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
     cql_query(Worker, UserJID, Module, QueryName, Params).
 
+-spec cql_query_pool_async(PoolName :: cql_pool_name(),
+                           UserJID :: ejabberd:jid(), Module :: module(),
+                           QueryName :: cql_query_name(),
+                           Params :: cql_query_params()) -> ok.
 cql_query_pool_async(PoolName, UserJID, Module, QueryName, Params) ->
     Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
     cql_query_async(Worker, UserJID, Module, QueryName, Params).
 
+-spec cql_query_pool_multi_async(PoolName :: cql_pool_name(),
+                                 UserJID :: ejabberd:jid(), Module :: module(),
+                                 QueryName :: cql_query_name(),
+                                 MultiParams :: [cql_query_params()]) -> ok.
 cql_query_pool_multi_async(PoolName, UserJID, Module, QueryName, MultiParams) ->
     Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
     cql_query_multi_async(Worker, UserJID, Module, QueryName, MultiParams).
