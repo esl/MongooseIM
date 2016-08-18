@@ -78,9 +78,9 @@ check_connection3(Config) ->
     case mongoose_cassandra:status() of
         disabled ->
             %% Mongoose thinks that Cassandra is not configured but it is
-            ct:pal("Cassandra is not configured", []);
+            ct:comment("Cassandra is not configured");
         ok ->
-            ct:pal("Cassandra is connected", []);
+            ct:comment("Cassandra is connected");
         failure ->
             ct:fail("Cassandra is configured but not connected", [])
     end.
