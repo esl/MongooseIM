@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2016 Erlang Solutions Ltd.
+%% Copyright 2014 Erlang Solutions Ltd.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -13,27 +13,13 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 %%==============================================================================
--module(http_helper).
+-module(mongoose_http_client_worker).
 
--export([start/3, stop/0, init/3, handle/2, terminate/3]).
+%% API
+-export([start_link/1]).
 
-start(Port, Path, HandleFun) ->
-    application:ensure_all_started(cowboy),
-    Dispatch = cowboy_router:compile([{'_', [{Path, http_helper, [HandleFun]}]}]),
-    {ok, _} = cowboy:start_http(http_helper_listener, 100, [{port, Port}],
-                                [{env, [{dispatch, Dispatch}]}]).
+%%------------------------------------------------------------------------------
+%% API
 
-stop() ->
-    cowboy:stop_listener(http_helper_listener).
-
-%% Cowboy handler callbacks
-
-init(_Type, Req, [HandleFun]) ->
-    {ok, Req, HandleFun}.
-
-handle(Req, HandleFun) ->
-    Req2 = HandleFun(Req),
-    {ok, Req2, HandleFun}.
-
-terminate(_Reason, _Req, _State) ->
-    ok.
+start_link([Host, Opts]) ->
+    fusco:start_link(Host, Opts).

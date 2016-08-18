@@ -30,10 +30,10 @@
 
 
 %% External exports
--export([start_link/9,
-         start_link/7,
-         start/9,
-         start/7,
+-export([start_link/10,
+         start_link/8,
+         start/10,
+         start/8,
          route/4]).
 
 %% API exports
@@ -117,7 +117,8 @@
                            | 'limit_reached'
                            | 'require_membership'
                            | 'require_password'
-                           | 'user_banned'.
+                           | 'user_banned'
+                           | 'http_auth'.
 -type users_dict() :: dict:dict(ejabberd:simple_jid(), user()).
 -type sessions_dict() :: dict:dict(mod_muc:nick(), ejabberd:jid()).
 
@@ -137,51 +138,53 @@
 -define(SUPERVISOR_START,
         gen_fsm:start(?MODULE,
                       [Host, ServerHost, Access, Room, HistorySize,
-                       RoomShaper, Creator, Nick, DefRoomOpts],
+                       RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
                       ?FSMOPTS)).
 -else.
 -define(SUPERVISOR_START,
         Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
         supervisor:start_child(Supervisor,
                                [Host, ServerHost, Access, Room, HistorySize,
-                                RoomShaper, Creator, Nick, DefRoomOpts])).
+                                RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts])).
 -endif.
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
 -spec start(Host :: ejabberd:server(), ServerHost :: ejabberd:server(),
-        Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
-        RoomShaper :: shaper:shaper(), Creator :: ejabberd:jid(),
-        Nick :: mod_muc:nick(), DefRoomOpts :: list()) -> {'error',_}
-                                                | {'ok','undefined' | pid()}
-                                                | {'ok','undefined' | pid(),_}.
-start(Host, ServerHost, Access, Room, HistorySize, RoomShaper,
+            Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
+            RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
+            Creator :: ejabberd:jid(), Nick :: mod_muc:nick(),
+            DefRoomOpts :: list()) -> {'error',_}
+                                          | {'ok','undefined' | pid()}
+                                          | {'ok','undefined' | pid(),_}.
+start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
       Creator, Nick, DefRoomOpts) ->
     ?SUPERVISOR_START.
 
 
 -spec start(Host :: ejabberd:server(), ServerHost :: ejabberd:server(),
-        Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
-        RoomShaper :: shaper:shaper(), Opts :: list()) -> {'error',_}
-                                                | {'ok','undefined' | pid()}
-                                                | {'ok','undefined' | pid(),_}.
-start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, Opts) ->
+            Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
+            RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
+            Opts :: list()) -> {'error',_}
+                                   | {'ok','undefined' | pid()}
+                                   | {'ok','undefined' | pid(),_}.
+start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
     Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
     supervisor:start_child(Supervisor, [Host, ServerHost, Access, Room,
-                                        HistorySize, RoomShaper, Opts]).
+                                        HistorySize, RoomShaper, HttpAuthPool, Opts]).
 
-start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper,
+start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
        Creator, Nick, DefRoomOpts) ->
     gen_fsm:start_link(?MODULE,
                        [Host, ServerHost, Access, Room, HistorySize,
-                        RoomShaper, Creator, Nick, DefRoomOpts],
+                        RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
                        ?FSMOPTS).
 
-start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, Opts) ->
+start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
     gen_fsm:start_link(?MODULE,
                        [Host, ServerHost, Access, Room, HistorySize,
-                        RoomShaper, Opts],
+                        RoomShaper, HttpAuthPool, Opts],
                        ?FSMOPTS).
 
 
@@ -243,8 +246,8 @@ can_access_identity(RoomJID, UserJID) ->
 %% next state is determined accordingly (a locked room for MUC or an instant
 %% one for groupchat).
 -spec init([any(),...]) -> {'ok',statename(), state()}.
-init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, Creator, _Nick,
-      DefRoomOpts]) ->
+init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
+      Creator, _Nick, DefRoomOpts]) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
     State = set_affiliation(Creator, owner,
@@ -255,7 +258,8 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, Creator, _Nick,
                                    history = lqueue_new(HistorySize),
                                    jid = jid:make(Room, Host, <<>>),
                                    just_created = true,
-                                   room_shaper = Shaper}),
+                                   room_shaper = Shaper,
+                                   http_auth_pool = HttpAuthPool}),
     State1 = set_opts(DefRoomOpts, State),
     ?INFO_MSG("Created MUC room ~s@~s by ~s",
               [Room, Host, jid:to_binary(Creator)]),
@@ -273,7 +277,7 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, Creator, _Nick,
 
 
 %% @doc A room is restored
-init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, Opts]) ->
+init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts]) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
     State = set_opts(Opts, #state{host = Host,
@@ -282,7 +286,8 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, Opts]) ->
                                   room = Room,
                                   history = lqueue_new(HistorySize),
                                   jid = jid:make(Room, Host, <<>>),
-                                  room_shaper = Shaper}),
+                                  room_shaper = Shaper,
+                                  http_auth_pool = HttpAuthPool}),
     add_to_log(room_existence, started, State),
     {ok, normal_state, State}.
 
@@ -318,6 +323,7 @@ initial_state({route, From, ToNick,
               #xmlel{name = <<"presence">>} = Presence}, StateData) ->
     %% this should never happen so crash if it does
     <<>> = exml_query:attr(Presence, <<"type">>, <<>>),
+    owner = get_affiliation(From, StateData), %% prevent race condition (2 users create same room)
     XNamespaces = exml_query:paths(Presence, [{element, <<"x">>}, {attr, <<"xmlns">>}]),
     case lists:member(?NS_MUC, XNamespaces) of
         true ->
@@ -511,9 +517,13 @@ normal_state({route, From, ToNick,
         JIDs -> lists:foreach(FunRouteNickIq, JIDs)
     end,
     {next_state, normal_state, StateData};
+normal_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) ->
+    AuthPids = StateData#state.http_auth_pids,
+    StateDataWithoutPid = StateData#state{http_auth_pids = lists:delete(AuthPid, AuthPids)},
+    NewStateData = handle_http_auth_result(Result, From, Nick, Packet, Role, StateDataWithoutPid),
+    destroy_temporary_room_if_empty(NewStateData, normal_state);
 normal_state(_Event, StateData) ->
     {next_state, normal_state, StateData}.
-
 
 %%----------------------------------------------------------------------
 %% Func: handle_event/3
@@ -662,6 +672,10 @@ handle_info(process_room_queue, normal_state = StateName, StateData) ->
     {empty, _} ->
         {next_state, StateName, StateData}
     end;
+handle_info({'EXIT', FromPid, _Reason}, StateName, StateData) ->
+    AuthPids = StateData#state.http_auth_pids,
+    StateWithoutPid = StateData#state{http_auth_pids = lists:delete(FromPid, AuthPids)},
+    destroy_temporary_room_if_empty(StateWithoutPid, StateName);
 handle_info(_Info, StateName, StateData) ->
     {next_state, StateName, StateData}.
 
@@ -900,7 +914,7 @@ get_participant_data(From, StateData) ->
                        Packet :: jlib:xmlel(), state()) -> fsm_return().
 process_presence(From, ToNick, Presence, StateData) ->
     StateData1 = process_presence1(From, ToNick, Presence, StateData),
-    destroy_temporary_room_if_empty(StateData1).
+    destroy_temporary_room_if_empty(StateData1, normal_state).
 
 
 -spec process_presence(From :: ejabberd:jid(), Nick :: mod_muc:nick(),
@@ -917,16 +931,17 @@ rewrite_next_state(_, {stop, normal, StateData}) ->
     {stop, normal, StateData}.
 
 
--spec destroy_temporary_room_if_empty(state()) -> fsm_return().
-destroy_temporary_room_if_empty(StateData=#state{config=C=#config{}}) ->
-    case (not C#config.persistent) andalso is_empty_room(StateData) of
+-spec destroy_temporary_room_if_empty(state(), atom()) -> fsm_return().
+destroy_temporary_room_if_empty(StateData=#state{config=C=#config{}}, NextState) ->
+    case (not C#config.persistent) andalso is_empty_room(StateData)
+        andalso StateData#state.http_auth_pids =:= [] of
         true ->
             ?INFO_MSG("Destroyed MUC room ~s because it's temporary and empty",
                   [jid:to_binary(StateData#state.jid)]),
             add_to_log(room_existence, destroyed, StateData),
             {stop, normal, StateData};
         _ ->
-            {next_state, normal_state, StateData}
+            {next_state, NextState, StateData}
     end.
 
 
@@ -1794,21 +1809,25 @@ choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
         {_, _, _, false, _, _} ->
             conflict_registered;
         _ ->
-            ServiceAffiliation = get_service_affiliation(From, StateData),
-            case check_password(
-                ServiceAffiliation, Affiliation, Els, From, StateData) of
-                true    -> allowed;
-                nopass  -> require_password;
-                _       -> invalid_password
-            end
+            choose_new_user_password_strategy(From, Els, StateData)
     end.
 
+-spec choose_new_user_password_strategy(ejabberd:jid(), [jlib:xmlcdata() | jlib:xmlel()],
+                                        state()) -> new_user_strategy().
+choose_new_user_password_strategy(From, Els, StateData) ->
+    ServiceAffiliation = get_service_affiliation(From, StateData),
+    Config = StateData#state.config,
+    case is_password_required(ServiceAffiliation, Config) of
+        false -> allowed;
+        true -> case extract_password(Els) of
+                    false -> require_password;
+                    Password -> check_password(StateData, Password)
+                end
+    end.
 
 -spec add_new_user(ejabberd:jid(), mod_muc:nick(), jlib:xmlel(), state()
                    ) -> state().
-add_new_user(From, Nick,
-             #xmlel{attrs = Attrs, children = Els} = Packet,
-             #state{} = StateData) ->
+add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet, StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     Affiliation = get_affiliation(From, StateData),
     Role = get_default_role(Affiliation, StateData),
@@ -1844,51 +1863,116 @@ add_new_user(From, Nick,
             Err = jlib:make_error_reply(
                 Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
+        http_auth ->
+            Password = extract_password(Els),
+            perform_http_auth(From, Nick, Packet, Role, Password, StateData);
         allowed ->
-            NewState =
-            add_user_presence(
-              From, Packet,
-              add_online_user(From, Nick, Role, StateData)),
-            send_existing_presences(From, NewState),
-            send_new_presence(From, NewState),
-            Shift = count_stanza_shift(Nick, Els, NewState),
-            case send_history(From, Shift, NewState) of
-                true ->
-                    ok;
-                _ ->
-                    send_subject(From, Lang, StateData)
-            end,
-            case NewState#state.just_created of
-                true ->
-                    NewState#state{just_created = false};
-                false ->
-                    Robots = ?DICT:erase(From, StateData#state.robots),
-                    NewState#state{robots = Robots}
-            end
+            do_add_new_user(From, Nick, Packet, Role, StateData)
     end.
 
-
--spec check_password(ServiceAffiliation :: mod_muc:affiliation(),
-        Affiliation :: mod_muc:affiliation(), Els :: [jlib:xmlel()], _From,
-        state()) -> boolean() | nopass.
-check_password(owner, _Affiliation, _Els, _From, _StateData) ->
-    %% Don't check pass if user is owner in MUC service (access_admin option)
-    true;
-check_password(_ServiceAffiliation, _Affiliation, Els, _From, StateData) ->
-    case (StateData#state.config)#config.password_protected of
-        false ->
-            %% Don't check password
-            true;
+perform_http_auth(From, Nick, Packet, Role, Password, StateData) ->
+    RoomPid = self(),
+    RoomJid = StateData#state.jid,
+    Pool = StateData#state.http_auth_pool,
+    case is_empty_room(StateData) of
         true ->
-            Pass = extract_password(Els),
-            case Pass of
-                false ->
-                    nopass;
-                _ ->
-                    (StateData#state.config)#config.password =:= Pass
-            end
+            Result = make_http_auth_request(From, RoomJid, Password, Pool),
+            handle_http_auth_result(Result, From, Nick, Packet, Role, StateData);
+        false ->
+            %% Perform the request in a separate process to prevent room freeze
+            Pid = spawn_link(
+                    fun() ->
+                            Result = make_http_auth_request(From, RoomJid, Password, Pool),
+                            gen_fsm:send_event(RoomPid, {http_auth, self(), Result,
+                                                         From, Nick, Packet, Role})
+                    end),
+            AuthPids = StateData#state.http_auth_pids,
+            StateData#state{http_auth_pids = [Pid | AuthPids]}
     end.
 
+make_http_auth_request(From, RoomJid, Password, Pool) ->
+    FromVal = uri_encode(jid:to_binary(From)),
+    RoomJidVal = uri_encode(jid:to_binary(RoomJid)),
+    PassVal = uri_encode(Password),
+    Path = <<"check_password?from=", FromVal/binary,
+             "&to=", RoomJidVal/binary,
+             "&pass=", PassVal/binary>>,
+    case mongoose_http_client:get(Pool, Path, []) of
+        {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
+        _ -> error
+    end.
+
+handle_http_auth_result(Result, From, Nick, Packet, Role, StateData) ->
+    case Result of
+        allowed -> do_add_new_user(From, Nick, Packet, Role, StateData);
+        {invalid_password, ErrorMsg} -> reply_not_authorized(From, Nick, Packet, StateData, ErrorMsg);
+        error -> reply_service_unavailable(From, Nick, Packet, StateData, <<"Internal server error">>)
+    end.
+
+uri_encode(Bin) ->
+    list_to_binary(http_uri:encode(binary_to_list(Bin))).
+
+decode_http_auth_response(Body) ->
+    try decode_json_auth_response(Body) of
+        {0, _} -> allowed;
+        {AuthCode, Msg} -> {invalid_password, iolist_to_binary([AuthCode, $ , Msg])}
+    catch
+        error:_ -> error
+    end.
+
+decode_json_auth_response(Body) ->
+    {struct, Elements} = mochijson2:decode(Body),
+    Code = proplists:get_value(<<"code">>, Elements),
+    Msg = proplists:get_value(<<"msg">>, Elements),
+    {Code, Msg}.
+
+reply_not_authorized(From, Nick, Packet, StateData, ErrText) ->
+    Lang = xml:get_attr_s(<<"xml:lang">>, Packet#xmlel.attrs),
+    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
+    route_error(Nick, From, Err, StateData).
+
+reply_service_unavailable(From, Nick, Packet, StateData, ErrText) ->
+    Lang = xml:get_attr_s(<<"xml:lang">>, Packet#xmlel.attrs),
+    Err = jlib:make_error_reply(Packet, ?ERRT_SERVICE_UNAVAILABLE(Lang, ErrText)),
+    route_error(Nick, From, Err, StateData).
+
+do_add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet,
+                Role, StateData) ->
+    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+    NewState =
+        add_user_presence(
+          From, Packet,
+          add_online_user(From, Nick, Role, StateData)),
+    send_existing_presences(From, NewState),
+    send_new_presence(From, NewState),
+    Shift = count_stanza_shift(Nick, Els, NewState),
+    case send_history(From, Shift, NewState) of
+        true ->
+            ok;
+        _ ->
+            send_subject(From, Lang, StateData)
+    end,
+    case NewState#state.just_created of
+        true ->
+            NewState#state{just_created = false};
+        false ->
+            Robots = ?DICT:erase(From, StateData#state.robots),
+            NewState#state{robots = Robots}
+    end.
+
+is_password_required(owner, _Config) ->
+    %% Don't check pass if user is owner in MUC service (access_admin option)
+    false;
+is_password_required(_, Config) ->
+    Config#config.password_protected.
+
+check_password(#state{http_auth_pool = none,
+                      config = #config{password = Password}}, Password) ->
+    allowed;
+check_password(#state{http_auth_pool = none}, _Password) ->
+    invalid_password;
+check_password(#state{http_auth_pool = _Pool}, _Password) ->
+    http_auth.
 
 -spec extract_password([jlib:xmlcdata() | jlib:xmlel()]) -> 'false' | binary().
 extract_password([]) ->
