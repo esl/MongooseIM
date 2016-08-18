@@ -89,7 +89,7 @@ create_room(Config) ->
         Path = <<"/mucs/", Host/binary>>,
         Name = ?config(room_name, Config),
         Body = #{name => Name,
-                 owner => escalus_utils:get_jid(Alice),
+                 owner => escalus_client:short_jid(Alice),
                  nick => <<"ali">>},
         {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
         %% Service acknowledges room creation (10.1.1 Ex. 154), then
@@ -108,8 +108,8 @@ invite_online_user_to_room(Config) ->
         Name = ?config(room_name, Config),
         Path = <<"/mucs/localhost/", Name/binary>>,
         Reason = <<"I think you'll like this room!">>,
-        Body = #{sender => escalus_utils:get_jid(Alice),
-                 recipient => escalus_utils:get_jid(Bob),
+        Body = #{sender => escalus_client:short_jid(Alice),
+                 recipient => escalus_client:short_jid(Bob),
                  reason => Reason},
         {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
         Stanza = escalus:wait_for_stanza(Bob),
@@ -132,7 +132,7 @@ send_message_to_room(Config) ->
         Host = <<"localhost">>,
         Path = <<"/mucs",$/,Host/binary,$/,Name/binary,$/,"messages">>,
         Message = <<"Greetings!">>,
-        Body = #{sender => escalus_utils:get_jid(Bob),
+        Body = #{sender => escalus_client:short_jid(Bob),
                  message => Message},
         %% The HTTP call in question. Notice: status 200 because no
         %% resource is created.
@@ -158,7 +158,7 @@ multiparty_multiprotocol(Config) ->
             {{<<"201">>, _}, <<"">>} =
                 rest_helper:post(MUCPath,
                                  #{name => Room,
-                                   owner => escalus_utils:get_jid(Alice),
+                                   owner => escalus_client:short_jid(Alice),
                                    nick => <<"ali">>}),
             %% See comments under the create room test case.
             escalus:wait_for_stanzas(Alice, 3),
@@ -198,7 +198,7 @@ multiparty_multiprotocol(Config) ->
             %% HTTP: Alice sends a message to the room.
             {{<<"200">>, _}, <<"">>} =
                 rest_helper:post(MessagePath,
-                                 #{sender => escalus_utils:get_jid(Alice),
+                                 #{sender => escalus_client:short_jid(Alice),
                                    message => Message}),
             %% XMPP: All three recieve the message sent to the MUC room.
             [ Message = wait_for_group_message(User) || User <- [Alice, Bob, Kate] ],
@@ -240,8 +240,8 @@ direct_invite_has_reason(Stanza, Reason) ->
     Reason = exml_query:path(Stanza, [{element, <<"x">>}, {attr, <<"reason">>}]).
 
 invite_body(Sender, Recipient, Reason) ->
-    #{sender => escalus_utils:get_jid(Sender),
-      recipient => escalus_utils:get_jid(Recipient),
+    #{sender => escalus_client:short_jid(Sender),
+      recipient => escalus_client:short_jid(Recipient),
       reason => Reason}.
 
 wait_for_invite(Recipient, Reason) ->
