@@ -41,7 +41,7 @@ set_worker() ->
 
 set_worker(Prefix) ->
     dynamic_modules:start(host(), mod_http_notification, [{worker_timeout, 500}, {host, "http://localhost:8000"},
-        {prefix_path, Prefix}]),
+        {path, Prefix}]),
     ok.
 
 host() -> <<"localhost">>.

@@ -19,7 +19,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, request/2]).
+-export([start/3, request/4]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -34,36 +34,39 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {connection, httphost, timeout, pathprefix}).
+-record(state, {parameters = []}).
+
+%%% @doc This module starts a process which holds parameters for hosts
+%%% and does the actual requesting.
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
-start_link(Opts) ->
-    gen_server:start_link(?MODULE, Opts, []).
+start(Host, PoolName, Path) ->
+    gen_server:start({local, ?MODULE}, ?MODULE, [], []), % ignore if already started
+    gen_server:call(?MODULE, {register_host, Host, PoolName, Path}),
+    ensure_metrics(Host).
 
-request(Pid, Req) ->
-    gen_server:call(Pid, Req).
+request(Host, Sender, Receiver, Message) ->
+    gen_server:cast(?MODULE, {request, Host, Sender, Receiver, Message}).
 
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-init(Opts) ->
-    {_, HttpHost} = proplists:lookup(http_host, Opts),
-    {_, Timeout} = proplists:lookup(timeout, Opts),
-    {_, PathPrefix} = proplists:lookup(path_prefix, Opts),
-    {ok, Conn} = fusco:start_link(HttpHost, []),
-    {ok, #state{httphost = HttpHost, timeout = Timeout, pathprefix = to_binary(PathPrefix), connection = Conn}}.
+init(_Opts) ->
+    {ok, #state{}}.
 
-handle_call(Request, _From, #state{connection = Connection, pathprefix = Path, timeout = Timeout} = State) ->
-    {Host, Sender, Receiver, Message} = Request,
-    Res = make_req(Connection, Host, Path, Sender, Receiver, Message, Timeout),
-    {reply, Res, State}.
+%% @doc Remember parameters for a host, replace if already there
+handle_call({register_host, Host, PoolName, Path}, _From, #state{parameters = Params} = State) ->
+    Nparams = [{Host, {PoolName, fix_path(Path)}} | proplists:delete(Host, Params)],
+    {reply, ok, State#state{parameters = Nparams}}.
 
-handle_cast(_Request, State) ->
+handle_cast({request, Host, Sender, Receiver, Message}, State) ->
+    {PoolName, Path} = proplists:get_value(Host, State#state.parameters),
+    make_req(Host, PoolName, Path, Sender, Receiver, Message),
     {noreply, State}.
 
 handle_info(_Info, State) ->
@@ -79,20 +82,43 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-make_req(Connection, Host, Path, Sender, Receiver, Message, Timeout) ->
+make_req(Host, PoolName, Path, Sender, Receiver, Message) ->
+    Pool = mongoose_http_client:get_pool(PoolName),
     Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
-              Message/binary>>,
-    ?INFO_MSG("Making request '~s' for user ~s@~s...", [Path, Sender, Host]),
-    Header = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
-    case fusco:request(Connection, <<Path/binary>>, "POST", Header, Query, 2, Timeout) of
-        {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
-            ?INFO_MSG("Request result: ~s: ~p", [Code, RespBody]),
-            ok;
-        Else ->
-            Else
-    end.
+        Message/binary>>,
+    ?INFO_MSG("Making request '~p' for user ~s@~s...", [Sender, Host]),
+    Headers = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
+    T0 = os:timestamp(),
+    {Res, Elapsed} = case mongoose_http_client:post(Pool, Path, Headers, Query) of
+                         {ok, _} ->
+                             {ok, timer:now_diff(os:timestamp(), T0)};
+                         {error, Reason} ->
+                             {{error, Reason}, 0}
+                     end,
+    record_result(Host, Res, Elapsed),
+    ok.
 
-to_binary(P) when is_list(P) ->
-    list_to_binary(P);
-to_binary(P) when is_binary(P) ->
-    P.
+ensure_metrics(Host) ->
+    mongoose_metrics:ensure_metric([Host, mod_http_notifications, sent], spiral),
+    mongoose_metrics:ensure_metric([Host, mod_http_notifications, failed], spiral),
+    mongoose_metrics:ensure_metric([Host, mod_http_notifications, response_time], histogram),
+    ok.
+record_result(Host, ok, Elapsed) ->
+    mongoose_metrics:update([Host, mod_http_notifications, sent], 1),
+    mongoose_metrics:update([Host, mod_http_notifications, response_time], Elapsed),
+    ok;
+record_result(Host, {error, Reason}, _) ->
+    mongoose_metrics:update([Host, mod_http_notifications, failed], 1),
+    ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
+    ok.
+
+%% @doc Convert to binary, strip initial slash (it is added by mongoose_http_client)
+fix_path(P) when is_list(P) ->
+    fix_path(list_to_binary(P));
+fix_path(P) when is_binary(P) ->
+    case P of
+        <<47/integer, R/binary>> ->
+            R;
+        Path ->
+            Path
+    end.
