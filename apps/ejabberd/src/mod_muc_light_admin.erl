@@ -117,10 +117,12 @@ create_unique_room(Domain, RoomName, Creator, Subject) ->
             E
     end.
 
-invite_to_room(Domain, RoomName, Sender, Recipient) ->
+invite_to_room(Domain, RoomName, Sender, Recipient0) ->
+    Recipient1 = jid:binary_to_bare(Recipient0),
     R = muc_light_room_name_to_jid(jid:from_binary(Sender), RoomName, Domain),
-    S = jid:replace_resource(jid:from_binary(Sender), <<>>),
-    Changes = query(?NS_MUC_LIGHT_AFFILIATIONS, [affiliate(Recipient, <<"member">>)]),
+    S = jid:binary_to_bare(Sender),
+    Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
+                    [affiliate(jid:to_binary(Recipient1), <<"member">>)]),
     ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
                                    <<"set">>, [Changes])).
 
@@ -132,7 +134,7 @@ send_message(Domain, RoomName, Sender, Message) ->
                     attrs = [{<<"type">>, <<"groupchat">>}],
                     children = [ Body ]
                    },
-    S = jid:from_binary(Sender),
+    S = jid:binary_to_bare(Sender),
     case get_user_rooms(S) of
         [] ->
             {error, given_user_does_not_occupy_any_room};

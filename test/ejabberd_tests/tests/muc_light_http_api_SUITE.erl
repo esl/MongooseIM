@@ -84,7 +84,7 @@ create_room(Config) ->
         Path = <<"/muc-lights", $/, Domain/binary>>,
         Name = <<"wonderland">>,
         Body = #{ name => Name,
-                  creator => escalus_utils:get_jid(Alice),
+                  creator => escalus_client:short_jid(Alice),
                   subject => <<"Lewis Carol">>
                 },
         {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
@@ -107,8 +107,8 @@ invite_to_room(Config) ->
         escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
         %% (*) HTTP: Invite Bob (change room affiliation) on Alice's behalf.
-        Body = #{ sender => escalus_utils:get_jid(Alice),
-                  recipient => escalus_utils:get_jid(Bob)
+        Body = #{ sender => escalus_client:short_jid(Alice),
+                  recipient => escalus_client:short_jid(Bob)
                 },
         {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
         %% XMPP: Bob recieves his affiliation information.
@@ -135,7 +135,7 @@ send_message_to_room(Config) ->
         %% XMPP: Get Bob and Kate recieve their affiliation information.
         [ escalus:wait_for_stanza(U) || U <- [Bob, Kate] ],
         %% HTTP: Alice sends a message to the MUC room.
-        Body = #{ sender => escalus_utils:get_jid(Alice),
+        Body = #{ sender => escalus_client:short_jid(Alice),
                   message => Text
                 },
         {{<<"200">>, _}, <<"">>} = rest_helper:post(Path, Body),
