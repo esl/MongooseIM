@@ -14,6 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mongoose_http_client).
+-include("ejabberd.hrl").
 
 %% API
 -export([start/0, stop/0, start_pool/2, stop_pool/1, get_pool/1, get/3, post/4]).
@@ -101,7 +102,7 @@ make_pool(Name, Opts) ->
           server = gen_mod:get_opt(server, Opts, "http://localhost"),
           size = gen_mod:get_opt(pool_size, Opts, 20),
           max_overflow = gen_mod:get_opt(max_overflow, Opts, 5),
-          path_prefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
+          path_prefix = to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
           pool_timeout = gen_mod:get_opt(pool_timeout, Opts, 200),
           request_timeout = gen_mod:get_opt(request_timeout, Opts, 2000)}.
 
@@ -165,3 +166,8 @@ stop_supervisor() ->
     Proc = sup_proc_name(),
     ok = supervisor:terminate_child(ejabberd_sup, Proc),
     ok = supervisor:delete_child(ejabberd_sup, Proc).
+
+to_binary(P) when is_list(P) ->
+    list_to_binary(P);
+to_binary(P) when is_binary(P) ->
+    P.
