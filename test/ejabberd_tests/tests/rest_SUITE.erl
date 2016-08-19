@@ -82,102 +82,23 @@ host() ->
     ct:get_config({hosts, mim, domain}).
 
 init_per_suite(Config) ->
-    Config1 = maybe_enable_mam(mam_backend(), Config),
+    Config1 = rest_helper:maybe_enable_mam(mam_helper:backend(), host(), Config),
     escalus:init_per_suite(Config1).
-
-mam_backend() ->
-    Funs = [fun maybe_odbc/1, fun maybe_riak/1],
-    determine_backend(host(), Funs).
-
-determine_backend(_, []) ->
-    disabled;
-determine_backend(Host, [F | Rest]) ->
-    case F(Host) of
-        false ->
-            determine_backend(Host, Rest);
-        Result ->
-            Result
-    end.
-
-maybe_odbc(Host) ->
-    case mam_helper:is_odbc_enabled(Host) of
-        true ->
-            odbc;
-        _ ->
-            false
-    end.
-
-maybe_riak(Host) ->
-    case mam_helper:is_riak_enabled(Host) of
-        true ->
-            riak;
-        _ ->
-            false
-    end.
-
-maybe_enable_mam(odbc, Config) ->
-    init_module(host(), mod_mam_odbc_arch, [muc, pm, simple]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    [{mam_backend, odbc} | Config];
-maybe_enable_mam(riak, Config) ->
-    init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
-    init_module(host(), mod_mam_mnesia_prefs, [pm, muc]),
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    [{mam_backend, riak}, {yz_wait, 2500} | Config];
-maybe_enable_mam(_, C) ->
-    [{mam_backend, disabled} | C].
-
-
-init_module(Host, Mod, Opts) ->
-    dynamic_modules:start(Host, Mod, Opts).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    maybe_disable_mam(proplists:get_value(mam_enabled, Config)),
+    rest_helper:maybe_disable_mam(proplists:get_value(mam_enabled, Config), host()),
     escalus:end_per_suite(Config).
-
-maybe_disable_mam(odbc) ->
-    stop_module(host(), mod_mam_odbc_arch),
-    stop_module(host(), mod_mam_odbc_prefs),
-    stop_module(host(), mod_mam_odbc_user),
-    stop_module(host(), mod_mam),
-    stop_module(host(), mod_mam_muc);
-maybe_disable_mam(riak) ->
-    stop_module(host(), mod_mam_riak_timed_arch_yz),
-    stop_module(host(), mod_mam_mnesia_prefs),
-    stop_module(host(), mod_mam),
-    stop_module(host(), mod_mam_muc);
-maybe_disable_mam(_) ->
-    ok.
-
-
-stop_module(Host, Mod) ->
-    dynamic_modules:stop(Host, Mod).
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
-
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
 
 init_per_testcase(CaseName, Config) ->
     MAMTestCases = [messages_are_archived],
-    maybe_skip_mam_test_cases(lists:member(CaseName, MAMTestCases), CaseName, Config).
-
-maybe_skip_mam_test_cases(false, CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config);
-maybe_skip_mam_test_cases(true, CaseName, Config) ->
-    case proplists:get_value(mam_backend, Config) of
-        disabled ->
-            {skip, mam_not_available};
-        _ ->
-            escalus:init_per_testcase(CaseName, Config)
-    end.
+    rest_helper:maybe_skip_mam_test_cases(CaseName, MAMTestCases, Config).
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -294,9 +215,9 @@ stop_start_command_module(_) ->
     %% described above we test both transition from `started' to
     %% `stopped' and from `stopped' to `started'.
     {?OK, _} = gett(<<"/commands">>),
-    {atomic, ok} = stop_module(host(), mod_mongoose_admin),
+    {atomic, ok} = dynamic_modules:stop(host(), mod_mongoose_admin),
     {?NOT_FOUND, _} = gett(<<"/commands">>),
-    ok = init_module(host(), mod_mongoose_admin, []),
+    ok = dynamic_modules:start(host(), mod_mongoose_admin, []),
     {?OK, _} = gett(<<"/commands">>).
 
 to_list(V) when is_binary(V) ->
