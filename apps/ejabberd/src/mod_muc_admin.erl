@@ -38,8 +38,8 @@ stop(_) ->
 commands() ->
     [
      [{name, create_muc_room},
-      {category, mucs},
-      {desc, "Create a MUC room."},
+      {category, <<"mucs">>},
+      {desc, <<"Create a MUC room.">>},
       {module, ?MODULE},
       {function, create_instant_room},
       {action, create},
@@ -55,8 +55,8 @@ commands() ->
       {result, {name, binary}}],
 
      [{name, invite_to_muc_room},
-      {category, mucs},
-      {desc, "Send a MUC room invite from one user to another."},
+      {category, <<"mucs">>},
+      {desc, <<"Send a MUC room invite from one user to another.">>},
       {module, ?MODULE},
       {function, invite_to_room},
       {action, update},
@@ -73,9 +73,9 @@ commands() ->
      %% This breaks the module because we have two HTTP end-points
      %% with the same URL and method.
      [{name, send_message_to_room},
-      {category, mucs},
+      {category, <<"mucs">>},
       {subcategory, <<"messages">>},
-      {desc, "Send a message to a MUC room from a given user."},
+      {desc, <<"Send a message to a MUC room from a given user.">>},
       {module, ?MODULE},
       {function, send_message_to_room},
       {action, create},
