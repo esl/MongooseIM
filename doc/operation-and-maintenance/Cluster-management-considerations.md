@@ -6,7 +6,7 @@ With single-node MongooseIM, one can setup a vertically scalable system, that is
 
 In single-node MongooseIM, there is no load distribution, and no fallback or failover in case of failure.
 
-This applies low-scale deployments, such as testing and development environments, whether it is on embadded devices, personal computers, or servers.
+This applies low-scale deployments, such as testing and development environments, whether it is on embedded devices, personal computers, or servers.
 
 ## Dual-node MongooseIM
 
