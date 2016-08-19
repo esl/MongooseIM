@@ -74,6 +74,8 @@ apps/ejabberd/include/XmppAddr.hrl
 apps/ejabberd/include/EJABBERD-MIB.hrl
 apps/ejabberd/priv/mibs/EJABBERD-MIB.bin
 apps/ejabberd/ebin/ejabberd.app
+rel/configure.vars.config
+rel/vars.config
 
 # Compilation/test ephemera
 *.d
@@ -92,6 +94,8 @@ redis.pid
 test/ejabberd_tests/get-deps.log
 test/ejabberd_tests/quicktest.log
 site
+test/ejabberd_tests/test.log
+test/ejabberd_tests/cover_test_preset.log
 
 # Dialyzer
 .mongooseim_combo_dialyzer.plt
