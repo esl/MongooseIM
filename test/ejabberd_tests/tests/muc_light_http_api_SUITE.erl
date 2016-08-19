@@ -178,4 +178,5 @@ member_is_affiliated(Stanza, User) ->
 %%--------------------------------------------------------------------
 
 muc_light_domain() ->
-    <<"muclight.localhost">>.
+    XMPPParentDomain = ct:get_config({hosts, mim, domain}),
+    <<"muclight", ".", XMPPParentDomain/binary>>.
