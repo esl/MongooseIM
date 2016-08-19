@@ -14,7 +14,7 @@ Please refer to 'Database Backends' doc for more configuration information.
 
 Mnesia will run on the same nodes as MongooseIM.
 
-Redis we be a deported cluster, not using the same nodes as MongooseIM.
+Redis will be a separate cluster, not using the same nodes as MongooseIM.
 
 * Persistant databases
 
@@ -28,7 +28,7 @@ LDAP will also run on a separate cluster.
 
 Native clients, on platforms such as Android, iOS, Windows, Linux, macOS, will preferrably use a plain XMPP over TCP connections. Web clients cannot use these TCP connections.
 
-Web clients will preferrably use XMPP over websockets, or or the now less relevant XMPP over BOSH, using long-lived HTTP connections, more and more used as fallback.
+Web clients will preferrably use XMPP over websockets, or the now less relevant XMPP over BOSH, using long-lived HTTP connections, more and more used as fallback.
 
 Any client could use the client REST API, which is using HTTP request/responses.
 
@@ -38,9 +38,9 @@ All these client connections will hit a frontend load balancer before reaching t
 
 MongooseIM can communicate both ways with other backend services in the datacenter infrastructure.
 
-A MongooseIM REST API is available for control/management of operations as well as functional aspects.
+The MongooseIM REST API is available for control/management of operations as well as functional aspects.
 
-An HTTP notification enables the forwarding of events to any external HTTP service.
+A HTTP notification enables the forwarding of events to any external HTTP service.
 
 ### Management and monitoring
 
