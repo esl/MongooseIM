@@ -23,7 +23,7 @@ a token obtained from the server.
 
 To enable the feature modules `mod_auth_token` and `mod_keystore` have to be enabled
 on the server. For more details regarding configuration see
-[mod_auth_token documentation](modules/mod_auth_token) and [mod_keystore](module/mod_keystore).
+[mod_auth_token documentation](../modules/mod_auth_token) and [mod_keystore](module/mod_keystore).
 
 # Token types
 
