@@ -35,7 +35,7 @@ The default option is `true` hence we will get only the last items from the onli
 * `last_item_cache` (boolean, default `false`): specify whether or not pubsub should cache the last items.
 Such caching might speed up pubsub's performance and can increase the number of user connections but in price of memory usage.
 * `plugins` ([Plugin, ...], default: `[<<"flat">>]`): List of enabled pubsub plugins.
-They handle affliations, subscriptions and items and also provide default node conﬁguration and features.
+They handle affiliations, subscriptions and items and also provide default node conﬁguration and features.
 PubSub clients can define which plugin to use when creating a node by adding `type=’plugin-name’` attribute to the create stanza element.
 If such an attribute is not specified, the default plugin will be the first on the plugin list.
     * `<<"flat">>` -  No node hierarchy.
