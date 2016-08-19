@@ -31,6 +31,7 @@
 -export([to_lus/1]).
 -export([to_bare/1]).
 -export([replace_resource/2]).
+-export([binary_to_bare/1]).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
@@ -241,4 +242,13 @@ replace_resource(JID, Resource) ->
         error -> error;
         LResource ->
             JID#jid{resource = Resource, lresource = LResource}
+    end.
+
+-spec binary_to_bare(binary()) -> error | ejabberd:jid().
+binary_to_bare(JID) when is_binary(JID) ->
+    case from_binary(JID) of
+        error ->
+            error;
+        #jid{} = Result ->
+            to_bare(Result)
     end.
