@@ -219,6 +219,7 @@ stop_start_command_module(_) ->
     {atomic, ok} = dynamic_modules:stop(host(), mod_mongoose_admin),
     {?NOT_FOUND, _} = gett(<<"/commands">>),
     ok = dynamic_modules:start(host(), mod_mongoose_admin, []),
+    timer:sleep(200), %% give the server some time to build the paths again
     {?OK, _} = gett(<<"/commands">>).
 
 to_list(V) when is_binary(V) ->
