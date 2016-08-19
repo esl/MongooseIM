@@ -47,6 +47,10 @@
          query_get_request/1,
          pagination_first5/1,
          pagination_last5/1,
+         pagination_offset5/1,
+         pagination_first0/1,
+         pagination_last0/1,
+         pagination_offset5_max0/1,
          pagination_before10/1,
          pagination_after10/1,
          pagination_simple_before10/1,
@@ -332,6 +336,10 @@ with_rsm_cases() ->
 rsm_cases() ->
       [pagination_first5,
        pagination_last5,
+       pagination_offset5,
+       pagination_first0,
+       pagination_last0,
+       pagination_offset5_max0,
        pagination_before10,
        pagination_after10,
        pagination_empty_rset,
@@ -618,7 +626,7 @@ init_modules(odbc_async, _, Config) ->
     Config;
 init_modules(riak_timed_yz_buckets, _, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
-    init_module(host(), mod_mam_mnesia_prefs, [pm, muc]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm, muc, {archive_key, mam_archive_key_server_user}]),
     init_module(host(), mod_mam, [add_archived_element]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
@@ -968,6 +976,8 @@ querying_for_all_messages_with_jid(Config) ->
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
+        maybe_wait_for_yz(Config),
+
         Room = ?config(room, Config),
         MucMsgs = ?config(pre_generated_muc_msgs, Config),
 
@@ -1715,6 +1725,18 @@ pagination_first5(Config) ->
         end,
     escalus:story(Config, [{alice, 1}], F).
 
+pagination_first0(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the first page of size 0.
+        RSM = #rsm_in{max=0},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"first5">>, RSM)),
+        wait_empty_rset(P, Alice, 15),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
 pagination_first5_opt_count(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
@@ -1747,6 +1769,42 @@ pagination_last5(Config) ->
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last5">>, RSM)),
         wait_message_range(P, Alice, 11, 15),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+pagination_last0(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the last page of size 0.
+        RSM = #rsm_in{max=0, direction=before},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"last0">>, RSM)),
+        wait_empty_rset(P, Alice, 15),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+pagination_offset5(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Skip 5 messages, get 5 messages.
+        RSM = #rsm_in{max=5, index=5},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"offset5">>, RSM)),
+        wait_message_range(P, Alice, 6, 10),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+pagination_offset5_max0(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Skip 5 messages, get 0 messages.
+        RSM = #rsm_in{max=0, index=5},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"offset0_max5">>, RSM)),
+        wait_empty_rset(P, Alice, 15),
         ok
         end,
     escalus:story(Config, [{alice, 1}], F).

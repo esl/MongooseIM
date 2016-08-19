@@ -61,6 +61,9 @@ respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
 respond_iq(#mam_archive_respond{respond_iq=IQ}) ->
     IQ.
 
+respond_fin(#mam_archive_respond{respond_fin=Fin}) ->
+    Fin.
+
 get_prop(Key, undefined) ->
     get_prop(Key, []);
 get_prop(final_message, P) ->
@@ -862,6 +865,7 @@ wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
     Result = wait_archive_respond(P, Client),
     Messages = respond_messages(Result),
     IQ = respond_iq(Result),
+    Fin = respond_fin(Result),
     ParsedMessages = parse_messages(Messages),
     ParsedIQ = parse_result_iq(P, Result),
     try
@@ -874,9 +878,10 @@ wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
     catch Class:Reason ->
         Stacktrace = erlang:get_stacktrace(),
         ct:pal("IQ: ~p~n"
+               "Fin: ~p~n"
                "Messages: ~p~n"
                "Parsed messages: ~p~n",
-               [IQ, Messages, ParsedMessages]),
+               [IQ, Fin, Messages, ParsedMessages]),
         erlang:raise(Class, Reason, Stacktrace)
     end.
 
