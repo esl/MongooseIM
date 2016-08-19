@@ -171,7 +171,7 @@ CREATE TYPE mam_direction AS ENUM('I','O');
 CREATE TABLE mam_message(
   -- Message UID (64 bits)
   -- A server-assigned UID that MUST be unique within the archive.
-  id BIGINT NOT NULL PRIMARY KEY,
+  id BIGINT NOT NULL,
   user_id INT NOT NULL,
   -- FromJID used to form a message without looking into stanza.
   -- This value will be send to the client "as is".
@@ -185,12 +185,9 @@ CREATE TABLE mam_message(
   -- Has no meaning for MUC-rooms.
   direction mam_direction NOT NULL,
   -- Term-encoded message packet
-  message bytea NOT NULL
+  message bytea NOT NULL,
+  PRIMARY KEY(user_id, id)
 );
-CREATE INDEX i_mam_message_username_id
-    ON mam_message
-    USING BTREE
-    (user_id, id);
 CREATE INDEX i_mam_message_username_jid_id
     ON mam_message
     USING BTREE

@@ -190,7 +190,7 @@ archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
 index_hint_sql(Host) ->
     case ejabberd_odbc:db_engine(Host) of
         mysql ->
-            "USE INDEX(i_mam_message_uid, i_mam_message_rem) ";
+            "USE INDEX(PRIMARY, i_mam_message_rem) ";
         _ ->
             ""
     end.
