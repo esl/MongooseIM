@@ -135,12 +135,13 @@ sessions_are_listed(_) ->
     [] = Sessions.
 
 session_can_be_kicked(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(_Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
         % Alice is connected
         {?OK, Sessions1} = gett("/sessions/localhost"),
         assert_inlist(<<"alice@localhost/res1">>, Sessions1),
         % kick alice
         {?OK, _} = delete("/sessions/localhost/alice/res1"),
+        escalus:wait_for_stanza(Alice),
         {?OK, Sessions2} = gett("/sessions/localhost"),
         [] = Sessions2
     end).
