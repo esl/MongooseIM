@@ -19,9 +19,7 @@
 -define(DEFAULT_PATH, "").
 
 start(Host, _Opts) ->
-    Path = gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH),
-    PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, ?DEFAULT_POOL_NAME),
-    mod_http_notification_requestor:start(Host, PoolName, Path),
+    ensure_metrics(Host),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
     ok.
 
@@ -34,10 +32,14 @@ on_user_send_packet(From, To, Packet) ->
     Mod = get_callback_module(),
     case Mod:should_make_req(Packet, From, To) of
         true ->
-            mod_http_notification_requestor:request(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
+            make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
         _ ->
             ok
     end.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
 
 %% @doc This function determines whether to send http notification or not.
 %% Can be reconfigured by creating a custom module implementing should_make_req/3
@@ -56,4 +58,45 @@ should_make_req(_, _, _, _) ->
 get_callback_module() ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, ?MODULE).
 
+make_req(Host, Sender, Receiver, Message) ->
+    Path = fix_path(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH)),
+    PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, ?DEFAULT_POOL_NAME),
+    Pool = mongoose_http_client:get_pool(PoolName),
+    Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
+        Message/binary>>,
+    ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
+    Headers = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
+    T0 = os:timestamp(),
+    {Res, Elapsed} = case mongoose_http_client:post(Pool, Path, Headers, Query) of
+                         {ok, _} ->
+                             {ok, timer:now_diff(os:timestamp(), T0)};
+                         {error, Reason} ->
+                             {{error, Reason}, 0}
+                     end,
+    record_result(Host, Res, Elapsed),
+    ok.
 
+ensure_metrics(Host) ->
+    mongoose_metrics:ensure_metric([Host, mod_http_notifications, sent], spiral),
+    mongoose_metrics:ensure_metric([Host, mod_http_notifications, failed], spiral),
+    mongoose_metrics:ensure_metric([Host, mod_http_notifications, response_time], histogram),
+    ok.
+record_result(Host, ok, Elapsed) ->
+    mongoose_metrics:update([Host, mod_http_notifications, sent], 1),
+    mongoose_metrics:update([Host, mod_http_notifications, response_time], Elapsed),
+    ok;
+record_result(Host, {error, Reason}, _) ->
+    mongoose_metrics:update([Host, mod_http_notifications, failed], 1),
+    ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
+    ok.
+
+%% @doc Convert to binary, strip initial slash (it is added by mongoose_http_client)
+fix_path(P) when is_list(P) ->
+    fix_path(list_to_binary(P));
+fix_path(P) when is_binary(P) ->
+    case P of
+        <<"/", R/binary>> ->
+            R;
+        Path ->
+            Path
+    end.
