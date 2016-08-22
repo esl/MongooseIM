@@ -26,9 +26,9 @@ LDAP will also run on a separate cluster.
 
 ### Frontend
 
-Native clients, on platforms such as Android, iOS, Windows, Linux, macOS, will preferrably use a plain XMPP over TCP connections. Web clients cannot use these TCP connections.
+Native clients, on platforms such as Android, iOS, Windows, Linux, macOS, will preferrably use a plain XMPP over TCP connections.
 
-Web clients will preferrably use XMPP over websockets, or the now less relevant XMPP over BOSH, using long-lived HTTP connections, more and more used as fallback.
+Web clients will preferrably use XMPP over websockets, or the now less relevant XMPP over BOSH (using long-lived HTTP connections, more and more used as fallback) because web clients cannot use TCP connections.
 
 Any client could use the client REST API, which is using HTTP request/responses.
 
