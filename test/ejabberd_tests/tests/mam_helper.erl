@@ -668,7 +668,8 @@ generate_rpc_jid({_,User}) ->
 
 start_alice_room(Config) ->
     %% TODO: ensure, that the room's archive is empty
-    RoomName = <<"alicesroom">>,
+    escalus_users:get_username(Config, alice),
+    RoomName = room_name(),
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
     start_room(Config, Alice, RoomName, RoomNick,
@@ -676,7 +677,7 @@ start_alice_room(Config) ->
                 {anonymous, false}]).
 
 start_alice_protected_room(Config) ->
-    RoomName = <<"alicesroom">>,
+    RoomName = room_name(),
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
     start_room(Config, Alice, RoomName, RoomNick,
@@ -685,7 +686,7 @@ start_alice_protected_room(Config) ->
                 {password, <<"secret">>}]).
 
 start_alice_anonymous_room(Config) ->
-    RoomName = <<"alicesroom">>,
+    RoomName = room_name(),
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
     start_room(Config, Alice, RoomName, RoomNick, [{anonymous, true}]).
@@ -1277,3 +1278,17 @@ muc_light_host() ->
 
 host() ->
     ct:get_config({hosts, mim, domain}).
+
+room_name() ->
+    StoryPidBin = to_nodename(list_to_binary(pid_to_list(self()))),
+    <<"alicesroom", StoryPidBin/binary>>.
+
+%% Strip dissallowed characters
+to_nodename(Binary) ->
+    << <<X>> || <<X>> <= Binary, not is_bad_nodename_character(X) >>.
+
+%% This function is only for pid characters
+is_bad_nodename_character($<) -> true;
+is_bad_nodename_character($>) -> true;
+is_bad_nodename_character($.) -> true;
+is_bad_nodename_character(_)  -> false.
