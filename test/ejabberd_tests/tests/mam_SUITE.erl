@@ -252,7 +252,7 @@ basic_groups() ->
      {mam,              [parallel], mam_cases()},
      {mam03,            [parallel], mam03_cases()},
      {mam04,            [parallel], mam04_cases()},
-     {mam_purge,        [], mam_purge_cases()},
+     {mam_purge,        [parallel], mam_purge_cases()},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
      {nostore,          [], nostore_cases()},
@@ -774,10 +774,6 @@ init_per_testcase(C=strip_archived, Config) ->
     escalus:init_per_testcase(C, clean_archives(Config));
 init_per_testcase(C=filter_forwarded, Config) ->
     escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=purge_single_message, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=purge_multiple_messages, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
 init_per_testcase(C=purge_old_single_message, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
@@ -1255,7 +1251,7 @@ purge_single_message(Config) ->
             assert_respond_size(0, wait_archive_respond(P, Alice)),
             ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 purge_old_single_message(Config) ->
     P = ?config(props, Config),
@@ -1299,7 +1295,7 @@ purge_multiple_messages(Config) ->
             assert_respond_size(0, wait_archive_respond(P, Bob)),
             ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_archive_request(Config) ->
     P = ?config(props, Config),
