@@ -49,7 +49,8 @@
          user_send_packet/3,
          remove_user/2,
          filter_packet/1,
-         determine_amp_strategy/5]).
+         determine_amp_strategy/5,
+         sm_filter_offline_message/4]).
 
 %%private
 -export([archive_message/8]).
@@ -80,7 +81,8 @@
          borders_decode/1,
          decode_optimizations/1,
          form_borders_decode/1,
-         form_decode_optimizations/1]).
+         form_decode_optimizations/1,
+         is_mam_result_message/1]).
 
 %% Forms
 -import(mod_mam_utils,
@@ -205,6 +207,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
+    ejabberd_hooks:add(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
     mongoose_metrics:create([backends, ?MODULE, lookup], histogram),
     mongoose_metrics:create([Host, modMamLookups, simple], spiral),
     mongoose_metrics:create([backends, ?MODULE, archive], histogram),
@@ -214,6 +217,7 @@ start(Host, Opts) ->
 -spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
+    ejabberd_hooks:delete(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
@@ -312,6 +316,13 @@ process_incoming_packet(From, To, Packet) ->
 -spec remove_user(ejabberd:user(), ejabberd:server()) -> 'ok'.
 remove_user(User, Server) ->
     delete_archive(Server, User).
+
+sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
+    %% If ...
+    is_mam_result_message(Packet);
+    %% ... than drop the message
+sm_filter_offline_message(Other, _From, _To, Packet) ->
+    Other.
 
 %% ----------------------------------------------------------------------
 %% Internal functions

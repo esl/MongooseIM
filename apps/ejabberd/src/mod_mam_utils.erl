@@ -40,7 +40,8 @@
          borders_decode/1,
          decode_optimizations/1,
          form_borders_decode/1,
-         form_decode_optimizations/1]).
+         form_decode_optimizations/1,
+         is_mam_result_message/1]).
 
 %% Forms
 -export([form_field_value_s/2,
@@ -582,6 +583,21 @@ form_decode_optimizations(QueryEl) ->
         {<<"true">>, _}     -> true;
         {_, _}              -> false
     end.
+
+
+is_mam_result_message(Packet = #xmlel{name = <<"message">>}) ->
+    Ns = maybe_get_result_namespace(Packet),
+    is_mam_namespace(Ns);
+is_mam_result_message(_) ->
+    false.
+
+maybe_get_result_namespace(Packet) ->
+    xml:get_path_s(Packet, [{elem, <<"result">>}, {attr, <<"xmlns">>}]).
+
+is_mam_namespace(?NS_MAM)    -> true;
+is_mam_namespace(?NS_MAM_03) -> true;
+is_mam_namespace(?NS_MAM_04) -> true;
+is_mam_namespace(_)          -> false.
 
 
 %% -----------------------------------------------------------------------
