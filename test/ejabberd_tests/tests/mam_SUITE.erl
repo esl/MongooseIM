@@ -78,7 +78,9 @@
          muc_light_simple/1,
          run_prefs_cases/1,
          run_set_and_get_prefs_cases/1,
-         check_user_exist/1]).
+         check_user_exist/1,
+         metric_incremented_on_archive_request/1,
+         metric_incremented_when_store_message/1]).
 
 -import(muc_helper,
         [muc_host/0,
@@ -249,7 +251,8 @@ is_skipped(_, _) ->
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
      {mam_all,              [parallel],
-           [{mam_legacy, [parallel], mam_cases()},
+           [{mam_metrics, [], mam_metrics_cases()},
+            {mam_legacy, [parallel], mam_cases()},
             {mam03, [parallel], mam_cases() ++ [retrieve_form_fields]},
             {mam04, [parallel], mam_cases()},
             {mam_purge, [parallel], mam_purge_cases()}]
@@ -278,6 +281,11 @@ basic_groups() ->
 bootstrapped_cases() ->
      [purge_old_single_message,
       querying_for_all_messages_with_jid].
+
+
+mam_metrics_cases() ->
+    [metric_incremented_on_archive_request,
+     metric_incremented_when_store_message].
 
 mam_cases() ->
     [mam_service_discovery,
@@ -429,6 +437,8 @@ init_per_group(mam_legacy, Config) ->
     Config;
 init_per_group(mam_purge, Config) ->
     Config;
+init_per_group(mam_metrics, Config) ->
+    Config;
 init_per_group(Group, ConfigIn) ->
    C = configuration(Group),
    B = basic_group(Group),
@@ -458,6 +468,8 @@ end_per_group(mam03, Config) ->
 end_per_group(mam04, Config) ->
     Config;
 end_per_group(mam_purge, Config) ->
+    Config;
+end_per_group(mam_metrics, Config) ->
     Config;
 end_per_group(Group, Config) ->
     C = configuration(Group),
@@ -768,7 +780,7 @@ end_state(C, muc_light, Config) ->
 end_state(_, _, Config) ->
     Config.
 
-init_per_testcase(C=archived, ConfigIn) ->
+init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
                  odbc_async_pool ->
                      MongooseMetrics = [
@@ -953,8 +965,8 @@ delete_delimiter("_" ++ Tail) ->
 %%--------------------------------------------------------------------
 
 %% Querying the archive for messages
-simple_archive_request(ConfigIn) ->
-    P = ?config(props, ConfigIn),
+simple_archive_request(Config) ->
+    P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends "OH, HAI!" to Bob
         %% {xmlel,<<"message">>,
@@ -964,17 +976,13 @@ simple_archive_request(ConfigIn) ->
         %%   {<<"type">>,<<"chat">>}],
         %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-        maybe_wait_for_yz(ConfigIn),
+        maybe_wait_for_yz(Config),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(P, Alice),
         assert_respond_size(1, Res),
         assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
         ok
         end,
-    MongooseMetrics = [{[global, backends, mod_mam, archive], changed},
-                       {[global, backends, mod_mam, lookup], changed}
-                      ],
-    Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 querying_for_all_messages_with_jid(Config) ->
@@ -2056,6 +2064,22 @@ muc_service_discovery(Config) ->
         ok
         end,
     escalus:story(Config, [{alice, 1}], F).
+
+metric_incremented_on_archive_request(ConfigIn) ->
+    P = ?config(props, ConfigIn),
+    F = fun(Alice) ->
+        escalus:send(Alice, stanza_archive_request(P, <<"metric_q1">>)),
+        Res = wait_archive_respond(P, Alice),
+        assert_respond_size(0, Res),
+        assert_respond_query_id(P, <<"metric_q1">>, parse_result_iq(P, Res)),
+        ok
+        end,
+    MongooseMetrics = [{[backends, mod_mam, lookup], changed}],
+    Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
+    escalus_fresh:story(Config, [{alice, 1}], F).
+
+metric_incremented_when_store_message(Config) ->
+    archived(Config).
 
 %% First write all messages, than read and check
 run_prefs_cases(Config) ->
