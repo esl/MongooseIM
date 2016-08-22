@@ -16,7 +16,7 @@
 -include("jlib.hrl").
 
 -define(DEFAULT_POOL_NAME, http_pool).
--define(DEFAULT_PATH, <<"">>).
+-define(DEFAULT_PATH, "").
 
 start(Host, _Opts) ->
     Path = gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH),

@@ -102,7 +102,7 @@ make_pool(Name, Opts) ->
           server = gen_mod:get_opt(server, Opts, "http://localhost"),
           size = gen_mod:get_opt(pool_size, Opts, 20),
           max_overflow = gen_mod:get_opt(max_overflow, Opts, 5),
-          path_prefix = to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
+          path_prefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
           pool_timeout = gen_mod:get_opt(pool_timeout, Opts, 200),
           request_timeout = gen_mod:get_opt(request_timeout, Opts, 2000)}.
 
@@ -167,7 +167,3 @@ stop_supervisor() ->
     ok = supervisor:terminate_child(ejabberd_sup, Proc),
     ok = supervisor:delete_child(ejabberd_sup, Proc).
 
-to_binary(P) when is_list(P) ->
-    list_to_binary(P);
-to_binary(P) when is_binary(P) ->
-    P.
