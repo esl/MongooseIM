@@ -70,8 +70,6 @@ commands() ->
        ]},
       {result, ok}],
 
-     %% This breaks the module because we have two HTTP end-points
-     %% with the same URL and method.
      [{name, send_message_to_room},
       {category, <<"mucs">>},
       {subcategory, <<"messages">>},
