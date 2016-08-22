@@ -36,12 +36,19 @@ suite() ->
     escalus:suite().
 
 set_worker() ->
-    dynamic_modules:start(host(), mod_http_notification, [{worker_timeout, 500}, {host, "http://localhost:8000"}]),
+    set_modules([{worker_timeout, 500}, {host, "http://localhost:8000"}]),
     ok.
 
 set_worker(Prefix) ->
-    dynamic_modules:start(host(), mod_http_notification, [{worker_timeout, 500}, {host, "http://localhost:8000"},
-        {path, Prefix}]),
+    set_modules([{worker_timeout, 500}, {host, "http://localhost:8000"}, {path, Prefix}]),
+    ok.
+
+set_modules(Opts) ->
+    ejabberd_node_utils:call_fun(mongoose_http_client, start, [[]]),
+    ejabberd_node_utils:call_fun(mongoose_http_client,
+        start_pool,
+        [http_pool, [{server, "http://localhost:8000"}]]),
+    dynamic_modules:start(host(), mod_http_notification, Opts),
     ok.
 
 host() -> <<"localhost">>.
@@ -61,8 +68,10 @@ init_per_group(mod_http_notification_tests_with_prefix, Config) ->
     set_worker("/prefix"),
     Config.
 
-end_per_group(_GroupName, _Config) ->
+end_per_group(_GroupName, Config) ->
     dynamic_modules:stop(host(), mod_http_notification),
+    ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [http_pool]),
+    ejabberd_node_utils:call_fun(mongoose_http_client, stop, []),
     ok.
 
 init_per_testcase(CaseName, Config) ->
