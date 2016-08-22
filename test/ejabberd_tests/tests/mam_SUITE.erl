@@ -251,9 +251,9 @@ is_skipped(_, _) ->
 
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
-     {mam,              [], mam_cases()},
-     {mam03,            [], mam03_cases()},
-     {mam04,            [], mam04_cases()},
+     {mam,              [parallel], mam_cases()},
+     {mam03,            [parallel], mam03_cases()},
+     {mam04,            [parallel], mam04_cases()},
      {mam_purge,        [], mam_purge_cases()},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
@@ -381,7 +381,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(restore_sessions_limit(restore_shaping(Config))).
 
 user_names() ->
-    [alice, bob, kate].
+    [alice, bob, kate, carol].
 
 create_users(Config) ->
     escalus:create_users(Config, escalus:get_users(user_names())).
@@ -821,8 +821,11 @@ init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
 init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol,1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
+init_per_testcase(C=limit_archive_request, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol,1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=prefs_set_request, Config) ->
     skip_if_riak(C, Config);
 init_per_testcase(C=prefs_set_cdata_request, Config) ->
@@ -973,7 +976,7 @@ simple_archive_request(ConfigIn) ->
                        {[global, backends, mod_mam, lookup], changed}
                       ],
     Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 querying_for_all_messages_with_jid(Config) ->
     P = ?config(props, Config),
@@ -988,7 +991,7 @@ querying_for_all_messages_with_jid(Config) ->
         assert_respond_size(CountWithBob, wait_archive_respond(P, Alice)),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),
@@ -1069,7 +1072,7 @@ muc_light_simple(Config) ->
         end).
 
 retrieve_form_fields(ConfigIn) ->
-    escalus:story(ConfigIn, [{alice, 1}], fun(Alice) ->
+    escalus_fresh:story(ConfigIn, [{alice, 1}], fun(Alice) ->
         P = ?config(props, ConfigIn),
         Namespace = get_prop(mam_ns, P),
         escalus:send(Alice, stanza_retrieve_form_fields(<<"q">>, Namespace)),
@@ -1660,7 +1663,7 @@ range_archive_request(Config) ->
         escalus:assert(is_iq_result, IQ),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}], F).
 
 range_archive_request_not_empty(Config) ->
     P = ?config(props, Config),
@@ -1692,6 +1695,7 @@ range_archive_request_not_empty(Config) ->
         ?assert_equal(list_to_binary(StopTime), Stamp2),
         ok
         end,
+    %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}], F).
 
 %% @doc A query using Result Set Management.
@@ -1716,6 +1720,7 @@ limit_archive_request(Config) ->
         10 = length(Msgs),
         ok
         end,
+    %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}], F).
 
 pagination_empty_rset(Config) ->
@@ -2037,7 +2042,7 @@ mam_service_discovery(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}], F).
 
 %% Check, that MUC is supported.
 muc_service_discovery(Config) ->
