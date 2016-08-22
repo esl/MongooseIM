@@ -99,7 +99,8 @@ create_instant_room(Host, Name, Owner, Nick) ->
     %% Send presence to create a room.
     ejabberd_router:route(OwnerJID, UserRoomJID, presence()),
     %% Send IQ set to unlock the room.
-    ejabberd_router:route(OwnerJID, BareRoomJID, declination()),
+    ejabberd_router:route(OwnerJID, BareRoomJID,
+                          declination(OwnerJID, BareRoomJID)),
     case mod_muc_room:can_access_room(BareRoomJID, OwnerJID) of
         {ok, true} ->
             Name;
@@ -115,22 +116,19 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
     %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
     X = #xmlel{name = <<"x">>,
                attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
-                        {<<"jid">> , room_jid(Name, Host)},
+                        {<<"jid">> , room_address(Name, Host)},
                         {<<"reason">>, Reason}]
               },
-    Invite = #xmlel{name = <<"message">>, children = [ X ]},
+    Invite = message(S, R, <<>>, [X]),
     ejabberd_router:route(S, R, Invite).
 
 send_message_to_room(Host, Name, Sender, Message) ->
     S = jid:binary_to_bare(Sender),
-    Room = jid:from_binary(room_jid(Name, Host)),
+    Room = jid:from_binary(room_address(Name, Host)),
     X = #xmlel{name = <<"body">>,
                children = [ #xmlcdata{ content = Message } ]
               },
-    Stanza = #xmlel{name = <<"message">>,
-                    attrs = [{<<"type">>, <<"groupchat">>}],
-                    children = [ X ]
-                   },
+    Stanza = message(S, Room, <<"groupchat">>, [X]),
     ejabberd_router:route(S, Room, Stanza).
 
 
@@ -138,9 +136,36 @@ send_message_to_room(Host, Name, Sender, Message) ->
 %% Ancillary
 %%--------------------------------------------------------------------
 
-room_jid(Name, Host) ->
+room_address(Name, Host) ->
     MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
     <<Name/binary, $@, MUCHost/binary>>.
+
+iq(Type, Sender, Recipient, Children)
+  when is_binary(Type), is_list(Children) ->
+    Addresses = address_attributes(Sender, Recipient),
+    #xmlel{name = <<"iq">>,
+           attrs = [{<<"type">>, Type}|Addresses],
+           children = Children
+          }.
+
+message(Sender, Recipient, Type, Contents)
+  when is_binary(Type), is_list(Contents) ->
+    Addresses = address_attributes(Sender, Recipient),
+    Attributes = case Type of
+                     <<>> -> Addresses;
+                     _ -> [{<<"type">>, Type}|Addresses]
+                 end,
+    #xmlel{name = <<"message">>,
+           attrs = Attributes,
+           children = Contents
+          }.
+
+query(XMLNameSpace, Children)
+  when is_binary(XMLNameSpace), is_list(Children) ->
+    #xmlel{name = <<"query">>,
+           attrs = [{<<"xmlns">>, XMLNameSpace}],
+           children = Children
+          }.
 
 presence() ->
     #xmlel{name = <<"presence">>,
@@ -148,16 +173,16 @@ presence() ->
                               attrs = [{<<"xmlns">>, ?NS_MUC}]}]
           }.
 
-declination() ->
-    #xmlel{name = <<"iq">>,
-           attrs = [{<<"type">>, <<"set">>}],
-           children = [ data_submission() ]
-          }.
+declination(Sender, Recipient) ->
+    iq(<<"set">>, Sender, Recipient, [ data_submission() ]).
 
 data_submission() ->
-    #xmlel{name = <<"query">>,
-           attrs = [{<<"xmlns">>, ?NS_MUC_OWNER}],
-           children = [#xmlel{name = <<"x">>,
+    query(?NS_MUC_OWNER, [#xmlel{name = <<"x">>,
                               attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                       {<<"type">>, <<"submit">>}]}]
-          }.
+                                       {<<"type">>, <<"submit">>}]}]).
+
+address_attributes(Sender, Recipient) ->
+    [
+     {<<"from">>, jid:to_binary(Sender)},
+     {<<"to">>, jid:to_binary(Recipient)}
+    ].
