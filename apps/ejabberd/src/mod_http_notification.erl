@@ -15,38 +15,15 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--define(DEFAULT_HTTP_POOL_SIZE, 100).
--define(DEFAULT_HTTP_HOST, "http://localhost").
--define(DEFAULT_PREFIX_PATH, <<"/">>).
--define(DEFAULT_HTTP_WORKER_TIMEOUT, 5000).
--define(DEFAULT_HTTP_POOL_TIMEOUT, 200).
+-define(DEFAULT_POOL_NAME, http_pool).
+-define(DEFAULT_PATH, "").
 
 start(Host, _Opts) ->
-    HttpHost = gen_mod:get_module_opt(Host, ?MODULE, host, ?DEFAULT_HTTP_HOST),
-    PoolSize = gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_HTTP_POOL_SIZE),
-    Timeout = gen_mod:get_module_opt(Host, ?MODULE, worker_timeout, ?DEFAULT_HTTP_WORKER_TIMEOUT),
-    PathPrefix = gen_mod:get_module_opt(Host, ?MODULE, prefix_path, ?DEFAULT_PREFIX_PATH),
-    PoolName = pool_name(Host),
-    PoolOpts = [{name, {local, PoolName}},
-                {size, PoolSize},
-                {max_overflow, 5},
-                {worker_module, mod_http_notification_requestor}],
-    WorkerOpts = [{http_host, HttpHost},
-                  {timeout, Timeout},
-                  {path_prefix, PathPrefix}],
-    {ok, _} = supervisor:start_child(ejabberd_sup,
-        {PoolName,
-            {poolboy, start_link,
-                [PoolOpts, WorkerOpts]},
-            transient, 2000, supervisor, [mod_http_notification_requestor]}),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
     ensure_metrics(Host),
+    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
     ok.
 
 stop(Host) ->
-    Ch = existing_pool_name(Host),
-    supervisor:terminate_child(ejabberd_sup, Ch),
-    supervisor:delete_child(ejabberd_sup, Ch),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
     ok.
 
@@ -59,6 +36,10 @@ on_user_send_packet(From, To, Packet) ->
         _ ->
             ok
     end.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
 
 %% @doc This function determines whether to send http notification or not.
 %% Can be reconfigured by creating a custom module implementing should_make_req/3
@@ -78,35 +59,28 @@ get_callback_module() ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, ?MODULE).
 
 make_req(Host, Sender, Receiver, Message) ->
-    Req = {Host, Sender, Receiver, Message},
-    PoolName = existing_pool_name(Host),
-    PoolTimeout = gen_mod:get_module_opt(Host, ?MODULE, pool_timeout, ?DEFAULT_HTTP_POOL_TIMEOUT),
+    Path = fix_path(list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH))),
+    PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, ?DEFAULT_POOL_NAME),
+    Pool = mongoose_http_client:get_pool(PoolName),
+    Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
+        Message/binary>>,
+    ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
+    Headers = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
     T0 = os:timestamp(),
-    {Res, Elapsed} = case catch poolboy:transaction(PoolName,
-        fun(W) -> mod_http_notification_requestor:request(W, Req) end, PoolTimeout) of
-                         {'EXIT', {timeout, _}} ->
-                             {{error, poolbusy}, 0};
-                         {error, HttpError} ->
-                             {{error, HttpError}, 0};
-                         ok ->
-                             {ok, timer:now_diff(os:timestamp(), T0)}
+    {Res, Elapsed} = case mongoose_http_client:post(Pool, Path, Headers, Query) of
+                         {ok, _} ->
+                             {ok, timer:now_diff(os:timestamp(), T0)};
+                         {error, Reason} ->
+                             {{error, Reason}, 0}
                      end,
     record_result(Host, Res, Elapsed),
     ok.
-
-pool_name(Host) ->
-    list_to_atom("http_notification_" ++ binary_to_list(Host)).
-
-existing_pool_name(Host) ->
-    list_to_existing_atom("http_notification_" ++ binary_to_list(Host)).
 
 ensure_metrics(Host) ->
     mongoose_metrics:ensure_metric([Host, mod_http_notifications, sent], spiral),
     mongoose_metrics:ensure_metric([Host, mod_http_notifications, failed], spiral),
     mongoose_metrics:ensure_metric([Host, mod_http_notifications, response_time], histogram),
     ok.
-
-
 record_result(Host, ok, Elapsed) ->
     mongoose_metrics:update([Host, mod_http_notifications, sent], 1),
     mongoose_metrics:update([Host, mod_http_notifications, response_time], Elapsed),
@@ -115,3 +89,9 @@ record_result(Host, {error, Reason}, _) ->
     mongoose_metrics:update([Host, mod_http_notifications, failed], 1),
     ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
     ok.
+
+%% @doc Strip initial slash (it is added by mongoose_http_client)
+fix_path(<<"/", R/binary>>) ->
+    R;
+fix_path(R) ->
+    R.

@@ -14,6 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mongoose_http_client).
+-include("ejabberd.hrl").
 
 %% API
 -export([start/0, stop/0, start_pool/2, stop_pool/1, get_pool/1, get/3, post/4]).
@@ -165,3 +166,4 @@ stop_supervisor() ->
     Proc = sup_proc_name(),
     ok = supervisor:terminate_child(ejabberd_sup, Proc),
     ok = supervisor:delete_child(ejabberd_sup, Proc).
+

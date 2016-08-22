@@ -11,7 +11,6 @@ the hook is triggered, the module does the following:
 
 * checks whether http_notification is enabled (the `host` param is set)
 * runs a callback module's `should_make_req/3` function to see if a notification should be sent
-* asks poolboy for a worker process (this is to limit a number of concurrent requests)
 * sends a POST request composed of `{Host::binary(), Sender::binary(), Receiver::binary(), Message::binary()}` to the http notification server
 
 ## Callback module
@@ -20,20 +19,24 @@ To find out what should be sent to the HTTP server, MongooseIM calls `Mod:should
 Default is to use function in mod_http_notification itself, which ships all non-empty chat messages
 and nothing else. The module can be substituted here, the method should return `true | false`.
 
+# Prerequisites
+
+This module uses a connection pool created by mongoose_http_client. It must be defined
+in `http_connections` setting.
+
 # Options
 
-* `host`: this is where the HTTP notification server should listen.
-* `prefix_path`: path part of URL to which a request should be sent.
+* `pool_name`: name of the pool to use (as defined in http_connections)
+* `path`: path part of URL to which a request should be sent (will be appended to the pool's prefix path).
 * `callback_module`: name of a module which should be used to check whether a
 notification should be sent.
-* `pool_size`: size of a worker pool, imposes a limit of the number of concurrent requests
-to HTTP server; default is 100.
-* `pool_timeout`: how long to wait for an available worker; default is 200 ms (has to be
-very short so that we don't run into problems if there is a message flood).
-* `worker_timeout`: how much time do we give HTTP server to process requests before we
-bail out; default is 5000 ms.
-
 
 # Example configuration
 
-`  {mod_http_notification, [{pool_size, 5}, {host, "http://localhost:8000"}]}`
+`{http_connections, [{http_pool, [{server, "http://localhost:8000"},
+                             {pool_size, 50}, {path_prefix, "/webservice"}]}
+                   ]}.`
+
+  `{mod_http_notification, [{pool_name, http_pool}, {path, "/notifications"}]}`
+
+Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
