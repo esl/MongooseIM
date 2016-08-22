@@ -10,7 +10,7 @@
          registered_commands/0,
          registered_users/1,
          change_user_password/3,
-         listsessions/1,
+         list_sessions/1,
          kick_session/3,
          get_recent_messages/3,
          send_message/3
@@ -35,9 +35,9 @@ stop(_) -> stop().
 commands() ->
     [
      [
-      {name, listmethods},
+      {name, list_methods},
       {category, <<"commands">>},
-      {desc,<<"List commands">>},
+      {desc, <<"List commands">>},
       {module, ?MODULE},
       {function, registered_commands},
       {action, read},
@@ -45,7 +45,7 @@ commands() ->
       {result, []}
      ],
      [
-      {name, listusers},
+      {name, list_users},
       {category, <<"users">>},
       {desc, <<"List registered users on this host">>},
       {module, ?MODULE},
@@ -55,7 +55,7 @@ commands() ->
       {result, []}
      ],
      [
-      {name, registeruser},
+      {name, register_user},
       {category, <<"users">>},
       {desc, <<"Register a user">>},
       {module, ?MODULE},
@@ -65,7 +65,7 @@ commands() ->
       {result, {msg, binary}}
      ],
      [
-      {name, unregisteruser},
+      {name, unregister_user},
       {category, <<"users">>},
       {desc, <<"UnRegister a user">>},
       {module, ?MODULE},
@@ -75,17 +75,17 @@ commands() ->
       {result, {msg, binary}}
      ],
      [
-      {name, listsessions},
+      {name, list_sessions},
       {category, <<"sessions">>},
       {desc, <<"Get session list">>},
       {module, ?MODULE},
-      {function, listsessions},
+      {function, list_sessions},
       {action, read},
       {args, [{host, binary}]},
       {result, []}
      ],
      [
-      {name, kickuser},
+      {name, kick_user},
       {category, <<"sessions">>},
       {desc, <<"Terminate user connection">>},
       {module, ?MODULE},
@@ -95,7 +95,7 @@ commands() ->
       {result, {msg, binary}}
      ],
      [
-      {name, sendmessage},
+      {name, send_message},
       {category, <<"messages">>},
       {desc, <<"Send chat message from to">>},
       {module, ?MODULE},
@@ -106,7 +106,7 @@ commands() ->
       {result, ok}
      ],
      [
-      {name, getmessages},
+      {name, get_messages},
       {category, <<"messages">>},
       {desc, <<"Get recent messages">>},
       {module, ?MODULE},
@@ -117,7 +117,7 @@ commands() ->
       {result, []}
      ],
      [
-      {name, changepassword},
+      {name, change_password},
       {category, <<"users">>},
       {desc, <<"Change user password">>},
       {module, ?MODULE},
@@ -138,7 +138,7 @@ kick_session(Host, User, Resource) ->
       {broadcast, {exit, <<"kicked">>}}),
     <<"kicked">>.
 
-listsessions(Host) ->
+list_sessions(Host) ->
     Lst = ejabberd_sm:get_vh_session_list(Host),
     [jid:to_binary(JID) || {JID, _, _, _} <- Lst].
 

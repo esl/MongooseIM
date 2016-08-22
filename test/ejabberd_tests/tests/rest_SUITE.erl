@@ -185,7 +185,7 @@ end_per_testcase(CaseName, Config) ->
 commands_are_listed(_C) ->
     {?OK, Lcmds} = gett(<<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
-    assert_inlist(#{name => <<"listmethods">>}, DecCmds).
+    assert_inlist(#{name => <<"list_methods">>}, DecCmds).
 
 non_existent_command_returns_404(_C) ->
     {?NOT_FOUND, _} = gett(<<"/isitthereornot">>).
