@@ -199,7 +199,6 @@ basic_group_names() ->
      mam,
      mam03,
      mam04,
-     mam_purge,
      muc,
      muc03,
      muc04,
@@ -251,10 +250,9 @@ is_skipped(_, _) ->
 
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
-     {mam,              [parallel], mam_cases()},
+     {mam,              [parallel], mam_cases() ++ mam_purge_cases()},
      {mam03,            [parallel], mam03_cases()},
      {mam04,            [parallel], mam04_cases()},
-     {mam_purge,        [parallel], mam_purge_cases()},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
      {nostore,          [], nostore_cases()},
