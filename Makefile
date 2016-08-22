@@ -55,11 +55,11 @@ qct:
 	else ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
         -I apps/*/include -I apps/*/src -logdir /tmp/ct_log -noshell; fi
 
-test: test_deps
+test: test_node_stopped test_deps
 	cd test/ejabberd_tests; make test
 
 # $ make qtest SUITE=mam_SUITE
-qtest:
+qtest: test_node_stopped
 	cp test/ejabberd_tests/qtest.spec.template test/ejabberd_tests/qtest.spec
 	echo "{suites, \"tests\", $(SUITE)}." >> test/ejabberd_tests/qtest.spec
 	cd test/ejabberd_tests;
@@ -67,8 +67,14 @@ qtest:
 		then make quicktest TESTSPEC=qtest.spec; \
 		else make quicktest; fi)
 
-test_preset: test_deps
+test_preset: test_node_stopped test_deps
 	cd test/ejabberd_tests; make test_preset
+
+# Kill previous test if it's still running
+test_node_stopped:
+	erl -sname killer -setcookie ejabberd -eval \
+		"catch rpc:call(list_to_atom(\"test@\" ++ element(2, inet:gethostname())), init, stop, [1]). " \
+		-eval "init:stop()."
 
 
 run: deps compile quickrun
