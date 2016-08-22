@@ -200,12 +200,6 @@ basic_group_names() ->
      mam_all,
      muc_all,
      muc_light,
-     rsm,
-     rsm03,
-     rsm04,
-     with_rsm,
-     with_rsm03,
-     with_rsm04,
      bootstrapped,
      archived,
      policy_violation,
@@ -248,24 +242,24 @@ basic_groups() ->
             {mam02, [parallel], mam_cases()},
             {mam03, [parallel], mam_cases() ++ [retrieve_form_fields]},
             {mam04, [parallel], mam_cases()},
-            {mam_purge, [parallel], mam_purge_cases()}]},
+            {mam_purge, [parallel], mam_purge_cases()},
+            {rsm02,      [parallel], rsm_cases()},
+            {rsm03,      [parallel], rsm_cases()},
+            {rsm04,      [parallel], rsm_cases()},
+            {with_rsm02, [parallel], with_rsm_cases()},
+            {with_rsm03, [parallel], with_rsm_cases()},
+            {with_rsm04, [parallel], with_rsm_cases()}]},
      {muc_all, [parallel],
            [{muc02, [parallel], muc_cases()},
             {muc03, [parallel], muc_cases()},
             {muc04, [parallel], muc_cases()},
-            {muc_rsm00, [parallel], muc_rsm_cases()},
+            {muc_rsm02, [parallel], muc_rsm_cases()},
             {muc_rsm03, [parallel], muc_rsm_cases()},
             {muc_rsm04, [parallel], muc_rsm_cases()}]},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
      {nostore,          [], nostore_cases()},
      {muc_light,        [], muc_light_cases()},
-     {rsm,              [parallel], rsm_cases()},
-     {rsm03,            [parallel], rsm_cases()},
-     {rsm04,            [parallel], rsm_cases()},
-     {with_rsm,         [parallel], with_rsm_cases()},
-     {with_rsm03,       [parallel], with_rsm_cases()},
-     {with_rsm04,       [parallel], with_rsm_cases()},
      {prefs_cases,      [], prefs_cases()},
      {impl_specific,    [], impl_specific()}
     ].
@@ -421,12 +415,37 @@ set_sessions_limit(NewLimit) ->
     rpc_apply(ejabberd_config, add_global_option,
               [{access, max_user_sessions, global}, NewLimit]).
 
+init_per_group(mam02, Config) ->
+    Config;
 init_per_group(mam03, Config) ->
     [{props, mam03_props()}|Config];
 init_per_group(mam04, Config) ->
     [{props, mam04_props()}|Config];
-init_per_group(mam02, Config) ->
-    Config;
+
+init_per_group(rsm02, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
+    send_rsm_messages(Config1);
+init_per_group(rsm03, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
+    Config2 = [{props, mam03_props()}|Config1],
+    send_rsm_messages(Config2);
+init_per_group(rsm04, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
+    Config2 = [{props, mam04_props()}|Config1],
+    send_rsm_messages(Config2);
+init_per_group(with_rsm02, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
+    Config2 = [{with_rsm, true}|Config1],
+    send_rsm_messages(Config2);
+init_per_group(with_rsm03, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
+    Config2 = [{props, mam03_props()}, {with_rsm, true}|Config1],
+    send_rsm_messages(Config2);
+init_per_group(with_rsm04, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
+    Config2 = [{props, mam04_props()}, {with_rsm, true}|Config1],
+    send_rsm_messages(Config2);
+
 init_per_group(mam_purge, Config) ->
     Config;
 init_per_group(mam_metrics, Config) ->
@@ -438,7 +457,7 @@ init_per_group(muc03, Config) ->
 init_per_group(muc04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
 
-init_per_group(muc_rsm00, Config) ->
+init_per_group(muc_rsm02, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
     Config2 = start_alice_room(Config1),
     Config3 = send_muc_rsm_messages(Config2),
@@ -482,6 +501,18 @@ end_per_group(mam03, Config) ->
     Config;
 end_per_group(mam04, Config) ->
     Config;
+end_per_group(rsm02, Config) ->
+    Config;
+end_per_group(rsm03, Config) ->
+    Config;
+end_per_group(rsm04, Config) ->
+    Config;
+end_per_group(with_rsm02, Config) ->
+    Config;
+end_per_group(with_rsm03, Config) ->
+    Config;
+end_per_group(with_rsm04, Config) ->
+    Config;
 end_per_group(mam_purge, Config) ->
     Config;
 end_per_group(mam_metrics, Config) ->
@@ -492,7 +523,7 @@ end_per_group(muc03, Config) ->
     Config;
 end_per_group(muc04, Config) ->
     Config;
-end_per_group(muc_rsm00, Config) ->
+end_per_group(muc_rsm02, Config) ->
     destroy_room(Config);
 end_per_group(muc_rsm03, Config) ->
     destroy_room(Config);
@@ -669,23 +700,6 @@ init_state(_, muc_all, Config) ->
     Config;
 init_state(C, muc_light, Config) ->
     init_state(C, muc04, Config);
-init_state(_, rsm, Config) ->
-    send_rsm_messages(clean_archives(Config));
-init_state(_, rsm03, Config) ->
-    Config1 = [{props, mam03_props()}|Config],
-    send_rsm_messages(clean_archives(Config1));
-init_state(_, rsm04, Config) ->
-    Config1 = [{props, mam04_props()}|Config],
-    send_rsm_messages(clean_archives(Config1));
-init_state(_, with_rsm, Config) ->
-    Config1 = [{with_rsm, true}|Config],
-    send_rsm_messages(clean_archives(Config1));
-init_state(_, with_rsm03, Config) ->
-    Config1 = [{props, mam03_props()}, {with_rsm, true}|Config],
-    send_rsm_messages(clean_archives(Config1));
-init_state(_, with_rsm04, Config) ->
-    Config1 = [{props, mam04_props()}, {with_rsm, true}|Config],
-    send_rsm_messages(clean_archives(Config1));
 init_state(_, run_prefs_cases, Config) ->
     clean_archives(Config);
 init_state(_, _, Config) ->
