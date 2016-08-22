@@ -198,7 +198,6 @@ basic_group_names() ->
     [
      mam_all,
      muc_all,
-     muc_with_pm,
      muc_light,
      rsm,
      rsm03,
@@ -259,7 +258,6 @@ basic_groups() ->
      {policy_violation, [], policy_violation_cases()},
      {nostore,          [], nostore_cases()},
      {muc_light,        [], muc_light_cases()},
-     {muc_with_pm,      [], muc_cases()},
      {rsm,              [parallel], rsm_cases()},
      {rsm03,            [parallel], rsm_cases()},
      {rsm04,            [parallel], rsm_cases()},
@@ -507,93 +505,12 @@ init_modules(C, muc_light, Config) ->
     init_module(host(), mod_mam_muc, [{host, binary_to_list(muc_light_host())}]),
     Config1;
 
-init_modules(ca, muc_with_pm, Config) ->
-    %% TODO add mod_mam with Cassandra
-    init_module(host(), mod_mam_muc_ca_arch, []),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc, muc_with_pm, Config) ->
-    %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
-    init_module(host(), mod_mam_odbc_arch, [muc, pm]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_simple, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_odbc_arch, [muc, pm, simple]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_async_pool, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_mnesia, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_async_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_mnesia_muc_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [pm]),
-    init_module(host(), mod_mam_muc_cache_user, []),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_mnesia_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-
 init_modules(ca, muc_all, Config) ->
     init_module(host(), mod_mam_muc_ca_arch, []),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
 init_modules(odbc, muc_all, Config) ->
-    %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
     init_module(host(), mod_mam_odbc_arch, [muc]),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
@@ -742,8 +659,6 @@ mam_modules() ->
      mod_mam_riak_timed_arch_yz].
 
 init_state(_, muc_all, Config) ->
-    Config;
-init_state(_, muc_with_pm, Config) ->
     Config;
 init_state(C, muc_light, Config) ->
     init_state(C, muc04, Config);
