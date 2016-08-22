@@ -44,6 +44,7 @@ pages:
       - 'mod_ping': 'modules/mod_ping.md'
       - 'mod_privacy': 'modules/mod_privacy.md'
       - 'mod_private': 'modules/mod_private.md'
+      - 'mod_pubsub': 'modules/mod_pubsub.md'
       - 'mod_register': 'modules/mod_register.md'
       - 'mod_revproxy': 'modules/mod_revproxy.md'
       - 'mod_roster': 'modules/mod_roster.md'
