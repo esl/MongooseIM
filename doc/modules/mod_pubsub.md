@@ -32,7 +32,7 @@ Only one nodetree can be used per host, and is shared by all node plugins.
     In this case you should also add the `<<“dag”>>` node plugin as default, for example: plugins: `[<<"dag">>,<<"flat">>,<<"hometree">>,<<"pep">>]`
 * `ignore_pep_from_offline` (boolean, default: `true`): specify whether or not we should get last published PEP items from users in our roster which are offline when we connect.
 The default option is `true` hence we will get only the last items from the online contacts.
-* `last_item_cache` (boolean, default `false`): specify whether or not pubsub should cache the last items.
+* `last_item_cache` (boolean, default `false`): specify whether or not pubsub should cache the last items. Such an optioni provides the ability to send the last published item to a new subscriber.
 Such caching might speed up pubsub's performance and can increase the number of user connections but in price of memory usage.
 * `plugins` ([Plugin, ...], default: `[<<"flat">>]`): List of enabled pubsub plugins.
 They handle affiliations, subscriptions and items and also provide default node conﬁguration and features.
