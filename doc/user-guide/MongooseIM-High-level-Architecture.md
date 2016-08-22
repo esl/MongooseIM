@@ -1,6 +1,6 @@
 ## Inside MongooseIM
 
-MongooseIM comes with a large set of modules that sysadmins can configure and potentially enable, modifying the behaviour of MongooseIM. See '[Extension Modules](../advanced-configuration/Modules/)' for more info.
+MongooseIM comes with a large set of modules that sysadmins can configure and potentially enable, modifying the behaviour of MongooseIM. See '[Extension Modules](../advanced-configuration/Modules.md)' for more info.
 
 For a reminder, MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
 
@@ -8,7 +8,7 @@ For a reminder, MongooseIM manages two sets of data: transient for session data 
 
 ### Databases
 
-Please refer to '[Database Backends](../advanced-configuration/database-backends-configuration/)' doc for more configuration information.
+Please refer to '[Database Backends](../advanced-configuration/database-backends-configuration.md)' doc for more configuration information.
 
 * Transient databases
 
