@@ -196,9 +196,7 @@ riak_configs(_) ->
 
 basic_group_names() ->
     [
-     mam,
-     mam03,
-     mam04,
+     mam_all,
      muc,
      muc03,
      muc04,
@@ -250,9 +248,12 @@ is_skipped(_, _) ->
 
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
-     {mam,              [parallel], mam_cases() ++ mam_purge_cases()},
-     {mam03,            [parallel], mam03_cases()},
-     {mam04,            [parallel], mam04_cases()},
+     {mam_all,              [parallel],
+           [{mam_legacy, [parallel], mam_cases()},
+            {mam03, [parallel], mam_cases() ++ [retrieve_form_fields]},
+            {mam04, [parallel], mam_cases()},
+            {mam_purge, [parallel], mam_purge_cases()}]
+     },
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
      {nostore,          [], nostore_cases()},
@@ -284,12 +285,6 @@ mam_cases() ->
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request].
-
-mam03_cases() ->
-    mam_cases() ++ [retrieve_form_fields].
-
-mam04_cases() ->
-    mam03_cases().
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -426,6 +421,14 @@ set_sessions_limit(NewLimit) ->
     rpc_apply(ejabberd_config, add_global_option,
               [{access, max_user_sessions, global}, NewLimit]).
 
+init_per_group(mam03, Config) ->
+    [{props, mam03_props()}|Config];
+init_per_group(mam04, Config) ->
+    [{props, mam04_props()}|Config];
+init_per_group(mam_legacy, Config) ->
+    Config;
+init_per_group(mam_purge, Config) ->
+    Config;
 init_per_group(Group, ConfigIn) ->
    C = configuration(Group),
    B = basic_group(Group),
@@ -448,6 +451,14 @@ do_init_per_group(C, ConfigIn) ->
             Config0
     end.
 
+end_per_group(mam_legacy, Config) ->
+    Config;
+end_per_group(mam03, Config) ->
+    Config;
+end_per_group(mam04, Config) ->
+    Config;
+end_per_group(mam_purge, Config) ->
+    Config;
 end_per_group(Group, Config) ->
     C = configuration(Group),
     B = basic_group(Group),
@@ -748,12 +759,6 @@ init_state(_, with_rsm04, Config) ->
     send_rsm_messages(clean_archives(Config1));
 init_state(_, run_prefs_cases, Config) ->
     clean_archives(Config);
-init_state(_, mam03, Config) ->
-    Config1 = [{props, mam03_props()}|Config],
-    clean_archives(Config1);
-init_state(_, mam04, Config) ->
-    Config1 = [{props, mam04_props()}|Config],
-    clean_archives(Config1);
 init_state(_, _, Config) ->
     clean_archives(Config).
 
