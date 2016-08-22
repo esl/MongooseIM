@@ -263,15 +263,15 @@ basic_groups() ->
      {muc04,            [], muc_cases()},
      {muc_light,        [], muc_light_cases()},
      {muc_with_pm,      [], muc_cases()},
-     {rsm,              [], rsm_cases()},
-     {rsm03,            [], rsm_cases()},
-     {rsm04,            [], rsm_cases()},
-     {muc_rsm,          [], muc_rsm_cases()},
-     {muc_rsm03,        [], muc_rsm_cases()},
-     {muc_rsm04,        [], muc_rsm_cases()},
-     {with_rsm,         [], with_rsm_cases()},
-     {with_rsm03,       [], with_rsm_cases()},
-     {with_rsm04,       [], with_rsm_cases()},
+     {rsm,              [parallel], rsm_cases()},
+     {rsm03,            [parallel], rsm_cases()},
+     {rsm04,            [parallel], rsm_cases()},
+     {muc_rsm,          [parallel], muc_rsm_cases()},
+     {muc_rsm03,        [parallel], muc_rsm_cases()},
+     {muc_rsm04,        [parallel], muc_rsm_cases()},
+     {with_rsm,         [parallel], with_rsm_cases()},
+     {with_rsm03,       [parallel], with_rsm_cases()},
+     {with_rsm04,       [parallel], with_rsm_cases()},
      {prefs_cases,      [], prefs_cases()},
      {impl_specific,    [], impl_specific()}
     ].
@@ -372,13 +372,13 @@ suite() ->
 
 init_per_suite(Config) ->
     muc_helper:load_muc(muc_host()),
-    disable_shaping(
+    disable_sessions_limit(disable_shaping(
       delete_users([{escalus_user_db, {module, escalus_ejabberd}}
-                  | escalus:init_per_suite(Config)])).
+                  | escalus:init_per_suite(Config)]))).
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
-    escalus:end_per_suite(restore_shaping(Config)).
+    escalus:end_per_suite(restore_sessions_limit(restore_shaping(Config))).
 
 user_names() ->
     [alice, bob, kate].
@@ -410,6 +410,23 @@ set_shaper({Mam, Norm, Fast}) ->
     rpc_apply(ejabberd_config, add_global_option, [{shaper, normal, global}, Norm]),
     rpc_apply(ejabberd_config, add_global_option, [{shaper, fast, global}, Fast]),
     rpc_apply(shaper_srv, reset_all_shapers, [host()]).
+
+disable_sessions_limit(Config) ->
+    OldLimit = get_sessions_limit(),
+    set_sessions_limit([{10000,all}]),
+    [{old_sessions_limit, OldLimit}|Config].
+
+restore_sessions_limit(Config) ->
+    OldLimit = proplists:get_value(old_sessions_limit, Config),
+    set_sessions_limit(OldLimit),
+    Config.
+
+get_sessions_limit() ->
+    rpc_apply(ejabberd_config, get_global_option, [{access, max_user_sessions, global}]).
+
+set_sessions_limit(NewLimit) ->
+    rpc_apply(ejabberd_config, add_global_option,
+              [{access, max_user_sessions, global}, NewLimit]).
 
 init_per_group(Group, ConfigIn) ->
    C = configuration(Group),
@@ -1711,7 +1728,7 @@ pagination_empty_rset(Config) ->
             stanza_page_archive_request(P, <<"empty_rset">>, RSM)),
         wait_empty_rset(P, Alice, 15)
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_first5(Config) ->
     P = ?config(props, Config),
@@ -1723,7 +1740,7 @@ pagination_first5(Config) ->
         wait_message_range(P, Alice, 1, 5),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_first0(Config) ->
     P = ?config(props, Config),
@@ -1735,7 +1752,7 @@ pagination_first0(Config) ->
         wait_empty_rset(P, Alice, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_first5_opt_count(Config) ->
     P = ?config(props, Config),
@@ -1747,7 +1764,7 @@ pagination_first5_opt_count(Config) ->
         wait_message_range(P, Alice, 1, 5),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_first25_opt_count_all(Config) ->
     P = ?config(props, Config),
@@ -1759,7 +1776,7 @@ pagination_first25_opt_count_all(Config) ->
         wait_message_range(P, Alice, 1, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_last5(Config) ->
     P = ?config(props, Config),
@@ -1771,7 +1788,7 @@ pagination_last5(Config) ->
         wait_message_range(P, Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_last0(Config) ->
     P = ?config(props, Config),
@@ -1783,7 +1800,7 @@ pagination_last0(Config) ->
         wait_empty_rset(P, Alice, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_offset5(Config) ->
     P = ?config(props, Config),
@@ -1795,7 +1812,7 @@ pagination_offset5(Config) ->
         wait_message_range(P, Alice, 6, 10),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_offset5_max0(Config) ->
     P = ?config(props, Config),
@@ -1807,7 +1824,7 @@ pagination_offset5_max0(Config) ->
         wait_empty_rset(P, Alice, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_last5_opt_count(Config) ->
     P = ?config(props, Config),
@@ -1819,7 +1836,7 @@ pagination_last5_opt_count(Config) ->
         wait_message_range(P, Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_last25_opt_count_all(Config) ->
     P = ?config(props, Config),
@@ -1831,7 +1848,7 @@ pagination_last25_opt_count_all(Config) ->
         wait_message_range(P, Alice, 1, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_offset5_opt_count(Config) ->
     P = ?config(props, Config),
@@ -1843,7 +1860,7 @@ pagination_offset5_opt_count(Config) ->
         wait_message_range(P, Alice, 6, 10),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_offset5_opt_count_all(Config) ->
     P = ?config(props, Config),
@@ -1855,7 +1872,7 @@ pagination_offset5_opt_count_all(Config) ->
         wait_message_range(P, Alice, 6, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 
 pagination_before10(Config) ->
@@ -1868,7 +1885,7 @@ pagination_before10(Config) ->
         wait_message_range(P, Alice, 5, 9),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_simple_before10(Config) ->
     P = ?config(props, Config),
@@ -1881,7 +1898,7 @@ pagination_simple_before10(Config) ->
         wait_message_range(P, Alice,   undefined, undefined,     5,   9),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_after10(Config) ->
     P = ?config(props, Config),
@@ -1893,7 +1910,7 @@ pagination_after10(Config) ->
         wait_message_range(P, Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 %% Select first page of recent messages after last known id.
 %% Paginating from newest messages to oldest ones.
@@ -1909,7 +1926,7 @@ pagination_last_after_id5(Config) ->
         wait_message_range(P, Alice,          10,      5,    11,  15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 %% Select second page of recent messages after last known id.
 pagination_last_after_id5_before_id11(Config) ->
@@ -1924,7 +1941,7 @@ pagination_last_after_id5_before_id11(Config) ->
         wait_message_range(P, Alice,           5,      0,     6,  10),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 prefs_set_request(Config) ->
     P = ?config(props, Config),
@@ -2080,3 +2097,37 @@ check_user_exist(Config) ->
   false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]),
   %% cleanup
   ok = escalus_ejabberd:rpc(ejabberd_auth, remove_user, [AdminU, AdminS]).
+
+parallel_story(Config, ResourceCounts, F) ->
+    Config1 = override_for_parallel(Config),
+    escalus:story(Config1, ResourceCounts, F).
+
+override_for_parallel(Config) ->
+    Overrides = [
+        {initial_activity, initial_activity()},
+        {modify_resource, modify_resource()}
+        ],
+    [{escalus_overrides, Overrides} | Config].
+
+modify_resource() ->
+    StoryPidBin = list_to_binary(pid_to_list(self())),
+    fun(Base) -> <<Base/binary, "-parallel-", StoryPidBin/binary>> end.
+
+initial_activity() ->
+    StoryPidBin = list_to_binary(pid_to_list(self())),
+    fun(Client) ->
+        Pred = fun(Stanza=#xmlel{}) ->
+                    From = exml_query:attr(Stanza, <<"from">>, <<>>),
+                    case {binary:match(From, <<"parallel">>),
+                          binary:match(From, StoryPidBin)} of
+                        {{_,_}, nomatch} -> false; %% drop
+                        _ -> true %% pass
+                    end;
+                  (_) -> true %% pass xmlstreamend
+            end,
+        %% Drop stanzas from unknown parallel resources
+        escalus_connection:set_filter_predicate(Client, Pred),
+
+        %% send_initial_presence
+        escalus_client:send(Client, escalus_stanza:presence(<<"available">>))
+    end.
