@@ -10,17 +10,17 @@ For a reminder, MongooseIM manages two sets of data: transient for session data 
 
 Please refer to '[Database Backends](../advanced-configuration/database-backends-configuration.md)' doc for more configuration information.
 
-* Transient databases
+#### Transient databases
 
 Mnesia will run on the same nodes as MongooseIM.
 
 Redis will be a separate cluster, not using the same nodes as MongooseIM.
 
-* Persistant databases
+#### Persistant databases
 
 Both RDBMS (SQL) and NOSQL (Riak KV, Cassandra) 
 
-* LDAP
+#### LDAP
 
 LDAP will also run on a separate cluster.
 
@@ -59,3 +59,7 @@ Contact us.
 ## MongooseIM in a worldwide, multi-datacenter configuration
 
 The MongooseIM platforms enables a service to scale worlwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
+
+![MongooseIM worlwide architecture](MongooseIM_worlwide_architecture.png)
+
+Contact us.
