@@ -58,6 +58,15 @@ qct:
 test: test_deps
 	cd test/ejabberd_tests; make test
 
+# $ make qtest SUITE=mam_SUITE
+qtest:
+	cp test/ejabberd_tests/qtest.spec.template test/ejabberd_tests/qtest.spec
+	echo "{suites, \"tests\", $(SUITE)}." >> test/ejabberd_tests/qtest.spec
+	cd test/ejabberd_tests;
+	@(if [ "$(SUITE)" ]; \
+		then make quicktest TESTSPEC=qtest.spec; \
+		else make quicktest; fi)
+
 test_preset: test_deps
 	cd test/ejabberd_tests; make test_preset
 
