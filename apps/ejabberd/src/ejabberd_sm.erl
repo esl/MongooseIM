@@ -646,7 +646,15 @@ do_route_no_resource(_, _, _, _, _) ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
 do_route_offline(<<"message">>, _, From, To, Packet)  ->
-        route_message(From, To, Packet);
+    Drop = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
+                   false, [From, To, Packet]),
+    case Drop of
+        false ->
+            route_message(From, To, Packet);
+        true ->
+            ?DEBUG("issue=\"message droped\", to=~1000p", [To]),
+            ok
+    end;
 do_route_offline(<<"iq">>, <<"error">>, _From, _To, _Packet) ->
         ok;
 do_route_offline(<<"iq">>, <<"result">>, _From, _To, _Packet) ->
