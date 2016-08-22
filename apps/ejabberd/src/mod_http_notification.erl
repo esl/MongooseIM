@@ -59,7 +59,7 @@ get_callback_module() ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, ?MODULE).
 
 make_req(Host, Sender, Receiver, Message) ->
-    Path = fix_path(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH)),
+    Path = fix_path(list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH))),
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, ?DEFAULT_POOL_NAME),
     Pool = mongoose_http_client:get_pool(PoolName),
     Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
@@ -90,13 +90,8 @@ record_result(Host, {error, Reason}, _) ->
     ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
     ok.
 
-%% @doc Convert to binary, strip initial slash (it is added by mongoose_http_client)
-fix_path(P) when is_list(P) ->
-    fix_path(list_to_binary(P));
-fix_path(P) when is_binary(P) ->
-    case P of
-        <<"/", R/binary>> ->
-            R;
-        Path ->
-            Path
-    end.
+%% @doc Strip initial slash (it is added by mongoose_http_client)
+fix_path(<<"/", R/binary>>) ->
+    R;
+fix_path(R) ->
+    R.
