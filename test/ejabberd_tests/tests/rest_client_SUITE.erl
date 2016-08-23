@@ -10,17 +10,24 @@ groups() ->
 test_cases() ->
     [msg_is_sent_and_delivered,
      messages_are_archived,
-     messages_can_be_paginated].
+     messages_can_be_paginated,
+     room_is_created,
+     user_is_invited_to_a_room].
 
 init_per_suite(C) ->
     Host = ct:get_config({hosts, mim, domain}),
     C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C),
+    MUCLightHost = <<"muclight.", Host/binary>>,
+    dynamic_modules:start(Host, mod_muc_light,
+                          [{host, binary_to_list(MUCLightHost)},
+                           {rooms_in_rosters, true}]),
     escalus:init_per_suite(C1).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     Host = ct:get_config({hosts, mim, domain}),
     rest_helper:maybe_disable_mam(proplists:get_value(mam_enabled, Config), Host),
+    dynamic_modules:stop(Host, mod_muc_light),
     escalus:end_per_suite(Config).
 
 init_per_group(_GN, C) ->
@@ -88,6 +95,26 @@ messages_can_be_paginated(Config) ->
         <<"B">> = maps:get(body, Oldest2)
     end).
 
+room_is_created(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        Creds = {AliceJID, user_password(alice)},
+        create_room(Creds, <<"new_room_id">>, <<"This room subject">>)
+    end).
+
+user_is_invited_to_a_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        Creds = {AliceJID, user_password(alice)},
+        RoomID = <<"new_room_id2">>,
+        create_room(Creds, RoomID, <<"This room subject 2">>),
+        Body = #{user => BobJID},
+        {{<<"204">>, <<"No Content">>}, _} = rest_helper:putt(<<"/rooms/", RoomID/binary>>, Body, Creds),
+        Stanza = escalus:wait_for_stanza(Bob),
+        ct:print("~p", [Stanza])
+    end).
+
 user_password(User) ->
     [{User, Props}] = escalus:get_users([User]),
     proplists:get_value(password, Props).
@@ -115,4 +142,9 @@ get_messages(MeCreds, Other, Before, Count) ->
                              "/", integer_to_list(Count)]),
     {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, MeCreds),
     Msgs.
+
+create_room({AliceJID, _} = Creds, RoomID, Subject) ->
+    Room = #{id => RoomID,
+             subject => Subject},
+    {{<<"204">>, <<"No Content">>}, _} = rest_helper:post(<<"/rooms">>, Room, Creds).
 
