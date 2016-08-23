@@ -206,7 +206,6 @@ basic_group_names() ->
      bootstrapped,
      archived,
      policy_violation,
-     nostore,
      prefs_cases,
      impl_specific
     ].
@@ -245,6 +244,7 @@ basic_groups() ->
             {mam02, [parallel], mam_cases()},
             {mam03, [parallel], mam_cases() ++ [retrieve_form_fields]},
             {mam04, [parallel], mam_cases()},
+            {nostore, [parallel], nostore_cases()},
             {mam_purge, [parallel], mam_purge_cases()},
             {rsm02,      [parallel], rsm_cases()},
             {rsm03,      [parallel], rsm_cases()},
@@ -261,7 +261,6 @@ basic_groups() ->
             {muc_rsm04, [parallel], muc_rsm_cases()}]},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
-     {nostore,          [], nostore_cases()},
      {muc_light,        [], muc_light_cases()},
      {prefs_cases,      [parallel], prefs_cases()},
      {impl_specific,    [], impl_specific()}
@@ -453,6 +452,8 @@ init_per_group(with_rsm04, Config) ->
 
 init_per_group(mam_purge, Config) ->
     Config;
+init_per_group(nostore, Config) ->
+    Config;
 init_per_group(mam_metrics, Config) ->
     Config;
 init_per_group(muc02, Config) ->
@@ -519,6 +520,8 @@ end_per_group(with_rsm03, Config) ->
 end_per_group(with_rsm04, Config) ->
     Config;
 end_per_group(mam_purge, Config) ->
+    Config;
+end_per_group(nostore, Config) ->
     Config;
 end_per_group(mam_metrics, Config) ->
     Config;
@@ -739,10 +742,10 @@ init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
 init_per_testcase(C=offline_message, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol, 1}]),
+    escalus:init_per_testcase(C, Config1);
 init_per_testcase(C=nostore_hint, Config) ->
-    escalus:init_per_testcase(C, Config); %% skip bootstrap & clean to safe time
+    escalus:init_per_testcase(C, Config);
 init_per_testcase(C=muc_querying_for_all_messages, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
     escalus:init_per_testcase(C,
@@ -1160,7 +1163,7 @@ offline_message(Config) ->
     F = fun(Alice) ->
         %% Alice sends a message to Bob while bob is offline.
         escalus:send(Alice,
-                     escalus_stanza:chat_to(bob, Msg)),
+                     escalus_stanza:chat_to(escalus_users:get_jid(Config, bob), Msg)),
         maybe_wait_for_yz(Config),
         ok
         end,
@@ -1198,7 +1201,7 @@ nostore_hint(Config) ->
         assert_not_stored(ArcMsgs, Msg),
         ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 purge_single_message(Config) ->
     P = ?config(props, Config),
