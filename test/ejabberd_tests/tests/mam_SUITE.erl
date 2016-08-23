@@ -203,7 +203,6 @@ basic_group_names() ->
      mam_all,
      muc_all,
      muc_light,
-     bootstrapped,
      policy_violation,
      prefs_cases,
      impl_specific
@@ -237,10 +236,9 @@ is_skipped(_, _) ->
 
 
 basic_groups() ->
-    [{bootstrapped,     [], bootstrapped_cases()},
-     {mam_all, [parallel],
+    [{mam_all, [parallel],
            [{mam_metrics, [], mam_metrics_cases()},
-            {mam02, [parallel], mam_cases()},
+            {mam02, [parallel], mam_cases() ++ [querying_for_all_messages_with_jid]},
             {mam03, [parallel], mam_cases() ++ [retrieve_form_fields]},
             {mam04, [parallel], mam_cases()},
             {nostore, [parallel], nostore_cases()},
@@ -267,10 +265,6 @@ basic_groups() ->
      {impl_specific,    [], impl_specific()}
     ].
 
-bootstrapped_cases() ->
-     [purge_old_single_message,
-      querying_for_all_messages_with_jid].
-
 
 mam_metrics_cases() ->
     [metric_incremented_on_archive_request,
@@ -283,9 +277,11 @@ mam_cases() ->
      range_archive_request_not_empty,
      limit_archive_request].
 
+
 mam_purge_cases() ->
     [purge_single_message,
-     purge_multiple_messages].
+     purge_multiple_messages,
+     purge_old_single_message].
 
 archived_cases() ->
     [archived,
@@ -734,11 +730,11 @@ init_per_testcase(C=strip_archived, Config) ->
 init_per_testcase(C=filter_forwarded, Config) ->
     escalus:init_per_testcase(C, Config);
 init_per_testcase(C=purge_old_single_message, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol, 1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol, 1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=archived, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
     escalus:init_per_testcase(C, Config1);
@@ -942,14 +938,15 @@ querying_for_all_messages_with_jid(Config) ->
         Pregenerated = ?config(pre_generated_msgs, Config),
         BWithJID = nick_to_jid(bob, Config),
 
-        WithBob = [1 || {_, _, {JID, _, _}, _, _} <- Pregenerated, JID == BWithJID],
+        WithBob = [1 || {_, _, {JID, _, _}, _, _} <- Pregenerated,
+                        escalus_utils:jid_to_lower(JID) == BWithJID],
 
         CountWithBob = lists:sum(WithBob),
         escalus:send(Alice, stanza_filtered_by_jid_request(P, BWithJID)),
         assert_respond_size(CountWithBob, wait_archive_respond(P, Alice)),
         ok
         end,
-    escalus:fresh_story(Config, [{alice, 1}], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),
