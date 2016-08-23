@@ -1127,6 +1127,8 @@ prefs_cases2() ->
      {{always, [], [bob, kate]},     [false, false, false, false]}
     ].
 
+default_policy({{Default,_,_}, _}) -> Default.
+
 make_alice_and_bob_friends(Alice, Bob) ->
         escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribe">>)),
         escalus:wait_for_stanzas(Alice, 1, 5000), % iq set
