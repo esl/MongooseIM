@@ -50,8 +50,8 @@ commands() ->
 
     [
      [{name, create_muc_light_room},
-      {category, 'muc-lights'},
-      {desc, "Create a MUC Light room."},
+      {category, <<"muc-lights">>},
+      {desc, <<"Create a MUC Light room.">>},
       {module, ?MODULE},
       {function, create_unique_room},
       {action, create},
@@ -68,8 +68,8 @@ commands() ->
       {result, {name, binary}}],
 
      [{name, invite_to_room},
-      {category, 'muc-lights'},
-      {desc, "Invite to a MUC Light room."},
+      {category, <<"muc-lights">>},
+      {desc, <<"Invite to a MUC Light room.">>},
       {module, ?MODULE},
       {function, invite_to_room},
       {action, update},
@@ -83,9 +83,9 @@ commands() ->
       {result, ok}],
 
      [{name, send_message_to_muc_light_room},
-      {category, 'muc-lights'},
+      {category, <<"muc-lights">>},
       {subcategory, <<"messages">>},
-      {desc, "Send a message to a MUC Light room."},
+      {desc, <<"Send a message to a MUC Light room.">>},
       {module, ?MODULE},
       {function, send_message},
       {action, create},

@@ -13,9 +13,9 @@
 %% with the following keys:
 %%      name :: atom()
 %% name of the command by which we refer to it
-%%      category :: [atom()]
+%%      category :: binary()
 %% this defines what group the command belongs to, like user, chatroom etc
-%%      desc :: string()
+%%      desc :: binary()
 %% long description
 %%      module :: module()
 %% module to call
@@ -108,9 +108,9 @@
 
 -record(mongoose_command, {
           name :: atom(),                             %% name of the command by which we refer to it
-          category :: atom(),                         %% groups commands releated to the same functionality (user managment, messages/archive)
+          category :: binary(),                       %% groups commands releated to the same functionality (user managment, messages/archive)
           subcategory = undefined :: undefined | binary(),          %% optimal subcategory
-          desc :: string(),                           %% long description
+          desc :: binary(),                           %% long description
           module :: module(),                         %% module to call
           function :: atom(),                         %% function to call
           action :: action(),                         %% so that the HTTP side can decide which verb to require
@@ -245,7 +245,7 @@ category(Cmd) ->
 subcategory(Cmd) ->
     Cmd#mongoose_command.subcategory.
 
--spec desc(t()) -> list().
+-spec desc(t()) -> binary().
 desc(Cmd) ->
     Cmd#mongoose_command.desc.
 
@@ -430,13 +430,13 @@ check_command(Cmd, PL, [N|Tail]) ->
 
 check_value(name, V) when is_atom(V) ->
     V;
-check_value(category, V) when is_atom(V) ->
+check_value(category, V) when is_binary(V) ->
     V;
 check_value(subcategory, V) when is_binary(V) ->
     V;
 check_value(subcategory, undefined) ->
     undefined;
-check_value(desc, V) when is_list(V) ->
+check_value(desc, V) when is_binary(V) ->
     V;
 check_value(module, V) when is_atom(V) ->
     V;

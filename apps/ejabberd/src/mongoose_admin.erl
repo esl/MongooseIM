@@ -34,8 +34,8 @@ commands() ->
     [
         [
             {name, listmethods},
-            {category, commands},
-            {desc, "List commands"},
+            {category, <<"commands">>},
+            {desc,<<"List commands">>},
             {module, ?MODULE},
             {function, registered_commands},
             {action, read},
@@ -44,8 +44,8 @@ commands() ->
         ],
         [
             {name, listusers},
-            {category, users},
-            {desc, "List registered users on this host"},
+            {category, <<"users">>},
+            {desc, <<"List registered users on this host">>},
             {module, ?MODULE},
             {function, registered_users},
             {action, read},
@@ -54,8 +54,8 @@ commands() ->
         ],
         [
             {name, registeruser},
-            {category, users},
-            {desc, "Register a user"},
+            {category, <<"users">>},
+            {desc, <<"Register a user">>},
             {module, ?MODULE},
             {function, register},
             {action, create},
@@ -64,8 +64,8 @@ commands() ->
         ],
         [
             {name, unregisteruser},
-            {category, users},
-            {desc, "UnRegister a user"},
+            {category, <<"users">>},
+            {desc, <<"UnRegister a user">>},
             {module, ?MODULE},
             {function, unregister},
             {action, delete},
@@ -74,8 +74,8 @@ commands() ->
         ],
         [
             {name, listsessions},
-            {category, sessions},
-            {desc, "Get session list"},
+            {category, <<"sessions">>},
+            {desc, <<"Get session list">>},
             {module, ?MODULE},
             {function, listsessions},
             {action, read},
@@ -84,8 +84,8 @@ commands() ->
         ],
         [
             {name, kickuser},
-            {category, sessions},
-            {desc, "Terminate user connection"},
+            {category, <<"sessions">>},
+            {desc, <<"Terminate user connection">>},
             {module, ?MODULE},
             {function, kick_session},
             {action, delete},
@@ -94,8 +94,8 @@ commands() ->
         ],
         [
             {name, sendmessage},
-            {category, messages},
-            {desc, "Send chat message from to"},
+            {category, <<"messages">>},
+            {desc, <<"Send chat message from to">>},
             {module, ?MODULE},
             {function, send_message},
             {action, create},
@@ -105,8 +105,8 @@ commands() ->
         ],
         [
             {name, getmessages},
-            {category, messages},
-            {desc, "Get recent messages"},
+            {category, <<"messages">>},
+            {desc, <<"Get recent messages">>},
             {module, ?MODULE},
             {function, get_recent_messages},
             {action, read},
@@ -116,8 +116,8 @@ commands() ->
         ],
         [
             {name, changepassword},
-            {category, users},
-            {desc, "Change user password"},
+            {category, <<"users">>},
+            {desc, <<"Change user password">>},
             {module, ?MODULE},
             {function, change_user_password},
             {action, update},
@@ -188,7 +188,7 @@ registered_commands() ->
         name => mongoose_commands:name(C),
         category => mongoose_commands:category(C),
         action => mongoose_commands:action(C),
-        desc => to_binary(mongoose_commands:desc(C))
+        desc => mongoose_commands:desc(C)
     } || C <- mongoose_commands:list(admin)].
 
 
@@ -242,6 +242,3 @@ lookup_recent_messages(ArcJID, OtherJID, Limit) ->
             PageSize, LimitPassed, MaxResultLimit, IsSimple]),
     {ok, {_, _, L}} = R,
     L.
-
-to_binary(V) ->
-    list_to_binary(V).

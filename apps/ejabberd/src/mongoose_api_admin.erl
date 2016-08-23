@@ -47,7 +47,8 @@ cowboy_router_paths(Base, _Opts) ->
             [handler_path(Base, Command) || Command <- Commands]
         catch
             _:Err ->
-                ?ERROR_MSG("Error occured when getting the commands list: ~p~n", [Err]),
+                ?ERROR_MSG("Error occured when getting the commands list: ~p~n~p",
+                           [Err, erlang:get_stacktrace()]),
                 []
         end.
 
