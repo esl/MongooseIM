@@ -200,11 +200,9 @@ CREATE TABLE mam_config(
   -- A - always archive;
   -- N - never archive;
   -- R - roster (only for remote_jid == "")
-  behaviour mam_behaviour NOT NULL
+  behaviour mam_behaviour NOT NULL,
+  PRIMARY KEY(user_id, remote_jid)
 );
-CREATE INDEX i_mam_config
-    ON mam_config
-    (user_id, remote_jid);
 
 CREATE TABLE mam_server_user(
   id SERIAL UNIQUE PRIMARY KEY,

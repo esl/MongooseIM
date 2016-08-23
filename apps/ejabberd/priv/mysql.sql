@@ -222,9 +222,9 @@ CREATE TABLE mam_config(
   -- A - always archive;
   -- N - never archive;
   -- R - roster (only for remote_jid == "")
-  behaviour ENUM('A', 'N', 'R') NOT NULL
+  behaviour ENUM('A', 'N', 'R') NOT NULL,
+  PRIMARY KEY (user_id, remote_jid)
 );
-CREATE INDEX i_mam_config USING HASH ON mam_config(user_id, remote_jid);
 
 CREATE TABLE mam_server_user(
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
