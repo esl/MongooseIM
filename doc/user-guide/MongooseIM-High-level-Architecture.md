@@ -1,6 +1,6 @@
 ## Inside MongooseIM
 
-MongooseIM comes with a large set of modules that sysadmins can configure and potentially enable, modifying the behaviour of MongooseIM. See '[Extension Modules](../advanced-configuration/Modules.md)' for more info.
+MongooseIM is basically a huge router, that comes with a large set of modules. These modules modify and extend the behaviour and features of MongooseIM. Sysadmins and DevOps can configure these modules and potentially enable them. W wide range of modules are available, such as authentication, privacy, storage, backend integration, mobile optimisations... See '[Extension Modules](../advanced-configuration/Modules.md)' for more info.
 
 For a reminder, MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
 
@@ -16,13 +16,19 @@ Mnesia will run on the same nodes as MongooseIM.
 
 Redis will be a separate cluster, not using the same nodes as MongooseIM.
 
+No need to backup here, since the transient data naturally rebuilds as clients reconnect massively.
+
 #### Persistant databases
 
 Both RDBMS (SQL) and NOSQL (Riak KV, Cassandra) 
 
+Backups should be regular, and tested.
+
 #### LDAP
 
 LDAP will also run on a separate cluster.
+
+Backups should be regular, and tested.
 
 ### Frontend
 
@@ -38,9 +44,9 @@ All these client connections will hit a frontend load balancer before reaching t
 
 MongooseIM can communicate both ways with other backend services in the datacenter infrastructure.
 
-The MongooseIM REST API is available for control/management of operations as well as functional aspects.
+The MongooseIM REST API is available for control/management of MongooseIM's operations as well as functional aspects.
 
-A HTTP notification enables the forwarding of events to any external HTTP service.
+A HTTP notification enables the forwarding of events to any other external HTTP service.
 
 ### Management and monitoring
 
