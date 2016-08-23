@@ -246,12 +246,13 @@ basic_groups() ->
             {mam04, [parallel], mam_cases()},
             {nostore, [parallel], nostore_cases()},
             {mam_purge, [parallel], mam_purge_cases()},
-            {rsm02,      [parallel], rsm_cases()},
-            {rsm03,      [parallel], rsm_cases()},
-            {rsm04,      [parallel], rsm_cases()},
-            {with_rsm02, [parallel], with_rsm_cases()},
-            {with_rsm03, [parallel], with_rsm_cases()},
-            {with_rsm04, [parallel], with_rsm_cases()}]},
+            {rsm_all, [parallel],
+             [{rsm02,      [parallel], rsm_cases()},
+              {rsm03,      [parallel], rsm_cases()},
+              {rsm04,      [parallel], rsm_cases()},
+              {with_rsm02, [parallel], with_rsm_cases()},
+              {with_rsm03, [parallel], with_rsm_cases()},
+              {with_rsm04, [parallel], with_rsm_cases()}]}]},
      {muc_all, [parallel],
            [{muc02, [parallel], muc_cases()},
             {muc03, [parallel], muc_cases()},
@@ -426,29 +427,22 @@ init_per_group(mam03, Config) ->
 init_per_group(mam04, Config) ->
     [{props, mam04_props()}|Config];
 
-init_per_group(rsm02, Config) ->
+
+init_per_group(rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
     send_rsm_messages(Config1);
+init_per_group(rsm02, Config) ->
+    Config;
 init_per_group(rsm03, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
-    Config2 = [{props, mam03_props()}|Config1],
-    send_rsm_messages(Config2);
+    [{props, mam03_props()}|Config];
 init_per_group(rsm04, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
-    Config2 = [{props, mam04_props()}|Config1],
-    send_rsm_messages(Config2);
+    [{props, mam04_props()}|Config];
 init_per_group(with_rsm02, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
-    Config2 = [{with_rsm, true}|Config1],
-    send_rsm_messages(Config2);
+    [{with_rsm, true}|Config];
 init_per_group(with_rsm03, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
-    Config2 = [{props, mam03_props()}, {with_rsm, true}|Config1],
-    send_rsm_messages(Config2);
+    [{props, mam03_props()}, {with_rsm, true}|Config];
 init_per_group(with_rsm04, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
-    Config2 = [{props, mam04_props()}, {with_rsm, true}|Config1],
-    send_rsm_messages(Config2);
+    [{props, mam04_props()}, {with_rsm, true}|Config];
 
 init_per_group(mam_purge, Config) ->
     Config;
@@ -501,6 +495,8 @@ do_init_per_group(C, ConfigIn) ->
             Config0
     end.
 
+end_per_group(rsm_all, Config) ->
+    Config;
 end_per_group(mam02, Config) ->
     Config;
 end_per_group(mam03, Config) ->
