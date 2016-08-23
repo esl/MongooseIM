@@ -10,7 +10,7 @@ groups() ->
 test_cases() ->
     [msg_is_sent_and_delivered,
      messages_are_archived,
-     messages_can_be_paginated,
+%     messages_can_be_paginated,
      room_is_created,
      user_is_invited_to_a_room].
 
@@ -99,7 +99,11 @@ room_is_created(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         Creds = {AliceJID, user_password(alice)},
-        create_room(Creds, <<"new_room_id">>, <<"This room subject">>)
+        RoomName = <<"new_room_name">>,
+        RoomID = create_room(Creds, RoomName, <<"This room subject">>),
+        {{<<"200">>, <<"OK">>}, Result} = rest_helper:gett(<<"/rooms/", RoomID/binary>>,
+                                                          Creds),
+        ct:print("~p", [Result])
     end).
 
 user_is_invited_to_a_room(Config) ->
@@ -107,10 +111,11 @@ user_is_invited_to_a_room(Config) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         Creds = {AliceJID, user_password(alice)},
-        RoomID = <<"new_room_id2">>,
-        create_room(Creds, RoomID, <<"This room subject 2">>),
+        RoomName = <<"new_room_id2">>,
+        RoomID = create_room(Creds, RoomName, <<"This room subject 2">>),
         Body = #{user => BobJID},
-        {{<<"204">>, <<"No Content">>}, _} = rest_helper:putt(<<"/rooms/", RoomID/binary>>, Body, Creds),
+        {{<<"204">>, <<"No Content">>}, _} = rest_helper:putt(<<"/rooms/", RoomID/binary>>,
+                                                              Body, Creds),
         Stanza = escalus:wait_for_stanza(Bob),
         ct:print("~p", [Stanza])
     end).
@@ -144,7 +149,8 @@ get_messages(MeCreds, Other, Before, Count) ->
     Msgs.
 
 create_room({AliceJID, _} = Creds, RoomID, Subject) ->
-    Room = #{id => RoomID,
+    Room = #{name => RoomID,
              subject => Subject},
-    {{<<"204">>, <<"No Content">>}, _} = rest_helper:post(<<"/rooms">>, Room, Creds).
+    {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(<<"/rooms">>, Room, Creds),
+    proplists:get_value(<<"id">>, Result).
 

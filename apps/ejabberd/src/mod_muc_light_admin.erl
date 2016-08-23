@@ -25,6 +25,7 @@
 -export([create_unique_room/4]).
 -export([send_message/4]).
 -export([invite_to_room/4]).
+-export([invite_to_room_id/4]).
 
 -include("mod_muc_light.hrl").
 -include("ejabberd.hrl").
@@ -120,6 +121,17 @@ create_unique_room(Domain, RoomName, Creator, Subject) ->
 invite_to_room(Domain, RoomName, Sender, Recipient0) ->
     Recipient1 = jid:binary_to_bare(Recipient0),
     R = muc_light_room_name_to_jid(jid:from_binary(Sender), RoomName, Domain),
+    S = jid:binary_to_bare(Sender),
+    Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
+                    [affiliate(jid:to_binary(Recipient1), <<"member">>)]),
+    ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
+                                   <<"set">>, [Changes])).
+
+invite_to_room_id(Domain, RoomID, Sender, Recipient0) ->
+    Recipient1 = jid:binary_to_bare(Recipient0),
+    MUCLightDomain = gen_mod:get_module_opt_host(Domain, mod_muc,
+                                                 <<"muclight.@HOST@">>),
+    R = jid:make(RoomID, MUCLightDomain, <<>>),
     S = jid:binary_to_bare(Sender),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
                     [affiliate(jid:to_binary(Recipient1), <<"member">>)]),
