@@ -76,7 +76,9 @@
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
          muc_light_simple/1,
-         run_prefs_cases/1,
+         messages_filtered_when_prefs_default_policy_is_always/1,
+         messages_filtered_when_prefs_default_policy_is_never/1,
+         messages_filtered_when_prefs_default_policy_is_roster/1,
          run_set_and_get_prefs_cases/1,
          check_user_exist/1,
          metric_incremented_on_archive_request/1,
@@ -153,6 +155,7 @@
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
+         default_policy/1,
          namespaces/0,
          get_all_messages/2,
          parse_messages/1,
@@ -348,7 +351,9 @@ prefs_cases() ->
     [prefs_set_request,
      prefs_set_cdata_request,
      query_get_request,
-     run_prefs_cases,
+     messages_filtered_when_prefs_default_policy_is_always,
+     messages_filtered_when_prefs_default_policy_is_never,
+     messages_filtered_when_prefs_default_policy_is_roster,
      run_set_and_get_prefs_cases].
 
 impl_specific() ->
@@ -700,8 +705,6 @@ init_state(_, muc_all, Config) ->
     Config;
 init_state(C, muc_light, Config) ->
     init_state(C, muc04, Config);
-init_state(_, run_prefs_cases, Config) ->
-    clean_archives(Config);
 init_state(_, _, Config) ->
     clean_archives(Config).
 
@@ -2023,14 +2026,25 @@ metric_incremented_on_archive_request(ConfigIn) ->
 metric_incremented_when_store_message(Config) ->
     archived(Config).
 
+messages_filtered_when_prefs_default_policy_is_always(Config) ->
+    run_prefs_cases(always, Config).
+
+messages_filtered_when_prefs_default_policy_is_never(Config) ->
+    run_prefs_cases(never, Config).
+
+messages_filtered_when_prefs_default_policy_is_roster(Config) ->
+    run_prefs_cases(roster, Config).
+
 %% First write all messages, than read and check
-run_prefs_cases(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice, Bob, Kate) ->
+run_prefs_cases(DefaultPolicy, ConfigIn) ->
+    P = ?config(props, ConfigIn),
+    F = fun(Config, Alice, Bob, Kate) ->
         make_alice_and_bob_friends(Alice, Bob),
         %% Just send messages for each prefs configuration
         Namespace = mam_ns_binary_v04(),
-        Funs = [run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config) || Case <- prefs_cases2()],
+        Funs = [run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config)
+                || Case <- prefs_cases2(),
+                default_policy(Case) =:= DefaultPolicy],
 
         maybe_wait_for_yz(Config),
 
@@ -2044,7 +2058,7 @@ run_prefs_cases(Config) ->
         %% If fails consult with ct:pal/2 why
         ?assert_equal([], Fails)
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+    escalus_fresh:story_with_config(ConfigIn, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 %% The same as prefs_set_request case but for different configurations
 run_set_and_get_prefs_cases(Config) ->
