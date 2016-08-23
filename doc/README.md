@@ -19,6 +19,7 @@
     * [Logging & monitoring](operation-and-maintenance/Logging-&-monitoring.md)
     * [Cluster configuration and node management](operation-and-maintenance/Cluster-configuration-and-node-management.md)
     * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
+    * [HTTP Administration API](http-administration-api-documentation.md)
 * For developers
     * [Testing MongooseIM](developers-guide/Testing-MongooseIM.md)
     * [Hooks and handlers](developers-guide/Hooks-and-handlers.md)
