@@ -40,7 +40,7 @@ msg_is_sent_and_delivered(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         M = send_message(alice, Alice, Bob),
         Msg = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_chat_message, [maps:get(msg, M)], Msg)
+        escalus:assert(is_chat_message, [maps:get(body, M)], Msg)
     end).
 
 messages_are_archived(Config) ->
@@ -51,13 +51,14 @@ messages_are_archived(Config) ->
         AliceJID = maps:get(to, M1),
         BobJID = maps:get(to, M2),
         AliceCreds = {AliceJID, user_password(alice)},
-        GetPath = lists:flatten(["/messages/", binary_to_list(BobJID), "/10"]),
+        GetPath = lists:flatten("/messages/"),
         {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, AliceCreds),
         [Msg1, _Msg2] = rest_helper:decode_maplist(Msgs),
-        BobJID = maps:get(sender, Msg1),
-        _ = maps:get(message_id, Msg1), %checks if there is an ID
+        BobJID = maps:get(from, Msg1),
+        BobMsgId = maps:get(id, M1),
+        BobMsgId = maps:get(id, Msg1), %checks if there is an ID
         _ = maps:get(timestamp, Msg1), %checks if there ia timestamp
-        BobMsgBody = maps:get(msg, M1),
+        BobMsgBody = maps:get(body, M1),
         BobMsgBody = maps:get(body, Msg1)
 
     end).
@@ -94,10 +95,11 @@ user_password(User) ->
 send_message(User, From, To) ->
     AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(From)),
     BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
-    M = #{to => BobJID, msg => <<"hello, ", BobJID/binary," it's me">>},
+    M = #{to => BobJID, body => <<"hello, ", BobJID/binary," it's me">>},
     Cred = {AliceJID, user_password(User)},
-    {{<<"200">>, <<"OK">>}, _} = rest_helper:post(<<"/messages">>, M, Cred),
-    M.
+    {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(<<"/messages">>, M, Cred),
+    ID = proplists:get_value(<<"id">>, Result),
+    M#{id => ID}.
 
 get_messages(MeCreds, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
