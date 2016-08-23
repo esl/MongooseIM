@@ -89,9 +89,9 @@ commands() ->
       {result, ok}],
 
      [{name, kick_user_from_room},
-      {category, mucs},
+      {category, <<"mucs">>},
       {desc,
-       "Kick a user from a MUC room (on behalf of a moderator)."},
+       <<"Kick a user from a MUC room (on behalf of a moderator).">>},
       {module, ?MODULE},
       {function, kick_user_from_room},
       {action, delete},
