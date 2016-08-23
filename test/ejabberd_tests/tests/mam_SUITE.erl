@@ -1197,7 +1197,7 @@ nostore_hint(Config) ->
     F = fun(Alice, Bob) ->
         %% Alice sends a message to Bob with a hint.
         escalus:send(Alice,
-                     add_nostore_hint(escalus_stanza:chat_to(bob, Msg))),
+                     add_nostore_hint(escalus_stanza:chat_to(Bob, Msg))),
         maybe_wait_for_yz(Config),
         escalus:wait_for_stanzas(Bob, 1, 1000),
 
