@@ -697,6 +697,10 @@ init_state(C, muc_light, Config) ->
     init_state(C, muc04, Config);
 init_state(C, prefs_cases, Config) ->
     Config;
+init_state(C, policy_violation, Config) ->
+    rpc_apply(mod_mam, set_params,
+              [ [{max_result_limit, 5}] ]),
+    Config;
 init_state(_, _, Config) ->
     clean_archives(Config).
 
@@ -1123,15 +1127,17 @@ strip_archived(Config) ->
 %% the client did not specify a limit using RSM then the server should
 %% return a policy-violation error to the client.
 policy_violation(Config) ->
+    %% For this test we use max_result_limit=5
+    %% Default is max_result_limit=50
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends messages to Bob.
         %% WARNING: are we sending too fast?
         [escalus:send(Alice,
                       escalus_stanza:chat_to(Bob, generate_message_text(N)))
-         || N <- lists:seq(1, 51)],
-        %% Bob is waiting for 51 messages for 5 seconds.
-        escalus:wait_for_stanzas(Bob, 51, 5000),
+         || N <- lists:seq(1, 6)],
+        %% Bob is waiting for 6 messages for 5 seconds.
+        escalus:wait_for_stanzas(Bob, 6, 5000),
         maybe_wait_for_yz(Config),
         %% Get whole history (queryid is "will_fail", id is random).
         escalus:send(Alice, stanza_archive_request(P, <<"will_fail">>)),

@@ -55,6 +55,9 @@
 %%private
 -export([archive_message/8]).
 
+%% for feature (escalus) tests
+-export([set_params/1]).
+
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -149,9 +152,9 @@
 %% ----------------------------------------------------------------------
 %% Constants
 
-default_result_limit() -> 50.
+default_result_limit() -> mod_mam_params:default_result_limit().
 
-max_result_limit() -> 50.
+max_result_limit() -> mod_mam_params:max_result_limit().
 
 %% ----------------------------------------------------------------------
 %% API
@@ -977,9 +980,19 @@ params_helper(Params) ->
         "-module(mod_mam_params).~n"
         "-compile(export_all).~n"
         "add_archived_element() -> ~p.~n"
-        "is_complete_message() -> ~p.~n",
+        "is_complete_message() -> ~p.~n"
+        "default_result_limit() -> ~p.~n"
+        "max_result_limit() -> ~p.~n"
+        "params() -> ~p.~n",
         [proplists:get_bool(add_archived_element, Params),
-         proplists:get_value(is_complete_message, Params, mod_mam_utils)]))).
+         proplists:get_value(is_complete_message, Params, mod_mam_utils),
+         proplists:get_value(default_result_limit, Params, 50),
+         proplists:get_value(max_result_limit, Params, 50),
+         Params
+        ]))).
+
+set_params(Params) ->
+    compile_params_module(Params ++ mod_mam_params:params()).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().
