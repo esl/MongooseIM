@@ -41,6 +41,7 @@ success_response() ->
     [
      create_room,
      invite_online_user_to_room,
+     kick_user_from_room,
      %% invite_offline_user_to_room, %% TO DO.
      send_message_to_room
     ].
@@ -140,6 +141,55 @@ send_message_to_room(Config) ->
         Got = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, Got),
         Message = exml_query:path(Got, [{element, <<"body">>}, cdata])
+    end).
+
+kick_user_from_room(Config) ->
+    escalus:fresh_story(Config,
+      [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        %% Parameters for this test.
+        Name = ?config(room_name, Config),
+        Host = <<"localhost">>,
+        Path = <<"/mucs",$/,Host/binary,$/,Name/binary,$/,"bobcat">>,
+        %% Alice creates and enters the room.
+        escalus:send(Alice,
+                     muc_helper:stanza_muc_enter_room(Name,
+                                                      <<"alibaba">>)),
+        escalus:send(Alice,
+                     muc_helper:stanza_default_muc_room(Name,
+                                                        <<"alibaba">>)),
+        %% Alice gets an IQ result, her affiliation information, and
+        %% the room's subject line.
+        escalus:wait_for_stanzas(Alice, 3),
+        %% Bob enters the room.
+        escalus:send(Bob,
+                     muc_helper:stanza_muc_enter_room(Name,
+                                                      <<"bobcat">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Alice sees Bob's presence.
+        escalus:wait_for_stanza(Alice),
+        %% Kate enters the room.
+        escalus:send(Kate,
+                     muc_helper:stanza_muc_enter_room(Name,
+                                                      <<"kitkat">>)),
+        escalus:wait_for_stanzas(Kate, 4),
+        %% Alice and Bob see Kate's presence.
+        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
+        %% The HTTP call in question.
+        {{<<"200">>, _}, <<"">>} = rest_helper:delete(Path),
+        BobRoomAddress = muc_helper:room_address(Name, <<"bobcat">>),
+        %% Bob finds out he's been kicked.
+        KickedStanza = escalus:wait_for_stanza(Bob),
+        is_unavailable_presence_from(KickedStanza, BobRoomAddress),
+        %% Kate finds out Bob is kicked.
+        is_unavailable_presence_from(escalus:wait_for_stanza(Kate),
+                                     BobRoomAddress),
+        %% Alice finds out Bob is kicked.
+        is_unavailable_presence_from(escalus:wait_for_stanza(Alice),
+                                     BobRoomAddress),
+        %% **NOTE**: Alice is a moderator so Bob is kicked through
+        %% her. She recieves and IQ result.
+        escalus:wait_for_stanza(Alice)
     end).
 
 multiparty_multiprotocol(Config) ->
@@ -283,3 +333,7 @@ user_sees_message_from(User, [Nick|Rest], Room,  Messages) ->
     UserRoomJID = exml_query:path(Stanza, [{attr, <<"from">>}]),
     Body = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
     user_sees_message_from(User, Rest, Room, [Body|Messages]).
+
+is_unavailable_presence_from(Stanza, RoomJID) ->
+    escalus_assert:is_presence_type(<<"unavailable">>, Stanza),
+    escalus_assert:is_stanza_from(RoomJID, Stanza).

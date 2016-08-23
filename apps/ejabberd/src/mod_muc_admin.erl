@@ -25,9 +25,11 @@
 -export([create_instant_room/4]).
 -export([invite_to_room/5]).
 -export([send_message_to_room/4]).
+-export([kick_user_from_room/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("mod_muc_room.hrl").
 
 start(_, _) ->
     mongoose_commands:register(commands()).
@@ -84,6 +86,21 @@ commands() ->
         {sender, binary},
         {message, binary}
        ]},
+      {result, ok}],
+
+     [{name, kick_user_from_room},
+      {category, mucs},
+      {desc,
+       "Kick a user from a MUC room (on behalf of a moderator)."},
+      {module, ?MODULE},
+      {function, kick_user_from_room},
+      {action, delete},
+      {identifiers, [host, name, nick]},
+      {args,
+       [{host, binary},
+        {name, binary},
+        {nick, binary}
+       ]},
       {result, ok}]
 
     ].
@@ -119,17 +136,33 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
                         {<<"jid">> , room_address(Name, Host)},
                         {<<"reason">>, Reason}]
               },
-    Invite = message(S, R, <<>>, [X]),
+    Invite = message(S, R, <<>>, [ X ]),
     ejabberd_router:route(S, R, Invite).
 
 send_message_to_room(Host, Name, Sender, Message) ->
     S = jid:binary_to_bare(Sender),
     Room = jid:from_binary(room_address(Name, Host)),
-    X = #xmlel{name = <<"body">>,
+    B = #xmlel{name = <<"body">>,
                children = [ #xmlcdata{ content = Message } ]
               },
-    Stanza = message(S, Room, <<"groupchat">>, [X]),
+    Stanza = message(S, Room, <<"groupchat">>, [ B ]),
     ejabberd_router:route(S, Room, Stanza).
+
+kick_user_from_room(Host, Name, Nick) ->
+    %% All the machinery which is already deeply embedden in the MUC
+    %% modules will perform the neccessary checking.
+    R = jid:from_binary(room_address(Name, Host)),
+    S = room_moderator(R),
+    Reason = #xmlel{name = <<"reason">>,
+                    children = [ #xmlcdata{ content = reason() } ]
+                   },
+    K = #xmlel{name = <<"item">>,
+               attrs = [{<<"nick">>, Nick},
+                        {<<"role">>, <<"none">>}],
+               children = [ Reason ]
+              },
+    IQ = iq(<<"set">>, S, R, [ query(?NS_MUC_ADMIN, [ K ]) ]),
+    ejabberd_router:route(S, R, IQ).
 
 
 %%--------------------------------------------------------------------
@@ -140,11 +173,15 @@ room_address(Name, Host) ->
     MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
     <<Name/binary, $@, MUCHost/binary>>.
 
+room_address(Name, Host, Nick) ->
+    MUCRoomAddress = room_address(Name, Host),
+    <<MUCRoomAddress/binary, $/, Nick/binary>>.
+
 iq(Type, Sender, Recipient, Children)
   when is_binary(Type), is_list(Children) ->
     Addresses = address_attributes(Sender, Recipient),
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"type">>, Type}|Addresses],
+           attrs = Addresses ++ [{<<"type">>, Type}],
            children = Children
           }.
 
@@ -186,3 +223,18 @@ address_attributes(Sender, Recipient) ->
      {<<"from">>, jid:to_binary(Sender)},
      {<<"to">>, jid:to_binary(Recipient)}
     ].
+
+reason() ->
+    <<"Kicked through HTTP Administration API.">>.
+
+
+room_moderator(RoomJID) ->
+    [JIDStruct|_] =
+        [ UserJID
+          || #user{ jid = UserJID,
+                    role = moderator } <- room_users(RoomJID) ],
+    JIDStruct.
+
+room_users(RoomJID) ->
+    {ok, Affiliations} = mod_muc_room:get_room_users(RoomJID),
+    Affiliations.

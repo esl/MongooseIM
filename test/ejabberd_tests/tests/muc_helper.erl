@@ -3,6 +3,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 
 -type verify_fun() :: fun((Incoming :: #xmlel{}) -> any()).
 
@@ -86,6 +87,12 @@ stanza_muc_enter_room(Room, Nick) ->
         escalus_stanza:presence(  <<"available">>,
                                 [#xmlel{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
         Room, Nick).
+
+stanza_default_muc_room(Room, Nick) ->
+    Form = escalus_stanza:x_data_form(<<"submit">>, []),
+    Query = escalus_stanza:query_el(?NS_MUC_OWNER, [Form]),
+    IQSet = escalus_stanza:iq(<<"set">>, [Query]),
+    stanza_to_room(IQSet, Room, Nick).
 
 stanza_to_room(Stanza, Room) ->
     escalus_stanza:to(Stanza, room_address(Room)).
