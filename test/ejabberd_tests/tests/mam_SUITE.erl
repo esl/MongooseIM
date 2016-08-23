@@ -372,7 +372,7 @@ delete_users(Config) ->
 
 disable_shaping(Config) ->
     OldShaper = get_shaper(),
-    set_shaper({{maxrate, 100}, {maxrate, 10000000}, {maxrate, 10000000}}),
+    set_shaper({{maxrate, 10000}, {maxrate, 10000000}, {maxrate, 10000000}}),
     [{old_mam_shaper, OldShaper}|Config].
 
 restore_shaping(Config) ->
