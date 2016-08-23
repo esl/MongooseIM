@@ -7,7 +7,9 @@ GET /api/metrics/global/{{<metric}}
 < 200
 < Content-Type: application/json
 {
-    "metric": {"value": "{{>value}}"},
+    "metric": {
+            "value": "{{>value}}"
+        },
     "{{_}}": "{{unexpected}}"
 }
 
@@ -21,7 +23,9 @@ GET /api/metrics/global
 < Content-Type: application/json
 {
     "metrics": {
-            "{{<metric}}": {"value": "{{>value_list}}"},
+            "{{<metric}}": {
+                    "value": "{{>value_list}}"
+                },
     },
     "{{_}}": "{{unexpected}}"
 }

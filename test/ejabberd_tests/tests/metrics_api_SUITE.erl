@@ -81,7 +81,12 @@ end_per_testcase(CaseName, Config) ->
 %% metrics_api tests
 %%--------------------------------------------------------------------
 message_flow(Config) ->
-    katt_helper:run(metrics, Config).
+    case metrics_helper:all_metrics_are_global() of
+        true ->
+            katt_helper:run(metrics_only_global, Config);
+        _ ->
+            katt_helper:run(metrics, Config)
+    end.
 
 %%--------------------------------------------------------------------
 %% metric update tests
@@ -202,15 +207,15 @@ session_counters(Config) ->
       (Config,
        [{alice, 2}, {bob, 1}],
        fun(_Alice1, _Alice2, _Bob) ->
-               ?assert_equal(3, fetch_global_counter_value(totalSessionCount, Config)),
-               ?assert_equal(2, fetch_global_counter_value(uniqueSessionCount, Config)),
-               ?assert_equal(3, fetch_global_counter_value(nodeSessionCount, Config))
+               ?assert_equal(3, fetch_global_gauge_value(totalSessionCount, Config)),
+               ?assert_equal(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
+               ?assert_equal(3, fetch_global_gauge_value(nodeSessionCount, Config))
        end).
 
 node_uptime(Config) ->
-      X = fetch_global_incrementing_counter_value(nodeUpTime, Config),
+      X = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
       timer:sleep(timer:seconds(1)),
-      Y = fetch_global_incrementing_counter_value(nodeUpTime, Config),
+      Y = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
       ?assert_equal_extra(true, Y > X,
                           [{counter, nodeUpTime}, {first, X}, {second, Y}]).
 %%--------------------------------------------------------------------
@@ -235,7 +240,11 @@ instrumented_story(Config, UsersSpecs, StoryFun, CounterSpecs) ->
     StoryResult.
 
 fetch_all(Config, CounterSpecs) ->
-    [ {Counter, fetch_counter_value(Counter, Config)}
+    FetchCounterFun = case metrics_helper:all_metrics_are_global() of
+                          true -> fun fetch_global_spiral_values/2;
+                          _ -> fun fetch_counter_value/2
+                      end,
+    [ {Counter, FetchCounterFun(Counter, Config)}
       || {Counter, _} <- CounterSpecs ].
 
 find(CounterName, CounterList) ->
@@ -244,13 +253,8 @@ find(CounterName, CounterList) ->
         {CounterName, Val} -> Val end.
 
 fetch_counter_value(Counter, Config) ->
-    {Blueprint, ParamsTail}
-    = case metrics_helper:all_metrics_are_global() of
-               true -> {global, []};
-               _ -> {metric, [{host, ct:get_config(ejabberd_domain)}]}
-           end,
-    Params = [{metric, atom_to_list(Counter)} | ParamsTail],
-    {_, _, _, Vars, _} = katt_helper:run(Blueprint, Config, Params),
+    Params = [{metric, atom_to_list(Counter)}, {host, ct:get_config(ejabberd_domain)}],
+    {_, _, _, Vars, _} = katt_helper:run(metric, Config, Params),
     HostValue = proplists:get_value("value_host", Vars),
     HostValueList = proplists:get_value("value_host_list", Vars),
     TotalValue = proplists:get_value("value_total", Vars),
@@ -258,38 +262,46 @@ fetch_counter_value(Counter, Config) ->
     [HostValue, HostValueList, TotalValue, TotalValueList].
 
 %% @doc Fetch counter that is static
-fetch_global_counter_value(Counter, Config) ->
-    {Value, ValueList} = fetch_global_counter_value2(Counter, Config),
+fetch_global_gauge_value(Counter, Config) ->
+    [Value, ValueList] = fetch_global_gauge_values(Counter, Config),
     ?assert_equal_extra(Value, ValueList, [{counter, Counter}]),
     Value.
 
 %% @doc Fetch counter that can be incremented by server between two API requests
 %%
 %% Returns last actual value
-fetch_global_incrementing_counter_value(Counter, Config) ->
-    {Value, ValueList} = fetch_global_counter_value2(Counter, Config),
+fetch_global_incrementing_gauge_value(Counter, Config) ->
+    [Value, ValueList] = fetch_global_gauge_values(Counter, Config),
     ?assert_equal_extra(true, Value =< ValueList, [{counter, Counter},
                                                    {value, Value},
                                                    {value_list, ValueList}]),
     ValueList.
 
-fetch_global_counter_value2(Counter, Config) ->
+fetch_global_gauge_values(Counter, Config) ->
+    fetch_global_counter_values(global_gauge, Counter, Config).
+
+fetch_global_spiral_values(Counter, Config) ->
+    fetch_global_counter_values(global_spiral, Counter, Config).
+
+fetch_global_counter_values(Blueprint, Counter, Config) ->
     Params = [{metric, atom_to_list(Counter)}],
 
-    {_, _, _, Vars, _} = katt_helper:run(global, Config, Params),
+    {_, _, _, Vars, _} = katt_helper:run(Blueprint, Config, Params),
 
     Value = proplists:get_value("value", Vars),
     ValueList = proplists:get_value("value_list", Vars),
-    {Value, ValueList}.
+    [Value, ValueList].
 
-assert_counter_inc(Name, Inc, Counters1, Counters2) ->
+assert_counter_inc(Name, Inc, Counters1, Counters2) when is_list(Counters1) ->
     ExpectedCounters = [Counter+Inc || Counter <- Counters1],
     case ExpectedCounters == Counters2 of
         false ->
             ct:comment("Expected ~w, got: ~w", [ExpectedCounters, Counters2]),
             error({unexpected_values, Name, get_diffs(ExpectedCounters, Counters2)});
         true -> ok
-    end.
+    end;
+assert_counter_inc(_Name, Inc, Counter1, Counter2) when Counter1 + Inc =:= Counter2 ->
+    ok.
 
 get_diffs(L1,L2) ->
     lists:zip(L1, L2).
