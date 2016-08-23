@@ -255,9 +255,10 @@ basic_groups() ->
            [{muc02, [parallel], muc_cases()},
             {muc03, [parallel], muc_cases()},
             {muc04, [parallel], muc_cases()},
-            {muc_rsm02, [parallel], muc_rsm_cases()},
-            {muc_rsm03, [parallel], muc_rsm_cases()},
-            {muc_rsm04, [parallel], muc_rsm_cases()}]},
+            {muc_rsm_all, [parallel],
+             [{muc_rsm02, [parallel], muc_rsm_cases()},
+              {muc_rsm03, [parallel], muc_rsm_cases()},
+              {muc_rsm04, [parallel], muc_rsm_cases()}]}]},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
      {muc_light,        [], muc_light_cases()},
@@ -450,21 +451,17 @@ init_per_group(muc03, Config) ->
 init_per_group(muc04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
 
-init_per_group(muc_rsm02, Config) ->
+init_per_group(muc_rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
     Config2 = start_alice_room(Config1),
     Config3 = send_muc_rsm_messages(Config2),
     [{muc_rsm, true} | Config3];
+init_per_group(muc_rsm02, Config) ->
+    Config;
 init_per_group(muc_rsm03, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
-    Config2 = start_alice_room(Config1),
-    Config3 = send_muc_rsm_messages(Config2),
-    [{props, mam03_props()}, {with_rsm, true}, {muc_rsm, true}|Config3];
+    [{props, mam03_props()}|Config];
 init_per_group(muc_rsm04, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
-    Config2 = start_alice_room(Config1),
-    Config3 = send_muc_rsm_messages(Config2),
-    [{props, mam04_props()}, {with_rsm, true}, {muc_rsm, true}|Config3];
+    [{props, mam04_props()}|Config];
 
 init_per_group(Group, ConfigIn) ->
    C = configuration(Group),
@@ -520,12 +517,14 @@ end_per_group(muc03, Config) ->
     Config;
 end_per_group(muc04, Config) ->
     Config;
+end_per_group(muc_rsm_all, Config) ->
+    destroy_room(Config);
 end_per_group(muc_rsm02, Config) ->
-    destroy_room(Config);
+    Config;
 end_per_group(muc_rsm03, Config) ->
-    destroy_room(Config);
+    Config;
 end_per_group(muc_rsm04, Config) ->
-    destroy_room(Config);
+    Config;
 end_per_group(Group, Config) ->
     C = configuration(Group),
     B = basic_group(Group),
