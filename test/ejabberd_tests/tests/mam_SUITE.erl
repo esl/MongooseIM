@@ -2022,8 +2022,8 @@ run_prefs_cases(Config) ->
     F = fun(Alice, Bob, Kate) ->
         make_alice_and_bob_friends(Alice, Bob),
         %% Just send messages for each prefs configuration
-        Funs = [run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config) || Case <- prefs_cases2(),
-                                                                             Namespace <- namespaces()],
+        Namespace = mam_ns_binary_v04(),
+        Funs = [run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config) || Case <- prefs_cases2()],
 
         maybe_wait_for_yz(Config),
 
@@ -2043,8 +2043,8 @@ run_prefs_cases(Config) ->
 run_set_and_get_prefs_cases(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2(),
-                                                                       Namespace <- namespaces()]
+        Namespace = mam_ns_binary_v04(),
+        [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2()]
         end,
     escalus:story(Config, [{alice, 1}], F).
 
