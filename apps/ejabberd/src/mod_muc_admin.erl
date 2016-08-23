@@ -114,7 +114,8 @@ create_instant_room(Host, Name, Owner, Nick) ->
     UserRoomJID = jid:make(Name, MUCHost, Nick),
     BareRoomJID = jid:make(Name, MUCHost, <<"">>),
     %% Send presence to create a room.
-    ejabberd_router:route(OwnerJID, UserRoomJID, presence()),
+    ejabberd_router:route(OwnerJID, UserRoomJID,
+                          presence(OwnerJID, UserRoomJID)),
     %% Send IQ set to unlock the room.
     ejabberd_router:route(OwnerJID, BareRoomJID,
                           declination(OwnerJID, BareRoomJID)),
@@ -204,8 +205,9 @@ query(XMLNameSpace, Children)
            children = Children
           }.
 
-presence() ->
+presence(Sender, Recipient) ->
     #xmlel{name = <<"presence">>,
+           attrs = address_attributes(Sender, Recipient),
            children = [#xmlel{name = <<"x">>,
                               attrs = [{<<"xmlns">>, ?NS_MUC}]}]
           }.
