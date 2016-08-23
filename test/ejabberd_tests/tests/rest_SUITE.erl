@@ -185,7 +185,7 @@ end_per_testcase(CaseName, Config) ->
 commands_are_listed(_C) ->
     {?OK, Lcmds} = gett(<<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
-    assert_inlist(#{name => <<"listmethods">>}, DecCmds).
+    assert_inlist(#{name => <<"list_methods">>}, DecCmds).
 
 non_existent_command_returns_404(_C) ->
     {?NOT_FOUND, _} = gett(<<"/isitthereornot">>).
@@ -294,9 +294,9 @@ stop_start_command_module(_) ->
     %% described above we test both transition from `started' to
     %% `stopped' and from `stopped' to `started'.
     {?OK, _} = gett(<<"/commands">>),
-    {atomic, ok} = stop_module(host(), mongoose_admin),
+    {atomic, ok} = stop_module(host(), mod_mongoose_admin),
     {?NOT_FOUND, _} = gett(<<"/commands">>),
-    ok = init_module(host(), mongoose_admin, []),
+    ok = init_module(host(), mod_mongoose_admin, []),
     {?OK, _} = gett(<<"/commands">>).
 
 to_list(V) when is_binary(V) ->
