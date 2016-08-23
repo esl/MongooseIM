@@ -1255,10 +1255,10 @@ purge_multiple_messages(Config) ->
             [begin
                 escalus:send(Alice,
                     escalus_stanza:chat_to(Bob, generate_message_text(N)))
-             end || N <- lists:seq(1, 15)],
+             end || N <- lists:seq(1, 5)],
             maybe_wait_for_yz(Config),
-            %% Bob is waiting for 15 messages for 5 seconds.
-            escalus:wait_for_stanzas(Bob, 15, 5000),
+            %% Bob is waiting for 5 messages for 5 seconds.
+            escalus:wait_for_stanzas(Bob, 5, 5000),
             %% Bob purges all messages from his archive.
             escalus:send(Bob, stanza_purge_multiple_messages(
                     undefined, undefined, undefined)),
