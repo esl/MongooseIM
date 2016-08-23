@@ -359,6 +359,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
+    escalus_fresh:clean(),
     escalus:end_per_suite(restore_sessions_limit(restore_shaping(Config))).
 
 user_names() ->
