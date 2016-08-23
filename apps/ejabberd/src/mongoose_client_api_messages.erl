@@ -48,7 +48,7 @@ to_json(Req, {_User, #jid{lserver = Server} = JID} = State) ->
                                 _MaxResultLimit = 50,
                                 _IsSimple = true),
     {ok, {_, _, Msgs}} = R,
-    Resp = [make_json_msg(Msg) || {_ID, _, Msg} <- Msgs],
+    Resp = [make_json_msg(Msg, MAMId) || {MAMId, _, Msg} <- Msgs],
     {jiffy:encode(Resp), Req, State}.
 
 send_message(Req, {RawUser, FromJID} = State) ->
@@ -74,10 +74,12 @@ build_message(From, To, Id, Body) ->
            children = [#xmlel{name = <<"body">>,
                               children = [#xmlcdata{content = Body}]}]}.
 
-make_json_msg(Msg) ->
+make_json_msg(Msg, MAMId) ->
+    {Microsec, _} = mod_mam_utils:decode_compact_uuid(MAMId),
     BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
     #{from => exml_query:attr(Msg, <<"from">>),
       to => exml_query:attr(Msg, <<"to">>),
       id => exml_query:attr(Msg, <<"id">>),
-      body => exml_query:cdata(BodyTag)}.
+      body => exml_query:cdata(BodyTag),
+      timestamp => Microsec}.
 
