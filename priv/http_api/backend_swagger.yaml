@@ -429,7 +429,7 @@ paths:
       -
         name: roomName
         in: path
-        description: The leading part of the MUC room's JIDs
+        description: The leading part of the MUC room's JID
         required: true
         type: string
     put:
@@ -455,3 +455,28 @@ paths:
       responses:
         200:
           description: Message was sent to the MUC room
+  /mucs/{XMPPHost}/{roomName}/{nickname}:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The leading part of the MUC room's JID
+        required: true
+        type: string
+      -
+        name: nickname
+        in: path
+        description: The user's nickname for the given room
+        required: true
+        type: string
+    delete:
+      description: Kick a user on behalf of one of the room's moderators.
+      responses:
+        200:
+          description: User was kicked from the MUC room
