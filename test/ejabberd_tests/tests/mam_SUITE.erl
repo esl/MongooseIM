@@ -261,7 +261,7 @@ basic_groups() ->
      {policy_violation, [], policy_violation_cases()},
      {nostore,          [], nostore_cases()},
      {muc_light,        [], muc_light_cases()},
-     {prefs_cases,      [], prefs_cases()}].
+     {prefs_cases,      [parallel], prefs_cases()}].
 
 bootstrapped_cases() ->
      [purge_old_single_message,
@@ -698,6 +698,8 @@ init_state(_, muc_all, Config) ->
     Config;
 init_state(C, muc_light, Config) ->
     init_state(C, muc04, Config);
+init_state(C, prefs_cases, Config) ->
+    Config;
 init_state(_, _, Config) ->
     clean_archives(Config).
 
@@ -1936,7 +1938,7 @@ query_get_request(Config) ->
               cdata]),
         ?assert_equal(QueryXmlns, ResponseXmlns)
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}], F).
 
 %% Test reproducing https://github.com/esl/MongooseIM/issues/263
 %% The idea is this: in a "perfect" world jid elements are put together
@@ -1969,7 +1971,7 @@ prefs_set_cdata_request(Config) ->
         ?assert_equal(ResultIQ1, ResultIQ2),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}], F).
 
 mam_service_discovery(Config) ->
     P = ?config(props, Config),
@@ -2054,13 +2056,13 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
     escalus_fresh:story_with_config(ConfigIn, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 %% The same as prefs_set_request case but for different configurations
-run_set_and_get_prefs_cases(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
+run_set_and_get_prefs_cases(ConfigIn) ->
+    P = ?config(props, ConfigIn),
+    F = fun(Config, Alice, _Bob, _Kate) ->
         Namespace = mam_ns_binary_v04(),
         [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2()]
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story_with_config(ConfigIn, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 
 parallel_story(Config, ResourceCounts, F) ->
