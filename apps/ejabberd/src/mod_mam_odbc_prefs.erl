@@ -156,11 +156,23 @@ set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     InsQuery = ["INSERT INTO mam_config(user_id, behaviour, remote_jid) "
                 "VALUES ", Values],
 
-    %% Run as a transaction
-    {atomic, [{updated, _}, {updated, _}]} =
-        sql_transaction_map(Host, [DelQuery, InsQuery]),
+    run_transaction_or_retry_on_deadlock(fun() ->
+            {atomic, [{updated, _}, {updated, _}]} =
+                sql_transaction_map(Host, [DelQuery, InsQuery])
+        end, UserID, 10),
     ok.
 
+run_transaction_or_retry_on_deadlock(F, UserID, Retries) ->
+    try
+        F()
+    %% MySQL specific error
+    catch error:{badmatch, {aborted, {{sql_error, "#40001Deadlock" ++ _}, _}}}
+            when Retries > 0 ->
+        ?ERROR_MSG("issue=\"Deadlock detected. Restart\", user_id=~p, retries=~p",
+                   [UserID, Retries]),
+        timer:sleep(100),
+        run_transaction_or_retry_on_deadlock(F, UserID, Retries-1)
+    end.
 
 -spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
         ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid())
