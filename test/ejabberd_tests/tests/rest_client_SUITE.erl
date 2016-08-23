@@ -46,6 +46,7 @@ messages_are_archived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         M1 = send_message(bob, Bob, Alice),
         M2 = send_message(alice, Alice, Bob),
+        mam_helper:maybe_wait_for_yz(Config),
         AliceJID = maps:get(to, M1),
         BobJID = maps:get(to, M2),
         AliceCreds = {AliceJID, user_password(alice)},
