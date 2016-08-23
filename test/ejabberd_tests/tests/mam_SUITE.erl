@@ -204,7 +204,6 @@ basic_group_names() ->
      muc_all,
      muc_light,
      bootstrapped,
-     archived,
      policy_violation,
      prefs_cases,
      impl_specific
@@ -245,6 +244,7 @@ basic_groups() ->
             {mam03, [parallel], mam_cases() ++ [retrieve_form_fields]},
             {mam04, [parallel], mam_cases()},
             {nostore, [parallel], nostore_cases()},
+            {archived, [parallel], archived_cases()},
             {mam_purge, [parallel], mam_purge_cases()},
             {rsm_all, [parallel],
              [{rsm02,      [parallel], rsm_cases()},
@@ -261,7 +261,6 @@ basic_groups() ->
              [{muc_rsm02, [parallel], muc_rsm_cases()},
               {muc_rsm03, [parallel], muc_rsm_cases()},
               {muc_rsm04, [parallel], muc_rsm_cases()}]}]},
-     {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
      {muc_light,        [], muc_light_cases()},
      {prefs_cases,      [parallel], prefs_cases()},
@@ -449,6 +448,8 @@ init_per_group(mam_purge, Config) ->
     Config;
 init_per_group(nostore, Config) ->
     Config;
+init_per_group(archived, Config) ->
+    Config;
 init_per_group(mam_metrics, Config) ->
     Config;
 init_per_group(muc02, Config) ->
@@ -515,6 +516,8 @@ end_per_group(with_rsm04, Config) ->
 end_per_group(mam_purge, Config) ->
     Config;
 end_per_group(nostore, Config) ->
+    Config;
+end_per_group(archived, Config) ->
     Config;
 end_per_group(mam_metrics, Config) ->
     Config;
@@ -727,15 +730,18 @@ init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
              end,
     escalus:init_per_testcase(C, clean_archives(Config));
 init_per_testcase(C=strip_archived, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
+    escalus:init_per_testcase(C, Config);
 init_per_testcase(C=filter_forwarded, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
+    escalus:init_per_testcase(C, Config);
 init_per_testcase(C=purge_old_single_message, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
 init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
+init_per_testcase(C=archived, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, Config1);
 init_per_testcase(C=offline_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol, 1}]),
     escalus:init_per_testcase(C, Config1);
@@ -1063,6 +1069,7 @@ archived(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
+    %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 filter_forwarded(Config) ->
@@ -1082,7 +1089,7 @@ filter_forwarded(Config) ->
         assert_respond_size(1, wait_archive_respond(P, Bob)),
         ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 strip_archived(Config) ->
     P = ?config(props, Config),
@@ -1118,7 +1125,7 @@ strip_archived(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% To conserve resources, a server MAY place a reasonable limit on how many
 %% stanzas may be pushed to a client in one request.
