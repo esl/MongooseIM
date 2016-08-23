@@ -880,7 +880,7 @@ success_sql_query(Host, Query) ->
         {error, Reason} ->
             ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p~n",
                        [Host, Query, Reason]),
-            error(sql_error);
+            error({sql_error, Reason});
         Result ->
             Result
     end.
