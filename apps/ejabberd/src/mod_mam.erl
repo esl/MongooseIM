@@ -253,6 +253,8 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
                     handle_error_iq(Host, To, Action,
                         handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
+                    ?WARNING_MSG("issue=max_delay_reached, action=~p, host=~p, from=~p",
+                                 [Action, Host, From]),
                     ejabberd_hooks:run(mam_drop_iq, Host,
                         [Host, To, IQ, Action, max_delay_reached]),
                     return_max_delay_reached_error_iq(IQ)
