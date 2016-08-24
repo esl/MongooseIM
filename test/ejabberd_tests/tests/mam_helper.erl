@@ -1013,18 +1013,25 @@ muc_bootstrap_archive(Config) ->
     B = room_address(Room, nick(bob)),
     R = room_address(Room),
 
+    AliceName   = escalus_users:get_username(Config, alice),
+    BobName     = escalus_users:get_username(Config, bob),
+    AliceServer = escalus_users:get_server(Config, alice),
+    BobServer   = escalus_users:get_server(Config, bob),
+
     Domain = muc_host(),
     Host = host(),
     RoomJid = make_jid(Room,Domain, <<>>),
     ArcJID = {R, RoomJid,
               rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
     Msgs = generate_msgs_for_days(ArcJID,
-                                 [{B, make_jid(<<"bob">>, Host, <<"res1">>),
+                                 [{B, make_jid(BobName, BobServer, <<"res1">>),
                                   rpc_apply(jid, replace_resource, [RoomJid, nick(bob)])},
-                                  {A, make_jid(<<"alice">>, Host, <<"res1">>),
+                                  {A, make_jid(AliceName, AliceServer, <<"res1">>),
                                    rpc_apply(jid, replace_resource, [RoomJid, nick(alice)])}], 16),
 
     put_muc_msgs(Msgs),
+    ?assert_equal(length(Msgs),
+                  wait_for_room_archive_size(Domain, Room, 10, length(Msgs))),
 
     maybe_wait_for_yz(Config),
 
