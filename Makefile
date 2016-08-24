@@ -59,6 +59,7 @@ test: test_node_stopped test_deps
 	cd test/ejabberd_tests; make test
 
 # $ make qtest SUITE=mam_SUITE
+# $ make qtest SUITE="[mam_SUITE,metrics_api_SUITE]"
 qtest: test_node_stopped
 	cp test/ejabberd_tests/qtest.spec.template test/ejabberd_tests/qtest.spec
 	echo "{suites, \"tests\", $(SUITE)}." >> test/ejabberd_tests/qtest.spec
