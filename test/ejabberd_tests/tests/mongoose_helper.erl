@@ -15,6 +15,8 @@
 -export([clear_last_activity/2,
          clear_caps_cache/1]).
 
+-export([kick_everyone/0]).
+
 -define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
 
 -spec auth_modules() -> [atom()].
@@ -154,3 +156,32 @@ count_riak(BucketType) ->
     {ok, Buckets} = ?RPC(mongoose_riak, list_buckets, [BucketType]),
     BucketKeys = [?RPC(mongoose_riak, list_keys, [{BucketType, Bucket}]) || Bucket <- Buckets],
     length(lists:flatten(BucketKeys)).
+
+kick_everyone() ->
+    [?RPC(ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
+    asset_session_count(0, 50).
+    
+asset_session_count(Expected, Retries) ->
+    case wait_for_session_count(Expected, Retries) of
+        Expected ->
+            ok;
+        Other ->
+            ct:fail({asset_session_count, {expected, Expected}, {value, Other}})
+    end.
+
+wait_for_session_count(Expected, Retries) ->
+    case length(get_session_specs()) of
+        Expected ->
+            Expected;
+        _Other when Retries > 0 ->
+            timer:sleep(100),
+            wait_for_session_count(Expected, Retries-1);
+        Other ->
+            Other
+    end.
+
+get_session_specs() ->
+    ?RPC(supervisor, which_children, [ejabberd_c2s_sup]).
+
+get_session_pids() ->
+    [element(2, X) || X <- get_session_specs()].
