@@ -102,7 +102,7 @@ get_other_user(Config) ->
 
                           %% Alice asks for Bob's private data
                           GetIQ = escalus_stanza:private_get(NS, <<"my_element">>),
-                          IQ = escalus_stanza:to(GetIQ, bob),
+                          IQ = escalus_stanza:to(GetIQ, escalus_users:get_jid(Config, bob)),
                           escalus_client:send(Alice, IQ),
 
                           %% Alice gets an error
@@ -117,7 +117,8 @@ set_other_user(Config) ->
                           NS = <<"bob:private:ns">>,
 
                           %% Alice asks for Bob's private data
-                          IQ = escalus_stanza:to(escalus_stanza:private_set(my_banana(NS)), bob),
+                          IQ = escalus_stanza:to(escalus_stanza:private_set(my_banana(NS)),
+                                                 escalus_users:get_jid(Config, bob)),
                           escalus_client:send(Alice, IQ),
 
                           %% Alice gets a forbidden error
