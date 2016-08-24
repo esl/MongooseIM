@@ -1031,6 +1031,36 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     rpc_apply(jid, make, [U, S, R]).
 
+-spec backend() -> odbc | riak | false.
+backend() ->
+    Funs = [fun maybe_odbc/1, fun maybe_riak/1],
+    determine_backend(host(), Funs).
+
+determine_backend(_, []) ->
+    disabled;
+determine_backend(Host, [F | Rest]) ->
+    case F(Host) of
+        false ->
+            determine_backend(Host, Rest);
+        Result ->
+            Result
+    end.
+
+maybe_odbc(Host) ->
+    case is_odbc_enabled(Host) of
+        true ->
+            odbc;
+        _ ->
+            false
+    end.
+
+maybe_riak(Host) ->
+    case is_riak_enabled(Host) of
+        true ->
+            riak;
+        _ ->
+            false
+    end.
 
 is_mam_possible(Host) ->
     is_odbc_enabled(Host) orelse is_riak_enabled(Host).

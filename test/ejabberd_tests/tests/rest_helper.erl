@@ -1,11 +1,3 @@
-%%%-------------------------------------------------------------------
-%%% @author bartekgorny
-%%% @copyright (C) 2016, <COMPANY>
-%%% @doc
-%%%
-%%% @end
-%%% Created : 19. Jul 2016 17:29
-%%%-------------------------------------------------------------------
 -module(rest_helper).
 -author("bartekgorny").
 
@@ -21,7 +13,10 @@
     gett/2,
     post/3,
     putt/3,
-    delete/2
+    delete/2,
+    maybe_enable_mam/3,
+    maybe_disable_mam/2,
+    maybe_skip_mam_test_cases/3
 ]).
 
 -define(PATHPREFIX, <<"/api">>).
@@ -163,3 +158,56 @@ to_list(V) when is_binary(V) ->
     binary_to_list(V);
 to_list(V) when is_list(V) ->
     V.
+
+maybe_enable_mam(odbc, Host, Config) ->
+    init_module(Host, mod_mam_odbc_arch, [muc, pm, simple]),
+    init_module(Host, mod_mam_odbc_prefs, [muc, pm]),
+    init_module(Host, mod_mam_odbc_user, [muc, pm]),
+    init_module(Host, mod_mam, []),
+    init_module(Host, mod_mam_muc, [{host, "muc.@HOST@"}]),
+    [{mam_backend, odbc} | Config];
+maybe_enable_mam(riak, Host,  Config) ->
+    init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
+    init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
+    init_module(Host, mod_mam, []),
+    init_module(Host, mod_mam_muc, [{host, "muc.@HOST@"}]),
+    [{mam_backend, riak}, {yz_wait, 2500} | Config];
+maybe_enable_mam(_, _, C) ->
+    [{mam_backend, disabled} | C].
+
+init_module(Host, Mod, Opts) ->
+    dynamic_modules:start(Host, Mod, Opts).
+
+maybe_disable_mam(odbc, Host) ->
+    stop_module(Host, mod_mam_odbc_arch),
+    stop_module(Host, mod_mam_odbc_prefs),
+    stop_module(Host, mod_mam_odbc_user),
+    stop_module(Host, mod_mam),
+    stop_module(Host, mod_mam_muc);
+maybe_disable_mam(riak, Host) ->
+    stop_module(Host, mod_mam_riak_timed_arch_yz),
+    stop_module(Host, mod_mam_mnesia_prefs),
+    stop_module(Host, mod_mam),
+    stop_module(Host, mod_mam_muc);
+maybe_disable_mam(_, _) ->
+    ok.
+
+stop_module(Host, Mod) ->
+    dynamic_modules:stop(Host, Mod).
+
+maybe_skip_mam_test_cases(CaseName, CasesRequireingMAM, Config) ->
+    case lists:member(CaseName, CasesRequireingMAM) of
+        false ->
+            escalus:init_per_testcase(CaseName, Config);
+        _ ->
+            skip_if_mam_disabled(CaseName, Config)
+    end.
+
+skip_if_mam_disabled(CaseName, Config) ->
+    case proplists:get_value(mam_backend, Config) of
+        disabled ->
+            {skip, mam_not_available};
+        _ ->
+            escalus:init_per_testcase(CaseName, Config)
+    end.
+
