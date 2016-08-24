@@ -91,7 +91,6 @@ rest_terminate(_Req, _State) ->
 delete_resource(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
     Arity = length(B),
     Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>)),
-    ct:pal("DELETE ~p", [{Category, delete, Arity}]),
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     mongoose_api_common:process_request(<<"DELETE">>, Command, Req, State).
 
@@ -101,10 +100,8 @@ delete_resource(Req, #http_api_state{command_category = Category, bindings = B} 
 
 %% @doc Called for a method of type "GET"
 to_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
-    ct:pal("GET ~p", [{Category, read}]),
     Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>)),
     Arity = length(B),
-    ct:pal("GET ~p", [{Category, read, Arity}]),
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     mongoose_api_common:process_request(<<"GET">>, Command, Req, State).
 
@@ -118,9 +115,12 @@ from_json(Req, #http_api_state{command_category = Category,
     {ok, Body, _} = cowboy_req:body(Req),
     {Data} = jiffy:decode(Body),
     Arity = length(B) + length(Data),
-    ct:pal("POST/PUT ~p", [{Category, SubCategory, Method, Arity}]),
-    [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
-    mongoose_api_common:process_request(Method, Command, Req2, State).
+    case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
+        [Command] ->
+            mongoose_api_common:process_request(Method, Command, Req2, State);
+        [] ->
+            mongoose_api_common:error_response(not_found, ?ARGS_LEN_ERROR, Req2, State)
+    end.
 
 
 -spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:path().

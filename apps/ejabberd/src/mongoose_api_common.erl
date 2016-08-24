@@ -345,6 +345,7 @@ error_code(denied) -> 403;
 error_code(not_implemented) -> 501;
 error_code(bad_request) -> 400;
 error_code(type_error) -> 400;
+error_code(not_found) -> 404;
 error_code(internal) -> 500.
 
 action_to_method(read) -> <<"GET">>;

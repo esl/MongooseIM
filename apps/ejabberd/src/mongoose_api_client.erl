@@ -121,8 +121,12 @@ from_json(Req, #http_api_state{command_category = Category, bindings = B} = Stat
     {Data} = jiffy:decode(Body),
     Arity = length(B) + length(Data),
     Cmds = mongoose_commands:list(user, Category, method_to_action(Method)),
-    [Command] = [C || C <- Cmds, arity(C) == Arity],
-    mongoose_api_common:process_request(Method, Command, Req2, State).
+    case [C || C <- Cmds, arity(C) == Arity] of
+        [Command] ->
+            mongoose_api_common:process_request(Method, Command, Req2, State);
+        [] ->
+            mongoose_api_common:error_response(not_found, ?ARGS_LEN_ERROR, Req2, State)
+    end.
 
 arity(C) ->
     % we don't have caller in bindings (we know it from authorisation), so it doesn't count when checking arity
