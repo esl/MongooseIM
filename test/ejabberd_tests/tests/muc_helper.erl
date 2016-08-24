@@ -68,15 +68,17 @@ generate_rpc_jid({_,User}) ->
     {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
 
 create_instant_room(Host, Room, From, Nick, Opts) ->
+    Room1 = escalus_ejabberd:rpc(jid, nodeprep, [Room]),
     escalus_ejabberd:rpc(mod_muc, create_instant_room,
-        [Host, Room, From, Nick, Opts]).
+        [Host, Room1, From, Nick, Opts]).
 
 destroy_room(Config) ->
     destroy_room(?MUC_HOST, ?config(room, Config)).
 
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
+    Room1 = escalus_ejabberd:rpc(jid, nodeprep, [Room]),
     case escalus_ejabberd:rpc(
-            ets, lookup, [muc_online_room, {Room, Host}]) of
+            ets, lookup, [muc_online_room, {Room1, Host}]) of
         [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
         _ -> ok
     end.
