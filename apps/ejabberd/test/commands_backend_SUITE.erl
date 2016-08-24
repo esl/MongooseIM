@@ -238,7 +238,7 @@ post_wrong_arg_number(_Config) ->
     Args = [{arg1, 10}, {arg2,2}, {arg3, 100}],
     Path = <<"/api/weather">>,
     {ok, Response} = request(Path, "POST", Args, admin),
-    check_status_code(Response, 400).
+    check_status_code(Response, 500).
 
 post_wrong_arg_name(_Config) ->
     Args = [{arg11, 10}, {arg2,2}],

@@ -338,14 +338,24 @@ commands_new_temp() ->
             {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
-            {action, create},
+            {action, create}, % different action
             {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ],
+        [
+            {name, command_one_arity},
+            {category, <<"user">>},
+            {desc, <<"do nothing and return">>},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, read},
+            {args, [{msg, binary}, {whatever, integer}]}, % different arity
             {result, {msg, binary}}
         ],
         [
             {name, command_one_two},
             {category, <<"user">>},
-            {subcategory, <<"rosters">>},
+            {subcategory, <<"rosters">>}, % has subcategory
             {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
@@ -467,7 +477,7 @@ commands_new_lame() ->
             {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
-            {action, read}, %% ...but another command with the same category and action is already registered
+            {action, read}, %% ...but another command with the same category and action and arity is already registered
             {args, [{msg, binary}]},
             {result, {msg, binary}}
         ],
