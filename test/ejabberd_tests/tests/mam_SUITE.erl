@@ -1321,11 +1321,12 @@ muc_archive_request(Config) ->
         %% XEP: the 'to' of the forwarded stanza MUST be empty
         ?assert_equal_extra(<<>>, MsgTo, message_to),
         %% XEP: the 'from' MUST be the occupant JID of the sender of the archived message
-        ?assert_equal_extra(room_address(Room, nick(Alice)), MsgFrom, message_from),
+        ?assert_equal_extra(escalus_utils:jid_to_lower(room_address(Room, nick(Alice))),
+                            escalus_utils:jid_to_lower(MsgFrom), message_from),
 
         ?assert_equal(Text, ArcMsgBody),
         ?assert_equal(ArcId, Id),
-        ?assert_equal(RoomAddr, By),
+        ?assert_equal(escalus_utils:jid_to_lower(RoomAddr), By),
         ?assert_equal_extra(true, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
         ok
@@ -1428,7 +1429,7 @@ muc_multiple_devices(Config) ->
             parse_forwarded_message(ArcMsg),
         ?assert_equal(Text, ArcMsgBody),
         ?assert_equal(ArcId, Id),
-        ?assert_equal(RoomAddr, By),
+        ?assert_equal(escalus_utils:jid_to_lower(RoomAddr), By),
         ok
         end,
     escalus:story(Config, [{alice, 2}, {bob, 1}], F).
