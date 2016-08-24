@@ -96,8 +96,10 @@ is_authorized(Req, State) ->
     end.
 
 %% @doc Called for a method of type "DELETE"
-delete_resource(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = mongoose_commands:list(user, Category, method_to_action(<<"DELETE">>)),
+delete_resource(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+    Arity = length(B),
+    Cmds = mongoose_commands:list(user, Category, method_to_action(<<"DELETE">>)),
+    [Command] = [C || C <- Cmds, arity(C) == Arity],
     mongoose_api_common:process_request(<<"DELETE">>, Command, Req, State).
 
 %%--------------------------------------------------------------------
@@ -105,17 +107,27 @@ delete_resource(Req, #http_api_state{command_category = Category} = State) ->
 %%--------------------------------------------------------------------
 
 %% @doc Called for a method of type "GET"
-to_json(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = mongoose_commands:list(user, Category, method_to_action(<<"GET">>)),
+to_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+    Arity = length(B),
+    Cmds = mongoose_commands:list(user, Category, method_to_action(<<"GET">>)),
+    [Command] = [C || C <- Cmds, arity(C) == Arity],
     mongoose_api_common:process_request(<<"GET">>, Command, Req, State).
 
 
 %% @doc Called for a method of type "POST" and "PUT"
-from_json(Req, #http_api_state{command_category = Category} = State) ->
+from_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
     {Method, Req2} = cowboy_req:method(Req),
-    [Command] = mongoose_commands:list(user, Category, method_to_action(Method)),
+    {ok, Body, _} = cowboy_req:body(Req),
+    {Data} = jiffy:decode(Body),
+    Arity = length(B) + length(Data),
+    Cmds = mongoose_commands:list(user, Category, method_to_action(Method)),
+    [Command] = [C || C <- Cmds, arity(C) == Arity],
     mongoose_api_common:process_request(Method, Command, Req2, State).
 
+arity(C) ->
+    % we don't have caller in bindings (we know it from authorisation), so it doesn't count when checking arity
+    Args = mongoose_commands:args(C),
+    length([N || {N, _} <- Args, N =/= caller]).
 
 do_authorize({<<"basic">>, {User, Password}}, Req, State) ->
     case jid:from_binary(User) of

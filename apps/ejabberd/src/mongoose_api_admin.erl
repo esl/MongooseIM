@@ -88,8 +88,11 @@ rest_terminate(_Req, _State) ->
     ok.
 
 %% @doc Called for a method of type "DELETE"
-delete_resource(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>)),
+delete_resource(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+    Arity = length(B),
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>)),
+    ct:pal("DELETE ~p", [{Category, delete, Arity}]),
+    [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     mongoose_api_common:process_request(<<"DELETE">>, Command, Req, State).
 
 %%--------------------------------------------------------------------
@@ -97,16 +100,26 @@ delete_resource(Req, #http_api_state{command_category = Category} = State) ->
 %%--------------------------------------------------------------------
 
 %% @doc Called for a method of type "GET"
-to_json(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>)),
+to_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+    ct:pal("GET ~p", [{Category, read}]),
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>)),
+    Arity = length(B),
+    ct:pal("GET ~p", [{Category, read, Arity}]),
+    [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     mongoose_api_common:process_request(<<"GET">>, Command, Req, State).
 
 
 %% @doc Called for a method of type "POST" and "PUT"
 from_json(Req, #http_api_state{command_category = Category,
-                               command_subcategory = SubCategory} = State) ->
+                               command_subcategory = SubCategory,
+                               bindings = B} = State) ->
     {Method, Req2} = cowboy_req:method(Req),
-    [Command] = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
+    {ok, Body, _} = cowboy_req:body(Req),
+    {Data} = jiffy:decode(Body),
+    Arity = length(B) + length(Data),
+    ct:pal("POST/PUT ~p", [{Category, SubCategory, Method, Arity}]),
+    [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     mongoose_api_common:process_request(Method, Command, Req2, State).
 
 
