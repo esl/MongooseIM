@@ -223,3 +223,9 @@ We recommend following client libraries:
 * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
 * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
 * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io)
+
+Social media
+------------
+
+Twitter: https://twitter.com/MongooseIM
+Facebook: https://www.facebook.com/MongooseIM/
