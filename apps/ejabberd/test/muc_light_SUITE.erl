@@ -4,8 +4,8 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
--include("mod_muc_light.hrl").
--include("jlib.hrl").
+-include_lib("ejabberd/include/mod_muc_light.hrl").
+-include_lib("ejabberd/include/jlib.hrl").
 
 -define(DOMAIN, <<"localhost">>).
 
@@ -32,7 +32,7 @@ groups() ->
     ].
 
 init_per_group(rsm_disco, Config) ->
-    application:start(p1_stringprep),
+    application:start(stringprep),
     Config;
 init_per_group(_, Config) ->
     Config.

@@ -129,7 +129,11 @@ get_odbc_data_stats() ->
 
 get_odbc_mam_async_stats() ->
     %% MAM async ODBC workers are organized differently...
-    MamAsynODBCWorkers = [catch element(2, gen_server:call(Pid, get_connection, 1000)) || {_, Pid, worker, _} <- supervisor:which_children(mod_mam_sup)],
+    MamChildren = case catch supervisor:which_children(mod_mam_sup) of
+                      [_ | _] = Children -> Children;
+                      _ -> []
+                  end,
+    MamAsynODBCWorkers = [catch element(2, gen_server:call(Pid, get_connection, 1000)) || {_, Pid, worker, _} <- MamChildren],
     get_odbc_stats(MamAsynODBCWorkers).
 
 get_dist_data_stats() ->
@@ -294,7 +298,7 @@ create_data_metrics() ->
     lists:foreach(fun({Metric, Spec}) -> ensure_metric(global, Metric, Spec) end,
         ?DATA_FUN_METRICS).
 
-start_metrics_subscriptions(Reporter, Interval, MetricPrefix) ->
+start_metrics_subscriptions(Reporter, MetricPrefix, Interval) ->
     [subscribe_metric(Reporter, Metric, Interval)
      || Metric <- exometer:find_entries(MetricPrefix)].
 

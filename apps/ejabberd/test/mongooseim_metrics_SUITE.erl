@@ -77,6 +77,7 @@ wait_for_update({ok, [{count,0}]}, N) ->
 setup_meck() ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_global_option, fun(hosts) -> [<<"localhost">>] end),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     ok.
 
 get_reporters_cfg(Port) ->

@@ -17,7 +17,9 @@ init_per_suite(C) ->
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,
         fun(routing_modules) ->
-            [xmpp_router_a, xmpp_router_b, xmpp_router_c]
+                [xmpp_router_a, xmpp_router_b, xmpp_router_c];
+           (_) ->
+                undefined
         end),
     application:ensure_all_started(exometer),
     ejabberd_router:start_link(),
