@@ -349,7 +349,7 @@ init([]) ->
                          {record_name, external_component}]),
     mnesia:add_table_copy(external_component_global, node(), ram_copies),
     compile_routing_module(),
-    mongoose_metrics:ensure_metric(undefined, [global, routingErrors], spiral),
+    mongoose_metrics:ensure_metric(global, routingErrors, spiral),
 
     {ok, #state{}}.
 
@@ -440,7 +440,7 @@ route(From, To, Packet, []) ->
     ?ERROR_MSG("error routing from=~ts to=~ts, packet=~ts, reason: no more routing modules",
                [jid:to_binary(From), jid:to_binary(To),
                 exml:to_binary(Packet)]),
-    mongoose_metrics:update(undefined, [global, routingErrors], 1),
+    mongoose_metrics:update(global, routingErrors, 1),
     ok;
 route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
     ?DEBUG("Using module ~p", [M]),

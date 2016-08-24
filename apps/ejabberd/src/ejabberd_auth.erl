@@ -70,8 +70,7 @@
 %% TODO: TBH this name smells.
 -type passwordlike() :: binary() | scram:scram_tuple().
 
--define(METRIC(Host, Name), [backends, auth, Host, Name]).
--define(METRIC_GLOBAL(Name), ?METRIC(global, Name)).
+-define(METRIC(Name), [backends, auth, Name]).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -610,13 +609,13 @@ auth_modules(LServer) ->
 
 ensure_metrics(Host) ->
     Metrics = [check_password, try_register, does_user_exist],
-    [mongoose_metrics:ensure_metric(?METRIC(Host, Metric), ?METRIC_GLOBAL(Metric), histogram)
+    [mongoose_metrics:ensure_metric(Host, ?METRIC(Metric), histogram)
      || Metric <- Metrics].
 
 -spec timed_call(ejabberd:lserver(), term(), fun(), list()) -> term().
 timed_call(LServer, Metric, Fun, Args) ->
     {Time, Result} = timer:tc(Fun, Args),
-    mongoose_metrics:update(?METRIC(LServer, Metric), ?METRIC_GLOBAL(Metric), Time),
+    mongoose_metrics:update(LServer, ?METRIC(Metric), Time),
     Result.
 
 %% Library functions for reuse in ejabberd_auth_* modules

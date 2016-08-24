@@ -1,4 +1,4 @@
--define(GENERAL_COUNTERS, [
+-define(GENERAL_SPIRALS, [
     sessionSuccessfulLogins,
     sessionAuthAnonymous,
     sessionAuthFails,
@@ -64,16 +64,16 @@
 -define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}],[value]}).
 
 -define(GLOBAL_COUNTERS,
-        [{[global, totalSessionCount],
+        [{totalSessionCount,
           {function, ejabberd_sm, get_total_sessions_number, [],
            eval, ?EX_EVAL_SINGLE_VALUE}},
-         {[global, uniqueSessionCount],
+         {uniqueSessionCount,
           {function, ejabberd_sm, get_unique_sessions_number, [],
            eval, ?EX_EVAL_SINGLE_VALUE}},
-         {[global, nodeSessionCount],
+         {nodeSessionCount,
           {function, ejabberd_sm, get_node_sessions_number, [],
            eval, ?EX_EVAL_SINGLE_VALUE}},
-         {[global, nodeUpTime],
+         {nodeUpTime,
           {function, mongoose_metrics, get_up_time, [],
            tagged, [value]}}
         ]

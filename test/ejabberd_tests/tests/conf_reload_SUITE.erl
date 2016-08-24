@@ -38,10 +38,12 @@ all() ->
 
 groups() ->
     [{xmpp_domain_local_reload, [],
-      [domain_should_change,
+      [
+       domain_should_change,
        user_should_be_registered_and_unregistered_via_ctl,
        user_should_be_registered_and_unregistered_via_xmpp,
-       user_should_be_disconnected_from_removed_domain]}].
+       user_should_be_disconnected_from_removed_domain
+       ]}].
 
 suite() ->
     [{required, ejabberd_reloaded_domain} | escalus:suite()].

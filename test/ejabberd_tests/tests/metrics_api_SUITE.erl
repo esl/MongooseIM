@@ -34,7 +34,8 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, metrics},
+    [
+     {group, metrics},
      {group, stories},
      {group, global}
     ].

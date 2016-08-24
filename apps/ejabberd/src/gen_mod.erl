@@ -160,23 +160,18 @@ generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
     FS = atom_to_list(F),
 %%     returned is the following
 %%     {Time, Result} = timer:tc(Backend, F, Args),
-%%     mongoose_metrics:update(undefined, ?METRIC(Backend, F), Time),
+%%     mongoose_metrics:update(global, ?METRIC(Backend, F), Time),
 %%     Result.
     ["    {Time, Result} = timer:tc(",RealBackendModule,", ",FS,", [",Args,"]),\n",
-     "    mongoose_metrics:update(undefined, ",
+     "    mongoose_metrics:update(global, ",
           io_lib:format("~p", [?METRIC(BaseModule, F)]),
           ", Time),\n",
      "    Result.\n"].
 
 ensure_backend_metrics(Module, Ops) ->
     EnsureFun = fun(Op) ->
-        case exometer:info(?METRIC(Module, Op), type) of
-            undefined ->
-                exometer:new(?METRIC(Module, Op), histogram);
-            _ ->
-                ok
-        end
-    end,
+                        mongoose_metrics:ensure_metric(global, ?METRIC(Module, Op), histogram)
+                end,
     lists:foreach(EnsureFun, Ops).
 
 -spec is_app_running(_) -> boolean().

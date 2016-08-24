@@ -141,7 +141,7 @@ send(#tlssock{tcpsock = TCPSocket, tlsport = Port} = TLSSock, Packet) ->
             case port_control(Port, ?GET_ENCRYPTED_OUTPUT, []) of
                 <<0, Out/binary>> ->
                     mongoose_metrics:update(
-                      undefined, [data, xmpp, sent, encrypted_size], size(Out)),
+                      global, [data, xmpp, sent, encrypted_size], size(Out)),
                     gen_tcp:send(TCPSocket, Out);
                 <<1, Error/binary>> ->
                     {error, binary_to_list(Error)}
