@@ -69,7 +69,7 @@ test_cases() ->
      session_can_be_kicked,
      messages_are_sent_and_received,
      messages_are_archived,
-     archive_and_paginate,
+     messages_can_be_paginated,
      password_can_be_changed
      ].
 
@@ -99,7 +99,7 @@ end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
 
 init_per_testcase(CaseName, Config) ->
-    MAMTestCases = [messages_are_archived, archive_and_paginate],
+    MAMTestCases = [messages_are_archived, messages_can_be_paginated],
     rest_helper:maybe_skip_mam_test_cases(CaseName, MAMTestCases, Config).
 
 end_per_testcase(CaseName, Config) ->
@@ -193,18 +193,23 @@ send_and_wait(AliceJID, BobJID, Msg) ->
     timer:sleep(2000).
 
 get_messages(Me, Other, Count) ->
-    GetPath = lists:flatten(["/messages/",binary_to_list(Me),
-        "/",binary_to_list(Other),"/", integer_to_list(Count)]),
+    GetPath = lists:flatten(["/messages/",
+                             binary_to_list(Me),
+                             "/",binary_to_list(Other),
+                             "/", integer_to_list(Count)]),
     {?OK, Msgs} = gett(GetPath),
     Msgs.
 
 get_messages(Me, Other, Before, Count) ->
-    GetPath = lists:flatten(["/messages/",binary_to_list(Me),
-        "/",binary_to_list(Other),"/", integer_to_list(Before), "/", integer_to_list(Count)]),
+    GetPath = lists:flatten(["/messages/",
+                             binary_to_list(Me),
+                             "/", binary_to_list(Other),
+                             "/", integer_to_list(Before),
+                             "/", integer_to_list(Count)]),
     {?OK, Msgs} = gett(GetPath),
     Msgs.
 
-archive_and_paginate(Config) ->
+messages_can_be_paginated(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         % send messages both ways in two-second intervals, three times, wait two more seconds
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
@@ -217,7 +222,7 @@ archive_and_paginate(Config) ->
         ?assertEqual(length(M1), 6),
         M2 = get_messages(AliceJID, BobJID, 3),
         ?assertEqual(length(M2), 3),
-        {MegaSecs, Secs, _} = now(),
+        {MegaSecs, Secs, _} = os:timestamp(),
         Now = MegaSecs * 1000000 + Secs,
         % older messages
         M3 = get_messages(AliceJID, BobJID, Now - 3, 10),
