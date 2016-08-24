@@ -28,7 +28,8 @@
          rest_terminate/2,
          delete_resource/2]).
 
--import(mongoose_api_common, [action_to_method/1, method_to_action/1, error_code/1]).
+-import(mongoose_api_common, [action_to_method/1, method_to_action/1, error_code/1, process_request/4,
+                              error_response/4, parse_request_body/1]).
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
@@ -116,16 +117,19 @@ to_json(Req, #http_api_state{command_category = Category, bindings = B} = State)
 
 %% @doc Called for a method of type "POST" and "PUT"
 from_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
-    {Method, Req2} = cowboy_req:method(Req),
-    {ok, Body, _} = cowboy_req:body(Req),
-    {Data} = jiffy:decode(Body),
-    Arity = length(B) + length(Data),
-    Cmds = mongoose_commands:list(user, Category, method_to_action(Method)),
-    case [C || C <- Cmds, arity(C) == Arity] of
-        [Command] ->
-            mongoose_api_common:process_request(Method, Command, Req2, State);
-        [] ->
-            mongoose_api_common:error_response(not_found, ?ARGS_LEN_ERROR, Req2, State)
+    {Method, _} = cowboy_req:method(Req),
+    case parse_request_body(Req) of
+        {error, _R}->
+            error_response(bad_request, ?BODY_MALFORMED , Req, State);
+        {Params, _} ->
+        Arity = length(B) + length(Params),
+        Cmds = mongoose_commands:list(user, Category, method_to_action(Method)),
+        case [C || C <- Cmds, arity(C) == Arity] of
+            [Command] ->
+                process_request(Method, Command, {Params, Req}, State);
+            [] ->
+                error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
+        end
     end.
 
 arity(C) ->
