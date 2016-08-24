@@ -13,6 +13,7 @@
          list_sessions/1,
          kick_session/3,
          get_recent_messages/3,
+         get_recent_messages/4,
          send_message/3
         ]).
 
@@ -106,14 +107,25 @@ commands() ->
       {result, ok}
      ],
      [
-      {name, get_messages},
+      {name, get_last_messages},
       {category, <<"messages">>},
-      {desc, <<"Get recent messages">>},
+      {desc, <<"Get n last messages">>},
       {module, ?MODULE},
       {function, get_recent_messages},
       {action, read},
       {security_policy, [user]},
       {args, [{caller, binary}, {other, binary}, {limit, integer}]},
+      {result, []}
+     ],
+     [
+      {name, get_messages},
+      {category, <<"messages">>},
+      {desc, <<"Get messages before a certain date ('before' is a unix timestamp in seconds)">>},
+      {module, ?MODULE},
+      {function, get_recent_messages},
+      {action, read},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {other, binary}, {before, integer}, {limit, integer}]},
       {result, []}
      ],
      [
@@ -184,7 +196,12 @@ registered_commands() ->
       } || C <- mongoose_commands:list(admin)].
 
 get_recent_messages(Caller, Other, Limit) ->
-    Res = lookup_recent_messages(Caller, Other, Limit),
+    {MegaSecs, Secs, _} = now(),
+    Future = (MegaSecs + 1) * 1000000 + Secs, % to make sure we return all messages
+    get_recent_messages(Caller, Other, Future, Limit).
+
+get_recent_messages(Caller, Other, Before, Limit) ->
+    Res = lookup_recent_messages(Caller, Other, Before, Limit),
     lists:map(fun record_to_map/1, Res).
 
 change_user_password(Host, User, Password) ->
@@ -206,19 +223,19 @@ build_packet(message_chat, Body) ->
            children = [#xmlel{ name = <<"body">>, children = [#xmlcdata{content = Body}]}]
           }.
 
-lookup_recent_messages(_, _, Limit) when Limit > 500 ->
+lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
     throw({error, message_limit_too_high});
-lookup_recent_messages(ArcJID, Other, Limit) when is_binary(ArcJID) ->
-    lookup_recent_messages(jid:from_binary(ArcJID), Other, Limit);
-lookup_recent_messages(ArcJID, Other, Limit) when is_binary(Other) ->
-    lookup_recent_messages(ArcJID, jid:from_binary(Other), Limit);
-lookup_recent_messages(ArcJID, OtherJID, Limit) ->
+lookup_recent_messages(ArcJID, Other, Before, Limit) when is_binary(ArcJID) ->
+    lookup_recent_messages(jid:from_binary(ArcJID), Other, Before, Limit);
+lookup_recent_messages(ArcJID, Other, Before, Limit) when is_binary(Other) ->
+    lookup_recent_messages(ArcJID, jid:from_binary(Other), Before, Limit);
+lookup_recent_messages(ArcJID, OtherJID, Before, Limit) ->
     Host = ArcJID#jid.server,
     ArcID = mod_mam:archive_id(Host, ArcJID#jid.user),
     Borders = undefined,
     RSM = #rsm_in{direction = before, id = undefined}, % last msgs
     Start = undefined,
-    End = undefined,
+    End = Before * 1000000,
     Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     WithJID = OtherJID,
     PageSize = Limit,
