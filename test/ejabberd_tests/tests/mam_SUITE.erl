@@ -359,7 +359,11 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
+    %% Next function creates a lot of sessions...
     escalus_fresh:clean(),
+    %% and this function kicks them without waiting...
+    mongoose_helper:kick_everyone(),
+    %% so we don't have sessions anymore and other tests will not fail
     escalus:end_per_suite(restore_sessions_limit(restore_shaping(Config))).
 
 user_names() ->
@@ -530,6 +534,7 @@ end_per_group(Group, Config) ->
     B = basic_group(Group),
     Config1 = end_state(C, B, Config),
     Config2 = end_modules(C, B, Config1),
+    escalus_fresh:clean(),
     delete_users(Config2).
 
 init_modules(C, muc_light, Config) ->
@@ -2107,4 +2112,3 @@ initial_activity() ->
         %% send_initial_presence
         escalus_client:send(Client, escalus_stanza:presence(<<"available">>))
     end.
-
