@@ -1,6 +1,6 @@
 ## Inside MongooseIM
 
-![Inside MongooseIM](Inside MongooseIM.png)
+![Inside MongooseIM](Inside_MongooseIM.png)
 
 ### Modules
 
@@ -34,7 +34,7 @@ Backups should be regular, and tested.
 
 ## Outside MongooseIM: ecosystem in a datacenter
 
-![MongooseIM high-level architecture](MongooseIM high-level architecture.png)
+![MongooseIM high-level architecture](MongooseIM_high-level_architecture.png)
 
 ### Frontend
 
