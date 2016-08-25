@@ -108,7 +108,7 @@
 
 -record(mongoose_command, {
           name :: atom(),                             %% name of the command by which we refer to it
-          category :: binary(),                       %% groups commands releated to the same functionality (user managment, messages/archive)
+          category :: binary(),                       %% groups commands related to the same functionality (user managment, messages/archive)
           subcategory = undefined :: undefined | binary(),          %% optimal subcategory
           desc :: binary(),                           %% long description
           module :: module(),                         %% module to call
@@ -119,7 +119,7 @@
           identifiers = [] :: [atom()],               %% resource identifiers, a subset of args
           security_policy = [admin] :: security(),    %% permissions required to run this command
           result :: argspec()|ok                      %% what the called func should return; if ok then return of called
-          %% function is ignored
+                                                      %% function is ignored
          }).
 
 -opaque t() :: #mongoose_command{}.
@@ -168,6 +168,7 @@
          subcategory/1,
          desc/1,
          args/1,
+         arity/1,
          identifiers/1,
          action/1,
          result/1
@@ -264,6 +265,10 @@ action(Cmd) ->
 -spec result(t()) -> term().
 result(Cmd) ->
     Cmd#mongoose_command.result.
+
+-spec arity(t()) -> integer().
+arity(Cmd) ->
+    length(Cmd#mongoose_command.args).
 
 %% @doc Command execution.
 -spec execute(caller(), atom() | t(), [term()] | map()) ->
@@ -510,17 +515,19 @@ filter_commands(Cat, Action, SubCategory, Cmds) ->
 
 %% @doc make sure the command may be registered
 %% it may not if either (a) command of that name is already registered,
-%% (b) there is a command in the same category and subcategory with the same action
+%% (b) there is a command in the same category and subcategory with the same action and arity
 check_registration(Command) ->
     Name = name(Command),
     Cat = category(Command),
     Act = action(Command),
+    Arity = arity(Command),
     SubCat = subcategory(Command),
     case ets:lookup(mongoose_commands, Name) of
         [] ->
             CatLst = list(admin, Cat),
             FCatLst = [C || C <- CatLst, action(C) == Act,
-                                         subcategory(C) == SubCat],
+                                         subcategory(C) == SubCat,
+                                         arity(C) == Arity],
             case FCatLst of
                 [] -> ok;
                 [C] ->

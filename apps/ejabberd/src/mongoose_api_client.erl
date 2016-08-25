@@ -28,7 +28,8 @@
          rest_terminate/2,
          delete_resource/2]).
 
--import(mongoose_api_common, [action_to_method/1, method_to_action/1, error_code/1]).
+-import(mongoose_api_common, [action_to_method/1, method_to_action/1, error_code/1, process_request/4,
+                              error_response/4, parse_request_body/1]).
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
@@ -96,8 +97,10 @@ is_authorized(Req, State) ->
     end.
 
 %% @doc Called for a method of type "DELETE"
-delete_resource(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = mongoose_commands:list(user, Category, method_to_action(<<"DELETE">>)),
+delete_resource(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+    Arity = length(B),
+    Cmds = mongoose_commands:list(user, Category, method_to_action(<<"DELETE">>)),
+    [Command] = [C || C <- Cmds, arity(C) == Arity],
     mongoose_api_common:process_request(<<"DELETE">>, Command, Req, State).
 
 %%--------------------------------------------------------------------
@@ -105,17 +108,34 @@ delete_resource(Req, #http_api_state{command_category = Category} = State) ->
 %%--------------------------------------------------------------------
 
 %% @doc Called for a method of type "GET"
-to_json(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = mongoose_commands:list(user, Category, method_to_action(<<"GET">>)),
+to_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+    Arity = length(B),
+    Cmds = mongoose_commands:list(user, Category, method_to_action(<<"GET">>)),
+    [Command] = [C || C <- Cmds, arity(C) == Arity],
     mongoose_api_common:process_request(<<"GET">>, Command, Req, State).
 
 
 %% @doc Called for a method of type "POST" and "PUT"
-from_json(Req, #http_api_state{command_category = Category} = State) ->
-    {Method, Req2} = cowboy_req:method(Req),
-    [Command] = mongoose_commands:list(user, Category, method_to_action(Method)),
-    mongoose_api_common:process_request(Method, Command, Req2, State).
+from_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+    {Method, _} = cowboy_req:method(Req),
+    case parse_request_body(Req) of
+        {error, _R}->
+            error_response(bad_request, ?BODY_MALFORMED , Req, State);
+        {Params, _} ->
+        Arity = length(B) + length(Params),
+        Cmds = mongoose_commands:list(user, Category, method_to_action(Method)),
+        case [C || C <- Cmds, arity(C) == Arity] of
+            [Command] ->
+                process_request(Method, Command, {Params, Req}, State);
+            [] ->
+                error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
+        end
+    end.
 
+arity(C) ->
+    % we don't have caller in bindings (we know it from authorisation), so it doesn't count when checking arity
+    Args = mongoose_commands:args(C),
+    length([N || {N, _} <- Args, N =/= caller]).
 
 do_authorize({<<"basic">>, {User, Password}}, Req, State) ->
     case jid:from_binary(User) of

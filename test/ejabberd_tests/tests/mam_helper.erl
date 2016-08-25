@@ -311,7 +311,7 @@ form_border_fields(#rsm_in{
 form_type_field(MamNs) ->
     form_field(<<"FORM_TYPE">>, MamNs).
 
-form_field(VarName, undefined) ->
+form_field(_VarName, undefined) ->
     undefined;
 form_field(VarName, VarValue) ->
     #xmlel{name = <<"field">>, attrs = [{<<"var">>, VarName}],
@@ -320,7 +320,7 @@ form_field(VarName, VarValue) ->
 
 form_bool_field(Name, true) ->
     form_field(Name, <<"true">>);
-form_bool_field(Name, _) ->
+form_bool_field(_Name, _) ->
     undefined.
 
 stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
@@ -728,7 +728,7 @@ send_muc_rsm_messages(Config) ->
 
 send_rsm_messages(Config) ->
     Pid = self(),
-    Room = ?config(room, Config),
+%%    Room = ?config(room, Config),
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends messages to Bob.
@@ -952,13 +952,16 @@ generate_msgs_for_day(Day, OwnerJID, OtherUsers) ->
     [generate_msg_for_date_user(OwnerJID, RemoteJID, {Date, random_time()})
      || RemoteJID <- OtherUsers].
 
-generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime) ->
+generate_msg_for_date_user(Owner, Remote, DateTime) ->
+    generate_msg_for_date_user(Owner, Remote, DateTime, base16:encode(crypto:rand_bytes(4))).
+
+generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime, Content) ->
     MicrosecDateTime = datetime_to_microseconds(DateTime),
     NowMicro = rpc_apply(mod_mam_utils, now_to_microseconds, [rpc_apply(erlang, now, [])]),
     Microsec = min(NowMicro, MicrosecDateTime),
     MsgIdOwner = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec, random:uniform(20)]),
     MsgIdRemote = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec+1, random:uniform(20)]),
-    Packet = escalus_stanza:chat_to(RemoteBin, base16:encode(crypto:rand_bytes(4))),
+    Packet = escalus_stanza:chat_to(RemoteBin, Content),
     {{MsgIdOwner, MsgIdRemote}, Owner, Remote, Owner, Packet}.
 
 random_time() ->
@@ -1068,7 +1071,7 @@ is_mam_possible(Host) ->
 is_odbc_enabled(Host) ->
     case sql_transaction(Host, fun erlang:now/0) of
         {atomic, _} -> true;
-        Other ->
+        _ ->
             %ct:pal("ODBC disabled (check failed ~p)", [Other]),
             false
     end.
@@ -1162,7 +1165,7 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate,
     {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
     IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
     escalus:send(Alice, IqSet),
-    ReplySet = escalus:wait_for_stanza(Alice),
+    _ReplySet = escalus:wait_for_stanza(Alice),
     Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
                                                [N, PrefsState, now()]))
                 || N <- [1,2,3,4]],

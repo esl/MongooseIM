@@ -30,7 +30,8 @@
 -include("mongoose_api.hrl").
 -include("ejabberd.hrl").
 
--import(mongoose_api_common, [error_response/3, error_response/4, action_to_method/1, method_to_action/1, error_code/1]).
+-import(mongoose_api_common, [error_response/3, error_response/4, action_to_method/1, method_to_action/1, error_code/1,
+                              process_request/4, parse_request_body/1]).
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
@@ -88,27 +89,41 @@ rest_terminate(_Req, _State) ->
     ok.
 
 %% @doc Called for a method of type "DELETE"
-delete_resource(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>)),
-    mongoose_api_common:process_request(<<"DELETE">>, Command, Req, State).
+delete_resource(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+    Arity = length(B),
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>)),
+    [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
+    process_request(<<"DELETE">>, Command, Req, State).
 
 %%--------------------------------------------------------------------
 %% Internal funs
 %%--------------------------------------------------------------------
 
 %% @doc Called for a method of type "GET"
-to_json(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>)),
-    mongoose_api_common:process_request(<<"GET">>, Command, Req, State).
-
+to_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>)),
+    Arity = length(B),
+    [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
+    process_request(<<"GET">>, Command, Req, State).
 
 %% @doc Called for a method of type "POST" and "PUT"
 from_json(Req, #http_api_state{command_category = Category,
-                               command_subcategory = SubCategory} = State) ->
-    {Method, Req2} = cowboy_req:method(Req),
-    [Command] = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
-    mongoose_api_common:process_request(Method, Command, Req2, State).
-
+                               command_subcategory = SubCategory,
+                               bindings = B} = State) ->
+    case parse_request_body(Req) of
+        {error, _R}->
+            error_response(bad_request, ?BODY_MALFORMED , Req, State);
+        {Params, _} ->
+            {Method, _} = cowboy_req:method(Req),
+            Cmds = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
+            Arity = length(B) + length(Params),
+            case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
+                [Command] ->
+                    process_request(Method, Command, {Params, Req}, State);
+                [] ->
+                    error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
+            end
+    end.
 
 -spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:path().
 handler_path(Base, Command) ->

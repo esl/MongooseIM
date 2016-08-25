@@ -67,6 +67,7 @@
          error_response/4,
          action_to_method/1,
          method_to_action/1,
+         parse_request_body/1,
          get_allowed_methods/1,
          process_request/4,
          reload_dispatches/1]).
@@ -98,13 +99,9 @@ create_user_url_path(Command) ->
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
     BindsReversed = lists:reverse(Binds),
-    case parse_request_body(Req) of
-        {error, _R}->
-            error_response(bad_request, ?BODY_MALFORMED , Req, State);
-        {Params, Req2} ->
-            Params2 = BindsReversed ++ Params ++ maybe_add_caller(Entity),
-            handle_request(Method, Command, Params2, Req2, State)
-    end;
+    {Params, Req2} = Req,
+    Params2 = BindsReversed ++ Params ++ maybe_add_caller(Entity),
+    handle_request(Method, Command, Params2, Req2, State);
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity}=State)
     when ((Method == <<"GET">>) or (Method == <<"DELETE">>)) ->
     BindsReversed = lists:reverse(Binds) ++ maybe_add_caller(Entity),
@@ -345,6 +342,7 @@ error_code(denied) -> 403;
 error_code(not_implemented) -> 501;
 error_code(bad_request) -> 400;
 error_code(type_error) -> 400;
+error_code(not_found) -> 404;
 error_code(internal) -> 500.
 
 action_to_method(read) -> <<"GET">>;
