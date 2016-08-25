@@ -25,14 +25,13 @@
 -export([start/2,
          stop/1,
          archive_size/4,
-         archive_message/9,
          lookup_messages/10,
          remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
--export([safe_archive_message/9,
-         safe_archive_message_muc/9,
+-export([archive_message/9,
+         archive_message_muc/9,
          lookup_messages/14,
          lookup_messages_muc/14]).
 
@@ -68,7 +67,7 @@ start(Host, Opts) ->
     end.
 
 start_chat_archive(Host, _Opts) ->
-    ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, safe_archive_message, 50),
+    ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
@@ -76,7 +75,7 @@ start_chat_archive(Host, _Opts) ->
     ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50).
 
 start_muc_archive(Host, _Opts) ->
-    ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, safe_archive_message_muc, 50),
+    ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message_muc, 50),
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
     ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
@@ -98,7 +97,7 @@ stop(Host) ->
     end.
 
 stop_chat_archive(Host) ->
-    ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, safe_archive_message_muc, 50),
+    ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message_muc, 50),
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
@@ -107,7 +106,7 @@ stop_chat_archive(Host) ->
     ok.
 
 stop_muc_archive(Host) ->
-    ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, safe_archive_message, 50),
+    ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
@@ -115,11 +114,10 @@ stop_muc_archive(Host) ->
     ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
-safe_archive_message(Result, Host, MessID, UserID,
-                     LocJID, RemJID, SrcJID, Dir, Packet) ->
+archive_message(_Result, Host, MessID, _UserID,
+                LocJID, RemJID, SrcJID, _Dir, Packet) ->
     try
-        R = archive_message(Result, Host, MessID, UserID,
-                            LocJID, RemJID, SrcJID, Dir, Packet),
+        R = archive_message(MessID, LocJID, RemJID, SrcJID, Packet),
         case R of
             ok ->
                 ok;
@@ -133,9 +131,9 @@ safe_archive_message(Result, Host, MessID, UserID,
         {error, Reason}
     end.
 
-safe_archive_message_muc(Result, Host, MessId, UserID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+archive_message_muc(Result, Host, MessId, UserID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     RemJIDMuc = maybe_muc_jid(RemJID),
-    safe_archive_message(Result, Host, MessId, UserID, LocJID, RemJIDMuc, SrcJID, Dir, Packet).
+    archive_message(Result, Host, MessId, UserID, LocJID, RemJIDMuc, SrcJID, Dir, Packet).
 
 maybe_muc_jid(#jid{lresource = RemRes}) ->
     {<<>>, RemRes, <<>>};
@@ -206,7 +204,7 @@ remove_bucket(Bucket) ->
     {ok, Keys} = mongoose_riak:list_keys(Bucket),
     [mongoose_riak:delete(Bucket, Key) || Key <- Keys].
 
-archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
+archive_message(MessID, LocJID, RemJID, SrcJID, Packet) ->
     LocalJID = bare_jid(LocJID),
     RemoteJID = bare_jid(RemJID),
     SourceJID = full_jid(SrcJID),
