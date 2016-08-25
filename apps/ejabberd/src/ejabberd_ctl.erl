@@ -64,7 +64,7 @@
 
 -define(ASCII_SPACE_CHARACTER, $\s).
 -define(PRINT(Format, Args), io:format(lists:flatten(Format), Args)).
--define(TIME_HMS_FORMAT, "~B:~2.10.0B:~2.10.0B").
+-define(TIME_HMS_FORMAT, "~B days ~B hours ~B minutes ~B secs").
 -define(a2l(A), atom_to_list(A)).
 
 %%-----------------------------
@@ -909,8 +909,8 @@ get_mongoose_status() ->
 
 get_uptime() ->
     {MilliSeconds, _} = erlang:statistics(wall_clock),
-    {H, M, S} = calendar:seconds_to_time(MilliSeconds div 1000),
-    {uptime, [H, M, S]}.
+    {D, {H, M, S}} = calendar:seconds_to_daystime(MilliSeconds div 1000),
+    {uptime, [D, H, M, S]}.
 
 %%-----------------------------
 %% Lager specific helpers
