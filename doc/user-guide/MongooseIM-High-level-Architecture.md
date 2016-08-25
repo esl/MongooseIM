@@ -14,7 +14,7 @@ Please refer to '[Database Backends](../advanced-configuration/database-backends
 
 #### Transient databases
 
-Mnesia will run on the same nodes as MongooseIM. Corolaary: each MongooseIM node host has a Mnesia node.
+Mnesia will run on the same nodes as MongooseIM. Corollary: each MongooseIM node host has a Mnesia node.
 
 Redis will be a separate cluster, not using the same nodes as MongooseIM.
 
