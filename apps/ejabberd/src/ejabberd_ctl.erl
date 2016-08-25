@@ -64,7 +64,7 @@
 
 -define(ASCII_SPACE_CHARACTER, $\s).
 -define(PRINT(Format, Args), io:format(lists:flatten(Format), Args)).
--define(TIME_HMS_FORMAT, "~B days ~B hours ~B minutes ~B secs").
+-define(TIME_HMS_FORMAT, "~B days ~2.10.0B:~2.10.0B:~2.10.0B").
 -define(a2l(A), atom_to_list(A)).
 
 %%-----------------------------
