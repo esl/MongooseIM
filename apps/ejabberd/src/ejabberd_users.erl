@@ -188,7 +188,7 @@ is_anonymous_user(LUser, LServer) ->
 is_cached_user_exists(LUser, LServer) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(LServer),
-    ets:member(Tab, Key).
+    ets:info(Tab) =/= undefined andalso ets:member(Tab, Key).
 
 
 -spec put_user_into_cache(ejabberd:luser(), ejabberd:lserver()) -> 'ok'.
