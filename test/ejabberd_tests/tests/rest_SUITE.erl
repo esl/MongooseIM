@@ -264,7 +264,7 @@ put_msg({{MsgIdOwner, MsgIdRemote},
     {_FromBin, FromJID, FromArcID},
     {_ToBin, ToJID, ToArcID},
     {_, Source, _}, Packet}) ->
-    Host = escalus_ct:get_config(ejabberd_domain),
+    Host = host(),
     ok = rpc_apply(mod_mam, archive_message, [Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
     ok = rpc_apply(mod_mam, archive_message, [Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]),
     ok.
