@@ -22,20 +22,19 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -import(rest_helper,
-        [
-            assert_inlist/2,
-            assert_notinlist/2,
-            decode_maplist/1,
-            gett/1,
-            post/2,
-            putt/2,
-            delete/1,
-            gett/2,
-            post/3,
-            putt/3,
-            delete/2
-        ]
+        [assert_inlist/2,
+         assert_notinlist/2,
+         decode_maplist/1,
+         gett/1,
+         post/2,
+         putt/2,
+         delete/1,
+         gett/2,
+         post/3,
+         putt/3,
+         delete/2]
     ).
+-import(mam_helper, [rpc_apply/3]).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
@@ -130,7 +129,6 @@ user_can_be_registered_and_removed(_Config) ->
     assert_notinlist(<<"mike@localhost">>, Lusers2),
     ok.
 
-
 sessions_are_listed(_) ->
     % no session
     {?OK, Sessions} = gett("/sessions/localhost"),
@@ -185,12 +183,40 @@ messages_are_archived(Config) ->
         BobJID = maps:get(sender, Previous)
     end).
 
-send_and_wait(AliceJID, BobJID, Msg) ->
-    M = #{caller => BobJID, to => AliceJID, msg => Msg},
-    {?OK, _} = post(<<"/messages">>, M),
-    M1 = #{caller => AliceJID, to => BobJID, msg => Msg},
-    {?OK, _} = post(<<"/messages">>, M1),
-    timer:sleep(2000).
+fill_archive(A, B) ->
+    % here we generate messages sent one, two and three days ago at 10am
+    {TodayDate, _} = calendar:local_time(),
+    Today = calendar:date_to_gregorian_days(TodayDate),
+    put_msg(A, B, <<"A">>, Today - 3),
+    put_msg(B, A, <<"A">>, Today - 3),
+    put_msg(A, B, <<"B">>, Today - 2),
+    put_msg(B, A, <<"B">>, Today - 2),
+    put_msg(A, B, <<"C">>, Today - 1),
+    put_msg(B, A, <<"C">>, Today - 1).
+
+put_msg(Aclient, Bclient, Content, Days) ->
+    DateTime = {calendar:gregorian_days_to_date(Days), {10, 0, 0}},
+    AArcId = make_arc_id(Aclient),
+    BArcId = make_arc_id(Bclient),
+    Msg = mam_helper:generate_msg_for_date_user(AArcId, BArcId, DateTime, Content),
+    put_msg(Msg),
+    ok.
+
+put_msg({{MsgIdOwner, MsgIdRemote},
+    {_FromBin, FromJID, FromArcID},
+    {_ToBin, ToJID, ToArcID},
+    {_, Source, _}, Packet}) ->
+    Host = escalus_ct:get_config(ejabberd_domain),
+    ok = rpc_apply(mod_mam, archive_message, [Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
+    ok = rpc_apply(mod_mam, archive_message, [Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]),
+    ok.
+
+make_arc_id(Client) ->
+    User = escalus_client:username(Client),
+    Server = escalus_client:server(Client),
+    Bin = escalus_client:short_jid(Client),
+    Jid = rpc_apply(jid, make, [User, Server, <<"">>]),
+    {Bin, Jid, rpc_apply(mod_mam, archive_id, [Server, User])}.
 
 get_messages(Me, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
@@ -211,31 +237,35 @@ get_messages(Me, Other, Before, Count) ->
 
 messages_can_be_paginated(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        % send messages both ways in two-second intervals, three times, wait two more seconds
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        send_and_wait(AliceJID, BobJID, <<"A">>),
-        send_and_wait(AliceJID, BobJID, <<"B">>),
-        send_and_wait(AliceJID, BobJID, <<"C">>),
+        fill_archive(Alice, Bob),
+        mam_helper:maybe_wait_for_yz(Config),
         % recent msgs with a limit
         M1 = get_messages(AliceJID, BobJID, 10),
-        ?assertEqual(length(M1), 6),
+        ?assertEqual(6, length(M1)),
         M2 = get_messages(AliceJID, BobJID, 3),
-        ?assertEqual(length(M2), 3),
-        {MegaSecs, Secs, _} = os:timestamp(),
-        Now = MegaSecs * 1000000 + Secs,
-        % older messages
-        M3 = get_messages(AliceJID, BobJID, Now - 3, 10),
-        ?assertEqual(length(M3), 4),
+        ?assertEqual(3, length(M2)),
+        % older messages - earlier then the previous midnight
+        PriorTo = make_timestamp(-1, {0, 0, 1}),
+        M3 = get_messages(AliceJID, BobJID, PriorTo, 10),
+        ?assertEqual(4, length(M3)),
         [Oldest|_] = decode_maplist(M3),
         ?assertEqual(maps:get(body, Oldest), <<"A">>),
         % same with limit
-        M4 = get_messages(AliceJID, BobJID, Now - 3, 2),
-        ?assertEqual(length(M4), 2),
+        M4 = get_messages(AliceJID, BobJID, PriorTo, 2),
+        ?assertEqual(2, length(M4)),
         [Oldest2|_] = decode_maplist(M4),
         ?assertEqual(maps:get(body, Oldest2), <<"B">>),
         ok
     end).
+
+make_timestamp(Offset, Time) ->
+    {TodayDate, _} = calendar:local_time(),
+    Today = calendar:date_to_gregorian_days(TodayDate),
+    Dt = {calendar:gregorian_days_to_date(Today + Offset), Time},
+    Tst = calendar:datetime_to_gregorian_seconds(Dt) - 62167219200,
+    Tst.
 
 password_can_be_changed(Config) ->
     % bob logs in with his regular password
