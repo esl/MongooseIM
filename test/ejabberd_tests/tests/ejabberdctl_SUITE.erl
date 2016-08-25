@@ -401,6 +401,9 @@ vcard2_multi_rw(Config) ->
 
 rosteritem_rw(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
+                BobJid = escalus_users:get_jid(Config, bob),
+                MikeJid = escalus_users:get_jid(Config, mike),
+
                 {AliceName, Domain, _} = get_user_data(alice, Config),
                 {BobName, Domain, _} = get_user_data(bob, Config),
                 {MikeName, Domain, _} = get_user_data(mike, Config),
@@ -412,9 +415,9 @@ rosteritem_rw(Config) ->
 
                 [Push1, Push2] = escalus:wait_for_stanzas(Alice, 2), % Check roster broadcasts
                 escalus:assert(is_roster_set, Push1),
-                escalus:assert(roster_contains, [bob], Push1),
+                escalus:assert(roster_contains, [BobJid], Push1),
                 escalus:assert(is_roster_set, Push2),
-                escalus:assert(roster_contains, [mike], Push2),
+                escalus:assert(roster_contains, [MikeJid], Push2),
 
                 {Items1, 0} = ejabberdctl("get_roster", [AliceName, Domain], Config),
                 match_roster([{BobName, Domain, "MyBob", "MyGroup", "both"},
@@ -423,23 +426,24 @@ rosteritem_rw(Config) ->
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster1 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_roster_result, Roster1),
-                escalus:assert(roster_contains, [bob], Roster1),
-                escalus:assert(roster_contains, [mike], Roster1),
+                escalus:assert(roster_contains, [BobJid], Roster1),
+                escalus:assert(roster_contains, [MikeJid], Roster1),
 
                 {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config),
 
                 Push3 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_roster_set, Push3),
-                escalus:assert(roster_contains, [bob], Push3),
+                escalus:assert(roster_contains, [BobJid], Push3),
 
                 {Items2, 0} = ejabberdctl("get_roster", [AliceName, Domain], Config),
                 match_roster([{MikeName, Domain, "MyMike", "MyGroup", "both"}], Items2),
 
-                escalus:send(Alice, escalus_stanza:roster_remove_contact(mike))  % cleanup
+                escalus:send(Alice, escalus_stanza:roster_remove_contact(MikeJid))  % cleanup
         end).
 
 presence_after_add_rosteritem(Config) ->
      escalus:story(Config, [{alice, 1}, {bob,1}], fun(Alice, Bob) ->
+                 BobJid = escalus_users:get_jid(Config, bob),
                  {AliceName, Domain, _} = get_user_data(alice, Config),
                  {BobName, Domain, _} = get_user_data(bob, Config),
 
@@ -449,11 +453,12 @@ presence_after_add_rosteritem(Config) ->
                  escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
                  escalus:assert(is_presence, escalus:wait_for_stanza(Bob)),
 
-                 escalus:send(Alice, escalus_stanza:roster_remove_contact(bob))  % cleanup
+                 escalus:send(Alice, escalus_stanza:roster_remove_contact(BobJid))  % cleanup
          end).
 
 push_roster(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
+                BobJid = escalus_users:get_jid(Config, bob),
                 {AliceName, Domain, _} = get_user_data(alice, Config),
                 TemplatePath = escalus_config:get_config(roster_template, Config),
 
@@ -461,9 +466,9 @@ push_roster(Config) ->
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster1 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_roster_result, Roster1),
-                escalus:assert(roster_contains, [bob], Roster1),
+                escalus:assert(roster_contains, [BobJid], Roster1),
 
-                escalus:send(Alice, escalus_stanza:roster_remove_contact(bob)) % cleanup
+                escalus:send(Alice, escalus_stanza:roster_remove_contact(BobJid)) % cleanup
         end).
 
 process_rosteritems_list_simple(Config) ->
@@ -644,6 +649,9 @@ push_roster_all(Config) ->
 
 push_roster_alltoall(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
+                BobJid = escalus_users:get_jid(Config, bob),
+                MikeJid = escalus_users:get_jid(Config, mike),
+                KateJid = escalus_users:get_jid(Config, kate),
                 {_, Domain, _} = get_user_data(alice, Config),
 
                 {_, 0} = ejabberdctl("push_roster_alltoall", [Domain, "MyGroup"], Config),
@@ -652,9 +660,9 @@ push_roster_alltoall(Config) ->
                 Roster = escalus:wait_for_stanza(Alice),
 
                 escalus:assert(is_roster_result, Roster),
-                escalus:assert(roster_contains, [bob], Roster),
-                escalus:assert(roster_contains, [mike], Roster),
-                escalus:assert(roster_contains, [kate], Roster)
+                escalus:assert(roster_contains, [BobJid], Roster),
+                escalus:assert(roster_contains, [MikeJid], Roster),
+                escalus:assert(roster_contains, [KateJid], Roster)
         end).
 
 %%--------------------------------------------------------------------
@@ -663,6 +671,7 @@ push_roster_alltoall(Config) ->
 
 set_last(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
+                BobJid = escalus_users:get_jid(Config, bob),
                 {AliceName, Domain, _} = get_user_data(alice, Config),
                 {BobName, Domain, _} = get_user_data(bob, Config),
 
@@ -676,7 +685,7 @@ set_last(Config) ->
                 Now = usec:to_sec(usec:from_now(erlang:now())),
                 TS = integer_to_list(Now - 7200),
                 {_, 0} = ejabberdctl("set_last", [BobName, Domain, TS, "Status"], Config),
-                escalus:send(Alice, escalus_stanza:last_activity(bob)),
+                escalus:send(Alice, escalus_stanza:last_activity(BobJid)),
                 LastAct = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_last_result, LastAct),
                 Seconds = list_to_integer(binary_to_list(

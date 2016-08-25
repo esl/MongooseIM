@@ -76,7 +76,7 @@ user_sic(Config) ->
 forbidden_user_sic(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
         %% Alice sends a SIC IQ stanza to get Bob's IP
-        escalus:send(Alice, sic_iq_get(bob)),
+        escalus:send(Alice, sic_iq_get(escalus_users:get_jid(Config, bob))),
         %% Alice should get <forbidden/> error
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Stanza)

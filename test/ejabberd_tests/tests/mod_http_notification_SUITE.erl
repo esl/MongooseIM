@@ -55,10 +55,10 @@ host() -> <<"localhost">>.
 
 init_per_suite(Config0) ->
     Config1 = escalus:init_per_suite(Config0),
-    escalus:create_users(Config1, escalus:get_users({by_name, [alice, bob]})).
+    escalus:create_users(Config1, escalus:get_users([alice, bob])).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}),
+    escalus:delete_users(Config, [alice, bob]),
     escalus:end_per_suite(Config).
 
 init_per_group(mod_http_notification_tests, Config) ->
@@ -124,9 +124,11 @@ simple_message_failing_listener(Config) ->
     do_simple_message(Config, <<"Hi, Failing!">>).
 
 do_simple_message(Config, Msg) ->
+    BobJid = escalus_users:get_jid(Config, bob),
+
     %% Alice sends a message to Bob, who is offline
     escalus:story(Config, [{alice, 1}],
-        fun(Alice) -> escalus:send(Alice, escalus_stanza:chat_to(bob, Msg)) end),
+        fun(Alice) -> escalus:send(Alice, escalus_stanza:chat_to(BobJid, Msg)) end),
 
     %% Bob logs in
     Bob = login_send_presence(Config, bob),

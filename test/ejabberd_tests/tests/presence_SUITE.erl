@@ -117,7 +117,8 @@ available(Config) ->
 available_direct(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
 
-        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"available">>)),
+        BobJid = escalus_users:get_jid(Config, bob),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"available">>)),
         Received = escalus:wait_for_stanza(Bob),
         escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Alice, Received)
@@ -132,7 +133,8 @@ additions(Config) ->
             {<<"priority">>, <<"1">>},
             {<<"status">>, <<"Short break">>}
         ]),
-        Presence = escalus_stanza:presence_direct(bob, <<"available">>, Tags),
+        BobJid = escalus_users:get_jid(Config, bob),
+        Presence = escalus_stanza:presence_direct(BobJid, <<"available">>, Tags),
         escalus:send(Alice, Presence),
 
         Received = escalus:wait_for_stanza(Bob),
@@ -172,12 +174,14 @@ negative_priority_presence(Config) ->
 
 invisible_presence(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        BobJid = escalus_users:get_jid(Config, bob),
+        AliceJid = escalus_users:get_jid(Config, alice),
 
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
 
         %% She subscribes to his presences
-        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:assert(is_roster_set, PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
@@ -196,7 +200,7 @@ invisible_presence(Config) ->
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
         %% Bob sends subscribed presence
-        escalus:send(Bob, escalus_stanza:presence_direct(alice, <<"subscribed">>)),
+        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
         Stanzas = escalus:wait_for_stanzas(Alice, 2),
@@ -249,7 +253,8 @@ add_contact(Config) ->
         Received2 = escalus:wait_for_stanza(Alice),
 
         escalus:assert(is_roster_result, Received2),
-        escalus:assert(roster_contains, [bob], Received2)
+        BobJid = escalus_users:get_jid(Config, bob),
+        escalus:assert(roster_contains, [BobJid], Received2)
 
         end).
 
@@ -307,7 +312,8 @@ versioning(Config) ->
         Received2 = escalus:wait_for_stanza(Alice),
 
         escalus:assert(is_roster_result, Received2),
-        escalus:assert(roster_contains, [bob], Received2),
+        BobJid = escalus_users:get_jid(Config, bob),
+        escalus:assert(roster_contains, [BobJid], Received2),
 
         %% check version
 
@@ -331,12 +337,14 @@ versioning_no_store(Config) ->
 
 subscribe(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_users:get_jid(Config, bob),
+        AliceJid = escalus_users:get_jid(Config, alice),
 
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
 
         %% She subscribes to his presences
-        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:assert(is_roster_set, PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
@@ -355,7 +363,7 @@ subscribe(Config) ->
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
         %% Bob sends subscribed presence
-        escalus:send(Bob, escalus_stanza:presence_direct(alice, <<"subscribed">>)),
+        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
         Stanzas = escalus:wait_for_stanzas(Alice, 2),
@@ -380,12 +388,14 @@ subscribe(Config) ->
 
 subscribe_decline(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        BobJid = escalus_users:get_jid(Config, bob),
+        AliceJid = escalus_users:get_jid(Config, alice),
 
         %% add contact
         add_sample_contact(Alice, Bob),
 
         %% subscribe
-        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
         escalus_assert:is_roster_set(PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
@@ -395,7 +405,7 @@ subscribe_decline(Config) ->
         escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
 
         %% Bob refuses subscription
-        escalus:send(Bob, escalus_stanza:presence_direct(alice, <<"unsubscribed">>)),
+        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"unsubscribed">>)),
 
         %% Alice receives subscribed
         Stanzas = escalus:wait_for_stanzas(Alice, 2),
@@ -406,12 +416,14 @@ subscribe_decline(Config) ->
 
 subscribe_relog(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_users:get_jid(Config, bob),
+        AliceJid = escalus_users:get_jid(Config, alice),
 
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
 
         %% She subscribes to his presences
-        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:assert(is_roster_set, PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
@@ -442,24 +454,26 @@ subscribe_relog(Config) ->
                 end,
                 fun(S) ->
                     escalus_pred:is_presence_with_type(<<"subscribe">>, S)
-                    andalso escalus_pred:is_stanza_from(alice, S)
+                    andalso escalus_pred:is_stanza_from(AliceJid, S)
                 end
             ], Stanzas),
 
         escalus_client:stop(NewBob),
 
-        escalus:send(Bob, escalus_stanza:presence_direct(alice, <<"unsubscribed">>))
+        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"unsubscribed">>))
 
         end).
 
 unsubscribe(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        BobJid = escalus_users:get_jid(Config, bob),
+        AliceJid = escalus_users:get_jid(Config, alice),
 
         %% add contact
         add_sample_contact(Alice, Bob),
 
         %% subscribe
-        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
 
@@ -475,7 +489,7 @@ unsubscribe(Config) ->
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
         %% Bob sends subscribed presence
-        escalus:send(Bob, escalus_stanza:presence_direct(alice, <<"subscribed">>)),
+        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
         Stanzas = escalus:wait_for_stanzas(Alice, 2),
@@ -488,7 +502,7 @@ unsubscribe(Config) ->
         escalus_assert:is_roster_set(PushReqB1),
 
         %% Alice sends unsubscribe
-        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"unsubscribe">>)),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"unsubscribe">>)),
 
         PushReqA2 = escalus:wait_for_stanza(Alice),
         escalus_assert:is_roster_set(PushReqA2),
@@ -507,11 +521,14 @@ unsubscribe(Config) ->
 
 remove_unsubscribe(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        BobJid = escalus_users:get_jid(Config, bob),
+        AliceJid = escalus_users:get_jid(Config, alice),
+
         %% add contact
         add_sample_contact(Alice, Bob),
 
         %% subscribe
-        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
 
@@ -527,7 +544,7 @@ remove_unsubscribe(Config) ->
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
         %% Bob sends subscribed presence
-        escalus:send(Bob, escalus_stanza:presence_direct(alice, <<"subscribed">>)),
+        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
         Stanzas = [escalus:wait_for_stanza(Alice),

@@ -163,12 +163,14 @@ subscribe(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceSubscriptions], 1}]),
 
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        AliceJid = escalus_client:short_jid(Alice),
 
         %% add contact
         add_sample_contact(Alice, Bob),
 
         %% subscribe
-        escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
         PushReq = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
@@ -185,7 +187,7 @@ subscribe(ConfigIn) ->
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob sends subscribed presence
-        escalus_client:send(Bob, escalus_stanza:presence_direct(alice, <<"subscribed">>)),
+        escalus_client:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
         escalus_client:wait_for_stanzas(Alice, 3),
@@ -200,12 +202,14 @@ decline_subscription(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
 
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        AliceJid = escalus_client:short_jid(Alice),
 
         %% add contact
         add_sample_contact(Alice, Bob),
 
         %% subscribe
-        escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
         PushReq = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
@@ -213,7 +217,7 @@ decline_subscription(ConfigIn) ->
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob refuses subscription
-        escalus_client:send(Bob, escalus_stanza:presence_direct(alice, <<"unsubscribed">>)),
+        escalus_client:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"unsubscribed">>)),
 
         %% Alice receives subscribed
         escalus_client:wait_for_stanzas(Alice, 2)
@@ -225,10 +229,13 @@ unsubscribe(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
 
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        AliceJid = escalus_client:short_jid(Alice),
+
         %% add contact
         add_sample_contact(Alice, Bob),
         %% subscribe
-        escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
         PushReq = escalus_client:wait_for_stanza(Alice),
 
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
@@ -245,7 +252,7 @@ unsubscribe(ConfigIn) ->
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob sends subscribed presence
-        escalus_client:send(Bob, escalus_stanza:presence_direct(alice, <<"subscribed">>)),
+        escalus_client:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
         escalus_client:wait_for_stanzas(Alice, 2),
@@ -257,7 +264,7 @@ unsubscribe(ConfigIn) ->
         escalus_assert:is_roster_set(PushReqB1),
 
         %% Alice sends unsubscribe
-        escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"unsubscribe">>)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(BobJid, <<"unsubscribe">>)),
 
         PushReqA2 = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReqA2)),
