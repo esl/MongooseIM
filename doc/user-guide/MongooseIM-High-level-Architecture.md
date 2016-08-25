@@ -6,6 +6,8 @@ For a reminder, MongooseIM manages two sets of data: transient for session data 
 
 ## Outside MongooseIM: ecosystem in a datacenter
 
+![MongooseIM high-level architecture](MongooseIM high-level architecture.png)
+
 ### Databases
 
 Please refer to '[Database Backends](../advanced-configuration/database-backends-configuration.md)' doc for more configuration information.
@@ -52,8 +54,6 @@ A HTTP notification enables the forwarding of events to any other external HTTP 
 
 WombatOAM enables the monitoring and management of MongooseIM clusters, as well as Riak KV, RabbitMQ, and any other Erlang and Elixir based system.
 
-![MongooseIM high-level architecture](MongooseIM high-level architecture.png)
-
 ### ICE server (STUN/TURN)
 
 Contact us.
@@ -64,8 +64,8 @@ Contact us.
 
 ## MongooseIM in a worldwide, multi-datacenter configuration
 
-The MongooseIM platforms enables a service to scale worlwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
-
 ![MongooseIM worlwide architecture](MongooseIM_worlwide_architecture.png)
+
+The MongooseIM platforms enables a service to scale worlwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
 
 Contact us.
