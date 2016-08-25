@@ -1,20 +1,20 @@
 ## Inside MongooseIM
 
+![Inside MongooseIM](Inside MongooseIM.png)
+
+### Modules
+
 MongooseIM is basically a huge router, that comes with a large set of modules. These modules modify and extend the behaviour and features of MongooseIM. Sysadmins and DevOps can configure these modules and potentially enable them. W wide range of modules are available, such as authentication, privacy, storage, backend integration, mobile optimisations... See '[Extension Modules](../advanced-configuration/Modules.md)' for more info.
 
-For a reminder, MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
-
-## Outside MongooseIM: ecosystem in a datacenter
-
-![MongooseIM high-level architecture](MongooseIM high-level architecture.png)
-
 ### Databases
+
+For a reminder, MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
 
 Please refer to '[Database Backends](../advanced-configuration/database-backends-configuration.md)' doc for more configuration information.
 
 #### Transient databases
 
-Mnesia will run on the same nodes as MongooseIM.
+Mnesia will run on the same nodes as MongooseIM. Corolaary: each MongooseIM node host has a Mnesia node.
 
 Redis will be a separate cluster, not using the same nodes as MongooseIM.
 
@@ -22,15 +22,19 @@ No need to backup here, since the transient data naturally rebuilds as clients r
 
 #### Persistant databases
 
-Both RDBMS (SQL) and NOSQL (Riak KV, Cassandra) 
+Both RDBMS/SQL (MySQL/PostgreSQL),and NOSQL (Riak KV, Cassandra) databases are supported.
 
 Backups should be regular, and tested.
 
-#### LDAP
+#### LDAP directory
 
 LDAP will also run on a separate cluster.
 
 Backups should be regular, and tested.
+
+## Outside MongooseIM: ecosystem in a datacenter
+
+![MongooseIM high-level architecture](MongooseIM high-level architecture.png)
 
 ### Frontend
 
