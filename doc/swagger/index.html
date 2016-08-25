@@ -28,11 +28,6 @@
   <script src='lib/marked.js' type='text/javascript'></script>
   <script src='lib/swagger-oauth.js' type='text/javascript'></script>
 
-  <!-- Some basic translations -->
-  <!-- <script src='lang/translator.js' type='text/javascript'></script> -->
-  <!-- <script src='lang/ru.js' type='text/javascript'></script> -->
-  <!-- <script src='lang/en.js' type='text/javascript'></script> -->
-
   <script type="text/javascript">
     $(function () {
       var url = "";
@@ -42,7 +37,7 @@
 	url += path + "/http-api/backend_swagger.yaml"
       }
       else {
-	url = "https://raw.githubusercontent.com/esl/MongooseIM/swagger-http-api-doc/doc/http-api/backend_swagger.yaml"
+	url = "https://raw.githubusercontent.com/esl/MongooseIM/master/doc/http-api/backend_swagger.yaml"
       }
 
       hljs.configure({
