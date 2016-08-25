@@ -14,18 +14,20 @@ With dual-node MongooseIM, one can setup a vertically scalable system, that is f
 
 In dual-node MongooseIM, there is 50-50 load distribution. There is a possible fallback or failover in case of a node failure, but then the remaining node should be able to handle the full load in order to avoid degrading the service.
 
-This applies low to mid-scale deployments, such as functional and load testing, and initial production environments. We recommend real dedicated servers, although MongooseIM coul run in cluster mode with embedded devices.
+This applies from low to mid-scale deployments, such as functional and load testing, and initial production environments. We recommend real dedicated servers, although MongooseIM coul run in cluster mode with low-power machines, such as embedded devices.
 
 ## Multi-node MongooseIM
 
-With multi-node MongooseIM, one can setup a vertically and horizontally scalable system, that is still function of the servers resources. We highly recommend that servers with the same power are used. We also recommend that no node handles a different set of services, because a risk of unbalance can appear. In this setup, MongooseIM could scale up to tens of millions of concurrent users.
+With multi-node MongooseIM, one can setup a vertically and horizontally scalable system, that is still function of the servers resources. We highly recommend that servers with the same available power are used. We also recommend that no node handles a different set of services, because a risk of unbalance can appear. In this setup, MongooseIM could scale up to tens of millions of concurrent users.
 
 In multi-node MongooseIM, with `n` nodes, there is `1/n` load distribution. There is a possible fallback or failover in case of a node failure, but then the remaining nodes should be able to handle the `1/n` load in order to avoid degrading the service.
 
-This applies mid to large-scale deployments, such as production environments. We recommend real dedicated servers.
+This applies from mid to large-scale deployments, such as production environments. We recommend real dedicated, powerful servers.
 
 ## Multi-datacenter MongooseIM
 
-With multi-datacenter MongooseIM, one can setup a vertically and horizontally highly scalable system. The MongooseIM clusters are simply distributed across continents, and interconnected via high-speed links. In this setup, MongooseIM could scale up to hundreds of millions of concurrent users.
+With multi-datacenter MongooseIM, one can setup a vertically and horizontally highly scalable system. The MongooseIM clusters are simply distributed across continents for local, low-lag client connections, and the clusters are interconnected via high-speed links. In this setup, MongooseIM could scale up to hundreds of millions of concurrent users.
 
-This applies mid to very large-scale deployments.
+This applies from large to very large-scale deployments.
+
+Contact us.
