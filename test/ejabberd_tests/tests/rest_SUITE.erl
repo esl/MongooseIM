@@ -104,6 +104,10 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
+%%--------------------------------------------------------------------
+%% Tests
+%%--------------------------------------------------------------------
+
 commands_are_listed(_C) ->
     {?OK, Lcmds} = gett(<<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
@@ -183,6 +187,60 @@ messages_are_archived(Config) ->
         BobJID = maps:get(sender, Previous)
     end).
 
+messages_can_be_paginated(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        fill_archive(Alice, Bob),
+        mam_helper:maybe_wait_for_yz(Config),
+        % recent msgs with a limit
+        M1 = get_messages(AliceJID, BobJID, 10),
+        ?assertEqual(6, length(M1)),
+        M2 = get_messages(AliceJID, BobJID, 3),
+        ?assertEqual(3, length(M2)),
+        % older messages - earlier then the previous midnight
+        PriorTo = make_timestamp(-1, {0, 0, 1}),
+        M3 = get_messages(AliceJID, BobJID, PriorTo, 10),
+        ?assertEqual(4, length(M3)),
+        [Oldest|_] = decode_maplist(M3),
+        ?assertEqual(maps:get(body, Oldest), <<"A">>),
+        % same with limit
+        M4 = get_messages(AliceJID, BobJID, PriorTo, 2),
+        ?assertEqual(2, length(M4)),
+        [Oldest2|_] = decode_maplist(M4),
+        ?assertEqual(maps:get(body, Oldest2), <<"B">>),
+        ok
+    end).
+
+password_can_be_changed(Config) ->
+    % bob logs in with his regular password
+    escalus:story(Config, [{bob, 1}], fun(_Bob) ->
+        skip
+    end),
+    % we change password
+    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"niemakrolika">>}),
+    % he logs with his alternative password
+    escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
+        ignore
+    end),
+    % we can't log with regular passwd anymore
+    try escalus:story(Config, [{bob, 1}], fun(Bob) -> ?PRT("Bob", Bob) end) of
+        _ -> ct:fail("bob connected with old password")
+    catch error:{badmatch, _} ->
+        ok
+    end,
+    % we change it back
+    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"makrolika">>}),
+    % now he logs again with the regular one
+    escalus:story(Config, [{bob, 1}], fun(_Bob) ->
+        just_dont_do_anything
+    end),
+    ok.
+
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
+
 fill_archive(A, B) ->
     % here we generate messages sent one, two and three days ago at 10am
     {TodayDate, _} = calendar:local_time(),
@@ -235,62 +293,12 @@ get_messages(Me, Other, Before, Count) ->
     {?OK, Msgs} = gett(GetPath),
     Msgs.
 
-messages_can_be_paginated(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
-        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        fill_archive(Alice, Bob),
-        mam_helper:maybe_wait_for_yz(Config),
-        % recent msgs with a limit
-        M1 = get_messages(AliceJID, BobJID, 10),
-        ?assertEqual(6, length(M1)),
-        M2 = get_messages(AliceJID, BobJID, 3),
-        ?assertEqual(3, length(M2)),
-        % older messages - earlier then the previous midnight
-        PriorTo = make_timestamp(-1, {0, 0, 1}),
-        M3 = get_messages(AliceJID, BobJID, PriorTo, 10),
-        ?assertEqual(4, length(M3)),
-        [Oldest|_] = decode_maplist(M3),
-        ?assertEqual(maps:get(body, Oldest), <<"A">>),
-        % same with limit
-        M4 = get_messages(AliceJID, BobJID, PriorTo, 2),
-        ?assertEqual(2, length(M4)),
-        [Oldest2|_] = decode_maplist(M4),
-        ?assertEqual(maps:get(body, Oldest2), <<"B">>),
-        ok
-    end).
-
 make_timestamp(Offset, Time) ->
     {TodayDate, _} = calendar:local_time(),
     Today = calendar:date_to_gregorian_days(TodayDate),
     Dt = {calendar:gregorian_days_to_date(Today + Offset), Time},
     Tst = calendar:datetime_to_gregorian_seconds(Dt) - 62167219200,
     Tst.
-
-password_can_be_changed(Config) ->
-    % bob logs in with his regular password
-    escalus:story(Config, [{bob, 1}], fun(_Bob) ->
-            skip
-        end),
-    % we change password
-    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"niemakrolika">>}),
-    % he logs with his alternative password
-    escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
-            ignore
-        end),
-    % we can't log with regular passwd anymore
-    try escalus:story(Config, [{bob, 1}], fun(Bob) -> ?PRT("Bob", Bob) end) of
-        _ -> ct:fail("bob connected with old password")
-    catch error:{badmatch, _} ->
-        ok
-    end,
-    % we change it back
-    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"makrolika">>}),
-    % now he logs again with the regular one
-    escalus:story(Config, [{bob, 1}], fun(_Bob) ->
-            just_dont_do_anything
-        end),
-    ok.
 
 stop_start_command_module(_) ->
     %% Precondition: module responsible for resource is started. If we
