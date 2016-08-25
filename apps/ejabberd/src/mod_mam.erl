@@ -836,14 +836,12 @@ fix_rsm(RSM=#rsm_in{id = BExtMessID}) when is_binary(BExtMessID) ->
     RSM#rsm_in{id = MessID}.
 
 
--spec elem_to_start_microseconds(_) -> 'undefined' | non_neg_integer().
+-spec elem_to_start_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
 elem_to_start_microseconds(El) ->
     maybe_microseconds(xml:get_path_s(El, [{elem, <<"start">>}, cdata])).
 
 
--spec elem_to_end_microseconds(_) -> 'undefined' | non_neg_integer().
-elem_to_end_microseconds(El) when is_integer(El) ->
-    El;
+-spec elem_to_end_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
 elem_to_end_microseconds(El) ->
     maybe_microseconds(xml:get_path_s(El, [{elem, <<"end">>}, cdata])).
 
