@@ -49,10 +49,6 @@
         highlightSizeThreshold: 5000
       });
 
-      // Pre load translate...
-      if(window.SwaggerTranslator) {
-        window.SwaggerTranslator.translate();
-      }
       window.swaggerUi = new SwaggerUi({
         url: url,
         dom_id: "swagger-ui-container",
@@ -69,9 +65,6 @@
             });
           }
 
-          if(window.SwaggerTranslator) {
-            window.SwaggerTranslator.translate();
-          }
         },
         onFailure: function(data) {
           log("Unable to Load SwaggerUI");
