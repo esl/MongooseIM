@@ -4,7 +4,7 @@ MongooseIM is basically a huge router, that comes with a large set of modules. T
 
 For a reminder, MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
 
-## MongooseIM and its ecosystem in a datacenter
+## Outside MongooseIM: ecosystem in a datacenter
 
 ### Databases
 
