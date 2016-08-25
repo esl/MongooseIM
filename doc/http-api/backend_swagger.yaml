@@ -1,0 +1,482 @@
+# Example YAML to get you started quickly.
+# Be aware that YAML has indentation based scoping.
+# Code completion support is available so start typing for available options.
+swagger: '2.0'
+
+# This is your document metadata
+info:
+  version: "0.0.0"
+  title: MongooseIM control backend REST API
+  description: This REST API provides similar control functionaly to the `mongooseimctl` command. The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl` though the final API will need to be consistent with the MongooseIM's **command registry**.
+schemes:
+  - http
+basePath: /api
+produces:
+  - application/json
+paths:
+  /commands:
+    get:
+      description: List the available commands for administering MongooseIM.
+      responses:
+        200:
+          description: A list of information for all the currently available commands
+          schema:
+            title: commandList
+            type: array
+            items:
+              title: commandDescription
+              type: object
+              properties:
+                name:
+                  type: string
+                category:
+                  type: string
+                action:
+                  type: string
+                desc:
+                  type: string
+  /users/{XMPPHost}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname under which users will be registered. I.e. the later part of their JID
+        required: true
+        type: string
+        format: hostname
+    get:
+      description: Retrieve a list of users registered under the given XMPP hostname.
+      responses:
+        200:
+          description: A list of users registered under the given XMPP hostname.
+          schema:
+            title: userList
+            type: array
+            items:
+              title: JID
+              type: string
+              format: JID
+    post:
+      parameters:
+        - name: Credentials
+          in: body
+          description: Credentials with which to register the user
+          required: true
+          schema:
+            title: Credentials
+            type: object
+            properties:
+              username:
+                type: string
+              password:
+                type: string
+      description: Register a user under the given domain.
+      responses:
+        201:
+          description: A user with the given username and password has been registered
+          schema:
+            title: successMessage
+            type: string
+  /users/{XMPPHost}/{username}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname under which the user is registered. I.e. the later part of their JID
+        required: true
+        type: string
+        format: hostname
+      - name: username
+        in: path
+        description: The username part of the user's JID
+        required: true
+        type: string
+    put:
+      parameters:
+        - name: password
+          in: body
+          description: The new password for the user
+          required: true
+          schema:
+            title: newpass
+            type: string
+      description: Change the user's password.
+      responses:
+        200:
+          description: Password has been changed
+    delete:
+      description: Cancel a user's registration under the given domain.
+      responses:
+        200:
+          description: The user's registration has been successfully canceled
+          schema:
+            title: successMessage
+            type: string
+  /sessions/{XMPPHost}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname.
+        required: true
+        type: string
+        format: hostname
+    get:
+      description: Retrieve a list of sessions.
+      responses:
+        200:
+          description: A list of sessions.
+          schema:
+            title: userList
+            type: array
+            items:
+              title: JID
+              type: string
+              format: JID
+  /sessions/{XMPPHost}/{username}/{resource}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname.
+        required: true
+        type: string
+        format: hostname
+      - name: username
+        in: path
+        description: The leading part of a user's JID.
+        required: true
+        type: string
+      - name: resource
+        in: path
+        description: A resource name for the given user.
+        required: true
+        type: string
+    delete:
+      description: Terminate this session (connection).
+      responses:
+        200:
+          description: Session (connection) terminated.
+          schema:
+            title: userList
+            type: string
+  /messages:
+    get:
+      description: Retrieve a list of users registered under the given XMPP hostname.
+      responses:
+        200:
+          description: A list of users registered under the given XMPP hostname.
+          schema:
+            title: userList
+            type: array
+            items:
+              title: JID
+              type: string
+              format: JID
+    post:
+      parameters:
+        - name: chatStanza
+          in: body
+          description: The chat stanza (with a sender and recipient)
+          required: true
+          schema:
+            title: chatStanza
+            type: object
+            properties:
+              caller:
+                description: the sender of the message
+                type: string
+                format: JID
+              to:
+                description: the recipient of the message
+                type: string
+                format: JID
+              msg:
+                description: the message text
+                type: string
+      description: Send a chat message from one user to another.
+      responses:
+        200:
+          description: Message was sent
+  /messages/{caller}/{other}/{limit}:
+    get:
+      parameters:
+        - name: caller
+          in: path
+          description: The user archive in question
+          required: true
+          type: string
+        - name: other
+          in: path
+          description: The other party
+          required: true
+          type: string
+        - name: limit
+          in: path
+          description: An upper bound on the number of messages to fetch from the archive
+          required: true
+          type: integer
+      description: Retrieve recent message from archive.
+      responses:
+        200:
+          description: The messages archived for the given user and the other party
+          schema:
+            title: records
+            type: array
+            items:
+              title: record
+              type: object
+              properties:
+                sender:
+                  type: string
+                  format: JID
+                timestamp:
+                  type: integer
+                message_id:
+                  type: string
+                body:
+                  type: string
+  /muc-lights/{XMPPHost}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname under which to create the MUC Light room
+        required: true
+        type: string
+    post:
+      description: Create a MUC Light room under the given XMPP hostname.
+      consumes:
+        - application/json
+      parameters:
+        - name: roomDetails
+          in: body
+          description: Details for the room to be created
+          required: true
+          schema:
+            title: roomDetails
+            type: object
+            properties:
+              creator:
+                type: string
+                format: JID
+                description: The user's JID on whose behalf to create the room
+              name:
+                type: string
+                description: The name of the room. **NOT** the room's JID. This is the name that goes into the room's configuration.
+              subject:
+                type: string
+      responses:
+        201:
+          description: Room was created
+          schema:
+            title: roomName
+            type: string
+  /muc-lights/{XMPPHost}/{roomName}:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The MUC Light room's **name** (i.e. **not** the room's JID)
+        required: true
+        type: string
+    put:
+      description: Invite one user on behalf of another.
+      consumes:
+        - application/json
+      parameters:
+        -
+          name: invite
+          in: body
+          description: The invite itself
+          required: true
+          schema:
+            title: invite
+            type: object
+            properties:
+              sender:
+                type: string
+                description: The inviter's JID
+              recipient:
+                type: string
+                description: The invitee's JID
+      responses: 
+        200:
+          description: An invite was sent out
+  /muc-lights/{XMPPHost}/{roomName}/messages:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The MUC Light room's **name** (i.e. **not** the room's JID)
+        required: true
+        type: string
+    put:
+      description: Send message to the MUC Light room on behalf of a user.
+      consumes:
+        - application/json
+      parameters:
+        -
+          name: chatMessage
+          in: body
+          description: The message details
+          required: true
+          schema:
+            title: chatMessage
+            type: object
+            properties:
+              sender:
+                type: string
+                description: The sender's JID. Message will be sent on their behalf
+              message:
+                type: string
+                description: The message text
+      responses:
+        200:
+          description: Message was sent to the MUC Light room
+  /mucs/{XMPPHost}:
+    parameters:
+      - name: XMPPHost
+        in: path
+        description: The XMPP hostname under which to create the MUC room
+        required: true
+        type: string
+    post:
+      description: Create a MUC room under the given XMPP hostname.
+      consumes:
+        - application/json
+      parameters:
+        - name: roomDetails
+          in: body
+          description: Details for the room to be created
+          required: true
+          schema:
+            title: roomDetails
+            type: object
+            properties:
+              name:
+                type: string
+                description: A name for the room (the leading part of the JID)
+              owner:
+                type: string
+                description: JID of the room's owner.
+              nick:
+                type: string
+                description: A nickname for the owner.
+      responses:
+        201:
+          description: An invite was sent out
+          schema:
+            title: roomName
+            type: string
+  /mucs/{XMPPHost}/{roomName}:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The leading part of the MUC room's JID
+        required: true
+        type: string
+    put:
+      description: Invite one user on behalf of another.
+      consumes:
+        - application/json
+      parameters:
+        -
+          name: invite
+          in: body
+          description: The invite itself
+          required: true
+          schema:
+            title: invite
+            type: object
+            properties:
+              sender:
+                type: string
+                format: JID
+                description: The inviter's JID
+              recipient:
+                type: string
+                format: JID
+                description: The invitee's JID
+              reason:
+                type: string
+                description: Initial text sent along with the invite
+      responses:
+        200:
+          description: An invite was sent out
+  /mucs/{XMPPHost}/{roomName}/messages:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The leading part of the MUC room's JID
+        required: true
+        type: string
+    put:
+      description: Send message to the MUC room on behalf of a user.
+      consumes:
+        - application/json
+      parameters:
+        -
+          name: chatMessage
+          in: body
+          description: The message details
+          required: true
+          schema:
+            title: chatMessage
+            type: object
+            properties:
+              sender:
+                type: string
+                description: The sender's JID. Message will be sent on their behalf
+              message:
+                type: string
+                description: The message text
+      responses:
+        200:
+          description: Message was sent to the MUC room
+  /mucs/{XMPPHost}/{roomName}/{nickname}:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: roomName
+        in: path
+        description: The leading part of the MUC room's JID
+        required: true
+        type: string
+      -
+        name: nickname
+        in: path
+        description: The user's nickname for the given room
+        required: true
+        type: string
+    delete:
+      description: Kick a user on behalf of one of the room's moderators.
+      responses:
+        200:
+          description: User was kicked from the MUC room
