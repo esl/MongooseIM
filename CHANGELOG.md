@@ -1,3 +1,25 @@
+# MongooseIM 2.0.0beta2
+
+2016-08-29
+
+This release includes:
+
+- REST API for [backend services](http://mongooseim.readthedocs.io/en/2.0.0beta2/swagger/index.html)
+- REST API for [clients](http://mongooseim.readthedocs.io/en/2.0.0beta2/swagger/index.html?client=true)
+- refactored and extended authentication API [#828](https://github.com/esl/MongooseIM/pull/828)
+- improved support for [XEP-0079: Advanced Message Processing](http://xmpp.org/extensions/xep-0079.html) [#833](https://github.com/esl/MongooseIM/pull/833)
+- other improvements:
+   - ditched support for Erlang R16 [#871](https://github.com/esl/MongooseIM/pull/871)
+   - improved support for SSL options in cowboy listeners [#889](https://github.com/esl/MongooseIM/pull/889), [#893](https://github.com/esl/MongooseIM/pull/893)
+   - HTTP authentication in MUC [#894](https://github.com/esl/MongooseIM/pull/894)
+   - improved support for blocking commands [#900](https://github.com/esl/MongooseIM/pull/900), [#920](https://github.com/esl/MongooseIM/pull/920)
+   - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222016-02-13..2016-06-28%22%20sort%3Acreated-asc%20)
+   - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222016-02-13..2016-06-28%22%20)
+
+Special thanks to our contributors: @bernardd, @igors, @arkdro
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2016-06-29&to=2016-08-29&type=c)
+
 # MongooseIM 2.0.0beta1
 
 2016-06-28
