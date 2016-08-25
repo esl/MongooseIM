@@ -287,7 +287,7 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
     {AmpEvent, PacketAfterArchive} =
-        case ejabberd_users:is_user_exists(LUser, LServer) of
+        case ejabberd_users:does_user_exist(LUser, LServer) of
             false ->
                 {mam_failed, Packet};
             true ->

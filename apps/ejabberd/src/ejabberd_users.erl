@@ -4,7 +4,7 @@
 -export([start/1,
          stop/1,
          start_link/2,
-         is_user_exists/2]).
+         does_user_exist/2]).
 
 %% Hooks.
 -export([remove_user/2]).
@@ -68,13 +68,13 @@ start_link(ProcName, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host], []).
 
 
--spec is_user_exists(LUser :: ejabberd:luser(),
+-spec does_user_exist(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver() | string()) -> boolean().
-is_user_exists(LUser, LServer) ->
-    case is_cached_user_exists(LUser, LServer) of
+does_user_exist(LUser, LServer) ->
+    case does_cached_user_exist(LUser, LServer) of
         true -> true;
         false ->
-            case is_stored_user_exists(LUser, LServer) of
+            case does_stored_user_exist(LUser, LServer) of
                 true ->
                     put_user_into_cache(LUser, LServer),
                     true;
@@ -168,8 +168,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% Helpers
 %%====================================================================
 
--spec is_stored_user_exists(ejabberd:luser(), ejabberd:lserver()) -> boolean().
-is_stored_user_exists(LUser, LServer) ->
+-spec does_stored_user_exist(ejabberd:luser(), ejabberd:lserver()) -> boolean().
+does_stored_user_exist(LUser, LServer) ->
     ejabberd_auth:is_user_exists(LUser, LServer)
     andalso not is_anonymous_user(LUser, LServer).
 
@@ -184,8 +184,8 @@ is_anonymous_user(LUser, LServer) ->
     end.
 
 
--spec is_cached_user_exists(ejabberd:luser(), ejabberd:lserver() | string()) -> boolean().
-is_cached_user_exists(LUser, LServer) ->
+-spec does_cached_user_exist(ejabberd:luser(), ejabberd:lserver() | string()) -> boolean().
+does_cached_user_exist(LUser, LServer) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(LServer),
     ets:info(Tab) =/= undefined andalso ets:member(Tab, Key).
