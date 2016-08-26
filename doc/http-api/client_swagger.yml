@@ -6,23 +6,39 @@ info:
     This API described alternate, to XMPP way of using MongooseIM.
     All the requests require authantication. Thanks to that the server always knows
     who sent the request and can decide whether given user is authorized or not
-basePath: /v1
+basePath: /api
 schemes:
   - https
 paths:
   /messages:
+    post:
+      description: Sends messages
+      parameters:
+        - in: body
+          name: message
+          description: the message to be sent
+          required: true
+          schema:
+            $ref: '#/definitions/SendMessage'
+      responses:
+        200:
+          description: Message was successfully sent
+  /messages/{with}/{limit}:
     get:
       description: |
         Gets recent messages from the archive. For the authenticated users.
-        Optional query param of **size** determines
-        size of returned array
       parameters:
-        - name: size
-          in: query
-          description: Number of recent messages to return. Default is 50
-          required: false
-          type: number
-          format: integer
+        - name: with
+          type: string
+          description: JID of the user with whom the
+          in: path
+          required: true
+        - name: limit
+          in: path
+          description: Number of recent messages to return. Lower than 500
+          required: true
+          type: integer
+          format: int64
       responses:
         200:
           description: Successful response
@@ -30,156 +46,34 @@ paths:
             title: Messages
             type: array
             items:
-              $ref: '#/definitions/Message'
-    post:
-      description: Sends a one-to-one message to given recipient
-      parameters:
-        - name: message
-          in: body
-          description: The message to be sent.
-          required: true
-          schema:
-            title: Message
-            properties:
-              to:
-                type: string
-                description: recipient's JID
-              body:
-                type: string
-      responses:
-        200:
-          description: The message was sent.
-          schema:
-            title: MessageID
-            type: string
-  /groups:
-    get:
-      description: Returns all groups to which the user is subscribed
-      parameters:
-        - name: size
-          in: query
-          description: Number of recent messages to return. Default is 50
-          required: false
-          type: number
-          format: integer
-      responses:
-        200:
-          description: List of groups
-          schema:
-            title: Groups
-            type: array
-            items:
-              $ref: '#/definitions/Group'
-    post:
-      description: Creates a new group
-      parameters:
-       - name: group
-         in: body
-         description: Creates a new group of given name and sends invitation to specified users.
-         schema:
-           title: Group
-           properties:
-             id:
-               $ref: '#/definitions/JID'
-             name:
-               type: string
-             occupants:
-               type: array
-               items:
-                 $ref: '#/definitions/JID'
-      responses:
-        200:
-          description: OK
-  /groups/{id}:
-    get:
-      description: Returns detailed information about given group.
-      parameters:
-        - name: id
-          in: path
-          description: Group's unique ID as described in the JID definition.
-          type: string
-          required: true
-      responses:
-        200:
-          description: OK
-          schema:
-            title: Group
-            properties:
-              name:
-                type: string
-              occupant:
-                type: array
-                items:
-                  $ref: '#/definitions/JID'
-  /groups/{id}/messages:
-    get:
-      description: Returns messages exchanged in given group. TODO pagination
-      parameters:
-        - name: id
-          in: path
-          description: Group's unique id as described in the JID definition.
-          type: string
-          required: true
-        - name: size
-          in: query
-          description: Number of recent messages to return. Default is 50
-          required: false
-          type: number
-          format: integer
-      responses:
-        200:
-          description: List messages
-          schema:
-            title: ListOfMessages
-            type: array
-            items:
-              $ref: '#/definitions/Message'
-    post:
-      description: Sends a message to given group
-      parameters:
-        - in: path
-          name: id
-          description: Group's unique ID as described in the JID definition.
-          required: true
-          type: string
-        - in: body
-          name: message
-          description: The message to be sent to the group
-          required: true
-          schema:
-            title: Message
-            type: string
-      responses:
-        200:
-          description: Sent message ID
-          schema:
-            title: MessageID
-            type: string
+              $ref: '#/definitions/RecvMessage'
 security:
   - mongoose_basic_auth: []
 securityDefinitions:
   mongoose_basic_auth:
     type: basic
 definitions:
-  Message:
+  SendMessage:
     properties:
-      from:
-        $ref: '#/definitions/JID'
       to:
         $ref: '#/definitions/JID'
-      id:
+      msg:
+        type: string
+  RecvMessage:
+    properties:
+      sender:
+        $ref: '#/definitions/JID'
+      timestamp:
+        type: integer
+        description: Unix timestamp in seconds when the message was sent
+      message_id:
         type: string
       body:
         type: string
+        description: Message content
   JID:
     type: string
     description: |
       This is user's JID (Jabber ID) which consist of username and server.
       Example: alice@wonderland.com
-  Group:
-    properties:
-      id:
-        $ref: '#/definitions/JID'
-      name:
-        type: string
 
