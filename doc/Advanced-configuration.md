@@ -202,6 +202,12 @@ See [Database backends configuration](./advanced-configuration/database-backends
     * **Description:** Default language for messages sent by server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls apps/ejabberd/priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
     * **Default:** `en`
 
+### Miscellaneous
+
+* **all_metrics_are_global** (local)
+    * **Description:** When enabled, all per-host metrics are merged into global equivalents. It means it is no longer possible to view individual host1, host2, host3, ... metrics, only sums are available. This option significantly reduces CPU and (especially) memory footprint in setups with exceptionally many domains (thousands, tens of thousands).
+    * **Default:** `false`
+
 ### Modules
 
 For specific configuration, please refer to [Modules](advanced-configuration/Modules.md) page.
