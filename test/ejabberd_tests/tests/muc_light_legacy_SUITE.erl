@@ -848,5 +848,5 @@ set_default_mod_config() ->
 
 -spec set_mod_config(K :: atom(), V :: any()) -> ok.
 set_mod_config(K, V) ->
-    true = rpc(mod_muc_light, set_opt, [?MUCHOST, K, V]).
+    true = rpc(gen_mod, set_module_opt_by_subhost, [?MUCHOST, mod_muc_light, K, V]).
 

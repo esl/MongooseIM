@@ -40,9 +40,9 @@
          get_opt_subhost/2,
          set_opt/3,
          get_module_opt/4,
-         get_module_opt_by_subhost/4,
+         get_module_opt_by_subhost/3,
          set_module_opt/4,
-         set_module_opt_by_subhost/4,
+         set_module_opt_by_subhost/3,
          get_module_subhost/2,
          get_module_and_host_by_subhost/1,
          loaded_modules/1,
@@ -203,12 +203,10 @@ is_app_running(AppName) ->
 %% @doc Stop the module in a host, and forget its configuration.
 -spec stop_module(ejabberd:server(), module()) -> 'error' | {'aborted',_} | {'atomic',_}.
 stop_module(Host, Module) ->
-    SubHost = get_module_subhost(Host, Module),
     case stop_module_keep_config(Host, Module) of
         error ->
             error;
         ok ->
-            ets:delete(ejabberd_modules_subhosts, {Module, SubHost}),
             del_module_mnesia(Host, Module)
     end.
 
@@ -232,6 +230,7 @@ stop_module_keep_config(Host, Module) ->
             ets:delete(ejabberd_modules, {Module, Host}),
             ok;
         _ ->
+            ets:delete(ejabberd_modules_subhosts, get_module_subhost(Host, Module)),
             ets:delete(ejabberd_modules, {Module, Host}),
             ok
     end.
@@ -316,9 +315,9 @@ get_module_opt(Host, Module, Opt, Default) ->
             get_opt(Opt, Opts, Default)
     end.
 
--spec get_module_opt_by_subhost(SubHost :: ejabberd:server(), Module :: module(),
-                                Opt :: term(), Default :: term()) -> term().
-get_module_opt_by_subhost(SubHost, Module, Opt, Default) ->
+-spec get_module_opt_by_subhost(
+        SubHost :: ejabberd:server(), Opt :: term(), Default :: term()) -> term().
+get_module_opt_by_subhost(SubHost, Opt, Default) ->
     {Module, Host} = get_module_and_host_by_subhost(SubHost),
     get_module_opt(Host, Module, Opt, Default).
 
@@ -336,9 +335,9 @@ set_module_opt(Host, Module, Opt, Value) ->
                                {#ejabberd_module.opts, Updated})
     end.
 
--spec set_module_opt_by_subhost(SubHost :: ejabberd:server(), Module :: module(),
-                                Opt :: term(), Value :: term()) -> boolean().
-set_module_opt_by_subhost(SubHost, Module, Opt, Value) ->
+-spec set_module_opt_by_subhost(
+        SubHost :: ejabberd:server(), Opt :: term(), Value :: term()) -> boolean().
+set_module_opt_by_subhost(SubHost, Opt, Value) ->
     {Module, Host} = get_module_and_host_by_subhost(SubHost),
     set_module_opt(Host, Module, Opt, Value).
 

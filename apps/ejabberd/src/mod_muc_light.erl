@@ -49,7 +49,6 @@
 %% API
 -export([standard_config_schema/0, standard_default_config/0]).
 -export([config_schema/1, default_config/1]).
--export([get_opt/3, set_opt/3]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
@@ -79,8 +78,6 @@
 -include("mod_muc_light.hrl").
 -include("mod_roster.hrl").
 
--define(CONFIG_TAB, muc_light_config).
-
 %%====================================================================
 %% API
 %%====================================================================
@@ -92,23 +89,10 @@ standard_config_schema() -> ["roomname", "subject"].
 standard_default_config() -> [{"roomname", "Untitled"}, {"subject", ""}].
 
 -spec default_config(MUCServer :: ejabberd:lserver()) -> config().
-default_config(MUCServer) -> get_opt(MUCServer, default_config, []).
+default_config(MUCServer) -> gen_mod:get_module_opt_by_subhost(MUCServer, default_config, []).
 
 -spec config_schema(MUCServer :: ejabberd:lserver()) -> config_schema().
-config_schema(MUCServer) -> get_opt(MUCServer, config_schema, undefined).
-
--spec get_opt(MUCServer :: ejabberd:lserver(), OptName :: atom(), Default :: any()) -> any().
-get_opt(MUCServer, OptName, Default) ->
-    [{_, Opts}] = ets:lookup(?CONFIG_TAB, MUCServer),
-    case lists:keyfind(OptName, 1, Opts) of
-        false -> Default;
-        {_, Val} -> Val
-    end.
-
--spec set_opt(MUCServer :: ejabberd:lserver(), OptName :: atom(), Value :: any()) -> any().
-set_opt(MUCServer, OptName, Value) ->
-    [{_, Opts}] = ets:lookup(?CONFIG_TAB, MUCServer),
-    ets:insert(?CONFIG_TAB, {MUCServer, lists:keystore(OptName, 1, Opts, {OptName, Value})}).
+config_schema(MUCServer) -> get_mod:get_module_opt_by_subhost(MUCServer, config_schema, undefined).
 
 %%====================================================================
 %% gen_mod callbacks
@@ -148,24 +132,16 @@ start(Host, Opts) ->
     ejabberd_hooks:add(muc_room_pid, MyDomain, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:add(can_access_room, MyDomain, ?MODULE, can_access_room, 50),
 
-    EjdSupPid = whereis(ejabberd_sup),
-    HeirOpt = case self() =:= EjdSupPid of
-                  true -> [];
-                  false -> [{heir, EjdSupPid, testing}] % for dynamic start from tests
-              end,
-    catch ets:new(?CONFIG_TAB, [set, public, named_table, {read_concurrency, true} | HeirOpt]),
-    ets:insert(?CONFIG_TAB, {MyDomain, Opts}),
-
     %% Prepare config schema
     ConfigSchema = mod_muc_light_utils:make_config_schema(
                      gen_mod:get_opt(config_schema, Opts, standard_config_schema())),
-    set_opt(MyDomain, config_schema, ConfigSchema),
+    gen_mod:set_module_opt(Host, ?MODULE, config_schema, ConfigSchema),
 
     %% Prepare default config
     DefaultConfig = mod_muc_light_utils:make_default_config(
                       gen_mod:get_opt(default_config, Opts, standard_default_config()),
                       ConfigSchema),
-    set_opt(MyDomain, default_config, DefaultConfig),
+    gen_mod:set_module_opt(Host, ?MODULE, default_config, DefaultConfig),
 
     ok.
 
@@ -173,8 +149,6 @@ start(Host, Opts) ->
 stop(Host) ->
     MyDomain = gen_mod:get_module_subhost(Host, ?MODULE),
     ejabberd_router:unregister_route(MyDomain),
-
-    ets:delete(?CONFIG_TAB, MyDomain),
 
     ?BACKEND:stop(Host, MyDomain),
 
@@ -203,7 +177,8 @@ route(From, To, Packet) ->
                      DecodedPacket :: mod_muc_light_codec:decode_result(),
                      OrigPacket :: jlib:xmlel()) -> any().
 process_packet(From, To, {ok, {set, #create{} = Create}}, OrigPacket) ->
-    RoomsPerUser = get_opt(To#jid.lserver, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
+    RoomsPerUser = gen_mod:get_module_opt_by_subhost(
+                     To#jid.lserver, ?MODULE, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
     FromUS = jid:to_lus(From),
     case RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(FromUS)) < RoomsPerUser of
         true ->
@@ -217,7 +192,7 @@ process_packet(From, To, {ok, {get, #disco_info{} = DI}}, _OrigPacket) ->
 process_packet(From, To, {ok, {get, #disco_items{} = DI}}, OrigPacket) ->
     handle_disco_items_get(From, To, DI, OrigPacket);
 process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, OrigPacket) ->
-    case get_opt(To#jid.lserver, blocking, ?DEFAULT_BLOCKING) of
+    case gen_mod:get_module_opt_by_subhost(To#jid.lserver, ?MODULE, blocking, ?DEFAULT_BLOCKING) of
         true ->
             case handle_blocking(From, To, Blocking) of
                 ok ->
@@ -265,7 +240,8 @@ prevent_service_unavailable(_From, _To, Packet) ->
 -spec get_muc_service(Acc :: {result, [jlib:xmlel()]}, From :: ejabberd:jid(), To :: ejabberd:jid(),
                       NS :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]}.
 get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
-    XMLNS = case get_opt(LServer, legacy_mode, ?DEFAULT_LEGACY_MODE) of
+    XMLNS = case gen_mod:get_module_opt_by_subhost(
+                   LServer, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
@@ -308,7 +284,8 @@ add_rooms_to_roster(Acc, UserUS) ->
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
 process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
     MUCHost = gen_mod:get_module_subhost(FromS, ?MODULE),
-    case {?CODEC:decode(From, To, IQ), get_opt(MUCHost, blocking, ?DEFAULT_BLOCKING)} of
+    case {?CODEC:decode(From, To, IQ), gen_mod:get_module_opt_by_subhost(
+                                         MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
             Items = ?BACKEND:get_blocking(jid:to_lus(From)),
             ?CODEC:encode({get, Blocking#blocking{ items = Items }}, From, jid:to_lus(To),
@@ -325,7 +302,8 @@ process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
 process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
     MUCHost = gen_mod:get_module_subhost(FromS, ?MODULE),
-    case {?CODEC:decode(From, To, IQ), get_opt(MUCHost, blocking, ?DEFAULT_BLOCKING)} of
+    case {?CODEC:decode(From, To, IQ), gen_mod:get_module_opt_by_subhost(
+                                         MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->
             case lists:any(fun({_, _, {WhoU, WhoS}}) ->
                                    WhoU =:= <<>> orelse WhoS =:= <<>>
@@ -401,7 +379,8 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
     {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
     InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
                         CreatorUS, RoomUS, CreationCfg#create.aff_users),
-    MaxOccupants = get_opt(RoomJID#jid.lserver, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+    MaxOccupants = gen_mod:get_module_opt_by_subhost(
+                     RoomJID#jid.lserver, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
     case {mod_muc_light_utils:process_raw_config(
             RawConfig, default_config(RoomS), config_schema(RoomS)),
           process_create_aff_users_if_valid(RoomS, CreatorUS, InitialAffUsers)} of
@@ -429,7 +408,8 @@ process_create_aff_users_if_valid(MUCServer, Creator, AffUsers) ->
                        ({_, Aff}) -> Aff =:= none end, AffUsers) of
         false ->
             process_create_aff_users(
-              Creator, AffUsers, get_opt(MUCServer, equal_occupants, ?DEFAULT_EQUAL_OCCUPANTS));
+              Creator, AffUsers, gen_mod:get_module_opt_by_subhost(
+                                   MUCServer, ?MODULE, equal_occupants, ?DEFAULT_EQUAL_OCCUPANTS));
         true ->
             {error, bad_request}
     end.
@@ -461,7 +441,8 @@ handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
                                 fun ejabberd_router:route/3);
         Rooms ->
             RoomsInfo = get_rooms_info(lists:sort(Rooms)),
-            RoomsPerPage = get_opt(To#jid.lserver, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
+            RoomsPerPage = gen_mod:get_module_opt_by_subhost(
+                             To#jid.lserver, ?MODULE, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
             case apply_rsm(RoomsInfo, length(RoomsInfo),
                            page_service_limit(DiscoItems0#disco_items.rsm, RoomsPerPage)) of
                 {ok, RoomsInfoSlice, RSMOut} ->
