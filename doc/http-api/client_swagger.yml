@@ -47,6 +47,35 @@ paths:
             type: array
             items:
               $ref: '#/definitions/RecvMessage'
+  /messages/{with}/{timestamp}/{limit}:
+    get:
+      description: |
+        Gets recent messages from the archive. For the authenticated users.
+      parameters:
+        - name: with
+          type: string
+          description: JID of the user with whom the
+          in: path
+          required: true
+        - name: timestamp
+          type: integer
+          description: Timestamp in seconds. Retunred messages will be older then the provided timestamp
+          in: path
+          required: true
+        - name: limit
+          in: path
+          description: Number of recent messages to return. Lower than 500
+          required: true
+          type: integer
+          format: int64
+      responses:
+        200:
+          description: Successful response
+          schema:
+            title: Messages
+            type: array
+            items:
+              $ref: '#/definitions/RecvMessage'
 security:
   - mongoose_basic_auth: []
 securityDefinitions:
@@ -76,4 +105,3 @@ definitions:
     description: |
       This is user's JID (Jabber ID) which consist of username and server.
       Example: alice@wonderland.com
-
