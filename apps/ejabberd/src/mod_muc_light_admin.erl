@@ -106,8 +106,7 @@ commands() ->
 
 create_unique_room(Domain, RoomName, Creator, Subject) ->
     C = jid:to_lus(jid:from_binary(Creator)),
-    MUCLightDomain = gen_mod:get_module_opt_host(Domain, mod_muc,
-                                            <<"muclight.@HOST@">>),
+    MUCLightDomain = gen_mod:get_module_subhost(Domain, mod_muc_light),
     MUCService = jid:make(<<>>, MUCLightDomain, <<>>),
     Config = make_room_config(RoomName, Subject),
     case mod_muc_light:try_to_create_room(C, MUCService, Config) of

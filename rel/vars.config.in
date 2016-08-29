@@ -29,7 +29,7 @@
                 "%{ldap_search_operator, 'or'}, %% either 'or' or 'and'\n"
                 "%{ldap_binary_search_fields, [<<\"PHOTO\">>]},\n"
                 "%% list of binary search fields (as in vcard after mapping)\n"
-                "%{host, directory.@HOST@}\n"
+                "{host, \"vjud.@HOST@\"}\n"
                 "]},"}.
 
 {sm_backend, "{mnesia, []}"}.

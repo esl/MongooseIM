@@ -110,7 +110,7 @@ create_instant_room(Host, Name, Owner, Nick) ->
     %% the HTTP API, they will certainly recieve stanzas as a
     %% consequence, even if their client(s) did not initiate this.
     OwnerJID = jid:binary_to_bare(Owner),
-    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
+    MUCHost = gen_mod:get_module_subhost(Host, mod_muc),
     UserRoomJID = jid:make(Name, MUCHost, Nick),
     BareRoomJID = jid:make(Name, MUCHost, <<"">>),
     %% Send presence to create a room.
@@ -171,7 +171,7 @@ kick_user_from_room(Host, Name, Nick) ->
 %%--------------------------------------------------------------------
 
 room_address(Name, Host) ->
-    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
+    MUCHost = gen_mod:get_module_subhost(Host, mod_muc),
     <<Name/binary, $@, MUCHost/binary>>.
 
 room_address(Name, Host, Nick) ->

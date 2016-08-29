@@ -276,7 +276,7 @@ init([Host, Opts]) ->
     mnesia:add_table_copy(muc_room, node(), disc_copies),
     mnesia:add_table_copy(muc_registered, node(), disc_copies),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
-    MyHost = gen_mod:get_opt_host(Host, Opts, <<"conference.@HOST@">>),
+    MyHost = gen_mod:get_opt_subhost(Host, Opts),
     update_tables(MyHost),
     clean_table_from_bad_node(node(), MyHost),
     mnesia:add_table_index(muc_registered, nick),

@@ -140,7 +140,7 @@ start(Host, Opts) ->
             end,
     gen_mod:start_backend_module(mod_muc_light_codec, [{backend, Codec}], []),
 
-    MyDomain = gen_mod:get_opt_host(Host, Opts, ?DEFAULT_HOST),
+    MyDomain = gen_mod:get_opt_subhost(Host, Opts),
     ?BACKEND:start(Host, MyDomain),
     ejabberd_router:register_route(MyDomain, {apply, ?MODULE, route}),
 
@@ -171,7 +171,7 @@ start(Host, Opts) ->
 
 -spec stop(Host :: ejabberd:server()) -> ok.
 stop(Host) ->
-    MyDomain = gen_mod:get_module_opt_host(Host, ?MODULE, ?DEFAULT_HOST),
+    MyDomain = gen_mod:get_module_subhost(Host, ?MODULE),
     ejabberd_router:unregister_route(MyDomain),
 
     ets:delete(?CONFIG_TAB, MyDomain),
@@ -269,9 +269,9 @@ get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
-    Host = gen_mod:get_module_opt_host(LServer, ?MODULE, ?DEFAULT_HOST),
+    SubHost = gen_mod:get_module_subhost(LServer, ?MODULE),
     Item = [#xmlel{name = <<"item">>,
-                   attrs = [{<<"jid">>, Host},
+                   attrs = [{<<"jid">>, SubHost},
                             {<<"node">>, XMLNS}]}],
     {result, [Item | Nodes]};
 get_muc_service(Acc, _From, _To, _Node, _Lang) ->
@@ -307,7 +307,7 @@ add_rooms_to_roster(Acc, UserUS) ->
                      IQ :: #iq{}, ActiveList :: binary()) ->
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
 process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
-    MUCHost = gen_mod:get_module_opt_host(FromS, ?MODULE, ?DEFAULT_HOST),
+    MUCHost = gen_mod:get_module_subhost(FromS, ?MODULE),
     case {?CODEC:decode(From, To, IQ), get_opt(MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
             Items = ?BACKEND:get_blocking(jid:to_lus(From)),
@@ -324,7 +324,7 @@ process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList
 -spec process_iq_set(Acc :: any(), From :: #jid{}, To :: #jid{}, IQ :: #iq{}) ->
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
 process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
-    MUCHost = gen_mod:get_module_opt_host(FromS, ?MODULE, ?DEFAULT_HOST),
+    MUCHost = gen_mod:get_module_subhost(FromS, ?MODULE),
     case {?CODEC:decode(From, To, IQ), get_opt(MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->
             case lists:any(fun({_, _, {WhoU, WhoS}}) ->

@@ -265,7 +265,7 @@ encode_meta({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers},
                        Affs#affiliations.aff_users, HandleFun),
     {iq_reply, Affs#affiliations.id};
 encode_meta({get, #blocking{} = Blocking}, SenderBareJID, _SenderJID, _HandleFun) ->
-    MUCHost = gen_mod:get_module_opt_host(SenderBareJID#jid.lserver, mod_muc_light, ?DEFAULT_HOST),
+    MUCHost = gen_mod:get_module_subhost(SenderBareJID#jid.lserver, mod_muc_light),
     BlockingEls = [ blocking_to_el(BlockingItem, MUCHost)
                     || BlockingItem <- Blocking#blocking.items ],
     Blocklist = #xmlel{ name = <<"list">>, attrs = [{<<"name">>, ?NS_MUC_LIGHT}],

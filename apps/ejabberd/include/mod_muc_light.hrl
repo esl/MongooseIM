@@ -18,7 +18,6 @@
 -define(DEFAULT_MAX_OCCUPANTS, infinity).
 -define(DEFAULT_ROOMS_PER_PAGE, 10).
 -define(DEFAULT_ROOMS_IN_ROSTERS, false).
--define(DEFAULT_HOST, <<"muclight.@HOST@">>).
 
 -type schema_value_type() :: binary | integer | float.
 -type schema_item() :: {FormFieldName :: binary(), OptionName :: atom(),

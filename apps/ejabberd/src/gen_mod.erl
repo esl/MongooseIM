@@ -37,23 +37,32 @@
          get_opt/2,
          get_opt/3,
          get_opt/4,
-         get_opt_host/3,
+         get_opt_subhost/2,
          set_opt/3,
          get_module_opt/4,
-         get_module_opt_host/3,
+         get_module_opt_by_subhost/4,
          set_module_opt/4,
+         set_module_opt_by_subhost/4,
+         get_module_subhost/2,
+         get_module_and_host_by_subhost/1,
          loaded_modules/1,
          loaded_modules_with_opts/1,
-         get_hosts/2,
          get_module_proc/2,
          backend_code/3,
          is_loaded/2]).
 
 -include("ejabberd.hrl").
 
--record(ejabberd_module, {module_host, opts}).
+-record(ejabberd_module, {module_host, module_subhost, opts}).
 -type ejabberd_module() :: #ejabberd_module{module_host :: {module(), ejabberd:server()},
+                                            module_subhost :: {module(), ejabberd:server()},
                                             opts :: list()}.
+
+-record(ejabberd_module_subhost, {subhost, module, host}).
+-type ejabberd_module_subhost() :: #ejabberd_module_subhost{
+                                      subhost :: ejabberd:server(),
+                                      module :: module(),
+                                      host :: ejabberd:server()}.
 
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
@@ -66,10 +75,10 @@
 
 -spec start() -> 'ok'.
 start() ->
-    ets:new(ejabberd_modules,
-            [named_table,
-             public,
-             {keypos, #ejabberd_module.module_host}]),
+    ets:new(ejabberd_modules, [named_table, public, {keypos, #ejabberd_module.module_host},
+                               {read_concurrency, true}]),
+    ets:new(ejabberd_modules_subhosts, [named_table, public, {read_concurrency, true},
+                                        {keypos, #ejabberd_module_subhost.subhost}]),
     ok.
 
 
@@ -79,11 +88,16 @@ start() ->
 start_module(Host, Module, Opts0) ->
     Opts = clear_opts(Module, Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
-    ets:insert(ejabberd_modules,
-               #ejabberd_module{module_host = {Module, Host},
-                                opts = Opts}),
+    ets:insert(ejabberd_modules, #ejabberd_module{module_host = {Module, Host}, opts = Opts}),
     try
         Res = Module:start(Host, Opts),
+        case catch get_opt_subhost(Host, Opts) of
+            SubHost when is_binary(SubHost) ->
+                ets:insert(ejabberd_modules_subhosts,
+                           #ejabberd_module_subhost{ subhost = SubHost, module = Module,
+                                                     host = Host });
+            _ -> ok
+        end,
         ?DEBUG("Module ~p started for ~p.", [Module, Host]),
         Res
     catch
@@ -189,10 +203,12 @@ is_app_running(AppName) ->
 %% @doc Stop the module in a host, and forget its configuration.
 -spec stop_module(ejabberd:server(), module()) -> 'error' | {'aborted',_} | {'atomic',_}.
 stop_module(Host, Module) ->
+    SubHost = get_module_subhost(Host, Module),
     case stop_module_keep_config(Host, Module) of
         error ->
             error;
         ok ->
+            ets:delete(ejabberd_modules_subhosts, {Module, SubHost}),
             del_module_mnesia(Host, Module)
     end.
 
@@ -300,6 +316,11 @@ get_module_opt(Host, Module, Opt, Default) ->
             get_opt(Opt, Opts, Default)
     end.
 
+-spec get_module_opt_by_subhost(SubHost :: ejabberd:server(), Module :: module(),
+                                Opt :: term(), Default :: term()) -> term().
+get_module_opt_by_subhost(SubHost, Module, Opt, Default) ->
+    {Module, Host} = get_module_and_host_by_subhost(SubHost),
+    get_module_opt(Host, Module, Opt, Default).
 
 %% @doc Non-atomic! You have been warned.
 -spec set_module_opt(ejabberd:server(), module(), _Opt, _Value) -> boolean().
@@ -315,18 +336,32 @@ set_module_opt(Host, Module, Opt, Value) ->
                                {#ejabberd_module.opts, Updated})
     end.
 
+-spec set_module_opt_by_subhost(SubHost :: ejabberd:server(), Module :: module(),
+                                Opt :: term(), Value :: term()) -> boolean().
+set_module_opt_by_subhost(SubHost, Module, Opt, Value) ->
+    {Module, Host} = get_module_and_host_by_subhost(SubHost),
+    set_module_opt(Host, Module, Opt, Value).
 
--spec get_module_opt_host(ejabberd:server(), module(), _) -> ejabberd:server().
-get_module_opt_host(Host, Module, Default) ->
-    Val = get_module_opt(Host, Module, host, Default),
+
+-spec get_opt_subhost(ejabberd:server(), list()) -> ejabberd:server().
+get_opt_subhost(Host, Opts) ->
+    Val = get_opt(host, Opts),
     re:replace(Val, "@HOST@", Host, [global, {return,binary}]).
 
+-spec get_module_subhost(Host :: ejabberd:server(), Module :: module()) -> ejabberd:server().
+get_module_subhost(Host, Module) ->
+    case ets:match(ejabberd_modules_subhosts,
+                   #ejabberd_module_subhost{module = Module, host = Host, subhost = '$1'}) of
+        [[SubHost]] -> SubHost;
+        _ -> undefined
+    end.
 
--spec get_opt_host(ejabberd:server(), list(), _) -> ejabberd:server().
-get_opt_host(Host, Opts, Default) ->
-    Val = get_opt(host, Opts, Default),
-    re:replace(Val, "@HOST@", Host, [global, {return,binary}]).
-
+-spec get_module_and_host_by_subhost(SubHost :: ejabberd:server()) -> {module(), ejabberd:server()}.
+get_module_and_host_by_subhost(SubHost) ->
+    case ets:lookup(ejabberd_modules_subhosts, SubHost) of
+        [#ejabberd_module_subhost{ host = Host, module = Module }] -> {Module, Host};
+        _ -> undefined
+    end.
 
 -spec loaded_modules(ejabberd:server()) -> [module()].
 loaded_modules(Host) ->
@@ -373,20 +408,6 @@ del_module_mnesia(Host, Module) ->
         OtherModules ->
             ejabberd_config:add_local_option({modules, Host}, OtherModules)
     end.
-
-get_hosts(Opts, Prefix) ->
-    case catch gen_mod:get_opt(hosts, Opts) of
-        {'EXIT', _Error1} ->
-            case catch gen_mod:get_opt(host, Opts) of
-                {'EXIT', _Error2} ->
-                    [Prefix ++ Host || Host <- ?MYHOSTS];
-                Host ->
-                    [Host]
-            end;
-        Hosts ->
-            Hosts
-    end.
-
 
 -spec get_module_proc(binary() | string(), module()) -> atom().
 get_module_proc(Host, Base) when is_binary(Host) ->
