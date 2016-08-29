@@ -30,15 +30,47 @@
 
   <script type="text/javascript">
     $(function () {
-      var url = "";
-      if (window.location.host.match("readthedocs")){
-	path = window.location.pathname.match("(.*)/swagger/index.html")[1]
-	url = window.location.protocol + "//" + window.location.hostname
-	url += path + "/http-api/backend_swagger.yaml"
+      var make_spec_url = function(CurrentLocation, SpecFile){
+        var path = CurrentLocation.pathname.match("(.*)/swagger/index.html")[1]
+        var url = CurrentLocation.protocol + "//" + CurrentLocation.hostname
+        return url + path + "/http-api/" + SpecFile
       }
-      else {
-	url = "https://raw.githubusercontent.com/esl/MongooseIM/master/doc/http-api/backend_swagger.yaml"
+
+      var make_backup_spec_url = function(SpecFile) {
+          return "https://raw.githubusercontent.com/esl/MongooseIM/master/doc/http-api/" + SpecFile
       }
+
+      var determine_client_mode = function(Search) {
+	var client = Search.match(/client=([^&]+)/)
+        if (client && client.length > 1) {
+          return client[1] == "true"
+        } else {
+          return false
+        }
+      }
+      var backend_or_client_spec = function(CurrentLocation) {
+	var clientMode = determine_client_mode(CurrentLocation.search)
+        if (clientMode) {
+	  return "client_swagger.yml"
+	} else{
+	  return "backend_swagger.yml"
+	}
+      }
+
+      var get_spec_url = function(CurrentLocation){
+	var SpecFile = backend_or_client_spec(CurrentLocation)
+        if (CurrentLocation.host.match("readthedocs")){
+	  return make_spec_url(CurrentLocation, SpecFile)
+        }
+        else {
+	  return make_backup_spec_url(SpecFile)
+        }
+      }
+
+      var url = get_spec_url(window.location)
+
+      console.log(url)
+
 
       hljs.configure({
         highlightSizeThreshold: 5000
