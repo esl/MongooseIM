@@ -16,7 +16,9 @@
     delete/2,
     maybe_enable_mam/3,
     maybe_disable_mam/2,
-    maybe_skip_mam_test_cases/3
+    maybe_skip_mam_test_cases/3,
+    fill_archive/2,
+    make_timestamp/2
 ]).
 
 -define(PATHPREFIX, <<"/api">>).
@@ -133,13 +135,13 @@ decode(RespBody) ->
 fusco_request({Method, {User, Password}}, Path, Body) ->
     Basic = list_to_binary("basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
     Headers = [{<<"authorization">>, Basic}],
-    fusco_request(Method, Path, Body, Headers, 8089);
+    fusco_request(Method, Path, Body, Headers, 8089, true);
 %% without them it is for admin (secure) interface
 fusco_request(Method, Path, Body) ->
-    fusco_request(Method, Path, Body, [], 8088).
+    fusco_request(Method, Path, Body, [], 8088, false).
 
-fusco_request(Method, Path, Body, HeadersIn, Port) ->
-    {ok, Client} = fusco_cp:start_link({"localhost", Port, false}, [], 1),
+fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
+    {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>} | HeadersIn],
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
     fusco_cp:stop(Client),
@@ -210,4 +212,47 @@ skip_if_mam_disabled(CaseName, Config) ->
         _ ->
             escalus:init_per_testcase(CaseName, Config)
     end.
+
+fill_archive(A, B) ->
+    % here we generate messages sent one, two and three days ago at 10am
+    {TodayDate, _} = calendar:local_time(),
+    Today = calendar:date_to_gregorian_days(TodayDate),
+    put_msg(A, B, <<"A">>, Today - 3),
+    put_msg(B, A, <<"A">>, Today - 3),
+    put_msg(A, B, <<"B">>, Today - 2),
+    put_msg(B, A, <<"B">>, Today - 2),
+    put_msg(A, B, <<"C">>, Today - 1),
+    put_msg(B, A, <<"C">>, Today - 1).
+
+put_msg(Aclient, Bclient, Content, Days) ->
+    DateTime = {calendar:gregorian_days_to_date(Days), {10, 0, 0}},
+    AArcId = make_arc_id(Aclient),
+    BArcId = make_arc_id(Bclient),
+    Msg = mam_helper:generate_msg_for_date_user(AArcId, BArcId, DateTime, Content),
+    put_msg(Msg),
+    ok.
+
+put_msg({{MsgIdOwner, MsgIdRemote},
+    {_FromBin, FromJID, FromArcID},
+    {_ToBin, ToJID, ToArcID},
+    {_, Source, _}, Packet}) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    OutArgs = [Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet],
+    ok = mam_helper:rpc_apply(mod_mam, archive_message, OutArgs),
+    InArgs = [Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet],
+    ok = mam_helper:rpc_apply(mod_mam, archive_message, InArgs).
+
+make_arc_id(Client) ->
+    User = escalus_client:username(Client),
+    Server = escalus_client:server(Client),
+    Bin = escalus_client:short_jid(Client),
+    Jid = mam_helper:rpc_apply(jid, make, [User, Server, <<"">>]),
+    {Bin, Jid, mam_helper:rpc_apply(mod_mam, archive_id, [Server, User])}.
+
+make_timestamp(Offset, Time) ->
+    {TodayDate, _} = calendar:local_time(),
+    Today = calendar:date_to_gregorian_days(TodayDate),
+    Dt = {calendar:gregorian_days_to_date(Today + Offset), Time},
+    calendar:datetime_to_gregorian_seconds(Dt) - 62167219200.
+
 

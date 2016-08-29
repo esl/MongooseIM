@@ -55,6 +55,7 @@ cowboy_router_paths(Base, _Opts) ->
 %% cowboy_rest callbacks
 %%--------------------------------------------------------------------
 
+
 init({_Transport, _}, Req, Opts) ->
     {upgrade, protocol, cowboy_rest, Req, Opts}.
 
