@@ -167,7 +167,12 @@ run_tests() {
   echo
   echo "All tests done."
 
-  if [ $SMALL_STATUS -eq 0 -a $BIG_STATUS -eq 0 -a $BIG_STATUS_BY_SUMMARY -eq 0 ]
+  grep "fail_ci_build=true" ${BASE}/dev/mongooseim_*/log/ejabberd.log
+  # If phrase found than exit with code 1
+  test $? -eq 1
+  LOG_STATUS=$?
+
+  if [ $SMALL_STATUS -eq 0 -a $BIG_STATUS -eq 0 -a $BIG_STATUS_BY_SUMMARY -eq 0 -a $LOG_STATUS -eq 0 ]
   then
     RESULT=0
     echo "Build succeeded"
@@ -177,6 +182,7 @@ run_tests() {
     [ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
     [ $BIG_STATUS_BY_SUMMARY -ne 0 ]   && echo "    big tests failed"
     [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites"
+    [ $LOG_STATUS -ne 0 ]   && echo "    log contains errors"
   fi
 
   exit ${RESULT}
