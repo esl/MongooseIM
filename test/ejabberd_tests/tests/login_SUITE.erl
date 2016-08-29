@@ -224,13 +224,10 @@ check_user_exist(Config) ->
   %% when
   [{_, AdminSpec}] = escalus_users:get_users([admin]),
   [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
-  ok = escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
-  %% then
+  %% admin user already registered
   true = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, AdminS]),
   false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [<<"fake-user">>, AdminS]),
-  false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]),
-  %% cleanup
-  ok = escalus_ejabberd:rpc(ejabberd_auth, remove_user, [AdminU, AdminS]).
+  false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]).
 
 register(Config) ->
     [{Name1, UserSpec1}, {Name2, UserSpec2}] = escalus_users:get_users([alice, bob]),
