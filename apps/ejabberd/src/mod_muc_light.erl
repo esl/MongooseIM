@@ -384,18 +384,19 @@ create_room(From, FromUS, To, Create0, OrigPacket) ->
         {error, exists} ->
             ?CODEC:encode_error({error, conflict}, From, To, OrigPacket,
                                 fun ejabberd_router:route/3);
-        {{error, Error}, _} ->
+        {error, bad_request} ->
+            ?CODEC:encode_error({error, bad_request}, From, To, OrigPacket,
+                                fun ejabberd_router:route/3);
+        {error, Error} ->
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
             ?CODEC:encode_error({error, bad_request, ErrorText}, From, To, OrigPacket,
-                                fun ejabberd_router:route/3);
-        {_, _} ->
-            ?CODEC:encode_error({error, bad_request}, From, To, OrigPacket,
                                 fun ejabberd_router:route/3)
     end.
 
 -spec try_to_create_room(CreatorUS :: ejabberd:simple_bare_jid(), RoomJID :: ejabberd:jid(),
                          CreationCfg :: #create{}) ->
-    {ok, ejabberd:simple_bare_jid(), #create{}} | {error, term()}.
+    {ok, ejabberd:simple_bare_jid(), #create{}}
+    | {error, validation_error() | bad_request | exists}.
 try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = CreationCfg) ->
     {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
     InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
@@ -413,8 +414,10 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
                 Other ->
                     Other
             end;
-        {_, _} = Other ->
-            Other
+        {{error, _} = Error, _} ->
+            Error;
+        _ ->
+            {error, bad_request}
     end.
 
 -spec process_create_aff_users_if_valid(MUCServer :: ejabberd:lserver(),
