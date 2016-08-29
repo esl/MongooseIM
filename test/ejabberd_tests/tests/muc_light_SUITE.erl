@@ -207,49 +207,48 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+-define(ROOM_LESS_CASES, [disco_rooms_empty_page_infinity,
+                          disco_rooms_empty_page_1,
+                          mismatched_default_config_is_rejected]).
+
+-define(CUSTOM_CONFIG_CASES, [set_config_with_custom_schema,
+                              deny_config_change_that_conflicts_with_schema,
+                              no_roomname_in_schema_doesnt_break_disco_and_roster,
+                              custom_default_config_works]).
+
 init_per_testcase(disco_rooms_rsm, Config) ->
     set_default_mod_config(),
     set_mod_config(rooms_per_page, 1),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     create_room(?ROOM2, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     escalus:init_per_testcase(disco_rooms_rsm, Config);
-init_per_testcase(RoomLessCase, Config)
-  when RoomLessCase =:= disco_rooms_empty_page_infinity
-       orelse RoomLessCase =:= disco_rooms_empty_page_1
-       orelse RoomLessCase =:=  mismatched_default_config_is_rejected ->
-    set_default_mod_config(),
-    escalus:init_per_testcase(RoomLessCase, Config);
 init_per_testcase(custom_schema_works_with_standard_default_config = CaseName, Config) ->
     set_default_mod_config(),
     set_custom_config(["roomname", "subject", "background", "music"], standard_default_config()),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     escalus:init_per_testcase(CaseName, Config);
-init_per_testcase(CustomConfigCase, Config)
-  when        CustomConfigCase =:= set_config_with_custom_schema
-       orelse CustomConfigCase =:= deny_config_change_that_conflicts_with_schema
-       orelse CustomConfigCase =:= no_roomname_in_schema_doesnt_break_disco_and_roster
-       orelse CustomConfigCase =:= custom_default_config_works ->
-    set_default_mod_config(),
-    CustomDefaultConfig = [{atom_to_list(K), binary_to_list(V)}
-                           || {K, V} <- custom_default_config()],
-    set_custom_config(["background", "music"], CustomDefaultConfig),
-    create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
-    escalus:init_per_testcase(CustomConfigCase, Config);
 init_per_testcase(CaseName, Config) ->
     set_default_mod_config(),
-    create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
+    case lists:member(CaseName, ?CUSTOM_CONFIG_CASES) of
+        true ->
+            CustomDefaultConfig = [{atom_to_list(K), binary_to_list(V)}
+                                   || {K, V} <- custom_default_config()],
+            set_custom_config(["background", "music"], CustomDefaultConfig);
+        _ ->
+            ok
+    end,
+    case lists:member(CaseName, ?ROOM_LESS_CASES) of
+        false -> create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1));
+        _ -> ok
+    end,
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(CustomConfigCase, Config)
-  when        CustomConfigCase =:= set_config_with_custom_schema
-       orelse CustomConfigCase =:= deny_config_change_that_conflicts_with_schema
-       orelse CustomConfigCase =:= no_roomname_in_schema_doesnt_break_disco_and_roster
-       orelse CustomConfigCase =:= custom_schema_works_with_standard_default_config
-       orelse CustomConfigCase =:= custom_default_config_works ->
-    set_custom_config(standard_config_schema(), standard_default_config()),
-    clear_db(),
-    escalus:end_per_testcase(CustomConfigCase, Config);
 end_per_testcase(CaseName, Config) ->
+    case lists:member(
+           CaseName, [custom_schema_works_with_standard_default_config | ?CUSTOM_CONFIG_CASES]) of
+        true -> set_custom_config(standard_config_schema(), standard_default_config());
+        _ -> ok
+    end,
     clear_db(),
     escalus:end_per_testcase(CaseName, Config).
 
