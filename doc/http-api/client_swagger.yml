@@ -30,7 +30,7 @@ paths:
       parameters:
         - name: with
           type: string
-          description: JID of the user with whom the
+          description: JID of the user with whom the messages were exchanged.
           in: path
           required: true
         - name: limit
@@ -54,12 +54,12 @@ paths:
       parameters:
         - name: with
           type: string
-          description: JID of the user with whom the
+          description: JID of the user with whom the messages were exchanged.
           in: path
           required: true
         - name: timestamp
           type: integer
-          description: Timestamp in seconds. Retunred messages will be older then the provided timestamp
+          description: Timestamp in seconds. Returned messages will be older then the provided timestamp
           in: path
           required: true
         - name: limit
