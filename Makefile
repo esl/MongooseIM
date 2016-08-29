@@ -60,7 +60,7 @@ test: test_node_stopped test_deps
 
 # $ make qtest SUITE=mam_SUITE
 # $ make qtest SUITE="[mam_SUITE,metrics_api_SUITE]"
-qtest: test_node_stopped
+qtest: test_node_stopped check_cfg_backup
 	cp test/ejabberd_tests/qtest.spec.template test/ejabberd_tests/qtest.spec
 	echo "{suites, \"tests\", $(SUITE)}." >> test/ejabberd_tests/qtest.spec
 	cd test/ejabberd_tests;
@@ -121,7 +121,7 @@ configure.out rel/configure.vars.config:
 
 devrel: certs $(DEVNODES)
 
-$(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config
+$(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config remove_config_backups
 	@echo "building $@"
 	(. ./configure.out && \
 	 cd rel && \
@@ -166,5 +166,11 @@ test_deps:
 
 install: configure.out rel
 	@. ./configure.out && tools/install
+
+check_cfg_backup:
+	./tools/check_cfg_backup.sh
+
+remove_config_backups:
+	-@rm -rf dev/*/etc/ejabberd.cfg.bak > /dev/null 2>&1
 
 include tools/cd_tools/cd-targets
