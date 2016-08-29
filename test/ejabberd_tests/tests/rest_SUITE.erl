@@ -34,7 +34,6 @@
          putt/3,
          delete/2]
     ).
--import(mam_helper, [rpc_apply/3]).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
@@ -56,7 +55,7 @@ all() ->
     ].
 
 groups() ->
-    [{admin, [], test_cases()},
+    [{admin, [parallel], test_cases()},
      {dynamic_module, [], [stop_start_command_module]}
     ].
 
@@ -136,7 +135,7 @@ user_can_be_registered_and_removed(_Config) ->
 sessions_are_listed(_) ->
     % no session
     {?OK, Sessions} = gett("/sessions/localhost"),
-    [] = Sessions.
+    true = is_list(Sessions).
 
 session_can_be_kicked(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
@@ -147,7 +146,7 @@ session_can_be_kicked(Config) ->
         {?OK, _} = delete("/sessions/localhost/alice/res1"),
         escalus:wait_for_stanza(Alice),
         {?OK, Sessions2} = gett("/sessions/localhost"),
-        [] = Sessions2
+        assert_notinlist(<<"alice@localhost/res1">>, Sessions2)
     end).
 
 messages_are_sent_and_received(Config) ->
@@ -191,7 +190,7 @@ messages_can_be_paginated(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        fill_archive(Alice, Bob),
+        rest_helper:fill_archive(Alice, Bob),
         mam_helper:maybe_wait_for_yz(Config),
         % recent msgs with a limit
         M1 = get_messages(AliceJID, BobJID, 10),
@@ -199,7 +198,7 @@ messages_can_be_paginated(Config) ->
         M2 = get_messages(AliceJID, BobJID, 3),
         ?assertEqual(3, length(M2)),
         % older messages - earlier then the previous midnight
-        PriorTo = make_timestamp(-1, {0, 0, 1}),
+        PriorTo = rest_helper:make_timestamp(-1, {0, 0, 1}),
         M3 = get_messages(AliceJID, BobJID, PriorTo, 10),
         ?assertEqual(4, length(M3)),
         [Oldest|_] = decode_maplist(M3),
@@ -241,41 +240,6 @@ password_can_be_changed(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-fill_archive(A, B) ->
-    % here we generate messages sent one, two and three days ago at 10am
-    {TodayDate, _} = calendar:local_time(),
-    Today = calendar:date_to_gregorian_days(TodayDate),
-    put_msg(A, B, <<"A">>, Today - 3),
-    put_msg(B, A, <<"A">>, Today - 3),
-    put_msg(A, B, <<"B">>, Today - 2),
-    put_msg(B, A, <<"B">>, Today - 2),
-    put_msg(A, B, <<"C">>, Today - 1),
-    put_msg(B, A, <<"C">>, Today - 1).
-
-put_msg(Aclient, Bclient, Content, Days) ->
-    DateTime = {calendar:gregorian_days_to_date(Days), {10, 0, 0}},
-    AArcId = make_arc_id(Aclient),
-    BArcId = make_arc_id(Bclient),
-    Msg = mam_helper:generate_msg_for_date_user(AArcId, BArcId, DateTime, Content),
-    put_msg(Msg),
-    ok.
-
-put_msg({{MsgIdOwner, MsgIdRemote},
-    {_FromBin, FromJID, FromArcID},
-    {_ToBin, ToJID, ToArcID},
-    {_, Source, _}, Packet}) ->
-    Host = host(),
-    ok = rpc_apply(mod_mam, archive_message, [Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
-    ok = rpc_apply(mod_mam, archive_message, [Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]),
-    ok.
-
-make_arc_id(Client) ->
-    User = escalus_client:username(Client),
-    Server = escalus_client:server(Client),
-    Bin = escalus_client:short_jid(Client),
-    Jid = rpc_apply(jid, make, [User, Server, <<"">>]),
-    {Bin, Jid, rpc_apply(mod_mam, archive_id, [Server, User])}.
-
 get_messages(Me, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Me),
@@ -292,13 +256,6 @@ get_messages(Me, Other, Before, Count) ->
                              "/", integer_to_list(Count)]),
     {?OK, Msgs} = gett(GetPath),
     Msgs.
-
-make_timestamp(Offset, Time) ->
-    {TodayDate, _} = calendar:local_time(),
-    Today = calendar:date_to_gregorian_days(TodayDate),
-    Dt = {calendar:gregorian_days_to_date(Today + Offset), Time},
-    Tst = calendar:datetime_to_gregorian_seconds(Dt) - 62167219200,
-    Tst.
 
 stop_start_command_module(_) ->
     %% Precondition: module responsible for resource is started. If we

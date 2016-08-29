@@ -5,11 +5,12 @@ all() ->
     [{group, all}].
 
 groups() ->
-    [{all, [], test_cases()}].
+    [{all, [parallel], test_cases()}].
 
 test_cases() ->
     [msg_is_sent_and_delivered,
-     messages_are_archived].
+     messages_are_archived,
+     messages_can_be_paginated].
 
 init_per_suite(C) ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -29,7 +30,7 @@ end_per_group(_GN, C) ->
     C.
 
 init_per_testcase(TC, Config) ->
-    MAMTestCases = [messages_are_archived],
+    MAMTestCases = [messages_are_archived, messages_can_be_paginated],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
 end_per_testcase(TC, C) ->
@@ -61,6 +62,31 @@ messages_are_archived(Config) ->
 
     end).
 
+messages_can_be_paginated(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        rest_helper:fill_archive(Alice, Bob),
+        mam_helper:maybe_wait_for_yz(Config),
+        AliceCreds = {AliceJID, user_password(alice)},
+        % recent msgs with a limit
+        M1 = get_messages(AliceCreds, BobJID, 10),
+        6 = length(M1),
+        M2 = get_messages(AliceCreds, BobJID, 3),
+        3 = length(M2),
+        % older messages - earlier then the previous midnight
+        PriorTo = rest_helper:make_timestamp(-1, {0, 0, 1}),
+        M3 = get_messages(AliceCreds, BobJID, PriorTo, 10),
+        4 = length(M3),
+        [Oldest|_] = rest_helper:decode_maplist(M3),
+        <<"A">> = maps:get(body, Oldest),
+        % same with limit
+        M4 = get_messages(AliceCreds, BobJID, PriorTo, 2),
+        2 = length(M4),
+        [Oldest2|_] = rest_helper:decode_maplist(M4),
+        <<"B">> = maps:get(body, Oldest2)
+    end).
+
 user_password(User) ->
     [{User, Props}] = escalus:get_users([User]),
     proplists:get_value(password, Props).
@@ -72,4 +98,19 @@ send_message(User, From, To) ->
     Cred = {AliceJID, user_password(User)},
     {{<<"200">>, <<"OK">>}, _} = rest_helper:post(<<"/messages">>, M, Cred),
     M.
+
+get_messages(MeCreds, Other, Count) ->
+    GetPath = lists:flatten(["/messages/",
+                             binary_to_list(Other),
+                             "/", integer_to_list(Count)]),
+    {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, MeCreds),
+    Msgs.
+
+get_messages(MeCreds, Other, Before, Count) ->
+    GetPath = lists:flatten(["/messages/",
+                             binary_to_list(Other),
+                             "/", integer_to_list(Before),
+                             "/", integer_to_list(Count)]),
+    {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, MeCreds),
+    Msgs.
 
