@@ -57,6 +57,7 @@ pages:
       - 'mod_version': 'modules/mod_version.md'
       - 'mod_websockets': 'modules/mod_websockets.md'
   - 'Operation and maintenance':
+      - 'Cluster management considerations': 'operation-and-maintenance/Cluster-management-considerations.md'
       - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
       - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
