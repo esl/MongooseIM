@@ -135,13 +135,13 @@ decode(RespBody) ->
 fusco_request({Method, {User, Password}}, Path, Body) ->
     Basic = list_to_binary("basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
     Headers = [{<<"authorization">>, Basic}],
-    fusco_request(Method, Path, Body, Headers, 8089);
+    fusco_request(Method, Path, Body, Headers, 8089, true);
 %% without them it is for admin (secure) interface
 fusco_request(Method, Path, Body) ->
-    fusco_request(Method, Path, Body, [], 8088).
+    fusco_request(Method, Path, Body, [], 8088, false).
 
-fusco_request(Method, Path, Body, HeadersIn, Port) ->
-    {ok, Client} = fusco_cp:start_link({"localhost", Port, false}, [], 1),
+fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
+    {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>} | HeadersIn],
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
     fusco_cp:stop(Client),
