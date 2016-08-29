@@ -42,7 +42,8 @@
          process_iq_disco_items/4,
          broadcast_service_message/2,
          can_use_nick/3,
-         room_jid_to_pid/1]).
+         room_jid_to_pid/1,
+         default_host/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -283,7 +284,7 @@ init([Host, Opts]) ->
     mnesia:add_table_copy(muc_room, node(), disc_copies),
     mnesia:add_table_copy(muc_registered, node(), disc_copies),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
-    MyHost = gen_mod:get_opt_host(Host, Opts, <<"conference.@HOST@">>),
+    MyHost = gen_mod:get_opt_subhost(Host, Opts, default_host()),
     update_tables(MyHost),
     clean_table_from_bad_node(node(), MyHost),
     mnesia:add_table_index(muc_registered, nick),
@@ -776,6 +777,8 @@ room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
         {error, not_found}
     end.
 
+-spec default_host() -> list().
+default_host() -> "conference.@HOST@".
 
 -spec iq_disco_info(ejabberd:lang()) -> [jlib:xmlel(),...].
 iq_disco_info(Lang) ->

@@ -108,8 +108,8 @@ commands() ->
 
 create_unique_room(Domain, RoomName, Creator, Subject) ->
     C = jid:to_lus(jid:from_binary(Creator)),
-    MUCLightDomain = gen_mod:get_module_opt_host(Domain, mod_muc_light,
-                                            <<"muclight.@HOST@">>),
+    MUCLightDomain = gen_mod:get_module_opt_subhost(
+                       Domain, mod_muc_light, mod_muc_light:default_host()),
     MUCService = jid:make(<<>>, MUCLightDomain, <<>>),
     Config = make_room_config(RoomName, Subject),
     case mod_muc_light:try_to_create_room(C, MUCService, Config) of
@@ -130,8 +130,8 @@ invite_to_room(Domain, RoomName, Sender, Recipient0) ->
 
 change_affiliation(Domain, RoomID, Sender, Recipient0, Affiliation) ->
     Recipient1 = jid:binary_to_bare(Recipient0),
-    MUCLightDomain = gen_mod:get_module_opt_host(Domain, mod_muc_light,
-                                                 <<"muclight.@HOST@">>),
+    MUCLightDomain = gen_mod:get_module_opt_subhost(Domain, mod_muc_light,
+                                                    mod_muc_light:default_host()),
     R = jid:make(RoomID, MUCLightDomain, <<>>),
     S = jid:binary_to_bare(Sender),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,

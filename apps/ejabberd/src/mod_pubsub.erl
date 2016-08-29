@@ -91,6 +91,7 @@
 -export([start_link/2, start/2, stop/1, init/1,
          handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+-export([default_host/0]).
 
 -export([send_loop/1]).
 
@@ -235,6 +236,10 @@ stop(Host) ->
     ok = supervisor:terminate_child(ejabberd_sup, Proc),
     ok = supervisor:delete_child(ejabberd_sup, Proc).
 
+-spec default_host() -> string().
+default_host() ->
+    "pubsub.@HOST@".
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -252,7 +257,7 @@ stop(Host) ->
 
 init([ServerHost, Opts]) ->
     ?DEBUG("pubsub init ~p ~p", [ServerHost, Opts]),
-    Host = gen_mod:get_opt_host(ServerHost, Opts, <<"pubsub.@HOST@">>),
+    Host = gen_mod:get_opt_subhost(ServerHost, Opts, default_host()),
     Access = gen_mod:get_opt(access_createnode, Opts,
                              fun(A) when is_atom(A) -> A end, all),
     PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts,

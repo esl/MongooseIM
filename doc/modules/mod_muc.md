@@ -2,7 +2,7 @@
 This module implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/xep-0045.html) (MUC). It's a common XMPP group chat solution. This extension consists of two Erlang modules: `mod_muc` and `mod_muc_room`, the latter being the room code itself. Only `mod_muc` needs to be enabled in configuration file though. Also  `mod_muc_log` is a logging submodule.
 
 ### Options
-* `host` (string, default: `"conference.@HOST@"`): Subdomain for MUC service to reside under. `@HOST@` is replaced with each served domain.
+* `host` (string, mandatory, default in config example: `"muc.@HOST@"`): Subdomain for MUC service to reside under. `@HOST@` is replaced with each served domain.
 * `access` (atom, default: `all`): Access Rule to determine who is allowed to use the MUC service.
 * `access_create` (atom, default: `all`): Who is allowed to create rooms.
 * `access_admin` (atom, default: `none`): Who is the administrator in all rooms.
@@ -14,7 +14,7 @@ This module implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/x
 * `max_room_desc` (atom or positive integer, default: `infinite`): Maximum room description length.
 * `min_message_interval` (non-negative integer, default: 0): Minimal interval (in seconds) between messages processed by the room.
 * `min_presence_interval` (non-negative integer, default: 0): Minimal interval (in seconds) between presences processed by the room.
-* `max_user` (positive integer, default: 200): Absolute maximum user count per room on the node.
+* `max_user` (positivmuc default: 200): Absolute maximum user count per room on the node.
 * `max_users_admin_threshold` (positive integer, default: 5): Absolute maximum administrator count per room on the node.
 * `user_message_shaper` (atom, default: `none`): Shaper for user messages processed by a room (global for the room).
 * `user_presence_shaper` (atom, default: `none`): Shaper for user presences processed by a room (global for the room).

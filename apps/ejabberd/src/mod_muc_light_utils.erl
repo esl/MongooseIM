@@ -140,14 +140,17 @@ bin_ts() ->
     boolean().
 room_limit_reached(UserUS, RoomS) ->
     room_limit_reached(
-      UserUS, RoomS, mod_muc_light:get_opt(RoomS, rooms_per_user, ?DEFAULT_ROOMS_PER_USER)).
+      UserUS, RoomS, gen_mod:get_module_opt_by_subhost(
+                       RoomS, mod_muc_light, rooms_per_user, ?DEFAULT_ROOMS_PER_USER)).
 
 -spec filter_out_prevented(FromUS :: ejabberd:simple_bare_jid(),
                           RoomUS :: ejabberd:simple_bare_jid(),
                           AffUsers :: aff_users()) -> aff_users().
 filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
-    RoomsPerUser = mod_muc_light:get_opt(MUCServer, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
-    BlockingQuery = case mod_muc_light:get_opt(MUCServer, blocking, ?DEFAULT_BLOCKING) of
+    RoomsPerUser = gen_mod:get_module_opt_by_subhost(
+                     MUCServer, mod_muc_light, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
+    BlockingQuery = case gen_mod:get_module_opt_by_subhost(
+                           MUCServer, mod_muc_light, blocking, ?DEFAULT_BLOCKING) of
                         true ->
                             [{user, FromUS}
                              | if

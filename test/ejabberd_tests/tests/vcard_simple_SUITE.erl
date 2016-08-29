@@ -454,7 +454,7 @@ configure_ldap_vcards(Config) ->
     CurrentConfigs = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
     dynamic_modules:stop(Domain, mod_vcard),
-    Cfg = [{backend,ldap},
+    Cfg = [{backend,ldap}, {host, "vjud.@HOST@"},
            {ldap_filter,"(objectClass=inetOrgPerson)"},
            {ldap_base,"ou=Users,dc=esl,dc=com"},
            {ldap_search_fields, [{"Full Name","cn"},{"User","uid"}]},

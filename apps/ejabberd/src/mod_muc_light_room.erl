@@ -63,7 +63,8 @@ maybe_forget(_, _) ->
                               NewAffUsers :: aff_users()) ->
     ok | {error, occupant_limit_exceeded}.
 participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
-    MaxOccupants = mod_muc_light:get_opt(MUCServer, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+    MaxOccupants = gen_mod:get_module_opt_by_subhost(
+                     MUCServer, mod_muc_light, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
     case length(NewAffUsers) > MaxOccupants of
         true -> {error, occupant_limit_exceeded};
         false -> ok
@@ -113,8 +114,8 @@ process_request({get, #info{} = InfoReq}, _From, _UserUS, {_, RoomS} = RoomUS, _
                         raw_config = RawConfig }};
 process_request({set, #config{} = ConfigReq}, _From, _UserUS, {_, MUCServer} = RoomUS,
                 {_, UserAff}, AffUsers) ->
-    AllCanConfigure = mod_muc_light:get_opt(
-                        MUCServer, all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE),
+    AllCanConfigure = gen_mod:get_module_opt_by_subhost(
+                        MUCServer, mod_muc_light, all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE),
     process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
 process_request({set, #affiliations{} = AffReq}, _From, UserUS, {_, MUCServer} = RoomUS,
                 {_, UserAff}, AffUsers) ->
@@ -128,8 +129,8 @@ process_request({set, #affiliations{} = AffReq}, _From, UserUS, {_, MUCServer} =
               {ok, mod_muc_light_utils:filter_out_prevented(
                      UserUS, RoomUS, AffReq#affiliations.aff_users)};
           member ->
-              AllCanInvite = mod_muc_light:get_opt(
-                               MUCServer, all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
+              AllCanInvite = gen_mod:get_module_opt_by_subhost(
+                               MUCServer, mod_muc_light, all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
               validate_aff_changes_by_member(
                 AffReq#affiliations.aff_users, [], UserUS, OwnerUS, RoomUS, AllCanInvite)
       end,
