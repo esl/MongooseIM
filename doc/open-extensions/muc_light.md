@@ -1422,7 +1422,7 @@ There is no XEP-0045 equivalent for getting full room information
 
 Leaving the room is performed by setting own affiliation to 'none'. The service uses <presence/> to notify all occupants (and former occupant) about the change. <presence/> to the leaving occupant MUST be of type "unavailable" and MUST include status code 321 (i.e. user leaving due to affiliation change).
 
-**Requesting affiliation list**
+**Leaving the room**
 
 ```xml
 <iq from='crone1@shakespeare.lit/desktop'
