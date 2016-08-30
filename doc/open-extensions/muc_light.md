@@ -552,7 +552,7 @@ In order to block a room, a query must contain at least one 'room' item with a '
 
 ### 4.5.3 Blocking a user
 
-In order to block a room, a query must contain at least one 'user' item with a 'deny' action and user bare JID in the content.
+In order to block a user, a query must contain at least one 'user' item with a 'deny' action and user bare JID in the content.
 
 **User blocks another user**
 
