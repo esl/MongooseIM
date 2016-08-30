@@ -737,7 +737,7 @@ init_per_testcase(C=archived, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
                  odbc_async_pool ->
                      MongooseMetrics = [
-                                        {[data, odbc, mam_async],
+                                        {[global, data, odbc, mam_async],
                                          [{recv_oct, '>'}, {send_oct, '>'}]}
                                        ],
                      [{mongoose_metrics, MongooseMetrics} | ConfigIn];
@@ -937,8 +937,8 @@ simple_archive_request(ConfigIn) ->
         assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
         ok
         end,
-    MongooseMetrics = [{[backends, mod_mam, archive], changed},
-                       {[backends, mod_mam, lookup], changed}
+    MongooseMetrics = [{[global, backends, mod_mam, archive], changed},
+                       {[global, backends, mod_mam, lookup], changed}
                       ],
     Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).

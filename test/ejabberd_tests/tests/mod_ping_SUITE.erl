@@ -107,7 +107,6 @@ active(Config) ->
 active_keep_alive(Config) ->
     escalus:story(Config, [{alice, 1}],
         fun(Alice) ->
-                Domain = ct:get_config(ejabberd_domain),
                 ct:sleep(timer:seconds(6)), % wait 6s (ping_interval is 8)
                 Socket = Alice#client.socket,
                 gen_tcp:send(Socket, <<"\n">>),
@@ -126,7 +125,7 @@ server_ping_pong(Config) ->
 
 server_ping_pang(ConfigIn) ->
     Domain = ct:get_config(ejabberd_domain),
-    Metrics = [{metrics_helper:make_metric_name(Domain, user_ping_timeout), 1}],
+    Metrics = [{[Domain, user_ping_timeout], 1}],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:story(Config, [{alice, 1}],
         fun(Alice) ->
