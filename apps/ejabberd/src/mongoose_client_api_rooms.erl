@@ -54,7 +54,10 @@ does_room_exist(RoomUS, Req, State) ->
             ?WARNING_MSG("Config: ~p", [Config]),
             ?WARNING_MSG("Users: ~p", [Users]),
             ?WARNING_MSG("Version: ~p", [Version]),
-            {true, Req, State};
+            Room = #{config => Config,
+                     users => Users,
+                     version => Version},
+            {true, Req, State#{room => Room}};
         _ ->
             {Method, Req2} = cowboy_req:method(Req),
             case Method of
@@ -68,20 +71,14 @@ does_room_exist(RoomUS, Req, State) ->
 
 
 
-to_json(Req, #{jid := #jid{lserver = Server}} = State) ->
-    {RoomID, Req2} = cowboy_req:binding(id, Req),
-    MUCLightDomain = muc_light_domain(Server),
-    case mod_muc_light_db_backend:get_info({RoomID, MUCLightDomain}) of
-        {ok, Config, Users, _Version} ->
-            Resp = #{name => proplists:get_value(roomname, Config),
-                     subject => proplists:get_value(subject, Config),
-                     participants => [user_to_json(U) || U <- Users]
-                    },
-            {jiffy:encode(Resp), Req2, State};
-        _ ->
-            {ok, Req3} = cowboy_req:reply(404, Req2),
-            {halt, Req3, State}
-    end.
+to_json(Req, #{room := Room} = State) ->
+    Config = maps:get(config, Room),
+    Users = maps:get(users, Room),
+    Resp = #{name => proplists:get_value(roomname, Config),
+             subject => proplists:get_value(subject, Config),
+             participants => [user_to_json(U) || U <- Users]
+            },
+    {jiffy:encode(Resp), Req, State}.
 
 from_json(Req, State) ->
     {Method, Req2} = cowboy_req:method(Req),
