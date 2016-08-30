@@ -38,21 +38,21 @@ end_per_testcase(_TC, _Config) ->
     ok.
 
 all_rule_returns_allow(_Config) ->
-    JID = jlib:make_jid(<<"pawel">>, <<"phost">>, <<"test">>),
+    JID = jid:make(<<"pawel">>, <<"phost">>, <<"test">>),
     ?assertEqual(allow, acl:match_rule(global, all, JID)),
     ?assertEqual(allow, acl:match_rule(<<"phost">>, all, JID)),
     ?assertEqual(allow, acl:match_rule(<<"localhost">>, all, JID)),
     ok.
 
 none_rule_returns_deny(_Config) ->
-    JID = jlib:make_jid(<<"gawel">>, <<"phost">>, <<"test">>),
+    JID = jid:make(<<"gawel">>, <<"phost">>, <<"test">>),
     ?assertEqual(deny, acl:match_rule(global, none, JID)),
     ?assertEqual(deny, acl:match_rule(<<"phosty">>, none, JID)),
     ?assertEqual(deny, acl:match_rule(<<"localhosty">>, none, JID)),
     ok.
 
 basic_access_rules(_Config) ->
-    JID = jlib:make_jid(<<"pawel">>, <<"phost">>, <<"test">>),
+    JID = jid:make(<<"pawel">>, <<"phost">>, <<"test">>),
 
     %% rule is not defined deny by default - deny
     ?assertEqual(deny, (acl:match_rule(global, single_rule, JID))),
@@ -77,8 +77,8 @@ basic_access_rules(_Config) ->
 host_sepcific_access_rules(_Config) ->
     given_registered_domains([<<"poznan">>, <<"wroclaw">>]),
 
-    PozAdmin = jlib:make_jid(<<"gawel">>, <<"poznan">>, <<"test">>),
-    Pawel = jlib:make_jid(<<"pawel">>, <<"wroclaw">>, <<"test">>),
+    PozAdmin = jid:make(<<"gawel">>, <<"poznan">>, <<"test">>),
+    Pawel = jid:make(<<"pawel">>, <<"wroclaw">>, <<"test">>),
 
     acl:add(global, admin_poz, {user, <<"gawel">>, <<"poznan">>}),
 
@@ -95,8 +95,8 @@ host_sepcific_access_rules(_Config) ->
 compound_access_rules(_Config) ->
     given_registered_domains([<<"krakow">>]),
 
-    KrkAdmin = jlib:make_jid(<<"gawel">>, <<"krakow">>, <<"test">>),
-    KrkNormal = jlib:make_jid(<<"pawel">>, <<"krakow">>, <<"test">>),
+    KrkAdmin = jid:make(<<"gawel">>, <<"krakow">>, <<"test">>),
+    KrkNormal = jid:make(<<"pawel">>, <<"krakow">>, <<"test">>),
 
     %% add admin user rule
     acl:add(global, admin_wawa, {user, <<"gawel">>, <<"wawa">>}),
@@ -115,7 +115,7 @@ compound_access_rules(_Config) ->
 global_host_priority(_Config) ->
     given_registered_domains([<<"rzeszow">>, <<"lublin">>]),
 
-    RzeAdmin = jlib:make_jid(<<"pawel">>, <<"rzeszow">>, <<"test">>),
+    RzeAdmin = jid:make(<<"pawel">>, <<"rzeszow">>, <<"test">>),
 
     %% add admin user rule
     acl:add(<<"rzeszow">>, admin, {user, <<"pawel">>, <<"rzeszow">>}),
@@ -140,7 +140,7 @@ global_host_priority(_Config) ->
 all_and_none_specs(_Config) ->
     given_registered_domains([<<"zakopane">>]),
 
-    User = jlib:make_jid(<<"pawel">>, <<"zakopane">>, <<"test">>),
+    User = jid:make(<<"pawel">>, <<"zakopane">>, <<"test">>),
     acl:add(global, a_users, all),
     acl:add(global, n_users, none),
 
@@ -154,7 +154,7 @@ all_and_none_specs(_Config) ->
 invalid_spec(_Config) ->
     given_registered_domains([<<"bialystok">>]),
 
-    User = jlib:make_jid(<<"pawel">>, <<"bialystok">>, <<"test">>),
+    User = jid:make(<<"pawel">>, <<"bialystok">>, <<"test">>),
     acl:add(global, invalid, {non_existing_spec, "lalala"}),
 
     set_global_rule(invalid, [{allow, invalid}, {deny, all}]),
@@ -164,8 +164,8 @@ invalid_spec(_Config) ->
 different_specs_matching_the_same_user(_Config) ->
     given_registered_domains([<<"gdansk">>, <<"koszalin">>]),
 
-    UserGd = jlib:make_jid(<<"pawel">>, <<"gdansk">>,  <<"res">>),
-    UserKo = jlib:make_jid(<<"pawel">>, <<"koszalin">>,<<"res1">>),
+    UserGd = jid:make(<<"pawel">>, <<"gdansk">>,  <<"res">>),
+    UserKo = jid:make(<<"pawel">>, <<"koszalin">>,<<"res1">>),
 
     %% invariand we are going to change admin acl only
     set_global_rule(allow_admin, [{allow, admin}, {deny, all}]),

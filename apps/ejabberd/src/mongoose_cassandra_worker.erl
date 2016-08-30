@@ -217,7 +217,7 @@ test_query(PoolName, UserJID) ->
 %% Don't use these queries in production. Just for testing.
 
 total_count_query(PoolName, Table) ->
-    UserJID = jlib:make_jid(<<"mongooseim">>, ?MYNAME, <<>>),
+    UserJID = jid:make(<<"mongooseim">>, ?MYNAME, <<>>),
     Res = cql_query_pool(PoolName, UserJID, ?MODULE, {total_count_query, Table}, []),
     {ok, [[Count]]} = Res,
     Count.

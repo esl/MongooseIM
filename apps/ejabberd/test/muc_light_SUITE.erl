@@ -4,8 +4,8 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
--include("mod_muc_light.hrl").
--include("jlib.hrl").
+-include_lib("ejabberd/include/mod_muc_light.hrl").
+-include_lib("ejabberd/include/jlib.hrl").
 
 -define(DOMAIN, <<"localhost">>).
 
@@ -32,7 +32,7 @@ groups() ->
     ].
 
 init_per_group(rsm_disco, Config) ->
-    application:start(p1_stringprep),
+    application:start(stringprep),
     Config;
 init_per_group(_, Config) ->
     Config.
@@ -115,8 +115,8 @@ prop_rsm_disco_success() ->
                         FirstIndex = RSMOut#rsm_out.index,
                         {FirstRoom, _, _} = hd(ProperSlice),
                         {LastRoom, _, _} = lists:last(ProperSlice),
-                        RSMFirst = jlib:jid_to_binary(FirstRoom),
-                        RSMLast = jlib:jid_to_binary(LastRoom),
+                        RSMFirst = jid:to_binary(FirstRoom),
+                        RSMLast = jid:to_binary(LastRoom),
                         true
                 end
             end).
@@ -250,7 +250,7 @@ make_rsm_in(aft, ProperSlice, _FirstIndex, BeforeL, _AfterL) ->
     #rsm_in{
        max = length(ProperSlice),
        direction = aft,
-       id = jlib:jid_to_binary(element(1, lists:last(BeforeL)))
+       id = jid:to_binary(element(1, lists:last(BeforeL)))
       };
 make_rsm_in(before, ProperSlice, _FirstIndex, _BeforeL, AfterL) ->
     #rsm_in{
@@ -258,7 +258,7 @@ make_rsm_in(before, ProperSlice, _FirstIndex, _BeforeL, AfterL) ->
        direction = before,
        id = case AfterL of
                 [] -> <<>>;
-                _ -> jlib:jid_to_binary(element(1, hd(AfterL)))
+                _ -> jid:to_binary(element(1, hd(AfterL)))
             end
       }.
 
@@ -275,7 +275,7 @@ make_invalid_rsm_in(Direction, _RoomsInfo, Nonexistent) ->
     #rsm_in{
        max = 10,
        direction = Direction,
-       id = jlib:jid_to_binary(Nonexistent)
+       id = jid:to_binary(Nonexistent)
       }.
 
 %% ------------------------------------------------------------------
