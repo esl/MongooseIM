@@ -1,6 +1,7 @@
 -module(mongoose_client_api_messages).
 
 -export([init/3]).
+-export([rest_init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([is_authorized/2]).
@@ -16,6 +17,9 @@
 %% yes, there is no other option, this API has to run over encrypted connection
 init({ssl, http}, _Req, _Opts) ->
     {upgrade, protocol, cowboy_rest}.
+
+rest_init(Req, HandlerOpts) ->
+    mongoose_client_api:rest_init(Req, HandlerOpts).
 
 is_authorized(Req, State) ->
     mongoose_client_api:is_authorized(Req, State).
@@ -33,7 +37,7 @@ content_types_accepted(Req, State) ->
 allowed_methods(Req, State) ->
     {[<<"GET">>, <<"POST">>], Req, State}.
 
-to_json(Req, {_User, #jid{lserver = Server} = JID} = State) ->
+to_json(Req, #{jid := #jid{lserver = Server} = JID} = State) ->
     R = mod_mam:lookup_messages(Server,
                                 _ArchiveID = mod_mam:archive_id_int(Server, JID),
                                 _ArchiveJID = JID,
@@ -51,7 +55,7 @@ to_json(Req, {_User, #jid{lserver = Server} = JID} = State) ->
     Resp = [make_json_msg(Msg, MAMId) || {MAMId, _, Msg} <- Msgs],
     {jiffy:encode(Resp), Req, State}.
 
-send_message(Req, {RawUser, FromJID} = State) ->
+send_message(Req, #{user := RawUser, jid := FromJID} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
     #{<<"to">> := To, <<"body">> := MsgBody} = jiffy:decode(Body, [return_maps]),
     ToJID = jid:from_binary(To),

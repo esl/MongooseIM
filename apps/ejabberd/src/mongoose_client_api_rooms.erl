@@ -1,6 +1,7 @@
 -module(mongoose_client_api_rooms).
 
 -export([init/3]).
+-export([rest_init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([is_authorized/2]).
@@ -18,6 +19,9 @@
 init({ssl, http}, _Req, _Opts) ->
     {upgrade, protocol, cowboy_rest}.
 
+rest_init(Req, HandlerOpts) ->
+    mongoose_client_api:rest_init(Req, HandlerOpts).
+
 is_authorized(Req, State) ->
     mongoose_client_api:is_authorized(Req, State).
 
@@ -34,7 +38,7 @@ content_types_accepted(Req, State) ->
 allowed_methods(Req, State) ->
     {[<<"GET">>, <<"POST">>, <<"PUT">>], Req, State}.
 
-resource_exists(Req, {_, #jid{lserver = Server}} = State) ->
+resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
     {RoomID, Req2} = cowboy_req:binding(id, Req),
     MUCLightDomain = muc_light_domain(Server),
     case RoomID of
@@ -64,7 +68,7 @@ does_room_exist(RoomUS, Req, State) ->
 
 
 
-to_json(Req, {_User, #jid{lserver = Server}} = State) ->
+to_json(Req, #{jid := #jid{lserver = Server}} = State) ->
     {RoomID, Req2} = cowboy_req:binding(id, Req),
     MUCLightDomain = muc_light_domain(Server),
     case mod_muc_light_db_backend:get_info({RoomID, MUCLightDomain}) of
@@ -86,7 +90,7 @@ from_json(Req, State) ->
     handle_request(Method, JSONData, Req3, State).
 
 handle_request(<<"POST">>, JSONData, Req,
-               {User, #jid{lserver = Server}} = State) ->
+               #{user := User, jid := #jid{lserver = Server}} = State) ->
     #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
     case mod_muc_light_admin:create_unique_room(Server, RoomName, User, Subject) of
         {error, _} ->
@@ -98,7 +102,7 @@ handle_request(<<"POST">>, JSONData, Req,
             {true, RespReq, State}
     end;
 handle_request(<<"PUT">>, JSONData, Req,
-               {User, #jid{lserver = Server} = From} = State) ->
+               #{user := User, jid := #jid{lserver = Server} = From} = State) ->
     #{<<"user">> := UserToInvite} = JSONData,
     {RoomId, Req2} = cowboy_req:binding(id, Req),
     mod_muc_light_admin:invite_to_room_id(Server, RoomId, User, UserToInvite),

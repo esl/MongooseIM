@@ -5,6 +5,7 @@
 -export([is_authorized/2]).
 -export([allowed_methods/2]).
 -export([to_json/2]).
+-export([rest_init/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -12,6 +13,9 @@
 %% yes, there is no other option, this API has to run over encrypted connection
 init({ssl, http}, _Req, _Opts) ->
     {upgrade, protocol, cowboy_rest}.
+
+rest_init(Req, _HandlerOpts) ->
+    {ok, Req, #{}}.
 
 is_authorized(Req, State) ->
     Auth = cowboy_req:parse_header(<<"authorization">>, Req),
@@ -47,7 +51,7 @@ do_check_password(RawUser, #jid{luser = User, lserver = Server} = JID,
                   Password, Req, State) ->
     case ejabberd_auth:check_password(User, Server, Password) of
         true ->
-            {true, Req, {RawUser, JID}};
+            {true, Req, State#{user => RawUser, jid => JID}};
         _ ->
             make_unauthorized_response(Req, State)
     end.
