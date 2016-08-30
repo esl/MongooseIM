@@ -47,7 +47,6 @@ all() ->
 
 groups() ->
     [{register, [sequence], [register,
-                             check_user_exist,
                              already_registered,
                              check_unregistered]},
      {bad_registration, [no_sequence], [null_password]},
@@ -220,14 +219,6 @@ end_per_testcase(CaseName, Config) ->
 %% Message tests
 %%--------------------------------------------------------------------
 
-check_user_exist(Config) ->
-  %% when
-  [{_, AdminSpec}] = escalus_users:get_users([admin]),
-  [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
-  %% admin user already registered
-  true = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, AdminS]),
-  false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [<<"fake-user">>, AdminS]),
-  false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]).
 
 register(Config) ->
     [{Name1, UserSpec1}, {Name2, UserSpec2}] = escalus_users:get_users([alice, bob]),
