@@ -18,7 +18,7 @@ The list below contains the high-level features required from a new variant of M
 1. There MUST be at most one owner in the room (the service can choose to treat all users equally).
 1. If the room becomes empty, it is destroyed.
 1. Occupants cannot hide behind nicks. Their real bare JID is always visible to everyone
-1. No exchange of any <presence/> stanza inside the room.
+1. No exchange of any `<presence/>` stanza inside the room.
 1. The user MUST be able to retrieve the list of rooms he or she occupies.
 1. The owner can modify the room configuration at any time; members may also be allowed to set configuration.
 1. All occupants can get the full room configuration at any time.
@@ -121,7 +121,7 @@ The service MUST return a full list of the rooms the entity occupies. The server
 </iq>
 ```
 
-If the full list of rooms is large (see XEP-0030 for details), the service MAY return only a partial list of rooms. If it does so, it MUST include a <set/> element qualified by the 'http://jabber.org/protocol/rsm' namespace (as defined in Result Set Management (XEP-0059) [1]) to indicate that the list is not the full result set.
+If the full list of rooms is large (see XEP-0030 for details), the service MAY return only a partial list of rooms. If it does so, it MUST include a `<set/>` element qualified by the 'http://jabber.org/protocol/rsm' namespace (as defined in Result Set Management (XEP-0059) [1]) to indicate that the list is not the full result set.
 
 **Service Returns Limited List of Disco Items Result**
 
@@ -622,7 +622,7 @@ The following rules (similar to the ones relevant to the affiliation change requ
 * All user bare JIDs must be unique
 * At most one owner can be chosen. In such case the room creator will become "just" a 'member'.
 
-After the room is created (but before receiving IQ result), new occupants (including creator) receive <message/> from the room with their affiliations (stanza MUST include only recipient's affiliation) and initial room version. <prev-version /> element MUST NOT be included.
+After the room is created (but before receiving IQ result), new occupants (including creator) receive `<message/>` from the room with their affiliations (stanza MUST include only recipient's affiliation) and initial room version. `<prev-version/>` element MUST NOT be included.
 
 **Client requests room creation**
 
@@ -765,7 +765,7 @@ If the chosen room name already exists, the service MUST return 'conflict' error
 
 A room is automatically destroyed when its occupant list becomes empty or the room owner explicitly sends IQ with a room destroy request.
 
-Before sending an IQ result, every occupant is notified that its affiliation has changed to 'none'. These notifications include <x/> element qualified with "urn:xmpp:muclight:0#destroy" namespace.
+Before sending an IQ result, every occupant is notified that its affiliation has changed to 'none'. These notifications include `<x/>` element qualified with "urn:xmpp:muclight:0#destroy" namespace.
 
 Only the room owner is allowed to destroy it.
 
@@ -832,7 +832,7 @@ Room destruction notification SHOULD NOT contain version (or "prev-version" info
 
 Only room owners can modify room configuration but the service MAY allow members to change it too.
 
-All room occupants MUST be notified about a configuration change and both the new and old room version string (<version /> and <prev-version /> respectively).
+All room occupants MUST be notified about a configuration change and both the new and old room version string (`<version />` and `<prev-version />` respectively).
 
 "version" and "prev-version" configuration field names are NOT ALLOWED - they are reserved for room versioning.
 
@@ -910,9 +910,9 @@ The occupant list is modified by a direct affiliation change. Following rules ap
 1. Server MAY allow members to add new members but they still cannot make anyone an 'owner' or remove other users from the room.
 1. On success the server will reply with result IQ with all changed items. BEFORE returning the IQ result, the service MUST route a message with affiliation change to all relevant users.
 
-Newcomers, i.e. users that were not occupants before the change, SHOULD receive only their own affiliation and SHOULD NOT receive <prev-version /> element.
+Newcomers, i.e. users that were not occupants before the change, SHOULD receive only their own affiliation and SHOULD NOT receive `<prev-version />` element.
 
-The notifications must include both the new and old room version (<version /> and <prev-version /> respectively) string (except for the ones directed to users that have been removed from the room).
+The notifications must include both the new and old room version (`<version />` and `<prev-version />` respectively) string (except for the ones directed to users that have been removed from the room).
 
 The notifications contain a list of items. The item list may be different from the list in IQ set, because some of the changes may require additional operations, e.g. choosing new owner when the old one leaves. Users, that are still in the room after change, will receive full change list. Users, that have been removed from the room with the request, will get only one item: themselves with affiliation 'none'.
 
@@ -1002,7 +1002,7 @@ The notifications contain a list of items. The item list may be different from t
 ## 6.1 User rosters
 
 The service MAY add user's rooms to its roster. It allows the client to skip separate Disco request to the service.
-Roster items with rooms MUST belong to the group "urn:xmpp:muclight:0" (MUC Light namespace) and include <version> element.
+Roster items with rooms MUST belong to the group "urn:xmpp:muclight:0" (MUC Light namespace) and include `<version/>` element.
 Their subscription type MUST be 'to'.
 
 **Entity requests the roster and receives reply that includes room item**
@@ -1032,7 +1032,7 @@ This section defines the rules for archiving MUC Light events and messages.
 Stanzas described in the subsections below MUST be archived by the server.
 The stanzas not included here MUST NOT be archived.
 
-The <message/> element inside <forwarded> MUST include "from" attribute and MUST NOT include "to" attribute.
+The `<message/>` element inside `<forwarded/>` MUST include "from" attribute and MUST NOT include "to" attribute.
 "id" SHOULD be archived as well.
 
 In case of regular groupchat messages,
@@ -1075,7 +1075,7 @@ Message from a user MUST be archived with all child elements.
 
 ### 6.2.2 Affiliation change
 
-Every archived affiliation change notification MUST include <version> element and MUST NOT contain <prev-version> element.
+Every archived affiliation change notification MUST include `<version/>` element and MUST NOT contain `<prev-version/>` element.
 
 **Occupant queries MAM and receives affiliation change notification**
 
@@ -1163,9 +1163,9 @@ If a client sends a stanza to the room, that it does not occupy, the service MUS
 </message>
 ```
 
-## 7.2 Client sends a <presence/> stanza to the service
+## 7.2 Client sends a &lt;presence/> stanza to the service
 
-The service MUST ignore all <presence/> stanzas sent by the client.
+The service MUST ignore all `<presence/>` stanzas sent by the client.
 
 ## 7.3 Client sends an invalid stanza to the service
 
@@ -1225,8 +1225,9 @@ the service MUST reply with a 'not-allowed' error.
 It occurs in the following cases:
 
 * A member tries to change the configuration but the service is not configured to allow it.
-  It does not apply to the subject change, although it has to be performed by sending <message/> with <subject/>,
-  not configuration <iq/>.
+  It does not apply to the subject change,
+  although it has to be performed by sending `<message/>` with `<subject/>`,
+  not configuration `<iq/>`.
 * A member tries to change anyone's affiliation to 'none' or 'owner'.
 * A member tries to change someone's affiliation to 'member' but the service is not configured to allow it.
 
@@ -1268,7 +1269,7 @@ Operations not described here SHOULD remain unmodified.
 
 ### 8.1.1 Discovering the Features Supported by a MUC Service
 
-A Disco result MAY either include new <feature/> element with an "http://jabber.org/protocol/muc" namespace
+A Disco result MAY either include new `<feature/>` element with an "http://jabber.org/protocol/muc" namespace
 next to MUC Light one, or completely replace it, which is RECOMMENDED behaviour.
 
 **Returning MUC namespace in Disco**
@@ -1323,8 +1324,8 @@ The room list MUST not include room versions.
 ### 8.1.3 Changing a room subject
 
 Instead of distributing the configuration change notifications,
-the room MUST route <message/> with <subject/> like a classic MUC would.
-The client MUST send classic message <subject/> as well.
+the room MUST route `<message/>` with `<subject/>` like a classic MUC would.
+The client MUST send classic message `<subject/>` as well.
 The room SHOULD save new subject in the room configuration.
 
 **New subject is routed as ordinary message**
@@ -1441,8 +1442,8 @@ There is no XEP-0045 equivalent for getting full room information
 ### 8.1.7 Leaving the room
 
 Leaving the room is performed by setting own affiliation to 'none'.
-The service uses <presence/> to notify all occupants (and former occupant) about the change.
-<presence/> to the leaving occupant MUST be of type "unavailable"
+The service uses `<presence/>` to notify all occupants (and former occupant) about the change.
+`<presence/>` to the leaving occupant MUST be of type "unavailable"
 and MUST include status code 321 (i.e. user leaving due to affiliation change).
 
 **Leaving the room**
@@ -1624,7 +1625,7 @@ Compatibility mode MUST NOT support unique room name generation.
 #### 8.1.9.1 Room already exists
 
 If the client attempts to create a room that is already used, it will
-receive error <presence/> informing that registration is required
+receive error `<presence/>` informing that registration is required
 (like in case of members-only rooms in XEP-0045).
 
 **Creating a room**
