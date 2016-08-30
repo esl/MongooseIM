@@ -1161,7 +1161,7 @@ The service MUST ignore all <presence/> stanzas sent by the client.
 
 ## 7.3 Client sends an invalid stanza to the service
 
-If service receives a stanza with invalid syntax, it MUST reply with a 'bad-request' error.
+If service receives an invalid stanza it MUST reply with a 'bad-request' error.
 
 **Invalid IQ**
 
