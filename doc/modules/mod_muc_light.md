@@ -4,7 +4,7 @@ This module implements [XEP Multi-User Chat Light](https://github.com/xsf/xeps/p
 
 ### Options
 
-* **host** (string, default: `"muclight.@HOST@"`) - Domain for MUC Light service to reside under. `@HOST@` is replaced with each served domain.
+* **host** (string, mandatory, default in config example: `"muclight.@HOST@"`) - Domain for MUC Light service to reside under. `@HOST@` is replaced with each served domain.
 * **backend** (atom, default: `mnesia`) - Database backend to use. Currently only `mnesia` is supported.
 * **equal_occupants** (boolean, default: `false`) - When enabled, MUC Light rooms won't have owners. It means that every occupant will be a `member`, even the room creator. **Warning:** This option does not implicitly set `all_can_invite` to `true`. If that option is set to `false`, nobody will be able to join the room after initial creation request.
 * **legacy_mode** (boolean, default: `false`) - Enables XEP-0045 compatibility mode. It allows to use subset of classic MUC stanzas with some MUC Light functions limited.

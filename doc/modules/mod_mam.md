@@ -22,7 +22,7 @@ If you haven't chosen any of the above, skip the next part.
 **Options:**
 
 * `mod_mam_muc`:
-    * `host` (optional, default: `"conference.@HOST@"`): MUC host that will be archived; **Warning:** If you are using MUC Light, make sure this option is set to MUC Light domain.
+    * `muc_module` (optional, default: `mod_muc`): MUC module the MAM service will attach to; **Warning:** If you are using MUC Light, make sure this option is set to `mod_muc_light`.
 * `mod_mam_odbc_arch`:
     * `pm` (mandatory when `mod_mam` enabled): Enable archiving one-to-one messages
     * `muc` (optional): Enable group chat archive, mutually exclusive with `mod_mam_muc_odbc_arch`. **Not recommended**, `mod_mam_muc_odbc_arch` is more efficient.
