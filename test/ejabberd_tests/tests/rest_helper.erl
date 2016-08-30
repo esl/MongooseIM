@@ -166,13 +166,13 @@ maybe_enable_mam(odbc, Host, Config) ->
     init_module(Host, mod_mam_odbc_prefs, [muc, pm]),
     init_module(Host, mod_mam_odbc_user, [muc, pm]),
     init_module(Host, mod_mam, []),
-    init_module(Host, mod_mam_muc, [{host, "muc.@HOST@"}]),
+    init_module(Host, mod_mam_muc, [{muc_module, mod_muc}]),
     [{mam_backend, odbc} | Config];
 maybe_enable_mam(riak, Host,  Config) ->
     init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
     init_module(Host, mod_mam, []),
-    init_module(Host, mod_mam_muc, [{host, "muc.@HOST@"}]),
+    init_module(Host, mod_mam_muc, [{muc_module, mod_muc}]),
     [{mam_backend, riak}, {yz_wait, 2500} | Config];
 maybe_enable_mam(_, _, C) ->
     [{mam_backend, disabled} | C].

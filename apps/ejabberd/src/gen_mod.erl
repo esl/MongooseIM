@@ -53,9 +53,8 @@
 
 -include("ejabberd.hrl").
 
--record(ejabberd_module, {module_host, module_subhost, opts}).
+-record(ejabberd_module, {module_host, opts}).
 -type ejabberd_module() :: #ejabberd_module{module_host :: {module(), ejabberd:server()},
-                                            module_subhost :: {module(), ejabberd:server()},
                                             opts :: list()}.
 
 -record(ejabberd_module_subhost, {subhost, module, host}).

@@ -137,7 +137,8 @@ required_modules() ->
      {mod_pubsub, [
                    {plugins,[<<"dag">>,<<"pep">>]},
                    {nodetree,<<"dag">>},
-                   {pep_mapping,[]}
+                   {pep_mapping,[]},
+                   {host, "pubsub.@HOST@"}
                   ]}].
 
 send_initial_presence_with_caps(User) ->
