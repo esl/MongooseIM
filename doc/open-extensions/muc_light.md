@@ -1128,7 +1128,7 @@ If a client sends a stanza to the room, that it does not occupy, the service MUS
     from='coven@muclight.shakespeare.lit'
     type='error'>
     <error type='cancel'>
-        <not-allowed xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
+        <item-not-found xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
     </error>
 </iq>
 ```
@@ -1150,7 +1150,7 @@ If a client sends a stanza to the room, that it does not occupy, the service MUS
          from='coven@muclight.shakespeare.lit'
          type='error'>
     <error type='cancel'>
-        <not-allowed xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
+        <item-not-found xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
     </error>
 </message>
 ```
