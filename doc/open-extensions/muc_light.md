@@ -1001,7 +1001,9 @@ The notifications contain a list of items. The item list may be different from t
 
 ## 6.1 User rosters
 
-The service MAY add user's rooms to its roster. It allows the client to skip separate Disco request to the service. Roster items with rooms MUST belong to the group "urn:xmpp:muclight:0" (MUC Light namespace) and include <version> element. Their subscription type MUST be 'to'.
+The service MAY add user's rooms to its roster. It allows the client to skip separate Disco request to the service.
+Roster items with rooms MUST belong to the group "urn:xmpp:muclight:0" (MUC Light namespace) and include <version> element.
+Their subscription type MUST be 'to'.
 
 **Entity requests the roster and receives reply that includes room item**
 
@@ -1026,13 +1028,19 @@ The service MAY add user's rooms to its roster. It allows the client to skip sep
 
 ## 6.2 XEP-0313 Message Archive Management
 
-This section defines the rules for archiving MUC Light events and messages. Stanzas described in the subsections below MUST be archived by the server. The stanzas not included here MUST NOT be archived.
+This section defines the rules for archiving MUC Light events and messages.
+Stanzas described in the subsections below MUST be archived by the server.
+The stanzas not included here MUST NOT be archived.
 
-The <message/> element inside <forwarded> MUST include "from" attribute and MUST NOT include "to" attribute. "id" SHOULD be archived as well.
+The <message/> element inside <forwarded> MUST include "from" attribute and MUST NOT include "to" attribute.
+"id" SHOULD be archived as well.
 
-In case of regular groupchat messages, "from" attribute MUST consist of a room full JID with sender bare JID in the resource part. As for room notification, e.g. create event, "from" MUST be equal to room bare JID.
+In case of regular groupchat messages,
+"from" attribute MUST consist of a room full JID with sender bare JID in the resource part.
+As for room notification, e.g. create event, "from" MUST be equal to room bare JID.
 
-Examples below use MAM v0.4  protocol. Archive can be fetched only from a specific room, the client MUST NOT query MUC Light service directly.
+Examples below use MAM v0.4 protocol.
+Archive can be fetched only from a specific room, the client MUST NOT query MUC Light service directly.
 
 ### 6.2.1 Groupchat message from occupant
 
@@ -1211,13 +1219,17 @@ If service receives an invalid stanza it MUST reply with a 'bad-request' error.
 
 ## 7.4 Request sender has insufficient privileges
 
-If the request sender does not have sufficient privileges (but is a room occupant), the service MUST reply with a 'not-allowed' error.
+If the request sender does not have sufficient privileges (but is a room occupant),
+the service MUST reply with a 'not-allowed' error.
 
 It occurs in the following cases:
 
-* A member tries to change the configuration but the service is not configured to allow it. It does not apply to the subject change, although it has to be performed by sending <message/> with <subject/>, not configuration <iq/>.
+* A member tries to change the configuration but the service is not configured to allow it.
+  It does not apply to the subject change, although it has to be performed by sending <message/> with <subject/>,
+  not configuration <iq/>.
 * A member tries to change anyone's affiliation to 'none' or 'owner'.
 * A member tries to change someone's affiliation to 'member' but the service is not configured to allow it.
+
 **Prohibited IQ**
 
 ```xml
@@ -1246,13 +1258,18 @@ It occurs in the following cases:
 
 ##8.1 XEP-0045 mappings
 
-Some client-side developers might choose to use existing XEP-0045 Multi-User Chat implementations to interface with the new MUC Light. There may be various reasons to do so: using familiar protocol, avoiding additional implementation, quick prototyping etc. This section provides suggestions of mappings between XEP-0045 stanzas and the new ones described in this document.
+Some client-side developers might choose to use existing XEP-0045 Multi-User Chat implementations
+to interface with the new MUC Light.
+There may be various reasons to do so: using familiar protocol,
+avoiding additional implementation, quick prototyping etc.
+This section provides suggestions of mappings between XEP-0045 stanzas and the new ones described in this document.
 
 Operations not described here SHOULD remain unmodified.
 
 ### 8.1.1 Discovering the Features Supported by a MUC Service
 
-A Disco result MAY either include new <feature /> element with an "http://jabber.org/protocol/muc" namespace next to MUC Light one, or completely replace it, which is RECOMMENDED behaviour.
+A Disco result MAY either include new <feature/> element with an "http://jabber.org/protocol/muc" namespace
+next to MUC Light one, or completely replace it, which is RECOMMENDED behaviour.
 
 **Returning MUC namespace in Disco**
 
@@ -1305,7 +1322,10 @@ The room list MUST not include room versions.
 
 ### 8.1.3 Changing a room subject
 
-Instead of distributing the configuration change notifications, the room MUST route <message/> with <subject/> like a classic MUC would. The client MUST send classic message <subject/> as well. The room SHOULD save new subject in the room configuration.
+Instead of distributing the configuration change notifications,
+the room MUST route <message/> with <subject/> like a classic MUC would.
+The client MUST send classic message <subject/> as well.
+The room SHOULD save new subject in the room configuration.
 
 **New subject is routed as ordinary message**
 
@@ -1420,7 +1440,10 @@ There is no XEP-0045 equivalent for getting full room information
 
 ### 8.1.7 Leaving the room
 
-Leaving the room is performed by setting own affiliation to 'none'. The service uses <presence/> to notify all occupants (and former occupant) about the change. <presence/> to the leaving occupant MUST be of type "unavailable" and MUST include status code 321 (i.e. user leaving due to affiliation change).
+Leaving the room is performed by setting own affiliation to 'none'.
+The service uses <presence/> to notify all occupants (and former occupant) about the change.
+<presence/> to the leaving occupant MUST be of type "unavailable"
+and MUST include status code 321 (i.e. user leaving due to affiliation change).
 
 **Leaving the room**
 
@@ -1466,12 +1489,10 @@ Leaving the room is performed by setting own affiliation to 'none'. The service 
 
 ### 8.1.8 Blocking functionality
 
-Blocking functionality uses small subset of Privacy Lists protocol. Stanzas MUST be addressed to the server JID and.
-
-The privacy list name MUST be equal to "urn:xmpp:muclight:0"
-
+Blocking functionality uses small subset of Privacy Lists protocol.
+Stanzas MUST be addressed to the server JID.
+The privacy list name MUST be equal to "urn:xmpp:muclight:0".
 Obviously, this method won't work properly in XMPP Server Federation.
-
 As opposed to XEP-0016, it is allowed to send "delta" privacy lists.
 
 #### 8.1.8.1 Request blocking list
@@ -1602,7 +1623,9 @@ Compatibility mode MUST NOT support unique room name generation.
 
 #### 8.1.9.1 Room already exists
 
-If the client attempts to create a room that is already used, it will receive error <presence/> informing that registration is required (like in case of members-only rooms in XEP-0045)
+If the client attempts to create a room that is already used, it will
+receive error <presence/> informing that registration is required
+(like in case of members-only rooms in XEP-0045).
 
 **Creating a room**
 
@@ -1738,7 +1761,9 @@ Room occupants can use standard XEP-0045 configuration modification method. The 
 
 ### 8.1.12 Changing occupant list
 
-The service MUST send affiliation change notification to all participants. Leaving users MUST NOT receive any information except for their own "none" affiliation. New users MUST receive invitation message.
+The service MUST send affiliation change notification to all participants.
+Leaving users MUST NOT receive any information except for their own "none" affiliation.
+New users MUST receive invitation message.
 
 **Changing occupant list**
 
@@ -1807,7 +1832,9 @@ The service MUST send affiliation change notification to all participants. Leavi
 
 ## 8.2 Service limits and configuration
 
-MUC Light service may be abused by malicious users, e.g. due to replicating single message for every room occupant. The list below contains suggested configurable limits that SHOULD be implemented.
+MUC Light service may be abused by malicious users,
+e.g. due to replicating single message for every room occupant.
+The list below contains suggested configurable limits that SHOULD be implemented.
 
 The service features that might vary depending on specific application are included as well.
 
@@ -1818,4 +1845,3 @@ The service features that might vary depending on specific application are inclu
 * Room configuration may be changed by owner/occupants.
 * New members can be invited by owner/occupants.
 * Maximal room size.
-
