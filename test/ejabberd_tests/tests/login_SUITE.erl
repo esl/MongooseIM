@@ -219,6 +219,7 @@ end_per_testcase(CaseName, Config) ->
 %% Message tests
 %%--------------------------------------------------------------------
 
+
 register(Config) ->
     [{Name1, UserSpec1}, {Name2, UserSpec2}] = escalus_users:get_users([alice, bob]),
     [{_, AdminSpec}] = escalus_users:get_users([admin]),
