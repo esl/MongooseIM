@@ -670,7 +670,8 @@ is_interesting(Host, LocJID, RemJID, ArcID) ->
 %% ----------------------------------------------------------------------
 %% Backend wrappers
 
--spec archive_id_int(ejabberd:server(), ejabberd:jid()) -> integer().
+-spec archive_id_int(ejabberd:server(), ejabberd:jid()) ->
+    non_neg_integer() | undefined.
 archive_id_int(Host, ArcJID=#jid{}) ->
     ejabberd_hooks:run_fold(mam_archive_id, Host, undefined, [Host, ArcJID]).
 

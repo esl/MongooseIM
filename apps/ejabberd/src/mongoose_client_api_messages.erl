@@ -37,17 +37,25 @@ content_types_accepted(Req, State) ->
 allowed_methods(Req, State) ->
     {[<<"GET">>, <<"POST">>], Req, State}.
 
-to_json(Req, #{jid := #jid{lserver = Server} = JID} = State) ->
+to_json(Req, #{jid := JID} = State) ->
     {With, Req2} = cowboy_req:binding(with, Req),
     WithJID = maybe_jid(With),
+    maybe_to_json_with_jid(WithJID, JID, Req2, State).
+
+maybe_to_json_with_jid(error, _, Req, State) ->
+    Req2 = cowboy_req:reply(404, Req),
+    {halt, Req2, State};
+maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
+    ArchiveID = mod_mam:archive_id_int(Server, JID),
     R = mod_mam:lookup_messages(Server,
-                                _ArchiveID = mod_mam:archive_id_int(Server, JID),
+                                ArchiveID,
                                 _ArchiveJID = JID,
-                                _Borders = undefined,
                                 _RSM = undefined,
+                                _Borders = undefined,
                                 _Start = undefined,
                                 _End = undefined,
-                                _Now = undefined,
+                                Now,
                                 WithJID,
                                 _PageSize = 10,
                                 _LimitPassed = true,
@@ -55,7 +63,7 @@ to_json(Req, #{jid := #jid{lserver = Server} = JID} = State) ->
                                 _IsSimple = true),
     {ok, {_, _, Msgs}} = R,
     Resp = [make_json_msg(Msg, MAMId) || {MAMId, _, Msg} <- Msgs],
-    {jiffy:encode(Resp), Req2, State}.
+    {jiffy:encode(Resp), Req, State}.
 
 send_message(Req, #{user := RawUser, jid := FromJID} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
@@ -87,7 +95,7 @@ make_json_msg(Msg, MAMId) ->
       to => exml_query:attr(Msg, <<"to">>),
       id => exml_query:attr(Msg, <<"id">>),
       body => exml_query:cdata(BodyTag),
-      timestamp => Microsec}.
+      timestamp => Microsec div 1000000}.
 
 maybe_jid(undefined) ->
     undefined;
