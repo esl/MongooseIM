@@ -38,6 +38,8 @@ allowed_methods(Req, State) ->
     {[<<"GET">>, <<"POST">>], Req, State}.
 
 to_json(Req, #{jid := #jid{lserver = Server} = JID} = State) ->
+    {With, Req2} = cowboy_req:binding(with, Req),
+    WithJID = maybe_jid(With),
     R = mod_mam:lookup_messages(Server,
                                 _ArchiveID = mod_mam:archive_id_int(Server, JID),
                                 _ArchiveJID = JID,
@@ -46,14 +48,14 @@ to_json(Req, #{jid := #jid{lserver = Server} = JID} = State) ->
                                 _Start = undefined,
                                 _End = undefined,
                                 _Now = undefined,
-                                _WithJID = undefined,
+                                WithJID,
                                 _PageSize = 10,
                                 _LimitPassed = true,
                                 _MaxResultLimit = 50,
                                 _IsSimple = true),
     {ok, {_, _, Msgs}} = R,
     Resp = [make_json_msg(Msg, MAMId) || {MAMId, _, Msg} <- Msgs],
-    {jiffy:encode(Resp), Req, State}.
+    {jiffy:encode(Resp), Req2, State}.
 
 send_message(Req, #{user := RawUser, jid := FromJID} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
@@ -87,3 +89,7 @@ make_json_msg(Msg, MAMId) ->
       body => exml_query:cdata(BodyTag),
       timestamp => Microsec}.
 
+maybe_jid(undefined) ->
+    undefined;
+maybe_jid(JID) ->
+    jid:from_binary(JID).

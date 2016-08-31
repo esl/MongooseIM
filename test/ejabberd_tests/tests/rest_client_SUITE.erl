@@ -9,10 +9,12 @@ groups() ->
 
 test_cases() ->
     [msg_is_sent_and_delivered,
-     messages_are_archived,
+     all_messages_are_archived,
+     messages_with_user_are_archived,
 %     messages_can_be_paginated,
      room_is_created,
-     user_is_invited_to_a_room].
+     user_is_invited_to_a_room
+     ].
 
 init_per_suite(C) ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -37,7 +39,9 @@ end_per_group(_GN, C) ->
     C.
 
 init_per_testcase(TC, Config) ->
-    MAMTestCases = [messages_are_archived, messages_can_be_paginated],
+    MAMTestCases = [all_messages_are_archived,
+                    messages_with_user_are_archived,
+                    messages_can_be_paginated],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
 end_per_testcase(TC, C) ->
@@ -50,23 +54,28 @@ msg_is_sent_and_delivered(Config) ->
         escalus:assert(is_chat_message, [maps:get(body, M)], Msg)
     end).
 
-messages_are_archived(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        M1 = send_message(bob, Bob, Alice),
-        M2 = send_message(alice, Alice, Bob),
-        mam_helper:maybe_wait_for_yz(Config),
+all_messages_are_archived(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        Sent = [M1 | _] = send_messages(Config, Alice, Bob, Kate),
         AliceJID = maps:get(to, M1),
-        BobJID = maps:get(to, M2),
         AliceCreds = {AliceJID, user_password(alice)},
         GetPath = lists:flatten("/messages/"),
         {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, AliceCreds),
-        [Msg1, _Msg2] = rest_helper:decode_maplist(Msgs),
-        BobJID = maps:get(from, Msg1),
-        BobMsgId = maps:get(id, M1),
-        BobMsgId = maps:get(id, Msg1), %checks if there is an ID
-        _ = maps:get(timestamp, Msg1), %checks if there ia timestamp
-        BobMsgBody = maps:get(body, M1),
-        BobMsgBody = maps:get(body, Msg1)
+        Received = [_Msg1, _Msg2, _Msg3] = rest_helper:decode_maplist(Msgs),
+        assert_messages(Sent, Received)
+
+    end).
+
+messages_with_user_are_archived(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        [M1, _M2, M3] = send_messages(Config, Alice, Bob, Kate),
+        AliceJID = maps:get(to, M1),
+        KateJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Kate)),
+        AliceCreds = {AliceJID, user_password(alice)},
+        GetPath = lists:flatten(["/messages/", binary_to_list(KateJID)]),
+        {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, AliceCreds),
+        Recv = [_Msg2] = rest_helper:decode_maplist(Msgs),
+        assert_messages([M3], Recv)
 
     end).
 
@@ -103,7 +112,7 @@ room_is_created(Config) ->
         RoomID = create_room(Creds, RoomName, <<"This room subject">>),
         {{<<"200">>, <<"OK">>}, Result} = rest_helper:gett(<<"/rooms/", RoomID/binary>>,
                                                           Creds),
-        ct:print("~p", [Result])
+        ct:pal("~p", [Result])
     end).
 
 user_is_invited_to_a_room(Config) ->
@@ -117,7 +126,7 @@ user_is_invited_to_a_room(Config) ->
         {{<<"204">>, <<"No Content">>}, _} = rest_helper:putt(<<"/rooms/", RoomID/binary>>,
                                                               Body, Creds),
         Stanza = escalus:wait_for_stanza(Bob),
-        ct:print("~p", [Stanza])
+        ct:pal("~p", [Stanza])
     end).
 
 user_password(User) ->
@@ -131,7 +140,7 @@ send_message(User, From, To) ->
     Cred = {AliceJID, user_password(User)},
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(<<"/messages">>, M, Cred),
     ID = proplists:get_value(<<"id">>, Result),
-    M#{id => ID}.
+    M#{id => ID, from => AliceJID}.
 
 get_messages(MeCreds, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
@@ -148,9 +157,31 @@ get_messages(MeCreds, Other, Before, Count) ->
     {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, MeCreds),
     Msgs.
 
-create_room({AliceJID, _} = Creds, RoomID, Subject) ->
+create_room({_AliceJID, _} = Creds, RoomID, Subject) ->
     Room = #{name => RoomID,
              subject => Subject},
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(<<"/rooms">>, Room, Creds),
     proplists:get_value(<<"id">>, Result).
+
+assert_messages([], []) ->
+    ok;
+assert_messages([SentMsg | SentRest], [RecvMsg | RecvRest]) ->
+    ct:pal("sent msg: ~p~nrecv msg: ~p", [SentMsg, RecvMsg]),
+    FromJID = maps:get(from, SentMsg),
+    FromJID = maps:get(from, RecvMsg),
+    MsgId = maps:get(id, SentMsg),
+    MsgId = maps:get(id, RecvMsg), %checks if there is an ID
+    _ = maps:get(timestamp, RecvMsg), %checks if there ia timestamp
+    MsgBody = maps:get(body, SentMsg),
+    MsgBody = maps:get(body, RecvMsg),
+    assert_messages(SentRest, RecvRest);
+assert_messages(_Sent, _Recv) ->
+    ct:fail("Send and Recv messages are not equal").
+
+send_messages(Config, Alice, Bob, Kate) ->
+    M1 = send_message(bob, Bob, Alice),
+    M2 = send_message(alice, Alice, Bob),
+    M3 = send_message(kate, Kate, Alice),
+    mam_helper:maybe_wait_for_yz(Config),
+    [M1, M2, M3].
 
