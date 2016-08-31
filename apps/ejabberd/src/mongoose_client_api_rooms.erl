@@ -45,18 +45,16 @@ resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
         undefined ->
             {false, Req2, State};
         _ ->
-            does_room_exist({RoomID, MUCLightDomain}, Req2, State)
+            does_room_exist(RoomID, MUCLightDomain, Req2, State)
     end.
 
-does_room_exist(RoomUS, Req, State) ->
-    case mod_muc_light_db_backend:get_info(RoomUS) of
+does_room_exist(RoomU, RoomS, Req, State) ->
+    case mod_muc_light_db_backend:get_info({RoomU, RoomS}) of
         {ok, Config, Users, Version} ->
-            ?WARNING_MSG("Config: ~p", [Config]),
-            ?WARNING_MSG("Users: ~p", [Users]),
-            ?WARNING_MSG("Version: ~p", [Version]),
             Room = #{config => Config,
                      users => Users,
-                     version => Version},
+                     version => Version,
+                     jid => jid:make(RoomU, RoomS, <<>>)},
             {true, Req, State#{room => Room}};
         _ ->
             {Method, Req2} = cowboy_req:method(Req),
@@ -99,7 +97,7 @@ handle_request(<<"POST">>, JSONData, Req,
             {true, RespReq, State}
     end;
 handle_request(<<"PUT">>, JSONData, Req,
-               #{user := User, jid := #jid{lserver = Server} = From} = State) ->
+               #{user := User, jid := #jid{lserver = Server}} = State) ->
     #{<<"user">> := UserToInvite} = JSONData,
     {RoomId, Req2} = cowboy_req:binding(id, Req),
     mod_muc_light_admin:invite_to_room_id(Server, RoomId, User, UserToInvite),

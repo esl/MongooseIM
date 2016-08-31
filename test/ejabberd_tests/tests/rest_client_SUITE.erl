@@ -13,7 +13,8 @@ test_cases() ->
      messages_with_user_are_archived,
 %     messages_can_be_paginated,
      room_is_created,
-     user_is_invited_to_a_room
+     user_is_invited_to_a_room,
+     msg_is_sent_and_delivered_in_room
      ].
 
 init_per_suite(C) ->
@@ -106,10 +107,8 @@ messages_can_be_paginated(Config) ->
 
 room_is_created(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
-        Creds = {AliceJID, user_password(alice)},
-        RoomName = <<"new_room_name">>,
-        RoomID = create_room(Creds, RoomName, <<"This room subject">>),
+        Creds = credentials(alice, Alice),
+        RoomID = given_new_room(Creds),
         {{<<"200">>, <<"OK">>}, Result} = rest_helper:gett(<<"/rooms/", RoomID/binary>>,
                                                           Creds),
         ct:pal("~p", [Result])
@@ -117,17 +116,42 @@ room_is_created(Config) ->
 
 user_is_invited_to_a_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
-        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        Creds = {AliceJID, user_password(alice)},
-        RoomName = <<"new_room_id2">>,
-        RoomID = create_room(Creds, RoomName, <<"This room subject 2">>),
-        Body = #{user => BobJID},
-        {{<<"204">>, <<"No Content">>}, _} = rest_helper:putt(<<"/rooms/", RoomID/binary>>,
-                                                              Body, Creds),
-        Stanza = escalus:wait_for_stanza(Bob),
-        ct:pal("~p", [Stanza])
+        Creds = credentials(alice, Alice),
+        RoomID = given_new_room(Creds),
+        given_user_invited(Creds, RoomID, Bob)
     end).
+
+msg_is_sent_and_delivered_in_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Creds = credentials(alice, Alice),
+        RoomID = given_new_room(Creds),
+        given_user_invited(Creds, RoomID, Bob),
+        Path = <<"/rooms/", RoomID/binary, "/messages">>,
+        Body = #{body => <<"Hi all!">>},
+        {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(Path, Body, Creds),
+        MsgId = proplists:get_value(<<"id">>, Result),
+        true = is_binary(MsgId),
+        Stanza = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_groupchat_message, [<<"Hi all!">>], Stanza)
+    end).
+
+given_new_room(Creds) ->
+    RoomName = <<"new_room_name">>,
+    create_room(Creds, RoomName, <<"This room subject">>).
+
+given_user_invited(Owner, RoomID, Invitee) ->
+    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Invitee)),
+    Body = #{user => JID},
+    {{<<"204">>, <<"No Content">>}, _} = rest_helper:putt(<<"/rooms/", RoomID/binary>>,
+                                                          Body, Owner),
+    Stanza = escalus:wait_for_stanza(Invitee),
+    ct:pal("~p", [Stanza]).
+
+
+credentials(User, UserClient) ->
+    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(UserClient)),
+    {JID, user_password(User)}.
+
 
 user_password(User) ->
     [{User, Props}] = escalus:get_users([User]),
