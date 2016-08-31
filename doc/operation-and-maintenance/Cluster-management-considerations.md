@@ -14,7 +14,7 @@ With dual-node MongooseIM, one can setup a vertically scalable system, that is f
 
 In dual-node MongooseIM, there is 50-50 load distribution. There is a possible fallback or failover in case of a node failure, but then the remaining node should be able to handle the full load in order to avoid degrading the service.
 
-This applies from low to mid-scale deployments, such as functional and load testing, and initial production environments. We recommend real dedicated servers, although MongooseIM coul run in cluster mode with low-power machines, such as embedded devices.
+This applies from low to mid-scale deployments, such as functional and load testing, and initial production environments. We recommend real dedicated servers, although MongooseIM could run in cluster mode with low-power machines, such as embedded devices.
 
 ## Multi-node MongooseIM
 
