@@ -830,7 +830,7 @@ lbin(Bin) ->
 
 -spec default_config() -> list().
 default_config() ->
-    rpc(mod_muc_light, default_config, []).
+    rpc(mod_muc_light, default_config, [?MUCHOST]).
 
 -spec set_default_mod_config() -> ok.
 set_default_mod_config() ->
