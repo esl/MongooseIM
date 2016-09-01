@@ -227,5 +227,8 @@ We recommend following client libraries:
 Social media
 ------------
 
+Follow us on Twitter and Facebook, please ask questions, and propose features!
+
 Twitter: https://twitter.com/MongooseIM
+
 Facebook: https://www.facebook.com/MongooseIM/
