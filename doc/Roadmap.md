@@ -29,4 +29,5 @@ Please feel free to comment!
 
 * [XEP-0156: Discovering Alternative XMPP Connection Methods](http://xmpp.org/extensions/xep-0156.html)?
 * [XEP-0379: Pre-Authenticated Roster Subscription](https://xmpp.org/extensions/xep-0379.html)?
+* [XEP-xxxx: Explicit Message Encryption](https://xmpp.org/extensions/inbox/eme.html)?
 * Contributions?
