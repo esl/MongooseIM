@@ -38,19 +38,6 @@
          replace_from_to_attrs/3,
          replace_from_to/3,
          remove_attr/2,
-         make_jid/3,
-         make_jid/1,
-         are_equal_jids/2,
-         binary_to_jid/1,
-         jid_to_binary/1,
-         is_nodename/1,
-         nodeprep/1,
-         nameprep/1,
-         resourceprep/1,
-         jid_to_lower/1,
-         jid_tolower/1,
-         jid_remove_resource/1,
-         jid_replace_resource/2,
          iq_query_info/1,
          iq_query_or_response_info/1,
          iq_to_xml/1,
@@ -264,85 +251,6 @@ replace_from_to(From, To, XE = #xmlel{attrs = Attrs}) ->
 remove_attr(Attr, XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = lists:keydelete(Attr, 1, Attrs),
     XE#xmlel{attrs = NewAttrs}.
-
-
--spec make_jid(User     :: ejabberd:user(),
-               Server   :: ejabberd:server(),
-               Resource :: ejabberd:resource()) -> ejabberd:jid() | error.
-make_jid(User, Server, Resource) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:make(User, Server, Resource).
-
--spec make_jid(ejabberd:simple_jid()) -> ejabberd:jid() | error.
-make_jid({User, Server, Resource}) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    make_jid(User, Server, Resource).
-
--spec are_equal_jids(ejabberd:jid(), ejabberd:jid()) -> boolean().
-are_equal_jids(JID1, JID2) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:are_equal(JID1, JID2).
-
-
--spec binary_to_jid(binary()) -> 'error' | ejabberd:jid().
-binary_to_jid(J) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:from_binary(J).
-
-
--spec jid_to_binary(ejabberd:simple_jid() | ejabberd:jid()) -> binary().
-jid_to_binary(JID) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:to_binary(JID).
-
--spec is_nodename(<<>> | binary()) -> boolean().
-is_nodename(J) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:is_nodename(J).
-
--spec nodeprep(ejabberd:user()) -> 'error' | ejabberd:lserver().
-nodeprep(S) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:nodeprep(S).
-
-
--spec nameprep(ejabberd:server()) -> 'error' | ejabberd:luser().
-nameprep(S) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:nameprep(S).
-
--spec resourceprep(ejabberd:resource()) ->
-    'error' | ejabberd:lresource().
-resourceprep(S) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:resourceprep(S).
-
-
-%% @doc You are a bad person if you use this function.
--spec jid_tolower(JID :: ejabberd:simple_jid() | ejabberd:jid()) -> error | ejabberd:simple_jid().
-jid_tolower(Any) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:to_lower(Any).
-
--spec jid_to_lower(JID :: ejabberd:simple_jid() | ejabberd:jid()
-                 ) -> error | ejabberd:simple_jid().
-jid_to_lower(JID) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:to_lower(JID).
-
--spec jid_remove_resource(ejabberd:simple_jid() | ejabberd:jid()) ->
-                          ejabberd:simple_jid() | ejabberd:jid().
-jid_remove_resource(JID) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:to_bare(JID).
-
-
--spec jid_replace_resource(ejabberd:jid(), ejabberd:resource()) ->
-                                                  'error' | ejabberd:jid().
-jid_replace_resource(JID, Resource) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:replace_resource(JID, Resource).
-
 
 -spec iq_query_info(xmlel()) -> 'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
 iq_query_info(El) ->
