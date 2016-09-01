@@ -41,12 +41,27 @@ resource_exists(Req, State) ->
 allow_missing_post(Req, State) ->
     {false, Req, State}.
 
-to_json(Req, #{room := Room} = State) ->
-    Config = maps:get(config, Room),
-    Resp = #{name => proplists:get_value(roomname, Config),
-             subject => proplists:get_value(subject, Config)
-            },
-    {jiffy:encode(Resp), Req, State}.
+to_json(Req, #{jid := UserJID, room := Room} = State) ->
+    RoomJID = maps:get(jid, Room),
+    Server = UserJID#jid.server,
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
+    ArchiveID = mod_mam_muc:archive_id_int(Server, RoomJID),
+    R = mod_mam_muc:lookup_messages(Server,
+                                    ArchiveID,
+                                    _ArchiveJID = RoomJID,
+                                    _RSM = undefined,
+                                    _Borders = undefined,
+                                    _Start = undefined,
+                                    _End = undefined,
+                                    Now,
+                                    _WithJID = undefined,
+                                    _PageSize = 10,
+                                    _LimitPassed = true,
+                                    _MaxResultLimit = 50,
+                                    _IsSimple = true),
+    {ok, {undefined, undefined, Msgs}} = R,
+    JSONData = [make_json_item(Msg) || Msg <- Msgs],
+    {jiffy:encode(JSONData), Req, State}.
 
 from_json(Req, #{user := User, jid := JID, room := Room} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
@@ -71,4 +86,35 @@ build_message(From, To, ID, Body) ->
     #xmlel{name = <<"message">>,
            attrs = Attrs,
            children = [BodyEl]}.
+
+make_json_item({MAMID, JID, Msg}) ->
+    {Microsec, _} = mod_mam_utils:decode_compact_uuid(MAMID),
+    Item = #{id => exml_query:attr(Msg, <<"id">>),
+             from => make_from(JID),
+             timestamp => Microsec div 1000},
+    add_body_and_type(Item, Msg).
+
+make_from(#jid{lresource = <<>>} = JID) ->
+    jid:to_binary(JID);
+make_from(#jid{lresource = Sender}) ->
+    Sender.
+
+add_body_and_type(Item, Msg) ->
+    case exml_query:path(Msg, [{element, <<"x">>}, {element, <<"user">>}]) of
+        undefined ->
+            add_regular_message_body(Item, Msg);
+        #xmlel{} = AffChange ->
+            add_aff_change_body(Item, AffChange)
+    end.
+
+add_regular_message_body(Item, Msg) ->
+    BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
+    Body = exml_query:cdata(BodyTag),
+    Item#{type => <<"message">>,
+          body => Body}.
+
+add_aff_change_body(Item, #xmlel{attrs = Attrs} = User) ->
+    Item#{type => <<"affiliation">>,
+          affiliation => proplists:get_value(<<"affiliation">>, Attrs),
+          user => exml_query:cdata(User)}.
 

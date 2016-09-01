@@ -95,7 +95,7 @@ make_json_msg(Msg, MAMId) ->
       to => exml_query:attr(Msg, <<"to">>),
       id => exml_query:attr(Msg, <<"id">>),
       body => exml_query:cdata(BodyTag),
-      timestamp => Microsec div 1000000}.
+      timestamp => Microsec div 1000}.
 
 maybe_jid(undefined) ->
     undefined;

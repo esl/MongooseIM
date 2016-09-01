@@ -14,13 +14,14 @@ test_cases() ->
 %     messages_can_be_paginated,
      room_is_created,
      user_is_invited_to_a_room,
-     msg_is_sent_and_delivered_in_room
+     msg_is_sent_and_delivered_in_room,
+     messages_are_archived_in_room
      ].
 
 init_per_suite(C) ->
     Host = ct:get_config({hosts, mim, domain}),
-    C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C),
     MUCLightHost = <<"muclight.", Host/binary>>,
+    C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C),
     dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(MUCLightHost)},
                            {rooms_in_rosters, true}]),
@@ -42,7 +43,9 @@ end_per_group(_GN, C) ->
 init_per_testcase(TC, Config) ->
     MAMTestCases = [all_messages_are_archived,
                     messages_with_user_are_archived,
-                    messages_can_be_paginated],
+                    messages_can_be_paginated,
+                    messages_are_archived_in_room
+                   ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
 end_per_testcase(TC, C) ->
@@ -107,48 +110,94 @@ messages_can_be_paginated(Config) ->
 
 room_is_created(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Creds = credentials(alice, Alice),
-        RoomID = given_new_room(Creds),
-        {{<<"200">>, <<"OK">>}, Result} = rest_helper:gett(<<"/rooms/", RoomID/binary>>,
-                                                          Creds),
-        ct:pal("~p", [Result])
+        RoomID = given_new_room({alice, Alice}),
+        get_room_info({alice, Alice}, RoomID)
     end).
 
 user_is_invited_to_a_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Creds = credentials(alice, Alice),
-        RoomID = given_new_room(Creds),
-        given_user_invited(Creds, RoomID, Bob)
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        get_room_info({alice, Alice}, RoomID)
     end).
 
 msg_is_sent_and_delivered_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Creds = credentials(alice, Alice),
-        RoomID = given_new_room(Creds),
-        given_user_invited(Creds, RoomID, Bob),
-        Path = <<"/rooms/", RoomID/binary, "/messages">>,
-        Body = #{body => <<"Hi all!">>},
-        {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(Path, Body, Creds),
-        MsgId = proplists:get_value(<<"id">>, Result),
-        true = is_binary(MsgId),
-        Stanza = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_groupchat_message, [<<"Hi all!">>], Stanza)
+        given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}])
     end).
 
-given_new_room(Creds) ->
+messages_are_archived_in_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
+        mam_helper:maybe_wait_for_yz(Config),
+        ct:pal("~p", [Msgs]),
+        Path = <<"/rooms/", RoomID/binary, "/messages">>,
+        Creds = credentials({alice, Alice}),
+        {{<<"200">>, <<"OK">>}, Result} = rest_helper:gett(Path, Creds),
+        [Aff, _Msg1, _Msg2] = MsgsRecv = rest_helper:decode_maplist(Result),
+        %% The oldest message is aff change
+        <<"affiliation">> = maps:get(type, Aff),
+        <<"member">> = maps:get(affiliation, Aff),
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        BobJID = maps:get(user, Aff),
+        ct:pal("~p", [MsgsRecv])
+    end).
+
+get_room_info(User, RoomID) ->
+    Creds = credentials(User),
+    {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:gett(<<"/rooms/", RoomID/binary>>,
+                                                         Creds),
+    ct:pal("~p", [Result]),
+    Result.
+
+given_new_room_with_users_and_msgs(Owner, Users) ->
+    RoomID = given_new_room_with_users(Owner, Users),
+    Msgs = [given_message_sent_to_room(RoomID, Sender) || Sender <- [Owner | Users]],
+    wait_for_room_msgs(Msgs, [Owner | Users]),
+    {RoomID, Msgs}.
+
+wait_for_room_msgs([], _) ->
+    ok;
+wait_for_room_msgs([Msg | Rest], Users) ->
+    [wait_for_room_msg(Msg, User) || {_, User} <- Users],
+    wait_for_room_msgs(Rest, Users).
+
+wait_for_room_msg(Msg, User) ->
+    Stanza = escalus:wait_for_stanza(User),
+    escalus:assert(is_groupchat_message, [maps:get(body, Msg)], Stanza).
+
+given_message_sent_to_room(RoomID, Sender) ->
+    Creds = credentials(Sender),
+    Path = <<"/rooms/", RoomID/binary, "/messages">>,
+    Body = #{body => <<"Hi all!">>},
+    {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(Path, Body, Creds),
+    MsgId = proplists:get_value(<<"id">>, Result),
+    true = is_binary(MsgId),
+    Body#{id => MsgId}.
+
+
+given_new_room_with_users(Owner, Users) ->
+    RoomID = given_new_room(Owner),
+    [given_user_invited(Owner, RoomID, User) || {_, User} <- Users],
+    RoomID.
+
+given_new_room(Owner) ->
+    Creds = credentials(Owner),
     RoomName = <<"new_room_name">>,
     create_room(Creds, RoomName, <<"This room subject">>).
 
-given_user_invited(Owner, RoomID, Invitee) ->
+given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
+    Creds = credentials(Owner),
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Invitee)),
     Body = #{user => JID},
     {{<<"204">>, <<"No Content">>}, _} = rest_helper:putt(<<"/rooms/", RoomID/binary>>,
-                                                          Body, Owner),
+                                                          Body, Creds),
     Stanza = escalus:wait_for_stanza(Invitee),
-    ct:pal("~p", [Stanza]).
+    ct:pal("Invitee ~p", [Stanza]),
+    Stanza2 = escalus:wait_for_stanza(Inviter),
+    ct:pal("Inviter ~p", [Stanza2]).
 
 
-credentials(User, UserClient) ->
+credentials({User, UserClient}) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(UserClient)),
     {JID, user_password(User)}.
 
