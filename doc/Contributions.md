@@ -47,6 +47,13 @@ Apache license 2.0
 
 Note: amoc stands for "A Murder of Crows"
 
+### exml
+
+Available on: [https://github.com/esl/exml](github.com/esl/exml)
+XML parsing library in Erlang
+Apache license 2.0
+
+
 ### ICE (STUN/TURN) server
 
 Please contact us.
