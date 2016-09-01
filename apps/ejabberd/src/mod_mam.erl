@@ -121,9 +121,9 @@
 
 -type action()              :: atom().
 -type borders()             :: #mam_borders{}.
--type lookup_result() :: {TotalCount :: non_neg_integer(),
-                          Offset :: non_neg_integer(),
-                          MessageRows :: list(tuple())}.
+-type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
+                          Offset :: non_neg_integer() | undefined,
+                          MessageRows :: [{message_id(), jid(), jlib:xmlel()}]}.
 
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok',{_,_}}).

@@ -74,7 +74,7 @@ from_json(Req, #{user := User, jid := JID, room := Room} = State) ->
     Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req2),
     {true, Req3, State}.
 
--spec build_message(From :: binary(), To :: ejabberd:jid(), ID :: string(), Body :: binary()) ->
+-spec build_message(From :: binary(), To :: ejabberd:jid(), ID :: binary(), Body :: binary()) ->
     jlib:xmlel().
 build_message(From, To, ID, Body) ->
     Attrs = [{<<"from">>, From},

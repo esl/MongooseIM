@@ -54,7 +54,7 @@ does_room_exist(RoomU, RoomS, Req, State) ->
             Room = #{config => Config,
                      users => Users,
                      version => Version,
-                     jid => jid:make(RoomU, RoomS, <<>>)},
+                     jid => jid:make_noprep(RoomU, RoomS, <<>>)},
             {true, Req, State#{room => Room}};
         _ ->
             {Method, Req2} = cowboy_req:method(Req),
