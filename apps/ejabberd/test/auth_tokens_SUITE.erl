@@ -153,7 +153,7 @@ validity_period_test(_) ->
 
 choose_key_by_token_type(_) ->
     %% given mocked keystore (see init_per_testcase)
-    JID = jlib:binary_to_jid(<<"alice@localhost">>),
+    JID = jid:from_binary(<<"alice@localhost">>),
     %% when mod_auth_token asks for key for given token type
     %% then the correct key is returned
     ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_user(access, JID)),
@@ -197,7 +197,7 @@ revoked_token_is_not_valid(_) ->
     self() ! {valid_seq_no, ValidSeqNo},
     T = #token{type = refresh,
                expiry_datetime = ?TESTED:seconds_to_datetime(utc_now_as_seconds() + 10),
-               user_jid = jlib:binary_to_jid(<<"alice@localhost">>),
+               user_jid = jid:from_binary(<<"alice@localhost">>),
                sequence_no = RevokedSeqNo},
     Revoked = ?TESTED:serialize(?TESTED:token_with_mac(T)),
     %% when
@@ -356,7 +356,7 @@ token() ->
 make_token({Type, Expiry, JID, SeqNo, VCard}) ->
     T = #token{type = Type,
                expiry_datetime = Expiry,
-               user_jid = jlib:binary_to_jid(JID)},
+               user_jid = jid:from_binary(JID)},
     case Type of
         access ->
             ?TESTED:token_with_mac(T);

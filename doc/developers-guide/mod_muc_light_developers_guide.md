@@ -75,12 +75,13 @@ Advantages and drawbacks (compared to classic MUC)
 
 New MUC implementation has following benefits:
 
-* Fully distributed - does not have SPOF, concurrent senders do not block each other, especially in large rooms. Message broadcasting is being done in sender c2s context.
-* Doesn't use presences - much less traffic and stable membership information, especially on mobile networks.
+* Fully distributed - Does not have SPOF, concurrent senders do not block each other, especially in large rooms. Message broadcasting is being done in sender c2s context.
+* Doesn't use presences - Much less traffic and stable membership information, especially on mobile networks.
 * Built-in blocking support - Instead of blocking traffic like Privacy Lists do, it handles blocklists internally, preventing the blocker from being added to or by blocked entities.
 * Less round-trips - Room can be created and configured with initial list of occupants with single request.
-* Versioning - reduces traffic and allows clients to detect reliably and early that room state has changed.
+* Versioning - Reduces traffic and allows clients to detect reliably and early that room state has changed.
 * Isolation - Any processing error is contained in sender context, not affecting other room occupants.
+* Fully customisable room configuration - Your users can store any meta room information you allow.
 
 Drawbacks are:
 
@@ -107,7 +108,6 @@ Ideas for Further Development
 
 ### Easy
 
-  * Make default room configuration configurable
   * ODBC backend
   * Add more tests for negative cases
 
@@ -116,6 +116,7 @@ Ideas for Further Development
   * Add optional per-room processes to avoid the need of DB transactions and ensure message ordering (maybe "hard"?).
   * Riak backend
   * Redis backend
+  * Extract per service subdomain config tab as separate, generic module (maybe "easy"?).
 
 ### Hard
 
