@@ -18,6 +18,7 @@
     maybe_disable_mam/2,
     maybe_skip_mam_test_cases/3,
     fill_archive/2,
+    fill_room_archive/2,
     make_timestamp/2
 ]).
 
@@ -249,10 +250,46 @@ make_arc_id(Client) ->
     Jid = mam_helper:rpc_apply(jid, make, [User, Server, <<"">>]),
     {Bin, Jid, mam_helper:rpc_apply(mod_mam, archive_id, [Server, User])}.
 
+fill_room_archive(RoomID, Users) ->
+    {TodayDate, _} = calendar:local_time(),
+    Today = calendar:date_to_gregorian_days(TodayDate),
+    Days = [Today - I || I <- lists:seq(0, 3)],
+    Host = ct:get_config({hosts, mim, domain}),
+    MUCLight = <<"muclight.", Host/binary>>,
+    RoomJID = mam_helper:rpc_apply(jid, make, [RoomID, MUCLight, <<>>]),
+    RoomBinJID = <<RoomID/binary, "@", MUCLight/binary>>,
+    RoomArcID = mam_helper:rpc_apply(mod_mam_muc, archive_id_int, [Host, RoomJID]),
+    Room = {RoomBinJID, RoomJID, RoomArcID},
+    UserArcIDs = [make_room_arc_id(Room, User) || User <- Users],
+    [put_room_msgs_in_day(Room, UserArcIDs, Day) || Day <- lists:reverse(Days)].
+
+put_room_msgs_in_day(RoomJID, Users, Day) ->
+    [put_room_msg_in_day(RoomJID, User, Day) || User <- Users].
+
+put_room_msg_in_day(RoomArcID, FromArcID, Day) ->
+    DateTime = {calendar:gregorian_days_to_date(Day), {10, 0, 0}},
+    Msg = mam_helper:generate_msg_for_date_user(FromArcID, RoomArcID, DateTime),
+    put_room_msg(Msg).
+
+put_room_msg({{_, MsgID},
+              {FromJIDBin, FromJID, _},
+              {_, ToJID, ToArcID},
+              {_, SrcJID, _}, Msg}) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    ok = mam_helper:rpc_apply(mod_mam_muc, archive_message,
+                         [Host, MsgID, ToArcID, ToJID, FromJID, SrcJID,
+                          incoming, Msg]),
+    {FromJIDBin, Msg}.
+
 make_timestamp(Offset, Time) ->
     {TodayDate, _} = calendar:local_time(),
     Today = calendar:date_to_gregorian_days(TodayDate),
     Dt = {calendar:gregorian_days_to_date(Today + Offset), Time},
     (calendar:datetime_to_gregorian_seconds(Dt) - 62167219200) * 1000.
 
+make_room_arc_id({_, RoomJID, _}, Client) ->
+    Bin = escalus_client:short_jid(Client),
+    JID = mam_helper:rpc_apply(jid, replace_resource, [RoomJID, Bin]),
+    JIDBin = mam_helper:rpc_apply(jid, to_binary, [JID]),
+    {JIDBin, JID, undefined}.
 
