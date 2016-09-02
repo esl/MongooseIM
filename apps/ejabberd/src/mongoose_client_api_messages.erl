@@ -48,22 +48,26 @@ maybe_to_json_with_jid(error, _, Req, State) ->
 maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
     Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     ArchiveID = mod_mam:archive_id_int(Server, JID),
+    {PageSize, Req2} = maybe_integer_qs_val(cowboy_req:qs_val(<<"limit">>, Req, <<"50">>)),
+    {Before, Req3} = maybe_integer_qs_val(cowboy_req:qs_val(<<"before">>, Req2)),
+    End = maybe_before_to_us(Before, Now),
+    RSM = #rsm_in{direction = before, id = undefined},
     R = mod_mam:lookup_messages(Server,
                                 ArchiveID,
                                 _ArchiveJID = JID,
-                                _RSM = undefined,
+                                RSM,
                                 _Borders = undefined,
                                 _Start = undefined,
-                                _End = undefined,
+                                End,
                                 Now,
                                 WithJID,
-                                _PageSize = 10,
+                                PageSize,
                                 _LimitPassed = true,
                                 _MaxResultLimit = 50,
                                 _IsSimple = true),
     {ok, {_, _, Msgs}} = R,
     Resp = [make_json_msg(Msg, MAMId) || {MAMId, _, Msg} <- Msgs],
-    {jiffy:encode(Resp), Req, State}.
+    {jiffy:encode(Resp), Req3, State}.
 
 send_message(Req, #{user := RawUser, jid := FromJID} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
@@ -101,3 +105,14 @@ maybe_jid(undefined) ->
     undefined;
 maybe_jid(JID) ->
     jid:from_binary(JID).
+
+maybe_integer_qs_val({undefined, Req} = R) ->
+    R;
+maybe_integer_qs_val({Val, Req}) ->
+    {binary_to_integer(Val), Req}.
+
+maybe_before_to_us(undefined, Now) ->
+    Now;
+maybe_before_to_us(Timestamp, _) ->
+   Timestamp * 1000.
+
