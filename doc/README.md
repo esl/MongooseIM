@@ -7,7 +7,7 @@
         * Build MongooseIM on a supported OS
         * Perform basic configuration
         * Use the main administration script, `mongooseimctl`
-* Contributions
+* [Contributions](Contributions.md)
 * Configuration
     * [Basic configuration](Basic-configuration.md)
     * [Advanced configuration](Advanced-configuration.md)
