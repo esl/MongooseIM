@@ -92,7 +92,7 @@ standard_default_config() -> [{"roomname", "Untitled"}, {"subject", ""}].
 default_config(MUCServer) -> gen_mod:get_module_opt_by_subhost(MUCServer, default_config, []).
 
 -spec config_schema(MUCServer :: ejabberd:lserver()) -> config_schema().
-config_schema(MUCServer) -> get_mod:get_module_opt_by_subhost(MUCServer, config_schema, undefined).
+config_schema(MUCServer) -> gen_mod:get_module_opt_by_subhost(MUCServer, config_schema, undefined).
 
 %%====================================================================
 %% gen_mod callbacks
@@ -178,7 +178,7 @@ route(From, To, Packet) ->
                      OrigPacket :: jlib:xmlel()) -> any().
 process_packet(From, To, {ok, {set, #create{} = Create}}, OrigPacket) ->
     RoomsPerUser = gen_mod:get_module_opt_by_subhost(
-                     To#jid.lserver, ?MODULE, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
+                     To#jid.lserver, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
     FromUS = jid:to_lus(From),
     case RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(FromUS)) < RoomsPerUser of
         true ->
@@ -192,7 +192,7 @@ process_packet(From, To, {ok, {get, #disco_info{} = DI}}, _OrigPacket) ->
 process_packet(From, To, {ok, {get, #disco_items{} = DI}}, OrigPacket) ->
     handle_disco_items_get(From, To, DI, OrigPacket);
 process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, OrigPacket) ->
-    case gen_mod:get_module_opt_by_subhost(To#jid.lserver, ?MODULE, blocking, ?DEFAULT_BLOCKING) of
+    case gen_mod:get_module_opt_by_subhost(To#jid.lserver, blocking, ?DEFAULT_BLOCKING) of
         true ->
             case handle_blocking(From, To, Blocking) of
                 ok ->
@@ -241,7 +241,7 @@ prevent_service_unavailable(_From, _To, Packet) ->
                       NS :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]}.
 get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
     XMLNS = case gen_mod:get_module_opt_by_subhost(
-                   LServer, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
+                   LServer, legacy_mode, ?DEFAULT_LEGACY_MODE) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
@@ -285,7 +285,7 @@ add_rooms_to_roster(Acc, UserUS) ->
 process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
     MUCHost = gen_mod:get_module_subhost(FromS, ?MODULE),
     case {?CODEC:decode(From, To, IQ), gen_mod:get_module_opt_by_subhost(
-                                         MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
+                                         MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
             Items = ?BACKEND:get_blocking(jid:to_lus(From)),
             ?CODEC:encode({get, Blocking#blocking{ items = Items }}, From, jid:to_lus(To),
@@ -303,7 +303,7 @@ process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList
 process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
     MUCHost = gen_mod:get_module_subhost(FromS, ?MODULE),
     case {?CODEC:decode(From, To, IQ), gen_mod:get_module_opt_by_subhost(
-                                         MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
+                                         MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->
             case lists:any(fun({_, _, {WhoU, WhoS}}) ->
                                    WhoU =:= <<>> orelse WhoS =:= <<>>
@@ -380,7 +380,7 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
     InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
                         CreatorUS, RoomUS, CreationCfg#create.aff_users),
     MaxOccupants = gen_mod:get_module_opt_by_subhost(
-                     RoomJID#jid.lserver, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+                     RoomJID#jid.lserver, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
     case {mod_muc_light_utils:process_raw_config(
             RawConfig, default_config(RoomS), config_schema(RoomS)),
           process_create_aff_users_if_valid(RoomS, CreatorUS, InitialAffUsers)} of
@@ -409,7 +409,7 @@ process_create_aff_users_if_valid(MUCServer, Creator, AffUsers) ->
         false ->
             process_create_aff_users(
               Creator, AffUsers, gen_mod:get_module_opt_by_subhost(
-                                   MUCServer, ?MODULE, equal_occupants, ?DEFAULT_EQUAL_OCCUPANTS));
+                                   MUCServer, equal_occupants, ?DEFAULT_EQUAL_OCCUPANTS));
         true ->
             {error, bad_request}
     end.
@@ -442,7 +442,7 @@ handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
         Rooms ->
             RoomsInfo = get_rooms_info(lists:sort(Rooms)),
             RoomsPerPage = gen_mod:get_module_opt_by_subhost(
-                             To#jid.lserver, ?MODULE, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
+                             To#jid.lserver, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
             case apply_rsm(RoomsInfo, length(RoomsInfo),
                            page_service_limit(DiscoItems0#disco_items.rsm, RoomsPerPage)) of
                 {ok, RoomsInfoSlice, RSMOut} ->
