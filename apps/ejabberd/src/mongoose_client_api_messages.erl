@@ -10,6 +10,9 @@
 -export([to_json/2]).
 -export([send_message/2]).
 
+-export([maybe_integer_qs_val/1]).
+-export([maybe_before_to_us/2]).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -106,7 +109,7 @@ maybe_jid(undefined) ->
 maybe_jid(JID) ->
     jid:from_binary(JID).
 
-maybe_integer_qs_val({undefined, Req} = R) ->
+maybe_integer_qs_val({undefined, _Req} = R) ->
     R;
 maybe_integer_qs_val({Val, Req}) ->
     {binary_to_integer(Val), Req}.
