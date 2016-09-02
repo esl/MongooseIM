@@ -11,7 +11,7 @@ test_cases() ->
     [msg_is_sent_and_delivered,
      all_messages_are_archived,
      messages_with_user_are_archived,
-%     messages_can_be_paginated,
+     messages_can_be_paginated,
      room_is_created,
      user_is_invited_to_a_room,
      msg_is_sent_and_delivered_in_room,
@@ -99,7 +99,8 @@ messages_can_be_paginated(Config) ->
         PriorTo = rest_helper:make_timestamp(-1, {0, 0, 1}),
         M3 = get_messages(AliceCreds, BobJID, PriorTo, 10),
         4 = length(M3),
-        [Oldest|_] = rest_helper:decode_maplist(M3),
+        Msgs = [Oldest|_] = rest_helper:decode_maplist(M3),
+        ct:print("~p", [Msgs]),
         <<"A">> = maps:get(body, Oldest),
         % same with limit
         M4 = get_messages(AliceCreds, BobJID, PriorTo, 2),
@@ -218,15 +219,15 @@ send_message(User, From, To) ->
 get_messages(MeCreds, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Other),
-                             "/", integer_to_list(Count)]),
+                             "?limit=", integer_to_list(Count)]),
     {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, MeCreds),
     Msgs.
 
 get_messages(MeCreds, Other, Before, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Other),
-                             "/", integer_to_list(Before),
-                             "/", integer_to_list(Count)]),
+                             "?before=", integer_to_list(Before),
+                             "&limit=", integer_to_list(Count)]),
     {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, MeCreds),
     Msgs.
 

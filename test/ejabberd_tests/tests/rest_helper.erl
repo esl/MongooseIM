@@ -253,6 +253,6 @@ make_timestamp(Offset, Time) ->
     {TodayDate, _} = calendar:local_time(),
     Today = calendar:date_to_gregorian_days(TodayDate),
     Dt = {calendar:gregorian_days_to_date(Today + Offset), Time},
-    calendar:datetime_to_gregorian_seconds(Dt) - 62167219200.
+    (calendar:datetime_to_gregorian_seconds(Dt) - 62167219200) * 1000.
 
 
