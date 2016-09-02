@@ -267,7 +267,8 @@ put_room_msgs_in_day(RoomJID, Users, Day) ->
     [put_room_msg_in_day(RoomJID, User, Day) || User <- Users].
 
 put_room_msg_in_day(RoomArcID, FromArcID, Day) ->
-    DateTime = {calendar:gregorian_days_to_date(Day), {10, 0, 0}},
+    {_, Time} = calendar:local_time(),
+    DateTime = {calendar:gregorian_days_to_date(Day), Time},
     Msg = mam_helper:generate_msg_for_date_user(FromArcID, RoomArcID, DateTime),
     put_room_msg(Msg).
 
@@ -279,7 +280,7 @@ put_room_msg({{_, MsgID},
     ok = mam_helper:rpc_apply(mod_mam_muc, archive_message,
                          [Host, MsgID, ToArcID, ToJID, FromJID, SrcJID,
                           incoming, Msg]),
-    {FromJIDBin, Msg}.
+    {MsgID, FromJIDBin, Msg}.
 
 make_timestamp(Offset, Time) ->
     {TodayDate, _} = calendar:local_time(),

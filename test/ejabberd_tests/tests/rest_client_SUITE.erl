@@ -15,7 +15,8 @@ test_cases() ->
      room_is_created,
      user_is_invited_to_a_room,
      msg_is_sent_and_delivered_in_room,
-     messages_are_archived_in_room
+     messages_are_archived_in_room,
+     messages_can_be_paginated_in_room
      ].
 
 init_per_suite(C) ->
@@ -44,7 +45,8 @@ init_per_testcase(TC, Config) ->
     MAMTestCases = [all_messages_are_archived,
                     messages_with_user_are_archived,
                     messages_can_be_paginated,
-                    messages_are_archived_in_room
+                    messages_are_archived_in_room,
+                    messages_can_be_paginated_in_room
                    ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
@@ -99,13 +101,12 @@ messages_can_be_paginated(Config) ->
         PriorTo = rest_helper:make_timestamp(-1, {0, 0, 1}),
         M3 = get_messages(AliceCreds, BobJID, PriorTo, 10),
         4 = length(M3),
-        Msgs = [Oldest|_] = rest_helper:decode_maplist(M3),
-        ct:print("~p", [Msgs]),
+        [Oldest|_] = M3,
         <<"A">> = maps:get(body, Oldest),
         % same with limit
         M4 = get_messages(AliceCreds, BobJID, PriorTo, 2),
         2 = length(M4),
-        [Oldest2|_] = rest_helper:decode_maplist(M4),
+        [Oldest2|_] = M4,
         <<"B">> = maps:get(body, Oldest2)
     end).
 
@@ -143,6 +144,31 @@ messages_are_archived_in_room(Config) ->
         ct:pal("~p", [MsgsRecv])
     end).
 
+messages_can_be_paginated_in_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        [GenMsgs1, GenMsgs2 | _] = Msgs = rest_helper:fill_room_archive(RoomID, [Alice, Bob]),
+        mam_helper:maybe_wait_for_yz(Config),
+        ct:print("~p", [Msgs]),
+        Msgs10 = get_room_messages({alice, Alice}, RoomID, 10),
+        Msgs10Len = length(Msgs10),
+        true = Msgs10Len > 0 andalso Msgs10Len =< 10,
+        Msgs3 = get_room_messages({alice, Alice}, RoomID, 3),
+        [_, _, _] = Msgs3,
+        {_, Time} = calendar:now_to_datetime(os:timestamp()),
+        PriorTo = rest_helper:make_timestamp(-1, Time),
+        [OldestMsg1 | _] = get_room_messages({alice, Alice}, RoomID, 4, PriorTo),
+        assert_room_messages(OldestMsg1, hd(lists:keysort(1, GenMsgs1))),
+        [OldestMsg2 | _] = get_room_messages({alice, Alice}, RoomID, 2, PriorTo),
+        assert_room_messages(OldestMsg2, hd(lists:keysort(1, GenMsgs2)))
+    end).
+
+assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
+    ct:print("~p", [RecvMsg]),
+    ct:print("~p", [GenMsg]),
+    escalus:assert(is_chat_message, [maps:get(body, RecvMsg)], GenMsg),
+    ok.
+
 get_room_info(User, RoomID) ->
     Creds = credentials(User),
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:gett(<<"/rooms/", RoomID/binary>>,
@@ -174,7 +200,6 @@ given_message_sent_to_room(RoomID, Sender) ->
     MsgId = proplists:get_value(<<"id">>, Result),
     true = is_binary(MsgId),
     Body#{id => MsgId}.
-
 
 given_new_room_with_users(Owner, Users) ->
     RoomID = given_new_room(Owner),
@@ -220,16 +245,29 @@ get_messages(MeCreds, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Other),
                              "?limit=", integer_to_list(Count)]),
-    {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, MeCreds),
-    Msgs.
+    get_messages(GetPath, MeCreds).
+
+get_messages(Path, Creds) ->
+    {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(Path, Creds),
+    rest_helper:decode_maplist(Msgs).
 
 get_messages(MeCreds, Other, Before, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Other),
                              "?before=", integer_to_list(Before),
                              "&limit=", integer_to_list(Count)]),
-    {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(GetPath, MeCreds),
-    Msgs.
+    get_messages(GetPath, MeCreds).
+
+
+get_room_messages(Client, RoomID, Count) ->
+    get_room_messages(Client, RoomID, Count, undefined).
+
+get_room_messages(Client, RoomID, Count, Before) ->
+    Creds = credentials(Client),
+    BasePathList = ["/rooms/", RoomID, "/messages?limit=", integer_to_binary(Count)],
+    PathList = BasePathList ++ [["&before=",integer_to_binary(Before)] || Before /= undefined],
+    Path = erlang:iolist_to_binary(PathList),
+    get_messages(Path, Creds).
 
 create_room({_AliceJID, _} = Creds, RoomID, Subject) ->
     Room = #{name => RoomID,
