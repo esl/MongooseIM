@@ -13,6 +13,7 @@ pages:
       - 'Release/Installation configuration': 'user-guide/release_config.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
   - 'Basic Configuration Overview': 'Basic-configuration.md'
+  - 'Roadmap': 'Roadmap.md'
   - 'Advanced Configuration':
       - 'Overview': 'Advanced-configuration.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
