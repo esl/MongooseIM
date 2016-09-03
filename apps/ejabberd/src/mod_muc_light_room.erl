@@ -25,7 +25,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([handle_request/4]).
+-export([handle_request/4, maybe_forget/2]).
 
 %% Callbacks
 -export([participant_limit_check/2]).
@@ -47,6 +47,13 @@ handle_request(From, To, OrigPacket, Request) ->
     AffUsersRes = ?BACKEND:get_aff_users(RoomUS),
     Response = process_request(From, RoomUS, Request, AffUsersRes),
     send_response(From, To, RoomUS, OrigPacket, Response).
+
+-spec maybe_forget(RoomUS :: ejabberd:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
+maybe_forget({RoomU, RoomS} = RoomUS, []) ->
+    ejabberd_hooks:run(forget_room, RoomS, [RoomS, RoomU]),
+    ?BACKEND:destroy_room(RoomUS);
+maybe_forget(_, _) ->
+    my_room_will_go_on.
 
 %%====================================================================
 %% Callbacks
@@ -129,7 +136,7 @@ process_request({set, #affiliations{} = AffReq}, _From, UserUS, {_, MUCServer} =
     process_aff_set(AffReq, RoomUS, ValidateResult);
 process_request({set, #destroy{} = DestroyReq}, _From, _UserUS, RoomUS, {_, owner}, AffUsers) ->
     ok = ?BACKEND:destroy_room(RoomUS),
-    maybe_forget_room(RoomUS, []),
+    maybe_forget(RoomUS, []),
     {set, DestroyReq, AffUsers};
 process_request({set, #destroy{}}, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
     {error, not_allowed};
@@ -197,7 +204,7 @@ process_aff_set(AffReq, RoomUS, {ok, FilteredAffUsers}) ->
     case ?BACKEND:modify_aff_users(RoomUS, FilteredAffUsers,
                                    fun ?MODULE:participant_limit_check/2, NewVersion) of
         {ok, OldAffUsers, NewAffUsers, AffUsersChanged, OldVersion} ->
-            maybe_forget_room(RoomUS, NewAffUsers),
+            maybe_forget(RoomUS, NewAffUsers),
             {set, AffReq#affiliations{
                     prev_version = OldVersion,
                     version = NewVersion,
@@ -224,11 +231,4 @@ send_response(From, _RoomJID, RoomUS, _OriginalPacket, Response) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
--spec maybe_forget_room(RoomUS :: ejabberd:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
-maybe_forget_room({RoomU, RoomS} = RoomUS, []) ->
-    ejabberd_hooks:run(forget_room, RoomS, [RoomS, RoomU]),
-    ?BACKEND:destroy_room(RoomUS);
-maybe_forget_room(_, _) ->
-    my_room_will_go_on.
 
