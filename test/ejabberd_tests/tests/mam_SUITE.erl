@@ -661,8 +661,9 @@ init_modules(odbc_mnesia_cache, _, Config) ->
     Config.
 
 end_modules(C, muc_light, Config) ->
+    end_modules(C, generic, Config),
     dynamic_modules:stop(host(), mod_muc_light),
-    end_modules(C, generic, Config);
+    Config;
 end_modules(_, _, Config) ->
     [stop_module(host(), M) || M <- mam_modules()],
     Config.

@@ -284,7 +284,7 @@ send_service_message_all_mucs(Subject, AnnouncementText) ->
     Message = io_lib:format("~s~n~s", [Subject, AnnouncementText]),
     lists:foreach(
       fun(Host) ->
-              MUCHost = gen_mod:get_module_subhost(Host, mod_muc),
+              {ok, MUCHost} = gen_mod:get_module_subhost(Host, mod_muc),
               mod_muc:broadcast_service_message(MUCHost, Message)
       end,
       ?MYHOSTS).

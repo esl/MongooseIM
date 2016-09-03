@@ -147,7 +147,7 @@ start(Host, Opts) ->
 
 -spec stop(Host :: ejabberd:server()) -> ok.
 stop(Host) ->
-    MyDomain = gen_mod:get_module_subhost(Host, ?MODULE),
+    {ok, MyDomain} = gen_mod:get_module_subhost(Host, ?MODULE),
     ejabberd_router:unregister_route(MyDomain),
 
     ?BACKEND:stop(Host, MyDomain),
@@ -245,7 +245,7 @@ get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
-    SubHost = gen_mod:get_module_subhost(LServer, ?MODULE),
+    {ok, SubHost} = gen_mod:get_module_subhost(LServer, ?MODULE),
     Item = [#xmlel{name = <<"item">>,
                    attrs = [{<<"jid">>, SubHost},
                             {<<"node">>, XMLNS}]}],
@@ -283,7 +283,7 @@ add_rooms_to_roster(Acc, UserUS) ->
                      IQ :: #iq{}, ActiveList :: binary()) ->
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
 process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
-    MUCHost = gen_mod:get_module_subhost(FromS, ?MODULE),
+    {ok, MUCHost} = gen_mod:get_module_subhost(FromS, ?MODULE),
     case {?CODEC:decode(From, To, IQ), gen_mod:get_module_opt_by_subhost(
                                          MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
@@ -301,7 +301,7 @@ process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList
 -spec process_iq_set(Acc :: any(), From :: #jid{}, To :: #jid{}, IQ :: #iq{}) ->
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
 process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
-    MUCHost = gen_mod:get_module_subhost(FromS, ?MODULE),
+    {ok, MUCHost} = gen_mod:get_module_subhost(FromS, ?MODULE),
     case {?CODEC:decode(From, To, IQ), gen_mod:get_module_opt_by_subhost(
                                          MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->

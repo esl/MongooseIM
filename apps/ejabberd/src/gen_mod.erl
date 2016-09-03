@@ -45,6 +45,7 @@
          set_module_opt_by_subhost/3,
          get_module_subhost/2,
          get_module_and_host_by_subhost/1,
+         get_host_by_subhost/1,
          loaded_modules/1,
          loaded_modules_with_opts/1,
          get_module_proc/2,
@@ -57,8 +58,8 @@
 -type ejabberd_module() :: #ejabberd_module{module_host :: {module(), ejabberd:server()},
                                             opts :: list()}.
 
--record(ejabberd_module_subhost, {subhost, module, host}).
--type ejabberd_module_subhost() :: #ejabberd_module_subhost{
+-record(subhost_mapping, {subhost, module, host}).
+-type subhost_mapping() :: #subhost_mapping{
                                       subhost :: ejabberd:server(),
                                       module :: module(),
                                       host :: ejabberd:server()}.
@@ -76,8 +77,8 @@
 start() ->
     ets:new(ejabberd_modules, [named_table, public, {keypos, #ejabberd_module.module_host},
                                {read_concurrency, true}]),
-    ets:new(ejabberd_modules_subhosts, [named_table, public, {read_concurrency, true},
-                                        {keypos, #ejabberd_module_subhost.subhost}]),
+    ets:new(subhost_mappings, [named_table, public, {read_concurrency, true},
+                                        {keypos, #subhost_mapping.subhost}]),
     ok.
 
 
@@ -92,8 +93,9 @@ start_module(Host, Module, Opts0) ->
         Res = Module:start(Host, Opts),
         case catch get_opt_subhost(Host, Opts) of
             SubHost when is_binary(SubHost) ->
-                ets:insert(ejabberd_modules_subhosts,
-                           #ejabberd_module_subhost{ subhost = SubHost, module = Module,
+                undefined = get_module_and_host_by_subhost(SubHost),
+                ets:insert(subhost_mappings,
+                           #subhost_mapping{ subhost = SubHost, module = Module,
                                                      host = Host });
             _ -> ok
         end,
@@ -229,7 +231,10 @@ stop_module_keep_config(Host, Module) ->
             ets:delete(ejabberd_modules, {Module, Host}),
             ok;
         _ ->
-            ets:delete(ejabberd_modules_subhosts, get_module_subhost(Host, Module)),
+            case get_module_subhost(Host, Module) of
+                {ok, SubHost} -> ets:delete(subhost_mappings, SubHost);
+                undefined -> ok
+            end,
             ets:delete(ejabberd_modules, {Module, Host}),
             ok
     end.
@@ -346,21 +351,30 @@ get_opt_subhost(Host, Opts) ->
     Val = get_opt(host, Opts),
     re:replace(Val, "@HOST@", Host, [global, {return,binary}]).
 
--spec get_module_subhost(Host :: ejabberd:server(), Module :: module()) -> ejabberd:server().
+-spec get_module_subhost(Host :: ejabberd:server(), Module :: module()) ->
+    {ok, ejabberd:server()} | undefined.
 get_module_subhost(Host, Module) ->
-    case ets:match(ejabberd_modules_subhosts,
-                   #ejabberd_module_subhost{module = Module, host = Host, subhost = '$1'}) of
-        [[SubHost]] -> SubHost;
+    case ets:match(subhost_mappings,
+                   #subhost_mapping{module = Module, host = Host, subhost = '$1'}) of
+        [[SubHost]] -> {ok, SubHost};
         _ -> undefined
     end.
 
--spec get_module_and_host_by_subhost(SubHost :: ejabberd:server()) -> {module(), ejabberd:server()}.
+-spec get_module_and_host_by_subhost(SubHost :: ejabberd:server()) ->
+    {module(), ejabberd:server()} | undefined.
 get_module_and_host_by_subhost(SubHost) ->
-    case ets:lookup(ejabberd_modules_subhosts, SubHost) of
-        [#ejabberd_module_subhost{ host = Host, module = Module }] -> {Module, Host};
+    case ets:lookup(subhost_mappings, SubHost) of
+        [#subhost_mapping{ host = Host, module = Module }] -> {Module, Host};
         _ -> undefined
     end.
 
+-spec get_host_by_subhost(SubHost :: ejabberd:server()) -> {ok, ejabberd:server()} | undefined.
+get_host_by_subhost(SubHost) ->
+    case get_module_and_host_by_subhost(SubHost) of
+        {_, Host} -> {ok, Host};
+        undefined -> undefined
+    end.
+    
 -spec loaded_modules(ejabberd:server()) -> [module()].
 loaded_modules(Host) ->
     ets:select(ejabberd_modules,

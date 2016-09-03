@@ -1166,7 +1166,7 @@ set_custom_config(RawSchema, RawDefaultConfig) ->
 
 -spec set_mod_config(K :: atom(), V :: any()) -> ok.
 set_mod_config(K, V) ->
-    true = rpc(gen_mod, set_module_opt_by_subhost, [?MUCHOST, mod_muc_light, K, V]).
+    true = rpc(gen_mod, set_module_opt_by_subhost, [?MUCHOST, K, V]).
 
 -spec ns_muc_light_affiliations() -> binary().
 ns_muc_light_affiliations() ->

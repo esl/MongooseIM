@@ -140,7 +140,7 @@ max_result_limit() -> 50.
 delete_archive(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
     ?DEBUG("Remove room ~p from ~p.", [RoomName, SubHost]),
     ArcJID = jid:make(RoomName, SubHost, <<>>),
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(SubHost),
+    {ok, Host} = gen_mod:get_host_by_subhost(SubHost),
     ArcID = archive_id_int(Host, ArcJID),
     remove_archive(Host, ArcID, ArcJID),
     ok.
@@ -149,7 +149,7 @@ delete_archive(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) -
 -spec archive_size(ejabberd:server(), ejabberd:user()) -> integer().
 archive_size(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
     ArcJID = jid:make(RoomName, SubHost, <<>>),
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(SubHost),
+    {ok, Host} = gen_mod:get_host_by_subhost(SubHost),
     ArcID = archive_id_int(Host, ArcJID),
     archive_size(Host, ArcID, ArcJID).
 
@@ -157,7 +157,7 @@ archive_size(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
 -spec archive_id(ejabberd:server(), ejabberd:user()) -> integer().
 archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
     ArcJID = jid:make(RoomName, SubHost, <<>>),
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(SubHost),
+    {ok, Host} = gen_mod:get_host_by_subhost(SubHost),
     archive_id_int(Host, ArcJID).
 
 %% ----------------------------------------------------------------------
@@ -169,7 +169,7 @@ start(Host, Opts) ->
     ?DEBUG("mod_mam_muc starting", []),
     compile_params_module(Opts),
     MUCModule = gen_mod:get_opt(muc_module, Opts, mod_muc),
-    MUCHost = gen_mod:get_module_subhost(Host, MUCModule),
+    {ok, MUCHost} = gen_mod:get_module_subhost(Host, MUCModule),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
     mod_disco:register_feature(MUCHost, ?NS_MAM),
     mod_disco:register_feature(MUCHost, ?NS_MAM_03),
@@ -188,7 +188,7 @@ start(Host, Opts) ->
 -spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     MUCModule = gen_mod:get_module_opt(Host, ?MODULE, muc_module, mod_muc),
-    MUCHost = gen_mod:get_module_subhost(Host, MUCModule),
+    {ok, MUCHost} = gen_mod:get_module_subhost(Host, MUCModule),
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(forget_room, MUCHost, ?MODULE, forget_room, 90),
@@ -225,7 +225,7 @@ filter_room_packet(Packet, EventData) ->
         FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
         Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
 archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affiliation) ->
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(RoomJID#jid.lserver),
+    {ok, Host} = gen_mod:get_host_by_subhost(RoomJID#jid.lserver),
     ArcID = archive_id_int(Host, RoomJID),
     %% Occupant JID <room@service/nick>
     SrcJID = jid:replace_resource(RoomJID, FromNick),
@@ -407,7 +407,7 @@ handle_set_prefs(ArcJID=#jid{},
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
     ?DEBUG("Parsed data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
               [DefaultMode, AlwaysJIDs, NeverJIDs]),
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(ArcJID#jid.lserver),
+    {ok, Host} = gen_mod:get_host_by_subhost(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
     handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
@@ -423,7 +423,7 @@ handle_set_prefs_result({error, Reason},
 -spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) ->
     ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(ArcJID#jid.lserver),
+    {ok, Host} = gen_mod:get_host_by_subhost(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     Res = get_prefs(Host, ArcID, ArcJID, always),
     handle_get_prefs_result(Res, IQ).
@@ -444,7 +444,7 @@ handle_lookup_messages(
         ArcJID=#jid{},
         IQ=#iq{xmlns = MamNs, sub_el = QueryEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(ArcJID#jid.lserver),
+    {ok, Host} = gen_mod:get_host_by_subhost(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
     %% Filtering by date.
@@ -499,7 +499,7 @@ handle_set_message_form(
         ArcJID=#jid{},
         IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(ArcJID#jid.lserver),
+    {ok, Host} = gen_mod:get_host_by_subhost(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
     %% Filtering by date.
@@ -585,7 +585,7 @@ handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}) ->
 handle_purge_multiple_messages(ArcJID=#jid{},
                                IQ=#iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(ArcJID#jid.lserver),
+    {ok, Host} = gen_mod:get_host_by_subhost(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
     %% Start :: integer() | undefined
@@ -605,7 +605,7 @@ handle_purge_multiple_messages(ArcJID=#jid{},
 handle_purge_single_message(ArcJID=#jid{},
                             IQ=#iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
-    {_, Host} = gen_mod:get_module_and_host_by_subhost(ArcJID#jid.lserver),
+    {ok, Host} = gen_mod:get_host_by_subhost(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
     MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),
