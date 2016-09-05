@@ -23,16 +23,16 @@ is_authorized(Req, State) ->
         {ok, undefined, _} ->
             make_unauthorized_response(Req, State);
         {ok, AuthDetails, Req2} ->
-           do_authorize(AuthDetails, Req2, State)
+            do_authorize(AuthDetails, Req2, State)
     end.
 
 allowed_methods(Req, State) ->
     {[<<"GET">>], Req, State}.
 
 content_types_provided(Req, State) ->
-	{[
-		{<<"application/json">>, to_json}
-	], Req, State}.
+    {[
+      {<<"application/json">>, to_json}
+     ], Req, State}.
 
 to_json(Req, User) ->
     {<<"{}">>, Req, User}.

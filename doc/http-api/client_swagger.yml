@@ -19,20 +19,20 @@ paths:
       parameters:
         - in: body
           name: message
-          description: the message to be sent
+          description: The message to be sent.
           required: true
           schema:
             $ref: '#/definitions/SendMessage'
       responses:
         200:
-          description: Message was successfully sent
+          description: Message was successfully sent.
           schema:
             $ref: '#/definitions/ResourceID'
     get:
       description: Gets all recent messages from the archive.
       parameters:
         - in: query
-          name: limi
+          name: limit
           description: |
             Specifies the maximum number of messages to be returned.
             Default value is 50.
@@ -61,7 +61,7 @@ paths:
           type: string
           description: |
             JID of the user with whom the messages were exchanged.
-            Example: **alice@wonderland.com**
+            Example: **alice@wonderland.com**.
           in: path
           required: true
         - in: query
@@ -79,7 +79,7 @@ paths:
           format: int64
       responses:
         200:
-          description: Successful response
+          description: Successful response.
           schema:
             title: Messages
             type: array
@@ -96,12 +96,12 @@ paths:
             $ref: '#/definitions/CreateRoomBody'
       responses:
         200:
-          description: The room was successfully created
+          description: The room was successfully created.
           schema:
             $ref: '#/definitions/ResourceID'
   /rooms/{id}:
     get:
-      description: "Returns room's details"
+      description: "Returns room's details."
       parameters:
         - in: path
           name: id
@@ -114,13 +114,13 @@ paths:
           schema:
             $ref: '#/definitions/RoomDetails'
     put:
-      description: "Adds users to a room"
+      description: "Adds users to a room."
       parameters:
         - in: path
           name: id
           required: true
           type: string
-          description: The ID of a room
+          description: The ID of a room.
         - in: body
           name: participant
           required: true
@@ -128,16 +128,16 @@ paths:
             $ref: "#/definitions/Invitee"
       responses:
         204:
-          description: User was successfully added to the room
+          description: User was successfully added to the room.
   /rooms/{id}/messages:
     post:
-      description: Send a message to a room
+      description: Send a message to a room.
       parameters:
         - in: path
           name: id
           required: true
           type: string
-          description: The ID of a room
+          description: The ID of a room.
         - in: body
           name: message
           required: true
@@ -145,20 +145,20 @@ paths:
             $ref: '#/definitions/SendRoomMessage'
       responses:
         200:
-          description: Message was sent, id retunred in body
+          description: Message was sent, id retunred in body.
           schema:
             $ref: "#/definitions/ResourceID"
     get:
-      description: Get room's messages from the archive
+      description: Get room's messages from the archive.
       parameters:
         - in: path
           name: id
           required: true
           type: string
-          description: The ID of a room
+          description: The ID of a room.
       responses:
         200:
-          description: List of messages in the room's archive
+          description: List of messages in the room's archive.
           schema:
             $ref: "#/definitions/RecvRoomMessage"
 security:
@@ -184,35 +184,35 @@ definitions:
     properties:
       to:
         type: string
-        description: The message recipinet's bare JID.
+        description: The message recipient's bare JID.
       from:
         type: string
         description: The message sender's bare JID.
       timestamp:
         type: integer
         format: int64
-        description: Unix timestamp in milliseconds when the message was sent
+        description: Unix timestamp in milliseconds when the message was sent.
       id:
         type: string
       body:
         type: string
-        description: Message content
+        description: Message content.
   CreateRoomBody:
     properties:
       subject:
         type: string
-        description: The room's initial subject
+        description: The room's initial subject.
       name:
         type: string
-        description: The room's name
+        description: The room's name.
   RoomDetails:
     properties:
       subject:
         type: string
-        description: Current room's subject
+        description: Current room's subject.
       name:
         type: string
-        description: Room's name
+        description: Room's name.
       participants:
         type: array
         items:
@@ -242,7 +242,7 @@ definitions:
         description: |
           The type of a message, possible values are:
           "message" for regular message
-          "affiliation" for affiliation changes
+          "affiliation" for affiliation changes.
         enum: ["message", "affiliation"]
       from:
         type: string
@@ -251,22 +251,22 @@ definitions:
           the JID will be a full JID with the sender's bare JID as a resource part of room's JID.
       id:
         type: string
-        description: The ID of a message
+        description: The ID of a message.
       body:
         type: string
         description: |
           The message body.
-          Present only if the type is "message"
+          Present only if the type is "message".
       user:
         type: string
         description: |
           JID of a user, whom affiliation changed.
-          Present only if the type is "affiliation"
+          Present only if the type is "affiliation".
       affiliations:
         type: string
         description: |
           The new affiliation of a user in the room.
-          Present only if the type is "affiliation"
+          Present only if the type is "affiliation".
   JID:
     type: string
     description: |
