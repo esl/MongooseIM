@@ -8,6 +8,7 @@
         * Perform basic configuration
         * Use the main administration script, `mongooseimctl`
 * [Contributions](Contributions.md)
+* [Roadmap](Roadmap.md)
 * Configuration
     * [Basic configuration](Basic-configuration.md)
     * [Advanced configuration](Advanced-configuration.md)
