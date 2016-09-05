@@ -78,7 +78,8 @@ ro_full_search_tests() ->
      search_empty,
      search_some,
      search_some_many_fields,
-     search_wildcard
+     search_wildcard,
+     search_wildcard_all
     ].
 
 ro_limited_search_tests() ->
@@ -333,11 +334,16 @@ search_open(Config) ->
                         escalus_stanza:search_iq(DirJID, Fields)),
               escalus:assert(is_iq_result, Res),
 
-              %% Basically test that the right values exist
-              %% and map to the right column headings
               ItemTups = search_result_item_tuples(Res),
-              ExpectedItemTups = [],
-              list_unordered_key_match(ExpectedItemTups, ItemTups)
+              ExpectedItemTups = get_search_results(Config,
+                                                    [<<"bob@localhost">>,
+                                                     <<"alice@localhost">>]),
+              case vcard_simple_SUITE:is_vcard_ldap() of
+                  true ->
+                      3 = length(ItemTups);
+                  _ ->
+                      list_unordered_key_match2(ExpectedItemTups, ItemTups)
+              end
       end).
 
 search_empty(Config) ->
@@ -383,6 +389,31 @@ search_wildcard(Config) ->
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
+                Res = escalus:send_and_wait(Client,
+                        escalus_stanza:search_iq(DirJID,
+                            escalus_stanza:search_fields(Fields))),
+                escalus:assert(is_iq_result, Res),
+
+                ItemTups = search_result_item_tuples(Res),
+                ExpectedItemTups = get_search_results(Config,
+                                                      [<<"bobb@localhost.bis">>,
+                                                       <<"aliceb@localhost.bis">>]),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        3 = length(ItemTups);
+                    _ ->
+                        list_unordered_key_match2(ExpectedItemTups, ItemTups)
+                end
+        end).
+
+search_wildcard_all(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Client) ->
+                Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+                DirJID = <<"vjud.", Domain/binary>>,
+                Fields = [{get_nickname_field(),
+                           <<"*">>}],
                 Res = escalus:send_and_wait(Client,
                         escalus_stanza:search_iq(DirJID,
                             escalus_stanza:search_fields(Fields))),
@@ -469,8 +500,16 @@ search_open_limited(Config) ->
                            escalus_stanza:search_iq(DirJID,
                                escalus_stanza:search_fields(Fields))),
               escalus:assert(is_iq_result, Res),
-              %% {allow_return_all, false}
-              [] = search_result_item_tuples(Res)
+
+              ItemTups = search_result_item_tuples(Res),
+              ExpectedItemTups = get_search_results(Config,
+                                                    [<<"alice@localhost">>]),
+              case vcard_simple_SUITE:is_vcard_ldap() of
+                  true ->
+                      3 = length(ItemTups);
+                  _ ->
+                      list_unordered_key_match2(ExpectedItemTups, ItemTups)
+              end
       end).
 
 search_some_limited(Config) ->
@@ -1000,6 +1039,9 @@ get_locality_search_field() ->
 
 get_user_search_field() ->
     get_search_field(<<"user">>, <<"%u">>).
+
+get_nickname_field() ->
+    get_search_field(<<"nick">>, <<"%u">>).
 
 get_full_name_search_field() ->
     get_search_field(<<"fn">>, <<"displayName">>).

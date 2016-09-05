@@ -70,8 +70,6 @@ search(VHost, Data) ->
     R = do_search(VHost, MatchHead),
     lists:map(fun record_to_item/1,R).
 
-do_search(_, #vcard_search{_ = '_'}) ->
-    [];
 do_search(VHost, MatchHeadIn) ->
     MatchHead = MatchHeadIn#vcard_search{us = {'_', VHost}},
     case catch mnesia:dirty_select(vcard_search,

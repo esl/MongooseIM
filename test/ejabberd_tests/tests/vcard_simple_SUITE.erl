@@ -53,7 +53,8 @@ all_tests() ->
      request_search_fields,
      search_empty,
      search_some,
-     search_wildcard].
+     search_wildcard,
+     search_wildcard_all].
 
 suite() ->
     escalus:suite().
@@ -272,6 +273,21 @@ search_wildcard(Config) ->
               Domain = escalus_config:get_ct(ejabberd_domain),
               DirJID = <<"vjud.",Domain/binary>>,
               Fields = [{get_field_name(fn), get_FN_wildcard()}],
+              Res = escalus:send_and_wait(Client,
+                                          escalus_stanza:search_iq(DirJID,
+                                                                   escalus_stanza:search_fields(Fields))),
+              escalus:assert(is_iq_result, Res),
+              ItemTups = search_result_item_tuples(Res),
+              1 = length(ItemTups)
+      end).
+
+search_wildcard_all(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Client) ->
+              Domain = escalus_config:get_ct(ejabberd_domain),
+              DirJID = <<"vjud.",Domain/binary>>,
+              Fields = [{get_field_name(fn), <<"*">>}],
               Res = escalus:send_and_wait(Client,
                                           escalus_stanza:search_iq(DirJID,
                                                                    escalus_stanza:search_fields(Fields))),
