@@ -87,7 +87,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    rest_helper:maybe_disable_mam(proplists:get_value(mam_enabled, Config), host()),
+    rest_helper:maybe_disable_mam(mam_helper:backend(), host()),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
