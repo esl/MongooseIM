@@ -198,7 +198,7 @@ messages_can_be_paginated(Config) ->
         M2 = get_messages(AliceJID, BobJID, 3),
         ?assertEqual(3, length(M2)),
         % older messages - earlier then the previous midnight
-        PriorTo = rest_helper:make_timestamp(-1, {0, 0, 1}),
+        PriorTo = rest_helper:make_timestamp(-1, {0, 0, 1}) div 1000,
         M3 = get_messages(AliceJID, BobJID, PriorTo, 10),
         ?assertEqual(4, length(M3)),
         [Oldest|_] = decode_maplist(M3),
