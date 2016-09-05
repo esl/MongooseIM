@@ -112,7 +112,11 @@ update_own_card(Config) ->
                       %% set some initial value different from the actual test data
                       %% so we know it really got updated and wasn't just old data
                       FN = get_FN(Config),
-                      Client1Fields = [{<<"FN">>, FN}],
+                      Client1Fields = [{<<"FN">>,
+                                        FN},
+                                       {<<"DESC">>,
+                                        <<"{\"activated\":true}">>}
+                                      ],
                       Client1SetResultStanza
                       = escalus:send_and_wait(Client1,
                                               escalus_stanza:vcard_update(Client1Fields)),

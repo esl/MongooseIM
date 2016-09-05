@@ -945,7 +945,6 @@ get_all_vcards() ->
        {<<"FN">>, <<"Wonderland, Alice">>},
        {<<"TITLE">>, <<"Executive Director">>},
        {<<"ROLE">>, <<"Patron Saint">>},
-       {<<"DESC">>, <<"active">>},
        {<<"URL">>, <<"http://john.doe/">>},
        %{<<"PHOTO">>, crypto:rand_bytes(10)},
        {<<"EMAIL">>,
@@ -964,7 +963,8 @@ get_all_vcards() ->
         [{<<"NUMBER">>, <<"+1 512 305 0280">>}]},
        {<<"ORG">>,
         [{<<"ORGNAME">>, <<"The world">>},
-         {<<"ORGUNIT">>, <<"People">>}]}
+         {<<"ORGUNIT">>, <<"People">>}]},
+       {<<"DESC">>, <<"{ \"activated\": true }">>}
       ] ++ maybe_add_bday() ++ maybe_add_jabberd_id(<<"alice@localhost">>)},
      {<<"bob@localhost">>,
       [{<<"NICKNAME">>, <<"bob">>},
@@ -976,21 +976,33 @@ get_all_vcards() ->
            32,208,180,208,190,209,128,208,190,208,179,208,176,
            32,209,128,208,176,208,183,208,178,208,181,209,130,
            208,178,208,187,209,143,208,181,209,130,209,129,209,
-           143,32,208,178,209,139>>}]}
+           143,32,208,178,209,139>>}]},
+       {<<"DESC">>, <<"{ \"activated\": true }">>}
       ] ++ maybe_add_jabberd_id(<<"bob@localhost">>)},
+     {<<"eve@localhost">>,
+      [{<<"NICKNAME">>, <<"eve">>},
+       {<<"FN">>, <<"Evil, Eve">>},
+       {<<"DESC">>, <<"{ \"activated\": false }">>}
+      ] ++ maybe_add_jabberd_id(<<"eve@localhost">>)},
      {<<"bobb@localhost.bis">>,
       [{<<"NICKNAME">>, <<"bobb">>},
        {<<"FN">>, <<"Doe, Bob">>},
        {<<"N">>,
         [{<<"FAMILY">>, <<"Doe">>},
-         {<<"GIVEN">>, <<"Bob">>}]}
+         {<<"GIVEN">>, <<"Bob">>}]},
+       {<<"DESC">>, <<"{ \"activated\": true }">>}
       ] ++ maybe_add_jabberd_id(<<"bobb@localhost.bis">>)},
      {<<"aliceb@localhost.bis">>,
       [{<<"NICKNAME">>, <<"aliceb">>},
        {<<"FN">>, <<"Doe, Alice">>},
        {<<"N">>,
         [{<<"FAMILY">>, <<"Doe">>},
-         {<<"GIVEN">>, <<"Alice">>}]}
+         {<<"GIVEN">>, <<"Alice">>}]},
+       {<<"DESC">>, <<"{ \"activated\": true }">>}
+      ] ++ maybe_add_jabberd_id(<<"aliceb@localhost.bis">>)},
+     {<<"eveb@localhost.bis">>,
+      [{<<"NICKNAME">>, <<"eveb">>},
+       {<<"FN">>, <<"Evil, Eve">>}
       ] ++ maybe_add_jabberd_id(<<"aliceb@localhost.bis">>)}
     ].
 
