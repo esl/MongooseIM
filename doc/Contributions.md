@@ -1,6 +1,6 @@
 Our contributions to the ecosystem.
 
-## Our contributions to third-party opensource projects
+## Our software contributions to third-party opensource projects
 
 ### XMPPframework for iOS
 
@@ -31,7 +31,7 @@ Available on: [igniterealtime/Smack](https://github.com/igniterealtime/Smack)
 
 * Docker image for Movim: https://github.com/esl/movim-docker
 
-## Developped and maintained by Erlang Solutions
+## Opensource software developped and maintained by Erlang Solutions
 
 ### escalus
 
@@ -66,3 +66,13 @@ Please contact us.
 ### Push notifications server (APNS/GCM)
 
 Please contact us.
+
+## Open standards
+
+### MUC light
+
+MUC stands for Multi-User Chat. [MUC light](open-extensions/muc_light/) is a presenceless and subscription-based group chat, relying on a simplified version of MUC.
+
+### Token-based reconnection
+
+[Token-based reconnection](open-extensions/token-reconnection/) (TBR) Reconnection mechanism, for temporary disconnections, using tokens instead of passwords
