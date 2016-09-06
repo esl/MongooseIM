@@ -314,9 +314,9 @@ destroy_room_transaction(RoomUS) ->
             AffUsers = Rec#?ROOM_TAB.aff_users,
             lists:foreach(
                 fun({User, _}) ->
-                    ok = mnesia:delete_object(#?USER_ROOM_TAB{user = User, room = RoomUS}),
-                    mnesia:delete({?ROOM_TAB, RoomUS})
-                end, AffUsers)
+                    ok = mnesia:delete_object(#?USER_ROOM_TAB{user = User, room = RoomUS})
+                end, AffUsers),
+            mnesia:delete({?ROOM_TAB, RoomUS})
     end.
 
 -spec remove_user_transaction(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->

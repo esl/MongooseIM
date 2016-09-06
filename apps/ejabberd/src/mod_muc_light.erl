@@ -284,8 +284,11 @@ remove_user(User, Server) ->
     UserUS = {LUser, LServer},
     Version = mod_muc_light_utils:bin_ts(),
     case ?BACKEND:remove_user(UserUS, Version) of
-        {error, _} = Err -> ?ERROR_MSG("hook=remove_user,error=~p", [Err]);
-        AffectedRooms -> bcast_removed_user(UserUS, AffectedRooms, Version)
+        {error, _} = Err ->
+            ?ERROR_MSG("hook=remove_user,error=~p", [Err]);
+        AffectedRooms ->
+            bcast_removed_user(UserUS, AffectedRooms, Version),
+            maybe_forget_rooms(AffectedRooms)
     end.
 
 -spec add_rooms_to_roster(Acc :: [#roster{}], UserUS :: ejabberd:simple_bare_jid()) -> [#roster{}].
@@ -595,4 +598,11 @@ bcast_removed_user(UserJID,
 bcast_removed_user(UserJID, [{RoomUS, Error} | RAffected], Version, ID) ->
     ?ERROR_MSG("user=~p, room=~p, remove_user_error=~p", [UserJID, RoomUS, Error]),
     bcast_removed_user(UserJID, RAffected, Version, ID).
+
+-spec maybe_forget_rooms(AffectedRooms :: mod_muc_light_db:remove_user_return()) -> ok.
+maybe_forget_rooms([]) ->
+    ok;
+maybe_forget_rooms([{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms]) ->
+    mod_muc_light_room:maybe_forget(RoomUS, NewAffUsers),
+    maybe_forget_rooms(RAffectedRooms).
 

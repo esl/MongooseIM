@@ -6,7 +6,8 @@
 -include_lib("exml/include/exml.hrl").
 
 -export([ % service
-         mismatched_default_config_is_rejected/1
+         mismatched_default_config_is_rejected/1,
+         removing_users_from_server_triggers_room_destruction/1
         ]).
 -export([ % entity
          disco_service/1,
@@ -123,7 +124,8 @@ all() ->
 groups() ->
     [
      {service, [sequence], [
-                            mismatched_default_config_is_rejected
+                            mismatched_default_config_is_rejected,
+                            removing_users_from_server_triggers_room_destruction
                            ]},
      {entity, [sequence], [
                             disco_service,
@@ -193,12 +195,12 @@ init_per_suite(Config) ->
                           [{host, binary_to_list(?MUCHOST)},
                            {rooms_in_rosters, true}]),
     Config1 = escalus:init_per_suite(Config),
-    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).
+    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike, carol])).
 
 end_per_suite(Config) ->
     clear_db(),
-    dynamic_modules:stop(<<"localhost">>, mod_muc_light),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
+    dynamic_modules:stop(<<"localhost">>, mod_muc_light),
     escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
@@ -216,6 +218,10 @@ end_per_group(_GroupName, Config) ->
                               no_roomname_in_schema_doesnt_break_disco_and_roster,
                               custom_default_config_works]).
 
+init_per_testcase(removing_users_from_server_triggers_room_destruction = CN, Config) ->
+    set_default_mod_config(),
+    create_room(?ROOM, ?MUCHOST, carol, [], Config, ver(1)),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(disco_rooms_rsm, Config) ->
     set_default_mod_config(),
     set_mod_config(rooms_per_page, 1),
@@ -274,6 +280,10 @@ mismatched_default_config_is_rejected(_Config) ->
     {'EXIT', _} = (catch set_custom_config(["background", "music"], standard_default_config())),
     {'EXIT', _} = (catch set_custom_config(["background", "music"], ["misfit"])),
     ok.
+
+removing_users_from_server_triggers_room_destruction(Config) ->
+    escalus:delete_users(Config, escalus:get_users([carol])),
+    {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [{?ROOM, ?MUCHOST}]).
 
 %% ---------------------- Disco ----------------------
 
@@ -526,7 +536,10 @@ leave_room(Config) ->
                       user_leave(User, NewOccupants),
                       verify_no_stanzas(Outsiders),
                       {NewOccupants, [User | Outsiders]}
-              end, {?DEFAULT_AFF_USERS, []}, [Alice, Bob, Kate])
+              end, {?DEFAULT_AFF_USERS, []}, [Alice, Bob, Kate]),
+
+            % Now we verify that room is removed from DB
+            {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [{?ROOM, ?MUCHOST}])
         end).
 
 change_other_aff_deny(Config) ->
