@@ -1001,8 +1001,9 @@ handle_config_change({_Key, _OldValue, _NewValue}) ->
 %% ----------------------------------------------------------------
 %% LOCAL CONFIG
 %% ----------------------------------------------------------------
-handle_local_config_add(#local_config{key = riak_server}) ->
-    mongoose_riak:start();
+%% TODO: reenable riak
+%handle_local_config_add(#local_config{key = riak_server}) ->
+%    mongoose_riak:start();
 handle_local_config_add(#local_config{key=Key} = El) ->
     case can_be_ignored(Key) of
         true ->
@@ -1011,8 +1012,9 @@ handle_local_config_add(#local_config{key=Key} = El) ->
             ?WARNING_MSG("local config add ~p option unhandled",[El])
     end.
 
-handle_local_config_del(#local_config{key = riak_server}) ->
-    mongoose_riak:stop();
+%% TODO: reenable riak
+%handle_local_config_del(#local_config{key = riak_server}) ->
+%    mongoose_riak:stop();
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
@@ -1026,10 +1028,11 @@ handle_local_config_del(#local_config{key=Key} = El) ->
 
 handle_local_config_change({listen, Old, New}) ->
     reload_listeners(compare_listeners(Old, New));
-handle_local_config_change({riak_server, _Old, _New}) ->
-    mongoose_riak:stop(),
-    mongoose_riak:start(),
-    ok;
+%% TODO: reenable riak
+%handle_local_config_change({riak_server, _Old, _New}) ->
+%    mongoose_riak:stop(),
+%    mongoose_riak:start(),
+%    ok;
 handle_local_config_change({Key, _Old, _New} = El) ->
     case can_be_ignored(Key) of
         true ->
