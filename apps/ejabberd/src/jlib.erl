@@ -42,6 +42,7 @@
          iq_query_or_response_info/1,
          iq_to_xml/1,
          parse_xdata_submit/1,
+         parse_xdata_fields/1,
          timestamp_to_xml/4,
          timestamp_to_mam_xml/4,
          timestamp_to_iso/2,
@@ -361,11 +362,16 @@ parse_xdata_submit(El) ->
     #xmlel{attrs = Attrs, children = Els} = El,
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"submit">> ->
-            lists:reverse(parse_xdata_fields(Els, []));
+            parse_xdata_fields(Els);
         _ ->
             invalid
     end.
 
+
+-spec parse_xdata_fields([xmlcdata() | xmlel()]) ->
+    [{binary(), [binary()]}].
+parse_xdata_fields(Els) ->
+    lists:reverse(parse_xdata_fields(Els, [])).
 
 -spec parse_xdata_fields([xmlcdata() | xmlel()], [{binary(), [binary()]}]) ->
     [{binary(), [binary()]}].
