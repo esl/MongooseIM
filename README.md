@@ -42,7 +42,7 @@ Major steps performed at that time:
 
 Key differences today:
 *   massive scalability
-*   code quality, through extensive refactoring, subtantial optimisations, and continuous integration
+*   code quality, through extensive refactoring, substantial optimisations, and continuous integration
 *   unique version, fully open source, fully open standards, innovations contributed to the XSF
 *   professional support, and flexible customer service
 
