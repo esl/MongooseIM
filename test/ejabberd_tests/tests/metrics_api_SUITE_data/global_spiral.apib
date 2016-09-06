@@ -1,0 +1,33 @@
+# 1. Fetch a global metric
+
+GET /api/metrics/global/{{<metric}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metric": {
+            "one": "{{_}}",
+            "count": "{{>value}}"
+        },
+    "{{_}}": "{{unexpected}}"
+}
+
+# 2. Fetch a global metric value from list
+
+GET /api/metrics/global
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metrics": {
+            "{{<metric}}": {
+                    "one": "{{_}}",
+                    "count": "{{>value_list}}"
+                },
+    },
+    "{{_}}": "{{unexpected}}"
+}

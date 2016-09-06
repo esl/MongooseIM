@@ -5,7 +5,7 @@ They are managed by [Feuerlabs's exometer](https://github.com/Feuerlabs/exometer
  
 All metrics are divided into following groups:
 
-* host metrics: organized by XMPP hosts, meaning if MongooseIM servers host `a.com` and `b.com` metrics for specific host only can be obtained. 
+* host metrics: organized by XMPP hosts, meaning if MongooseIM servers host `a.com` and `b.com` metrics for specific host only can be obtained. **Warning:** They can become a performance issue when cluster supports many (thousands or more) domains. In such case it is recommended to replace them with global equivalents with `all_metrics_are_global` config option.
 * global metrics: metrics common for all XMPP hosts 
 * backend metrics: these are mainly metrics specific for backend modules
 * data metrics: various metrics related to data sizes (e.g. sent and received stanza size statistics)
@@ -101,7 +101,6 @@ All metrics are divided into following groups:
 | xmppStanzaDropped | spiral | host, XMPP | Number of dropped stanzas |
 | xmppStanzaReceived | spiral | host, XMPP | Number of stanzas received by the server|
 | xmppStanzaSent | spiral | host, XMPP | Numb of stanzas sent to clients|
-
 
 Metrics assgined to group `hook` are generic metrics updated when given hook is run. In case of these metric, their names are the same as corresponding hook name.
 

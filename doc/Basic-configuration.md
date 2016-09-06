@@ -45,6 +45,9 @@ There are 2 types of options: params and features. Unlike params, features can b
 * **auth_ldap** - feature
     * **Description:** Put [[LDAP configuration]] here.
 
+* **all_metrics_are_global** - param
+    * **Description:** When set to 'true', per-host metrics are replaced with global equivalents. For more info consult [Advanced configuration](Advanced-configuration.md)
+
 * **s2s_addr** - feature
     * **Description:** Override DNS lookup for specific non-local XMPP domain and use predefined server IP and port for S2S connection (server-to-server).
     * **Syntax:** `"{ {s2s_addr, \"some-domain\"}, { {10,20,30,40}, 7890 } }."`

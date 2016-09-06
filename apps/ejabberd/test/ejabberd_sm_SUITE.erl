@@ -87,6 +87,7 @@ init_per_testcase(_, Config) ->
 end_per_testcase(_, Config) ->
     clean_sessions(Config),
     meck:unload(acl),
+    meck:unload(ejabberd_config),
     meck:unload(ejabberd_hooks),
     Config.
 
@@ -273,6 +274,7 @@ unique_count_while_removing_entries(C) ->
     USDict = get_unique_us_dict(UsersWithManyResources),
     %% Check if unique count equals prev cached value
     UniqueCount = ejabberd_sm:get_unique_sessions_number(),
+    meck:unload(?B(C)),
     true = UniqueCount /= dict:size(USDict) + UniqueCount.
 
 set_meck(SMBackend) ->
@@ -280,6 +282,7 @@ set_meck(SMBackend) ->
     meck:expect(ejabberd_config, get_global_option,
                 fun(sm_backend) -> SMBackend;
                     (hosts) -> [<<"localhost">>] end),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
 
     meck:new(ejabberd_hooks, []),
     meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
@@ -295,6 +298,8 @@ unload_meck() ->
     meck:unload(ejabberd_commands).
 
 set_test_case_meck(MaxUserSessions) ->
+    meck:new(ejabberd_config, []),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:new(acl, []),
     meck:expect(acl, match_rule, fun(_, _, _) -> MaxUserSessions end),
     meck:new(ejabberd_hooks, []),

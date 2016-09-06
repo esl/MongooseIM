@@ -163,7 +163,7 @@ end_per_testcase(CaseName, Config) ->
 
 one_to_one_message(ConfigIn) ->
     %% Given Alice connected to node one and ClusterGuy connected to node two
-    Metrics = [{[data, dist], [{recv_oct, '>'}, {send_oct, '>'}]}],
+    Metrics = [{[global, data, dist], [{recv_oct, '>'}, {send_oct, '>'}]}],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
         %% When Alice sends a message to ClusterGuy

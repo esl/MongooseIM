@@ -574,6 +574,8 @@ process_term(Term, State) ->
             add_option(sasl_mechanisms, Mechanisms, State);
         {http_connections, HttpConnections} ->
             add_option(http_connections, HttpConnections, State);
+        {all_metrics_are_global, Value} ->
+            add_option(all_metrics_are_global, Value, State);
         {_Opt, _Val} ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)
@@ -1009,7 +1011,7 @@ handle_local_config_add(#local_config{key = {cassandra_server,_,_}}) ->
     mongoose_cassandra:stop(),
     mongoose_cassandra:start();
 handle_local_config_add(#local_config{key=Key} = El) ->
-    case Key of
+    case can_be_ignored(Key) of
         true ->
             ok;
         false ->
@@ -1168,7 +1170,7 @@ add_virtual_host(Host) ->
 
 -spec can_be_ignored(Key :: atom()) -> boolean().
 can_be_ignored(Key) when is_atom(Key) ->
-    L = [domain_certfile, s2s],
+    L = [domain_certfile, s2s, all_metrics_are_global],
     lists:member(Key,L).
 
 -spec remove_virtual_host(ejabberd:server()) -> any().

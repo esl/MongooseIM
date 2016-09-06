@@ -50,10 +50,10 @@ end_per_testcase(T, Config) ->
     unload_meck(meck_mods(T)),
     Config.
 
-meck_mods(bosh) -> [exometer, mod_bosh_socket];
+meck_mods(bosh) -> [exometer, mod_bosh_socket, ejabberd_config];
 meck_mods(s2s) -> [exometer, ejabberd_commands, randoms, ejabberd_config];
 meck_mods(local) -> [exometer, ejabberd_config];
-meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local].
+meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, ejabberd_config].
 
 %% -----------------------------------------------------
 %% Tests
@@ -172,6 +172,7 @@ setup_meck([ejabberd_config | R]) ->
                     (hosts) -> [];
                     (_) -> undefined
                 end),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     setup_meck(R);
 setup_meck([ejabberd_commands | R]) ->
     meck:new(ejabberd_commands),

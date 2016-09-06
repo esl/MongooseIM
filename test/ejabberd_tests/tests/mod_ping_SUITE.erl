@@ -107,7 +107,6 @@ active(Config) ->
 active_keep_alive(Config) ->
     escalus:story(Config, [{alice, 1}],
         fun(Alice) ->
-                Domain = ct:get_config(ejabberd_domain),
                 ct:sleep(timer:seconds(6)), % wait 6s (ping_interval is 8)
                 Socket = Alice#client.socket,
                 gen_tcp:send(Socket, <<"\n">>),

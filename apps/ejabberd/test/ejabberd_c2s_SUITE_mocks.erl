@@ -34,7 +34,7 @@ setup() ->
                 fun() -> "57" end),
 
     meck:new(mongoose_metrics),
-    meck:expect(mongoose_metrics, update, fun (_,_) -> ok end).
+    meck:expect(mongoose_metrics, update, fun (_,_,_) -> ok end).
 
 teardown() ->
     meck:unload().

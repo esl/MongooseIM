@@ -61,11 +61,11 @@ subscription_tests() -> [unsubscribe,
 
 init_per_suite(Config) ->
 
-    MongooseMetrics = [{[data, xmpp, received, xml_stanza_size], changed},
-                       {[data, xmpp, sent, xml_stanza_size], changed},
-                       {fun roster_odbc_precondition/0, [data, odbc, regular],
+    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
+                       {[global, data, xmpp, sent, xml_stanza_size], changed},
+                       {fun roster_odbc_precondition/0, [global, data, odbc, regular],
                         [{recv_oct, '>'}, {send_oct, '>'}]},
-                       {[backends, mod_roster, get_subscription_lists], changed}
+                       {[global, backends, mod_roster, get_subscription_lists], changed}
                        ],
     [{mongoose_metrics, MongooseMetrics} | escalus:init_per_suite(Config)].
 
@@ -112,7 +112,7 @@ end_rosters_remove(Config) ->
 get_roster(ConfigIn) ->
     Metrics =
         [{['_', modRosterGets], 1},
-         {[backends, mod_roster, get_roster], changed}
+         {[global, backends, mod_roster, get_roster], changed}
         ],
     Config = mongoose_metrics(ConfigIn, Metrics),
 
