@@ -105,6 +105,7 @@ start_link() ->
 route(From, To, Packet) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [From, To, Packet]),
+    packet:pass(Packet, route),
     route(From, To, Packet, routing_modules_list()).
 
 %% Route the error packet only if the originating packet is not an error itself.
@@ -444,6 +445,7 @@ route(From, To, Packet, []) ->
     ok;
 route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
     ?DEBUG("Using module ~p", [M]),
+    packet:pass(OrigPacket, M),
     case (catch M:filter(OrigFrom, OrigTo, OrigPacket)) of
         {'EXIT', Reason} ->
             ?DEBUG("Filtering error", []),

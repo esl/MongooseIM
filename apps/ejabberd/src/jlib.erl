@@ -130,10 +130,9 @@ make_result_iq_reply_attrs(Attrs) ->
 
 
 -spec make_error_reply(xmlel(), xmlcdata() | xmlel()) -> xmlel().
-make_error_reply(#xmlel{name = Name, attrs = Attrs,
-                        children = SubTags}, Error) ->
+make_error_reply(#xmlel{attrs = Attrs, children = SubTags} = Packet, Error) ->
     NewAttrs = make_error_reply_attrs(Attrs),
-    #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]}.
+    Packet#xmlel{attrs = NewAttrs, children = SubTags ++ [Error]}.
 
 
 -spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(),...].

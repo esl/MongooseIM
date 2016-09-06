@@ -386,6 +386,7 @@ code_change(_OldVsn, State, _Extra) ->
 do_route(From, To, Packet) ->
     ?DEBUG("local route~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Packet, 8]),
+    packet:pass(Packet, ejabberd_local_route),
     if
         To#jid.luser /= <<>> ->
             ejabberd_sm:route(From, To, Packet);
@@ -407,6 +408,7 @@ do_route(From, To, Packet) ->
                 <<"error">> -> ok;
                 <<"result">> -> ok;
                 _ ->
+                    packet:pass(Packet, local_send_to_resource_hook),
                     ejabberd_hooks:run(local_send_to_resource_hook,
                                        To#jid.lserver,
                                        [From, To, Packet])

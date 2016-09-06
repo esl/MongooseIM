@@ -921,7 +921,8 @@ session_established(closed, StateData) ->
 %% @doc Process packets sent by user (coming from user on c2s XMPP
 %% connection)
 -spec process_outgoing_stanza(El :: jlib:xmlel(), state()) -> fsm_return().
-process_outgoing_stanza(El, StateData) ->
+process_outgoing_stanza(XEl, StateData) ->
+    El = packet:initialise(XEl),
     #xmlel{name = Name, attrs = Attrs} = El,
     User = StateData#state.user,
     Server = StateData#state.server,
@@ -961,10 +962,12 @@ process_outgoing_stanza(error, _Name, Args) ->
     end;
 process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
     {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
+    packet:pass(NewEl, process_out_presence),
     PresenceEl = ejabberd_hooks:run_fold(c2s_update_presence,
                                          Server,
                                          NewEl,
                                          [User, Server]),
+    packet:pass(PresenceEl, process_out_presence_updated),
     ejabberd_hooks:run(user_send_packet,
                        Server,
                        [FromJID, ToJID, PresenceEl]),
@@ -1547,7 +1550,7 @@ send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
 send_element(#state{server = Server} = StateData, El) ->
     ejabberd_hooks:run(xmpp_send_element,
                        Server, [Server, El]),
-    send_text(StateData, exml:to_binary(El)).
+    send_text(StateData, packet:to_binary(El)).
 
 
 -spec send_header(State :: state(),
@@ -1946,6 +1949,7 @@ presence_track(From, To, Packet, StateData) ->
                               To :: ejabberd:jid(),
                               Packet :: jlib:xmlel()) -> 'ok'.
 check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
+    packet:pass(Packet, checkandroute),
     case privacy_check_packet(StateData, From, To, Packet, out) of
         deny ->
             Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_CANCEL),
@@ -2036,8 +2040,7 @@ presence_broadcast_first(From, StateData, Packet) ->
                        ejabberd_router:route(
                          From,
                          jid:make(JID),
-                         #xmlel{name = <<"presence">>,
-                                attrs = [{<<"type">>, <<"probe">>}]}),
+                         packet:clone(Packet, <<"presence">>, [{<<"type">>, <<"probe">>}])),
                        X
                end,
                [],
@@ -2110,8 +2113,8 @@ roster_change(IJID, ISubscription, StateData) ->
                                     pres_t = TSet};
                 Cond2 ->
                     ?DEBUG("C2: ~p~n", [LIJID]),
-                    PU = #xmlel{name = <<"presence">>,
-                                attrs = [{<<"type">>, <<"unavailable">>}]},
+                    PU = packet:initialise(#xmlel{name = <<"presence">>,
+                                attrs = [{<<"type">>, <<"unavailable">>}]}, internal),
                     case privacy_check_packet(StateData, From, To, PU, out) of
                         allow ->
                             ejabberd_router:route(From, To, PU);
@@ -2433,8 +2436,9 @@ maybe_update_presence(StateData = #state{jid = JID, pres_f = Froms}, NewList) ->
 
 send_unavail_if_newly_blocked(StateData = #state{jid = JID},
                               ContactJID, NewList) ->
-    Packet = #xmlel{name = <<"presence">>,
+    P = #xmlel{name = <<"presence">>,
                     attrs = [{<<"type">>, <<"unavailable">>}]},
+    Packet = packet:initialise(P, internal),
     OldResult = privacy_check_packet(StateData,
                                      JID, ContactJID, Packet, out),
     NewResult = privacy_check_packet(StateData#state{privacy_list = NewList},
@@ -2453,7 +2457,7 @@ send_unavail_if_newly_blocked(_, _, _, _, _) ->
 
 -spec blocking_push_to_resources(Action :: blocking_type(), JIDS :: [binary()], State :: state()) -> 'ok'.
 blocking_push_to_resources(Action, JIDs, StateData) ->
-    SubEl =
+    SubE =
     case Action of
         block ->
             #xmlel{name = <<"block">>,
@@ -2472,6 +2476,7 @@ blocking_push_to_resources(Action, JIDs, StateData) ->
                                                attrs = [{<<"jid">>, JID}]}
                                 end, JIDs)}
     end,
+    SubEl = packet:initialise(SubE, internal),
     PrivPushIQ = #iq{type = set, xmlns = ?NS_BLOCKING,
                      id = <<"push">>,
                      sub_el = [SubEl]},
@@ -2485,7 +2490,7 @@ blocking_push_to_resources(Action, JIDs, StateData) ->
 blocking_presence_to_contacts(_Action, [], _StateData) ->
     ok;
 blocking_presence_to_contacts(Action, [Jid|JIDs], StateData) ->
-    Pres = case Action of
+    Pre = case Action of
                block ->
                    #xmlel{name = <<"presence">>,
                        attrs = [{<<"xml:lang">>,<<"en">>},{<<"type">>,<<"unavailable">>}]
@@ -2493,6 +2498,7 @@ blocking_presence_to_contacts(Action, [Jid|JIDs], StateData) ->
                unblock ->
                    StateData#state.pres_last
            end,
+    Pres = packet:initialise(Pre, internal),
     T = jid:from_binary(Jid),
     case is_subscribed_to_my_presence(T, StateData) of
         true ->
