@@ -10,8 +10,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
-%% yes, there is no other option, this API has to run over encrypted connection
-init({ssl, http}, _Req, _Opts) ->
+init(_Transport, _Req, _Opts) ->
     {upgrade, protocol, cowboy_rest}.
 
 rest_init(Req, _HandlerOpts) ->
