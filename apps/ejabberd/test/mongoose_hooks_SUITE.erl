@@ -6,93 +6,104 @@
 -define(PRT(X, Y), ct:pal("~p: ~p~n", [X, Y])).
 
 all() ->
-    [runoldstyle,
-     runoldstyleboth,
-     runnewstyle,
-     runnewstyleboth,
-     check_packet_modification
-    ].
+    [{group, run}].
 
+groups() ->
+    [{run, [sequence],
+        [run_oldstyle,
+         run_oldstyle_both,
+         run_newstyle,
+         run_newstyle_both,
+         run_check_packet_modification
+        ]}
+     ].
+
+%%% initialisation
 
 init_per_testcase(_, C) ->
     application:ensure_all_started(exometer),
     ejabberd_hooks:start_link(),
     ets:new(local_config, [named_table]),
-    ets:new(hookruns, [named_table]),
-    register_hooks(),
+    ets:new(handlerruns, [named_table]),
+    register_handlers(),
     C.
 
-runoldstyle(_) ->
+register_handlers() ->
+    ejabberd_hooks:add(oldhook, ?HOST, ?MODULE, oldstylehandler, 10),
+    mongoose_hooks:add(newhook, ?HOST, ?MODULE, newstylehandler, 20),
+    mongoose_hooks:add(newhook, ?HOST, ?MODULE, newstylehandler1, 30),
+    ejabberd_hooks:add(bothhooks, ?HOST, ?MODULE, oldstylehandler, 10),
+    mongoose_hooks:add(bothhooks, ?HOST, ?MODULE, newstylehandler, 20),
+    mongoose_hooks:add(bothhooks, ?HOST, ?MODULE, newstylehandler1, 30),
+    ok.
+
+%%% tests
+
+run_oldstyle(_) ->
     ok = ejabberd_hooks:run(ahook, []),
     ok = ejabberd_hooks:run(oldhook, ?HOST, [1]),
-    assert_hook_run(oldstylehook),
+    assert_handler_ran(oldstylehandler),
     ok = ejabberd_hooks:run(newhook, ?HOST, [1]),
-    assert_hook_run(newstylehook),
+    assert_handler_ran(newstylehandler),
     ok.
 
-runoldstyleboth(_) ->
+run_oldstyle_both(_) ->
     ok = ejabberd_hooks:run(bothhooks, ?HOST, [1]),
-    assert_hook_run(oldstylehook),
-    assert_hook_run(newstylehook),
+    assert_handler_ran(oldstylehandler),
+    assert_handler_ran(newstylehandler),
     ok.
 
-runnewstyle(_) ->
+run_newstyle(_) ->
     P1 = #xmlel{name = "packet"},
     ejabberd_hooks:run(ahook, [{packet, P1}]),
     ejabberd_hooks:run(oldhook, ?HOST, [{packet, P1}, 1]),
-    assert_hook_run(oldstylehook),
+    assert_handler_ran(oldstylehandler),
     ejabberd_hooks:run(newhook, ?HOST, [{packet, P1}, 1]),
-    assert_hook_run(newstylehook),
+    assert_handler_ran(newstylehandler),
     ok.
 
-runnewstyleboth(_) ->
+run_newstyle_both(_) ->
     P1 = #xmlel{name = "packet"},
     ejabberd_hooks:run(bothhooks, ?HOST, [{packet, P1}, 1]),
-    assert_hook_run(oldstylehook),
-    assert_hook_run(newstylehook),
+    assert_handler_ran(oldstylehandler),
+    assert_handler_ran(newstylehandler),
     ok.
 
-check_packet_modification(_) ->
+run_check_packet_modification(_) ->
     P1 = #xmlel{name = "packet"},
     P2 = ejabberd_hooks:run(bothhooks, ?HOST, [{packet, P1}, 1]),
     "packet_a_b" = P2#xmlel.name,
     ok.
 
-register_hooks() ->
-    ejabberd_hooks:add(oldhook, ?HOST, ?MODULE, oldstylehook, 10),
-    mongoose_hooks:add(newhook, ?HOST, ?MODULE, newstylehook, 20),
-    mongoose_hooks:add(newhook, ?HOST, ?MODULE, newstylehook1, 30),
-    ejabberd_hooks:add(bothhooks, ?HOST, ?MODULE, oldstylehook, 10),
-    mongoose_hooks:add(bothhooks, ?HOST, ?MODULE, newstylehook, 20),
-    mongoose_hooks:add(bothhooks, ?HOST, ?MODULE, newstylehook1, 30),
+%%% handlers
+
+oldstylehandler(Arg1) when is_integer(Arg1) ->
+    handler_ran(oldstylehandler),
     ok.
 
-
-oldstylehook(Arg1) when is_integer(Arg1) ->
-    hook_ran(oldstylehook),
-    ok.
-
-newstylehook(nopacket, _) ->
-    hook_ran(newstylehook, nopacket),
+newstylehandler(nopacket, _) ->
+    handler_ran(newstylehandler, nopacket),
     nopacket;
-newstylehook({packet, P}, _) ->
-    hook_ran(newstylehook, withpacket),
+newstylehandler({packet, P}, _) ->
+    handler_ran(newstylehandler, withpacket),
     {packet, P#xmlel{name = P#xmlel.name ++ "_a"}}.
 
-newstylehook1(nopacket, _) ->
+newstylehandler1(nopacket, _) ->
     nopacket;
-newstylehook1({packet, P}, _) ->
+newstylehandler1({packet, P}, _) ->
     {packet, P#xmlel{name = P#xmlel.name ++ "_b"}}.
 
-hook_ran(HookName) ->
-    hook_ran(HookName, 1).
-hook_ran(HookName, Tag) ->
-    ets:insert(hookruns, {HookName, Tag}).
+%%% helpers
 
-assert_hook_run(HookName) ->
-    [_] = ets:lookup(hookruns, HookName),
+handler_ran(HandlerName) ->
+    handler_ran(HandlerName, 1).
+handler_ran(HandlerName, Tag) ->
+    ets:insert(handlerruns, {HandlerName, Tag}).
+
+assert_handler_ran(HandlerName) ->
+    [_] = ets:lookup(handlerruns, HandlerName),
     ok.
 
-assert_hook_not_run(HookName) ->
-    [] = ets:lookup(hookruns, HookName).
+assert_handler_not_ran(HandlerName) ->
+    [] = ets:lookup(handlerruns, HandlerName).
 
