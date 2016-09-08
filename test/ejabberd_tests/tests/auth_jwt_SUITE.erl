@@ -26,7 +26,14 @@
 -define(JWT_KEY, <<"testtesttest">>).
 
 all() ->
-    [{group, jwt}].
+    Release = list_to_integer(erlang:system_info(otp_release)),
+    if
+        Release < 18 ->
+            %% jwerl needs recent crypto features
+            [];
+        true ->
+            [{group, jwt}]
+    end.
 
 groups() ->
     [{jwt, [parallel], [auth_ok, auth_fail]}].
@@ -104,7 +111,7 @@ auth_fail(_Config) ->
     ok.
 
 generate_token(NbfDelta) ->
-    Now = os:system_time(seconds),
+    Now = p1_time_compat:system_time(seconds),
     Data = #{bookingNumber => ?USERNAME, exp => Now + 60, nbf => Now + NbfDelta, iat => Now},
     Token = jwerl:sign(Data, #{alg => <<"HS256">>, key => ?JWT_KEY}),
     Token.
