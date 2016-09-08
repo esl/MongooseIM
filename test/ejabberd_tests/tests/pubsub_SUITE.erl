@@ -874,5 +874,6 @@ disable_delivery_test(Config) ->
 required_modules() ->
     [{mod_pubsub, [
                    {plugins,[<<"dag">>]},
-                   {nodetree,<<"dag">>}
+                   {nodetree,<<"dag">>},
+                   {host, "pubsub.@HOST@"}
                   ]}].

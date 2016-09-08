@@ -20,7 +20,7 @@ init_per_suite(C) ->
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     Host = ct:get_config({hosts, mim, domain}),
-    rest_helper:maybe_disable_mam(proplists:get_value(mam_enabled, Config), Host),
+    rest_helper:maybe_disable_mam(mam_helper:backend(), Host),
     escalus:end_per_suite(Config).
 
 init_per_group(_GN, C) ->

@@ -254,7 +254,7 @@ stop(Host) ->
 
 init([ServerHost, Opts]) ->
     ?DEBUG("pubsub init ~p ~p", [ServerHost, Opts]),
-    Host = gen_mod:get_opt_host(ServerHost, Opts, <<"pubsub.@HOST@">>),
+    Host = gen_mod:get_opt_subhost(ServerHost, Opts),
     Access = gen_mod:get_opt(access_createnode, Opts,
                              fun(A) when is_atom(A) -> A end, all),
     PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts,

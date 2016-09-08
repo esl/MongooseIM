@@ -175,7 +175,7 @@ init([VHost, Opts]) ->
                                   ?MODULE,process_sm_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, VHost, ?NS_VCARD,
                                   ?MODULE,process_local_iq, IQDisc),
-    DirectoryHost = gen_mod:get_opt_host(VHost, Opts, "vjud.@HOST@"),
+    DirectoryHost = gen_mod:get_opt_subhost(VHost, Opts),
     Search = gen_mod:get_opt(search, Opts, true),
     case Search of
         true ->

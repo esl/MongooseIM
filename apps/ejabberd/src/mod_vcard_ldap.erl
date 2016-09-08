@@ -461,8 +461,7 @@ process_pattern(Str, {User, Domain}, AttrValues) ->
 			  [{<<"%s">>, V, 1} || V <- AttrValues]).
 
 parse_options(Host, Opts) ->
-    MyHost = gen_mod:get_opt_host(Host, Opts,
-				  <<"vjud.@HOST@">>),
+    MyHost = gen_mod:get_opt_subhost(Host, Opts),
     Matches = eldap_utils:get_mod_opt(matches, Opts,
                               fun(infinity) -> 0;
                                  (I) when is_integer(I), I>0 -> I

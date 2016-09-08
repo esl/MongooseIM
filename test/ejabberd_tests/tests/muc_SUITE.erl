@@ -246,8 +246,8 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    escalus_fresh:clean(),
     unload_muc(),
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(moderator, Config) ->
