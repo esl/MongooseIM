@@ -122,3 +122,8 @@ TAGS
 
 *.diff
 apps/ejabberd/compile_commands.json
+
+# ASN.1 rebar3 plugin
+asngen
+_build
+_checkouts
