@@ -27,12 +27,22 @@
 -module(mongoose_hooks).
 -author("bartek").
 
+-include("jlib.hrl").
+
 %% API
 -export([add/4,
-         add/5]).
+         add/5,
+         run/3,
+         run/4]).
 
 add(Hook, Host, Function, Seq) ->
     ejabberd_hooks:add2(Hook, Host, Function, Seq).
 
 add(Hook, Host, Module, Function, Seq) ->
     ejabberd_hooks:add2(Hook, Host, Module, Function, Seq).
+
+run(Hook, #xmlel{} = Packet, Args) ->
+    ejabberd_hooks:run(Hook, [{packet, Packet}|Args]).
+
+run(Hook, Host, #xmlel{} = Packet, Args) ->
+    ejabberd_hooks:run(Hook, Host, [{packet, Packet}|Args]).
