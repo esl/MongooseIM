@@ -107,5 +107,5 @@ user_to_json({UserServer, Role}) ->
       role => Role}.
 
 muc_light_domain(Server) ->
-    gen_mod:get_module_opt_host(Server, mod_muc, <<"muclight.@HOST@">>).
+    gen_mod:get_module_opt_host(Server, mod_muc_light, <<"muclight.@HOST@">>).
 
