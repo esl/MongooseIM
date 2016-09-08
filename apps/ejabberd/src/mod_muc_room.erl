@@ -1915,7 +1915,7 @@ uri_encode(Bin) ->
 decode_http_auth_response(Body) ->
     try decode_json_auth_response(Body) of
         {0, _} -> allowed;
-        {AuthCode, Msg} -> {invalid_password, iolist_to_binary([AuthCode, $ , Msg])}
+        {AuthCode, Msg} -> {invalid_password, iolist_to_binary([integer_to_list(AuthCode), $ , Msg])}
     catch
         error:_ -> error
     end.
