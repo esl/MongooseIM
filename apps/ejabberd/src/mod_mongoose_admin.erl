@@ -14,13 +14,34 @@
          kick_session/3,
          get_recent_messages/3,
          get_recent_messages/4,
+         log_in_frame/4,
+         log_out_frame/3,
          send_message/3
         ]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
+log_in_frame(Jid, From, To, Packet) ->
+    P = exml:to_binary(Packet),
+    J = jid:to_binary(Jid),
+    F = jid:to_binary(From),
+    T = jid:to_binary(To),
+    lager:log(info, self(), "<---- Jid: ~p~n<---- ~p => ~p~n<---- ~p", [J, F, T, P]),
+    ok.
+
+log_out_frame(From, To, Packet) ->
+    P = exml:to_binary(Packet),
+    F = jid:to_binary(From),
+    T = jid:to_binary(To),
+    lager:log(info, self(), "====>~n====> ~p => ~p~n====> ~p", [F, T, P]),
+    ok.
+
+
+
 start() ->
+    ejabberd_hooks:add(user_receive_packet, <<"localhost">>, mod_mongoose_admin, log_in_frame, 99),
+    ejabberd_hooks:add(user_send_packet, <<"localhost">>, mod_mongoose_admin, log_out_frame, 99),
     mongoose_commands:register(commands()).
 
 stop() ->

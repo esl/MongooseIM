@@ -33,7 +33,9 @@
 -export([add/4,
          add/5,
          run/3,
-         run/4]).
+         run/4,
+         run_fold/4,
+         run_fold/5]).
 
 add(Hook, Host, Function, Seq) ->
     ejabberd_hooks:add2(Hook, Host, Function, Seq).
@@ -46,3 +48,9 @@ run(Hook, #xmlel{} = Packet, Args) ->
 
 run(Hook, Host, #xmlel{} = Packet, Args) ->
     ejabberd_hooks:run(Hook, Host, [{packet, Packet}|Args]).
+
+run_fold(Hook, V, #xmlel{} = Packet, Args) ->
+    ejabberd_hooks:run_fold(Hook, V, [{packet, Packet}|Args]).
+
+run_fold(Hook, Host, V, #xmlel{} = Packet, Args) ->
+    ejabberd_hooks:run_fold(Hook, Host, V, [{packet, Packet}|Args]).

@@ -140,10 +140,17 @@ run_fold(Hook, Val, Args) ->
     run_fold(Hook, global, Val, Args).
 
 run_fold(Hook, Host, Val, Args) ->
+    % if {packet,P} not given as the first arg, prepend 'nopacket'
+    CArgs = case Args of
+                [{packet, #xmlel{}}|_] ->
+                    Args;
+                _ ->
+                    [nopacket|Args]
+            end,
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Host, Hook),
-            run_fold1(Ls, Hook, Val, Args);
+            run_fold1(Ls, Hook, Val, CArgs);
         [] ->
             Val
     end.
@@ -250,18 +257,20 @@ cook_args(old, [nopacket|A]) ->
 cook_args(new, A) ->
     A.
 
+cook_return(_, {'EXIT', Reason}, A) ->
+    {'EXIT', Reason, A};
 %% legal return from old style hook: anything, it is ignored
-cook_return(old, A, _) ->
+cook_return(old, _, A) ->
     A;
 %% new-style: if there was nopacket, must be nopacket or {nopacket, V}, V is ignored and we go on
-cook_return(new, [nopacket|A], nopacket) ->
+cook_return(new, nopacket, [nopacket|A]) ->
     [nopacket, A];
-cook_return(new, [nopacket|A], {nopacket, _}) ->
+cook_return(new, {nopacket, _}, [nopacket|A]) ->
     [nopacket, A];
-%% new-style: if there was a packet, must be a new packet or {NewPacket, V}, V is ignored and we go on WITH THE NEW PACKET
-cook_return(new, [{packet, #xmlel{}}|A], {packet, #xmlel{} = NewPacket}) ->
+%% new-style: if there was a packet, must be a {packet, NewPacket} or {{packet, NewPacket}, V}, V is ignored and we go on WITH THE NEW PACKET
+cook_return(new, {packet, #xmlel{} = NewPacket}, [{packet, #xmlel{}}|A]) ->
     [{packet, NewPacket}|A];
-cook_return(new, [{packet, #xmlel{}}|A], {{packet, #xmlel{} = NewPacket, _}}) ->
+cook_return(new, {{packet, #xmlel{} = NewPacket, _}}, [{packet, #xmlel{}}|A]) ->
     [{packet, NewPacket}|A].
 
 run1([], _Hook, [nopacket|_Args]) ->
@@ -275,36 +284,59 @@ run1([{_Seq, Module, Function, Mode} | Ls], Hook, Args) ->
              true ->
                   safely:apply(Module, Function, CArgs)
           end,
-    case Res of
-        {'EXIT', Reason} ->
+    NRes = cook_return(Mode, Res, Args),
+    case NRes of
+        {'EXIT', Reason, NArgs} ->
             ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p, mode ~p",
                        [Reason, {Hook, Args}, Module, Function, Mode]),
-            NArgs = cook_return(Mode, Args, Res),
             run1(Ls, Hook, NArgs);
-        stop ->
-            ok;
-        _ ->
-            NArgs = cook_return(Mode, Args, Res),
+%%        stop ->
+%%            ok;
+        NArgs ->
             run1(Ls, Hook, NArgs)
     end.
 
-run_fold1([], _Hook, Val, _Args) ->
+%% @doc for old-style hooks, strip leading {packet, #xmlel} or 'nopacket' if present
+%% insert value passed to run_fold as the first/second arg, depending on mode
+cook_args(old, V, [{packet, #xmlel{}}|A]) ->
+    [V|A];
+cook_args(old, V, [nopacket|A]) ->
+    [V|A];
+cook_args(new, V, [{packet, #xmlel{} = P}|A]) ->
+    [{packet, P}, V|A];
+cook_args(new, V, [nopacket|A]) ->
+    [nopacket, V|A].
+
+cook_fold_result(_, {'EXIT', Reason}, Val, Args) ->
+    {'EXIT', Reason, Val, Args};
+cook_fold_result(old, NVal, _, Args) ->
+    {NVal, Args};
+cook_fold_result(new, {nopacket, NVal}, _, [nopacket|Args]) ->
+    {NVal, [nopacket|Args]};
+cook_fold_result(new, {{packet, #xmlel{} = NPacket}, NVal}, _, [{packet, _}|Args]) ->
+    {NVal, [{packet, NPacket}|Args]}.
+
+run_fold1([], _Hook, Val, [nopacket|_Args]) ->
     Val;
+run_fold1([], _Hook, Val, [{packet, #xmlel{} = Packet}|_Args]) ->
+    {Packet, Val};
 run_fold1([{_Seq, Module, Function, Mode} | Ls], Hook, Val, Args) ->
+    CArgs = cook_args(Mode, Val, Args),
     Res = if is_function(Function) ->
-                  safely:apply(Function, [Val | Args]);
+                  safely:apply(Function, CArgs);
              true ->
-                  safely:apply(Module, Function, [Val | Args])
+                  safely:apply(Module, Function, CArgs)
           end,
-    case Res of
-        {'EXIT', Reason} ->
+    NRes = cook_fold_result(Mode, Res, Val, Args),
+    case NRes of
+        {'EXIT', Reason, NVal, NArgs} ->
             ?ERROR_MSG("~p~nrunning hook: ~p in mode ~p",
                        [Reason, {Hook, Args}, Mode]),
-            run_fold1(Ls, Hook, Val, Args);
-        stop ->
-            stopped;
-        {stop, NewVal} ->
-            NewVal;
-        NewVal ->
-            run_fold1(Ls, Hook, NewVal, Args)
+            run_fold1(Ls, Hook, NVal, NArgs);
+%%        stop ->
+%%            stopped;
+%%        {stop, NewVal} ->
+%%            NewVal;
+        {NewVal, NArgs} ->
+            run_fold1(Ls, Hook, NewVal, NArgs)
     end.
