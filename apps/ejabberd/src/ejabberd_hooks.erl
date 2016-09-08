@@ -260,8 +260,18 @@ cook_args(new, A) ->
 cook_return(_, {'EXIT', Reason}, A) ->
     {'EXIT', Reason, A};
 %% legal return from old style hook: anything, it is ignored
+%% stopping
+cook_return(old, stop, [nopacket|_]) ->
+    % to keep old api
+    stop;
+cook_return(old, stop, [{packet, #xmlel{} = P}|_]) ->
+    {stop, P};
 cook_return(old, _, A) ->
     A;
+cook_return(new, {stop, nopacket}, _) ->
+    stopped;
+cook_return(new, {stop, {packet, #xmlel{} = P}}, _) ->
+    {stop, P};
 %% new-style: if there was nopacket, must be nopacket or {nopacket, V}, V is ignored and we go on
 cook_return(new, nopacket, [nopacket|A]) ->
     [nopacket, A];
@@ -290,8 +300,10 @@ run1([{_Seq, Module, Function, Mode} | Ls], Hook, Args) ->
             ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p, mode ~p",
                        [Reason, {Hook, Args}, Module, Function, Mode]),
             run1(Ls, Hook, NArgs);
-%%        stop ->
-%%            ok;
+        stop ->
+            stopped;
+        {stop, R} ->
+            R;
         NArgs ->
             run1(Ls, Hook, NArgs)
     end.
@@ -307,12 +319,31 @@ cook_args(new, V, [{packet, #xmlel{} = P}|A]) ->
 cook_args(new, V, [nopacket|A]) ->
     [nopacket, V|A].
 
+
 cook_fold_result(_, {'EXIT', Reason}, Val, Args) ->
     {'EXIT', Reason, Val, Args};
+%% brutal stop
+cook_fold_result(_, stop, _, _) ->
+    stop;
+%% old handler, old way, stop with value
+cook_fold_result(old, {stop, V}, _, [nopacket|_]) ->
+    {stop, V};
+%% old handler, new way, stop with value
+cook_fold_result(old, {stop, V}, _, [{packet, #xmlel{} = P}|_]) ->
+    {stop, P, V};
+%% old handler, any way, returned something
 cook_fold_result(old, NVal, _, Args) ->
     {NVal, Args};
+%% new handler, old way, stop with value
+cook_fold_result(new, {stop, V}, _, [nopacket|_]) ->
+    {stop, V};
+%% new handler, old way, just modify value
 cook_fold_result(new, {nopacket, NVal}, _, [nopacket|Args]) ->
     {NVal, [nopacket|Args]};
+%% new handler,new way, stop with value
+cook_fold_result(new, {stop, {packet, P}, V}, _, _) ->
+    {stop, P, V};
+%% new handler, new way, modify value and packet
 cook_fold_result(new, {{packet, #xmlel{} = NPacket}, NVal}, _, [{packet, _}|Args]) ->
     {NVal, [{packet, NPacket}|Args]}.
 
@@ -333,10 +364,12 @@ run_fold1([{_Seq, Module, Function, Mode} | Ls], Hook, Val, Args) ->
             ?ERROR_MSG("~p~nrunning hook: ~p in mode ~p",
                        [Reason, {Hook, Args}, Mode]),
             run_fold1(Ls, Hook, NVal, NArgs);
-%%        stop ->
-%%            stopped;
-%%        {stop, NewVal} ->
-%%            NewVal;
+        stop ->
+            stopped;
+        {stop, NewVal} ->
+            NewVal;
+        {stop, P, NewVal} ->
+            {P, NewVal};
         {NewVal, NArgs} ->
             run_fold1(Ls, Hook, NewVal, NArgs)
     end.

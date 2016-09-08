@@ -6,8 +6,10 @@
 -define(PRT(X, Y), ct:pal("~p: ~p~n", [X, Y])).
 
 all() ->
-    [{group, run}
+    [%{group, run},
      %{group, runfold}
+%%     {group, runstop}
+        {group, runfoldstop}
     ].
 
 groups() ->
@@ -15,13 +17,29 @@ groups() ->
         [run_oldstyle,
          run_oldstyle_both,
          run_newstyle,
-         run_newstyle_both,
-         run_check_packet_modification
+         run_newstyle_both
         ]},
      {runfold, [sequence],
          [runfold_oldstyle,
           runfold_newstyle]
-     }].
+     },
+        {runstop, [sequence],
+            [
+                run_oldstyle_stop_old,
+                run_oldstyle_stop_new,
+                run_newstyle_stop_old,
+                run_newstyle_stop_new
+                ]
+        },
+        {runfoldstop, [sequence],
+            [
+                runfold_oldstyle_stop_old,
+                runfold_oldstyle_stop_new,
+                runfold_newstyle_stop_old,
+                runfold_newstyle_stop_new
+            ]
+        }
+    ].
 
 %%% initialisation
 
@@ -59,6 +77,7 @@ run_oldstyle_both(_) ->
     ok = ejabberd_hooks:run(bothhooks, ?HOST, [1]),
     assert_handler_ran(oldstylehandler),
     assert_handler_ran(newstylehandler),
+    assert_handler_ran(newstylehandler1),
     ok.
 
 run_newstyle(_) ->
@@ -72,14 +91,10 @@ run_newstyle(_) ->
 
 run_newstyle_both(_) ->
     P1 = #xmlel{name = "packet"},
-    mongoose_hooks:run(bothhooks, ?HOST, P1, [1]),
+    P2 = mongoose_hooks:run(bothhooks, ?HOST, P1, [1]),
     assert_handler_ran(oldstylehandler),
     assert_handler_ran(newstylehandler),
-    ok.
-
-run_check_packet_modification(_) ->
-    P1 = #xmlel{name = "packet"},
-    P2 = mongoose_hooks:run(bothhooks, ?HOST, P1, [1]),
+    assert_handler_ran(newstylehandler1),
     "packet_a_b" = P2#xmlel.name,
     ok.
 
@@ -99,6 +114,77 @@ runfold_newstyle(_) ->
     assert_handler_ran(newstylefolding1),
     ok.
 
+run_oldstyle_stop_old(_) ->
+    ejabberd_hooks:add(bothhooks, ?HOST, ?MODULE, oldstylestop, 25),
+    stopped = ejabberd_hooks:run(bothhooks, ?HOST, [1]),
+    assert_handler_ran(oldstylehandler),
+    assert_handler_ran(newstylehandler),
+    assert_handler_ran(oldstylestop),
+    assert_handler_not_ran(newstylehandler1),
+    ok.
+
+run_oldstyle_stop_new(_) ->
+    mongoose_hooks:add(bothhooks, ?HOST, ?MODULE, newstylestop, 25),
+    stopped = ejabberd_hooks:run(bothhooks, ?HOST, [1]),
+    assert_handler_ran(oldstylehandler),
+    assert_handler_ran(newstylehandler),
+    assert_handler_ran(newstylestop),
+    assert_handler_not_ran(newstylehandler1),
+    ok.
+
+run_newstyle_stop_old(_) ->
+    P = #xmlel{name = "packet"},
+    ejabberd_hooks:add(bothhooks, ?HOST, ?MODULE, oldstylestop, 25),
+    P1 = mongoose_hooks:run(bothhooks, ?HOST, P, [1]),
+    assert_handler_ran(oldstylehandler),
+    assert_handler_ran(newstylehandler),
+    assert_handler_ran(oldstylestop),
+    assert_handler_not_ran(newstylehandler1),
+    "packet_a" = P1#xmlel.name,
+    ok.
+
+run_newstyle_stop_new(_) ->
+    P = #xmlel{name = "packet"},
+    mongoose_hooks:add(bothhooks, ?HOST, ?MODULE, newstylestop, 25),
+    P1 = mongoose_hooks:run(bothhooks, ?HOST, P, [1]),
+    assert_handler_ran(oldstylehandler),
+    assert_handler_ran(newstylehandler),
+    assert_handler_ran(newstylestop),
+    assert_handler_not_ran(newstylehandler1),
+    "packet_a_c" = P1#xmlel.name,
+    ok.
+
+runfold_oldstyle_stop_old(_) ->
+    ejabberd_hooks:add(hookfold, ?HOST, ?MODULE, oldstylefoldstop, 25),
+    stopped = ejabberd_hooks:run_fold(hookfold, ?HOST, 1, []),
+    ejabberd_hooks:add(hookfold, ?HOST, ?MODULE, oldstylefoldstop_val, 22),
+    345 = ejabberd_hooks:run_fold(hookfold, ?HOST, 1, []),
+    ok.
+
+runfold_oldstyle_stop_new(_) ->
+    mongoose_hooks:add(hookfold, ?HOST, ?MODULE, newstylefoldstop, 25),
+    stopped = ejabberd_hooks:run_fold(hookfold, ?HOST, 1, []),
+    mongoose_hooks:add(hookfold, ?HOST, ?MODULE, newstylefoldstop_val, 22),
+    2345 = ejabberd_hooks:run_fold(hookfold, ?HOST, 1, []),
+    assert_handler_not_ran(newstylefolding1),
+    ok.
+
+runfold_newstyle_stop_old(_) ->
+    P = #xmlel{name = "packet"},
+    ejabberd_hooks:add(hookfold, ?HOST, ?MODULE, oldstylefoldstop, 25),
+    stopped = mongoose_hooks:run_fold(hookfold, ?HOST, 1, P, []),
+    ejabberd_hooks:add(hookfold, ?HOST, ?MODULE, oldstylefoldstop_val, 22),
+    {#xmlel{name = "packet_a"}, 345} = mongoose_hooks:run_fold(hookfold, ?HOST, 1, P, []),
+    ok.
+
+runfold_newstyle_stop_new(_) ->
+    P = #xmlel{name = "packet"},
+    mongoose_hooks:add(hookfold, ?HOST, ?MODULE, newstylefoldstop, 25),
+    stopped = mongoose_hooks:run_fold(hookfold, ?HOST, 1, P, []),
+    mongoose_hooks:add(hookfold, ?HOST, ?MODULE, newstylefoldstop_val, 22),
+    {#xmlel{name = "packet_a_d"}, 2345} = mongoose_hooks:run_fold(hookfold, ?HOST, 1, P, []),
+    ok.
+
 %%% handlers
 
 oldstylehandler(Arg1) when is_integer(Arg1) ->
@@ -113,8 +199,10 @@ newstylehandler({packet, P}, _) ->
     {packet, P#xmlel{name = P#xmlel.name ++ "_a"}}.
 
 newstylehandler1(nopacket, _) ->
+    handler_ran(newstylehandler1, nopacket),
     nopacket;
 newstylehandler1({packet, P}, _) ->
+    handler_ran(newstylehandler1, withpacket),
     {packet, P#xmlel{name = P#xmlel.name ++ "_b"}}.
 
 oldstylefolding(Arg1) when is_integer(Arg1) ->
@@ -134,6 +222,29 @@ newstylefolding1(nopacket, A) ->
 newstylefolding1({packet, P}, A) ->
     handler_ran(newstylefolding1, withpacket),
     {{packet, P#xmlel{name = P#xmlel.name ++ "_b"}}, A + 100}.
+
+oldstylestop(_) ->
+    handler_ran(oldstylestop),
+    stop.
+newstylestop(nopacket, _) ->
+    handler_ran(newstylestop),
+    {stop, nopacket};
+newstylestop({packet, P}, _) ->
+    handler_ran(newstylestop),
+    {stop, {packet, P#xmlel{name = P#xmlel.name ++ "_c"}}}.
+
+oldstylefoldstop(_) ->
+    stop.
+oldstylefoldstop_val(_) ->
+    {stop, 345}.
+
+newstylefoldstop(_, _) ->
+    stop.
+
+newstylefoldstop_val(nopacket, _) ->
+    {stop, 2345};
+newstylefoldstop_val({packet, P}, _) ->
+    {stop, {packet, P#xmlel{name = P#xmlel.name ++ "_d"}}, 2345}.
 
 %%% helpers
 
