@@ -30,7 +30,7 @@ allowed_methods(Req, State) ->
 
 content_types_provided(Req, State) ->
     {[
-      {<<"application/json">>, to_json}
+      {{<<"application">>, <<"json">>, '*'}, to_json}
      ], Req, State}.
 
 to_json(Req, User) ->

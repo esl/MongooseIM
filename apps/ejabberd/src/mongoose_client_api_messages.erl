@@ -28,12 +28,12 @@ is_authorized(Req, State) ->
 
 content_types_provided(Req, State) ->
     {[
-      {<<"application/json">>, to_json}
+      {{<<"application">>, <<"json">>, '*'}, to_json}
      ], Req, State}.
 
 content_types_accepted(Req, State) ->
     {[
-      {<<"application/json">>, send_message}
+      {{<<"application">>, <<"json">>, '*'}, send_message}
      ], Req, State}.
 
 allowed_methods(Req, State) ->
