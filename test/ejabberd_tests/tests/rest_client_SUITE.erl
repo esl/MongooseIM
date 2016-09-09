@@ -14,6 +14,7 @@ test_cases() ->
      messages_can_be_paginated,
      room_is_created,
      user_is_invited_to_a_room,
+     invitation_to_room_is_forbidden_for_non_memeber,
      msg_is_sent_and_delivered_in_room,
      messages_are_archived_in_room,
      messages_can_be_paginated_in_room
@@ -122,6 +123,12 @@ user_is_invited_to_a_room(Config) ->
         get_room_info({alice, Alice}, RoomID)
     end).
 
+invitation_to_room_is_forbidden_for_non_memeber(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room({alice, Alice}),
+        {{<<"403">>, <<"Forbidden">>}, _ } = invite_to_room({bob, Bob}, RoomID, <<"auser@domain.com">>)
+    end).
+
 msg_is_sent_and_delivered_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}])
@@ -211,16 +218,17 @@ given_new_room(Owner) ->
     create_room(Creds, RoomName, <<"This room subject">>).
 
 given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
-    Creds = credentials(Owner),
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Invitee)),
-    Body = #{user => JID},
-    {{<<"204">>, <<"No Content">>}, _} = rest_helper:putt(<<"/rooms/", RoomID/binary>>,
-                                                          Body, Creds),
+    {{<<"204">>, <<"No Content">>}, _} = invite_to_room(Owner, RoomID, JID),
     Stanza = escalus:wait_for_stanza(Invitee),
     ct:pal("Invitee ~p", [Stanza]),
     Stanza2 = escalus:wait_for_stanza(Inviter),
     ct:pal("Inviter ~p", [Stanza2]).
 
+invite_to_room(Inviter, RoomID, Invitee) ->
+    Body = #{user => Invitee},
+    Creds = credentials(Inviter),
+    rest_helper:putt(<<"/rooms/", RoomID/binary>>, Body, Creds).
 
 credentials({User, UserClient}) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(UserClient)),
