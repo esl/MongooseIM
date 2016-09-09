@@ -51,7 +51,8 @@
 
 %% private
 -export([archive_message/8]).
-
+-export([lookup_messages/13]).
+-export([archive_id_int/2]).
 %% ----------------------------------------------------------------------
 %% Imports
 

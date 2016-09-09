@@ -53,6 +53,8 @@
 
 %%private
 -export([archive_message/8]).
+-export([lookup_messages/13]).
+-export([archive_id_int/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -119,9 +121,9 @@
 
 -type action()              :: atom().
 -type borders()             :: #mam_borders{}.
--type lookup_result() :: {TotalCount :: non_neg_integer(),
-                          Offset :: non_neg_integer(),
-                          MessageRows :: list(tuple())}.
+-type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
+                          Offset :: non_neg_integer() | undefined,
+                          MessageRows :: [{message_id(), jid(), jlib:xmlel()}]}.
 
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok',{_,_}}).
@@ -201,6 +203,7 @@ start(Host, Opts) ->
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
                                   ?MODULE, process_mam_iq, IQDisc),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
+    ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
@@ -215,6 +218,7 @@ start(Host, Opts) ->
 stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
+    ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
@@ -666,7 +670,8 @@ is_interesting(Host, LocJID, RemJID, ArcID) ->
 %% ----------------------------------------------------------------------
 %% Backend wrappers
 
--spec archive_id_int(ejabberd:server(), ejabberd:jid()) -> integer().
+-spec archive_id_int(ejabberd:server(), ejabberd:jid()) ->
+    non_neg_integer() | undefined.
 archive_id_int(Host, ArcJID=#jid{}) ->
     ejabberd_hooks:run_fold(mam_archive_id, Host, undefined, [Host, ArcJID]).
 

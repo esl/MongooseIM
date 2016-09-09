@@ -1,11 +1,14 @@
 swagger: '2.0'
 info:
-  version: "0.0.1"
-  title: "MongooseIM client REST API"
+  version: "0.1.0"
+  title: "MongooseIM's client REST API"
   description: |
     This API described alternate, to XMPP way of using MongooseIM.
-    All the requests require authantication. Thanks to that the server always knows
-    who sent the request and can decide whether given user is authorized or not
+    Users are represented by **bare JIDs** (Jaber Identifiers, example **alice@wonderland.com**).
+    This allows to integrate **REST API** users with the regular **XMPP** users.
+    All the requests require authentication, currently the only supported method is **Basic Auth**.
+    Thanks to the authentication the server always knows
+    who sent the request and can decide whether given user is authorized or not.
 basePath: /api
 schemes:
   - https
@@ -16,90 +19,254 @@ paths:
       parameters:
         - in: body
           name: message
-          description: the message to be sent
+          description: The message to be sent.
           required: true
           schema:
             $ref: '#/definitions/SendMessage'
       responses:
         200:
-          description: Message was successfully sent
-  /messages/{with}/{limit}:
+          description: Message was successfully sent.
+          schema:
+            $ref: '#/definitions/ResourceID'
     get:
-      description: |
-        Gets recent messages from the archive. For the authenticated users.
+      description: Gets all recent messages from the archive.
       parameters:
-        - name: with
-          type: string
-          description: JID of the user with whom the messages were exchanged.
-          in: path
-          required: true
-        - name: limit
-          in: path
-          description: Number of recent messages to return. Lower than 500
-          required: true
+        - in: query
+          name: limit
+          description: |
+            Specifies the maximum number of messages to be returned.
+            Default value is 50.
+          type: integer
+        - in: query
+          name: before
+          description: |
+            The timestamp in milliseconds.
+            If set, only messages before this date will be returned.
           type: integer
           format: int64
       responses:
         200:
-          description: Successful response
+          description: Messages
           schema:
             title: Messages
             type: array
             items:
               $ref: '#/definitions/RecvMessage'
-  /messages/{with}/{timestamp}/{limit}:
+  /messages/{with}:
     get:
       description: |
-        Gets recent messages from the archive. For the authenticated users.
+        Gets recent messages with specified user from the archive.
       parameters:
         - name: with
           type: string
-          description: JID of the user with whom the messages were exchanged.
+          description: |
+            JID of the user with whom the messages were exchanged.
+            Example: **alice@wonderland.com**.
           in: path
           required: true
-        - name: timestamp
+        - in: query
+          name: limit
+          description: |
+            Specifies the maximum number of messages to be returned.
+            Default value is 50.
           type: integer
-          description: Timestamp in seconds. Returned messages will be older then the provided timestamp
-          in: path
-          required: true
-        - name: limit
-          in: path
-          description: Number of recent messages to return. Lower than 500
-          required: true
+        - in: query
+          name: before
+          description: |
+            The timestamp in milliseconds.
+            If set, only messages before this date will be returned.
           type: integer
           format: int64
       responses:
         200:
-          description: Successful response
+          description: Successful response.
           schema:
             title: Messages
             type: array
             items:
               $ref: '#/definitions/RecvMessage'
+  /rooms:
+    post:
+      description: Creates a room.
+      parameters:
+        - in: body
+          name: room
+          required: true
+          schema:
+            $ref: '#/definitions/CreateRoomBody'
+      responses:
+        200:
+          description: The room was successfully created.
+          schema:
+            $ref: '#/definitions/ResourceID'
+  /rooms/{id}:
+    get:
+      description: "Returns room's details."
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+          description: The ID of a room
+      responses:
+        200:
+          description: Successful response
+          schema:
+            $ref: '#/definitions/RoomDetails'
+    put:
+      description: "Adds users to a room."
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+          description: The ID of a room.
+        - in: body
+          name: participant
+          required: true
+          schema:
+            $ref: "#/definitions/Invitee"
+      responses:
+        204:
+          description: User was successfully added to the room.
+  /rooms/{id}/messages:
+    post:
+      description: Send a message to a room.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+          description: The ID of a room.
+        - in: body
+          name: message
+          required: true
+          schema:
+            $ref: '#/definitions/SendRoomMessage'
+      responses:
+        200:
+          description: Message was sent, id retunred in body.
+          schema:
+            $ref: "#/definitions/ResourceID"
+    get:
+      description: Get room's messages from the archive.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+          description: The ID of a room.
+      responses:
+        200:
+          description: List of messages in the room's archive.
+          schema:
+            $ref: "#/definitions/RecvRoomMessage"
 security:
   - mongoose_basic_auth: []
 securityDefinitions:
   mongoose_basic_auth:
     type: basic
+    description: |
+      The userid part is user's bare JID. F.e. alice@wonderland.com.
+      The password is the same as used to register the user's account.
 definitions:
+  ResourceID:
+    properties:
+      id:
+        type: string
   SendMessage:
     properties:
       to:
         $ref: '#/definitions/JID'
-      msg:
+      body:
         type: string
   RecvMessage:
     properties:
-      sender:
-        $ref: '#/definitions/JID'
+      to:
+        type: string
+        description: The message recipient's bare JID.
+      from:
+        type: string
+        description: The message sender's bare JID.
       timestamp:
         type: integer
-        description: Unix timestamp in seconds when the message was sent
-      message_id:
+        format: int64
+        description: Unix timestamp in milliseconds when the message was sent.
+      id:
         type: string
       body:
         type: string
-        description: Message content
+        description: Message content.
+  CreateRoomBody:
+    properties:
+      subject:
+        type: string
+        description: The room's initial subject.
+      name:
+        type: string
+        description: The room's name.
+  RoomDetails:
+    properties:
+      subject:
+        type: string
+        description: Current room's subject.
+      name:
+        type: string
+        description: Room's name.
+      participants:
+        type: array
+        items:
+          $ref: "#/definitions/Participant"
+  Participant:
+    properties:
+      user:
+        $ref: '#/definitions/JID'
+      role:
+        $ref: "#/definitions/RoomRole"
+  Invitee:
+    properties:
+      user:
+        $ref: '#/definitions/JID'
+  RoomRole:
+    type: string
+    enum: ["owner", "member"]
+    description: The role of the user in given room. This can be 'owner' or 'member'.
+  SendRoomMessage:
+    properties:
+      body:
+        type: string
+  RecvRoomMessage:
+    properties:
+      type:
+        type: string
+        description: |
+          The type of a message, possible values are:
+          "message" for regular message
+          "affiliation" for affiliation changes.
+        enum: ["message", "affiliation"]
+      from:
+        type: string
+        description: |
+          The JID of message sender. In case of a regular message sent by room's participant
+          the JID will be a full JID with the sender's bare JID as a resource part of room's JID.
+      id:
+        type: string
+        description: The ID of a message.
+      body:
+        type: string
+        description: |
+          The message body.
+          Present only if the type is "message".
+      user:
+        type: string
+        description: |
+          JID of a user, whom affiliation changed.
+          Present only if the type is "affiliation".
+      affiliations:
+        type: string
+        description: |
+          The new affiliation of a user in the room.
+          Present only if the type is "affiliation".
   JID:
     type: string
     description: |
