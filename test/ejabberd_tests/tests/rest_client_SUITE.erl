@@ -17,6 +17,7 @@ test_cases() ->
      invitation_to_room_is_forbidden_for_non_memeber,
      msg_is_sent_and_delivered_in_room,
      messages_are_archived_in_room,
+     only_room_participant_can_read_messages,
      messages_can_be_paginated_in_room
      ].
 
@@ -47,6 +48,7 @@ init_per_testcase(TC, Config) ->
                     messages_with_user_are_archived,
                     messages_can_be_paginated,
                     messages_are_archived_in_room,
+                    only_room_participant_can_read_messages,
                     messages_can_be_paginated_in_room
                    ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
@@ -138,10 +140,8 @@ messages_are_archived_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
         mam_helper:maybe_wait_for_yz(Config),
+        {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
         ct:pal("~p", [Msgs]),
-        Path = <<"/rooms/", RoomID/binary, "/messages">>,
-        Creds = credentials({alice, Alice}),
-        {{<<"200">>, <<"OK">>}, Result} = rest_helper:gett(Path, Creds),
         [Aff, _Msg1, _Msg2] = MsgsRecv = rest_helper:decode_maplist(Result),
         %% The oldest message is aff change
         <<"affiliation">> = maps:get(type, Aff),
@@ -150,6 +150,18 @@ messages_are_archived_in_room(Config) ->
         BobJID = maps:get(user, Aff),
         ct:pal("~p", [MsgsRecv])
     end).
+
+only_room_participant_can_read_messages(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room({alice, Alice}),
+        {{<<"403">>, <<"Forbidden">>}, _} = get_room_messages({bob, Bob}, RoomID),
+        ok
+    end).
+
+get_room_messages(Caller, RoomID) ->
+    Path = <<"/rooms/", RoomID/binary, "/messages">>,
+    Creds = credentials(Caller),
+    rest_helper:gett(Path, Creds).
 
 messages_can_be_paginated_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
