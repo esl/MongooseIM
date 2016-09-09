@@ -39,19 +39,32 @@ stop_node() {
 	echo
 }
 
+summaries_dir() {
+	if [ `uname` = "Darwin" ]; then
+		echo `ls -dt ${1} | head -n ${2}`
+	else
+		echo `eval ls -d ${1} --sort time | head -n ${2}`
+	fi
+}
+
+run_small_tests() {
+	make ct
+	SMALL_SUMMARIES_DIRS=${BASE}/apps/ejabberd/logs/ct_run*
+	SMALL_SUMMARIES_DIR=$(summaries_dir ${SMALL_SUMMARIES_DIRS} 1)
+	${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
+}
+
 run_tests() {
-	SUMMARIES_DIRS=${BASE}'/test/ejabberd_tests/ct_report/ct_run*'
 
 	echo "############################"
 	echo "Running embeded common tests"
 	echo "############################"
 
-    echo "Use SKIP_SMALL=1 to skip embeded common tests"
-	[ "$SKIP_SMALL" = "1" ] || make ct
-	
+	echo "Use SKIP_SMALL=1 to skip embeded common tests"
+	[ "$SKIP_SMALL" = "1" ] || run_small_tests
 	SMALL_STATUS=$?
-    echo ""
-    echo "SMALL_STATUS=$SMALL_STATUS"
+	echo ""
+	echo "SMALL_STATUS=$SMALL_STATUS"
 
 	echo "############################"
 	echo "Running ejabberd_tests"
@@ -72,12 +85,8 @@ run_tests() {
 		stop_node $node;
 	done
 
-	if [ `uname` = "Darwin" ]; then
-		SUMMARIES_DIR=`ls -dt ${SUMMARIES_DIRS} | head -n ${RAN_TESTS}`
-	else
-		SUMMARIES_DIR=`eval ls -d ${SUMMARIES_DIRS} --sort time | head -n ${RAN_TESTS}`
-	fi
-
+	SUMMARIES_DIRS=${BASE}'/test/ejabberd_tests/ct_report/ct_run*'
+	SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS} ${RAN_TESTS})
 	${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
 	BIG_STATUS=$?
 
