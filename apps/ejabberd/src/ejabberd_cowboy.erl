@@ -60,7 +60,7 @@ start_listener({Port, IP, tcp}=Listener, Opts) ->
     {ok, Pid}.
 
 reload_dispatch(Ref) ->
-    gen_server:cast(Ref, reload_dispatch).
+    gen_server:call(Ref, reload_dispatch).
 
 %% @doc gen_server for handling shutdown when started via ejabberd_listener
 -spec start_link(_) -> 'ignore' | {'error',_} | {'ok',pid()}.
@@ -71,12 +71,12 @@ init(State) ->
     process_flag(trap_exit, true),
     {ok, State}.
 
+handle_call(reload_dispatch, _From, #cowboy_state{ref = Ref, opts = Opts} = State) ->
+    reload_dispatch(Ref, Opts),
+    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 
-handle_cast(reload_dispatch, #cowboy_state{ref = Ref, opts = Opts} = State) ->
-    reload_dispatch(Ref, Opts),
-    {noreply, State};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
