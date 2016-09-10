@@ -178,12 +178,25 @@ listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
                        {keepalive, true},
                        {send_timeout_close, true}],
     FinalSockOpts = override_sock_opts(SockOpts, DefaultSockOpts),
-    Res = gen_tcp:listen(Port, FinalSockOpts),
+    Res = listen_or_retry(Port, FinalSockOpts, 10),
     case Res of
         {ok, ListenSocket} ->
             ListenSocket;
         {error, Reason} ->
             socket_error(Reason, PortIPProto, Module, SockOpts, Port, IPS)
+    end.
+
+%% Process exit and socket release are not transactional
+%% So, there can be a short period of time when we can't bind
+listen_or_retry(Port, SockOpts, Retries) ->
+    case gen_tcp:listen(Port, SockOpts) of
+        {ok, ListenSocket} ->
+            {ok, ListenSocket};
+        {error, eaddrinuse} when Retries > 0 ->
+            timer:sleep(100),
+            listen_or_retry(Port, SockOpts, Retries-1);
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 override_sock_opts([], Opts) ->
