@@ -38,7 +38,8 @@ all() ->
      {group, acks},
 
      {group, essential_https},
-     {group, chat_https}
+     {group, chat_https},
+     {group, interleave_requests_statem}
      ].
 
 groups() ->
@@ -47,7 +48,9 @@ groups() ->
      {chat, [shuffle], chat_test_cases()},
      {chat_https, [shuffle], chat_test_cases()},
      {time, [parallel], time_test_cases()},
-     {acks, [shuffle], acks_test_cases()}].
+     {acks, [shuffle], acks_test_cases()},
+     {interleave_requests_statem, [parallel], [interleave_requests_statem]}
+     ].
 
 suite() ->
     escalus:suite().
@@ -63,7 +66,6 @@ essential_test_cases() ->
 
 chat_test_cases() ->
     [interleave_requests,
-     interleave_requests_statem,
      simple_chat,
      cdata_escape_chat,
      escape_attr_chat,
@@ -294,47 +296,10 @@ interleave_requests(Config) ->
     end).
 
 interleave_requests_statem(Config) ->
-    true = bosh_interleave_reqs:test(Config).
+    true = bosh_interleave_reqs:test([{user, carol} | Config]).
 
-interleave_requests_escalus(Config) ->
-    escalus:story(Config, [{geralt, 1}], fun(Geralt) ->
-        User = ?config(user, Config),
-        Carol = start_client(Config, User, <<"bosh">>),
-        Rid = get_bosh_rid(Carol),
-        Sid = get_bosh_sid(Carol),
-
-        NamedSpecs = escalus_config:get_config(escalus_users, Config),
-        UserSpec = [{keepalive, false} | proplists:get_value(User, NamedSpecs)],
-
-        {ok, Carol2} = escalus_bosh:connect(UserSpec),
-
-        Msg1 = <<"1st!">>,
-        Msg2 = <<"2nd!">>,
-        Msg3 = <<"3rd!">>,
-        Msg4 = <<"4th!">>,
-
-        escalus:send(Geralt, escalus_stanza:chat_to(Carol, <<"Hi, Carol">>)),
-        send_message_with_rid(Carol, Geralt, Rid + 1, Sid, Msg2),
-        escalus:assert(is_chat_message, [<<"Hi, Carol">>],
-                       escalus_client:wait_for_stanza(Carol)),
-        send_message_with_rid(Carol2, Geralt, Rid, Sid, Msg1),
-
-        send_message_with_rid(Carol2, Geralt, Rid + 2,   Sid, Msg3),
-        send_message_with_rid(Carol, Geralt, Rid + 3,   Sid, Msg4),
-
-        escalus:assert(is_chat_message, [Msg1],
-                       escalus_client:wait_for_stanza(Geralt)),
-        escalus:assert(is_chat_message, [Msg2],
-                       escalus_client:wait_for_stanza(Geralt)),
-        escalus:assert(is_chat_message, [Msg3],
-                       escalus_client:wait_for_stanza(Geralt)),
-        escalus:assert(is_chat_message, [Msg4],
-                       escalus_client:wait_for_stanza(Geralt)),
-
-        true = escalus_bosh:is_connected(Carol),
-        escalus_bosh:kill(Carol),
-        escalus_bosh:kill(Carol2)
-    end).
+interleave_requests_statem_https(Config) ->
+    interleave_requests_statem([{user, carol_s} | Config]).
 
 send_message_with_rid(From, To, Rid, Sid, Msg) ->
     Empty = escalus_bosh:empty_body(Rid, Sid),
