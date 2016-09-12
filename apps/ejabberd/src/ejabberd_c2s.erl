@@ -923,7 +923,6 @@ session_established(closed, StateData) ->
 -spec process_outgoing_stanza(El :: jlib:xmlel(), state()) -> fsm_return().
 process_outgoing_stanza(XEl, StateData) ->
     El = packet:initialise(XEl),
-    packet:enter(El),
     #xmlel{name = Name, attrs = Attrs} = El,
     User = StateData#state.user,
     Server = StateData#state.server,
@@ -997,10 +996,10 @@ process_outgoing_stanza(ToJID, <<"iq">>, Args) ->
             StateData
     end;
 process_outgoing_stanza(ToJID, <<"message">>, Args) ->
-    {_Attrs, NewEl, FromJID, StateData, Server, _User} = Args,
-    ejabberd_hooks:run(user_send_packet,
-                       Server,
-                       [FromJID, ToJID, NewEl]),
+    {_Attrs, El, FromJID, StateData, Server, _User} = Args,
+    NewEl = mongoose_hooks:run(user_send_packet,
+                       Server, El,
+                       [FromJID, ToJID, El]),
     check_privacy_and_route(FromJID, StateData, FromJID,
                             ToJID, NewEl),
     StateData;
@@ -1542,13 +1541,13 @@ maybe_send_element_safe(State, El) ->
 
 send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
   when StateData#state.xml_socket ->
-    ejabberd_hooks:run(xmpp_send_element,
-                       Server, [Server, El]),
+    mongoose_hooks:run(xmpp_send_element,
+                       Server, El, [Server, El]),
     SockMod:send_xml(StateData#state.socket,
                      {xmlstreamelement, El});
 send_element(#state{server = Server} = StateData, El) ->
-    ejabberd_hooks:run(xmpp_send_element,
-                       Server, [Server, El]),
+    mongoose_hooks:run(xmpp_send_element,
+                       Server, El, [Server, El]),
     send_text(StateData, packet:to_binary(El)).
 
 

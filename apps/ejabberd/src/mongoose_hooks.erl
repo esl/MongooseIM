@@ -32,6 +32,8 @@
 %% API
 -export([add/4,
          add/5,
+         delete/4,
+         delete/5,
          run/3,
          run/4,
          run_fold/4,
@@ -54,3 +56,9 @@ run_fold(Hook, V, #xmlel{} = Packet, Args) ->
 
 run_fold(Hook, Host, V, #xmlel{} = Packet, Args) ->
     ejabberd_hooks:run_fold(Hook, Host, V, [{packet, Packet}|Args]).
+
+delete(Hook, Host, Function, Seq) ->
+    ejabberd_hooks:delete(Hook, Host, Function, Seq).
+
+delete(Hook, Host, Module, Function, Seq) ->
+    ejabberd_hooks:delete(Hook, Host, Module, Function, Seq).

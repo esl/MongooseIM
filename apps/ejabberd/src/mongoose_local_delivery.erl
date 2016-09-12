@@ -13,18 +13,16 @@
 -export([do_route/5]).
 
 
-do_route(OrigFrom, OrigTo, OigPacket, LDstDomain, Handler) ->
+do_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
     %% Filter locally
-    OrigPacket = packet:pass(OigPacket, do_route),
     case ejabberd_hooks:run_fold(filter_local_packet, LDstDomain,
         {OrigFrom, OrigTo, OrigPacket}, []) of
         {From, To, Packet} ->
-            Np = packet:pass(Packet, Handler),
             case Handler of
                 {apply_fun, Fun} ->
-                    Fun(From, To, Np);
+                    Fun(From, To, Packet);
                 {apply, Module, Function} ->
-                    Module:Function(From, To, Np)
+                    Module:Function(From, To, Packet)
             end;
         drop ->
             ejabberd_hooks:run(xmpp_stanza_dropped,

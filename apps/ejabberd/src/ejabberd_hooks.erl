@@ -274,9 +274,9 @@ cook_return(new, {stop, {packet, #xmlel{} = P}}, _) ->
     {stop, P};
 %% new-style: if there was nopacket, must be nopacket or {nopacket, V}, V is ignored and we go on
 cook_return(new, nopacket, [nopacket|A]) ->
-    [nopacket, A];
+    [nopacket|A];
 cook_return(new, {nopacket, _}, [nopacket|A]) ->
-    [nopacket, A];
+    [nopacket|A];
 %% new-style: if there was a packet, must be a {packet, NewPacket} or {{packet, NewPacket}, V}, V is ignored and we go on WITH THE NEW PACKET
 cook_return(new, {packet, #xmlel{} = NewPacket}, [{packet, #xmlel{}}|A]) ->
     [{packet, NewPacket}|A];

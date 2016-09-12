@@ -14,6 +14,7 @@
 
 %% API
 -export([initialise/1, initialise/2, to_binary/1, pass/2, enter/1, exit/1]).
+-export([mark/2, stamp/1]).
 
 initialise(#xmlel{name = <<"message">>, uid = none} = Xi) ->
     Uid = make_ref(),
@@ -29,6 +30,18 @@ initialise(X, _) ->
 
 to_binary(X) ->
     exml:to_binary(X).
+
+mark(#xmlel{name = <<"message">>} = X, Marker) ->
+    X#xmlel{meta = [Marker|X#xmlel.meta]};
+mark(X, _) ->
+    X.
+
+stamp(#xmlel{name = <<"message">>} = X) ->
+    X#xmlel{meta = [{timestamp, os:timestamp()}|X#xmlel.meta]};
+stamp(X) ->
+    X.
+
+
 
 pass(#xmlel{name = <<"message">>} = X, Marker) ->
     Nx = X#xmlel{meta = [Marker|X#xmlel.meta]},
