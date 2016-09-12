@@ -178,7 +178,8 @@ unregister(Host, User) ->
     <<"">>.
 
 send_message(From, To, Body) ->
-    Packet = build_packet(message_chat, Body),
+    P = build_packet(message_chat, Body),
+    Packet = packet:initialise(P),
     F = jid:from_binary(From),
     T = jid:from_binary(To),
     ejabberd_hooks:run(user_send_packet,

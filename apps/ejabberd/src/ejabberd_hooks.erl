@@ -33,6 +33,8 @@
 -export([start_link/0,
          add/4,
          add/5,
+         add2/4,
+         add2/5,
          delete/4,
          delete/5,
          run/2,
@@ -49,6 +51,7 @@
          terminate/2]).
 
 -include("ejabberd.hrl").
+-include("jlib.hrl").
 
 
 -record(state, {}).
@@ -69,6 +72,10 @@ start_link() ->
 add(Hook, Host, Function, Seq) when is_function(Function) ->
     add(Hook, Host, undefined, Function, Seq).
 
+add2(Hook, Host, Function, Seq) when is_function(Function) ->
+    add2(Hook, Host, undefined, Function, Seq).
+add2(Hook, Host, Module, Function, Seq) ->
+    gen_server:call(ejabberd_hooks, {add, Hook, Host, Module, Function, Seq, new}).
 %% @doc Add a module and function to the given hook.
 %% The integer sequence is used to sort the calls:
 %% low numbers are executed before high numbers.
@@ -78,7 +85,7 @@ add(Hook, Host, Function, Seq) when is_function(Function) ->
           Function :: fun() | atom(),
           Seq :: integer()) -> ok.
 add(Hook, Host, Module, Function, Seq) ->
-    gen_server:call(ejabberd_hooks, {add, Hook, Host, Module, Function, Seq}).
+    gen_server:call(ejabberd_hooks, {add, Hook, Host, Module, Function, Seq, old}).
 
 %% @doc Delete a module and function from this hook.
 %% It is important to indicate exactly the same information than when the call was added.
@@ -108,10 +115,17 @@ run(Hook, Args) ->
           Host :: ejabberd:server() | global,
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
+    % if {packet,P} not given as the first arg, prepend 'nopacket'
+    CArgs = case Args of
+                [{packet, #xmlel{}}|_] ->
+                    Args;
+                _ ->
+                    [nopacket|Args]
+            end,
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Host, Hook),
-            run1(Ls, Hook, Args);
+            run1(Ls, Hook, CArgs);
         [] ->
             ok
     end.
@@ -126,10 +140,17 @@ run_fold(Hook, Val, Args) ->
     run_fold(Hook, global, Val, Args).
 
 run_fold(Hook, Host, Val, Args) ->
+    % if {packet,P} not given as the first arg, prepend 'nopacket'
+    CArgs = case Args of
+                [{packet, #xmlel{}}|_] ->
+                    Args;
+                _ ->
+                    [nopacket|Args]
+            end,
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Host, Hook),
-            run_fold1(Ls, Hook, Val, Args);
+            run_fold1(Ls, Hook, Val, CArgs);
         [] ->
             Val
     end.
@@ -158,10 +179,10 @@ init([]) ->
 %%          {stop, Reason, Reply, State}   | (terminate/2 is called)
 %%          {stop, Reason, State}            (terminate/2 is called)
 %%----------------------------------------------------------------------
-handle_call({add, Hook, Host, Module, Function, Seq}, _From, State) ->
+handle_call({add, Hook, Host, Module, Function, Seq, Mode}, _From, State) ->
     Reply = case ets:lookup(hooks, {Hook, Host}) of
                 [{_, Ls}] ->
-                    El = {Seq, Module, Function},
+                    El = {Seq, Module, Function, Mode},
                     case lists:member(El, Ls) of
                         true ->
                             ok;
@@ -171,7 +192,7 @@ handle_call({add, Hook, Host, Module, Function, Seq}, _From, State) ->
                             ok
                     end;
                 [] ->
-                    NewLs = [{Seq, Module, Function}],
+                    NewLs = [{Seq, Module, Function, Mode}],
                     ets:insert(hooks, {{Hook, Host}, NewLs}),
                     mongoose_metrics:create_generic_hook_metric(Host, Hook),
                     ok
@@ -228,42 +249,127 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
-run1([], _Hook, _Args) ->
+%% @doc for old-style hooks, strip leading {packet, #xmlel} or 'nopacket' if present
+cook_args(old, [{packet, #xmlel{}}|A]) ->
+    A;
+cook_args(old, [nopacket|A]) ->
+    A;
+cook_args(new, A) ->
+    A.
+
+cook_return(_, {'EXIT', Reason}, A) ->
+    {'EXIT', Reason, A};
+%% legal return from old style hook: anything, it is ignored
+%% stopping
+cook_return(old, stop, [nopacket|_]) ->
+    % to keep old api
+    stop;
+cook_return(old, stop, [{packet, #xmlel{} = P}|_]) ->
+    {stop, P};
+cook_return(old, _, A) ->
+    A;
+cook_return(new, {stop, nopacket}, _) ->
+    stopped;
+cook_return(new, {stop, {packet, #xmlel{} = P}}, _) ->
+    {stop, P};
+%% new-style: if there was nopacket, must be nopacket or {nopacket, V}, V is ignored and we go on
+cook_return(new, nopacket, [nopacket|A]) ->
+    [nopacket|A];
+cook_return(new, {nopacket, _}, [nopacket|A]) ->
+    [nopacket|A];
+%% new-style: if there was a packet, must be a {packet, NewPacket} or {{packet, NewPacket}, V}, V is ignored and we go on WITH THE NEW PACKET
+cook_return(new, {packet, #xmlel{} = NewPacket}, [{packet, #xmlel{}}|A]) ->
+    [{packet, NewPacket}|A];
+cook_return(new, {{packet, #xmlel{} = NewPacket, _}}, [{packet, #xmlel{}}|A]) ->
+    [{packet, NewPacket}|A].
+
+run1([], _Hook, [nopacket|_Args]) ->
     ok;
-run1([{_Seq, Module, Function} | Ls], Hook, Args) ->
+run1([], _Hook, [{packet, P}|_Args]) ->
+    P;
+run1([{_Seq, Module, Function, Mode} | Ls], Hook, Args) ->
+    CArgs = cook_args(Mode, Args),
     Res = if is_function(Function) ->
-                  safely:apply(Function, Args);
+                  safely:apply(Function, CArgs);
              true ->
-                  safely:apply(Module, Function, Args)
+                  safely:apply(Module, Function, CArgs)
           end,
-    case Res of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p",
-                       [Reason, {Hook, Args}, Module, Function]),
-            run1(Ls, Hook, Args);
+    NRes = cook_return(Mode, Res, Args),
+    case NRes of
+        {'EXIT', Reason, NArgs} ->
+            ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p, mode ~p",
+                       [Reason, {Hook, Args}, Module, Function, Mode]),
+            run1(Ls, Hook, NArgs);
         stop ->
-            ok;
-        _ ->
-            run1(Ls, Hook, Args)
+            stopped;
+        {stop, R} ->
+            R;
+        NArgs ->
+            run1(Ls, Hook, NArgs)
     end.
 
-run_fold1([], _Hook, Val, _Args) ->
+%% @doc for old-style hooks, strip leading {packet, #xmlel} or 'nopacket' if present
+%% insert value passed to run_fold as the first/second arg, depending on mode
+cook_args(old, V, [{packet, #xmlel{}}|A]) ->
+    [V|A];
+cook_args(old, V, [nopacket|A]) ->
+    [V|A];
+cook_args(new, V, [{packet, #xmlel{} = P}|A]) ->
+    [{packet, P}, V|A];
+cook_args(new, V, [nopacket|A]) ->
+    [nopacket, V|A].
+
+
+cook_fold_result(_, {'EXIT', Reason}, Val, Args) ->
+    {'EXIT', Reason, Val, Args};
+%% brutal stop
+cook_fold_result(_, stop, _, _) ->
+    stop;
+%% old handler, old way, stop with value
+cook_fold_result(old, {stop, V}, _, [nopacket|_]) ->
+    {stop, V};
+%% old handler, new way, stop with value
+cook_fold_result(old, {stop, V}, _, [{packet, #xmlel{} = P}|_]) ->
+    {stop, P, V};
+%% old handler, any way, returned something
+cook_fold_result(old, NVal, _, Args) ->
+    {NVal, Args};
+%% new handler, old way, stop with value
+cook_fold_result(new, {stop, V}, _, [nopacket|_]) ->
+    {stop, V};
+%% new handler, old way, just modify value
+cook_fold_result(new, {nopacket, NVal}, _, [nopacket|Args]) ->
+    {NVal, [nopacket|Args]};
+%% new handler,new way, stop with value
+cook_fold_result(new, {stop, {packet, P}, V}, _, _) ->
+    {stop, P, V};
+%% new handler, new way, modify value and packet
+cook_fold_result(new, {{packet, #xmlel{} = NPacket}, NVal}, _, [{packet, _}|Args]) ->
+    {NVal, [{packet, NPacket}|Args]}.
+
+run_fold1([], _Hook, Val, [nopacket|_Args]) ->
     Val;
-run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
+run_fold1([], _Hook, Val, [{packet, #xmlel{} = Packet}|_Args]) ->
+    {Packet, Val};
+run_fold1([{_Seq, Module, Function, Mode} | Ls], Hook, Val, Args) ->
+    CArgs = cook_args(Mode, Val, Args),
     Res = if is_function(Function) ->
-                  safely:apply(Function, [Val | Args]);
+                  safely:apply(Function, CArgs);
              true ->
-                  safely:apply(Module, Function, [Val | Args])
+                  safely:apply(Module, Function, CArgs)
           end,
-    case Res of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nrunning hook: ~p",
-                       [Reason, {Hook, Args}]),
-            run_fold1(Ls, Hook, Val, Args);
+    NRes = cook_fold_result(Mode, Res, Val, Args),
+    case NRes of
+        {'EXIT', Reason, NVal, NArgs} ->
+            ?ERROR_MSG("~p~nrunning hook: ~p in mode ~p",
+                       [Reason, {Hook, Args}, Mode]),
+            run_fold1(Ls, Hook, NVal, NArgs);
         stop ->
             stopped;
         {stop, NewVal} ->
             NewVal;
-        NewVal ->
-            run_fold1(Ls, Hook, NewVal, Args)
+        {stop, P, NewVal} ->
+            {P, NewVal};
+        {NewVal, NArgs} ->
+            run_fold1(Ls, Hook, NewVal, NArgs)
     end.
