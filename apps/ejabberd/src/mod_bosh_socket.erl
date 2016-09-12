@@ -417,7 +417,7 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
                 is_expected_rid(Rid, ExpectedRid),
                 is_acceptable_rid(Rid, ExpectedRid)}
     of
-        {_, {true, CachedResponse}, _, _} ->
+        {_, {true, CachedResponse}, _, _} when Handler /= none ->
             case CachedResponse of
                 none ->
                     NS;
