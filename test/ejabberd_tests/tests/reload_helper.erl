@@ -45,15 +45,16 @@ restart_ejabberd_node(Node) ->
 reload_through_ctl(Node, Config) ->
     ReloadCmd = node_ctl(Node, Config) ++ " reload_local",
     OutputStr = rpc(Node, os, cmd, [ReloadCmd]),
-    ok = verify_reload_output(OutputStr).
+    ok = verify_reload_output(ReloadCmd, OutputStr).
 
-verify_reload_output(OutputStr) ->
+verify_reload_output(ReloadCmd, OutputStr) ->
     ExpectedOutput = ?CTL_RELOAD_OUTPUT_PREFIX,
     case lists:sublist(OutputStr, length(ExpectedOutput)) of
         ExpectedOutput ->
             ok;
         _ ->
-            ct:pal("~ts", [OutputStr]),
+            ct:pal("ReloadCmd: ~p", [ReloadCmd]),
+            ct:pal("OutputStr: ~ts", [OutputStr]),
             error(config_reload_failed, [OutputStr])
     end.
 
