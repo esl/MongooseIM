@@ -13,9 +13,9 @@
 -include("ejabberd.hrl").
 
 %% API
--export([initialise/1, initialise/2, to_binary/1, pass/2, clone/2, clone/3]).
+-export([initialise/1, initialise/2, to_binary/1, pass/2, enter/1, exit/1]).
 
-initialise(#xmlel{uid = none} = Xi) ->
+initialise(#xmlel{name = <<"message">>, uid = none} = Xi) ->
     Uid = make_ref(),
     initialise(Xi, Uid);
 initialise(X) ->
@@ -23,43 +23,28 @@ initialise(X) ->
 
 initialise(#xmlel{uid = none} = Xi, Uid) ->
     X = Xi#xmlel{uid = Uid},
-    notifye(X),
     X;
 initialise(X, _) ->
     X.
 
-clone(X, none) ->
-    X;
-clone(X, Name) ->
-    X#xmlel{name = Name, meta = [cloned|X#xmlel.meta]}.
-
-clone(X, Name, Attrs) ->
-    Nx = clone(X, Name),
-    Nx#xmlel{attrs = Attrs}.
-
 to_binary(X) ->
-    notify(X),
     exml:to_binary(X).
 
-pass(#xmlel{name = <<"presence">>} = X, Marker) ->
+pass(#xmlel{name = <<"message">>} = X, Marker) ->
     Nx = X#xmlel{meta = [Marker|X#xmlel.meta]},
     passmsg(Nx, Marker),
     Nx;
 pass(X, _) ->
     X.
 
-notifye(#xmlel{name = <<"presence">>} = X) ->
+enter(#xmlel{name = <<"message">>} = X) ->
     entermsg(X);
-notifye(X) ->
+enter(_) ->
     ok.
 
-%%notify(#xmlel{name = <<"iq">>} = X) ->
-%%    exitmsg(X);
-notify(#xmlel{name = <<"presence">>} = X) ->
+exit(#xmlel{name = <<"message">>} = X) ->
     exitmsg(X);
-%%notify(#xmlel{name = <<"presence">>} = X) ->
-%%    exitmsg(X);
-notify(_) ->
+exit(_) ->
     ok.
 
 exitmsg(X) ->

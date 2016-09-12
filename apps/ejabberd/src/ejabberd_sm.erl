@@ -463,7 +463,6 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 -spec handle_info(_,_) -> {'noreply',_}.
 handle_info({route, From, To, Packet}, State) ->
-    packet:pass(Packet, handle_info_route),
     route(From, To, Packet),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
@@ -562,7 +561,6 @@ do_route(From, To, Packet) ->
            [From, To, Packet, 8]),
     #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
     #xmlel{name = Name, attrs = Attrs} = Packet,
-    packet:pass(Packet, sm_route),
     case LResource of
         <<>> ->
             do_route_no_resource(Name, xml:get_attr_s(<<"type">>, Attrs),
@@ -573,7 +571,6 @@ do_route(From, To, Packet) ->
                     do_route_offline(Name, xml:get_attr_s(<<"type">>, Attrs),
                                      From, To, Packet);
                 Ss ->
-                    packet:pass(Packet, LResource),
                     Session = lists:max(Ss),
                     Pid = element(2, Session#session.sid),
                     ?DEBUG("sending to process ~p~n", [Pid]),
@@ -632,7 +629,6 @@ do_route_no_resource(<<"presence">>, Type, From, To, Packet) ->
                 ok
         end;
 do_route_no_resource(<<"message">>, _, From, To, Packet) ->
-    packet:pass(Packet, route_no_resource),
         route_message(From, To, Packet);
 do_route_no_resource(<<"iq">>, _, From, To, Packet) ->
         process_iq(From, To, Packet);
@@ -650,7 +646,6 @@ do_route_no_resource(_, _, _, _, _) ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
 do_route_offline(<<"message">>, _, From, To, Packet)  ->
-    packet:pass(Packet, route_offline),
         route_message(From, To, Packet);
 do_route_offline(<<"iq">>, <<"error">>, _From, _To, _Packet) ->
         ok;

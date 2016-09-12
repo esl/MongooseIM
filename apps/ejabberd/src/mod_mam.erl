@@ -286,7 +286,6 @@ filter_packet(drop) ->
 filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
-    packet:pass(Packet, mam_filter_packet),
     {AmpEvent, PacketAfterArchive} =
         case ejabberd_users:does_user_exist(LUser, LServer) of
             false ->
@@ -304,7 +303,6 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
                 end
         end,
     PacketAfterAmp = mod_amp:check_packet(PacketAfterArchive, From, AmpEvent),
-    packet:pass(PacketAfterAmp, mam_filter_done),
     {From, To, PacketAfterAmp}.
 
 process_incoming_packet(From, To, Packet) ->
