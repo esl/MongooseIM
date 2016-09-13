@@ -37,7 +37,7 @@ content_types_accepted(Req, State) ->
      ], Req, State}.
 
 allowed_methods(Req, State) ->
-    {[<<"GET">>, <<"POST">>, <<"PUT">>], Req, State}.
+    {[<<"GET">>, <<"POST">>], Req, State}.
 
 resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
     {RoomID, Req2} = cowboy_req:binding(id, Req),
@@ -100,15 +100,7 @@ handle_request(<<"POST">>, JSONData, Req,
             RespBody = #{<<"id">> => RoomJID#jid.luser},
             RespReq = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
             {true, RespReq, State}
-    end;
-handle_request(<<"PUT">>, _, Req, #{role_in_room := none} = State) ->
-    forbidden_request(Req, State);
-handle_request(<<"PUT">>, JSONData, Req,
-               #{user := User, jid := #jid{lserver = Server}} = State) ->
-    #{<<"user">> := UserToInvite} = JSONData,
-    {RoomId, Req2} = cowboy_req:binding(id, Req),
-    mod_muc_light_admin:invite_to_room_id(Server, RoomId, User, UserToInvite),
-    {true, Req2, State}.
+    end.
 
 user_to_json({UserServer, Role}) ->
     #{user => jid:to_binary(UserServer),

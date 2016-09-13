@@ -240,7 +240,7 @@ given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
 invite_to_room(Inviter, RoomID, Invitee) ->
     Body = #{user => Invitee},
     Creds = credentials(Inviter),
-    rest_helper:putt(<<"/rooms/", RoomID/binary>>, Body, Creds).
+    rest_helper:post(<<"/rooms/", RoomID/binary, "/users">>, Body, Creds).
 
 credentials({User, UserClient}) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(UserClient)),

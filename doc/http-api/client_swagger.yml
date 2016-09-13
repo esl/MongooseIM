@@ -118,8 +118,9 @@ paths:
         403:
           description: |
             When authenticated user is not allowed to read room's deatails.
+  /rooms/{id}/users:
     put:
-      description: "Adds users to a room."
+      description: "Adds a user to a room."
       parameters:
         - in: path
           name: id
