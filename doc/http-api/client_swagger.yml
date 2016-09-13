@@ -140,6 +140,29 @@ paths:
         403:
           description: |
             When authenticated user is not allowed to add users to the room.
+  /rooms/{id}/users/{user}:
+    delete:
+      description: Removes a user from the room.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+          description: The ID of a room.
+        - in: path
+          name: user
+          required: true
+          type: string
+          description: |
+            The JID (ex: alice@wonderalnd.com) of user to remove
+      responses:
+        204:
+          description: User was successfully removed form the room.
+        404:
+          description: When there is no room with given id.
+        403:
+          description: |
+            When authenticated user is not allowed to add users to the room.
   /rooms/{id}/messages:
     post:
       description: Send a message to a room.
@@ -293,4 +316,5 @@ definitions:
     description: |
       This is user's JID (Jabber ID) which consist of username and server.
       Example: alice@wonderland.com
+
 

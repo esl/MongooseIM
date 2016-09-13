@@ -10,6 +10,7 @@
 -export([allow_missing_post/2]).
 
 -export([from_json/2]).
+-export([delete_resource/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -31,7 +32,7 @@ content_types_accepted(Req, State) ->
     mongoose_client_api_rooms:content_types_accepted(Req, State).
 
 allowed_methods(Req, State) ->
-    {[<<"POST">>], Req, State}.
+    {[<<"POST">>, <<"DELETE">>], Req, State}.
 
 resource_exists(Req, State) ->
     mongoose_client_api_rooms:resource_exists(Req, State).
@@ -39,13 +40,25 @@ resource_exists(Req, State) ->
 allow_missing_post(Req, State) ->
     {false, Req, State}.
 
-from_json(Req, #{role_in_room := none} = State) ->
-    mongoose_client_api_rooms:forbidden_request(Req, State);
-from_json(Req, #{user := User, jid := #jid{lserver = Server}} = State) ->
+from_json(Req, #{user := User,
+                 role_in_room := owner,
+                 jid := #jid{lserver = Server}} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
     JSONData = jiffy:decode(Body, [return_maps]),
     #{<<"user">> := UserToInvite} = JSONData,
     {RoomId, Req3} = cowboy_req:binding(id, Req2),
-    mod_muc_light_admin:invite_to_room_id(Server, RoomId, User, UserToInvite),
+    mod_muc_light_admin:change_affiliation(Server, RoomId, User, UserToInvite, <<"member">>),
+    {true, Req3, State};
+from_json(Req, State) ->
+    mongoose_client_api_rooms:forbidden_request(Req, State).
+
+delete_resource(Req, #{role_in_room := none} = State) ->
+    mongoose_client_api_rooms:forbidden_request(Req, State);
+delete_resource(Req, #{role_in_room := owner,
+                       user := User,
+                       jid := #jid{lserver = Server}} = State) ->
+    {UserToRemove, Req2} = cowboy_req:binding(user, Req),
+    {RoomId, Req3} = cowboy_req:binding(id, Req2),
+    mod_muc_light_admin:change_affiliation(Server, RoomId, User, UserToRemove, <<"none">>),
     {true, Req3, State}.
 

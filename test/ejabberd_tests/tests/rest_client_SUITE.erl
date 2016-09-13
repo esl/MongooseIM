@@ -14,6 +14,7 @@ test_cases() ->
      messages_can_be_paginated,
      room_is_created,
      user_is_invited_to_a_room,
+     user_is_removed_from_a_room,
      invitation_to_room_is_forbidden_for_non_memeber,
      msg_is_sent_and_delivered_in_room,
      messages_are_archived_in_room,
@@ -124,6 +125,15 @@ user_is_invited_to_a_room(Config) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         get_room_info({alice, Alice}, RoomID)
     end).
+
+user_is_removed_from_a_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        {{<<"204">>, _}, _} = remove_user_from_a_room({alice, Alice}, RoomID, Bob),
+        Stanza = escalus:wait_for_stanza(Bob),
+        ct:print("~p", [Stanza])
+    end).
+
 
 invitation_to_room_is_forbidden_for_non_memeber(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -241,6 +251,12 @@ invite_to_room(Inviter, RoomID, Invitee) ->
     Body = #{user => Invitee},
     Creds = credentials(Inviter),
     rest_helper:post(<<"/rooms/", RoomID/binary, "/users">>, Body, Creds).
+
+remove_user_from_a_room(Inviter, RoomID, Invitee) ->
+    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Invitee)),
+    Creds = credentials(Inviter),
+    Path = <<"/rooms/", RoomID/binary, "/users/", JID/binary>>,
+    rest_helper:delete(Path, Creds).
 
 credentials({User, UserClient}) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(UserClient)),
