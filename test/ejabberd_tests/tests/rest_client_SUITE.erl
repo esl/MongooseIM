@@ -247,9 +247,9 @@ given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Invitee)),
     {{<<"204">>, <<"No Content">>}, _} = invite_to_room(Owner, RoomID, JID),
     Stanza = escalus:wait_for_stanza(Invitee),
-    ct:pal("Invitee ~p", [Stanza]),
+    assert_aff_change_stanza(Stanza, Invitee, <<"member">>),
     Stanza2 = escalus:wait_for_stanza(Inviter),
-    ct:pal("Inviter ~p", [Stanza2]).
+    assert_aff_change_stanza(Stanza2, Invitee, <<"member">>).
 
 invite_to_room(Inviter, RoomID, Invitee) ->
     Body = #{user => Invitee},
