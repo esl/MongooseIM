@@ -1,12 +1,27 @@
 # MongooseIM's HTTP Administration API
 
-## Prerequisites
+## Configuration
 
-Before you can use the HTTP Administration API, you must enable
-`mod_mongoose_admin` and `mod_muc_admin` in the `modules` section of your
-`ejabberd.cfg` file.
+Commands used by REST API are provided by modules:
 
-## API 
+`mod_commands` - provides general purpose commands, both user
+(sending message, retrieving messages from archive) and administration
+(create/delete a user, change password etc)
+
+`mod_muc_commands` - commands related to Multi-user Chat rooms: create room, invite
+users, send message etc.
+
+`mod_muc_light_commands` - same but for rooms based on muc-light protocol.
+
+To activate those commands put modules you need into ejabberd.cfg file:
+
+```
+  {mod_commands, []},
+  {mod_muc_commands, []},
+  {mod_muc_light_commands, []},
+
+```
+## API
 
 Find the beautiful Swagger documentation below or
 under [this link](http://mongooseim.readthedocs.io/en/latest/swagger/index.html)

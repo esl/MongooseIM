@@ -157,18 +157,6 @@ paths:
             title: userList
             type: string
   /messages:
-    get:
-      description: Retrieve a list of users registered under the given XMPP hostname.
-      responses:
-        200:
-          description: A list of users registered under the given XMPP hostname.
-          schema:
-            title: userList
-            type: array
-            items:
-              title: JID
-              type: string
-              format: JID
     post:
       parameters:
         - name: chatStanza
@@ -187,32 +175,75 @@ paths:
                 description: the recipient of the message
                 type: string
                 format: JID
-              msg:
+              body:
                 description: the message text
                 type: string
       description: Send a chat message from one user to another.
       responses:
         200:
           description: Message was sent
-  /messages/{caller}/{other}/{limit}:
+  /messages/{me}:
     get:
       parameters:
-        - name: caller
+        - name: me
           in: path
           description: The user archive in question
           required: true
           type: string
-        - name: other
+        - name: before
+          in: query
+          description: Messages earlier then the given timestamp (defaults to now)
+          required: false
+          type: integer
+        - name: limit
+          in: query
+          description: An upper bound on the number of messages to fetch from the archive (defaults to 100)
+          required: false
+          type: integer
+      description: Retrieve recent message from my archive.
+      responses:
+        200:
+          description: The messages archived for the given user
+          schema:
+            title: records
+            type: array
+            items:
+              title: record
+              type: object
+              properties:
+                sender:
+                  type: string
+                  format: JID
+                timestamp:
+                  type: integer
+                message_id:
+                  type: string
+                body:
+                  type: string
+  /messages/{me}/{with}:
+    get:
+      parameters:
+        - name: me
+          in: path
+          description: The user archive in question
+          required: true
+          type: string
+        - name: with
           in: path
           description: The other party
           required: true
           type: string
-        - name: limit
-          in: path
-          description: An upper bound on the number of messages to fetch from the archive
-          required: true
+        - name: before
+          in: query
+          description: Messages earlier then the given timestamp (defaults to now)
+          required: false
           type: integer
-      description: Retrieve recent message from archive.
+        - name: limit
+          in: query
+          description: An upper bound on the number of messages to fetch from the archive (defaults to 100)
+          required: false
+          type: integer
+      description: Retrieve recent message from archive, only those exchanged with the given contact.
       responses:
         200:
           description: The messages archived for the given user and the other party
@@ -267,7 +298,7 @@ paths:
           schema:
             title: roomName
             type: string
-  /muc-lights/{XMPPHost}/{roomName}:
+  /muc-lights/{XMPPHost}/{roomName}/participants:
     parameters:
       -
         name: XMPPHost
@@ -281,7 +312,7 @@ paths:
         description: The MUC Light room's **name** (i.e. **not** the room's JID)
         required: true
         type: string
-    put:
+    post:
       description: Invite one user on behalf of another.
       consumes:
         - application/json
@@ -335,7 +366,7 @@ paths:
               sender:
                 type: string
                 description: The sender's JID. Message will be sent on their behalf
-              message:
+              body:
                 type: string
                 description: The message text
       responses:
@@ -376,7 +407,7 @@ paths:
           schema:
             title: roomName
             type: string
-  /mucs/{XMPPHost}/{roomName}:
+  /mucs/{XMPPHost}/{roomName}/participants:
     parameters:
       -
         name: XMPPHost
@@ -390,7 +421,7 @@ paths:
         description: The leading part of the MUC room's JID
         required: true
         type: string
-    put:
+    post:
       description: Invite one user on behalf of another.
       consumes:
         - application/json
@@ -449,7 +480,7 @@ paths:
               sender:
                 type: string
                 description: The sender's JID. Message will be sent on their behalf
-              message:
+              body:
                 type: string
                 description: The message text
       responses:
