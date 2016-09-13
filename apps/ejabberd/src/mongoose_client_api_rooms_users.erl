@@ -55,10 +55,21 @@ from_json(Req, State) ->
 delete_resource(Req, #{role_in_room := none} = State) ->
     mongoose_client_api_rooms:forbidden_request(Req, State);
 delete_resource(Req, #{role_in_room := owner,
-                       user := User,
-                       jid := #jid{lserver = Server}} = State) ->
+                       user := User} = State) ->
     {UserToRemove, Req2} = cowboy_req:binding(user, Req),
-    {RoomId, Req3} = cowboy_req:binding(id, Req2),
-    mod_muc_light_admin:change_affiliation(Server, RoomId, User, UserToRemove, <<"none">>),
-    {true, Req3, State}.
+    remove_user_from_room(User, UserToRemove, Req2, State);
+delete_resource(Req, #{user := User} = State) ->
+    {UserToRemove, Req2} = cowboy_req:binding(user, Req),
+    case UserToRemove of
+        User ->
+            remove_user_from_room(User, User, Req2, State);
+        _ ->
+            mongoose_client_api_rooms:forbidden_request(Req2, State)
+    end.
+
+remove_user_from_room(Remover, Target, Req,
+                      #{jid := #jid{lserver = Server}} = State) ->
+    {RoomId, Req2} = cowboy_req:binding(id, Req),
+    mod_muc_light_admin:change_affiliation(Server, RoomId, Remover, Target, <<"none">>),
+    {true, Req2, State}.
 

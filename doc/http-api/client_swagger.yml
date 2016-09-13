@@ -142,7 +142,10 @@ paths:
             When authenticated user is not allowed to add users to the room.
   /rooms/{id}/users/{user}:
     delete:
-      description: Removes a user from the room.
+      description: |
+        Removes a user from the room.
+        Owner can remove any user.
+        Occupant can also use this method, but can only remove itself.
       parameters:
         - in: path
           name: id

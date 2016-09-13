@@ -15,6 +15,7 @@ test_cases() ->
      room_is_created,
      user_is_invited_to_a_room,
      user_is_removed_from_a_room,
+     user_can_leave_a_room,
      invitation_to_room_is_forbidden_for_non_memeber,
      msg_is_sent_and_delivered_in_room,
      messages_are_archived_in_room,
@@ -131,9 +132,16 @@ user_is_removed_from_a_room(Config) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         {{<<"204">>, _}, _} = remove_user_from_a_room({alice, Alice}, RoomID, Bob),
         Stanza = escalus:wait_for_stanza(Bob),
-        ct:print("~p", [Stanza])
+        assert_aff_change_stanza(Stanza, Bob, <<"none">>)
     end).
 
+user_can_leave_a_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        {{<<"204">>, _}, _} = remove_user_from_a_room({bob, Bob}, RoomID, Bob),
+        Stanza = escalus:wait_for_stanza(Bob),
+        assert_aff_change_stanza(Stanza, Bob, <<"none">>)
+    end).
 
 invitation_to_room_is_forbidden_for_non_memeber(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -151,14 +159,12 @@ messages_are_archived_in_room(Config) ->
         {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
         mam_helper:maybe_wait_for_yz(Config),
         {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
-        ct:pal("~p", [Msgs]),
         [Aff, _Msg1, _Msg2] = MsgsRecv = rest_helper:decode_maplist(Result),
         %% The oldest message is aff change
         <<"affiliation">> = maps:get(type, Aff),
         <<"member">> = maps:get(affiliation, Aff),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        BobJID = maps:get(user, Aff),
-        ct:pal("~p", [MsgsRecv])
+        BobJID = maps:get(user, Aff)
     end).
 
 only_room_participant_can_read_messages(Config) ->
@@ -192,8 +198,6 @@ messages_can_be_paginated_in_room(Config) ->
     end).
 
 assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
-    ct:print("~p", [RecvMsg]),
-    ct:print("~p", [GenMsg]),
     escalus:assert(is_chat_message, [maps:get(body, RecvMsg)], GenMsg),
     ok.
 
@@ -313,7 +317,6 @@ create_room({_AliceJID, _} = Creds, RoomID, Subject) ->
 assert_messages([], []) ->
     ok;
 assert_messages([SentMsg | SentRest], [RecvMsg | RecvRest]) ->
-    ct:pal("sent msg: ~p~nrecv msg: ~p", [SentMsg, RecvMsg]),
     FromJID = maps:get(from, SentMsg),
     FromJID = maps:get(from, RecvMsg),
     MsgId = maps:get(id, SentMsg),
@@ -331,4 +334,12 @@ send_messages(Config, Alice, Bob, Kate) ->
     M3 = send_message(kate, Kate, Alice),
     mam_helper:maybe_wait_for_yz(Config),
     [M1, M2, M3].
+
+assert_aff_change_stanza(Stanza, Target, Change) ->
+    TargetJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Target)),
+    ID = exml_query:attr(Stanza, <<"id">>),
+    %true = is_binary(ID) andalso ID /= <<>>,
+    User = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"user">>}]),
+    Change = exml_query:attr(User, <<"affiliation">>),
+    TargetJID = exml_query:cdata(User).
 
