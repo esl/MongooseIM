@@ -338,7 +338,7 @@ send_messages(Config, Alice, Bob, Kate) ->
 assert_aff_change_stanza(Stanza, Target, Change) ->
     TargetJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Target)),
     ID = exml_query:attr(Stanza, <<"id">>),
-    %true = is_binary(ID) andalso ID /= <<>>,
+    true = is_binary(ID) andalso ID /= <<>>,
     User = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"user">>}]),
     Change = exml_query:attr(User, <<"affiliation">>),
     TargetJID = exml_query:cdata(User).

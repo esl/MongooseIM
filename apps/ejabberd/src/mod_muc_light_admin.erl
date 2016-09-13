@@ -210,10 +210,12 @@ is_subdomain(Child, Parent) ->
 
 iq(S, R, T, C) when is_binary(S),
                     is_binary(R), is_binary(T), is_list(C) ->
+    UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     #xmlel{name = <<"iq">>,
            attrs = [{<<"from">>, S},
                     {<<"to">>, R},
-                    {<<"type">>, T}],
+                    {<<"type">>, T},
+                    {<<"id">>, UUID}],
            children = C
           }.
 
