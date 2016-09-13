@@ -299,6 +299,10 @@ definitions:
       id:
         type: string
         description: The ID of a message.
+      timestamp:
+        type: integer
+        format: int64
+        description: Unix timestamp in miliseconds.
       body:
         type: string
         description: |
@@ -309,7 +313,7 @@ definitions:
         description: |
           JID of a user, whom affiliation changed.
           Present only if the type is "affiliation".
-      affiliations:
+      affiliation:
         type: string
         description: |
           The new affiliation of a user in the room.
@@ -319,5 +323,4 @@ definitions:
     description: |
       This is user's JID (Jabber ID) which consist of username and server.
       Example: alice@wonderland.com
-
 
