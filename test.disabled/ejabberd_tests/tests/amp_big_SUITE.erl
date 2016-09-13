@@ -1,4 +1,4 @@
--module(amp_SUITE).
+-module(amp_big_SUITE).
 %% @doc Tests for XEP-0079 Advanced Message Processing support
 %% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
 %% @author <simon.zelazny@erlang-solutions.com>
