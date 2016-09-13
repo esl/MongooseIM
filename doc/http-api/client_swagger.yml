@@ -113,6 +113,11 @@ paths:
           description: Successful response
           schema:
             $ref: '#/definitions/RoomDetails'
+        404:
+          description: When there is no room with given id.
+        403:
+          description: |
+            When authenticated user is not allowed to read room's deatails.
     put:
       description: "Adds users to a room."
       parameters:
@@ -129,6 +134,11 @@ paths:
       responses:
         204:
           description: User was successfully added to the room.
+        404:
+          description: When there is no room with given id.
+        403:
+          description: |
+            When authenticated user is not allowed to add users to the room.
   /rooms/{id}/messages:
     post:
       description: Send a message to a room.
@@ -148,6 +158,11 @@ paths:
           description: Message was sent, id retunred in body.
           schema:
             $ref: "#/definitions/ResourceID"
+        404:
+          description: When there is no room with given id.
+        403:
+          description: |
+            When authenticated user is not allowed to send message to the room.
     get:
       description: Get room's messages from the archive.
       parameters:
@@ -161,6 +176,11 @@ paths:
           description: List of messages in the room's archive.
           schema:
             $ref: "#/definitions/RecvRoomMessage"
+        404:
+          description: When there is no room with given id.
+        403:
+          description: |
+            When authenticated user is not allowed to read room's deatails.
 security:
   - mongoose_basic_auth: []
 securityDefinitions:
@@ -272,3 +292,4 @@ definitions:
     description: |
       This is user's JID (Jabber ID) which consist of username and server.
       Example: alice@wonderland.com
+
