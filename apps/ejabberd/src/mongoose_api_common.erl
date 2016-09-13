@@ -59,7 +59,6 @@
 %% in header "location" with response code 201 so that it could represent now a new created resource.
 %% If error occured while executing the command, the appropriate reason is returned in response body.
 
-
 %% API
 -export([create_admin_url_path/1,
          create_user_url_path/1,
@@ -125,9 +124,10 @@ handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = St
       Req :: cowboy_req:req(),
       State :: #http_api_state{},
       Return :: {any(), cowboy_req:req(), #http_api_state{}}.
-handle_result(_, ok, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(200, Req),
-    {halt, Req2, State};
+handle_result(Verb, ok, Req, State) ->
+    handle_result(Verb, {ok, nocontent}, Req, State);
+%%    {ok, Req2} = cowboy_req:reply(200, Req),
+%%    {halt, Req2, State};
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
@@ -136,10 +136,10 @@ handle_result(<<"POST">>, {ok, Res}, Req, State) ->
     {halt, Req3, State};
 %% Ignore the returned value from a command for PUT and DELETE methods
 handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(200, Req),
+    {ok, Req2} = cowboy_req:reply(204, Req),
     {halt, Req2, State};
 handle_result(<<"PUT">>, {ok, _Res}, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(200, Req),
+    {ok, Req2} = cowboy_req:reply(204, Req),
     {halt, Req2, State};
 handle_result(_, {error, Error, Reason}, Req, State) when is_binary(Reason) ->
     error_response(Error, Reason, Req, State);
@@ -235,8 +235,8 @@ maybe_add_location_header(Result, ResourcePath, Req) when is_integer(Result) ->
     add_location_header(integer_to_list(Result), ResourcePath, Req);
 maybe_add_location_header(Result, ResourcePath, Req) when is_float(Result) ->
     add_location_header(float_to_list(Result), ResourcePath, Req);
-maybe_add_location_header(_R, _R, Req) ->
-    {ok, Req2} = cowboy_req:reply(200, [], Req),
+maybe_add_location_header(_Res, _Path, Req) ->
+    {ok, Req2} = cowboy_req:reply(204, [], Req),
     Req2.
 
 add_location_header(Result, ResourcePath, Req) ->

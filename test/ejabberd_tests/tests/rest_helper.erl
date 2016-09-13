@@ -115,12 +115,18 @@ make_request(Method, Path, ReqBody) when not is_binary(Path) ->
 make_request(Method, Path, ReqBody) ->
     CPath = <<?PATHPREFIX/binary, Path/binary>>,
     {Code, RespBody} = case fusco_request(Method, CPath, ReqBody) of
-                           {RCode, _, Body, _, _} ->
+                           {RCode, Hdrs, Body, _, _} ->
                                {RCode, Body};
-                           {RCode, _, Body, _, _, _} ->
+                           {RCode, Hdrs, Body, _, _, _} ->
                                {RCode, Body}
                        end,
+    showcodebody(Method, Hdrs, RespBody),
     {Code, decode(RespBody)}.
+
+showcodebody(<<"GET">>, _, _) ->
+    ok;
+showcodebody(Code, Hdrs, Body) ->
+    ct:pal("~p ~p~n ~p", [Code, Hdrs, Body]).
 
 decode(<<>>) ->
     <<"">>;

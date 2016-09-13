@@ -186,7 +186,7 @@ send_message(From, To, Body) ->
                        [F, T, Packet]),
     % privacy check is missing, but is it needed?
     ejabberd_router:route(F, T, Packet),
-    <<"">>.
+    ok.
 
 registered_commands() ->
     [#{name => mongoose_commands:name(C),
@@ -205,7 +205,8 @@ get_recent_messages(Caller, Other, Before, Limit) ->
     lists:map(fun record_to_map/1, Res).
 
 change_user_password(Host, User, Password) ->
-    ejabberd_auth:set_password(User, Host, Password).
+    ejabberd_auth:set_password(User, Host, Password),
+    ok.
 
 record_to_map({Id, From, Msg}) ->
     Jbin = jid:to_binary(From),

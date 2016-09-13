@@ -38,6 +38,7 @@
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
 -define(CREATED, {<<"201">>, <<"Created">>}).
+-define(NOCONTENT, {<<"204">>, <<"No Content">>}).
 -define(ERROR, {<<"500">>, _}).
 -define(NOT_FOUND, {<<"404">>, _}).
 
@@ -127,7 +128,7 @@ user_can_be_registered_and_removed(_Config) ->
     % try to create the same user
     {?ERROR, _} = post(<<"/users/localhost">>, CrUser),
     % delete user
-    {?OK, _} = delete(<<"/users/localhost/mike">>),
+    {?NOCONTENT, _} = delete(<<"/users/localhost/mike">>),
     {?OK, Lusers2} = gett(<<"/users/localhost">>),
     assert_notinlist(<<"mike@localhost">>, Lusers2),
     ok.
@@ -143,7 +144,7 @@ session_can_be_kicked(Config) ->
         {?OK, Sessions1} = gett("/sessions/localhost"),
         assert_inlist(<<"alice@localhost/res1">>, Sessions1),
         % kick alice
-        {?OK, _} = delete("/sessions/localhost/alice/res1"),
+        {?NOCONTENT, _} = delete("/sessions/localhost/alice/res1"),
         escalus:wait_for_stanza(Alice),
         {?OK, Sessions2} = gett("/sessions/localhost"),
         assert_notinlist(<<"alice@localhost/res1">>, Sessions2)
@@ -162,9 +163,9 @@ send_messages(Alice, Bob) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         M = #{caller => BobJID, to => AliceJID, msg => <<"hello from Bob">>},
-        {?OK, _} = post(<<"/messages">>, M),
+        {?NOCONTENT, _} = post(<<"/messages">>, M),
         M1 = #{caller => AliceJID, to => BobJID, msg => <<"hello from Alice">>},
-        {?OK, _} = post(<<"/messages">>, M1),
+        {?NOCONTENT, _} = post(<<"/messages">>, M1),
         {M, M1}.
 
 messages_are_archived(Config) ->
@@ -217,7 +218,7 @@ password_can_be_changed(Config) ->
         skip
     end),
     % we change password
-    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"niemakrolika">>}),
+    {?NOCONTENT, _} = putt("/users/localhost/bob", #{newpass => <<"niemakrolika">>}),
     % he logs with his alternative password
     escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
         ignore
@@ -229,7 +230,7 @@ password_can_be_changed(Config) ->
         ok
     end,
     % we change it back
-    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"makrolika">>}),
+    {?NOCONTENT, _} = putt("/users/localhost/bob", #{newpass => <<"makrolika">>}),
     % now he logs again with the regular one
     escalus:story(Config, [{bob, 1}], fun(_Bob) ->
         just_dont_do_anything

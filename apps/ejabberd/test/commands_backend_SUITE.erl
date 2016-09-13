@@ -167,7 +167,7 @@ delete_simple(_Config) ->
     Arg2 = {arg2, 2},
     Base = "/api/music",
     {ok, Response} = request(create_path_with_binds(Base, [Arg1, Arg2]), "DELETE", admin),
-    check_status_code(Response, 200).
+    check_status_code(Response, 204).
 
 post_simple(_Config) ->
     Arg1 = {arg1, 10},
@@ -194,7 +194,7 @@ put_simple(_Config) ->
     Args = [{arg3, <<"newusername">>}],
     Base = "/api/users",
     {ok, Response} = request(create_path_with_binds(Base, Binds), "PUT", Args, admin),
-    check_status_code(Response, 200).
+    check_status_code(Response, 204).
 
 get_two_args(_Config) ->
     Arg1 = {arg1, 1},
@@ -391,7 +391,7 @@ put_simple_client(_Config) ->
     Auth = {binary_to_list(Username), "secretpassword"},
     put_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(Base, "PUT", [Arg], {Auth, true}),
-    check_status_code(Response, 200).
+    check_status_code(Response, 204).
 
 delete_simple_client(_Config) ->
     Arg = {name, <<"giant">>},
@@ -400,7 +400,7 @@ delete_simple_client(_Config) ->
     Auth = {binary_to_list(Username), "secret"},
     get_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg]), "DELETE", {Auth, true}),
-    check_status_code(Response, 200).
+    check_status_code(Response, 204).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
