@@ -36,13 +36,14 @@ reload_dev: quick_compile
 		rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_$$NODE/lib/$$E/ebin/ ;\
 	done
 
-# Run a single suite
-# Example to run apps/ejabberd/test/cassandra_SUITE.erl:
-# make ct SUITE=cassandra
-ct: deps quick_compile
+# Run a single suite:
+# make ct SUITE=apps/ejabberd/test/mongooseim_metrics_SUITE.erl
+ct:
+	@: TODO: find is temporary - relx fails when copying over an existing file
+	@-find _build -name sample_external_auth.py -exec rm '{}' \;
 	@(if [ "$(SUITE)" ]; \
-		then ./rebar $(OPTS) ct suite=$(SUITE) skip_deps=true; \
-		else ./rebar $(OPTS) ct skip_deps=true; fi) \
+		then ./rebar3 ct --suite $(SUITE) ;\
+		else ./rebar3 ct ; fi) \
 		> $(LOG_SILENCE_COVER)
 
 # This compiles and runs one test suite. For quick feedback/TDD.
