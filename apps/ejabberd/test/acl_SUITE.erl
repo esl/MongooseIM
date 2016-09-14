@@ -21,7 +21,7 @@ all() ->
 
 init_per_suite(Config) ->
     ok = mnesia:start(),
-    stringprep:start(),
+    ok = stringprep:start(),
     ok = acl:start(),
     Config.
 

@@ -31,7 +31,7 @@ all() ->
     ].
 
 init_per_suite(Config) ->
-    catch application:ensure_all_started(stringprep),
+    {ok, _} = application:ensure_all_started(stringprep),
     mnesia:create_schema([node()]),
     mnesia:start(),
     Config.

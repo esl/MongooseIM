@@ -16,7 +16,7 @@ all() -> [
          ].
 
 init_per_suite(C) ->
-    stringprep:start(),
+    ok = stringprep:start(),
     application:start(x),
     C.
 

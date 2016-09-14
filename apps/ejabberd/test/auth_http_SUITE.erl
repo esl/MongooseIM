@@ -56,7 +56,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    application:start(stringprep),
+    ok = stringprep:start(),
     meck_config(Config),
     mim_ct_rest:start(?BASIC_AUTH, Config),
     % Separate process needs to do this, because this one will terminate
