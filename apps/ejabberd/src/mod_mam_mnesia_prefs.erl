@@ -26,8 +26,7 @@
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
--record(mam_prefs, {arc_id :: mod_mam:archive_id(),
-                    host_user :: {ejabberd:server(), ejabberd:user()},
+-record(mam_prefs, {host_user :: {ejabberd:server(), ejabberd:user()},
                     default_mode,
                     always_rules :: list(),
                     never_rules  :: list()
@@ -124,10 +123,11 @@ stop_muc(Host) ->
     ArcID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
     RemJID :: ejabberd:jid()) -> any().
 get_behaviour(DefaultBehaviour, _Host,
-              ArcID,
+              _ArcID,
               LocJID=#jid{},
               RemJID=#jid{}) ->
-    case mnesia:dirty_read(mam_prefs, ArcID) of
+    SU = su_key(LocJID),
+    case mnesia:dirty_read(mam_prefs, SU) of
         [] -> DefaultBehaviour;
         [User] -> get_behaviour(User, LocJID, RemJID)
     end.
@@ -173,12 +173,11 @@ set_prefs(_Result, _Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
         {error, Error}
     end.
 
-set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+set_prefs1(_ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     SU = su_key(ArcJID),
     NewARules = lists:usort(rules(ArcJID, AlwaysJIDs)),
     NewNRules = lists:usort(rules(ArcJID, NeverJIDs)),
     User = #mam_prefs{
-        arc_id = ArcID,
         host_user = SU,
         default_mode = DefaultMode,
         always_rules = NewARules,
@@ -193,8 +192,9 @@ set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 -spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
                 _ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()
                 ) -> mod_mam:preference().
-get_prefs({GlobalDefaultMode, _, _}, _Host, ArcID, ArcJID) ->
-    case mnesia:dirty_read(mam_prefs, ArcID) of
+get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
+    SU = su_key(ArcJID),
+    case mnesia:dirty_read(mam_prefs, SU) of
         [] ->
             {GlobalDefaultMode, [], []};
         [#mam_prefs{default_mode=DefaultMode,
@@ -206,9 +206,10 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, ArcID, ArcJID) ->
 
 
 -spec remove_archive(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> any().
-remove_archive(_Host, ArcID, _ArcJID) ->
+remove_archive(_Host, _ArcID, ArcJID) ->
+    SU = su_key(ArcJID),
     mnesia:sync_dirty(fun() ->
-            mnesia:delete(mam_prefs, ArcID, write)
+            mnesia:delete(mam_prefs, SU, write)
         end).
 
 %% ----------------------------------------------------------------------

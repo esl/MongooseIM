@@ -135,7 +135,12 @@ maybe_cache_archive_id(ArcJID, UserID) ->
 %% @doc Put the user id into cache.
 %% @private
 cache_archive_id(ArcJID, UserID) ->
-    gen_server:call(srv_name(), {cache_archive_id, ArcJID, UserID, room_pid(ArcJID)}).
+    case room_pid(ArcJID) of
+        {error,not_found} ->
+            ok;
+        RoomPid ->
+            gen_server:call(srv_name(), {cache_archive_id, ArcJID, UserID, RoomPid})
+    end.
 
 lookup_archive_id(ArcJID) ->
     try

@@ -47,6 +47,10 @@
          query_get_request/1,
          pagination_first5/1,
          pagination_last5/1,
+         pagination_offset5/1,
+         pagination_first0/1,
+         pagination_last0/1,
+         pagination_offset5_max0/1,
          pagination_before10/1,
          pagination_after10/1,
          pagination_simple_before10/1,
@@ -72,9 +76,13 @@
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
          muc_light_simple/1,
-         run_prefs_cases/1,
+         messages_filtered_when_prefs_default_policy_is_always/1,
+         messages_filtered_when_prefs_default_policy_is_never/1,
+         messages_filtered_when_prefs_default_policy_is_roster/1,
          run_set_and_get_prefs_cases/1,
-         check_user_exist/1]).
+         check_user_exist/1,
+         metric_incremented_on_archive_request/1,
+         metric_incremented_when_store_message/1]).
 
 -import(muc_helper,
         [muc_host/0,
@@ -91,7 +99,6 @@
          print_configuration_not_supported/2,
          start_alice_room/1,
          destroy_room/1,
-         clean_room_archive/1,
          send_muc_rsm_messages/1,
          send_rsm_messages/1,
          clean_archives/1,
@@ -148,6 +155,7 @@
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
+         default_policy/1,
          namespaces/0,
          get_all_messages/2,
          parse_messages/1,
@@ -192,28 +200,10 @@ riak_configs(_) ->
 
 basic_group_names() ->
     [
-     mam,
-     mam03,
-     mam04,
-     mam_purge,
-     muc,
-     muc03,
-     muc04,
-     muc_with_pm,
+     mam_all,
+     muc_all,
      muc_light,
-     rsm,
-     rsm03,
-     rsm04,
-     with_rsm,
-     with_rsm03,
-     with_rsm04,
-     muc_rsm,
-     muc_rsm03,
-     muc_rsm04,
-     bootstrapped,
-     archived,
      policy_violation,
-     nostore,
      prefs_cases,
      impl_specific
     ].
@@ -246,35 +236,39 @@ is_skipped(_, _) ->
 
 
 basic_groups() ->
-    [{bootstrapped,     [], bootstrapped_cases()},
-     {mam,              [], mam_cases()},
-     {mam03,            [], mam03_cases()},
-     {mam04,            [], mam04_cases()},
-     {mam_purge,        [], mam_purge_cases()},
-     {archived,         [], archived_cases()},
+    [{mam_all, [parallel],
+           [{mam_metrics, [], mam_metrics_cases()},
+            {mam02, [parallel], mam_cases() ++ [querying_for_all_messages_with_jid]},
+            {mam03, [parallel], mam_cases() ++ [retrieve_form_fields]},
+            {mam04, [parallel], mam_cases()},
+            {nostore, [parallel], nostore_cases()},
+            {archived, [parallel], archived_cases()},
+            {mam_purge, [parallel], mam_purge_cases()},
+            {rsm_all, [parallel],
+             [{rsm02,      [parallel], rsm_cases()},
+              {rsm03,      [parallel], rsm_cases()},
+              {rsm04,      [parallel], rsm_cases()},
+              {with_rsm02, [parallel], with_rsm_cases()},
+              {with_rsm03, [parallel], with_rsm_cases()},
+              {with_rsm04, [parallel], with_rsm_cases()}]}]},
+     {muc_all, [parallel],
+           [{muc02, [parallel], muc_cases()},
+            {muc03, [parallel], muc_cases()},
+            {muc04, [parallel], muc_cases()},
+            {muc_rsm_all, [parallel],
+             [{muc_rsm02, [parallel], muc_rsm_cases()},
+              {muc_rsm03, [parallel], muc_rsm_cases()},
+              {muc_rsm04, [parallel], muc_rsm_cases()}]}]},
      {policy_violation, [], policy_violation_cases()},
-     {nostore,          [], nostore_cases()},
-     {muc,              [], muc_cases()},
-     {muc03,            [], muc_cases()},
-     {muc04,            [], muc_cases()},
      {muc_light,        [], muc_light_cases()},
-     {muc_with_pm,      [], muc_cases()},
-     {rsm,              [], rsm_cases()},
-     {rsm03,            [], rsm_cases()},
-     {rsm04,            [], rsm_cases()},
-     {muc_rsm,          [], muc_rsm_cases()},
-     {muc_rsm03,        [], muc_rsm_cases()},
-     {muc_rsm04,        [], muc_rsm_cases()},
-     {with_rsm,         [], with_rsm_cases()},
-     {with_rsm03,       [], with_rsm_cases()},
-     {with_rsm04,       [], with_rsm_cases()},
-     {prefs_cases,      [], prefs_cases()},
+     {prefs_cases,      [parallel], prefs_cases()},
      {impl_specific,    [], impl_specific()}
     ].
 
-bootstrapped_cases() ->
-     [purge_old_single_message,
-      querying_for_all_messages_with_jid].
+
+mam_metrics_cases() ->
+    [metric_incremented_on_archive_request,
+     metric_incremented_when_store_message].
 
 mam_cases() ->
     [mam_service_discovery,
@@ -283,15 +277,11 @@ mam_cases() ->
      range_archive_request_not_empty,
      limit_archive_request].
 
-mam03_cases() ->
-    mam_cases() ++ [retrieve_form_fields].
-
-mam04_cases() ->
-    mam03_cases().
 
 mam_purge_cases() ->
     [purge_single_message,
-     purge_multiple_messages].
+     purge_multiple_messages,
+     purge_old_single_message].
 
 archived_cases() ->
     [archived,
@@ -332,6 +322,10 @@ with_rsm_cases() ->
 rsm_cases() ->
       [pagination_first5,
        pagination_last5,
+       pagination_offset5,
+       pagination_first0,
+       pagination_last0,
+       pagination_offset5_max0,
        pagination_before10,
        pagination_after10,
        pagination_empty_rset,
@@ -353,7 +347,9 @@ prefs_cases() ->
     [prefs_set_request,
      prefs_set_cdata_request,
      query_get_request,
-     run_prefs_cases,
+     messages_filtered_when_prefs_default_policy_is_always,
+     messages_filtered_when_prefs_default_policy_is_never,
+     messages_filtered_when_prefs_default_policy_is_roster,
      run_set_and_get_prefs_cases].
 
 impl_specific() ->
@@ -364,16 +360,21 @@ suite() ->
 
 init_per_suite(Config) ->
     muc_helper:load_muc(muc_host()),
-    disable_shaping(
+    disable_sessions_limit(disable_shaping(
       delete_users([{escalus_user_db, {module, escalus_ejabberd}}
-                  | escalus:init_per_suite(Config)])).
+                  | escalus:init_per_suite(Config)]))).
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
-    escalus:end_per_suite(restore_shaping(Config)).
+    %% Next function creates a lot of sessions...
+    escalus_fresh:clean(),
+    %% and this function kicks them without waiting...
+    mongoose_helper:kick_everyone(),
+    %% so we don't have sessions anymore and other tests will not fail
+    escalus:end_per_suite(restore_sessions_limit(restore_shaping(Config))).
 
 user_names() ->
-    [alice, bob, kate].
+    [alice, bob, kate, carol].
 
 create_users(Config) ->
     escalus:create_users(Config, escalus:get_users(user_names())).
@@ -383,7 +384,7 @@ delete_users(Config) ->
 
 disable_shaping(Config) ->
     OldShaper = get_shaper(),
-    set_shaper({{maxrate, 100}, {maxrate, 10000000}, {maxrate, 10000000}}),
+    set_shaper({{maxrate, 10000}, {maxrate, 10000000}, {maxrate, 10000000}}),
     [{old_mam_shaper, OldShaper}|Config].
 
 restore_shaping(Config) ->
@@ -402,6 +403,74 @@ set_shaper({Mam, Norm, Fast}) ->
     rpc_apply(ejabberd_config, add_global_option, [{shaper, normal, global}, Norm]),
     rpc_apply(ejabberd_config, add_global_option, [{shaper, fast, global}, Fast]),
     rpc_apply(shaper_srv, reset_all_shapers, [host()]).
+
+disable_sessions_limit(Config) ->
+    OldLimit = get_sessions_limit(),
+    set_sessions_limit([{10000,all}]),
+    [{old_sessions_limit, OldLimit}|Config].
+
+restore_sessions_limit(Config) ->
+    OldLimit = proplists:get_value(old_sessions_limit, Config),
+    set_sessions_limit(OldLimit),
+    Config.
+
+get_sessions_limit() ->
+    rpc_apply(ejabberd_config, get_global_option, [{access, max_user_sessions, global}]).
+
+set_sessions_limit(NewLimit) ->
+    rpc_apply(ejabberd_config, add_global_option,
+              [{access, max_user_sessions, global}, NewLimit]).
+
+init_per_group(mam02, Config) ->
+    Config;
+init_per_group(mam03, Config) ->
+    [{props, mam03_props()}|Config];
+init_per_group(mam04, Config) ->
+    [{props, mam04_props()}|Config];
+
+
+init_per_group(rsm_all, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
+    send_rsm_messages(Config1);
+init_per_group(rsm02, Config) ->
+    Config;
+init_per_group(rsm03, Config) ->
+    [{props, mam03_props()}|Config];
+init_per_group(rsm04, Config) ->
+    [{props, mam04_props()}|Config];
+init_per_group(with_rsm02, Config) ->
+    [{with_rsm, true}|Config];
+init_per_group(with_rsm03, Config) ->
+    [{props, mam03_props()}, {with_rsm, true}|Config];
+init_per_group(with_rsm04, Config) ->
+    [{props, mam04_props()}, {with_rsm, true}|Config];
+
+init_per_group(mam_purge, Config) ->
+    Config;
+init_per_group(nostore, Config) ->
+    Config;
+init_per_group(archived, Config) ->
+    Config;
+init_per_group(mam_metrics, Config) ->
+    Config;
+init_per_group(muc02, Config) ->
+    Config;
+init_per_group(muc03, Config) ->
+    [{props, mam03_props()}, {with_rsm, true}|Config];
+init_per_group(muc04, Config) ->
+    [{props, mam04_props()}, {with_rsm, true}|Config];
+
+init_per_group(muc_rsm_all, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{N,1} || N <- user_names()]),
+    Config2 = start_alice_room(Config1),
+    Config3 = send_muc_rsm_messages(Config2),
+    [{muc_rsm, true} | Config3];
+init_per_group(muc_rsm02, Config) ->
+    Config;
+init_per_group(muc_rsm03, Config) ->
+    [{props, mam03_props()}|Config];
+init_per_group(muc_rsm04, Config) ->
+    [{props, mam04_props()}|Config];
 
 init_per_group(Group, ConfigIn) ->
    C = configuration(Group),
@@ -425,151 +494,101 @@ do_init_per_group(C, ConfigIn) ->
             Config0
     end.
 
+end_per_group(rsm_all, Config) ->
+    Config;
+end_per_group(mam02, Config) ->
+    Config;
+end_per_group(mam03, Config) ->
+    Config;
+end_per_group(mam04, Config) ->
+    Config;
+end_per_group(rsm02, Config) ->
+    Config;
+end_per_group(rsm03, Config) ->
+    Config;
+end_per_group(rsm04, Config) ->
+    Config;
+end_per_group(with_rsm02, Config) ->
+    Config;
+end_per_group(with_rsm03, Config) ->
+    Config;
+end_per_group(with_rsm04, Config) ->
+    Config;
+end_per_group(mam_purge, Config) ->
+    Config;
+end_per_group(nostore, Config) ->
+    Config;
+end_per_group(archived, Config) ->
+    Config;
+end_per_group(mam_metrics, Config) ->
+    Config;
+end_per_group(muc02, Config) ->
+    Config;
+end_per_group(muc03, Config) ->
+    Config;
+end_per_group(muc04, Config) ->
+    Config;
+end_per_group(muc_rsm_all, Config) ->
+    destroy_room(Config);
+end_per_group(muc_rsm02, Config) ->
+    Config;
+end_per_group(muc_rsm03, Config) ->
+    Config;
+end_per_group(muc_rsm04, Config) ->
+    Config;
 end_per_group(Group, Config) ->
     C = configuration(Group),
     B = basic_group(Group),
     Config1 = end_state(C, B, Config),
     Config2 = end_modules(C, B, Config1),
+    escalus_fresh:clean(),
     delete_users(Config2).
-
-init_modules(C, muc_rsm, Config) ->
-    init_modules(C, muc, Config);
-init_modules(C, muc_rsm03, Config) ->
-    init_modules(C, muc, Config);
-init_modules(C, muc_rsm04, Config) ->
-    init_modules(C, muc, Config);
-
-init_modules(C, muc03, Config) ->
-    init_modules(C, muc, Config);
-init_modules(C, muc04, Config) ->
-    init_modules(C, muc, Config);
 
 init_modules(C, muc_light, Config) ->
     dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
-    Config1 = init_modules(C, muc, Config),
+    Config1 = init_modules(C, muc_all, Config), %% Init more modules!
     stop_module(host(), mod_mam_muc),
     init_module(host(), mod_mam_muc, [{host, binary_to_list(muc_light_host())}]),
     Config1;
 
-init_modules(ca, muc_with_pm, Config) ->
-    %% TODO add mod_mam with Cassandra
-    init_module(host(), mod_mam_muc_ca_arch, []),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc, muc_with_pm, Config) ->
-    %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
-    init_module(host(), mod_mam_odbc_arch, [muc, pm]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_simple, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_odbc_arch, [muc, pm, simple]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_async_pool, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_mnesia, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_async_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_mnesia_muc_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [pm]),
-    init_module(host(), mod_mam_muc_cache_user, []),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_mnesia_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-
-init_modules(ca, muc, Config) ->
+init_modules(ca, muc_all, Config) ->
     init_module(host(), mod_mam_muc_ca_arch, []),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
-init_modules(odbc, muc, Config) ->
-    %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
+init_modules(odbc, muc_all, Config) ->
     init_module(host(), mod_mam_odbc_arch, [muc]),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
-init_modules(odbc_simple, muc, Config) ->
+init_modules(odbc_simple, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [muc, simple]),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
-init_modules(odbc_async_pool, muc, Config) ->
+init_modules(odbc_async_pool, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
-init_modules(odbc_mnesia, muc, Config) ->
+init_modules(odbc_mnesia, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
-init_modules(odbc_cache, muc, Config) ->
+init_modules(odbc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
-init_modules(odbc_async_cache, muc, Config) ->
+init_modules(odbc_async_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_odbc_prefs, [muc]),
@@ -577,14 +596,14 @@ init_modules(odbc_async_cache, muc, Config) ->
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
-init_modules(odbc_mnesia_muc_cache, muc, Config) ->
+init_modules(odbc_mnesia_muc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
-init_modules(odbc_mnesia_cache, muc, Config) ->
+init_modules(odbc_mnesia_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
@@ -618,7 +637,7 @@ init_modules(odbc_async, _, Config) ->
     Config;
 init_modules(riak_timed_yz_buckets, _, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
-    init_module(host(), mod_mam_mnesia_prefs, [pm, muc]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm, muc, {archive_key, mam_archive_key_server_user}]),
     init_module(host(), mod_mam, [add_archived_element]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
@@ -685,52 +704,16 @@ mam_modules() ->
      mod_mam_muc_cache_user,
      mod_mam_riak_timed_arch_yz].
 
-init_state(C, muc_rsm03, Config) ->
-    Config1 = init_state(C, muc_rsm, Config),
-    [{props, mam03_props()}, {with_rsm, true}|Config1];
-init_state(C, muc_rsm04, Config) ->
-    Config1 = init_state(C, muc_rsm, Config),
-    [{props, mam04_props()}, {with_rsm, true}|Config1];
-init_state(_, muc_rsm, Config) ->
-    Config1 = start_alice_room(Config),
-    Config2 = clean_room_archive(Config1),
-    Config3 = send_muc_rsm_messages(Config2),
-    [{muc_rsm, true} | Config3];
-init_state(_, muc, Config) ->
-    Config;
-init_state(_, muc03, Config) ->
-    [{props, mam03_props()}, {with_rsm, true}|Config];
-init_state(_, muc04, Config) ->
-    [{props, mam04_props()}, {with_rsm, true}|Config];
-init_state(_, muc_with_pm, Config) ->
+init_state(_, muc_all, Config) ->
     Config;
 init_state(C, muc_light, Config) ->
     init_state(C, muc04, Config);
-init_state(_, rsm, Config) ->
-    send_rsm_messages(clean_archives(Config));
-init_state(_, rsm03, Config) ->
-    Config1 = [{props, mam03_props()}|Config],
-    send_rsm_messages(clean_archives(Config1));
-init_state(_, rsm04, Config) ->
-    Config1 = [{props, mam04_props()}|Config],
-    send_rsm_messages(clean_archives(Config1));
-init_state(_, with_rsm, Config) ->
-    Config1 = [{with_rsm, true}|Config],
-    send_rsm_messages(clean_archives(Config1));
-init_state(_, with_rsm03, Config) ->
-    Config1 = [{props, mam03_props()}, {with_rsm, true}|Config],
-    send_rsm_messages(clean_archives(Config1));
-init_state(_, with_rsm04, Config) ->
-    Config1 = [{props, mam04_props()}, {with_rsm, true}|Config],
-    send_rsm_messages(clean_archives(Config1));
-init_state(_, run_prefs_cases, Config) ->
-    clean_archives(Config);
-init_state(_, mam03, Config) ->
-    Config1 = [{props, mam03_props()}|Config],
-    clean_archives(Config1);
-init_state(_, mam04, Config) ->
-    Config1 = [{props, mam04_props()}|Config],
-    clean_archives(Config1);
+init_state(C, prefs_cases, Config) ->
+    Config;
+init_state(C, policy_violation, Config) ->
+    rpc_apply(mod_mam, set_params,
+              [ [{max_result_limit, 5}] ]),
+    Config;
 init_state(_, _, Config) ->
     clean_archives(Config).
 
@@ -740,7 +723,7 @@ end_state(C, muc_light, Config) ->
 end_state(_, _, Config) ->
     Config.
 
-init_per_testcase(C=archived, ConfigIn) ->
+init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
                  odbc_async_pool ->
                      MongooseMetrics = [
@@ -753,51 +736,64 @@ init_per_testcase(C=archived, ConfigIn) ->
              end,
     escalus:init_per_testcase(C, clean_archives(Config));
 init_per_testcase(C=strip_archived, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
+    escalus:init_per_testcase(C, Config);
 init_per_testcase(C=filter_forwarded, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=purge_single_message, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=purge_multiple_messages, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
+    escalus:init_per_testcase(C, Config);
 init_per_testcase(C=purge_old_single_message, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol, 1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol, 1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
+init_per_testcase(C=archived, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, Config1);
 init_per_testcase(C=offline_message, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol, 1}]),
+    escalus:init_per_testcase(C, Config1);
 init_per_testcase(C=nostore_hint, Config) ->
-    escalus:init_per_testcase(C, Config); %% skip bootstrap & clean to safe time
+    escalus:init_per_testcase(C, Config);
 init_per_testcase(C=muc_querying_for_all_messages, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
     escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config)));
+        muc_bootstrap_archive(start_alice_room(Config1)));
 init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
     escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config)));
+        muc_bootstrap_archive(start_alice_room(Config1)));
 init_per_testcase(C=muc_archive_request, Config) ->
-    escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_archive_purge, Config) ->
-    escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_multiple_devices, Config) ->
-    escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_protected_message, Config) ->
-    escalus:init_per_testcase(C, start_alice_room(Config));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_deny_protected_room_access, Config) ->
-    escalus:init_per_testcase(C, start_alice_protected_room(Config));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, start_alice_protected_room(Config1));
 init_per_testcase(C=muc_allow_access_to_owner, Config) ->
-    escalus:init_per_testcase(C, start_alice_protected_room(Config));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, start_alice_protected_room(Config1));
 init_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
 init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
 init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}]),
+    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol,1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
+init_per_testcase(C=limit_archive_request, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice,1}, {bob,1}, {carol,1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=prefs_set_request, Config) ->
     skip_if_riak(C, Config);
 init_per_testcase(C=prefs_set_cdata_request, Config) ->
@@ -926,8 +922,8 @@ delete_delimiter("_" ++ Tail) ->
 %%--------------------------------------------------------------------
 
 %% Querying the archive for messages
-simple_archive_request(ConfigIn) ->
-    P = ?config(props, ConfigIn),
+simple_archive_request(Config) ->
+    P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends "OH, HAI!" to Bob
         %% {xmlel,<<"message">>,
@@ -937,18 +933,14 @@ simple_archive_request(ConfigIn) ->
         %%   {<<"type">>,<<"chat">>}],
         %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-        maybe_wait_for_yz(ConfigIn),
+        maybe_wait_for_yz(Config),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(P, Alice),
         assert_respond_size(1, Res),
         assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
         ok
         end,
-    MongooseMetrics = [{[global, backends, mod_mam, archive], changed},
-                       {[global, backends, mod_mam, lookup], changed}
-                      ],
-    Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 querying_for_all_messages_with_jid(Config) ->
     P = ?config(props, Config),
@@ -956,7 +948,8 @@ querying_for_all_messages_with_jid(Config) ->
         Pregenerated = ?config(pre_generated_msgs, Config),
         BWithJID = nick_to_jid(bob, Config),
 
-        WithBob = [1 || {_, _, {JID, _, _}, _, _} <- Pregenerated, JID == BWithJID],
+        WithBob = [1 || {_, _, {JID, _, _}, _, _} <- Pregenerated,
+                        escalus_utils:jid_to_lower(JID) == BWithJID],
 
         CountWithBob = lists:sum(WithBob),
         escalus:send(Alice, stanza_filtered_by_jid_request(P, BWithJID)),
@@ -968,6 +961,8 @@ querying_for_all_messages_with_jid(Config) ->
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
+        maybe_wait_for_yz(Config),
+
         Room = ?config(room, Config),
         MucMsgs = ?config(pre_generated_muc_msgs, Config),
 
@@ -1042,7 +1037,7 @@ muc_light_simple(Config) ->
         end).
 
 retrieve_form_fields(ConfigIn) ->
-    escalus:story(ConfigIn, [{alice, 1}], fun(Alice) ->
+    escalus_fresh:story(ConfigIn, [{alice, 1}], fun(Alice) ->
         P = ?config(props, ConfigIn),
         Namespace = get_prop(mam_ns, P),
         escalus:send(Alice, stanza_retrieve_form_fields(<<"q">>, Namespace)),
@@ -1081,6 +1076,7 @@ archived(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
+    %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 filter_forwarded(Config) ->
@@ -1100,7 +1096,7 @@ filter_forwarded(Config) ->
         assert_respond_size(1, wait_archive_respond(P, Bob)),
         ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 strip_archived(Config) ->
     P = ?config(props, Config),
@@ -1136,7 +1132,7 @@ strip_archived(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% To conserve resources, a server MAY place a reasonable limit on how many
 %% stanzas may be pushed to a client in one request.
@@ -1144,15 +1140,17 @@ strip_archived(Config) ->
 %% the client did not specify a limit using RSM then the server should
 %% return a policy-violation error to the client.
 policy_violation(Config) ->
+    %% For this test we use max_result_limit=5
+    %% Default is max_result_limit=50
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends messages to Bob.
         %% WARNING: are we sending too fast?
         [escalus:send(Alice,
                       escalus_stanza:chat_to(Bob, generate_message_text(N)))
-         || N <- lists:seq(1, 51)],
-        %% Bob is waiting for 51 messages for 5 seconds.
-        escalus:wait_for_stanzas(Bob, 51, 5000),
+         || N <- lists:seq(1, 6)],
+        %% Bob is waiting for 6 messages for 5 seconds.
+        escalus:wait_for_stanzas(Bob, 6, 5000),
         maybe_wait_for_yz(Config),
         %% Get whole history (queryid is "will_fail", id is random).
         escalus:send(Alice, stanza_archive_request(P, <<"will_fail">>)),
@@ -1176,7 +1174,7 @@ offline_message(Config) ->
     F = fun(Alice) ->
         %% Alice sends a message to Bob while bob is offline.
         escalus:send(Alice,
-                     escalus_stanza:chat_to(bob, Msg)),
+                     escalus_stanza:chat_to(escalus_users:get_jid(Config, bob), Msg)),
         maybe_wait_for_yz(Config),
         ok
         end,
@@ -1204,7 +1202,7 @@ nostore_hint(Config) ->
     F = fun(Alice, Bob) ->
         %% Alice sends a message to Bob with a hint.
         escalus:send(Alice,
-                     add_nostore_hint(escalus_stanza:chat_to(bob, Msg))),
+                     add_nostore_hint(escalus_stanza:chat_to(Bob, Msg))),
         maybe_wait_for_yz(Config),
         escalus:wait_for_stanzas(Bob, 1, 1000),
 
@@ -1214,7 +1212,7 @@ nostore_hint(Config) ->
         assert_not_stored(ArcMsgs, Msg),
         ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 purge_single_message(Config) ->
     P = ?config(props, Config),
@@ -1232,7 +1230,7 @@ purge_single_message(Config) ->
             assert_respond_size(0, wait_archive_respond(P, Alice)),
             ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 purge_old_single_message(Config) ->
     P = ?config(props, Config),
@@ -1263,10 +1261,10 @@ purge_multiple_messages(Config) ->
             [begin
                 escalus:send(Alice,
                     escalus_stanza:chat_to(Bob, generate_message_text(N)))
-             end || N <- lists:seq(1, 15)],
+             end || N <- lists:seq(1, 5)],
             maybe_wait_for_yz(Config),
-            %% Bob is waiting for 15 messages for 5 seconds.
-            escalus:wait_for_stanzas(Bob, 15, 5000),
+            %% Bob is waiting for 5 messages for 5 seconds.
+            escalus:wait_for_stanzas(Bob, 5, 5000),
             %% Bob purges all messages from his archive.
             escalus:send(Bob, stanza_purge_multiple_messages(
                     undefined, undefined, undefined)),
@@ -1276,7 +1274,7 @@ purge_multiple_messages(Config) ->
             assert_respond_size(0, wait_archive_respond(P, Bob)),
             ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_archive_request(Config) ->
     P = ?config(props, Config),
@@ -1323,11 +1321,12 @@ muc_archive_request(Config) ->
         %% XEP: the 'to' of the forwarded stanza MUST be empty
         ?assert_equal_extra(<<>>, MsgTo, message_to),
         %% XEP: the 'from' MUST be the occupant JID of the sender of the archived message
-        ?assert_equal_extra(room_address(Room, nick(Alice)), MsgFrom, message_from),
+        ?assert_equal_extra(escalus_utils:jid_to_lower(room_address(Room, nick(Alice))),
+                            escalus_utils:jid_to_lower(MsgFrom), message_from),
 
         ?assert_equal(Text, ArcMsgBody),
         ?assert_equal(ArcId, Id),
-        ?assert_equal(RoomAddr, By),
+        ?assert_equal(escalus_utils:jid_to_lower(RoomAddr), By),
         ?assert_equal_extra(true, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
         ok
@@ -1430,7 +1429,7 @@ muc_multiple_devices(Config) ->
             parse_forwarded_message(ArcMsg),
         ?assert_equal(Text, ArcMsgBody),
         ?assert_equal(ArcId, Id),
-        ?assert_equal(RoomAddr, By),
+        ?assert_equal(escalus_utils:jid_to_lower(RoomAddr), By),
         ok
         end,
     escalus:story(Config, [{alice, 2}, {bob, 1}], F).
@@ -1633,7 +1632,7 @@ range_archive_request(Config) ->
         escalus:assert(is_iq_result, IQ),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}], F).
 
 range_archive_request_not_empty(Config) ->
     P = ?config(props, Config),
@@ -1665,6 +1664,7 @@ range_archive_request_not_empty(Config) ->
         ?assert_equal(list_to_binary(StopTime), Stamp2),
         ok
         end,
+    %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}], F).
 
 %% @doc A query using Result Set Management.
@@ -1689,6 +1689,7 @@ limit_archive_request(Config) ->
         10 = length(Msgs),
         ok
         end,
+    %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}], F).
 
 pagination_empty_rset(Config) ->
@@ -1701,7 +1702,7 @@ pagination_empty_rset(Config) ->
             stanza_page_archive_request(P, <<"empty_rset">>, RSM)),
         wait_empty_rset(P, Alice, 15)
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_first5(Config) ->
     P = ?config(props, Config),
@@ -1713,7 +1714,19 @@ pagination_first5(Config) ->
         wait_message_range(P, Alice, 1, 5),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
+
+pagination_first0(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the first page of size 0.
+        RSM = #rsm_in{max=0},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"first5">>, RSM)),
+        wait_empty_rset(P, Alice, 15),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_first5_opt_count(Config) ->
     P = ?config(props, Config),
@@ -1725,7 +1738,7 @@ pagination_first5_opt_count(Config) ->
         wait_message_range(P, Alice, 1, 5),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_first25_opt_count_all(Config) ->
     P = ?config(props, Config),
@@ -1737,7 +1750,7 @@ pagination_first25_opt_count_all(Config) ->
         wait_message_range(P, Alice, 1, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_last5(Config) ->
     P = ?config(props, Config),
@@ -1749,7 +1762,43 @@ pagination_last5(Config) ->
         wait_message_range(P, Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
+
+pagination_last0(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the last page of size 0.
+        RSM = #rsm_in{max=0, direction=before},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"last0">>, RSM)),
+        wait_empty_rset(P, Alice, 15),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+pagination_offset5(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Skip 5 messages, get 5 messages.
+        RSM = #rsm_in{max=5, index=5},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"offset5">>, RSM)),
+        wait_message_range(P, Alice, 6, 10),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+pagination_offset5_max0(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Skip 5 messages, get 0 messages.
+        RSM = #rsm_in{max=0, index=5},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"offset0_max5">>, RSM)),
+        wait_empty_rset(P, Alice, 15),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_last5_opt_count(Config) ->
     P = ?config(props, Config),
@@ -1761,7 +1810,7 @@ pagination_last5_opt_count(Config) ->
         wait_message_range(P, Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_last25_opt_count_all(Config) ->
     P = ?config(props, Config),
@@ -1773,7 +1822,7 @@ pagination_last25_opt_count_all(Config) ->
         wait_message_range(P, Alice, 1, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_offset5_opt_count(Config) ->
     P = ?config(props, Config),
@@ -1785,7 +1834,7 @@ pagination_offset5_opt_count(Config) ->
         wait_message_range(P, Alice, 6, 10),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_offset5_opt_count_all(Config) ->
     P = ?config(props, Config),
@@ -1797,7 +1846,7 @@ pagination_offset5_opt_count_all(Config) ->
         wait_message_range(P, Alice, 6, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 
 pagination_before10(Config) ->
@@ -1810,7 +1859,7 @@ pagination_before10(Config) ->
         wait_message_range(P, Alice, 5, 9),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_simple_before10(Config) ->
     P = ?config(props, Config),
@@ -1823,7 +1872,7 @@ pagination_simple_before10(Config) ->
         wait_message_range(P, Alice,   undefined, undefined,     5,   9),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 pagination_after10(Config) ->
     P = ?config(props, Config),
@@ -1835,7 +1884,7 @@ pagination_after10(Config) ->
         wait_message_range(P, Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 %% Select first page of recent messages after last known id.
 %% Paginating from newest messages to oldest ones.
@@ -1851,7 +1900,7 @@ pagination_last_after_id5(Config) ->
         wait_message_range(P, Alice,          10,      5,    11,  15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 %% Select second page of recent messages after last known id.
 pagination_last_after_id5_before_id11(Config) ->
@@ -1866,7 +1915,7 @@ pagination_last_after_id5_before_id11(Config) ->
         wait_message_range(P, Alice,           5,      0,     6,  10),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    parallel_story(Config, [{alice, 1}], F).
 
 prefs_set_request(Config) ->
     P = ?config(props, Config),
@@ -1911,7 +1960,7 @@ query_get_request(Config) ->
               cdata]),
         ?assert_equal(QueryXmlns, ResponseXmlns)
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}], F).
 
 %% Test reproducing https://github.com/esl/MongooseIM/issues/263
 %% The idea is this: in a "perfect" world jid elements are put together
@@ -1944,7 +1993,7 @@ prefs_set_cdata_request(Config) ->
         ?assert_equal(ResultIQ1, ResultIQ2),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}], F).
 
 mam_service_discovery(Config) ->
     P = ?config(props, Config),
@@ -1962,7 +2011,7 @@ mam_service_discovery(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}], F).
 
 %% Check, that MUC is supported.
 muc_service_discovery(Config) ->
@@ -1976,16 +2025,43 @@ muc_service_discovery(Config) ->
         escalus:assert(is_stanza_from, [Domain], Stanza),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}], F).
+
+metric_incremented_on_archive_request(ConfigIn) ->
+    P = ?config(props, ConfigIn),
+    F = fun(Alice) ->
+        escalus:send(Alice, stanza_archive_request(P, <<"metric_q1">>)),
+        Res = wait_archive_respond(P, Alice),
+        assert_respond_size(0, Res),
+        assert_respond_query_id(P, <<"metric_q1">>, parse_result_iq(P, Res)),
+        ok
+        end,
+    MongooseMetrics = [{[backends, mod_mam, lookup], changed}],
+    Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
+    escalus_fresh:story(Config, [{alice, 1}], F).
+
+metric_incremented_when_store_message(Config) ->
+    archived(Config).
+
+messages_filtered_when_prefs_default_policy_is_always(Config) ->
+    run_prefs_cases(always, Config).
+
+messages_filtered_when_prefs_default_policy_is_never(Config) ->
+    run_prefs_cases(never, Config).
+
+messages_filtered_when_prefs_default_policy_is_roster(Config) ->
+    run_prefs_cases(roster, Config).
 
 %% First write all messages, than read and check
-run_prefs_cases(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice, Bob, Kate) ->
+run_prefs_cases(DefaultPolicy, ConfigIn) ->
+    P = ?config(props, ConfigIn),
+    F = fun(Config, Alice, Bob, Kate) ->
         make_alice_and_bob_friends(Alice, Bob),
         %% Just send messages for each prefs configuration
-        Funs = [run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config) || Case <- prefs_cases2(),
-                                                                             Namespace <- namespaces()],
+        Namespace = mam_ns_binary_v04(),
+        Funs = [run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config)
+                || Case <- prefs_cases2(),
+                default_policy(Case) =:= DefaultPolicy],
 
         maybe_wait_for_yz(Config),
 
@@ -1999,16 +2075,16 @@ run_prefs_cases(Config) ->
         %% If fails consult with ct:pal/2 why
         ?assert_equal([], Fails)
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+    escalus_fresh:story_with_config(ConfigIn, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 %% The same as prefs_set_request case but for different configurations
-run_set_and_get_prefs_cases(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2(),
-                                                                       Namespace <- namespaces()]
+run_set_and_get_prefs_cases(ConfigIn) ->
+    P = ?config(props, ConfigIn),
+    F = fun(Config, Alice, _Bob, _Kate) ->
+        Namespace = mam_ns_binary_v04(),
+        [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2()]
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus_fresh:story_with_config(ConfigIn, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 %% MAM's implementation specific test
 check_user_exist(Config) ->
@@ -2022,3 +2098,37 @@ check_user_exist(Config) ->
   false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]),
   %% cleanup
   ok = escalus_ejabberd:rpc(ejabberd_auth, remove_user, [AdminU, AdminS]).
+
+parallel_story(Config, ResourceCounts, F) ->
+    Config1 = override_for_parallel(Config),
+    escalus:story(Config1, ResourceCounts, F).
+
+override_for_parallel(Config) ->
+    Overrides = [
+        {initial_activity, initial_activity()},
+        {modify_resource, modify_resource()}
+        ],
+    [{escalus_overrides, Overrides} | Config].
+
+modify_resource() ->
+    StoryPidBin = list_to_binary(pid_to_list(self())),
+    fun(Base) -> <<Base/binary, "-parallel-", StoryPidBin/binary>> end.
+
+initial_activity() ->
+    StoryPidBin = list_to_binary(pid_to_list(self())),
+    fun(Client) ->
+        Pred = fun(Stanza=#xmlel{}) ->
+                    From = exml_query:attr(Stanza, <<"from">>, <<>>),
+                    case {binary:match(From, <<"parallel">>),
+                          binary:match(From, StoryPidBin)} of
+                        {{_,_}, nomatch} -> false; %% drop
+                        _ -> true %% pass
+                    end;
+                  (_) -> true %% pass xmlstreamend
+            end,
+        %% Drop stanzas from unknown parallel resources
+        escalus_connection:set_filter_predicate(Client, Pred),
+
+        %% send_initial_presence
+        escalus_client:send(Client, escalus_stanza:presence(<<"available">>))
+    end.

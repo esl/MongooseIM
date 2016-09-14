@@ -61,6 +61,9 @@ respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
 respond_iq(#mam_archive_respond{respond_iq=IQ}) ->
     IQ.
 
+respond_fin(#mam_archive_respond{respond_fin=Fin}) ->
+    Fin.
+
 get_prop(Key, undefined) ->
     get_prop(Key, []);
 get_prop(final_message, P) ->
@@ -665,7 +668,8 @@ generate_rpc_jid({_,User}) ->
 
 start_alice_room(Config) ->
     %% TODO: ensure, that the room's archive is empty
-    RoomName = <<"alicesroom">>,
+    escalus_users:get_username(Config, alice),
+    RoomName = room_name(Config),
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
     start_room(Config, Alice, RoomName, RoomNick,
@@ -673,7 +677,7 @@ start_alice_room(Config) ->
                 {anonymous, false}]).
 
 start_alice_protected_room(Config) ->
-    RoomName = <<"alicesroom">>,
+    RoomName = room_name(Config),
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
     start_room(Config, Alice, RoomName, RoomNick,
@@ -682,7 +686,7 @@ start_alice_protected_room(Config) ->
                 {password, <<"secret">>}]).
 
 start_alice_anonymous_room(Config) ->
-    RoomName = <<"alicesroom">>,
+    RoomName = room_name(Config),
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
     start_room(Config, Alice, RoomName, RoomNick, [{anonymous, true}]).
@@ -862,6 +866,7 @@ wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
     Result = wait_archive_respond(P, Client),
     Messages = respond_messages(Result),
     IQ = respond_iq(Result),
+    Fin = respond_fin(Result),
     ParsedMessages = parse_messages(Messages),
     ParsedIQ = parse_result_iq(P, Result),
     try
@@ -874,9 +879,10 @@ wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
     catch Class:Reason ->
         Stacktrace = erlang:get_stacktrace(),
         ct:pal("IQ: ~p~n"
+               "Fin: ~p~n"
                "Messages: ~p~n"
                "Parsed messages: ~p~n",
-               [IQ, Messages, ParsedMessages]),
+               [IQ, Fin, Messages, ParsedMessages]),
         erlang:raise(Class, Reason, Stacktrace)
     end.
 
@@ -905,16 +911,27 @@ parse_messages(Messages) ->
 
 bootstrap_archive(Config) ->
     random:seed(now()),
-    Domain = escalus_ct:get_config(ejabberd_domain),
-    ArcJID = {<<"alice@",Domain/binary>>, make_jid(<<"alice">> ,Domain, <<>>),
-             rpc_apply(mod_mam, archive_id, [Domain, <<"alice">>])},
-    OtherUsers = [{<<"bob@",Domain/binary>>, make_jid(<<"bob">>, Domain, <<>>),
-                   rpc_apply(mod_mam, archive_id, [Domain, <<"bob">>])},
-                  {<<"carol@",Domain/binary>>, make_jid(<<"carol">>, Domain, <<>>),
-                   rpc_apply(mod_mam, archive_id, [Domain, <<"carol">>])}],
+    Users = escalus_ct:get_config(escalus_users),
+    AliceJID    = escalus_users:get_jid(Config, alice),
+    BobJID      = escalus_users:get_jid(Config, bob),
+    CarolJID    = escalus_users:get_jid(Config, carol),
+    AliceName   = escalus_users:get_username(Config, alice),
+    BobName     = escalus_users:get_username(Config, bob),
+    CarolName   = escalus_users:get_username(Config, carol),
+    AliceServer = escalus_users:get_server(Config, alice),
+    BobServer   = escalus_users:get_server(Config, bob),
+    CarolServer = escalus_users:get_server(Config, carol),
+    ArcJID = {AliceJID, make_jid(AliceName, AliceServer, <<>>),
+              rpc_apply(mod_mam, archive_id, [AliceServer, AliceName])},
+    OtherUsers = [{BobJID, make_jid(BobName, BobServer, <<>>),
+                   rpc_apply(mod_mam, archive_id, [BobServer, BobName])},
+                  {CarolJID, make_jid(CarolName, CarolServer, <<>>),
+                   rpc_apply(mod_mam, archive_id, [CarolServer, CarolName])}],
     Msgs = generate_msgs_for_days(ArcJID, OtherUsers, 16),
     put_msgs(Msgs),
-    AllUsers = [{Domain, <<"alice">>}, {Domain, <<"bob">>}, {Domain, <<"carol">>}],
+    AllUsers = [{AliceServer, AliceName},
+                {BobServer, BobName},
+                {CarolServer, CarolName}],
     wait_for_msgs(Msgs, AllUsers),
 
     [{pre_generated_msgs, sort_msgs(Msgs)} | Config].
@@ -999,18 +1016,25 @@ muc_bootstrap_archive(Config) ->
     B = room_address(Room, nick(bob)),
     R = room_address(Room),
 
+    AliceName   = escalus_users:get_username(Config, alice),
+    BobName     = escalus_users:get_username(Config, bob),
+    AliceServer = escalus_users:get_server(Config, alice),
+    BobServer   = escalus_users:get_server(Config, bob),
+
     Domain = muc_host(),
     Host = host(),
     RoomJid = make_jid(Room,Domain, <<>>),
     ArcJID = {R, RoomJid,
               rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
     Msgs = generate_msgs_for_days(ArcJID,
-                                 [{B, make_jid(<<"bob">>, Host, <<"res1">>),
+                                 [{B, make_jid(BobName, BobServer, <<"res1">>),
                                   rpc_apply(jid, replace_resource, [RoomJid, nick(bob)])},
-                                  {A, make_jid(<<"alice">>, Host, <<"res1">>),
+                                  {A, make_jid(AliceName, AliceServer, <<"res1">>),
                                    rpc_apply(jid, replace_resource, [RoomJid, nick(alice)])}], 16),
 
     put_muc_msgs(Msgs),
+    ?assert_equal(length(Msgs),
+                  wait_for_room_archive_size(Domain, Room, 10, length(Msgs))),
 
     maybe_wait_for_yz(Config),
 
@@ -1143,6 +1167,8 @@ prefs_cases2() ->
      {{always, [], [bob, kate]},     [false, false, false, false]}
     ].
 
+default_policy({{Default,_,_}, _}) -> Default.
+
 make_alice_and_bob_friends(Alice, Bob) ->
         escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribe">>)),
         escalus:wait_for_stanzas(Alice, 1, 5000), % iq set
@@ -1261,3 +1287,18 @@ muc_light_host() ->
 
 host() ->
     ct:get_config({hosts, mim, domain}).
+
+room_name(Config) ->
+    AliceName   = escalus_users:get_username(Config, alice),
+    StoryPidBin = to_nodename(list_to_binary(pid_to_list(self()))),
+    <<AliceName/binary, "room", StoryPidBin/binary>>.
+
+%% Strip dissallowed characters
+to_nodename(Binary) ->
+    << << (rewrite_nodename(X))/binary >> || <<X>> <= Binary >>.
+
+%% This function is only for pid characters
+rewrite_nodename($<) -> <<>>;
+rewrite_nodename($>) -> <<>>;
+rewrite_nodename($.) -> <<"-">>;
+rewrite_nodename(X)  -> <<X>>.

@@ -16,8 +16,8 @@
 -behaviour(ejabberd_gen_mam_archive).
 
 -export([archive_size/4,
-         safe_archive_message/9,
-         safe_lookup_messages/14,
+         archive_message/9,
+         lookup_messages/14,
          remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -79,10 +79,10 @@ start_muc(Host, _Opts) ->
         true ->
             ok;
         false ->
-            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, safe_archive_message, 50)
+            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
     end,
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, safe_lookup_messages, 50),
+    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
@@ -95,10 +95,10 @@ stop_muc(Host) ->
         true ->
             ok;
         false ->
-            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, safe_archive_message, 50)
+            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
     end,
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, safe_lookup_messages, 50),
+    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
@@ -119,15 +119,6 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
     ejabberd_odbc:result_to_integer(BSize).
 
-safe_archive_message(Result, Host, MessID, UserID,
-                     LocJID, RemJID, SrcJID, Dir, Packet) ->
-    try
-        archive_message(Result, Host, MessID, UserID,
-                        LocJID, RemJID, SrcJID, Dir, Packet)
-    catch _Type:Reason ->
-        {error, Reason}
-    end.
-
 -spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
         RoomID :: mod_mam:archive_id(), _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
         _SrcJID :: ejabberd:jid(), incoming, Packet :: packet()) -> ok.
@@ -135,8 +126,11 @@ archive_message(_Result, Host, MessID, RoomID,
                 _LocJID=#jid{},
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
-    archive_message_1(Host, MessID, RoomID, FromNick, Packet).
-
+    try
+        archive_message_1(Host, MessID, RoomID, FromNick, Packet)
+    catch _Type:Reason ->
+        {error, Reason}
+    end.
 
 -spec archive_message_1(ejabberd:server(), mod_mam:message_id(), mod_mam:archive_id(),
         FromNick :: ejabberd:user(), packet()) -> ok.
@@ -200,19 +194,19 @@ archive_messages(LServer, Acc, N) ->
            "(id, room_id, nick_name, message) "
        "VALUES ", tuples(Acc)]).
 
-safe_lookup_messages({error, Reason}=Result, _Host,
-                     _UserID, _UserJID, _RSM, _Borders,
-                     _Start, _End, _Now, _WithJID,
-                     _PageSize, _LimitPassed, _MaxResultLimit,
-                     _IsSimple) ->
+lookup_messages({error, Reason}=Result, _Host,
+                _UserID, _UserJID, _RSM, _Borders,
+                _Start, _End, _Now, _WithJID,
+                _PageSize, _LimitPassed, _MaxResultLimit,
+                _IsSimple) ->
     Result;
-safe_lookup_messages(Result, Host,
-                     UserID, UserJID, RSM, Borders,
-                     Start, End, Now, WithJID,
-                     PageSize, LimitPassed, MaxResultLimit,
-                     IsSimple) ->
+lookup_messages(Result, Host,
+                UserID, UserJID, RSM, Borders,
+                Start, End, Now, WithJID,
+                PageSize, LimitPassed, MaxResultLimit,
+                IsSimple) ->
     try
-        lookup_messages(Result, Host,
+        lookup_messages(Host,
                         UserID, UserJID, RSM, Borders,
                         Start, End, Now, WithJID,
                         PageSize, LimitPassed, MaxResultLimit,
@@ -221,7 +215,7 @@ safe_lookup_messages(Result, Host,
         {error, Reason}
     end.
 
--spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
+-spec lookup_messages(Host :: ejabberd:server(),
                       ArchiveID :: mod_mam:archive_id(),
                       ArchiveJID :: ejabberd:jid(),
                       RSM :: jlib:rsm_in()  | undefined,
@@ -235,7 +229,7 @@ safe_lookup_messages(Result, Host,
                       IsSimple :: boolean()  | opt_count) ->
                          {ok, mod_mam:lookup_result()}
                           | {error, 'policy-violation'}.
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
@@ -243,7 +237,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
     MessageRows = extract_messages(Host, RoomID, after_id(ID, Filter), 0, PageSize, false),
     {ok, {undefined, undefined,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}};
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
@@ -251,7 +245,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
     MessageRows = extract_messages(Host, RoomID, before_id(ID, Filter), 0, PageSize, true),
     {ok, {undefined, undefined,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}};
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
@@ -259,7 +253,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
     MessageRows = extract_messages(Host, RoomID, Filter, Offset, PageSize, false),
     {ok, {undefined, undefined,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}};
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 undefined, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
@@ -270,7 +264,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
 %% Cannot be optimized:
 %% - #rsm_in{direction = aft, id = ID}
 %% - #rsm_in{direction = before, id = ID}
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = before, id = undefined}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
@@ -288,7 +282,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
             {ok, {Offset + MessageRowsCount, Offset,
                   rows_to_uniform_format(MessageRows, Host, RoomJID)}}
     end;
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
@@ -306,7 +300,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
                   rows_to_uniform_format(MessageRows, Host, RoomJID)}}
     end;
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 undefined, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
@@ -324,7 +318,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
             {ok, {MessageRowsCount + CountAfterLastID, 0,
                   rows_to_uniform_format(MessageRows, Host, RoomJID)}}
     end;
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
@@ -343,7 +337,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
             {ok, {TotalCount, Offset,
                   rows_to_uniform_format(MessageRows, Host, RoomJID)}}
     end;
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
@@ -362,7 +356,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
             {ok, {TotalCount, Offset,
                   rows_to_uniform_format(MessageRows, Host, RoomJID)}}
     end;
-lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
