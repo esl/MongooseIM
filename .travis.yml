@@ -48,9 +48,8 @@ branches:
 otp_release:
         - 18.3
 env:
-        - PRESET=internal_redis DB=mnesia REL_CONFIG=with-redis
         - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all
-        - PRESET=mysql_mnesia DB=mysql REL_CONFIG=with-mysql
+        - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis"
         - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
         - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
