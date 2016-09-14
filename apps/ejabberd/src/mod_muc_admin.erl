@@ -58,10 +58,11 @@ commands() ->
 
      [{name, invite_to_muc_room},
       {category, <<"mucs">>},
+      {subcategory, <<"invites">>},
       {desc, <<"Send a MUC room invite from one user to another.">>},
       {module, ?MODULE},
       {function, invite_to_room},
-      {action, update},
+      {action, create},
       {identifiers, [host, name]},
       {args,
        [{host, binary},

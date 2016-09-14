@@ -107,12 +107,12 @@ create_room(Config) ->
 invite_online_user_to_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         Name = ?config(room_name, Config),
-        Path = <<"/mucs/localhost/", Name/binary>>,
+        Path = <<"/mucs/localhost/", Name/binary, "/invites">>,
         Reason = <<"I think you'll like this room!">>,
         Body = #{sender => escalus_client:short_jid(Alice),
                  recipient => escalus_client:short_jid(Bob),
                  reason => Reason},
-        {{<<"204">>, _}, <<"">>} = rest_helper:putt(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
         Stanza = escalus:wait_for_stanza(Bob),
         is_direct_invitation(Stanza),
         direct_invite_has_reason(Stanza, Reason)
@@ -197,6 +197,7 @@ multiparty_multiprotocol(Config) ->
     MUCPath = <<"/mucs/", Host/binary>>,
     Room = ?config(room_name, Config),
     RoomPath = <<MUCPath/binary, $/, Room/binary>>,
+    RoomInvitePath = <<MUCPath/binary, $/, Room/binary, "/invites">>,
     Reason = <<"I think you'll like this room!">>,
     MessagePath = <<"/mucs",$/,Host/binary,$/,Room/binary,$/,"messages">>,
     Message = <<"Greetings!">>,
@@ -216,13 +217,13 @@ multiparty_multiprotocol(Config) ->
             true = user_sees_room(Kate, Room),
             %% HTTP: Alice invites Bob to the MUC room.
             {{<<"204">>, _}, <<"">>} =
-                rest_helper:putt(RoomPath,
+                rest_helper:post(RoomInvitePath,
                                  invite_body(Alice, Bob, Reason)),
             %% XMPP: Bob recieves the invite to the MUC room.
             Room = wait_for_invite(Bob, Reason),
             %% HTTP: Alice invites Kate to the MUC room.
             {{<<"204">>, _}, <<"">>} =
-                rest_helper:putt(RoomPath,
+                rest_helper:post(RoomInvitePath,
                                  invite_body(Alice, Kate, Reason)),
             %% XMPP: kate recieves the invite to the MUC room.
             Room = wait_for_invite(Kate, Reason),
