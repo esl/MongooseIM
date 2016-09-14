@@ -2036,7 +2036,7 @@ metric_incremented_on_archive_request(ConfigIn) ->
         assert_respond_query_id(P, <<"metric_q1">>, parse_result_iq(P, Res)),
         ok
         end,
-    MongooseMetrics = [{[backends, mod_mam, lookup], changed}],
+    MongooseMetrics = [{[host(), backends, mod_mam, lookup], changed}],
     Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
     escalus_fresh:story(Config, [{alice, 1}], F).
 
