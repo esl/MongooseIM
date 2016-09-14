@@ -20,12 +20,15 @@ all() ->
     ].
 
 init_per_suite(Config) ->
+    ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     ok = stringprep:start(),
     ok = acl:start(),
     Config.
 
 end_per_suite(_Config) ->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
     meck:unload(),
     ok.
 

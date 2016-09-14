@@ -11,8 +11,8 @@ all() ->
 init_per_suite(C) ->
     ok = stringprep:start(),
     application:ensure_all_started(lager),
-    mnesia:start(),
-    mnesia:create_schema([node()]),
+    ok = mnesia:create_schema([node()]),
+    ok = mnesia:start(),
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,
         fun(routing_modules) ->
@@ -25,6 +25,8 @@ init_per_suite(C) ->
     C.
 
 end_per_suite(_C) ->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
     ok.
 
 basic_routing(_C) ->
