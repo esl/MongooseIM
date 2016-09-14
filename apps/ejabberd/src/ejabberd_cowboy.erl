@@ -104,21 +104,24 @@ start_cowboy(Ref, Opts) ->
     SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
+    Compress = gen_mod:get_opt(compress, Opts, false),
     Middlewares = case gen_mod:get_opt(middlewares, Opts, undefined) of
         undefined -> [];
         M -> [{middlewares, M}]
     end,
+    TransportOpts = [{port, Port},
+                     {ip, IP},
+                     {max_connections, MaxConns}
+                    ],
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
+    ProtocolOpts = [{compress, Compress}, {env, [{dispatch, Dispatch}]} | Middlewares],
     case SSLOpts of
         undefined ->
-            cowboy:start_http(Ref, NumAcceptors,
-                              [{port, Port}, {ip, IP}, {max_connections, MaxConns}],
-                              [{env, [{dispatch, Dispatch}]} | Middlewares]);
+            cowboy:start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
         _ ->
-            SSLOptions = [{port, Port}, {ip, IP}, {max_connections, MaxConns} |
-                          filter_options(ignored_ssl_options(), SSLOpts)],
-            cowboy:start_https(Ref, NumAcceptors, SSLOptions,
-                               [{env, [{dispatch, Dispatch}]} | Middlewares])
+            FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOpts),
+            TransportOptsWithSSL = TransportOpts ++ FilteredSSLOptions,
+            cowboy:start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts)
     end.
 
 

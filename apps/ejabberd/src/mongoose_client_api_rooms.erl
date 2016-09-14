@@ -8,6 +8,8 @@
 -export([allowed_methods/2]).
 -export([resource_exists/2]).
 
+-export([forbidden_request/2]).
+
 -export([to_json/2]).
 -export([from_json/2]).
 
@@ -47,14 +49,16 @@ resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
             does_room_exist(RoomID, MUCLightDomain, Req2, State)
     end.
 
-does_room_exist(RoomU, RoomS, Req, State) ->
+does_room_exist(RoomU, RoomS, Req, #{jid := JID} = State) ->
     case mod_muc_light_db_backend:get_info({RoomU, RoomS}) of
         {ok, Config, Users, Version} ->
             Room = #{config => Config,
                      users => Users,
                      version => Version,
                      jid => jid:make_noprep(RoomU, RoomS, <<>>)},
-            {true, Req, State#{room => Room}};
+            CallerRole = determine_role(jid:to_lus(JID), Users),
+            NewState = State#{room => Room, role_in_room => CallerRole},
+            {true, Req, NewState};
         _ ->
             {Method, Req2} = cowboy_req:method(Req),
             case Method of
@@ -66,7 +70,9 @@ does_room_exist(RoomU, RoomS, Req, State) ->
             end
     end.
 
-
+forbidden_request(Req, State) ->
+    cowboy_req:reply(403, Req),
+    {halt, Req, State}.
 
 to_json(Req, #{room := Room} = State) ->
     Config = maps:get(config, Room),
@@ -95,6 +101,8 @@ handle_request(<<"POST">>, JSONData, Req,
             RespReq = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
             {true, RespReq, State}
     end;
+handle_request(<<"PUT">>, _, Req, #{role_in_room := none} = State) ->
+    forbidden_request(Req, State);
 handle_request(<<"PUT">>, JSONData, Req,
                #{user := User, jid := #jid{lserver = Server}} = State) ->
     #{<<"user">> := UserToInvite} = JSONData,
@@ -109,3 +117,9 @@ user_to_json({UserServer, Role}) ->
 muc_light_domain(Server) ->
     gen_mod:get_module_opt_host(Server, mod_muc_light, <<"muclight.@HOST@">>).
 
+determine_role(US, Users) ->
+    case lists:keyfind(US, 1, Users) of
+        false -> none;
+        {_, Role} ->
+            Role
+    end.
