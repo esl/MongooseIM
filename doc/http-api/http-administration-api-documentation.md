@@ -1,5 +1,13 @@
 # MongooseIM's HTTP Administration API
 
+## Prerequisites
+
+Before you can use the HTTP Administration API, you must enable
+`mod_mongoose_admin` and `mod_muc_admin` in the `modules` section of your
+`ejabberd.cfg` file.
+
+## API 
+
 Find the beautiful Swagger documentation below or
 under [this link](http://mongooseim.readthedocs.io/en/latest/swagger/index.html)
 
