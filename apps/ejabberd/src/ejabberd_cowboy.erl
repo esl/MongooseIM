@@ -60,7 +60,7 @@ start_listener({Port, IP, tcp}=Listener, Opts) ->
     {ok, Pid}.
 
 reload_dispatch(Ref) ->
-    gen_server:cast(Ref, reload_dispatch).
+    gen_server:call(Ref, reload_dispatch).
 
 %% @doc gen_server for handling shutdown when started via ejabberd_listener
 -spec start_link(_) -> 'ignore' | {'error',_} | {'ok',pid()}.
@@ -71,12 +71,12 @@ init(State) ->
     process_flag(trap_exit, true),
     {ok, State}.
 
+handle_call(reload_dispatch, _From, #cowboy_state{ref = Ref, opts = Opts} = State) ->
+    reload_dispatch(Ref, Opts),
+    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 
-handle_cast(reload_dispatch, #cowboy_state{ref = Ref, opts = Opts} = State) ->
-    reload_dispatch(Ref, Opts),
-    {noreply, State};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -104,21 +104,24 @@ start_cowboy(Ref, Opts) ->
     SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
+    Compress = gen_mod:get_opt(compress, Opts, false),
     Middlewares = case gen_mod:get_opt(middlewares, Opts, undefined) of
         undefined -> [];
         M -> [{middlewares, M}]
     end,
+    TransportOpts = [{port, Port},
+                     {ip, IP},
+                     {max_connections, MaxConns}
+                    ],
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
+    ProtocolOpts = [{compress, Compress}, {env, [{dispatch, Dispatch}]} | Middlewares],
     case SSLOpts of
         undefined ->
-            cowboy:start_http(Ref, NumAcceptors,
-                              [{port, Port}, {ip, IP}, {max_connections, MaxConns}],
-                              [{env, [{dispatch, Dispatch}]} | Middlewares]);
+            cowboy:start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
         _ ->
-            SSLOptions = [{port, Port}, {ip, IP}, {max_connections, MaxConns} |
-                          filter_options(ignored_ssl_options(), SSLOpts)],
-            cowboy:start_https(Ref, NumAcceptors, SSLOptions,
-                               [{env, [{dispatch, Dispatch}]} | Middlewares])
+            FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOpts),
+            TransportOptsWithSSL = TransportOpts ++ FilteredSSLOptions,
+            cowboy:start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts)
     end.
 
 

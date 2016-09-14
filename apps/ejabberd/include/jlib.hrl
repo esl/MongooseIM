@@ -350,9 +350,9 @@
                      }).
 
 -record(rsm_out, {count :: non_neg_integer(),
-                  index :: non_neg_integer(),
-                  first :: binary(),
-                  last :: binary()
+                  index :: non_neg_integer() | undefined,
+                  first :: binary() | undefined,
+                  last  :: binary() | undefined
                  }).
 
 -type iq() :: #iq{}.

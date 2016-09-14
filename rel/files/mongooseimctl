@@ -208,7 +208,7 @@ ctlexec ()
       -noinput \
       -hidden \
       $COOKIE_ARG \
-      -pa $EJABBERD_EBIN_PATH \
+      -pa "$EJABBERD_EBIN_PATH" \
       -s ejabberd_ctl -extra $NODENAME $COMMAND
 }
 
