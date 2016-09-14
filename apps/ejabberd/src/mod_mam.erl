@@ -214,9 +214,9 @@ start(Host, Opts) ->
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
     ejabberd_hooks:add(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
-    mongoose_metrics:create([backends, ?MODULE, lookup], histogram),
-    mongoose_metrics:create([Host, modMamLookups, simple], spiral),
-    mongoose_metrics:create([backends, ?MODULE, archive], histogram),
+    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, lookup], histogram),
+    mongoose_metrics:ensure_metric(Host, [Host, modMamLookups, simple], spiral),
+    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, archive], histogram),
     ok.
 
 
