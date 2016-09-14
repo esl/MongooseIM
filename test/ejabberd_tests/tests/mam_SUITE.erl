@@ -494,48 +494,14 @@ do_init_per_group(C, ConfigIn) ->
             Config0
     end.
 
-end_per_group(rsm_all, Config) ->
-    Config;
-end_per_group(mam02, Config) ->
-    Config;
-end_per_group(mam03, Config) ->
-    Config;
-end_per_group(mam04, Config) ->
-    Config;
-end_per_group(rsm02, Config) ->
-    Config;
-end_per_group(rsm03, Config) ->
-    Config;
-end_per_group(rsm04, Config) ->
-    Config;
-end_per_group(with_rsm02, Config) ->
-    Config;
-end_per_group(with_rsm03, Config) ->
-    Config;
-end_per_group(with_rsm04, Config) ->
-    Config;
-end_per_group(mam_purge, Config) ->
-    Config;
-end_per_group(nostore, Config) ->
-    Config;
-end_per_group(archived, Config) ->
-    Config;
-end_per_group(mam_metrics, Config) ->
-    Config;
-end_per_group(muc02, Config) ->
-    Config;
-end_per_group(muc03, Config) ->
-    Config;
-end_per_group(muc04, Config) ->
-    Config;
+end_per_group(G, Config) when G == rsm_all; G == mam_purge; G == nostore;
+    G == mam02; G == rsm02; G == with_rsm02; G == muc02; G == muc_rsm02;
+    G == mam03; G == rsm03; G == with_rsm03; G == muc03; G == muc_rsm03;
+    G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04;
+    G == archived; G == mam_metrics ->
+      Config;
 end_per_group(muc_rsm_all, Config) ->
     destroy_room(Config);
-end_per_group(muc_rsm02, Config) ->
-    Config;
-end_per_group(muc_rsm03, Config) ->
-    Config;
-end_per_group(muc_rsm04, Config) ->
-    Config;
 end_per_group(Group, Config) ->
     C = configuration(Group),
     B = basic_group(Group),
