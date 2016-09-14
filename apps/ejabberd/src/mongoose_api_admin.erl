@@ -102,7 +102,8 @@ delete_resource(Req, #http_api_state{command_category = Category, bindings = B} 
 %% @doc Called for a method of type "GET"
 to_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
     Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>)),
-    Arity = length(B),
+    {QVals, _} = cowboy_req:qs_vals(Req),
+    Arity = length(B) + length(QVals),
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     process_request(<<"GET">>, Command, Req, State).
 
@@ -116,7 +117,8 @@ from_json(Req, #http_api_state{command_category = Category,
         {Params, _} ->
             {Method, _} = cowboy_req:method(Req),
             Cmds = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
-            Arity = length(B) + length(Params),
+            {QVals, _} = cowboy_req:qs_vals(Req),
+            Arity = length(B) + length(Params) + length(QVals),
             case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
                 [Command] ->
                     process_request(Method, Command, {Params, Req}, State);

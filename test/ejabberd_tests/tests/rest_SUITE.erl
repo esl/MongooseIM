@@ -174,7 +174,7 @@ messages_are_archived(Config) ->
         AliceJID = maps:get(to, M1),
         BobJID = maps:get(caller, M1),
         GetPath = lists:flatten(["/messages/",binary_to_list(AliceJID),
-                                 "/",binary_to_list(BobJID),"/10"]),
+                                 "/",binary_to_list(BobJID),"?limit=10"]),
         mam_helper:maybe_wait_for_yz(Config),
         {?OK, Msgs} = gett(GetPath),
         ?PRT("Msgs", Msgs),
@@ -245,7 +245,7 @@ get_messages(Me, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Me),
                              "/",binary_to_list(Other),
-                             "/", integer_to_list(Count)]),
+                             "?limit=", integer_to_list(Count)]),
     {?OK, Msgs} = gett(GetPath),
     Msgs.
 
@@ -254,7 +254,7 @@ get_messages(Me, Other, Before, Count) ->
                              binary_to_list(Me),
                              "/", binary_to_list(Other),
                              "/", integer_to_list(Before),
-                             "/", integer_to_list(Count)]),
+                             "?limit=", integer_to_list(Count)]),
     {?OK, Msgs} = gett(GetPath),
     Msgs.
 

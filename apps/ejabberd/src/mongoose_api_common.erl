@@ -97,13 +97,16 @@ create_user_url_path(Command) ->
 -spec process_request(method(), mongoose_commands:ct(), any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
-    BindsReversed = lists:reverse(Binds),
     {Params, Req2} = Req,
-    Params2 = BindsReversed ++ Params ++ maybe_add_caller(Entity),
+    {QVals, _} = cowboy_req:qs_vals(Req2),
+    QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
+    Params2 = Binds ++ Params ++ QV ++ maybe_add_caller(Entity),
     handle_request(Method, Command, Params2, Req2, State);
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity}=State)
     when ((Method == <<"GET">>) or (Method == <<"DELETE">>)) ->
-    BindsReversed = lists:reverse(Binds) ++ maybe_add_caller(Entity),
+    {QVals, _} = cowboy_req:qs_vals(Req),
+    QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
+    BindsReversed = Binds ++ QV ++ maybe_add_caller(Entity),
     handle_request(Method, Command, BindsReversed, Req, State).
 
 -spec handle_request(method(), mongoose_commands:t(), args_applied(), term(), #http_api_state{}) ->
@@ -272,7 +275,10 @@ get_allowed_methods(Entity) ->
 -spec maybe_add_bindings(mongoose_commands:t(), admin|user) -> iolist().
 maybe_add_bindings(Command, Entity) ->
     Action = mongoose_commands:action(Command),
-    Args = mongoose_commands:args(Command),
+    QueryParams = mongoose_commands:queryparams(Command),
+    Args0 = mongoose_commands:args(Command),
+    Args = [El || {Key, _Value} = El <- Args0, true =/= proplists:is_defined(Key, QueryParams)],
+    % we don't add bindings for params defined as 'queryparams'
     BindAndBody = both_bind_and_body(Action),
     case BindAndBody of
         true ->
@@ -355,3 +361,4 @@ method_to_action(<<"GET">>) -> read;
 method_to_action(<<"POST">>) -> create;
 method_to_action(<<"PUT">>) -> update;
 method_to_action(<<"DELETE">>) -> delete.
+

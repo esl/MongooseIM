@@ -115,6 +115,7 @@ commands() ->
       {action, read},
       {security_policy, [user]},
       {args, [{caller, binary}, {other, binary}, {limit, integer}]},
+      {queryparams, [limit]},
       {result, []}
      ],
      [
@@ -126,6 +127,7 @@ commands() ->
       {action, read},
       {security_policy, [user]},
       {args, [{caller, binary}, {other, binary}, {before, integer}, {limit, integer}]},
+      {queryparams, [limit]},
       {result, []}
      ],
      [

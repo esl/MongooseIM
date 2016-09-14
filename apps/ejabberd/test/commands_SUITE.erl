@@ -472,6 +472,17 @@ commands_new_lame() ->
             {result, {msg, binary}}
         ],
         [
+            {name, command_one},
+            {category, <<"another">>},
+            {desc, <<"do nothing and return">>},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, read},
+            {queryparams, [ident]}, %% query params must be present in args
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ],
+        [
             {name, command_seven}, %% name is different...
             {category, <<"user">>},
             {desc, <<"do nothing and return">>},
