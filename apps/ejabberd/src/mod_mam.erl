@@ -763,7 +763,7 @@ lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
          Start, End, Now, WithJID,
          PageSize, LimitPassed, MaxResultLimit, IsSimple]),
     Diff = timer:now_diff(os:timestamp(), StartT),
-    mongoose_metrics:update(global, [backends, ?MODULE, lookup], Diff),
+    mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
     R.
 
 
@@ -776,7 +776,7 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     R = ejabberd_hooks:run_fold(mam_archive_message, Host, ok,
         [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]),
     Diff = timer:now_diff(os:timestamp(), StartT),
-    mongoose_metrics:update(global, [backends, ?MODULE, archive], Diff),
+    mongoose_metrics:update(Host, [backends, ?MODULE, archive], Diff),
     R.
 
 -spec purge_single_message(Host :: ejabberd:server(),
