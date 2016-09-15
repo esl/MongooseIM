@@ -43,7 +43,7 @@ branches:
                 - master
                 - stable
                 - /^rel\-\d+\.\d+$/
-                - /\d+\.\d+\.\d+([a-z0-9\-\+])*/
+                - /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
 
 otp_release:
         - 18.3
