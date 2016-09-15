@@ -119,7 +119,7 @@ paths:
           description: |
             When authenticated user is not allowed to read room's deatails.
   /rooms/{id}/users:
-    put:
+    post:
       description: "Adds a user to a room."
       parameters:
         - in: path
