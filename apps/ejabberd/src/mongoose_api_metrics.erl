@@ -160,5 +160,9 @@ get_host_metrics(Host) ->
     [{prep_name(NameParts), Value} || {[_Host | NameParts], Value} <- Metrics].
 
 prep_name(NameParts) ->
-    ToStrings = [atom_to_list(NamePart) || NamePart <- NameParts],
+    ToStrings = [part_to_string(NamePart) || NamePart <- NameParts],
     string:join(ToStrings, ".").
+
+part_to_string(Part) when is_atom(Part) -> atom_to_list(Part);
+part_to_string(Part) when is_binary(Part) -> binary_to_list(Part);
+part_to_string(Part) -> Part.
