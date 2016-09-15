@@ -684,8 +684,8 @@ search_rsm_count(Config) ->
         fun(Client) ->
                 Domain = escalus_ct:get_config(ejabberd_secondary_domain),
                 DirJID = <<"vjud.", Domain/binary>>,
-                Fields = [{get_nickname_field(),
-                           <<"*">>}],
+                Fields = [{get_full_name_search_field(),
+                           <<"Doe*">>}],
                 Iq1 = escalus_stanza:search_iq(
                         DirJID,
                         escalus_stanza:search_fields(Fields)
