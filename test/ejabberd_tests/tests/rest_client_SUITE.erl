@@ -118,13 +118,20 @@ messages_can_be_paginated(Config) ->
 room_is_created(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         RoomID = given_new_room({alice, Alice}),
-        get_room_info({alice, Alice}, RoomID)
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_room_info(Alice, RoomInfo)
     end).
 
 user_is_invited_to_a_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
-        get_room_info({alice, Alice}, RoomID)
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        true = is_participant(Bob, <<"member">>, RoomInfo),
+        IQ = escalus_stanza:iq_get(<<"urn:xmpp:muclight:0#affiliations">>, []),
+        RoomJID = <<RoomID/binary, "@muclight.localhost">>,
+        escalus:send(Alice, escalus_stanza:to(IQ, RoomJID)),
+        escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Alice))
+
     end).
 
 user_is_removed_from_a_room(Config) ->
@@ -205,7 +212,6 @@ get_room_info(User, RoomID) ->
     Creds = credentials(User),
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:gett(<<"/rooms/", RoomID/binary>>,
                                                          Creds),
-    ct:pal("~p", [Result]),
     Result.
 
 given_new_room_with_users_and_msgs(Owner, Users) ->
@@ -342,4 +348,24 @@ assert_aff_change_stanza(Stanza, Target, Change) ->
     User = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"user">>}]),
     Change = exml_query:attr(User, <<"affiliation">>),
     TargetJID = exml_query:cdata(User).
+
+assert_room_info(Owner, RoomInfo) ->
+    true = is_property_present(<<"subject">>, RoomInfo),
+    true = is_property_present(<<"name">>, RoomInfo),
+    true = is_property_present(<<"participants">>, RoomInfo),
+    true = is_participant(Owner, <<"owner">>, RoomInfo).
+
+is_property_present(Name, Proplist) ->
+    Val = proplists:get_value(Name, Proplist),
+    Val /= undefined.
+
+is_participant(User, Role, RoomInfo) ->
+    Participants = proplists:get_value(<<"participants">>, RoomInfo),
+    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(User)),
+    Fun = fun({Props}) ->
+                  UserJID = proplists:get_value(<<"user">>, Props),
+                  UserRole = proplists:get_value(<<"role">>, Props),
+                  UserJID == JID andalso UserRole == Role
+          end,
+    lists:any(Fun, Participants).
 
