@@ -174,8 +174,16 @@ lookup_messages_muc(Result, Host,
                     IsSimple).
 
 
-archive_size(Size, _Host, _ArchiveID, _ArchiveJID) ->
-    Size.
+archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
+    OwnerJID = bare_jid(ArchiveJID),
+    RemoteJID = undefined,
+    {MsgIdStartNoRSM, MsgIdEndNoRSM} =
+        calculate_msg_id_borders(undefined, undefined, undefined, undefined),
+    F = fun get_msg_id_key/3,
+    {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
+                                   MsgIdStartNoRSM, MsgIdEndNoRSM,
+                                   [{rows, 1}], F),
+    TotalCount.
 
 %% use correct bucket for given date
 
