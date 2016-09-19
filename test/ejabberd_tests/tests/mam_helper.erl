@@ -1033,10 +1033,10 @@ muc_bootstrap_archive(Config) ->
                                    rpc_apply(jid, replace_resource, [RoomJid, nick(alice)])}], 16),
 
     put_muc_msgs(Msgs),
-    ?assert_equal(length(Msgs),
-                  wait_for_room_archive_size(Domain, Room, 10, length(Msgs))),
 
     maybe_wait_for_yz(Config),
+    ?assert_equal(length(Msgs),
+                  wait_for_room_archive_size(Domain, Room, 10, length(Msgs))),
 
     [{pre_generated_muc_msgs, sort_msgs(Msgs)} | Config].
 
