@@ -24,14 +24,10 @@ restore_modules(Domain, Config) ->
 ensure_module(_Domain, _Mod, _Opts, _Opts) ->
     ok;
 ensure_module(Domain, Mod, stopped, Opts) ->
-    ct:pal("Stop module ~p started with opts ~p", [Mod, Opts]),
     stop(Domain, Mod);
 ensure_module(Domain, Mod, Opts, stopped) ->
-    ct:pal("Start module ~p with opts ~p", [Mod, Opts]),
     start(Domain, Mod, Opts);
 ensure_module(Domain, Mod, RequiredOpts, CurrentOpts) ->
-    ct:pal("Restart module ~p (opts changed from ~p to ~p)",
-           [Mod, CurrentOpts, RequiredOpts]),
     restart(Domain, Mod, RequiredOpts).
 
 get_current_modules(Domain) ->
