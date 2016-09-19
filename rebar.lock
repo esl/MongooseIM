@@ -1,6 +1,6 @@
 [{<<"alarms">>,
   {git,"git://github.com/chrzaszcz/alarms.git",
-       {ref,"0c40c6cdfcad6cb89313621150dcea5237bb8478"}},
+       {ref,"0ace82380cf4401e6ae0a3a30a66332337262838"}},
   0},
  {<<"base16">>,
   {git,"git://github.com/goj/base16.git",

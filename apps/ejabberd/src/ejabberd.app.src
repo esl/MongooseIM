@@ -7,8 +7,7 @@
   {registered, [
                ]},
   {applications, [
-                  %% TODO: alarms has an invalid {env, ...} in its .app.src
-                  %alarms,
+                  alarms,
                   asn1,
                   base16,
                   bear,
