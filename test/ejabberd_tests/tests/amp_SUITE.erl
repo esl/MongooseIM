@@ -105,7 +105,7 @@ init_per_group(GroupName, Config) ->
     save_offline_status(GroupName, ConfigWithRules).
 
 setup_meck(mam_failure) ->
-    ok = escalus_ejabberd:rpc(meck, expect, [mod_mam_odbc_arch, safe_archive_message, 9,
+    ok = escalus_ejabberd:rpc(meck, expect, [mod_mam_odbc_arch, archive_message, 9,
                                              {error, simulated}]);
 setup_meck(offline_failure) ->
     ok = escalus_ejabberd:rpc(meck, expect, [mod_offline_mnesia, write_messages, 3,
@@ -572,12 +572,14 @@ drop_deliver_to_offline_user_test(Config) ->
               case lists:member(Rule, Rules) orelse ?config(offline_storage, Config) /= offline_failure of
                   true -> client_receives_nothing(Alice);
                   false -> client_receives_generic_error(Alice, <<"500">>, <<"wait">>)
+              end,
+
+              % then
+              case is_offline_storage_working(Config) andalso not lists:member(Rule, Rules) of
+                  true -> user_has_incoming_offline_message(FreshConfig, bob, <<"A message in a bottle...">>);
+                  false -> user_has_no_incoming_offline_messages(FreshConfig, bob)
               end
-      end),
-    case is_offline_storage_working(Config) andalso not lists:member(Rule, Rules) of
-        true -> user_has_incoming_offline_message(FreshConfig, bob, <<"A message in a bottle...">>);
-        false -> user_has_no_incoming_offline_messages(FreshConfig, bob)
-    end.
+      end).
 
 drop_deliver_to_stranger_test(Config) ->
     escalus:fresh_story(

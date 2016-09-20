@@ -292,18 +292,17 @@ wait_flushing(Host, ArcID) ->
     gen_server:call(select_worker(Host, ArcID), wait_flushing).
 
 wait_flushing_before(Host, ArcID, End, Now) ->
-    case is_recent_entries_required(End, Now) of
+    case are_recent_entries_required(End, Now) of
         true ->
             wait_flushing(Host, ArcID);
         false ->
             ok
     end.
 
-%% @doc Returns true, if `End' is too old.
-is_recent_entries_required(End, Now) when is_integer(End) ->
-    %% If `End' is older than 10 seconds?
-    End + 10000000 < Now;
-is_recent_entries_required(_End, _Now) ->
+are_recent_entries_required(End, Now) when is_integer(End) ->
+    %% 10 seconds
+    End + 10000000 > Now;
+are_recent_entries_required(_End, _Now) ->
     true.
 
 
