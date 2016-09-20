@@ -154,7 +154,7 @@ process(["status"]) ->
                                  {logs, get_log_files()}])]),
     case MongooseStatus of
         not_running -> ?STATUS_ERROR;
-        {running, _Version} -> ?STATUS_SUCCESS
+        {running, _, _Version} -> ?STATUS_SUCCESS
     end;
 process(["stop"]) ->
     %%ejabberd_cover:stop(),
@@ -513,8 +513,8 @@ format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
        "    Erlang VM status: ", ?a2l(IS), " (of: starting | started | stopping)\n",
        "    boot script status: ", io_lib:format("~p", [PS]), "\n",
        "    version: ", case MS of
-                          {running, Version} -> Version;
-                          not_running -> "unavailable - mongooseim app not running"
+                          {running, App, Version} -> [Version, " (as ", ?a2l(App), ")"];
+                          not_running -> "unavailable - neither ejabberd nor mongooseim is running"
                         end, "\n",
        "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS) ,"\n"] ++
       ["    logs: none - maybe enable logging to a file in app.config?\n" || LogFiles == [] ] ++
@@ -903,8 +903,16 @@ format_usage_tuple([ElementDef | ElementsDef], Indentation) ->
 
 get_mongoose_status() ->
     case lists:keyfind(mongooseim, 1, application:which_applications()) of
+        false -> get_ejabberd_status();
+        {_, _, Version} ->
+            {running, mongooseim, Version}
+    end.
+
+get_ejabberd_status() ->
+    case lists:keyfind(ejabberd, 1, application:which_applications()) of
         false -> not_running;
-        {_, _, Version} -> {running, Version}
+        {_, _, "2.1.8+mim-" ++ Version} ->
+            {running, ejabberd, Version}
     end.
 
 get_uptime() ->
