@@ -116,6 +116,7 @@
           function :: atom(),                         %% function to call
           action :: action(),                         %% so that the HTTP side can decide which verb to require
           args = [] :: [argspec()],                   %% this is both for introspection and type check on call
+          optargs = [] :: [{atom(), typedef(), term()}],%% arg which has a default value and is optional
           caller_pos :: integer(),                    %% internal use
           identifiers = [] :: [atom()],               %% resource identifiers, a subset of args
           queryparams = [] :: [atom()],               %% query parameters, a subset of args
@@ -171,6 +172,7 @@
          desc/1,
          args/1,
          arity/1,
+         func_arity/1,
          identifiers/1,
          queryparams/1,
          action/1,
@@ -278,6 +280,10 @@ result(Cmd) ->
 arity(Cmd) ->
     length(Cmd#mongoose_command.args).
 
+-spec func_arity(t()) -> integer().
+func_arity(Cmd) ->
+    length(Cmd#mongoose_command.args) + length(Cmd#mongoose_command.optargs).
+
 %% @doc Command execution.
 -spec execute(caller(), atom() | t(), [term()] | map()) ->
         {ok, term()} | ok | failure().
@@ -332,11 +338,19 @@ execute_command(Caller, Command, Args) ->
             {error, internal, term_to_binary(E)}
     end.
 
-%% @doc This performs many checks - types, permissions etc, may throw one of many exceptions
+add_defaults(Args, Opts) when is_map(Args) ->
+    COpts = [{K, V} || {K, _, V} <- Opts],
+    Missing = lists:subtract(proplists:get_keys(Opts), maps:keys(Args)),
+    lists:foldl(fun(K, Ar) -> maps:put(K, proplists:get_value(K, COpts), Ar) end,
+        Args, Missing).
+
+% @doc This performs many checks - types, permissions etc, may throw one of many exceptions
 %% returns what the func returned or just ok if command spec tells so
 -spec check_and_execute(caller(), t(), [term()]) -> term().
 check_and_execute(Caller, Command, Args) when is_map(Args) ->
-    check_and_execute(Caller, Command, map_to_list(Args, Command#mongoose_command.args));
+    Args1 = add_defaults(Args, Command#mongoose_command.optargs),
+    ArgList = maps_to_list(Args1, Command#mongoose_command.args, Command#mongoose_command.optargs),
+    check_and_execute(Caller, Command, ArgList);
 check_and_execute(Caller, Command, Args) ->
     % check permissions
     case is_available_for(Caller, Command) of
@@ -348,14 +362,17 @@ check_and_execute(Caller, Command, Args) ->
     % check caller (if it is given in args, and the engine is called by a 'real' user, then it must match
     check_caller(Caller, Command, Args),
     % check args
-    SpecLen = length(Command#mongoose_command.args),
+    % this is the 'real' spec of command - optional args included
+    FullSpec = Command#mongoose_command.args
+               ++ [{K, T} || {K, T, _} <- Command#mongoose_command.optargs],
+    SpecLen = length(FullSpec),
     ALen = length(Args),
     case SpecLen =/= ALen of
         true ->
             th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
         _ -> ok
     end,
-    [check_type(S, A) || {S, A} <- lists:zip(Command#mongoose_command.args, Args)],
+    [check_type(S, A) || {S, A} <- lists:zip(FullSpec, Args)],
     % run command
     Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, Args),
     case Res of
@@ -499,6 +516,10 @@ check_value(queryparams, undefined) ->
     [];
 check_value(queryparams, V) ->
     V;
+check_value(optargs, undefined) ->
+    [];
+check_value(optargs, V) ->
+    V;
 check_value(caller_pos, _) ->
     0;
 check_value(K, V) ->
@@ -568,14 +589,14 @@ mapget(K, Map) ->
             th("Missing argument: ~p", [K])
     end.
 
-map_to_list(Map, Args) ->
-    SpecLen = length(Args),
+maps_to_list(Map, Args, Optargs) ->
+    SpecLen = length(Args) + length(Optargs),
     ALen = maps:size(Map),
     if SpecLen =/= ALen ->
         th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
         true -> ok
     end,
-    [mapget(K, Map) || {K, _} <- Args].
+    [mapget(K, Map) || {K, _} <- Args] ++ [mapget(K, Map) || {K, _, _} <- Optargs].
 
 %% @doc Main entry point for permission control - is this command available for this user
 is_available_for(User, C) when is_binary(User) ->
