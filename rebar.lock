@@ -121,7 +121,7 @@
   0},
  {<<"setup">>,
   {git,"git://github.com/uwiger/setup.git",
-       {ref,"85447ca5eb671db0517a475791ac7fb3604bf44d"}},
+       {ref,"5c7d635145e5ffb8b0fa6b470770cdd1cb16b0b2"}},
   2},
  {<<"stringprep">>,
   {git,"git://github.com/erszcz/stringprep.git",
