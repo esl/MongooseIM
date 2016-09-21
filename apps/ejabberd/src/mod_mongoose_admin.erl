@@ -12,7 +12,6 @@
          change_user_password/3,
          list_sessions/1,
          kick_session/3,
-         get_recent_messages/3,
          get_recent_messages/4,
          send_message/3
         ]).
@@ -109,25 +108,13 @@ commands() ->
      [
       {name, get_last_messages},
       {category, <<"messages">>},
-      {desc, <<"Get n last messages">>},
+      {desc, <<"Get n last messages with given contact, optionally before a certain date (unixtime)">>},
       {module, ?MODULE},
       {function, get_recent_messages},
       {action, read},
       {security_policy, [user]},
-      {args, [{caller, binary}, {other, binary}, {limit, integer}]},
-      {queryparams, [limit]},
-      {result, []}
-     ],
-     [
-      {name, get_messages},
-      {category, <<"messages">>},
-      {desc, <<"Get messages before a certain date ('before' is a unix timestamp in seconds)">>},
-      {module, ?MODULE},
-      {function, get_recent_messages},
-      {action, read},
-      {security_policy, [user]},
-      {args, [{caller, binary}, {other, binary}, {before, integer}, {limit, integer}]},
-      {queryparams, [limit]},
+      {args, [{caller, binary}, {other, binary}]},
+      {optargs, [{before, integer, 0}, {limit, integer, 100}]},
       {result, []}
      ],
      [
@@ -197,11 +184,10 @@ registered_commands() ->
        desc => mongoose_commands:desc(C)
       } || C <- mongoose_commands:list(admin)].
 
-get_recent_messages(Caller, Other, Limit) ->
+get_recent_messages(Caller, Other, 0, Limit) ->
     {MegaSecs, Secs, _} = now(),
     Future = (MegaSecs + 1) * 1000000 + Secs, % to make sure we return all messages
-    get_recent_messages(Caller, Other, Future, Limit).
-
+    get_recent_messages(Caller, Other, Future, Limit);
 get_recent_messages(Caller, Other, Before, Limit) ->
     Res = lookup_recent_messages(Caller, Other, Before, Limit),
     lists:map(fun record_to_map/1, Res).

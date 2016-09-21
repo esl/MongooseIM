@@ -31,7 +31,10 @@
 %%      result :: argspec()
 %% Type spec of return value of the function to call; execute/3 eventually returns {ok, result}
 %%      identifiers :: [atom()] (optional, required in 'update' commands)
-%%      queryparams :: [atom()] (optional; when called by REST those go to query string, not path)
+%%      optargs :: [{atom(), type(), term()] (optional args with type and default value.
+%% Then a command is called, it fills missing arguments with values from here.
+%% We have then two arities: arity of a command, which is only its required arguments,
+%% and arity of the function to be called, which is required args + optional args.
 %%
 %% You can ignore return value of the target func by specifying return value as {result, ok}. The
 %% execute/3 will then always return just 'ok' (or error).
@@ -116,10 +119,9 @@
           function :: atom(),                         %% function to call
           action :: action(),                         %% so that the HTTP side can decide which verb to require
           args = [] :: [argspec()],                   %% this is both for introspection and type check on call
-          optargs = [] :: [{atom(), typedef(), term()}],%% arg which has a default value and is optional
+          optargs = [] :: [optargspec()],             %% arg which has a default value and is optional
           caller_pos :: integer(),                    %% internal use
           identifiers = [] :: [atom()],               %% resource identifiers, a subset of args
-          queryparams = [] :: [atom()],               %% query parameters, a subset of args
           security_policy = [admin] :: security(),    %% permissions required to run this command
           result :: argspec()|ok                      %% what the called func should return; if ok then return of called
                                                       %% function is ignored
@@ -136,6 +138,8 @@
                   | {argspec()} % a tuple of a few args (can be of any size)
                   | [typedef()]. % a list, but one element
 
+-type optargspec() :: {atom(), typedef(), term()}. % name, type, default value
+
 -type security() :: [admin | user]. %% later acl option will be added
 
 -type errortype() :: denied | not_implemented | type_error | internal. %% we should agree on a set of atoms so that the
@@ -145,6 +149,7 @@
 
 -export_type([t/0]).
 -export_type([argspec/0]).
+-export_type([optargspec/0]).
 -export_type([errortype/0]).
 -export_type([failure/0]).
 
@@ -171,10 +176,10 @@
          subcategory/1,
          desc/1,
          args/1,
+         optargs/1,
          arity/1,
          func_arity/1,
          identifiers/1,
-         queryparams/1,
          action/1,
          result/1
     ]).
@@ -187,7 +192,6 @@ new(Props) ->
     RLst = lists:reverse(Lst),
     Cmd = list_to_tuple([mongoose_command|RLst]),
     check_identifiers(Cmd#mongoose_command.action, Cmd#mongoose_command.identifiers, Cmd#mongoose_command.args),
-    check_queryparams(Cmd#mongoose_command.action, Cmd#mongoose_command.queryparams, Cmd#mongoose_command.args),
     % store position of caller in args (if present)
     Cmd#mongoose_command{caller_pos = locate_caller(Cmd#mongoose_command.args)}.
 
@@ -260,13 +264,13 @@ desc(Cmd) ->
 args(Cmd) ->
     Cmd#mongoose_command.args.
 
+-spec optargs(t()) -> term().
+optargs(Cmd) ->
+    Cmd#mongoose_command.optargs.
+
 -spec identifiers(t()) -> [atom()].
 identifiers(Cmd) ->
     Cmd#mongoose_command.identifiers.
-
--spec queryparams(t()) -> [atom()].
-queryparams(Cmd) ->
-    Cmd#mongoose_command.queryparams.
 
 -spec action(t()) -> action().
 action(Cmd) ->
@@ -346,7 +350,7 @@ add_defaults(Args, Opts) when is_map(Args) ->
 
 % @doc This performs many checks - types, permissions etc, may throw one of many exceptions
 %% returns what the func returned or just ok if command spec tells so
--spec check_and_execute(caller(), t(), [term()]) -> term().
+-spec check_and_execute(caller(), t(), [term()]|map()) -> term().
 check_and_execute(Caller, Command, Args) when is_map(Args) ->
     Args1 = add_defaults(Args, Command#mongoose_command.optargs),
     ArgList = maps_to_list(Args1, Command#mongoose_command.args, Command#mongoose_command.optargs),
@@ -451,15 +455,6 @@ check_identifiers([H|T], Args) ->
         _ -> check_identifiers(T, Args)
     end.
 
-%% queryparams must be a subset of args
-check_queryparams(_, [], _) ->
-    ok;
-check_queryparams(Action, [H|T], Args) ->
-    case proplists:get_value(H, Args) of
-        undefined -> baddef(H, missing);
-        _ -> check_queryparams(Action, T, Args)
-    end.
-
 check_command(Cmd, _PL, []) ->
     Cmd;
 check_command(Cmd, PL, [N|Tail]) ->
@@ -511,10 +506,6 @@ check_value(result, V) ->
 check_value(identifiers, undefined) ->
     [];
 check_value(identifiers, V) ->
-    V;
-check_value(queryparams, undefined) ->
-    [];
-check_value(queryparams, V) ->
     V;
 check_value(optargs, undefined) ->
     [];

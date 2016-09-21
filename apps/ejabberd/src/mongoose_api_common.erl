@@ -106,19 +106,19 @@ process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity =
     when ((Method == <<"GET">>) or (Method == <<"DELETE">>)) ->
     {QVals, _} = cowboy_req:qs_vals(Req),
     QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
-    BindsReversed = Binds ++ QV ++ maybe_add_caller(Entity),
-    handle_request(Method, Command, BindsReversed, Req, State).
+    BindsAndVars = Binds ++ QV ++ maybe_add_caller(Entity),
+    handle_request(Method, Command, BindsAndVars, Req, State).
 
 -spec handle_request(method(), mongoose_commands:t(), args_applied(), term(), #http_api_state{}) ->
     {any(), any(), #http_api_state{}}.
 handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = State) ->
-    ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command), Args),
+    ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command), mongoose_commands:optargs(Command), Args),
     Result = execute_command(ConvertedArgs, Command, Entity),
     handle_result(Method, Result, Req, State).
 
 -type correct_result() :: ok | {ok, any()}.
 -type error_result() ::  mongoose_commands:failure() |
-                         {error, bad_request}.
+                         {error, bad_request, any()}.
 -type expected_result() :: correct_result() | error_result().
 
 -spec handle_result(Method, Result, Req, State) -> Return when
@@ -166,62 +166,36 @@ parse_request_body(Req) ->
             {error, Err}
     end.
 
-
 %% @doc Checks if the arguments are correct. Return the arguments that can be applied to the execution of command.
--spec check_and_extract_args(arg_spec_list(), args_applied()) -> arg_values() | {error, atom(), any()}.
-check_and_extract_args(CommandsArgList, RequestArgList) ->
+-spec check_and_extract_args(arg_spec_list(), optarg_spec_list(), args_applied()) -> map() | {error, atom(), any()}.
+check_and_extract_args(ReqArgs, OptArgs, RequestArgList) ->
     try
-        Res1 = check_args_length({CommandsArgList, RequestArgList}),
-        compare_names_extract_args(Res1)
+        AllArgs = ReqArgs ++ [{N, T} || {N, T, _} <- OptArgs],
+        AllArgVals = [{N, T, proplists:get_value(N, RequestArgList)} || {N, T} <- AllArgs],
+        ConvArgs = [{N, convert_arg(T, V)} || {N, T, V} <- AllArgVals, V =/= undefined],
+        maps:from_list(ConvArgs)
     catch
-        throw:Err ->
-            Err
+        _:R ->
+            {error, bad_request, R}
     end.
 
--spec check_args_length({arg_spec_list(), args_applied()}) -> {arg_spec_list(), args_applied()}.
-
-check_args_length({CommandsArgList, RequestArgList} = Acc) ->
-    if
-        length(CommandsArgList) =/= length(RequestArgList) ->
-            throw({error, bad_request, ?ARGS_LEN_ERROR});
-        true ->
-            Acc
-    end.
-
--spec compare_names_extract_args({arg_spec_list(), args_applied()}) -> arg_values().
-compare_names_extract_args({CommandsArgList, RequestArgProplist}) ->
-    Keys = lists:sort([K || {K, _V} <- RequestArgProplist]),
-    ExpectedKeys = lists:sort([Key || {Key, _Type} <- CommandsArgList]),
-    ZippedKeys = lists:zip(Keys, ExpectedKeys),
-    case lists:member(false, [ReqKey =:= ExpKey || {ReqKey, ExpKey} <- ZippedKeys]) of
-        true ->
-            throw({error, bad_request, ?ARGS_SPEC_ERROR});
-        _ ->
-            do_extract_args(CommandsArgList, RequestArgProplist)
-    end.
-
--spec do_extract_args(arg_spec_list(), args_applied()) -> arg_values().
-do_extract_args(CommandsArgList, RequestArgList) ->
-    [element(2, lists:keyfind(Key, 1, RequestArgList)) || {Key, _Type} <- CommandsArgList].
 
 -spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()},
                       mongoose_commands:t(), admin | binary()) ->
                       correct_result() | error_result().
 execute_command({error, _Type, _Reason} = Err, _, _) ->
     Err;
-execute_command(Args, Command, Entity) ->
+execute_command(ArgMap, Command, Entity) ->
     try
-        do_execute_command(Args, Command, Entity)
+        do_execute_command(ArgMap, Command, Entity)
     catch
         _:R ->
             {error, bad_request, R}
     end.
 
--spec do_execute_command(arg_values(), mongoose_commands:t(), admin|binary()) -> ok | {ok, any()}.
-do_execute_command(Args, Command, Entity) ->
-    Types = [Type || {_Name, Type} <- mongoose_commands:args(Command)],
-    ConvertedArgs = [convert_arg(Type, Arg) || {Type, Arg} <- lists:zip(Types, Args)],
-    mongoose_commands:execute(Entity, mongoose_commands:name(Command), ConvertedArgs).
+-spec do_execute_command(map(), mongoose_commands:t(), admin|binary()) -> ok | {ok, any()}.
+do_execute_command(ArgMap, Command, Entity) ->
+    mongoose_commands:execute(Entity, mongoose_commands:name(Command), ArgMap).
 
 -spec maybe_add_caller(admin | binary) -> list() | list({caller, binary()}).
 maybe_add_caller(admin) ->
@@ -275,10 +249,7 @@ get_allowed_methods(Entity) ->
 -spec maybe_add_bindings(mongoose_commands:t(), admin|user) -> iolist().
 maybe_add_bindings(Command, Entity) ->
     Action = mongoose_commands:action(Command),
-    QueryParams = mongoose_commands:queryparams(Command),
-    Args0 = mongoose_commands:args(Command),
-    Args = [El || {Key, _Value} = El <- Args0, true =/= proplists:is_defined(Key, QueryParams)],
-    % we don't add bindings for params defined as 'queryparams'
+    Args = mongoose_commands:args(Command),
     BindAndBody = both_bind_and_body(Action),
     case BindAndBody of
         true ->

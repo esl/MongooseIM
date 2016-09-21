@@ -177,14 +177,21 @@ messages_are_archived(Config) ->
                                  "/",binary_to_list(BobJID),"?limit=10"]),
         mam_helper:maybe_wait_for_yz(Config),
         {?OK, Msgs} = gett(GetPath),
-        ?PRT("Msgs", Msgs),
         [Last, Previous|_] = lists:reverse(decode_maplist(Msgs)),
-        ?PRT("Last", Last),
-        ?PRT("Previous", Previous),
         <<"hello from Alice">> = maps:get(body, Last),
         AliceJID = maps:get(sender, Last),
         <<"hello from Bob">> = maps:get(body, Previous),
-        BobJID = maps:get(sender, Previous)
+        BobJID = maps:get(sender, Previous),
+        % now if we leave limit out we should get the same result
+        GetPath1 = lists:flatten(["/messages/",binary_to_list(AliceJID),
+            "/",binary_to_list(BobJID)]),
+        mam_helper:maybe_wait_for_yz(Config),
+        {?OK, Msgs1} = gett(GetPath1),
+        [Last1, Previous1|_] = lists:reverse(decode_maplist(Msgs1)),
+        <<"hello from Alice">> = maps:get(body, Last1),
+        AliceJID = maps:get(sender, Last1),
+        <<"hello from Bob">> = maps:get(body, Previous1),
+        BobJID = maps:get(sender, Previous1)
     end).
 
 messages_can_be_paginated(Config) ->
@@ -253,8 +260,8 @@ get_messages(Me, Other, Before, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Me),
                              "/", binary_to_list(Other),
-                             "/", integer_to_list(Before),
-                             "?limit=", integer_to_list(Count)]),
+                             "?before=", integer_to_list(Before),
+                             "&limit=", integer_to_list(Count)]),
     {?OK, Msgs} = gett(GetPath),
     Msgs.
 

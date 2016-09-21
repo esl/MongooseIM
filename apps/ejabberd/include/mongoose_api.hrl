@@ -17,5 +17,6 @@
 -type arg_name() :: atom().
 -type arg_value() :: binary() | string() | integer() | float().
 -type arg_spec_list() :: list(mongoose_commands:argspec()).
+-type optarg_spec_list() :: list(mongoose_commands:optargspec()).
 -type args_applied() :: list({arg_name(), arg_value()}).
 -type arg_values() :: list(arg_value()).
