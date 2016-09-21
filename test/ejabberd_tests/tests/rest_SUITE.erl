@@ -191,7 +191,16 @@ messages_are_archived(Config) ->
         <<"hello from Alice">> = maps:get(body, Last1),
         AliceJID = maps:get(sender, Last1),
         <<"hello from Bob">> = maps:get(body, Previous1),
-        BobJID = maps:get(sender, Previous1)
+        BobJID = maps:get(sender, Previous1),
+        % and we can do the same without specifying contact
+        GetPath2 = lists:flatten(["/messages/",binary_to_list(AliceJID)]),
+        mam_helper:maybe_wait_for_yz(Config),
+        {?OK, Msgs2} = gett(GetPath2),
+        [Last2, Previous2|_] = lists:reverse(decode_maplist(Msgs2)),
+        <<"hello from Alice">> = maps:get(body, Last2),
+        AliceJID = maps:get(sender, Last2),
+        <<"hello from Bob">> = maps:get(body, Previous2),
+        BobJID = maps:get(sender, Previous2)
     end).
 
 messages_can_be_paginated(Config) ->

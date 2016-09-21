@@ -12,6 +12,7 @@
          change_user_password/3,
          list_sessions/1,
          kick_session/3,
+         get_recent_messages/3,
          get_recent_messages/4,
          send_message/3
         ]).
@@ -106,6 +107,18 @@ commands() ->
       {result, ok}
      ],
      [
+     {name, get_last_messages_with_everybody},
+     {category, <<"messages">>},
+     {desc, <<"Get n last messages with given contact, optionally before a certain date (unixtime)">>},
+     {module, ?MODULE},
+     {function, get_recent_messages},
+     {action, read},
+     {security_policy, [user]},
+     {args, [{caller, binary}]},
+     {optargs, [{before, integer, 0}, {limit, integer, 100}]},
+     {result, []}
+     ],
+     [
       {name, get_last_messages},
       {category, <<"messages">>},
       {desc, <<"Get n last messages with given contact, optionally before a certain date (unixtime)">>},
@@ -183,6 +196,10 @@ registered_commands() ->
        action => mongoose_commands:action(C),
        desc => mongoose_commands:desc(C)
       } || C <- mongoose_commands:list(admin)].
+
+
+get_recent_messages(Caller, Before, Limit) ->
+    get_recent_messages(Caller, undefined, Before, Limit).
 
 get_recent_messages(Caller, Other, 0, Limit) ->
     {MegaSecs, Secs, _} = now(),
