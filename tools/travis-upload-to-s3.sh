@@ -3,9 +3,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-CT_REPORTS=${TRAVIS_JOB_NUMBER:-ct_reports}
-# Replace . with / to create better dir structure
-CT_REPORTS=${CT_REPORTS/\./\/}
+BUILD_NO=${TRAVIS_BUILD_NUMBER:-ct_reports}
+PRESET_NAME=${PRESET:-default}
+CT_REPORTS="${BUILD_NO}/${PRESET_NAME}"
 BRANCH=${TRAVIS_BRANCH:-master}
 PR=${TRAVIS_PULL_REQUEST:-false}
 
@@ -41,7 +41,8 @@ EOL
 
 for dev_node_path in dev/mongooseim_*; do
 	dev_node=$(basename ${dev_node_path})
-	LOG_DIR=${CT_REPORTS}/big/${dev_node}/log
+	now=`date +'%Y-%m-%d_%H.%M.%S'`
+	LOG_DIR=${CT_REPORTS}/big/${dev_node}/${now}/log
 	mkdir -p ${LOG_DIR}
 	cp ${dev_node_path}/log/* ${LOG_DIR}
 done
