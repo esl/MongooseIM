@@ -310,7 +310,8 @@ handle_http_auth(Req) ->
                       _ -> {121, <<"Password expired">>}
                   end,
     Resp = jiffy:encode(#{code => Code, msg => Msg}),
-    {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}], Resp, Req1),
+    Headers = [{<<"content-type">>, <<"application/json">>}],
+    {ok, Req2} = cowboy_req:reply(200, Headers, Resp, Req1),
     Req2.
 
 end_per_group(admin_membersonly, Config) ->
@@ -3705,9 +3706,12 @@ enter_http_password_protected_room(Config1) ->
     AliceSpec = given_fresh_spec(Config1, alice),
     Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
-        escalus:send(Bob, stanza_muc_enter_password_protected_room(?config(room, Config), escalus_utils:get_username(Bob), ?PASSWORD)),
+        Room = ?config(room, Config),
+        Username = escalus_utils:get_username(Bob),
+        Stanza = stanza_muc_enter_password_protected_room(Room, Username,
+                                                          ?PASSWORD),
+        escalus:send(Bob, Stanza),
         Presence = escalus:wait_for_stanza(Bob),
-        ct:pal("Stanza ~p", [Presence]),
         is_self_presence(Bob, ?config(room, Config), Presence)
     end),
     destroy_room(Config).
