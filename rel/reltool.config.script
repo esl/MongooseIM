@@ -1,8 +1,38 @@
-{ok, Path} = file:get_cwd(),
-EnvApps = os:getenv("APPS"),
-EnvApps =/= false orelse error("APPS not defined"),
-EnvAppsToInclude = [ list_to_atom(App)
-                     || App <- string:tokens(EnvApps, " \n\r") ],
+MaybeReadFromConfig =
+fun ({ok, Content}) ->
+        Parts = binary:split(Content, <<"\n">>, [global]),
+	%% find only this line which starts with "export APPS="
+	[Apps] = [Item || <<"export APPS=\"",Item/binary>> <- Parts],
+	%% remove trailing " and conver to string
+	binary_to_list(binary:part(Apps, 0, size(Apps) - 1));
+    (_) ->
+        io:format("WARNING! The configure.out file was not created, using minimal configuration~n"),
+	""
+end,
+
+ReadFromConfig = fun(Path) ->
+    case filelib:is_file(Path) of
+        true ->
+	    MaybeReadFromConfig(file:read_file(Path));
+        _ ->
+	    Script = filename:join(["..", "tools", "configure"]),
+	    os:cmd(Script ++ " with-all"),
+	    MaybeReadFromConfig(file:read_file("configure.out"))
+  end
+end,
+
+GetEnvApps = fun() ->
+    case os:getenv("APPS") of
+        false ->
+	  ConfigurePath = filename:join("..", "configure.out"),
+	  ReadFromConfig(ConfigurePath);
+	EnvApps ->
+	   EnvApps
+    end
+end,
+
+EnvApps = GetEnvApps(),
+EnvAppsToInclude = [ list_to_atom(App) || App <- string:tokens(EnvApps, " \n\r") ],
 AppsToRun = [compiler,
              lager,
              syslog,
