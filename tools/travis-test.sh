@@ -3,7 +3,14 @@
 PRESET=$1
 
 source tools/travis-common-vars.sh
+source tools/travis-helpers.sh
 
+if [ $TRAVIS_SECURE_ENV_VARS == 'true' ]; then
+  CT_REPORTS=$(ct_reports_dir)
+
+  echo "Test results will be uploaded to:"
+  echo $(s3_url ${CT_REPORTS})
+fi
 # Print ct_progress_hook output
 echo "" > /tmp/progress
 tail -f /tmp/progress &
