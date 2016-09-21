@@ -199,7 +199,7 @@ multiparty_multiprotocol(Config) ->
     RoomPath = <<MUCPath/binary, $/, Room/binary>>,
     RoomInvitePath = <<MUCPath/binary, $/, Room/binary, "/participants">>,
     Reason = <<"I think you'll like this room!">>,
-    MessagePath = <<"/mucs",$/,Host/binary,$/,Room/binary,$/,"messages">>,
+    MessagePath = <<"/mucs", $/, Host/binary, $/, Room/binary, $/, "messages">>,
     Message = <<"Greetings!">>,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, Kate) ->

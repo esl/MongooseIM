@@ -173,8 +173,10 @@ messages_are_archived(Config) ->
         {M1, _M2} = send_messages(Alice, Bob),
         AliceJID = maps:get(to, M1),
         BobJID = maps:get(caller, M1),
-        GetPath = lists:flatten(["/messages/",binary_to_list(AliceJID),
-                                 "/",binary_to_list(BobJID),"?limit=10"]),
+        GetPath = lists:flatten(["/messages",
+                                 "/", binary_to_list(AliceJID),
+                                 "/", binary_to_list(BobJID),
+                                 "?limit=10"]),
         mam_helper:maybe_wait_for_yz(Config),
         {?OK, Msgs} = gett(GetPath),
         [Last, Previous|_] = lists:reverse(decode_maplist(Msgs)),
@@ -183,8 +185,9 @@ messages_are_archived(Config) ->
         <<"hello from Bob">> = maps:get(body, Previous),
         BobJID = maps:get(sender, Previous),
         % now if we leave limit out we should get the same result
-        GetPath1 = lists:flatten(["/messages/",binary_to_list(AliceJID),
-            "/",binary_to_list(BobJID)]),
+        GetPath1 = lists:flatten(["/messages",
+                                  "/", binary_to_list(AliceJID),
+                                  "/", binary_to_list(BobJID)]),
         mam_helper:maybe_wait_for_yz(Config),
         {?OK, Msgs1} = gett(GetPath1),
         [Last1, Previous1|_] = lists:reverse(decode_maplist(Msgs1)),
@@ -193,7 +196,7 @@ messages_are_archived(Config) ->
         <<"hello from Bob">> = maps:get(body, Previous1),
         BobJID = maps:get(sender, Previous1),
         % and we can do the same without specifying contact
-        GetPath2 = lists:flatten(["/messages/",binary_to_list(AliceJID)]),
+        GetPath2 = lists:flatten(["/messages/", binary_to_list(AliceJID)]),
         mam_helper:maybe_wait_for_yz(Config),
         {?OK, Msgs2} = gett(GetPath2),
         [Last2, Previous2|_] = lists:reverse(decode_maplist(Msgs2)),
@@ -234,7 +237,8 @@ password_can_be_changed(Config) ->
         skip
     end),
     % we change password
-    {?NOCONTENT, _} = putt("/users/localhost/bob", #{newpass => <<"niemakrolika">>}),
+    {?NOCONTENT, _} = putt("/users/localhost/bob",
+                           #{newpass => <<"niemakrolika">>}),
     % he logs with his alternative password
     escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
         ignore
@@ -246,7 +250,8 @@ password_can_be_changed(Config) ->
         ok
     end,
     % we change it back
-    {?NOCONTENT, _} = putt("/users/localhost/bob", #{newpass => <<"makrolika">>}),
+    {?NOCONTENT, _} = putt("/users/localhost/bob",
+                           #{newpass => <<"makrolika">>}),
     % now he logs again with the regular one
     escalus:story(Config, [{bob, 1}], fun(_Bob) ->
         just_dont_do_anything

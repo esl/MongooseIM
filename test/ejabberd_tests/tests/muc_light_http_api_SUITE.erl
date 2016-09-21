@@ -96,13 +96,13 @@ create_room(Config) ->
 invite_to_room(Config) ->
     Domain = <<"localhost">>,
     Name = <<"wonderland">>,
-    Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary, $/, "participants">>,
+    Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary, $/,
+             "participants">>,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
       fun(Alice, Bob, Kate) ->
         %% XMPP: Alice creates a room.
         Stt = stanza_create_room(undefined,
             [{<<"roomname">>, Name}], [{Kate, member}]),
-          ct:pal("Stt: ~p", [Stt]),
         escalus:send(Alice, Stt),
         %% XMPP: Alice recieves a affiliation message to herself and
         %% an IQ result when creating the MUC Light room.
@@ -196,8 +196,9 @@ stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
         children = [#xmlcdata{ content = BinJID }] }
         || {BinJID, BinAff} <- bin_aff_users(InitOccupants) ],
     OccupantsItem = #xmlel{ name = <<"occupants">>, children = OccupantsItems },
-    escalus_stanza:to(escalus_stanza:iq_set(
-        <<"urn:xmpp:muclight:0#create">>, [ConfigItem, OccupantsItem]), ToBinJID).
+    escalus_stanza:to(escalus_stanza:iq_set(<<"urn:xmpp:muclight:0#create">>,
+                                            [ConfigItem, OccupantsItem]),
+                      ToBinJID).
 
 kv_el(K, V) ->
     #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
