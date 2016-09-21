@@ -309,8 +309,7 @@ handle_http_auth(Req) ->
                       ?PASSWORD -> {0, <<"OK">>};
                       _ -> {121, <<"Password expired">>}
                   end,
-    Resp = iolist_to_binary(mochijson2:encode({struct, [{<<"code">>, Code},
-                                                        {<<"msg">>, Msg}]})),
+    Resp = jiffy:encode(#{code => Code, msg => Msg}),
     {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}], Resp, Req1),
     Req2.
 
@@ -3708,6 +3707,7 @@ enter_http_password_protected_room(Config1) ->
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_password_protected_room(?config(room, Config), escalus_utils:get_username(Bob), ?PASSWORD)),
         Presence = escalus:wait_for_stanza(Bob),
+        ct:pal("Stanza ~p", [Presence]),
         is_self_presence(Bob, ?config(room, Config), Presence)
     end),
     destroy_room(Config).
