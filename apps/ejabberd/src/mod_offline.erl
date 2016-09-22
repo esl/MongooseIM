@@ -37,12 +37,13 @@
 -export([start/2, stop/1]).
 
 %% Hook handlers
--export([inspect_packet/3,
+-export([inspect_packet/4,
          pop_offline_messages/3,
          get_sm_features/5,
          remove_expired_messages/1,
          remove_old_messages/2,
          remove_user/2,
+         remove_user/3,
          determine_amp_strategy/5,
          amp_failed_event/2]).
 
@@ -349,13 +350,14 @@ add_feature(_, Feature) ->
 %% This function should be called only from hook
 %% Calling it directly is dangerous and my store unwanted message
 %% in the offline storage (f.e. messages of type error or groupchat)
-inspect_packet(From, To, Packet) ->
+%% #rh
+inspect_packet(Acc, From, To, Packet) ->
     case check_event_chatstates(From, To, Packet) of
         true ->
             store_packet(From, To, Packet),
-            stop;
+            {stop, Acc};
         false ->
-            ok
+            Acc
     end.
 
 store_packet(
@@ -532,6 +534,11 @@ remove_expired_messages(Host) ->
 remove_old_messages(Host, Days) ->
     Timestamp = fallback_timestamp(Days, os:timestamp()),
     ?BACKEND:remove_old_messages(Host, Timestamp).
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     ?BACKEND:remove_user(User, Server).
