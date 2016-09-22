@@ -16,6 +16,6 @@ ct_reports_dir() {
 
 s3_url() {
   local CT_REPORTS=${1:-}
-  echo "http://mongooseim-ct-results.s3-website-eu-west-1.amazonaws.com/${CT_REPORTS}/index.html"
+  echo "http://esl.github.io/mongooseim-ct-reports/s3_reports.html?prefix=${CT_REPORTS}"
 }
 
