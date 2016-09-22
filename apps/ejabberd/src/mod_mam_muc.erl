@@ -47,7 +47,8 @@
 %% ejabberd room handlers
 -export([filter_room_packet/2,
          room_process_mam_iq/3,
-         forget_room/2]).
+         forget_room/2,
+         forget_room/3]).
 
 %% private
 -export([archive_message/8]).
@@ -314,6 +315,13 @@ room_process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
         false -> return_action_not_allowed_error_iq(IQ)
     end.
 
+
+%% #rh
+%% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
+-spec forget_room(map(), ejabberd:lserver(), binary()) -> map().
+forget_room(Acc, LServer, RoomName) ->
+    forget_room(LServer, RoomName),
+    Acc.
 
 %% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
 -spec forget_room(ejabberd:lserver(), binary()) -> 'ok'.

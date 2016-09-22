@@ -163,7 +163,7 @@ registered_users(Host) ->
 
 register(Host, User, Password) ->
     case ejabberd_auth:try_register(User, Host, Password) of
-        ok ->
+        #{} ->
             list_to_binary(io_lib:format("User ~s@~s successfully registered", [User, Host]));
         {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
