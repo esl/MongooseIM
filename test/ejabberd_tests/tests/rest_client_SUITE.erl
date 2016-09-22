@@ -148,7 +148,6 @@ owner_can_leave_a_room_and_auto_select_owner(Config) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         {{<<"204">>, _}, _} = remove_user_from_a_room({alice, Alice}, RoomID, Alice),
         Stanza = escalus:wait_for_stanza(Bob),
-        ct:pal("~p", [Stanza]),
         assert_aff_change_stanza(Stanza, Alice, <<"none">>),
         assert_aff_change_stanza(Stanza, Bob, <<"owner">>)
     end).
