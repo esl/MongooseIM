@@ -15,7 +15,7 @@
 
 %% ejabberd handlers
 -export([archive_id/3,
-         remove_archive/3]).
+         remove_archive/4]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -124,9 +124,10 @@ archive_id(undefined, Host, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
 archive_id(ArcID, _Host, _ArcJID) ->
     ArcID.
 
--spec remove_archive(Host :: ejabberd:server(),
-    ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid()) -> 'ok'.
-remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
+-spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
+                     ArchiveID :: mod_mam:archive_id(),
+                     ArchiveJID :: ejabberd:jid()) -> map().
+remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
     SUserName = ejabberd_odbc:escape(UserName),
     SServer   = ejabberd_odbc:escape(Server),
     {updated, _} =
@@ -134,7 +135,7 @@ remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) -
       Host,
       ["DELETE FROM mam_server_user "
        "WHERE server = '", SServer, "' AND user_name = '", SUserName, "'"]),
-    ok.
+    Acc.
 
 %%====================================================================
 %% Internal functions

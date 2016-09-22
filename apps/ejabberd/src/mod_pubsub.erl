@@ -63,9 +63,9 @@
 -define(PEPNODE, <<"pep">>).
 
 %% exports for hooks
--export([presence_probe/3, caps_change/4, caps_change/5,
-         in_subscription/6, out_subscription/4,
-         on_user_offline/4, remove_user/2, remove_user/3,
+-export([presence_probe/4, caps_change/4, caps_change/5,
+         in_subscription/7, out_subscription/5,
+         on_user_offline/5, remove_user/2, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_local_items/5, disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5]).
@@ -680,10 +680,12 @@ caps_change(#jid{luser = _U, lserver = S, lresource = _R} = FromJID, ToJID, Pid,
         false -> ok
     end.
 
-presence_probe(#jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
-    notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID});
-presence_probe(_Host, _JID, _Pid) ->
-    ok.
+%% #rh
+presence_probe(Acc, #jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
+    notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID}),
+    Acc;
+presence_probe(Acc, _Host, _JID, _Pid) ->
+    Acc.
 
 notify_send_loop(ServerHost, Action) ->
     {SendLoop, _} = case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
@@ -696,7 +698,7 @@ notify_send_loop(ServerHost, Action) ->
 %% subscription hooks handling functions
 %%
 
-out_subscription(User, Server, JID, subscribed) ->
+out_subscription(Acc, User, Server, JID, subscribed) ->
     Owner = jid:make(User, Server, <<>>),
     {PUser, PServer, PResource} = jid:to_lower(JID),
     PResources = case PResource of
@@ -704,15 +706,15 @@ out_subscription(User, Server, JID, subscribed) ->
                      _ -> [PResource]
                  end,
     notify_send_loop(Server, {send_last_items_from_owner, Owner, {PUser, PServer, PResources}}),
-    true;
-out_subscription(_, _, _, _) ->
-    true.
+    Acc;
+out_subscription(Acc, _, _, _, _) ->
+    Acc.
 
-in_subscription(_, User, Server, Owner, unsubscribed, _) ->
+in_subscription(Acc, _, User, Server, Owner, unsubscribed, _) ->
     unsubscribe_user(jid:make(User, Server, <<>>), Owner),
-    true;
-in_subscription(_, _, _, _, _, _) ->
-    true.
+    Acc;
+in_subscription(Acc, _, _, _, _, _, _) ->
+    Acc.
 
 unsubscribe_user(Entity, Owner) ->
     spawn(fun () ->
@@ -3902,10 +3904,10 @@ tree(Host) ->
 
 tree(_Host, <<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend
-tree(Host, Name) ->
+tree(_Host, Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
-plugin(Host, Name) ->
+plugin(_Host, Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 plugins(Host) ->
@@ -3915,7 +3917,7 @@ plugins(Host) ->
         Plugins -> Plugins
     end.
 
-subscription_plugin(Host) ->
+subscription_plugin(_Host) ->
     pubsub_subscription.
 
 config(ServerHost, Key) ->
@@ -4165,12 +4167,13 @@ extended_headers(Jids) ->
             attrs = [{<<"type">>, <<"replyto">>}, {<<"jid">>, Jid}]}
      || Jid <- Jids].
 
-on_user_offline(_, JID, _, _) ->
+on_user_offline(Acc, _, JID, _, _) ->
     {User, Server, Resource} = jid:to_lower(JID),
     case user_resources(User, Server) of
         [] -> purge_offline({User, Server, Resource});
         _ -> true
-    end.
+    end,
+    Acc.
 
 purge_offline(LJID) ->
     Host = host(element(2, LJID)),

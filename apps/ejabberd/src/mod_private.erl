@@ -92,8 +92,10 @@ stop(Host) ->
 
 %% #rh
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
-    Acc.
+    case remove_user(User, Server) of
+        ok -> Acc;
+        E -> E
+    end.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

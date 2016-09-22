@@ -51,7 +51,7 @@
 
 %% Hooks callbacks
 
--export([node_cleanup/1]).
+-export([node_cleanup/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -255,7 +255,7 @@ unregister_host(Host) ->
 %% API
 %%====================================================================
 
-node_cleanup(Node) ->
+node_cleanup(Acc, Node) ->
     F = fun() ->
                 Keys = mnesia:select(
                          iq_response,
@@ -266,7 +266,8 @@ node_cleanup(Node) ->
                                       mnesia:delete({iq_response, Key})
                               end, Keys)
         end,
-    mnesia:async_dirty(F).
+    Res = mnesia:async_dirty(F),
+    maps:put(cleanup_result, Res, Acc).
 
 %%====================================================================
 %% gen_server callbacks
