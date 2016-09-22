@@ -208,21 +208,20 @@ is_subdomain(Child, Parent) ->
         {_, _} -> true
     end.
 
-iq(S, R, T, C) when is_binary(S),
-                    is_binary(R), is_binary(T), is_list(C) ->
+iq(To, From, Type, Children) ->
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"from">>, S},
-                    {<<"to">>, R},
-                    {<<"type">>, T},
+           attrs = [{<<"from">>, From},
+                    {<<"to">>, To},
+                    {<<"type">>, Type},
                     {<<"id">>, UUID}],
-           children = C
+           children = Children
           }.
 
-query(NS, C) when is_binary(NS), is_list(C) ->
+query(NS, Children) when is_binary(NS), is_list(Children) ->
     #xmlel{name = <<"query">>,
            attrs = [{<<"xmlns">>, NS}],
-           children = C
+           children = Children
           }.
 
 affiliate(JID, Kind) when is_binary(JID), is_binary(Kind) ->
