@@ -37,6 +37,7 @@
          get_user_list/3,
          check_packet/6,
          remove_user/2,
+         remove_user/3,
          updated_list/3]).
 
 -include("ejabberd.hrl").
@@ -122,7 +123,7 @@ start(Host, Opts) ->
                                                  remove_privacy_list, replace_privacy_list,
                                                  get_default_list]),
     ?BACKEND:init(Host, Opts),
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+%%    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(privacy_iq_get, Host,
                ?MODULE, process_iq_get, 50),
     ejabberd_hooks:add(privacy_iq_set, Host,
@@ -423,6 +424,12 @@ is_type_match(Type, Value, JID, Subscription, Groups) ->
             lists:member(Value, Groups)
     end.
 
+%% #rh
+remove_user(Acc, User, Server) ->
+    case remove_user(User, Server) of
+        ok -> Acc;
+        E -> E
+    end.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

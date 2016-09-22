@@ -35,9 +35,9 @@
          is_login_anonymous_enabled/1,
          anonymous_user_exist/2,
          allow_multiple_connections/1,
-         register_connection/3,
-         unregister_connection/4,
-         session_cleanup/4
+         register_connection/4,
+         unregister_connection/5,
+         session_cleanup/5
         ]).
 
 -behaviour(ejabberd_gen_auth).
@@ -175,10 +175,11 @@ remove_connection(SID, LUser, LServer) ->
 
 
 %% @doc Register connection
--spec register_connection(SID :: ejabberd_sm:sid(),
+-spec register_connection(Acc :: map(),
+                          SID :: ejabberd_sm:sid(),
                           JID :: ejabberd:jid(),
-                          Info :: list()) -> ok.
-register_connection(SID, #jid{luser = LUser, lserver = LServer}, Info) ->
+                          Info :: list()) -> map().
+register_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, Info) ->
     case lists:keyfind(auth_module, 1, Info) of
         {_, ?MODULE} ->
             ejabberd_hooks:run(register_user, LServer, [LUser, LServer]),
@@ -188,17 +189,20 @@ register_connection(SID, #jid{luser = LUser, lserver = LServer}, Info) ->
               end);
         _ ->
             ok
-    end.
+    end,
+    Acc.
 
 
 %% @doc Remove an anonymous user from the anonymous users table
--spec unregister_connection(SID :: ejabberd_sm:sid(),
+-spec unregister_connection(Acc :: map(),
+                            SID :: ejabberd_sm:sid(),
                             JID :: ejabberd:jid(),
                             any(), ejabberd_sm:close_reason()) -> {atomic|error|aborted, _}.
-unregister_connection(SID, #jid{luser = LUser, lserver = LServer}, _, _) ->
+unregister_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, _, _) ->
     purge_hook(anonymous_user_exist(LUser, LServer),
                LUser, LServer),
-    remove_connection(SID, LUser, LServer).
+    remove_connection(SID, LUser, LServer),
+    Acc.
 
 
 %% @doc Launch the hook to purge user data only for anonymous users
@@ -208,10 +212,13 @@ purge_hook(false, _LUser, _LServer) ->
 purge_hook(true, LUser, LServer) ->
     ejabberd_hooks:run(anonymous_purge_hook, LServer, [LUser, LServer]).
 
--spec session_cleanup(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
-                      LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
-session_cleanup(LUser, LServer, _LResource, SID) ->
-    remove_connection(SID, LUser, LServer).
+-spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(),
+                      LServer :: ejabberd:lserver(),
+                      LResource :: ejabberd:lresource(),
+                      SID :: ejabberd_sm:sid()) -> any().
+session_cleanup(Acc, LUser, LServer, _LResource, SID) ->
+    remove_connection(SID, LUser, LServer),
+    Acc.
 
 %% ---------------------------------
 %% Specific anonymous auth functions

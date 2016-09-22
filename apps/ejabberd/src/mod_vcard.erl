@@ -58,6 +58,7 @@
          process_sm_iq/3,
          get_local_features/5,
          remove_user/2,
+         remove_user/3,
          set_vcard/3]).
 
 -export([start_link/2]).
@@ -241,7 +242,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_local_iq(_From, _To, #iq{type = get, lang = Lang} = IQ) ->
+process_local_iq(_From,_To,#iq{type = get} = IQ) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, ?NS_VCARD}],
                            children = [#xmlel{name = <<"FN">>,
@@ -331,6 +332,11 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
         _ ->
             Acc
     end.
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

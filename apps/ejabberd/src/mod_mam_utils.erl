@@ -634,7 +634,7 @@ find_field([#xmlel{name = <<"field">>, attrs = Attrs}=Field|Fields], Name) ->
     end;
 find_field([_|Fields], Name) -> %% skip whitespaces
     find_field(Fields, Name);
-find_field([], Name) ->
+find_field([], _Name) ->
     undefined.
 
 -spec field_to_value(jlib:xmlel()) -> binary().
@@ -821,7 +821,7 @@ maybe_previous_id(X) ->
     TotalCount  :: non_neg_integer()|undefined,
     Offset      :: non_neg_integer()|undefined,
     MessageRows :: list().
-is_last_page(PageSize, TotalCount, Offset, MessageRows)
+is_last_page(PageSize, _TotalCount, _Offset, MessageRows)
     when length(MessageRows) < PageSize ->
     true;
 is_last_page(PageSize, TotalCount, Offset, MessageRows)

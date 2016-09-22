@@ -17,7 +17,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
-         remove_archive/3,
+         remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
@@ -255,10 +255,11 @@ archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
     Result.
 
 
--spec remove_archive(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> 'ok'.
-remove_archive(Host, ArcID, _ArcJID) ->
+%% #rh
+-spec remove_archive(map(), ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> map().
+remove_archive(Acc, Host, ArcID, _ArcJID) ->
     wait_flushing(Host, ArcID),
-    ok.
+    Acc.
 
 
 -spec purge_single_message(ejabberd_gen_mam_archive:purge_single_message_result(),
