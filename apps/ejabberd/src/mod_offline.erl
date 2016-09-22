@@ -43,6 +43,7 @@
          remove_expired_messages/1,
          remove_old_messages/2,
          remove_user/2,
+         remove_user/3,
          determine_amp_strategy/5,
          amp_failed_event/2]).
 
@@ -532,6 +533,11 @@ remove_expired_messages(Host) ->
 remove_old_messages(Host, Days) ->
     Timestamp = fallback_timestamp(Days, os:timestamp()),
     ?BACKEND:remove_old_messages(Host, Timestamp).
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     ?BACKEND:remove_user(User, Server).

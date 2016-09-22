@@ -51,6 +51,7 @@
          out_subscription/4,
          set_items/3,
          remove_user/2,
+         remove_user/3,
          get_jid_info/4,
          item_to_xml/1,
          get_versioning_feature/2,
@@ -754,6 +755,11 @@ in_auto_reply(from, none, unsubscribe) -> unsubscribed;
 in_auto_reply(from, out, unsubscribe) -> unsubscribed;
 in_auto_reply(both, none, unsubscribe) -> unsubscribed;
 in_auto_reply(_, _, _) -> none.
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

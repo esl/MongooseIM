@@ -48,6 +48,7 @@
 -export([process_mam_iq/3,
          user_send_packet/3,
          remove_user/2,
+         remove_user/3,
          filter_packet/1,
          determine_amp_strategy/5,
          sm_filter_offline_message/4]).
@@ -320,6 +321,13 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
+
+%% @doc A ejabberd's callback with diferent order of arguments.
+%% #rh
+-spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map().
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 %% @doc A ejabberd's callback with diferent order of arguments.
 -spec remove_user(ejabberd:user(), ejabberd:server()) -> 'ok'.

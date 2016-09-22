@@ -32,6 +32,7 @@
 -export([start/2,
          stop/1,
          process_sm_iq/3,
+         remove_user/3,
          remove_user/2]).
 
 -include("ejabberd.hrl").
@@ -87,6 +88,12 @@ stop(Host) ->
 
 %% ------------------------------------------------------------------
 %% Handlers
+
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

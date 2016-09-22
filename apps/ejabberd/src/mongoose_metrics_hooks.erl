@@ -42,8 +42,11 @@
          mam_archive_message/9,
          mam_flush_messages/2,
          mam_drop_message/1,
+         mam_drop_message/2,
          mam_drop_iq/5,
+         mam_drop_iq/6,
          mam_drop_messages/2,
+         mam_drop_messages/3,
          mam_purge_single_message/6,
          mam_purge_multiple_messages/9,
          mam_muc_get_prefs/4,
@@ -331,14 +334,27 @@ mam_archive_message(Result, Host,
 mam_flush_messages(Host, MessageCount) ->
     mongoose_metrics:update(Host, modMamFlushed, MessageCount).
 
+mam_drop_message(Acc, Host) ->
+    mam_drop_message(Host),
+    Acc.
+
 -spec mam_drop_message(Host :: ejabberd:server()) -> metrics_notify_return().
 mam_drop_message(Host) ->
     mongoose_metrics:update(Host, modMamDropped, 1).
+
+%% #rh
+mam_drop_iq(Acc, Host, To, IQ, Action, Reason) ->
+    mam_drop_iq(Host, To, IQ, Action, Reason),
+    Acc.
 
 -spec mam_drop_iq(Host :: ejabberd:server(), _To :: ejabberd:jid(),
     _IQ :: ejabberd:iq(), _Action :: any(), _Reason :: any()) -> metrics_notify_return().
 mam_drop_iq(Host, _To, _IQ, _Action, _Reason) ->
     mongoose_metrics:update(Host, modMamDroppedIQ, 1).
+
+mam_drop_messages(Acc, Host, Count) ->
+    mam_drop_messages(Host, Count),
+    Acc.
 
 -spec mam_drop_messages(Host :: ejabberd:server(),
                         Count :: integer()) -> metrics_notify_return().

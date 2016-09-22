@@ -41,6 +41,7 @@
          get_last_info/2,
          count_active_users/2,
          remove_user/2,
+         remove_user/3,
          session_cleanup/4
         ]).
 
@@ -240,6 +241,14 @@ get_last_info(LUser, LServer) ->
     case get_last(LUser, LServer) of
         {error, _Reason} -> not_found;
         Res -> Res
+    end.
+
+%% #rh
+-spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map() | {error, term()}.
+remove_user(Acc, User, Server) ->
+    case remove_user(User, Server) of
+        ok -> Acc;
+        E -> E
     end.
 
 -spec remove_user(ejabberd:user(), ejabberd:server()) -> ok | {error, term()}.

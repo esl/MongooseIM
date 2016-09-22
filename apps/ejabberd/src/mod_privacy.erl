@@ -37,6 +37,7 @@
          get_user_list/3,
          check_packet/6,
          remove_user/2,
+         remove_user/3,
          updated_list/3]).
 
 -include("ejabberd.hrl").
@@ -406,6 +407,10 @@ is_type_match(Type, Value, JID, Subscription, Groups) ->
             lists:member(Value, Groups)
     end.
 
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

@@ -58,6 +58,7 @@
          process_sm_iq/3,
          get_local_features/5,
          remove_user/2,
+         remove_user/3,
          set_vcard/3]).
 
 -export([start_link/2]).
@@ -326,6 +327,11 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
         _ ->
             Acc
     end.
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

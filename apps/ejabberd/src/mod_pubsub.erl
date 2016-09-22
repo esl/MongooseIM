@@ -63,9 +63,9 @@
 -define(PEPNODE, <<"pep">>).
 
 %% exports for hooks
--export([presence_probe/3, caps_change/4,
+-export([presence_probe/3, caps_change/4, caps_change/5,
          in_subscription/6, out_subscription/4,
-         on_user_offline/4, remove_user/2,
+         on_user_offline/4, remove_user/2, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_local_items/5, disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5]).
@@ -669,6 +669,11 @@ disco_items(Host, Node, From) ->
 %% presence hooks handling functions
 %%
 
+%% #rh
+caps_change(Acc, FromJID, ToJID, Pid, Features) ->
+    caps_change(FromJID, ToJID, Pid, Features),
+    Acc.
+
 caps_change(#jid{luser = _U, lserver = S, lresource = _R} = FromJID, ToJID, Pid, _Features) ->
     case jid:to_lower(FromJID) == jid:to_lower(ToJID) of
         true -> notify_send_loop(S, {send_last_pep_items, ToJID, Pid});
@@ -750,6 +755,11 @@ unsubscribe_user(Host, Entity, Owner) ->
 %% -------
 %% user remove hook handling function
 %%
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
