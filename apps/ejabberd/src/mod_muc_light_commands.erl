@@ -17,7 +17,7 @@
 %% Description: Administration commands for MUC Light
 %%==============================================================================
 
--module(mod_muc_light_admin).
+-module(mod_muc_light_commands).
 
 -behaviour(gen_mod).
 -export([start/2, stop/1]).

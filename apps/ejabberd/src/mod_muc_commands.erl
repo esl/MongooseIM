@@ -17,7 +17,7 @@
 %% Description: Administration commands for Mult-user Chat (MUC)
 %%==============================================================================
 
--module(mod_muc_admin).
+-module(mod_muc_commands).
 
 -behaviour(gen_mod).
 -export([start/2, stop/1]).

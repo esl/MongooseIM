@@ -1,4 +1,4 @@
--module(mod_mongoose_admin).
+-module(mod_commands).
 -author('bartlomiej.gorny@erlang-solutions.com').
 
 -behaviour(gen_mod).

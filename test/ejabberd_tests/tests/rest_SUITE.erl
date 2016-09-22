@@ -265,7 +265,7 @@ password_can_be_changed(Config) ->
 get_messages(Me, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Me),
-                             "/",binary_to_list(Other),
+                             "/", binary_to_list(Other),
                              "?limit=", integer_to_list(Count)]),
     {?OK, Msgs} = gett(GetPath),
     Msgs.
@@ -287,9 +287,9 @@ stop_start_command_module(_) ->
     %% described above we test both transition from `started' to
     %% `stopped' and from `stopped' to `started'.
     {?OK, _} = gett(<<"/commands">>),
-    {atomic, ok} = dynamic_modules:stop(host(), mod_mongoose_admin),
+    {atomic, ok} = dynamic_modules:stop(host(), mod_commands),
     {?NOT_FOUND, _} = gett(<<"/commands">>),
-    ok = dynamic_modules:start(host(), mod_mongoose_admin, []),
+    ok = dynamic_modules:start(host(), mod_commands, []),
     timer:sleep(200), %% give the server some time to build the paths again
     {?OK, _} = gett(<<"/commands">>).
 

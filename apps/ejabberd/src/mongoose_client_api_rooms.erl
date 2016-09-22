@@ -92,7 +92,7 @@ from_json(Req, State) ->
 handle_request(<<"POST">>, JSONData, Req,
                #{user := User, jid := #jid{lserver = Server}} = State) ->
     #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
-    case mod_muc_light_admin:create_unique_room(Server, RoomName, User, Subject) of
+    case mod_muc_light_commands:create_unique_room(Server, RoomName, User, Subject) of
         {error, _} ->
             {false, Req, State};
         Room ->
