@@ -14,6 +14,9 @@ test_cases() ->
      messages_can_be_paginated,
      room_is_created,
      user_is_invited_to_a_room,
+     user_is_removed_from_a_room,
+     owner_can_leave_a_room_and_auto_select_owner,
+     user_can_leave_a_room,
      invitation_to_room_is_forbidden_for_non_memeber,
      msg_is_sent_and_delivered_in_room,
      messages_are_archived_in_room,
@@ -116,13 +119,45 @@ messages_can_be_paginated(Config) ->
 room_is_created(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         RoomID = given_new_room({alice, Alice}),
-        get_room_info({alice, Alice}, RoomID)
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_room_info(Alice, RoomInfo)
     end).
 
 user_is_invited_to_a_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
-        get_room_info({alice, Alice}, RoomID)
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        true = is_participant(Bob, <<"member">>, RoomInfo),
+        IQ = escalus_stanza:iq_get(<<"urn:xmpp:muclight:0#affiliations">>, []),
+        RoomJID = <<RoomID/binary, "@muclight.localhost">>,
+        escalus:send(Alice, escalus_stanza:to(IQ, RoomJID)),
+        escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Alice))
+
+    end).
+
+user_is_removed_from_a_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        {{<<"204">>, _}, _} = remove_user_from_a_room({alice, Alice}, RoomID, Bob),
+        Stanza = escalus:wait_for_stanza(Bob),
+        assert_aff_change_stanza(Stanza, Bob, <<"none">>)
+    end).
+
+owner_can_leave_a_room_and_auto_select_owner(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        {{<<"204">>, _}, _} = remove_user_from_a_room({alice, Alice}, RoomID, Alice),
+        Stanza = escalus:wait_for_stanza(Bob),
+        assert_aff_change_stanza(Stanza, Alice, <<"none">>),
+        assert_aff_change_stanza(Stanza, Bob, <<"owner">>)
+    end).
+
+user_can_leave_a_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        {{<<"204">>, _}, _} = remove_user_from_a_room({bob, Bob}, RoomID, Bob),
+        Stanza = escalus:wait_for_stanza(Bob),
+        assert_aff_change_stanza(Stanza, Bob, <<"none">>)
     end).
 
 invitation_to_room_is_forbidden_for_non_memeber(Config) ->
@@ -141,14 +176,12 @@ messages_are_archived_in_room(Config) ->
         {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
         mam_helper:maybe_wait_for_yz(Config),
         {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
-        ct:pal("~p", [Msgs]),
         [Aff, _Msg1, _Msg2] = MsgsRecv = rest_helper:decode_maplist(Result),
         %% The oldest message is aff change
         <<"affiliation">> = maps:get(type, Aff),
         <<"member">> = maps:get(affiliation, Aff),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        BobJID = maps:get(user, Aff),
-        ct:pal("~p", [MsgsRecv])
+        BobJID = maps:get(user, Aff)
     end).
 
 only_room_participant_can_read_messages(Config) ->
@@ -182,8 +215,6 @@ messages_can_be_paginated_in_room(Config) ->
     end).
 
 assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
-    ct:print("~p", [RecvMsg]),
-    ct:print("~p", [GenMsg]),
     escalus:assert(is_chat_message, [maps:get(body, RecvMsg)], GenMsg),
     ok.
 
@@ -191,7 +222,6 @@ get_room_info(User, RoomID) ->
     Creds = credentials(User),
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:gett(<<"/rooms/", RoomID/binary>>,
                                                          Creds),
-    ct:pal("~p", [Result]),
     Result.
 
 given_new_room_with_users_and_msgs(Owner, Users) ->
@@ -233,14 +263,20 @@ given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Invitee)),
     {{<<"204">>, <<"No Content">>}, _} = invite_to_room(Owner, RoomID, JID),
     Stanza = escalus:wait_for_stanza(Invitee),
-    ct:pal("Invitee ~p", [Stanza]),
+    assert_aff_change_stanza(Stanza, Invitee, <<"member">>),
     Stanza2 = escalus:wait_for_stanza(Inviter),
-    ct:pal("Inviter ~p", [Stanza2]).
+    assert_aff_change_stanza(Stanza2, Invitee, <<"member">>).
 
 invite_to_room(Inviter, RoomID, Invitee) ->
     Body = #{user => Invitee},
     Creds = credentials(Inviter),
-    rest_helper:putt(<<"/rooms/", RoomID/binary>>, Body, Creds).
+    rest_helper:post(<<"/rooms/", RoomID/binary, "/users">>, Body, Creds).
+
+remove_user_from_a_room(Inviter, RoomID, Invitee) ->
+    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Invitee)),
+    Creds = credentials(Inviter),
+    Path = <<"/rooms/", RoomID/binary, "/users/", JID/binary>>,
+    rest_helper:delete(Path, Creds).
 
 credentials({User, UserClient}) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(UserClient)),
@@ -297,7 +333,6 @@ create_room({_AliceJID, _} = Creds, RoomID, Subject) ->
 assert_messages([], []) ->
     ok;
 assert_messages([SentMsg | SentRest], [RecvMsg | RecvRest]) ->
-    ct:pal("sent msg: ~p~nrecv msg: ~p", [SentMsg, RecvMsg]),
     FromJID = maps:get(from, SentMsg),
     FromJID = maps:get(from, RecvMsg),
     MsgId = maps:get(id, SentMsg),
@@ -315,4 +350,33 @@ send_messages(Config, Alice, Bob, Kate) ->
     M3 = send_message(kate, Kate, Alice),
     mam_helper:maybe_wait_for_yz(Config),
     [M1, M2, M3].
+
+assert_aff_change_stanza(Stanza, Target, Change) ->
+    TargetJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Target)),
+    ID = exml_query:attr(Stanza, <<"id">>),
+    true = is_binary(ID) andalso ID /= <<>>,
+    Users = exml_query:paths(Stanza, [{element, <<"x">>}, {element, <<"user">>}]),
+    [User] = [User || User <- Users, TargetJID == exml_query:cdata(User)],
+    Change = exml_query:attr(User, <<"affiliation">>),
+    TargetJID = exml_query:cdata(User).
+
+assert_room_info(Owner, RoomInfo) ->
+    true = is_property_present(<<"subject">>, RoomInfo),
+    true = is_property_present(<<"name">>, RoomInfo),
+    true = is_property_present(<<"participants">>, RoomInfo),
+    true = is_participant(Owner, <<"owner">>, RoomInfo).
+
+is_property_present(Name, Proplist) ->
+    Val = proplists:get_value(Name, Proplist),
+    Val /= undefined.
+
+is_participant(User, Role, RoomInfo) ->
+    Participants = proplists:get_value(<<"participants">>, RoomInfo),
+    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(User)),
+    Fun = fun({Props}) ->
+                  UserJID = proplists:get_value(<<"user">>, Props),
+                  UserRole = proplists:get_value(<<"role">>, Props),
+                  UserJID == JID andalso UserRole == Role
+          end,
+    lists:any(Fun, Participants).
 

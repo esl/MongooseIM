@@ -118,8 +118,9 @@ paths:
         403:
           description: |
             When authenticated user is not allowed to read room's deatails.
-    put:
-      description: "Adds users to a room."
+  /rooms/{id}/users:
+    post:
+      description: "Adds a user to a room."
       parameters:
         - in: path
           name: id
@@ -134,6 +135,32 @@ paths:
       responses:
         204:
           description: User was successfully added to the room.
+        404:
+          description: When there is no room with given id.
+        403:
+          description: |
+            When authenticated user is not allowed to add users to the room.
+  /rooms/{id}/users/{user}:
+    delete:
+      description: |
+        Removes a user from the room.
+        Owner can remove any user.
+        Occupant can also use this method, but can only remove itself.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+          description: The ID of a room.
+        - in: path
+          name: user
+          required: true
+          type: string
+          description: |
+            The JID (ex: alice@wonderalnd.com) of user to remove
+      responses:
+        204:
+          description: User was successfully removed form the room.
         404:
           description: When there is no room with given id.
         403:
@@ -272,6 +299,10 @@ definitions:
       id:
         type: string
         description: The ID of a message.
+      timestamp:
+        type: integer
+        format: int64
+        description: Unix timestamp in miliseconds.
       body:
         type: string
         description: |
@@ -282,7 +313,7 @@ definitions:
         description: |
           JID of a user, whom affiliation changed.
           Present only if the type is "affiliation".
-      affiliations:
+      affiliation:
         type: string
         description: |
           The new affiliation of a user in the room.

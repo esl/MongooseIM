@@ -25,7 +25,7 @@
 -export([create_unique_room/4]).
 -export([send_message/4]).
 -export([invite_to_room/4]).
--export([invite_to_room_id/4]).
+-export([change_affiliation/5]).
 
 -include("mod_muc_light.hrl").
 -include("ejabberd.hrl").
@@ -127,14 +127,14 @@ invite_to_room(Domain, RoomName, Sender, Recipient0) ->
     ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
                                    <<"set">>, [Changes])).
 
-invite_to_room_id(Domain, RoomID, Sender, Recipient0) ->
+change_affiliation(Domain, RoomID, Sender, Recipient0, Affiliation) ->
     Recipient1 = jid:binary_to_bare(Recipient0),
     MUCLightDomain = gen_mod:get_module_opt_host(Domain, mod_muc_light,
                                                  <<"muclight.@HOST@">>),
     R = jid:make(RoomID, MUCLightDomain, <<>>),
     S = jid:binary_to_bare(Sender),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
-                    [affiliate(jid:to_binary(Recipient1), <<"member">>)]),
+                    [affiliate(jid:to_binary(Recipient1), Affiliation)]),
     ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
                                    <<"set">>, [Changes])).
 
@@ -208,19 +208,20 @@ is_subdomain(Child, Parent) ->
         {_, _} -> true
     end.
 
-iq(S, R, T, C) when is_binary(S),
-                    is_binary(R), is_binary(T), is_list(C) ->
+iq(To, From, Type, Children) ->
+    UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"from">>, S},
-                    {<<"to">>, R},
-                    {<<"type">>, T}],
-           children = C
+           attrs = [{<<"from">>, From},
+                    {<<"to">>, To},
+                    {<<"type">>, Type},
+                    {<<"id">>, UUID}],
+           children = Children
           }.
 
-query(NS, C) when is_binary(NS), is_list(C) ->
+query(NS, Children) when is_binary(NS), is_list(Children) ->
     #xmlel{name = <<"query">>,
            attrs = [{<<"xmlns">>, NS}],
-           children = C
+           children = Children
           }.
 
 affiliate(JID, Kind) when is_binary(JID), is_binary(Kind) ->
