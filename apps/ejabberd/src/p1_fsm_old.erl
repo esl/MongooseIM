@@ -273,12 +273,20 @@ enter_loop(Mod, Options, StateName, StateData, Timeout) ->
 enter_loop(Mod, Options, StateName, StateData, ServerName, Timeout) ->
     Name = get_proc_name(ServerName),
     Parent = get_parent(),
-    Debug = gen:debug_options(Options),
+    Debug = maybe_debug_options(Options),
     Limits = limit_options(Options),
     Queue = queue:new(),
     QueueLen = 0,
     loop(Parent, Name, StateName, StateData, Mod, Timeout, Debug,
 	 Limits, Queue, QueueLen).
+
+maybe_debug_options(Opts) ->
+    case lists:keyfind(debug, 1, Opts) of
+        {_,Options} ->
+            sys:debug_options(Options);
+        false ->
+            []
+    end.
 
 get_proc_name(Pid) when is_pid(Pid) ->
     Pid;
@@ -335,7 +343,7 @@ init_it(Starter, self, Name, Mod, Args, Options) ->
     init_it(Starter, self(), Name, Mod, Args, Options);
 init_it(Starter, Parent, Name0, Mod, Args, Options) ->
     Name = name(Name0),
-    Debug = gen:debug_options(Options),
+    Debug = maybe_debug_options(Options),
     Limits = limit_options(Options),
     Queue = queue:new(),
     QueueLen = 0,

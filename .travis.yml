@@ -51,7 +51,6 @@ env:
         - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all
         - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis"
         - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
-        - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
         - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.1
@@ -59,6 +58,8 @@ env:
 
 matrix:
     include:
+        - otp_release: 19.0
+          env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
         - otp_release: 17.5
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
 
