@@ -107,21 +107,21 @@ commands() ->
       {result, ok}
      ],
      [
-     {name, get_last_messages_with_everybody},
-     {category, <<"messages">>},
-     {desc, <<"Get n last messages from archive, optionally before a certain date (unixtime)">>},
-     {module, ?MODULE},
-     {function, get_recent_messages},
-     {action, read},
-     {security_policy, [user]},
-     {args, [{caller, binary}]},
-     {optargs, [{before, integer, 0}, {limit, integer, 100}]},
-     {result, []}
+      {name, get_last_messages_with_everybody},
+      {category, <<"messages">>},
+      {desc, <<"Get n last messages from archive, optionally before a certain date (unixtime)">>},
+      {module, ?MODULE},
+      {function, get_recent_messages},
+      {action, read},
+      {security_policy, [user]},
+      {args, [{caller, binary}]},
+      {optargs, [{before, integer, 0}, {limit, integer, 100}]},
+      {result, []}
      ],
      [
       {name, get_last_messages},
       {category, <<"messages">>},
-      {desc, <<"Get n last messages to/from given contact, optionally before a certain date (unixtime)">>},
+      {desc, <<"Get n last messages to/from given contact, with limit and date">>},
       {module, ?MODULE},
       {function, get_recent_messages},
       {action, read},

@@ -13,17 +13,20 @@
 %%
 %% @doc MongooseIM REST API backend
 %%
-%% This module handles the client HTTP REST requests, then respectively convert them to Commands from mongoose_commands
-%% and execute with `admin` privileges.
-%% It supports responses with appropriate HTTP Status codes returned to the client.
-%% This module implements behaviour introduced in ejabberd_cowboy which is built on top of the cowboy library.
+%% This module handles the client HTTP REST requests, then respectively convert
+%% them to Commands from mongoose_commands and execute with `admin` privileges.
+%% It supports responses with appropriate HTTP Status codes returned to the
+%% client.
+%% This module implements behaviour introduced in ejabberd_cowboy which is
+%% %% built on top of the cowboy library.
 %% The method supported: GET, POST, PUT, DELETE. Only JSON format.
 %% The library "jiffy" used to serialize and deserialized JSON data.
 %%
 %% REQUESTS
 %%
 %% The module is based on mongoose_commands registry.
-%% The root http path for a command is build based on the "category" field. It's always used as path a prefix.
+%% The root http path for a command is build based on the "category" field.
+%% %% It's always used as path a prefix.
 %% The commands are translated to HTTP API in the following manner:
 %%
 %% command of action "read" will be called by GET request
@@ -31,17 +34,19 @@
 %% command of action "update" will be called by PUT request
 %% command of action "delete" will be called by DELETE request
 %%
-%% The args of the command will be filled with the values provided in path bindings or body parameters,
-%% depending of the method type:
-%% - for command of action "read" or "delete" all the args are pulled from the path bindings. The path should be
-%% constructed of pairs "/arg_name/arg_value" so that it could match the {arg_name, type}
-%% pattern in the command registry. E.g having the record of category "users" and args:
-%% [{username, binary}, {domain, binary}] we will have to make following GET request
-%% path: http://domain:port/api/users/username/Joe/domain/localhost
+%% The args of the command will be filled with the values provided in path
+%% %% bindings or body parameters, depending of the method type:
+%% - for command of action "read" or "delete" all the args are pulled from the
+%% path bindings. The path should be constructed of pairs "/arg_name/arg_value"
+%% so that it could match the {arg_name, type} %% pattern in the command
+%% registry. E.g having the record of category "users" and args:
+%% [{username, binary}, {domain, binary}] we will have to make following GET
+%% request %% path: http://domain:port/api/users/username/Joe/domain/localhost
 %% and the command will be called with arguments "Joe" and "localhost"
 %%
-%% - for command of action "create" or "update" args are pulled from the body JSON, except those that are on the
-%% "identifiers" list of the command. Those go to the path bindings.
+%% - for command of action "create" or "update" args are pulled from the body
+%% JSON, except those that are on the "identifiers" list of the command. Those
+%% go to the path bindings.
 %% E.g having the record of category "animals", action "update" and args:
 %% [{species, binary}, {name, binary}, {age, integer}]
 %% and identifiers:
@@ -53,11 +58,13 @@
 %%
 %% RESPONSES
 %%
-%% The API supports some of the http status code like 200, 201, 400, 404 etc depending on the return value of
-%% the command execution and arguments checks. Additionally, when the command's action is "create"
-%% and it returns a value, it is concatenated to the path and return to the client
-%% in header "location" with response code 201 so that it could represent now a new created resource.
-%% If error occured while executing the command, the appropriate reason is returned in response body.
+%% The API supports some of the http status code like 200, 201, 400, 404 etc
+%% depending on the return value of the command execution and arguments checks.
+%% Additionally, when the command's action is "create" and it returns a value,
+%% it is concatenated to the path and return to the client in header "location"
+%% with response code 201 so that it could represent now a new created resource.
+%% If error occured while executing the command, the appropriate reason is
+%% returned in response body.
 
 %% API
 -export([create_admin_url_path/1,
@@ -94,7 +101,8 @@ create_admin_url_path(Command) ->
 create_user_url_path(Command) ->
     ["/", mongoose_commands:category(Command), maybe_add_bindings(Command, user)].
 
--spec process_request(method(), mongoose_commands:ct(), any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
+-spec process_request(method(), mongoose_commands:ct(), any(), http_api_state()) ->
+                      {any(), any(), http_api_state()}.
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
     {Params, Req2} = Req,
@@ -109,10 +117,11 @@ process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity =
     BindsAndVars = Binds ++ QV ++ maybe_add_caller(Entity),
     handle_request(Method, Command, BindsAndVars, Req, State).
 
--spec handle_request(method(), mongoose_commands:t(), args_applied(), term(), #http_api_state{}) ->
-    {any(), any(), #http_api_state{}}.
+-spec handle_request(method(), mongoose_commands:t(), args_applied(), term(), http_api_state()) ->
+                     {any(), any(), http_api_state()}.
 handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = State) ->
-    ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command), mongoose_commands:optargs(Command), Args),
+    ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command),
+                                           mongoose_commands:optargs(Command), Args),
     Result = execute_command(ConvertedArgs, Command, Entity),
     handle_result(Method, Result, Req, State).
 
@@ -125,8 +134,8 @@ handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = St
       Method :: method(),
       Result :: expected_result(),
       Req :: cowboy_req:req(),
-      State :: #http_api_state{},
-      Return :: {any(), cowboy_req:req(), #http_api_state{}}.
+      State :: http_api_state(),
+      Return :: {any(), cowboy_req:req(), http_api_state()}.
 handle_result(Verb, ok, Req, State) ->
     handle_result(Verb, {ok, nocontent}, Req, State);
 %%    {ok, Req2} = cowboy_req:reply(200, Req),
@@ -166,8 +175,10 @@ parse_request_body(Req) ->
             {error, Err}
     end.
 
-%% @doc Checks if the arguments are correct. Return the arguments that can be applied to the execution of command.
--spec check_and_extract_args(arg_spec_list(), optarg_spec_list(), args_applied()) -> map() | {error, atom(), any()}.
+%% @doc Checks if the arguments are correct. Return the arguments that can be applied to the
+%% execution of command.
+-spec check_and_extract_args(arg_spec_list(), optarg_spec_list(), args_applied()) ->
+                             map() | {error, atom(), any()}.
 check_and_extract_args(ReqArgs, OptArgs, RequestArgList) ->
     try
         AllArgs = ReqArgs ++ [{N, T} || {N, T, _} <- OptArgs],
@@ -299,14 +310,15 @@ to_atom(Atom) when is_atom(Atom) ->
 %%--------------------------------------------------------------------
 %% HTTP utils
 %%--------------------------------------------------------------------
--spec error_response(integer() | atom(), any(), #http_api_state{}) -> {halt, any(), #http_api_state{}}.
+-spec error_response(integer() | atom(), any(), http_api_state()) ->
+                     {halt, any(), http_api_state()}.
 error_response(Code, Req, State) when is_integer(Code) ->
     {ok, Req1} = cowboy_req:reply(Code, Req),
     {halt, Req1, State};
 error_response(ErrorType, Req, State) ->
     error_response(error_code(ErrorType), Req, State).
 
--spec error_response(any(), any(), any(), #http_api_state{}) -> {halt, any(), #http_api_state{}}.
+-spec error_response(any(), any(), any(), http_api_state()) -> {halt, any(), http_api_state()}.
 error_response(Code, Reason, Req, State) when is_integer(Code) ->
     {ok, Req1} = cowboy_req:reply(Code, [], Reason, Req),
     {halt, Req1, State};

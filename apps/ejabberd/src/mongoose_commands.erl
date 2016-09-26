@@ -24,8 +24,8 @@
 %%      action :: command_action()
 %% so that the HTTP side can decide which verb to require
 %%      args = [] :: [argspec()]
-%% Type spec - see below; this is both for introspection and type check on call. Args spec is more limited
-%% then return, it has to be a list of named arguments, like [{id, integer}, {msg, binary}]
+%% Type spec - see below; this is both for introspection and type check on call. Args spec is more
+%% limited then return, it has to be a list of named arguments, like [{id, integer}, {msg, binary}]
 %%      security_policy = [atom()] (optional)
 %% permissions required to run this command, defaults to [admin]
 %%      result :: argspec()
@@ -39,10 +39,10 @@
 %% You can ignore return value of the target func by specifying return value as {result, ok}. The
 %% execute/3 will then always return just 'ok' (or error).
 %%
-%% If action is 'update' then it MUST specify which args are to be used as identifiers of object to update.
-%% It has no effect on how the engine does its job, but may be used by client code to enforce proper
-%% structure of request. (this is bad programming practice but we didn't have a better idea, we had to
-%% solve it for REST API)
+%% If action is 'update' then it MUST specify which args are to be used as identifiers of object
+%% to update. It has no effect on how the engine does its job, but may be used by client code
+%% to enforce proper structure of request. (this is bad programming practice but we didn't have
+%% a better idea, we had to solve it for REST API)
 %%
 %% Commands are registered here upon the module's initialisation
 %% (the module has to explicitly call mongoose_commands:register_commands/1
@@ -110,22 +110,35 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--record(mongoose_command, {
-          name :: atom(),                             %% name of the command by which we refer to it
-          category :: binary(),                       %% groups commands related to the same functionality (user managment, messages/archive)
-          subcategory = undefined :: undefined | binary(),          %% optimal subcategory
-          desc :: binary(),                           %% long description
-          module :: module(),                         %% module to call
-          function :: atom(),                         %% function to call
-          action :: action(),                         %% so that the HTTP side can decide which verb to require
-          args = [] :: [argspec()],                   %% this is both for introspection and type check on call
-          optargs = [] :: [optargspec()],             %% arg which has a default value and is optional
-          caller_pos :: integer(),                    %% internal use
-          identifiers = [] :: [atom()],               %% resource identifiers, a subset of args
-          security_policy = [admin] :: security(),    %% permissions required to run this command
-          result :: argspec()|ok                      %% what the called func should return; if ok then return of called
-                                                      %% function is ignored
-         }).
+-record(mongoose_command,
+        {
+         %% name of the command by which we refer to it
+         name :: atom(),
+         %% groups commands related to the same functionality (user managment, messages/archive)
+         category :: binary(),
+         %% optimal subcategory
+         subcategory = undefined :: undefined | binary(),
+         %% long description
+         desc :: binary(),
+         %% module to call
+         module :: module(),
+         %% function to call
+         function :: atom(),
+         %% so that the HTTP side can decide which verb to require
+         action :: action(),
+         %% this is both for introspection and type check on call
+         args = [] :: [argspec()],
+         %% arg which has a default value and is optional
+         optargs = [] :: [optargspec()],
+         %% internal use
+         caller_pos :: integer(),
+         %% resource identifiers, a subset of args
+         identifiers = [] :: [atom()],
+         %% permissions required to run this command
+         security_policy = [admin] :: security(),
+         %% what the called func should return; if ok then return of called function is ignored
+         result :: argspec()|ok
+        }).
 
 -opaque t() :: #mongoose_command{}.
 -type caller() :: admin | binary() | user.
@@ -142,8 +155,8 @@
 
 -type security() :: [admin | user]. %% later acl option will be added
 
--type errortype() :: denied | not_implemented | type_error | internal. %% we should agree on a set of atoms so that the
-                                                                 %% frontend can map it to http codes
+-type errortype() :: denied | not_implemented | type_error | internal.
+%% we should agree on a set of atoms so that the frontend can map it to http codes
 
 -type failure() :: {error, errortype(), binary()}.
 
@@ -191,7 +204,9 @@ new(Props) ->
     Lst = check_command([], Props, Fields),
     RLst = lists:reverse(Lst),
     Cmd = list_to_tuple([mongoose_command|RLst]),
-    check_identifiers(Cmd#mongoose_command.action, Cmd#mongoose_command.identifiers, Cmd#mongoose_command.args),
+    check_identifiers(Cmd#mongoose_command.action,
+                      Cmd#mongoose_command.identifiers,
+                      Cmd#mongoose_command.args),
     % store position of caller in args (if present)
     Cmd#mongoose_command{caller_pos = locate_caller(Cmd#mongoose_command.args)}.
 
@@ -363,7 +378,8 @@ check_and_execute(Caller, Command, Args) ->
         false ->
             throw(permission_denied)
     end,
-    % check caller (if it is given in args, and the engine is called by a 'real' user, then it must match
+    % check caller (if it is given in args, and the engine is called by a 'real' user, then it
+    % must match
     check_caller(Caller, Command, Args),
     % check args
     % this is the 'real' spec of command - optional args included
@@ -488,9 +504,10 @@ check_value(action, delete) ->
     delete;
 check_value(args, V) when is_list(V) ->
     Filtered = [C || {C, _} <- V],
-    if
-        length(V) =/= length(Filtered) -> baddef(args, V);
-        true -> V
+    ArgCount = length(V),
+    case length(Filtered) of
+        ArgCount -> V;
+        _ -> baddef(args, V)
     end;
 check_value(security_policy, undefined) ->
     [admin];
@@ -564,7 +581,8 @@ check_registration(Command) ->
             case FCatLst of
                 [] -> ok;
                 [C] ->
-                    baddef("There is a command ~p in category ~p and subcategory ~p, action ~p", [name(C), Cat, SubCat, Act])
+                    baddef("There is a command ~p in category ~p and subcategory ~p, action ~p",
+                           [name(C), Cat, SubCat, Act])
             end;
         _ ->
             ?DEBUG("This command is already defined:~n~p", [Name])
@@ -583,9 +601,9 @@ mapget(K, Map) ->
 maps_to_list(Map, Args, Optargs) ->
     SpecLen = length(Args) + length(Optargs),
     ALen = maps:size(Map),
-    if SpecLen =/= ALen ->
-        th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
-        true -> ok
+    case SpecLen of
+        ALen -> ok;
+        _ -> th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen])
     end,
     [mapget(K, Map) || {K, _} <- Args] ++ [mapget(K, Map) || {K, _, _} <- Optargs].
 

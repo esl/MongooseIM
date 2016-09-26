@@ -20,3 +20,4 @@
 -type optarg_spec_list() :: list(mongoose_commands:optargspec()).
 -type args_applied() :: list({arg_name(), arg_value()}).
 -type arg_values() :: list(arg_value()).
+-type http_api_state() :: #http_api_state{}.
