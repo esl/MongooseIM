@@ -70,10 +70,11 @@ commands() ->
 
      [{name, invite_to_room},
       {category, <<"muc-lights">>},
+      {subcategory, <<"participants">>},
       {desc, <<"Invite to a MUC Light room.">>},
       {module, ?MODULE},
       {function, invite_to_room},
-      {action, update},
+      {action, create},
       {identifiers, [domain, name]},
       {args,
        [{domain, binary},

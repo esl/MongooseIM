@@ -96,7 +96,7 @@ create_room(Config) ->
 invite_to_room(Config) ->
     Domain = <<"localhost">>,
     Name = <<"wonderland">>,
-    Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary>>,
+    Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary, $/, "participants">>,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
       fun(Alice, Bob, Kate) ->
         %% XMPP: Alice creates a room.
@@ -112,7 +112,7 @@ invite_to_room(Config) ->
         Body = #{ sender => escalus_client:short_jid(Alice),
                   recipient => escalus_client:short_jid(Bob)
                 },
-        {{<<"204">>, _}, <<"">>} = rest_helper:putt(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
         %% XMPP: Bob recieves his affiliation information.
         member_is_affiliated(escalus:wait_for_stanza(Bob), Bob),
         %% XMPP: Alice recieves Bob's affiliation infromation.

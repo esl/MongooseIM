@@ -107,7 +107,7 @@ create_room(Config) ->
 invite_online_user_to_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         Name = ?config(room_name, Config),
-        Path = <<"/mucs/localhost/", Name/binary, "/invites">>,
+        Path = <<"/mucs/localhost/", Name/binary, "/participants">>,
         Reason = <<"I think you'll like this room!">>,
         Body = #{sender => escalus_client:short_jid(Alice),
                  recipient => escalus_client:short_jid(Bob),
@@ -197,7 +197,7 @@ multiparty_multiprotocol(Config) ->
     MUCPath = <<"/mucs/", Host/binary>>,
     Room = ?config(room_name, Config),
     RoomPath = <<MUCPath/binary, $/, Room/binary>>,
-    RoomInvitePath = <<MUCPath/binary, $/, Room/binary, "/invites">>,
+    RoomInvitePath = <<MUCPath/binary, $/, Room/binary, "/participants">>,
     Reason = <<"I think you'll like this room!">>,
     MessagePath = <<"/mucs",$/,Host/binary,$/,Room/binary,$/,"messages">>,
     Message = <<"Greetings!">>,
