@@ -74,11 +74,12 @@ clean_opt({registration_watchers, Watchers}) ->
 clean_opt(Item) ->
     Item.
 
-stream_feature_register(Acc, _Host) ->
-    [#xmlel{name = <<"register">>,
-            attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc].
+stream_feature_register(#{features := Feat} = Acc, _Host) ->
+    NFeat = [#xmlel{name = <<"register">>,
+            attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Feat],
+    maps:put(features, NFeat, Acc).
 
-unauthenticated_iq_register(_Acc,
+unauthenticated_iq_register(Acc,
                             Server, #iq{xmlns = ?NS_REGISTER} = IQ, IP) ->
     Address = case IP of
                   {A, _Port} -> A;
@@ -92,7 +93,8 @@ unauthenticated_iq_register(_Acc,
                                        make_host_only_JID(Server),
                                        IQ,
                                        Address),
-    set_sender(jlib:iq_to_xml(ResIQ), make_host_only_JID(Server));
+    set_sender(jlib:iq_to_xml(ResIQ), make_host_only_JID(Server)),
+    Acc;
 unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
     Acc.
 

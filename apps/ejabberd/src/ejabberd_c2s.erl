@@ -377,7 +377,7 @@ maybe_sasl_mechanisms(Server) ->
     end.
 
 hook_enabled_features(Server) ->
-    ejabberd_hooks:run_fold(c2s_stream_features, Server, [], [Server]).
+    ejabberd_hooks:run_fold(c2s_stream_features, Server, #{features = []}, [Server]).
 
 starttls(TLSRequired)
   when TLSRequired =:= required;
@@ -1155,10 +1155,10 @@ handle_info({force_update_presence, LUser}, StateName,
     end,
     {next_state, StateName, NewStateData};
 handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
-    Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
-				   true, [StateData#state.server, StateData,
+    Res = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
+				   #{drop => true}, [StateData#state.server, StateData,
 					  Feature, To, Packet]),
-    case Drop of
+    case maps:get(drop, Res) of
         true ->
             ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]);
         _ ->
@@ -1175,9 +1175,9 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     end,
     fsm_next_state(StateName, StateData);
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
-    Recipients = ejabberd_hooks:run_fold(
+    #{recipients := Recipients} = ejabberd_hooks:run_fold(
 		   c2s_broadcast_recipients, StateData#state.server,
-		   [],
+		   #{recipients = []},
 		   [StateData#state.server, StateData, Type, From, Packet]),
     lists:foreach(
       fun(USR) ->
@@ -2275,7 +2275,7 @@ process_unauthenticated_stanza(StateData, El) ->
         #iq{} = IQ ->
             Res = ejabberd_hooks:run_fold(c2s_unauthenticated_iq,
                                           StateData#state.server,
-                                          empty,
+                                          #{},
                                           [StateData#state.server, IQ,
                                            StateData#state.ip]),
             case Res of
