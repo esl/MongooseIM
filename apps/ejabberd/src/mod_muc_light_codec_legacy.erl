@@ -107,7 +107,7 @@ decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
 -spec decode_message_by_type(Type :: {binary(), binary()} | false,
                              Id :: {binary(), binary()} | false,
                              Children :: [jlib:xmlch()]) ->
-    {ok, #msg{} | {set, #config{}}} | {error, bad_request} | ignore.
+    {ok, msg() | {set, config()}} | {error, bad_request} | ignore.
 decode_message_by_type({_, <<"groupchat">>}, _, [#xmlel{ name = <<"subject">> } = SubjectEl]) ->
     {ok, {set, #config{ raw_config = [{<<"subject">>, exml_query:cdata(SubjectEl)}] }}};
 decode_message_by_type({_, <<"groupchat">>}, Id, Children) ->
@@ -463,7 +463,7 @@ make_query_el(_, undefined) ->
 make_query_el(XMLNS, Els) ->
     [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, XMLNS}], children = Els }].
 
--spec status(Code :: binary()) -> #xmlel{}.
+-spec status(Code :: binary()) -> xmlel().
 status(Code) -> #xmlel{ name = <<"status">>, attrs = [{<<"code">>, Code}] }.
 
 %%====================================================================
