@@ -616,7 +616,7 @@ route_by_type(<<"iq">>, {From, To, Packet}, #state{host = Host} = State) ->
     ServerHost = State#state.server_host,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            Info = ejabberd_hooks:run_fold(disco_info, ServerHost, [],
+            #{info := Info} = ejabberd_hooks:run_fold(disco_info, ServerHost, #{},
                                            [ServerHost, ?MODULE, <<"">>, Lang]),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
@@ -917,7 +917,8 @@ xfield(Type, Label, Var, Val, Lang) ->
 %%       http://xmpp.org/extensions/xep-0045.html#createroom-unique
 -spec iq_get_unique(ejabberd:jid()) -> jlib:xmlcdata().
 iq_get_unique(From) ->
-        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, now(), randoms:get_string()]))}.
+        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, os:timestamp(),
+                                                         randoms:get_string()]))}.
 
 
 -spec iq_get_register_info('undefined' | ejabberd:server(),
@@ -1196,13 +1197,14 @@ is_room_owner(_, Room, User) ->
 muc_room_pid(_, Room) ->
     room_jid_to_pid(Room).
 
--spec can_access_room(Acc :: boolean(), From :: ejabberd:jid(), To :: ejabberd:jid()) ->
+-spec can_access_room(Acc :: map(), From :: ejabberd:jid(), To :: ejabberd:jid()) ->
     boolean().
-can_access_room(_, From, To) ->
-    case mod_muc_room:can_access_room(To, From) of
+can_access_room(Acc, From, To) ->
+    Can = case mod_muc_room:can_access_room(To, From) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
-    end.
+    end,
+    maps:put(can_access_room, Can, Acc).
 
 online_rooms_number() ->
     lists:sum([online_rooms_number(Host) || Host <- ?MYHOSTS]).

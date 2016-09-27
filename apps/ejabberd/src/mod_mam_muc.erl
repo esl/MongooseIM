@@ -22,7 +22,7 @@
 %%% Message identifiers (or UIDs in the spec) are generated based on:
 %%%
 %%% <ul>
-%%% <li>date (using `now()');</li>
+%%% <li>date (using `os:timestamp()');</li>
 %%% <li>node number (using {@link ejabberd_node_id}).</li>
 %%% </ul>
 %%% @end
@@ -339,7 +339,11 @@ is_user_identity_hidden(From, ArcJID) ->
 
 -spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
 can_access_room(From, To) ->
-    ejabberd_hooks:run_fold(can_access_room, To#jid.lserver, false, [From, To]).
+    #{can_access_room := Can} = ejabberd_hooks:run_fold(can_access_room,
+                                                        To#jid.lserver,
+                                                        #{can_access_room => false},
+                                                        [From, To]),
+    Can.
 
 
 -spec action_type(action()) -> 'get' | 'set'.
@@ -453,10 +457,11 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
                              IQ :: ejabberd:iq()) -> ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_lookup_messages(
-  From = #jid{},
-  ArcJID = #jid{},
-  IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+        From=#jid{},
+        ArcJID=#jid{},
+        IQ=#iq{xmlns = MamNs, sub_el = QueryEl}) ->
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
+    Host = server_host(ArcJID),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -509,11 +514,19 @@ handle_lookup_messages(
                               IQ :: ejabberd:iq()) ->
                                      ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
 handle_set_message_form(
+<<<<<<< HEAD
   From = #jid{},
   ArcJID = #jid{},
   IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
+=======
+        From=#jid{},
+        ArcJID=#jid{},
+        IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
+    Host = server_host(ArcJID),
+>>>>>>> Modified some fold handlers to pass along a map as an accumulator
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
     %% Filtering by date.
@@ -597,11 +610,19 @@ handle_get_message_form(_From = #jid{}, _ArcJID = #jid{}, IQ = #iq{}) ->
 
 %% @doc Purging multiple messages.
 -spec handle_purge_multiple_messages(ejabberd:jid(), ejabberd:iq()) ->
+<<<<<<< HEAD
                                             ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_multiple_messages(ArcJID = #jid{},
                                IQ = #iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
+=======
+    ejabberd:iq() | {error, any(), ejabberd:iq()}.
+handle_purge_multiple_messages(ArcJID=#jid{},
+                               IQ=#iq{sub_el = PurgeEl}) ->
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
+    Host = server_host(ArcJID),
+>>>>>>> Modified some fold handlers to pass along a map as an accumulator
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
     %% Start :: integer() | undefined
@@ -617,11 +638,19 @@ handle_purge_multiple_messages(ArcJID = #jid{},
 
 
 -spec handle_purge_single_message(ejabberd:jid(), ejabberd:iq()) ->
+<<<<<<< HEAD
                                          ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_single_message(ArcJID = #jid{},
                             IQ = #iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
+=======
+    ejabberd:iq() | {error, any(), ejabberd:iq()}.
+handle_purge_single_message(ArcJID=#jid{},
+                            IQ=#iq{sub_el = PurgeEl}) ->
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
+    Host = server_host(ArcJID),
+>>>>>>> Modified some fold handlers to pass along a map as an accumulator
     ArcID = archive_id_int(Host, ArcJID),
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
     MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),

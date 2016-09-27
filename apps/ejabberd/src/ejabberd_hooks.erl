@@ -125,6 +125,7 @@ run(Hook, Host, Args) ->
 run_fold(Hook, Val, Args) ->
     run_fold(Hook, global, Val, Args).
 
+%%run_fold(Hook, Host, #{} = Val, Args) -> % now it MUST be a map
 run_fold(Hook, Host, Val, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->

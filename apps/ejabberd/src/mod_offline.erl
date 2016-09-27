@@ -40,6 +40,7 @@
 -export([inspect_packet/4,
          pop_offline_messages/3,
          get_sm_features/5,
+         get_local_features/5,
          remove_expired_messages/1,
          remove_old_messages/2,
          remove_user/2,
@@ -133,7 +134,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(disco_sm_features, Host,
 		       ?MODULE, get_sm_features, 50),
     ejabberd_hooks:add(disco_local_features, Host,
-		       ?MODULE, get_sm_features, 50),
+		       ?MODULE, get_local_features, 50),
     ejabberd_hooks:add(amp_determine_strategy, Host,
                        ?MODULE, determine_amp_strategy, 30),
     ejabberd_hooks:add(failed_to_store_message, Host,
@@ -150,7 +151,7 @@ stop(Host) ->
     ejabberd_hooks:delete(anonymous_purge_hook, Host,
 			  ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_sm_features, 50),
+    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_local_features, 50),
     ejabberd_hooks:delete(amp_determine_strategy, Host,
                           ?MODULE, determine_amp_strategy, 30),
     ejabberd_hooks:delete(failed_to_store_message, Host,
@@ -334,18 +335,25 @@ code_change(_OldVsn, State, _Extra) ->
 %% Handlers
 %% ------------------------------------------------------------------
 
-get_sm_features(Acc, _From, _To, <<"">> = _Node, _Lang) ->
-    add_feature(Acc, ?NS_FEATURE_MSGOFFLINE);
-get_sm_features(_Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
+get_sm_features(Acc, From, To, Node, Lang) ->
+    get_features(sm_features, Acc, From, To, Node, Lang).
+
+get_local_features(Acc, From, To, Node, Lang) ->
+    get_features(features, Acc, From, To, Node, Lang).
+
+get_features(Key, Acc, _From, _To, <<"">> = _Node, _Lang) ->
+    add_feature(Key, Acc, ?NS_FEATURE_MSGOFFLINE);
+get_features(Key, Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
     %% override all lesser features...
-    {result, []};
-get_sm_features(Acc, _From, _To, _Node, _Lang) ->
+    maps:put(Key, [], Acc);
+get_features(_Key, Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-add_feature({result, Features}, Feature) ->
-    {result, Features ++ [Feature]};
-add_feature(_, Feature) ->
-    {result, [Feature]}.
+add_feature(Key, Acc, Feature) ->
+    Features = maps:get(Key, Acc),
+    maps:put(Key, Features ++ [Feature], Acc).
+%%add_feature(_, Feature) ->
+%%    {result, [Feature]}.
 
 %% This function should be called only from hook
 %% Calling it directly is dangerous and my store unwanted message

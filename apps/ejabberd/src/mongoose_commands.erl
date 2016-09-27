@@ -373,7 +373,6 @@ check_and_execute(Caller, Command, Args) when is_map(Args) ->
     check_and_execute(Caller, Command, ArgList);
 check_and_execute(Caller, Command, Args) ->
     % check permissions
-    Av = is_available_for(Caller, Command),
     case is_available_for(Caller, Command) of
         true ->
             ok;

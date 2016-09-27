@@ -142,9 +142,9 @@ process_local_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} =
 
             case ejabberd_hooks:run_fold(disco_local_items,
                                          Host,
-                                         empty,
+                                         #{local_items => []},
                                          [From, To, Node, Lang]) of
-                {result, Items} ->
+                #{local_items := Items} ->
                     ANode = case Node of
                                 <<>> -> [];
                                 _ -> [{<<"node">>, Node}]
@@ -169,17 +169,18 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
         get ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Identity = ejabberd_hooks:run_fold(disco_local_identity,
+            A1 = #{local_identity => [], info => [], features => []},
+            A2 = ejabberd_hooks:run_fold(disco_local_identity,
                                                Host,
-                                               [],
+                                               A1,
                                                [From, To, Node, Lang]),
-            Info = ejabberd_hooks:run_fold(disco_info, Host, [],
+            A3 = ejabberd_hooks:run_fold(disco_info, Host, A2,
                                            [Host, ?MODULE, Node, Lang]),
             case ejabberd_hooks:run_fold(disco_local_features,
                                          Host,
-                                         empty,
+                                         A3,
                                          [From, To, Node, Lang]) of
-                {result, Features} ->
+                #{features := Features, info := Info, local_identity := Identity} ->
                     ANode = case Node of
                                 <<>> -> [];
                                 _ -> [{<<"node">>, Node}]
@@ -196,41 +197,47 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
     end.
 
 
--spec get_local_identity(Acc :: [jlib:xmlel()],
+-spec get_local_identity(Acc :: map(),
                         From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
                         Node :: binary(),
                         Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
-    Acc ++ [#xmlel{name = <<"identity">>,
+get_local_identity(#{local_identity := Ids} = Acc, _From, _To, <<>>, _Lang) ->
+    NIds = Ids ++ [#xmlel{name = <<"identity">>,
                    attrs = [{<<"category">>, <<"server">>},
                             {<<"type">>, <<"im">>},
-                            {<<"name">>, <<"MongooseIM">>}]}];
+                            {<<"name">>, <<"MongooseIM">>}]}],
+    maps:put(local_identity, NIds, Acc);
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
 
--spec get_local_features(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_local_features(Acc :: map(),% | {'error',_} | {'result',_},
                         From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
                         Node :: binary(),
                         Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
-get_local_features({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
+%%get_local_features({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
+%%    Acc;
 get_local_features(Acc, _From, To, <<>>, _Lang) ->
-    Feats = case Acc of
-                {result, Features} -> Features;
-                empty -> []
-            end,
+%%    Feats = case Acc of
+%%                {result, Features} -> Features;
+%%                empty -> []
+%%            end,
+    Feats = maps:get(features, Acc, []),
     Host = To#jid.lserver,
-    {result,
-     ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats};
+    NFeats = ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats,
+    maps:put(features, NFeats, Acc);
+
+%%    {result,
+%%     ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats};
 get_local_features(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
-    case Acc of
-        {result, _Features} ->
-            Acc;
-        empty ->
-            {error, ?ERR_ITEM_NOT_FOUND}
+    #{features := F} = Acc,
+    case F of
+        [] ->
+            {error, ?ERR_ITEM_NOT_FOUND};
+        [_|_] ->
+            Acc
     end.
 
 
@@ -255,26 +262,27 @@ domain_to_xml(Domain) ->
     #xmlel{name = <<"item">>, attrs = [{<<"jid">>, Domain}]}.
 
 
--spec get_local_services(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_local_services(Acc :: map(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          Node :: binary(),
                          Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
-get_local_services({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
+%%get_local_services({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
+%%    Acc;
 get_local_services(Acc, _From, To, <<>>, _Lang) ->
-    Items = case Acc of
-                {result, Its} -> Its;
-                empty -> []
-            end,
-    Host = To#jid.lserver,
-    {result,
-     lists:usort(
+%%    Items = case Acc of
+%%                {result, Its} -> Its;
+%%                empty -> []
+%%            end,
+     Items = maps:get(local_items, Acc, []),
+     Host = To#jid.lserver,
+     NItems = lists:usort(
        lists:map(fun domain_to_xml/1,
                  get_vh_services(Host) ++
                  ets:select(disco_extra_domains,
                             [{{{'$1', Host}}, [], ['$1']}]))
-       ) ++ Items};
+       ) ++ Items,
+     maps:put(local_items, NItems, Acc);
 get_local_services({result, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_services(empty, _From, _To, _Node, _Lang) ->
@@ -392,15 +400,15 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
                 true ->
                     Host = To#jid.lserver,
                     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-                    Identity = ejabberd_hooks:run_fold(disco_sm_identity,
+                    #{sm_identity := Identity} = ejabberd_hooks:run_fold(disco_sm_identity,
                                                        Host,
-                                                       [],
+                                                       #{sm_identity => []},
                                                        [From, To, Node, Lang]),
                     case ejabberd_hooks:run_fold(disco_sm_features,
                                                  Host,
-                                                 empty,
+                                                 #{sm_features => []},
                                                  [From, To, Node, Lang]) of
-                        {result, Features} ->
+                        #{sm_features := Features} ->
                             ANode = case Node of
                                         <<>> -> [];
                                         _ -> [{<<"node">>, Node}]
@@ -419,28 +427,29 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
     end.
 
 
--spec get_sm_identity(Acc :: [jlib:xmlel()],
+-spec get_sm_identity(Acc :: map(),
                       From :: ejabberd:jid(),
                       To :: ejabberd:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
-    Acc ++  case ejabberd_auth:is_user_exists(LUser, LServer) of
-        true ->
-           [#xmlel{name = <<"identity">>,
-                   attrs = [{<<"category">>, <<"account">>},
-  {<<"type">>, <<"registered">>}]}];
-       _ ->
-           []
-           end.
+get_sm_identity(#{sm_identity := Ids} = Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
+    Id = case ejabberd_auth:is_user_exists(LUser, LServer) of
+            true ->
+               [#xmlel{name = <<"identity">>, attrs = [{<<"category">>, <<"account">>},
+                      {<<"type">>, <<"registered">>}]}
+               ];
+            _ ->
+               []
+         end,
+    maps:put(sm_identity, Ids ++ Id, Acc).
 
 
--spec get_sm_features(empty | any(),
+-spec get_sm_features(map(),
                       From :: ejabberd:jid(),
                       To :: ejabberd:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> any().
-get_sm_features(empty, From, To, _Node, _Lang) ->
+get_sm_features(#{sm_features := []}, From, To, _Node, _Lang) ->
     #jid{luser = LFrom, lserver = LSFrom} = From,
     #jid{luser = LTo, lserver = LSTo} = To,
     case {LFrom, LSFrom} of
@@ -468,7 +477,7 @@ get_user_resources(User, Server) ->
 
 -spec get_info(A :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
         Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_info(_A, Host, Mod, Node, _Lang) when Node == [] ->
+get_info(Acc, Host, Mod, Node, _Lang) when Node == [] ->
     Module = case Mod of
                  undefined ->
                      ?MODULE;
@@ -476,13 +485,14 @@ get_info(_A, Host, Mod, Node, _Lang) when Node == [] ->
                      Mod
              end,
     Serverinfo_fields = get_fields_xml(Host, Module),
-    [#xmlel{name = <<"x">>,
+    Info = [#xmlel{name = <<"x">>,
             attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
             children = [#xmlel{name = <<"field">>,
                                attrs = [{<<"var">>, <<"FORM_TYPE">>}, {<<"type">>, <<"hidden">>}],
                                children = [#xmlel{name = <<"value">>,
                                                   children = [#xmlcdata{content = ?NS_SERVERINFO}]}]}]
-                     ++ Serverinfo_fields}];
+                     ++ Serverinfo_fields}],
+    maps:put(info, Info, Acc);
 get_info(Acc, _, _, _Node, _) ->
     Acc.
 
