@@ -52,8 +52,9 @@ stop(Host) ->
 %% `ejabberd_hooks' handlers
 %%
 
-add_sm_feature(Acc, _Server) ->
-    lists:keystore(<<"sm">>, #xmlel.name, Acc, sm()).
+add_sm_feature(#{features := Feat} = Acc, _Server) ->
+    NFeat = lists:keystore(<<"sm">>, #xmlel.name, Feat, sm()),
+    maps:put(features, NFeat, Acc).
 
 sm() ->
     #xmlel{name = <<"sm">>,

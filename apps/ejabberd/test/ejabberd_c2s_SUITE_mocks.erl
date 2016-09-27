@@ -22,7 +22,7 @@ setup() ->
     meck:expect(ejabberd_hooks, run_fold,
                 fun(privacy_check_packet, _, _, _) -> allow end),
     meck:expect(ejabberd_hooks, run_fold,
-                fun(check_bl_c2s, _, _) -> false end),
+                fun(check_bl_c2s, A, _) -> A end),
 
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option, fun default_local_option/1),

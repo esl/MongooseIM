@@ -315,18 +315,20 @@ set_vcard({error, _} = E, _From, _VCARD) -> E.
 
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
     Acc;
-get_local_features(Acc, _From, _To, Node, _Lang) ->
-    case Node of
+get_local_features(#{features := Feat} = Acc, _From, _To, Node, _Lang) ->
+    NFeat = case Node of
         <<>> ->
-            case Acc of
-                {result, Features} ->
-                    {result, [?NS_VCARD | Features]};
-                empty ->
-                    {result, [?NS_VCARD]}
-            end;
+            [?NS_VCARD | Feat];
+%%            case Acc of
+%%                {result, Features} ->
+%%                    {result, [?NS_VCARD | Features]};
+%%                empty ->
+%%                    {result, [?NS_VCARD]}
+%%            end;
         _ ->
-            Acc
-    end.
+            Feat
+    end,
+    maps:put(features, NFeat, Acc).
 
 %% #rh
 remove_user(Acc, User, Server) ->
@@ -406,7 +408,7 @@ do_route(_VHost, From, To, Packet, #iq{type = set,
 do_route(VHost, From, To, _Packet, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
-    Info = ejabberd_hooks:run_fold(disco_info, VHost, [], [VHost, ?MODULE, "", ""]),
+    #{info := Info} = ejabberd_hooks:run_fold(disco_info, VHost, #{}, [VHost, ?MODULE, "", ""]),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs =[{<<"xmlns">>,?NS_DISCO_INFO}],

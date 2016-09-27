@@ -77,7 +77,7 @@ stop(Host) ->
 
 %%-------------------------------------------------------------------------
 
--spec get_local_commands(Acc :: [jlib:xmlel()],
+-spec get_local_commands(Acc :: map(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          NS :: binary(),
@@ -88,18 +88,19 @@ get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
         false ->
             Acc;
         _ ->
-            Items = case Acc of
-                        {result, I} -> I;
-                        _ -> []
-                    end,
+%%            Items = case Acc of
+%%                        {result, I} -> I;
+%%                        _ -> []
+%%                    end,
+            Items = maps:get(local_items, Acc, []),
             Nodes = [#xmlel{name = <<"item">>,
                             attrs = [{<<"jid">>, LServer},
                                      {<<"node">>, ?NS_COMMANDS},
                                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
-            {result, Items ++ Nodes}
+            maps:put(local_items, Items ++ Nodes, Acc)
     end;
 get_local_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    ejabberd_hooks:run_fold(adhoc_local_items, LServer, {result, []}, [From, To, Lang]);
+    ejabberd_hooks:run(adhoc_local_items, LServer, #{result => []}, [From, To, Lang]);
 get_local_commands(_Acc, _From, _To, <<"ping">>, _Lang) ->
     {result, []};
 get_local_commands(Acc, _From, _To, _Node, _Lang) ->
@@ -130,7 +131,7 @@ get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
     end;
 
 get_sm_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    ejabberd_hooks:run_fold(adhoc_sm_items, LServer, {result, []}, [From, To, Lang]);
+    ejabberd_hooks:run_fold(adhoc_sm_items, LServer, #{result => []}, [From, To, Lang]);
 
 get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
@@ -138,78 +139,81 @@ get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_local_identity(Acc :: [jlib:xmlel()],
+-spec get_local_identity(Acc :: map(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          NS :: binary(),
                          ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
-get_local_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
+get_local_identity(#{local_identity := Ids} = Acc, From, To, Ns, Lang) ->
+    LId = do_get_local_identity(From, To, Ns, Lang),
+    maps:put(local_identity, Ids ++ LId, Acc).
+
+do_get_local_identity(_From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
-                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
-get_local_identity(Acc, _From, _To, <<"ping">>, Lang) ->
+                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}];
+do_get_local_identity(_From, _To, <<"ping">>, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-node">>},
-                     {<<"name">>, translate:translate(Lang, <<"Ping">>)}]} | Acc];
-get_local_identity(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
+                     {<<"name">>, translate:translate(Lang, <<"Ping">>)}]}];
+do_get_local_identity(_From, _To, _Node, _Lang) ->
+    [].
 
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_sm_identity(Acc :: [jlib:xmlel()],
+-spec get_sm_identity(Acc :: map(),
                      From :: ejabberd:jid(),
                      To :: ejabberd:jid(),
                      NS :: binary(),
                      ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
-get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
-    [#xmlel{name = <<"identity">>,
+get_sm_identity(#{sm_identity := Ids} = Acc, _From, _To, ?NS_COMMANDS, Lang) ->
+    Id = [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
-                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
+                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Ids],
+    maps:put(sm_identity, Id, Acc);
 get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
--spec get_local_features(Acc :: [jlib:xmlel()],
+-spec get_local_features(Acc :: map(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          NS :: binary(),
                          ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_local_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [?NS_COMMANDS]};
-get_local_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
+%%    Feats = case Acc of
+%%                {result, I} -> I;
+%%                _ -> []
+%%            end,
+    Feats = maps:get(features, Acc, []),
+    maps:put(features, Feats ++ [?NS_COMMANDS], Acc);
+get_local_features(Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
-    {result, []};
-get_local_features(_Acc, _From, _To, <<"ping">>, _Lang) ->
+    maps:put(features, [], Acc);
+get_local_features(Acc, _From, _To, <<"ping">>, _Lang) ->
     %% override all lesser features...
-    {result, [?NS_COMMANDS]};
+    maps:put(features, [?NS_COMMANDS], Acc);
 get_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_features(Acc :: [jlib:xmlel()],
+-spec get_sm_features(Acc :: map(),
                              From :: ejabberd:jid(),
                              To :: ejabberd:jid(),
                              NS :: binary(),
                              ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [?NS_COMMANDS]};
-get_sm_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
+    Feats = maps:get(sm_features, Acc, []),
+    maps:put(sm_features, Feats ++ [?NS_COMMANDS], Acc);
+get_sm_features(Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
-    {result, []};
+    maps:put(sm_features, [], Acc);
 get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -255,17 +259,12 @@ process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
                 To :: ejabberd:jid(),
                 ejabberd:lang()) -> {result, [jlib:xmlel()]}.
 ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
-    Items = case Acc of
-                {result, I} ->
-                    I;
-                _ ->
-                    []
-            end,
+    #{result := Items} = Acc,
     Nodes = [#xmlel{name = <<"item">>,
                     attrs = [{<<"jid">>, Server},
                              {<<"node">>, <<"ping">>},
                              {<<"name">>, translate:translate(Lang, <<"Ping">>)}]}],
-    {result, Items ++ Nodes}.
+    maps:put({result, Items ++ Nodes, Acc}).
 
 
 -spec ping_command(Acc :: _,

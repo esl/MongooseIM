@@ -183,23 +183,24 @@ user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
 
 -spec caps_stream_features([xmlel()], binary()) -> [xmlel()].
 
-caps_stream_features(Acc, MyHost) ->
-    case make_my_disco_hash(MyHost) of
-        <<"">> -> Acc;
+caps_stream_features(#{features := Feat} = Acc, MyHost) ->
+    NFeat = case make_my_disco_hash(MyHost) of
+        <<"">> -> Feat;
         Hash ->
             [#xmlel{name = <<"c">>,
                     attrs =
                         [{<<"xmlns">>, ?NS_CAPS}, {<<"hash">>, <<"sha-1">>},
                          {<<"node">>, ?MONGOOSE_URI}, {<<"ver">>, Hash}],
                     children = []}
-             | Acc]
-    end.
+             | Feat]
+    end,
+    maps:put(features, NFeat, Acc).
 
 disco_features(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
             ejabberd_hooks:run_fold(disco_local_features,
-                                    To#jid.lserver, empty,
+                                    To#jid.lserver, Acc,
                                     [From, To, <<"">>, Lang]);
         false ->
             Acc
@@ -209,7 +210,7 @@ disco_identity(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
             ejabberd_hooks:run_fold(disco_local_identity,
-                                    To#jid.lserver, [],
+                                    To#jid.lserver, Acc,
                                     [From, To, <<"">>, Lang]);
         false ->
             Acc
@@ -218,13 +219,13 @@ disco_identity(Acc, From, To, Node, Lang) ->
 disco_info(Acc, Host, Module, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            ejabberd_hooks:run_fold(disco_info, Host, [],
+            ejabberd_hooks:run_fold(disco_info, Host, Acc,
                                     [Host, Module, <<"">>, Lang]);
         false ->
             Acc
     end.
 
-c2s_presence_in(C2SState,
+c2s_presence_in(#{c2s_state := C2SState} = Acc,
                 {From, To, {_, _, Attrs, Els}}) ->
     ?DEBUG("Presence to ~p from ~p with Els ~p", [To, From, Els]),
     Type = xml:get_attr_s(<<"type">>, Attrs),
@@ -235,7 +236,8 @@ c2s_presence_in(C2SState,
         and ((Subscription == both) or (Subscription == to)),
     Delete = (Type == <<"unavailable">>) or
                                            (Type == <<"error">>),
-    if Insert or Delete ->
+    case (Insert or Delete) of
+        true ->
             LFrom = jid:to_lower(From),
             Rs = case ejabberd_c2s:get_aux_field(caps_resources,
                                                  C2SState)
@@ -263,9 +265,10 @@ c2s_presence_in(C2SState,
                             end;
                         _ -> gb_trees:delete_any(LFrom, Rs)
                     end,
-            ejabberd_c2s:set_aux_field(caps_resources, NewRs,
-                                       C2SState);
-       true -> C2SState
+            NState = ejabberd_c2s:set_aux_field(caps_resources, NewRs,
+                                       C2SState),
+            maps:put(state, NState, Acc);
+       _ -> Acc
     end.
 
 c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
@@ -276,31 +279,32 @@ c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
             case gb_trees:lookup(LTo, Rs) of
                 {value, Caps} ->
                     Drop = not lists:member(Feature, get_features(Host, Caps)),
-                    {stop, Drop};
+                    {stop, maps:put(drop, Drop, InAcc)};
                 none ->
-                    {stop, true}
+                    {stop, maps:put(drop, true, InAcc)}
             end;
         _ -> InAcc
     end;
 c2s_filter_packet(Acc, _, _, _, _, _) -> Acc.
 
-c2s_broadcast_recipients(InAcc, Host, C2SState,
+c2s_broadcast_recipients(#{recipients := Rec} = Acc, Host, C2SState,
                          {pep_message, Feature}, _From, _Packet) ->
-    case ejabberd_c2s:get_aux_field(caps_resources,
+    NRec = case ejabberd_c2s:get_aux_field(caps_resources,
                                     C2SState)
     of
         {ok, Rs} ->
-            gb_trees_fold(fun (USR, Caps, Acc) ->
+            gb_trees_fold(fun (USR, Caps, Ac) ->
                                   case lists:member(Feature,
                                                     get_features(Host, Caps))
                                   of
-                                      true -> [USR | Acc];
-                                      false -> Acc
+                                      true -> [USR | Ac];
+                                      false -> Ac
                                   end
                           end,
-                          InAcc, Rs);
-        _ -> InAcc
-    end;
+                          Rec, Rs);
+        _ -> Rec
+    end,
+    maps:put(recipients, NRec, Acc);
 c2s_broadcast_recipients(Acc, _, _, _, _, _) -> Acc.
 
 init_db(mnesia, _Host) ->
@@ -483,14 +487,11 @@ caps_delete_fun(Node) ->
 
 make_my_disco_hash(Host) ->
     JID = jid:make(<<"">>, Host, <<"">>),
-    case {ejabberd_hooks:run_fold(disco_local_features,
-                                  Host, empty, [JID, JID, <<"">>, <<"">>]),
-          ejabberd_hooks:run_fold(disco_local_identity, Host, [],
-                                  [JID, JID, <<"">>, <<"">>]),
-          ejabberd_hooks:run_fold(disco_info, Host, [],
-                                  [Host, undefined, <<"">>, <<"">>])}
-    of
-        {{result, Features}, Identities, Info} ->
+    A1 = ejabberd_hooks:run_fold(disco_local_features, Host, #{}, [JID, JID, <<"">>, <<"">>]),
+    A2 = ejabberd_hooks:run_fold(disco_local_identity, Host, A1, [JID, JID, <<"">>, <<"">>]),
+    A3 = ejabberd_hooks:run_fold(disco_info, Host, A2, [Host, undefined, <<"">>, <<"">>]),
+    case A3 of
+        #{features := Features, identities := Identities, info := Info} ->
             Feats = lists:map(fun ({{Feat, _Host}}) ->
                                       #xmlel{name = <<"feature">>,
                                              attrs = [{<<"var">>, Feat}],
