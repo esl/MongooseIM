@@ -81,6 +81,17 @@ paths:
           description: The room was successfully created.
           schema:
             $ref: '#/definitions/ResourceID'
+    get:
+      description: "Returns list of room to which user is connected."
+      responses:
+        200:
+          description: "List of rooms."
+          schema:
+            title: "Rooms"
+            type: array
+            items:
+              type: string
+              description: "ID of a room"
   /rooms/{id}:
     get:
       description: "Returns room's details."
