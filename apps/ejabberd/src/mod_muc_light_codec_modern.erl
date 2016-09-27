@@ -396,9 +396,14 @@ encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
                     | ConfigEls ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif) },
+    EventData = [{from_nick, <<>>},
+                 {from_jid, RoomJID},
+                 {room_jid, RoomJID},
+                 {role, owner},
+                 {affiliation, owner}],
     #xmlel{ children = FinalConfigNotif }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
-                              [<<>>, RoomJID, RoomJID]),
+                              [EventData]),
 
     lists:foreach(
       fun({{U, S}, _}) ->
