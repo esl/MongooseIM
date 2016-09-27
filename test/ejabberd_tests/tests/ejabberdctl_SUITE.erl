@@ -247,8 +247,11 @@ num_active_users(Config) ->
     {Mega, Secs, _} = erlang:now(),
     Now = Mega*1000000+Secs,
     set_last(AliceName, Domain, Now),
+    {Result, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
     set_last(MikeName, Domain, Now - 864000), %% Now - 10 days
-    {"1\n", _} = ejabberdctl("num_active_users", [Domain, "5"], Config).
+    %We expect than number of active user in last 5 days is the same as before
+    %the change above
+    {Result, _} = ejabberdctl("num_active_users", [Domain, "5"], Config).
 
 delete_old_users(Config) ->
     {AliceName, Domain, _} = get_user_data(alice, Config),
