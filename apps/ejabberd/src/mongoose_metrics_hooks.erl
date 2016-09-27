@@ -48,7 +48,7 @@
          mam_purge_multiple_messages/9,
          mam_muc_get_prefs/4,
          mam_muc_set_prefs/7,
-         mam_muc_remove_archive/3,
+         mam_muc_remove_archive/4,
          mam_muc_lookup_messages/14,
          mam_muc_archive_message/9,
          mam_muc_flush_messages/3,
@@ -413,8 +413,11 @@ mam_muc_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _Nev
     mongoose_metrics:update(Host, modMucMamPrefsSets, 1),
     Result.
 
-mam_muc_remove_archive(Host, _ArcID, _ArcJID) ->
-    mongoose_metrics:update(Host, modMucMamArchiveRemoved, 1).
+mam_muc_remove_archive(Acc, Host, _ArcID, _ArcJID) ->
+    case mongoose_metrics:update(Host, modMucMamArchiveRemoved, 1) of
+        ok -> Acc;
+        E -> E
+    end.
 
 mam_muc_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
     Host, _ArcID, _ArcJID,
