@@ -1,9 +1,4 @@
-# Example YAML to get you started quickly.
-# Be aware that YAML has indentation based scoping.
-# Code completion support is available so start typing for available options.
 swagger: '2.0'
-
-# This is your document metadata
 info:
   version: "0.0.0"
   title: MongooseIM control backend REST API
@@ -11,6 +6,8 @@ info:
 schemes:
   - http
 basePath: /api
+consumes:
+  - application/json
 produces:
   - application/json
 paths:
@@ -37,12 +34,7 @@ paths:
                   type: string
   /users/{XMPPHost}:
     parameters:
-      - name: XMPPHost
-        in: path
-        description: The XMPP hostname under which users will be registered. I.e. the later part of their JID
-        required: true
-        type: string
-        format: hostname
+      - $ref: '#/parameters/hostName'
     get:
       description: Retrieve a list of users registered under the given XMPP hostname.
       responses:
@@ -78,12 +70,7 @@ paths:
             type: string
   /users/{XMPPHost}/{username}:
     parameters:
-      - name: XMPPHost
-        in: path
-        description: The XMPP hostname under which the user is registered. I.e. the later part of their JID
-        required: true
-        type: string
-        format: hostname
+      - $ref: '#/parameters/hostName'
       - name: username
         in: path
         description: The username part of the user's JID
@@ -100,24 +87,19 @@ paths:
             type: string
       description: Change the user's password.
       responses:
-        200:
+        204:
           description: Password has been changed
     delete:
       description: Cancel a user's registration under the given domain.
       responses:
-        200:
+        204:
           description: The user's registration has been successfully canceled
           schema:
             title: successMessage
             type: string
   /sessions/{XMPPHost}:
     parameters:
-      - name: XMPPHost
-        in: path
-        description: The XMPP hostname.
-        required: true
-        type: string
-        format: hostname
+      - $ref: '#/parameters/hostName'
     get:
       description: Retrieve a list of sessions.
       responses:
@@ -132,12 +114,7 @@ paths:
               format: JID
   /sessions/{XMPPHost}/{username}/{resource}:
     parameters:
-      - name: XMPPHost
-        in: path
-        description: The XMPP hostname.
-        required: true
-        type: string
-        format: hostname
+      - $ref: '#/parameters/hostName'
       - name: username
         in: path
         description: The leading part of a user's JID.
@@ -151,7 +128,7 @@ paths:
     delete:
       description: Terminate this session (connection).
       responses:
-        200:
+        204:
           description: Session (connection) terminated.
           schema:
             title: userList
@@ -180,7 +157,7 @@ paths:
                 type: string
       description: Send a chat message from one user to another.
       responses:
-        200:
+        204:
           description: Message was sent
   /messages/{me}:
     get:
@@ -205,21 +182,7 @@ paths:
         200:
           description: The messages archived for the given user
           schema:
-            title: records
-            type: array
-            items:
-              title: record
-              type: object
-              properties:
-                sender:
-                  type: string
-                  format: JID
-                timestamp:
-                  type: integer
-                message_id:
-                  type: string
-                body:
-                  type: string
+            $ref: '#/definitions/messageList'
   /messages/{me}/{with}:
     get:
       parameters:
@@ -248,28 +211,10 @@ paths:
         200:
           description: The messages archived for the given user and the other party
           schema:
-            title: records
-            type: array
-            items:
-              title: record
-              type: object
-              properties:
-                sender:
-                  type: string
-                  format: JID
-                timestamp:
-                  type: integer
-                message_id:
-                  type: string
-                body:
-                  type: string
+            $ref: '#/definitions/messageList'
   /muc-lights/{XMPPHost}:
     parameters:
-      - name: XMPPHost
-        in: path
-        description: The XMPP hostname under which to create the MUC Light room
-        required: true
-        type: string
+      - $ref: '#/parameters/hostName'
     post:
       description: Create a MUC Light room under the given XMPP hostname.
       consumes:
@@ -300,25 +245,14 @@ paths:
             type: string
   /muc-lights/{XMPPHost}/{roomName}/participants:
     parameters:
-      -
-        name: XMPPHost
-        in: path
-        description: The XMPP hostname
-        required: true
-        type: string
-      -
-        name: roomName
-        in: path
-        description: The MUC Light room's **name** (i.e. **not** the room's JID)
-        required: true
-        type: string
+      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/roomName'
     post:
       description: Invite one user on behalf of another.
       consumes:
         - application/json
       parameters:
-        -
-          name: invite
+        - name: invite
           in: body
           description: The invite itself
           required: true
@@ -333,29 +267,18 @@ paths:
                 type: string
                 description: The invitee's JID
       responses: 
-        200:
+        204:
           description: An invite was sent out
   /muc-lights/{XMPPHost}/{roomName}/messages:
     parameters:
-      -
-        name: XMPPHost
-        in: path
-        description: The XMPP hostname
-        required: true
-        type: string
-      -
-        name: roomName
-        in: path
-        description: The MUC Light room's **name** (i.e. **not** the room's JID)
-        required: true
-        type: string
+      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/roomName'
     put:
       description: Send message to the MUC Light room on behalf of a user.
       consumes:
         - application/json
       parameters:
-        -
-          name: chatMessage
+        - name: chatMessage
           in: body
           description: The message details
           required: true
@@ -370,15 +293,11 @@ paths:
                 type: string
                 description: The message text
       responses:
-        200:
+        204:
           description: Message was sent to the MUC Light room
   /mucs/{XMPPHost}:
     parameters:
-      - name: XMPPHost
-        in: path
-        description: The XMPP hostname under which to create the MUC room
-        required: true
-        type: string
+      - $ref: '#/parameters/hostName'
     post:
       description: Create a MUC room under the given XMPP hostname.
       consumes:
@@ -409,25 +328,14 @@ paths:
             type: string
   /mucs/{XMPPHost}/{roomName}/participants:
     parameters:
-      -
-        name: XMPPHost
-        in: path
-        description: The XMPP hostname
-        required: true
-        type: string
-      -
-        name: roomName
-        in: path
-        description: The leading part of the MUC room's JID
-        required: true
-        type: string
+      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/roomName'
     post:
       description: Invite one user on behalf of another.
       consumes:
         - application/json
       parameters:
-        -
-          name: invite
+        - name: invite
           in: body
           description: The invite itself
           required: true
@@ -447,29 +355,18 @@ paths:
                 type: string
                 description: Initial text sent along with the invite
       responses:
-        200:
+        204:
           description: An invite was sent out
   /mucs/{XMPPHost}/{roomName}/messages:
     parameters:
-      -
-        name: XMPPHost
-        in: path
-        description: The XMPP hostname
-        required: true
-        type: string
-      -
-        name: roomName
-        in: path
-        description: The leading part of the MUC room's JID
-        required: true
-        type: string
+      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/roomName'
     put:
       description: Send message to the MUC room on behalf of a user.
       consumes:
         - application/json
       parameters:
-        -
-          name: chatMessage
+        - name: chatMessage
           in: body
           description: The message details
           required: true
@@ -484,24 +381,13 @@ paths:
                 type: string
                 description: The message text
       responses:
-        200:
+        204:
           description: Message was sent to the MUC room
   /mucs/{XMPPHost}/{roomName}/{nickname}:
     parameters:
-      -
-        name: XMPPHost
-        in: path
-        description: The XMPP hostname
-        required: true
-        type: string
-      -
-        name: roomName
-        in: path
-        description: The leading part of the MUC room's JID
-        required: true
-        type: string
-      -
-        name: nickname
+      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/roomName'
+      - name: nickname
         in: path
         description: The user's nickname for the given room
         required: true
@@ -509,5 +395,38 @@ paths:
     delete:
       description: Kick a user on behalf of one of the room's moderators.
       responses:
-        200:
+        204:
           description: User was kicked from the MUC room
+
+parameters:
+  hostName:
+    name: XMPPHost
+    in: path
+    description: The XMPP hostname i.e. the later part of a JID
+    required: true
+    type: string
+    format: hostname
+  roomName:
+    name: roomName
+    in: path
+    description: The MUC Light room's **name** (i.e. **not** the room's JID)
+    required: true
+    type: string
+
+definitions:
+  messageList:
+    title: records
+    type: array
+    items:
+      title: record
+      type: object
+      properties:
+        sender:
+          type: string
+          format: JID
+        timestamp:
+          type: integer
+        message_id:
+          type: string
+        body:
+          type: string
