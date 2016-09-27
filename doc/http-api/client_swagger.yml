@@ -12,6 +12,10 @@ info:
 basePath: /api
 schemes:
   - https
+produces:
+  - application/json
+consumes:
+  - application/json
 paths:
   /messages:
     post:
@@ -31,19 +35,8 @@ paths:
     get:
       description: Gets all recent messages from the archive.
       parameters:
-        - in: query
-          name: limit
-          description: |
-            Specifies the maximum number of messages to be returned.
-            Default value is 50.
-          type: integer
-        - in: query
-          name: before
-          description: |
-            The timestamp in milliseconds.
-            If set, only messages before this date will be returned.
-          type: integer
-          format: int64
+        - $ref: '#/parameters/messagesLimit'
+        - $ref: '#/parameters/beforeGuard'
       responses:
         200:
           description: Messages
@@ -64,19 +57,8 @@ paths:
             Example: **alice@wonderland.com**.
           in: path
           required: true
-        - in: query
-          name: limit
-          description: |
-            Specifies the maximum number of messages to be returned.
-            Default value is 50.
-          type: integer
-        - in: query
-          name: before
-          description: |
-            The timestamp in milliseconds.
-            If set, only messages before this date will be returned.
-          type: integer
-          format: int64
+        - $ref: '#/parameters/messagesLimit'
+        - $ref: '#/parameters/beforeGuard'
       responses:
         200:
           description: Successful response.
@@ -103,11 +85,7 @@ paths:
     get:
       description: "Returns room's details."
       parameters:
-        - in: path
-          name: id
-          required: true
-          type: string
-          description: The ID of a room
+        - $ref: '#/parameters/roomID'
       responses:
         200:
           description: Successful response
@@ -122,11 +100,7 @@ paths:
     post:
       description: "Adds a user to a room."
       parameters:
-        - in: path
-          name: id
-          required: true
-          type: string
-          description: The ID of a room.
+        - $ref: '#/parameters/roomID'
         - in: body
           name: participant
           required: true
@@ -147,11 +121,7 @@ paths:
         Owner can remove any user.
         Occupant can also use this method, but can only remove itself.
       parameters:
-        - in: path
-          name: id
-          required: true
-          type: string
-          description: The ID of a room.
+        - $ref: '#/parameters/roomID'
         - in: path
           name: user
           required: true
@@ -167,14 +137,11 @@ paths:
           description: |
             When authenticated user is not allowed to add users to the room.
   /rooms/{id}/messages:
+    parameters:
+      - $ref: '#/parameters/roomID'
     post:
       description: Send a message to a room.
       parameters:
-        - in: path
-          name: id
-          required: true
-          type: string
-          description: The ID of a room.
         - in: body
           name: message
           required: true
@@ -193,11 +160,8 @@ paths:
     get:
       description: Get room's messages from the archive.
       parameters:
-        - in: path
-          name: id
-          required: true
-          type: string
-          description: The ID of a room.
+        - $ref: '#/parameters/messagesLimit'
+        - $ref: '#/parameters/beforeGuard'
       responses:
         200:
           description: List of messages in the room's archive.
@@ -216,6 +180,29 @@ securityDefinitions:
     description: |
       The userid part is user's bare JID. F.e. alice@wonderland.com.
       The password is the same as used to register the user's account.
+parameters:
+  roomID:
+    in: path
+    name: id
+    required: true
+    type: string
+    description: The ID of a room
+  messagesLimit:
+    in: query
+    name: limit
+    description: |
+      Specifies the maximum number of messages to be returned.
+      Default value is 50.
+    type: integer
+  beforeGuard:
+    in: query
+    name: before
+    description: |
+      The timestamp in milliseconds.
+      If set, only messages before this date will be returned.
+    type: integer
+    format: int64
+
 definitions:
   ResourceID:
     properties:
