@@ -47,7 +47,7 @@ from_json(Req, #{user := User,
     JSONData = jiffy:decode(Body, [return_maps]),
     #{<<"user">> := UserToInvite} = JSONData,
     {RoomId, Req3} = cowboy_req:binding(id, Req2),
-    mod_muc_light_admin:change_affiliation(Server, RoomId, User, UserToInvite, <<"member">>),
+    mod_muc_light_commands:change_affiliation(Server, RoomId, User, UserToInvite, <<"member">>),
     {true, Req3, State};
 from_json(Req, State) ->
     mongoose_client_api_rooms:forbidden_request(Req, State).
@@ -70,6 +70,6 @@ delete_resource(Req, #{user := User} = State) ->
 remove_user_from_room(Remover, Target, Req,
                       #{jid := #jid{lserver = Server}} = State) ->
     {RoomId, Req2} = cowboy_req:binding(id, Req),
-    mod_muc_light_admin:change_affiliation(Server, RoomId, Remover, Target, <<"none">>),
+    mod_muc_light_commands:change_affiliation(Server, RoomId, Remover, Target, <<"none">>),
     {true, Req2, State}.
 

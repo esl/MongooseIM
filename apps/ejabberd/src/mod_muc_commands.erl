@@ -17,7 +17,7 @@
 %% Description: Administration commands for Mult-user Chat (MUC)
 %%==============================================================================
 
--module(mod_muc_admin).
+-module(mod_muc_commands).
 
 -behaviour(gen_mod).
 -export([start/2, stop/1]).
@@ -58,10 +58,11 @@ commands() ->
 
      [{name, invite_to_muc_room},
       {category, <<"mucs">>},
+      {subcategory, <<"participants">>},
       {desc, <<"Send a MUC room invite from one user to another.">>},
       {module, ?MODULE},
       {function, invite_to_room},
-      {action, update},
+      {action, create},
       {identifiers, [host, name]},
       {args,
        [{host, binary},

@@ -17,7 +17,7 @@
 %% Description: Administration commands for MUC Light
 %%==============================================================================
 
--module(mod_muc_light_admin).
+-module(mod_muc_light_commands).
 
 -behaviour(gen_mod).
 -export([start/2, stop/1]).
@@ -70,10 +70,11 @@ commands() ->
 
      [{name, invite_to_room},
       {category, <<"muc-lights">>},
+      {subcategory, <<"participants">>},
       {desc, <<"Invite to a MUC Light room.">>},
       {module, ?MODULE},
       {function, invite_to_room},
-      {action, update},
+      {action, create},
       {identifiers, [domain, name]},
       {args,
        [{domain, binary},

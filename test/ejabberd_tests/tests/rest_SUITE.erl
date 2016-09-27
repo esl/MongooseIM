@@ -38,6 +38,7 @@
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
 -define(CREATED, {<<"201">>, <<"Created">>}).
+-define(NOCONTENT, {<<"204">>, <<"No Content">>}).
 -define(ERROR, {<<"500">>, _}).
 -define(NOT_FOUND, {<<"404">>, _}).
 
@@ -127,7 +128,7 @@ user_can_be_registered_and_removed(_Config) ->
     % try to create the same user
     {?ERROR, _} = post(<<"/users/localhost">>, CrUser),
     % delete user
-    {?OK, _} = delete(<<"/users/localhost/mike">>),
+    {?NOCONTENT, _} = delete(<<"/users/localhost/mike">>),
     {?OK, Lusers2} = gett(<<"/users/localhost">>),
     assert_notinlist(<<"mike@localhost">>, Lusers2),
     ok.
@@ -143,7 +144,7 @@ session_can_be_kicked(Config) ->
         {?OK, Sessions1} = gett("/sessions/localhost"),
         assert_inlist(<<"alice@localhost/res1">>, Sessions1),
         % kick alice
-        {?OK, _} = delete("/sessions/localhost/alice/res1"),
+        {?NOCONTENT, _} = delete("/sessions/localhost/alice/res1"),
         escalus:wait_for_stanza(Alice),
         {?OK, Sessions2} = gett("/sessions/localhost"),
         assert_notinlist(<<"alice@localhost/res1">>, Sessions2)
@@ -162,9 +163,9 @@ send_messages(Alice, Bob) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         M = #{caller => BobJID, to => AliceJID, msg => <<"hello from Bob">>},
-        {?OK, _} = post(<<"/messages">>, M),
+        {?NOCONTENT, _} = post(<<"/messages">>, M),
         M1 = #{caller => AliceJID, to => BobJID, msg => <<"hello from Alice">>},
-        {?OK, _} = post(<<"/messages">>, M1),
+        {?NOCONTENT, _} = post(<<"/messages">>, M1),
         {M, M1}.
 
 messages_are_archived(Config) ->
@@ -172,18 +173,37 @@ messages_are_archived(Config) ->
         {M1, _M2} = send_messages(Alice, Bob),
         AliceJID = maps:get(to, M1),
         BobJID = maps:get(caller, M1),
-        GetPath = lists:flatten(["/messages/",binary_to_list(AliceJID),
-                                 "/",binary_to_list(BobJID),"/10"]),
+        GetPath = lists:flatten(["/messages",
+                                 "/", binary_to_list(AliceJID),
+                                 "/", binary_to_list(BobJID),
+                                 "?limit=10"]),
         mam_helper:maybe_wait_for_yz(Config),
         {?OK, Msgs} = gett(GetPath),
-        ?PRT("Msgs", Msgs),
         [Last, Previous|_] = lists:reverse(decode_maplist(Msgs)),
-        ?PRT("Last", Last),
-        ?PRT("Previous", Previous),
         <<"hello from Alice">> = maps:get(body, Last),
         AliceJID = maps:get(sender, Last),
         <<"hello from Bob">> = maps:get(body, Previous),
-        BobJID = maps:get(sender, Previous)
+        BobJID = maps:get(sender, Previous),
+        % now if we leave limit out we should get the same result
+        GetPath1 = lists:flatten(["/messages",
+                                  "/", binary_to_list(AliceJID),
+                                  "/", binary_to_list(BobJID)]),
+        mam_helper:maybe_wait_for_yz(Config),
+        {?OK, Msgs1} = gett(GetPath1),
+        [Last1, Previous1|_] = lists:reverse(decode_maplist(Msgs1)),
+        <<"hello from Alice">> = maps:get(body, Last1),
+        AliceJID = maps:get(sender, Last1),
+        <<"hello from Bob">> = maps:get(body, Previous1),
+        BobJID = maps:get(sender, Previous1),
+        % and we can do the same without specifying contact
+        GetPath2 = lists:flatten(["/messages/", binary_to_list(AliceJID)]),
+        mam_helper:maybe_wait_for_yz(Config),
+        {?OK, Msgs2} = gett(GetPath2),
+        [Last2, Previous2|_] = lists:reverse(decode_maplist(Msgs2)),
+        <<"hello from Alice">> = maps:get(body, Last2),
+        AliceJID = maps:get(sender, Last2),
+        <<"hello from Bob">> = maps:get(body, Previous2),
+        BobJID = maps:get(sender, Previous2)
     end).
 
 messages_can_be_paginated(Config) ->
@@ -217,7 +237,8 @@ password_can_be_changed(Config) ->
         skip
     end),
     % we change password
-    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"niemakrolika">>}),
+    {?NOCONTENT, _} = putt("/users/localhost/bob",
+                           #{newpass => <<"niemakrolika">>}),
     % he logs with his alternative password
     escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
         ignore
@@ -229,7 +250,8 @@ password_can_be_changed(Config) ->
         ok
     end,
     % we change it back
-    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"makrolika">>}),
+    {?NOCONTENT, _} = putt("/users/localhost/bob",
+                           #{newpass => <<"makrolika">>}),
     % now he logs again with the regular one
     escalus:story(Config, [{bob, 1}], fun(_Bob) ->
         just_dont_do_anything
@@ -243,8 +265,8 @@ password_can_be_changed(Config) ->
 get_messages(Me, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Me),
-                             "/",binary_to_list(Other),
-                             "/", integer_to_list(Count)]),
+                             "/", binary_to_list(Other),
+                             "?limit=", integer_to_list(Count)]),
     {?OK, Msgs} = gett(GetPath),
     Msgs.
 
@@ -252,8 +274,8 @@ get_messages(Me, Other, Before, Count) ->
     GetPath = lists:flatten(["/messages/",
                              binary_to_list(Me),
                              "/", binary_to_list(Other),
-                             "/", integer_to_list(Before),
-                             "/", integer_to_list(Count)]),
+                             "?before=", integer_to_list(Before),
+                             "&limit=", integer_to_list(Count)]),
     {?OK, Msgs} = gett(GetPath),
     Msgs.
 
@@ -265,9 +287,9 @@ stop_start_command_module(_) ->
     %% described above we test both transition from `started' to
     %% `stopped' and from `stopped' to `started'.
     {?OK, _} = gett(<<"/commands">>),
-    {atomic, ok} = dynamic_modules:stop(host(), mod_mongoose_admin),
+    {atomic, ok} = dynamic_modules:stop(host(), mod_commands),
     {?NOT_FOUND, _} = gett(<<"/commands">>),
-    ok = dynamic_modules:start(host(), mod_mongoose_admin, []),
+    ok = dynamic_modules:start(host(), mod_commands, []),
     timer:sleep(200), %% give the server some time to build the paths again
     {?OK, _} = gett(<<"/commands">>).
 
