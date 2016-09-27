@@ -26,7 +26,7 @@ elif [ ${TRAVIS_BRANCH} == 'master' ]; then
     DOCKERHUB_TAG="latest";
 fi
 
-git clone https://github.com/michalwski/mongooseim-docker.git
+git clone -b less-apt-packages https://github.com/michalwski/mongooseim-docker.git
 cd mongooseim-docker
 
 cp ../${MONGOOSE_TGZ} member
