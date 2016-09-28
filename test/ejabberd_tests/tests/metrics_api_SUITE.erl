@@ -136,11 +136,11 @@ one_message_sent(Config) ->
         {xmppMessageReceived, 1}]).
 
 one_direct_presence_sent(Config) ->
-    [_, {User2ID, _}] = Userspec = metrics_helper:userspec(1, 1, Config),
+    Userspec = metrics_helper:userspec(1, 1, Config),
     instrumented_story
       (Config, Userspec,
        fun(User1, User2) ->
-               Presence = escalus_stanza:presence_direct(User2ID, <<"available">>),
+               Presence = escalus_stanza:presence_direct(User2, <<"available">>),
                escalus:send(User1, Presence),
                escalus:wait_for_stanza(User2)
         end,

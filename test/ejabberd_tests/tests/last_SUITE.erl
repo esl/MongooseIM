@@ -61,9 +61,10 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 last_online_user(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}],
-                  fun(Alice, _Bob) ->
+                  fun(Alice, Bob) ->
                           %% Alice asks about Bob's last activity
-                          escalus_client:send(Alice, escalus_stanza:last_activity(bob)),
+                          BobShortJID = escalus_client:short_jid(Bob),
+                          escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
 
                           %% server replies on Bob's behalf
                           Stanza = escalus_client:wait_for_stanza(Alice),
@@ -85,7 +86,8 @@ last_offline_user(Config) ->
                           timer:sleep(1024), % more than a second
 
                           %% Alice asks for Bob's last availability
-                          escalus_client:send(Alice, escalus_stanza:last_activity(bob)),
+                          BobShortJID = escalus_client:short_jid(Bob),
+                          escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
 
                           %% Alice receives Bob's status and last online time > 0
                           Stanza = escalus_client:wait_for_stanza(Alice),

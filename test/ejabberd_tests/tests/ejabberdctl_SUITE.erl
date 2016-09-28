@@ -639,12 +639,14 @@ push_roster_all(Config) ->
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster1 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_roster_result, Roster1),
-                escalus:assert(roster_contains, [bob], Roster1),
+                BobJid = escalus_client:short_jid(Bob),
+                escalus:assert(roster_contains, [BobJid], Roster1),
 
                 escalus:send(Bob, escalus_stanza:roster_get()),
                 Roster2 = escalus:wait_for_stanza(Bob),
                 escalus:assert(is_roster_result, Roster2),
-                escalus:assert(roster_contains, [alice], Roster2),
+                AliceJid = escalus_client:short_jid(Alice),
+                escalus:assert(roster_contains, [AliceJid], Roster2),
 
                 escalus:send(Alice, escalus_stanza:roster_remove_contact(bob)), % cleanup
                 escalus:send(Bob, escalus_stanza:roster_remove_contact(alice)) % cleanup
