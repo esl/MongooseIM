@@ -15,6 +15,7 @@ test_cases() ->
      room_is_created,
      user_is_invited_to_a_room,
      user_is_removed_from_a_room,
+     rooms_can_be_listed,
      owner_can_leave_a_room_and_auto_select_owner,
      user_can_leave_a_room,
      invitation_to_room_is_forbidden_for_non_memeber,
@@ -121,6 +122,14 @@ room_is_created(Config) ->
         RoomID = given_new_room({alice, Alice}),
         RoomInfo = get_room_info({alice, Alice}, RoomID),
         assert_room_info(Alice, RoomInfo)
+    end).
+
+rooms_can_be_listed(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        [] = get_my_rooms({alice, Alice}),
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        [RoomID] = get_my_rooms({alice, Alice}),
+        [RoomID] = get_my_rooms({bob, Bob})
     end).
 
 user_is_invited_to_a_room(Config) ->
@@ -329,6 +338,11 @@ create_room({_AliceJID, _} = Creds, RoomID, Subject) ->
              subject => Subject},
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(<<"/rooms">>, Room, Creds),
     proplists:get_value(<<"id">>, Result).
+
+get_my_rooms(User) ->
+    Creds = credentials(User),
+    {{<<"200">>, <<"OK">>}, Rooms} = rest_helper:gett(<<"/rooms">>, Creds),
+    Rooms.
 
 assert_messages([], []) ->
     ok;

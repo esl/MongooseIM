@@ -44,7 +44,13 @@ resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
     MUCLightDomain = muc_light_domain(Server),
     case RoomID of
         undefined ->
-            {false, Req2, State};
+            {Method, Req3} = cowboy_req:method(Req2),
+            case Method of
+                <<"GET">> ->
+                    {true, Req3, State};
+                _ ->
+                    {false, Req3, State}
+            end;
         _ ->
             does_room_exist(RoomID, MUCLightDomain, Req2, State)
     end.
@@ -81,7 +87,11 @@ to_json(Req, #{room := Room} = State) ->
              subject => proplists:get_value(subject, Config),
              participants => [user_to_json(U) || U <- Users]
             },
-    {jiffy:encode(Resp), Req, State}.
+    {jiffy:encode(Resp), Req, State};
+to_json(Req, #{jid := #jid{luser = User, lserver = Server}} = State) ->
+    Rooms = mod_muc_light_db_backend:get_user_rooms({User, Server}),
+    RoomIds = [RoomId || {RoomId, _} <- Rooms],
+    {jiffy:encode(RoomIds), Req, State}.
 
 from_json(Req, State) ->
     {Method, Req2} = cowboy_req:method(Req),
