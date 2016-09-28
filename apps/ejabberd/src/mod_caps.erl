@@ -487,10 +487,11 @@ caps_delete_fun(Node) ->
 
 make_my_disco_hash(Host) ->
     JID = jid:make(<<"">>, Host, <<"">>),
-    A1 = ejabberd_hooks:run_fold(disco_local_features, Host, #{}, [JID, JID, <<"">>, <<"">>]),
+    A0 = mongoose_perdix:new(),
+    A1 = ejabberd_hooks:run_fold(disco_local_features, Host, A0, [JID, JID, <<"">>, <<"">>]),
     A2 = ejabberd_hooks:run_fold(disco_local_identity, Host, A1, [JID, JID, <<"">>, <<"">>]),
     A3 = ejabberd_hooks:run_fold(disco_info, Host, A2, [Host, undefined, <<"">>, <<"">>]),
-    case A3 of
+    case mongoose_perdix:to_map(A3) of
         #{features := Features, identities := Identities, info := Info} ->
             Feats = lists:map(fun ({{Feat, _Host}}) ->
                                       #xmlel{name = <<"feature">>,
