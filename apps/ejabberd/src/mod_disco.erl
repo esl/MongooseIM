@@ -169,17 +169,18 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
         get ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            A1 = #{local_identity => [], info => [], features => []},
+            A1 = mongoose_perdix:new(#{local_identity => [], info => [], features => []}),
             A2 = ejabberd_hooks:run_fold(disco_local_identity,
                                                Host,
                                                A1,
                                                [From, To, Node, Lang]),
             A3 = ejabberd_hooks:run_fold(disco_info, Host, A2,
                                            [Host, ?MODULE, Node, Lang]),
-            case ejabberd_hooks:run_fold(disco_local_features,
+            Res = ejabberd_hooks:run_fold(disco_local_features,
                                          Host,
                                          A3,
-                                         [From, To, Node, Lang]) of
+                                         [From, To, Node, Lang]),
+            case mongoose_perdix:to_map(Res) of
                 #{features := Features, info := Info, local_identity := Identity} ->
                     ANode = case Node of
                                 <<>> -> [];
@@ -202,12 +203,13 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
                         To :: ejabberd:jid(),
                         Node :: binary(),
                         Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_local_identity(#{local_identity := Ids} = Acc, _From, _To, <<>>, _Lang) ->
-    NIds = Ids ++ [#xmlel{name = <<"identity">>,
+get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
+    NIds = [#xmlel{name = <<"identity">>,
                    attrs = [{<<"category">>, <<"server">>},
                             {<<"type">>, <<"im">>},
                             {<<"name">>, <<"ejabberd">>}]}],
-    maps:put(local_identity, NIds, Acc);
+    mongoose_perdix:append(local_identity, NIds, Acc).
+
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
