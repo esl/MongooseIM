@@ -4,7 +4,7 @@
 %%%
 %%% This module encapsulates a data type which will initially be passed to
 %%% hookhandlers as accumulator, and later might become a full-blown partridge
-%%% flying through the system.
+%%% flying through the  system.
 %%% Credits for the name go to Paweł Chrząszcz.
 
 %%%-------------------------------------------------------------------
