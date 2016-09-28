@@ -507,7 +507,7 @@ disco_local_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 -spec disco_local_features(
-        Acc    :: [xmlel()],
+        Acc    :: map(),
           _From  :: jid(),
           To     :: jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
@@ -515,11 +515,13 @@ disco_local_identity(Acc, _From, _To, _Node, _Lang) ->
         -> [binary(),...].
 disco_local_features(Acc, _From, To, <<>>, _Lang) ->
     Host = To#jid.lserver,
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [feature(F) || F <- features(Host, <<>>)]};
+    Feats = maps:get(features, Acc, []),
+%%    Feats = case Acc of
+%%                {result, I} -> I;
+%%                _ -> []
+%%            end,
+    NFeats = Feats ++ [feature(F) || F <- features(Host, <<>>)],
+    maps:put(features, NFeats, Acc);
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -527,17 +529,18 @@ disco_local_items(Acc, _From, _To, <<>>, _Lang) -> Acc;
 disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_sm_identity(
-        Acc  :: empty | [xmlel()],
+        Acc  :: map(),
           From :: jid(),
           To   :: jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
         -> [xmlel()].
-disco_sm_identity(empty, From, To, Node, Lang) ->
-    disco_sm_identity([], From, To, Node, Lang);
-disco_sm_identity(Acc, From, To, Node, _Lang) ->
-    disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
-        ++ Acc.
+%%disco_sm_identity(empty, From, To, Node, Lang) ->
+%%    disco_sm_identity([], From, To, Node, Lang);
+disco_sm_identity(#{sm_identity := Ids} = Acc, From, To, Node, _Lang) ->
+    NIds = disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
+        ++ Ids,
+    maps:put(sm_identity, NIds, Acc).
 
 disco_identity(_Host, <<>>, _From) ->
     [#xmlel{name = <<"identity">>,
@@ -568,18 +571,18 @@ disco_identity(Host, Node, From) ->
     end.
 
 -spec disco_sm_features(
-        Acc  :: empty | {result, Features::[Feature::binary()]},
+        Acc  :: map(),
           From :: jid(),
           To   :: jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
         -> {result, Features::[Feature::binary()]}.
-disco_sm_features(empty, From, To, Node, Lang) ->
-    disco_sm_features({result, []}, From, To, Node, Lang);
-disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
-    {result,
-     OtherFeatures ++
-         disco_features(jid:to_lower(jid:to_bare(To)), Node, From)};
+%%disco_sm_features(empty, From, To, Node, Lang) ->
+%%    disco_sm_features({result, []}, From, To, Node, Lang);
+disco_sm_features(#{sm_features := OtherFeatures} = Acc, From, To, Node, _Lang) ->
+    NFeat = OtherFeatures ++
+        disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
+    maps:put(sm_features, NFeat, Acc);
 disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 disco_features(Host, <<>>, _From) ->
@@ -934,8 +937,8 @@ do_route(ServerHost, Access, Plugins, Host, From, To, Packet) ->
                         #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
                             #xmlel{attrs = QAttrs} = SubEl,
                             Node = xml:get_attr_s(<<"node">>, QAttrs),
-                            Info = ejabberd_hooks:run_fold(disco_info, ServerHost,
-                                                           [],
+                            #{info := Info} = ejabberd_hooks:run_fold(disco_info, ServerHost,
+                                                           #{},
                                                            [ServerHost, ?MODULE, <<>>, <<>>]),
                             Res = case iq_disco_info(Host, Node, From, Lang) of
                                       {result, IQRes} ->

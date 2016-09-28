@@ -358,10 +358,11 @@ is_room_owner(_, Room, User) ->
 muc_room_pid(_, _) ->
     {ok, processless}.
 
--spec can_access_room(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
+-spec can_access_room(Acc :: map(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
     boolean().
-can_access_room(_, User, Room) ->
-    none =/= get_affiliation(Room, User).
+can_access_room(Acc, User, Room) ->
+    Can = none =/= get_affiliation(Room, User),
+    maps:put(can_access_room, Can, Acc).
 
 %%====================================================================
 %% Internal functions

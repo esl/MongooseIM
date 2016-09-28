@@ -200,7 +200,7 @@ disco_features(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
             ejabberd_hooks:run_fold(disco_local_features,
-                                    To#jid.lserver, empty,
+                                    To#jid.lserver, Acc,
                                     [From, To, <<"">>, Lang]);
         false ->
             Acc
@@ -219,7 +219,7 @@ disco_identity(Acc, From, To, Node, Lang) ->
 disco_info(Acc, Host, Module, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            ejabberd_hooks:run_fold(disco_info, Host, [],
+            ejabberd_hooks:run_fold(disco_info, Host, Acc,
                                     [Host, Module, <<"">>, Lang]);
         false ->
             Acc
@@ -487,14 +487,11 @@ caps_delete_fun(Node) ->
 
 make_my_disco_hash(Host) ->
     JID = jid:make(<<"">>, Host, <<"">>),
-    case {ejabberd_hooks:run_fold(disco_local_features,
-                                  Host, empty, [JID, JID, <<"">>, <<"">>]),
-          ejabberd_hooks:run_fold(disco_local_identity, Host, [],
-                                  [JID, JID, <<"">>, <<"">>]),
-          ejabberd_hooks:run_fold(disco_info, Host, [],
-                                  [Host, undefined, <<"">>, <<"">>])}
-    of
-        {{result, Features}, Identities, Info} ->
+    A1 = ejabberd_hooks:run_fold(disco_local_features, Host, #{}, [JID, JID, <<"">>, <<"">>]),
+    A2 = ejabberd_hooks:run_fold(disco_local_identity, Host, A1, [JID, JID, <<"">>, <<"">>]),
+    A3 = ejabberd_hooks:run_fold(disco_info, Host, A2, [Host, undefined, <<"">>, <<"">>]),
+    case A3 of
+        #{features := Features, identities := Identities, info := Info} ->
             Feats = lists:map(fun ({{Feat, _Host}}) ->
                                       #xmlel{name = <<"feature">>,
                                              attrs = [{<<"var">>, Feat}],

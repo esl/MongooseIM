@@ -62,7 +62,8 @@ check_packet(Packet, _, _) ->
 
 add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
     Features = result_or(Acc, []) ++ amp_features(),
-    {result, Features};
+    Features = maps:get(features, Acc, []) ++ amp_features(),
+    maps:put(features, Features, Acc);
 add_local_features(Acc, _From, _To, _NS, _Lang) ->
     Acc.
 

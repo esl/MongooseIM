@@ -370,7 +370,11 @@ is_user_identity_hidden(From, ArcJID) ->
 
 -spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
 can_access_room(From, To) ->
-    ejabberd_hooks:run_fold(can_access_room, To#jid.lserver, false, [From, To]).
+    #{can_access_room := Can} = ejabberd_hooks:run_fold(can_access_room,
+                                                        To#jid.lserver,
+                                                        #{can_access_room => false},
+                                                        [From, To]),
+    Can.
 
 
 -spec action_type(action()) -> 'get' | 'set'.

@@ -961,9 +961,9 @@ process_outgoing_stanza(error, _Name, Args) ->
     end;
 process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
     {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
-    PresenceEl = ejabberd_hooks:run_fold(c2s_update_presence,
+    #{packet := PresenceEl} = ejabberd_hooks:run_fold(c2s_update_presence,
                                          Server,
-                                         NewEl,
+                                         #{packet => NewEl},
                                          [User, Server]),
     ejabberd_hooks:run(user_send_packet,
                        Server,
@@ -2345,7 +2345,10 @@ fsm_reply(Reply, StateName, StateData) ->
 is_ip_blacklisted(undefined) ->
     false;
 is_ip_blacklisted({IP,_Port}) ->
-    ejabberd_hooks:run_fold(check_bl_c2s, false, [IP]).
+    #{is_ip_blacklisted := Res} = ejabberd_hooks:run_fold(check_bl_c2s,
+                                                          #{is_ip_blacklisted => false},
+                                                          [IP]),
+    Res.
 
 
 %% @doc Check from attributes.

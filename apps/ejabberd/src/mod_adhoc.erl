@@ -159,22 +159,23 @@ get_local_identity(Acc, _From, _To, _Node, _Lang) ->
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_sm_identity(Acc :: [jlib:xmlel()],
+-spec get_sm_identity(Acc :: map(),
                      From :: ejabberd:jid(),
                      To :: ejabberd:jid(),
                      NS :: binary(),
                      ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
-get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
-    [#xmlel{name = <<"identity">>,
+get_sm_identity(#{sm_identity := Ids} = Acc, _From, _To, ?NS_COMMANDS, Lang) ->
+    Id = [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
-                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
+                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Ids],
+    maps:put(sm_identity, Id, Acc);
 get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
--spec get_local_features(Acc :: [jlib:xmlel()],
+-spec get_local_features(Acc :: map(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          NS :: binary(),
@@ -184,32 +185,29 @@ get_local_features(Acc, _From, _To, <<"">>, _Lang) ->
                 {result, I} -> I;
                 _ -> []
             end,
-    {result, Feats ++ [?NS_COMMANDS]};
-get_local_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
+    maps:put(features, Feats ++ [?NS_COMMANDS], Acc);
+get_local_features(Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
-    {result, []};
-get_local_features(_Acc, _From, _To, <<"ping">>, _Lang) ->
+    maps:put(features, [], Acc);
+get_local_features(Acc, _From, _To, <<"ping">>, _Lang) ->
     %% override all lesser features...
-    {result, [?NS_COMMANDS]};
+    maps:put(features, [?NS_COMMANDS], Acc);
 get_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_features(Acc :: [jlib:xmlel()],
+-spec get_sm_features(Acc :: map(),
                              From :: ejabberd:jid(),
                              To :: ejabberd:jid(),
                              NS :: binary(),
                              ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [?NS_COMMANDS]};
-get_sm_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
+    Feats = maps:get(sm_features, Acc, []),
+    maps:put(sm_features, Feats ++ [?NS_COMMANDS], Acc);
+get_sm_features(Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
-    {result, []};
+    maps:put(sm_features, [], Acc);
 get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
