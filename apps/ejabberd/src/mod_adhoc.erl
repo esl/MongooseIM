@@ -144,9 +144,9 @@ get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
                          To :: ejabberd:jid(),
                          NS :: binary(),
                          ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
-get_local_identity(#{local_identity := Ids} = Acc, From, To, Ns, Lang) ->
+get_local_identity(Acc, From, To, Ns, Lang) ->
     LId = do_get_local_identity(From, To, Ns, Lang),
-    maps:put(local_identity, Ids ++ LId, Acc).
+    mongoose_perdix:append(local_identity, LId, Acc).
 
 do_get_local_identity(_From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
