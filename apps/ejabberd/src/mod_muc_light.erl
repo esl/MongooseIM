@@ -263,9 +263,9 @@ prevent_service_unavailable(Acc, _From, _To, Packet) ->
         _Type -> Acc
     end.
 
--spec get_muc_service(Acc :: {result, [jlib:xmlel()]}, From :: ejabberd:jid(), To :: ejabberd:jid(),
+-spec get_muc_service(Acc :: map(), From :: ejabberd:jid(), To :: ejabberd:jid(),
                       NS :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]}.
-get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
+get_muc_service(#{local_items := Nodes} = Acc, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
     XMLNS = case get_opt(LServer, legacy_mode, ?DEFAULT_LEGACY_MODE) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
@@ -274,7 +274,7 @@ get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _
     Item = [#xmlel{name = <<"item">>,
                    attrs = [{<<"jid">>, Host},
                             {<<"node">>, XMLNS}]}],
-    {result, [Item | Nodes]};
+    maps:put(local_items, [Item | Nodes], Acc);
 get_muc_service(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 

@@ -142,9 +142,9 @@ process_local_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} =
 
             case ejabberd_hooks:run_fold(disco_local_items,
                                          Host,
-                                         empty,
+                                         #{local_items => []},
                                          [From, To, Node, Lang]) of
-                {result, Items} ->
+                #{local_items := Items} ->
                     ANode = case Node of
                                 <<>> -> [];
                                 _ -> [{<<"node">>, Node}]
@@ -169,17 +169,18 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
         get ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Identity = ejabberd_hooks:run_fold(disco_local_identity,
+            A1 = #{local_identity => [], info => [], features => []},
+            A2 = ejabberd_hooks:run_fold(disco_local_identity,
                                                Host,
-                                               [],
+                                               A1,
                                                [From, To, Node, Lang]),
-            #{info := Info} = ejabberd_hooks:run_fold(disco_info, Host, #{},
+            A3 = ejabberd_hooks:run_fold(disco_info, Host, A2,
                                            [Host, ?MODULE, Node, Lang]),
             case ejabberd_hooks:run_fold(disco_local_features,
                                          Host,
-                                         #{},
+                                         A3,
                                          [From, To, Node, Lang]) of
-                #{features := Features} ->
+                #{features := Features, info := Info, local_identity := Identity} ->
                     ANode = case Node of
                                 <<>> -> [];
                                 _ -> [{<<"node">>, Node}]
@@ -196,16 +197,17 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
     end.
 
 
--spec get_local_identity(Acc :: [jlib:xmlel()],
+-spec get_local_identity(Acc :: map(),
                         From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
                         Node :: binary(),
                         Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
-    Acc ++ [#xmlel{name = <<"identity">>,
+get_local_identity(#{local_identity := Ids} = Acc, _From, _To, <<>>, _Lang) ->
+    NIds = Ids ++ [#xmlel{name = <<"identity">>,
                    attrs = [{<<"category">>, <<"server">>},
                             {<<"type">>, <<"im">>},
-                            {<<"name">>, <<"ejabberd">>}]}];
+                            {<<"name">>, <<"ejabberd">>}]}],
+    maps:put(local_identity, NIds, Acc);
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
@@ -218,10 +220,10 @@ get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
 %%get_local_features({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
 %%    Acc;
 get_local_features(Acc, _From, To, <<>>, _Lang) ->
-    Feats = case Acc of
-                {result, Features} -> Features;
-                empty -> []
-            end,
+%%    Feats = case Acc of
+%%                {result, Features} -> Features;
+%%                empty -> []
+%%            end,
     Feats = maps:get(features, Acc, []),
     Host = To#jid.lserver,
     NFeats = ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats,
@@ -260,26 +262,27 @@ domain_to_xml(Domain) ->
     #xmlel{name = <<"item">>, attrs = [{<<"jid">>, Domain}]}.
 
 
--spec get_local_services(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_local_services(Acc :: map(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          Node :: binary(),
                          Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
-get_local_services({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
+%%get_local_services({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
+%%    Acc;
 get_local_services(Acc, _From, To, <<>>, _Lang) ->
-    Items = case Acc of
-                {result, Its} -> Its;
-                empty -> []
-            end,
-    Host = To#jid.lserver,
-    {result,
-     lists:usort(
+%%    Items = case Acc of
+%%                {result, Its} -> Its;
+%%                empty -> []
+%%            end,
+     Items = maps:get(local_items, Acc, []),
+     Host = To#jid.lserver,
+     NItems = lists:usort(
        lists:map(fun domain_to_xml/1,
                  get_vh_services(Host) ++
                  ets:select(disco_extra_domains,
                             [{{{'$1', Host}}, [], ['$1']}]))
-       ) ++ Items};
+       ) ++ Items,
+     maps:put(local_items, NItems, Acc);
 get_local_services({result, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_services(empty, _From, _To, _Node, _Lang) ->

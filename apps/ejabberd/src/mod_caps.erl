@@ -210,7 +210,7 @@ disco_identity(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
             ejabberd_hooks:run_fold(disco_local_identity,
-                                    To#jid.lserver, [],
+                                    To#jid.lserver, Acc,
                                     [From, To, <<"">>, Lang]);
         false ->
             Acc
@@ -225,7 +225,7 @@ disco_info(Acc, Host, Module, Node, Lang) ->
             Acc
     end.
 
-c2s_presence_in(#{state := C2SState} = Acc,
+c2s_presence_in(#{c2s_state := C2SState} = Acc,
                 {From, To, {_, _, Attrs, Els}}) ->
     ?DEBUG("Presence to ~p from ~p with Els ~p", [To, From, Els]),
     Type = xml:get_attr_s(<<"type">>, Attrs),

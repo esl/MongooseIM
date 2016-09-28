@@ -487,22 +487,23 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 %%
 
 -spec disco_local_identity(
-        Acc    :: [xmlel()],
+        Acc    :: map(),
           _From  :: jid(),
           To     :: jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
         -> [xmlel()].
-disco_local_identity(Acc, _From, To, <<>>, _Lang) ->
-    case lists:member(?PEPNODE, plugins(To#jid.lserver)) of
+disco_local_identity(#{local_identity := Ids} = Acc, _From, To, <<>>, _Lang) ->
+    NIds = case lists:member(?PEPNODE, plugins(To#jid.lserver)) of
         true ->
             [#xmlel{name = <<"identity">>,
                     attrs = [{<<"category">>, <<"pubsub">>},
                              {<<"type">>, <<"pep">>}]}
-             | Acc];
+             | Ids];
         false ->
-            Acc
-    end;
+            Ids
+    end,
+    maps:put(local_identity, NIds, Acc);
 disco_local_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 

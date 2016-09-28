@@ -377,7 +377,11 @@ maybe_sasl_mechanisms(Server) ->
     end.
 
 hook_enabled_features(Server) ->
-    ejabberd_hooks:run_fold(c2s_stream_features, Server, #{features => []}, [Server]).
+    #{features := Features} = ejabberd_hooks:run_fold(c2s_stream_features,
+                                                      Server,
+                                                      #{features => []},
+                                                      [Server]),
+    Features.
 
 starttls(TLSRequired)
   when TLSRequired =:= required;
@@ -1140,10 +1144,10 @@ handle_info({force_update_presence, LUser}, StateName,
     NewStateData =
     case StateData#state.pres_last of
         #xmlel{name = <<"presence">>} ->
-            PresenceEl = ejabberd_hooks:run_fold(
+            #{packet := PresenceEl} = ejabberd_hooks:run_fold(
                            c2s_update_presence,
                            LServer,
-                           StateData#state.pres_last,
+                           #{packet => StateData#state.pres_last},
                            [LUser, LServer]),
             StateData2 = StateData#state{pres_last = PresenceEl},
             presence_update(StateData2#state.jid,
@@ -1349,8 +1353,8 @@ privacy_list_push_iq(PrivListName) ->
 -spec handle_routed_presence(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel(),
                             StateData :: state()) -> routing_result().
 handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
-    State = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
-                                    StateData, [{From, To, Packet}]),
+    #{c2s_state := State} = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
+                                    #{c2s_state => StateData}, [{From, To, Packet}]),
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"probe">> ->
             {LFrom, LBFrom} = lowcase_and_bare(From),
@@ -2279,7 +2283,7 @@ process_unauthenticated_stanza(StateData, El) ->
                                           [StateData#state.server, IQ,
                                            StateData#state.ip]),
             case Res of
-                empty ->
+                #{} ->
                     % The only reasonable IQ's here are auth and register IQ's
                     % They contain secrets, so don't include subelements to response
                     ResIQ = IQ#iq{type = error,

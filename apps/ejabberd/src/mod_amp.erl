@@ -56,7 +56,11 @@ check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
 
 -spec check_packet(#xmlel{}, jid(), amp_event()) -> #xmlel{} | drop.
 check_packet(Packet = #xmlel{name = <<"message">>}, #jid{lserver = Host} = From, Event) ->
-    ejabberd_hooks:run_fold(amp_check_packet, Host, #{packet => Packet}, [From, Event]);
+    #{packet := NPacket} = ejabberd_hooks:run_fold(amp_check_packet,
+                                                  Host,
+                                                  #{packet => Packet},
+                                                  [From, Event]),
+    NPacket;
 check_packet(Packet, _, _) ->
     Packet.
 
