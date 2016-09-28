@@ -377,7 +377,7 @@ maybe_sasl_mechanisms(Server) ->
     end.
 
 hook_enabled_features(Server) ->
-    ejabberd_hooks:run_fold(c2s_stream_features, Server, #{features = []}, [Server]).
+    ejabberd_hooks:run_fold(c2s_stream_features, Server, #{features => []}, [Server]).
 
 starttls(TLSRequired)
   when TLSRequired =:= required;
@@ -675,7 +675,7 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
                     error -> error;
                     <<>> ->
                         list_to_binary(lists:concat(
-                                         [randoms:get_string() | tuple_to_list(now())]));
+                                         [randoms:get_string() | tuple_to_list(os:timestamp())]));
                     Resource -> Resource
                 end,
             case R of
@@ -832,7 +832,7 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                       privacy_get_user_list, NewStateData0#state.server,
                       #userlist{},
                       [U, NewStateData0#state.server]),
-                    SID = {now(), self()},
+                    SID = {os:timestamp(), self()},
                     Conn = get_conn_type(NewStateData0),
                     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
                             {auth_module, NewStateData0#state.auth_module}],
@@ -1177,7 +1177,7 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
     #{recipients := Recipients} = ejabberd_hooks:run_fold(
 		   c2s_broadcast_recipients, StateData#state.server,
-		   #{recipients = []},
+		   #{recipients => []},
 		   [StateData#state.server, StateData, Type, From, Packet]),
     lists:foreach(
       fun(USR) ->
@@ -2654,7 +2654,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
 enable_stream_resumption(SD) ->
     SMID = make_smid(),
     SID = case SD#state.sid of
-              undefined -> {now(), self()};
+              undefined -> {os:timestamp(), self()};
               RSID -> RSID
           end,
     ok = mod_stream_management:register_smid(SMID, SID),
@@ -2871,7 +2871,7 @@ maybe_resume_session(NextState, El, StateData) ->
 do_resume_session(SMID, El, [{_, Pid}], StateData) ->
     try
         {ok, OldState} = ?GEN_FSM:sync_send_event(Pid, resume),
-        SID = {now(), self()},
+        SID = {os:timestamp(), self()},
         Conn = get_conn_type(StateData),
         MergedState = merge_state(OldState,
                                   StateData#state{sid = SID, conn = Conn}),

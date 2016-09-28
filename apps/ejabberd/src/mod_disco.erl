@@ -429,7 +429,7 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
                       To :: ejabberd:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_sm_identity(#{sm_identity = Ids} = Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
+get_sm_identity(#{sm_identity := Ids} = Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
     Id = case ejabberd_auth:is_user_exists(LUser, LServer) of
             true ->
                [#xmlel{name = <<"identity">>, attrs = [{<<"category">>, <<"account">>},

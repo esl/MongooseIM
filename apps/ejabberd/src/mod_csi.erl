@@ -31,7 +31,7 @@ hooks() ->
 
 add_csi_feature(#{features := Feat} = Acc, _Host) ->
     NFeat = lists:keystore(<<"csi">>, #xmlel.name, Feat, csi()),
-    maps:put(features, NFeat, Acc)
+    maps:put(features, NFeat, Acc).
 
 csi() ->
     #xmlel{name = <<"csi">>,

@@ -118,7 +118,7 @@ process_amp_rules(Packet, From, Event, Rules) ->
 %% @doc ejabberd_hooks helpers
 -spec verify_support(binary(), amp_rules()) -> [amp_rule_support()].
 verify_support(Host, Rules) ->
-    Res = ejabberd_hooks:run_fold(amp_verify_support, Host, #{supported = []}, [Rules]),
+    Res = ejabberd_hooks:run_fold(amp_verify_support, Host, #{supported => []}, [Rules]),
     maps:get(supported, Res).
 
 -spec determine_strategy(#xmlel{}, jid(), amp_event()) -> amp_strategy().

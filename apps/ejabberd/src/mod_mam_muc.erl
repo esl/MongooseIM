@@ -22,7 +22,7 @@
 %%% Message identifiers (or UIDs in the spec) are generated based on:
 %%%
 %%% <ul>
-%%% <li>date (using `now()');</li>
+%%% <li>date (using `os:timestamp()');</li>
 %%% <li>node number (using {@link ejabberd_node_id}).</li>
 %%% </ul>
 %%% @end
@@ -491,7 +491,7 @@ handle_lookup_messages(
         From=#jid{},
         ArcJID=#jid{},
         IQ=#iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -546,7 +546,7 @@ handle_set_message_form(
         From=#jid{},
         ArcJID=#jid{},
         IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -632,7 +632,7 @@ handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}) ->
     ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_multiple_messages(ArcJID=#jid{},
                                IQ=#iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
@@ -652,7 +652,7 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_single_message(ArcJID=#jid{},
                             IQ=#iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),

@@ -56,7 +56,7 @@
 -include_lib("ejabberd/include/jlib.hrl").
 
 -type classification() :: 'ignore' | 'forward'.
--type matchspec_atom() :: '_' | '$1' | '$2' | '$3'.
+%%-type matchspec_atom() :: '_' | '$1' | '$2' | '$3'.
 
 is_carbon_copy(Packet) ->
     case xml:get_subtag(Packet, <<"sent">>) of
@@ -197,11 +197,11 @@ is_bare_to(Direction, To, _PrioRes) ->
         _ -> false
     end.
 
-is_unavailable(LRes, PrioRes) ->
-    case lists:keyfind(LRes, 2, PrioRes) of
-        false -> true;
-        _ -> false
-    end.
+%%is_unavailable(LRes, PrioRes) ->
+%%    case lists:keyfind(LRes, 2, PrioRes) of
+%%        false -> true;
+%%        _ -> false
+%%    end.
 
 max_prio(PrioRes) ->
     case catch lists:max(PrioRes) of
