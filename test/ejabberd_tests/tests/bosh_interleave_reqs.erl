@@ -11,7 +11,7 @@
 -export([test/1, sample/0, prop/1]).
 
 -export([initial_state/1, command/1, precondition/2, postcondition/3,
-		 next_state/3]).
+         next_state/3]).
 
 -export([read_config/1,
          connect_carol/1,
@@ -24,7 +24,7 @@
 -export([ct_config_giver/1]).
 
 -record(state, {carol,
-				geralt,
+                geralt,
                 msgs_to_carol,
                 msgs_to_geralt,
                 config_pid}).
@@ -37,16 +37,16 @@ sample() ->
 
 prop(Config) ->
     Pid = spawn_link(?MODULE, ct_config_giver, [Config]),
-	?FORALL(Cmds, commands(?MODULE, initial_state(Pid)),
-			?TRAPEXIT(
-			   begin
-				   {History,State,Result} = run_commands(?MODULE, Cmds),
+    ?FORALL(Cmds, commands(?MODULE, initial_state(Pid)),
+            ?TRAPEXIT(
+               begin
+                   {History, State, Result} = run_commands(?MODULE, Cmds),
                    maybe_stop_client(State#state.carol),
                    maybe_stop_client(State#state.geralt),
-				   ?WHENFAIL(ct:pal(error, "History: ~p~nState: ~p\nResult: ~p~n",
-									[History,State,Result]),
-							 aggregate(command_names(Cmds), Result =:= ok))
-			   end)).
+                   ?WHENFAIL(ct:log(error, "History: ~p~nState: ~p\nResult: ~p~n",
+                                    [History, State, Result]),
+                             aggregate(command_names(Cmds), Result =:= ok))
+               end)).
 
 ct_config_giver(Config) ->
     receive
@@ -60,8 +60,8 @@ maybe_stop_client(Client) ->
     escalus_client:stop(Client).
 
 initial_state(Pid) ->
-	#state{carol = undefined,
-		   geralt = undefined,
+    #state{carol = undefined,
+           geralt = undefined,
            msgs_to_carol = [],
            msgs_to_geralt = [],
            config_pid = Pid}.
@@ -95,16 +95,12 @@ next_state(S, V, {call, _, connect_carol, [_]}) ->
 next_state(S, V, {call, _, connect_geralt, [_]}) ->
     S#state{geralt = V};
 next_state(#state{msgs_to_geralt = Msgs} = S, V, {call, _, send_from_carol, _}) ->
-    % ct:pal("msgs to geralt: ~p", [[V | Msgs]]),
     S#state{msgs_to_geralt = [V | Msgs]};
 next_state(#state{msgs_to_carol = Msgs} = S, V, {call, _, send_from_geralt, _}) ->
-    % ct:pal("msgs to carol: ~p", [[V | Msgs]]),
     S#state{msgs_to_carol = [V | Msgs]};
 next_state(S, _, {call, _, wait_for_msgs_carol, _}) ->
-    % ct:pal("msgs to carol2: ~p", [S#state.msgs_to_carol]),
     S#state{msgs_to_carol = []};
 next_state(S, _, {call, _, wait_for_msgs_geralt, _}) ->
-    % ct:pal("msgs to geralt2: ~p", [S#state.msgs_to_geralt]),
     S#state{msgs_to_geralt = []};
 next_state(S, _, _) ->
     S.
@@ -115,7 +111,7 @@ read_config(Pid) ->
         {ok, Config} ->
             Config
     after 100 ->
-          error
+              error
     end.
 
 connect_carol(Pid) ->
@@ -168,7 +164,6 @@ wait_for_msgs_carol(Carol, Msgs) ->
     RMsgs = [exml_query:path(E, [{element, <<"body">>}, cdata])
              || E <- Stanzas],
     SortedMsgs = lists:sort([Msg || {_, Msg} <- Msgs]),
-    ct:pal("waiting for: ~p~nreceived: ~p", [SortedMsgs, RMsgs]),
     SortedMsgs = lists:sort(RMsgs),
     ok.
 
