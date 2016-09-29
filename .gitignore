@@ -76,6 +76,7 @@ apps/ejabberd/priv/mibs/EJABBERD-MIB.bin
 apps/ejabberd/ebin/ejabberd.app
 rel/configure.vars.config
 rel/vars.config
+test/ejabberd_tests/qtest.spec
 
 # Compilation/test ephemera
 *.d

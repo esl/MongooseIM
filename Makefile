@@ -55,11 +55,27 @@ qct:
 	else ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
         -I apps/*/include -I apps/*/src -logdir /tmp/ct_log -noshell; fi
 
-test: test_deps
+test: test_node_stopped test_deps
 	cd test/ejabberd_tests; make test
 
-test_preset: test_deps
+# $ make qtest SUITE=mam_SUITE
+# $ make qtest SUITE="[mam_SUITE,metrics_api_SUITE]"
+qtest: test_node_stopped check_cfg_backup
+	cp test/ejabberd_tests/qtest.spec.template test/ejabberd_tests/qtest.spec
+	echo "{suites, \"tests\", $(SUITE)}." >> test/ejabberd_tests/qtest.spec
+	cd test/ejabberd_tests;
+	@(if [ "$(SUITE)" ]; \
+		then make quicktest TESTSPEC=qtest.spec; \
+		else make quicktest; fi)
+
+test_preset: test_node_stopped test_deps
 	cd test/ejabberd_tests; make test_preset
+
+# Kill previous test if it's still running
+test_node_stopped:
+	erl -sname killer -setcookie ejabberd -eval \
+		"catch rpc:call(list_to_atom(\"test@\" ++ element(2, inet:gethostname())), init, stop, [1]). " \
+		-eval "init:stop()."
 
 
 run: deps compile quickrun
@@ -105,7 +121,7 @@ configure.out rel/configure.vars.config:
 
 devrel: certs $(DEVNODES)
 
-$(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config
+$(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config remove_config_backups
 	@echo "building $@"
 	(. ./configure.out && \
 	 cd rel && \
@@ -150,5 +166,11 @@ test_deps:
 
 install: configure.out rel
 	@. ./configure.out && tools/install
+
+check_cfg_backup:
+	./tools/check_cfg_backup.sh
+
+remove_config_backups:
+	-@rm -rf dev/*/etc/ejabberd.cfg.bak > /dev/null 2>&1
 
 include tools/cd_tools/cd-targets
