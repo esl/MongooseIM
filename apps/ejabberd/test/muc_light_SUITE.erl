@@ -16,7 +16,8 @@
 all() ->
     [
      {group, aff_changes},
-     {group, rsm_disco}
+     {group, rsm_disco},
+     {group, codec}
     ].
 
 groups() ->
@@ -28,7 +29,8 @@ groups() ->
      {rsm_disco, [parallel], [
                               rsm_disco_success,
                               rsm_disco_item_not_found
-                             ]}
+                             ]},
+        {codec, [sequence], [codec_calls]}
     ].
 
 init_per_group(rsm_disco, Config) ->
@@ -38,6 +40,31 @@ init_per_group(_, Config) ->
     Config.
 
 end_per_group(_, Config) ->
+    Config.
+
+init_per_testcase(codec_calls, Config) ->
+    ok = mnesia:create_schema([node()]),
+    ok = mnesia:start(),
+    application:ensure_all_started(stringprep),
+    application:ensure_all_started(exometer),
+    ets:new(local_config, [named_table]),
+    ejabberd_hooks:start_link(),
+    ejabberd_router:start_link(),
+    mim_ct_sup:start_link(ejabberd_sup),
+    mod_muc_light:start(?DOMAIN, []),
+    ets:new(testcalls, [named_table]),
+    ets:insert(testcalls, {hooks, 0}),
+    ets:insert(testcalls, {handlers, 0}),
+    Config;
+init_per_testcase(_, Config) ->
+    Config.
+
+end_per_testcase(codec_calls, Config) ->
+    mod_muc_light:stop(?DOMAIN),
+    mnesia:stop(),
+    exit(whereis(ejabberd_sup), kill),
+    Config;
+end_per_testcase(_, Config) ->
     Config.
 
 %% ------------------------------------------------------------------
@@ -55,6 +82,37 @@ rsm_disco_success(_Config) ->
 
 rsm_disco_item_not_found(_Config) ->
     ?assert(proper:quickcheck(prop_rsm_disco_item_not_found())).
+
+%% @doc This is a regression test for a bug that was fixed in #01506f5a
+%% Basically it makes sure that codes have a proper setup of hook calls
+%% and all hooks and handlers are called as they should.
+codec_calls(_Config) ->
+    AffUsers = [{{<<"alice">>, <<"localhost">>}, member}],
+    Sender = jid:from_binary(<<"bob@localhost/bbb">>),
+    RoomUS = {<<"pokoik">>, <<"localhost">>},
+    HandleFun = fun(_, _, _) -> count_call(handler) end,
+    ejabberd_hooks:add(filter_room_packet,
+                       <<"localhost">>,
+                       fun(Acc, _EvData) -> count_call(hook), Acc end,
+                       50),
+    mod_muc_light_codec_modern:encode({#msg{id = <<"ajdi">>}, AffUsers},
+                                      Sender, RoomUS, HandleFun),
+    % count_call/0 should've been called twice - by handler fun (for each affiliated user,
+    % we have one) and by a filter_room_packet hook handler.
+    check_count(1, 1),
+    mod_muc_light_codec_modern:encode({set, #affiliations{}, [], []},
+                                      Sender, RoomUS, HandleFun),
+    check_count(1, 1),
+    mod_muc_light_codec_modern:encode({set, #create{id = <<"ajdi">>, aff_users = AffUsers}, false},
+                                      Sender, RoomUS, HandleFun),
+    check_count(1, 2),
+    mod_muc_light_codec_modern:encode({set, #config{id = <<"ajdi">>}, AffUsers},
+        Sender, RoomUS, HandleFun),
+    check_count(1, 2),
+    mod_muc_light_codec_legacy:encode({#msg{id = <<"ajdi">>}, AffUsers},
+        Sender, RoomUS, HandleFun),
+    check_count(1, 1),
+    ok.
 
 %% ------------------------------------------------------------------
 %% Properties and validators
@@ -337,3 +395,15 @@ make_owner([{User, _} | RAffUsers], 1) -> [{User, owner} | RAffUsers];
 make_owner([AffUser | RAffUsers], OwnerPos) -> [AffUser | make_owner(RAffUsers, OwnerPos - 1)];
 make_owner([], _OwnerPos) -> [].
 
+count_call(hook) ->
+    ets:update_counter(testcalls, hooks, 1);
+count_call(handler) ->
+    ets:update_counter(testcalls, handlers, 1).
+
+check_count(Hooks, Handlers) ->
+    [{hooks, Ho}] = ets:lookup(testcalls, hooks),
+    [{handlers, Ha}] = ets:lookup(testcalls, handlers),
+    ?assertEqual(Hooks, Ho),
+    ?assertEqual(Handlers, Ha),
+    ets:insert(testcalls, {hooks, 0}),
+    ets:insert(testcalls, {handlers, 0}).
