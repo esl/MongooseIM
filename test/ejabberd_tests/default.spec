@@ -20,6 +20,7 @@
 {suites, "tests", conf_reload_SUITE}.
 {suites, "tests", connect_SUITE}.
 {suites, "tests", component_SUITE}.
+{suites, "tests", disco_and_caps_SUITE}.
 {suites, "tests", ejabberdctl_SUITE}.
 {suites, "tests", last_SUITE}.
 {suites, "tests", login_SUITE}.
