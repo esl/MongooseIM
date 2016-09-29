@@ -377,7 +377,11 @@ maybe_sasl_mechanisms(Server) ->
     end.
 
 hook_enabled_features(Server) ->
-    ejabberd_hooks:run_fold(c2s_stream_features, Server, [], [Server]).
+    #{features := Features} = ejabberd_hooks:run_fold(c2s_stream_features,
+                                                      Server,
+                                                      #{features => []},
+                                                      [Server]),
+    Features.
 
 starttls(TLSRequired)
   when TLSRequired =:= required;
@@ -675,7 +679,7 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
                     error -> error;
                     <<>> ->
                         list_to_binary(lists:concat(
-                                         [randoms:get_string() | tuple_to_list(now())]));
+                                         [randoms:get_string() | tuple_to_list(os:timestamp())]));
                     Resource -> Resource
                 end,
             case R of
@@ -832,7 +836,7 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                       privacy_get_user_list, NewStateData0#state.server,
                       #userlist{},
                       [U, NewStateData0#state.server]),
-                    SID = {now(), self()},
+                    SID = {os:timestamp(), self()},
                     Conn = get_conn_type(NewStateData0),
                     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
                             {auth_module, NewStateData0#state.auth_module}],
@@ -961,9 +965,9 @@ process_outgoing_stanza(error, _Name, Args) ->
     end;
 process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
     {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
-    PresenceEl = ejabberd_hooks:run_fold(c2s_update_presence,
+    #{packet := PresenceEl} = ejabberd_hooks:run_fold(c2s_update_presence,
                                          Server,
-                                         NewEl,
+                                         #{packet => NewEl},
                                          [User, Server]),
     ejabberd_hooks:run(user_send_packet,
                        Server,
@@ -1140,10 +1144,10 @@ handle_info({force_update_presence, LUser}, StateName,
     NewStateData =
     case StateData#state.pres_last of
         #xmlel{name = <<"presence">>} ->
-            PresenceEl = ejabberd_hooks:run_fold(
+            #{packet := PresenceEl} = ejabberd_hooks:run_fold(
                            c2s_update_presence,
                            LServer,
-                           StateData#state.pres_last,
+                           #{packet => StateData#state.pres_last},
                            [LUser, LServer]),
             StateData2 = StateData#state{pres_last = PresenceEl},
             presence_update(StateData2#state.jid,
@@ -1155,10 +1159,10 @@ handle_info({force_update_presence, LUser}, StateName,
     end,
     {next_state, StateName, NewStateData};
 handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
-    Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
-				   true, [StateData#state.server, StateData,
+    Res = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
+				   #{drop => true}, [StateData#state.server, StateData,
 					  Feature, To, Packet]),
-    case Drop of
+    case maps:get(drop, Res) of
         true ->
             ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]);
         _ ->
@@ -1175,9 +1179,9 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     end,
     fsm_next_state(StateName, StateData);
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
-    Recipients = ejabberd_hooks:run_fold(
+    #{recipients := Recipients} = ejabberd_hooks:run_fold(
 		   c2s_broadcast_recipients, StateData#state.server,
-		   [],
+		   #{recipients => []},
 		   [StateData#state.server, StateData, Type, From, Packet]),
     lists:foreach(
       fun(USR) ->
@@ -1349,8 +1353,8 @@ privacy_list_push_iq(PrivListName) ->
 -spec handle_routed_presence(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel(),
                             StateData :: state()) -> routing_result().
 handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
-    State = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
-                                    StateData, [{From, To, Packet}]),
+    #{c2s_state := State} = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
+                                    #{c2s_state => StateData}, [{From, To, Packet}]),
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"probe">> ->
             {LFrom, LBFrom} = lowcase_and_bare(From),
@@ -2275,11 +2279,11 @@ process_unauthenticated_stanza(StateData, El) ->
         #iq{} = IQ ->
             Res = ejabberd_hooks:run_fold(c2s_unauthenticated_iq,
                                           StateData#state.server,
-                                          empty,
+                                          #{},
                                           [StateData#state.server, IQ,
                                            StateData#state.ip]),
             case Res of
-                empty ->
+                #{} ->
                     % The only reasonable IQ's here are auth and register IQ's
                     % They contain secrets, so don't include subelements to response
                     ResIQ = IQ#iq{type = error,
@@ -2345,7 +2349,10 @@ fsm_reply(Reply, StateName, StateData) ->
 is_ip_blacklisted(undefined) ->
     false;
 is_ip_blacklisted({IP,_Port}) ->
-    ejabberd_hooks:run_fold(check_bl_c2s, false, [IP]).
+    #{is_ip_blacklisted := Res} = ejabberd_hooks:run_fold(check_bl_c2s,
+                                                          #{is_ip_blacklisted => false},
+                                                          [IP]),
+    Res.
 
 
 %% @doc Check from attributes.
@@ -2651,7 +2658,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
 enable_stream_resumption(SD) ->
     SMID = make_smid(),
     SID = case SD#state.sid of
-              undefined -> {now(), self()};
+              undefined -> {os:timestamp(), self()};
               RSID -> RSID
           end,
     ok = mod_stream_management:register_smid(SMID, SID),
@@ -2868,7 +2875,7 @@ maybe_resume_session(NextState, El, StateData) ->
 do_resume_session(SMID, El, [{_, Pid}], StateData) ->
     try
         {ok, OldState} = ?GEN_FSM:sync_send_event(Pid, resume),
-        SID = {now(), self()},
+        SID = {os:timestamp(), self()},
         Conn = get_conn_type(StateData),
         MergedState = merge_state(OldState,
                                   StateData#state{sid = SID, conn = Conn}),

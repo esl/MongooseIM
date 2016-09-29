@@ -63,9 +63,9 @@
 -define(PEPNODE, <<"pep">>).
 
 %% exports for hooks
--export([presence_probe/3, caps_change/4,
-         in_subscription/6, out_subscription/4,
-         on_user_offline/4, remove_user/2,
+-export([presence_probe/4, caps_change/4, caps_change/5,
+         in_subscription/7, out_subscription/5,
+         on_user_offline/5, remove_user/2, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_local_items/5, disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5]).
@@ -487,27 +487,28 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 %%
 
 -spec disco_local_identity(
-        Acc    :: [xmlel()],
+        Acc    :: map(),
           _From  :: jid(),
           To     :: jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
         -> [xmlel()].
-disco_local_identity(Acc, _From, To, <<>>, _Lang) ->
-    case lists:member(?PEPNODE, plugins(To#jid.lserver)) of
+disco_local_identity(#{local_identity := Ids} = Acc, _From, To, <<>>, _Lang) ->
+    NIds = case lists:member(?PEPNODE, plugins(To#jid.lserver)) of
         true ->
             [#xmlel{name = <<"identity">>,
                     attrs = [{<<"category">>, <<"pubsub">>},
                              {<<"type">>, <<"pep">>}]}
-             | Acc];
+             | Ids];
         false ->
-            Acc
-    end;
+            Ids
+    end,
+    maps:put(local_identity, NIds, Acc);
 disco_local_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 -spec disco_local_features(
-        Acc    :: [xmlel()],
+        Acc    :: map(),
           _From  :: jid(),
           To     :: jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
@@ -515,11 +516,13 @@ disco_local_identity(Acc, _From, _To, _Node, _Lang) ->
         -> [binary(),...].
 disco_local_features(Acc, _From, To, <<>>, _Lang) ->
     Host = To#jid.lserver,
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [feature(F) || F <- features(Host, <<>>)]};
+    Feats = maps:get(features, Acc, []),
+%%    Feats = case Acc of
+%%                {result, I} -> I;
+%%                _ -> []
+%%            end,
+    NFeats = Feats ++ [feature(F) || F <- features(Host, <<>>)],
+    maps:put(features, NFeats, Acc);
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -527,17 +530,18 @@ disco_local_items(Acc, _From, _To, <<>>, _Lang) -> Acc;
 disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_sm_identity(
-        Acc  :: empty | [xmlel()],
+        Acc  :: map(),
           From :: jid(),
           To   :: jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
         -> [xmlel()].
-disco_sm_identity(empty, From, To, Node, Lang) ->
-    disco_sm_identity([], From, To, Node, Lang);
-disco_sm_identity(Acc, From, To, Node, _Lang) ->
-    disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
-        ++ Acc.
+%%disco_sm_identity(empty, From, To, Node, Lang) ->
+%%    disco_sm_identity([], From, To, Node, Lang);
+disco_sm_identity(#{sm_identity := Ids} = Acc, From, To, Node, _Lang) ->
+    NIds = disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
+        ++ Ids,
+    maps:put(sm_identity, NIds, Acc).
 
 disco_identity(_Host, <<>>, _From) ->
     [#xmlel{name = <<"identity">>,
@@ -568,18 +572,18 @@ disco_identity(Host, Node, From) ->
     end.
 
 -spec disco_sm_features(
-        Acc  :: empty | {result, Features::[Feature::binary()]},
+        Acc  :: map(),
           From :: jid(),
           To   :: jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
         -> {result, Features::[Feature::binary()]}.
-disco_sm_features(empty, From, To, Node, Lang) ->
-    disco_sm_features({result, []}, From, To, Node, Lang);
-disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
-    {result,
-     OtherFeatures ++
-         disco_features(jid:to_lower(jid:to_bare(To)), Node, From)};
+%%disco_sm_features(empty, From, To, Node, Lang) ->
+%%    disco_sm_features({result, []}, From, To, Node, Lang);
+disco_sm_features(#{sm_features := OtherFeatures} = Acc, From, To, Node, _Lang) ->
+    NFeat = OtherFeatures ++
+        disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
+    maps:put(sm_features, NFeat, Acc);
 disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 disco_features(Host, <<>>, _From) ->
@@ -669,16 +673,23 @@ disco_items(Host, Node, From) ->
 %% presence hooks handling functions
 %%
 
+%% #rh
+caps_change(Acc, FromJID, ToJID, Pid, Features) ->
+    caps_change(FromJID, ToJID, Pid, Features),
+    Acc.
+
 caps_change(#jid{luser = _U, lserver = S, lresource = _R} = FromJID, ToJID, Pid, _Features) ->
     case jid:to_lower(FromJID) == jid:to_lower(ToJID) of
         true -> notify_send_loop(S, {send_last_pep_items, ToJID, Pid});
         false -> ok
     end.
 
-presence_probe(#jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
-    notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID});
-presence_probe(_Host, _JID, _Pid) ->
-    ok.
+%% #rh
+presence_probe(Acc, #jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
+    notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID}),
+    Acc;
+presence_probe(Acc, _Host, _JID, _Pid) ->
+    Acc.
 
 notify_send_loop(ServerHost, Action) ->
     {SendLoop, _} = case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
@@ -691,7 +702,7 @@ notify_send_loop(ServerHost, Action) ->
 %% subscription hooks handling functions
 %%
 
-out_subscription(User, Server, JID, subscribed) ->
+out_subscription(Acc, User, Server, JID, subscribed) ->
     Owner = jid:make(User, Server, <<>>),
     {PUser, PServer, PResource} = jid:to_lower(JID),
     PResources = case PResource of
@@ -699,15 +710,15 @@ out_subscription(User, Server, JID, subscribed) ->
                      _ -> [PResource]
                  end,
     notify_send_loop(Server, {send_last_items_from_owner, Owner, {PUser, PServer, PResources}}),
-    true;
-out_subscription(_, _, _, _) ->
-    true.
+    Acc;
+out_subscription(Acc, _, _, _, _) ->
+    Acc.
 
-in_subscription(_, User, Server, Owner, unsubscribed, _) ->
+in_subscription(Acc, _, User, Server, Owner, unsubscribed, _) ->
     unsubscribe_user(jid:make(User, Server, <<>>), Owner),
-    true;
-in_subscription(_, _, _, _, _, _) ->
-    true.
+    Acc;
+in_subscription(Acc, _, _, _, _, _, _) ->
+    Acc.
 
 unsubscribe_user(Entity, Owner) ->
     spawn(fun () ->
@@ -750,6 +761,11 @@ unsubscribe_user(Host, Entity, Owner) ->
 %% -------
 %% user remove hook handling function
 %%
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
@@ -922,8 +938,8 @@ do_route(ServerHost, Access, Plugins, Host, From, To, Packet) ->
                         #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
                             #xmlel{attrs = QAttrs} = SubEl,
                             Node = xml:get_attr_s(<<"node">>, QAttrs),
-                            Info = ejabberd_hooks:run_fold(disco_info, ServerHost,
-                                                           [],
+                            #{info := Info} = ejabberd_hooks:run_fold(disco_info, ServerHost,
+                                                           #{},
                                                            [ServerHost, ?MODULE, <<>>, <<>>]),
                             Res = case iq_disco_info(Host, Node, From, Lang) of
                                       {result, IQRes} ->
@@ -3892,10 +3908,10 @@ tree(Host) ->
 
 tree(_Host, <<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend
-tree(Host, Name) ->
+tree(_Host, Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
-plugin(Host, Name) ->
+plugin(_Host, Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 plugins(Host) ->
@@ -3905,7 +3921,7 @@ plugins(Host) ->
         Plugins -> Plugins
     end.
 
-subscription_plugin(Host) ->
+subscription_plugin(_Host) ->
     pubsub_subscription.
 
 config(ServerHost, Key) ->
@@ -4155,12 +4171,13 @@ extended_headers(Jids) ->
             attrs = [{<<"type">>, <<"replyto">>}, {<<"jid">>, Jid}]}
      || Jid <- Jids].
 
-on_user_offline(_, JID, _, _) ->
+on_user_offline(Acc, _, JID, _, _) ->
     {User, Server, Resource} = jid:to_lower(JID),
     case user_resources(User, Server) of
         [] -> purge_offline({User, Server, Resource});
         _ -> true
-    end.
+    end,
+    Acc.
 
 purge_offline(LJID) ->
     Host = host(element(2, LJID)),

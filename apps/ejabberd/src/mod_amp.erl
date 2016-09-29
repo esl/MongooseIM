@@ -56,20 +56,31 @@ check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
 
 -spec check_packet(#xmlel{}, jid(), amp_event()) -> #xmlel{} | drop.
 check_packet(Packet = #xmlel{name = <<"message">>}, #jid{lserver = Host} = From, Event) ->
-    ejabberd_hooks:run_fold(amp_check_packet, Host, Packet, [From, Event]);
+    #{packet := NPacket} = ejabberd_hooks:run_fold(amp_check_packet,
+                                                  Host,
+                                                  #{packet => Packet},
+                                                  [From, Event]),
+    NPacket;
 check_packet(Packet, _, _) ->
     Packet.
 
 add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
     Features = result_or(Acc, []) ++ amp_features(),
-    {result, Features};
+    Features = maps:get(features, Acc, []) ++ amp_features(),
+    maps:put(features, Features, Acc);
 add_local_features(Acc, _From, _To, _NS, _Lang) ->
     Acc.
 
-add_stream_feature(Acc, _Host) ->
-    lists:keystore(<<"amp">>, #xmlel.name, Acc, ?AMP_FEATURE).
+add_stream_feature(#{features := Feat} = Acc, _Host) ->
+    NFeat = lists:keystore(<<"amp">>, #xmlel.name, Feat, ?AMP_FEATURE),
+    maps:put(features, NFeat, Acc).
 
--spec amp_check_packet(#xmlel{} | drop, jid(), amp_event()) -> #xmlel{} | drop.
+-spec amp_check_packet(map() | drop, jid(), amp_event()) -> map() | drop.
+amp_check_packet(#{packet := Packet} = Acc, From, Event) ->
+    case amp_check_packet(Packet, From, Event) of
+        NPacket -> maps:put(packet, NPacket, Acc);
+        drop -> drop
+    end;
 amp_check_packet(#xmlel{name = <<"message">>} = Packet, From, Event) ->
     ?DEBUG("handle event ~p for packet ~p from ~p", [Event, Packet, From]),
     case amp:extract_requested_rules(Packet) of
@@ -97,7 +108,7 @@ amp_features() ->
 -spec process_amp_rules(#xmlel{}, jid(), amp_event(), amp_rules()) -> #xmlel{} | drop.
 process_amp_rules(Packet, From, Event, Rules) ->
     VerifiedRules = verify_support(host(From), Rules),
-    {Good,Bad} = lists:partition(fun is_supported_rule/1, VerifiedRules),
+    {Good, Bad} = lists:partition(fun is_supported_rule/1, VerifiedRules),
     ValidRules = [ Rule || {supported, Rule} <- Good ],
     case Bad of
         [{error, ValidationError, InvalidRule} | _] ->
@@ -111,13 +122,15 @@ process_amp_rules(Packet, From, Event, Rules) ->
 %% @doc ejabberd_hooks helpers
 -spec verify_support(binary(), amp_rules()) -> [amp_rule_support()].
 verify_support(Host, Rules) ->
-    ejabberd_hooks:run_fold(amp_verify_support, Host, [], [Rules]).
+    Res = ejabberd_hooks:run_fold(amp_verify_support, Host, #{supported => []}, [Rules]),
+    maps:get(supported, Res).
 
 -spec determine_strategy(#xmlel{}, jid(), amp_event()) -> amp_strategy().
 determine_strategy(Packet, From, Event) ->
     To = message_target(Packet),
     ejabberd_hooks:run_fold(amp_determine_strategy, host(From),
-                            amp_strategy:null_strategy(), [From, To, Packet, Event]).
+                            #{strategy => amp_strategy:null_strategy()},
+                            [From, To, Packet, Event]).
 
 -spec fold_apply_rules(#xmlel{}, jid(), amp_strategy(), [amp_rule()]) ->
                               no_match | {matched | undecided, amp_rule()}.

@@ -10,7 +10,7 @@
 -behaviour(gen_mod).
 
 %% API
--export([start/2, stop/1, on_user_send_packet/3, should_make_req/3]).
+-export([start/2, stop/1, on_user_send_packet/4, should_make_req/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -31,7 +31,7 @@ stop(Host) ->
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
     ok.
 
-on_user_send_packet(From, To, Packet) ->
+on_user_send_packet(Acc, From, To, Packet) ->
     Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
     Mod = get_callback_module(),
     case Mod:should_make_req(Packet, From, To) of
@@ -39,7 +39,8 @@ on_user_send_packet(From, To, Packet) ->
             make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
         _ ->
             ok
-    end.
+    end,
+    Acc.
 
 %%%===================================================================
 %%% Internal functions

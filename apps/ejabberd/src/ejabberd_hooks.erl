@@ -111,7 +111,7 @@ run(Hook, Host, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Host, Hook),
-            run1(Ls, Hook, Args);
+            run1(Ls, Hook, #{}, Args); % run with empty map as accumulator
         [] ->
             ok
     end.
@@ -125,6 +125,7 @@ run(Hook, Host, Args) ->
 run_fold(Hook, Val, Args) ->
     run_fold(Hook, global, Val, Args).
 
+%%run_fold(Hook, Host, #{} = Val, Args) -> % now it MUST be a map
 run_fold(Hook, Host, Val, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
@@ -228,23 +229,25 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
-run1([], _Hook, _Args) ->
-    ok;
-run1([{_Seq, Module, Function} | Ls], Hook, Args) ->
+run1([], _Hook, Acc, _Args) ->
+    Acc;
+run1([{_Seq, Module, Function} | Ls], Hook, Acc, Args) ->
     Res = if is_function(Function) ->
-                  safely:apply(Function, Args);
+                  safely:apply(Function, [Acc|Args]);
              true ->
-                  safely:apply(Module, Function, Args)
+                  safely:apply(Module, Function, [Acc|Args])
           end,
     case Res of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p",
                        [Reason, {Hook, Args}, Module, Function]),
-            run1(Ls, Hook, Args);
+            run1(Ls, Hook, Acc, Args);
         stop ->
-            ok;
-        _ ->
-            run1(Ls, Hook, Args)
+            stopped;
+        {stop, NAcc} ->
+            NAcc;
+        NewAcc ->
+            run1(Ls, Hook, NewAcc, Args)
     end.
 
 run_fold1([], _Hook, Val, _Args) ->

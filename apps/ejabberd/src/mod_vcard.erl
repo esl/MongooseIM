@@ -58,6 +58,7 @@
          process_sm_iq/3,
          get_local_features/5,
          remove_user/2,
+         remove_user/3,
          set_vcard/3]).
 
 -export([start_link/2]).
@@ -236,7 +237,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 process_local_iq(_From,_To,#iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_local_iq(_From,_To,#iq{type = get, lang = Lang} = IQ) ->
+process_local_iq(_From,_To,#iq{type = get} = IQ) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, ?NS_VCARD}],
                            children = [#xmlel{name = <<"FN">>,
@@ -314,18 +315,25 @@ set_vcard({error, _} = E, _From, _VCARD) -> E.
 
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
     Acc;
-get_local_features(Acc, _From, _To, Node, _Lang) ->
-    case Node of
+get_local_features(#{features := Feat} = Acc, _From, _To, Node, _Lang) ->
+    NFeat = case Node of
         <<>> ->
-            case Acc of
-                {result, Features} ->
-                    {result, [?NS_VCARD | Features]};
-                empty ->
-                    {result, [?NS_VCARD]}
-            end;
+            [?NS_VCARD | Feat];
+%%            case Acc of
+%%                {result, Features} ->
+%%                    {result, [?NS_VCARD | Features]};
+%%                empty ->
+%%                    {result, [?NS_VCARD]}
+%%            end;
         _ ->
-            Acc
-    end.
+            Feat
+    end,
+    maps:put(features, NFeat, Acc).
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
@@ -400,7 +408,7 @@ do_route(_VHost, From, To, Packet, #iq{type = set,
 do_route(VHost, From, To, _Packet, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
-    Info = ejabberd_hooks:run_fold(disco_info, VHost, [], [VHost, ?MODULE, "", ""]),
+    #{info := Info} = ejabberd_hooks:run_fold(disco_info, VHost, #{}, [VHost, ?MODULE, "", ""]),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs =[{<<"xmlns">>,?NS_DISCO_INFO}],
