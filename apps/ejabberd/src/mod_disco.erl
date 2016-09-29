@@ -205,7 +205,7 @@ get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
     Acc ++ [#xmlel{name = <<"identity">>,
                    attrs = [{<<"category">>, <<"server">>},
                             {<<"type">>, <<"im">>},
-                            {<<"name">>, <<"ejabberd">>}]}];
+                            {<<"name">>, <<"MongooseIM">>}]}];
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
