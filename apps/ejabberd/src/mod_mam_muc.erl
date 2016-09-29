@@ -22,7 +22,7 @@
 %%% Message identifiers (or UIDs in the spec) are generated based on:
 %%%
 %%% <ul>
-%%% <li>date (using `now()');</li>
+%%% <li>date (using `os:timestamp()');</li>
 %%% <li>node number (using {@link ejabberd_node_id}).</li>
 %%% </ul>
 %%% @end
@@ -47,7 +47,8 @@
 %% ejabberd room handlers
 -export([filter_room_packet/2,
          room_process_mam_iq/3,
-         forget_room/2]).
+         forget_room/2,
+         forget_room/3]).
 
 %% private
 -export([archive_message/8]).
@@ -315,6 +316,13 @@ room_process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
     end.
 
 
+%% #rh
+%% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
+-spec forget_room(map(), ejabberd:lserver(), binary()) -> map().
+forget_room(Acc, LServer, RoomName) ->
+    forget_room(LServer, RoomName),
+    Acc.
+
 %% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
 -spec forget_room(ejabberd:lserver(), binary()) -> 'ok'.
 forget_room(LServer, RoomName) ->
@@ -362,7 +370,11 @@ is_user_identity_hidden(From, ArcJID) ->
 
 -spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
 can_access_room(From, To) ->
-    ejabberd_hooks:run_fold(can_access_room, To#jid.lserver, false, [From, To]).
+    #{can_access_room := Can} = ejabberd_hooks:run_fold(can_access_room,
+                                                        To#jid.lserver,
+                                                        #{can_access_room => false},
+                                                        [From, To]),
+    Can.
 
 
 -spec action_type(action()) -> 'get' | 'set'.
@@ -479,7 +491,7 @@ handle_lookup_messages(
         From=#jid{},
         ArcJID=#jid{},
         IQ=#iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -534,7 +546,7 @@ handle_set_message_form(
         From=#jid{},
         ArcJID=#jid{},
         IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -620,7 +632,7 @@ handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}) ->
     ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_multiple_messages(ArcJID=#jid{},
                                IQ=#iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
@@ -640,7 +652,7 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_single_message(ArcJID=#jid{},
                             IQ=#iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),

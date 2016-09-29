@@ -8,8 +8,8 @@
 
 %% `ejabberd_hooks' handlers
 -export([add_sm_feature/2,
-         remove_smid/4,
-         session_cleanup/4]).
+         remove_smid/5,
+         session_cleanup/5]).
 
 %% `ejabberd.cfg' options (don't use outside of tests)
 -export([get_buffer_max/1,
@@ -52,25 +52,27 @@ stop(Host) ->
 %% `ejabberd_hooks' handlers
 %%
 
-add_sm_feature(Acc, _Server) ->
-    lists:keystore(<<"sm">>, #xmlel.name, Acc, sm()).
+add_sm_feature(#{features := Feat} = Acc, _Server) ->
+    NFeat = lists:keystore(<<"sm">>, #xmlel.name, Feat, sm()),
+    maps:put(features, NFeat, Acc).
 
 sm() ->
     #xmlel{name = <<"sm">>,
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
 
-remove_smid(SID, _JID, _Info, _Reason) ->
+remove_smid(Acc, SID, _JID, _Info, _Reason) ->
     case mnesia:dirty_index_read(sm_session, SID, #sm_session.sid) of
         [] ->
             ok;
         [#sm_session{} = SMSession] ->
             mnesia:sync_dirty(fun mnesia:delete_object/1, [SMSession])
-    end.
+    end,
+    Acc.
 
--spec session_cleanup(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+-spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
                       LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
-session_cleanup(_LUser, _LServer, _LResource, SID) ->
-    remove_smid(SID, undefined, undefined, undefined).
+session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
+    remove_smid(Acc, SID, undefined, undefined, undefined).
 
 %%
 %% `ejabberd.cfg' options (don't use outside of tests)

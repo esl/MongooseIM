@@ -50,7 +50,7 @@
         ]).
 
 %% Hooks callbacks
--export([node_cleanup/1]).
+-export([node_cleanup/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -157,7 +157,7 @@ dirty_get_connections() ->
 %% Hooks callbacks
 %%====================================================================
 
-node_cleanup(Node) ->
+node_cleanup(Acc, Node) ->
     F = fun() ->
                 Es = mnesia:select(
                        s2s,
@@ -168,7 +168,8 @@ node_cleanup(Node) ->
                                       mnesia:delete_object(E)
                               end, Es)
         end,
-    mnesia:async_dirty(F).
+    Res = mnesia:async_dirty(F),
+    maps:put(cleanup_result, Res, Acc).
 
 -spec key({ejabberd:lserver(), ejabberd:lserver()}, binary()) ->
     binary().
