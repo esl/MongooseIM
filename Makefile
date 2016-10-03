@@ -63,7 +63,7 @@ test_preset: test_deps
 
 rock:
 	@if [ "$(FILE)" ]; then elvis rock $(FILE);\
-	else ./rock_changed.sh; fi
+	else tools/rock_changed.sh; fi
 
 run: deps compile quickrun
 
