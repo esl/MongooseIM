@@ -47,17 +47,19 @@
 %%--------------------------------------------------------------------
 
 -define(REGISTRATION_TIMEOUT, 2).  %% seconds
--define(ATOMS, [name, desc, category, action, security_policy, args, result, sender]).
+-define(ATOMS, [name, desc, category, action, security_policy, args, result, sender, subscription, groups]).
 
 all() ->
     [
      {group, admin},
-     {group, dynamic_module}
+     {group, dynamic_module},
+        {group, roster}
     ].
 
 groups() ->
     [{admin, [parallel], test_cases()},
-     {dynamic_module, [], [stop_start_command_module]}
+     {dynamic_module, [], [stop_start_command_module]},
+        {roster, roster_tests()}
     ].
 
 test_cases() ->
@@ -71,6 +73,9 @@ test_cases() ->
      messages_can_be_paginated,
      password_can_be_changed
      ].
+
+roster_tests() ->
+    [list_contacts].
 
 suite() ->
     escalus:suite().
@@ -261,6 +266,29 @@ password_can_be_changed(Config) ->
     end),
     ok.
 
+
+list_contacts(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
+            %% make sure they're friends and Bob receives Alice's presences
+            subscribe(Bob, Alice),
+            % bob lists his contacts
+            {?OK, R} = gett(lists:flatten(["/contacts/localhost/", binary_to_list(BobJID)])),
+            ct:pal("Bob: ~n~p", [decode_maplist(R)]),
+            [#{groups := [<<"friends">>],
+                name := <<"Alicja">>,
+                subscription := <<"to">>}] = decode_maplist(R),
+            {?OK, Ra} = gett(lists:flatten(["/contacts/localhost/", binary_to_list(AliceJID)])),
+            [#{groups := [<<"enemies">>],
+                name := <<"Bob">>,
+                subscription := <<"from">>}] = decode_maplist(Ra)
+        end
+    ),
+    ok.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -303,3 +331,49 @@ to_list(V) when is_list(V) ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
+
+add_sample_contact(Bob, Alice) ->
+    escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
+        [<<"friends">>],
+        <<"Alicja">>)),
+    Received = escalus:wait_for_stanzas(Bob, 2),
+    escalus:assert_many([is_roster_set, is_iq_result], Received),
+    Result = hd([R || R <- Received, escalus_pred:is_roster_set(R)]),
+    escalus:assert(count_roster_items, [1], Result),
+    escalus:send(Bob, escalus_stanza:iq_result(Result)).
+
+subscribe(Bob, Alice) ->
+    %% Bob adds Alice as a contact
+    add_sample_contact(Bob, Alice),
+    %% He subscribes to her presences
+    escalus:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribe">>)),
+    PushReq = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_roster_set, PushReq),
+    escalus:send(Bob, escalus_stanza:iq_result(PushReq)),
+    %% Alice receives subscription reqest
+    Received = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
+    %% Alice adds new contact to his roster
+    escalus:send(Alice, escalus_stanza:roster_add_contact(Bob,
+        [<<"enemies">>],
+        <<"Bob">>)),
+    PushReqB = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_roster_set, PushReqB),
+    escalus:send(Alice, escalus_stanza:iq_result(PushReqB)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+    %% Alice sends subscribed presence
+    escalus:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribed">>)),
+    %% Bob receives subscribed
+    _Stanzas = escalus:wait_for_stanzas(Bob, 2),
+%%    check_subscription_stanzas(Stanzas, <<"subscribed">>),
+    escalus:assert(is_presence, escalus:wait_for_stanza(Bob)),
+    %% Alice receives roster push
+    PushReqB1 = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_roster_set, PushReqB1),
+    %% Alice sends presence
+    escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
+    escalus:assert(is_presence, escalus:wait_for_stanza(Bob)),
+    escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
+    ok.
+
+
