@@ -47,6 +47,7 @@
          get_user_roster/2,
          get_subscription_lists/3,
          get_roster/2,
+         item_to_map/1,
          in_subscription/6,
          out_subscription/4,
          set_items/3,
@@ -891,3 +892,13 @@ get_jid_info(_, User, Server, JID) ->
                    end
             end
     end.
+
+-spec item_to_map(roster()) -> map().
+item_to_map(#roster{} = Roster) ->
+    {Name, Host} = Roster#roster.us,
+    ContactJid = jid:make(Name, Host, <<"">>),
+    ContactName = Roster#roster.name,
+    Subs = Roster#roster.subscription,
+    Groups = Roster#roster.groups,
+    #{jid => ContactJid, name => ContactName, subscription => Subs, groups => Groups}.
+
