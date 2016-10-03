@@ -46,6 +46,8 @@ decode(_, _, _) ->
              RoomUS :: ejabberd:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
+    US = jid:to_lus(Sender),
+    Aff = get_sender_aff(AffUsers, US),
     FromNick = jid:to_binary(jid:to_lus(Sender)),
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, FromNick),
     Attrs = [
@@ -54,9 +56,15 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
              {<<"from">>, RoomBin}
             ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
+    EventData = [{from_nick, FromNick},
+                 {from_jid, Sender},
+                 {room_jid, jid:make_noprep({RoomU, RoomS, <<>>})},
+                 {affiliation, Aff},
+                 {role, Aff}
+    ],
     #xmlel{ children = Children }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch,
-                              [FromNick, Sender, jid:make_noprep({RoomU, RoomS, <<>>})]),
+                              [EventData]),
     lists:foreach(
       fun({{U, S}, _}) ->
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)
@@ -99,7 +107,7 @@ decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
 -spec decode_message_by_type(Type :: {binary(), binary()} | false,
                              Id :: {binary(), binary()} | false,
                              Children :: [jlib:xmlch()]) ->
-    {ok, #msg{} | {set, #config{}}} | {error, bad_request} | ignore.
+    {ok, msg() | {set, config()}} | {error, bad_request} | ignore.
 decode_message_by_type({_, <<"groupchat">>}, _, [#xmlel{ name = <<"subject">> } = SubjectEl]) ->
     {ok, {set, #config{ raw_config = [{<<"subject">>, exml_query:cdata(SubjectEl)}] }}};
 decode_message_by_type({_, <<"groupchat">>}, Id, Children) ->
@@ -455,7 +463,7 @@ make_query_el(_, undefined) ->
 make_query_el(XMLNS, Els) ->
     [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, XMLNS}], children = Els }].
 
--spec status(Code :: binary()) -> #xmlel{}.
+-spec status(Code :: binary()) -> xmlel().
 status(Code) -> #xmlel{ name = <<"status">>, attrs = [{<<"code">>, Code}] }.
 
 %%====================================================================
@@ -469,4 +477,10 @@ b2action(<<"deny">>) -> deny.
 -spec action2b(Action :: atom()) -> binary().
 action2b(allow) -> <<"allow">>;
 action2b(deny) -> <<"deny">>.
+
+get_sender_aff(Users, US) ->
+    case lists:keyfind(US, 1, Users) of
+        {US, Aff} -> Aff;
+        _ -> undefined
+    end.
 

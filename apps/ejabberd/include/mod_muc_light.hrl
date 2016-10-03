@@ -121,3 +121,5 @@
                                   | {set, #config{}, AffUsers :: aff_users()}
                                   | {error, bad_request}.
 
+-type msg() :: #msg{}.
+
