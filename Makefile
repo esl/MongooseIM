@@ -61,6 +61,9 @@ test: test_deps
 test_preset: test_deps
 	cd test/ejabberd_tests; make test_preset
 
+rock:
+	@if [ "$(FILE)" ]; then elvis rock $(FILE);\
+	else tools/rock_changed.sh; fi
 
 run: deps compile quickrun
 
@@ -152,3 +155,4 @@ install: configure.out rel
 	@. ./configure.out && tools/install
 
 include tools/cd_tools/cd-targets
+
