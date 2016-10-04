@@ -258,7 +258,7 @@ stream_error(Config) ->
               escalus:assert(is_stream_error, [<<"invalid-from">>, <<>>],
                              escalus_client:wait_for_stanza(Carol)),
               %% connection should be closed, let's wait
-              true = wait_for_close(Carol, 10)
+              true = escalus_connection:wait_for_close(Carol, timer:seconds(1))
       end).
 
 interleave_requests(Config) ->
@@ -336,7 +336,7 @@ cant_send_invalid_rid(Config) ->
         escalus_bosh:send_raw(Carol, Empty),
 
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
-        true = wait_for_close(Carol, 10),
+        true = escalus_connection:wait_for_close(Carol, timer:seconds(1)),
         true = wait_for_session_close(Sid, 10)
         end).
 
@@ -773,17 +773,6 @@ wait_for_stanzas(Client, Count) ->
 
 wait_for_stanza(Client) ->
     escalus_client:wait_for_stanza(Client).
-
-wait_for_close(Client, 0) ->
-    false == escalus_connection:is_connected(Client);
-wait_for_close(Client, N) ->
-    case escalus_connection:is_connected(Client) of
-        false ->
-            true;
-        _ ->
-            timer:sleep(100),
-            wait_for_close(Client, N-1)
-    end.
 
 ack_body(Body, Rid) ->
     Attrs = Body#xmlel.attrs,

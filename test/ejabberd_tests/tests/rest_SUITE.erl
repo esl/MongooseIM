@@ -146,6 +146,7 @@ session_can_be_kicked(Config) ->
         % kick alice
         {?NOCONTENT, _} = delete("/sessions/localhost/alice/res1"),
         escalus:wait_for_stanza(Alice),
+        true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
         {?OK, Sessions2} = gett("/sessions/localhost"),
         assert_notinlist(<<"alice@localhost/res1">>, Sessions2)
     end).
