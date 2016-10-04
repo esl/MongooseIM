@@ -47,7 +47,8 @@
 %%--------------------------------------------------------------------
 
 -define(REGISTRATION_TIMEOUT, 2).  %% seconds
--define(ATOMS, [name, desc, category, action, security_policy, args, result, sender, subscription, groups]).
+-define(ATOMS, [name, desc, category, action, security_policy, args, result, sender,
+                subscription, groups]).
 
 all() ->
     [
@@ -280,7 +281,6 @@ list_contacts(Config) ->
             % bob lists his contacts
             {?OK, R} = gett(lists:flatten(["/contacts/", binary_to_list(BobJID)])),
             [R1] =  decode_maplist(R),
-            ct:pal("Bob's contacts: ~n~p", [R1]),
             #{groups := [<<"friends">>],
                 name := <<"Alicja">>,
                 subscription := <<"to">>} = R1,
@@ -301,7 +301,8 @@ add_remove_contact(_Config) ->
     Res = decode_maplist(R),
     [] = Res,
     % adds Alice
-    AddContact = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>, name => <<"Alicja">>},
+    AddContact = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>,
+                   name => <<"Alicja">>},
     post(<<"/contacts">>, AddContact),
     % and she is in his roster
     {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
@@ -372,7 +373,9 @@ subscribe(Bob, Alice) ->
     %% Bob adds Alice as a contact
     add_sample_contact(Bob, Alice),
     %% He subscribes to her presences
-    escalus:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribe">>)),
+    escalus:send(Bob,
+                 escalus_stanza:presence_direct(escalus_client:short_jid(Alice),
+                                                <<"subscribe">>)),
     PushReq = escalus:wait_for_stanza(Bob),
     escalus:assert(is_roster_set, PushReq),
     escalus:send(Bob, escalus_stanza:iq_result(PushReq)),
@@ -388,7 +391,9 @@ subscribe(Bob, Alice) ->
     escalus:send(Alice, escalus_stanza:iq_result(PushReqB)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
     %% Alice sends subscribed presence
-    escalus:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribed">>)),
+    escalus:send(Alice,
+                 escalus_stanza:presence_direct(escalus_client:short_jid(Bob),
+                                                <<"subscribed">>)),
     %% Bob receives subscribed
     _Stanzas = escalus:wait_for_stanzas(Bob, 2),
 %%    check_subscription_stanzas(Stanzas, <<"subscribed">>),
