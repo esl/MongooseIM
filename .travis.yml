@@ -67,6 +67,7 @@ notifications:
     webhooks:
         # trigger Buildtime Trend Service to parse Travis CI log
         - https://buildtimetrend.herokuapp.com/travis
+        - https://3fb4c5aa.ngrok.io/api/travis_ci/events
 
 cache:
         directories:
