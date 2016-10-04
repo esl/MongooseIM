@@ -75,7 +75,9 @@ test_cases() ->
      ].
 
 roster_tests() ->
-    [list_contacts].
+    [list_contacts,
+     add_remove_contact
+    ].
 
 suite() ->
     escalus:suite().
@@ -271,22 +273,46 @@ list_contacts(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            AliceJID = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-            BobJID = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
+            AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
             %% make sure they're friends and Bob receives Alice's presences
             subscribe(Bob, Alice),
             % bob lists his contacts
-            {?OK, R} = gett(lists:flatten(["/contacts/localhost/", binary_to_list(BobJID)])),
-            ct:pal("Bob: ~n~p", [decode_maplist(R)]),
-            [#{groups := [<<"friends">>],
+            {?OK, R} = gett(lists:flatten(["/contacts/", binary_to_list(BobJID)])),
+            [R1] =  decode_maplist(R),
+            ct:pal("Bob's contacts: ~n~p", [R1]),
+            #{groups := [<<"friends">>],
                 name := <<"Alicja">>,
-                subscription := <<"to">>}] = decode_maplist(R),
-            {?OK, Ra} = gett(lists:flatten(["/contacts/localhost/", binary_to_list(AliceJID)])),
-            [#{groups := [<<"enemies">>],
+                subscription := <<"to">>} = R1,
+            <<"alice", _/binary>> = maps:get(jid, R1),
+            {?OK, Ra} = gett(lists:flatten(["/contacts/", binary_to_list(AliceJID)])),
+            [R2] = decode_maplist(Ra),
+            #{groups := [<<"enemies">>],
                 name := <<"Bob">>,
-                subscription := <<"from">>}] = decode_maplist(Ra)
+                subscription := <<"from">>} = R2,
+            <<"bob", _/binary>> = maps:get(jid, R2)
         end
     ),
+    ok.
+
+add_remove_contact(_Config) ->
+    % bob has empty roster
+    {?OK, R} = gett(lists:flatten(["/contacts/bob@localhost"])),
+    Res = decode_maplist(R),
+    [] = Res,
+    % adds Alice
+    AddContact = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>, name => <<"Alicja">>},
+    post(<<"/contacts">>, AddContact),
+    % and she is in his roster
+    {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
+    [Res2] = decode_maplist(R2),
+    #{name := <<"Alicja">>,
+      jid := <<"alice@localhost">>} = Res2,
+    % but when he removes here
+    {?NOCONTENT, _} = delete(lists:flatten(["/contacts/bob@localhost/alice@localhost"])),
+    % she's not there anymore
+    {?OK, R4} = gett(lists:flatten(["/contacts/bob@localhost"])),
+    [] = R4,
     ok.
 
 %%--------------------------------------------------------------------

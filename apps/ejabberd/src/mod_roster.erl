@@ -51,6 +51,8 @@
          in_subscription/6,
          out_subscription/4,
          set_items/3,
+         add_to_roster/4,
+         remove_from_roster/2,
          remove_user/2,
          get_jid_info/4,
          item_to_xml/1,
@@ -818,6 +820,42 @@ set_items(User, Server, SubEl) ->
         end,
     transaction(LServer, F).
 
+%% @doc add a contact to roster - just add, no subscription, ergo no push
+-spec add_to_roster(jid(), binary(), binary(), [binary()]) -> ok|error.
+add_to_roster(UserJid, ContactBin, Name, Groups) ->
+    LUser = UserJid#jid.luser,
+    LServer = UserJid#jid.lserver,
+    JID1 = jid:from_binary(ContactBin),
+    case JID1 of
+        error -> error;
+        _ ->
+            F = fun () ->
+                    {LJID, Item} = make_roster_item(JID1, LUser, LServer),
+                    Item1 = Item#roster{name = Name, groups = Groups, subscription = none},
+                    update_roster_t(LUser, LServer, LJID, Item1)
+                end,
+            transaction(LServer, F),
+            ok
+    end.
+
+%% @doc remove from roster; TODO if there was subscription MUCH more needs to be done
+-spec remove_from_roster(jid(), binary()) -> ok|error.
+remove_from_roster(UserJid, ContactBin) ->
+    LUser = UserJid#jid.luser,
+    LServer = UserJid#jid.lserver,
+    JID1 = jid:from_binary(ContactBin),
+    LJID = {JID1#jid.luser, JID1#jid.lserver,
+            JID1#jid.lresource},
+    case JID1 of
+        error -> error;
+        _ ->
+            F = fun () ->
+                del_roster_t(LUser, LServer, LJID)
+                end,
+            transaction(LServer, F),
+            ok
+    end.
+
 update_roster_t(LUser, LServer, LJID, Item) ->
     ?BACKEND:update_roster_t(LUser, LServer, LJID, Item).
 
@@ -830,12 +868,7 @@ process_item_set_t(LUser, LServer,
     case JID1 of
         error -> ok;
         _ ->
-            JID = {JID1#jid.user, JID1#jid.server,
-                   JID1#jid.resource},
-            LJID = {JID1#jid.luser, JID1#jid.lserver,
-                    JID1#jid.lresource},
-            Item = #roster{usj = {LUser, LServer, LJID},
-                           us = {LUser, LServer}, jid = JID},
+            {LJID, Item} = make_roster_item(JID1, LUser, LServer),
             Item1 = process_item_attrs_ws(Item, Attrs),
             Item2 = process_item_els(Item1, Els),
             case Item2#roster.subscription of
@@ -844,6 +877,15 @@ process_item_set_t(LUser, LServer,
             end
     end;
 process_item_set_t(_LUser, _LServer, _) -> ok.
+
+make_roster_item(JID1, LUser, LServer) ->
+    JID = {JID1#jid.user, JID1#jid.server,
+        JID1#jid.resource},
+    LJID = {JID1#jid.luser, JID1#jid.lserver,
+        JID1#jid.lresource},
+    Item = #roster{usj = {LUser, LServer, LJID},
+        us = {LUser, LServer}, jid = JID},
+    {LJID, Item}.
 
 process_item_attrs_ws(Item, [{<<"jid">>, Val} | Attrs]) ->
     case jid:from_binary(Val) of
@@ -895,7 +937,7 @@ get_jid_info(_, User, Server, JID) ->
 
 -spec item_to_map(roster()) -> map().
 item_to_map(#roster{} = Roster) ->
-    {Name, Host} = Roster#roster.us,
+    {Name, Host, _} = Roster#roster.jid,
     ContactJid = jid:make(Name, Host, <<"">>),
     ContactName = Roster#roster.name,
     Subs = Roster#roster.subscription,
