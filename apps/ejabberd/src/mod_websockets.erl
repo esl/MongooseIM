@@ -171,14 +171,13 @@ send_to_fsm(FSM, StreamElement) ->
 maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
                  | _], Req,
                 #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
-    {FSMModule, FSMOpts} = case lists:keyfind(<<"xmlns">>, 1, Attrs) of
+    case lists:keyfind(<<"xmlns">>, 1, Attrs) of
         {<<"xmlns">>, ?NS_COMPONENT} ->
             ServiceOpts = gen_mod:get_opt(ejabberd_service, Opts, []),
-            {ejabberd_service, ServiceOpts};
+            do_start_fsm(ejabberd_service, ServiceOpts, Req, State);
         _ ->
-            {ejabberd_c2s, Opts}
-    end,
-    do_start_fsm(FSMModule, FSMOpts, Req, State);
+            {shutdown, Req, State}
+    end;
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
                 Req, #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
     do_start_fsm(ejabberd_c2s, Opts, Req, State);
