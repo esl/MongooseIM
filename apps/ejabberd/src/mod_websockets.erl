@@ -317,12 +317,6 @@ should_have_jabber_client(#xmlel{name = <<"message">>}) -> true;
 should_have_jabber_client(#xmlel{name = <<"presence">>}) -> true;
 should_have_jabber_client(_) -> false.
 
-
-get_dispatch(Opts) ->
-    WSHost = gen_mod:get_opt(host, Opts, '_'), %% default to any
-    WSPrefix = gen_mod:get_opt(prefix, Opts, "/ws-xmpp"),
-    cowboy_router:compile([{WSHost, [{WSPrefix, ?MODULE, Opts}] }]).
-
 send_ping_request(PingRate) ->
     Dest = self(),
     ?DEBUG("Sending websocket ping request to ~p", [Dest]),
