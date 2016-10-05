@@ -60,7 +60,7 @@ all() ->
 groups() ->
     [{admin, [parallel], test_cases()},
      {dynamic_module, [], [stop_start_command_module]},
-        {roster, roster_tests()}
+     {roster, roster_tests()}
     ].
 
 test_cases() ->
@@ -76,8 +76,11 @@ test_cases() ->
      ].
 
 roster_tests() ->
-    [list_contacts,
-     add_remove_contact
+    [
+     list_contacts,
+     add_remove_contact,
+     messages_from_blocked_user_dont_arrive,
+     messages_from_unblocked_user_arrive_again
     ].
 
 suite() ->
@@ -316,6 +319,28 @@ add_remove_contact(_Config) ->
     [] = R4,
     ok.
 
+messages_from_blocked_user_dont_arrive(Config) ->
+    Path = lists:flatten(["/contacts/alice@localhost/bob@localhost/block"]),
+    {?NOCONTENT, _} = putt(Path, #{}),
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(User1, User2) ->
+            ct:pal("User1: ~p", [User1]),
+            message(User2, User1, <<"Hi!">>),
+            client_gets_nothing(User1),
+            privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>)
+        end).
+
+messages_from_unblocked_user_arrive_again(Config) ->
+    Path = lists:flatten(["/contacts/alice@localhost/bob@localhost/block"]),
+    {?NOCONTENT, _} = putt(Path, #{}),
+    Path1 = lists:flatten(["/contacts/alice@localhost/bob@localhost/unblock"]),
+    {?NOCONTENT, _} = putt(Path1, #{}),
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(User1, User2) ->
+            message_is_delivered(User2, User1, <<"Hello again!">>)
+        end).
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -407,4 +432,16 @@ subscribe(Bob, Alice) ->
     escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
     ok.
 
+
+message(From, To, MsgTxt) ->
+    escalus_client:send(From, escalus_stanza:chat_to(To, MsgTxt)).
+
+client_gets_nothing(Client) ->
+    ct:sleep(500),
+    escalus_assert:has_no_stanzas(Client).
+
+message_is_delivered(From, To, MessageText) ->
+    BareTo =  escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
+    escalus:send(From, escalus_stanza:chat_to(BareTo, MessageText)),
+    escalus:assert(is_chat_message, [MessageText], escalus:wait_for_stanza(To)).
 

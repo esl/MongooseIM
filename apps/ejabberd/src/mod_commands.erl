@@ -15,6 +15,8 @@
          list_contacts/1,
          add_contact/3,
          delete_contact/2,
+         block_contact/2,
+         unblock_contact/2,
          get_recent_messages/3,
          get_recent_messages/4,
          send_message/3
@@ -177,33 +179,33 @@ commands() ->
       {security_policy, [user]},
       {args, [{caller, binary}, {jabber_id, binary}]},
       {result, ok}
+     ],
+     [
+      {name, block_contact},
+      {category, <<"contacts">>},
+      {subcategory, <<"block">>},
+      {desc, <<"Block a contact (doesn't affect caller if he is currently online)">>},
+      {module, ?MODULE},
+      {function, block_contact},
+      {action, update},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}]},
+      {identifiers, [caller, jabber_id]},
+      {result, ok}
+     ],
+     [
+      {name, unblock_contact},
+      {category, <<"contacts">>},
+      {subcategory, <<"unblock">>},
+      {desc, <<"Unblock a contact (doesn't affect caller if he is currently online)">>},
+      {module, ?MODULE},
+      {function, unblock_contact},
+      {action, update},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}]},
+      {identifiers, [caller, jabber_id]},
+      {result, ok}
      ]
-%%     [
-%%            {name, block_contact},
-%%            {category, <<"contacts">>},
-%%            {subcategory, <<"block">>},
-%%            {desc, <<"Block a contact">>},
-%%            {module, ?MODULE},
-%%            {function, block_contact},
-%%            {action, update},
-%%            {security_policy, [user]},
-%%            {args, [{host, binary}, {caller, binary}, {jabber_id, binary}]},
-%%            {identifiers, [host, caller, jabber_id]},
-%%            {result, ok}
-%%     ],
-%%        [
-%%            {name, unblock_contact},
-%%            {category, <<"contacts">>},
-%%            {subcategory, <<"unblock">>},
-%%            {desc, <<"Unblock a contact">>},
-%%            {module, ?MODULE},
-%%            {function, unblock_contact},
-%%            {action, update},
-%%            {security_policy, [user]},
-%%            {args, [{host, binary}, {caller, binary}, {jabber_id, binary}]},
-%%            {identifiers, [host, caller, jabber_id]},
-%%            {result, ok}
-%%        ]
     ].
 
 kick_session(Host, User, Resource) ->
@@ -325,8 +327,7 @@ list_contacts(Caller) ->
     {User, Host} = jid:to_lus(jid:from_binary(Caller)),
     Res = ejabberd_hooks:run_fold(roster_get, Host, [], [{User, Host}]),
     R = lists:map(fun mod_roster:item_to_map/1, Res),
-    R1 = lists:map(fun roster_info/1, R),
-    R1.
+    lists:map(fun roster_info/1, R).
 
 add_contact(Caller, JabberID, Name) ->
     CJid = jid:from_binary(Caller),
@@ -335,3 +336,20 @@ add_contact(Caller, JabberID, Name) ->
 delete_contact(Caller, JabberID) ->
     CJid = jid:from_binary(Caller),
     mod_roster:remove_from_roster(CJid, JabberID).
+
+block_contact(Caller, JabberID) ->
+    manage_contact(block, Caller, JabberID).
+
+unblock_contact(Caller, JabberID) ->
+    manage_contact(unblock, Caller, JabberID).
+
+manage_contact(Action, Caller, JabberID) ->
+    CJid = jid:from_binary(Caller),
+    {LUser, LServer, _} = jid:to_lower(CJid),
+    Res = mod_blocking:process_blocking_set(Action, LUser, LServer, [JabberID]),
+    case mod_blocking:complete_iq_set(blocking_command, LUser, LServer, Res) of
+        {error, Reason} ->
+            {error, Reason};
+        _ ->
+            ok
+    end.
