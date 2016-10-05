@@ -1,15 +1,21 @@
 Features and supported standards
 --------------------------------
 
-*   XMPP Core: [RFC 3920](https://tools.ietf.org/html/rfc3920),
+* XMPP Core: [RFC 3920](https://tools.ietf.org/html/rfc3920),
+[RFC 6120](https://tools.ietf.org/html/rfc6120)
+* XMPP Instant Messaging and Presence: [RFC 3921](https://tools.ietf.org/html/rfc3921),
+[RFC 6121](https://tools.ietf.org/html/rfc6121)
+* Client connections:
+    * over TCP (with TLS/STARTTLS available) as defined in
     [RFC 6120](https://tools.ietf.org/html/rfc6120)
-*   XMPP Instant Messaging and Presence: [RFC 3921](https://tools.ietf.org/html/rfc3921),
-    [RFC 6121](https://tools.ietf.org/html/rfc6121)
-*   Client connections over TCP (with TLS/STARTTLS available), Websockets,
-    and HTTP(S) long-polling (BOSH).
-*   Configurable database backends: MySQL, Postgres, generic ODBC, Riak KV.
-    Mnesia and Redis for transient data.
-*   Supports XEPs:
+    * over WebsSockets as defined in  [RFC 7395](https://tools.ietf.org/html/rfc7395)
+    * over HTTP(S) long-polling (BOSH) as defined in
+    [XEP-0124](http://xmpp.org/extensions/xep-0124.html) and
+    [XEP-0206](http://xmpp.org/extensions/xep-0206.html)
+    * [REST API](../REST-API.md)
+* Configurable database backends: MySQL, Postgres, generic ODBC, Riak KV.
+Mnesia and Redis for transient data.
+* Supports XEPs:
 
 |||||
 | ------------- | ------------- | ------------- |------------- |
