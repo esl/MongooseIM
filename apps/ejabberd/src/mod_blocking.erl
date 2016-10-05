@@ -13,6 +13,8 @@
 -export([start/2,
          process_iq_get/5,
          process_iq_set/4,
+         process_blocking_set/4,
+         complete_iq_set/4,
          stop/1
         ]).
 
@@ -64,20 +66,27 @@ process_iq_set(_, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     #xmlel{name = BType} = SubEl,
     Type = binary_to_existing_atom(BType, latin1),
     Usrs = exml_query:paths(SubEl, [{element, <<"item">>}, {attr, <<"jid">>}]),
-    CurrList = case ?BACKEND:get_privacy_list(LUser, LServer, <<"blocking">>) of
-                  {ok, List} ->
-                      List;
-                  {error, not_found} ->
-                      [];
-                  {error, Reason} ->
-                      {error, Reason}
-              end,
     %% process
-    Res = process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs),
+    Res = process_blocking_set(Type, LUser, LServer, Usrs),
     %% respond / notify
     complete_iq_set(blocking_command, LUser, LServer, Res);
 process_iq_set(Val, _, _, _) ->
     Val.
+
+-spec process_blocking_set(Type :: block | unblock, LUser:: binary(), LServer:: binary(),
+    Users :: [binary()]) ->
+    {ok, [binary()], [listitem()], block | unblock | unblock_all}
+    | {error, jlib:xmlel()}.
+process_blocking_set(Type, LUser, LServer, Usrs) ->
+    CurrList = case ?BACKEND:get_privacy_list(LUser, LServer, <<"blocking">>) of
+                   {ok, List} ->
+                       List;
+                   {error, not_found} ->
+                       [];
+                   {error, Reason} ->
+                       {error, Reason}
+               end,
+    process_blocking_set(Type, LUser, LServer, CurrList, Usrs).
 
 %% @doc Set IQ must do the following:
 %% * get / create a dedicated privacy list (we call it "blocking")
@@ -87,17 +96,17 @@ process_iq_set(Val, _, _, _) ->
 %% * broadcast (push) message to all the user's resources
 %% * sent 'unavailable' msg to blocked contacts, or 'available' to unblocked
 %%
--spec process_blocking_iq_set(Type :: block | unblock, LUser:: binary(), LServer:: binary(),
+-spec process_blocking_set(Type :: block | unblock, LUser:: binary(), LServer:: binary(),
                               CurrList :: [listitem()], Users :: [binary()]) ->
     {ok, [binary()], [listitem()], block | unblock | unblock_all}
     | {error, jlib:xmlel()}.
 %% fail if current default list could not be retrieved
-process_blocking_iq_set(_, _, _, {error, _}, _) ->
+process_blocking_set(_, _, _, {error, _}, _) ->
     {error, ?ERR_INTERNAL_SERVER_ERROR};
 %% reject block request with empty jid list
-process_blocking_iq_set(block, _, _, _, []) ->
+process_blocking_set(block, _, _, _, []) ->
     {error, ?ERR_BAD_REQUEST};
-process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs) ->
+process_blocking_set(Type, LUser, LServer, CurrList, Usrs) ->
     %% check who is being added / removed
     {NType, Changed, NewList} = blocking_list_modify(Type, Usrs, CurrList),
     case ?BACKEND:replace_privacy_list(LUser, LServer, <<"blocking">>, NewList) of
