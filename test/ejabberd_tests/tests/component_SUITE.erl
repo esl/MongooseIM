@@ -181,8 +181,6 @@ try_registering_with_wrong_password(Config) ->
     CompOpts1 = ?config(component1, Config),
     CompOpts2 = lists:keyreplace(password, 1, CompOpts1,
                                  {password, <<"wrong_one">>}),
-    ct:print("~p", [CompOpts2]),
-
     try
         %% When trying to connect it
         {Comp, _Addr, _} = connect_component(CompOpts2),
@@ -249,7 +247,6 @@ disco_components(Config) ->
 register_subdomain(Config) ->
     %% Given one connected component
     CompOpts1 = ?config(component1, Config),
-    ct:print("~p", [CompOpts1]),
     {Comp, _Addr, Name} = connect_component_subdomain(CompOpts1),
 
     escalus:story(Config, [{alice, 1}, {astrid, 1}], fun(Alice, Astrid) ->
