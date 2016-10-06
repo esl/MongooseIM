@@ -152,6 +152,7 @@ get_routes(Modules) ->
     Final = Merged ++ [{'_', WildcardPaths}],
     ?DEBUG("Configured Cowboy Routes: ~p", [Final]),
     Final.
+
 get_routes([], Routes) ->
     Routes;
 get_routes([{Host, BasePath, Module} | Tail], Routes) ->

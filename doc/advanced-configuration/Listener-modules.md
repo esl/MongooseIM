@@ -1,6 +1,6 @@
 Some of MongooseIM modules are specialised in handling user connections. They can be used in the `listen` clause in `ejabberd.cfg` file. See this section for their description and configuration options.
 
-Options described with a value type (e.g. string, integer) are key-value tuples. 
+Options described with a value type (e.g. string, integer) are key-value tuples.
 Other options are enabled by being added as atoms. E.g. a tuple option might be: `{access, c2s}` while other options are added as: `starttls`.
 
 ## Client-to-server (C2S): `ejabberd_c2s`
@@ -49,10 +49,11 @@ Manages all HTTP-based services, such as BOSH (HTTP long-polling) and WebSocket.
 
             `{"_", "/http-bind", mod_bosh}`
 
-    * `mod_websockets` - Websocket connections, both [old](http://xmpp.org/extensions/xep-0206.html) and [new](http://datatracker.ietf.org/doc/draft-ietf-xmpp-websocket/?include_text=1) type. You can pass optional
-    parameters:
+    * `mod_websockets` - Websocket connections as defined in  [RFC 7395](https://tools.ietf.org/html/rfc7395).
+    You can pass optional parameters:
         * `{timeout, Val}` - the time after which an inactive user is disconnected.
-        * `{ping_rate, Val}` - the Ping rate points to the time between pings sent by server. By declaring this field you enable server-side pinging.
+        * `{ping_rate, Val}` - the Ping rate points to the time between pings sent by server.
+	By declaring this field you enable server-side pinging.
         * `{ejabberd_service, Params}` - this enables external component
             connections over WebSockets. See [ejabberd_service](#ejabberd_service)
             section for more details how to configure it.

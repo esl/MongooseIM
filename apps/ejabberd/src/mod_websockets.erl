@@ -1,16 +1,11 @@
 %%%===================================================================
-%%% @copyright (C) 2013, Erlang Solutions Ltd.
-%%% @doc Module providing support for websockets in ejabberd
+%%% @copyright (C) 2016, Erlang Solutions Ltd.
+%%% @doc Module providing support for websockets in MongooseIM
 %%% @end
 %%%===================================================================
 -module(mod_websockets).
--behaviour(gen_mod).
 -behaviour(cowboy_http_handler).
 -behaviour(cowboy_websocket_handler).
-
-%% gen_mod callbacks
--export([start/2,
-         stop/1]).
 
 %% cowboy_http_handler callbacks
 -export([init/3,
@@ -37,13 +32,6 @@
          set_ping/2,
          disable_ping/1]).
 
-%% ejabberd_listener compatibility
--export([socket_type/0,
-         start_listener/2]).
-
--export([stop/0]).
-
-
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
@@ -64,89 +52,6 @@
           opts :: proplists:proplist(),
           ping_rate :: integer() | none
          }).
-
-%%--------------------------------------------------------------------
-%% ejabberd_listener compatibility
-%%--------------------------------------------------------------------
--spec socket_type() -> independent.
-socket_type() ->
-    independent.
-
-% -spec start_listener(list())
-start_listener({Port, IP, ws}, Opts) ->
-    Dispatch = get_dispatch(Opts),
-    NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
-    start_ws(NumAcceptors, Port, IP, Dispatch);
-
-start_listener({Port, IP, wss}, Opts) ->
-    Dispatch = get_dispatch(Opts),
-    NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
-    SSLPort = gen_mod:get_opt(ssl_port, Opts, Port),
-    SSLCert = gen_mod:get_opt(cert, Opts, undefined),
-    SSLKey = gen_mod:get_opt(key, Opts, undefined),
-    SSLKeyPass = gen_mod:get_opt(key_pass, Opts, undefined),
-    start_wss(NumAcceptors, SSLPort, IP, SSLCert, SSLKey, SSLKeyPass, Dispatch).
-
-%%--------------------------------------------------------------------
-%% gen_mod callbacks
-%%--------------------------------------------------------------------
-
-start(_Host, Opts) ->
-    NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
-    Port = gen_mod:get_opt(port, Opts, undefined),
-    IP = gen_mod:get_opt(ip, Opts, {0,0,0,0}),
-    SSLPort = gen_mod:get_opt(ssl_port, Opts, undefined),
-    SSLCert = gen_mod:get_opt(cert, Opts, undefined),
-    SSLKey = gen_mod:get_opt(key, Opts, undefined),
-    SSLKeyPass = gen_mod:get_opt(key_pass, Opts, undefined),
-    Dispatch = get_dispatch(Opts),
-    {ok, _} = start_ws(NumAcceptors, Port, IP, Dispatch),
-    {ok, _} = start_wss(NumAcceptors, SSLPort, IP, SSLCert, SSLKey,
-                        SSLKeyPass, Dispatch).
-
-start_ws(_, undefined, _, _) ->
-    {ok, not_started};
-start_ws(NumAcceptors, Port, IP, Dispatch) ->
-    case cowboy:start_http(?LISTENER, NumAcceptors,
-                                [{port, Port}, {ip, IP}],
-                                [{env, [{dispatch, Dispatch}]}]) of
-% Uncomment when cowboy 1.1.0 is released with fixed spec
-%        {error, {already_started, Pid}} ->
-%            {ok, Pid};
-        {ok, Pid} ->
-            {ok, Pid};
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
-start_wss(_, _, _, undefined, undefined, undefined, _) ->
-    {ok, not_started};
-start_wss(NumAcceptors, Port, IP, Cert, Key, Pass, Dispatch) ->
-    case cowboy:start_https({?LISTENER, secure}, NumAcceptors,
-                                [
-                                    {certfile, Cert},
-                                    {keyfile, Key},
-                                    {password, Pass},
-                                    {ip, IP},
-                                    {port, Port}
-                                ],
-                                [{env, [{dispatch, Dispatch}]}]) of
-% Uncomment when cowboy 1.1.0 is released with fixed spec
-%        {error, {already_started, Pid}} ->
-%            {ok, Pid};
-        {ok, Pid} ->
-            {ok, Pid};
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
-stop() ->
-    stop(any).
-
-stop(_Host) ->
-    cowboy:stop_listener({?LISTENER, secure}),
-    cowboy:stop_listener(?LISTENER),
-    ok.
 
 %%--------------------------------------------------------------------
 %% cowboy_http_handler callbacks
@@ -266,14 +171,13 @@ send_to_fsm(FSM, StreamElement) ->
 maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
                  | _], Req,
                 #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
-    {FSMModule, FSMOpts} = case lists:keyfind(<<"xmlns">>, 1, Attrs) of
+    case lists:keyfind(<<"xmlns">>, 1, Attrs) of
         {<<"xmlns">>, ?NS_COMPONENT} ->
             ServiceOpts = gen_mod:get_opt(ejabberd_service, Opts, []),
-            {ejabberd_service, ServiceOpts};
+            do_start_fsm(ejabberd_service, ServiceOpts, Req, State);
         _ ->
-            {ejabberd_c2s, Opts}
-    end,
-    do_start_fsm(FSMModule, FSMOpts, Req, State);
+            {shutdown, Req, State}
+    end;
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
                 Req, #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
     do_start_fsm(ejabberd_c2s, Opts, Req, State);
@@ -412,12 +316,6 @@ should_have_jabber_client(#xmlel{name = <<"iq">>}) -> true;
 should_have_jabber_client(#xmlel{name = <<"message">>}) -> true;
 should_have_jabber_client(#xmlel{name = <<"presence">>}) -> true;
 should_have_jabber_client(_) -> false.
-
-
-get_dispatch(Opts) ->
-    WSHost = gen_mod:get_opt(host, Opts, '_'), %% default to any
-    WSPrefix = gen_mod:get_opt(prefix, Opts, "/ws-xmpp"),
-    cowboy_router:compile([{WSHost, [{WSPrefix, ?MODULE, Opts}] }]).
 
 send_ping_request(PingRate) ->
     Dest = self(),
