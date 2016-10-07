@@ -52,7 +52,7 @@ env:
 
 notifications:
     webhooks:
-        - http://tide.erlang-solutions.com/api/travis_ci/events
+        - http://ceefbea0.ngrok.io/api/travis_ci/events
     on_start: always
     
 
