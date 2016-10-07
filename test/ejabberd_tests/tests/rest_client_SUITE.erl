@@ -128,8 +128,12 @@ rooms_can_be_listed(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         [] = get_my_rooms({alice, Alice}),
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
-        [RoomID] = get_my_rooms({alice, Alice}),
-        [RoomID] = get_my_rooms({bob, Bob})
+        [{Room}] = get_my_rooms({alice, Alice}),
+        RoomMap = maps:from_list(Room),
+        RoomID = maps:get(<<"id">>, RoomMap),
+        true = maps:is_key(<<"name">>, RoomMap),
+        true = maps:is_key(<<"subject">>, RoomMap),
+        [{Room}] = get_my_rooms({bob, Bob})
     end).
 
 user_is_invited_to_a_room(Config) ->

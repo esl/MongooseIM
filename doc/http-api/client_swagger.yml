@@ -87,11 +87,7 @@ paths:
         200:
           description: "List of rooms."
           schema:
-            title: "Rooms"
-            type: array
-            items:
-              type: string
-              description: "ID of a room"
+            $ref: '#/definitions/RoomShortDetails'
   /rooms/{id}:
     get:
       description: "Returns room's details."
@@ -262,6 +258,17 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Participant"
+  RoomShortDetails:
+    properties:
+      id:
+        type: string
+        description: Room's id.
+      subject:
+        type: string
+        description: Current room's subject.
+      name:
+        type: string
+        description: Room's name.
   Participant:
     properties:
       user:
