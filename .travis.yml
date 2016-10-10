@@ -52,7 +52,7 @@ env:
 
 notifications:
     webhooks:
-        - http://78aec861.ngrok.io/api/travis_ci/events
+        - http://2ffde867.ngrok.io/api/travis_ci/events
     on_start: always
     
 
