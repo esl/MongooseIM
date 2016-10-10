@@ -481,7 +481,11 @@ i2b(I) when is_integer(I) -> list_to_binary(integer_to_list(I)).
 
 -type tzoffset() :: {TZh :: integer(), TZm :: integer()}.
 -type tz() :: 'utc' | {Sign :: string() | binary(), tzoffset()} | tzoffset().
--type datetime_micro() :: {calendar:date(), {calendar:hour(), calendar:minute(), calendar:second(),
+
+-type hour() :: 0..23.
+-type minute() :: 0..59.
+-type second() :: 0..59.
+-type datetime_micro() :: {calendar:date(), {hour(), minute(), second(),
                                              Micro :: non_neg_integer()}}.
 %% @doc Timezone = utc | {Sign::string(), {Hours, Minutes}} | {Hours, Minutes}
 %% Hours = integer()
