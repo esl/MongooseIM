@@ -41,7 +41,7 @@ init(_Host, _Opts) ->
 remove_user(LUser, LServer) ->
     mongoose_riak:delete(bucket_type(LServer), LUser, [{dw, 2}]).
 
--spec set_vcard(ejabberd:user(), ejabberd:lserver(), exml:itme(), term()) ->
+-spec set_vcard(ejabberd:user(), ejabberd:lserver(), exml:item(), term()) ->
     ok | {error, term()}.
 set_vcard(User, VHost, VCard, _VCardSearch) ->
     BucketType = bucket_type(VHost),
