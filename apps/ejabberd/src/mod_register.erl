@@ -351,12 +351,6 @@ send_registration_notifications(UJID, Source) ->
             ok
     end.
 
-check_from(no_JID, _Server) ->
-    allow;
-check_from(JID, Server) ->
-    Access = gen_mod:get_module_opt(Server, ?MODULE, access_from, none),
-    acl:match_rule(Server, Access, JID).
-
 check_timeout(undefined) ->
     true;
 check_timeout(Source) ->
@@ -443,11 +437,6 @@ is_strong_password(Server, Password) ->
 %%%
 %%% ip_access management
 %%%
-
-may_remove_resource({_, _, _} = From) ->
-    jid:to_bare(From);
-may_remove_resource(From) ->
-    From.
 
 get_ip_access(Host) ->
     IPAccess = gen_mod:get_module_opt(Host, ?MODULE, ip_access, []),

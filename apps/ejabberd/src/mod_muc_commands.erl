@@ -175,10 +175,6 @@ room_address(Name, Host) ->
     MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
     <<Name/binary, $@, MUCHost/binary>>.
 
-room_address(Name, Host, Nick) ->
-    MUCRoomAddress = room_address(Name, Host),
-    <<MUCRoomAddress/binary, $/, Nick/binary>>.
-
 iq(Type, Sender, Recipient, Children)
   when is_binary(Type), is_list(Children) ->
     Addresses = address_attributes(Sender, Recipient),
