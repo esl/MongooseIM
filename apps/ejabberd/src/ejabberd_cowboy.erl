@@ -37,19 +37,16 @@
 -include("ejabberd.hrl").
 -type options()  :: [any()].
 -type path() :: iodata().
--type paths() :: list().
--type handler_module()  :: module().
--type route() :: {path(), module(), options()}.
--type default_result() :: list({{path(), module(), options()}}).
+-type paths() :: [path()].
+-type route() :: {path() | paths(), module(), options()}.
 -type implemented_result() :: [route()].
 
 -export_type([options/0]).
 -export_type([path/0]).
 -export_type([route/0]).
--export_type([default_result/0]).
 -export_type([implemented_result/0]).
 
--callback cowboy_router_paths(path(), options()) -> implemented_result() | default_result().
+-callback cowboy_router_paths(path(), options()) -> implemented_result().
 
 -record(cowboy_state, {ref, opts = []}).
 %%--------------------------------------------------------------------

@@ -39,7 +39,7 @@
 
 %% @doc This is implementation of ejabberd_cowboy callback. Returns list of all available http paths.
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
-    ejabberd_cowboy:implemented_result() | ejabberd_cowboy:default_result().
+    ejabberd_cowboy:implemented_result().
 cowboy_router_paths(Base, _Opts) ->
     ejabberd_hooks:add(register_command, global, mongoose_api_common, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, mongoose_api_common, reload_dispatches, 50),
