@@ -37,7 +37,8 @@
 %% ejabberd_cowboy callbacks
 %%--------------------------------------------------------------------
 
-%% @doc This is implementation of ejabberd_cowboy callback. Returns list of all available http paths.
+%% @doc This is implementation of ejabberd_cowboy callback.
+%% Returns list of all available http paths.
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
     ejabberd_cowboy:implemented_result().
 cowboy_router_paths(Base, _Opts) ->

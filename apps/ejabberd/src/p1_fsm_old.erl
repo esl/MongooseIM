@@ -474,13 +474,13 @@ decode_msg(Msg,Parent, Name, StateName, StateData, Mod, Time, Debug,
 %% Callback functions for system messages handling.
 %%-----------------------------------------------------------------
 system_continue(Parent, Debug, [Name, StateName, StateData,
-				Mod, Time, Limits, Queue, QueueLen]) ->
+                                Mod, Time, Limits, Queue, QueueLen]) ->
     loop(Parent, Name, StateName, StateData, Mod, Time, Debug,
-	 Limits, Queue, QueueLen).
+         Limits, Queue, QueueLen).
 
--spec system_terminate(term(), _, _, [term(),...]) -> no_return().
+-spec system_terminate(term(), _, _, [term(), ...]) -> no_return().
 system_terminate(Reason, _Parent, Debug,
-		 [Name, StateName, StateData, Mod, _Time, _Limits]) ->
+                 [Name, StateName, StateData, Mod, _Time, _Limits]) ->
     terminate(Reason, Name, [], Mod, StateName, StateData, Debug).
 
 system_code_change([Name, StateName, StateData, Mod, Time,
