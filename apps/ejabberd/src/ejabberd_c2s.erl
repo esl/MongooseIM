@@ -1071,7 +1071,7 @@ handle_event(_Event, StateName, StateData) ->
                         StateName :: statename(),
                         State :: state())
 -> {'reply', Reply :: [any()], statename(), state()}
-   | {'reply', Reply :: 'ok' | {_,_,_,_}, statename(), state(), integer()}.
+   | {'reply', Reply :: 'ok' | {_, _, _, _}, statename(), state(), timeout()}.
 handle_sync_event(get_presence, _From, StateName, StateData) ->
     User = StateData#state.user,
     PresLast = StateData#state.pres_last,
