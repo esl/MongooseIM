@@ -90,8 +90,18 @@ to_json(Req, #{room := Room} = State) ->
     {jiffy:encode(Resp), Req, State};
 to_json(Req, #{jid := #jid{luser = User, lserver = Server}} = State) ->
     Rooms = mod_muc_light_db_backend:get_user_rooms({User, Server}),
-    RoomIds = [RoomId || {RoomId, _} <- Rooms],
-    {jiffy:encode(RoomIds), Req, State}.
+    RoomsMap = [get_room_details(RoomUS) || RoomUS <- Rooms],
+    {jiffy:encode(lists:flatten(RoomsMap)), Req, State}.
+
+get_room_details({RoomID, _} = RoomUS) ->
+    case mod_muc_light_db_backend:get_config(RoomUS) of
+        {ok, Config, _} ->
+            #{id => RoomID,
+              name => proplists:get_value(roomname, Config),
+              subject => proplists:get_value(subject, Config)};
+        _ ->
+            []
+    end.
 
 from_json(Req, State) ->
     {Method, Req2} = cowboy_req:method(Req),
