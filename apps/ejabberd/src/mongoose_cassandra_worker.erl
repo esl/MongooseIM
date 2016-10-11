@@ -6,6 +6,8 @@
 %%%-------------------------------------------------------------------
 -module(mongoose_cassandra_worker).
 
+%% Explicitly turn off no_return warning for run_batch
+-dialyzer({no_return, run_batch/3}).
 %% ----------------------------------------------------------------------
 %% Exports
 

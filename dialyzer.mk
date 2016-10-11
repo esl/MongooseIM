@@ -42,7 +42,7 @@ apps_plt: dialyzer/apps.plt
 	status=$$? ; if [ $$status -ne 2 ]; then exit $$status; else exit 0; fi
 
 dialyzer: erlang_plt deps_plt apps_plt
-	@dialyzer -n -Wno_return -Wno_unused -Wno_undefined_callbacks \
+	@dialyzer -n -Wno_unused -Wno_undefined_callbacks \
 	--plts dialyzer/*.plt --no_check_plt \
 	--get_warnings $(apps);
 #	status=$$? ; if [ $$status -ne 2 ]; then exit $$status; else exit 0; fi

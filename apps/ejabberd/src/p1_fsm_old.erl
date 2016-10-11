@@ -478,6 +478,7 @@ system_continue(Parent, Debug, [Name, StateName, StateData,
     loop(Parent, Name, StateName, StateData, Mod, Time, Debug,
 	 Limits, Queue, QueueLen).
 
+-spec system_terminate(term(), _, _, [term(),...]) -> no_return().
 system_terminate(Reason, _Parent, Debug,
 		 [Name, StateName, StateData, Mod, _Time, _Limits]) ->
     terminate(Reason, Name, [], Mod, StateName, StateData, Debug).

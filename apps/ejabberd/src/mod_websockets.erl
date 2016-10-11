@@ -53,6 +53,8 @@
           ping_rate :: integer() | none
          }).
 
+-type socket() :: #websocket{}.
+
 %%--------------------------------------------------------------------
 %% cowboy_http_handler callbacks
 %%--------------------------------------------------------------------
@@ -202,16 +204,19 @@ do_start_fsm(FSMModule, Opts, Req, State) ->
 %%--------------------------------------------------------------------
 %% ejabberd_socket compatibility
 %%--------------------------------------------------------------------
-
+-spec starttls(socket(), _) -> no_return().
 starttls(SocketData, TLSOpts) ->
     starttls(SocketData, TLSOpts, <<>>).
 
+-spec starttls(socket(), _, _) -> no_return().
 starttls(_SocketData, _TLSOpts, _Data) ->
     throw({error, tls_not_allowed_on_websockets}).
 
+-spec compress(socket()) -> no_return().
 compress(SocketData) ->
     compress(SocketData, <<>>, 0).
 
+-spec compress(socket(), _, _) -> no_return().
 compress(_SocketData, _Data, _InflateSizeLimit) ->
     throw({error, compression_not_allowed_on_websockets}).
 

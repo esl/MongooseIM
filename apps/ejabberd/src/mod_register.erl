@@ -415,38 +415,6 @@ clean_treap(Treap, CleanPriority) ->
             end
     end.
 
-remove_timeout(undefined) ->
-    true;
-remove_timeout(Source) ->
-    Timeout = case ejabberd_config:get_local_option(registration_timeout) of
-                  undefined -> 600;
-                  TO -> TO
-              end,
-    if
-        is_integer(Timeout) ->
-            F = fun() ->
-                        Treap = case mnesia:read(mod_register_ip, treap,
-                                                 write) of
-                                    [] ->
-                                        treap:empty();
-                                    [{mod_register_ip, treap, T}] -> T
-                                end,
-                        Treap1 = treap:delete(Source, Treap),
-                        mnesia:write({mod_register_ip, treap, Treap1}),
-                        ok
-                end,
-            case mnesia:transaction(F) of
-                {atomic, ok} ->
-                    ok;
-                {aborted, Reason} ->
-                    ?ERROR_MSG("mod_register: timeout remove error: ~p~n",
-                               [Reason]),
-                    ok
-            end;
-        true ->
-            ok
-    end.
-
 ip_to_string(Source) when is_tuple(Source) -> inet_parse:ntoa(Source);
 ip_to_string(undefined) -> "undefined";
 ip_to_string(_) -> "unknown".
