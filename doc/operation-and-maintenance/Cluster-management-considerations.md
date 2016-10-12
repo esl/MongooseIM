@@ -31,3 +31,26 @@ With multi-datacenter MongooseIM, one can setup a vertically and horizontally hi
 This applies from large to very large-scale deployments.
 
 Contact us.
+
+## Summary table
+
+Setup | Purpose | Concurrent sessions
+------|---------|--------------------
+Single-node | Testing, functional validation, development | 100 to 10k
+Dual-node | Low-end production system, large development teams, load testing | 1k to 200k
+Multi-node | High-end production system | 10k to 1M
+Multi-datacenter | Very large scale product system | 1M to 10M+
+
+NOTE: scalability depends a lot on various variables, such as:
+* the number of concurrent users
+  * iOS apps are not connected in the background, they use APNS
+  * web uses websocket, with fallback on BOSH (HTTP long-polling)
+* how much archiving is needed and the latency for storage and querying (depends a lot on storage backend architecture and scalability)
+* message throughtput:
+  * one-to-one
+  * MUC
+  * MUC light
+  * PubSub
+  * Presences
+  * HTTP notifications, with queuing systems such as RabbitMQ or Kafka
+* latency of messaging, both real-time and archived messages
