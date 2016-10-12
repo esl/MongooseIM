@@ -34,23 +34,30 @@ Contact us.
 
 ## Summary table
 
-Setup | Purpose | Concurrent sessions
-------|---------|--------------------
-Single-node | Testing, functional validation, development | 100 to 10k
-Dual-node | Low-end production system, large development teams, load testing | 1k to 200k
-Multi-node | High-end production system | 10k to 1M
-Multi-datacenter | Very large scale product system | 1M to 10M+
+Setup: reflects the number of nodes in your cluster
+Purpose: is the goal and use of this cluster
+Low-end: low-power machines, such as laptops, embedded devides, entry-level cloud or bare metal
+High-end: powerful machines, with lots of memory, multi-core CPU, whether they or cloud or bare metal
 
-NOTE: scalability depends a lot on various variables, such as:
-* the number of concurrent users
-  * iOS apps are not connected in the background, they use APNS
-  * web uses websocket, with fallback on BOSH (HTTP long-polling)
-* how much archiving is needed and the latency for storage and querying (depends a lot on storage backend architecture and scalability)
+Setup | Purpose | Low-end | High-end
+------|---------|---------|---------
+Single-node | Functional testing, development       | 100  to  10k   | 100k to 500k
+Dual-node | Low-end production system, load testing |   1k to 100k   |   1M to   5M
+Multi-node | High-end production system             |  10k to   1M   |   2M to  10M
+Multi-datacenter | Very large scale product system  | 100k to  10M   |  10M to 100M
+
+IMPORTANT NOTES: scalability highly depends a lot on various variables, such as:
+* machines power, such as memory, CPU, I/O
+* the number of concurrent users:
+  * most iOS apps are not connected in the background, they use APNS to push info to the device
+  * web clients use websockets, with fallback on BOSH (HTTP long-polling)
+  * client-side and backend-side REST API
+* how much archiving is needed and the latency for storage and querying, which depends a lot on storage backend architecture and scalability
 * message throughtput:
   * one-to-one
   * MUC
   * MUC light
   * PubSub
   * Presences
-  * HTTP notifications, with queuing systems such as RabbitMQ or Kafka
+  * HTTP notifications (with queuing systems such as RabbitMQ or Kafka)
 * latency of messaging, both real-time and archived messages
