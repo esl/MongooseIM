@@ -315,25 +315,6 @@ make_val(ValBin) ->
         Val
     end.
 
-find_my_host(VHost) ->
-    Parts = binary:matches(VHost, <<".">>),
-    find_my_host(Parts, ?MYHOSTS).
-
-find_my_host([], _Hosts) ->
-    ?MYNAME;
-find_my_host([_ | Tail] = Parts, Hosts) ->
-    Domain = parts_to_binstring(Parts),
-    case lists:member(Domain, Hosts) of
-    true ->
-        Domain;
-    false ->
-        find_my_host(Tail, Hosts)
-    end.
-
-parts_to_binstring(Parts) ->
-    string:strip(lists:flatten(lists:map(fun(S) -> [S, $.] end, Parts)),
-         right, $.).
-
 record_to_item(R) ->
     {User, Server} = R#vcard_search.user,
     #xmlel{name = <<"item">>,

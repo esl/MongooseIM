@@ -101,7 +101,7 @@ create_admin_url_path(Command) ->
 create_user_url_path(Command) ->
     ["/", mongoose_commands:category(Command), maybe_add_bindings(Command, user)].
 
--spec process_request(method(), mongoose_commands:ct(), any(), http_api_state()) ->
+-spec process_request(method(), mongoose_commands:t(), any(), http_api_state()) ->
                       {any(), any(), http_api_state()}.
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
@@ -280,7 +280,7 @@ maybe_add_subcategory(Command) ->
             ["/", SubCategory]
     end.
 
--spec both_bind_and_body(mongoose_commands:command_action()) -> boolean().
+-spec both_bind_and_body(mongoose_commands:action()) -> boolean().
 both_bind_and_body(update) ->
     true;
 both_bind_and_body(create) ->

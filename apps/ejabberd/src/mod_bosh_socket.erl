@@ -981,22 +981,22 @@ is_stream_error(#xmlel{name = Name}) ->
 %%--------------------------------------------------------------------
 
 %% @doc Should be negotiated on HTTP level.
--spec starttls(mod_bosh:socket(), _) -> none().
+-spec starttls(mod_bosh:socket(), _) -> no_return().
 starttls(SocketData, TLSOpts) ->
     starttls(SocketData, TLSOpts, <<>>).
 
 
--spec starttls(mod_bosh:socket(), _, _) -> none().
+-spec starttls(mod_bosh:socket(), _, _) -> no_return().
 starttls(_SocketData, _TLSOpts, _Data) ->
     throw({error, negotiate_tls_on_http_level}).
 
 
 %% @doc Should be negotiated on HTTP level.
--spec compress(mod_bosh:socket()) -> none().
+-spec compress(mod_bosh:socket()) -> no_return().
 compress(SocketData) ->
     compress(SocketData, <<>>, 0).
 
--spec compress(mod_bosh:socket(), _, integer()) -> none().
+-spec compress(mod_bosh:socket(), _, integer()) -> no_return().
 compress(_SocketData, _Data, _InflateSizeLimit) ->
     throw({error, negotiate_compression_on_http_level}).
 

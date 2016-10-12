@@ -41,6 +41,8 @@
 -export([create_obj/3, read_archive/6, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
+-type yearweeknum() :: {non_neg_integer(), 1..53}.
+
 -define(YZ_SEARCH_INDEX, <<"mam">>).
 -define(MAM_BUCKET_TYPE, <<"mam_yz">>).
 
@@ -187,7 +189,7 @@ archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
 
 %% use correct bucket for given date
 
--spec bucket(calendar:date() | calendar:yearweeknum() | integer()) ->
+-spec bucket(calendar:date() | yearweeknum() | integer()) ->
     {binary(), binary()} | undefined.
 bucket(MsgId) when is_integer(MsgId) ->
     {MicroSec, _} = mod_mam_utils:decode_compact_uuid(MsgId),

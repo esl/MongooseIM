@@ -161,6 +161,7 @@
 -type failure() :: {error, errortype(), binary()}.
 
 -export_type([t/0]).
+-export_type([action/0]).
 -export_type([argspec/0]).
 -export_type([optargspec/0]).
 -export_type([errortype/0]).

@@ -137,9 +137,6 @@ delete_mnesia() ->
     ?WARNING_MSG("Mnesia schema and files deleted", []),
     ok.
 
-repeat(N, El) ->
-    [ El || _ <- lists:seq(1, N) ].
-
 wait_for_pong(Node) ->
     wait_for_pong(net_adm:ping(Node), Node, 5, 100).
 

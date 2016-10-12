@@ -429,14 +429,6 @@ ac_all(Origin) ->
      ac_allow_headers(),
      ac_max_age()].
 
-
--spec get_option_pair('ip',[any()]) -> [{'ip',_}].
-get_option_pair(Key, Opts) ->
-    case proplists:get_value(Key, Opts) of
-        undefined -> [];
-        Value     -> [{Key, Value}]
-    end.
-
 set_max_hold(Body) ->
     HoldBin = exml_query:attr(Body, <<"hold">>),
     ClientHold = binary_to_integer(HoldBin),

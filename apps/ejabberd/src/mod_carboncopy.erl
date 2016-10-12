@@ -195,12 +195,6 @@ is_bare_to(Direction, To, PrioRes) ->
         _ -> false
     end.
 
-is_unavailable(LRes, PrioRes) ->
-    case lists:keyfind(LRes, 2, PrioRes) of
-        false -> true;
-        _ -> false
-    end.
-
 max_prio(PrioRes) ->
     case catch lists:max(PrioRes) of
         {Prio, _Res} -> Prio;
