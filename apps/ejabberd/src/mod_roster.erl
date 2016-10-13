@@ -51,7 +51,7 @@
          in_subscription/6,
          out_subscription/4,
          set_items/3,
-         add_to_roster/4,
+         set_roster_entry/4,
          remove_from_roster/2,
          remove_user/2,
          get_jid_info/4,
@@ -836,9 +836,9 @@ set_items(User, Server, SubEl) ->
         end,
     transaction(LServer, F).
 
-%% @doc add a contact to roster (just add)
--spec add_to_roster(jid(), binary(), binary(), [binary()]) -> ok|error.
-add_to_roster(UserJid, ContactBin, Name, Groups) ->
+%% @doc add a contact to roster, or update
+-spec set_roster_entry(jid(), binary(), binary(), [binary()]) -> ok|error.
+set_roster_entry(UserJid, ContactBin, Name, Groups) ->
     LUser = UserJid#jid.luser,
     LServer = UserJid#jid.lserver,
     JID1 = jid:from_binary(ContactBin),

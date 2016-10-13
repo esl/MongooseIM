@@ -324,6 +324,16 @@ add_remove_contact(Config) ->
             Inc2 = escalus:wait_for_stanza(Bob, 1),
             ct:pal("Inc2: ~p", [Inc2]),
             escalus:assert(is_roster_set, Inc2),
+            % and can be edited
+            putt(lists:flatten(["/contacts/bob@localhost/alice@localhost"]), #{name => <<"Afonia">>}),
+            {?OK, RM} = gett(lists:flatten(["/contacts/bob@localhost"])),
+            [ResM] = decode_maplist(RM),
+            #{name := <<"Afonia">>,
+                jid := <<"alice@localhost">>, subscription := <<"none">>} = ResM,
+            % did he receive a push again?
+            Inc3 = escalus:wait_for_stanza(Bob, 1),
+            ct:pal("Inc3: ~p", [Inc3]),
+            escalus:assert(is_roster_set, Inc3),
             % but when he removes here
             {?NOCONTENT, _} = delete(lists:flatten(["/contacts/bob@localhost/alice@localhost"])),
             % she's not there anymore

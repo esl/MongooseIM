@@ -14,6 +14,7 @@
          kick_session/3,
          list_contacts/1,
          add_contact/3,
+         update_contact/3,
          delete_contact/2,
          block_contact/2,
          unblock_contact/2,
@@ -166,7 +167,19 @@ commands() ->
       {function, add_contact},
       {action, create},
       {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]}, % TODO support groups
+      {result, ok}
+     ],
+     [
+      {name, update_contact},
+      {category, <<"contacts">>},
+      {desc, <<"Modify a contact's name in roster">>},
+      {module, ?MODULE},
+      {function, update_contact},
+      {action, update},
+      {security_policy, [user]},
       {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]},
+      {identifiers, [caller, jabber_id]},
       {result, ok}
      ],
      [
@@ -331,7 +344,11 @@ list_contacts(Caller) ->
 
 add_contact(Caller, JabberID, Name) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:add_to_roster(CJid, JabberID, Name, []).
+    mod_roster:set_roster_entry(CJid, JabberID, Name, []).
+
+update_contact(Caller, JabberID, Name) ->
+    CJid = jid:from_binary(Caller),
+    mod_roster:set_roster_entry(CJid, JabberID, Name, []).
 
 delete_contact(Caller, JabberID) ->
     CJid = jid:from_binary(Caller),
