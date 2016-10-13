@@ -33,6 +33,7 @@
 
 %% helper for internal use
 -export([ref/1, reload_dispatch/1]).
+-export([start_cowboy/2, stop_cowboy/1]).
 
 -include("ejabberd.hrl").
 -type options()  :: [any()].
@@ -104,9 +105,24 @@ handler({Port, IP, tcp}) ->
 %%--------------------------------------------------------------------
 
 start_cowboy(Ref, Opts) ->
-    %% Port and Dispatch are required
+    {Retries, SleepTime} = gen_mod:get_opt(retries, Opts, {20, 50}),
+    do_start_cowboy(Ref, Opts, Retries, SleepTime).
+
+
+do_start_cowboy(Ref, Opts, 0, _) ->
+    do_start_cowboy(Ref, Opts);
+do_start_cowboy(Ref, Opts, Retries, SleepTime) ->
+    case do_start_cowboy(Ref, Opts) of
+        {error, eaddrinuse} ->
+            timer:sleep(SleepTime),
+            do_start_cowboy(Ref, Opts, Retries - 1, SleepTime);
+        Other ->
+            Other
+    end.
+
+do_start_cowboy(Ref, Opts) ->
     Port = gen_mod:get_opt(port, Opts),
-    IP = gen_mod:get_opt(ip, Opts, {0,0,0,0}),
+    IP = gen_mod:get_opt(ip, Opts, {0, 0, 0, 0}),
     SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
@@ -121,15 +137,21 @@ start_cowboy(Ref, Opts) ->
                     ],
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
     ProtocolOpts = [{compress, Compress}, {env, [{dispatch, Dispatch}]} | Middlewares],
-    case SSLOpts of
-        undefined ->
-            cowboy:start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
-        _ ->
-            FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOpts),
-            TransportOptsWithSSL = TransportOpts ++ FilteredSSLOptions,
-            cowboy:start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts)
+    case catch start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) of
+        {error, {{shutdown,
+                  {failed_to_start_child, ranch_acceptors_sup,
+                   {{badmatch, {error, eaddrinuse}}, _ }}}, _}} ->
+            {error, eaddrinuse};
+        Result ->
+            Result
     end.
 
+start_http_or_https(undefined, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+    cowboy:start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
+start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+    FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOpts),
+    TransportOptsWithSSL = TransportOpts ++ FilteredSSLOptions,
+    cowboy:start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts).
 
 reload_dispatch(Ref, Opts) ->
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
