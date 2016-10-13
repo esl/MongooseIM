@@ -20,6 +20,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml.hrl").
 
 -import(rest_helper,
         [assert_inlist/2,
@@ -42,6 +43,8 @@
 -define(ERROR, {<<"500">>, _}).
 -define(NOT_FOUND, {<<"404">>, _}).
 
+-define(NS_BLOCKING,     <<"urn:xmpp:blocking">>).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -54,7 +57,7 @@ all() ->
     [
      {group, admin},
      {group, dynamic_module},
-        {group, roster}
+     {group, roster}
     ].
 
 groups() ->
@@ -80,7 +83,9 @@ roster_tests() ->
      list_contacts,
      add_remove_contact,
      messages_from_blocked_user_dont_arrive,
-     messages_from_unblocked_user_arrive_again
+     messages_from_unblocked_user_arrive_again,
+     blocking_push_to_resource
+%%     blocking_push_to_contact
     ].
 
 suite() ->
@@ -305,18 +310,27 @@ add_remove_contact(_Config) ->
     [] = Res,
     % adds Alice
     AddContact = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>,
-                   name => <<"Alicja">>},
+                   name => <<"Alicja">>, subscription => <<"none">>},
     post(<<"/contacts">>, AddContact),
     % and she is in his roster
     {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
     [Res2] = decode_maplist(R2),
     #{name := <<"Alicja">>,
-      jid := <<"alice@localhost">>} = Res2,
+      jid := <<"alice@localhost">>, subscription := <<"none">>} = Res2,
     % but when he removes here
     {?NOCONTENT, _} = delete(lists:flatten(["/contacts/bob@localhost/alice@localhost"])),
     % she's not there anymore
+    {?OK, R3} = gett(lists:flatten(["/contacts/bob@localhost"])),
+    [] = R3,
+    % adds her again but with subscription
+    AddContact1 = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>,
+        name => <<"Alicja">>, subscription => <<"to">>},
+    Aaa = post(<<"/contacts">>, AddContact1),
+    % and she is in his roster and subscribed
     {?OK, R4} = gett(lists:flatten(["/contacts/bob@localhost"])),
-    [] = R4,
+    [Res4] = decode_maplist(R4),
+    #{name := <<"Alicja">>,
+        jid := <<"alice@localhost">>, subscription := <<"to">>} = Res4,
     ok.
 
 messages_from_blocked_user_dont_arrive(Config) ->
@@ -325,7 +339,6 @@ messages_from_blocked_user_dont_arrive(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
-            ct:pal("User1: ~p", [User1]),
             message(User2, User1, <<"Hi!">>),
             client_gets_nothing(User1),
             privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>)
@@ -341,6 +354,36 @@ messages_from_unblocked_user_arrive_again(Config) ->
         fun(User1, User2) ->
             message_is_delivered(User2, User1, <<"Hello again!">>)
         end).
+
+blocking_push_to_resource(Config) ->
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, _Bob) ->
+            Path = lists:flatten(["/contacts/alice@localhost/bob@localhost/block"]),
+            {?NOCONTENT, _} = putt(Path, #{}),
+            [Received] = escalus:wait_for_stanzas(Alice, 1),
+            escalus:assert(fun is_xep191_push/2, [<<"block">>], Received),
+            Path1 = lists:flatten(["/contacts/alice@localhost/bob@localhost/unblock"]),
+            {?NOCONTENT, _} = putt(Path1, #{}),
+            [Received1] = escalus:wait_for_stanzas(Alice, 1),
+            escalus:assert(fun is_xep191_push/2, [<<"unblock">>], Received1),
+            ok
+        end).
+
+%%blocking_push_to_contact(Config) ->
+%%    escalus:story(
+%%        Config, [{alice, 1}, {bob, 1}],
+%%        fun(Alice, Bob) ->
+%%            subscribe(Alice, Bob),
+%%            Path = lists:flatten(["/contacts/alice@localhost/bob@localhost/block"]),
+%%            {?NOCONTENT, _} = putt(Path, #{}),
+%%            ct:pal("Bob: ~p", [Bob]),
+%%            Received = escalus:wait_for_stanzas(Bob, 1),
+%%            ct:pal("Received: ~p", [Received]),
+%%            Received = 17,
+%%            ok
+%%        end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -444,4 +487,11 @@ message_is_delivered(From, To, MessageText) ->
     BareTo =  escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
     escalus:send(From, escalus_stanza:chat_to(BareTo, MessageText)),
     escalus:assert(is_chat_message, [MessageText], escalus:wait_for_stanza(To)).
+
+is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
+    attrs = Attrs}]}=Stanza) ->
+    true = escalus_pred:is_iq_set(Stanza),
+    {<<"id">>, <<"push">>} = lists:keyfind(<<"id">>, 1, A),
+    {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),
+    true.
 

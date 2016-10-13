@@ -51,7 +51,7 @@
          in_subscription/6,
          out_subscription/4,
          set_items/3,
-         add_to_roster/4,
+         add_to_roster/5,
          remove_from_roster/2,
          remove_user/2,
          get_jid_info/4,
@@ -483,6 +483,7 @@ push_item(User, Server, From, Item) ->
 
 push_item(User, Server, Resource, From, Item) ->
     ejabberd_hooks:run(roster_push, Server, [From, Item]),
+
     push_item(User, Server, Resource, From, Item, not_found).
 
 push_item(User, Server, Resource, From, Item, RosterVersion) ->
@@ -825,23 +826,32 @@ set_items(User, Server, SubEl) ->
         end,
     transaction(LServer, F).
 
-%% @doc add a contact to roster - just add, no subscription, ergo no push
--spec add_to_roster(jid(), binary(), binary(), [binary()]) -> ok|error.
-add_to_roster(UserJid, ContactBin, Name, Groups) ->
+%% @doc add a contact to roster (just add)
+-spec add_to_roster(jid(), binary(), binary(), [binary()], atom()) -> ok|error.
+add_to_roster(UserJid, ContactBin, Name, Groups, Subscription) ->
     LUser = UserJid#jid.luser,
     LServer = UserJid#jid.lserver,
     JID1 = jid:from_binary(ContactBin),
     case JID1 of
         error -> error;
         _ ->
+            {LJID, Item} = make_roster_item(JID1, LUser, LServer),
+            Item1 = Item#roster{name = Name, groups = Groups,
+                subscription = Subscription},
             F = fun () ->
-                    {LJID, Item} = make_roster_item(JID1, LUser, LServer),
-                    Item1 = Item#roster{name = Name, groups = Groups, subscription = none},
                     update_roster_t(LUser, LServer, LJID, Item1)
                 end,
             transaction(LServer, F),
+            % now push to connected resources
+            % TODO shouldn't we send some presence?
+%%            TransRes = transaction(LServer, F),
+%%            add_to_roster_complete(TransRes, LUser, LServer, Item1),
             ok
     end.
+
+%%add_to_roster_complete({atomic, _}, LUser, LServer, Item) ->
+%%    From = jid:make(LUser, LServer), % what is this?
+%%    push_item(LUser, LServer, From, Item).
 
 %% @doc remove from roster; TODO if there was subscription MUCH more needs to be done
 -spec remove_from_roster(jid(), binary()) -> ok|error.
