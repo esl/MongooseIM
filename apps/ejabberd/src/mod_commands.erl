@@ -331,7 +331,7 @@ list_contacts(Caller) ->
 
 add_contact(Caller, JabberID, Name) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:add_to_roster(CJid, JabberID, Name, [], none).
+    mod_roster:add_to_roster(CJid, JabberID, Name, []).
 
 delete_contact(Caller, JabberID) ->
     CJid = jid:from_binary(Caller),

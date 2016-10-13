@@ -51,7 +51,7 @@
          in_subscription/6,
          out_subscription/4,
          set_items/3,
-         add_to_roster/5,
+         add_to_roster/4,
          remove_from_roster/2,
          remove_user/2,
          get_jid_info/4,
@@ -382,6 +382,11 @@ item_to_xml(Item) ->
 get_roster_by_jid_t(LUser, LServer, LJID) ->
     mod_roster_backend:get_roster_by_jid_t(LUser, LServer, LJID).
 
+get_roster_by_jid(LUser, LServer, LJID) ->
+    {atomic, Item} = transaction(LServer,
+                                 fun() -> get_roster_by_jid_t(LUser, LServer, LJID) end),
+    Item.
+
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
     ejabberd_hooks:run(roster_set, LServer, [From, To, SubEl]),
@@ -399,10 +404,15 @@ do_process_item_set(JID1,
                     To,
                     #xmlel{attrs = Attrs, children = Els}) ->
     LJID = jid:to_lower(JID1),
+    Item = get_roster_by_jid(LUser, LServer, LJID),
+    Item1 = process_item_attrs(Item, Attrs),
+    Item2 = process_item_els(Item1, Els),
+    set_roster_item(User, LUser, LServer, LJID, From, To, Item, Item2).
+
+%% @doc this is run when a roster item is to be added, updated or removed
+%% the interface of this func could probably be a bit simpler
+set_roster_item(User, LUser, LServer, LJID, From, To, Item, Item2) ->
     F = fun () ->
-                Item = get_roster_by_jid_t(LUser, LServer, LJID),
-                Item1 = process_item_attrs(Item, Attrs),
-                Item2 = process_item_els(Item1, Els),
                 case Item2#roster.subscription of
                     remove -> del_roster_t(LUser, LServer, LJID);
                     _ -> update_roster_t(LUser, LServer, LJID, Item2)
@@ -417,9 +427,9 @@ do_process_item_set(JID1,
                 {Item, Item3}
         end,
     case transaction(LServer, F) of
-        {atomic, {OldItem, Item}} ->
-            push_item(User, LServer, To, Item),
-            case Item#roster.subscription of
+        {atomic, {OldItem, NewItem}} ->
+            push_item(User, LServer, To, NewItem),
+            case NewItem#roster.subscription of
                 remove ->
                     send_unsubscribing_presence(From, OldItem), ok;
                 _ -> ok
@@ -827,26 +837,27 @@ set_items(User, Server, SubEl) ->
     transaction(LServer, F).
 
 %% @doc add a contact to roster (just add)
--spec add_to_roster(jid(), binary(), binary(), [binary()], atom()) -> ok|error.
-add_to_roster(UserJid, ContactBin, Name, Groups, Subscription) ->
+-spec add_to_roster(jid(), binary(), binary(), [binary()]) -> ok|error.
+add_to_roster(UserJid, ContactBin, Name, Groups) ->
     LUser = UserJid#jid.luser,
     LServer = UserJid#jid.lserver,
     JID1 = jid:from_binary(ContactBin),
     case JID1 of
         error -> error;
         _ ->
-            {LJID, Item} = make_roster_item(JID1, LUser, LServer),
-            Item1 = Item#roster{name = Name, groups = Groups,
-                subscription = Subscription},
-            F = fun () ->
-                    update_roster_t(LUser, LServer, LJID, Item1)
-                end,
-            transaction(LServer, F),
-            % now push to connected resources
-            % TODO shouldn't we send some presence?
-%%            TransRes = transaction(LServer, F),
-%%            add_to_roster_complete(TransRes, LUser, LServer, Item1),
-            ok
+            LJID = jid:to_lower(JID1),
+            Item = get_roster_by_jid(LUser, LServer, LJID),
+            Item2 = Item#roster{name = Name, groups = Groups},
+            set_roster_item(
+                LUser, % User
+                LUser, % LUser
+                LServer, % LServer
+                LJID, % LJID
+                UserJid, % From
+                UserJid, % To
+                Item, % Item
+                Item2 % Item2
+            )
     end.
 
 %%add_to_roster_complete({atomic, _}, LUser, LServer, Item) ->

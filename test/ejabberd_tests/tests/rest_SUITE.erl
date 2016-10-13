@@ -303,25 +303,35 @@ list_contacts(Config) ->
     ),
     ok.
 
-add_remove_contact(_Config) ->
-    % bob has empty roster
-    {?OK, R} = gett(lists:flatten(["/contacts/bob@localhost"])),
-    Res = decode_maplist(R),
-    [] = Res,
-    % adds Alice
-    AddContact = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>,
-                   name => <<"Alicja">>},
-    post(<<"/contacts">>, AddContact),
-    % and she is in his roster
-    {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
-    [Res2] = decode_maplist(R2),
-    #{name := <<"Alicja">>,
-      jid := <<"alice@localhost">>, subscription := <<"none">>} = Res2,
-    % but when he removes here
-    {?NOCONTENT, _} = delete(lists:flatten(["/contacts/bob@localhost/alice@localhost"])),
-    % she's not there anymore
-    {?OK, R3} = gett(lists:flatten(["/contacts/bob@localhost"])),
-    [] = R3,
+add_remove_contact(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            % bob has empty roster
+            {?OK, R} = gett(lists:flatten(["/contacts/bob@localhost"])),
+            Res = decode_maplist(R),
+            [] = Res,
+            % adds Alice
+            AddContact = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>,
+                           name => <<"Alicja">>},
+            post(<<"/contacts">>, AddContact),
+            % and she is in his roster
+            {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
+            [Res2] = decode_maplist(R2),
+            #{name := <<"Alicja">>,
+              jid := <<"alice@localhost">>, subscription := <<"none">>} = Res2,
+            % but did he receive a push?
+            Inc2 = escalus:wait_for_stanza(Bob, 1),
+            ct:pal("Inc2: ~p", [Inc2]),
+            escalus:assert(is_roster_set, Inc2),
+            % but when he removes here
+            {?NOCONTENT, _} = delete(lists:flatten(["/contacts/bob@localhost/alice@localhost"])),
+            % she's not there anymore
+            {?OK, R3} = gett(lists:flatten(["/contacts/bob@localhost"])),
+            [] = R3,
+            ok
+        end
+    ),
     ok.
 
 messages_from_blocked_user_dont_arrive(Config) ->
