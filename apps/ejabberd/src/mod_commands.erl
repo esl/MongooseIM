@@ -13,7 +13,7 @@
          list_sessions/1,
          kick_session/3,
          list_contacts/1,
-         add_contact/4,
+         add_contact/3,
          delete_contact/2,
          block_contact/2,
          unblock_contact/2,
@@ -166,20 +166,7 @@ commands() ->
       {function, add_contact},
       {action, create},
       {security_policy, [user]},
-      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}, {subscription, binary}]},
-      {result, ok}
-     ],
-     [
-      {name, set_subscription},
-      {category, <<"contacts">>},
-      {subcategory, <<"subscription">>},
-      {desc, <<"Set subscription on a contact in the user's roster">>},
-      {module, ?MODULE},
-      {function, set_subscription},
-      {action, update},
-      {security_policy, [user]},
-      {args, [{caller, binary}, {jabber_id, binary}, {subscription, binary}]},
-      {identifiers, [caller, jabber_id]},
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]},
       {result, ok}
      ],
      [
@@ -342,10 +329,9 @@ list_contacts(Caller) ->
     R = lists:map(fun mod_roster:item_to_map/1, Res),
     lists:map(fun roster_info/1, R).
 
-add_contact(Caller, JabberID, Name, Subscription) ->
+add_contact(Caller, JabberID, Name) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:add_to_roster(CJid, JabberID, Name, [],
-                             binary_to_existing_atom(Subscription, utf8)).
+    mod_roster:add_to_roster(CJid, JabberID, Name, [], none).
 
 delete_contact(Caller, JabberID) ->
     CJid = jid:from_binary(Caller),
@@ -361,7 +347,6 @@ manage_contact(Action, Caller, JabberID) ->
     CJid = jid:from_binary(Caller),
     {LUser, LServer, _} = jid:to_lower(CJid),
     Res = mod_blocking:process_blocking_set(Action, LUser, LServer, [JabberID]),
-    ?ERROR_MSG("Res: ~p", [Res]),
     case mod_blocking:complete_iq_set(blocking_command, LUser, LServer, Res) of
         {error, Reason} ->
             {error, Reason};

@@ -310,7 +310,7 @@ add_remove_contact(_Config) ->
     [] = Res,
     % adds Alice
     AddContact = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>,
-                   name => <<"Alicja">>, subscription => <<"none">>},
+                   name => <<"Alicja">>},
     post(<<"/contacts">>, AddContact),
     % and she is in his roster
     {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
@@ -322,15 +322,6 @@ add_remove_contact(_Config) ->
     % she's not there anymore
     {?OK, R3} = gett(lists:flatten(["/contacts/bob@localhost"])),
     [] = R3,
-    % adds her again but with subscription
-    AddContact1 = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>,
-        name => <<"Alicja">>, subscription => <<"to">>},
-    Aaa = post(<<"/contacts">>, AddContact1),
-    % and she is in his roster and subscribed
-    {?OK, R4} = gett(lists:flatten(["/contacts/bob@localhost"])),
-    [Res4] = decode_maplist(R4),
-    #{name := <<"Alicja">>,
-        jid := <<"alice@localhost">>, subscription := <<"to">>} = Res4,
     ok.
 
 messages_from_blocked_user_dont_arrive(Config) ->
