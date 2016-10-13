@@ -1,5 +1,6 @@
 -module(mod_commands).
 -author('bartlomiej.gorny@erlang-solutions.com').
+-include("mod_roster.hrl").
 
 -behaviour(gen_mod).
 
@@ -18,6 +19,7 @@
          delete_contact/2,
          block_contact/2,
          unblock_contact/2,
+         set_subscription/3,
          get_recent_messages/3,
          get_recent_messages/4,
          send_message/3
@@ -34,6 +36,7 @@ stop() ->
 
 start(_, _) -> start().
 stop(_) -> stop().
+
 
 %%%
 %%% mongoose commands
@@ -179,6 +182,23 @@ commands() ->
       {action, update},
       {security_policy, [user]},
       {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]},
+      {identifiers, [caller, jabber_id]},
+      {result, ok}
+     ],
+     [
+      {name, set_subscription},
+      {category, <<"contacts">>},
+      {subcategory, <<"subscription">>},
+      {desc, <<"Set subscription on a contact in the user's roster">>},
+      {module, ?MODULE},
+      {function, set_subscription},
+      {action, update},
+      % rationale for security policy: this commands sets subscription to an arbitrary value,
+      % without asking the other party for permission or taking care of synchronisation of
+      % both roster; therefore, it is the caller's reponsibility to obey certain rules. Thus,
+      % we may NOT expose this command to an ordinary user.
+      {security_policy, [admin]},
+      {args, [{caller, binary}, {jabber_id, binary}, {subscription, binary}]},
       {identifiers, [caller, jabber_id]},
       {result, ok}
      ],
@@ -370,3 +390,47 @@ manage_contact(Action, Caller, JabberID) ->
         _ ->
             ok
     end.
+
+set_subscription(Caller, JabberID, Sub) ->
+    SubA = binary_to_existing_atom(Sub, utf8),
+    CJid = jid:from_binary(Caller),
+    Jid = jid:from_binary(JabberID),
+    Item = mod_roster:get_roster_by_jid(CJid#jid.luser, CJid#jid.lserver, jid:to_lower(Jid)),
+    PSubA = Item#roster.subscription,
+    lists:map(fun(S) -> run_subaction(S, CJid, Jid) end, subacts(PSubA, SubA)),
+    ok.
+
+run_subaction({Dir, S}, CJid, Jid) ->
+    Type = case S of
+               s -> subscribe;
+               sd -> subscribed;
+               u -> unsubscribe;
+               ud -> unsubscribed
+           end,
+    Server = CJid#jid.server,
+    LUser = CJid#jid.luser,
+    LServer= CJid#jid.lserver,
+    case Dir of
+       in ->
+           ejabberd_hooks:run_fold(roster_in_subscription, Server, #{},
+                                   [LUser, LServer, Jid, Type, <<>>]);
+       out ->
+           ejabberd_hooks:run(roster_out_subscription, Server,
+                             [LUser, LServer, Jid, Type])
+    end,
+    ok.
+
+subacts(none, from) -> [{in, s}, {out, sd}]; % ok
+subacts(none, to) -> [{out, s}, {in, sd}]; % ok
+subacts(none, both) -> subacts(none, to) ++ subacts(none, from);
+subacts(from, none) -> [{out, ud}]; % ok
+subacts(to, none) -> [{in, ud}]; % ok
+subacts(both, none) -> subacts(to, none) ++ subacts(from, none);
+subacts(from, to) -> subacts(from, none) ++ subacts(none, to);
+subacts(to, from) -> subacts(to, none) ++ subacts(none, from);
+subacts(to, both) -> subacts(none, from);
+subacts(from, both) -> subacts(none, to); % ok
+subacts(both, to) -> subacts(from, none);
+subacts(both, from) -> subacts(to, none);
+subacts(S, S) -> [].
+

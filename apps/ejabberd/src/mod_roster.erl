@@ -47,6 +47,7 @@
          get_user_roster/2,
          get_subscription_lists/3,
          get_roster/2,
+         get_roster_by_jid/3,
          item_to_map/1,
          in_subscription/6,
          out_subscription/4,

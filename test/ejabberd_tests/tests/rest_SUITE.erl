@@ -82,6 +82,7 @@ roster_tests() ->
     [
      list_contacts,
      add_remove_contact,
+     subscription_changes,
      messages_from_blocked_user_dont_arrive,
      messages_from_unblocked_user_arrive_again,
      blocking_push_to_resource
@@ -322,7 +323,6 @@ add_remove_contact(Config) ->
               jid := <<"alice@localhost">>, subscription := <<"none">>} = Res2,
             % but did he receive a push?
             Inc2 = escalus:wait_for_stanza(Bob, 1),
-            ct:pal("Inc2: ~p", [Inc2]),
             escalus:assert(is_roster_set, Inc2),
             % and can be edited
             putt(lists:flatten(["/contacts/bob@localhost/alice@localhost"]), #{name => <<"Afonia">>}),
@@ -332,7 +332,6 @@ add_remove_contact(Config) ->
                 jid := <<"alice@localhost">>, subscription := <<"none">>} = ResM,
             % did he receive a push again?
             Inc3 = escalus:wait_for_stanza(Bob, 1),
-            ct:pal("Inc3: ~p", [Inc3]),
             escalus:assert(is_roster_set, Inc3),
             % but when he removes here
             {?NOCONTENT, _} = delete(lists:flatten(["/contacts/bob@localhost/alice@localhost"])),
@@ -343,6 +342,54 @@ add_remove_contact(Config) ->
         end
     ),
     ok.
+
+
+subscription_changes(Config) ->
+    escalus:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            % bob has empty roster
+            {?OK, R} = gett(lists:flatten(["/contacts/bob@localhost"])),
+            Res = decode_maplist(R),
+            [] = Res,
+
+            % adds Alice
+            AddContact = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>,
+                name => <<"Alicja">>},
+            post(<<"/contacts">>, AddContact),
+            escalus:wait_for_stanza(Bob, 1),
+            set_and_check_subscription(none),
+            rec_presence(nothing, Alice),
+            set_and_check_subscription(to),
+            rec_presence(nothing, Alice),
+            set_and_check_subscription(from),
+            rec_presence(av, Alice),
+            set_and_check_subscription(both),
+            rec_presence(nothing, Alice),
+            set_and_check_subscription(none),
+            rec_presence(unav, Alice),
+            set_and_check_subscription(both),
+            rec_presence(av, Alice),
+            set_and_check_subscription(from),
+            rec_presence(nothing, Alice),
+            set_and_check_subscription(to),
+            rec_presence(unav, Alice),
+            set_and_check_subscription(both),
+            rec_presence(av, Alice),
+            set_and_check_subscription(to),
+            rec_presence(unav, Alice),
+            set_and_check_subscription(none),
+            rec_presence(nothing, Alice),
+            set_and_check_subscription(from),
+            rec_presence(av, Alice),
+            set_and_check_subscription(none),
+            rec_presence(unav, Alice),
+            Rep = 999,
+            ok
+        end
+    ),
+    ok.
+
 
 messages_from_blocked_user_dont_arrive(Config) ->
     Path = lists:flatten(["/contacts/alice@localhost/bob@localhost/block"]),
@@ -505,4 +552,29 @@ is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
     {<<"id">>, <<"push">>} = lists:keyfind(<<"id">>, 1, A),
     {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),
     true.
+
+set_and_check_subscription(Subs) ->
+    BinSub = atom_to_binary(Subs, utf8),
+    putt(lists:flatten(["/contacts/bob@localhost/alice@localhost/subscription"]),
+         #{subscription => BinSub}),
+    {?OK, RM} = gett(lists:flatten(["/contacts/bob@localhost"])),
+    [ResM] = decode_maplist(RM),
+    #{name := <<"Alicja">>,
+        jid := <<"alice@localhost">>, subscription := BinSub1} = ResM,
+    ok.
+
+rec_presence(av, Alice) ->
+    rec_presence(<<"available">>, Alice);
+rec_presence(unav, Alice) ->
+    rec_presence(<<"unavailable">>, Alice);
+rec_presence(nothing, Alice) ->
+    [] = escalus:wait_for_stanzas(Alice, 1, 10);
+rec_presence(Type, Alice) ->
+    escalus:assert(is_presence_with_type, [Type],
+        escalus:wait_for_stanza(Alice)).
+
+
+
+
+
 
