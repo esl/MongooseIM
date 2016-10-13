@@ -420,16 +420,16 @@ run_subaction({Dir, S}, CJid, Jid) ->
     end,
     ok.
 
-subacts(none, from) -> [{in, s}, {out, sd}]; % ok
-subacts(none, to) -> [{out, s}, {in, sd}]; % ok
+subacts(none, from) -> [{in, s}, {out, sd}];
+subacts(none, to) -> [{out, s}, {in, sd}];
 subacts(none, both) -> subacts(none, to) ++ subacts(none, from);
-subacts(from, none) -> [{out, ud}]; % ok
-subacts(to, none) -> [{in, ud}]; % ok
+subacts(from, none) -> [{out, ud}];
+subacts(to, none) -> [{in, ud}];
 subacts(both, none) -> subacts(to, none) ++ subacts(from, none);
 subacts(from, to) -> subacts(from, none) ++ subacts(none, to);
 subacts(to, from) -> subacts(to, none) ++ subacts(none, from);
 subacts(to, both) -> subacts(none, from);
-subacts(from, both) -> subacts(none, to); % ok
+subacts(from, both) -> subacts(none, to);
 subacts(both, to) -> subacts(from, none);
 subacts(both, from) -> subacts(to, none);
 subacts(S, S) -> [].

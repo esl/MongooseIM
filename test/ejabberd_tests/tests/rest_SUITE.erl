@@ -85,8 +85,8 @@ roster_tests() ->
      subscription_changes,
      messages_from_blocked_user_dont_arrive,
      messages_from_unblocked_user_arrive_again,
-     blocking_push_to_resource
-%%     blocking_push_to_contact
+     blocking_push_to_resource,
+     blocking_push_to_contact
     ].
 
 suite() ->
@@ -428,19 +428,16 @@ blocking_push_to_resource(Config) ->
             ok
         end).
 
-%%blocking_push_to_contact(Config) ->
-%%    escalus:story(
-%%        Config, [{alice, 1}, {bob, 1}],
-%%        fun(Alice, Bob) ->
-%%            subscribe(Alice, Bob),
-%%            Path = lists:flatten(["/contacts/alice@localhost/bob@localhost/block"]),
-%%            {?NOCONTENT, _} = putt(Path, #{}),
-%%            ct:pal("Bob: ~p", [Bob]),
-%%            Received = escalus:wait_for_stanzas(Bob, 1),
-%%            ct:pal("Received: ~p", [Received]),
-%%            Received = 17,
-%%            ok
-%%        end).
+blocking_push_to_contact(Config) ->
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            subscribe(Alice, Bob),
+            Path = lists:flatten(["/contacts/bob@localhost/alice@localhost/block"]),
+            {?NOCONTENT, _} = putt(Path, #{}),
+            rec_presence(unav, Alice),
+            ok
+        end).
 
 %%--------------------------------------------------------------------
 %% Helpers
