@@ -46,7 +46,7 @@ devrel: certs $(DEVNODES)
 $(DEVNODES): configure.out rel/vars.config
 	@echo "building $@"
 	(. ./configure.out && \
-	 ./rebar3 as $(DEVNODE) release) > $(LOG_SILENCE_COVER)
+	 ./rebar3 as $@ release) > $(LOG_SILENCE_COVER)
 
 certs: fake_cert.pem fake_server.pem fake_dh_server.pem
 
