@@ -3900,10 +3900,10 @@ tree(Host) ->
 
 tree(_Host, <<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend
-tree(Host, Name) ->
+tree(_Host, Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
-plugin(Host, Name) ->
+plugin(_Host, Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 plugins(Host) ->
@@ -3913,7 +3913,7 @@ plugins(Host) ->
         Plugins -> Plugins
     end.
 
-subscription_plugin(Host) ->
+subscription_plugin(_Host) ->
     pubsub_subscription.
 
 config(ServerHost, Key) ->
