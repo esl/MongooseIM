@@ -45,16 +45,16 @@ trap "trap '' SIGTERM && kill -- -$$ 2> /dev/null" EXIT
 
 echo ${BASE}
 
-EJD1=${BASE}/dev/mongooseim_node1
-EJD2=${BASE}/dev/mongooseim_node2
-EJD3=${BASE}/dev/mongooseim_node3
-FED1=${BASE}/dev/mongooseim_fed1
-EJD1CTL=${EJD1}/bin/mongooseimctl
-EJD2CTL=${EJD2}/bin/mongooseimctl
-EJD3CTL=${EJD3}/bin/mongooseimctl
+MIM1=${BASE}/_build/mim1/rel/mongooseim
+MIM2=${BASE}/_build/mim2/rel/mongooseim
+MIM3=${BASE}/_build/mim3/rel/mongooseim
+FED1=${BASE}/_build/fed1/rel/mongooseim
+MIM1CTL=${MIM1}/bin/mongooseimctl
+MIM2CTL=${MIM2}/bin/mongooseimctl
+MIM3CTL=${MIM3}/bin/mongooseimctl
 FED1CTL=${FED1}/bin/mongooseimctl
 
-NODES=(${EJD1CTL} ${EJD2CTL} ${EJD3CTL} ${FED1CTL})
+NODES=(${MIM1CTL} ${MIM2CTL} ${MIM3CTL} ${FED1CTL})
 
 start_node() {
 	echo -n "${1} start: "
@@ -102,11 +102,13 @@ maybe_run_small_tests() {
 
 run_test_preset() {
 	tools/print-dots.sh start
+    cd ${BASE}/test.disabled/ejabberd_tests
 	if [ "$COVER_ENABLED" = "true" ]; then
 		make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
 	else
 		make test_preset TESTSPEC=default.spec PRESET=$PRESET
-	fi
+    fi
+    cd -
 	tools/print-dots.sh stop
 }
 
@@ -131,7 +133,7 @@ run_tests() {
 		stop_node $node;
 	done
 
-	SUMMARIES_DIRS=${BASE}'/test/ejabberd_tests/ct_report/ct_run*'
+	SUMMARIES_DIRS=${BASE}'/test.disabled/ejabberd_tests/ct_report/ct_run*'
 	SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS} ${RAN_TESTS})
 	${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
 	BIG_STATUS=$?

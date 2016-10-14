@@ -17,7 +17,7 @@ if [ -d apps/ejabberd/logs ]; then
 	cp -Rp apps/ejabberd/logs/* ${CT_REPORTS}/small
 fi
 
-CT_REPORT=test/ejabberd_tests/ct_report
+CT_REPORT=test.disabled/ejabberd_tests/ct_report
 
 if [ -d ${CT_REPORT} ] && [ "$(ls -A ${CT_REPORT})" ];  then
 	cp -Rp ${CT_REPORT}/* ${CT_REPORTS}/big
@@ -28,7 +28,7 @@ cat > ${CT_REPORTS}/index.html << EOL
   <head></head>
   <body>
     <p><a href="small/index.html">Small tests (apps/ejabberd/test)</a></p>
-    <p><a href="big/index.html">Big tests (test/ejabberd_tests)</a></p>
+    <p><a href="big/index.html">Big tests (test.disabled/ejabberd_tests)</a></p>
   </body>
 </html>
 EOL

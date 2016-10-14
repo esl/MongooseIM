@@ -11,5 +11,5 @@ ${TOOLS}/set-odbc-password vars ${TRAVIS_DB_PASSWORD}
 cat configure.out
 echo ""
 
-make devclean devrel
+make dev
 

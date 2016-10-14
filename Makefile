@@ -13,6 +13,8 @@ DEVNODES = mim1 mim2 fed1
 
 all: rel
 
+dev: $(DEVNODES)
+
 clean:
 	-rm -rf _build
 	-rm rel/configure.vars.config
