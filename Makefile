@@ -41,9 +41,9 @@ rel/vars.config: rel/vars.config.in rel/configure.vars.config
 configure.out rel/configure.vars.config:
 	./tools/configure with-all
 
-devrel: certs $(DEVNODES)
+devrel: $(DEVNODES)
 
-$(DEVNODES): configure.out rel/vars.config
+$(DEVNODES): certs configure.out rel/vars.config
 	@echo "building $@"
 	(. ./configure.out && \
 	 ./rebar3 as $@ release) > $(LOG_SILENCE_COVER)
