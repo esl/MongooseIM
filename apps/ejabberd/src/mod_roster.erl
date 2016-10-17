@@ -861,11 +861,7 @@ set_roster_entry(UserJid, ContactBin, Name, Groups) ->
             )
     end.
 
-%%add_to_roster_complete({atomic, _}, LUser, LServer, Item) ->
-%%    From = jid:make(LUser, LServer), % what is this?
-%%    push_item(LUser, LServer, From, Item).
-
-%% @doc remove from roster; TODO if there was subscription MUCH more needs to be done
+%% @doc remove from roster
 -spec remove_from_roster(jid(), binary()) -> ok|error.
 remove_from_roster(UserJid, ContactBin) ->
     LUser = UserJid#jid.luser,
@@ -876,11 +872,19 @@ remove_from_roster(UserJid, ContactBin) ->
     case JID1 of
         error -> error;
         _ ->
-            F = fun () ->
-                del_roster_t(LUser, LServer, LJID)
-                end,
-            transaction(LServer, F),
-            ok
+            LJID = jid:to_lower(JID1),
+            Item = get_roster_by_jid(LUser, LServer, LJID),
+            Item2 = Item#roster{subscription = remove},
+            set_roster_item(
+                LUser, % User
+                LUser, % LUser
+                LServer, % LServer
+                LJID, % LJID
+                UserJid, % From
+                UserJid, % To
+                Item, % Item
+                Item2 % Item2
+            )
     end.
 
 update_roster_t(LUser, LServer, LJID, Item) ->

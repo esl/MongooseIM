@@ -86,7 +86,8 @@ roster_tests() ->
      messages_from_blocked_user_dont_arrive,
      messages_from_unblocked_user_arrive_again,
      blocking_push_to_resource,
-     blocking_push_to_contact
+     blocking_push_to_contact,
+     remove_contact_push
     ].
 
 suite() ->
@@ -384,7 +385,6 @@ subscription_changes(Config) ->
             rec_presence(av, Alice),
             set_and_check_subscription(none),
             rec_presence(unav, Alice),
-            Rep = 999,
             ok
         end
     ),
@@ -436,6 +436,30 @@ blocking_push_to_contact(Config) ->
             Path = lists:flatten(["/contacts/bob@localhost/alice@localhost/block"]),
             {?NOCONTENT, _} = putt(Path, #{}),
             rec_presence(unav, Alice),
+            ok
+        end).
+
+remove_contact_push(Config) ->
+    % if Alice is removed from Bob's roster, to which she was subscribed, then she receives
+    % * roster push
+    % * unavailable presence from Bob
+    % * unsubscribed presence
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            subscribe(Alice, Bob),
+            Path = lists:flatten(["/contacts/",
+                                  binary_to_list(escalus_client:short_jid(Bob)),
+                                  "/",
+                                  binary_to_list(escalus_client:short_jid(Alice))
+                                  ]),
+            {?NOCONTENT, _} = delete(Path),
+            [Received1] = escalus:wait_for_stanzas(Bob, 1),
+            escalus:assert(is_roster_set, Received1),
+            Ss = escalus:wait_for_stanzas(Alice, 3),
+            IsPresWithUnsub = fun(S) -> escalus_pred:is_presence_with_type(<<"unsubscribed">>, S) end,
+            IsPresWithUnav = fun(S) -> escalus_pred:is_presence_with_type(<<"unavailable">>, S) end,
+            escalus:assert_many([IsPresWithUnsub, IsPresWithUnav, is_roster_set], Ss),
             ok
         end).
 
@@ -557,7 +581,7 @@ set_and_check_subscription(Subs) ->
     {?OK, RM} = gett(lists:flatten(["/contacts/bob@localhost"])),
     [ResM] = decode_maplist(RM),
     #{name := <<"Alicja">>,
-        jid := <<"alice@localhost">>, subscription := BinSub1} = ResM,
+        jid := <<"alice@localhost">>, subscription := BinSub} = ResM,
     ok.
 
 rec_presence(av, Alice) ->
