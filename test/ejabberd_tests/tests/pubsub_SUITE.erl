@@ -493,8 +493,8 @@ modify_node_subscriptions_test(Config) ->
 %% Comments in test cases refer to sections is the XEP
 %%--------------------------------------------------------------------
 
--define(LEAF_NAME, <<"leaf">>).
--define(LEAF, {node_addr(), ?LEAF_NAME}).
+pubsub_leaf_name() -> <<"leaf">>.
+pubsub_leaf() -> {node_addr(), pubsub_leaf_name()}.
 
 -define(LEAF_NAME_2, <<"leaf2">>).
 -define(LEAF_2, {node_addr(), ?LEAF_NAME_2}).
@@ -546,9 +546,10 @@ create_delete_leaf_test(Config) ->
 
               %% XEP-0060, 8.1.2, see 16.4.4 for config details
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -562,18 +563,19 @@ notify_collection_test(Config) ->
               create_node(Alice, Node, [{config, CollectionConfig}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
               create_node(Alice, ?LEAF_2, [{config, NodeConfig}]),
               subscribe(Bob, Node, []),
 
               %% Publish to leaf nodes, Bob should get notifications
               %% 5.3.1.1 Ex.5 Subscriber receives a publish notification from a collection
-              publish(Alice, <<"item1">>, ?LEAF, []),
-              receive_item_notification(Bob, <<"item1">>, ?LEAF, []),
+              publish(Alice, <<"item1">>, Leaf, []),
+              receive_item_notification(Bob, <<"item1">>, Leaf, []),
               publish(Alice, <<"item2">>, ?LEAF_2, []),
               receive_item_notification(Bob, <<"item2">>, ?LEAF_2, []),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, ?LEAF_2, []),
               delete_node(Alice, Node, [])
       end).
@@ -590,17 +592,18 @@ notify_collection_leaf_and_item_test(Config) ->
               %% Subscribe before creating the leaf node
               subscribe(Bob, Node, []),
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
 
               %% Bob should get a notification for the leaf node creation
               %% 5.3.1.2 Ex.6 Subscriber receives a creation notification from a collection
-              receive_node_creation_notification(Bob, ?LEAF, []),
+              receive_node_creation_notification(Bob, Leaf, []),
 
               %% Publish to leaf node, Bob should get notified
-              publish(Alice, <<"item1">>, ?LEAF, []),
-              receive_item_notification(Bob, <<"item1">>, ?LEAF, []),
+              publish(Alice, <<"item1">>, Leaf, []),
+              receive_item_notification(Bob, <<"item1">>, Leaf, []),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -614,20 +617,21 @@ notify_collection_bare_jid_test(Config) ->
               create_node(Alice, Node, [{config, CollectionConfig}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
               subscribe(Bob1, Node, []),
               subscribe(Geralt1, Node, [{jid_type, bare}]),
-              publish(Alice, <<"item1">>, ?LEAF, []),
+              publish(Alice, <<"item1">>, Leaf, []),
 
               %% Bob subscribed with resource
-              receive_item_notification(Bob1, <<"item1">>, ?LEAF, []),
+              receive_item_notification(Bob1, <<"item1">>, Leaf, []),
               escalus_assert:has_no_stanzas(Bob2),
 
               %% Geralt subscribed without resource
-              receive_item_notification(Geralt1, <<"item1">>, ?LEAF, []),
-              receive_item_notification(Geralt2, <<"item1">>, ?LEAF, []),
+              receive_item_notification(Geralt1, <<"item1">>, Leaf, []),
+              receive_item_notification(Geralt2, <<"item1">>, Leaf, []),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -641,16 +645,17 @@ notify_collection_and_leaf_test(Config) ->
               create_node(Alice, Node, [{config, CollectionConfig}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
               subscribe(Bob, Node, []),
-              subscribe(Geralt, ?LEAF, []),
+              subscribe(Geralt, Leaf, []),
 
               %% Publish to leaf nodes, Bob and Geralt should get notifications
-              publish(Alice, <<"item1">>, ?LEAF, []),
-              receive_item_notification(Bob, <<"item1">>, ?LEAF, []),
-              receive_item_notification(Geralt, <<"item1">>, ?LEAF, []),
+              publish(Alice, <<"item1">>, Leaf, []),
+              receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              receive_item_notification(Geralt, <<"item1">>, Leaf, []),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -664,16 +669,17 @@ notify_collection_and_leaf_same_user_test(Config) ->
               create_node(Alice, Node, [{config, CollectionConfig}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
               subscribe(Bob, Node, []),
-              subscribe(Bob, ?LEAF, []),
+              subscribe(Bob, Leaf, []),
 
               %% Bob should get only one notification
-              publish(Alice, <<"item1">>, ?LEAF, []),
-              receive_item_notification(Bob, <<"item1">>, ?LEAF, []),
+              publish(Alice, <<"item1">>, Leaf, []),
+              receive_item_notification(Bob, <<"item1">>, Leaf, []),
               escalus_assert:has_no_stanzas(Bob),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -687,16 +693,17 @@ retrieve_subscriptions_collection_test(Config) ->
               create_node(Alice, Node, [{config, CollectionConfig}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              {_, LeafName} = Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
               create_node(Alice, ?LEAF_2, [{config, NodeConfig}]),
               subscribe(Bob, Node, []),
-              subscribe(Bob, ?LEAF, []),
+              subscribe(Bob, Leaf, []),
 
               % Only the nodes for which subscriptions were made should be returned
-              Subs = [{?LEAF_NAME, <<"subscribed">>}, {NodeName, <<"subscribed">>}],
+              Subs = [{LeafName, <<"subscribed">>}, {NodeName, <<"subscribed">>}],
               retrieve_user_subscriptions(Bob, node_addr(), [{expected_result, Subs}]),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, ?LEAF_2, []),
               delete_node(Alice, Node, [])
       end).
@@ -711,12 +718,13 @@ discover_top_level_nodes_test(Config) ->
               create_node(Alice, Node, [{config, CollectionConfig}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
 
               %% Discover top-level nodes, only the collection expected
               discover_nodes(Bob, node_addr(), [NodeName]),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -735,14 +743,15 @@ discover_child_nodes_test(Config) ->
               discover_nodes(Bob, Node, []),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              {_, LeafName} = Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
               create_node(Alice, ?LEAF_2, [{config, NodeConfig}]),
 
               %% Request:  5.2.1 Ex.11 Entity requests child nodes
               %% Response: 5.2.2 Ex.12 Service returns child nodes
-              discover_nodes(Bob, Node, [?LEAF_NAME, ?LEAF_NAME_2]),
+              discover_nodes(Bob, Node, [LeafName, ?LEAF_NAME_2]),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, ?LEAF_2, []),
               delete_node(Alice, Node, [])
       end).
@@ -757,14 +766,15 @@ request_all_items_leaf_test(Config) ->
               create_node(Alice, Node, [{config, CollectionConfig}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
               create_node(Alice, ?LEAF_2, [{config, NodeConfig}]),
 
-              publish(Alice, <<"item1">>, ?LEAF, []),
+              publish(Alice, <<"item1">>, Leaf, []),
               publish(Alice, <<"item2">>, ?LEAF_2, []),
 
               %% Request items from leaf nodes - as described in XEP-0060
-              request_all_items(Bob, ?LEAF, [{expected_result, [<<"item1">>]}]),
+              request_all_items(Bob, Leaf, [{expected_result, [<<"item1">>]}]),
               request_all_items(Bob, ?LEAF_2, [{expected_result, [<<"item2">>]}]),
 
               %% NOTE: This is not implemented yet
@@ -772,7 +782,7 @@ request_all_items_leaf_test(Config) ->
               %% Response: 6.2.2 Ex.16 Service returns items on leaf nodes
               %%request_all_items(Bob, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, ?LEAF_2, []),
               delete_node(Alice, Node, [])
       end).
@@ -788,15 +798,16 @@ disable_notifications_leaf_test(Config) ->
 
               NodeConfig = [{<<"pubsub#deliver_notifications">>, <<"false">>},
                             {<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
 
               subscribe(Bob, Node, []),
-              publish(Alice, <<"item1">>, ?LEAF, []),
+              publish(Alice, <<"item1">>, Leaf, []),
 
               %% Notifications disabled
               escalus_assert:has_no_stanzas(Bob),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -811,15 +822,16 @@ disable_payload_leaf_test(Config) ->
 
               NodeConfig = [{<<"pubsub#deliver_payloads">>, <<"false">>},
                             {<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
 
               subscribe(Bob, Node, []),
-              publish(Alice, <<"item1">>, ?LEAF, []),
+              publish(Alice, <<"item1">>, Leaf, []),
 
               %% Payloads disabled
-              receive_item_notification(Bob, <<"item1">>, ?LEAF, [{with_payload, false}]),
+              receive_item_notification(Bob, <<"item1">>, Leaf, [{with_payload, false}]),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -834,18 +846,19 @@ disable_persist_items_leaf_test(Config) ->
 
               NodeConfig = [{<<"pubsub#persist_items">>, <<"false">>},
                             {<<"pubsub#collection">>, NodeName}],
-              create_node(Alice, ?LEAF, [{config, NodeConfig}]),
+              Leaf = pubsub_leaf(),
+              create_node(Alice, Leaf, [{config, NodeConfig}]),
 
               subscribe(Bob, Node, []),
-              publish(Alice, <<"item1">>, ?LEAF, []),
+              publish(Alice, <<"item1">>, Leaf, []),
 
               %% Notifications should work
-              receive_item_notification(Bob, <<"item1">>, ?LEAF, []),
+              receive_item_notification(Bob, <<"item1">>, Leaf, []),
 
               %% No items should be stored
-              request_all_items(Bob, ?LEAF, [{expected_result, []}]),
+              request_all_items(Bob, Leaf, [{expected_result, []}]),
 
-              delete_node(Alice, ?LEAF, []),
+              delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
       end).
 
