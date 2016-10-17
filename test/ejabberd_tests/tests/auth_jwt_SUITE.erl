@@ -111,7 +111,11 @@ auth_fail(_Config) ->
     ok.
 
 generate_token(NbfDelta) ->
+<<<<<<< HEAD
     Now = p1_time_compat:system_time(seconds),
+=======
+    Now = os:system_time(seconds),
+>>>>>>> vjud
     Data = #{bookingNumber => ?USERNAME, exp => Now + 60, nbf => Now + NbfDelta, iat => Now},
     Token = jwerl:sign(Data, #{alg => <<"HS256">>, key => ?JWT_KEY}),
     Token.

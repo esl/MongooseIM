@@ -53,7 +53,8 @@ all_tests() ->
      request_search_fields,
      search_empty,
      search_some,
-     search_wildcard].
+     search_wildcard,
+     search_wildcard_all].
 
 suite() ->
     escalus:suite().
@@ -111,7 +112,11 @@ update_own_card(Config) ->
                       %% set some initial value different from the actual test data
                       %% so we know it really got updated and wasn't just old data
                       FN = get_FN(Config),
-                      Client1Fields = [{<<"FN">>, FN}],
+                      Client1Fields = [{<<"FN">>,
+                                        FN},
+                                       {<<"DESC">>,
+                                        <<"{\"activated\":true}">>}
+                                      ],
                       Client1SetResultStanza
                       = escalus:send_and_wait(Client1,
                                               escalus_stanza:vcard_update(Client1Fields)),
@@ -272,6 +277,21 @@ search_wildcard(Config) ->
               Domain = escalus_config:get_ct(ejabberd_domain),
               DirJID = <<"vjud.",Domain/binary>>,
               Fields = [{get_field_name(fn), get_FN_wildcard()}],
+              Res = escalus:send_and_wait(Client,
+                                          escalus_stanza:search_iq(DirJID,
+                                                                   escalus_stanza:search_fields(Fields))),
+              escalus:assert(is_iq_result, Res),
+              ItemTups = search_result_item_tuples(Res),
+              1 = length(ItemTups)
+      end).
+
+search_wildcard_all(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Client) ->
+              Domain = escalus_config:get_ct(ejabberd_domain),
+              DirJID = <<"vjud.",Domain/binary>>,
+              Fields = [{get_field_name(fn), <<"*">>}],
               Res = escalus:send_and_wait(Client,
                                           escalus_stanza:search_iq(DirJID,
                                                                    escalus_stanza:search_fields(Fields))),

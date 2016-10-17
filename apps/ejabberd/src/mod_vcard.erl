@@ -129,7 +129,7 @@ default_search_fields() ->
      {<<"Organization Name">>, <<"orgname">>},
      {<<"Organization Unit">>, <<"orgunit">>}].
 
--spec get_results_limit(ejabberd:lserver()) -> non_neg_integer() | inifinity.
+-spec get_results_limit(ejabberd:lserver()) -> non_neg_integer() | infinity.
 get_results_limit(LServer) ->
     case gen_mod:get_module_opt(LServer, mod_vcard, matches, ?JUD_MATCHES) of
         infinity ->
@@ -362,6 +362,7 @@ do_route(VHost, From, To, Packet, #iq{type = set,
                                       sub_el = SubEl} = IQ) ->
 
     XDataEl = find_xdata_el(SubEl),
+    RSMIn = jlib:rsm_decode(IQ),
     case XDataEl of
         false ->
             Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
@@ -373,6 +374,7 @@ do_route(VHost, From, To, Packet, #iq{type = set,
                     Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
                     ejabberd_router:route(To, From, Err);
                 _ ->
+                    {XChildren, RSMOutEls} = search_result(Lang,To, VHost, XData, RSMIn),
                     ResIQ = IQ#iq{
                               type = result,
                               sub_el = [#xmlel{name = <<"query">>,
@@ -380,7 +382,9 @@ do_route(VHost, From, To, Packet, #iq{type = set,
                                                children = [#xmlel{name = <<"x">>,
                                                                attrs = [{<<"xmlns">>, ?NS_XDATA},
                                                                         {<<"type">>, <<"result">>}],
-                                                               children = search_result(Lang,To, VHost, XData)}]}]},
+                                                               children = XChildren}
+                                                          ] ++ RSMOutEls}
+                                       ]},
                     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
             end
     end;
@@ -464,13 +468,129 @@ find_xdata_el1([XE = #xmlel{attrs = Attrs} | Els]) ->
 find_xdata_el1([_ | Els]) ->
     find_xdata_el1(Els).
 
-search_result(Lang, JID, VHost, Data) ->
+search_result(Lang, JID, VHost, Data, RSMIn) ->
     TitleEl = #xmlel{name = <<"title">>,
                      children = [#xmlcdata{content = [translate:translate(Lang, <<"Search Results for ">>),
                                                       jid:to_binary(JID)]}]},
     ReportedFields = ?BACKEND:search_reported_fields(VHost, Lang),
-    [TitleEl, ReportedFields
-     | ?BACKEND:search(VHost, Data)].
+    Results1 = ?BACKEND:search(VHost, Data),
+    Results2 = lists:filtermap(
+                 fun(Result) ->
+                         case search_result_get_jid(Result) of
+                             {ok, ResultJID} ->
+                                 {true, {ResultJID, Result}};
+                             undefined ->
+                                 false
+                         end
+                 end,
+                 Results1),
+    %% mnesia does not guarantee sorting order
+    Results3 = lists:sort(Results2),
+    {Results4, RSMOutEls} =
+        apply_rsm_to_search_results(Results3, RSMIn, none),
+    Results5 = [Result
+                || {_, Result} <- Results4],
+
+    {[TitleEl, ReportedFields
+      | Results5],
+     RSMOutEls}.
+
+%% No RSM input, create empty
+apply_rsm_to_search_results(Results, none, RSMOut) ->
+    apply_rsm_to_search_results(Results, #rsm_in{}, RSMOut);
+
+%% Create RSM output
+apply_rsm_to_search_results(Results, #rsm_in{} = RSMIn, none) ->
+    RSMOut = #rsm_out{count = length(Results)},
+    apply_rsm_to_search_results(Results, RSMIn, RSMOut);
+
+%% Skip by <after>$id</after>
+apply_rsm_to_search_results(Results1, #rsm_in{direction = aft,
+                                              id = After} = RSMIn, RSMOut)
+  when is_binary(After) ->
+    Results2 = lists:dropwhile(
+                 fun({JID, _Result}) ->
+                         JID == After
+                 end,
+                 lists:dropwhile(
+                   fun({JID, _Result}) ->
+                           JID =/= After
+                   end,
+                   Results1
+                  )),
+    Index = length(Results1) - length(Results2),
+    apply_rsm_to_search_results(
+      Results2,
+      RSMIn#rsm_in{direction = undefined, id = undefined},
+      RSMOut#rsm_out{index = Index}
+     );
+
+%% Seek by <before>$id</before>
+apply_rsm_to_search_results(Results1, #rsm_in{max = Max,
+                                              direction = before,
+                                              id = Before} = RSMIn, RSMOut)
+  when is_binary(Before) ->
+    Results2 = lists:takewhile(
+                 fun({JID, _Result}) ->
+                         JID =/= Before
+                 end, Results1),
+    if
+        is_integer(Max) ->
+            Index = max(0, length(Results2) - Max),
+            Results3 = lists:nthtail(Index, Results2);
+        true ->
+            Index = 0,
+            Results3 = Results2
+    end,
+    apply_rsm_to_search_results(
+      Results3,
+      RSMIn#rsm_in{direction = undefined, id = undefined},
+      RSMOut#rsm_out{index = Index}
+     );
+
+%% Skip by page number <index>371</index>
+apply_rsm_to_search_results(Results1,
+                            #rsm_in{max = Max,
+                                    index = Index} = RSMIn1,
+                            RSMOut)
+  when is_integer(Max), is_integer(Index) ->
+    Results2 = lists:nthtail(min(Index, length(Results1)), Results1),
+    RSMIn2 = RSMIn1#rsm_in{index = undefined},
+    apply_rsm_to_search_results(
+      Results2,
+      RSMIn2,
+      RSMOut#rsm_out{index = Index}
+     );
+
+%% Limit to <max>10</max> items
+apply_rsm_to_search_results(Results1, #rsm_in{max = Max} = RSMIn, RSMOut)
+  when is_integer(Max)  ->
+    Results2 = lists:sublist(Results1, Max),
+    apply_rsm_to_search_results(Results2,
+                                RSMIn#rsm_in{max = undefined}, RSMOut);
+
+%% Encode RSM output
+apply_rsm_to_search_results([_ | _] = Results, _, #rsm_out{} = RSMOut1) ->
+    {FirstJID, _} = hd(Results),
+    {LastJID, _} = lists:last(Results),
+    RSMOut2 = RSMOut1#rsm_out{first = FirstJID,
+                              last = LastJID},
+    {Results, jlib:rsm_encode(RSMOut2)};
+
+apply_rsm_to_search_results([], _, #rsm_out{} = RSMOut1) ->
+    %% clear `index' without `after'
+    RSMOut2 = RSMOut1#rsm_out{index = undefined},
+    {[], jlib:rsm_encode(RSMOut2)}.
+
+search_result_get_jid(#xmlel{name = <<"item">>,
+                             children = Children}) ->
+    Fields = jlib:parse_xdata_fields(Children),
+    case lists:keysearch(<<"jid">>, 1, Fields) of
+        {value, {<<"jid">>, JID}} ->
+            {ok, list_to_binary(JID)};
+        false ->
+            undefined
+    end.
 
 b2l(Binary) ->
     binary_to_list(Binary).
