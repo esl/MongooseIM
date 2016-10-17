@@ -29,8 +29,8 @@ all() ->
 
 groups() ->
     [{client_ping, [], [ping]},
-     {server_ping, [], all_tests()},
-     {server_ping_kill, [], all_tests()}
+     {server_ping, [parallel], all_tests()},
+     {server_ping_kill, [parallel], all_tests()}
     ].
 
 all_tests() ->
@@ -42,31 +42,38 @@ all_tests() ->
 suite() ->
     escalus:suite().
 
+ping_interval() ->
+    6.
+
+ping_req_timeout() ->
+    3.
+
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(client_ping, Config) ->
     start_mod_ping([]),
-    escalus:create_users(Config, escalus:get_users([alice]));
+    Config;
 init_per_group(server_ping, Config) ->
     start_mod_ping([{send_pings, true},
-                    {ping_interval, 8},
-                    {ping_req_timeout, 4}]),
-    escalus:create_users(Config, escalus:get_users([alice]));
+                    {ping_interval, ping_interval()},
+                    {ping_req_timeout, ping_req_timeout()}]),
+    Config;
 init_per_group(server_ping_kill, Config) ->
     start_mod_ping([{send_pings, true},
-                    {ping_interval, 8},
-                    {ping_req_timeout, 4},
+                    {ping_interval, ping_interval()},
+                    {ping_req_timeout, ping_req_timeout()},
                     {timeout_action, kill}]),
-    [{timeout_action, kill} | escalus:create_users(Config, escalus:get_users([alice]))].
+    [{timeout_action, kill} | Config].
 
 end_per_group(_GroupName, Config) ->
     Domain = ct:get_config(ejabberd_domain),
     dynamic_modules:stop(Domain, mod_ping),
-    escalus:delete_users(Config, escalus:get_users([alice])).
+    Config.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -82,7 +89,7 @@ start_mod_ping(Opts) ->
 %% Ping tests
 %%--------------------------------------------------------------------
 ping(Config) ->
-    escalus:story(Config, [{alice, 1}],
+    escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 Domain = ct:get_config(ejabberd_domain),
                 PingReq = escalus_stanza:ping_request(Domain),
@@ -93,30 +100,31 @@ ping(Config) ->
         end).
 
 active(Config) ->
-    escalus:story(Config, [{alice, 1}],
+    escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 Domain = ct:get_config(ejabberd_domain),
-                ct:sleep(timer:seconds(6)), % wait 6s (ping_interval is 8)
+                wait_ping_interval(0.75),
                 escalus_client:send(Alice, escalus_stanza:ping_request(Domain)),
                 escalus:assert(is_iq_result, escalus_client:wait_for_stanza(Alice)),
-                ct:sleep(timer:seconds(4)), % wait another 4s and check if connection we got ping req
-
+                % wait more time and check if connection got ping req
+                wait_ping_interval(0.5),
+                % it shouldn't as the ping was sent
                 false = escalus_client:has_stanzas(Alice)
         end).
 
 active_keep_alive(Config) ->
-    escalus:story(Config, [{alice, 1}],
+    escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-                ct:sleep(timer:seconds(6)), % wait 6s (ping_interval is 8)
+                wait_ping_interval(0.75),
                 Socket = Alice#client.socket,
                 gen_tcp:send(Socket, <<"\n">>),
-                ct:sleep(timer:seconds(4)), % wait another 4s and check if connection we got ping req
+                wait_ping_interval(0.5),
 
                 false = escalus_client:has_stanzas(Alice)
         end).
 
 server_ping_pong(Config) ->
-    escalus:story(Config, [{alice, 1}],
+    escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 PingReq = wait_for_ping_req(Alice),
                 Pong = escalus_stanza:iq_result(PingReq),
@@ -127,14 +135,18 @@ server_ping_pang(ConfigIn) ->
     Domain = ct:get_config(ejabberd_domain),
     Metrics = [{[Domain, user_ping_timeout], 1}],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
-    escalus:story(Config, [{alice, 1}],
+    escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 wait_for_ping_req(Alice),
                 %% do not resp to ping req
-                ct:sleep(timer:seconds(5)), %% server waits 4s for the reply
+                ct:sleep(timer:seconds(ping_req_timeout() + 1)),
                 TimeoutAction = ?config(timeout_action, Config),
                 check_connection(TimeoutAction, Alice)
         end).
+
+wait_ping_interval(Ration) ->
+    WaitTime = timer:seconds(ping_interval()) * Ration,
+    ct:sleep(WaitTime).
 
 check_connection(kill, Client) ->
     false = escalus_connection:is_connected(Client);
