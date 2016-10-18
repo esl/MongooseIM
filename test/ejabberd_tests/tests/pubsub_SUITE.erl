@@ -115,21 +115,20 @@ pubsub_node_name() ->
 pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
 
-
-
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config)).
+    Config2 = dynamic_modules:save_modules(domain(), Config),
+    dynamic_modules:ensure_modules(domain(), required_modules()),
+    escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    dynamic_modules:ensure_modules(domain(), required_modules()),
     escalus:create_users(Config, escalus:get_users([alice, bob, geralt])),
     ok.
 
