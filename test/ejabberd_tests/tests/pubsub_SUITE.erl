@@ -98,8 +98,11 @@ groups() -> [{pubsub_tests, [sequence],
 suite() ->
     escalus:suite().
 
+domain() ->
+    ct:get_config({hosts, mim, domain}).
+
 node_addr() ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     <<"pubsub.", Domain/binary>>.
 
 rand_name(Prefix) ->
@@ -113,21 +116,20 @@ pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
 
 
--define(DOMAIN, <<"localhost">>).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(dynamic_modules:save_modules(?DOMAIN, Config)).
+    escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config)).
 
 end_per_suite(Config) ->
-    dynamic_modules:restore_modules(?DOMAIN, Config),
+    dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    dynamic_modules:ensure_modules(?DOMAIN, required_modules()),
+    dynamic_modules:ensure_modules(domain(), required_modules()),
     escalus:create_users(Config, escalus:get_users([alice, bob, geralt])),
     ok.
 
