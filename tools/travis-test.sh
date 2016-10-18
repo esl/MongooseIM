@@ -29,7 +29,7 @@ done
 source tools/travis-common-vars.sh
 source tools/travis-helpers.sh
 
-if [ $TRAVIS_SECURE_ENV_VARS == 'true' ]; then
+if [ "$TRAVIS_SECURE_ENV_VARS" == 'true' ]; then
   CT_REPORTS=$(ct_reports_dir)
 
   echo "Test results will be uploaded to:"
@@ -39,8 +39,9 @@ fi
 echo "" > /tmp/progress
 tail -f /tmp/progress &
 
-# Kill children
-trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM EXIT
+# Kill children on exit, but do not kill self on normal exit
+trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM
+trap "trap '' SIGTERM && kill -- -$$ 2> /dev/null" EXIT
 
 echo ${BASE}
 
