@@ -170,15 +170,15 @@ discover_nodes_test(Config) ->
       fun(Alice, Bob) ->
               %% Request:  5.2 Ex.9  Entity asks service for all first-level nodes
               %% Response:     Ex.10 Service returns all first-level nodes (empty yet)
-              discover_nodes(Bob, node_addr(), []),
+              discover_nodes(Bob, node_addr(), [{expected_result, []}]),
 
               {_, NodeName} = Node = pubsub_node(),
               create_node(Alice, Node, []),
-              discover_nodes(Bob, node_addr(), [NodeName]),
+              discover_nodes(Bob, node_addr(), [{expected_result, [NodeName]}]),
 
               {_, NodeName2} = Node2 = pubsub_node(),
               create_node(Alice, Node2, []),
-              discover_nodes(Bob, node_addr(), [NodeName, NodeName2]),
+              discover_nodes(Bob, node_addr(), [{expected_result, [NodeName, NodeName2]}]),
 
               delete_node(Alice, Node, []),
               delete_node(Alice, Node2, [])
@@ -726,7 +726,7 @@ discover_top_level_nodes_test(Config) ->
               create_node(Alice, Leaf, [{config, NodeConfig}]),
 
               %% Discover top-level nodes, only the collection expected
-              discover_nodes(Bob, node_addr(), [NodeName]),
+              discover_nodes(Bob, node_addr(), [{expected_result, [NodeName]}]),
 
               delete_node(Alice, Leaf, []),
               delete_node(Alice, Node, [])
@@ -744,7 +744,7 @@ discover_child_nodes_test(Config) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               create_node(Alice, Node, [{config, CollectionConfig}]),
 
-              discover_nodes(Bob, Node, []),
+              discover_nodes(Bob, Node, [{expected_result, []}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               {_, LeafName} = Leaf = pubsub_leaf(),
@@ -754,7 +754,7 @@ discover_child_nodes_test(Config) ->
 
               %% Request:  5.2.1 Ex.11 Entity requests child nodes
               %% Response: 5.2.2 Ex.12 Service returns child nodes
-              discover_nodes(Bob, Node, [LeafName, LeafName2]),
+              discover_nodes(Bob, Node, [{expected_result, [LeafName, LeafName2]}]),
 
               delete_node(Alice, Leaf, []),
               delete_node(Alice, Leaf2, []),

@@ -205,7 +205,8 @@ check_node_discovery_response(Response, {NodeAddr, NodeName}, ExpectedNodes) ->
     Items = exml_query:subelements(Query, <<"item">>),
     [NodeAddr = exml_query:attr(Item, <<"jid">>) || Item <- Items],
     ReceivedNodes = [exml_query:attr(Item, <<"node">>) || Item <- Items],
-    ExpectedNodes = lists:sort(ReceivedNodes),
+    ExpectedSorted = lists:sort(ExpectedNodes),
+    ExpectedSorted = lists:sort(ReceivedNodes),
     Response.
 
 check_subscription_notification(User, Response, Subscription, NodeName, Options) ->
