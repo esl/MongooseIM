@@ -56,10 +56,10 @@ groups() ->
                                          registration_failure_timeout]},
      {change_account_details, [no_sequence], [change_password,
                                               change_password_to_null]},
-     {login, [sequence], all_tests()},
-     {login_scram, [sequence], scram_tests()},
-     {login_scram_store_plain, [sequence], scram_tests()},
-     {legacy_auth, [sequence], [legacy_successful_plain,
+     {login, [parallel], all_tests()},
+     {login_scram, [parallel], scram_tests()},
+     {login_scram_store_plain, [parallel], scram_tests()},
+     {legacy_auth, [parallel], [legacy_successful_plain,
                                 legacy_unsuccessful_plain,
                                 legacy_successful_digest,
                                 legacy_blocked_user]},
@@ -89,6 +89,7 @@ init_per_suite(Config) ->
      escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(register, Config) ->
@@ -177,19 +178,9 @@ init_per_testcase(message_zlib_limit, Config) ->
         false ->
             {skip, port_not_configured_on_server}
     end;
-init_per_testcase(Name, Config)
-  when Name == blocked_user; Name == legacy_blocked_user ->
-    Domain = ct:get_config(ejabberd_domain),
-    escalus_ejabberd:rpc(acl, add, [Domain, blocked, {user, <<"alice">>}]),
-    escalus:init_per_testcase(Name, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(Name, Config)
-  when Name == blocked_user; Name == legacy_blocked_user ->
-    Domain = ct:get_config(ejabberd_domain),
-    escalus_ejabberd:rpc(acl, delete, [Domain, blocked, {user, <<"alice">>}]),
-    Config;
 end_per_testcase(change_password, Config) ->
     [{alice, Details}] = escalus_users:get_users([alice]),
     Alice = {alice, lists:keyreplace(password, 1, Details, {password, strong_pwd()})},
@@ -213,7 +204,6 @@ end_per_testcase(registration_failure_timeout, Config) ->
     ok = allow_everyone_registration();
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
-
 
 %%--------------------------------------------------------------------
 %% Message tests
@@ -399,7 +389,7 @@ change_password_to_null(Config) ->
     end).
 
 log_one(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
         escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Alice))
@@ -431,12 +421,15 @@ log_non_existent(Config) ->
 
 blocked_user(_Config) ->
     [{_, Spec}] = escalus_users:get_users([alice]),
+    set_acl_for_blocking(Spec),
     try
         {ok, _Alice, _Spec2, _Features} = escalus_connection:start(Spec),
         ct:fail("Alice authenticated but shouldn't")
     catch
         error:{assertion_failed, assert, is_iq_result, Stanza, _Bin} ->
             <<"cancel">> = exml_query:path(Stanza, [{element, <<"error">>}, {attr, <<"type">>}])
+    after
+        unset_acl_for_blocking(Spec)
     end,
     ok.
 
@@ -471,23 +464,26 @@ legacy_successful_digest(Config) ->
 
 legacy_successful_plain(Config) ->
     legacy_auth(Config, legacy_auth_plain).
-legacy_unsuccessful_plain(Config) ->
+
+legacy_unsuccessful_plain(ConfigIn) ->
+    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}]),
     Spec = escalus_users:get_userspec(Config, alice),
     NewSpec = lists:keyreplace(password, 1, Spec, {password, <<"wrong_pass">>}),
-    Users = ?config(escalus_users, Config),
-    NewUsers = lists:keyreplace(alice, 1, Users, {alice, NewSpec}),
-    NewConfig = lists:keyreplace(escalus_users, 1, Config, {escalus_users, NewUsers}),
     try
-        legacy_auth(NewConfig, legacy_auth_plain),
+        do_legacy_auth(NewSpec, legacy_auth_plain),
         ct:fail("Authenticated but shouldn't")
     catch
         error:{assertion_failed,assert,is_iq_result,_,_,_} ->
             ok
     end.
 
-legacy_auth(Config, Function) ->
+legacy_auth(ConfigIn, Function) ->
     %% given
+    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}]),
     Spec = escalus_users:get_userspec(Config, alice),
+    do_legacy_auth(Spec, Function).
+
+do_legacy_auth(Spec, Function) ->
     Steps = [
              %% when
              {legacy_stream_helper, start_stream_pre_xmpp_1_0},
@@ -498,15 +494,20 @@ legacy_auth(Config, Function) ->
     escalus_connection:stop(Conn).
 
 
-legacy_blocked_user(Config) ->
+legacy_blocked_user(ConfigIn) ->
+    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}]),
+    Spec = escalus_users:get_userspec(Config, alice),
+    set_acl_for_blocking(Spec),
     try
-        legacy_auth(Config, legacy_auth_plain),
+        do_legacy_auth(Spec, legacy_auth_plain),
         ct:fail("alice authenticated but shouldn't")
     catch
         error:{assertion_failed, assert, is_iq_result, _, Stanza, _Bin} ->
             <<"cancel">> = exml_query:path(Stanza,
                                            [{element, <<"error">>},
                                             {attr, <<"type">>}])
+    after
+        unset_acl_for_blocking(Spec)
     end.
 
 %%--------------------------------------------------------------------
@@ -632,3 +633,17 @@ user_exists(Name, Config) ->
 
 string(<<_/binary>> = Subject) ->
     erlang:binary_to_list(Subject).
+
+set_acl_for_blocking(Spec) ->
+    modify_acl_for_blocking(add, Spec).
+
+unset_acl_for_blocking(Spec) ->
+    modify_acl_for_blocking(delete, Spec).
+
+modify_acl_for_blocking(Method, Spec) ->
+    ct:print("Spec: ~p", [Spec]),
+    Domain = ct:get_config({hosts, mim, domain}),
+    User = proplists:get_value(username, Spec),
+    Lower = escalus_utils:jid_to_lower(User),
+    escalus_ejabberd:rpc(acl, Method, [Domain, blocked, {user, Lower}]).
+
