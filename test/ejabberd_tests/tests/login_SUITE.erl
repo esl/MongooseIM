@@ -86,17 +86,17 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    [{escalus_user_db, xmpp} | escalus:init_per_suite(Config)].
+     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(register, Config) ->
-    skip_if_mod_register_not_enabled(Config);
+    [{escalus_user_db, xmpp} | skip_if_mod_register_not_enabled(Config)];
 init_per_group(bad_registration, Config) ->
-    Config;
+    [{escalus_user_db, xmpp} | Config];
 init_per_group(bad_cancelation, Config) ->
-    skip_if_mod_register_not_enabled(Config);
+    [{escalus_user_db, xmpp} | skip_if_mod_register_not_enabled(Config)];
 init_per_group(registration_timeout, Config) ->
     case escalus_users:is_mod_register_enabled(Config) of
         true ->
