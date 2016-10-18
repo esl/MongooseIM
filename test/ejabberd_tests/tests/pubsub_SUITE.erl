@@ -43,7 +43,7 @@ all() -> [
           {group, collection_config_tests}
          ].
 
-groups() -> [{pubsub_tests, [sequence],
+groups() -> [{pubsub_tests, [parallel],
               [
                create_delete_node_test,
                discover_nodes_test,
@@ -55,7 +55,7 @@ groups() -> [{pubsub_tests, [sequence],
                retrieve_subscriptions_test
               ]
              },
-             {node_config_tests, [sequence],
+             {node_config_tests, [parallel],
               [
                disable_notifications_test,
                disable_payload_test,
@@ -64,13 +64,13 @@ groups() -> [{pubsub_tests, [sequence],
                send_last_published_item_test
               ]
              },
-             {manage_subscriptions_tests, [sequence],
+             {manage_subscriptions_tests, [parallel],
               [
                retrieve_node_subscriptions_test,
                modify_node_subscriptions_test
               ]
              },
-             {collection_tests, [sequence],
+             {collection_tests, [parallel],
               [
                create_delete_collection_test,
                subscribe_unsubscribe_collection_test,
@@ -86,7 +86,7 @@ groups() -> [{pubsub_tests, [sequence],
                request_all_items_leaf_test
               ]
              },
-             {collection_config_tests, [sequence],
+             {collection_config_tests, [parallel],
               [
                disable_notifications_leaf_test,
                disable_payload_leaf_test,
@@ -125,15 +125,14 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice, bob, geralt])),
-    ok.
+    Config.
 
-end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob, geralt])),
+end_per_group(_GroupName, _Config) ->
     ok.
 
 init_per_testcase(_TestName, Config) ->
@@ -148,7 +147,7 @@ end_per_testcase(_TestName, Config) ->
 %%--------------------------------------------------------------------
 
 create_delete_node_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice, 1}],
       fun(Alice) ->
@@ -164,15 +163,16 @@ create_delete_node_test(Config) ->
       end).
 
 discover_nodes_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
               %% Request:  5.2 Ex.9  Entity asks service for all first-level nodes
-              %% Response:     Ex.10 Service returns all first-level nodes (empty yet)
-              discover_nodes(Bob, node_addr(), [{expected_result, []}]),
-
+              %% Response:     Ex.10 Service returns all first-level nodes
+              %% it shouldn't contain the Node which will be created in a moment
               {_, NodeName} = Node = pubsub_node(),
+              discover_nodes(Bob, node_addr(), [{expected_result, {no, NodeName}}]),
+
               create_node(Alice, Node, []),
               discover_nodes(Bob, node_addr(), [{expected_result, [NodeName]}]),
 
@@ -185,7 +185,7 @@ discover_nodes_test(Config) ->
       end).
 
 subscribe_unsubscribe_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -208,7 +208,7 @@ subscribe_unsubscribe_test(Config) ->
       end).
 
 publish_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}],
       fun(Alice) ->
@@ -223,7 +223,7 @@ publish_test(Config) ->
       end).
 
 notify_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,2}, {geralt,2}],
       fun(Alice, Bob1, Bob2, Geralt1, Geralt2) ->
@@ -248,7 +248,7 @@ notify_test(Config) ->
       end).
 
 request_all_items_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -266,7 +266,7 @@ request_all_items_test(Config) ->
       end).
 
 purge_all_items_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -290,7 +290,7 @@ purge_all_items_test(Config) ->
       end).
 
 retrieve_subscriptions_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -322,7 +322,7 @@ retrieve_subscriptions_test(Config) ->
       end).
 
 disable_notifications_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -340,7 +340,7 @@ disable_notifications_test(Config) ->
       end).
 
 disable_payload_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -359,7 +359,7 @@ disable_payload_test(Config) ->
       end).
 
 disable_persist_items_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -381,7 +381,7 @@ disable_persist_items_test(Config) ->
       end).
 
 notify_only_available_users_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -409,7 +409,7 @@ notify_only_available_users_test(Config) ->
       end).
 
 send_last_published_item_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -433,7 +433,7 @@ send_last_published_item_test(Config) ->
       end).
 
 retrieve_node_subscriptions_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}, {geralt,1}],
       fun(Alice, Bob, Geralt) ->
@@ -457,7 +457,7 @@ retrieve_node_subscriptions_test(Config) ->
       end).
 
 modify_node_subscriptions_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}, {geralt,1}],
       fun(Alice, Bob, Geralt) ->
@@ -502,7 +502,7 @@ pubsub_leaf_name() -> rand_name(<<"leaf">>).
 pubsub_leaf() -> {node_addr(), pubsub_leaf_name()}.
 
 create_delete_collection_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}],
       fun(Alice) ->
@@ -519,7 +519,7 @@ create_delete_collection_test(Config) ->
       end).
 
 subscribe_unsubscribe_collection_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -538,7 +538,7 @@ subscribe_unsubscribe_collection_test(Config) ->
       end).
 
 create_delete_leaf_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}],
       fun(Alice) ->
@@ -556,7 +556,7 @@ create_delete_leaf_test(Config) ->
       end).
 
 notify_collection_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -584,7 +584,7 @@ notify_collection_test(Config) ->
       end).
 
 notify_collection_leaf_and_item_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -611,7 +611,7 @@ notify_collection_leaf_and_item_test(Config) ->
       end).
 
 notify_collection_bare_jid_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,2}, {geralt,2}],
       fun(Alice, Bob1, Bob2, Geralt1, Geralt2) ->
@@ -639,7 +639,7 @@ notify_collection_bare_jid_test(Config) ->
       end).
 
 notify_collection_and_leaf_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}, {geralt,1}],
       fun(Alice, Bob, Geralt) ->
@@ -663,7 +663,7 @@ notify_collection_and_leaf_test(Config) ->
       end).
 
 notify_collection_and_leaf_same_user_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -687,7 +687,7 @@ notify_collection_and_leaf_same_user_test(Config) ->
       end).
 
 retrieve_subscriptions_collection_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -713,7 +713,7 @@ retrieve_subscriptions_collection_test(Config) ->
       end).
 
 discover_top_level_nodes_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -733,7 +733,7 @@ discover_top_level_nodes_test(Config) ->
       end).
 
 discover_child_nodes_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -744,7 +744,7 @@ discover_child_nodes_test(Config) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               create_node(Alice, Node, [{config, CollectionConfig}]),
 
-              discover_nodes(Bob, Node, [{expected_result, []}]),
+              discover_nodes(Bob, Node, [{expected_result, {no, NodeName}}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               {_, LeafName} = Leaf = pubsub_leaf(),
@@ -762,7 +762,7 @@ discover_child_nodes_test(Config) ->
       end).
 
 request_all_items_leaf_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -794,7 +794,7 @@ request_all_items_leaf_test(Config) ->
       end).
 
 disable_notifications_leaf_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -818,7 +818,7 @@ disable_notifications_leaf_test(Config) ->
       end).
 
 disable_payload_leaf_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -842,7 +842,7 @@ disable_payload_leaf_test(Config) ->
       end).
 
 disable_persist_items_leaf_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -873,7 +873,7 @@ disable_persist_items_leaf_test(Config) ->
 %%--------------------------------------------------------------------
 
 disable_payload_and_persist_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
@@ -905,7 +905,7 @@ disable_payload_and_persist_test(Config) ->
       end).
 
 disable_delivery_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
