@@ -102,8 +102,12 @@ node_addr() ->
     Domain = ct:get_config({hosts, mim, domain}),
     <<"pubsub.", Domain/binary>>.
 
+rand_name(Prefix) ->
+    Suffix = base64:encode(crypto:rand_bytes(5)),
+    <<Prefix/binary, "_", Suffix/binary>>.
+
 pubsub_node_name() ->
-    <<"princely_musings">>.
+    rand_name(<<"princely_musings">>).
 
 pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
@@ -493,7 +497,7 @@ modify_node_subscriptions_test(Config) ->
 %% Comments in test cases refer to sections is the XEP
 %%--------------------------------------------------------------------
 
-pubsub_leaf_name() -> <<"leaf">>.
+pubsub_leaf_name() -> rand_name(<<"leaf">>).
 pubsub_leaf() -> {node_addr(), pubsub_leaf_name()}.
 
 -define(LEAF_NAME_2, <<"leaf2">>).
