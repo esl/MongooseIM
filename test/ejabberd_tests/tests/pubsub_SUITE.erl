@@ -113,9 +113,6 @@ pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
 
 
--define(NODE_NAME_2, <<"subpub">>).
--define(NODE_2, {node_addr(), ?NODE_NAME_2}).
-
 -define(DOMAIN, <<"localhost">>).
 
 %%--------------------------------------------------------------------
@@ -178,11 +175,12 @@ discover_nodes_test(Config) ->
               create_node(Alice, Node, []),
               discover_nodes(Bob, node_addr(), [NodeName]),
 
-              create_node(Alice, ?NODE_2, []),
-              discover_nodes(Bob, node_addr(), [NodeName, ?NODE_NAME_2]),
+              {_, NodeName2} = Node2 = pubsub_node(),
+              create_node(Alice, Node2, []),
+              discover_nodes(Bob, node_addr(), [NodeName, NodeName2]),
 
               delete_node(Alice, Node, []),
-              delete_node(Alice, ?NODE_2, [])
+              delete_node(Alice, Node2, [])
       end).
 
 subscribe_unsubscribe_test(Config) ->
@@ -307,18 +305,19 @@ retrieve_subscriptions_test(Config) ->
               Sub = [{NodeName, <<"subscribed">>}],
               retrieve_user_subscriptions(Bob, node_addr(), [{expected_result, Sub}]),
 
-              create_node(Alice, ?NODE_2, []),
-              subscribe(Bob, ?NODE_2, []),
+              {_, NodeName2} = Node2 = pubsub_node(),
+              create_node(Alice, Node2, []),
+              subscribe(Bob, Node2, []),
 
               %% Ex. 21 Service returns subscriptions
-              Subs = [{NodeName, <<"subscribed">>}, {?NODE_NAME_2, <<"subscribed">>}],
+              Subs = [{NodeName, <<"subscribed">>}, {NodeName2, <<"subscribed">>}],
               retrieve_user_subscriptions(Bob, node_addr(), [{expected_result, Subs}]),
 
               %% Owner not subscribed automatically
               retrieve_user_subscriptions(Alice, node_addr(), [{expected_result, []}]),
 
               delete_node(Alice, Node, []),
-              delete_node(Alice, ?NODE_2, [])
+              delete_node(Alice, Node2, [])
       end).
 
 disable_notifications_test(Config) ->
@@ -389,10 +388,11 @@ notify_only_available_users_test(Config) ->
               Node = pubsub_node(),
               create_node(Alice, Node, []),
               NodeConfig = [{<<"pubsub#presence_based_delivery">>, <<"true">>}],
-              create_node(Alice, ?NODE_2, [{config, NodeConfig}]),
+              Node2 = pubsub_node(),
+              create_node(Alice, Node2, [{config, NodeConfig}]),
 
               subscribe(Bob, Node, [{jid_type, bare}]),
-              subscribe(Bob, ?NODE_2, [{jid_type, bare}]),
+              subscribe(Bob, Node2, [{jid_type, bare}]),
 
               escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
 
@@ -401,7 +401,7 @@ notify_only_available_users_test(Config) ->
               receive_item_notification(Bob, <<"item1">>, Node, []),
 
               %% Item from node 2 not received (blocked by resource-based delivery)
-              publish(Alice, <<"item2">>, ?NODE_2, []),
+              publish(Alice, <<"item2">>, Node2, []),
               escalus_assert:has_no_stanzas(Bob),
 
               delete_node(Alice, Node, [])
@@ -500,9 +500,6 @@ modify_node_subscriptions_test(Config) ->
 pubsub_leaf_name() -> rand_name(<<"leaf">>).
 pubsub_leaf() -> {node_addr(), pubsub_leaf_name()}.
 
--define(LEAF_NAME_2, <<"leaf2">>).
--define(LEAF_2, {node_addr(), ?LEAF_NAME_2}).
-
 create_delete_collection_test(Config) ->
     escalus:story(
       Config,
@@ -569,18 +566,19 @@ notify_collection_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               create_node(Alice, Leaf, [{config, NodeConfig}]),
-              create_node(Alice, ?LEAF_2, [{config, NodeConfig}]),
+              Leaf2 = pubsub_leaf(),
+              create_node(Alice, Leaf2, [{config, NodeConfig}]),
               subscribe(Bob, Node, []),
 
               %% Publish to leaf nodes, Bob should get notifications
               %% 5.3.1.1 Ex.5 Subscriber receives a publish notification from a collection
               publish(Alice, <<"item1">>, Leaf, []),
               receive_item_notification(Bob, <<"item1">>, Leaf, []),
-              publish(Alice, <<"item2">>, ?LEAF_2, []),
-              receive_item_notification(Bob, <<"item2">>, ?LEAF_2, []),
+              publish(Alice, <<"item2">>, Leaf2, []),
+              receive_item_notification(Bob, <<"item2">>, Leaf2, []),
 
               delete_node(Alice, Leaf, []),
-              delete_node(Alice, ?LEAF_2, []),
+              delete_node(Alice, Leaf2, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -699,7 +697,8 @@ retrieve_subscriptions_collection_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               {_, LeafName} = Leaf = pubsub_leaf(),
               create_node(Alice, Leaf, [{config, NodeConfig}]),
-              create_node(Alice, ?LEAF_2, [{config, NodeConfig}]),
+              Leaf2 = pubsub_leaf(),
+              create_node(Alice, Leaf2, [{config, NodeConfig}]),
               subscribe(Bob, Node, []),
               subscribe(Bob, Leaf, []),
 
@@ -708,7 +707,7 @@ retrieve_subscriptions_collection_test(Config) ->
               retrieve_user_subscriptions(Bob, node_addr(), [{expected_result, Subs}]),
 
               delete_node(Alice, Leaf, []),
-              delete_node(Alice, ?LEAF_2, []),
+              delete_node(Alice, Leaf2, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -749,14 +748,15 @@ discover_child_nodes_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               {_, LeafName} = Leaf = pubsub_leaf(),
               create_node(Alice, Leaf, [{config, NodeConfig}]),
-              create_node(Alice, ?LEAF_2, [{config, NodeConfig}]),
+              {_, LeafName2} = Leaf2 = pubsub_leaf(),
+              create_node(Alice, Leaf2, [{config, NodeConfig}]),
 
               %% Request:  5.2.1 Ex.11 Entity requests child nodes
               %% Response: 5.2.2 Ex.12 Service returns child nodes
-              discover_nodes(Bob, Node, [LeafName, ?LEAF_NAME_2]),
+              discover_nodes(Bob, Node, [LeafName, LeafName2]),
 
               delete_node(Alice, Leaf, []),
-              delete_node(Alice, ?LEAF_2, []),
+              delete_node(Alice, Leaf2, []),
               delete_node(Alice, Node, [])
       end).
 
@@ -772,14 +772,15 @@ request_all_items_leaf_test(Config) ->
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
               create_node(Alice, Leaf, [{config, NodeConfig}]),
-              create_node(Alice, ?LEAF_2, [{config, NodeConfig}]),
+              Leaf2 = pubsub_leaf(),
+              create_node(Alice, Leaf2, [{config, NodeConfig}]),
 
               publish(Alice, <<"item1">>, Leaf, []),
-              publish(Alice, <<"item2">>, ?LEAF_2, []),
+              publish(Alice, <<"item2">>, Leaf2, []),
 
               %% Request items from leaf nodes - as described in XEP-0060
               request_all_items(Bob, Leaf, [{expected_result, [<<"item1">>]}]),
-              request_all_items(Bob, ?LEAF_2, [{expected_result, [<<"item2">>]}]),
+              request_all_items(Bob, Leaf2, [{expected_result, [<<"item2">>]}]),
 
               %% NOTE: This is not implemented yet
               %% Request:  6.2.1 Ex.15 Subscriber requests all items on a collection
@@ -787,7 +788,7 @@ request_all_items_leaf_test(Config) ->
               %%request_all_items(Bob, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
               delete_node(Alice, Leaf, []),
-              delete_node(Alice, ?LEAF_2, []),
+              delete_node(Alice, Leaf2, []),
               delete_node(Alice, Node, [])
       end).
 

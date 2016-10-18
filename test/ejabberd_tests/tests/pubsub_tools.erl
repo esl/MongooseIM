@@ -185,7 +185,8 @@ check_user_subscriptions_response(User, Response, ExpectedSubscriptions) ->
     [assert_ljid_equal(Jid, exml_query:attr(Subscr, <<"jid">>)) || Subscr <- SubscriptionElems],
     Subscriptions = [{exml_query:attr(Subscr, <<"node">>),
                       exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
-    ExpectedSubscriptions = lists:sort(Subscriptions),
+    ExpectedSorted = lists:sort(ExpectedSubscriptions),
+    ExpectedSorted = lists:sort(Subscriptions),
     Response.
 
 check_node_subscriptions_response(Response, ExpectedSubscriptions, {_, NodeName}) ->
