@@ -36,8 +36,8 @@ Contact us.
 
 Setup: reflects the number of nodes in your cluster
 Purpose: is the goal and use of this cluster
-Low-end: low-power machines, such as laptops, embedded devides, entry-level cloud or bare metal
-High-end: powerful machines, with lots of memory, multi-core CPU, whether they or cloud or bare metal
+Low-end: number of concurent users on low-power machines, such as laptops, embedded devides, entry-level cloud or bare metal
+High-end: number of concurent users on powerful machines, with lots of memory, multi-core CPU, whether they or cloud or bare metal
 
 Setup | Purpose | Low-end | High-end
 ------|---------|---------|---------
@@ -47,12 +47,12 @@ Multi-node | High-end production system             |  10k to   1M   |   2M to  
 Multi-datacenter | Very large scale product system  | 100k to  10M   |  10M to 100M
 
 IMPORTANT NOTES: scalability highly depends on variables such as:
-* machines power, such as memory, CPU, I/O
-* the number of concurrent users:
+* machine's power, such as memory, CPU, I/O
+* the type of concurrent users:
   * most iOS apps are not connected in the background, they use APNS to push info to the device
   * web clients use websockets, with fallback on BOSH (HTTP long-polling)
   * client-side and backend-side REST API
-* how much archiving is needed and the latency for storage and querying, which depends a lot on storage backend architecture and scalability
+* how much archiving is needed and the latency for storage and querying, which depends a lot on storage backend architecture
 * message throughtput:
   * one-to-one
   * MUC
