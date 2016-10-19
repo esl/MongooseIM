@@ -165,7 +165,7 @@ create_delete_node_test(Config) ->
 discover_nodes_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% Request:  5.2 Ex.9  Entity asks service for all first-level nodes
               %% Response:     Ex.10 Service returns all first-level nodes
@@ -187,7 +187,7 @@ discover_nodes_test(Config) ->
 subscribe_unsubscribe_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               Node = pubsub_node(),
               create_node(Alice, Node, []),
@@ -210,7 +210,7 @@ subscribe_unsubscribe_test(Config) ->
 publish_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}],
+      [{alice, 1}],
       fun(Alice) ->
               %% Auto-create enabled by default
 
@@ -225,7 +225,7 @@ publish_test(Config) ->
 notify_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,2}, {geralt,2}],
+      [{alice, 1}, {bob, 2}, {geralt, 2}],
       fun(Alice, Bob1, Bob2, Geralt1, Geralt2) ->
               Node = pubsub_node(),
               create_node(Alice, Node, []),
@@ -250,7 +250,7 @@ notify_test(Config) ->
 request_all_items_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               Node = pubsub_node(),
               create_node(Alice, Node, []),
@@ -268,7 +268,7 @@ request_all_items_test(Config) ->
 purge_all_items_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               Node = pubsub_node(),
               create_node(Alice, Node, []),
@@ -292,7 +292,7 @@ purge_all_items_test(Config) ->
 retrieve_subscriptions_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% Request:  5.6 Ex.20 Retrieve Subscriptions
               %% Response:     Ex.22 No Subscriptions
@@ -324,7 +324,7 @@ retrieve_subscriptions_test(Config) ->
 disable_notifications_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               NodeConfig = [{<<"pubsub#deliver_notifications">>, <<"false">>}],
               Node = pubsub_node(),
@@ -342,7 +342,7 @@ disable_notifications_test(Config) ->
 disable_payload_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% Notification-Only Persistent Node, see 4.3, table 4
               NodeConfig = [{<<"pubsub#deliver_payloads">>, <<"false">>}],
@@ -361,7 +361,7 @@ disable_payload_test(Config) ->
 disable_persist_items_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% Payload-Included Transient Node, see 4.3, table 4
               NodeConfig = [{<<"pubsub#persist_items">>, <<"false">>}],
@@ -383,7 +383,7 @@ disable_persist_items_test(Config) ->
 notify_only_available_users_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% Second node notifies only available users
               Node = pubsub_node(),
@@ -411,7 +411,7 @@ notify_only_available_users_test(Config) ->
 send_last_published_item_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% Request:  8.1.3 Ex.136 Request a new node with non-default configuration
               %% Response:       Ex.137 Service replies with success
@@ -435,7 +435,7 @@ send_last_published_item_test(Config) ->
 retrieve_node_subscriptions_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}, {geralt,1}],
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
       fun(Alice, Bob, Geralt) ->
               Node = pubsub_node(),
               create_node(Alice, Node, []),
@@ -459,7 +459,7 @@ retrieve_node_subscriptions_test(Config) ->
 modify_node_subscriptions_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}, {geralt,1}],
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
       fun(Alice, Bob, Geralt) ->
               Node = pubsub_node(),
               create_node(Alice, Node, []),
@@ -504,7 +504,7 @@ pubsub_leaf() -> {node_addr(), pubsub_leaf_name()}.
 create_delete_collection_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}],
+      [{alice, 1}],
       fun(Alice) ->
               %% Request:  7.1.1 Ex.18 create collection node
               %% Response:       Ex.19 success
@@ -521,7 +521,7 @@ create_delete_collection_test(Config) ->
 subscribe_unsubscribe_collection_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               Node = pubsub_node(),
@@ -540,7 +540,7 @@ subscribe_unsubscribe_collection_test(Config) ->
 create_delete_leaf_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}],
+      [{alice, 1}],
       fun(Alice) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -558,7 +558,7 @@ create_delete_leaf_test(Config) ->
 notify_collection_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -586,7 +586,7 @@ notify_collection_test(Config) ->
 notify_collection_leaf_and_item_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -613,7 +613,7 @@ notify_collection_leaf_and_item_test(Config) ->
 notify_collection_bare_jid_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,2}, {geralt,2}],
+      [{alice, 1}, {bob, 2}, {geralt, 2}],
       fun(Alice, Bob1, Bob2, Geralt1, Geralt2) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -641,7 +641,7 @@ notify_collection_bare_jid_test(Config) ->
 notify_collection_and_leaf_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}, {geralt,1}],
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
       fun(Alice, Bob, Geralt) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -665,7 +665,7 @@ notify_collection_and_leaf_test(Config) ->
 notify_collection_and_leaf_same_user_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -689,7 +689,7 @@ notify_collection_and_leaf_same_user_test(Config) ->
 retrieve_subscriptions_collection_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -715,7 +715,7 @@ retrieve_subscriptions_collection_test(Config) ->
 discover_top_level_nodes_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -735,7 +735,7 @@ discover_top_level_nodes_test(Config) ->
 discover_child_nodes_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% Try to get children of a non-existing node
               {_, NodeName} = Node = pubsub_node(),
@@ -764,7 +764,7 @@ discover_child_nodes_test(Config) ->
 request_all_items_leaf_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -796,7 +796,7 @@ request_all_items_leaf_test(Config) ->
 disable_notifications_leaf_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -820,7 +820,7 @@ disable_notifications_leaf_test(Config) ->
 disable_payload_leaf_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -844,7 +844,7 @@ disable_payload_leaf_test(Config) ->
 disable_persist_items_leaf_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
@@ -875,7 +875,7 @@ disable_persist_items_leaf_test(Config) ->
 disable_payload_and_persist_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% Notification-Only Transient Node, see 4.3, table 4
               NodeConfig = [{<<"pubsub#deliver_payloads">>, <<"false">>},
@@ -907,7 +907,7 @@ disable_payload_and_persist_test(Config) ->
 disable_delivery_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               Node = pubsub_node(),
               create_node(Alice, Node, []),

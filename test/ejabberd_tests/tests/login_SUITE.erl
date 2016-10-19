@@ -473,7 +473,7 @@ legacy_unsuccessful_plain(ConfigIn) ->
         do_legacy_auth(NewSpec, legacy_auth_plain),
         ct:fail("Authenticated but shouldn't")
     catch
-        error:{assertion_failed,assert,is_iq_result,_,_,_} ->
+        error:{assertion_failed, assert, is_iq_result, _, _, _} ->
             ok
     end.
 
