@@ -1,9 +1,10 @@
+
 swagger: '2.0'
 info:
   version: "0.1.0"
   title: "MongooseIM's client REST API"
   description: |
-    This API described alternate, to XMPP way of using MongooseIM.
+    This API describes how to use MongooseIM features over REST API.
     Users are represented by **bare JIDs** (Jaber Identifiers, example **alice@wonderland.com**).
     This allows to integrate **REST API** users with the regular **XMPP** users.
     All the requests require authentication, currently the only supported method is **Basic Auth**.
@@ -20,6 +21,8 @@ paths:
   /messages:
     post:
       description: Sends messages
+      tags:
+        - "One-to-one messages"
       parameters:
         - in: body
           name: message
@@ -34,6 +37,8 @@ paths:
             $ref: '#/definitions/ResourceID'
     get:
       description: Gets all recent messages from the archive.
+      tags:
+        - "One-to-one messages"
       parameters:
         - $ref: '#/parameters/messagesLimit'
         - $ref: '#/parameters/beforeGuard'
@@ -45,10 +50,13 @@ paths:
             type: array
             items:
               $ref: '#/definitions/RecvMessage'
+
   /messages/{with}:
     get:
       description: |
         Gets recent messages with specified user from the archive.
+      tags:
+        - "One-to-one messages"
       parameters:
         - name: with
           type: string
@@ -70,6 +78,8 @@ paths:
   /rooms:
     post:
       description: Creates a room.
+      tags:
+        - "Rooms"
       parameters:
         - in: body
           name: room
@@ -83,6 +93,8 @@ paths:
             $ref: '#/definitions/ResourceID'
     get:
       description: "Returns list of room to which user is connected."
+      tags:
+        - "Rooms"
       responses:
         200:
           description: "List of rooms."
@@ -91,6 +103,8 @@ paths:
   /rooms/{id}:
     get:
       description: "Returns room's details."
+      tags:
+        - "Rooms"
       parameters:
         - $ref: '#/parameters/roomID'
       responses:
@@ -106,6 +120,9 @@ paths:
   /rooms/{id}/users:
     post:
       description: "Adds a user to a room."
+      tags:
+        - "Rooms"
+        - "Room participants"
       parameters:
         - $ref: '#/parameters/roomID'
         - in: body
@@ -127,6 +144,9 @@ paths:
         Removes a user from the room.
         Owner can remove any user.
         Occupant can also use this method, but can only remove itself.
+      tags:
+        - "Rooms"
+        - "Room participants"
       parameters:
         - $ref: '#/parameters/roomID'
         - in: path
@@ -148,6 +168,9 @@ paths:
       - $ref: '#/parameters/roomID'
     post:
       description: Send a message to a room.
+      tags:
+        - "Rooms"
+        - "Room messages"
       parameters:
         - in: body
           name: message
@@ -166,6 +189,9 @@ paths:
             When authenticated user is not allowed to send message to the room.
     get:
       description: Get room's messages from the archive.
+      tags:
+        - "Rooms"
+        - "Room messages"
       parameters:
         - $ref: '#/parameters/messagesLimit'
         - $ref: '#/parameters/beforeGuard'
