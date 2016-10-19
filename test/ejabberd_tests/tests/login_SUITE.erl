@@ -328,7 +328,7 @@ registration_timeout(Config) ->
     escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
 
 registration_failure_timeout(Config) ->
-    timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT)),
+    timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT + 1)),
     [Alice] = escalus_users:get_users([alice]),
 
     %% Registration of the first user should fail because of access denial
