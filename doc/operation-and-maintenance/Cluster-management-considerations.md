@@ -42,10 +42,10 @@ Contact us.
 
 ## Summary table
 
-Setup: reflects the number of nodes in your cluster
-Purpose: is the goal and use of this cluster
-Low-end: number of concurent users on low-power machines, such as laptops, embedded devides, entry-level cloud or bare metal
-High-end: number of concurent users on powerful machines, with lots of memory, multi-core CPU, whether they or cloud or bare metal
+**Setup**: reflects the number of nodes in your cluster. <br/>
+**Purpose**: is the goal and use of this cluster. <br/>
+**Low-end**: number of concurent users on low-power machines, such as laptops, embedded devides, entry-level cloud or bare metal.<br/>
+**High-end**: number of concurent users on powerful machines, with lots of memory, multi-core CPU, whether they or cloud or bare metal.
 
 Setup | Purpose | Low-end  | High-end
 ------|---------|---------:|---------:
