@@ -121,7 +121,7 @@ user_can_be_registered_and_removed(_Config) ->
     {?OK, Lusers} = gett(<<"/users/localhost">>),
     assert_inlist(<<"alice@localhost">>, Lusers),
     % create user
-    CrUser = #{user => <<"mike">>, password => <<"nicniema">>},
+    CrUser = #{username => <<"mike">>, password => <<"nicniema">>},
     {?CREATED, _} = post(<<"/users/localhost">>, CrUser),
     {?OK, Lusers1} = gett(<<"/users/localhost">>),
     assert_inlist(<<"mike@localhost">>, Lusers1),

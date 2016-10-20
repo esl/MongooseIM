@@ -62,7 +62,7 @@ commands() ->
       {module, ?MODULE},
       {function, register},
       {action, create},
-      {args, [{host, binary}, {user, binary}, {password, binary}]},
+      {args, [{host, binary}, {username, binary}, {password, binary}]},
       {result, {msg, binary}}
      ],
      [
