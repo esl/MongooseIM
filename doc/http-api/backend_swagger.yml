@@ -1,8 +1,12 @@
 swagger: '2.0'
 info:
-  version: "0.0.0"
+  version: "1.0.0"
   title: MongooseIM control backend REST API
-  description: This REST API provides similar control functionaly to the `mongooseimctl` command. The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl` though the final API will need to be consistent with the MongooseIM's **command registry**.
+  description: |
+    This REST API provides similar control functionaly to the `mongooseimctl` command.
+    The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl` though the final API will need to be consistent with the MongooseIM's **command registry**.
+
+    Please consult the relevant JSON data models as in some cases it may not obvious that a **JID** (f.e alice@wonderland) is expected. The JSON data model is available in the doc, just click on **Model** link nex to **Example Value**.
 schemes:
   - http
 basePath: /api
@@ -14,6 +18,8 @@ paths:
   /commands:
     get:
       description: List the available commands for administering MongooseIM.
+      tags:
+        - "commands"
       responses:
         200:
           description: A list of information for all the currently available commands
@@ -37,6 +43,8 @@ paths:
       - $ref: '#/parameters/hostName'
     get:
       description: Retrieve a list of users registered under the given XMPP hostname.
+      tags:
+        - "user management"
       responses:
         200:
           description: A list of users registered under the given XMPP hostname.
@@ -48,16 +56,19 @@ paths:
               type: string
               format: JID
     post:
+      tags:
+        - "user management"
       parameters:
         - name: Credentials
           in: body
           description: Credentials with which to register the user
+
           required: true
           schema:
             title: Credentials
             type: object
             properties:
-              user:
+              username:
                 type: string
               password:
                 type: string
@@ -77,6 +88,8 @@ paths:
         required: true
         type: string
     put:
+      tags:
+        - "user management"
       parameters:
         - name: password
           in: body
@@ -90,6 +103,8 @@ paths:
         204:
           description: Password has been changed
     delete:
+      tags:
+        - "user management"
       description: Cancel a user's registration under the given domain.
       responses:
         204:
@@ -101,6 +116,8 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
     get:
+      tags:
+        - "session management"
       description: Retrieve a list of sessions.
       responses:
         200:
@@ -126,6 +143,8 @@ paths:
         required: true
         type: string
     delete:
+      tags:
+        - "session management"
       description: Terminate this session (connection).
       responses:
         204:
@@ -135,6 +154,8 @@ paths:
             type: string
   /messages:
     post:
+      tags:
+        - "one-to-one messages"
       parameters:
         - name: chatStanza
           in: body
@@ -161,6 +182,8 @@ paths:
           description: Message was sent
   /messages/{me}:
     get:
+      tags:
+        - "one-to-one messages"
       parameters:
         - name: me
           in: path
@@ -185,6 +208,8 @@ paths:
             $ref: '#/definitions/messageList'
   /messages/{me}/{with}:
     get:
+      tags:
+        - "one-to-one messages"
       parameters:
         - name: me
           in: path
@@ -216,6 +241,8 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
     post:
+      tags:
+        - "MUC-light management"
       description: Create a MUC Light room under the given XMPP hostname.
       consumes:
         - application/json
@@ -248,6 +275,8 @@ paths:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
     post:
+      tags:
+        - "MUC-light management"
       description: Invite one user on behalf of another.
       consumes:
         - application/json
@@ -266,7 +295,7 @@ paths:
               recipient:
                 type: string
                 description: The invitee's JID
-      responses: 
+      responses:
         204:
           description: An invite was sent out
   /muc-lights/{XMPPHost}/{roomName}/messages:
@@ -274,6 +303,8 @@ paths:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
     put:
+      tags:
+        - "MUC-light management"
       description: Send message to the MUC Light room on behalf of a user.
       consumes:
         - application/json
@@ -299,13 +330,15 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
     post:
+      tags:
+        - "MUC management"
       description: Create a MUC room under the given XMPP hostname.
       consumes:
         - application/json
       parameters:
         - name: roomDetails
           in: body
-          description: Details for the room to be created
+          description: Details for the room to be created.
           required: true
           schema:
             title: roomDetails
@@ -331,6 +364,8 @@ paths:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
     post:
+      tags:
+        - "MUC management"
       description: Invite one user on behalf of another.
       consumes:
         - application/json
@@ -362,6 +397,8 @@ paths:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
     put:
+      tags:
+        - "MUC management"
       description: Send message to the MUC room on behalf of a user.
       consumes:
         - application/json
@@ -393,6 +430,8 @@ paths:
         required: true
         type: string
     delete:
+      tags:
+        - "MUC management"
       description: Kick a user on behalf of one of the room's moderators.
       responses:
         204:
@@ -402,7 +441,7 @@ parameters:
   hostName:
     name: XMPPHost
     in: path
-    description: The XMPP hostname i.e. the later part of a JID
+    description: The XMPP host served by the server.
     required: true
     type: string
     format: hostname
