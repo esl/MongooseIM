@@ -10,6 +10,8 @@
 -export([to_json/2]).
 -export([send_message/2]).
 
+-export([encode/2]).
+
 -export([maybe_integer_qs_val/1]).
 -export([maybe_before_to_us/2]).
 
@@ -96,12 +98,16 @@ build_message(From, To, Id, Body) ->
 
 make_json_msg(Msg, MAMId) ->
     {Microsec, _} = mod_mam_utils:decode_compact_uuid(MAMId),
+    encode(Msg, Microsec div 1000).
+
+-spec encode(exml:item(), integer()) -> map().
+encode(Msg, Timestamp) ->
     BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
     #{from => exml_query:attr(Msg, <<"from">>),
       to => exml_query:attr(Msg, <<"to">>),
       id => exml_query:attr(Msg, <<"id">>),
       body => exml_query:cdata(BodyTag),
-      timestamp => Microsec div 1000}.
+      timestamp => Timestamp}.
 
 maybe_jid(undefined) ->
     undefined;

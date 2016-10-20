@@ -19,7 +19,8 @@ maybe_init(true, Req, #{jid := JID} = State) ->
     SID = {os:timestamp(), self()},
     User = JID#jid.user,
     Server = JID#jid.server,
-    Resource = <<"sse">>,
+    UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    Resource = <<"sse-", UUID/binary>>,
 
     ok = ejabberd_sm:open_session(SID, User, Server, Resource, 1, []),
 
@@ -31,6 +32,10 @@ maybe_init({false, Value}, Req, State) ->
 handle_notify(_Msg, State) ->
     {nosend, State}.
 
+handle_info({route, _From, _To, #xmlel{name = <<"message">>} = Packet}, State) ->
+    Timestamp = usec:from_now(os:timestamp()),
+    Type = exml_query:attr(Packet, <<"type">>),
+    maybe_send_message_event(Type, Packet, Timestamp, State);
 handle_info(_Msg, State) ->
     {nosend, State}.
 
@@ -46,3 +51,14 @@ terminate(_Reson, _Req, State) ->
             ejabberd_sm:close_session(SID, U, S, R, normal)
     end,
     State.
+
+maybe_send_message_event(<<"chat">>, Packet, Timestamp, State) ->
+    Data = jiffy:encode(mongoose_client_api_messages:encode(Packet, Timestamp)),
+    Event = #{id => <<"1">>,
+              event => <<"msg">>,
+              data => Data
+             },
+    {send, Event,  State};
+maybe_send_message_event(_, _, _, State) ->
+    {nosend, State}.
+

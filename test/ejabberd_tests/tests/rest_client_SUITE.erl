@@ -1,6 +1,8 @@
 -module(rest_client_SUITE).
 -compile(export_all).
 
+-include_lib("escalus/include/escalus.hrl").
+
 all() ->
     [{group, all}].
 
@@ -8,7 +10,8 @@ groups() ->
     [{all, [parallel], test_cases()}].
 
 test_cases() ->
-    [msg_is_sent_and_delivered,
+    [msg_is_sent_and_delivered_over_xmpp,
+     msg_is_sent_and_delivered_over_sse,
      all_messages_are_archived,
      messages_with_user_are_archived,
      messages_can_be_paginated,
@@ -26,6 +29,7 @@ test_cases() ->
      ].
 
 init_per_suite(C) ->
+    application:ensure_all_started(shotgun),
     Host = ct:get_config({hosts, mim, domain}),
     MUCLightHost = <<"muclight.", Host/binary>>,
     C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C),
@@ -39,6 +43,7 @@ end_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     rest_helper:maybe_disable_mam(proplists:get_value(mam_enabled, Config), Host),
     dynamic_modules:stop(Host, mod_muc_light),
+    application:stop(shotgun),
     escalus:end_per_suite(Config).
 
 init_per_group(_GN, C) ->
@@ -60,12 +65,27 @@ init_per_testcase(TC, Config) ->
 end_per_testcase(TC, C) ->
     escalus:end_per_testcase(TC, C).
 
-msg_is_sent_and_delivered(Config) ->
+msg_is_sent_and_delivered_over_xmpp(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         M = send_message(alice, Alice, Bob),
         Msg = escalus:wait_for_stanza(Bob),
         escalus:assert(is_chat_message, [maps:get(body, M)], Msg)
     end).
+
+msg_is_sent_and_delivered_over_sse(ConfigIn) ->
+    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
+    Bob = escalus_users:get_userspec(Config, bob),
+    Alice = escalus_users:get_userspec(Config, alice),
+
+    Conn = connect_to_sse({alice, Alice}),
+    M = send_message(bob, Bob, Alice),
+
+    Event = wait_for_event(Conn),
+    Data = jiffy:decode(maps:get(data, Event), [return_maps]),
+
+    assert_json_message(M, Data),
+
+    stop_sse(Conn).
 
 all_messages_are_archived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -291,20 +311,25 @@ remove_user_from_a_room(Inviter, RoomID, Invitee) ->
     Path = <<"/rooms/", RoomID/binary, "/users/", JID/binary>>,
     rest_helper:delete(Path, Creds).
 
-credentials({User, UserClient}) ->
-    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(UserClient)),
-    {JID, user_password(User)}.
+credentials({User, ClientOrSpec}) ->
+    {user_jid(ClientOrSpec), user_password(User)}.
 
+user_jid(#client{} = UserClient) ->
+    escalus_utils:jid_to_lower(escalus_client:short_jid(UserClient));
+user_jid(Spec) ->
+    U = proplists:get_value(username, Spec),
+    S = proplists:get_value(server, Spec),
+    escalus_utils:jid_to_lower(<<U/binary, $@, S/binary>>).
 
 user_password(User) ->
     [{User, Props}] = escalus:get_users([User]),
     proplists:get_value(password, Props).
 
 send_message(User, From, To) ->
-    AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(From)),
-    BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
-    M = #{to => BobJID, body => <<"hello, ", BobJID/binary," it's me">>},
-    Cred = {AliceJID, user_password(User)},
+    AliceJID = user_jid(From),
+    BobJID = user_jid(To),
+    M = #{to => BobJID, body => <<"hello, ", BobJID/binary, " it's me">>},
+    Cred = credentials({User, From}),
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(<<"/messages">>, M, Cred),
     ID = proplists:get_value(<<"id">>, Result),
     M#{id => ID, from => AliceJID}.
@@ -397,4 +422,40 @@ is_participant(User, Role, RoomInfo) ->
                   UserJID == JID andalso UserRole == Role
           end,
     lists:any(Fun, Participants).
+
+connect_to_sse(User) ->
+    {ok, Conn} = shotgun:open("localhost", 8089, https),
+    Me = self(),
+    EventFun = fun(State, Ref, Bin) ->
+        Me ! {sse, State, Ref, Bin}
+    end,
+
+    {U, P} = credentials(User),
+    Options = #{async => true, async_mode => sse, handle_event => EventFun},
+    Headers = #{basic_auth => {binary_to_list(U), binary_to_list(P)}},
+    {ok, Ref} = shotgun:get(Conn, "/api/sse", Headers, Options),
+    {Conn, Ref}.
+
+wait_for_event({_Conn, Ref}) ->
+    receive
+        {sse, _State, Ref, Bin} ->
+            shotgun:parse_event(Bin)
+    after
+        5000 ->
+            ct:fail("timeout waiting for SSE event")
+    end.
+
+stop_sse({Conn, _Ref}) ->
+    shotgun:close(Conn).
+
+assert_json_message(Sent, Received) ->
+    #{<<"body">> := Body,
+      <<"to">> := To,
+      <<"from">> := From,
+      <<"id">> := Id} = Received,
+
+    Body = maps:get(body, Sent),
+    To = maps:get(to, Sent),
+    From = maps:get(from, Sent),
+    Id = maps:get(id, Sent).
 
