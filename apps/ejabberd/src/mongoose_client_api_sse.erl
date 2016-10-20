@@ -9,7 +9,14 @@
 -export([terminate/3]).
 
 init(_InitArgs, _LastEvtId, Req) ->
-    {ok, Req, #{}}.
+    {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req, #{}),
+    maybe_init(Authorization, Req2, State).
+
+maybe_init(true, Req, State) ->
+    {ok, Req, State};
+maybe_init({false, Value}, Req, State) ->
+    Headers = [{<<"www-authenticate">>, Value}],
+    {shutdown, 401, Headers, <<>>, Req, State}.
 
 handle_notify(_Msg, State) ->
     {nosend, State}.
