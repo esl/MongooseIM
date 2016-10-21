@@ -14,6 +14,7 @@ consumes:
   - application/json
 produces:
   - application/json
+host: "localhost:8088"
 paths:
   /commands:
     get:
@@ -51,8 +52,10 @@ paths:
           schema:
             title: userList
             type: array
+            example:
+              - "alice@wonderland.com"
+              - "bob@wonderland.com"
             items:
-              title: JID
               type: string
               format: JID
     post:
@@ -62,15 +65,16 @@ paths:
         - name: Credentials
           in: body
           description: Credentials with which to register the user
-
           required: true
           schema:
             title: Credentials
             type: object
             properties:
               username:
+                example: "alice"
                 type: string
               password:
+                example: "makota"
                 type: string
       description: Register a user under the given domain.
       responses:
@@ -346,10 +350,10 @@ paths:
             properties:
               name:
                 type: string
+                example: "foo"
                 description: A name for the room (the leading part of the JID)
               owner:
-                type: string
-                description: JID of the room's owner.
+                $ref: '#/definitions/JID'
               nick:
                 type: string
                 description: A nickname for the owner.
@@ -469,3 +473,9 @@ definitions:
           type: string
         body:
           type: string
+  JID:
+    type: string
+    example: "alice@wonderland.com"
+    description: |
+      This is user's JID (Jabber ID) which consist of username and server.
+      Example: alice@wonderland.com
