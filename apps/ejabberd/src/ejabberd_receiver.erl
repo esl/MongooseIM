@@ -358,8 +358,10 @@ replace_too_big_elems_with_stream_error(Elems, MaxSize) ->
 maybe_pause(_, #state{c2s_pid = undefined}) ->
     ok;
 maybe_pause(Pause, _State) when Pause > 0 ->
+%%    ?ERROR_MSG("Pause: ~p~n", [Pause]),
     erlang:start_timer(Pause, self(), activate);
 maybe_pause(_, State) ->
+%%    ?ERROR_MSG("KeepOn~n", []),
     activate_socket(State).
 
 maybe_run_keep_alive_hook(Size, #state{c2s_pid = C2SPid})

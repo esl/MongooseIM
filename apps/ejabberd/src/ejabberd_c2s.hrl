@@ -26,6 +26,7 @@
                 sasl_state,
                 access,
                 shaper,
+                spamctl_state,
                 zlib = {false, 0}          :: {boolean(), integer()},
                 tls = false           :: boolean(),
                 tls_required = false  :: boolean(),

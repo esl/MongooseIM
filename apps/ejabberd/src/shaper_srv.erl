@@ -74,7 +74,8 @@ worker_count(_Host) ->
 
 -spec worker_names(ejabberd:server()) -> [atom()].
 worker_names(Host) ->
-    [worker_name(Host, N) || N <- lists:seq(0, worker_count(Host) - 1)].
+    Wn = [worker_name(Host, N) || N <- lists:seq(0, worker_count(Host) - 1)],
+    Wn.
 
 
 -spec worker_name(ejabberd:server(), integer()) -> atom().

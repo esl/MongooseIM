@@ -209,6 +209,7 @@ init([{SockMod, Socket}, Opts]) ->
                                          streamid       = new_id(),
                                          access         = Access,
                                          shaper         = Shaper,
+                                         spamctl_state  = undefined,
                                          ip             = IP},
              ?C2S_OPEN_TIMEOUT}
     end.
@@ -249,7 +250,12 @@ handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
         {?NS_STREAM, true} ->
             change_shaper(S, jid:make(<<>>, Server, <<>>)),
             Version = xml:get_attr_s(<<"version">>, Attrs),
-            stream_start_by_protocol_version(Version, S);
+            SpamCtlState = ejabberd_hooks:run_fold(spamctl_initialise,
+                                                   Server,
+                                                   #{host => Server},
+                                                   []),
+            S1 = S#state{spamctl_state = SpamCtlState},
+            stream_start_by_protocol_version(Version, S1);
         {?NS_STREAM, false} ->
             stream_start_error(?HOST_UNKNOWN_ERR, S);
         {_InvalidNS, _} ->
@@ -937,9 +943,25 @@ process_outgoing_stanza(El, StateData) ->
                 _ ->
                     NewEl1
             end,
-    NewState = process_outgoing_stanza(ToJID, Name, {Attrs, NewEl, FromJID, StateData, Server, User}),
-    ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
-    fsm_next_state(session_established, NewState).
+    NewSpamCtlState = ejabberd_hooks:run_fold(spamctl_control, Server,
+                                              StateData#state.spamctl_state,
+                                              [Name, NewEl]),
+    StateData1 = StateData#state{spamctl_state = NewSpamCtlState},
+    case NewSpamCtlState of
+        % if decision is anything other then ok we stop the message and call hook to
+        % take appropriate action
+        #{decision := ok} ->
+            NewState = process_outgoing_stanza(ToJID, Name, {Attrs, NewEl, FromJID,
+                                               StateData1, Server, User}),
+            ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
+            fsm_next_state(session_established, NewState);
+        #{decision := Dec} ->
+            ReactSpamState = ejabberd_hooks:run_fold(spamctl_react,
+                                                     Server,
+                                                     NewSpamCtlState,
+                                                     [Dec, FromJID, ToJID, NewEl]),
+            fsm_next_state(session_established, StateData1#state{spamctl_state = ReactSpamState})
+    end.
 
 
 process_outgoing_stanza(error, _Name, Args) ->
@@ -1193,6 +1215,8 @@ handle_info(check_buffer_full, StateName, StateData) ->
             fsm_next_state(StateName,
                            StateData#state{stream_mgmt_constraint_check_tref = undefined})
     end;
+handle_info({stop, Reason}, _StateName, StateData) ->
+    {stop, Reason, StateData};
 handle_info(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
