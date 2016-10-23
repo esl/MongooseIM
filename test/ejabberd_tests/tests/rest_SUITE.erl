@@ -85,6 +85,7 @@ roster_tests() ->
      subscription_changes,
      messages_from_blocked_user_dont_arrive,
      messages_from_unblocked_user_arrive_again,
+     blocked_user_can_communicate,
      blocking_push_to_resource,
      blocking_push_to_contact,
      remove_contact_push
@@ -110,7 +111,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice, bob])).
+    escalus:create_users(Config, escalus:get_users([alice, bob, mike])).
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
@@ -140,16 +141,16 @@ user_can_be_registered_and_removed(_Config) ->
     Domain = domain(),
     assert_inlist(<<"alice@", Domain/binary>>, Lusers),
     % create user
-    CrUser = #{username => <<"mike">>, password => <<"nicniema">>},
+    CrUser = #{user => <<"mickey">>, password => <<"nicniema">>},
     {?CREATED, _} = post(<<"/users/localhost">>, CrUser),
     {?OK, Lusers1} = gett(<<"/users/localhost">>),
-    assert_inlist(<<"mike@", Domain/binary>>, Lusers1),
+    assert_inlist(<<"mickey@localhost">>, Lusers1),
     % try to create the same user
     {?ERROR, _} = post(<<"/users/localhost">>, CrUser),
     % delete user
-    {?NOCONTENT, _} = delete(<<"/users/localhost/mike">>),
+    {?NOCONTENT, _} = delete(<<"/users/localhost/mickey">>),
     {?OK, Lusers2} = gett(<<"/users/localhost">>),
-    assert_notinlist(<<"mike@", Domain/binary>>, Lusers2),
+    assert_notinlist(<<"mickey@", Domain/binary>>, Lusers2),
     ok.
 
 sessions_are_listed(_) ->
@@ -413,6 +414,21 @@ messages_from_unblocked_user_arrive_again(Config) ->
             message_is_delivered(User2, User1, <<"Hello again!">>)
         end).
 
+blocked_user_can_communicate(Config) ->
+    Path = lists:flatten(["/contacts/alice@localhost/bob@localhost/block"]),
+    {?NOCONTENT, _} = putt(Path, #{}),
+    escalus:story(
+        Config, [{bob, 1}, {mike, 1}],
+        fun(Bob, Mike) ->
+            message_is_delivered(Mike, Bob, <<"Hello again!">>),
+            message_is_delivered(Bob, Mike, <<"Ho ho ho">>),
+            {M1, M2} = send_messages(Bob, Mike),
+            Res = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_chat_message, [maps:get(msg, M1)], Res),
+            Res1 = escalus:wait_for_stanza(Mike),
+            escalus:assert(is_chat_message, [maps:get(msg, M2)], Res1)
+        end).
+
 blocking_push_to_resource(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}],
@@ -565,7 +581,8 @@ client_gets_nothing(Client) ->
 message_is_delivered(From, To, MessageText) ->
     BareTo =  escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
     escalus:send(From, escalus_stanza:chat_to(BareTo, MessageText)),
-    escalus:assert(is_chat_message, [MessageText], escalus:wait_for_stanza(To)).
+    Msg = escalus:wait_for_stanza(To),
+    escalus:assert(is_chat_message, [MessageText], Msg).
 
 is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
     attrs = Attrs}]}=Stanza) ->
