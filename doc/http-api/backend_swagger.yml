@@ -335,7 +335,7 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
-    put:
+    post:
       tags:
         - "MUC-light management"
       description: Send message to the MUC Light room on behalf of a user.
@@ -386,16 +386,16 @@ paths:
                 example: "foo"
                 description: A name for the room (the leading part of the JID)
               owner:
-                $ref: '#/definitions/JID'
+                type: string
+                format: JID
+                example: "alice@wonderland.lit"
               nick:
                 type: string
                 description: A nickname for the owner.
+                example: "my-nick"
       responses:
         201:
-          description: An invite was sent out
-          schema:
-            title: roomName
-            type: string
+          description: A room was created
   /mucs/{XMPPHost}/{roomName}/participants:
     parameters:
       - $ref: '#/parameters/hostName'
@@ -419,10 +419,12 @@ paths:
                 type: string
                 format: JID
                 description: The inviter's JID
+                example: "alice@wonderland.lit"
               recipient:
                 type: string
                 format: JID
                 description: The invitee's JID
+                example: "alice@wonderland.lit"
               reason:
                 type: string
                 description: Initial text sent along with the invite
@@ -433,7 +435,7 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
-    put:
+    post:
       tags:
         - "MUC management"
       description: Send message to the MUC room on behalf of a user.
@@ -451,9 +453,11 @@ paths:
               sender:
                 type: string
                 description: The sender's JID. Message will be sent on their behalf
+                example: "alice@wonderland.lit"
               body:
                 type: string
                 description: The message text
+                example: "Hello, it's alice"
       responses:
         204:
           description: Message was sent to the MUC room
