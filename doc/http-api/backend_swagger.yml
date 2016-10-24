@@ -171,12 +171,12 @@ paths:
       tags:
         - "one-to-one messages"
       parameters:
-        - name: chatStanza
+        - name: message
           in: body
           description: The chat stanza (with a sender and recipient)
           required: true
           schema:
-            title: chatStanza
+            title: message
             type: object
             properties:
               caller:

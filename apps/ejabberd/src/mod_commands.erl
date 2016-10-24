@@ -103,7 +103,7 @@ commands() ->
       {function, send_message},
       {action, create},
       {security_policy, [user]},
-      {args, [{caller, binary}, {to, binary}, {msg, binary}]},
+      {args, [{caller, binary}, {to, binary}, {body, binary}]},
       {result, ok}
      ],
      [
