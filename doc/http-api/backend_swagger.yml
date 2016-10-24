@@ -197,16 +197,18 @@ paths:
       responses:
         204:
           description: Message was sent
-  /messages/{me}:
+  /messages/{owner}:
     get:
       tags:
         - "one-to-one messages"
       parameters:
-        - name: me
+        - name: owner
           in: path
-          description: The user archive in question
+          description: User's JID (f.e alice@wonderland.lit)
           required: true
           type: string
+          format: JID
+          example: "alice@wonderland.com"
         - name: before
           in: query
           description: Messages earlier then the given timestamp (defaults to now)
@@ -217,30 +219,32 @@ paths:
           description: An upper bound on the number of messages to fetch from the archive (defaults to 100)
           required: false
           type: integer
-      description: Retrieve recent message from my archive.
+      description: |
+        Retrieve recent message from my archive.
+        This works only with `mod_mam` enabled.
       responses:
         200:
           description: The messages archived for the given user
           schema:
             $ref: '#/definitions/messageList'
-  /messages/{me}/{with}:
+  /messages/{owner}/{with}:
     get:
       tags:
         - "one-to-one messages"
       parameters:
-        - name: me
+        - name: owner
           in: path
-          description: The user archive in question
+          description: User's JID (f.e alice@wonderland.lit)
           required: true
           type: string
         - name: with
           in: path
-          description: The other party
+          description: The other party's JID
           required: true
           type: string
         - name: before
           in: query
-          description: Messages earlier then the given timestamp (defaults to now)
+          description: Messages earlier then the given timestamp (defaults to now).
           required: false
           type: integer
         - name: limit
@@ -248,7 +252,9 @@ paths:
           description: An upper bound on the number of messages to fetch from the archive (defaults to 100)
           required: false
           type: integer
-      description: Retrieve recent message from archive, only those exchanged with the given contact.
+      description: |
+        Retrieve recent message from archive, only those exchanged with the given contact.
+        This works only with `mod_mam` enabled.
       responses:
         200:
           description: The messages archived for the given user and the other party
@@ -276,11 +282,17 @@ paths:
                 type: string
                 format: JID
                 description: The user's JID on whose behalf to create the room
+                example: "alice@wonderland.lit"
               name:
                 type: string
-                description: The name of the room. **NOT** the room's JID. This is the name that goes into the room's configuration.
+                description: |
+                  The name of the room. **NOT** the room's JID.
+                  This is the name that goes into the room's configuration.
+                example: "Rabbit hole"
               subject:
                 type: string
+                description: Initial room's subject
+                example: "Magic stuff"
       responses:
         201:
           description: Room was created
@@ -308,10 +320,14 @@ paths:
             properties:
               sender:
                 type: string
+                format: JID
                 description: The inviter's JID
+                example: "alice@wonderland.lit"
               recipient:
                 type: string
+                format: JID
                 description: The invitee's JID
+                example: "rabbit@wonderland.lit"
       responses:
         204:
           description: An invite was sent out
@@ -336,10 +352,14 @@ paths:
             properties:
               sender:
                 type: string
+                format: JID
                 description: The sender's JID. Message will be sent on their behalf
+                example: "alice@wonderland.lit"
               body:
                 type: string
+                format: JID
                 description: The message text
+                example: "rabbit@wonderland.lit"
       responses:
         204:
           description: Message was sent to the MUC Light room
