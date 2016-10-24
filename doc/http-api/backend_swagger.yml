@@ -6,7 +6,10 @@ info:
     This REST API provides similar control functionaly to the `mongooseimctl` command.
     The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl` though the final API will need to be consistent with the MongooseIM's **command registry**.
 
-    Please consult the relevant JSON data models as in some cases it may not obvious that a **JID** (f.e alice@wonderland) is expected. The JSON data model is available in the doc, just click on **Model** link nex to **Example Value**.
+    In many cases fields like **user** or **caller** expect **JID** (jabber identity, f.e **alice@wonderland.com**).
+    There are two types of **JIDs**:
+      * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one which is set in your `ejabberd.cfg` file).
+      * **full JID** - this is **bareJID** with online user's resource to uniquely identify user's connection (f.e **alice@wonderland.com/resource**).
 schemes:
   - http
 basePath: /api
@@ -76,6 +79,7 @@ paths:
               password:
                 example: "makota"
                 type: string
+                format: password
       description: Register a user under the given domain.
       responses:
         201:
@@ -100,8 +104,10 @@ paths:
           description: The new password for the user
           required: true
           schema:
-            title: newpass
-            type: string
+            properties:
+              newpass:
+                type: string
+                format: password
       description: Change the user's password.
       responses:
         204:
@@ -127,11 +133,15 @@ paths:
         200:
           description: A list of sessions.
           schema:
+            example:
+              - "alice@wonderland.lit/resource"
+              - "bob@wonderland.lit/resource"
             title: userList
             type: array
             items:
               title: JID
               type: string
+              description: "User's full JID"
               format: JID
   /sessions/{XMPPHost}/{username}/{resource}:
     parameters:
@@ -173,13 +183,16 @@ paths:
                 description: the sender of the message
                 type: string
                 format: JID
+                example: "alice@wonderland.lit"
               to:
                 description: the recipient of the message
                 type: string
                 format: JID
+                example: "rabbit@wonderland.lit"
               body:
                 description: the message text
                 type: string
+                example: "Hi Rabbit!"
       description: Send a chat message from one user to another.
       responses:
         204:
