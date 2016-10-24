@@ -22,6 +22,7 @@
          rest_terminate/2,
          init/3,
          rest_init/2,
+         options/2,
          content_types_accepted/2,
          delete_resource/2]).
 
@@ -69,14 +70,21 @@ rest_init(Req, Opts) ->
                             bindings = Bindings,
                             command_category = CommandCategory,
                             command_subcategory = CommandSubCategory},
-    {ok, Req1, State}.
+    options(Req1, State).
 
-
+options(Req, State) ->
+    Req1 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Methods">>,
+                                      <<"GET, OPTIONS, PUT, POST, DELETE">>, Req),
+    Req2 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Origin">>,
+                                      <<"*">>, Req1),
+    Req3 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Headers">>,
+                                      <<"Content-Type">>, Req2),
+    {ok, Req3, State}.
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
     CommandList = mongoose_commands:list(admin, Name),
     AllowedMethods = [action_to_method(mongoose_commands:action(Command)) || Command <- CommandList],
-    {AllowedMethods, Req, State}.
+    {[<<"OPTIONS">> | AllowedMethods], Req, State}.
 
 content_types_provided(Req, State) ->
     CTP = [{{<<"application">>, <<"json">>, '*'}, to_json}],
