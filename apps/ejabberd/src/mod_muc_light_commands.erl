@@ -63,7 +63,7 @@ commands() ->
         %% configured.
         {domain, binary},
         {name, binary},
-        {creator, binary},
+        {owner, binary},
         {subject, binary}
        ]},
       {result, {name, binary}}],

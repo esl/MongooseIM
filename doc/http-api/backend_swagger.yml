@@ -278,7 +278,7 @@ paths:
             title: roomDetails
             type: object
             properties:
-              creator:
+              owner:
                 type: string
                 format: JID
                 description: The user's JID on whose behalf to create the room
@@ -359,7 +359,7 @@ paths:
                 type: string
                 format: JID
                 description: The message text
-                example: "rabbit@wonderland.lit"
+                example: "A test message"
       responses:
         204:
           description: Message was sent to the MUC Light room

@@ -78,13 +78,13 @@ end_per_testcase(CaseName, Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
-create_room(Config) ->    
+create_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Domain = <<"localhost">>,
         Path = <<"/muc-lights", $/, Domain/binary>>,
         Name = <<"wonderland">>,
         Body = #{ name => Name,
-                  creator => escalus_client:short_jid(Alice),
+                  owner => escalus_client:short_jid(Alice),
                   subject => <<"Lewis Carol">>
                 },
         {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
