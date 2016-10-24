@@ -83,7 +83,8 @@ options(Req, State) ->
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
     CommandList = mongoose_commands:list(admin, Name),
-    AllowedMethods = [action_to_method(mongoose_commands:action(Command)) || Command <- CommandList],
+    AllowedMethods = [action_to_method(mongoose_commands:action(Command))
+                      || Command <- CommandList],
     {[<<"OPTIONS">> | AllowedMethods], Req, State}.
 
 content_types_provided(Req, State) ->
