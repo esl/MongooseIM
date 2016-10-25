@@ -94,8 +94,16 @@ drop_deliver_test_cases() ->
      drop_deliver_to_offline_user_test,
      drop_deliver_to_stranger_test].
 
-init_per_suite(C) -> escalus:init_per_suite(C).
-end_per_suite(C) -> ok = escalus_fresh:clean(), escalus:end_per_suite(C).
+init_per_suite(C) ->
+    escalus_ejabberd:rpc(ejabberd_config, add_local_option,
+                         [outgoing_s2s_options, {[ipv4, ipv6], 1000}]),
+    escalus:init_per_suite(C).
+end_per_suite(C) ->
+    escalus_ejabberd:rpc(ejabberd_config, del_local_option,
+                         [outgoing_s2s_options]),
+
+    escalus_fresh:clean(),
+    escalus:end_per_suite(C).
 
 init_per_group(GroupName, Config) ->
     ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
@@ -712,7 +720,7 @@ client_receives_amp_error(Client, IntendedRecipient, Rule, AmpErrorKind) ->
                                    Received, Rule, AmpErrorKind).
 
 client_receives_generic_error(Client, Code, Type) ->
-    Received = escalus_client:wait_for_stanza(Client),
+    Received = escalus_client:wait_for_stanza(Client, 5000),
     escalus:assert(fun contains_error/3, [Code, Type], Received).
 
 client_receives_nothing(Client) ->
