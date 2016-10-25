@@ -21,7 +21,7 @@ enabled_group_names() ->
         end.
 
 groups() ->
-    [{basic, [], [{group, G} || G <- subgroup_names()] ++ basic_test_cases()},
+    [{basic, [parallel], [{group, G} || G <- subgroup_names()] ++ basic_test_cases()},
      {mam, [], [{group, mam_success},
                 {group, mam_failure}]},
      {mam_success, [], [{group, G} || G <- subgroup_names()]},
