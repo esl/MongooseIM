@@ -12,7 +12,8 @@
 -export([terminate/3]).
 
 init(_InitArgs, _LastEvtId, Req) ->
-    {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req, #{}),
+    {ok, Req1, State0} = mongoose_client_api:rest_init(Req, []),
+    {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req1, State0),
     maybe_init(Authorization, Req2, State).
 
 maybe_init(true, Req, #{jid := JID} = State) ->
@@ -25,6 +26,9 @@ maybe_init(true, Req, #{jid := JID} = State) ->
     ok = ejabberd_sm:open_session(SID, User, Server, Resource, 1, []),
 
     {ok, Req, State#{sid => SID, jid => jid:replace_resource(JID, Resource)}};
+maybe_init(true, Req, State) ->
+    %% This is for OPTIONS method
+    {shutdown, 200, [], <<>>, Req, State};
 maybe_init({false, Value}, Req, State) ->
     Headers = [{<<"www-authenticate">>, Value}],
     {shutdown, 401, Headers, <<>>, Req, State}.
