@@ -39,7 +39,7 @@ content_types_accepted(Req, State) ->
      ], Req, State}.
 
 allowed_methods(Req, State) ->
-    {[<<"GET">>, <<"POST">>], Req, State}.
+    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>], Req, State}.
 
 to_json(Req, #{jid := JID} = State) ->
     {With, Req2} = cowboy_req:binding(with, Req),
