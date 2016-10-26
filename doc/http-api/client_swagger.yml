@@ -105,7 +105,7 @@ paths:
             title: Rooms
             type: array
             items:
-              $ref: '#/definitions/RoomShortDetails'
+            $ref: '#/definitions/RoomShortDetails'
   /rooms/{id}:
     get:
       description: "Returns room's details."
@@ -207,6 +207,27 @@ paths:
         403:
           description: |
             When authenticated user is not allowed to read room's details.
+  /sse:
+    get:
+      summary: |
+        WARNING: Do not try to use this endpoint from this page. Swagger doesn't understand SSE.
+      description: |
+        Opens an SSE (https://www.html5rocks.com/en/tutorials/eventsource/basics/) connection to retrieve updates from the server.
+        The simplest way to test this endpoint is `curl` command.
+
+        We recommend following libraries to consume the events:
+        * iOS - https://github.com/inaka/EventSource
+        * Erlang/Elixir - https://github.com/inaka/shotgun
+      tags:
+        - "Server Sent Events"
+      responses:
+        200:
+          description: |
+            Opens the connection and waits for Server Sent Events.
+        403:
+          description: |
+            When authenticated user is not allowed get events from the server.
+
 security:
   - mongoose_basic_auth: []
 securityDefinitions:
