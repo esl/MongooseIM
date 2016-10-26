@@ -185,7 +185,8 @@ check_user_subscriptions_response(User, Response, ExpectedSubscriptions) ->
     [assert_ljid_equal(Jid, exml_query:attr(Subscr, <<"jid">>)) || Subscr <- SubscriptionElems],
     Subscriptions = [{exml_query:attr(Subscr, <<"node">>),
                       exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
-    ExpectedSubscriptions = lists:sort(Subscriptions),
+    ExpectedSorted = lists:sort(ExpectedSubscriptions),
+    ExpectedSorted = lists:sort(Subscriptions),
     Response.
 
 check_node_subscriptions_response(Response, ExpectedSubscriptions, {_, NodeName}) ->
@@ -204,7 +205,15 @@ check_node_discovery_response(Response, {NodeAddr, NodeName}, ExpectedNodes) ->
     Items = exml_query:subelements(Query, <<"item">>),
     [NodeAddr = exml_query:attr(Item, <<"jid">>) || Item <- Items],
     ReceivedNodes = [exml_query:attr(Item, <<"node">>) || Item <- Items],
-    ExpectedNodes = lists:sort(ReceivedNodes),
+    ReceivedSet = ordsets:from_list(ReceivedNodes),
+    case ExpectedNodes of
+        {no, NoNodeName} ->
+            false = ordsets:is_element(NoNodeName, ReceivedSet);
+        _ ->
+            ExpectedSet = ordsets:from_list(ExpectedNodes),
+            true = ordsets:is_subset(ExpectedSet, ReceivedSet)
+    end,
+
     Response.
 
 check_subscription_notification(User, Response, Subscription, NodeName, Options) ->
