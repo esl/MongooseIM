@@ -3,13 +3,13 @@ info:
   version: "1.0.0"
   title: MongooseIM control backend REST API
   description: |
-    This REST API provides similar control functionaly to the `mongooseimctl` command.
-    The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl` though the final API will need to be consistent with the MongooseIM's **command registry**.
+    This REST API provides similar control functionality to the `mongooseimctl` command.
+    The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl`.
 
-    In many cases fields like **user** or **caller** expect **JID** (jabber identity, f.e **alice@wonderland.com**).
+    In many cases fields like **username** or **caller** expect **JID** (jabber identity, f.e. **alice@wonderland.com**).
     There are two types of **JIDs**:
       * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one which is set in your `ejabberd.cfg` file).
-      * **full JID** - this is **bareJID** with online user's resource to uniquely identify user's connection (f.e **alice@wonderland.com/resource**).
+      * **full JID** - this is **bareJID** with online user's resource to uniquely identify user's connection (f.e. **alice@wonderland.com/resource**).
 schemes:
   - http
 basePath: /api
@@ -204,7 +204,7 @@ paths:
       parameters:
         - name: owner
           in: path
-          description: User's JID (f.e alice@wonderland.lit)
+          description: User's JID (f.e. alice@wonderland.lit)
           required: true
           type: string
           format: JID
@@ -233,7 +233,7 @@ paths:
       parameters:
         - name: owner
           in: path
-          description: User's JID (f.e alice@wonderland.lit)
+          description: User's JID (f.e. alice@wonderland.lit)
           required: true
           type: string
         - name: with
@@ -290,7 +290,7 @@ paths:
                 example: "Rabbit hole"
               subject:
                 type: string
-                description: Initial room's subject
+                description: Room's initial subject
                 example: "Magic stuff"
       responses:
         201:
