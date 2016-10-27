@@ -14,7 +14,7 @@
 init(_InitArgs, _LastEvtId, Req) ->
     {ok, Req1, State0} = mongoose_client_api:rest_init(Req, []),
     {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req1, State0),
-    maybe_init(Authorization, Req2, State).
+    maybe_init(Authorization, Req2, State#{id => 1}).
 
 maybe_init(true, Req, #{jid := JID} = State) ->
     SID = {os:timestamp(), self()},
@@ -56,13 +56,13 @@ terminate(_Reson, _Req, State) ->
     end,
     State.
 
-maybe_send_message_event(<<"chat">>, Packet, Timestamp, State) ->
+maybe_send_message_event(<<"chat">>, Packet, Timestamp, #{id := ID} = State) ->
     Data = jiffy:encode(mongoose_client_api_messages:encode(Packet, Timestamp)),
-    Event = #{id => <<"1">>,
-              event => <<"msg">>,
+    Event = #{id => integer_to_binary(ID),
+              event => <<"message">>,
               data => Data
              },
-    {send, Event,  State};
+    {send, Event, State#{id := ID + 1}};
 maybe_send_message_event(_, _, _, State) ->
     {nosend, State}.
 
