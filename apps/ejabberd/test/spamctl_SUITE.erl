@@ -29,7 +29,6 @@ burst_ctl(_C) ->
     #{decision := ok} = State3,
     State4 = proc_msgs(State3, 1),
     #{decision := excess} = State4,
-    ct:pal("State4: ~p~n", [State4]),
     State5 = proc_msgs(State4, 1),
     #{decision := excess} = State5,
     timer:sleep(2100),
@@ -40,8 +39,11 @@ burst_ctl(_C) ->
 proc_msgs(State, 0) ->
     State;
 proc_msgs(State, Y) ->
-    M = {xmlel,<<"message">>,[{<<"type">>,<<"chat">>},{<<"to">>,<<"bob37.76184@localhost">>}],
-        [{xmlel,<<"body">>,[],[{xmlcdata,<<Y/integer>>}]}]},
+    M = #xmlel{name = <<"message">>,
+               attrs = [{<<"type">>,<<"chat">>},{<<"to">>,<<"bob37.76184@localhost">>}],
+               children = [#xmlel{name = <<"body">>,
+                                  attrs = [],
+                                  children = [{xmlcdata,<<Y/integer>>}]}]},
     NState = case mod_spamctl:control(State, [M]) of
                  {stop, S} -> S;
                  S -> S

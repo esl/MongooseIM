@@ -55,7 +55,7 @@ initialise(#{host := Host} = State) ->
     % add working values used by this module
     ModState = #{rate => 0,
                  decision => ok,
-                 lasttime => now_to_usec()},
+                 lasttime => usec:from_now(os:timestamp())},
     maps:merge(NState, ModState).
 
 control(State, Name, M) ->
@@ -68,7 +68,7 @@ control(State, Name, M) ->
     end.
 
 check_msg(<<"message">>, M, State) ->
-    Now = now_to_usec(),
+    Now = usec:from_now(os:timestamp()),
     Span = maps:get(span, State) * 1000000,
     Lasttime = maps:get(lasttime, State),
     Cycled = Now - Lasttime > Span,
@@ -90,11 +90,6 @@ check_msg_rate(_M, _Now, State) ->
 set_decision(Dec, Now, State) ->
     State#{decision => Dec, lasttime => Now, rate => 0}.
 
--spec now_to_usec() -> non_neg_integer().
-now_to_usec() ->
-    {MSec, Sec, USec} = os:timestamp(),
-    (MSec * 1000000 + Sec) * 1000000 + USec.
-
 cutoff(_State, excess, _From, _To, _Msg) ->
     self() ! {stop, killed_by_spamctl};
 cutoff(State, _, _, _, _) ->
@@ -115,12 +110,11 @@ notify_core(State, excess, From, _To, _Msg) ->
     send_http_notification(maps:get(host, State), C, <<"exceeded message limit">>),
     State.
 
-send_http_notification(Host, Culprit, Message) ->
-    % a shameless Ctrl+C, Ctrl+V from mod_http_notification
+send_http_notification(Host, Culprit, Body) ->
     Path = fix_path(list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH))),
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, ?DEFAULT_POOL_NAME),
     Pool = mongoose_http_client:get_pool(PoolName),
-    Query = <<"culprit=", Culprit/binary, "&message=", Message/binary>>,
+    Query = <<"culprit=", Culprit/binary, "&message=", Body/binary>>,
     ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Culprit, Host]),
     Headers = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
     case mongoose_http_client:post(Pool, Path, Headers, Query) of
@@ -128,7 +122,7 @@ send_http_notification(Host, Culprit, Message) ->
             ok;
         {error, E} ->
             ?ERROR_MSG("Failed to record spam policy violation (~p):~nOffender: ~p, message: ~p~n",
-                [E, Culprit, Message])
+                [E, Culprit, Body])
     end.
 
 
