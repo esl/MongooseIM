@@ -84,8 +84,8 @@ commands() ->
       {args,
        [{host, binary},
         {name, binary},
-        {sender, binary},
-        {message, binary}
+        {from, binary},
+        {body, binary}
        ]},
       {result, ok}],
 

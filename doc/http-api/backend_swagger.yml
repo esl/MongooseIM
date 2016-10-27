@@ -1,8 +1,15 @@
 swagger: '2.0'
 info:
-  version: "0.0.0"
+  version: "1.0.0"
   title: MongooseIM control backend REST API
-  description: This REST API provides similar control functionaly to the `mongooseimctl` command. The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl` though the final API will need to be consistent with the MongooseIM's **command registry**.
+  description: |
+    This REST API provides similar control functionality to the `mongooseimctl` command.
+    The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl`.
+
+    In many cases fields like **username** or **caller** expect **JID** (jabber identity, f.e. **alice@wonderland.com**).
+    There are two types of **JIDs**:
+      * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one which is set in your `ejabberd.cfg` file).
+      * **full JID** - this is **bareJID** with online user's resource to uniquely identify user's connection (f.e. **alice@wonderland.com/resource**).
 schemes:
   - http
 basePath: /api
@@ -10,10 +17,13 @@ consumes:
   - application/json
 produces:
   - application/json
+host: "localhost:8088"
 paths:
   /commands:
     get:
       description: List the available commands for administering MongooseIM.
+      tags:
+        - "commands"
       responses:
         200:
           description: A list of information for all the currently available commands
@@ -37,17 +47,23 @@ paths:
       - $ref: '#/parameters/hostName'
     get:
       description: Retrieve a list of users registered under the given XMPP hostname.
+      tags:
+        - "user management"
       responses:
         200:
           description: A list of users registered under the given XMPP hostname.
           schema:
             title: userList
             type: array
+            example:
+              - "alice@wonderland.com"
+              - "bob@wonderland.com"
             items:
-              title: JID
               type: string
               format: JID
     post:
+      tags:
+        - "user management"
       parameters:
         - name: Credentials
           in: body
@@ -57,10 +73,13 @@ paths:
             title: Credentials
             type: object
             properties:
-              user:
+              username:
+                example: "alice"
                 type: string
               password:
+                example: "makota"
                 type: string
+                format: password
       description: Register a user under the given domain.
       responses:
         201:
@@ -77,19 +96,25 @@ paths:
         required: true
         type: string
     put:
+      tags:
+        - "user management"
       parameters:
         - name: password
           in: body
           description: The new password for the user
           required: true
           schema:
-            title: newpass
-            type: string
+            properties:
+              newpass:
+                type: string
+                format: password
       description: Change the user's password.
       responses:
         204:
           description: Password has been changed
     delete:
+      tags:
+        - "user management"
       description: Cancel a user's registration under the given domain.
       responses:
         204:
@@ -101,16 +126,22 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
     get:
+      tags:
+        - "session management"
       description: Retrieve a list of sessions.
       responses:
         200:
           description: A list of sessions.
           schema:
+            example:
+              - "alice@wonderland.lit/resource"
+              - "bob@wonderland.lit/resource"
             title: userList
             type: array
             items:
               title: JID
               type: string
+              description: "User's full JID"
               format: JID
   /sessions/{XMPPHost}/{username}/{resource}:
     parameters:
@@ -126,6 +157,8 @@ paths:
         required: true
         type: string
     delete:
+      tags:
+        - "session management"
       description: Terminate this session (connection).
       responses:
         204:
@@ -135,38 +168,46 @@ paths:
             type: string
   /messages:
     post:
+      tags:
+        - "one-to-one messages"
       parameters:
-        - name: chatStanza
+        - name: message
           in: body
           description: The chat stanza (with a sender and recipient)
           required: true
           schema:
-            title: chatStanza
+            title: message
             type: object
             properties:
               caller:
                 description: the sender of the message
                 type: string
                 format: JID
+                example: "alice@wonderland.lit"
               to:
                 description: the recipient of the message
                 type: string
                 format: JID
+                example: "rabbit@wonderland.lit"
               body:
                 description: the message text
                 type: string
+                example: "Hi Rabbit!"
       description: Send a chat message from one user to another.
       responses:
         204:
           description: Message was sent
-  /messages/{me}:
+  /messages/{owner}:
     get:
+      tags:
+        - "one-to-one messages"
       parameters:
-        - name: me
+        - name: owner
           in: path
-          description: The user archive in question
+          description: User's JID (f.e. alice@wonderland.lit)
           required: true
           type: string
+          format: JID
         - name: before
           in: query
           description: Messages earlier then the given timestamp (defaults to now)
@@ -177,28 +218,32 @@ paths:
           description: An upper bound on the number of messages to fetch from the archive (defaults to 100)
           required: false
           type: integer
-      description: Retrieve recent message from my archive.
+      description: |
+        Retrieve recent message from my archive.
+        This works only with `mod_mam` enabled.
       responses:
         200:
           description: The messages archived for the given user
           schema:
             $ref: '#/definitions/messageList'
-  /messages/{me}/{with}:
+  /messages/{owner}/{with}:
     get:
+      tags:
+        - "one-to-one messages"
       parameters:
-        - name: me
+        - name: owner
           in: path
-          description: The user archive in question
+          description: User's JID (f.e. alice@wonderland.lit)
           required: true
           type: string
         - name: with
           in: path
-          description: The other party
+          description: The other party's JID
           required: true
           type: string
         - name: before
           in: query
-          description: Messages earlier then the given timestamp (defaults to now)
+          description: Messages earlier then the given timestamp (defaults to now).
           required: false
           type: integer
         - name: limit
@@ -206,7 +251,9 @@ paths:
           description: An upper bound on the number of messages to fetch from the archive (defaults to 100)
           required: false
           type: integer
-      description: Retrieve recent message from archive, only those exchanged with the given contact.
+      description: |
+        Retrieve recent message from archive, only those exchanged with the given contact.
+        This works only with `mod_mam` enabled.
       responses:
         200:
           description: The messages archived for the given user and the other party
@@ -216,6 +263,8 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
     post:
+      tags:
+        - "MUC-light management"
       description: Create a MUC Light room under the given XMPP hostname.
       consumes:
         - application/json
@@ -228,15 +277,21 @@ paths:
             title: roomDetails
             type: object
             properties:
-              creator:
+              owner:
                 type: string
                 format: JID
                 description: The user's JID on whose behalf to create the room
+                example: "alice@wonderland.lit"
               name:
                 type: string
-                description: The name of the room. **NOT** the room's JID. This is the name that goes into the room's configuration.
+                description: |
+                  The name of the room. **NOT** the room's JID.
+                  This is the name that goes into the room's configuration.
+                example: "Rabbit hole"
               subject:
                 type: string
+                description: Room's initial subject
+                example: "Magic stuff"
       responses:
         201:
           description: Room was created
@@ -248,6 +303,8 @@ paths:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
     post:
+      tags:
+        - "MUC-light management"
       description: Invite one user on behalf of another.
       consumes:
         - application/json
@@ -262,18 +319,24 @@ paths:
             properties:
               sender:
                 type: string
+                format: JID
                 description: The inviter's JID
+                example: "alice@wonderland.lit"
               recipient:
                 type: string
+                format: JID
                 description: The invitee's JID
-      responses: 
+                example: "rabbit@wonderland.lit"
+      responses:
         204:
           description: An invite was sent out
   /muc-lights/{XMPPHost}/{roomName}/messages:
     parameters:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
-    put:
+    post:
+      tags:
+        - "MUC-light management"
       description: Send message to the MUC Light room on behalf of a user.
       consumes:
         - application/json
@@ -286,12 +349,16 @@ paths:
             title: chatMessage
             type: object
             properties:
-              sender:
+              from:
                 type: string
+                format: JID
                 description: The sender's JID. Message will be sent on their behalf
+                example: "alice@wonderland.lit"
               body:
                 type: string
+                format: JID
                 description: The message text
+                example: "A test message"
       responses:
         204:
           description: Message was sent to the MUC Light room
@@ -299,13 +366,15 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
     post:
+      tags:
+        - "MUC management"
       description: Create a MUC room under the given XMPP hostname.
       consumes:
         - application/json
       parameters:
         - name: roomDetails
           in: body
-          description: Details for the room to be created
+          description: Details for the room to be created.
           required: true
           schema:
             title: roomDetails
@@ -313,24 +382,26 @@ paths:
             properties:
               name:
                 type: string
+                example: "foo"
                 description: A name for the room (the leading part of the JID)
               owner:
                 type: string
-                description: JID of the room's owner.
+                format: JID
+                example: "alice@wonderland.lit"
               nick:
                 type: string
                 description: A nickname for the owner.
+                example: "my-nick"
       responses:
         201:
-          description: An invite was sent out
-          schema:
-            title: roomName
-            type: string
+          description: A room was created
   /mucs/{XMPPHost}/{roomName}/participants:
     parameters:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
     post:
+      tags:
+        - "MUC management"
       description: Invite one user on behalf of another.
       consumes:
         - application/json
@@ -347,10 +418,12 @@ paths:
                 type: string
                 format: JID
                 description: The inviter's JID
+                example: "alice@wonderland.lit"
               recipient:
                 type: string
                 format: JID
                 description: The invitee's JID
+                example: "alice@wonderland.lit"
               reason:
                 type: string
                 description: Initial text sent along with the invite
@@ -361,7 +434,9 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
-    put:
+    post:
+      tags:
+        - "MUC management"
       description: Send message to the MUC room on behalf of a user.
       consumes:
         - application/json
@@ -374,12 +449,14 @@ paths:
             title: chatMessage
             type: object
             properties:
-              sender:
+              from:
                 type: string
                 description: The sender's JID. Message will be sent on their behalf
+                example: "alice@wonderland.lit"
               body:
                 type: string
                 description: The message text
+                example: "Hello, it's alice"
       responses:
         204:
           description: Message was sent to the MUC room
@@ -393,6 +470,8 @@ paths:
         required: true
         type: string
     delete:
+      tags:
+        - "MUC management"
       description: Kick a user on behalf of one of the room's moderators.
       responses:
         204:
@@ -402,7 +481,7 @@ parameters:
   hostName:
     name: XMPPHost
     in: path
-    description: The XMPP hostname i.e. the later part of a JID
+    description: The XMPP host served by the server.
     required: true
     type: string
     format: hostname
@@ -430,3 +509,4 @@ definitions:
           type: string
         body:
           type: string
+

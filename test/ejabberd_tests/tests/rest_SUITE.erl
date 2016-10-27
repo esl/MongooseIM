@@ -121,7 +121,7 @@ user_can_be_registered_and_removed(_Config) ->
     {?OK, Lusers} = gett(<<"/users/localhost">>),
     assert_inlist(<<"alice@localhost">>, Lusers),
     % create user
-    CrUser = #{user => <<"mike">>, password => <<"nicniema">>},
+    CrUser = #{username => <<"mike">>, password => <<"nicniema">>},
     {?CREATED, _} = post(<<"/users/localhost">>, CrUser),
     {?OK, Lusers1} = gett(<<"/users/localhost">>),
     assert_inlist(<<"mike@localhost">>, Lusers1),
@@ -155,17 +155,17 @@ messages_are_sent_and_received(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {M1, M2} = send_messages(Alice, Bob),
         Res = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_chat_message, [maps:get(msg, M1)], Res),
+        escalus:assert(is_chat_message, [maps:get(body, M1)], Res),
         Res1 = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_chat_message, [maps:get(msg, M2)], Res1)
+        escalus:assert(is_chat_message, [maps:get(body, M2)], Res1)
     end).
 
 send_messages(Alice, Bob) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        M = #{caller => BobJID, to => AliceJID, msg => <<"hello from Bob">>},
+        M = #{caller => BobJID, to => AliceJID, body => <<"hello from Bob">>},
         {?NOCONTENT, _} = post(<<"/messages">>, M),
-        M1 = #{caller => AliceJID, to => BobJID, msg => <<"hello from Alice">>},
+        M1 = #{caller => AliceJID, to => BobJID, body => <<"hello from Alice">>},
         {?NOCONTENT, _} = post(<<"/messages">>, M1),
         {M, M1}.
 

@@ -63,7 +63,7 @@ commands() ->
         %% configured.
         {domain, binary},
         {name, binary},
-        {creator, binary},
+        {owner, binary},
         {subject, binary}
        ]},
       {result, {name, binary}}],
@@ -95,8 +95,8 @@ commands() ->
       {args,
        [{domain, binary},
         {name, binary},
-        {sender, binary},
-        {message, binary}
+        {from, binary},
+        {body, binary}
        ]},
       {result, ok}]
     ].
