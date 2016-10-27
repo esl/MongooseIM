@@ -95,8 +95,8 @@ commands() ->
       {args,
        [{domain, binary},
         {name, binary},
-        {sender, binary},
-        {message, binary}
+        {from, binary},
+        {body, binary}
        ]},
       {result, ok}]
     ].

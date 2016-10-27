@@ -137,8 +137,8 @@ send_message_to_room(Config) ->
         %% XMPP: Get Bob and Kate recieve their affiliation information.
         [ escalus:wait_for_stanza(U) || U <- [Bob, Kate] ],
         %% HTTP: Alice sends a message to the MUC room.
-        Body = #{ sender => escalus_client:short_jid(Alice),
-                  message => Text
+        Body = #{ from => escalus_client:short_jid(Alice),
+                  body => Text
                 },
         {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
         %% XMPP: Both Bob and Kate see the message.
