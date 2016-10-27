@@ -1,4 +1,3 @@
-
 swagger: '2.0'
 info:
   version: "0.1.0"
@@ -15,11 +14,12 @@ info:
 
 basePath: /api
 schemes:
-  - https
+  - http
 produces:
   - application/json
 consumes:
   - application/json
+host: "localhost:8089"
 paths:
   /messages:
     post:
@@ -220,13 +220,24 @@ paths:
         * Erlang/Elixir - https://github.com/inaka/shotgun
       tags:
         - "Server Sent Events"
+      produces:
+        - "text/event-stream"
       responses:
-        200:
-          description: |
-            Opens the connection and waits for Server Sent Events.
+        default:
+          description: "Stream of events sent by the server"
+          examples:
+            - |
+              id: 1
+              event: chat
+              data: {"to":"alice@wonderland.lit","timestamp":1477550892082343,"id":"36891c7f-cd3d-4e90-9295-5f450d66ae09","from":"rabbit@wonderland.lit","body":"Test message over SSE"}
+          schema:
+            type: object
+            x-events:
+              chat:
+                $ref: '#/definitions/RecvMessage'
         403:
           description: |
-            When authenticated user is not allowed get events from the server.
+            When authenticated user is not allowed to read room's deatails.
 
 security:
   - mongoose_basic_auth: []
