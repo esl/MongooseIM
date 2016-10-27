@@ -449,7 +449,7 @@ paths:
             title: chatMessage
             type: object
             properties:
-              sender:
+              from:
                 type: string
                 description: The sender's JID. Message will be sent on their behalf
                 example: "alice@wonderland.lit"
