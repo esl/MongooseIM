@@ -86,6 +86,7 @@ dialyzer
 configure.out
 ejd-redis.conf
 fed*.log
+mim*.log
 node*.log
 quick_compile.log
 .rebar3
