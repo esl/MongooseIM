@@ -13,8 +13,8 @@ echo $(s3_url ${CT_REPORTS})
 mkdir -p ${CT_REPORTS}/small
 mkdir -p ${CT_REPORTS}/big
 
-if [ -d apps/ejabberd/logs ]; then
-	cp -Rp apps/ejabberd/logs/* ${CT_REPORTS}/small
+if [ -d _build/test/logs ]; then
+	cp -Rp _build/test/logs/* ${CT_REPORTS}/small
 fi
 
 CT_REPORT=test.disabled/ejabberd_tests/ct_report
@@ -33,8 +33,8 @@ cat > ${CT_REPORTS}/index.html << EOL
 </html>
 EOL
 
-for dev_node_path in dev/mongooseim_*; do
-	dev_node=$(basename ${dev_node_path})
+for dev_node_path in `find _build -name mongooseim -type d`; do
+	dev_node=$(basename $(dirname $(dirname ${dev_node_path})))
 	now=`date +'%Y-%m-%d_%H.%M.%S'`
 	LOG_DIR=${CT_REPORTS}/big/${dev_node}/${now}/log
 	mkdir -p ${LOG_DIR}
