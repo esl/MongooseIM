@@ -608,7 +608,7 @@ auth_modules(LServer) ->
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- Methods].
 
 ensure_metrics(Host) ->
-    Metrics = [check_password, try_register, does_user_exist],
+    Metrics = [authorize, check_password, try_register, does_user_exist],
     [mongoose_metrics:ensure_metric(Host, ?METRIC(Metric), histogram)
      || Metric <- Metrics].
 
