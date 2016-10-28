@@ -7,7 +7,7 @@ LOG_SILENCE_COVER=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log $(SILENCE
 EJABBERD_DIR = apps/ejabberd
 XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
-DEVNODES = mim1 mim2 fed1
+DEVNODES = mim1 mim2 mim3 fed1
 
 # Top-level targets aka user interface
 
