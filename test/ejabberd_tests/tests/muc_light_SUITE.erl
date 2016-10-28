@@ -5,6 +5,10 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-export([ % muc_light_presence
+  simple_test/1
+]).
+
 -export([ % service
          mismatched_default_config_is_rejected/1,
          removing_users_from_server_triggers_room_destruction/1
@@ -113,6 +117,7 @@
 
 all() ->
     [
+     {group, muc_light_presence},
      {group, service},
      {group, entity},
      {group, occupant},
@@ -123,6 +128,7 @@ all() ->
 
 groups() ->
     [
+     {muc_light_presence, [sequence], [simple_test]},
      {service, [sequence], [
                             mismatched_default_config_is_rejected,
                             removing_users_from_server_triggers_room_destruction
@@ -273,6 +279,20 @@ clear_db() ->
 %%--------------------------------------------------------------------
 %% MUC light tests
 %%--------------------------------------------------------------------
+
+%% ---------------------- MUC Light presences ----------------------
+
+simple_test(Config) ->
+  escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, _Kate) ->
+    logout(Bob),
+    Stanza = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_presence, Stanza)
+                                                           end).
+
+%% MUC Light presence helpers
+logout(User) ->
+  escalus_client:stop(User),
+  timer:sleep(100).
 
 %% ---------------------- Service ----------------------
 
