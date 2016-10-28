@@ -128,3 +128,10 @@ apps/ejabberd/compile_commands.json
 asngen
 _build
 _checkouts
+
+cover_test_preset.log
+get-deps.log
+test.disabled/ejabberd_tests/src/mim_ct_rest.erl
+test.disabled/ejabberd_tests/src/mim_ct_rest_handler.erl
+test.disabled/ejabberd_tests/src/mim_ct_sup.erl
+test_preset.log
