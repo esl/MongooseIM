@@ -947,15 +947,16 @@ process_outgoing_stanza(El, StateData) ->
                                               StateData#state.spamctl_state,
                                               [Name, NewEl]),
     StateData1 = StateData#state{spamctl_state = NewSpamCtlState},
-    case NewSpamCtlState of
+    Dec = maps:get(decision, NewSpamCtlState, ok),
+    case Dec of
         % if decision is anything other then ok we stop the message and call hook to
         % take appropriate action
-        #{decision := ok} ->
+        ok ->
             NewState = process_outgoing_stanza(ToJID, Name, {Attrs, NewEl, FromJID,
                                                StateData1, Server, User}),
             ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
             fsm_next_state(session_established, NewState);
-        #{decision := Dec} ->
+        Dec ->
             ReactSpamState = ejabberd_hooks:run_fold(spamctl_react,
                                                      Server,
                                                      NewSpamCtlState,
