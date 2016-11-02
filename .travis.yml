@@ -58,10 +58,10 @@ notifications:
 
 cache:
         directories:
-                - dialyzer
+                - $HOME/.cache/rebar3
 
 before_cache:
-        - rm -f dialyzer/apps.*
+        - rm -f $HOME/.cache/rebar3/hex
 
 deploy:
   provider: releases
