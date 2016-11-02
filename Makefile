@@ -64,8 +64,6 @@ fake_server.pem:
 fake_dh_server.pem:
 	openssl dhparam -outform PEM -out fake_dh_server.pem 1024
 
-include dialyzer.mk
-
 xeplist: escript
 	escript $(XEP_TOOL)/xep_tool.escript markdown $(EJD_EBIN)
 

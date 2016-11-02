@@ -156,8 +156,9 @@ run_tests() {
 }
 
 if [ $PRESET == "dialyzer_only" ]; then
-	make dialyzer
-
+	tools/print-dots.sh start
+	./rebar3 dialyzer
+	tools/print-dots.sh stop
 else
 	run_tests
 fi
