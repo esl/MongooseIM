@@ -257,6 +257,8 @@ const(N) -> fun(_) -> N end.
 
 given_hooks_started() ->
     error_logger:tty(false),
+    Fun = fun(all_metrics_are_global) -> false end,
+    given_module(ejabberd_config, get_local_option, Fun),
     ejabberd_hooks:start_link().
 
 given_hook_added(HookName, ModName, FunName, Prio) ->
