@@ -27,6 +27,8 @@ init_per_suite(C) ->
 end_per_suite(_C) ->
     mnesia:stop(),
     mnesia:delete_schema([node()]),
+    application:stop(exometer),
+    application:stop(exometer_core),
     ok.
 
 basic_routing(_C) ->

@@ -30,7 +30,8 @@ init_per_suite(C) ->
     C.
 
 end_per_suite(_C) ->
-    application:stop(exometer).
+    application:stop(exometer),
+    application:stop(exometer_core).
 
 a_fun_can_be_added(_) ->
     given_hooks_started(),

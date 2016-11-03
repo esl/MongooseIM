@@ -74,6 +74,8 @@ end_per_testcase(codec_calls, Config) ->
     mnesia:stop(),
     mongoose_subhosts:stop(),
     mnesia:delete_schema([node()]),
+    application:stop(exometer),
+    application:stop(exometer_core),
     Config;
 end_per_testcase(_, Config) ->
     Config.
