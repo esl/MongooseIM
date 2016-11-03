@@ -12,7 +12,7 @@
 {suites, "tests", mongoose_sanity_checks_SUITE}.
 
 {suites, "tests", adhoc_SUITE}.
-{suites, "tests", amp_SUITE}.
+{suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.
 {suites, "tests", bosh_SUITE}.
 {suites, "tests", carboncopy_SUITE}.
