@@ -38,11 +38,11 @@ current_config_path(Node, Config) ->
 backup_config_path(Node, Config) ->
     filename:join([cwd(Node, Config), "etc","ejabberd.cfg.bak"]).
 
-config_template_path(Node, Config) ->
-    filename:join([cwd(Node, Config), "..", "..", "rel", "files", "ejabberd.cfg"]).
+config_template_path() ->
+    filename:join(["..", "..", "..", "..", "rel", "files", "ejabberd.cfg"]).
 
-config_vars_path(Node, Config, File) ->
-    filename:join([cwd(Node, Config), "..", "..", "rel", File]).
+config_vars_path(File) ->
+    filename:join(["..", "..", "..", "..", "rel", File]).
 
 ctl_path(Node, Config) ->
     filename:join([cwd(Node, Config), "bin", "mongooseimctl"]).
@@ -149,12 +149,10 @@ modify_config_file(CfgVarsToChange, Config) ->
       Value :: string().
 modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
     CurrentCfgPath = current_config_path(Node, Config),
-    {ok, CfgTemplate} = ejabberd_node_utils:call_fun(Node, file, read_file,
-                                                     [config_template_path(Node, Config)]),
-    CfgVarsPath = config_vars_path(Node, Config, "vars.config"),
-    {ok, DefaultVars} = ejabberd_node_utils:call_fun(Node, file, consult, [CfgVarsPath]),
-    {ok, NodeVars} = ejabberd_node_utils:call_fun(Node, file, consult,
-                                                  [config_vars_path(Node, Config, VarsFile)]),
+    {ok, CfgTemplate} = file:read_file(config_template_path()),
+    CfgVarsPath = config_vars_path("vars.config"),
+    {ok, DefaultVars} = file:consult(CfgVarsPath),
+    {ok, NodeVars} = file:consult(config_vars_path(VarsFile)),
     PresetVars = case proplists:get_value(preset, Config) of
                      undefined ->
                          [];
