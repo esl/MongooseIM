@@ -43,13 +43,13 @@ add_os_info(Host) ->
 		    children = [#xmlcdata{content = os_info()}]}];
 	_ ->
 	    []
-    end.   
+    end.
 
 -spec mongoose_info() -> {binary(), binary()}.
 mongoose_info() ->
-    {ok, Version} = application:get_key(mongooseim, vsn),
-    {ok, Name} = application:get_key(mongooseim, description),
-    {list_to_binary(Name), list_to_binary(Version)}.
+    {ok, EjdMimVsn} = application:get_key(ejabberd, vsn), %returns 2.1.8+mim-*
+    Version = string:sub_string(EjdMimVsn, 11),
+    {<<"MongooseIM">>, list_to_binary(Version)}.
 
 -spec os_info() -> binary().
 os_info() ->
