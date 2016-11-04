@@ -5,7 +5,7 @@ info:
   title: "MongooseIM's client REST API"
   description: |
     This API describes how to use MongooseIM features over REST API.
-    Users are represented by **bare JIDs** (Jaber Identifiers, example **alice@wonderland.com**).
+    Users are represented by **bare JIDs** (Jabber Identifiers, example **alice@wonderland.com**).
     This allows to integrate **REST API** users with the regular **XMPP** users.
     All the requests require authentication, currently the only supported method is **Basic Auth**.
     Thanks to the authentication the server always knows
@@ -36,7 +36,7 @@ paths:
           schema:
             $ref: '#/definitions/ResourceID'
     get:
-      description: Gets all recent messages from the archive.
+      description: Gets all recent messages from all users from the archive.
       tags:
         - "One-to-one messages"
       parameters:
@@ -54,7 +54,7 @@ paths:
   /messages/{with}:
     get:
       description: |
-        Gets recent messages with specified user from the archive.
+        Gets all recent messages from specified user from the archive.
       tags:
         - "One-to-one messages"
       parameters:
@@ -92,7 +92,7 @@ paths:
           schema:
             $ref: '#/definitions/ResourceID'
     get:
-      description: "Returns list of room to which user is connected."
+      description: "Returns list of room to which user has subscribed."
       tags:
         - "Rooms"
       responses:
@@ -116,7 +116,7 @@ paths:
           schema:
             $ref: '#/definitions/RoomDetails'
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
             When authenticated user is not allowed to read room's deatails.
@@ -137,7 +137,7 @@ paths:
         204:
           description: User was successfully added to the room.
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
             When authenticated user is not allowed to add users to the room.
@@ -160,9 +160,9 @@ paths:
             The JID (ex: alice@wonderalnd.com) of user to remove
       responses:
         204:
-          description: User was successfully removed form the room.
+          description: User was successfully removed from the room.
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
             When authenticated user is not allowed to add users to the room.
@@ -182,16 +182,16 @@ paths:
             $ref: '#/definitions/SendRoomMessage'
       responses:
         200:
-          description: Message was sent, id retunred in body.
+          description: Message was sent, ID returned in body.
           schema:
             $ref: "#/definitions/ResourceID"
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
             When authenticated user is not allowed to send message to the room.
     get:
-      description: Get room's messages from the archive.
+      description: Gets room's messages from the archive.
       tags:
         - "Rooms"
         - "Room messages"
@@ -200,14 +200,14 @@ paths:
         - $ref: '#/parameters/beforeGuard'
       responses:
         200:
-          description: List of messages in the room's archive.
+          description: Lists of messages in the room's archive.
           schema:
             $ref: "#/definitions/RecvRoomMessage"
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
-            When authenticated user is not allowed to read room's deatails.
+            When authenticated user is not allowed to read room's details.
 security:
   - mongoose_basic_auth: []
 securityDefinitions:
@@ -293,7 +293,7 @@ definitions:
     properties:
       id:
         type: string
-        description: Room's id.
+        description: Room's ID.
       subject:
         $ref: '#/definitions/RoomSubject'
       name:
