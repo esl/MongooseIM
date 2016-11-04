@@ -99,7 +99,10 @@ paths:
         200:
           description: "List of rooms."
           schema:
-            $ref: '#/definitions/RoomShortDetails'
+            title: Rooms
+            type: array
+            items:
+              $ref: '#/definitions/RoomShortDetails'
   /rooms/{id}:
     get:
       description: "Returns room's details."
@@ -246,40 +249,42 @@ definitions:
       to:
         $ref: '#/definitions/JID'
       body:
+        example: "Hello Alice!"
         type: string
   RecvMessage:
     properties:
       to:
         type: string
+        example: 'alice@wonderland.lit'
         description: The message recipient's bare JID.
       from:
         type: string
+        example: 'rabbit@wonderland.lit'
         description: The message sender's bare JID.
       timestamp:
         type: integer
         format: int64
         description: Unix timestamp in milliseconds when the message was sent.
+        example: 1478258324908
       id:
         type: string
+        example: "a5b13c5a-48d0-4f34-95d3-01e31bad742a"
       body:
         type: string
         description: Message content.
+        example: "Hello Alice!"
   CreateRoomBody:
     properties:
       subject:
-        type: string
-        description: The room's initial subject.
+        $ref: '#/definitions/RoomSubject'
       name:
-        type: string
-        description: The room's name.
+        $ref: '#/definitions/RoomName'
   RoomDetails:
     properties:
       subject:
-        type: string
-        description: Current room's subject.
+        $ref: '#/definitions/RoomSubject'
       name:
-        type: string
-        description: Room's name.
+        $ref: '#/definitions/RoomName'
       participants:
         type: array
         items:
@@ -290,11 +295,9 @@ definitions:
         type: string
         description: Room's id.
       subject:
-        type: string
-        description: Current room's subject.
+        $ref: '#/definitions/RoomSubject'
       name:
-        type: string
-        description: Room's name.
+        $ref: '#/definitions/RoomName'
   Participant:
     properties:
       user:
@@ -351,7 +354,16 @@ definitions:
           Present only if the type is "affiliation".
   JID:
     type: string
+    example: "alice@wonderland.lit"
     description: |
       This is user's JID (Jabber ID) which consist of username and server.
       Example: alice@wonderland.com
+  RoomSubject:
+    type: string
+    example: Only important things
+    description: The subject of the room
+  RoomName:
+    type: string
+    example: Important room
+    description: The room's name
 
