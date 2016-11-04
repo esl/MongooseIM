@@ -32,7 +32,6 @@ Writes rel/configure.vars.config which can be used as Reltool input.
 
     with-none           include no 3rd party drivers
     with-all            include all drivers
-    with-cassandra      include cassandra driver
     with-mysql          include mysql driver
     with-odbc           include standard ODBC driver shipped with Erlang/OTP
     with-pgsql          include pgsql driver

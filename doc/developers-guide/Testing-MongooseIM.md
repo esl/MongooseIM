@@ -68,9 +68,8 @@ giving good overview of what does and what doesn't work in the system,
 without repeating tests.
 Why would we want to ever repeat tests?
 In order to test different backends of the same parts of the system.
-E.g. a message archive might store messages in MySQL/PostgreSQL or Riak KV or Cassandra - the
-glue code between the XMPP logic module and database is different
-in each case,
+E.g. a message archive might store messages in MySQL/PostgreSQL or Riak KV
+- the glue code between the XMPP logic module and database is different in each case,
 therefore repeating the same tests with different databases is necessary
 to guarantee a truthful code coverage measurement.
 

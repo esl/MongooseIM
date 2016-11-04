@@ -49,13 +49,4 @@ elif [ $DB = 'riak' ]; then
         --name=mongooseim-riak riak
     tools/wait_for_service.sh mongooseim-riak 8098 || docker logs riak
     tools/setup_riak
-
-elif [ $DB = 'cassandra' ]; then
-    # Stop not-running container
-    docker top mongooseim-cassandra || docker rm -f mongooseim-cassandra || echo "Just creating new container"
-    # CASSANDRA_NUM_TOKENS=1 disables vnodes
-    docker run -d -p 9042:9042 -e MAX_HEAP_SIZE=128M -e HEAP_NEWSIZE=64M -e CASSANDRA_NUM_TOKENS=1 --name=mongooseim-cassandra cassandra:${CASSANDRA_VERSION} || echo "Already running"
-    tools/wait_for_service.sh mongooseim-cassandra 9042 || docker logs mongooseim-cassandra
-    # Import data using stdin
-    cat "apps/ejabberd/priv/cassandra.cql" | docker exec -i mongooseim-cassandra sh -c 'exec cqlsh localhost'
 fi

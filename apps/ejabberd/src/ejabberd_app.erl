@@ -61,7 +61,6 @@ start(normal, _Args) ->
     ejabberd_rdbms:start(),
     mongoose_riak:start(),
     mongoose_http_client:start(),
-    mongoose_cassandra:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),
     %% Profiling

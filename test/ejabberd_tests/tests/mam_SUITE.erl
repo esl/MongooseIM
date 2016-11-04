@@ -656,8 +656,6 @@ mam_modules() ->
     [mod_mam,
      mod_mam_muc,
      mod_mam_con_ca_arch,
-     mod_mam_ca_arch,
-     mod_mam_muc_ca_arch,
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
      mod_mam_con_ca,

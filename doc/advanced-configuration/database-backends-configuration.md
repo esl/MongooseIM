@@ -42,10 +42,6 @@ It offers high availability and fault tolerance which is excatly what you need f
 Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
 Erlang Solutions commercially supports Riak KV.
 
-* Cassandra - since it aims to store large amounts of data, in comparison to some ODBC databases, it's good alternative for
- the`message archive` which is usually the biggest persistent component in MongooseIM.
-
-
 # RDBMS/ODBC
 
 ## MySQL
@@ -272,23 +268,6 @@ for storing above persitent date and it will activate them.
 
 You should also configure Riak in `ejabberd.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
-
-## Cassandra
-
-**Can be used for:**
-
-* MAM (Message Archive Management)
-
-**Setup**
-
-The schema files can be found in the `apps/ejabberd/priv` directory. The default
-schema is defined in the `cassandra.cql` file.
-
-For example, you can use the following command to apply schema on localhost:
-
-```
-cqlsh localhost 9160 -f cassandra.cql
-```
 
 ## Redis
 
