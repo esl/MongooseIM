@@ -15,7 +15,6 @@
                   cowboy,
                   crypto,
                   cuesport,
-                  ejabberd,
                   exml,
                   exometer,
                   exometer_core,
