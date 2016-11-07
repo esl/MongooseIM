@@ -1,7 +1,7 @@
 # MongooseIM platform
 
 [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/)
-[![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
+[![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/476/badge)](https://bestpractices.coreinfrastructure.org/projects/476) [![xmpp.net score](https://xmpp.net/badge.php?domain=erlang-solutions.com)](https://xmpp.net/result.php?domain=erlang-solutions.com&amp;type=client)
 
 ============
 <img align="left" src="doc/MongooseIM_logo.png" alt="MongooseIM platform's logo" />
