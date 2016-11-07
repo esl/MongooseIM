@@ -14,6 +14,8 @@ Its home on GitHub is at http://github.com/esl/MongooseIM.
 
 The product page is available at https://www.erlang-solutions.com/products/mongooseim.html
 
+<img src="doc/mongoose_top_banner_800.jpeg"</img>
+
 Documentation
 -------------
 
