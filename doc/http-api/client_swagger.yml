@@ -1,10 +1,11 @@
+
 swagger: '2.0'
 info:
   version: "0.1.0"
   title: "MongooseIM's client REST API"
   description: |
-    This API described alternate, to XMPP way of using MongooseIM.
-    Users are represented by **bare JIDs** (Jaber Identifiers, example **alice@wonderland.com**).
+    This API describes how to use MongooseIM features over REST API.
+    Users are represented by **bare JIDs** (Jabber Identifiers, example **alice@wonderland.com**).
     This allows to integrate **REST API** users with the regular **XMPP** users.
     All the requests require authentication, currently the only supported method is **Basic Auth**.
     Thanks to the authentication the server always knows
@@ -20,6 +21,8 @@ paths:
   /messages:
     post:
       description: Sends messages
+      tags:
+        - "One-to-one messages"
       parameters:
         - in: body
           name: message
@@ -33,7 +36,9 @@ paths:
           schema:
             $ref: '#/definitions/ResourceID'
     get:
-      description: Gets all recent messages from the archive.
+      description: Gets all recent messages from all users from the archive.
+      tags:
+        - "One-to-one messages"
       parameters:
         - $ref: '#/parameters/messagesLimit'
         - $ref: '#/parameters/beforeGuard'
@@ -45,10 +50,13 @@ paths:
             type: array
             items:
               $ref: '#/definitions/RecvMessage'
+
   /messages/{with}:
     get:
       description: |
-        Gets recent messages with specified user from the archive.
+        Gets all recent messages from specified user from the archive.
+      tags:
+        - "One-to-one messages"
       parameters:
         - name: with
           type: string
@@ -70,6 +78,8 @@ paths:
   /rooms:
     post:
       description: Creates a room.
+      tags:
+        - "Rooms"
       parameters:
         - in: body
           name: room
@@ -82,15 +92,22 @@ paths:
           schema:
             $ref: '#/definitions/ResourceID'
     get:
-      description: "Returns list of room to which user is connected."
+      description: "Returns list of room to which user has subscribed."
+      tags:
+        - "Rooms"
       responses:
         200:
           description: "List of rooms."
           schema:
-            $ref: '#/definitions/RoomShortDetails'
+            title: Rooms
+            type: array
+            items:
+              $ref: '#/definitions/RoomShortDetails'
   /rooms/{id}:
     get:
       description: "Returns room's details."
+      tags:
+        - "Rooms"
       parameters:
         - $ref: '#/parameters/roomID'
       responses:
@@ -99,13 +116,16 @@ paths:
           schema:
             $ref: '#/definitions/RoomDetails'
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
             When authenticated user is not allowed to read room's deatails.
   /rooms/{id}/users:
     post:
       description: "Adds a user to a room."
+      tags:
+        - "Rooms"
+        - "Room participants"
       parameters:
         - $ref: '#/parameters/roomID'
         - in: body
@@ -117,7 +137,7 @@ paths:
         204:
           description: User was successfully added to the room.
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
             When authenticated user is not allowed to add users to the room.
@@ -127,6 +147,9 @@ paths:
         Removes a user from the room.
         Owner can remove any user.
         Occupant can also use this method, but can only remove itself.
+      tags:
+        - "Rooms"
+        - "Room participants"
       parameters:
         - $ref: '#/parameters/roomID'
         - in: path
@@ -137,9 +160,9 @@ paths:
             The JID (ex: alice@wonderalnd.com) of user to remove
       responses:
         204:
-          description: User was successfully removed form the room.
+          description: User was successfully removed from the room.
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
             When authenticated user is not allowed to add users to the room.
@@ -148,6 +171,9 @@ paths:
       - $ref: '#/parameters/roomID'
     post:
       description: Send a message to a room.
+      tags:
+        - "Rooms"
+        - "Room messages"
       parameters:
         - in: body
           name: message
@@ -156,29 +182,32 @@ paths:
             $ref: '#/definitions/SendRoomMessage'
       responses:
         200:
-          description: Message was sent, id retunred in body.
+          description: Message was sent, ID returned in body.
           schema:
             $ref: "#/definitions/ResourceID"
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
             When authenticated user is not allowed to send message to the room.
     get:
-      description: Get room's messages from the archive.
+      description: Gets room's messages from the archive.
+      tags:
+        - "Rooms"
+        - "Room messages"
       parameters:
         - $ref: '#/parameters/messagesLimit'
         - $ref: '#/parameters/beforeGuard'
       responses:
         200:
-          description: List of messages in the room's archive.
+          description: Lists of messages in the room's archive.
           schema:
             $ref: "#/definitions/RecvRoomMessage"
         404:
-          description: When there is no room with given id.
+          description: When there is no room with given ID.
         403:
           description: |
-            When authenticated user is not allowed to read room's deatails.
+            When authenticated user is not allowed to read room's details.
 security:
   - mongoose_basic_auth: []
 securityDefinitions:
@@ -220,40 +249,42 @@ definitions:
       to:
         $ref: '#/definitions/JID'
       body:
+        example: "Hello Alice!"
         type: string
   RecvMessage:
     properties:
       to:
         type: string
+        example: 'alice@wonderland.lit'
         description: The message recipient's bare JID.
       from:
         type: string
+        example: 'rabbit@wonderland.lit'
         description: The message sender's bare JID.
       timestamp:
         type: integer
         format: int64
         description: Unix timestamp in milliseconds when the message was sent.
+        example: 1478258324908
       id:
         type: string
+        example: "a5b13c5a-48d0-4f34-95d3-01e31bad742a"
       body:
         type: string
         description: Message content.
+        example: "Hello Alice!"
   CreateRoomBody:
     properties:
       subject:
-        type: string
-        description: The room's initial subject.
+        $ref: '#/definitions/RoomSubject'
       name:
-        type: string
-        description: The room's name.
+        $ref: '#/definitions/RoomName'
   RoomDetails:
     properties:
       subject:
-        type: string
-        description: Current room's subject.
+        $ref: '#/definitions/RoomSubject'
       name:
-        type: string
-        description: Room's name.
+        $ref: '#/definitions/RoomName'
       participants:
         type: array
         items:
@@ -262,13 +293,11 @@ definitions:
     properties:
       id:
         type: string
-        description: Room's id.
+        description: Room's ID.
       subject:
-        type: string
-        description: Current room's subject.
+        $ref: '#/definitions/RoomSubject'
       name:
-        type: string
-        description: Room's name.
+        $ref: '#/definitions/RoomName'
   Participant:
     properties:
       user:
@@ -325,7 +354,16 @@ definitions:
           Present only if the type is "affiliation".
   JID:
     type: string
+    example: "alice@wonderland.lit"
     description: |
       This is user's JID (Jabber ID) which consist of username and server.
       Example: alice@wonderland.com
+  RoomSubject:
+    type: string
+    example: Only important things
+    description: The subject of the room
+  RoomName:
+    type: string
+    example: Important room
+    description: The room's name
 
