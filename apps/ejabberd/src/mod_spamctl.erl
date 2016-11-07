@@ -90,8 +90,9 @@ check_msg_rate(_M, _Now, State) ->
 set_decision(Dec, Now, State) ->
     State#{decision => Dec, lasttime => Now, rate => 0}.
 
-cutoff(_State, excess, _From, _To, _Msg) ->
-    self() ! {stop, killed_by_spamctl};
+cutoff(State, excess, _From, _To, _Msg) ->
+    self() ! {stop, killed_by_spamctl},
+    State;
 cutoff(State, _, _, _, _) ->
     State.
 
