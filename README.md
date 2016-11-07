@@ -33,12 +33,10 @@ to the `doc/` directory, and add a link to your document in `doc/README.md`.
 Download MongooseIM server packages
 -----------------------------------
 
-For a quick start just
-[download the pre-built package](https://www.erlang-solutions.com/resources/download.html)
-that suits your platform: Ubuntu, Debian, CentOS, and macOS.
-
-An _experimental_ Docker image exists on: https://registry.hub.docker.com/u/mongooseim/mongooseim-docker/
-You can contribute on: https://github.com/ppikula/mongooseim-docker
+For a quick start just download:
+* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html)
+that suits your platform (Ubuntu, Debian, CentOS, and macOS)
+* The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): https://hub.docker.com/r/mongooseim/mongooseim/ (source code repository: https://github.com/esl/mongooseim-docker)
 
 Public testing
 --------------
