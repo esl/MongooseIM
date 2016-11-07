@@ -109,17 +109,17 @@ We recommend following client libraries:
 Want to get in touch with us?
 -----------------------------
 
-In case of any suggestions, questions or any thoughts on this project,
-please feel free to contact us by the standard GitHub ways or at
-<a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>.
-
-Want to discuss MongooseIM, problems with your deployement or anything else?
-Try: <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
+In case of any suggestions, questions or any thoughts on your projects using MongooseIM platform,
+please feel free to contact us by the standard [GitHub issues](https://github.com/esl/MongooseIM/issues), by emailing
+<a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>, or erlangcentral forums at <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
 
 Announcements mailing-list
 --------------------------
 
-We have set up a new public mailing-list for all announcements of major events happening on the MongooseIM front. Expect one or two emails per month, the archives are free and open. We highly encourage you to subscribe here: https://groups.google.com/d/forum/mongooseim-announce
+We have set up a new public mailing-list for all announcements of major events happening on the MongooseIM front. Expect one or two emails per month, the archives are free and open.
+
+We highly encourage you to subscribe here: https://groups.google.com/d/forum/mongooseim-announce
+
 Click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message".
 
 Social media
