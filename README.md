@@ -23,29 +23,6 @@ An _experimental_ Docker image exists on: https://registry.hub.docker.com/u/mong
 You can contribute on: https://github.com/ppikula/mongooseim-docker
 
 
-Main differences from the parent project
-----------------------------------------
-This project began its life as a fork of
-[ejabberd v.2.1.8](https://github.com/processone/ejabberd) back in 2011, and later underwent some major cleanup, refactorization and optimization.
-
-Major steps performed at that time:
-*   bringing the project source tree to compliance with OTP project structure
-    recommendations,
-*   swapping `autotools` for the Erlang community-standard build tool `rebar`,
-*   removal of obsolete and/or rarely used modules to reduce maintenance
-    burden,
-*   reduction of runtime memory consumption by refactoring the code
-    to use Erlang's binary data type for string manipulation and storage
-    instead of operating on linked lists of characters,
-*   functional test coverage of the system according to corresponding
-    RFCs and XEPs.
-
-Key differences today:
-*   massive scalability
-*   code quality, through extensive refactoring, substantial optimisations, and continuous integration
-*   unique version, fully open source, fully open standards, innovations contributed to the XSF
-*   professional support, and flexible customer service
-
 Documentation
 -------------
 
@@ -67,30 +44,6 @@ in `doc/ejabberd-2.1.8-OLD`.
 
 Features and supported standards
 --------------------------------
-
-*   XMPP Core: [RFC 3920](https://tools.ietf.org/html/rfc3920),
-    [RFC 6120](https://tools.ietf.org/html/rfc6120)
-*   Client connections over TCP (with TLS/STARTTLS available), Websockets,
-    and HTTP(S) (BOSH).
-*   Configurable database backends: MySQL, Postgres, generic ODBC. Mnesia
-    and Redis for transient data.
-*   Supports XEPs:
-
-|||||
-|-------------|-------------|-------------|-------------|
-|[XEP-0012: Last Activity](http://www.xmpp.org/extensions/xep-0012.html) | [XEP-0016: Privacy Lists](http://www.xmpp.org/extensions/xep-0016.html) | [XEP-0018: Invisible Presence](http://www.xmpp.org/extensions/xep-0018.html) | [XEP-0022: Message Events](http://www.xmpp.org/extensions/xep-0022.html) |
-[XEP-0023: Message Expiration](http://www.xmpp.org/extensions/xep-0023.html) | [XEP-0030: Service Discovery](http://www.xmpp.org/extensions/xep-0030.html) | [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/attic/xep-0045-1.25.html) | [XEP-0049: Private XML Storage](http://www.xmpp.org/extensions/xep-0049.html) |
-[XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/attic/xep-0050-1.2.html) | [XEP-0054: vcard-temp](http://www.xmpp.org/extensions/xep-0054.html) | [XEP-0055: Jabber Search](http://www.xmpp.org/extensions/xep-0055.html) | [XEP-0059: Result Set Management](http://www.xmpp.org/extensions/xep-0059.html) |
-[XEP-0060: Publish-Subscribe](http://xmpp.org/extensions/attic/xep-0060-1.13-1.html) | [XEP-0068: Field Standardization for Data Forms](http://www.xmpp.org/extensions/xep-0068.html) | [XEP-0077: In-Band Registration](http://www.xmpp.org/extensions/xep-0077.html) | [XEP-0078: Non-SASL Authentication](http://www.xmpp.org/extensions/xep-0078.html) |
-[XEP-0079: Advanced Message Processing](http://www.xmpp.org/extensions/xep-0079.html) | [XEP-0082: XMPP Date and Time Profiles](http://www.xmpp.org/extensions/xep-0082.html) | [XEP-0083: Nested Roster Groups](http://www.xmpp.org/extensions/xep-0083.html) | [XEP-0085: Chat State Notifications](http://www.xmpp.org/extensions/xep-0085.html) |
-[XEP-0086: Error Condition Mappings](http://www.xmpp.org/extensions/xep-0086.html) | [XEP-0092: Software Version](http://www.xmpp.org/extensions/xep-0092.html) | [XEP-0093: Roster Item Exchange](http://www.xmpp.org/extensions/xep-0093.html) | [XEP-0114: Jabber Component Protocol](http://www.xmpp.org/extensions/xep-0114.html) |
-[XEP-0115: Entity Capabilities](http://www.xmpp.org/extensions/xep-0115.html) | [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://www.xmpp.org/extensions/xep-0124.html) | [XEP-0126: Invisibility](http://www.xmpp.org/extensions/xep-0126.html) | [XEP-0138: Stream Compression](http://www.xmpp.org/extensions/xep-0138.html) |
-[XEP-0157: Contact Addresses for XMPP Services](http://www.xmpp.org/extensions/xep-0157.html) | [XEP-0160: Best Practices for Handling Offline Messages](http://www.xmpp.org/extensions/xep-0160.html) | [XEP-0163: Personal Eventing Protocol](http://www.xmpp.org/extensions/xep-0163.html) | [XEP-0175: Best Practices for Use of SASL ANONYMOUS](http://www.xmpp.org/extensions/xep-0175.html) |
-[XEP-0185: Dialback Key Generation and Validation](http://www.xmpp.org/extensions/xep-0185.html) | [XEP-0191: Blocking Command](http://www.xmpp.org/extensions/xep-0191.html) | [XEP-0198: Stream Management](http://xmpp.org/extensions/attic/xep-0198-1.3.html) | [XEP-0199: XMPP Ping](http://www.xmpp.org/extensions/xep-0199.html) |
-[XEP-0202: Entity Time](http://www.xmpp.org/extensions/xep-0202.html) | [XEP-0206: XMPP Over BOSH](http://www.xmpp.org/extensions/xep-0206.html) | [XEP-0212: XMPP Basic Server 2008](http://www.xmpp.org/extensions/xep-0212.html) | [XEP-0237: Roster Versioning](http://www.xmpp.org/extensions/xep-0237.html) |
-[XEP-0248: PubSub Collection Nodes](http://www.xmpp.org/extensions/xep-0248.html) | [XEP-0279: Server IP Check](http://www.xmpp.org/extensions/xep-0279.html) | [XEP-0280: Message Carbons](http://xmpp.org/extensions/attic/xep-0280-0.10.html) | [XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.2.html) |
-[XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.3.html) | [XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.4.1.html) | [XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.5.html) | [XEP-0352: Client State Indication](http://www.xmpp.org/extensions/xep-0352.html) |
-
 
 How to build
 ------------
@@ -153,35 +106,6 @@ How to build
 
         $ bin/mongooseim live
 
-    There's also a tool called `mongooseimctl` allowing you to perform some
-    operations on a running instance, e.g.:
-
-        $ bin/mongooseimctl status
-        MongooseIM node mongooseim@localhost:
-          operating system pid: 86026
-          Erlang VM status: started (of: starting | started | stopping)
-          boot script status: started
-          version: 1.6.2-61-g48b8332
-          uptime: 1:12:46
-          logs:
-            log/ejabberd.log
-
-4.  Building the testing target and running tests.
-
-    For testing purposes there's a different make target available:
-
-        $ make devrel
-
-    which will generate releases in `$REPO/dev/` and prepare
-    them for testing and generating coverage reports.
-
-    To run the tests (from project's root directory, i.e. `$REPO`):
-
-        $ dev/mongooseim_node1/bin/mongooseim start
-        $ dev/mongooseim_node2/bin/mongooseim start
-        $ make quicktest
-
-    The test results will show up in the console`.
 
 
 Test suite
