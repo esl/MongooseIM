@@ -102,7 +102,7 @@ meck_db(mysql) ->
     meck:expect(p1_mysql_conn, start, fun(_, _, _, _, _, _) -> {ok, self()} end),
     meck:expect(p1_mysql_conn, squery,
                fun(_Ref, _Query, _Pid, _Options) ->
-                       {data, {mysql_result, [], [], 0, ""}}
+                       {data, {p1_mysql_result, [], [], 0, ""}}
                end);
 meck_db(pgsql) ->
     meck:new(pgsql, [no_link]),
