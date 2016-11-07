@@ -1,12 +1,14 @@
-MongooseIM  [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/)
+# MongooseIM platform
+
+[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/)
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
 ============
 <img align="left" src="doc/MongooseIM_logo.png"</img>
 
-MongooseIM is Erlang Solutions' robust and efficient XMPP platform aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM).
+MongooseIM is Erlang Solutions' robust and efficient XMPP platform aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
 
-MongooseIM can accept client sessions over vanilla XMPP, Websockets, and HTTP long-polling (a.k.a. BOSH).
+The MongooseIM platform comes with server-side components and client libraries. We provide a test suite and a monitoring server. We recommand third-party, open source client libraries for XMPP and REST API.
 
 Its home on GitHub is at http://github.com/esl/MongooseIM.
 
@@ -45,9 +47,14 @@ Public testing
 Check out our test results:
 * Continuous integration: https://travis-ci.org/esl/MongooseIM
 * Code coverage: https://coveralls.io/github/esl/MongooseIM
+* Stay tuned... more soon!
 
 MongooseIM platform components
 ------------------------------
+
+### WombatOAM
+
+[WombatOAM]() is a powerful monitoring platform that comes with specific MongooseIM plugins.
 
 ### Test suite
 
@@ -74,6 +81,24 @@ It is probable that we will offer:
 * Icicle: ICE, STUN/TRUN server
 * Platypus: a push notification server
 Please contact us!
+
+### Platform table
+
+<table>
+  <tr>
+    <th>Client libraries</th>
+    <td align="center">XMPP:<br/>XMPPFramework/Smack</td>
+    <td align="center">REST API:<br/>Jayme/Retrofit</td>
+  </tr>
+  <tr>
+    <th>Server</th>
+    <td colspan="2" align="center">MongooseIM</td>
+  </tr>
+  <tr>
+    <th>Monitoring</th>
+    <td colspan="2" align="center">WombatOAM</td>
+  </tr>
+</table>
 
 Want to get in touch with us?
 -----------------------------
