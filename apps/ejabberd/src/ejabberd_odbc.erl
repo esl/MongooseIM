@@ -597,10 +597,8 @@ sql_query_internal(Query) ->
                                              ?QUERY_TIMEOUT));
               mysql ->
                   ?DEBUG("MySQL, Send query~n~p~n", [Query]),
-                  R = mysql_to_odbc(p1_mysql_conn:squery(State#state.db_ref, Query,
-                                                     self(), [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}])),
-                  %% ?INFO_MSG("MySQL, Received result~n~p~n", [R]),
-                  R
+                  mysql_to_odbc(p1_mysql_conn:squery(State#state.db_ref, Query,
+                    self(), [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}]))
           end,
     case Res of
         {error, "No SQL-driver information available."} ->
@@ -718,8 +716,8 @@ mysql_connect(Server, Port, Database, Username, Password) ->
     end.
 
 %% @doc Convert MySQL query result to Erlang ODBC result formalism
--spec mysql_to_odbc({'data',_} | {'error',_} | {'updated',_})
-      -> {'error',_} | {'updated',_} | {'selected',[any()],[tuple()]}.
+-spec mysql_to_odbc({'data', _} | {'error', _} | {'updated', _})
+      -> {'error', _} | {'updated', _} | {'selected', [any()], [tuple()]}.
 mysql_to_odbc({updated, MySQLRes}) ->
     {updated, p1_mysql:get_result_affected_rows(MySQLRes)};
 mysql_to_odbc({data, MySQLRes}) ->
