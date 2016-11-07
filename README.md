@@ -54,35 +54,39 @@ Check out our test results:
 MongooseIM platform components
 ------------------------------
 
-### WombatOAM
+### Server-side components
+
+#### WombatOAM
 
 [WombatOAM]() is a powerful monitoring platform that comes with specific MongooseIM plugins.
 
-### Test suite
+#### Test suite
 
 In order to test and validate your XMPP servers, here are useful tools:
 * [escalus](https://github.com/esl/escalus): Erlang XMPP client
 * [amoc](https://github.com/esl/amoc): a load testing tools
 
-### XMPP client libraries
+#### More components
+
+It is probable that we will offer:
+* Icicle: ICE, STUN/TRUN server
+* Platypus: a push notification server
+Please contact us!
+
+### Client-side components
+
+#### XMPP client libraries
 
 We recommend following client libraries:
 * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
 * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
 * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io)
 
-### REST API client libraries
+#### REST API client libraries
 
 We recommend following client libraries:
 * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
 * Android, Java: [Retrofit](https://github.com/square/retrofit)
-
-### More components
-
-It is probable that we will offer:
-* Icicle: ICE, STUN/TRUN server
-* Platypus: a push notification server
-Please contact us!
 
 ### Platform table
 
