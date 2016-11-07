@@ -205,6 +205,25 @@ We are using the Riak data types, so the minimal supported version is 2.0.
 To be able to store above persistent date one have to run the following command:
 
 ```bash
+RIAK_HOST="http://localhost:8098"
+
+curl -XPUT $RIAK_HOST/search/schema/vcard \
+    -H 'Content-Type:application/xml' \
+    --data-binary @tools/vcard_search_schema.xml
+
+curl -XPUT $RIAK_HOST/search/index/vcard \
+    -H 'Content-Type: application/json' \
+    -d '{"schema":"vcard"}'
+
+#MAM
+curl -XPUT $RIAK_HOST/search/schema/mam \
+    -H 'Content-Type:application/xml' \
+    --data-binary @tools/mam_search_schema.xml
+
+curl -XPUT $RIAK_HOST/search/index/mam \
+    -H 'Content-Type: application/json' \
+    -d '{"schema":"mam"}'
+
 # user base
 riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
 riak-admin bucket-type activate users
@@ -220,27 +239,9 @@ riak-admin bucket-type create private '{"props":{"last_write_wins":true, "dvv_en
 riak-admin bucket-type activate private
 
 # vCard
-RIAK_HOST="http://localhost:8098"
-
-curl -XPUT $RIAK_HOST/search/schema/vcard \
-    -H 'Content-Type:application/xml' \
-    --data-binary @tools/vcard_search_schema.xml
-
-curl -XPUT $RIAK_HOST/search/index/vcard \
-    -H 'Content-Type: application/json' \
-    -d '{"schema":"vcard"}'
 
 riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard", "dvv_enabled":false}}'
 riak-admin bucket-type activate vcard
-
-#MAM
-curl -XPUT $RIAK_HOST/search/schema/mam \
-    -H 'Content-Type:application/xml' \
-    --data-binary @tools/mam_search_schema.xml
-
-curl -XPUT $RIAK_HOST/search/index/mam \
-    -H 'Content-Type: application/json' \
-    -d '{"schema":"mam"}'
 
 riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
 riak-admin bucket-type activate mam_yz
