@@ -433,7 +433,7 @@ terminate(_Reason, _StateName, State) ->
         mysql ->
             %% old versions of mysql driver don't have the stop function
             %% so the catch
-            catch mysql_conn:stop(State#state.db_ref);
+            catch p1_mysql_conn:stop(State#state.db_ref);
     pgsql ->
             catch pgsql:terminate(State#state.db_ref);
         _ ->
@@ -597,8 +597,8 @@ sql_query_internal(Query) ->
                                              ?QUERY_TIMEOUT));
               mysql ->
                   ?DEBUG("MySQL, Send query~n~p~n", [Query]),
-                  R = mysql_to_odbc(mysql_conn:fetch(State#state.db_ref, Query,
-                                                     self(), ?QUERY_TIMEOUT)),
+                  R = mysql_to_odbc(p1_mysql_conn:squery(State#state.db_ref, Query,
+                                                     self(), [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}])),
                   %% ?INFO_MSG("MySQL, Received result~n~p~n", [R]),
                   R
           end,
@@ -706,12 +706,12 @@ pgsql_item_to_odbc(_) ->
 %% part of init/1
 %% @doc Open a database connection to MySQL
 mysql_connect(Server, Port, Database, Username, Password) ->
-    case mysql_conn:start(Server, Port, Username, Password, Database, fun log/3) of
+    case p1_mysql_conn:start(Server, Port, Username, Password, Database, fun log/3) of
         {ok, Ref} ->
-            mysql_conn:fetch(Ref, [<<"set names 'utf8';">>],
-                             self(), ?QUERY_TIMEOUT),
-            mysql_conn:fetch(Ref, [<<"SET SESSION query_cache_type=1;">>],
-                             self(), ?QUERY_TIMEOUT),
+            p1_mysql_conn:squery(Ref, [<<"set names 'utf8';">>],
+                             self(), [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}]),
+            p1_mysql_conn:squery(Ref, [<<"SET SESSION query_cache_type=1;">>],
+                             self(), [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}]),
             {ok, Ref};
         Err ->
             Err
@@ -721,14 +721,14 @@ mysql_connect(Server, Port, Database, Username, Password) ->
 -spec mysql_to_odbc({'data',_} | {'error',_} | {'updated',_})
       -> {'error',_} | {'updated',_} | {'selected',[any()],[tuple()]}.
 mysql_to_odbc({updated, MySQLRes}) ->
-    {updated, mysql:get_result_affected_rows(MySQLRes)};
+    {updated, p1_mysql:get_result_affected_rows(MySQLRes)};
 mysql_to_odbc({data, MySQLRes}) ->
-    mysql_item_to_odbc(mysql:get_result_field_info(MySQLRes),
-                       mysql:get_result_rows(MySQLRes));
+    mysql_item_to_odbc(p1_mysql:get_result_field_info(MySQLRes),
+                       p1_mysql:get_result_rows(MySQLRes));
 mysql_to_odbc({error, MySQLRes}) when is_list(MySQLRes) ->
     {error, MySQLRes};
 mysql_to_odbc({error, MySQLRes}) ->
-    {error, mysql:get_result_reason(MySQLRes)}.
+    {error, p1_mysql:get_result_reason(MySQLRes)}.
 
 %% @doc When tabular data is returned, convert it to the ODBC formalism
 -spec mysql_item_to_odbc(Columns :: [tuple()],

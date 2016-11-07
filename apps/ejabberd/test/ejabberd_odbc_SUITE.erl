@@ -98,10 +98,10 @@ meck_db(odbc) ->
                         {selected, ["column"], ["row"]}
                 end);
 meck_db(mysql) ->
-    meck:new(mysql_conn, [no_link]),
-    meck:expect(mysql_conn, start, fun(_, _, _, _, _, _) -> {ok, self()} end),
-    meck:expect(mysql_conn, fetch,
-               fun(_Ref, _Query, _Pid, _Timeout) ->
+    meck:new(p1_mysql_conn, [no_link]),
+    meck:expect(p1_mysql_conn, start, fun(_, _, _, _, _, _) -> {ok, self()} end),
+    meck:expect(p1_mysql_conn, squery,
+               fun(_Ref, _Query, _Pid, _Options) ->
                        {data, {mysql_result, [], [], 0, ""}}
                end);
 meck_db(pgsql) ->
@@ -120,8 +120,8 @@ meck_error(odbc) ->
                         {error, "connection broken"}
                 end);
 meck_error(mysql) ->
-    meck:expect(mysql_conn, fetch,
-                fun(_Ref, _Query, _Pid, _Timeout) ->
+    meck:expect(p1_mysql_conn, squery,
+                fun(_Ref, _Query, _Pid, _Options) ->
                         {error, "connection broken"}
                 end);
 meck_error(pgsql) ->
@@ -137,7 +137,7 @@ meck_unload(DbType) ->
 do_meck_unload(odbc) ->
     meck:unload(odbc);
 do_meck_unload(mysql) ->
-    meck:unload(mysql_conn);
+    meck:unload(p1_mysql_conn);
 do_meck_unload(pgsql) ->
     meck:unload(pgsql).
 
@@ -149,7 +149,7 @@ query_calls(Config) ->
 mf(odbc) ->
     {odbc, sql_query};
 mf(mysql) ->
-    {mysql_conn, fetch};
+    {p1_mysql_conn, squery};
 mf(pgsql) ->
     {pgsql, squery}.
 
