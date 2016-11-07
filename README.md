@@ -80,9 +80,9 @@ Participate!
 ------------
 
 In case of any suggestions, questions or any thoughts, please feel free to contact us:
-* Defacto standard [GitHub issues](https://github.com/esl/MongooseIM/issues)
+* Defacto standard [GitHub issues](https://github.com/esl/MongooseIM/issues): https://github.com/esl/MongooseIM/issues
 * Email us at <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>
-* Create a post on erlangcentral forums at <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
-* Follow our Twitter account: https://twitter.com/MongooseIM
-* Like our Facebook page: https://www.facebook.com/MongooseIM/
-* Subscribe to our [mailing list](https://groups.google.com/d/forum/mongooseim-announce), one or two emails per month, the archives are free and open (click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message")
+* Create a post on erlangcentral forums at <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>
+* Follow our [Twitter account](https://twitter.com/MongooseIM): https://twitter.com/MongooseIM
+* Like our [Facebook page](https://www.facebook.com/MongooseIM/): https://www.facebook.com/MongooseIM/
+* Subscribe to our [mailing list](https://groups.google.com/d/forum/mongooseim-announce) at https://groups.google.com/d/forum/mongooseim-announce as it is only one or two emails per month, the archives are free and open (click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message")
