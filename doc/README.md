@@ -1,5 +1,16 @@
-![MongooseIM](MongooseIM_logo.png "MongooseIM's logo")
+<img align="left" src="MongooseIM_logo.png" alt="MongooseIM platform's logo" />
 
+MongooseIM is Erlang Solutions' robust and efficient XMPP platform aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
+
+The MongooseIM platform comes with server-side components and client libraries. We provide a test suite and a monitoring server. We recommand third-party, open source client libraries for XMPP and REST API.
+
+Its home on GitHub is at http://github.com/esl/MongooseIM.
+
+The product page is available at https://www.erlang-solutions.com/products/mongooseim.html
+
+<img src="mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
+
+The MongooseIM platform documentation:
 * User Guide
     * [Features and supported standards](user-guide/Features-and-supported-standards.md) contains the list of supported XEPs, RFCs and database backends.
     * [Get to know MongooseIM](user-guide/Get-to-know-MongooseIM.md) contains the overview of our application, its architecture and deployment strategies.
