@@ -4,7 +4,7 @@
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
 ============
-<img align="left" src="doc/MongooseIM_logo.png"</img>
+<img align="left" src="doc/MongooseIM_logo.png" alt="MongooseIM platform's logo" />
 
 MongooseIM is Erlang Solutions' robust and efficient XMPP platform aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
 
@@ -14,7 +14,7 @@ Its home on GitHub is at http://github.com/esl/MongooseIM.
 
 The product page is available at https://www.erlang-solutions.com/products/mongooseim.html
 
-<img src="doc/mongoose_top_banner_800.jpeg"</img>
+<img src="doc/mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
 Documentation
 -------------
@@ -29,9 +29,6 @@ Up-to-date documentation for the MongooseIM master branch can be found on ReadTh
 
 When developing new features/modules, please take care to add basic documentation
 to the `doc/` directory, and add a link to your document in `doc/README.md`.
-
-Original documentation for Ejabberd-2.1.8, from which MongooseIM was forked, is preserved
-in `doc/ejabberd-2.1.8-OLD`.
 
 Download MongooseIM server packages
 -----------------------------------
@@ -56,75 +53,36 @@ MongooseIM platform components
 
 ### Server-side components
 
-#### WombatOAM
-
-[WombatOAM]() is a powerful monitoring platform that comes with specific MongooseIM plugins.
-
-#### Test suite
-
-In order to test and validate your XMPP servers, here are useful tools:
-* [escalus](https://github.com/esl/escalus): Erlang XMPP client
-* [amoc](https://github.com/esl/amoc): a load testing tools
-
-#### More components
-
-It is probable that we will offer:
-* Icicle: ICE, STUN/TRUN server
-* Platypus: a push notification server
-Please contact us!
+We offer a set of server-side components:
+* [WombatOAM]() is a powerful monitoring platform that comes with specific MongooseIM plugins
+* Test suite: in order to test and validate your XMPP servers, here are useful tools:
+    * [escalus](https://github.com/esl/escalus): Erlang XMPP client
+    * [amoc](https://github.com/esl/amoc): a load testing tools
+* More components? It is probable that we will offer:
+    * Icicle: ICE, STUN/TRUN server
+    * Platypus: a push notification server
 
 ### Client-side components
 
-#### XMPP client libraries
-
-We recommend following client libraries:
-* iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
-* Android, Java: [Smack](https://github.com/igniterealtime/Smack)
-* Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io)
-
-#### REST API client libraries
-
-We recommend following client libraries:
-* iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
-* Android, Java: [Retrofit](https://github.com/square/retrofit)
+* XMPP client libraries: we recommend following client libraries:
+    * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
+    * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
+    * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io), [Strophe.js](https://github.com/strophe/strophejs)
+* REST API client libraries: we recommend following client libraries:
+    * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
+    * Android, Java: [Retrofit](https://github.com/square/retrofit)
 
 ### Platform table
 
-<table>
-  <tr>
-    <th>Client libraries</th>
-    <td align="center">XMPP:<br/>XMPPFramework/Smack</td>
-    <td align="center">REST API:<br/>Jayme/Retrofit</td>
-  </tr>
-  <tr>
-    <th>Server</th>
-    <td colspan="2" align="center">MongooseIM</td>
-  </tr>
-  <tr>
-    <th>Monitoring</th>
-    <td colspan="2" align="center">WombatOAM</td>
-  </tr>
-</table>
+<img src="doc/MongooseIM_platform.jpeg" alt="Schema explaining MongooseIM platform" />
 
-Want to get in touch with us?
------------------------------
-
-In case of any suggestions, questions or any thoughts on your projects using MongooseIM platform,
-please feel free to contact us by the standard [GitHub issues](https://github.com/esl/MongooseIM/issues), by emailing
-<a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>, or erlangcentral forums at <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
-
-Announcements mailing-list
---------------------------
-
-We have set up a new public mailing-list for all announcements of major events happening on the MongooseIM front. Expect one or two emails per month, the archives are free and open.
-
-We highly encourage you to subscribe here: https://groups.google.com/d/forum/mongooseim-announce
-
-Click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message".
-
-Social media
+Participate!
 ------------
 
-Follow us on Twitter and Facebook, please ask questions, and propose features:
-* Twitter account: https://twitter.com/MongooseIM
-* Facebook page: https://www.facebook.com/MongooseIM/
+In case of any suggestions, questions or any thoughts, please feel free to contact us:
+* Defacto standard [GitHub issues](https://github.com/esl/MongooseIM/issues)
+* Email us at <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>
+* Create a post on erlangcentral forums at <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
+* Follow our Twitter account: https://twitter.com/MongooseIM
+* Like our Facebook page: https://www.facebook.com/MongooseIM/
+* Subscribe to our [mailing list](https://groups.google.com/d/forum/mongooseim-announce), one or two emails per month, the archives are free and open (click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message")
