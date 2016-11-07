@@ -22,7 +22,7 @@ No need to backup here, since the transient data naturally rebuilds as clients r
 
 #### Persistant databases
 
-Both RDBMS/SQL (MySQL/PostgreSQL) and NOSQL (Riak KV, Cassandra) databases are supported.
+Both RDBMS/SQL (MySQL/PostgreSQL) and NOSQL (Riak KV) databases are supported.
 
 Backups should be regular, and tested.
 
