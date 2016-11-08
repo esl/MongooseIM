@@ -8,9 +8,9 @@ The MongooseIM platform comes with server-side components and client libraries. 
 
 The most important links: 
 
-* Home: [http://github.com/esl/MongooseIM]
-* Product page: [https://www.erlang-solutions.com/products/mongooseim.html]
-* Documentation: [http://mongooseim.readthedocs.org/]
+* Home: [http://github.com/esl/MongooseIM](http://github.com/esl/MongooseIM)
+* Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
+* Documentation: [http://mongooseim.readthedocs.org/](http://mongooseim.readthedocs.org/)
 
 [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
@@ -21,7 +21,7 @@ Documentation
 
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
 
-* http://mongooseim.readthedocs.org/en/latest/
+* [http://mongooseim.readthedocs.org/en/latest/](http://mongooseim.readthedocs.org/en/latest/)
 * Older versions:
   * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
   * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
@@ -38,15 +38,15 @@ For a quick start just download:
 
 * The [pre-built packages](https://www.erlang-solutions.com/resources/download.html)
 that suits your platform (Ubuntu, Debian, CentOS, and macOS)
-* The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): https://hub.docker.com/r/mongooseim/mongooseim/ (source code repository: https://github.com/esl/mongooseim-docker)
+* The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): [https://hub.docker.com/r/mongooseim/mongooseim/](https://hub.docker.com/r/mongooseim/mongooseim/) (source code repository: [https://github.com/esl/mongooseim-docker](https://github.com/esl/mongooseim-docker))
 
 Public testing
 --------------
 
 Check out our test results:
 
-* Continuous integration: https://travis-ci.org/esl/MongooseIM
-* Code coverage: https://coveralls.io/github/esl/MongooseIM
+* Continuous integration: [https://travis-ci.org/esl/MongooseIM](https://travis-ci.org/esl/MongooseIM)
+* Code coverage: [https://coveralls.io/github/esl/MongooseIM](https://coveralls.io/github/esl/MongooseIM)
 * Stay tuned... more soon!
 
 MongooseIM platform components
@@ -86,9 +86,9 @@ In case of any suggestions, questions or any thoughts, please feel free to conta
 * Defacto standard [GitHub issues](https://github.com/esl/MongooseIM/issues): https://github.com/esl/MongooseIM/issues
 * Email us at <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>
 * Create a post on erlangcentral forums at <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>
-* Follow our [Twitter account](https://twitter.com/MongooseIM): https://twitter.com/MongooseIM
-* Like our [Facebook page](https://www.facebook.com/MongooseIM/): https://www.facebook.com/MongooseIM/
-* Subscribe to our [mailing list](https://groups.google.com/d/forum/mongooseim-announce) at https://groups.google.com/d/forum/mongooseim-announce as it is only one or two emails per month, the archives are free and open (click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message")
+* Follow our [Twitter account](https://twitter.com/MongooseIM): [https://twitter.com/MongooseIM](https://twitter.com/MongooseIM)
+* Like our [Facebook page](https://www.facebook.com/MongooseIM/): [https://www.facebook.com/MongooseIM/](https://www.facebook.com/MongooseIM/)
+* Subscribe to our [mailing list](https://groups.google.com/d/forum/mongooseim-announce) at [https://groups.google.com/d/forum/mongooseim-announce](https://groups.google.com/d/forum/mongooseim-announce) as it is only one or two emails per month, the archives are free and open (click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message")
 
 ## Documentation
 
