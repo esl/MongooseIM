@@ -1,6 +1,6 @@
 # MongooseIM platform
 
-<img align="left" src="MongooseIM_logo.png" alt="MongooseIM platform's logo" />
+<img align="left" src="/doc/MongooseIM_logo.png" alt="MongooseIM platform's logo" />
 
 MongooseIM is Erlang Solutions' robust and efficient XMPP platform aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
 
@@ -14,7 +14,7 @@ The most important links:
 
 [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
-<img src="mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
+<img src="/doc/mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
 Documentation
 -------------
@@ -23,10 +23,10 @@ Up-to-date documentation for the MongooseIM master branch can be found on ReadTh
 
 * [http://mongooseim.readthedocs.org/en/latest/](http://mongooseim.readthedocs.org/en/latest/)
 * Older versions:
-  * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
-  * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
-  * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
-  * [release 1.5.1](http://mongooseim.readthedocs.org/en/1.5.1/)
+    * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
+    * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
+    * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
+    * [release 1.5.1](http://mongooseim.readthedocs.org/en/1.5.1/)
 
 When developing new features/modules, please take care to add basic documentation
 to the `doc/` directory, and add a link to your document in `doc/README.md`.
@@ -76,7 +76,7 @@ We offer a set of server-side components:
 
 ### Platform table
 
-<img src="MongooseIM_platform.jpeg" alt="Schema explaining MongooseIM platform" />
+<img src="/doc/MongooseIM_platform.jpeg" alt="Schema explaining MongooseIM platform" />
 
 Participate!
 ------------
