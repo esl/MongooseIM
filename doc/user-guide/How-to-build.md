@@ -27,7 +27,7 @@ To generate full MongooseIM release (with mysql, pgsql or other deps):
 
         $ make rel
 
-If more advanced release is required (with some specific db support only, f.e. mysql or pgsql) or you want to set `prefix` or `user` for the installation script please refer to the [release configuration](doc/user-guide/release_config.md) page in our documentation.
+If more advanced release is required (with some specific db support only, f.e. mysql or pgsql) or you want to set `prefix` or `user` for the installation script please refer to the [release configuration](release_config.md) page in our documentation.
 
 The `make rel` commands will generate a self-contained OTP system image in the project's `rel/mongooseim` subdirectory. The contents of that directory are as follows:
 
