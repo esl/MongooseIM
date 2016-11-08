@@ -13,8 +13,15 @@ Features and supported standards
     [XEP-0124](http://xmpp.org/extensions/xep-0124.html) and
     [XEP-0206](http://xmpp.org/extensions/xep-0206.html)
     * [REST API](../REST-API.md)
-* Configurable database backends: MySQL, Postgres, generic ODBC, Riak KV.
-Mnesia and Redis for transient data.
+* Server/backend connections:
+    * [REST API](/http-api/http-administration-api-documentation/)
+* Configurable database backends:
+    * Transient:
+        * Mnesia
+        * Redis   
+    * Persistent:
+        * RDBMS: MySQL, PostgreSQL, generic ODBC
+        * NOSQL: Riak KV
 * Supports XEPs:
 
 |||||
