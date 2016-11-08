@@ -57,6 +57,8 @@ init_per_suite(Config) ->
     [{meck_pid, Pid}|Config].
 
 end_per_suite(Config) ->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
     remove_handlers(Config),
     Config.
 
