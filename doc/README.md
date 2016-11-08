@@ -6,11 +6,11 @@ MongooseIM is Erlang Solutions' robust and efficient XMPP platform aimed at larg
 
 The MongooseIM platform comes with server-side components and client libraries. We provide a test suite and a monitoring server. We recommand third-party, open source client libraries for XMPP and REST API.
 
-Its home on GitHub is at http://github.com/esl/MongooseIM.
+The most important links: 
 
-The product page is available at https://www.erlang-solutions.com/products/mongooseim.html
-
-And the documentation is available at http://mongooseim.readthedocs.org/
+* Home: [http://github.com/esl/MongooseIM]
+* Product page: [https://www.erlang-solutions.com/products/mongooseim.html]
+* Documentation: [http://mongooseim.readthedocs.org/]
 
 Code quality:
 
@@ -26,6 +26,7 @@ Documentation
 -------------
 
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
+
 * http://mongooseim.readthedocs.org/en/latest/
 * Older versions:
   * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
@@ -40,6 +41,7 @@ Download MongooseIM server packages
 -----------------------------------
 
 For a quick start just download:
+
 * The [pre-built packages](https://www.erlang-solutions.com/resources/download.html)
 that suits your platform (Ubuntu, Debian, CentOS, and macOS)
 * The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): https://hub.docker.com/r/mongooseim/mongooseim/ (source code repository: https://github.com/esl/mongooseim-docker)
@@ -48,6 +50,7 @@ Public testing
 --------------
 
 Check out our test results:
+
 * Continuous integration: https://travis-ci.org/esl/MongooseIM
 * Code coverage: https://coveralls.io/github/esl/MongooseIM
 * Stay tuned... more soon!
@@ -58,6 +61,7 @@ MongooseIM platform components
 ### Server-side components
 
 We offer a set of server-side components:
+
 * [WombatOAM]() is a powerful monitoring platform that comes with specific MongooseIM plugins
 * Test suite: in order to test and validate your XMPP servers, here are useful tools:
     * [escalus](https://github.com/esl/escalus): Erlang XMPP client
@@ -84,6 +88,7 @@ Participate!
 ------------
 
 In case of any suggestions, questions or any thoughts, please feel free to contact us:
+
 * Defacto standard [GitHub issues](https://github.com/esl/MongooseIM/issues): https://github.com/esl/MongooseIM/issues
 * Email us at <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>
 * Create a post on erlangcentral forums at <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>
