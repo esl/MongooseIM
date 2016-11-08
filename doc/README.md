@@ -1,6 +1,6 @@
 # MongooseIM platform
 
-<img align="left" src="/doc/MongooseIM_logo.png" alt="MongooseIM platform's logo" />
+<img align="left" src="https://raw.githubusercontent.com/esl/MongooseIM/master/doc/MongooseIM_logo.png" alt="MongooseIM platform's logo" />
 
 MongooseIM is robust and efficient XMPP platform aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
 
@@ -16,7 +16,7 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) an
 
 [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
-<img src="/doc/mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
+<img src="https://raw.githubusercontent.com/esl/MongooseIM/master/doc/mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
 ## Download packages
 
