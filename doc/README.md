@@ -13,6 +13,7 @@ The product page is available at https://www.erlang-solutions.com/products/mongo
 <img src="mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
 The MongooseIM platform documentation:
+
 * User Guide
     * [Features and supported standards](user-guide/Features-and-supported-standards.md) contains the list of supported XEPs, RFCs and database backends.
     * [Get to know MongooseIM](user-guide/Get-to-know-MongooseIM.md) contains the overview of our application, its architecture and deployment strategies.
