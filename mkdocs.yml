@@ -27,7 +27,6 @@ pages:
       - 'Extension Modules': 'advanced-configuration/Modules.md'
       - 'ACL': 'advanced-configuration/acl.md'
       - 'HTTP Authentication Module': 'advanced-configuration/HTTP-authentication-module.md'
-      - 'Cassandra configuration': 'advanced-configuration/Cassandra.md'
   - 'MongooseIM open XMPP extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
