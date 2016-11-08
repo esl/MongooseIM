@@ -1,6 +1,6 @@
 # How to build
 
-## 1.  Requirements
+## Requirements
 
 To compile MongooseIM you need:
 
@@ -12,7 +12,7 @@ To compile MongooseIM you need:
 *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption
 *   Zlib 1.2.3 or higher for Stream Compression support (XEP-0138). Optional.
 
-## 2.  Compiling on UNIX-like systems
+## Compiling on UNIX-like systems
 
 To compile MongooseIM, go to the main repo directory `$REPO` and execute the command (`$` stands for the shell prompt):
 
@@ -38,7 +38,7 @@ The `make rel` commands will generate a self-contained OTP system image in the p
 *   `rel/mongooseim/log` - log file directory,
 *   `rel/mongooseim/releases` - release files directory.
 
-## 3.  Running MongooseIM
+## Running MongooseIM
 
 To run MongooseIM from the project tree after compiling it, change to `$REPO/rel/mongooseim`.
 
@@ -62,7 +62,7 @@ There's also a tool called `mongooseimctl` allowing you to perform some operatio
       logs:
         log/ejabberd.log
 
-## 4.  Building the testing target and running tests
+## Building the testing target and running tests
 
 For testing purposes there's a different make target available:
 
