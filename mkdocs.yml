@@ -14,20 +14,24 @@ pages:
       - 'Getting started': 'user-guide/Getting-started.md'
       - 'Release/Installation configuration': 'user-guide/release_config.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
-  - 'Contributions to ecosystem': 'Contributions.md'
-  - 'Basic Configuration Overview': 'Basic-configuration.md'
-  - 'Roadmap': 'Roadmap.md'
+      - 'How to build':  'user-guide/How-to-build.md'
+  - Platform:
+      - 'Roadmap': 'Roadmap.md'
+      - 'Contributions to ecosystem': 'Contributions.md'
+      - 'Differentiators': 'Differentiators.md'
+  - 'Basic Configuration': 'Basic-configuration.md'
   - 'Advanced Configuration':
       - 'Overview': 'Advanced-configuration.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
-      - 'HTTP Authentication Module': 'advanced-configuration/HTTP-authentication-module.md'
       - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'Extension Modules': 'advanced-configuration/Modules.md'
       - 'ACL': 'advanced-configuration/acl.md'
+      - 'HTTP Authentication Module': 'advanced-configuration/HTTP-authentication-module.md'
+      - 'Cassandra configuration': 'advanced-configuration/Cassandra.md'
   - 'MongooseIM open XMPP extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
-  - 'REST API': 'REST-API.md'
+  - 'REST API for client developers': 'REST-API.md'
   - 'Modules':
       - 'mod_adhoc': 'modules/mod_adhoc.md'
       - 'mod_admin_extra': 'modules/mod_admin_extra.md'
@@ -67,7 +71,7 @@ pages:
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
       - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
       - 'HTTP Administration API': 'http-api/http-administration-api-documentation.md'
-  - "Developer's guide":
+  - 'Server developer guide':
       - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
       - 'REST interface to metrics': 'developers-guide/REST-interface-to-metrics.md'
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
