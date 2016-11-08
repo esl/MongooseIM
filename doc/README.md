@@ -112,7 +112,6 @@ The MongooseIM platform documentation:
         * [Extension modules](advanced-configuration/Modules.md)
         * [ACL](advanced-configuration/acl.md)
         * [HTTP authentication module](advanced-configuration/HTTP-authentication-module.md)
-              - 'Cassandra configuration': 'advanced-configuration/Cassandra.md'
 * MongooseIM open XMPP extensions:
     * [MUC light](open-extensions/muc_light.md)
     * [Token-based reconnection](open-extensions/token-reconnection.md)
@@ -121,7 +120,8 @@ The MongooseIM platform documentation:
     * [Cluster management considerations](operation-and-maintenance/Cluster-management-considerations.md)
     * [Cluster configuration and node management](operation-and-maintenance/Cluster-configuration-and-node-management.md)
     * [Logging & monitoring](operation-and-maintenance/Logging-&-monitoring.md)
-    * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-    * [Metrics](operation-and-maintenance/Mongoose-metrics.md)
+    * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
+    * [Metrics](operation-and-maintenance/Mongoose-metrics.md)
     * [HTTP Administration API](http-api/http-administration-api-documentation.md)
 * Server developer guide
     * [Testing MongooseIM](developers-guide/Testing-MongooseIM.md)
