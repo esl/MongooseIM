@@ -1,3 +1,31 @@
+# MongooseIM 2.0.0
+
+2016-11-08
+
+This release includes:
+- improved REST API for [backend services](http://mongooseim.readthedocs.io/en/2.0.0/swagger/index.html)
+  [#985](https://github.com/esl/MongooseIM/pull/985), [#1044](https://github.com/esl/MongooseIM/pull/1044)
+- extended REST API for [clients](http://mongooseim.readthedocs.io/en/2.0.0/swagger/index.html?client=true)
+  [#881](https://github.com/esl/MongooseIM/pull/881), [#973](https://github.com/esl/MongooseIM/pull/973)
+  [#982](https://github.com/esl/MongooseIM/pull/982), [#1003](https://github.com/esl/MongooseIM/pull/1003)
+  [#1021](https://github.com/esl/MongooseIM/pull/1021)
+- MUC-light improvements:
+    - customisable configuration [#907](https://github.com/esl/MongooseIM/pull/907)
+    - fix room destruction [#960](https://github.com/esl/MongooseIM/pull/960)
+- removed support for legacy WebSockets [#1019](https://github.com/esl/MongooseIM/pull/1019).
+  This requires ejabberd.cfg file as it is no longer possible to start `mod_websockets` as module (in modules sesction).
+- parallelized tests: [#987](https://github.com/esl/MongooseIM/pull/987), [#1038](https://github.com/esl/MongooseIM/pull/1038)
+- improved integration with dialyzer [#1025](https://github.com/esl/MongooseIM/pull/1025)
+- other improvements:
+    - conigurable global metrics [#940](https://github.com/esl/MongooseIM/pull/940)
+    - several BOSH fixes: [#869](https://github.com/esl/MongooseIM/pull/869)
+    - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222016-08-30..2016-11-08%22%20sort%3Acreated-asc%20)
+    - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222016-08-30..2016-11-08%22%20)
+
+Special thanks to our contributors: @kenstir, @marktran, @svarlamov, @igors, @bernardd
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2016-08-29&to=2016-11-08&type=c)
+
 # MongooseIM 2.0.0beta2
 
 2016-08-29
