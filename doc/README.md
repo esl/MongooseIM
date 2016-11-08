@@ -18,23 +18,7 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) an
 
 <img src="/doc/mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
-Documentation
--------------
-
-Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
-
-* [http://mongooseim.readthedocs.org/en/latest/](http://mongooseim.readthedocs.org/en/latest/)
-* Older versions:
-    * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
-    * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
-    * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
-    * [release 1.5.1](http://mongooseim.readthedocs.org/en/1.5.1/)
-
-When developing new features/modules, please take care to add basic documentation
-to the `doc/` directory, and add a link to your document in `doc/README.md`.
-
-Download MongooseIM server packages
------------------------------------
+## Download packages
 
 For a quick start just download:
 
@@ -42,8 +26,7 @@ For a quick start just download:
 that suits your platform (Ubuntu, Debian, CentOS, and macOS)
 * The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): [https://hub.docker.com/r/mongooseim/mongooseim/](https://hub.docker.com/r/mongooseim/mongooseim/) (source code repository: [https://github.com/esl/mongooseim-docker](https://github.com/esl/mongooseim-docker))
 
-Public testing
---------------
+## Public testing
 
 Check out our test results:
 
@@ -51,8 +34,7 @@ Check out our test results:
 * Code coverage: [https://coveralls.io/github/esl/MongooseIM](https://coveralls.io/github/esl/MongooseIM)
 * Stay tuned... more soon!
 
-MongooseIM platform components
-------------------------------
+## MongooseIM platform components
 
 ### Server-side components
 
@@ -80,8 +62,7 @@ We offer a set of server-side components:
 
 <img src="/doc/MongooseIM_platform.jpeg" alt="Schema explaining MongooseIM platform" />
 
-Participate!
-------------
+## Participate!
 
 In case of any suggestions, questions or any thoughts, please feel free to contact us:
 
@@ -94,17 +75,34 @@ In case of any suggestions, questions or any thoughts, please feel free to conta
 
 ## Documentation
 
+Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
+
+* [http://mongooseim.readthedocs.org/en/latest/](http://mongooseim.readthedocs.org/en/latest/)
+* Older versions:
+    * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
+    * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
+    * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
+    * [release 1.5.1](http://mongooseim.readthedocs.org/en/1.5.1/)
+
+When developing new features/modules, please take care to add basic documentation
+to the `doc/` directory, and add a link to your document in `doc/README.md`.
+
 The MongooseIM platform documentation:
 
 * User Guide
-    * [Features and supported standards](user-guide/Features-and-supported-standards.md) contains the list of supported XEPs, RFCs and database backends.
-    * [Get to know MongooseIM](user-guide/Get-to-know-MongooseIM.md) contains the overview of our application, its architecture and deployment strategies.
+    * [Features and supported standards](user-guide/Features-and-supported-standards.md) contains the list of supported XEPs, RFCs and database backends
+    * [Get to know MongooseIM](user-guide/Get-to-know-MongooseIM.md) contains the overview of our application, its architecture and deployment strategies
     * [Getting started](user-guide/Getting-started.md) is a step-by-step guide on how to:
         * Build MongooseIM on a supported OS
         * Perform basic configuration
         * Use the main administration script, `mongooseimctl`
-* [Contributions](Contributions.md)
-* [Roadmap](Roadmap.md)
+    * [Release/Installation configuration](user-guide/release_config.md)
+    * [High-level Architecture](user-guide/MongooseIM-High-level-Architecture.md) from single to multiple node setup to multi-datacenter
+    * [How to build](user-guide/How-to-build.md) from source code
+* Platform:
+    * [Roadmap](Roadmap.md)
+    * [Contributions](Contributions.md)
+    * [Differentiators](Differentiators.md)
 * Configuration
     * [Basic configuration](Basic-configuration.md)
     * [Advanced configuration](Advanced-configuration.md)
@@ -112,17 +110,26 @@ The MongooseIM platform documentation:
         * [Database backends configuration](advanced-configuration/database-backends-configuration.md)
         * [Listener modules](advanced-configuration/Listener-modules.md)
         * [Extension modules](advanced-configuration/Modules.md)
+        * [ACL](advanced-configuration/acl.md)
         * [HTTP authentication module](advanced-configuration/HTTP-authentication-module.md)
+              - 'Cassandra configuration': 'advanced-configuration/Cassandra.md'
+* MongooseIM open XMPP extensions:
+    * [MUC light](open-extensions/muc_light.md)
+    * [Token-based reconnection](open-extensions/token-reconnection.md)
+* [REST API for client developers](REST-API.md)
 * Operation and maintenance
-    * [Metrics](operation-and-maintenance/Mongoose-metrics.md)
-    * [Logging & monitoring](operation-and-maintenance/Logging-&-monitoring.md)
+    * [Cluster management considerations](operation-and-maintenance/Cluster-management-considerations.md)
     * [Cluster configuration and node management](operation-and-maintenance/Cluster-configuration-and-node-management.md)
-    * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
+    * [Logging & monitoring](operation-and-maintenance/Logging-&-monitoring.md)
+    * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-    * [Metrics](operation-and-maintenance/Mongoose-metrics.md)
     * [HTTP Administration API](http-api/http-administration-api-documentation.md)
-* For developers
+* Server developer guide
     * [Testing MongooseIM](developers-guide/Testing-MongooseIM.md)
-    * [Hooks and handlers](developers-guide/Hooks-and-handlers.md)
     * [REST Interface to Metrics](developers-guide/REST-interface-to-metrics.md)
+    * [Hooks and handlers](developers-guide/Hooks-and-handlers.md)
+    * [Hooks description](developers-guide/hooks_description.md)
+    * [Stanza routing](developers-guide/message_routing.md)
     * [mod_amp developer's guide](developers-guide/mod_amp_developers_guide.md)
     * [mod_muc_light developer's guide](developers-guide/mod_muc_light_developers_guide.md)
     * [xep-tool usage](developers-guide/xep_tool.md)
+    * [FIPS mode](developers-guide/OpenSSL-and-FIPS.md)
