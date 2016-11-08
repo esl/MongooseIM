@@ -58,10 +58,6 @@ We offer a set of server-side components:
     * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
     * Android, Java: [Retrofit](https://github.com/square/retrofit)
 
-### Platform table
-
-<img src="/doc/MongooseIM_platform.jpeg" alt="Schema explaining MongooseIM platform" />
-
 ## Participate!
 
 In case of any suggestions, questions or any thoughts, please feel free to contact us:
