@@ -21,8 +21,6 @@ clean:
 	-rm rel/vars.config
 
 ct:
-	@: TODO: find is temporary - relx fails when copying over an existing file
-	@-find _build -name sample_external_auth.py -exec rm '{}' \;
 	@(if [ "$(SUITE)" ]; then ./rebar3 ct --dir apps/ejabberd/test --suite $(SUITE) ;\
 		else ./rebar3 ct ; fi) > $(LOG_SILENCE_COVER)
 
