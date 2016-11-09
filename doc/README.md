@@ -1,12 +1,12 @@
 # MongooseIM platform
 
-<img align="left" src="https://raw.githubusercontent.com/esl/MongooseIM/master/doc/MongooseIM_logo.png" alt="MongooseIM platform's logo" />
+<img align="left" src="MongooseIM_logo.png" alt="MongooseIM platform's logo" />
 
 MongooseIM is robust and efficient XMPP platform aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
 
 The MongooseIM platform comes with server-side components and client libraries. We provide a test suite and a monitoring server. We recommand third-party, open source client libraries for XMPP and REST API.
 
-The most important links: 
+The most important links:
 
 * Home: [http://github.com/esl/MongooseIM](http://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
@@ -16,7 +16,7 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) an
 
 [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
-<img src="https://raw.githubusercontent.com/esl/MongooseIM/master/doc/mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
+<img src="mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
 ## Download packages
 
@@ -74,11 +74,11 @@ In case of any suggestions, questions or any thoughts, please feel free to conta
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
 
 * [http://mongooseim.readthedocs.org/en/latest/](http://mongooseim.readthedocs.org/en/latest/)
+* [release 2.0.0](http://mongooseim.readthedocs.org/en/2.0.0/)
 * Older versions:
     * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
     * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
     * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
-    * [release 1.5.1](http://mongooseim.readthedocs.org/en/1.5.1/)
 
 When developing new features/modules, please take care to add basic documentation
 to the `doc/` directory, and add a link to your document in `doc/README.md`.
