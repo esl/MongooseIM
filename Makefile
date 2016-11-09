@@ -68,4 +68,3 @@ xeplist: escript
 install: configure.out rel
 	@. ./configure.out && tools/install
 
-include tools/cd_tools/cd-targets
