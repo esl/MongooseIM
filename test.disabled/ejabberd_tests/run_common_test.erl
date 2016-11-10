@@ -4,6 +4,7 @@
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
+-define(ROOT_DIR, "../../").
 
 %% DEBUG: compile time settings
 -define(PRINT_ERRORS, false).
@@ -208,7 +209,7 @@ call(Node, M, F, A) ->
     end.
 
 get_apps() ->
-    case file:list_dir("../../apps/") of
+    case file:list_dir(?ROOT_DIR ++ "/apps/") of
         {ok, Filenames} -> lists:map(fun list_to_atom/1, Filenames);
         {error, _Reason} -> error("ejabberd parent project not found (expected apps in ../../apps)")
     end.
@@ -239,7 +240,8 @@ analyze(Test, CoverOpts) ->
     io:format("Coverage analyzing~n"),
     Nodes = get_ejabberd_nodes(Test),
     multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout()),
-    Files = filelib:wildcard("/tmp/*.coverdata"),
+    Files = filelib:wildcard(?ROOT_DIR ++ "/_build/**/cover/*.coverdata"),
+    io:format("Files: ~p", [Files]),
     [cover:import(File) || File <- Files],
     cover:export("/tmp/mongoose_combined.coverdata"),
     case os:getenv("TRAVIS_JOB_ID") of
