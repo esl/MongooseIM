@@ -68,3 +68,5 @@ xeplist: escript
 install: configure.out rel
 	@. ./configure.out && tools/install
 
+cover_report: /tmp/mongoose_combined.coverdata
+	erl -noshell -pa _build/default/lib/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()' > $(LOG)
