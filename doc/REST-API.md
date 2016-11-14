@@ -56,25 +56,10 @@ see the relevant documentation in [Listener-modules](../advanced-configuration/L
 
 ### Specification
 
-Find the beautiful Swagger documentation below
-
-<iframe src="http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true"
-height="800" width="800" style="margin-left: -45px;" id="swagger-ui-iframe"></iframe>
-
-<script>
-
-$(document).ready(function() {
-  if (window.location.host.match("readthedocs")){
-    path = window.location.pathname.match("(.*)/REST-API/")[1]
-    url = window.location.protocol + "//" + window.location.hostname
-    finalURL = url + path + "/swagger/index.html?client=true"
-    $('a[href$="swagger/index.html?client=true"]').attr('href', finalURL)
-    $('#swagger-ui-iframe').attr('src', finalURL)
-  }
 
 
-})
+See the beautiful [Swagger documentation](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true) for more information.
+![Swagger](http://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)
 
-</script>
 
 
