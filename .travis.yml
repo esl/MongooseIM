@@ -51,6 +51,7 @@ env:
         - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all
         - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis"
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
+        - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
         - PRESET=dialyzer_only
 
 matrix:
