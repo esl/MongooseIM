@@ -59,6 +59,8 @@ see the relevant documentation in [Listener-modules](../advanced-configuration/L
 
 
 See the beautiful [Swagger documentation](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true) for more information.
+
+
 ![Swagger](http://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)
 
 
