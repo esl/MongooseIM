@@ -58,10 +58,7 @@ start(normal, _Args) ->
     connect_nodes(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
     ejabberd_rdbms:start(),
-    %% TODO: reenable once rebar3 protocol buffers support is in place
-    %mongoose_riak:start(),
-    %% TODO: check whether this works
-    %mongoose_cassandra:start(),
+    mongoose_riak:start(),
     mongoose_http_client:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),
