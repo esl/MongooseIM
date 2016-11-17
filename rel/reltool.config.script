@@ -50,7 +50,8 @@ AppsToRun = [compiler,
              exml,
              cowboy,
              fusco,
-             exometer],
+             exometer,
+             fast_tls],
 
 BaseAppsToInclude = AppsToRun ++
                     [asn1,
