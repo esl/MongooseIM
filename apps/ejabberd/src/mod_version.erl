@@ -26,23 +26,23 @@ process_iq(From, _To, #iq{type = get} = IQ) ->
     Host = From#jid.lserver,
     IQ#iq{type = result,
           sub_el =
-              [#xmlel{name = <<"query">>,
-                      attrs = [{<<"xmlns">>, ?NS_VERSION}],
-                      children =
-                          [#xmlel{name = <<"name">>, attrs = [],
-                                  children =[#xmlcdata{content = Name}]},
-                           #xmlel{name = <<"version">>, attrs = [],
-                                  children =[#xmlcdata{content = Version}]}
-			  ] ++ add_os_info(Host)}]}.
+          [#xmlel{name = <<"query">>,
+                  attrs = [{<<"xmlns">>, ?NS_VERSION}],
+                  children =
+                  [#xmlel{name = <<"name">>, attrs = [],
+                          children =[#xmlcdata{content = Name}]},
+                   #xmlel{name = <<"version">>, attrs = [],
+                          children =[#xmlcdata{content = Version}]}
+                  ] ++ add_os_info(Host)}]}.
 
--spec add_os_info(binary()) -> [#xmlel{}] | [].
+-spec add_os_info(binary()) -> [exml:element()] | [].
 add_os_info(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, os_info, false) of
-	true ->
-	    [#xmlel{name = <<"os">>, attrs = [],
-		    children = [#xmlcdata{content = os_info()}]}];
-	_ ->
-	    []
+        true ->
+            [#xmlel{name = <<"os">>, attrs = [],
+                    children = [#xmlcdata{content = os_info()}]}];
+        _ ->
+            []
     end.
 
 -spec mongoose_info() -> {binary(), binary()}.
@@ -56,10 +56,10 @@ os_info() ->
     {Family, Name} = os:type(),
     {Major, Minor, Release} = os:version(),
     list_to_binary(
-        atom_to_list(Family) ++ " " ++
-        atom_to_list(Name) ++ " " ++
-        integer_to_list(Major) ++ "." ++
-        integer_to_list(Minor) ++ "." ++
-        integer_to_list(Release)
-    ).
+      atom_to_list(Family) ++ " " ++
+      atom_to_list(Name) ++ " " ++
+      integer_to_list(Major) ++ "." ++
+      integer_to_list(Minor) ++ "." ++
+      integer_to_list(Release)
+     ).
 

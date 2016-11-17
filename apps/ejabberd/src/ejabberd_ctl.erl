@@ -516,7 +516,7 @@ format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
                           {running, App, Version} -> [Version, " (as ", ?a2l(App), ")"];
                           not_running -> "unavailable - neither ejabberd nor mongooseim is running"
                         end, "\n",
-       "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS) ,"\n"] ++
+       "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS), "\n"] ++
       ["    logs: none - maybe enable logging to a file in app.config?\n" || LogFiles == [] ] ++
       ["    logs:\n" || LogFiles /= [] ] ++ [
       ["        ", LogFile, "\n"] || LogFile <- LogFiles ] ).
