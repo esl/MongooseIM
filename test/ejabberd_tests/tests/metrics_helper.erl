@@ -47,8 +47,8 @@ finalise_by_all_metrics_are_global(Config, false) ->
 finalise_by_all_metrics_are_global(Config, true) ->
     Config1 = lists:keydelete(all_metrics_are_global, 1, Config),
     %% TODO: Refactor once escalus becomes compatible with multiple nodes RPC
-    Config2 = distributed_helper:remove_node_from_cluster(ejabberd_node_utils:mim2(), Config1),
-    escalus:delete_users(Config2, escalus:get_users(?ONLY_GLOBAL_METRICS_GROUP_USERS)).
+    distributed_helper:remove_node_from_cluster(ejabberd_node_utils:mim2(), Config1),
+    escalus:delete_users(Config1, escalus:get_users(?ONLY_GLOBAL_METRICS_GROUP_USERS)).
 
 all_metrics_are_global(Config) ->
     case lists:keyfind(all_metrics_are_global, 1, Config) of
