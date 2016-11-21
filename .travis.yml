@@ -27,7 +27,7 @@ after_failure:
         - tail -100 dev/mongooseim_node2/log/ejabberd.log
 
 after_success:
-        - make cover_report
+        - ./rebar3 coveralls send
         - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "18.3" ]; then tools/travis-build-and-push-docker.sh; fi
 
 after_script:
