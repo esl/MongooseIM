@@ -587,17 +587,8 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
                                              (SockMod == fast_tls)) ->
           check_compression_auth(El, wait_for_feature_before_auth, StateData);
         _ ->
-            case (TLSRequired and not TLSEnabled) of
-              true ->
-                Lang = StateData#state.lang,
-                send_element(StateData, ?POLICY_VIOLATION_ERR(
-                                           Lang, <<"Use of STARTTLS required">>)),
-                send_trailer(StateData),
-                {stop, normal, StateData};
-              false ->
-                process_unauthenticated_stanza(StateData, El),
-                fsm_next_state(wait_for_feature_before_auth, StateData)
-            end
+          terminate_when_tls_required_but_not_enabled(TLSRequired, TLSEnabled,
+                                                      StateData, El)
     end;
 wait_for_feature_before_auth(timeout, StateData) ->
     {stop, normal, StateData};
@@ -3076,3 +3067,13 @@ open_session_allowed_hook(Server, JID) ->
     allow == ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                                      Server,
                                      allow, [JID]).
+
+terminate_when_tls_required_but_not_enabled(true, false, StateData, El) ->
+    Lang = StateData#state.lang,
+    send_element(StateData, ?POLICY_VIOLATION_ERR(
+                               Lang, <<"Use of STARTTLS required">>)),
+    send_trailer(StateData),
+    {stop, normal, StateData};
+terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
+    process_unauthenticated_stanza(StateData, El),
+    fsm_next_state(wait_for_feature_before_auth, StateData).

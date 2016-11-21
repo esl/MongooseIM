@@ -141,8 +141,8 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
 handle_call({starttls, TLSSocket}, _From, #state{parser = Parser} = State) ->
     NewParser = reset_parser(Parser),
     NewState = State#state{socket = TLSSocket,
-         sock_mod = fast_tls,
-         parser = NewParser},
+                           sock_mod = fast_tls,
+                           parser = NewParser},
     case fast_tls:recv_data(TLSSocket, "") of
         {ok, TLSData} ->
             {reply, ok, process_data(TLSData, NewState), ?HIBERNATE_TIMEOUT};
@@ -153,17 +153,17 @@ handle_call({compress, ZlibSocket}, _From,
   #state{parser = Parser, c2s_pid = C2SPid} = State) ->
     NewParser = reset_parser(Parser),
     NewState = State#state{socket = ZlibSocket,
-         sock_mod = ejabberd_zlib,
-         parser = NewParser},
+                           sock_mod = ejabberd_zlib,
+                           parser = NewParser},
     case ejabberd_zlib:recv_data(ZlibSocket, "") of
-  {ok, ZlibData} ->
-      {reply, ok, process_data(ZlibData, NewState), ?HIBERNATE_TIMEOUT};
-  {error, inflate_size_exceeded} ->
-      apply(gen_fsm(), send_event,
-          [C2SPid, {xmlstreamerror, <<"XML stanza is too big">>}]),
-      {reply, ok, NewState, ?HIBERNATE_TIMEOUT};
-  {error, inflate_error} ->
-      {stop, normal, ok, NewState}
+        {ok, ZlibData} ->
+            {reply, ok, process_data(ZlibData, NewState), ?HIBERNATE_TIMEOUT};
+        {error, inflate_size_exceeded} ->
+            apply(gen_fsm(), send_event,
+                [C2SPid, {xmlstreamerror, <<"XML stanza is too big">>}]),
+            {reply, ok, NewState, ?HIBERNATE_TIMEOUT};
+        {error, inflate_error} ->
+            {stop, normal, ok, NewState}
     end;
 handle_call(reset_stream, _From, #state{ parser = Parser } = State) ->
     NewParser = reset_parser(Parser),
@@ -204,32 +204,32 @@ handle_info({Tag, _TCPSocket, Data},
        sock_mod = SockMod} = State)
   when (Tag == tcp) or (Tag == ssl) ->
     case SockMod of
-  fast_tls ->
-        mongoose_metrics:update(global,
+        fast_tls ->
+            mongoose_metrics:update(global,
                             [data, xmpp, received, encrypted_size], size(Data)),
-      case fast_tls:recv_data(Socket, Data) of
-        {ok, TLSData} ->
-          {noreply, process_data(TLSData, State),
-             ?HIBERNATE_TIMEOUT};
-        {error, _Reason} ->
-          {stop, normal, State}
-      end;
-  ejabberd_zlib ->
-        mongoose_metrics:update(global,
+            case fast_tls:recv_data(Socket, Data) of
+                {ok, TLSData} ->
+                    {noreply, process_data(TLSData, State),
+                    ?HIBERNATE_TIMEOUT};
+                {error, _Reason} ->
+                    {stop, normal, State}
+            end;
+        ejabberd_zlib ->
+            mongoose_metrics:update(global,
                            [data, xmpp, received, compressed_size], size(Data)),
-      case ejabberd_zlib:recv_data(Socket, Data) of
-    {ok, ZlibData} ->
-      {noreply, process_data(ZlibData, State),
-        ?HIBERNATE_TIMEOUT};
-    {error, inflate_size_exceeded} ->
-        apply(gen_fsm(), send_event,
-            [C2SPid, {xmlstreamerror, <<"XML stanza is too big">>}]),
-        {noreply, State, ?HIBERNATE_TIMEOUT};
-    {error, inflate_error} ->
-        {stop, normal, State}
-      end;
-  _ ->
-      {noreply, process_data(Data, State), ?HIBERNATE_TIMEOUT}
+            case ejabberd_zlib:recv_data(Socket, Data) of
+                {ok, ZlibData} ->
+                    {noreply, process_data(ZlibData, State),
+                    ?HIBERNATE_TIMEOUT};
+                {error, inflate_size_exceeded} ->
+                    apply(gen_fsm(), send_event,
+                       [C2SPid, {xmlstreamerror, <<"XML stanza is too big">>}]),
+                    {noreply, State, ?HIBERNATE_TIMEOUT};
+                {error, inflate_error} ->
+                    {stop, normal, State}
+            end;
+        _ ->
+            {noreply, process_data(Data, State), ?HIBERNATE_TIMEOUT}
     end;
 handle_info({Tag, _TCPSocket}, State)
   when (Tag == tcp_closed) or (Tag == ssl_closed) ->
@@ -261,9 +261,9 @@ handle_info(_Info, State) ->
 terminate(_Reason, #state{parser = Parser,
         c2s_pid = C2SPid} = State) ->
     free_parser(Parser),
-    case C2SPid /= undefined of
-        true -> gen_fsm:send_event(C2SPid, closed);
-        false -> ok
+    case C2SPid of
+        undefined -> ok;
+        _ -> gen_fsm:send_event(C2SPid, closed)
     end,
     catch (State#state.sock_mod):close(State#state.socket),
     ok.
@@ -310,10 +310,10 @@ process_data([Element|Els], #state{c2s_pid = C2SPid} = State)
        element(1, Element) == xmlstreamstart;
       element(1, Element) == xmlstreamelement;
        element(1, Element) == xmlstreamend ->
-    case C2SPid == undefined of
-        true ->
+    case C2SPid of
+        undefined ->
             State;
-        false ->
+        _ ->
             catch gen_fsm:send_event(C2SPid, element_wrapper(Element)),
             process_data(Els, State)
     end;
