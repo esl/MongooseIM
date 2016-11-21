@@ -157,16 +157,14 @@ connect(Addr, Port, Opts, Timeout) ->
 
 
 -spec starttls(socket_state(), _) -> socket_state().
-starttls(SocketData, TLSOpts1) ->
-    TLSOpts = [{protocol_options, ["no_sslv3"]} | TLSOpts1],
+starttls(SocketData, TLSOpts) ->
     {ok, TLSSocket} = fast_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
     SocketData#socket_state{socket = TLSSocket, sockmod = fast_tls}.
 
 
 -spec starttls(socket_state(), _, _) -> socket_state().
-starttls(SocketData, TLSOpts1, Data) ->
-    TLSOpts = [{protocol_options, ["no_sslv3"]} | TLSOpts1],
+starttls(SocketData, TLSOpts, Data) ->
     {ok, TLSSocket} = fast_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
     send(SocketData, Data),

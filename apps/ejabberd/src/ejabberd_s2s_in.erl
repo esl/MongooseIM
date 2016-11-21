@@ -162,12 +162,16 @@ init([{SockMod, Socket}, Opts]) ->
              required_trusted ->
                  {true, true, true}
          end,
-    TLSOpts = case ejabberd_config:get_local_option(s2s_certfile) of
+    TLSOpts1 = case ejabberd_config:get_local_option(s2s_certfile) of
                   undefined ->
                       [];
                   CertFile ->
                       [{certfile, CertFile}]
               end,
+    TLSOpts2 = lists:filter(fun({protocol_options, _}) -> true;
+                               (_) -> false
+                            end, Opts),
+    TLSOpts = lists:append(TLSOpts1, TLSOpts2),
     Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,

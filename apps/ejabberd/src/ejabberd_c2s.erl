@@ -175,9 +175,11 @@ init([{SockMod, Socket}, Opts]) ->
     TLSOpts1 =
     lists:filter(fun({certfile, _}) -> true;
                     ({ciphers, _}) -> true;
+                    ({protocol_options, _}) -> true;
                     (_) -> false
                  end, Opts),
     TLSOpts = [verify_none | TLSOpts1],
+
     IP = peerip(SockMod, Socket),
     %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of
@@ -3068,7 +3070,7 @@ open_session_allowed_hook(Server, JID) ->
                                      Server,
                                      allow, [JID]).
 
-terminate_when_tls_required_but_not_enabled(true, false, StateData, El) ->
+terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
     Lang = StateData#state.lang,
     send_element(StateData, ?POLICY_VIOLATION_ERR(
                                Lang, <<"Use of STARTTLS required">>)),
