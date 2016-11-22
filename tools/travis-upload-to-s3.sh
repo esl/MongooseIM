@@ -33,13 +33,17 @@ cat > ${CT_REPORTS}/index.html << EOL
 </html>
 EOL
 
+now=`date +'%Y-%m-%d_%H.%M.%S'`
+LOG_DIR_ROOT=${CT_REPORTS}/logs/${now}
 for dev_node_path in `find _build -name mongooseim -type d`; do
 	dev_node=$(basename $(dirname $(dirname ${dev_node_path})))
-	now=`date +'%Y-%m-%d_%H.%M.%S'`
-	LOG_DIR=${CT_REPORTS}/big/${dev_node}/${now}/log
+	LOG_DIR=${LOG_DIR_ROOT}/${dev_node}/log
 	mkdir -p ${LOG_DIR}
 	cp ${dev_node_path}/log/* ${LOG_DIR}
 done
+
+cp *.log ${LOG_DIR_ROOT}
+cp test.disabled/ejabberd_tests/*.log ${LOG_DIR_ROOT}
 
 aws s3 sync --quiet ${CT_REPORTS} s3://mongooseim-ct-results/${CT_REPORTS}
 
