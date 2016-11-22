@@ -10,8 +10,10 @@ addons:
         - ldap-utils
 before_install:
         - tools/travis-generate-pass.sh
+        - tools/configure $REL_CONFIG
 install:
-        - tools/travis-build.sh
+        - ./rebar3 compile
+        - make dev
         - tools/travis-build-tests.sh
 before_script:
         - tools/travis-setup-db.sh
