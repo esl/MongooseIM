@@ -10,6 +10,10 @@ addons:
         - slapd
         - ldap-utils
         - golang # used for google drive test results upload
+    hosts:
+        # travis tries to resolve muc.localhost and fails
+        # used in MUC + s2s tests combination
+        - muc.localhost
 before_install:
         - tools/configure $REL_CONFIG
 install:

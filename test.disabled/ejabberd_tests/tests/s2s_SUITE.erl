@@ -70,85 +70,26 @@ negative() ->
     [timeout_waiting_for_message].
 
 suite() ->
-    require_s2s_nodes() ++
-    escalus:suite().
+    s2s_helper:suite(escalus:suite()).
 
-require_s2s_nodes() ->
-    [{require, mim_node, {hosts, mim, node}},
-     {require, fed_node, {hosts, fed, node}}].
+users() ->
+    [alice2, alice, bob].
 
 %%%===================================================================
 %%% Init & teardown
 %%%===================================================================
 
-init_per_suite(Config0) ->
-    Node1S2SCertfile = rpc(mim(), ejabberd_config, get_local_option, [s2s_certfile]),
-    Node1S2SUseStartTLS = rpc(mim(), ejabberd_config, get_local_option, [s2s_use_starttls]),
-
-    rpc(fed(), mongoose_cover_helper, start, [[ejabberd]]),
-
-    Node2S2SCertfile = rpc(fed(), ejabberd_config, get_local_option, [s2s_certfile]),
-    Node2S2SUseStartTLS = rpc(fed(), ejabberd_config, get_local_option, [s2s_use_starttls]),
-    S2S = #s2s_opts{node1_s2s_certfile = Node1S2SCertfile,
-                    node1_s2s_use_starttls = Node1S2SUseStartTLS,
-                    node2_s2s_certfile = Node2S2SCertfile,
-                    node2_s2s_use_starttls = Node2S2SUseStartTLS},
-
-    Config1 = [{s2s_opts, S2S} | escalus:init_per_suite(Config0)],
-    Config2 = [{escalus_user_db, xmpp} | Config1],
-    escalus:create_users(Config2, escalus:get_users([alice2, alice, bob])).
+init_per_suite(Config) ->
+    Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config), true),
+    escalus:create_users(Config1, escalus:get_users(users())).
 
 end_per_suite(Config) ->
-    S2SOrig = ?config(s2s_opts, Config),
-    configure_s2s(S2SOrig),
-    rpc(fed(), mongoose_cover_helper, analyze, []),
-    escalus:delete_users(Config, escalus:get_users([alice2, alice, bob])),
+    s2s_helper:end_s2s(Config),
+    escalus:delete_users(Config, escalus:get_users(users())),
     escalus:end_per_suite(Config).
 
-init_per_group(both_plain, Config) ->
-    configure_s2s(#s2s_opts{}),
-    Config;
-init_per_group(both_tls_optional, Config) ->
-    S2S = ?config(s2s_opts, Config), %The initial config assumes that both nodes are configured to use encrypted s2s
-    configure_s2s(S2S),
-    Config;
-init_per_group(both_tls_required, Config) ->
-    S2S = ?config(s2s_opts, Config),
-    configure_s2s(S2S#s2s_opts{node1_s2s_use_starttls = required,
-                               node2_s2s_use_starttls = required}),
-    Config;
-init_per_group(node1_tls_optional_node2_tls_required, Config) ->
-    S2S = ?config(s2s_opts, Config),
-    configure_s2s(S2S#s2s_opts{node2_s2s_use_starttls = required}),
-    Config;
-init_per_group(node1_tls_required_node2_tls_optional, Config) ->
-    S2S = ?config(s2s_opts, Config),
-    configure_s2s(S2S#s2s_opts{node1_s2s_use_starttls = required}),
-    Config;
-init_per_group(node1_tls_required_trusted_node2_tls_optional, Config) ->
-    S2S = ?config(s2s_opts, Config),
-    configure_s2s(S2S#s2s_opts{node1_s2s_use_starttls = required_trusted}),
-    Config;
-init_per_group(node1_tls_false_node2_tls_optional, Config) ->
-    S2S = ?config(s2s_opts, Config),
-    configure_s2s(S2S#s2s_opts{node1_s2s_use_starttls = false}),
-    Config;
-init_per_group(node1_tls_optional_node2_tls_false, Config) ->
-    S2S = ?config(s2s_opts, Config),
-    configure_s2s(S2S#s2s_opts{node2_s2s_use_starttls = false}),
-    Config;
-init_per_group(node1_tls_false_node2_tls_required, Config) ->
-    S2S = ?config(s2s_opts, Config),
-    configure_s2s(S2S#s2s_opts{node1_s2s_use_starttls = false,
-                               node2_s2s_use_starttls = required}),
-    Config;
-init_per_group(node1_tls_required_node2_tls_false, Config) ->
-    S2S = ?config(s2s_opts, Config),
-    configure_s2s(S2S#s2s_opts{node1_s2s_use_starttls = required,
-                               node2_s2s_use_starttls = false}),
-    Config;
-init_per_group(_GroupName, Config) ->
-    Config.
+init_per_group(GroupName, Config) ->
+    s2s_helper:configure_s2s(GroupName, Config).
 
 end_per_group(_GroupName, _Config) ->
     ok.
@@ -238,39 +179,3 @@ nonascii_addr(Config) ->
         escalus:assert(is_chat_message, [<<"Miło Cię poznać">>], Stanza2)
 
     end).
-
-configure_s2s(#s2s_opts{node1_s2s_certfile = Certfile1,
-                        node1_s2s_use_starttls = StartTLS1,
-                        node2_s2s_certfile = Certfile2,
-                        node2_s2s_use_starttls = StartTLS2}) ->
-    configure_s2s(mim(), Certfile1, StartTLS1),
-    configure_s2s(fed(), Certfile2, StartTLS2),
-    restart_s2s().
-
-configure_s2s(Node, Certfile, StartTLS) ->
-    rpc(Node, ejabberd_config, add_local_option, [s2s_certfile, Certfile]),
-    rpc(Node, ejabberd_config, add_local_option, [s2s_use_starttls, StartTLS]).
-
-restart_s2s() ->
-    restart_s2s(mim()),
-    restart_s2s(fed()).
-
-restart_s2s(Node) ->
-    Children = rpc(Node, supervisor, which_children, [ejabberd_s2s_out_sup]),
-    [rpc(Node, ejabberd_s2s_out, stop_connection, [Pid]) ||
-     {_, Pid, _, _} <- Children],
-
-    ChildrenIn = rpc(Node, supervisor, which_children, [ejabberd_s2s_in_sup]),
-    [rpc(Node, erlang, exit, [Pid, kill]) ||
-     {_, Pid, _, _} <- ChildrenIn].
-
-mim() ->
-    get_or_fail(mim_node).
-
-fed() ->
-    get_or_fail(fed_node).
-
-get_or_fail(Key) ->
-    Val = ct:get_config(Key),
-    Val == undefined andalso error({undefined, Key}),
-    Val.

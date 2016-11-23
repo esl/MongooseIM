@@ -8,6 +8,7 @@ Also `mod_muc_log` is a logging submodule.
 ### Options
 * `host` (string, default: `"conference.@HOST@"`): Subdomain for MUC service to reside under. 
  `@HOST@` is replaced with each served domain.
+* `backend` (atom, default: `mnesia`): Storage backend. Currently only `mnesia` is supported.
 * `access` (atom, default: `all`): Access Rule to determine who is allowed to use the MUC service.
 * `access_create` (atom, default: `all`): Who is allowed to create rooms.
 * `access_admin` (atom, default: `none`): Who is the administrator in all rooms.
@@ -27,6 +28,7 @@ Also `mod_muc_log` is a logging submodule.
 * `user_presence_shaper` (atom, default: `none`): Shaper for user presences processed by a room (global for the room).
 * `max_user_conferences` (non-negative, default: 10): Specifies the number of rooms that a user can occupy simultaneously.
 * `http_auth_pool` (atom, default: `none`): If an external HTTP service is chosen to check passwords for password-protected rooms, this option specifies the HTTP pool name to use (see [External HTTP Authentication](#external-http-authentication) below).
+* `load_permanent_rooms_at_startup` (boolean, default: false) - Load all rooms at startup (can be unsafe when there are many rooms, that's why disabled).
 * `hibernate_timeout` (timeout, default: `90000`): Timeout (in milliseconds) defining the inactivity period after which the room's process should be hibernated.
 * `hibernated_room_check_interval` (timeout, default: `infinity`): Interval defining how often the hibernated rooms will be checked (a timer is global for a node).
 * `hibernated_room_timeout` (timeout, default: `inifitniy`): A time after which a hibernated room is stopped (deeply hibernated).
