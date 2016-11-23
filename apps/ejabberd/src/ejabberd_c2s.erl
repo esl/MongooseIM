@@ -176,10 +176,10 @@ init([{SockMod, Socket}, Opts]) ->
     lists:filter(fun({certfile, _}) -> true;
                     ({ciphers, _}) -> true;
                     ({protocol_options, _}) -> true;
+                    ({dhfile, _}) -> true;
                     (_) -> false
                  end, Opts),
     TLSOpts = [verify_none | TLSOpts1],
-
     IP = peerip(SockMod, Socket),
     %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of

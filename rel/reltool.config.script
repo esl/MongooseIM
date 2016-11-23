@@ -118,6 +118,7 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
            {copy, "../fake_cert.pem", "priv/ssl/fake_cert.pem"},
            {copy, "../fake_key.pem", "priv/ssl/fake_key.pem"},
            {copy, "../fake_server.pem", "priv/ssl/fake_server.pem"},
+           {copy, "../fake_dh_server.pem", "priv/ssl/fake_dh_server.pem"},
 
            {copy, "files/erl", "\{\{erts_vsn\}\}/bin/erl"},
            {copy, "files/nodetool", "\{\{erts_vsn\}\}/bin/nodetool"},

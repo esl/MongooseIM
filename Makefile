@@ -128,7 +128,7 @@ cover_report: /tmp/mongoose_combined.coverdata
 relclean:
 	rm -rf rel/mongooseim
 
-certs: fake_cert.pem fake_server.pem
+certs: fake_cert.pem fake_server.pem fake_dh_server.pem
 
 certs_priv: certs
 	@mkdir -p priv/ssl
@@ -143,6 +143,9 @@ fake_cert.pem:
 fake_server.pem:
 	cat fake_cert.pem fake_key.pem > fake_server.pem
 
+fake_dh_server.pem:
+	openssl dhparam -outform PEM -out fake_dh_server.pem 1024
+
 include dialyzer.mk
 
 xeplist: escript
@@ -155,4 +158,3 @@ install: configure.out rel
 	@. ./configure.out && tools/install
 
 include tools/cd_tools/cd-targets
-
