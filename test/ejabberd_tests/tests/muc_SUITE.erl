@@ -82,10 +82,12 @@ all() -> [
         {group, owner_no_parallel},
         {group, room_management},
         {group, http_auth_no_server},
-        {group, http_auth}
+        {group, http_auth},
+          {group, hibernation}
         ].
 
 groups() -> [
+             {hibernation, [parallel], [room_is_hibernated]},
         {disco, [parallel], [
                 disco_service,
                 disco_features,
@@ -3780,6 +3782,40 @@ deny_creation_of_http_password_protected_room_service_unavailable(Config) ->
         escalus_assert:is_error(escalus:wait_for_stanza(Alice), <<"cancel">>, <<"service-unavailable">>),
         escalus_assert:has_no_stanzas(Alice)
     end).
+
+room_is_hibernated(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Username = escalus_client:username(Alice),
+        Server = escalus_client:server(Alice),
+        Resource = escalus_client:resource(Alice),
+        JID = {jid, Username, Server, Resource, escalus_utils:jid_to_lower(Username), Server, Resource},
+        RoomJID = {jid, RoomName, muc_host(), <<>>, escalus_utils:jid_to_lower(RoomName), muc_host(), <<>>},
+        Nick = <<"a-nick">>,
+        ok =  create_instant_room(domain(), RoomName, JID, Nick, []),
+        {ok, RoomPid} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
+        true = wait_for_hibernation(RoomPid, 10),
+
+        ok
+    end),
+
+    destroy_room(muc_host(), RoomName).
+
+wait_for_hibernation(Pid, 0) ->
+    is_hibernated(Pid);
+wait_for_hibernation(Pid, N) ->
+    case is_hibernated(Pid) of
+        true ->
+            true;
+        _ ->
+            timer:sleep(500),
+            wait_for_hibernation(Pid, N-1)
+    end.
+
+is_hibernated(Pid) ->
+    CurrentFunction = escalus_ejabberd:rpc(erlang, process_info, [Pid, current_function]),
+    {current_function, {erlang, hibernate, 3}} == CurrentFunction.
+
 
 %% @doc Based on examples from http://xmpp.org/extensions/xep-0059.html
 %% @end
