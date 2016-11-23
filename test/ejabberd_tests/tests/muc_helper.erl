@@ -43,6 +43,7 @@ foreach_recipient(Users, VerifyFun) ->
 load_muc(Host) ->
     dynamic_modules:start(<<"localhost">>, mod_muc,
                           [{host, binary_to_list(Host)},
+                           {hibernate_timeout, 2000},
                            {access, muc},
                            {access_create, muc_create}]),
     dynamic_modules:start(<<"localhost">>, mod_muc_log,
