@@ -301,3 +301,21 @@ CREATE TABLE muc_light_blocking(
 
 CREATE INDEX i_muc_light_blocking USING HASH ON muc_light_blocking(luser, lserver);
 
+CREATE TABLE muc_room (
+    name text NOT NULL,
+    host text NOT NULL,
+    opts mediumtext NOT NULL,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE UNIQUE INDEX i_muc_room_name_host USING BTREE ON muc_room(name(75), host(75));
+
+CREATE TABLE muc_registered (
+    jid text NOT NULL,
+    host text NOT NULL,
+    nick text NOT NULL,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE INDEX i_muc_registered_nick USING BTREE ON muc_registered(nick(75));
+CREATE UNIQUE INDEX i_muc_registered_jid_host USING BTREE ON muc_registered(jid(75), host(75));

@@ -104,6 +104,8 @@
          remove_offline_messages/3,
          create_bulk_insert_query/3]).
 
+-export([update_t/4]).
+
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
 %%-define(mssql, true).

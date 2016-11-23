@@ -59,7 +59,9 @@
          stanza_errort/5,
          stream_error/1,
          stream_errort/3,
-         remove_delay_tags/1]).
+         remove_delay_tags/1,
+         expr_to_term/1,
+         term_to_expr/1]).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
@@ -875,3 +877,12 @@ remove_delay_tags(#xmlel{children = Els} = Packet) ->
                               El ++ [R]
                 end, [], Els),
     Packet#xmlel{children=NEl}.
+
+expr_to_term(Expr) ->
+    Str = binary_to_list(<<Expr/binary, ".">>),
+    {ok, Tokens, _} = erl_scan:string(Str),
+    {ok, Term} = erl_parse:parse_term(Tokens),
+    Term.
+
+term_to_expr(Term) ->
+    list_to_binary(io_lib:print(Term)).

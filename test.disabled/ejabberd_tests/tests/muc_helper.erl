@@ -41,8 +41,14 @@ foreach_recipient(Users, VerifyFun) ->
       end, Users).
 
 load_muc(Host) ->
+    Backend = case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
+                  true -> odbc;
+                  false -> mnesia
+              end,
+    ct:pal("mod_muc backend=~p", [Backend]),
     dynamic_modules:start(<<"localhost">>, mod_muc,
                           [{host, binary_to_list(Host)},
+                           {backend, Backend},
                            {hibernate_timeout, 2000},
                            {hibernated_room_check_interval, 1000},
                            {hibernated_room_timeout, 2000},
