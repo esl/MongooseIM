@@ -258,7 +258,9 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
                                    jid = jid:make(Room, Host, <<>>),
                                    just_created = true,
                                    room_shaper = Shaper,
-                                   http_auth_pool = HttpAuthPool}),
+                                   http_auth_pool = HttpAuthPool,
+                                   hibernate_timeout = read_hibernate_timeout(ServerHost)
+                                  }),
     State1 = set_opts(DefRoomOpts, State),
     ?INFO_MSG("Created MUC room ~s@~s by ~s",
               [Room, Host, jid:to_binary(Creator)]),
@@ -283,10 +285,14 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opt
                                   history = lqueue_new(HistorySize),
                                   jid = jid:make(Room, Host, <<>>),
                                   room_shaper = Shaper,
-                                  http_auth_pool = HttpAuthPool}),
+                                  http_auth_pool = HttpAuthPool,
+                                  hibernate_timeout = read_hibernate_timeout(ServerHost)
+                                 }),
     add_to_log(room_existence, started, State),
     {ok, normal_state, State, State#state.hibernate_timeout}.
 
+read_hibernate_timeout(Host) ->
+    gen_mod:get_module_opt(Host, mod_muc, hibernate_timeout, timer:seconds(90)).
 
 %%----------------------------------------------------------------------
 %% Func: StateName/2

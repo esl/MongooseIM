@@ -20,6 +20,7 @@ This module implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/x
 * `user_presence_shaper` (atom, default: `none`): Shaper for user presences processed by a room (global for the room).
 * `max_user_conferences` (non-negative, default: 10): Specifies the number of rooms that a user can occupy simultaneously.
 * `http_auth_pool` (atom, default: `none`): If an external HTTP service is chosen to check passwords for password-protected rooms, this option specifies the HTTP pool name to use (see [External HTTP Authentication](#external-http-authentication) below).
+* `hibernate_timeout` (timeout, default: `90000`): Timeout (in milliseconds) defining the inactivity period after which the room's process should be hibernated.
 * `default_room_options` (list of key-value tuples, default: `[]`): List of room configuration options to be overridden in initial state.
     * `title` (binary, default: `<<>>`): Room title, short free text.
     * `description` (binary, default: `<<>>`): Room description, long free text.
