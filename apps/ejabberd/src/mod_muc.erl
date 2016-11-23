@@ -36,13 +36,13 @@
          start/2,
          stop/1,
          room_destroyed/3,
-         store_room/3,
-         restore_room/2,
-         forget_room/2,
+         store_room/4,
+         restore_room/3,
+         forget_room/3,
          create_instant_room/5,
          process_iq_disco_items/4,
          broadcast_service_message/2,
-         can_use_nick/3,
+         can_use_nick/4,
          room_jid_to_pid/1,
          default_host/0]).
 
@@ -74,6 +74,7 @@
              role/0,
              affiliation/0
             ]).
+-define(BACKEND, mod_muc_db_backend).
 
 -type role() :: moderator | participant | visitor | none.
 -type affiliation() :: admin | owner | member | outcast | none.
@@ -85,29 +86,17 @@
         {From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: packet()}.
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 
--record(muc_room, {
-          name_host,
-          opts
-         }).
+-include_lib("ejabberd/include/mod_muc.hrl").
 
 -type muc_room() :: #muc_room{
                        name_host    :: room_host(),
                        opts         :: list()
                       }.
 
--record(muc_online_room, {name_host,
-                          pid
-                         }).
-
 -type muc_online_room() :: #muc_online_room{
                               name_host :: room_host(),
                               pid       :: pid()
                              }.
-
--record(muc_registered, {
-          us_host,
-          nick
-         }).
 
 -type muc_registered() :: #muc_registered{
                              us_host    :: ejabberd:literal_jid(),
@@ -150,6 +139,9 @@ start_link(Host, Opts) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(Host, Opts) ->
     ensure_metrics(Host),
+    TrackedDBFuns = [store_room, restore_room, forget_room, get_rooms,
+                     can_use_nick, get_nick, set_nick],
+    gen_mod:start_backend_module(mod_muc_db, Opts, TrackedDBFuns),
     start_supervisor(Host),
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     ChildSpec =
@@ -199,35 +191,21 @@ create_instant_room(Host, Name, From, Nick, Opts) ->
     gen_server:call(Proc, {create_instant, Name, From, Nick, Opts}).
 
 
--spec store_room(ejabberd:server(), room(), list())
-            -> {'aborted', _} | {'atomic', _}.
-store_room(Host, Name, Opts) ->
-    F = fun() ->
-                mnesia:write(#muc_room{name_host = {Name, Host},
-                                       opts = Opts})
-        end,
-    mnesia:transaction(F).
+-spec store_room(ejabberd:server(), ejabberd:server(), room(), list())
+            -> {'aborted',_} | {'atomic',_}.
+store_room(ServerHost, Host, Name, Opts) ->
+    ?BACKEND:store_room(ServerHost, Host, Name, Opts).
 
 
--spec restore_room(ejabberd:server(), room())
+-spec restore_room(ejabberd:server(), ejabberd:server(), room())
                                     -> 'error' | 'undefined' | [any()].
-restore_room(Host, Name) ->
-    case catch mnesia:dirty_read(muc_room, {Name, Host}) of
-        [#muc_room{opts = Opts}] ->
-            Opts;
-        _ ->
-            error
-    end.
+restore_room(ServerHost, Host, Name) ->
+    ?BACKEND:restore_room(ServerHost, Host, Name).
 
 
--spec forget_room(ejabberd:server(), room()) -> 'ok'.
-forget_room(Host, Name) ->
-    F = fun() ->
-                mnesia:delete({muc_room, {Name, Host}})
-        end,
-    mnesia:transaction(F),
-    ejabberd_hooks:run(forget_room, Host, [Host, Name]),
-    ok.
+-spec forget_room(ejabberd:server(), ejabberd:server(), room()) -> 'ok'.
+forget_room(ServerHost, Host, Name) ->
+    ?BACKEND:forget_room(ServerHost, Host, Name).
 
 
 -spec process_iq_disco_items(Host :: ejabberd:server(), From :: ejabberd:jid(),
@@ -243,26 +221,17 @@ process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
                           jlib:iq_to_xml(Res)).
 
 
--spec can_use_nick(ejabberd:server(), ejabberd:jid(), nick()) -> boolean().
-can_use_nick(_Host, _JID, <<>>) ->
+-spec can_use_nick(ejabberd:server(), ejabberd:server(), ejabberd:jid(), nick()) -> boolean().
+can_use_nick(_ServerHost, _Host, _JID, <<>>) ->
     false;
-can_use_nick(Host, JID, Nick) ->
-    {LUser, LServer, _} = jid:to_lower(JID),
-    LUS = {LUser, LServer},
-    case catch mnesia:dirty_select(
-                 muc_registered,
-                 [{#muc_registered{us_host = '$1',
-                                   nick = Nick,
-                                   _ = '_'},
-                   [{'==', {element, 2, '$1'}, Host}],
-                   ['$_']}]) of
-        {'EXIT', _Reason} ->
-            true;
-        [] ->
-            true;
-        [#muc_registered{us_host = {U, _Host}}] ->
-            U == LUS
-    end.
+can_use_nick(ServerHost, Host, JID, Nick) ->
+    ?BACKEND:can_use_nick(ServerHost, Host, JID, Nick).
+
+set_nick(LServer, Host, From, Nick) ->
+    ?BACKEND:set_nick(LServer, Host, From, Nick).
+
+get_nick(LServer, Host, From) ->
+    ?BACKEND:get_nick(LServer, Host, From).
 
 %%====================================================================
 %% gen_server callbacks
@@ -277,22 +246,14 @@ can_use_nick(Host, JID, Nick) ->
 %%--------------------------------------------------------------------
 -spec init([ejabberd:server() | list(), ...]) -> {'ok', state()}.
 init([Host, Opts]) ->
-    mnesia:create_table(muc_room,
-                        [{disc_copies, [node()]},
-                         {attributes, record_info(fields, muc_room)}]),
-    mnesia:create_table(muc_registered,
-                        [{disc_copies, [node()]},
-                         {attributes, record_info(fields, muc_registered)}]),
+    ?BACKEND:init(Host, Opts),
     mnesia:create_table(muc_online_room,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, muc_online_room)}]),
     mnesia:add_table_copy(muc_online_room, node(), ram_copies),
-    mnesia:add_table_copy(muc_room, node(), disc_copies),
-    mnesia:add_table_copy(muc_registered, node(), disc_copies),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
     MyHost = gen_mod:get_opt_subhost(Host, Opts, default_host()),
     clean_table_from_bad_node(node(), MyHost),
-    mnesia:add_table_index(muc_registered, nick),
     mnesia:subscribe(system),
     Access = gen_mod:get_opt(access, Opts, all),
     AccessCreate = gen_mod:get_opt(access_create, Opts, all),
@@ -566,7 +527,7 @@ route_packet_to_nonexistent_room(Room, From, To, Packet,
                                         host = Host,
                                         access = Access} = State) ->
 
-    case restore_room(Host, Room) of
+    case restore_room(ServerHost, Host, Room) of
         error ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Conference room does not exist">>,
@@ -697,10 +658,7 @@ check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
         RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool()) -> 'ok'.
 load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool) ->
     RoomsToLoad =
-    case catch mnesia:dirty_select(
-                 muc_room, [{#muc_room{name_host = {'_', Host}, _ = '_'},
-                             [],
-                             ['$_']}]) of
+    case catch ?BACKEND:get_rooms(ServerHost, Host) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]),
             [];
@@ -738,14 +696,14 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
 start_new_room(Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts) ->
-    case mnesia:dirty_read(muc_room, {Room, Host}) of
-        [] ->
+    case ?BACKEND:restore_room(ServerHost, Host, Room) of
+        error ->
             ?DEBUG("MUC: open new room '~s'~n", [Room]),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, From,
                                Nick, DefRoomOpts);
-        [#muc_room{opts = Opts}|_] ->
+        Opts ->
             ?DEBUG("MUC: restore room '~s'~n", [Room]),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
@@ -919,16 +877,15 @@ iq_get_unique(From) ->
             -> [jlib:xmlel(), ...].
 iq_get_register_info(Host, From, Lang) ->
     {LUser, LServer, _} = jid:to_lower(From),
-    LUS = {LUser, LServer},
     {Nick, Registered} =
-    case catch mnesia:dirty_read(muc_registered, {LUS, Host}) of
-        {'EXIT', _Reason} ->
-            {<<>>, []};
-        [] ->
-            {<<>>, []};
-        [#muc_registered{nick = N}] ->
-            {N, [#xmlel{name = <<"registered">>}]}
-    end,
+        case catch get_nick(LServer, Host, From) of
+            {'EXIT', _Reason} ->
+                {<<>>, []};
+            error ->
+                {<<>>, []};
+            N ->
+                {N, [#xmlel{name = <<"registered">>}]}
+        end,
     ClientReqText = translate:translate(
                       Lang, <<"You need a client that supports x:data to register the nickname">>),
     ClientReqEl = #xmlel{name = <<"instructions">>,
@@ -951,9 +908,8 @@ iq_get_register_info(Host, From, Lang) ->
         ejabberd:simple_jid() | ejabberd:jid(), nick(), ejabberd:lang())
             -> {'error', jlib:xmlel()} | {'result', []}.
 iq_set_register_info(Host, From, Nick, Lang) ->
-    {LUser, LServer, _} = jid:to_lower(From),
-    LUS = {LUser, LServer},
-    case mnesia:transaction(iq_set_register_info_t(Host, LUS, Nick)) of
+    {_LUser, LServer, _} = jid:to_lower(From),
+    case set_nick(LServer, Host, From, Nick) of
         {atomic, ok} ->
             {result, []};
         {atomic, false} ->
@@ -963,35 +919,11 @@ iq_set_register_info(Host, From, Nick, Lang) ->
             {error, ?ERR_INTERNAL_SERVER_ERROR}
     end.
 
--spec iq_set_register_info_t(Host :: ejabberd:server(), LUS :: ejabberd:simple_bare_jid(),
-                             Nick :: binary()) -> fun(() -> ok | false).
-iq_set_register_info_t(Host, LUS, <<>>) ->
-    fun() ->
-            mnesia:delete({muc_registered, {LUS, Host}}),
-            ok
-    end;
-iq_set_register_info_t(Host, LUS, Nick) ->
-    Allow =
-    case mnesia:select(muc_registered,
-                       [{#muc_registered{us_host = '$1', nick = Nick, _ = '_'},
-                         [{'==', {element, 2, '$1'}, Host}],
-                         ['$_']}]) of
-        [] ->
-            true;
-        [#muc_registered{us_host = {U, _Host}}] ->
-            U == LUS
-    end,
-    case Allow of
-        true ->
-            mnesia:write(#muc_registered{us_host = {LUS, Host}, nick = Nick}),
-            ok;
-        false ->
-            false
-    end.
-
--spec process_iq_register_set(ejabberd:server(), jid(), exml:element(), ejabberd:lang()) ->
-    {error, exml:element()} | {result, []}.
-process_iq_register_set(Host, From, #xmlel{ children = Els } = SubEl, Lang) ->
+-spec process_iq_register_set(ejabberd:server(), ejabberd:jid(),
+        jlib:xmlel(), ejabberd:lang())
+            -> {'error', jlib:xmlel()} | {'result',[]}.
+process_iq_register_set(Host, From, SubEl, Lang) ->
+    #xmlel{children = Els} = SubEl,
     case xml:get_subtag(SubEl, <<"remove">>) of
         false ->
             case xml:remove_cdata(Els) of
