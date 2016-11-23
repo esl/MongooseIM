@@ -88,7 +88,9 @@
                 room_shaper              :: shaper:shaper(),
                 room_queue = queue:new(),
                 http_auth_pool = none :: none | mongoose_http_client:pool(),
-                http_auth_pids = [] :: [pid()]
+                http_auth_pids = [] :: [pid()],
+                hibernate_timeout = 2000 :: timeout()
+
                }).
 
 -record(muc_online_users, {

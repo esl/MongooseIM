@@ -187,9 +187,6 @@ start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool
                         RoomShaper, HttpAuthPool, Opts],
                        ?FSMOPTS).
 
-hibernate_timeout() ->
-    2000.
-
 -spec get_room_users(RoomJID :: ejabberd:jid()) -> {ok, [#user{}]}
                                                  | {error, not_found}.
 get_room_users(RoomJID) ->
@@ -270,7 +267,7 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
         true ->
             %% Instant room -- groupchat 1.0 request
             add_to_log(room_existence, started, State1),
-            {ok, normal_state, State1, hibernate_timeout()};
+            {ok, normal_state, State1, State1#state.hibernate_timeout};
         false ->
             %% Locked room waiting for configuration -- MUC request
             {ok, initial_state, State1}
@@ -288,7 +285,7 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opt
                                   room_shaper = Shaper,
                                   http_auth_pool = HttpAuthPool}),
     add_to_log(room_existence, started, State),
-    {ok, normal_state, State, hibernate_timeout()}.
+    {ok, normal_state, State, State#state.hibernate_timeout}.
 
 
 %%----------------------------------------------------------------------
@@ -397,7 +394,7 @@ locked_state({route, From, _ToNick,
         locked_state ->
             {next_state, NextState2, StateData3};
         normal_state ->
-            {next_state, NextState2, StateData3#state{just_created = false}, hibernate_timeout()}
+            {next_state, NextState2, StateData3#state{just_created = false}, StateData3#state.hibernate_timeout}
     end;
 %% Let owner leave. Destroy the room.
 locked_state({route, From, ToNick,
@@ -431,7 +428,7 @@ normal_state({route, From, <<>>,
         from = From,
         packet = Packet,
         lang = Lang}, StateData),
-    {next_state, normal_state, NewStateData, hibernate_timeout()};
+    next_normal_state(NewStateData);
 normal_state({route, From, <<>>,
           #xmlel{name = <<"iq">>} = Packet},
          StateData) ->
@@ -440,7 +437,7 @@ normal_state({route, From, <<>>,
         from = From,
         packet = Packet}, StateData),
     case RoutingEffect of
-        ok -> {next_state, normal_state, NewStateData, hibernate_timeout()};
+        ok -> next_normal_state(NewStateData);
         stop -> {stop, normal, NewStateData}
     end;
 normal_state({route, From, Nick,
@@ -471,7 +468,7 @@ normal_state({route, From, Nick,
         end,
         NewActivity = Activity#activity{presence = {Nick, Packet}},
         StateData1 = store_user_activity(From, NewActivity, StateData),
-        {next_state, normal_state, StateData1, hibernate_timeout()}
+        next_normal_state(StateData1)
     end;
 normal_state({route, From, ToNick,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
@@ -493,7 +490,7 @@ normal_state({route, From, ToNick,
         [] -> FunRouteNickMessage(false, StateData);
         JIDs -> lists:foldl(FunRouteNickMessage, StateData, JIDs)
     end,
-    {next_state, normal_state, NewStateData, hibernate_timeout()};
+    next_normal_state(NewStateData);
 normal_state({route, From, ToNick,
           #xmlel{name = <<"iq">>, attrs = Attrs} = Packet},
          StateData) ->
@@ -515,7 +512,7 @@ normal_state({route, From, ToNick,
         [] -> FunRouteNickIq(false);
         JIDs -> lists:foreach(FunRouteNickIq, JIDs)
     end,
-    {next_state, normal_state, StateData, hibernate_timeout()};
+    next_normal_state(StateData);
 normal_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) ->
     AuthPids = StateData#state.http_auth_pids,
     StateDataWithoutPid = StateData#state{http_auth_pids = lists:delete(AuthPid, AuthPids)},
@@ -524,8 +521,7 @@ normal_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) 
 normal_state(timeout, StateData) ->
     {next_state, normal_state, StateData, hibernate};
 normal_state(_Event, StateData) ->
-    ?WARNING_MSG("event in normal state: ~p", [_Event]),
-    {next_state, normal_state, StateData, hibernate_timeout()}.
+    next_normal_state(StateData).
 
 %%----------------------------------------------------------------------
 %% Func: handle_event/3
@@ -550,7 +546,7 @@ handle_event({service_message, Msg}, _StateName, StateData) ->
                  StateData#state.jid,
                  MessagePkt,
                  StateData),
-    {next_state, normal_state, NSD, hibernate_timeout()};
+    next_normal_state(NSD);
 
 handle_event({destroy, Reason}, _StateName, StateData) ->
     {result, [], stop} =
@@ -630,9 +626,9 @@ handle_info({process_user_presence, From}, normal_state = _StateName, StateData)
     if
     RoomQueueEmpty ->
         StateData2 = prepare_room_queue(StateData1),
-        {next_state, normal_state, StateData2, hibernate_timeout()};
+        next_normal_state(StateData2);
     true ->
-        {next_state, normal_state, StateData1, hibernate_timeout()}
+        next_normal_state(StateData1)
     end;
 handle_info({process_user_message, From}, normal_state = _StateName, StateData) ->
     RoomQueueEmpty = queue:is_empty(StateData#state.room_queue),
@@ -641,9 +637,9 @@ handle_info({process_user_message, From}, normal_state = _StateName, StateData) 
     if
     RoomQueueEmpty ->
         StateData2 = prepare_room_queue(StateData1),
-        {next_state, normal_state, StateData2, hibernate_timeout()};
+        next_normal_state(StateData2);
     true ->
-        {next_state, normal_state, StateData1, hibernate_timeout()}
+        next_normal_state(StateData1)
     end;
 handle_info(process_room_queue, normal_state = StateName, StateData) ->
     case queue:out(StateData#state.room_queue) of
@@ -749,7 +745,7 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
         false ->
             send_error_only_occupants(<<"messages">>, Packet, Lang,
                                       StateData#state.jid, From),
-            {next_state, normal_state, StateData, hibernate_timeout()}
+            next_normal_state(StateData)
     end.
 
 can_send_to_conference(From, StateData) ->
@@ -804,13 +800,13 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
                     broadcast_room_packet(From, FromNick, Role, Packet, NewState);
                 not Changed ->
                     change_subject_error(From, FromNick, Packet, Lang, NewState),
-                    {next_state, normal_state, NewState, hibernate_timeout()}
+                    next_normal_state(NewState)
             end;
         not CanSendBroadcasts ->
             ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
             Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
             ejabberd_router:route(StateData#state.jid, From, Err),
-            {next_state, normal_state, StateData, hibernate_timeout()}
+            next_normal_state(StateData)
     end.
 
 can_send_broadcasts(Role, StateData) ->
@@ -829,7 +825,7 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                                  StateData#state.host, Packet, [EventData])
     of
         drop ->
-            {next_state, normal_state, StateData, hibernate_timeout()};
+            next_normal_state(StateData);
         FilteredPacket ->
             RouteFrom = jid:replace_resource(StateData#state.jid,
                                              FromNick),
@@ -842,7 +838,7 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                                                    From,
                                                    FilteredPacket,
                                                    StateData),
-            {next_state, normal_state, NewStateData2, hibernate_timeout()}
+            next_normal_state(NewStateData2)
     end.
 
 change_subject_error(From, FromNick, Packet, Lang, StateData) ->
@@ -953,9 +949,8 @@ destroy_temporary_room_if_empty(StateData=#state{config=C=#config{}}, NextState)
             end
     end.
 
-next_normal_state(StateData) ->
-    {next_state, normal_state, StateData, hibernate_timeout()}.
-
+next_normal_state(#state{hibernate_timeout = Timeout} = StateData) ->
+    {next_state, normal_state, StateData, Timeout}.
 
 -spec process_presence1(From, Nick, Packet, state()) -> state() when
       From :: ejabberd:jid(),
