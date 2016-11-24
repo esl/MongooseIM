@@ -79,7 +79,7 @@ offline_test_cases() ->
     ].
 
 error_test_cases() ->
-    [blocker_cant_send_to_blockee].
+    [blocker_can_send_to_blockee].
 
 push_test_cases() ->
     [block_push_sent].
@@ -316,8 +316,9 @@ blocking_and_relogin_many(Config) ->
         Config, [{alice, 1}, {bob, 1}, {carol, 1},  {mike, 1}, {geralt, 1}],
         fun(User1, User2, User3, User4, _) ->
             message_is_delivered(User1, [User4], <<"Under the bridge!">>),
-            message_is_not_delivered(User1, [User3], <<"Cant stop">>),
-            client_gets_blocking_error(User1),
+            message_is_not_delivered(User3, [User1], <<"Cant stop">>),
+            privacy_helper:gets_error(User3, <<"cancel">>,
+                                      <<"service-unavailable">>),
             message_is_delivered(User1, [User2], <<"House of th rising sun">>),
             BlockList = get_blocklist(User1),
             blocklist_contains_jid(BlockList, User3)
@@ -340,13 +341,13 @@ clear_list_relogin(Config) ->
             message_is_delivered(User1, [User2], <<"Doom and gloom!">>)
         end).
 
-blocker_cant_send_to_blockee(Config) ->
+blocker_can_send_to_blockee(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
-            message(User1, User2, <<"I'm not talking to you!">>),
-            client_gets_blocking_error(User1)
+            message_is_delivered(User1, [User2],
+                                 <<"I'm still talking to you">>)
         end).
 
 block_push_sent(Config) ->
@@ -601,12 +602,9 @@ clients_have_no_messages(Cs) when is_list (Cs) -> [ client_has_no_messages(C) ||
 
 client_has_no_messages(C) -> escalus_assert:has_no_stanzas(C).
 
-client_gets_blocking_error(C) ->
-    Stanza = escalus_client:wait_for_stanza(C),
-    escalus:assert(fun is_xep191_not_available/1, [], Stanza).
-
 client_gets_block_iq(C) ->
-    escalus:assert(fun is_xep191_push/2, [<<"block">>], escalus:wait_for_stanza(C)).
+    escalus:assert(fun is_xep191_push/2, [<<"block">>],
+                   escalus:wait_for_stanza(C)).
 
 flush(User) ->
     escalus:wait_for_stanzas(User, 10, 100).
