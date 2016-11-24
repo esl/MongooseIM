@@ -40,7 +40,7 @@ app_opts() ->
      {"all",       [],                  "include all drivers"},
      {"mysql",     ["p1_mysql"],        include_driver("mysql")},
      {"odbc",      ["odbc"],            "include standard ODBC driver shipped with Erlang/OTP"},
-     {"pgsql",     ["pgsql"],           include_driver("pgsql")},
+     {"pgsql",     ["p1_pgsql"],           include_driver("pgsql")},
      {"redis",     ["redo"],            include_driver("redis")},
      {"riak",      ["riakc", "riak_pb", "protobuffs"],
                                         include_driver("riak")}].
