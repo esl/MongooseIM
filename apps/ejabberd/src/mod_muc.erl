@@ -117,7 +117,9 @@
                 history_size        :: integer(),
                 default_room_opts   :: list(),
                 room_shaper         :: shaper:shaper(),
-                http_auth_pool      :: mongoose_http_client:pool()
+                http_auth_pool      :: mongoose_http_client:pool(),
+                hibernated_room_check_interval :: timeout(),
+                hibernated_room_timeout :: timeout()
               }).
 
 -type state() :: #state{}.
@@ -297,14 +299,17 @@ init([Host, Opts]) ->
     HistorySize = gen_mod:get_opt(history_size, Opts, 20),
     DefRoomOpts = gen_mod:get_opt(default_room_options, Opts, []),
     RoomShaper = gen_mod:get_opt(room_shaper, Opts, none),
-
+    CheckInterval = gen_mod:get_opt(hibernated_room_check_interval, Opts, infinity),
+    HibernatedTimeout = gen_mod:get_opt(hibernated_room_timeout, Opts, infinity),
     State = #state{host = MyHost,
                    server_host = Host,
                    access = {Access, AccessCreate, AccessAdmin, AccessPersistent},
                    default_room_opts = DefRoomOpts,
                    history_size = HistorySize,
                    room_shaper = RoomShaper,
-                   http_auth_pool = HttpAuthPool},
+                   http_auth_pool = HttpAuthPool,
+                   hibernated_room_check_interval = CheckInterval,
+                   hibernated_room_timeout = HibernatedTimeout},
 
     ejabberd_hooks:add(is_muc_room_owner, MyHost, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:add(muc_room_pid, MyHost, ?MODULE, muc_room_pid, 50),
@@ -318,7 +323,13 @@ init([Host, Opts]) ->
     load_permanent_rooms(MyHost, Host,
                          {Access, AccessCreate, AccessAdmin, AccessPersistent},
                          HistorySize, RoomShaper, HttpAuthPool),
+    set_persistent_rooms_timer(State),
     {ok, State}.
+
+set_persistent_rooms_timer(#state{hibernated_room_check_interval = infinity}) ->
+    ok;
+set_persistent_rooms_timer(#state{hibernated_room_check_interval = Timeout}) ->
+    timer:send_after(Timeout, stop_hibernated_persistent_rooms).
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -392,8 +403,41 @@ handle_info({room_destroyed, RoomHost, Pid}, State) ->
 handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
     clean_table_from_bad_node(Node),
     {noreply, State};
+handle_info(stop_hibernated_persistent_rooms,
+            #state{server_host = ServerHost,
+                   hibernated_room_timeout = Timeout} = State) when is_integer(Timeout) ->
+    ?INFO_MSG("Closing hibernated persistent rooms", []),
+    Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
+    Now = os:timestamp(),
+    [stop_if_hibernated(Pid, Now, Timeout * 1000) ||
+     {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)],
+
+    set_persistent_rooms_timer(State),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
+
+stop_if_hibernated(Pid, Now, Timeout) ->
+    stop_if_hibernated(Pid, Now, Timeout, erlang:process_info(Pid, current_function)).
+
+stop_if_hibernated(Pid, Now, Timeout, {current_function, {erlang, hibernate, 3}}) ->
+    {dictionary, Dictionary} = erlang:process_info(Pid, dictionary),
+    LastHibernated = lists:keyfind(hibernated, 1, Dictionary),
+    stop_if_hibernated_for_specified_time(Pid, Now, Timeout, LastHibernated),
+    ok;
+stop_if_hibernated(_, _, _, _) ->
+    ok.
+
+stop_if_hibernated_for_specified_time(_Pid, _, _, false) ->
+    ok;
+stop_if_hibernated_for_specified_time(Pid, Now, Timeout, {hibernated, LastHibernated}) ->
+    TimeDiff = timer:now_diff(Now, LastHibernated),
+    case TimeDiff >= Timeout of
+        true ->
+            Pid ! stop_persistent_room_process;
+        _ ->
+            ok
+    end.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()

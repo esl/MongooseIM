@@ -91,7 +91,8 @@ groups() -> [
                                         room_with_participants_is_hibernated,
                                         hibernation_metrics_are_updated,
                                         room_with_participants_and_messages_is_hibernated,
-                                        hibernated_room_can_be_queried_for_archive]},
+                                        hibernated_room_can_be_queried_for_archive,
+                                        hibernated_room_is_stopped]},
         {disco, [parallel], [
                 disco_service,
                 disco_features,
@@ -3873,6 +3874,15 @@ hibernated_room_can_be_queried_for_archive(Config) ->
         escalus:wait_for_stanza(Bob),
         true = wait_for_hibernation(Pid, 10)
 
+    end),
+
+    destroy_room(muc_host(), RoomName).
+
+hibernated_room_is_stopped(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        {ok, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{persistent, true}]),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(5))
     end),
 
     destroy_room(muc_host(), RoomName).

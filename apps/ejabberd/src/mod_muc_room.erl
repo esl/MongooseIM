@@ -271,6 +271,7 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
         true ->
             %% Instant room -- groupchat 1.0 request
             add_to_log(room_existence, started, State1),
+            save_persistent_room_state(State1),
             {ok, normal_state, State1, State1#state.hibernate_timeout};
         false ->
             %% Locked room waiting for configuration -- MUC request
@@ -529,6 +530,7 @@ normal_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) 
     NewStateData = handle_http_auth_result(Result, From, Nick, Packet, Role, StateDataWithoutPid),
     destroy_temporary_room_if_empty(NewStateData, normal_state);
 normal_state(timeout, StateData) ->
+    erlang:put(hibernated, os:timestamp()),
     mongoose_metrics:update(global, [mod_muc, hibernations], 1),
     {next_state, normal_state, StateData, hibernate};
 normal_state(_Event, StateData) ->
@@ -682,6 +684,10 @@ handle_info({'EXIT', FromPid, _Reason}, StateName, StateData) ->
     AuthPids = StateData#state.http_auth_pids,
     StateWithoutPid = StateData#state{http_auth_pids = lists:delete(FromPid, AuthPids)},
     destroy_temporary_room_if_empty(StateWithoutPid, StateName);
+handle_info(stop_persistent_room_process, normal_state,
+            #state{room = RoomName} = StateData) ->
+    ?INFO_MSG("Stopping persistent room's process, ~p ~p", [self(), RoomName]),
+    {stop, normal, StateData};
 handle_info(_Info, StateName, #state{hibernate_timeout = Timeout} = StateData) ->
     {next_state, StateName, StateData, Timeout}.
 
