@@ -3786,20 +3786,21 @@ deny_creation_of_http_password_protected_room_service_unavailable(Config) ->
 room_is_hibernated(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Username = escalus_client:username(Alice),
-        Server = escalus_client:server(Alice),
-        Resource = escalus_client:resource(Alice),
-        JID = {jid, Username, Server, Resource, escalus_utils:jid_to_lower(Username), Server, Resource},
-        RoomJID = {jid, RoomName, muc_host(), <<>>, escalus_utils:jid_to_lower(RoomName), muc_host(), <<>>},
-        Nick = <<"a-nick">>,
-        ok =  create_instant_room(domain(), RoomName, JID, Nick, []),
-        {ok, RoomPid} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
-        true = wait_for_hibernation(RoomPid, 10),
-
-        ok
+        {ok, RoomPid} = given_fresh_room_for_user(Alice, RoomName, []),
+        true = wait_for_hibernation(RoomPid, 10)
     end),
 
     destroy_room(muc_host(), RoomName).
+
+given_fresh_room_for_user(Owner, RoomName, Opts) ->
+    Username = escalus_client:username(Owner),
+    Server = escalus_client:server(Owner),
+    Resource = escalus_client:resource(Owner),
+    JID = {jid, Username, Server, Resource, escalus_utils:jid_to_lower(Username), Server, Resource},
+    RoomJID = {jid, RoomName, muc_host(), <<>>, escalus_utils:jid_to_lower(RoomName), muc_host(), <<>>},
+    Nick = <<"a-nick">>,
+    ok =  create_instant_room(domain(), RoomName, JID, Nick, Opts),
+    escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]).
 
 wait_for_hibernation(Pid, 0) ->
     is_hibernated(Pid);
