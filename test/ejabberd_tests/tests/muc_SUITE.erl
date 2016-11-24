@@ -92,7 +92,8 @@ groups() -> [
                                         hibernation_metrics_are_updated,
                                         room_with_participants_and_messages_is_hibernated,
                                         hibernated_room_can_be_queried_for_archive,
-                                        hibernated_room_is_stopped]},
+                                        hibernated_room_is_stopped,
+                                        hibernated_room_is_stopped_and_restored_by_presence]},
         {disco, [parallel], [
                 disco_service,
                 disco_features,
@@ -3881,8 +3882,30 @@ hibernated_room_can_be_queried_for_archive(Config) ->
 hibernated_room_is_stopped(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        {ok, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{persistent, true}]),
+        {ok, _, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{persistent, true}]),
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(5))
+    end),
+
+    destroy_room(muc_host(), RoomName).
+
+hibernated_room_is_stopped_and_restored_by_presence(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {ok, RoomJID, Pid} = given_fresh_room_is_hibernated(Alice, RoomName,
+                                                            [{persistent, true},
+                                                             {subject, <<"Restorable">>}]),
+        JoinRoom = stanza_join_room(RoomName, <<"bob">>),
+        escalus:send(Bob, JoinRoom),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(5)),
+        ct:sleep(timer:seconds(1)),
+
+        escalus:send(Bob, JoinRoom),
+        escalus:wait_for_stanza(Bob),
+
+        {ok, _Pid2} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
+        ok
     end),
 
     destroy_room(muc_host(), RoomName).
