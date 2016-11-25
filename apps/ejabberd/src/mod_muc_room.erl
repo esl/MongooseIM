@@ -573,11 +573,12 @@ handle_event(destroy, StateName, StateData) ->
           [jid:to_binary(StateData#state.jid)]),
     handle_event({destroy, none}, StateName, StateData);
 
-handle_event({set_affiliations, Affiliations}, StateName, StateData) ->
-    {next_state, StateName, StateData#state{affiliations = Affiliations}};
+handle_event({set_affiliations, Affiliations},
+             #state{hibernate_timeout = Timeout} = StateName, StateData) ->
+    {next_state, StateName, StateData#state{affiliations = Affiliations}, Timeout};
 
-handle_event(_Event, StateName, StateData) ->
-    {next_state, StateName, StateData}.
+handle_event(_Event, StateName, #state{hibernate_timeout = Timeout} = StateData) ->
+    {next_state, StateName, StateData, Timeout}.
 
 %%----------------------------------------------------------------------
 %% Func: handle_sync_event/4
@@ -591,27 +592,29 @@ handle_event(_Event, StateName, StateData) ->
 handle_sync_event({get_disco_item, JID, Lang}, _From, StateName, StateData) ->
     Reply = get_roomdesc_reply(JID, StateData,
                    get_roomdesc_tail(StateData, Lang)),
-    {reply, Reply, StateName, StateData};
+    reply_with_timeout(Reply, StateName, StateData);
 handle_sync_event(get_config, _From, StateName, StateData) ->
-    {reply, {ok, StateData#state.config}, StateName, StateData};
+    reply_with_timeout({ok, StateData#state.config}, StateName, StateData);
 handle_sync_event(get_state, _From, StateName, StateData) ->
-    {reply, {ok, StateData}, StateName, StateData};
+    reply_with_timeout({ok, StateData}, StateName, StateData);
 handle_sync_event(get_room_users, _From, StateName, StateData) ->
-    {reply, {ok, dict_to_values(StateData#state.users)}, StateName, StateData};
+    reply_with_timeout({ok, dict_to_values(StateData#state.users)}, StateName, StateData);
 handle_sync_event({is_room_owner, UserJID}, _From, StateName, StateData) ->
-    {reply, {ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData};
+    reply_with_timeout({ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData);
 handle_sync_event({can_access_room, UserJID}, _From, StateName, StateData) ->
-    {reply, {ok,  can_read_conference(UserJID, StateData)}, StateName, StateData};
+    reply_with_timeout({ok,  can_read_conference(UserJID, StateData)}, StateName, StateData);
 handle_sync_event({can_access_identity, UserJID}, _From, StateName, StateData) ->
-    {reply, {ok,  can_user_access_identity(UserJID, StateData)}, StateName, StateData};
+    reply_with_timeout({ok,  can_user_access_identity(UserJID, StateData)}, StateName, StateData);
 handle_sync_event({change_config, Config}, _From, StateName, StateData) ->
     {result, [], NSD} = change_config(Config, StateData),
-    {reply, {ok, NSD#state.config}, StateName, NSD};
+    reply_with_timeout({ok, NSD#state.config}, StateName, NSD);
 handle_sync_event({change_state, NewStateData}, _From, StateName, _StateData) ->
-    {reply, {ok, NewStateData}, StateName, NewStateData};
+    reply_with_timeout({ok, NewStateData}, StateName, NewStateData);
 handle_sync_event(_Event, _From, StateName, StateData) ->
-    Reply = ok,
-    {reply, Reply, StateName, StateData}.
+    reply_with_timeout(ok, StateName, StateData).
+
+reply_with_timeout(Reply, StateName, #state{hibernate_timeout = Timeout} = State) ->
+    {reply, Reply, StateName, State, Timeout}.
 
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
