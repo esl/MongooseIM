@@ -3903,6 +3903,8 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
 
         escalus:send(Bob, JoinRoom),
         escalus:wait_for_stanza(Bob),
+        Message = escalus:wait_for_stanza(Bob),
+        true = is_subject_message(Message, <<"Restorable">>),
 
         {ok, _Pid2} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
         ok
