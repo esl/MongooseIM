@@ -1981,7 +1981,7 @@ mam_service_discovery(Config) ->
 muc_service_discovery(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        Domain = escalus_config:get_config(ejabberd_domain, Config),
+        Domain = ct:get_config({hosts, mim, domain}),
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),

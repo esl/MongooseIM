@@ -83,7 +83,7 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 start_mod_http_notification(Opts) ->
-    Domain = ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Domain, mod_http_notification, Opts).
 
 start_http_listener(simple_message, Prefix) ->
@@ -164,4 +164,3 @@ get_prefix(mod_http_notification_tests_with_prefix) ->
 get_prefix(Config) ->
     GroupName = proplists:get_value(name, proplists:get_value(tc_group_properties, Config)),
     get_prefix(GroupName).
-

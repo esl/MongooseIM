@@ -40,7 +40,7 @@ rpc_apply(M, F, Args) ->
     end.
 
 rpc_call(M, F, A) ->
-    Node = escalus_ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, 10000, Cookie).
 
@@ -1000,7 +1000,7 @@ put_msg({{MsgIdOwner, MsgIdRemote},
          {_FromBin, FromJID, FromArcID},
          {_ToBin, ToJID, ToArcID},
          {_, Source, _}, Packet}) ->
-    Host = escalus_ct:get_config(ejabberd_domain),
+    Host = ct:get_config({hosts, mim, domain}),
     archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
     archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]).
 

@@ -558,13 +558,13 @@ get_client_details(Identifier) ->
 
 get_store_type() ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config(ejabberd_domain)),
+                   ct:get_config({hosts, mim, domain})),
     escalus_ejabberd:rpc(ejabberd_auth, store_type,
                          [XMPPDomain]).
 
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config(ejabberd_domain)),
+                   ct:get_config({hosts, mim, domain})),
     AuthOpts = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
                                     [{auth_opts, XMPPDomain}]),
     NewAuthOpts = lists:keystore(password_format, 1, AuthOpts, {password_format, Type}),
@@ -610,7 +610,7 @@ bad_cancelation_stanza() ->
                     #xmlel{name = <<"foo">>}]}]).
 
 restart_mod_register_with_option(Config, Name, Value) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     ModuleOptions = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_register, OldRegisterOptions} = lists:keyfind(mod_register, 1, ModuleOptions),
     {atomic, ok} = dynamic_modules:stop(Domain, mod_register),
@@ -619,7 +619,7 @@ restart_mod_register_with_option(Config, Name, Value) ->
     [{old_mod_register_opts, OldRegisterOptions}|Config].
 
 restore_mod_register_options(Config0) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config0),
+    Domain = ct:get_config({hosts, mim, domain}),
     {value, {old_mod_register_opts, RegisterOpts}, Config1} =
         lists:keytake(old_mod_register_opts, 1, Config0),
     {atomic, ok} = dynamic_modules:stop(Domain, mod_register),
@@ -646,4 +646,3 @@ modify_acl_for_blocking(Method, Spec) ->
     User = proplists:get_value(username, Spec),
     Lower = escalus_utils:jid_to_lower(User),
     escalus_ejabberd:rpc(acl, Method, [Domain, blocked, {user, Lower}]).
-

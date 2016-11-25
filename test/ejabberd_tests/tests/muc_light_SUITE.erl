@@ -293,7 +293,8 @@ disco_service(Config) ->
             escalus:send(Alice, escalus_stanza:service_discovery(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(has_service, [?MUCHOST], Stanza),
-            escalus:assert(is_stanza_from, [escalus_config:get_config(ejabberd_domain, Config)], Stanza)
+            escalus:assert(is_stanza_from,
+              [ct:get_config({hosts, mim, domain})], Stanza)
         end).
 
 disco_features(Config) ->
@@ -1188,4 +1189,3 @@ ns_muc_light_affiliations() ->
 -spec room2() -> binary().
 room2() ->
     ?ROOM2.
-

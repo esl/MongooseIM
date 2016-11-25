@@ -611,15 +611,20 @@ remove_roster(Config, UserSpec) ->
     end.
 
 set_versioning(Versioning, VersionStore, Config) ->
-    Host = escalus_ct:get_config(ejabberd_domain),
-    RosterVersioning = escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, false]),
-    RosterVersionOnDb = escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, store_current_id, false]),
-    escalus_ejabberd:rpc(gen_mod, set_module_opt, [Host, mod_roster, versioning, Versioning]),
-    escalus_ejabberd:rpc(gen_mod, set_module_opt, [Host, mod_roster, store_current_id, VersionStore]),
-    [{versioning, RosterVersioning}, {store_current_id, RosterVersionOnDb} | Config].
+    Host = ct:get_config({hosts, mim, domain}),
+    RosterVersioning = escalus_ejabberd:rpc(gen_mod, get_module_opt,
+                        [Host, mod_roster, versioning, false]),
+    RosterVersionOnDb = escalus_ejabberd:rpc(gen_mod, get_module_opt,
+                          [Host, mod_roster, store_current_id, false]),
+    escalus_ejabberd:rpc(gen_mod, set_module_opt,
+                        [Host, mod_roster, versioning, Versioning]),
+    escalus_ejabberd:rpc(gen_mod, set_module_opt,
+                        [Host, mod_roster, store_current_id, VersionStore]),
+    [{versioning, RosterVersioning},
+     {store_current_id, RosterVersionOnDb} | Config].
 
 restore_versioning(Config) ->
-    Host = escalus_ct:get_config(ejabberd_domain),
+    Host = ct:get_config({hosts, mim, domain}),
     RosterVersioning = proplists:get_value(versioning, Config),
     RosterVersionOnDb = proplists:get_value(store_current_id, Config),
     escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, RosterVersioning]),

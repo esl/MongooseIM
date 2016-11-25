@@ -71,7 +71,7 @@ init_per_group(server_ping_kill, Config) ->
     [{timeout_action, kill} | Config].
 
 end_per_group(_GroupName, Config) ->
-    Domain = ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Domain, mod_ping),
     Config.
 
@@ -82,7 +82,7 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 start_mod_ping(Opts) ->
-    Domain = ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Domain, mod_ping, Opts).
 
 %%--------------------------------------------------------------------
@@ -91,7 +91,7 @@ start_mod_ping(Opts) ->
 ping(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-                Domain = ct:get_config(ejabberd_domain),
+                Domain = ct:get_config({hosts, mim, domain}),
                 PingReq = escalus_stanza:ping_request(Domain),
                 escalus_client:send(Alice, PingReq),
 
@@ -102,7 +102,7 @@ ping(Config) ->
 active(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-                Domain = ct:get_config(ejabberd_domain),
+                Domain = ct:get_config({hosts, mim, domain}),
                 wait_ping_interval(0.75),
                 escalus_client:send(Alice, escalus_stanza:ping_request(Domain)),
                 escalus:assert(is_iq_result, escalus_client:wait_for_stanza(Alice)),
@@ -132,7 +132,7 @@ server_ping_pong(Config) ->
         end).
 
 server_ping_pang(ConfigIn) ->
-    Domain = ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     Metrics = [{[Domain, user_ping_timeout], 1}],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -159,4 +159,3 @@ wait_for_ping_req(Alice) ->
     <<"urn:xmpp:ping">> = exml_query:path(PingReq, [{element, <<"ping">>},
                                                     {attr, <<"xmlns">>}]),
     PingReq.
-

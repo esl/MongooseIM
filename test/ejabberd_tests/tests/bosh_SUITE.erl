@@ -152,7 +152,7 @@ create_and_terminate_session(Config) ->
     %% Assert there are no BOSH sessions on the server.
     0 = length(get_bosh_sessions()),
 
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
     ok = escalus_bosh:send_raw(Conn, Body),
     escalus_connection:get_stanza(Conn, session_creation_response),

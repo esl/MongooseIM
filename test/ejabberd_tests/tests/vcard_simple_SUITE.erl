@@ -143,8 +143,8 @@ user_doesnt_exist(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Domain = escalus_config:get_ct(ejabberd_domain),
-              BadJID = <<"nonexistent@",Domain/binary>>,
+              Domain = ct:get_config({hosts, mim, domain}),
+              BadJID = <<"nonexistent@", Domain/binary>>,
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request(BadJID)),
                 case
@@ -212,10 +212,10 @@ request_search_fields(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Domain = escalus_config:get_ct(ejabberd_domain),
-              DirJID = <<"vjud.",Domain/binary>>,
+              Domain = ct:get_config({hosts, mim, domain}),
+              DirJID = <<"vjud.", Domain/binary>>,
               Res = escalus:send_and_wait(Client,
-                                          escalus_stanza:search_fields_iq(DirJID)),
+                                      escalus_stanza:search_fields_iq(DirJID)),
               escalus:assert(is_iq_result, Res),
               Result = ?EL(Res, <<"query">>),
               XData = ?EL(Result, <<"x">>),
@@ -235,12 +235,12 @@ search_empty(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Domain = escalus_config:get_ct(ejabberd_domain),
-              DirJID = <<"vjud.",Domain/binary>>,
+              Domain = ct:get_config({hosts, mim, domain}),
+              DirJID = <<"vjud.", Domain/binary>>,
               Fields = [{get_field_name(fn), <<"nobody">>}],
               Res = escalus:send_and_wait(Client,
-                                          escalus_stanza:search_iq(DirJID,
-                                                                   escalus_stanza:search_fields(Fields))),
+                                escalus_stanza:search_iq(DirJID,
+                                    escalus_stanza:search_fields(Fields))),
               escalus:assert(is_iq_result, Res),
               [] = search_result_item_tuples(Res)
       end).
@@ -250,13 +250,15 @@ search_some(Config) ->
     escalus:story(
       Config, [{bob, 1}],
       fun(Client) ->
-              Domain = escalus_config:get_ct(ejabberd_domain),
-              DirJID = <<"vjud.",Domain/binary>>,
+              Domain = ct:get_config({hosts, mim, domain}),
+              DirJID = <<"vjud.", Domain/binary>>,
               Fields = [{get_field_name(fn), get_FN(Config)}],
-              timer:sleep(timer:seconds(1)), %% this is required by Riak 2.0 Search to be sure the vcard is indexed
+              timer:sleep(timer:seconds(1)), %% this is required by Riak 2.0
+                                             %% Search to be sure the vcard is
+                                             %% indexed
               Res = escalus:send_and_wait(Client,
-                                          escalus_stanza:search_iq(DirJID,
-                                                                   escalus_stanza:search_fields(Fields))),
+                                escalus_stanza:search_iq(DirJID,
+                                    escalus_stanza:search_fields(Fields))),
               escalus:assert(is_iq_result, Res),
 
               %% Basically test that the right values exist
@@ -269,12 +271,12 @@ search_wildcard(Config) ->
     escalus:story(
       Config, [{bob, 1}],
       fun(Client) ->
-              Domain = escalus_config:get_ct(ejabberd_domain),
-              DirJID = <<"vjud.",Domain/binary>>,
+              Domain = ct:get_config({hosts, mim, domain}),
+              DirJID = <<"vjud.", Domain/binary>>,
               Fields = [{get_field_name(fn), get_FN_wildcard()}],
               Res = escalus:send_and_wait(Client,
-                                          escalus_stanza:search_iq(DirJID,
-                                                                   escalus_stanza:search_fields(Fields))),
+                              escalus_stanza:search_iq(DirJID,
+                                  escalus_stanza:search_fields(Fields))),
               escalus:assert(is_iq_result, Res),
               ItemTups = search_result_item_tuples(Res),
               1 = length(ItemTups)
@@ -419,7 +421,9 @@ search_result_item_tuples(Stanza) ->
     _ItemTups = item_tuples(ReportedFieldTups, XChildren).
 
 is_vcard_ldap()->
-    ldap==escalus_ejabberd:rpc(gen_mod,get_module_opt,[ct:get_config(ejabberd_domain), mod_vcard, backend, mnesia]).
+    ldap==escalus_ejabberd:rpc(gen_mod, get_module_opt,
+                               [ct:get_config({hosts, mim, domain}),
+                                mod_vcard, backend, mnesia]).
 
 get_field_name(fn)->
     case is_vcard_ldap() of
@@ -446,7 +450,7 @@ get_FN(Config) ->
     end.
 
 configure_ldap_vcards(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     CurrentConfigs = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
     dynamic_modules:stop(Domain, mod_vcard),
@@ -460,6 +464,6 @@ configure_ldap_vcards(Config) ->
 
 restore_ldap_vcards_config(Config) ->
     OriginalConfig = ?config(mod_vcard, Config),
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Domain, mod_vcard),
     dynamic_modules:start(Domain, mod_vcard, OriginalConfig).
