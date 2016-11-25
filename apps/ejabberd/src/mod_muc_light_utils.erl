@@ -162,7 +162,7 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
 %% ---------------- Filter for blocking ----------------
 
 -spec filter_out_loop(FromUS :: ejabberd:simple_bare_jid(),
-                      BlockingQuery :: [{blocking_who(), ejabberd:simple_bare_jid()}],
+                      BlockingQuery :: [{blocking_what(), ejabberd:simple_bare_jid()}],
                       RoomsPerUser :: rooms_per_user(),
                       AffUsers :: aff_users()) -> aff_users().
 filter_out_loop(FromUS, BlockingQuery, RoomsPerUser, [{UserUS, _} = AffUser | RAffUsers]) ->

@@ -40,12 +40,13 @@
 
 -type rooms_per_user() :: infinity | non_neg_integer().
 
--type blocking_who() :: user | room.
+-type blocking_what() :: user | room.
 -type blocking_action() :: allow | deny.
+-type blocking_who() :: ejabberd:simple_bare_jid().
 -type blocking_item() :: {
-        What :: blocking_who(),
+        What :: blocking_what(),
         Action :: blocking_action(),
-        Who :: ejabberd:simple_bare_jid()
+        Who :: blocking_who()
        }.
 
 -type disco_room_info() :: {RoomUS :: ejabberd:simple_bare_jid(),

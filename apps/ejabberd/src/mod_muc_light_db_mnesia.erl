@@ -170,7 +170,7 @@ get_blocking(UserUS) ->
       || #?BLOCKING_TAB{ item = {What, Who} } <- dirty_get_blocking_raw(UserUS) ].
 
 -spec get_blocking(UserUS :: ejabberd:simple_bare_jid(),
-                   WhatWhos :: [{blocking_who(), ejabberd:simple_bare_jid()}]) ->
+                   WhatWhos :: [{blocking_what(), ejabberd:simple_bare_jid()}]) ->
     blocking_action().
 get_blocking(UserUS, WhatWhos) ->
     Blocklist = dirty_get_blocking_raw(UserUS),

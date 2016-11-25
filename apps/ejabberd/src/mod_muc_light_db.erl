@@ -65,7 +65,7 @@
 -callback get_blocking(UserUS :: ejabberd:simple_bare_jid()) -> [blocking_item()].
 
 -callback get_blocking(UserUS :: ejabberd:simple_bare_jid(),
-                       WhatWhos :: [{blocking_who(), ejabberd:simple_bare_jid()}]) ->
+                       WhatWhos :: [{blocking_what(), blocking_who()}]) ->
     blocking_action().
 
 -callback set_blocking(UserUS :: ejabberd:simple_bare_jid(),
