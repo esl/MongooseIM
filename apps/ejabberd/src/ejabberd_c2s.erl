@@ -175,6 +175,8 @@ init([{SockMod, Socket}, Opts]) ->
     TLSOpts1 =
     lists:filter(fun({certfile, _}) -> true;
                     ({ciphers, _}) -> true;
+                    ({protocol_options, _}) -> true;
+                    ({dhfile, _}) -> true;
                     (_) -> false
                  end, Opts),
     TLSOpts = [verify_none | TLSOpts1],
@@ -391,7 +393,7 @@ can_use_tls(SockMod, TLS, TLSEnabled) ->
 
 can_use_zlib_compression(Zlib, SockMod) ->
     Zlib andalso ( (SockMod == gen_tcp) orelse
-                   (SockMod == ejabberd_tls) ).
+                   (SockMod == fast_tls) ).
 
 compression_zlib() ->
     #xmlel{name = <<"compression">>,
@@ -584,20 +586,11 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
                                           });
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
-                                             (SockMod == ejabberd_tls)) ->
+                                             (SockMod == fast_tls)) ->
           check_compression_auth(El, wait_for_feature_before_auth, StateData);
         _ ->
-            if
-                TLSRequired and not TLSEnabled ->
-                    Lang = StateData#state.lang,
-                    send_element(StateData, ?POLICY_VIOLATION_ERR(
-                                               Lang, <<"Use of STARTTLS required">>)),
-                    send_trailer(StateData),
-                    {stop, normal, StateData};
-                true ->
-                    process_unauthenticated_stanza(StateData, El),
-                    fsm_next_state(wait_for_feature_before_auth, StateData)
-            end
+          terminate_when_tls_required_but_not_enabled(TLSRequired, TLSEnabled,
+                                                      StateData, El)
     end;
 wait_for_feature_before_auth(timeout, StateData) ->
     {stop, normal, StateData};
@@ -758,7 +751,7 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
-                                             (SockMod == ejabberd_tls)) ->
+                                             (SockMod == fast_tls)) ->
             check_compression_auth(El, NextState, StateData);
         _ ->
             process_unauthenticated_stanza(StateData, El),
@@ -1673,11 +1666,11 @@ get_auth_tags([], U, P, D, R) ->
 get_conn_type(StateData) ->
     case (StateData#state.sockmod):get_sockmod(StateData#state.socket) of
         gen_tcp -> c2s;
-        ejabberd_tls -> c2s_tls;
+        fast_tls -> c2s_tls;
         ejabberd_zlib ->
             case ejabberd_zlib:get_sockmod((StateData#state.socket)#socket_state.socket) of
                 gen_tcp -> c2s_compressed;
-                ejabberd_tls -> c2s_compressed_tls
+                fast_tls -> c2s_compressed_tls
             end;
         ejabberd_http_poll -> http_poll;
         ejabberd_http_bind -> http_bind;
@@ -3076,3 +3069,13 @@ open_session_allowed_hook(Server, JID) ->
     allow == ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                                      Server,
                                      allow, [JID]).
+
+terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
+    Lang = StateData#state.lang,
+    send_element(StateData, ?POLICY_VIOLATION_ERR(
+                               Lang, <<"Use of STARTTLS required">>)),
+    send_trailer(StateData),
+    {stop, normal, StateData};
+terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
+    process_unauthenticated_stanza(StateData, El),
+    fsm_next_state(wait_for_feature_before_auth, StateData).

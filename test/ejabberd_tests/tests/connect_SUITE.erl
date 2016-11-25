@@ -29,6 +29,7 @@
      || (E) =/= (V)])).
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
+-define(DH_FILE, "priv/ssl/fake_dh_server.pem").
 -define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
 
 %%--------------------------------------------------------------------
@@ -511,10 +512,12 @@ mk_value_for_tls_config_pattern() ->
     {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, tls,"}.
 
 mk_value_for_compression_config_pattern() ->
-    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls_required,  {zlib, 10000},"}.
+    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, " ++
+                 "starttls_required,  {zlib, 10000},"}.
 
 mk_value_for_starttls_required_config_pattern() ->
-    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls_required,"}.
+    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, " ++
+                 "starttls_required, {dhfile, \"" ++ ?DH_FILE ++ "\"},"}.
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].

@@ -162,12 +162,17 @@ init([{SockMod, Socket}, Opts]) ->
              required_trusted ->
                  {true, true, true}
          end,
-    TLSOpts = case ejabberd_config:get_local_option(s2s_certfile) of
+    TLSOpts1 = case ejabberd_config:get_local_option(s2s_certfile) of
                   undefined ->
                       [];
                   CertFile ->
                       [{certfile, CertFile}]
               end,
+    TLSOpts2 = lists:filter(fun({protocol_options, _}) -> true;
+                               ({dhfile, _}) -> true;
+                               (_) -> false
+                            end, Opts),
+    TLSOpts = lists:append(TLSOpts1, TLSOpts2),
     Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,
@@ -234,11 +239,15 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                        end,
             case SASL of
                 {error_cert_verif, CertVerifyResult, Certificate} ->
-                    CertError = ejabberd_tls:get_cert_verify_string(CertVerifyResult, Certificate),
+                    CertError = fast_tls:get_cert_verify_string(CertVerifyResult, Certificate),
                     RemoteServer = xml:get_attr_s(<<"from">>, Attrs),
-                    ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)", [StateData#state.server, RemoteServer, CertError]),
-                    send_text(StateData, exml:to_binary(?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
-                    {atomic, Pid} = ejabberd_s2s:find_connection(jid:make(<<"">>, Server, <<"">>), jid:make(<<"">>, RemoteServer, <<"">>)),
+                    ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)",
+                      [StateData#state.server, RemoteServer, CertError]),
+                    send_text(StateData, exml:to_binary(
+                                ?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
+                    {atomic, Pid} = ejabberd_s2s:find_connection(
+                                      jid:make(<<"">>, Server, <<"">>),
+                                      jid:make(<<"">>, RemoteServer, <<"">>)),
                     ejabberd_s2s_out:stop_connection(Pid),
 
                     {stop, normal, StateData};
