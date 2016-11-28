@@ -677,14 +677,14 @@ handle_info(process_room_queue, normal_state = StateName, StateData) ->
         StateData3 = prepare_room_queue(StateData2),
         process_presence(From, Nick, Packet, StateData3);
     {empty, _} ->
-        {next_state, StateName, StateData}
+            next_normal_state(StateData)
     end;
 handle_info({'EXIT', FromPid, _Reason}, StateName, StateData) ->
     AuthPids = StateData#state.http_auth_pids,
     StateWithoutPid = StateData#state{http_auth_pids = lists:delete(FromPid, AuthPids)},
     destroy_temporary_room_if_empty(StateWithoutPid, StateName);
-handle_info(_Info, StateName, StateData) ->
-    {next_state, StateName, StateData}.
+handle_info(_Info, StateName, #state{hibernate_timeout = Timeout} = StateData) ->
+    {next_state, StateName, StateData, Timeout}.
 
 
 %% @doc Purpose: Shutdown the fsm
