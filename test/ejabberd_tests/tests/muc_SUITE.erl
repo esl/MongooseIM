@@ -3886,31 +3886,30 @@ hibernated_room_is_stopped(Config) ->
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(5))
     end),
 
-    destroy_room(muc_host(), RoomName).
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
 
 hibernated_room_is_stopped_and_restored_by_presence(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {ok, RoomJID, Pid} = given_fresh_room_is_hibernated(Alice, RoomName,
-                                                            [{persistent, true},
-                                                             {subject, <<"Restorable">>}]),
-        JoinRoom = stanza_join_room(RoomName, <<"bob">>),
-        escalus:send(Bob, JoinRoom),
-        escalus:wait_for_stanzas(Bob, 3),
-        escalus:wait_for_stanza(Alice),
+        Opts = [{persistent, true},
+                {subject, <<"Restorable">>}],
+        Result = given_fresh_room_with_participants_is_hibernated(Alice, RoomName, Opts, Bob),
+        {ok, RoomJID, Pid} = Result,
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(5)),
         ct:sleep(timer:seconds(1)),
 
-        escalus:send(Bob, JoinRoom),
+        escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
         escalus:wait_for_stanza(Bob),
-        Message = escalus:wait_for_stanza(Bob),
-        true = is_subject_message(Message, <<"Restorable">>),
+        MessageWithSubject = escalus:wait_for_stanza(Bob),
+        true = is_subject_message(MessageWithSubject, <<"Restorable">>),
 
         {ok, _Pid2} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
         ok
     end),
 
-    destroy_room(muc_host(), RoomName).
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
 
 given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
     {ok, _, RoomPid} = Result = given_fresh_room_for_user(Owner, RoomName, Opts),
@@ -3953,6 +3952,9 @@ given_fresh_room_with_messages_is_hibernated(Owner, RoomName, Opts, Participant)
     escalus:assert(is_groupchat_message, [MessageBin], escalus:wait_for_stanza(Owner)),
     true = wait_for_hibernation(Pid, 10),
     {MessageBin, Result}.
+
+forget_room(MUCHost, RoomName) ->
+    escalus_ejabberd:rpc(mod_muc, forget_room, [domain(), MUCHost, RoomName]).
 
 wait_for_room_to_be_stopped(Pid, Timeout) ->
     Ref = erlang:monitor(process, Pid),
