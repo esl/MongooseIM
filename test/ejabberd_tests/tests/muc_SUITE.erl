@@ -89,6 +89,7 @@ all() -> [
 groups() -> [
              {hibernation, [parallel], [room_is_hibernated,
                                         room_with_participants_is_hibernated,
+                                        hibernation_metrics_are_updated,
                                         room_with_participants_and_messages_is_hibernated,
                                         hibernated_room_can_be_queried_for_archive]},
         {disco, [parallel], [
@@ -3808,6 +3809,22 @@ room_with_participants_is_hibernated(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         given_fresh_room_with_participants_is_hibernated(Alice, RoomName, [], Bob)
+    end),
+
+    destroy_room(muc_host(), RoomName).
+
+hibernation_metrics_are_updated(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        given_fresh_room_is_hibernated(Alice, RoomName, []),
+
+        OnlineRooms = escalus_ejabberd:rpc(mod_muc, online_rooms_number, []),
+        true = OnlineRooms > 0,
+        Hibernations = escalus_ejabberd:rpc(mongoose_metrics, get_metric_value, [global, [mod_muc, hibernations]]),
+        {ok, [{count, HibernationsCnt}, {one, _}]} = Hibernations,
+        true = HibernationsCnt > 0,
+        HibernatedRooms = escalus_ejabberd:rpc(mod_muc, hibernated_rooms_number, []),
+        true = HibernatedRooms > 0
     end),
 
     destroy_room(muc_host(), RoomName).

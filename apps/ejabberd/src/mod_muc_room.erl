@@ -524,7 +524,8 @@ normal_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) 
     StateDataWithoutPid = StateData#state{http_auth_pids = lists:delete(AuthPid, AuthPids)},
     NewStateData = handle_http_auth_result(Result, From, Nick, Packet, Role, StateDataWithoutPid),
     destroy_temporary_room_if_empty(NewStateData, normal_state);
-normal_state(timeout, StateData) ->
+normal_state(timeout, #state{server_host = Host} = StateData) ->
+    mongoose_metrics:update(global, [mod_muc, hibernations], 1),
     {next_state, normal_state, StateData, hibernate};
 normal_state(_Event, StateData) ->
     next_normal_state(StateData).

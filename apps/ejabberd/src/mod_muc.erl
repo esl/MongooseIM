@@ -56,6 +56,10 @@
          muc_room_pid/2,
          can_access_room/3]).
 
+%% Stats
+-export([online_rooms_number/0]).
+-export([hibernated_rooms_number/0]).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
@@ -140,6 +144,7 @@ start_link(Host, Opts) ->
 -spec start(ejabberd:server(),_) -> {'error',_}
             | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
 start(Host, Opts) ->
+    ensure_metrics(Host),
     start_supervisor(Host),
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     ChildSpec =
@@ -1126,4 +1131,53 @@ can_access_room(_, From, To) ->
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
     end.
+
+online_rooms_number() ->
+    lists:sum([online_rooms_number(Host) || Host <- ?MYHOSTS]).
+
+online_rooms_number(Host) ->
+    try
+        Supervisor = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
+        Stats = supervisor:count_children(Supervisor),
+        proplists:get_value(active, Stats)
+    catch _:_ ->
+              0
+    end.
+
+hibernated_rooms_number() ->
+    lists:sum([hibernated_rooms_number(Host) || Host <- ?MYHOSTS]).
+
+hibernated_rooms_number(Host) ->
+    try
+        count_hibernated_rooms(Host)
+    catch _:_ ->
+              0
+    end.
+
+count_hibernated_rooms(Host) ->
+    AllRooms = all_room_pids(Host),
+    lists:foldl(fun count_hibernated_rooms/2, 0, AllRooms).
+
+all_room_pids(Host) ->
+    Supervisor = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
+    [Pid || {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)].
+
+
+count_hibernated_rooms(Pid, Count) ->
+    case erlang:process_info(Pid, current_function) of
+        {current_function, {erlang, hibernate, _}} ->
+            Count + 1;
+        _ ->
+            Count
+    end.
+
+-define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}],[value]}).
+ensure_metrics(_Host) ->
+    mongoose_metrics:ensure_metric(global, [mod_muc, hibernations], spiral),
+    mongoose_metrics:ensure_metric(global, [mod_muc, hibernated_rooms],
+                                   {function, mod_muc, hibernated_rooms_number, [],
+                                    eval, ?EX_EVAL_SINGLE_VALUE}),
+    mongoose_metrics:ensure_metric(global, [mod_muc, online_rooms],
+                                   {function, mod_muc, online_rooms_number, [],
+                                    eval, ?EX_EVAL_SINGLE_VALUE}).
 
