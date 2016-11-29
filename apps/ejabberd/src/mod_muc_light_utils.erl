@@ -152,7 +152,7 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
                     end,
     if
         BlockingQuery == undefined andalso RoomsPerUser == infinity -> AffUsers;
-        true -> filter_out_loop(FromUS, BlockingQuery, RoomsPerUser, AffUsers)
+        true -> filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, AffUsers)
     end.
 
 %%====================================================================
@@ -162,18 +162,27 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
 %% ---------------- Filter for blocking ----------------
 
 -spec filter_out_loop(FromUS :: ejabberd:simple_bare_jid(),
+                      MUCServer :: ejabberd:lserver(),
                       BlockingQuery :: [{blocking_what(), ejabberd:simple_bare_jid()}],
                       RoomsPerUser :: rooms_per_user(),
                       AffUsers :: aff_users()) -> aff_users().
-filter_out_loop(FromUS, BlockingQuery, RoomsPerUser, [{UserUS, _} = AffUser | RAffUsers]) ->
-    case (BlockingQuery == undefined orelse UserUS =:= FromUS
-          orelse ?BACKEND:get_blocking(UserUS, BlockingQuery) == allow)
-         andalso
-         (RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(UserUS)) < RoomsPerUser) of
-        true -> [AffUser | filter_out_loop(FromUS, BlockingQuery, RoomsPerUser, RAffUsers)];
-        false -> filter_out_loop(FromUS, BlockingQuery, RoomsPerUser, RAffUsers)
+filter_out_loop(
+  FromUS, MUCServer, BlockingQuery, RoomsPerUser, [{UserUS, _} = AffUser | RAffUsers]) ->
+    NotBlocked = case (BlockingQuery == undefined orelse UserUS =:= FromUS) of
+                     false -> ?BACKEND:get_blocking(UserUS, MUCServer, BlockingQuery) == allow;
+                     true -> true
+                 end,
+    RoomsBelowLimit = case RoomsPerUser of
+                          infinity -> true;
+                          _ -> length(?BACKEND:get_user_rooms(UserUS, MUCServer)) < RoomsPerUser
+                      end,
+    if
+        NotBlocked andalso RoomsBelowLimit ->
+            [AffUser | filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)];
+        true ->
+            filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)     
     end;
-filter_out_loop(_FromUS, _BlockingQuery, _RoomsPerUser, []) ->
+filter_out_loop(_FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, []) ->
     [].
 
 %% ---------------- Configuration processing ----------------

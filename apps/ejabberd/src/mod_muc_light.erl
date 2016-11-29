@@ -205,12 +205,17 @@ route(From, To, Packet) ->
                      DecodedPacket :: mod_muc_light_codec:decode_result(),
                      OrigPacket :: jlib:xmlel()) -> any().
 process_packet(From, To, {ok, {set, #create{} = Create}}, OrigPacket) ->
-    RoomsPerUser = get_opt(To#jid.lserver, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
     FromUS = jid:to_lus(From),
-    case RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(FromUS)) < RoomsPerUser of
-        true ->
+    MayCreate = case get_opt(To#jid.lserver, rooms_per_user, ?DEFAULT_ROOMS_PER_USER) of
+                    infinity ->
+                        true;
+                    RoomsPerUser ->
+                        length(?BACKEND:get_user_rooms(FromUS, To#jid.lserver)) < RoomsPerUser
+                end,
+    if
+        MayCreate ->
             create_room(From, FromUS, To, Create, OrigPacket);
-        false ->
+        true ->
             ?CODEC:encode_error(
               {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
     end;
@@ -306,7 +311,7 @@ add_rooms_to_roster(Acc, UserUS) ->
                                       children = [#xmlcdata{ content = RoomVersion }] }]
                        },
               [Item | Acc0]
-      end, Acc, get_rooms_info(lists:sort(?BACKEND:get_user_rooms(UserUS)))).
+      end, Acc, get_rooms_info(lists:sort(?BACKEND:get_user_rooms(UserUS, undefined)))).
 
 -spec process_iq_get(Acc :: any(), From :: #jid{}, To :: #jid{},
                      IQ :: #iq{}, ActiveList :: binary()) ->
@@ -315,7 +320,7 @@ process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList
     MUCHost = gen_mod:get_module_opt_host(FromS, ?MODULE, ?DEFAULT_HOST),
     case {?CODEC:decode(From, To, IQ), get_opt(MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
-            Items = ?BACKEND:get_blocking(jid:to_lus(From)),
+            Items = ?BACKEND:get_blocking(jid:to_lus(From), MUCHost),
             ?CODEC:encode({get, Blocking#blocking{ items = Items }}, From, jid:to_lus(To),
                           fun(_, _, Packet) -> put(encode_res, Packet) end),
             #xmlel{ children = ResponseChildren } = erase(encode_res),
@@ -338,7 +343,7 @@ process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
                 true ->
                     {stop, {error, ?ERR_BAD_REQUEST}};
                 false ->
-                    ok = ?BACKEND:set_blocking(jid:to_lus(From), Items),
+                    ok = ?BACKEND:set_blocking(jid:to_lus(From), MUCHost, Items),
                     ?CODEC:encode(Blocking, From, jid:to_lus(To),
                                   fun(_, _, Packet) -> put(encode_res, Packet) end),
                     #xmlel{ children = ResponseChildren } = erase(encode_res),
@@ -459,7 +464,7 @@ handle_disco_info_get(From, To, DiscoInfo) ->
 -spec handle_disco_items_get(From :: jid(), To :: jid(), DiscoItems :: #disco_items{},
                             OrigPacket :: jlib:xmlel()) -> ok.
 handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
-    case catch ?BACKEND:get_user_rooms(jid:to_lus(From)) of
+    case catch ?BACKEND:get_user_rooms(jid:to_lus(From), To#jid.lserver) of
         {error, Error} ->
             ?ERROR_MSG("Couldn't get room list for user ~p: ~p", [From, Error]),
             ?CODEC:encode_error({error, internal_server_error}, From, To, OrigPacket,
@@ -560,14 +565,15 @@ find_room_pos(_, [], _) -> {error, item_not_found}.
                       BlockingReq :: {get | set, #blocking{}}) ->
     {error, bad_request} | ok.
 handle_blocking(From, To, {get, #blocking{} = Blocking}) ->
-    ?CODEC:encode({get, Blocking#blocking{ items = ?BACKEND:get_blocking(jid:to_lus(From)) }},
+    BlockingItems = ?BACKEND:get_blocking(jid:to_lus(From), To#jid.lserver),
+    ?CODEC:encode({get, Blocking#blocking{ items = BlockingItems }},
                   From, jid:to_lus(To), fun ejabberd_router:route/3);
 handle_blocking(From, To, {set, #blocking{ items = Items }} = BlockingReq) ->
     case lists:any(fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end, Items) of
         true ->
             {error, bad_request};
         false ->
-            ok = ?BACKEND:set_blocking(jid:to_lus(From), Items),
+            ok = ?BACKEND:set_blocking(jid:to_lus(From), To#jid.lserver, Items),
             ?CODEC:encode(BlockingReq, From, jid:to_lus(To), fun ejabberd_router:route/3),
             ok
     end.

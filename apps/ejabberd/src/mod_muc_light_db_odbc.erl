@@ -32,7 +32,7 @@
          create_room/4,
          destroy_room/1,
          room_exists/1,
-         get_user_rooms/1,
+         get_user_rooms/2,
          remove_user/2,
 
          get_config/1,
@@ -40,9 +40,9 @@
          set_config/3,
          set_config/4,
 
-         get_blocking/1,
          get_blocking/2,
-         set_blocking/2,
+         get_blocking/3,
+         set_blocking/3,
 
          get_aff_users/1,
          modify_aff_users/4,
@@ -100,10 +100,19 @@ room_exists({RoomU, RoomS} = RoomUS) ->
     {selected, _, [{Cnt}]} = ejabberd_odbc:sql_query(MainHost, room_exists_sql(RoomU, RoomS)),
     ejabberd_odbc:result_to_integer(Cnt) > 0.
 
--spec get_user_rooms(UserUS :: ejabberd:simple_bare_jid()) ->
+-spec get_user_rooms(UserUS :: ejabberd:simple_bare_jid(),
+                     MUCServer :: ejabberd:lserver() | undefined) ->
     [RoomUS :: ejabberd:simple_bare_jid()].
-get_user_rooms({LUser, LServer}) ->
-    {selected, _, Rooms} = ejabberd_odbc:sql_query(LServer, get_user_rooms_sql(LUser, LServer)),
+get_user_rooms({LUser, LServer}, undefined) ->
+    SQL = get_user_rooms_sql(LUser, LServer),
+    lists:usort(lists:flatmap(
+                  fun(Host) ->
+                          {selected, _, Rooms} = ejabberd_odbc:sql_query(Host, SQL),
+                          Rooms
+                  end, ?MYHOSTS));
+get_user_rooms({LUser, LServer}, MUCServer) ->
+    MainHost = main_host(MUCServer),
+    {selected, _, Rooms} = ejabberd_odbc:sql_query(MainHost, get_user_rooms_sql(LUser, LServer)),
     Rooms.
 
 -spec remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
@@ -173,31 +182,37 @@ set_config(RoomJID, Key, Val, Version) ->
 
 %% ------------------------ Blocking manipulation ------------------------
 
--spec get_blocking(UserUS :: ejabberd:simple_bare_jid()) -> [blocking_item()].
-get_blocking({LUser, LServer}) ->
-    {selected, _, WhatWhos} = ejabberd_odbc:sql_query(LServer, get_blocking_sql(LUser, LServer)),
+-spec get_blocking(UserUS :: ejabberd:simple_bare_jid(), MUCServer :: ejabberd:lserver()) ->
+    [blocking_item()].
+get_blocking({LUser, LServer}, MUCServer) ->
+    MainHost = main_host(MUCServer),
+    {selected, _, WhatWhos} = ejabberd_odbc:sql_query(MainHost, get_blocking_sql(LUser, LServer)),
     [ {what_db2atom(What), deny, jid:to_lus(jid:from_binary(Who))} || {What, Who} <- WhatWhos ].
 
 -spec get_blocking(UserUS :: ejabberd:simple_bare_jid(),
+                   MUCServer :: ejabberd:lserver(),
                    WhatWhos :: [{blocking_who(), ejabberd:simple_bare_jid()}]) ->
     blocking_action().
-get_blocking({LUser, LServer}, WhatWhos) ->
+get_blocking({LUser, LServer}, MUCServer, WhatWhos) ->
+    MainHost = main_host(MUCServer),
     {selected, _, [{Count}]} = ejabberd_odbc:sql_query(
-                                 LServer, get_blocking_cnt_sql(LUser, LServer, WhatWhos)),
+                                 MainHost, get_blocking_cnt_sql(LUser, LServer, WhatWhos)),
     case ejabberd_odbc:result_to_integer(Count) of
         0 -> allow;
         _ -> deny
     end.
 
--spec set_blocking(UserUS :: ejabberd:simple_bare_jid(), BlockingItems :: [blocking_item()]) -> ok.
-set_blocking(_UserUS, []) ->
+-spec set_blocking(UserUS :: ejabberd:simple_bare_jid(),
+                   MUCServer :: ejabberd:lserver(),
+                   BlockingItems :: [blocking_item()]) -> ok.
+set_blocking(_UserUS, _MUCServer, []) ->
     ok;
-set_blocking({LUser, LServer} = UserUS, [{What, deny, Who} | RBlockingItems]) ->
-    ejabberd_odbc:sql_query(LServer, set_blocking_sql(LUser, LServer, What, Who)),
-    set_blocking(UserUS, RBlockingItems);
-set_blocking({LUser, LServer} = UserUS, [{What, allow, Who} | RBlockingItems]) ->
-    ejabberd_odbc:sql_query(LServer, unset_blocking_sql(LUser, LServer, What, Who)),
-    set_blocking(UserUS, RBlockingItems).
+set_blocking({LUser, LServer} = UserUS, MUCServer, [{What, deny, Who} | RBlockingItems]) ->
+    ejabberd_odbc:sql_query(main_host(MUCServer), set_blocking_sql(LUser, LServer, What, Who)),
+    set_blocking(UserUS, MUCServer, RBlockingItems);
+set_blocking({LUser, LServer} = UserUS, MUCServer, [{What, allow, Who} | RBlockingItems]) ->
+    ejabberd_odbc:sql_query(main_host(MUCServer), unset_blocking_sql(LUser, LServer, What, Who)),
+    set_blocking(UserUS, MUCServer, RBlockingItems).
 
 %% ------------------------ Affiliations manipulation ------------------------
 
@@ -377,12 +392,13 @@ get_user_rooms_sql(LUser, LServer) ->
 -spec remove_user_transaction(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
     mod_muc_light_db:remove_user_return().
 remove_user_transaction({UserU, UserS} = UserUS, Version) ->
+    Rooms = get_user_rooms(UserUS, undefined),
     {updated, _} = ejabberd_odbc:sql_query_t(delete_blocking_sql(UserU, UserS)),
     lists:map(
       fun(RoomUS) ->
               {RoomUS, modify_aff_users_transaction(
                          RoomUS, [{UserUS, none}], fun(_,_) -> ok end, Version)}
-      end, get_user_rooms(UserUS)).
+      end, Rooms).
 
 -spec delete_blocking_sql(UserU :: ejabberd:luser(), UserS :: ejabberd:lserver()) -> iolist().
 delete_blocking_sql(UserU, UserS) ->
@@ -529,9 +545,11 @@ aff_update_sql(RoomID, UserU, UserS, Aff) ->
 
 %% ------------------------ Common ------------------------
 
--spec main_host(RoomUS :: ejabberd:simple_bare_jid()) -> ejabberd:lserver().
+-spec main_host(JIDOrServer :: ejabberd:simple_bare_jid() | binary()) -> ejabberd:lserver().
 main_host({_, RoomS}) ->
-    mod_muc_light:get_opt(RoomS, main_host, <<>>).
+    main_host(RoomS);
+main_host(MUCServer) ->
+    mod_muc_light:get_opt(MUCServer, main_host, <<>>).
 
 -spec set_version_sql(
         RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver(), Version :: binary()) -> iolist().

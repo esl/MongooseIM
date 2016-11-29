@@ -39,7 +39,8 @@
 
 -callback room_exists(RoomUS :: ejabberd:simple_bare_jid()) -> boolean().
 
--callback get_user_rooms(UserUS :: ejabberd:simple_bare_jid()) ->
+-callback get_user_rooms(UserUS :: ejabberd:simple_bare_jid(),
+                         MUCServer :: ejabberd:lserver() | undefined) ->
     [RoomUS :: ejabberd:simple_bare_jid()].
 
 -callback remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
@@ -62,13 +63,16 @@
 
 %% ------------------------ Blocking manipulation ------------------------
 
--callback get_blocking(UserUS :: ejabberd:simple_bare_jid()) -> [blocking_item()].
+-callback get_blocking(UserUS :: ejabberd:simple_bare_jid(), MUCServer :: ejabberd:lserver()) ->
+    [blocking_item()].
 
 -callback get_blocking(UserUS :: ejabberd:simple_bare_jid(),
+                       MUCServer :: ejabberd:lserver(),
                        WhatWhos :: [{blocking_what(), blocking_who()}]) ->
     blocking_action().
 
 -callback set_blocking(UserUS :: ejabberd:simple_bare_jid(),
+                       MUCServer :: ejabberd:lserver(),
                        BlockingItems :: [blocking_item()]) -> ok.
 
 %% ------------------------ Affiliations manipulation ------------------------
