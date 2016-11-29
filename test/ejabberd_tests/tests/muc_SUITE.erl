@@ -3876,7 +3876,7 @@ hibernated_room_can_be_queried_for_archive(Config) ->
 hibernated_room_is_stopped(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        {ok, _, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{persistent, true}]),
+        {ok, _, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{persistentroom, true}]),
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(5))
     end),
 
@@ -3886,7 +3886,7 @@ hibernated_room_is_stopped(Config) ->
 hibernated_room_is_stopped_and_restored_by_presence(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Opts = [{persistent, true},
+        Opts = [{persistentroom, true},
                 {subject, <<"Restorable">>}],
         Result = given_fresh_room_with_participants_is_hibernated(Alice, RoomName, Opts, Bob),
         {ok, RoomJID, Pid} = Result,
@@ -3908,7 +3908,7 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
 stopped_rooms_history_is_available(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Opts = [{persistent, true}],
+        Opts = [{persistentroom, true}],
         Result = given_fresh_room_with_messages_is_hibernated(Alice, RoomName,
                                                               Opts, Bob),
         {Msg, {ok, RoomJID, Pid}} = Result,
@@ -3929,20 +3929,45 @@ given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
     Result.
 
 given_fresh_room_for_user(Owner, RoomName, Opts) ->
-    Username = escalus_client:username(Owner),
-    Server = escalus_client:server(Owner),
-    Resource = escalus_client:resource(Owner),
-    JID = {jid, Username, Server, Resource,
-           escalus_utils:jid_to_lower(Username), Server, Resource},
     RoomJID = {jid, RoomName, muc_host(), <<>>,
                escalus_utils:jid_to_lower(RoomName), muc_host(), <<>>},
-    Nick = <<"a-nick">>,
-    ok =  create_instant_room(domain(), RoomName, JID, Nick, Opts),
     JoinRoom = stanza_join_room(RoomName, <<"a-nick">>),
     escalus:send(Owner, JoinRoom),
     escalus:wait_for_stanzas(Owner, 2),
+    maybe_configure(Owner, RoomName, Opts),
     {ok, Pid} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
     {ok, RoomJID, Pid}.
+
+maybe_configure(_, _, []) ->
+    ok;
+maybe_configure(Owner, RoomName, Opts) ->
+    maybe_set_subject(proplists:get_value(subject, Opts), Owner, RoomName),
+    Cfg = [opt_to_room_config(Opt) || Opt <- Opts],
+    Form = stanza_configuration_form(RoomName, lists:flatten(Cfg)),
+    ct:print("Form: ~p", [Form]),
+    escalus:send(Owner, Form),
+
+    Result = escalus:wait_for_stanza(Owner),
+    escalus:assert(is_iq_result, Result),
+    escalus:assert(is_stanza_from, [<<RoomName/binary,"@muc.localhost">>], Result).
+
+opt_to_room_config({Name, Value}) when is_atom(Value) ->
+    NameBin = atom_to_binary(Name, utf8),
+    OptionName = <<"muc#roomconfig_", NameBin/binary>>,
+    BinValue = boolean_to_binary(Value),
+    {OptionName, BinValue, <<"boolean">>};
+opt_to_room_config(_) -> [].
+
+boolean_to_binary(true) -> <<"1">>;
+boolean_to_binary(false) -> <<"0">>.
+
+maybe_set_subject(undefined, _, _) ->
+    ok;
+maybe_set_subject(Subject, Owner, RoomName) ->
+    S = stanza_room_subject(RoomName, Subject),
+    escalus:send(Owner, S),
+    escalus:wait_for_stanza(Owner),
+    ok.
 
 given_fresh_room_with_participants_is_hibernated(Owner, RoomName, Opts, Participant) ->
     {ok, _, Pid} = Result = given_fresh_room_is_hibernated(Owner, RoomName, Opts),
