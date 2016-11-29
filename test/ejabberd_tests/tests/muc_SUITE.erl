@@ -94,7 +94,8 @@ groups() -> [
                                         hibernated_room_can_be_queried_for_archive,
                                         hibernated_room_is_stopped,
                                         hibernated_room_is_stopped_and_restored_by_presence,
-                                        stopped_rooms_history_is_available
+                                        stopped_rooms_history_is_available,
+                                        stopped_members_only_room_process_invitations_correctly
                                        ]},
         {disco, [parallel], [
                 disco_service,
@@ -3917,6 +3918,34 @@ stopped_rooms_history_is_available(Config) ->
         wait_for_mam_result(RoomName, Bob, Msg),
 
         {ok, _Pid2} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
+        ok
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+stopped_members_only_room_process_invitations_correctly(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        Opts = [{persistentroom, true},
+                {membersonly, true}],
+        Result = given_fresh_room_for_user(Alice, RoomName, Opts),
+        {ok, _, Pid} = Result,
+
+        Stanza = stanza_set_affiliations(RoomName, [{escalus_client:short_jid(Bob), <<"member">>}]),
+        escalus:send(Alice, Stanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        is_invitation(escalus:wait_for_stanza(Bob)),
+
+        leave_room(RoomName, Alice),
+
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+
+        Stanza2 = stanza_set_affiliations(RoomName, [{escalus_client:short_jid(Kate), <<"member">>}]),
+        escalus:send(Alice, Stanza2),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        is_invitation(escalus:wait_for_stanza(Kate)),
+
         ok
     end),
 
