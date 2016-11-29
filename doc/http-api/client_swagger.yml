@@ -23,7 +23,7 @@ consumes:
 paths:
   /messages:
     post:
-      description: Sends messages
+      description: Sends a message to a chosen user.
       tags:
         - "One-to-one messages"
       parameters:
@@ -213,8 +213,7 @@ securityDefinitions:
   mongoose_basic_auth:
     type: basic
     description: |
-      The userid part is user's bare JID. F.e. alice@wonderland.com.
-      The password is the same as used to register the user's account.
+      Log in using your user's bare JID (F.e. alice@wonderland.com) and their password.
 parameters:
   roomID:
     in: path
