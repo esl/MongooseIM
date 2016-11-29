@@ -685,12 +685,17 @@ handle_info({'EXIT', FromPid, _Reason}, StateName, StateData) ->
     StateWithoutPid = StateData#state{http_auth_pids = lists:delete(FromPid, AuthPids)},
     destroy_temporary_room_if_empty(StateWithoutPid, StateName);
 handle_info(stop_persistent_room_process, normal_state,
-            #state{room = RoomName} = StateData) ->
-    ?INFO_MSG("Stopping persistent room's process, ~p ~p", [self(), RoomName]),
-    {stop, normal, StateData};
+            #state{room = RoomName,
+                   config = #config{persistent = true}} = StateData) ->
+    maybe_stop_persistent_room(RoomName, is_empty_room(StateData), StateData);
 handle_info(_Info, StateName, #state{hibernate_timeout = Timeout} = StateData) ->
     {next_state, StateName, StateData, Timeout}.
 
+maybe_stop_persistent_room(RoomName, true, State) ->
+    ?INFO_MSG("Stopping persistent room's process, ~p ~p", [self(), RoomName]),
+    {stop, normal, State};
+maybe_stop_persistent_room(_, _, State) ->
+    next_normal_state(State).
 
 %% @doc Purpose: Shutdown the fsm
 -spec terminate(any(), statename(), state()) -> 'ok'.

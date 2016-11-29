@@ -95,7 +95,8 @@ groups() -> [
                                         hibernated_room_is_stopped,
                                         hibernated_room_is_stopped_and_restored_by_presence,
                                         stopped_rooms_history_is_available,
-                                        stopped_members_only_room_process_invitations_correctly
+                                        stopped_members_only_room_process_invitations_correctly,
+                                        room_with_participants_is_not_stopped
                                        ]},
         {disco, [parallel], [
                 disco_service,
@@ -3878,7 +3879,8 @@ hibernated_room_is_stopped(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         {ok, _, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{persistentroom, true}]),
-        true = wait_for_room_to_be_stopped(Pid, timer:seconds(5))
+        leave_room(RoomName, Alice),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8))
     end),
 
     destroy_room(muc_host(), RoomName),
@@ -3891,7 +3893,10 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
                 {subject, <<"Restorable">>}],
         Result = given_fresh_room_with_participants_is_hibernated(Alice, RoomName, Opts, Bob),
         {ok, RoomJID, Pid} = Result,
-        true = wait_for_room_to_be_stopped(Pid, timer:seconds(5)),
+        leave_room(RoomName, Alice),
+        escalus:wait_for_stanza(Bob),
+        leave_room(RoomName, Bob),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
         ct:sleep(timer:seconds(1)),
 
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
@@ -3913,7 +3918,10 @@ stopped_rooms_history_is_available(Config) ->
         Result = given_fresh_room_with_messages_is_hibernated(Alice, RoomName,
                                                               Opts, Bob),
         {Msg, {ok, RoomJID, Pid}} = Result,
-        true = wait_for_room_to_be_stopped(Pid, timer:seconds(5)),
+        leave_room(RoomName, Alice),
+        escalus:wait_for_stanza(Bob),
+        leave_room(RoomName, Bob),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
 
         wait_for_mam_result(RoomName, Bob, Msg),
 
@@ -3952,6 +3960,16 @@ stopped_members_only_room_process_invitations_correctly(Config) ->
     destroy_room(muc_host(), RoomName),
     forget_room(muc_host(), RoomName).
 
+room_with_participants_is_not_stopped(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        {ok, _, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{persistentroom, true}]),
+        false = wait_for_room_to_be_stopped(Pid, timer:seconds(8))
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
 given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
     {ok, _, RoomPid} = Result = given_fresh_room_for_user(Owner, RoomName, Opts),
     true = wait_for_hibernation(RoomPid, 10),
@@ -3960,7 +3978,8 @@ given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
 given_fresh_room_for_user(Owner, RoomName, Opts) ->
     RoomJID = {jid, RoomName, muc_host(), <<>>,
                escalus_utils:jid_to_lower(RoomName), muc_host(), <<>>},
-    JoinRoom = stanza_join_room(RoomName, <<"a-nick">>),
+    Nick = escalus_utils:get_username(Owner),
+    JoinRoom = stanza_join_room(RoomName, Nick),
     escalus:send(Owner, JoinRoom),
     escalus:wait_for_stanzas(Owner, 2),
     maybe_configure(Owner, RoomName, Opts),
@@ -3998,9 +4017,16 @@ maybe_set_subject(Subject, Owner, RoomName) ->
     escalus:wait_for_stanza(Owner),
     ok.
 
+leave_room(RoomName, User) ->
+    S = stanza_to_room(escalus_stanza:presence(<<"unavailable">>), RoomName,
+                       escalus_utils:get_username(User)),
+    escalus:send(User, S),
+    escalus:wait_for_stanza(User).
+
 given_fresh_room_with_participants_is_hibernated(Owner, RoomName, Opts, Participant) ->
     {ok, _, Pid} = Result = given_fresh_room_is_hibernated(Owner, RoomName, Opts),
-    JoinRoom = stanza_join_room(RoomName, <<"bob">>),
+    Nick = escalus_utils:get_username(Participant),
+    JoinRoom = stanza_join_room(RoomName, Nick),
     escalus:send(Participant, JoinRoom),
     escalus:wait_for_stanzas(Participant, 3),
     escalus:wait_for_stanza(Owner),
