@@ -530,43 +530,67 @@ route_to_room(Room, {From,To,Packet} = Routed, #state{host=Host} = State) ->
 
 -spec route_to_nonexistent_room(room(), from_to_packet(), state()) -> 'ok'.
 route_to_nonexistent_room(Room, {From, To, Packet},
-                          #state{host=Host} = State) ->
+                          #state{host = Host} = State) ->
     #xmlel{name = Name, attrs = Attrs} = Packet,
     Type = xml:get_attr_s(<<"type">>, Attrs),
     case {Name, Type} of
         {<<"presence">>, <<>>} ->
-            ServerHost = State#state.server_host,
-            Access = State#state.access,
-            {_, AccessCreate, _, _} = Access,
-            case check_user_can_create_room(ServerHost, AccessCreate,
-                                            From, Room) of
-                true ->
-                    #state{history_size = HistorySize,
-                           room_shaper = RoomShaper,
-                           http_auth_pool = HttpAuthPool,
-                           default_room_opts = DefRoomOpts} = State,
-                    {_, _, Nick} = jid:to_lower(To),
-                    {ok, Pid} = start_new_room(Host, ServerHost, Access, Room,
-                                               HistorySize, RoomShaper, HttpAuthPool,
-                                               From, Nick, DefRoomOpts),
-                    register_room(Host, Room, Pid),
-                    mod_muc_room:route(Pid, From, Nick, Packet),
-                    ok;
-                false ->
-                    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-                    ErrText = <<"Room creation is denied by service policy">>,
-                    Err = jlib:make_error_reply(
-                            Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
-                    ejabberd_router:route(To, From, Err)
-            end;
+            route_presence_to_nonexistent_room(Room, From, To, Packet, State);
         _ ->
-            Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-            ErrText = <<"Conference room does not exist">>,
+            route_packet_to_nonexistent_room(Room, From, To, Packet, State)
+    end.
+
+route_presence_to_nonexistent_room(Room, From, To, Packet,
+                                   #state{server_host = ServerHost,
+                                          host = Host,
+                                          access = Access} = State) ->
+    {_, AccessCreate, _, _} = Access,
+    case check_user_can_create_room(ServerHost, AccessCreate,
+                                    From, Room) of
+        true ->
+            #state{history_size = HistorySize,
+                   room_shaper = RoomShaper,
+                   http_auth_pool = HttpAuthPool,
+                   default_room_opts = DefRoomOpts} = State,
+            {_, _, Nick} = jid:to_lower(To),
+            {ok, Pid} = start_new_room(Host, ServerHost, Access, Room,
+                                       HistorySize, RoomShaper, HttpAuthPool,
+                                       From, Nick, DefRoomOpts),
+            register_room(Host, Room, Pid),
+            mod_muc_room:route(Pid, From, Nick, Packet),
+            ok;
+        false ->
+            Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
+            ErrText = <<"Room creation is denied by service policy">>,
             Err = jlib:make_error_reply(
-                    Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+                    Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
             ejabberd_router:route(To, From, Err)
     end.
 
+route_packet_to_nonexistent_room(Room, From, To, Packet,
+                                 #state{server_host = ServerHost,
+                                        host = Host,
+                                        access = Access} = State) ->
+
+    case restore_room(Host, Room) of
+        error ->
+            Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
+            ErrText = <<"Conference room does not exist">>,
+            Err = jlib:make_error_reply(
+                    Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+            ejabberd_router:route(To, From, Err);
+        Opts ->
+            ?DEBUG("MUC: restore room '~s'~n", [Room]),
+            #state{history_size = HistorySize,
+                   room_shaper = RoomShaper,
+                   http_auth_pool = HttpAuthPool} = State,
+            {ok, Pid} = mod_muc_room:start(Host, ServerHost, Access,
+                                           Room, HistorySize,
+                                           RoomShaper, HttpAuthPool, Opts),
+            {_, _, Nick} = jid:to_lower(To),
+            register_room(Host, Room, Pid),
+            mod_muc_room:route(Pid, From, Nick, Packet)
+    end.
 
 -spec route_by_nick(room(), from_to_packet(), state()) -> 'ok' | pid().
 route_by_nick(<<>>, {_,_,Packet} = Routed, State) ->

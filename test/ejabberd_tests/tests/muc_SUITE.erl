@@ -93,7 +93,9 @@ groups() -> [
                                         room_with_participants_and_messages_is_hibernated,
                                         hibernated_room_can_be_queried_for_archive,
                                         hibernated_room_is_stopped,
-                                        hibernated_room_is_stopped_and_restored_by_presence]},
+                                        hibernated_room_is_stopped_and_restored_by_presence,
+                                        stopped_rooms_history_is_available
+                                       ]},
         {disco, [parallel], [
                 disco_service,
                 disco_features,
@@ -300,9 +302,9 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
 init_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         odbc ->
-            dynamic_modules:start(domain(), mod_mam_muc_odbc_arch, [muc, simple]),
-            dynamic_modules:start(domain(), mod_mam_odbc_prefs, [muc]),
-            dynamic_modules:start(domain(), mod_mam_odbc_user, [muc]),
+    dynamic_modules:start(domain(), mod_mam_muc_odbc_arch, [muc, simple]),
+    dynamic_modules:start(domain(), mod_mam_odbc_prefs, [muc]),
+    dynamic_modules:start(domain(), mod_mam_odbc_user, [muc]),
             dynamic_modules:start(domain(), mod_mam_muc, [{host, "muc.@HOST@"}]);
         _ ->
             ok
@@ -355,9 +357,9 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         odbc ->
-            dynamic_modules:stop(domain(), mod_mam_muc_odbc_arch),
-            dynamic_modules:stop(domain(), mod_mam_odbc_prefs),
-            dynamic_modules:stop(domain(), mod_mam_odbc_user),
+    dynamic_modules:stop(domain(), mod_mam_muc_odbc_arch),
+    dynamic_modules:stop(domain(), mod_mam_odbc_prefs),
+    dynamic_modules:stop(domain(), mod_mam_odbc_user),
             dynamic_modules:stop(domain(), mod_mam_muc);
         _ ->
             ok
@@ -406,7 +408,9 @@ init_per_testcase(CaseName =reserved_nickname_request, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
-init_per_testcase(hibernated_room_can_be_queried_for_archive = CN, Config) ->
+init_per_testcase(CN, Config)
+  when CN =:= hibernated_room_can_be_queried_for_archive orelse
+       CN =:= stopped_rooms_history_is_available ->
     case mam_helper:backend() of
         odbc ->
             escalus:init_per_testcase(CN, Config);
@@ -3862,17 +3866,7 @@ hibernated_room_can_be_queried_for_archive(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         Result = given_fresh_room_with_messages_is_hibernated(Alice, RoomName, [], Bob),
         {Msg, {ok, _, Pid}} = Result,
-        Props = [{mam_ns, mam_helper:mam_ns_binary_v04()},
-                 {data_form, true}],
-        QueryStanza = mam_helper:stanza_archive_request(Props, <<"q1">>),
-        escalus:send(Bob, muc_helper:stanza_to_room(QueryStanza, RoomName)),
-        S = escalus:wait_for_stanza(Bob),
-        M = exml_query:path(S, [{element, <<"result">>},
-                                {element, <<"forwarded">>},
-                                {element, <<"message">>}]),
-
-        escalus:assert(is_groupchat_message, [Msg], M),
-        escalus:wait_for_stanza(Bob),
+        wait_for_mam_result(RoomName, Bob, Msg),
         true = wait_for_hibernation(Pid, 10)
 
     end),
@@ -3903,6 +3897,24 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
         escalus:wait_for_stanza(Bob),
         MessageWithSubject = escalus:wait_for_stanza(Bob),
         true = is_subject_message(MessageWithSubject, <<"Restorable">>),
+
+        {ok, _Pid2} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
+        ok
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+stopped_rooms_history_is_available(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Opts = [{persistent, true}],
+        Result = given_fresh_room_with_messages_is_hibernated(Alice, RoomName,
+                                                              Opts, Bob),
+        {Msg, {ok, RoomJID, Pid}} = Result,
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(5)),
+
+        wait_for_mam_result(RoomName, Bob, Msg),
 
         {ok, _Pid2} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
         ok
@@ -3980,6 +3992,18 @@ is_hibernated(Pid) ->
     CurrentFunction = escalus_ejabberd:rpc(erlang, process_info, [Pid, current_function]),
     {current_function, {erlang, hibernate, 3}} == CurrentFunction.
 
+wait_for_mam_result(RoomName, Client, Msg) ->
+    Props = [{mam_ns, mam_helper:mam_ns_binary_v04()},
+             {data_form, true}],
+    QueryStanza = mam_helper:stanza_archive_request(Props, <<"q1">>),
+    escalus:send(Client, muc_helper:stanza_to_room(QueryStanza, RoomName)),
+    S = escalus:wait_for_stanza(Client),
+    M = exml_query:path(S, [{element, <<"result">>},
+                            {element, <<"forwarded">>},
+                            {element, <<"message">>}]),
+
+    escalus:assert(is_groupchat_message, [Msg], M),
+    escalus:wait_for_stanza(Client).
 
 %% @doc Based on examples from http://xmpp.org/extensions/xep-0059.html
 %% @end
