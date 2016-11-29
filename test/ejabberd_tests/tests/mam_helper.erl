@@ -1074,7 +1074,7 @@ determine_backend(Host, [F | Rest]) ->
     end.
 
 maybe_odbc(Host) ->
-    case is_odbc_enabled(Host) of
+    case mongoose_helper:is_odbc_enabled(Host) of
         true ->
             odbc;
         _ ->
@@ -1090,15 +1090,7 @@ maybe_riak(Host) ->
     end.
 
 is_mam_possible(Host) ->
-    is_odbc_enabled(Host) orelse is_riak_enabled(Host).
-
-is_odbc_enabled(Host) ->
-    case sql_transaction(Host, fun erlang:now/0) of
-        {atomic, _} -> true;
-        _ ->
-            %ct:pal("ODBC disabled (check failed ~p)", [Other]),
-            false
-    end.
+    mongoose_helper:is_odbc_enabled(Host) orelse is_riak_enabled(Host).
 
 is_riak_enabled(_Host) ->
     case escalus_ejabberd:rpc(mongoose_riak, get_worker, []) of

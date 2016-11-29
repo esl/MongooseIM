@@ -167,6 +167,8 @@ start(Host, Opts) ->
                       ConfigSchema),
     set_opt(MyDomain, default_config, DefaultConfig),
 
+    set_opt(MyDomain, main_host, Host),
+
     ok.
 
 -spec stop(Host :: ejabberd:server()) -> ok.
