@@ -212,7 +212,7 @@ get_aff_users({RoomU, RoomS} = RoomUS) ->
             {ok, [], Version};
         {selected, _, [{Version, _, _, _} | _] = Res} ->
             AffUsers = [{{UserU, UserS}, aff_db2atom(Aff)} || {_, UserU, UserS, Aff} <- Res],
-            {ok, AffUsers, Version}
+            {ok, lists:sort(AffUsers), Version}
     end.
 
 -spec get_affs_sql(RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver()) -> iolist().
@@ -249,7 +249,7 @@ get_info({RoomU, RoomS} = RoomUS) ->
             {ok, Config} = mod_muc_light_utils:process_raw_config(
                              ConfigDB, [], mod_muc_light:config_schema(RoomS)),
 
-            {ok, Config, AffUsers, Version};
+            {ok, Config, lists:sort(AffUsers), Version};
         {selected, _, []} ->
             {error, not_exists}
     end.
@@ -480,7 +480,8 @@ modify_aff_users_transaction({RoomU, RoomS} = RoomUS, AffUsersChanges, CheckFun,
     case ejabberd_odbc:sql_query_t(get_room_id_and_version_sql(RoomU, RoomS)) of
         {selected, _, [{RoomID, PrevVersion}]} ->
             {selected, _, AffUsersDB} = ejabberd_odbc:sql_query_t(get_affs_sql(RoomID)),
-            AffUsers = [{{UserU, UserS}, aff_db2atom(Aff)} || {UserU, UserS, Aff} <- AffUsersDB],
+            AffUsers = lists:sort(
+                         [{{UserU, UserS}, aff_db2atom(Aff)} || {UserU, UserS, Aff} <- AffUsersDB]),
             case mod_muc_light_utils:change_aff_users(AffUsers, AffUsersChanges) of
                 {ok, NewAffUsers, AffUsersChanged, JoiningUsers, _LeavingUsers} ->
                     case CheckFun(RoomUS, NewAffUsers) of
