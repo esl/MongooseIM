@@ -296,10 +296,15 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
     dynamic_modules:ensure_modules(domain(), required_modules(http_auth)),
     ConfigWithModules;
 init_per_group(hibernation, Config) ->
-    dynamic_modules:start(domain(), mod_mam_muc_odbc_arch, [muc, simple]),
-    dynamic_modules:start(domain(), mod_mam_odbc_prefs, [muc]),
-    dynamic_modules:start(domain(), mod_mam_odbc_user, [muc]),
-    dynamic_modules:start(domain(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    case mam_helper:backend() of
+        odbc ->
+            dynamic_modules:start(domain(), mod_mam_muc_odbc_arch, [muc, simple]),
+            dynamic_modules:start(domain(), mod_mam_odbc_prefs, [muc]),
+            dynamic_modules:start(domain(), mod_mam_odbc_user, [muc]),
+            dynamic_modules:start(domain(), mod_mam_muc, [{host, "muc.@HOST@"}]);
+        _ ->
+            ok
+    end,
     Config;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
@@ -346,10 +351,15 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
     ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [muc_http_auth_test]),
     dynamic_modules:restore_modules(domain(), Config);
 end_per_group(hibernation, Config) ->
-    dynamic_modules:stop(domain(), mod_mam_muc_odbc_arch),
-    dynamic_modules:stop(domain(), mod_mam_odbc_prefs),
-    dynamic_modules:stop(domain(), mod_mam_odbc_user),
-    dynamic_modules:stop(domain(), mod_mam_muc),
+    case mam_helper:backend() of
+        odbc ->
+            dynamic_modules:stop(domain(), mod_mam_muc_odbc_arch),
+            dynamic_modules:stop(domain(), mod_mam_odbc_prefs),
+            dynamic_modules:stop(domain(), mod_mam_odbc_user),
+            dynamic_modules:stop(domain(), mod_mam_muc);
+        _ ->
+            ok
+    end,
     Config;
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
@@ -394,7 +404,13 @@ init_per_testcase(CaseName =reserved_nickname_request, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
-
+init_per_testcase(hibernated_room_can_be_queried_for_archive = CN, Config) ->
+    case mam_helper:backend() of
+        odbc ->
+            escalus:init_per_testcase(CN, Config);
+        _ ->
+            {skip, "MAM works only for ODBC as of now"}
+    end;
 init_per_testcase(CaseName, ConfigIn) ->
     Config = maybe_create_unique_room(ConfigIn),
     escalus:init_per_testcase(CaseName, Config).
