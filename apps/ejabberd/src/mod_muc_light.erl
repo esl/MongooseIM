@@ -212,10 +212,10 @@ process_packet(From, To, {ok, {set, #create{} = Create}}, OrigPacket) ->
                     RoomsPerUser ->
                         length(?BACKEND:get_user_rooms(FromUS, To#jid.lserver)) < RoomsPerUser
                 end,
-    if
-        MayCreate ->
-            create_room(From, FromUS, To, Create, OrigPacket);
+    case MayCreate of
         true ->
+            create_room(From, FromUS, To, Create, OrigPacket);
+        false ->
             ?CODEC:encode_error(
               {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
     end;

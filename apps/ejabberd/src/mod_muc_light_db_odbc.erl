@@ -267,7 +267,7 @@ get_info({RoomU, RoomS} = RoomUS) ->
             {selected, _, AffUsersDB} = ejabberd_odbc:sql_query(
                                           MainHost, mod_muc_light_db_odbc_sql:select_affs(RoomID)),
             AffUsers = [{{UserU, UserS}, aff_db2atom(Aff)} || {UserU, UserS, Aff} <- AffUsersDB],
-            
+
             {selected, _, ConfigDB} = ejabberd_odbc:sql_query(
                                         MainHost, mod_muc_light_db_odbc_sql:select_config(RoomID)),
             {ok, Config} = mod_muc_light_utils:process_raw_config(
@@ -329,15 +329,14 @@ create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
     case catch ejabberd_odbc:sql_query_t(
                  mod_muc_light_db_odbc_sql:insert_room(RoomU, RoomS, Version)) of
         {aborted, Reason} ->
-            case ejabberd_odbc:sql_query_t(
-                   mod_muc_light_db_odbc_sql:select_room_id(RoomU, RoomS)) of
-                {selected, _, []} ->
+            case {ejabberd_odbc:sql_query_t(
+                    mod_muc_light_db_odbc_sql:select_room_id(RoomU, RoomS)), NodeCandidate} of
+                {{selected, _, []}, _} ->
                     throw({aborted, Reason});
-                {selected, _, [_]} ->
-                    case NodeCandidate of
-                        <<>> -> create_room_transaction({<<>>, RoomS}, Config, AffUsers, Version);
-                        _ -> {error, exists}
-                    end
+                {{selected, _, [_]}, <<>>} ->
+                    create_room_transaction({<<>>, RoomS}, Config, AffUsers, Version);
+                {{selected, _, [_]}, _} ->
+                    {error, exists}
             end;
         {updated, _} ->
             {selected, _, [{RoomID}]} = ejabberd_odbc:sql_query_t(
@@ -380,7 +379,7 @@ remove_user_transaction({UserU, UserS} = UserUS, Version) ->
     lists:map(
       fun(RoomUS) ->
               {RoomUS, modify_aff_users_transaction(
-                         RoomUS, [{UserUS, none}], fun(_,_) -> ok end, Version)}
+                         RoomUS, [{UserUS, none}], fun(_, _) -> ok end, Version)}
       end, Rooms).
 
 %% ------------------------ Configuration manipulation ------------------------

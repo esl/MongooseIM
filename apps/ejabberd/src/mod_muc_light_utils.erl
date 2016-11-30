@@ -150,9 +150,9 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
                         false ->
                             undefined
                     end,
-    if
-        BlockingQuery == undefined andalso RoomsPerUser == infinity -> AffUsers;
-        true -> filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, AffUsers)
+    case BlockingQuery == undefined andalso RoomsPerUser == infinity of
+        true -> AffUsers;
+        false -> filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, AffUsers)
     end.
 
 %%====================================================================
@@ -176,11 +176,11 @@ filter_out_loop(
                           infinity -> true;
                           _ -> length(?BACKEND:get_user_rooms(UserUS, MUCServer)) < RoomsPerUser
                       end,
-    if
-        NotBlocked andalso RoomsBelowLimit ->
-            [AffUser | filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)];
+    case NotBlocked andalso RoomsBelowLimit of
         true ->
-            filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)     
+            [AffUser | filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)];
+        false ->
+            filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)
     end;
 filter_out_loop(_FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, []) ->
     [].

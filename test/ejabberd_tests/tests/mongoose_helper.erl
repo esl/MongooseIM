@@ -19,7 +19,7 @@
 
 -export([kick_everyone/0]).
 
--define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
+-define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
 
 -spec is_odbc_enabled(Host :: binary()) -> boolean().
 is_odbc_enabled(Host) ->
