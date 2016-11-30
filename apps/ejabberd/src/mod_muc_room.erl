@@ -692,10 +692,30 @@ handle_info(_Info, StateName, #state{hibernate_timeout = Timeout} = StateData) -
     {next_state, StateName, StateData, Timeout}.
 
 maybe_stop_persistent_room(RoomName, true, State) ->
-    ?INFO_MSG("Stopping persistent room's process, ~p ~p", [self(), RoomName]),
-    {stop, normal, State};
-maybe_stop_persistent_room(_, _, State) ->
+    do_stop_persistent_room(RoomName, State);
+maybe_stop_persistent_room(RoomName, _, State) ->
+    stop_if_only_owner_is_online(RoomName, count_users(State), State).
+
+stop_if_only_owner_is_online(RoomName, 1, #state{users = Users, jid = RoomJID} = State) ->
+    [{LJID, #user{jid = LastUser, nick = Nick}}] = ?DICT:to_list(Users),
+
+    case get_affiliation(LastUser, State) of
+        owner ->
+            ItemAttrs = [{<<"affiliation">>, <<"owner">>}, {<<"role">>, <<"none">>}],
+            Packet = unavailable_presence(ItemAttrs, <<"Room hibernation">>),
+            FromRoom = jid:replace_resource(RoomJID, Nick),
+            ejabberd_router:route(FromRoom, LastUser, Packet),
+            tab_remove_online_user(LJID, State),
+            do_stop_persistent_room(RoomName, State);
+        _ ->
+            next_normal_state(State)
+    end;
+stop_if_only_owner_is_online(_, _, State) ->
     next_normal_state(State).
+
+do_stop_persistent_room(RoomName, State) ->
+    ?INFO_MSG("Stopping persistent room's process, ~p ~p", [self(), RoomName]),
+    {stop, normal, State}.
 
 %% @doc Purpose: Shutdown the fsm
 -spec terminate(any(), statename(), state()) -> 'ok'.
@@ -707,18 +727,7 @@ terminate(Reason, _StateName, StateData) ->
           _ -> <<"Room terminates">>
           end,
     ItemAttrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}],
-    ReasonEl = #xmlel{name = <<"reason">>,
-                      children = [#xmlcdata{content = ReasonT}]},
-    Packet = #xmlel{name = <<"presence">>,
-                    attrs = [{<<"type">>, <<"unavailable">>}],
-                    children = [#xmlel{name = <<"x">>,
-                                       attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                       children = [#xmlel{name = <<"item">>,
-                                                          attrs = ItemAttrs,
-                                                          children = [ReasonEl]},
-                                                   #xmlel{name = <<"status">>,
-                                                          attrs = [{<<"code">>, <<"332">>}]}
-                                                  ]}]},
+    Packet = unavailable_presence(ItemAttrs, ReasonT),
     ?DICT:fold(
        fun(LJID, Info, _) ->
            Nick = Info#user.nick,
@@ -740,6 +749,20 @@ terminate(Reason, _StateName, StateData) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
+
+unavailable_presence(ItemAttrs, ReasonT) ->
+    ReasonEl = #xmlel{name = <<"reason">>,
+                      children = [#xmlcdata{content = ReasonT}]},
+    #xmlel{name = <<"presence">>,
+           attrs = [{<<"type">>, <<"unavailable">>}],
+           children = [#xmlel{name = <<"x">>,
+                              attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                              children = [#xmlel{name = <<"item">>,
+                                                 attrs = ItemAttrs,
+                                                 children = [ReasonEl]},
+                                          #xmlel{name = <<"status">>,
+                                                 attrs = [{<<"code">>, <<"332">>}]}
+                                         ]}]}.
 
 -spec occupant_jid(user(), 'undefined' | ejabberd:jid()) -> 'error' | ejabberd:jid().
 occupant_jid(#user{nick=Nick}, RoomJID) ->

@@ -96,7 +96,8 @@ groups() -> [
                                         hibernated_room_is_stopped_and_restored_by_presence,
                                         stopped_rooms_history_is_available,
                                         stopped_members_only_room_process_invitations_correctly,
-                                        room_with_participants_is_not_stopped
+                                        room_with_participants_is_not_stopped,
+                                        room_with_only_owner_is_stopped
                                        ]},
         {disco, [parallel], [
                 disco_service,
@@ -3962,9 +3963,24 @@ stopped_members_only_room_process_invitations_correctly(Config) ->
 
 room_with_participants_is_not_stopped(Config) ->
     RoomName = fresh_room_name(),
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        {ok, _, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{persistentroom, true}]),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {ok, _, Pid} = given_fresh_room_with_participants_is_hibernated(
+                         Alice, RoomName, [{persistentroom, true}], Bob),
         false = wait_for_room_to_be_stopped(Pid, timer:seconds(8))
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+room_with_only_owner_is_stopped(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        {ok, _, Pid} = given_fresh_room_is_hibernated(
+                         Alice, RoomName, [{persistentroom, true}]),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+
+        Unavailable = escalus:wait_for_stanza(Alice),
+	    escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable)
     end),
 
     destroy_room(muc_host(), RoomName),
@@ -3992,7 +4008,6 @@ maybe_configure(Owner, RoomName, Opts) ->
     maybe_set_subject(proplists:get_value(subject, Opts), Owner, RoomName),
     Cfg = [opt_to_room_config(Opt) || Opt <- Opts],
     Form = stanza_configuration_form(RoomName, lists:flatten(Cfg)),
-    ct:print("Form: ~p", [Form]),
     escalus:send(Owner, Form),
 
     Result = escalus:wait_for_stanza(Owner),
