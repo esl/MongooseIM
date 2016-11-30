@@ -280,9 +280,10 @@ get_info({RoomU, RoomS} = RoomUS) ->
 
 %% ------------------------ Conversions ------------------------
 
--spec what_db2atom(binary()) -> blocking_what().
-what_db2atom(<<"1">>) -> room;
-what_db2atom(<<"2">>) -> user.
+-spec what_db2atom(binary() | pos_integer()) -> blocking_what().
+what_db2atom(1) -> room;
+what_db2atom(2) -> user;
+what_db2atom(Bin) -> what_db2atom(ejabberd_odbc:result_to_integer(Bin)).
 
 -spec what_atom2db(blocking_what()) -> string().
 what_atom2db(room) -> "1";
@@ -292,9 +293,10 @@ what_atom2db(user) -> "2".
 aff_atom2db(owner) -> "1";
 aff_atom2db(member) -> "2".
 
--spec aff_db2atom(binary()) -> aff().
-aff_db2atom(<<"1">>) -> owner;
-aff_db2atom(<<"2">>) -> member.
+-spec aff_db2atom(binary() | pos_integer()) -> aff().
+aff_db2atom(1) -> owner;
+aff_db2atom(2) -> member;
+aff_db2atom(Bin) -> aff_db2atom(ejabberd_odbc:result_to_integer(Bin)).
 
 %%====================================================================
 %% API for tests
