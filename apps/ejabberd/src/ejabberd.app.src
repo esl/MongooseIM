@@ -36,6 +36,7 @@
                   ssl,
                   stdlib,
                   stringprep,
+                  fast_tls,
                   usec,
                   uuid,
                   xmerl
