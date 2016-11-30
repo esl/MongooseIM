@@ -195,7 +195,6 @@ init_per_suite(Config) ->
                   true -> odbc;
                   false -> mnesia
               end,
-    ct:pal("Testing MUC Light with backend: ~p", [Backend]),
     dynamic_modules:start(<<"localhost">>, mod_muc_light,
                           [{host, binary_to_list(?MUCHOST)},
                            {backend, Backend},
