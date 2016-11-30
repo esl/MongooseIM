@@ -3,13 +3,14 @@ info:
   version: "1.0.0"
   title: MongooseIM control backend REST API
   description: |
-    This REST API provides similar control functionality to the `mongooseimctl` command.
+    Explore MongooseIM features using our REST API.
+
+    If you are familiar with the `mongooseimctl` command, the provided control functionality will seem very similar.
     The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl`.
 
-    In many cases fields like **username** or **caller** expect **JID** (jabber identity, f.e. **alice@wonderland.com**).
-    There are two types of **JIDs**:
-      * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one which is set in your `ejabberd.cfg` file).
-      * **full JID** - this is **bareJID** with online user's resource to uniquely identify user's connection (f.e. **alice@wonderland.com/resource**).
+    Please note that many of the fields such as **username** or **caller** expect a **JID** (jabber identity, f.e. **alice@wonderland.com**). There are two types of **JIDs**:
+      * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one set in your `ejabberd.cfg` file).
+      * **full JID** - is a **bareJID** with online user's resource to uniquely identify user's connection (f.e. **alice@wonderland.com/resource**).
 schemes:
   - http
 basePath: /api
@@ -21,12 +22,12 @@ host: "localhost:8088"
 paths:
   /commands:
     get:
-      description: List the available commands for administering MongooseIM.
+      description: Lists the available commands for administering MongooseIM.
       tags:
         - "commands"
       responses:
         200:
-          description: A list of information for all the currently available commands
+          description: A list of information on all the commands that are currently available.
           schema:
             title: commandList
             type: array
@@ -46,12 +47,12 @@ paths:
     parameters:
       - $ref: '#/parameters/hostName'
     get:
-      description: Retrieve a list of users registered under the given XMPP hostname.
+      description: Retrieves a list of users registered under the given XMPP hostname.
       tags:
         - "user management"
       responses:
         200:
-          description: A list of users registered under the given XMPP hostname.
+          description: A list of users registered under the given XMPP hostname
           schema:
             title: userList
             type: array
@@ -67,7 +68,7 @@ paths:
       parameters:
         - name: Credentials
           in: body
-          description: Credentials with which to register the user
+          description: User's name and password
           required: true
           schema:
             title: Credentials
@@ -509,4 +510,3 @@ definitions:
           type: string
         body:
           type: string
-
