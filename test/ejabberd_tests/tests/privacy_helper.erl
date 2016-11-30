@@ -27,16 +27,23 @@ gets_error(Who, Type, Subtype) ->
     escalus_assert:is_error(Response, Type, Subtype).
 
 %% Sets the list on server and makes it the active one.
+set_and_activate(Client, {ListName, Target}) ->
+    set_list(Client, {ListName, Target}),
+    activate_list(Client, ListName);
 set_and_activate(Client, ListName) ->
     set_list(Client, ListName),
     activate_list(Client, ListName).
 
-send_set_list(Client, ListName) ->
-    Stanza = escalus_stanza:privacy_set_list(privacy_list(ListName)),
+send_set_list(Client, List) ->
+    Stanza = escalus_stanza:privacy_set_list(privacy_list(List)),
     escalus:send(Client, Stanza),
     Stanza.
 
 %% Sets the list on server.
+set_list(Client, {ListName, Target}) ->
+    Stanza = send_set_list(Client, {ListName, Target}),
+    verify_set_list_response(Client),
+    verify_list(Client, ListName, Stanza);
 set_list(Client, ListName) ->
     Stanza = send_set_list(Client, ListName),
     verify_set_list_response(Client),
@@ -114,22 +121,17 @@ is_presence_error(Stanza) ->
     andalso
     escalus_pred:is_error(<<"modify">>, <<"not-acceptable">>, Stanza).
 
+privacy_list({Name, #client{} = Target}) ->
+    JID = escalus_utils:get_short_jid(Target),
+    escalus_stanza:privacy_list(Name, list_content(Name, JID));
 privacy_list(Name) ->
     escalus_stanza:privacy_list(Name, list_content(Name)).
+
 
 % Geralt is not used by the privacy tests, but lists have to have
 % at least one element so we use him for a no-op.
 list_content(<<"noop_list">>) -> [
-        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, geralt, [])
-    ];
-list_content(<<"deny_bob">>) -> [
-        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [])
-    ];
-list_content(<<"allow_bob">>) -> [
-        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"allow">>, bob, [])
-    ];
-list_content(<<"deny_bob_message">>) -> [
-        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [<<"message">>])
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, <<"geralt@localhost">>, [])
     ];
 list_content(<<"deny_group_message">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"message">>])
@@ -157,23 +159,14 @@ list_content(<<"deny_not_both_presence_out">>) -> [
         escalus_stanza:privacy_list_item(<<"2">>, <<"deny">>, <<"subscription">>, <<"to">>, [<<"presence-out">>]),
         escalus_stanza:privacy_list_item(<<"3">>, <<"deny">>, <<"subscription">>, <<"none">>, [<<"presence-out">>])
     ];
-list_content(<<"deny_bob_presence_in">>) -> [
-        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [<<"presence-in">>])
-    ];
-list_content(<<"deny_group_presence_in">>) -> [
-        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"presence-in">>])
-    ];
 list_content(<<"deny_unsubscribed_presence_in">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"subscription">>, <<"none">>, [<<"presence-in">>])
     ];
 list_content(<<"deny_all_presence_in">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"presence-in">>])
     ];
-list_content(<<"deny_bob_presence_out">>) -> [
-        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [<<"presence-out">>])
-    ];
-list_content(<<"deny_group_presence_out">>) -> [
-        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"presence-out">>])
+list_content(<<"deny_group_presence_in">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"presence-in">>])
     ];
 list_content(<<"deny_unsubscribed_presence_out">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"subscription">>, <<"none">>, [<<"presence-out">>])
@@ -186,18 +179,14 @@ list_content(<<"deny_localhost_iq">>) -> [
     ];
 list_content(<<"deny_group_iq">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"iq">>])
-    ];
+                                     ];
 list_content(<<"deny_unsubscribed_iq">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"subscription">>, <<"none">>, [<<"iq">>])
     ];
-list_content(<<"deny_all_iq">>) -> [
-        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"iq">>])
+list_content(<<"deny_group_presence_out">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"presence-out">>])
     ];
-list_content(<<"deny_jid_all">>) -> [
-        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, []),
-        escalus_stanza:privacy_list_jid_item(<<"2">>, <<"deny">>, <<"localhost">>, [])
-    ];
- list_content(<<"deny_group_all">>) -> [
+list_content(<<"deny_group_all">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [])
     ];
 list_content(<<"deny_unsubscribed_all">>) -> [
@@ -206,8 +195,31 @@ list_content(<<"deny_unsubscribed_all">>) -> [
 list_content(<<"deny_all_all">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [])
     ];
-list_content(<<"deny_3_items">>) -> [
-        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, []),
+list_content(<<"deny_all_iq">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"iq">>])
+    ].
+
+list_content(<<"deny_client">>, JID) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, JID, [])
+    ];
+list_content(<<"allow_client">>, JID) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"allow">>, JID, [])
+    ];
+list_content(<<"deny_client_message">>, JID) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, JID, [<<"message">>])
+    ];
+list_content(<<"deny_client_presence_in">>, JID) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, JID, [<<"presence-in">>])
+    ];
+list_content(<<"deny_client_presence_out">>, JID) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, JID, [<<"presence-out">>])
+    ];
+list_content(<<"deny_jid_all">>, JID) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, JID, []),
+        escalus_stanza:privacy_list_jid_item(<<"2">>, <<"deny">>, <<"localhost">>, [])
+    ];
+list_content(<<"deny_3_items">>, JID) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, JID, []),
         escalus_stanza:privacy_list_jid_item(<<"2">>, <<"deny">>, <<"steve@localhost">>, []),
         escalus_stanza:privacy_list_jid_item(<<"3">>, <<"deny">>, <<"john@localhost">>, [])
     ].
