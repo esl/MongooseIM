@@ -39,7 +39,7 @@ paths:
           schema:
             $ref: '#/definitions/ResourceID'
     get:
-      description: Returns all the messages send to and received from other users.
+      description: Returns all the messages sent to and received from other users.
       tags:
         - "One-to-one messages"
       parameters:
@@ -57,7 +57,7 @@ paths:
   /messages/{with}:
     get:
       description: |
-        Returns all the messages send to and received from a specific user.
+        Returns all the messages sent to and received from a specific user.
       tags:
         - "One-to-one messages"
       parameters:
