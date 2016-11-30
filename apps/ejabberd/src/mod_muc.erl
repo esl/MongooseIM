@@ -1241,6 +1241,8 @@ count_hibernated_rooms(Pid, Count) ->
 
 -define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}], [value]}).
 ensure_metrics(_Host) ->
+    mongoose_metrics:ensure_metric(global, [mod_muc, deep_hibernations], spiral),
+    mongoose_metrics:ensure_metric(global, [mod_muc, process_recreations], spiral),
     mongoose_metrics:ensure_metric(global, [mod_muc, hibernations], spiral),
     mongoose_metrics:ensure_metric(global, [mod_muc, hibernated_rooms],
                                    {function, mod_muc, hibernated_rooms_number, [],

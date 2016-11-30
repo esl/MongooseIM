@@ -292,6 +292,7 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opt
                                   hibernate_timeout = read_hibernate_timeout(ServerHost)
                                  }),
     add_to_log(room_existence, started, State),
+    mongoose_metrics:update(global, [mod_muc, process_recreations], 1),
     {ok, normal_state, State, State#state.hibernate_timeout}.
 
 read_hibernate_timeout(Host) ->
@@ -715,6 +716,7 @@ stop_if_only_owner_is_online(_, _, State) ->
 
 do_stop_persistent_room(RoomName, State) ->
     ?INFO_MSG("Stopping persistent room's process, ~p ~p", [self(), RoomName]),
+    mongoose_metrics:update(global, [mod_muc, deep_hibernations], 1),
     {stop, normal, State}.
 
 %% @doc Purpose: Shutdown the fsm

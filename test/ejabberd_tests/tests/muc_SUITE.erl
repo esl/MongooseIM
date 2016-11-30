@@ -97,7 +97,8 @@ groups() -> [
                                         stopped_rooms_history_is_available,
                                         stopped_members_only_room_process_invitations_correctly,
                                         room_with_participants_is_not_stopped,
-                                        room_with_only_owner_is_stopped
+                                        room_with_only_owner_is_stopped,
+                                        deep_hibernation_metrics_are_updated
                                        ]},
         {disco, [parallel], [
                 disco_service,
@@ -3845,9 +3846,7 @@ hibernation_metrics_are_updated(Config) ->
 
         OnlineRooms = escalus_ejabberd:rpc(mod_muc, online_rooms_number, []),
         true = OnlineRooms > 0,
-        Hibernations = escalus_ejabberd:rpc(mongoose_metrics, get_metric_value,
-                                            [global, [mod_muc, hibernations]]),
-        {ok, [{count, HibernationsCnt}, {one, _}]} = Hibernations,
+        HibernationsCnt = get_spiral_metric_count(global, [mod_muc, hibernations]),
         true = HibernationsCnt > 0,
         HibernatedRooms = escalus_ejabberd:rpc(mod_muc, hibernated_rooms_number, []),
         true = HibernatedRooms > 0
@@ -3985,6 +3984,35 @@ room_with_only_owner_is_stopped(Config) ->
 
     destroy_room(muc_host(), RoomName),
     forget_room(muc_host(), RoomName).
+
+deep_hibernation_metrics_are_updated(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {ok, _, Pid} = given_fresh_room_is_hibernated(
+                         Alice, RoomName, [{persistentroom, true}]),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+        DeepHibernations = get_spiral_metric_count(global, [mod_muc, deep_hibernations]),
+        true = DeepHibernations > 0,
+
+        Unavailable = escalus:wait_for_stanza(Alice),
+	    escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable),
+
+        escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        Recreations = get_spiral_metric_count(global, [mod_muc, process_recreations]),
+        true = Recreations > 0
+
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+get_spiral_metric_count(Host, MetricName) ->
+    Result = escalus_ejabberd:rpc(mongoose_metrics, get_metric_value,
+                                  [Host, MetricName]),
+    {ok, [{count, Count}, {one, _}]} = Result,
+    Count.
 
 given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
     {ok, _, RoomPid} = Result = given_fresh_room_for_user(Owner, RoomName, Opts),
