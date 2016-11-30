@@ -141,8 +141,8 @@ start_link(Host, Opts) ->
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
 
--spec start(ejabberd:server(),_) -> {'error',_}
-            | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
+-spec start(ejabberd:server(), _) ->
+    {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(Host, Opts) ->
     ensure_metrics(Host),
     start_supervisor(Host),
@@ -1171,7 +1171,7 @@ count_hibernated_rooms(Pid, Count) ->
             Count
     end.
 
--define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}],[value]}).
+-define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}], [value]}).
 ensure_metrics(_Host) ->
     mongoose_metrics:ensure_metric(global, [mod_muc, hibernations], spiral),
     mongoose_metrics:ensure_metric(global, [mod_muc, hibernated_rooms],

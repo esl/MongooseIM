@@ -3836,7 +3836,8 @@ hibernation_metrics_are_updated(Config) ->
 
         OnlineRooms = escalus_ejabberd:rpc(mod_muc, online_rooms_number, []),
         true = OnlineRooms > 0,
-        Hibernations = escalus_ejabberd:rpc(mongoose_metrics, get_metric_value, [global, [mod_muc, hibernations]]),
+        Hibernations = escalus_ejabberd:rpc(mongoose_metrics, get_metric_value,
+                                            [global, [mod_muc, hibernations]]),
         {ok, [{count, HibernationsCnt}, {one, _}]} = Hibernations,
         true = HibernationsCnt > 0,
         HibernatedRooms = escalus_ejabberd:rpc(mod_muc, hibernated_rooms_number, []),
@@ -3857,7 +3858,8 @@ room_with_participants_and_messages_is_hibernated(Config) ->
 hibernated_room_can_be_queried_for_archive(Config) ->
     RoomName = fresh_room_name(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {Msg, {ok, _, Pid}} = given_fresh_room_with_messages_is_hibernated(Alice, RoomName, [], Bob),
+        Result = given_fresh_room_with_messages_is_hibernated(Alice, RoomName, [], Bob),
+        {Msg, {ok, _, Pid}} = Result,
         Props = [{mam_ns, mam_helper:mam_ns_binary_v04()},
                  {data_form, true}],
         QueryStanza = mam_helper:stanza_archive_request(Props, <<"q1">>),
@@ -3884,8 +3886,10 @@ given_fresh_room_for_user(Owner, RoomName, Opts) ->
     Username = escalus_client:username(Owner),
     Server = escalus_client:server(Owner),
     Resource = escalus_client:resource(Owner),
-    JID = {jid, Username, Server, Resource, escalus_utils:jid_to_lower(Username), Server, Resource},
-    RoomJID = {jid, RoomName, muc_host(), <<>>, escalus_utils:jid_to_lower(RoomName), muc_host(), <<>>},
+    JID = {jid, Username, Server, Resource,
+           escalus_utils:jid_to_lower(Username), Server, Resource},
+    RoomJID = {jid, RoomName, muc_host(), <<>>,
+               escalus_utils:jid_to_lower(RoomName), muc_host(), <<>>},
     Nick = <<"a-nick">>,
     ok =  create_instant_room(domain(), RoomName, JID, Nick, Opts),
     JoinRoom = stanza_join_room(RoomName, <<"a-nick">>),

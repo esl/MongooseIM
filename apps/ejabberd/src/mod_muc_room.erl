@@ -187,7 +187,7 @@ start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool
                         RoomShaper, HttpAuthPool, Opts],
                        ?FSMOPTS).
 
--spec get_room_users(RoomJID :: ejabberd:jid()) -> {ok, [#user{}]}
+-spec get_room_users(RoomJID :: ejabberd:jid()) -> {ok, [user()]}
                                                  | {error, not_found}.
 get_room_users(RoomJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
@@ -400,7 +400,7 @@ locked_state({route, From, _ToNick,
         locked_state ->
             {next_state, NextState2, StateData3};
         normal_state ->
-            {next_state, NextState2, StateData3#state{just_created = false}, StateData3#state.hibernate_timeout}
+            next_normal_state(StateData3#state{just_created = false})
     end;
 %% Let owner leave. Destroy the room.
 locked_state({route, From, ToNick,
@@ -524,7 +524,7 @@ normal_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) 
     StateDataWithoutPid = StateData#state{http_auth_pids = lists:delete(AuthPid, AuthPids)},
     NewStateData = handle_http_auth_result(Result, From, Nick, Packet, Role, StateDataWithoutPid),
     destroy_temporary_room_if_empty(NewStateData, normal_state);
-normal_state(timeout, #state{server_host = Host} = StateData) ->
+normal_state(timeout, StateData) ->
     mongoose_metrics:update(global, [mod_muc, hibernations], 1),
     {next_state, normal_state, StateData, hibernate};
 normal_state(_Event, StateData) ->
@@ -626,32 +626,26 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
+maybe_prepare_room_queue(RoomQueue, StateData) ->
+    StateData1 = StateData#state{room_queue = RoomQueue},
+    case queue:is_empty(StateData#state.room_queue) of
+        true ->
+            StateData2 = prepare_room_queue(StateData1),
+            next_normal_state(StateData2);
+        _ ->
+            next_normal_state(StateData1)
+    end.
+
 -type info_msg() :: {process_user_presence | process_user_message, ejabberd:jid()}
                     | process_room_queue.
 -spec handle_info(info_msg(), statename(), state()) -> fsm_return().
 handle_info({process_user_presence, From}, normal_state = _StateName, StateData) ->
-    RoomQueueEmpty = queue:is_empty(StateData#state.room_queue),
     RoomQueue = queue:in({presence, From}, StateData#state.room_queue),
-    StateData1 = StateData#state{room_queue = RoomQueue},
-    if
-    RoomQueueEmpty ->
-        StateData2 = prepare_room_queue(StateData1),
-        next_normal_state(StateData2);
-    true ->
-        next_normal_state(StateData1)
-    end;
+    maybe_prepare_room_queue(RoomQueue, StateData);
 handle_info({process_user_message, From}, normal_state = _StateName, StateData) ->
-    RoomQueueEmpty = queue:is_empty(StateData#state.room_queue),
     RoomQueue = queue:in({message, From}, StateData#state.room_queue),
-    StateData1 = StateData#state{room_queue = RoomQueue},
-    if
-    RoomQueueEmpty ->
-        StateData2 = prepare_room_queue(StateData1),
-        next_normal_state(StateData2);
-    true ->
-        next_normal_state(StateData1)
-    end;
-handle_info(process_room_queue, normal_state = StateName, StateData) ->
+    maybe_prepare_room_queue(RoomQueue, StateData);
+handle_info(process_room_queue, normal_state, StateData) ->
     case queue:out(StateData#state.room_queue) of
     {{value, {message, From}}, RoomQueue} ->
         Activity = get_user_activity(From, StateData),
