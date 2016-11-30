@@ -102,6 +102,7 @@
 
 -type statename() :: 'locked_state' | 'normal_state'.
 -type fsm_return() :: {'next_state', statename(), state()}
+                    | {'next_state', statename(), state(), timeout()}
                     | {'stop', any(), state()}.
 
 -type lqueue() :: #lqueue{}.
@@ -244,7 +245,8 @@ can_access_identity(RoomJID, UserJID) ->
 %% @doc A room is created. Depending on request type (MUC/groupchat 1.0) the
 %% next state is determined accordingly (a locked room for MUC or an instant
 %% one for groupchat).
--spec init([any(),...]) -> {'ok',statename(), state()}.
+-spec init([any(), ...]) ->
+    {ok, statename(), state()} | {ok, statename(), state(), timeout()}.
 init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
       Creator, _Nick, DefRoomOpts]) ->
     process_flag(trap_exit, true),
