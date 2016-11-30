@@ -23,7 +23,7 @@ consumes:
 paths:
   /messages:
     post:
-      description: Sends a message to a chosen user.
+      description: Sends a message to a user.
       tags:
         - "One-to-one messages"
       parameters:
@@ -39,7 +39,7 @@ paths:
           schema:
             $ref: '#/definitions/ResourceID'
     get:
-      description: Returns all the messages sent to and received from other users.
+      description: Returns all recent messages sent to and received from other users.
       tags:
         - "One-to-one messages"
       parameters:
@@ -57,7 +57,7 @@ paths:
   /messages/{with}:
     get:
       description: |
-        Returns all the messages sent to and received from a specific user.
+        Returns all recent messages sent to and received from a specific user.
       tags:
         - "One-to-one messages"
       parameters:
@@ -213,7 +213,7 @@ securityDefinitions:
   mongoose_basic_auth:
     type: basic
     description: |
-      Log in using your user's bare JID (F.e. alice@wonderland.com) and their password.
+      Log in using your userid (users's bare JID - F.e. alice@wonderland.com) and their password.
 parameters:
   roomID:
     in: path
