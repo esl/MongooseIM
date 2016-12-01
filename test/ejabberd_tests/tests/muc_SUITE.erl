@@ -3949,7 +3949,8 @@ stopped_members_only_room_process_invitations_correctly(Config) ->
 
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
 
-        Stanza2 = stanza_set_affiliations(RoomName, [{escalus_client:short_jid(Kate), <<"member">>}]),
+        Stanza2 = stanza_set_affiliations(RoomName,
+                                          [{escalus_client:short_jid(Kate), <<"member">>}]),
         escalus:send(Alice, Stanza2),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
         is_invitation(escalus:wait_for_stanza(Kate)),
@@ -3979,7 +3980,7 @@ room_with_only_owner_is_stopped(Config) ->
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
 
         Unavailable = escalus:wait_for_stanza(Alice),
-	    escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable)
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable)
     end),
 
     destroy_room(muc_host(), RoomName),
@@ -3995,7 +3996,7 @@ deep_hibernation_metrics_are_updated(Config) ->
         true = DeepHibernations > 0,
 
         Unavailable = escalus:wait_for_stanza(Alice),
-	    escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable),
 
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -4040,7 +4041,7 @@ maybe_configure(Owner, RoomName, Opts) ->
 
     Result = escalus:wait_for_stanza(Owner),
     escalus:assert(is_iq_result, Result),
-    escalus:assert(is_stanza_from, [<<RoomName/binary,"@muc.localhost">>], Result).
+    escalus:assert(is_stanza_from, [<<RoomName/binary, "@muc.localhost">>], Result).
 
 opt_to_room_config({Name, Value}) when is_atom(Value) ->
     NameBin = atom_to_binary(Name, utf8),

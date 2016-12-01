@@ -529,8 +529,7 @@ route_to_room(Room, {From,To,Packet} = Routed, #state{host=Host} = State) ->
 
 
 -spec route_to_nonexistent_room(room(), from_to_packet(), state()) -> 'ok'.
-route_to_nonexistent_room(Room, {From, To, Packet},
-                          #state{host = Host} = State) ->
+route_to_nonexistent_room(Room, {From, To, Packet}, State) ->
     #xmlel{name = Name, attrs = Attrs} = Packet,
     Type = xml:get_attr_s(<<"type">>, Attrs),
     case {Name, Type} of
@@ -593,7 +592,7 @@ route_packet_to_nonexistent_room(Room, From, To, Packet,
     end.
 
 -spec route_by_nick(room(), from_to_packet(), state()) -> 'ok' | pid().
-route_by_nick(<<>>, {_,_,Packet} = Routed, State) ->
+route_by_nick(<<>>, {_, _, Packet} = Routed, State) ->
     #xmlel{name = Name} = Packet,
     route_by_type(Name, Routed, State);
 route_by_nick(_Nick, {From, To, Packet}, _State) ->
