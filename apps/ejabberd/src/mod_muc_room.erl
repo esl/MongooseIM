@@ -418,6 +418,8 @@ locked_state({route, From, ToNick,
         _ ->
             locked_error(Call, locked_state, StateData)
     end;
+locked_state(timeout, StateData) ->
+    {next_state, locked_state, StateData};
 locked_state(Call, StateData) ->
     locked_error(Call, locked_state, StateData).
 
