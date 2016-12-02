@@ -36,20 +36,33 @@
 -include("mod_privacy.hrl").
 
 prepared_queries() ->
-    [{set_default_list_query, "INSERT INTO privacy_default_list (username, listname) VALUES (?,?)"},
-     {get_default_list_query, "SELECT listname FROM privacy_default_list WHERE username = ?"},
-     {forget_default_list_query, "DELETE FROM privacy_default_list WHERE username = ?"},
+    [{set_default_list_query,
+      "INSERT INTO privacy_default_list (username, listname) VALUES (?,?)"},
+     {get_default_list_query,
+      "SELECT listname FROM privacy_default_list WHERE username = ?"},
+     {forget_default_list_query,
+      "DELETE FROM privacy_default_list WHERE username = ?"},
 
-     {add_list_query, "INSERT INTO privacy_list (username, listname) VALUES (?,?)"},
-     {get_list_names_only_query, "SELECT listname FROM privacy_list WHERE username = ?"},
-     {remove_list_query, "DELETE FROM privacy_list WHERE username = ? AND listname = ?"},
-     {remove_lists_query, "DELETE FROM privacy_list WHERE username = ?"},
+     {add_list_query,
+      "INSERT INTO privacy_list (username, listname) VALUES (?,?)"},
+     {get_list_names_only_query,
+      "SELECT listname FROM privacy_list WHERE username = ?"},
+     {remove_list_query,
+      "DELETE FROM privacy_list WHERE username = ? AND listname = ?"},
+     {remove_lists_query,
+      "DELETE FROM privacy_list WHERE username = ?"},
 
-     {add_list_item_ts_query, "INSERT INTO privacy_item (username, listname, itemname, value) VALUES (?,?,?,?) USING TIMESTAMP ?"},
-     {get_list_items_query, "SELECT itemname, value FROM privacy_item WHERE username = ? AND listname = ?"},
-     {remove_all_items_query, "DELETE FROM privacy_item WHERE username = ?"},
-     {remove_list_items_query, "DELETE FROM privacy_item WHERE username = ? AND listname = ?"},
-     {remove_list_items_ts_query, "DELETE FROM privacy_item USING TIMESTAMP ? WHERE username = ? AND listname = ?"}].
+     {add_list_item_ts_query,
+      "INSERT INTO privacy_item (username, listname, itemname, value)
+       VALUES (?,?,?,?) USING TIMESTAMP ?"},
+     {get_list_items_query,
+      "SELECT itemname, value FROM privacy_item WHERE username = ? AND listname = ?"},
+     {remove_all_items_query,
+      "DELETE FROM privacy_item WHERE username = ?"},
+     {remove_list_items_query,
+      "DELETE FROM privacy_item WHERE username = ? AND listname = ?"},
+     {remove_list_items_ts_query,
+      "DELETE FROM privacy_item USING TIMESTAMP ? WHERE username = ? AND listname = ?"}].
 
 
 init(_Host, Opts) ->
@@ -79,7 +92,8 @@ get_default_list_name(LUser, LServer) ->
     UserJID = jid:make(LUser, LServer, <<>>),
     PoolName = pool_name(LServer, LUser),
     Params = [LUser],
-    Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_default_list_query, Params),
+    Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE,
+                                                   get_default_list_query, Params),
     case Res of
         {ok, [[Name]]} ->
             Name;
@@ -96,7 +110,8 @@ get_list_names_only(LUser, LServer) ->
     UserJID = jid:make(LUser, LServer, <<>>),
     PoolName = pool_name(LServer, LUser),
     Params = [LUser],
-    Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_list_names_only_query, Params),
+    Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE,
+                                                   get_list_names_only_query, Params),
     case Res of
         {ok, Rows} ->
             rows_to_names(Rows);
@@ -110,7 +125,8 @@ get_privacy_list(LUser, LServer, Name) ->
     UserJID = jid:make(LUser, LServer, <<>>),
     PoolName = pool_name(LServer, LUser),
     Params = [LUser, Name],
-    Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_list_items_query, Params),
+    Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_list_items_query,
+                                                   Params),
     case Res of
         {ok, []} ->
             case list_exists(LUser, LServer, Name) of
@@ -132,7 +148,8 @@ forget_default_list(LUser, LServer) ->
     UserJID = jid:make(LUser, LServer, <<>>),
     PoolName = pool_name(LServer, LUser),
     Params = [LUser],
-    Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, forget_default_list_query, Params),
+    Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE,
+                                                   forget_default_list_query, Params),
     handle_empty_result(Res, forget_default_list).
 
 set_default_list(LUser, LServer, Name) ->
@@ -141,7 +158,8 @@ set_default_list(LUser, LServer, Name) ->
     Params = [LUser, Name],
     case list_exists(LUser, LServer, Name) of
         true ->
-            Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, set_default_list_query, Params),
+            Res = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE,
+                                                           set_default_list_query, Params),
             handle_empty_result(Res, set_default_list);
         false ->
             {error, not_found}
@@ -164,11 +182,12 @@ replace_privacy_list(LUser, LServer, Name, List) ->
     EncodedList = [mongoose_privacy_serializer:encode(Item) || Item <- List],
     %% Call two different tables below
     %% Save list name
-    Res1 = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, add_list_query, [LUser, Name]),
+    Res1 = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, add_list_query,
+                                                    [LUser, Name]),
     ItemQueries =
         %% Remove old items
         [{remove_list_items_ts_query, [Now, LUser, Name]}]
-        %% Add new items
+    %% Add new items
         ++ [{add_list_item_ts_query, [LUser, Name, ItemName, Value, Next]} || {ItemName, Value} <- EncodedList],
     Res2 = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, ItemQueries),
     handle_empty_result(Res1, replace_privacy_list1),
@@ -220,11 +239,11 @@ compile_params_module(Params) ->
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_privacy_cassandra_params).~n"
-        "-compile(export_all).~n"
-        "pool_name() -> ~p.~n",
-        [proplists:get_value(pool_name, Params, default)
-        ]))).
+                                      "-module(mod_privacy_cassandra_params).~n"
+                                      "-compile(export_all).~n"
+                                      "pool_name() -> ~p.~n",
+                                      [proplists:get_value(pool_name, Params, default)
+                                      ]))).
 
 -spec pool_name(binary(), binary()) -> term().
 pool_name(_LServer, _LUser) ->

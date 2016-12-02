@@ -75,14 +75,14 @@
 
 -export_type([key/0, value/0]).
 
--record(state, { opts = []  :: list(),
-                 hosts = [] :: [host()],
-                 override_local = false  :: boolean(),
-                 override_global = false :: boolean(),
-                 override_acls = false   :: boolean() }).
+-record(state, {opts = [] :: list(),
+                hosts = [] :: [host()],
+                override_local = false :: boolean(),
+                override_global = false :: boolean(),
+                override_acls = false :: boolean()}).
 
--record(compare_result, {to_start  = [] :: list(),
-                         to_stop   = [] :: list(),
+-record(compare_result, {to_start = [] :: list(),
+                         to_stop = [] :: list(),
                          to_reload = [] :: list()}).
 
 -type compare_result() :: #compare_result{}.
@@ -138,13 +138,13 @@ start() ->
     mnesia:create_table(config,
                         [{ram_copies, [node()]},
                          {storage_properties,
-                          [{ets, [{read_concurrency,true}]}]},
+                          [{ets, [{read_concurrency, true}]}]},
                          {attributes, record_info(fields, config)}]),
     mnesia:add_table_copy(config, node(), ram_copies),
     mnesia:create_table(local_config,
                         [{ram_copies, [node()]},
                          {storage_properties,
-                          [{ets, [{read_concurrency,true}]}]},
+                          [{ets, [{read_concurrency, true}]}]},
                          {local_content, true},
                          {attributes, record_info(fields, local_config)}]),
     mnesia:add_table_copy(local_config, node(), ram_copies),
@@ -173,12 +173,12 @@ get_ejabberd_config_path() ->
 %% @doc Load the ejabberd configuration file.
 %% It also includes additional configuration files and replaces macros.
 %% This function will crash if finds some error in the configuration file.
--spec load_file(File::string()) -> ok.
+-spec load_file(File :: string()) -> ok.
 load_file(File) ->
     Terms = get_plain_terms_file(File),
     State = lists:foldl(fun search_hosts/2, #state{}, Terms),
-    Terms_macros = replace_macros(Terms),
-    Res = lists:foldl(fun process_term/2, State, Terms_macros),
+    TermsMacros = replace_macros(Terms),
+    Res = lists:foldl(fun process_term/2, State, TermsMacros),
     set_opts(Res).
 
 
@@ -222,19 +222,19 @@ get_absolute_path(File) ->
 search_hosts(Term, State) ->
     case Term of
         {host, Host} ->
-            if
-                State#state.hosts == [] ->
+            case State of
+                #state{hosts = []} ->
                     add_hosts_to_option([Host], State);
-                true ->
+                _ ->
                     ?ERROR_MSG("Can't load config file: "
                                "too many hosts definitions", []),
                     exit("too many hosts definitions")
             end;
         {hosts, Hosts} ->
-            if
-                State#state.hosts == [] ->
+            case State of
+                #state{hosts = []} ->
                     add_hosts_to_option(Hosts, State);
-                true ->
+                _ ->
                     ?ERROR_MSG("Can't load config file: "
                                "too many hosts definitions", []),
                     exit("too many hosts definitions")
@@ -253,19 +253,19 @@ add_hosts_to_option(Hosts, State) ->
 
 -spec normalize_hosts([host()]) -> [binary() | tuple()].
 normalize_hosts(Hosts) ->
-    normalize_hosts(Hosts,[]).
+    normalize_hosts(Hosts, []).
 
 
 normalize_hosts([], PrepHosts) ->
     lists:reverse(PrepHosts);
-normalize_hosts([Host|Hosts], PrepHosts) ->
+normalize_hosts([Host | Hosts], PrepHosts) ->
     case jid:nodeprep(host_to_binary(Host)) of
         error ->
             ?ERROR_MSG("Can't load config file: "
                        "invalid host name [~p]", [Host]),
             exit("invalid hostname");
         PrepHost ->
-            normalize_hosts(Hosts, [PrepHost|PrepHosts])
+            normalize_hosts(Hosts, [PrepHost | PrepHosts])
     end.
 
 host_to_binary(Host) ->
@@ -274,8 +274,8 @@ host_to_binary(Host) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Errors reading the config file
 
--type config_problem() :: atom() | {integer(),atom() | tuple(),_}. % spec me better
--type config_line() :: [[any()] | non_neg_integer(),...]. % spec me better
+-type config_problem() :: atom() | {integer(), atom() | tuple(), _}. % spec me better
+-type config_line() :: [[any()] | non_neg_integer(), ...]. % spec me better
 
 -spec describe_config_problem(Filename :: string(),
                               Reason :: config_problem()) -> string().
@@ -306,7 +306,7 @@ describe_config_problem(Filename, Reason, LineNumber) ->
                        PostContext :: 3) -> [config_line()].
 get_config_lines(Filename, TargetNumber, PreContext, PostContext) ->
     {ok, Fd} = file:open(Filename, [read]),
-    LNumbers = lists:seq(TargetNumber-PreContext, TargetNumber+PostContext),
+    LNumbers = lists:seq(TargetNumber - PreContext, TargetNumber + PostContext),
     NextL = io:get_line(Fd, no_prompt),
     R = get_config_lines2(Fd, NextL, 1, LNumbers, []),
     file:close(Fd),
@@ -322,9 +322,9 @@ get_config_lines2(Fd, Data, CurrLine, [NextWanted | LNumbers], R) when is_list(D
     if
         CurrLine >= NextWanted ->
             Line2 = [integer_to_list(CurrLine), ": " | Data],
-            get_config_lines2(Fd, NextL, CurrLine+1, LNumbers, [Line2 | R]);
+            get_config_lines2(Fd, NextL, CurrLine + 1, LNumbers, [Line2 | R]);
         true ->
-            get_config_lines2(Fd, NextL, CurrLine+1, [NextWanted | LNumbers], R)
+            get_config_lines2(Fd, NextL, CurrLine + 1, [NextWanted | LNumbers], R)
     end.
 
 
@@ -353,12 +353,12 @@ include_config_files([], Res) ->
 include_config_files([{include_config_file, Filename} | Terms], Res) ->
     include_config_files([{include_config_file, Filename, []} | Terms], Res);
 include_config_files([{include_config_file, Filename, Options} | Terms], Res) ->
-    Included_terms = get_plain_terms_file(Filename),
+    IncludedTerms = get_plain_terms_file(Filename),
     Disallow = proplists:get_value(disallow, Options, []),
-    Included_terms2 = delete_disallowed(Disallow, Included_terms),
-    Allow_only = proplists:get_value(allow_only, Options, all),
-    Included_terms3 = keep_only_allowed(Allow_only, Included_terms2),
-    include_config_files(Terms, Res ++ Included_terms3);
+    IncludedTerms2 = delete_disallowed(Disallow, IncludedTerms),
+    AllowOnly = proplists:get_value(allow_only, Options, all),
+    IncludedTerms3 = keep_only_allowed(AllowOnly, IncludedTerms2),
+    include_config_files(Terms, Res ++ IncludedTerms3);
 include_config_files([Term | Terms], Res) ->
     include_config_files(Terms, Res ++ [Term]).
 
@@ -377,14 +377,14 @@ delete_disallowed(Disallowed, Terms) ->
       Disallowed).
 
 
-delete_disallowed2(Disallowed, [H|T]) ->
+delete_disallowed2(Disallowed, [H | T]) ->
     case element(1, H) of
         Disallowed ->
             ?WARNING_MSG("The option '~p' is disallowed, "
                          "and will not be accepted", [Disallowed]),
             delete_disallowed2(Disallowed, T);
         _ ->
-            [H|delete_disallowed2(Disallowed, T)]
+            [H | delete_disallowed2(Disallowed, T)]
     end;
 delete_disallowed2(_, []) ->
     [].
@@ -394,7 +394,7 @@ delete_disallowed2(_, []) ->
 %% Returns a sublist of Terms with only the ones which first element is
 %% included in Allowed.
 -spec keep_only_allowed(Allowed :: [atom()],
-                        Terms::[term()]) -> [term()].
+                        Terms :: [term()]) -> [term()].
 keep_only_allowed(all, Terms) ->
     Terms;
 keep_only_allowed(Allowed, Terms) ->
@@ -428,7 +428,7 @@ split_terms_macros(Terms) ->
                   {define_macro, Key, Value} ->
                       case is_atom(Key) and is_all_uppercase(Key) of
                           true ->
-                              {TOs, Ms++[{Key, Value}]};
+                              {TOs, Ms ++ [{Key, Value}]};
                           false ->
                               exit({macro_not_properly_defined, Term})
                       end;
@@ -445,7 +445,7 @@ split_terms_macros(Terms) ->
               Macros :: [macro()]) -> [term()].
 replace([], _) ->
     [];
-replace([Term|Terms], Macros) ->
+replace([Term | Terms], Macros) ->
     [replace_term(Term, Macros) | replace(Terms, Macros)].
 
 
@@ -499,7 +499,7 @@ process_term(Term, State) ->
             process_host_term(Term, global, State);
         {shaper, _Name, _Data} ->
             %%lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
-            %%    	State, State#state.hosts);
+            %%          State, State#state.hosts);
             process_host_term(Term, global, State);
         {host, _Host} ->
             State;
@@ -507,7 +507,7 @@ process_term(Term, State) ->
             State;
         {host_config, Host, Terms} ->
             lists:foldl(fun(T, S) ->
-                            process_host_term(T, list_to_binary(Host), S) end,
+                                process_host_term(T, list_to_binary(Host), S) end,
                         State, Terms);
         {listen, Listeners} ->
             Listeners2 =
@@ -589,21 +589,21 @@ process_host_term(Term, Host, State) ->
     case Term of
         {acl, ACLName, ACLData} ->
             State#state{opts =
-                    [acl:to_record(Host, ACLName, ACLData) | State#state.opts]};
+                            [acl:to_record(Host, ACLName, ACLData) | State#state.opts]};
         {access, RuleName, Rules} ->
-            State#state{opts = [#config{key = {access, RuleName, Host},
+            State#state{opts = [#config{key   = {access, RuleName, Host},
                                         value = Rules} |
                                 State#state.opts]};
         {shaper, Name, Data} ->
-            State#state{opts = [#config{key = {shaper, Name, Host},
+            State#state{opts = [#config{key   = {shaper, Name, Host},
                                         value = Data} |
                                 State#state.opts]};
         {host, Host} ->
             State;
         {hosts, _Hosts} ->
             State;
-        {odbc_server, ODBC_server} ->
-            add_option({odbc_server, Host}, ODBC_server, State);
+        {odbc_server, ODBCServer} ->
+            add_option({odbc_server, Host}, ODBCServer, State);
         {riak_server, RiakConfig} ->
             add_option(riak_server, RiakConfig, State);
         {cassandra_servers, CassandraConfig} ->
@@ -655,10 +655,10 @@ compact(Opt, Val, [O | Os1], Os2) ->
         Opt ->
             %% Then prepend the new value to the list of old values
             Os2 ++ [#local_config{key = Opt,
-                                  value = Val++O#local_config.value}
+                                  value = Val ++ O#local_config.value}
                    ] ++ Os1;
         _ ->
-            compact(Opt, Val, Os1, Os2++[O])
+            compact(Opt, Val, Os1, Os2 ++ [O])
     end.
 
 
@@ -666,17 +666,17 @@ compact(Opt, Val, [O | Os1], Os2) ->
 set_opts(State) ->
     Opts = lists:reverse(State#state.opts),
     F = fun() ->
-                if
-                    State#state.override_global ->
+                case State of
+                    #state{override_global = true} ->
                         Ksg = mnesia:all_keys(config),
                         lists:foreach(fun(K) ->
                                               mnesia:delete({config, K})
                                       end, Ksg);
-                    true ->
+                    _ ->
                         ok
                 end,
-                if
-                    State#state.override_local ->
+                case State of
+                    #state{override_local = true} ->
                         Ksl = mnesia:all_keys(local_config),
                         lists:foreach(fun(K) ->
                                               mnesia:delete({local_config, K})
@@ -684,8 +684,8 @@ set_opts(State) ->
                     true ->
                         ok
                 end,
-                if
-                    State#state.override_acls ->
+                case State of
+                    #state{override_acls = true} ->
                         Ksa = mnesia:all_keys(acl),
                         lists:foreach(fun(K) ->
                                               mnesia:delete({acl, K})
@@ -699,7 +699,7 @@ set_opts(State) ->
         end,
     case mnesia:transaction(F) of
         {atomic, _} -> ok;
-        {aborted,{no_exists,Table}} ->
+        {aborted, {no_exists, Table}} ->
             MnesiaDirectory = mnesia:system_info(directory),
             ?ERROR_MSG("Error reading Mnesia database spool files:~n"
                        "The Mnesia database couldn't read the spool file for the table '~p'.~n"
@@ -716,7 +716,7 @@ set_opts(State) ->
 -spec add_global_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_global_option(Opt, Val) ->
     mnesia:transaction(fun() ->
-                               mnesia:write(#config{key = Opt,
+                               mnesia:write(#config{key   = Opt,
                                                     value = Val})
                        end).
 
@@ -724,7 +724,7 @@ add_global_option(Opt, Val) ->
 -spec add_local_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_local_option(Opt, Val) ->
     mnesia:transaction(fun() ->
-                               mnesia:write(#local_config{key = Opt,
+                               mnesia:write(#local_config{key   = Opt,
                                                           value = Val})
                        end).
 
@@ -770,8 +770,8 @@ get_local_option_or_default(Opt, Default) ->
 %% @doc Return the list of hosts handled by a given module
 get_vh_by_auth_method(AuthMethod) ->
     mnesia:dirty_select(local_config,
-                        [{#local_config{key = {auth_method, '$1'},
-                                        value=AuthMethod},[],['$1']}]).
+                        [{#local_config{key   = {auth_method, '$1'},
+                                        value = AuthMethod}, [], ['$1']}]).
 
 
 -spec is_file_readable(Path :: string()) -> boolean().
@@ -805,8 +805,8 @@ reload_local() ->
     ConfigVersion = compute_config_version(get_local_config(),
                                            get_host_local_config()),
     State1 = State0#state{override_global = true,
-                          override_local = true,
-                          override_acls = true},
+                          override_local  = true,
+                          override_acls   = true},
     try
         {ok, _} = apply_changes(CC, LC, LHC, State1, ConfigVersion),
         ?WARNING_MSG("node config reloaded from ~s", [ConfigFile]),
@@ -843,25 +843,25 @@ reload_cluster() ->
     ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
     %% first apply on local
     State1 = State0#state{override_global = true,
-                          override_local = true, override_acls = true},
+                          override_local  = true, override_acls = true},
     case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
         {ok, CurrentNode} ->
             %% apply on other nodes
-            {S,F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
-                                  [ConfigFile, ConfigDiff,
-                                   ConfigVersion, FileVersion],
-                                  30000),
-            {S1,F1} = group_nodes_results([{ok,node()} | S],F),
+            {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
+                                   [ConfigFile, ConfigDiff,
+                                    ConfigVersion, FileVersion],
+                                   30000),
+            {S1, F1} = group_nodes_results([{ok, node()} | S], F),
             ResultText = (groups_to_string("# Reloaded:", S1)
                           ++ groups_to_string("\n# Failed:", F1)),
             case F1 of
-                []    -> ?WARNING_MSG("cluster config reloaded successfully", []);
-                [_|_] ->
+                [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
+                [_ | _] ->
                     FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
                     ?WARNING_MSG("cluster config reload failed on nodes: ~p",
                                  [FailedUpdateOrRPC])
             end,
-            {ok,  ResultText};
+            {ok, ResultText};
         Error ->
             Reason = msg("failed to apply config on node: ~p~nreason: ~p",
                          [CurrentNode, Error]),
@@ -875,19 +875,19 @@ reload_cluster() ->
 groups_to_string(_Header, []) ->
     "";
 groups_to_string(Header, S) ->
-    Header++"\n"++string:join(S,"\n").
+    Header ++ "\n" ++ string:join(S, "\n").
 
--spec group_nodes_results(list(), [atom]) -> {[string()],[string()]}.
+-spec group_nodes_results(list(), [atom]) -> {[string()], [string()]}.
 group_nodes_results(SuccessfullRPC, FailedRPC) ->
-    {S,F} = lists:foldl(fun (El, {SN,FN}) ->
-                                case El of
-                                    {ok, Node} ->
-                                        {[atom_to_list(Node) | SN], FN};
-                                    {error, Node, Reason} ->
-                                        {SN, [atom_to_list(Node)++" "++Reason|FN]}
-                                end
-                        end, {[],[]}, SuccessfullRPC),
-    {S,F ++ lists:map(fun (E) -> {atom_to_list(E)++" "++"RPC failed"} end, FailedRPC)}.
+    {S, F} = lists:foldl(fun(El, {SN, FN}) ->
+                                 case El of
+                                     {ok, Node} ->
+                                         {[atom_to_list(Node) | SN], FN};
+                                     {error, Node, Reason} ->
+                                         {SN, [atom_to_list(Node) ++ " " ++ Reason | FN]}
+                                 end
+                         end, {[], []}, SuccessfullRPC),
+    {S, F ++ lists:map(fun(E) -> {atom_to_list(E) ++ " " ++ "RPC failed"} end, FailedRPC)}.
 
 -spec get_config_diff(state()) -> {ConfigChanges,
                                    LocalConfigChanges,
@@ -896,9 +896,9 @@ group_nodes_results(SuccessfullRPC, FailedRPC) ->
       LocalConfigChanges :: compare_result(),
       LocalHostsChanges :: compare_result().
 get_config_diff(State) ->
-    % New Options
+                                                % New Options
     {NewConfig, NewLocal, NewHostsLocal} = categorize_options(State#state.opts),
-    % Current Options
+                                                % Current Options
     Config = get_global_config(),
     Local = get_local_config(),
     HostsLocal = get_host_local_config(),
@@ -909,7 +909,7 @@ get_config_diff(State) ->
     {CC, LC, LHC}.
 
 -spec apply_changes_remote(file:name(), term(), binary(), binary()) ->
-                                {ok, node()}| {error,node(),string()}.
+                                  {ok, node()}| {error, node(), string()}.
 apply_changes_remote(NewConfigFilePath, ConfigDiff,
                      DesiredConfigVersion, DesiredFileVersion) ->
     ?WARNING_MSG("remote config reload scheduled", []),
@@ -922,8 +922,8 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
     case compute_config_file_version(State0) of
         DesiredFileVersion ->
             State1 = State0#state{override_global = false,
-                                  override_local = true,
-                                  override_acls = false},
+                                  override_local  = true,
+                                  override_acls   = false},
             case catch apply_changes(CC, LC, LHC, State1,
                                      DesiredConfigVersion) of
                 {ok, Node} = R ->
@@ -949,7 +949,7 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
                                            get_host_local_config()),
     ?DEBUG("config version: ~p", [ConfigVersion]),
     case ConfigVersion of
-        DesiredConfigVersion  ->
+        DesiredConfigVersion ->
             ok;
         _ ->
             exit("Outdated configuration on node; cannot apply new one")
@@ -963,19 +963,19 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
 
     {ok, node()}.
 
-reload_config(#compare_result{to_start = CAdd, to_stop = CDel,
+reload_config(#compare_result{to_start  = CAdd, to_stop = CDel,
                               to_reload = CChange}) ->
     lists:foreach(fun handle_config_change/1, CChange),
     lists:foreach(fun handle_config_add/1, CAdd),
     lists:foreach(fun handle_config_del/1, CDel).
 
-reload_local_config(#compare_result{to_start = LCAdd, to_stop = LCDel,
+reload_local_config(#compare_result{to_start  = LCAdd, to_stop = LCDel,
                                     to_reload = LCChange}) ->
     lists:foreach(fun handle_local_config_change/1, LCChange),
     lists:foreach(fun handle_local_config_add/1, LCAdd),
     lists:foreach(fun handle_local_config_del/1, LCDel).
 
-reload_local_hosts_config(#compare_result{to_start = LCHAdd, to_stop = LCHDel,
+reload_local_hosts_config(#compare_result{to_start  = LCHAdd, to_stop = LCHDel,
                                           to_reload = LCHChange}) ->
     lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
     lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
@@ -987,11 +987,11 @@ reload_local_hosts_config(#compare_result{to_start = LCHAdd, to_stop = LCHDel,
 handle_config_add(#config{key = hosts, value = Hosts}) when is_list(Hosts) ->
     lists:foreach(fun(Host) -> add_virtual_host(Host) end, Hosts).
 
-handle_config_del(#config{key = hosts,value =  Hosts}) ->
+handle_config_del(#config{key = hosts, value = Hosts}) ->
     lists:foreach(fun(Host) -> remove_virtual_host(Host) end, Hosts).
 
 %% handle add/remove new hosts
-handle_config_change({hosts, OldHosts, NewHosts})->
+handle_config_change({hosts, OldHosts, NewHosts}) ->
     {ToDel, ToAdd} = check_hosts(NewHosts, OldHosts),
     lists:foreach(fun remove_virtual_host/1, ToDel),
     lists:foreach(fun add_virtual_host/1, ToAdd);
@@ -1007,12 +1007,12 @@ handle_local_config_add(#local_config{key = riak_server}) ->
     mongoose_riak:start();
 handle_local_config_add(#local_config{key = cassandra_servers}) ->
     mongoose_cassandra:start();
-handle_local_config_add(#local_config{key=Key} = El) ->
+handle_local_config_add(#local_config{key = Key} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
         false ->
-            ?WARNING_MSG("local config add ~p option unhandled",[El])
+            ?WARNING_MSG("local config add ~p option unhandled", [El])
     end.
 
 handle_local_config_del(#local_config{key = riak_server}) ->
@@ -1022,12 +1022,12 @@ handle_local_config_del(#local_config{key = cassandra_servers}) ->
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
-handle_local_config_del(#local_config{key=Key} = El) ->
+handle_local_config_del(#local_config{key = Key} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
         false ->
-            ?WARNING_MSG("local config change: ~p unhandled",[El])
+            ?WARNING_MSG("local config change: ~p unhandled", [El])
     end.
 
 handle_local_config_change({listen, Old, New}) ->
@@ -1040,13 +1040,12 @@ handle_local_config_change({cassandra_servers, _Old, _New}) ->
     mongoose_cassandra:stop(),
     mongoose_cassandra:start(),
     ok;
-
 handle_local_config_change({Key, _Old, _New} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
         false ->
-            ?WARNING_MSG("local config change: ~p unhandled",[El])
+            ?WARNING_MSG("local config change: ~p unhandled", [El])
     end.
 
 %% ----------------------------------------------------------------
@@ -1065,12 +1064,12 @@ handle_local_hosts_config_add({{modules, Host}, Modules}) ->
       fun({Module, Args}) ->
               gen_mod:start_module(Host, Module, Args)
       end, Modules);
-handle_local_hosts_config_add({{Key,_Host}, _} = El) ->
+handle_local_hosts_config_add({{Key, _Host}, _} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
         false ->
-            ?WARNING_MSG("local hosts config add option: ~p unhandled",[El])
+            ?WARNING_MSG("local hosts config add option: ~p unhandled", [El])
     end.
 
 handle_local_hosts_config_del({{auth, Host}, Opts}) ->
@@ -1093,17 +1092,17 @@ handle_local_hosts_config_del({{modules, Host}, Modules}) ->
       fun({Module, _Args}) ->
               gen_mod:stop_module(Host, Module)
       end, Modules);
-handle_local_hosts_config_del({{Key,_}, _} =El) ->
+handle_local_hosts_config_del({{Key, _}, _} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
         false ->
-            ?WARNING_MSG("local hosts config delete option: ~p unhandled",[El])
+            ?WARNING_MSG("local hosts config delete option: ~p unhandled", [El])
     end.
 
-handle_local_hosts_config_change({{odbc,Host}, Old, _}) ->
+handle_local_hosts_config_change({{odbc, Host}, Old, _}) ->
     %% stop rdbms
-    case lists:keyfind({odbc_server, Host},1 ,Old) of
+    case lists:keyfind({odbc_server, Host}, 1, Old) of
         false ->
             ok;
         #local_config{} ->
@@ -1117,22 +1116,22 @@ handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
         {auth_method, Val} ->
             %% stop old modules
             AuthModules = methods_to_auth_modules(Val),
-            lists:foreach(fun (M) ->
+            lists:foreach(fun(M) ->
                                   M:stop(Host)
                           end, AuthModules)
     end,
     ejabberd_auth:start(Host);
 handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
     ok = ejabberd_hooks:run_fold(host_config_update, Host, ok, [Host, ldap, NewConfig]);
-handle_local_hosts_config_change({{modules,Host}, OldModules, NewModules}) ->
+handle_local_hosts_config_change({{modules, Host}, OldModules, NewModules}) ->
     Res = compare_modules(OldModules, NewModules),
     reload_modules(Host, Res);
-handle_local_hosts_config_change({{Key,_Host},_Old,_New} = El) ->
+handle_local_hosts_config_change({{Key, _Host}, _Old, _New} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
         false ->
-            ?WARNING_MSG("local hosts config change option: ~p unhandled",[El])
+            ?WARNING_MSG("local hosts config change option: ~p unhandled", [El])
     end.
 
 methods_to_auth_modules(L) when is_list(L) ->
@@ -1155,19 +1154,19 @@ compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
 check_hosts(NewHosts, OldHosts) ->
     Old = sets:from_list(OldHosts),
     New = sets:from_list(NewHosts),
-    ListToAdd = sets:to_list(sets:subtract(New,Old)),
-    ListToDel = sets:to_list(sets:subtract(Old,New)),
+    ListToAdd = sets:to_list(sets:subtract(New, Old)),
+    ListToDel = sets:to_list(sets:subtract(Old, New)),
     {ListToDel, ListToAdd}.
 
 -spec add_virtual_host(Host :: ejabberd:server()) -> any().
 add_virtual_host(Host) ->
-    ?DEBUG("Register host:~p",[Host]),
+    ?DEBUG("Register host:~p", [Host]),
     ejabberd_local:register_host(Host).
 
 -spec can_be_ignored(Key :: atom()) -> boolean().
 can_be_ignored(Key) when is_atom(Key) ->
     L = [domain_certfile, s2s, all_metrics_are_global],
-    lists:member(Key,L).
+    lists:member(Key, L).
 
 -spec remove_virtual_host(ejabberd:server()) -> any().
 remove_virtual_host(Host) ->
@@ -1176,13 +1175,13 @@ remove_virtual_host(Host) ->
 
 -spec reload_modules(Host :: ejabberd:server(),
                      ChangedModules :: compare_result()) -> 'ok'.
-reload_modules(Host, #compare_result{to_start = Start, to_stop = Stop,
+reload_modules(Host, #compare_result{to_start  = Start, to_stop = Stop,
                                      to_reload = Reload} = ChangedModules) ->
     ?DEBUG("reload modules: ~p", [lager:pr(ChangedModules, ?MODULE)]),
-    lists:foreach(fun ({M, _}) ->
+    lists:foreach(fun({M, _}) ->
                           gen_mod:stop_module(Host, M)
                   end, Stop),
-    lists:foreach(fun ({M, Args}) ->
+    lists:foreach(fun({M, Args}) ->
                           gen_mod:start_module(Host, M, Args)
                   end, Start),
     lists:foreach(fun({M, _, Args}) ->
@@ -1190,16 +1189,16 @@ reload_modules(Host, #compare_result{to_start = Start, to_stop = Stop,
                   end, Reload).
 
 -spec reload_listeners(ChangedListeners :: compare_result()) -> 'ok'.
-reload_listeners(#compare_result{to_start = Add, to_stop = Del,
+reload_listeners(#compare_result{to_start  = Add, to_stop = Del,
                                  to_reload = Change} = ChangedListeners) ->
     ?DEBUG("reload listeners: ~p", [lager:pr(ChangedListeners, ?MODULE)]),
-    lists:foreach(fun ({{PortIP, Module}, Opts}) ->
+    lists:foreach(fun({{PortIP, Module}, Opts}) ->
                           ejabberd_listener:delete_listener(PortIP, Module, Opts)
                   end, Del),
-    lists:foreach(fun ({{PortIP, Module}, Opts}) ->
+    lists:foreach(fun({{PortIP, Module}, Opts}) ->
                           ejabberd_listener:add_listener(PortIP, Module, Opts)
                   end, Add),
-    lists:foreach(fun ({{PortIP,Module}, OldOpts, NewOpts}) ->
+    lists:foreach(fun({{PortIP, Module}, OldOpts, NewOpts}) ->
                           ejabberd_listener:delete_listener(PortIP, Module, OldOpts),
                           ejabberd_listener:add_listener(PortIP, Module, NewOpts)
                   end, Change).
@@ -1213,20 +1212,20 @@ compare_listeners(OldListeners, NewListeners) ->
     compare_terms(map_listeners(OldListeners), map_listeners(NewListeners), 1, 2).
 
 map_listeners(Listeners) ->
-    lists:map(fun ({PortIP,Module,Opts})->
-                      {{PortIP,Module},Opts}
+    lists:map(fun({PortIP, Module, Opts}) ->
+                      {{PortIP, Module}, Opts}
               end, Listeners).
 
-% group values which can be grouped like odbc ones
+                                                % group values which can be grouped like odbc ones
 -spec group_host_changes([term()]) -> [{atom(), [term()]}].
 group_host_changes(Changes) when is_list(Changes) ->
-    D = lists:foldl(fun (#local_config{key = {Key, Host}, value = Val}, Dict) ->
+    D = lists:foldl(fun(#local_config{key = {Key, Host}, value = Val}, Dict) ->
                             BKey = atom_to_binary(Key, utf8),
-                            case get_key_group(BKey,Key) of
+                            case get_key_group(BKey, Key) of
                                 Key ->
-                                    dict:append({Key,Host}, Val, Dict);
+                                    dict:append({Key, Host}, Val, Dict);
                                 NewKey ->
-                                    dict:append({NewKey,Host}, {Key, Val}, Dict)
+                                    dict:append({NewKey, Host}, {Key, Val}, Dict)
                             end
                     end, dict:new(), Changes),
     [{Group, lists:sort(lists:flatten(MaybeDeepList))}
@@ -1235,12 +1234,12 @@ group_host_changes(Changes) when is_list(Changes) ->
 %% match all hosts
 -spec get_host_local_config() -> [{local_config, {term(), ejabberd:server()}, term()}].
 get_host_local_config() ->
-    mnesia:dirty_match_object({local_config, {'_','_'}, '_'}).
+    mnesia:dirty_match_object({local_config, {'_', '_'}, '_'}).
 
 -spec get_local_config() -> [{local_config, term(), term()}].
 get_local_config() ->
-    Keys = lists:filter(fun is_not_host_specific/1,mnesia:dirty_all_keys(local_config)),
-    lists:flatten(lists:map(fun (Key) ->
+    Keys = lists:filter(fun is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
+    lists:flatten(lists:map(fun(Key) ->
                                     mnesia:dirty_read(local_config, Key)
                             end,
                             Keys)).
@@ -1250,7 +1249,7 @@ get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
 
 -spec is_not_host_specific(atom() | {atom(), ejabberd:server()}) -> boolean().
-is_not_host_specific( Key ) when is_atom(Key) ->
+is_not_host_specific(Key) when is_atom(Key) ->
     true;
 is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
     false.
@@ -1260,23 +1259,23 @@ is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
       LocalConfig :: list(),
       HostsConfig :: list().
 categorize_options(Opts) ->
-    lists:foldl(fun ({config, _, _} = El, Acc) ->
+    lists:foldl(fun({config, _, _} = El, Acc) ->
                         as_global(El, Acc);
-                    ({local_config, {Key, Host}, _} = El, Acc)
+                   ({local_config, {Key, Host}, _} = El, Acc)
                       when is_atom(Key), is_binary(Host) ->
                         as_hosts(El, Acc);
-                    ({local_config, _, _} = El, Acc) ->
+                   ({local_config, _, _} = El, Acc) ->
                         as_local(El, Acc);
-                    ({acl, _, _}, R) ->
+                   ({acl, _, _}, R) ->
                         %% no need to do extra work here
                         R;
-                    (R, R2) ->
+                   (R, R2) ->
                         ?ERROR_MSG("not matched ~p", [R]),
                         R2
                 end, {[], [], []}, Opts).
 
 as_global(El, {Config, Local, HostLocal}) -> {[El | Config], Local, HostLocal}.
-as_local(El, {Config, Local, HostLocal}) -> {Config, [El | Local],  HostLocal}.
+as_local(El, {Config, Local, HostLocal}) -> {Config, [El | Local], HostLocal}.
 as_hosts(El, {Config, Local, HostLocal}) -> {Config, Local, [El | HostLocal]}.
 
 -spec get_key_group(binary(), atom()) -> atom().
@@ -1290,9 +1289,9 @@ get_key_group(<<"auth_", _/binary>>, _) ->
     auth;
 get_key_group(<<"ext_auth_", _/binary>>, _) ->
     auth;
-get_key_group(<<"s2s_",_/binary>>, _) ->
+get_key_group(<<"s2s_", _/binary>>, _) ->
     s2s;
-get_key_group(_, Key) when is_atom(Key)->
+get_key_group(_, Key) when is_atom(Key) ->
     Key.
 
 -spec compare_terms(OldTerms :: [tuple()],
@@ -1312,7 +1311,7 @@ compare_terms(OldTerms, NewTerms, KeyPos, ValuePos)
 
 find_modules_to_start(KeyPos, OldTerms, Element, ToStart) ->
     case lists:keyfind(element(KeyPos, Element), KeyPos, OldTerms) of
-        false -> [ Element | ToStart ];
+        false -> [Element | ToStart];
         _ -> ToStart
     end.
 
@@ -1320,17 +1319,17 @@ find_modules_to_change(KeyPos, NewTerms, ValuePos,
                        Element, {ToStop, ToReload}) ->
     case lists:keyfind(element(KeyPos, Element), KeyPos, NewTerms) of
         false ->
-            { [Element | ToStop], ToReload };
+            {[Element | ToStop], ToReload};
         NewElement ->
             OldVal = element(ValuePos, Element),
             NewVal = element(ValuePos, NewElement),
             case OldVal == NewVal of
-                true  ->
+                true ->
                     {ToStop, ToReload};
                 false ->
                     %% add also old value
                     {ToStop,
-                     [ {element(KeyPos, Element), OldVal, NewVal} | ToReload ]}
+                     [{element(KeyPos, Element), OldVal, NewVal} | ToReload]}
             end
     end.
 

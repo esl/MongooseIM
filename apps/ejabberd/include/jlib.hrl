@@ -359,6 +359,8 @@
 -type jid() :: #jid{}.
 -type ljid() :: {ejabberd:luser(), ejabberd:lserver(), ejabberd:lresource()}.
 
+-type mam_borders() :: #mam_borders{}.
+
 -type xmlel() :: #xmlel{}.
 
 -type rsm_in() :: #rsm_in{}.

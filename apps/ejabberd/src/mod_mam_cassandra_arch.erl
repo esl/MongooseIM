@@ -48,21 +48,21 @@
 -include_lib("exml/include/exml.hrl").
 
 -record(mam_ca_filter, {
-    user_jid,
-    with_jid,
-    remote_jid,
-    start_id,
-    end_id
-}).
+          user_jid,
+          with_jid,
+          remote_jid,
+          start_id,
+          end_id
+         }).
 
 -record(mam_message, {
-  id :: non_neg_integer(),
-  user_jid :: binary(),
-  remote_jid :: binary(),
-  from_jid :: binary(),
-  with_jid :: binary(),
-  message :: binary()
-}).
+          id :: non_neg_integer(),
+          user_jid :: binary(),
+          remote_jid :: binary(),
+          from_jid :: binary(),
+          with_jid :: binary(),
+          message :: binary()
+         }).
 
 -type worker() :: pid() | atom().
 
@@ -127,10 +127,10 @@ prepared_queries() ->
      {delete_query, delete_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
      {message_id_to_remote_jid_query, message_id_to_remote_jid_cql()}]
-    ++ extract_messages_queries()
-    ++ extract_messages_r_queries()
-    ++ calc_count_queries()
-    ++ list_message_ids_queries().
+        ++ extract_messages_queries()
+        ++ extract_messages_r_queries()
+        ++ calc_count_queries()
+        ++ list_message_ids_queries().
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -158,30 +158,30 @@ insert_query_cql() ->
         "VALUES (?,?,?,?,?,?)".
 
 archive_message(Result, Host, MessID, _UserID,
-                     LocJID, RemJID, SrcJID, Dir, Packet) ->
+                LocJID, RemJID, SrcJID, Dir, Packet) ->
     try
-        archive_message_2(Result, Host, MessID,
-                        LocJID, RemJID, SrcJID, Dir, Packet)
+        archive_message2(Result, Host, MessID,
+                         LocJID, RemJID, SrcJID, Dir, Packet)
     catch _Type:Reason ->
-        {error, Reason}
+            {error, Reason}
     end.
 
-archive_message_2(_Result, _Host, MessID,
-                  LocJID=#jid{},
-                  RemJID=#jid{},
-                 SrcJID=#jid{}, _Dir, Packet) ->
+archive_message2(_Result, _Host, MessID,
+                  LocJID = #jid{},
+                  RemJID = #jid{},
+                  SrcJID = #jid{}, _Dir, Packet) ->
     BLocJID = bare_jid(LocJID),
     BRemBareJID = bare_jid(RemJID),
     BRemFullJID = full_jid(RemJID),
     BSrcJID = full_jid(SrcJID),
     BPacket = packet_to_stored_binary(Packet),
     Message = #mam_message{
-      id = MessID,
-      user_jid = BLocJID,
-      from_jid = BSrcJID,
-      remote_jid = BRemFullJID,
-      message = BPacket
-    },
+                 id         = MessID,
+                 user_jid   = BLocJID,
+                 from_jid   = BSrcJID,
+                 remote_jid = BRemFullJID,
+                 message    = BPacket
+                },
     WithJIDs = lists:usort([<<>>, BRemFullJID, BRemBareJID]),
     Messages = [Message#mam_message{with_jid = BWithJID} || BWithJID <- WithJIDs],
     write_messages(LocJID, Messages).
@@ -189,16 +189,17 @@ archive_message_2(_Result, _Host, MessID,
 write_messages(UserJID, Messages) ->
     PoolName = pool_name(UserJID),
     MultiParams = [message_to_params(M) || M <- Messages],
-    mongoose_cassandra_worker:cql_query_pool_multi_async(PoolName, UserJID, ?MODULE, insert_query, MultiParams).
+    mongoose_cassandra_worker:cql_query_pool_multi_async(PoolName, UserJID, ?MODULE, insert_query,
+                                                         MultiParams).
 
 message_to_params(#mam_message{
-      id = MessID,
-      user_jid = BLocJID,
-      from_jid = BSrcJID,
-      remote_jid = BRemJID,
-      with_jid = BWithJID,
-      message = BPacket
-    }) ->
+                     id         = MessID,
+                     user_jid   = BLocJID,
+                     from_jid   = BSrcJID,
+                     remote_jid = BRemJID,
+                     with_jid   = BWithJID,
+                     message    = BPacket
+                    }) ->
     [MessID, BLocJID, BSrcJID, BRemJID, BWithJID, BPacket].
 
 
@@ -211,13 +212,14 @@ delete_query_cql() ->
 
 delete_messages(Worker, UserJID, Messages) ->
     MultiParams = [delete_message_to_params(M) || M <- Messages],
-    mongoose_cassandra_worker:cql_query_multi_async(Worker, UserJID, ?MODULE, delete_query, MultiParams).
+    mongoose_cassandra_worker:cql_query_multi_async(Worker, UserJID, ?MODULE, delete_query,
+                                                    MultiParams).
 
 delete_message_to_params(#mam_message{
-      id = MessID,
-      user_jid = BLocJID,
-      with_jid = BWithJID
-    }) ->
+                            id       = MessID,
+                            user_jid = BLocJID,
+                            with_jid = BWithJID
+                           }) ->
     [BLocJID, BWithJID, MessID].
 
 
@@ -232,7 +234,8 @@ remove_archive(_Host, _UserID, UserJID) ->
     PoolName = pool_name(UserJID),
     Params = [BUserJID],
     %% Wait until deleted
-    mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, remove_archive_query, Params),
+    mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, remove_archive_query,
+                                             Params),
     ok.
 
 
@@ -245,7 +248,8 @@ message_id_to_remote_jid_cql() ->
 
 message_id_to_remote_jid(Worker, UserJID, BUserJID, MessID) ->
     Params = [BUserJID, MessID],
-    {ok, Rows} = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, message_id_to_remote_jid_query, Params),
+    {ok, Rows} = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE,
+                                                     message_id_to_remote_jid_query, Params),
     case Rows of
         [] ->
             {error, not_found};
@@ -269,12 +273,12 @@ message_id_to_remote_jid(Worker, UserJID, BUserJID, MessID) ->
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
-    {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
-lookup_messages({error, _Reason}=Result, _Host,
-                     _UserID, _UserJID, _RSM, _Borders,
-                     _Start, _End, _Now, _WithJID,
-                     _PageSize, _LimitPassed, _MaxResultLimit,
-                     _IsSimple) ->
+                             {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
+lookup_messages({error, _Reason} = Result, _Host,
+                _UserID, _UserJID, _RSM, _Borders,
+                _Start, _End, _Now, _WithJID,
+                _PageSize, _LimitPassed, _MaxResultLimit,
+                _IsSimple) ->
     Result;
 lookup_messages(_Result, Host,
                 _UserID, UserJID, RSM, Borders,
@@ -283,29 +287,29 @@ lookup_messages(_Result, Host,
                 IsSimple) ->
     try
         Worker = select_worker(UserJID),
-        lookup_messages_2(Worker, Host,
-                          UserJID, RSM, Borders,
-                          Start, End, WithJID,
-                          PageSize, LimitPassed, MaxResultLimit,
-                          IsSimple)
+        lookup_messages2(Worker, Host,
+                         UserJID, RSM, Borders,
+                         Start, End, WithJID,
+                         PageSize, LimitPassed, MaxResultLimit,
+                         IsSimple)
     catch _Type:Reason ->
-        S = erlang:get_stacktrace(),
-        {error, {Reason, S}}
+            S = erlang:get_stacktrace(),
+            {error, {Reason, S}}
     end.
 
-lookup_messages_2(Worker, Host,
+lookup_messages2(Worker, Host,
                   UserJID = #jid{}, RSM, Borders,
-                  Start, End, WithJID,
-                  PageSize, _LimitPassed, _MaxResultLimit,
-                  _IsSimple=true) ->
+                 Start, End, WithJID,
+                 PageSize, _LimitPassed, _MaxResultLimit,
+                  _IsSimple = true) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
     lookup_messages_simple(Worker, Host, UserJID, RSM, PageSize, Filter);
-lookup_messages_2(Worker, Host,
+lookup_messages2(Worker, Host,
                   UserJID = #jid{}, RSM, Borders,
-                  Start, End, WithJID,
-                  PageSize, LimitPassed, MaxResultLimit,
-                  _IsSimple) ->
+                 Start, End, WithJID,
+                 PageSize, LimitPassed, MaxResultLimit,
+                 _IsSimple) ->
     %% Query with offset calculation
     %% We cannot just use ODBC code because "LIMIT X,Y" is not supported by cassandra
     %% Not all queries are optimal. You would like to disable something for production
@@ -313,18 +317,18 @@ lookup_messages_2(Worker, Host,
     Strategy = rsm_to_strategy(RSM),
     Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
     Result =
-    case Strategy of
-        last_page ->
-            lookup_messages_last_page(Worker, Host, UserJID, RSM, PageSize, Filter);
-        by_offset ->
-            lookup_messages_by_offset(Worker, Host, UserJID, RSM, PageSize, Filter);
-        first_page ->
-            lookup_messages_first_page(Worker, Host, UserJID, RSM, PageSize, Filter);
-        before_id ->
-            lookup_messages_before_id(Worker, Host, UserJID, RSM, PageSize, Filter);
-        after_id ->
-            lookup_messages_after_id(Worker, Host, UserJID, RSM, PageSize, Filter)
-    end,
+        case Strategy of
+            last_page ->
+                lookup_messages_last_page(Worker, Host, UserJID, RSM, PageSize, Filter);
+            by_offset ->
+                lookup_messages_by_offset(Worker, Host, UserJID, RSM, PageSize, Filter);
+            first_page ->
+                lookup_messages_first_page(Worker, Host, UserJID, RSM, PageSize, Filter);
+            before_id ->
+                lookup_messages_before_id(Worker, Host, UserJID, RSM, PageSize, Filter);
+            after_id ->
+                lookup_messages_after_id(Worker, Host, UserJID, RSM, PageSize, Filter)
+        end,
     check_result_for_policy_violation(Result, MaxResultLimit, LimitPassed).
 
 rsm_to_strategy(#rsm_in{direction = before, id = undefined}) ->
@@ -357,12 +361,14 @@ lookup_messages_simple(Worker, Host, UserJID,
                        #rsm_in{direction = undefined, index = Offset},
                        PageSize, Filter) ->
     %% Apply offset
-    StartId = offset_to_start_id(Worker, UserJID, Filter, Offset), %% POTENTIALLY SLOW AND NOT SIMPLE :)
-    MessageRows = extract_messages(Worker, UserJID, Host, from_id(StartId, Filter), PageSize, false),
+    StartId = offset_to_start_id(Worker, UserJID, Filter,
+                                 Offset), %% POTENTIALLY SLOW AND NOT SIMPLE :)
+    MessageRows = extract_messages(Worker, UserJID, Host, from_id(StartId, Filter), PageSize,
+                                   false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}};
 lookup_messages_simple(Worker, Host, UserJID,
-                _,
-                PageSize, Filter) ->
+                       _,
+                       PageSize, Filter) ->
     MessageRows = extract_messages(Worker, UserJID, Host, Filter, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}}.
 
@@ -400,7 +406,8 @@ lookup_messages_by_offset(Worker, Host, UserJID,
                           PageSize, Filter) when is_integer(Offset) ->
     %% By offset
     StartId = offset_to_start_id(Worker, UserJID, Filter, Offset), %% POTENTIALLY SLOW
-    MessageRows = extract_messages(Worker, UserJID, Host, from_id(StartId, Filter), PageSize, false),
+    MessageRows = extract_messages(Worker, UserJID, Host, from_id(StartId, Filter), PageSize,
+                                   false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -441,7 +448,7 @@ lookup_messages_before_id(Worker, Host, UserJID,
                           RSM = #rsm_in{direction = before, id = ID},
                           PageSize, Filter) ->
     TotalCount = calc_count(Worker, UserJID, Host, Filter),
-    Offset     = calc_offset(Worker, UserJID, Host, Filter, PageSize, TotalCount, RSM),
+    Offset = calc_offset(Worker, UserJID, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Worker, UserJID, Host, before_id(ID, Filter), PageSize, true),
     {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
 
@@ -449,14 +456,14 @@ lookup_messages_after_id(Worker, Host, UserJID,
                          RSM = #rsm_in{direction = aft, id = ID},
                          PageSize, Filter) ->
     TotalCount = calc_count(Worker, UserJID, Host, Filter),
-    Offset     = calc_offset(Worker, UserJID, Host, Filter, PageSize, TotalCount, RSM),
+    Offset = calc_offset(Worker, UserJID, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Worker, UserJID, Host, after_id(ID, Filter), PageSize, false),
     {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
 
 
-check_result_for_policy_violation(Result={ok, {TotalCount, Offset, _}},
+check_result_for_policy_violation(Result = {ok, {TotalCount, Offset, _}},
                                   MaxResultLimit, LimitPassed)
-    when is_integer(TotalCount), is_integer(Offset) ->
+  when is_integer(TotalCount), is_integer(Offset) ->
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client.
@@ -473,37 +480,37 @@ is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
     TotalCount - Offset > MaxResultLimit andalso not LimitPassed.
 
 
-after_id(ID, Filter=#mam_ca_filter{start_id = AfterID}) ->
+after_id(ID, Filter = #mam_ca_filter{start_id = AfterID}) ->
     Filter#mam_ca_filter{start_id = maybe_max(ID + 1, AfterID)}.
 
 before_id(undefined, Filter) ->
     Filter;
-before_id(ID, Filter=#mam_ca_filter{end_id = BeforeID}) ->
+before_id(ID, Filter = #mam_ca_filter{end_id = BeforeID}) ->
     Filter#mam_ca_filter{end_id = maybe_min(ID - 1, BeforeID)}.
 
-to_id(ID, Filter=#mam_ca_filter{end_id = BeforeID}) ->
+to_id(ID, Filter = #mam_ca_filter{end_id = BeforeID}) ->
     Filter#mam_ca_filter{end_id = maybe_min(ID, BeforeID)}.
 
-from_id(ID, Filter=#mam_ca_filter{start_id = AfterID}) ->
+from_id(ID, Filter = #mam_ca_filter{start_id = AfterID}) ->
     Filter#mam_ca_filter{start_id = maybe_max(ID, AfterID)}.
 
 
 rows_to_uniform_format(MessageRows) ->
     [row_to_uniform_format(Row) || Row <- MessageRows].
 
-row_to_uniform_format([MessID,BSrcJID,Data]) ->
+row_to_uniform_format([MessID, BSrcJID, Data]) ->
     SrcJID = unserialize_jid(BSrcJID),
     Packet = stored_binary_to_packet(Data),
     {MessID, SrcJID, Packet}.
 
-row_to_message_id([MessID,_,_]) ->
+row_to_message_id([MessID, _, _]) ->
     MessID.
 
 -spec purge_single_message(_Result, Host, MessID, _UserID, UserJID,
                            Now) ->
-    ok  | {error, 'not-supported'} when
+                                  ok  | {error, 'not-supported'} when
       Host :: server_host(), MessID :: message_id(),
-      _UserID :: user_id(), UserJID :: #jid{},
+      _UserID :: user_id(), UserJID :: jid(),
       Now :: unix_timestamp().
 purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
     Worker = select_worker(UserJID),
@@ -519,11 +526,11 @@ purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
             %% Set some fields
             %% To remove record we need to know user_jid, with_jid and id.
             Messages = [#mam_message{
-              id = MessID,
-              user_jid = BUserJID,
-              remote_jid = RemFullJID, %% set the field for debugging
-              with_jid = BWithJID
-              } || BWithJID <- BWithJIDs],
+                           id         = MessID,
+                           user_jid   = BUserJID,
+                           remote_jid = RemFullJID, %% set the field for debugging
+                           with_jid   = BWithJID
+                          }           || BWithJID <- BWithJIDs],
             delete_messages(Worker, UserJID, Messages),
             ok;
         {error, _} ->
@@ -532,13 +539,13 @@ purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
 
 -spec purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
                               Start, End, Now, WithJID) ->
-    ok when
+                                     ok when
       Host :: server_host(), _UserID :: user_id(),
-      UserJID :: #jid{}, Borders :: #mam_borders{},
+      UserJID :: jid(), Borders :: mam_borders(),
       Start :: unix_timestamp()  | undefined,
       End :: unix_timestamp()  | undefined,
       Now :: unix_timestamp(),
-      WithJID :: #jid{}  | undefined.
+      WithJID :: jid()  | undefined.
 purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
                         Start, End, Now, WithJID) ->
     %% Simple query without calculating offset and total count
@@ -547,7 +554,8 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
     Limit = 500, %% TODO something smarter
     QueryName = {list_message_ids_query, select_filter(Filter)},
     Params = eval_filter_params(Filter) ++ [Limit],
-    {ok, Rows} = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, QueryName, Params),
+    {ok, Rows} = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, QueryName,
+                                                          Params),
     %% TODO can be faster
     %% TODO rate limiting
     [purge_single_message(ok, Host, MessID, UserID, UserJID, Now) || [MessID] <- Rows],
@@ -559,14 +567,14 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
 -spec extract_messages(Worker, UserJID, Host, Filter, IMax, ReverseLimit) ->
-    [Row] when
-    Worker  :: worker(),
-    UserJID :: jlib:jid(),
-    Host    :: server_hostname(),
-    Filter  :: filter(),
-    IMax    :: pos_integer(),
-    ReverseLimit :: boolean(),
-    Row :: list().
+                              [Row] when
+      Worker :: worker(),
+      UserJID :: jlib:jid(),
+      Host :: server_hostname(),
+      Filter :: filter(),
+      IMax :: pos_integer(),
+      ReverseLimit :: boolean(),
+      Row :: list().
 extract_messages(_Worker, _UserJID, _Host, _Filter, 0, _) ->
     [];
 extract_messages(Worker, UserJID, _Host, Filter, IMax, false) ->
@@ -587,13 +595,13 @@ extract_messages(Worker, UserJID, _Host, Filter, IMax, true) ->
 %% be returned instead.
 %% @end
 -spec calc_index(Worker, UserJID, Host, Filter, MessID) -> Count
-    when
-    Worker       :: worker(),
-    UserJID      :: jlib:jid(),
-    Host         :: server_hostname(),
-    Filter       :: filter(),
-    MessID       :: message_id(),
-    Count        :: non_neg_integer().
+                                                               when
+      Worker :: worker(),
+      UserJID :: jlib:jid(),
+      Host :: server_hostname(),
+      Filter :: filter(),
+      MessID :: message_id(),
+      Count :: non_neg_integer().
 calc_index(Worker, UserJID, Host, Filter, MessID) ->
     calc_count(Worker, UserJID, Host, to_id(MessID, Filter)).
 
@@ -602,13 +610,13 @@ calc_index(Worker, UserJID, Host, Filter, MessID) ->
 %% The element with the passed UID can be already deleted.
 %% @end
 -spec calc_before(Worker, UserJID, Host, Filter, MessID) -> Count
-    when
-    Worker       :: worker(),
-    UserJID      :: jlib:jid(),
-    Host         :: server_hostname(),
-    Filter       :: filter(),
-    MessID       :: message_id(),
-    Count        :: non_neg_integer().
+                                                                when
+      Worker :: worker(),
+      UserJID :: jlib:jid(),
+      Host :: server_hostname(),
+      Filter :: filter(),
+      MessID :: message_id(),
+      Count :: non_neg_integer().
 calc_before(Worker, UserJID, Host, Filter, MessID) ->
     calc_count(Worker, UserJID, Host, before_id(MessID, Filter)).
 
@@ -616,71 +624,73 @@ calc_before(Worker, UserJID, Host, Filter, MessID) ->
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
 -spec calc_count(Worker, UserJID, Host, Filter) -> Count
-    when
-    Worker       :: worker(),
-    UserJID      :: jlib:jid(),
-    Host         :: server_hostname(),
-    Filter       :: filter(),
-    Count        :: non_neg_integer().
+                                                       when
+      Worker :: worker(),
+      UserJID :: jlib:jid(),
+      Host :: server_hostname(),
+      Filter :: filter(),
+      Count :: non_neg_integer().
 calc_count(Worker, UserJID, _Host, Filter) ->
     QueryName = {calc_count_query, select_filter(Filter)},
     Params = eval_filter_params(Filter),
-    {ok, [[Count]]} = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params),
+    {ok, [[Count]]} = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName,
+                                                          Params),
     Count.
 
 %% @doc Convert offset to index of the first entry
 %% Returns undefined if not there are not enough rows
 -spec offset_to_start_id(Worker, UserJID, Filter, Offset) -> Id
-    when
-    Worker       :: worker(),
-    UserJID      :: jlib:jid(),
-    Offset       :: non_neg_integer(),
-    Filter       :: filter(),
-    Id           :: non_neg_integer() | undefined.
+                                                                 when
+      Worker :: worker(),
+      UserJID :: jlib:jid(),
+      Offset :: non_neg_integer(),
+      Filter :: filter(),
+      Id :: non_neg_integer() | undefined.
 offset_to_start_id(Worker, UserJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
     QueryName = {list_message_ids_query, select_filter(Filter)},
-    Params = eval_filter_params(Filter) ++ [Offset+1],
-    {ok, RowsIds} = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params),
+    Params = eval_filter_params(Filter) ++ [Offset + 1],
+    {ok, RowsIds} = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName,
+                                                        Params),
     case RowsIds of
         [] -> unfefined;
-        [_|_] -> [StartId] = lists:last(RowsIds), StartId
+        [_ | _] -> [StartId] = lists:last(RowsIds), StartId
     end.
 
 prepare_filter(UserJID, Borders, Start, End, WithJID) ->
     BUserJID = bare_jid(UserJID),
     StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID   = maybe_encode_compact_uuid(End, 255),
+    EndID = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
-    EndID2   = apply_end_border(Borders, EndID),
+    EndID2 = apply_end_border(Borders, EndID),
     BWithJID = maybe_full_jid(WithJID), %% it's NOT optional field
     prepare_filter_params(BUserJID, BWithJID, StartID2, EndID2).
 
 prepare_filter_params(BUserJID, BWithJID, StartID, EndID) ->
     #mam_ca_filter{
-        user_jid = BUserJID,
-        with_jid = BWithJID,
-        start_id = StartID,
-        end_id = EndID
-    }.
+       user_jid = BUserJID,
+       with_jid = BWithJID,
+       start_id = StartID,
+       end_id   = EndID
+      }.
 
 eval_filter_params(#mam_ca_filter{
-        user_jid = BUserJID,
-        with_jid = BWithJID,
-        start_id = StartID,
-        end_id = EndID
-    }) ->
+                      user_jid = BUserJID,
+                      with_jid = BWithJID,
+                      start_id = StartID,
+                      end_id   = EndID
+                     }) ->
     Optional = [Value || Value <- [StartID, EndID], Value =/= undefined],
-    [BUserJID, BWithJID|Optional].
+    [BUserJID, BWithJID | Optional].
 
 select_filter(#mam_ca_filter{
-        start_id = StartID,
-        end_id = EndID
-    }) ->
+                 start_id = StartID,
+                 end_id   = EndID
+                }) ->
     select_filter(StartID, EndID).
 
 
 -spec select_filter(StartID, EndID) ->
-    all  | 'end'  | start  | start_end when
+                           all  | 'end'  | start  | start_end when
       StartID :: integer()  | undefined,
       EndID :: integer()  | undefined.
 select_filter(undefined, undefined) ->
@@ -694,41 +704,41 @@ select_filter(_, _) ->
 
 prepare_filter_cql(StartID, EndID) ->
     case StartID of
-       undefined -> "";
-       _         -> " AND id >= ?"
+        undefined -> "";
+        _ -> " AND id >= ?"
     end ++
-    case EndID of
-       undefined -> "";
-       _         -> " AND id <= ?"
-    end.
+        case EndID of
+            undefined -> "";
+            _ -> " AND id <= ?"
+        end.
 
 filter_to_cql() ->
     [{select_filter(StartID, EndID),
       prepare_filter_cql(StartID, EndID)}
-     || StartID        <- [undefined, 0],
-          EndID        <- [undefined, 0]].
+     || StartID <- [undefined, 0],
+        EndID <- [undefined, 0]].
 
 -spec calc_offset(Worker, UserJID, Host, Filter, PageSize, TotalCount, RSM) -> Offset
-    when
-    Worker       :: worker(),
-    UserJID      :: jlib:jid(),
-    Host         :: server_hostname(),
-    Filter       :: filter(),
-    PageSize     :: non_neg_integer(),
-    TotalCount   :: non_neg_integer(),
-    RSM          :: #rsm_in{} | undefined,
-    Offset       :: non_neg_integer().
+                                                                                   when
+      Worker :: worker(),
+      UserJID :: jlib:jid(),
+      Host :: server_hostname(),
+      Filter :: filter(),
+      PageSize :: non_neg_integer(),
+      TotalCount :: non_neg_integer(),
+      RSM :: rsm_in() | undefined,
+      Offset :: non_neg_integer().
 calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
-    when is_integer(Index) ->
+  when is_integer(Index) ->
     Index;
 %% Requesting the Last Page in a Result Set
 calc_offset(_W, _UserJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
 calc_offset(Worker, UserJID, Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
-    when is_integer(ID) ->
+  when is_integer(ID) ->
     max(0, calc_before(Worker, UserJID, Host, F, ID) - PS);
 calc_offset(Worker, UserJID, Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
-    when is_integer(ID) ->
+  when is_integer(ID) ->
     calc_index(Worker, UserJID, Host, F, ID);
 calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, _RSM) ->
     0.
@@ -819,7 +829,7 @@ compile_params_module(Params) ->
 
 expand_simple_param(Params) ->
     lists:flatmap(fun(simple) -> simple_params();
-                     ({simple,true}) -> simple_params();
+                     ({simple, true}) -> simple_params();
                      (Param) -> [Param]
                   end, Params).
 
@@ -828,13 +838,14 @@ simple_params() ->
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_cassandra_arch_params).~n"
-        "-compile(export_all).~n"
-        "db_message_format() -> ~p.~n"
-        "pool_name() -> ~p.~n",
-        [proplists:get_value(db_message_format, Params, mam_message_compressed_eterm),
-         proplists:get_value(pool_name, Params, default)
-        ]))).
+                                      "-module(mod_mam_cassandra_arch_params).~n"
+                                      "-compile(export_all).~n"
+                                      "db_message_format() -> ~p.~n"
+                                      "pool_name() -> ~p.~n",
+                                      [proplists:get_value(db_message_format, Params,
+                                                           mam_message_compressed_eterm),
+                                       proplists:get_value(pool_name, Params, default)
+                                      ]))).
 
 -spec db_message_format() -> module().
 db_message_format() ->

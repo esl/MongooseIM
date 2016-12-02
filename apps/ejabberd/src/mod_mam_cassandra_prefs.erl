@@ -5,7 +5,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_cassandra_prefs).
--behaviour(mongoose_cassandra). 
+-behaviour(mongoose_cassandra).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -31,7 +31,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(),_) -> 'ok'.
+-spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
     compile_params_module(Opts),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -67,7 +67,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(),_) -> 'ok'.
+-spec start_pm(ejabberd:server(), _) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -88,7 +88,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc_muc
 
--spec start_muc(ejabberd:server(),_) -> 'ok'.
+-spec start_muc(ejabberd:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -108,45 +108,52 @@ stop_muc(Host) ->
 %% ----------------------------------------------------------------------
 
 prepared_queries() ->
-    [{set_prefs_ts_query, "INSERT INTO mam_config(user_jid, remote_jid, behaviour) VALUES (?, ?, ?) USING TIMESTAMP ?"},
-     {get_prefs_query, "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ?"},
-     {get_behaviour_bare_query, "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid IN ('', ?)"},
-     {get_behaviour_full_query, "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid IN ('', ?, ?)"},
-     {del_prefs_ts_query, "DELETE FROM mam_config USING TIMESTAMP ? WHERE user_jid = ?"}].
+    [
+     {set_prefs_ts_query,
+      "INSERT INTO mam_config(user_jid, remote_jid, behaviour) VALUES (?, ?, ?) USING TIMESTAMP ?"},
+     {get_prefs_query,
+      "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ?"},
+     {get_behaviour_bare_query,
+      "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid IN ('', ?)"},
+     {get_behaviour_full_query,
+      "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid IN ('', ?, ?)"},
+     {del_prefs_ts_query,
+      "DELETE FROM mam_config USING TIMESTAMP ? WHERE user_jid = ?"}
+    ].
 
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
 -spec get_behaviour(Default :: mod_mam:archive_behaviour(),
-        Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
-        LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid()) -> any().
+                    Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
+                    LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid()) -> any().
 get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
     BUserJID = bare_jid(LocJID),
     BRemBareJID = bare_jid(RemJID),
-    BRemJID     = full_jid(RemJID),
+    BRemJID = full_jid(RemJID),
     case query_behaviour(Host, LocJID, BUserJID, BRemJID, BRemBareJID) of
         {ok, []} ->
             DefaultBehaviour;
-        {ok, [_|_]=Rows} ->
+        {ok, [_ | _] = Rows} ->
             %% After sort <<>>, <<"a">>, <<"a/b">>
-            [_,Behavour] = lists:last(lists:sort(Rows)),
+            [_, Behavour] = lists:last(lists:sort(Rows)),
             decode_behaviour(Behavour)
     end.
 
 
 -spec set_prefs(Result :: any(), Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
-        DefaultMode :: mod_mam:archive_behaviour(),
-        AlwaysJIDs :: [ejabberd:literal_jid()],
-        NeverJIDs :: [ejabberd:literal_jid()]) -> any().
+                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
+                DefaultMode :: mod_mam:archive_behaviour(),
+                AlwaysJIDs :: [ejabberd:literal_jid()],
+                NeverJIDs :: [ejabberd:literal_jid()]) -> any().
 set_prefs(_Result, Host, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     try
         set_prefs1(Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)
     catch Type:Error ->
-        Stacktrace = erlang:get_stacktrace(),
-        ?ERROR_MSG("issue=\"set_prefs failed\", reason=~p:~p, stacktrace=~p",
-                   [Type, Error, Stacktrace]),
-        {error, Error}
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("issue=\"set_prefs failed\", reason=~p:~p, stacktrace=~p",
+                       [Type, Error, Stacktrace]),
+            {error, Error}
     end.
 
 set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
@@ -162,20 +169,21 @@ set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
         ++ [[BUserJID, BinJID, <<"N">>, Next] || BinJID <- NeverJIDs],
     DelQuery = {del_prefs_ts_query, DelParams},
     SetQuries = [{set_prefs_ts_query, Params} || Params <- MultiParams],
-    Queries = [DelQuery|SetQuries],
+    Queries = [DelQuery | SetQuries],
     Res = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, Queries),
     ?DEBUG("issue=set_prefs1, result=~p", [Res]),
     ok.
 
 
 -spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid())
-            -> mod_mam:preference().
+                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid())
+               -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
     BUserJID = bare_jid(UserJID),
     PoolName = pool_name(UserJID),
     Params = [BUserJID],
-    {ok, Rows} = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_prefs_query, Params),
+    {ok, Rows} = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE,
+                                                          get_prefs_query, Params),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
@@ -186,22 +194,24 @@ remove_archive(_Host, _UserID, UserJID) ->
     BUserJID = bare_jid(UserJID),
     Now = mongoose_cassandra:now_timestamp(),
     Params = [Now, BUserJID],
-    mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, del_prefs_ts_query, Params),
+    mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, del_prefs_ts_query,
+                                             Params),
     ok.
 
 
 -spec query_behaviour(ejabberd:server(), UserJID :: ejabberd:jid(), BUserJID :: string(),
-        BRemJID :: binary() | string(), BRemBareJID :: binary() | string()
-        ) -> any().
+                      BRemJID :: binary() | string(), BRemBareJID :: binary() | string()) -> any().
 query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID) ->
     PoolName = pool_name(UserJID),
     case BRemJID of
         BRemBareJID ->
             Params = [BUserJID, BRemBareJID],
-            mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_behaviour_bare_query, Params);
+            mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE,
+                                                     get_behaviour_bare_query, Params);
         _ ->
             Params = [BUserJID, BRemJID, BRemBareJID],
-            mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_behaviour_full_query, Params)
+            mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE,
+                                                     get_behaviour_full_query, Params)
     end.
 
 %% ----------------------------------------------------------------------
@@ -210,7 +220,7 @@ query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID) ->
 -spec encode_behaviour('always' | 'never' | 'roster') -> binary().
 encode_behaviour(roster) -> <<"R">>;
 encode_behaviour(always) -> <<"A">>;
-encode_behaviour(never)  -> <<"N">>.
+encode_behaviour(never) -> <<"N">>.
 
 
 -spec decode_behaviour(<<_:8>>) -> 'always' | 'never' | 'roster'.
@@ -227,16 +237,19 @@ full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
 
 -spec decode_prefs_rows([[term()]],
-        DefaultMode :: mod_mam:archive_behaviour(),
-        AlwaysJIDs :: [ejabberd:literal_jid()],
-        NeverJIDs :: [ejabberd:literal_jid()]) ->
-    {mod_mam:archive_behaviour(),[ejabberd:literal_jid()],[ejabberd:literal_jid()]}.
-decode_prefs_rows([[<<>>, Behavour]|Rows], _DefaultMode, AlwaysJIDs, NeverJIDs) ->
+                        DefaultMode :: mod_mam:archive_behaviour(),
+                        AlwaysJIDs :: [ejabberd:literal_jid()],
+                        NeverJIDs :: [ejabberd:literal_jid()]) -> {
+                         mod_mam:archive_behaviour(),
+                         [ejabberd:literal_jid()],
+                         [ejabberd:literal_jid()]
+                        }.
+decode_prefs_rows([[<<>>, Behavour] | Rows], _DefaultMode, AlwaysJIDs, NeverJIDs) ->
     decode_prefs_rows(Rows, decode_behaviour(Behavour), AlwaysJIDs, NeverJIDs);
-decode_prefs_rows([[JID, <<"A">>]|Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    decode_prefs_rows(Rows, DefaultMode, [JID|AlwaysJIDs], NeverJIDs);
-decode_prefs_rows([[JID, <<"N">>]|Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    decode_prefs_rows(Rows, DefaultMode, AlwaysJIDs, [JID|NeverJIDs]);
+decode_prefs_rows([[JID, <<"A">>] | Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    decode_prefs_rows(Rows, DefaultMode, [JID | AlwaysJIDs], NeverJIDs);
+decode_prefs_rows([[JID, <<"N">>] | Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    decode_prefs_rows(Rows, DefaultMode, AlwaysJIDs, [JID | NeverJIDs]);
 decode_prefs_rows([], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs}.
 
@@ -251,11 +264,11 @@ compile_params_module(Params) ->
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_cassandra_prefs_params).~n"
-        "-compile(export_all).~n"
-        "pool_name() -> ~p.~n",
-        [proplists:get_value(pool_name, Params, default)
-        ]))).
+                                      "-module(mod_mam_cassandra_prefs_params).~n"
+                                      "-compile(export_all).~n"
+                                      "pool_name() -> ~p.~n",
+                                      [proplists:get_value(pool_name, Params, default)
+                                      ]))).
 
 -spec pool_name(ejabberd:jid()) -> term().
 pool_name(_UserJID) ->
