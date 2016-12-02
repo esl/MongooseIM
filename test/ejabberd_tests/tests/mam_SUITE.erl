@@ -109,7 +109,7 @@
          muc_bootstrap_archive/1,
          start_alice_protected_room/1,
          start_alice_anonymous_room/1,
-         maybe_wait_for_yz/1,
+         maybe_wait_for_backend/1,
          maybe_wait_for_cassandra/1,
          stanza_archive_request/2,
          wait_archive_respond/2,
@@ -526,92 +526,8 @@ init_modules(C, muc_light, Config) ->
     init_module(host(), mod_mam_muc, [{host, binary_to_list(muc_light_host())}]),
     Config1;
 
-init_modules(C, muc03, Config) ->
-    init_modules(C, muc, Config);
-init_modules(C, muc04, Config) ->
-    init_modules(C, muc, Config);
 
-init_modules(cassandra, muc_with_pm, Config) ->
-    %% TODO add mod_mam with Cassandra
-    init_module(host(), mod_mam_cassandra_arch, []),
-    init_module(host(), mod_mam_muc_cassandra_arch, []),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc, muc_with_pm, Config) ->
-    %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
-    init_module(host(), mod_mam_odbc_arch, [muc, pm]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_simple, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_odbc_arch, [muc, pm, simple]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_async_pool, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_mnesia, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_async_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_mnesia_muc_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [pm]),
-    init_module(host(), mod_mam_muc_cache_user, []),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_mnesia_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-
-init_modules(cassandra, muc, Config) ->
+init_modules(cassandra, muc_all, Config) ->
     init_module(host(), mod_mam_muc_cassandra_arch, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
@@ -990,7 +906,7 @@ simple_archive_request(Config) ->
         %%   {<<"type">>,<<"chat">>}],
         %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(P, Alice),
         assert_respond_size(1, Res),
@@ -1020,7 +936,7 @@ querying_for_all_messages_with_jid(Config) ->
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
 
         Room = ?config(room, Config),
         MucMsgs = ?config(pre_generated_muc_msgs, Config),
@@ -1029,7 +945,7 @@ muc_querying_for_all_messages(Config) ->
 
         IQ = stanza_archive_request(P, <<>>),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         assert_respond_size(MucArchiveLen, wait_archive_respond(P, Alice)),
 
         ok
@@ -1079,7 +995,7 @@ muc_light_simple(Config) ->
             muc_light_SUITE:verify_aff_bcast([{Alice, owner}, {Bob, member}], [{Bob, member}]),
 
             P = ?config(props, Config),
-            maybe_wait_for_yz(Config),
+            maybe_wait_for_backend(Config),
 
             ArchiveReqStanza = escalus_stanza:to(stanza_archive_request(P, <<"mlight">>), Room2BinJID),
             escalus:send(Bob, ArchiveReqStanza),
@@ -1123,7 +1039,7 @@ archived(Config) ->
         ?assert_equal(By, escalus_client:short_jid(Bob)),
 
         %% Bob calls archive.
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
         [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
@@ -1146,7 +1062,7 @@ filter_forwarded(Config) ->
 
         %% Bob receives a message.
         escalus:wait_for_stanza(Bob),
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
         assert_respond_size(1, wait_archive_respond(P, Bob)),
 
@@ -1179,7 +1095,7 @@ strip_archived(Config) ->
 
         try
         %% Bob calls archive.
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
         [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
@@ -1211,7 +1127,7 @@ policy_violation(Config) ->
          || N <- lists:seq(1, 6)],
         %% Bob is waiting for 6 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 6, 5000),
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         %% Get whole history (queryid is "will_fail", id is random).
         escalus:send(Alice, stanza_archive_request(P, <<"will_fail">>)),
         ErrorIQ = escalus:wait_for_stanza(Alice, 5000),
@@ -1235,7 +1151,7 @@ offline_message(Config) ->
         %% Alice sends a message to Bob while bob is offline.
         escalus:send(Alice,
                      escalus_stanza:chat_to(escalus_users:get_jid(Config, bob), Msg)),
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         ok
         end,
     escalus:story(Config, [{alice, 1}], F),
@@ -1263,7 +1179,7 @@ nostore_hint(Config) ->
         %% Alice sends a message to Bob with a hint.
         escalus:send(Alice,
                      add_nostore_hint(escalus_stanza:chat_to(Bob, Msg))),
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         escalus:wait_for_stanzas(Bob, 1, 1000),
 
         %% Bob checks his archive.
@@ -1278,7 +1194,7 @@ purge_single_message(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-            maybe_wait_for_yz(Config),
+            maybe_wait_for_backend(Config),
             escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
             [Mess] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Alice))),
             ParsedMess = parse_forwarded_message(Mess),
@@ -1322,7 +1238,7 @@ purge_multiple_messages(Config) ->
                 escalus:send(Alice,
                     escalus_stanza:chat_to(Bob, generate_message_text(N)))
              end || N <- lists:seq(1, 5)],
-            maybe_wait_for_yz(Config),
+            maybe_wait_for_backend(Config),
             %% Bob is waiting for 5 messages for 5 seconds.
             escalus:wait_for_stanzas(Bob, 5, 5000),
             %% Bob purges all messages from his archive.
@@ -1370,7 +1286,7 @@ muc_archive_request(Config) ->
         %% Attribute giving the message's UID within the archive.
         Id  = exml_query:attr(Arc, <<"id">>),
 
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
@@ -1422,7 +1338,7 @@ muc_archive_purge(Config) ->
         escalus:send(Alice, stanza_to_room(stanza_purge_multiple_messages(
            undefined, undefined, undefined), Room)),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         ok
     end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -1481,7 +1397,7 @@ muc_multiple_devices(Config) ->
 
         %% Bob requests the room's archive.
 
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
 
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
         [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
@@ -1592,7 +1508,7 @@ muc_delete_x_user_in_anon_rooms(Config) ->
         %% Bob receives the message.
         escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
 
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
@@ -1627,7 +1543,7 @@ muc_show_x_user_to_moderators_in_anon_rooms(Config) ->
         %% Alice receives the message.
         escalus:assert(is_message, escalus:wait_for_stanza(Alice)),
 
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
 
         %% Alice requests the room's archive.
         escalus:send(Alice, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
@@ -1662,7 +1578,7 @@ muc_show_x_user_for_your_own_messages_in_anon_rooms(Config) ->
         %% Bob receives the message.
         escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
 
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
@@ -2124,7 +2040,7 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
                 || Case <- prefs_cases2(),
                 default_policy(Case) =:= DefaultPolicy],
 
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
 
         %% Get ALL messages using several queries if required
         Stanzas = get_all_messages(P, Alice),

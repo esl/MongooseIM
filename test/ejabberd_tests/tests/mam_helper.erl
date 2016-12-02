@@ -711,7 +711,7 @@ send_muc_rsm_messages(Config) ->
         escalus:wait_for_stanzas(Bob, 15, 5000),
         escalus:wait_for_stanzas(Alice, 15, 5000),
 
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
 
         %% Get whole history.
         escalus:send(Alice,
@@ -741,7 +741,7 @@ send_rsm_messages(Config) ->
          || N <- lists:seq(1, 15)],
         %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_backend(Config),
         %% Get whole history.
         rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
         AllMessages =
@@ -1034,7 +1034,7 @@ muc_bootstrap_archive(Config) ->
 
     put_muc_msgs(Msgs),
 
-    maybe_wait_for_yz(Config),
+    maybe_wait_for_backend(Config),
     ?assert_equal(length(Msgs),
                   wait_for_room_archive_size(Domain, Room, 10, length(Msgs))),
 
@@ -1149,6 +1149,10 @@ maybe_wait_for_yz(Config) ->
         Value ->
             timer:sleep(Value)
     end.
+
+maybe_wait_for_backend(Config) ->
+    maybe_wait_for_yz(Config),
+    maybe_wait_for_cassandra(Config).
 
 %% Bob and Alice are friends.
 %% Kate and Alice are not friends.
