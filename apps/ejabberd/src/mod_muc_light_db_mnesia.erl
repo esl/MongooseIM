@@ -33,6 +33,7 @@
          destroy_room/1,
          room_exists/1,
          get_user_rooms/2,
+         get_user_rooms_count/2,
          remove_user/2,
 
          get_config/1,
@@ -119,6 +120,12 @@ room_exists(RoomUS) ->
 get_user_rooms(UserUS, _MUCHost) ->
     UsersRooms = mnesia:dirty_read(?USER_ROOM_TAB, UserUS),
     [ UserRoom#?USER_ROOM_TAB.room || UserRoom <- UsersRooms ].
+
+-spec get_user_rooms_count(UserUS :: ejabberd:simple_bare_jid(),
+                           MUCServer :: ejabberd:lserver()) ->
+    non_neg_integer().
+get_user_rooms_count(UserUS, _MUCServer) ->
+    length(mnesia:dirty_read(?USER_ROOM_TAB, UserUS)).
 
 -spec remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
     mod_muc_light_db:remove_user_return() | {error, term()}.

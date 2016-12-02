@@ -6,9 +6,6 @@
 -define(NS_MUC_LIGHT_CREATE, <<"urn:xmpp:muclight:0#create">>).
 -define(NS_MUC_LIGHT_DESTROY, <<"urn:xmpp:muclight:0#destroy">>).
 
--define(CODEC, mod_muc_light_codec_backend).
--define(BACKEND, mod_muc_light_db_backend).
-
 -define(DEFAULT_EQUAL_OCCUPANTS, false).
 -define(DEFAULT_LEGACY_MODE, false).
 -define(DEFAULT_ROOMS_PER_USER, infinity).
@@ -57,11 +54,15 @@
           id = <<>> :: binary()
          }).
 
+-type op_disco_info() :: #disco_info{}.
+
 -record(disco_items, {
           id = <<>> :: binary(),
           rooms = [] :: [disco_room_info()],
           rsm = none :: none | jlib:rsm_in() | jlib:rsm_out()
          }).
+
+-type op_disco_items() :: #disco_items{}.
 
 -record(msg, {
           id = <<>> :: binary(),
@@ -95,12 +96,16 @@
           items = [] :: [blocking_item()]
          }).
 
+-type op_blocking() :: #blocking{}.
+
 -record(create, {
           id = <<>> :: binary(),
           version = <<>> :: binary(),
           raw_config = [] :: raw_config(),
           aff_users = [] :: aff_users()
          }).
+
+-type op_create() :: #create{}.
 
 -record(destroy, {
           id = <<>> :: binary()

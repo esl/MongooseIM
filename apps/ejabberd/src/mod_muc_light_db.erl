@@ -43,6 +43,10 @@
                          MUCServer :: ejabberd:lserver() | undefined) ->
     [RoomUS :: ejabberd:simple_bare_jid()].
 
+-callback get_user_rooms_count(UserUS :: ejabberd:simple_bare_jid(),
+                               MUCServer :: ejabberd:lserver()) ->
+    non_neg_integer().
+
 -callback remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
     remove_user_return() | {error, term()}.
 

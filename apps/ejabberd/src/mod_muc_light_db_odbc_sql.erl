@@ -26,7 +26,8 @@
 
 -include("mod_muc_light.hrl").
 
--export([select_room_id/2, select_room_id_and_version/2, select_user_rooms/2,
+-export([select_room_id/2, select_room_id_and_version/2,
+         select_user_rooms/2, select_user_rooms_count/2,
          insert_room/3, update_room_version/3, delete_room/2]).
 -export([select_affs/2, select_affs/1, insert_aff/4, update_aff/4, delete_affs/1, delete_aff/3]).
 -export([select_config/1, select_config/2, select_config/3, insert_config/3, update_config/3,
@@ -53,7 +54,17 @@ select_room_id_and_version(RoomU, RoomS) ->
 
 -spec select_user_rooms(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver()) -> iolist().
 select_user_rooms(LUser, LServer) ->
-    ["SELECT r.luser, r.lserver"
+    select_user_rooms(LUser, LServer, "r.luser, r.lserver").
+
+-spec select_user_rooms_count(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver()) -> iolist().
+select_user_rooms_count(LUser, LServer) ->
+    select_user_rooms(LUser, LServer, "COUNT(*)").
+
+-spec select_user_rooms(LUser :: ejabberd:luser(),
+                        LServer :: ejabberd:lserver(),
+                        ReturnStatement :: iodata()) -> iolist().
+select_user_rooms(LUser, LServer, ReturnStatement) ->
+    ["SELECT ", ReturnStatement,
      " FROM muc_light_occupants AS o INNER JOIN muc_light_rooms AS r ON o.room_id = r.id"
      " WHERE o.luser = '", ?ESC(LUser), "' AND o.lserver = '", ?ESC(LServer), "'"].
 

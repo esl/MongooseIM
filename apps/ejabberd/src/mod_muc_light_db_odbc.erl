@@ -33,6 +33,7 @@
          destroy_room/1,
          room_exists/1,
          get_user_rooms/2,
+         get_user_rooms_count/2,
          remove_user/2,
 
          get_config/1,
@@ -120,6 +121,16 @@ get_user_rooms({LUser, LServer}, MUCServer) ->
     {selected, _, Rooms} = ejabberd_odbc:sql_query(
                              MainHost, mod_muc_light_db_odbc_sql:select_user_rooms(LUser, LServer)),
     Rooms.
+
+-spec get_user_rooms_count(UserUS :: ejabberd:simple_bare_jid(),
+                           MUCServer :: ejabberd:lserver()) ->
+    non_neg_integer().
+get_user_rooms_count({LUser, LServer}, MUCServer) ->
+    MainHost = main_host(MUCServer),
+    {selected, _, [{Cnt}]}
+    = ejabberd_odbc:sql_query(
+        MainHost, mod_muc_light_db_odbc_sql:select_user_rooms_count(LUser, LServer)),
+    ejabberd_odbc:result_to_integer(Cnt).
 
 -spec remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
     mod_muc_light_db:remove_user_return() | {error, term()}.

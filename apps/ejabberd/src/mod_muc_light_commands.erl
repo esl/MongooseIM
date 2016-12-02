@@ -180,10 +180,10 @@ muc_light_room_name_to_jid(Participant, RoomName, Domain) ->
     end.
 
 get_user_rooms(UserJID, Domain) ->
-    ?BACKEND:get_user_rooms(jid:to_lus(UserJID), Domain).
+    mod_muc_light_db_backend:get_user_rooms(jid:to_lus(UserJID), Domain).
 
 name_of_room_with_jid(RoomJID) ->
-    case ?BACKEND:get_info(RoomJID) of
+    case mod_muc_light_db_backend:get_info(RoomJID) of
         {ok, Cfg, _, _} ->
             {roomname, N} = lists:keyfind(roomname, 1, Cfg),
             N
