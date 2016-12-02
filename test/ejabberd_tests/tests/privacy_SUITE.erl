@@ -219,8 +219,8 @@ get_existing_list(Config) ->
         Response = escalus:wait_for_stanza(Alice),
 
         <<"deny_client">> = exml_query:path(Response, [{element, <<"query">>},
-                                                    {element, <<"list">>},
-                                                    {attr, <<"name">>}])
+                                                       {element, <<"list">>},
+                                                       {attr, <<"name">>}])
 
         end).
 
@@ -358,7 +358,7 @@ remove_list(Config) ->
 
         %% Request list deletion by sending an empty list.
         RemoveRequest = escalus_stanza:privacy_set_list(
-                escalus_stanza:privacy_list(<<"someList">>, [])),
+                          escalus_stanza:privacy_list(<<"someList">>, [])),
         escalus_client:send(Alice, RemoveRequest),
 
         %% These too are the pushed notification and iq result.
@@ -400,7 +400,7 @@ block_jid_message(Config) ->
         escalus_client:send(Alice, escalus_stanza:chat_to(
                                      Bob, <<"Hi, Bobbb!">>)),
         escalus_assert:is_chat_message(<<"Hi, Bobbb!">>,
-            escalus_client:wait_for_stanza(Bob))
+                                       escalus_client:wait_for_stanza(Bob))
 
         end).
 
@@ -435,9 +435,9 @@ block_subscription_message(Config) ->
             escalus_client:wait_for_stanza(Alice)),
 
         %% Alice sends unsubscribe
-        escalus_client:send(Alice,
-            escalus_stanza:presence_direct(escalus_utils:get_short_jid(Bob),
-                <<"unsubscribe">>)),
+        Stanza = escalus_stanza:presence_direct(escalus_utils:get_short_jid(Bob),
+                                                <<"unsubscribe">>),
+        escalus_client:send(Alice, Stanza),
 
         %% set the list on server and make it active
         privacy_helper:set_and_activate(Alice, <<"deny_unsubscribed_message">>),
@@ -470,16 +470,16 @@ allow_subscription_to_from_message(Config) ->
         escalus_assert:has_no_stanzas(Bob),
 
         %% Alice subscribes to Bob
-        escalus_client:send(Alice,
-            escalus_stanza:presence_direct(escalus_utils:get_short_jid(Bob),
-                <<"subscribe">>)),
+        SubStanza = escalus_stanza:presence_direct(escalus_utils:get_short_jid(Bob),
+                                                   <<"subscribe">>),
+        escalus_client:send(Alice, SubStanza),
         escalus_client:wait_for_stanza(Alice),
         escalus_client:wait_for_stanza(Bob),
 
+        SubConfirmStanza = escalus_stanza:presence_direct(escalus_utils:get_short_jid(Alice),
+                                                          <<"subscribed">>),
         %% Bob accepts Alice
-        escalus_client:send(Bob,
-            escalus_stanza:presence_direct(escalus_utils:get_short_jid(Alice),
-                <<"subscribed">>)),
+        escalus_client:send(Bob, SubConfirmStanza),
         escalus_client:wait_for_stanza(Bob),
         escalus_client:wait_for_stanzas(Alice, 3),
 
@@ -488,11 +488,11 @@ allow_subscription_to_from_message(Config) ->
 
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice XYZ!">>)),
         escalus_assert:is_chat_message(<<"Hi, Alice XYZ!">>,
-            escalus_client:wait_for_stanza(Alice)),
+                                       escalus_client:wait_for_stanza(Alice)),
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bob XYZ!">>)),
         escalus_assert:is_chat_message(<<"Hi, Bob XYZ!">>,
-            escalus_client:wait_for_stanza(Bob))
+                                       escalus_client:wait_for_stanza(Bob))
 
     end).
 
@@ -528,27 +528,27 @@ allow_subscription_both_message(Config) ->
         escalus_assert:has_no_stanzas(Bob),
 
         %% Alice subscribes to Bob
-        escalus_client:send(Bob,
-            escalus_stanza:presence_direct(escalus_utils:get_short_jid(Alice),
-                <<"subscribe">>)),
+        SubStanza = escalus_stanza:presence_direct(escalus_utils:get_short_jid(Alice),
+                                                   <<"subscribe">>),
+        escalus_client:send(Bob, SubStanza),
         escalus_client:wait_for_stanza(Alice),
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob accepts Alice
-        escalus_client:send(Alice,
-            escalus_stanza:presence_direct(BobBareJID,
-                <<"subscribed">>)),
+        SubConfirmStanza = escalus_stanza:presence_direct(BobBareJID,
+                                                          <<"subscribed">>),
+        escalus_client:send(Alice, SubConfirmStanza),
         escalus_client:wait_for_stanzas(Alice, 2),
         escalus_client:wait_for_stanzas(Bob, 3),
 
         %% Now their subscription is in state "both"
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice XYZ!">>)),
         escalus_assert:is_chat_message(<<"Hi, Alice XYZ!">>,
-            escalus_client:wait_for_stanza(Alice)),
+                                       escalus_client:wait_for_stanza(Alice)),
 
         escalus_client:send(Alice, escalus_stanza:chat_to(BobBareJID, <<"Hi, Bob XYZ! 2">>)),
         escalus_assert:is_chat_message(<<"Hi, Bob XYZ! 2">>,
-            escalus_client:wait_for_stanza(Bob))
+                                       escalus_client:wait_for_stanza(Bob))
 
     end).
 
@@ -558,7 +558,7 @@ block_all_message(Config) ->
         %% Alice should receive message
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
         escalus_assert:is_chat_message(<<"Hi!">>,
-            escalus_client:wait_for_stanza(Alice)),
+                                       escalus_client:wait_for_stanza(Alice)),
 
         %% set the list on server and make it active
         privacy_helper:set_and_activate(Alice, <<"deny_all_message">>),
@@ -575,9 +575,9 @@ block_jid_presence_in(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice should receive presence in
-        escalus_client:send(Bob,
-            escalus_stanza:presence_direct(escalus_utils:get_short_jid(alice),
-                <<"available">>)),
+        Presence1 =  escalus_stanza:presence_direct(escalus_utils:get_short_jid(alice),
+                                                    <<"available">>),
+        escalus_client:send(Bob, Presence1),
         Received = escalus_client:wait_for_stanza(Alice),
         escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Bob, Received),
@@ -585,9 +585,9 @@ block_jid_presence_in(Config) ->
         privacy_helper:set_and_activate(Alice, {<<"deny_client_presence_in">>, Bob}),
 
         %% Alice should NOT receive presence in
-        escalus_client:send(Bob,
-            escalus_stanza:presence_direct(escalus_utils:get_short_jid(Alice),
-                <<"available">>)),
+        Presence2 = escalus_stanza:presence_direct(escalus_utils:get_short_jid(Alice),
+                                                   <<"available">>),
+        escalus_client:send(Bob, Presence2),
         timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice),
         %% and Bob should NOT receive any response
@@ -602,9 +602,9 @@ block_jid_presence_out(Config) ->
         BobBareJID = escalus_utils:get_short_jid(Bob),
 
         %% Bob should receive presence in
-        escalus_client:send(Alice,
-            escalus_stanza:presence_direct(BobBareJID,
-                <<"available">>)),
+        Presence1 = escalus_stanza:presence_direct(BobBareJID, <<"available">>),
+        escalus_client:send(Alice, Presence1),
+
         Received = escalus_client:wait_for_stanza(Bob),
         escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Alice, Received),
@@ -612,12 +612,12 @@ block_jid_presence_out(Config) ->
         privacy_helper:set_and_activate(Alice, {<<"deny_client_presence_out">>, Bob}),
 
         %% Bob should NOT receive presence in
-        escalus_client:send(Alice,
-            escalus_stanza:presence_direct(BobBareJID, <<"available">>)),
+        Presence2 = escalus_stanza:presence_direct(BobBareJID, <<"available">>),
+        escalus_client:send(Alice, Presence2),
 
         %% Alice gets an error back from mod_privacy
-        Presence = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_presence_with_type, [<<"error">>], Presence),
+        ErrorPresence = escalus_client:wait_for_stanza(Alice),
+        escalus:assert(is_presence_with_type, [<<"error">>], ErrorPresence),
 
         timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Bob)
@@ -635,9 +635,10 @@ block_jid_iq(Config) ->
 
         privacy_helper:set_list(Alice, <<"deny_localhost_iq">>),
         %% activate it
-        escalus_client:send(Alice,
-            escalus_stanza:privacy_activate(<<"deny_localhost_iq">>)),
+        Stanza = escalus_stanza:privacy_activate(<<"deny_localhost_iq">>),
+        escalus_client:send(Alice, Stanza),
         timer:sleep(500), %% we must let it sink in
+
         %% bob queries for version and gets an error, Alice doesn't receive the query
         escalus_client:send(Bob, version_iq(<<"get">>, Bob, Alice)),
         timer:sleep(?SLEEP_TIME),
@@ -662,8 +663,9 @@ block_jid_all(Config) ->
         privacy_helper:set_list(Alice, {<<"deny_jid_all">>, Bob}),
 
         %% Alice blocks Bob
-        escalus_client:send(Alice,
-            escalus_stanza:privacy_activate(<<"deny_jid_all">>)),
+        Stanza = escalus_stanza:privacy_activate(<<"deny_jid_all">>),
+        escalus_client:send(Alice, Stanza),
+
         %% IQ response is blocked;
         %% do magic wait for the request to take effect
         timer:sleep(200),
@@ -675,16 +677,17 @@ block_jid_all(Config) ->
         privacy_helper:gets_error(Bob, <<"service-unavailable">>),
 
         %% Alice should NOT receive presence-in from Bob, no err msg
-        escalus_client:send(Bob,
-            escalus_stanza:presence_direct(escalus_utils:get_short_jid(Alice),
-                <<"available">>)),
+        AliceBareJID = escalus_utils:get_short_jid(Alice),
+        Presence1 = escalus_stanza:presence_direct(AliceBareJID,
+                                                   <<"available">>),
+        escalus_client:send(Bob, Presence1),
         timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Bob),
 
         %% Bob should NOT receive presence-in from Alice, Alice receives err msg
-        escalus_client:send(Alice,
-            escalus_stanza:presence_direct(
-                escalus_utils:get_short_jid(Bob), <<"available">>)),
+        BobBareJID = escalus_utils:get_short_jid(Bob),
+        Presence2 = escalus_stanza:presence_direct(BobBareJID, <<"available">>),
+        escalus_client:send(Alice, Presence2),
         timer:sleep(?SLEEP_TIME),
         privacy_helper:gets_error(Alice, <<"not-acceptable">>),
 
@@ -708,10 +711,10 @@ block_jid_message_but_not_presence(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice should receive message
-        escalus_client:send(Bob,
-            escalus_stanza:chat_to(Alice, <<"Hi! What's your name?">>)),
+        Msg =  escalus_stanza:chat_to(Alice, <<"Hi! What's your name?">>),
+        escalus_client:send(Bob, Msg),
         escalus_assert:is_chat_message(<<"Hi! What's your name?">>,
-            escalus_client:wait_for_stanza(Alice)),
+                                       escalus_client:wait_for_stanza(Alice)),
 
         %% set the list on server and make it active
         privacy_helper:set_and_activate(Alice, {<<"deny_client_message">>, Bob}),
@@ -724,7 +727,7 @@ block_jid_message_but_not_presence(Config) ->
 
         %% ...but should receive presence in
         escalus_client:send(Bob,
-            escalus_stanza:presence_direct(Alice, <<"available">>)),
+                            escalus_stanza:presence_direct(Alice, <<"available">>)),
         Received = escalus_client:wait_for_stanza(Alice),
         escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Bob, Received)
@@ -740,9 +743,9 @@ newly_blocked_presense_jid_by_new_list(Config) ->
         escalus:assert(is_roster_set, escalus_client:wait_for_stanza(Alice)),
 
         %% Bob should receive presence in
-        escalus_client:send(Alice,
-            escalus_stanza:presence_direct(escalus_client:short_jid(Bob),
-                                           <<"available">>)),
+        Presence = escalus_stanza:presence_direct(escalus_client:short_jid(Bob),
+                                                  <<"available">>),
+        escalus_client:send(Alice, Presence),
         Received = escalus_client:wait_for_stanza(Bob),
         escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Alice, Received),
