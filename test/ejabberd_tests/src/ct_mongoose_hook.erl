@@ -138,8 +138,7 @@ do_check_server_purity(_Suite) ->
         fun check_privacy/0,
         fun check_private/0,
         fun check_vcard/0,
-        fun check_roster/0,
-        fun check_carboncopy/0],
+        fun check_roster/0],
     lists:flatmap(fun(F) -> F() end, Funs).
 
 check_sessions() ->

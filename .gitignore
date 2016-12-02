@@ -3,7 +3,6 @@
 deps
 tools/*.tar.gz
 tools/*.pyc
-tools/*.png
 apps/*/src/#*
 apps/*/src/.#*
 test/.#*
@@ -65,7 +64,6 @@ apps/ejabberd/src/ejabberd.init
 apps/ejabberd/src/ejabberdctl.example
 apps/ejabberd/src/eldap_filter_yecc.erl
 apps/ejabberd/doc
-apps/mysql/doc
 apps/*/logs
 apps/stringprep/doc
 rel/mongooseim/
@@ -75,23 +73,28 @@ apps/ejabberd/include/XmppAddr.hrl
 apps/ejabberd/include/EJABBERD-MIB.hrl
 apps/ejabberd/priv/mibs/EJABBERD-MIB.bin
 apps/ejabberd/ebin/ejabberd.app
+rel/configure.vars.config
+rel/vars.config
 
+# Compilation/test ephemera
+*.d
 Mnesia.mongooseim@*
 compile.log
 ct.log
 deps.log
-fed1.log
-node1.log
-node2.log
-quick_compile.log
 dialyzer
 configure.out
-*.d
+ejd-redis.conf
+fed*.log
+node*.log
+quick_compile.log
 .rebar3
+redis.pid
 test/ejabberd_tests/get-deps.log
 test/ejabberd_tests/quicktest.log
-tags
 site
+test/ejabberd_tests/test.log
+test/ejabberd_tests/cover_test_preset.log
 
 # Dialyzer
 .mongooseim_combo_dialyzer.plt
@@ -102,6 +105,7 @@ dev/*
 fake_*.pem
 ebin/
 *.coverdata
+*.conf
 #idea
 .idea/
 *.iml
@@ -110,4 +114,10 @@ site/
 etc/
 log/
 Mnesia.*
+*.pid
 tags
+TAGS
+
+*.patch
+
+*.diff

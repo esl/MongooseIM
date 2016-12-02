@@ -119,11 +119,9 @@ CREATE TABLE privacy_list (
     username varchar(250) NOT NULL,
     name text NOT NULL,
     id SERIAL UNIQUE,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    PRIMARY KEY (username,name)
 );
-
-CREATE INDEX i_privacy_list_username ON privacy_list USING btree (username);
-CREATE UNIQUE INDEX i_privacy_list_username_name ON privacy_list USING btree (username, name);
 
 CREATE TABLE privacy_list_data (
     id bigint REFERENCES privacy_list(id) ON DELETE CASCADE,
@@ -135,7 +133,8 @@ CREATE TABLE privacy_list_data (
     match_iq boolean NOT NULL,
     match_message boolean NOT NULL,
     match_presence_in boolean NOT NULL,
-    match_presence_out boolean NOT NULL
+    match_presence_out boolean NOT NULL,
+    PRIMARY KEY (id, ord)
 );
 
 CREATE TABLE private_storage (
@@ -172,7 +171,7 @@ CREATE TYPE mam_direction AS ENUM('I','O');
 CREATE TABLE mam_message(
   -- Message UID (64 bits)
   -- A server-assigned UID that MUST be unique within the archive.
-  id BIGINT NOT NULL PRIMARY KEY,
+  id BIGINT NOT NULL,
   user_id INT NOT NULL,
   -- FromJID used to form a message without looking into stanza.
   -- This value will be send to the client "as is".
@@ -186,12 +185,9 @@ CREATE TABLE mam_message(
   -- Has no meaning for MUC-rooms.
   direction mam_direction NOT NULL,
   -- Term-encoded message packet
-  message bytea NOT NULL
+  message bytea NOT NULL,
+  PRIMARY KEY(user_id, id)
 );
-CREATE INDEX i_mam_message_username_id
-    ON mam_message
-    USING BTREE
-    (user_id, id);
 CREATE INDEX i_mam_message_username_jid_id
     ON mam_message
     USING BTREE
@@ -204,11 +200,9 @@ CREATE TABLE mam_config(
   -- A - always archive;
   -- N - never archive;
   -- R - roster (only for remote_jid == "")
-  behaviour mam_behaviour NOT NULL
+  behaviour mam_behaviour NOT NULL,
+  PRIMARY KEY(user_id, remote_jid)
 );
-CREATE INDEX i_mam_config
-    ON mam_config
-    (user_id, remote_jid);
 
 CREATE TABLE mam_server_user(
   id SERIAL UNIQUE PRIMARY KEY,
@@ -224,17 +218,14 @@ CREATE UNIQUE INDEX i_mam_server_user_name
 CREATE TABLE mam_muc_message(
   -- Message UID
   -- A server-assigned UID that MUST be unique within the archive.
-  id BIGINT NOT NULL PRIMARY KEY,
+  id BIGINT NOT NULL,
   room_id INT NOT NULL,
   -- A nick of the message's originator
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
-  message bytea NOT NULL
+  message bytea NOT NULL,
+  PRIMARY KEY (room_id, id)
 );
-CREATE INDEX i_mam_muc_message_room_name_added_at
-    ON mam_muc_message
-    USING BTREE
-    (room_id, id);
 
 CREATE TABLE offline_message(
     id SERIAL UNIQUE PRIMARY Key,

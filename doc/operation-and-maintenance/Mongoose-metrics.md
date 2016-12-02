@@ -1,14 +1,14 @@
 # MongooseIM metrics
 
 MongooseIM by default collects many metrics showing user behaviour and general system statistics.
-They are managed by [Feuerlabs/exometer](https://github.com/Feuerlabs/exometer).
+They are managed by [Feuerlabs's exometer](https://github.com/Feuerlabs/exometer).
  
 All metrics are divided into following groups:
 
-* host metrics - organized by XMPP hosts, meaning if MongooseIM servers host `a.com` and `b.com` metrics for specific host only can be obtained. 
-* global metrics - metrics common for all XMPP hosts 
-* backend metrics - these are mainly metrics specific for backend modules
-* data metrics - various metrics related to data sizes (e.g sent / received stanza size statistics)
+* host metrics: organized by XMPP hosts, meaning if MongooseIM servers host `a.com` and `b.com` metrics for specific host only can be obtained. **Warning:** They can become a performance issue when cluster supports many (thousands or more) domains. In such case it is recommended to replace them with global equivalents with `all_metrics_are_global` config option.
+* global metrics: metrics common for all XMPP hosts 
+* backend metrics: these are mainly metrics specific for backend modules
+* data metrics: various metrics related to data sizes (e.g. sent and received stanza size statistics)
 
 ## Host metrics description
 
@@ -34,6 +34,8 @@ All metrics are divided into following groups:
 | mam_lookup_messages | spiral | host, hook | |
 | mam_muc_purge_multiple_message | spiral | host, hook | |
 | mam_purge_multiple_message | spiral | host, hook | |
+| modCSIInactive | spiral | host, XMPP | Number of transitions into inactive state |
+| modCSIActive | spiral | host, XMPP | Number of transitions into active state |
 | modMamArchiveRemoved | spiral | host, XMPP | |
 | modMamArchived | spiral | host, XMPP | |
 | modMamDropped | spiral | host, XMPP | |
@@ -100,28 +102,28 @@ All metrics are divided into following groups:
 | xmppStanzaReceived | spiral | host, XMPP | Number of stanzas received by the server|
 | xmppStanzaSent | spiral | host, XMPP | Numb of stanzas sent to clients|
 
+Metrics assgined to group `hook` are generic metrics updated when given hook is run. In case of these metric, their names are the same as corresponding hook name.
 
-Metrics assgined to group `hook` are generic metrics updated when given hook is run. In case of these metric its names are the same as corresponding hook name.
 Most of `XMPP` metrics are also triggered by hook and their count is the same as corresponding hook runs. They are named differently to maintain backward compatibility.
+
 To see `hook <-> XMPP metric` translation please refer to [mongoose_metrics_hooks](https://github.com/esl/MongooseIM/blob/exometer/apps/ejabberd/src/mongoose_metrics_hooks.erl#L71) file.
  
-
 ## Global metrics description
 
 | Metric name | Type | Description |
 | ----------- | ---- | ----------- |
-| nodeSessionCount | function | number of sessions on given Erlang node |
-| totalSessionCount | function | total number of sessions in the cluster |
-| uniqueSessionCount | function | number of unique sessions in the cluster |
+| nodeSessionCount | function | Number of sessions on given Erlang node |
+| totalSessionCount | function | Total number of sessions in the cluster |
+| uniqueSessionCount | function | Number of unique sessions in the cluster |
 
 ### Definitions
-* **session** - it is user and resource,
-* **unique session** - only user, without resource. E.g if a user is connected to the server from 3 different resource it will be counted 3 times in the session counter but only once in the unique sessions counter.
+* `session`: it is user and resource
+* `unique session`: only user, without resource. E.g if a user is connected to the server from 3 different resources, it will be counted 3 times in the session counter but only once in the unique sessions counter.
 
 ## Backends metrics description
 
 Existence of this kind of metrics is driven by the status of corresponding module.
-For example if mod_roster is enabled relevant `backends` metrics for this module are created and updated.
+For example if mod_roster is enabled, relevant `backends` metrics for this module are created and updated.
 This kind of metrics are histograms and contain information about execution time of certain functions from backend module.
 
 The only `backends` metrics which are always present are related to authentication module as this one is always enabled.
@@ -131,7 +133,7 @@ The only `backends` metrics which are always present are related to authenticati
 | Metric name | Type | Description |
 | ----------- | ---- | ----------- |
 | [xmpp,received,xml_stanza_size] | histogram | Received (by the server) stanza size stats after possible decryption and decompression |
-| [xmpp,sent,xml_stanza_size] | histogra | Sent (to the clinet) stanza size stats before possible encryption and compression |
+| [xmpp,sent,xml_stanza_size] | histogra | Sent (to the client) stanza size stats before possible encryption and compression |
 | [xmpp,received,compressed_size] | histogram | Received compressed stanza size stats |
 | [xmpp,sent,compressed_size] | histogram | Sent compressed stanza size stats |
 | [xmpp,received,encrypted_size] | histogram | Received encrypted stanza size stats |

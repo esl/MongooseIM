@@ -19,7 +19,7 @@ if [ $DB = 'mysql' ]; then
         -e MYSQL_USER=ejabberd \
         -e MYSQL_PASSWORD=$TRAVIS_DB_PASSWORD \
         -v ${SQLDIR}/mysql.sql:/docker-entrypoint-initdb.d/mysql.sql:ro \
-        -p 3306:3306 --name=mysql mysql
+        -p 3306:3306 --name=mongooseim-mysql mysql
 
 elif [ $DB = 'pgsql' ]; then
     echo "Configuring postgres"
@@ -46,8 +46,8 @@ elif [ $DB = 'riak' ]; then
     docker run -d -p 8087:8087 -p 8098:8098 \
         -e DOCKER_RIAK_BACKEND=leveldb \
         -e DOCKER_RIAK_CLUSTER_SIZE=1 \
-        --name=riak riak
-    tools/wait_for_riak.sh || docker logs riak
+        --name=mongooseim-riak riak
+    tools/wait_for_service.sh mongooseim-riak 8098 || docker logs riak
     tools/setup_riak
 
 elif [ $DB = 'cassandra' ]; then

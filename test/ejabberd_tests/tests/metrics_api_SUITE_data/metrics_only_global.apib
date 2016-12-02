@@ -1,0 +1,49 @@
+# 0. GET is the only implemented allowed method
+#    (both OPTIONS and HEAD are for free then)
+
+OPTIONS /api/metrics/
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Allow: OPTIONS, HEAD, GET
+
+# 1. List of hosts and metrics
+
+GET /api/metrics/
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "hosts":   ["{{>example_host}}"],
+    "metrics": [],
+    "global": ["{{>example_global}}"],
+    "{{_}}":   "{{unexpected}}"
+}
+
+# 2a. All global metric
+
+GET /api/metrics/global
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metrics": "{{_}}",
+    "{{_}}": "{{unexpected}}"
+}
+
+# 2b. An example global metric
+
+GET /api/metrics/global/{{<example_global}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metric": "{{_}}",
+    "{{_}}": "{{unexpected}}"
+}

@@ -5,7 +5,6 @@
          init_per_testcase/2, end_per_testcase/2]).
 -export([cleaner_runs_hook_on_nodedown/1]).
 -export([auth_anonymous/1,
-         carboncopy/1,
          last/1,
          stream_management/1,
          local/1,
@@ -24,7 +23,6 @@ all() ->
     [
      cleaner_runs_hook_on_nodedown,
      auth_anonymous,
-     carboncopy,
      last,
      stream_management,
      local,
@@ -33,7 +31,7 @@ all() ->
     ].
 
 init_per_suite(Config) ->
-    catch application:ensure_all_started(p1_stringprep),
+    catch application:ensure_all_started(stringprep),
     mnesia:create_schema([node()]),
     mnesia:start(),
     Config.
@@ -52,10 +50,10 @@ end_per_testcase(T, Config) ->
     unload_meck(meck_mods(T)),
     Config.
 
-meck_mods(bosh) -> [exometer, mod_bosh_socket];
+meck_mods(bosh) -> [exometer, mod_bosh_socket, ejabberd_config];
 meck_mods(s2s) -> [exometer, ejabberd_commands, randoms, ejabberd_config];
 meck_mods(local) -> [exometer, ejabberd_config];
-meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local].
+meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, ejabberd_config].
 
 %% -----------------------------------------------------
 %% Tests
@@ -84,14 +82,6 @@ auth_anonymous(_Config) ->
     true = ejabberd_auth_anonymous:anonymous_user_exist(U, S),
     ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
     false = ejabberd_auth_anonymous:anonymous_user_exist(U, S).
-
-carboncopy(_Config) ->
-    mod_carboncopy:start(?HOST, [{iqdisc, no_queue}]),
-    {U, S, R, _JID, SID} = get_fake_session(),
-    mod_carboncopy:enable(S, U, R, ?NS_CC_2),
-    [{R, ?NS_CC_2}] = mod_carboncopy:resources_to_cc(U, S),
-    ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
-    [] = mod_carboncopy:resources_to_cc(U, S).
 
 last(_Config) ->
     mod_last:start(?HOST, [{iqdisc, no_queue}]),
@@ -182,6 +172,7 @@ setup_meck([ejabberd_config | R]) ->
                     (hosts) -> [];
                     (_) -> undefined
                 end),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     setup_meck(R);
 setup_meck([ejabberd_commands | R]) ->
     meck:new(ejabberd_commands),

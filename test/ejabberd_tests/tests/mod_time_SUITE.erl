@@ -99,8 +99,8 @@ time_request_stanza(Server, ID) ->
     #xmlel{name = <<"iq">>,
            attrs = [{<<"type">>, <<"get">>},
                     {<<"id">>, ID}, {<<"to">>, Server}],
-           children = #xmlel{name = <<"time">>,
-                             attrs = [{<<"xmlns">>, ?NS_TIME}]}}.
+           children = [#xmlel{name = <<"time">>,
+                              attrs = [{<<"xmlns">>, ?NS_TIME}]}]}.
 
 check_ns(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
     case Child of

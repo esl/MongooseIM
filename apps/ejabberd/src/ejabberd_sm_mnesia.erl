@@ -70,11 +70,17 @@ get_sessions(User, Server, Resource) ->
                      _Server :: ejabberd:server(),
                      _Resource :: ejabberd:resource(),
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
-create_session(_User, _Server, _Resource, Session) ->
-    mnesia:sync_dirty(fun() ->
-                              mnesia:write(Session)
-                      end).
-
+create_session(User, Server, Resource, Session) ->
+    case get_sessions(User, Server, Resource) of
+        [] -> mnesia:sync_dirty(fun() -> mnesia:write(Session) end);
+        Sessions when is_list(Sessions) ->
+            %% Fix potential race condition during XMPP bind, where
+            %% multiple calls (> 2) to ejabberd_sm:open_session
+            %% have been made, resulting in >1 sessions for this resource
+            MergedSession = mongoose_session:merge_info
+                              (Session, hd(lists:sort(Sessions))),
+            mnesia:sync_dirty(fun() -> mnesia:write(MergedSession) end)
+    end.
 
 -spec delete_session(ejabberd_sm:sid(),
                      _User :: ejabberd:user(),
@@ -113,7 +119,7 @@ unique_count() ->
     compute_unique(mnesia:dirty_first(session),
                    sets:new()).
 
--spec compute_unique(term(), ejabberd:set_t()) -> integer().
+-spec compute_unique(term(), sets:set()) -> integer().
 compute_unique('$end_of_table', Set) ->
     sets:size(Set);
 compute_unique(Key, Set) ->

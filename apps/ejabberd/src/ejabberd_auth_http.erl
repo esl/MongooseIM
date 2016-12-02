@@ -13,8 +13,7 @@
 %% External exports
 -export([start/1,
          set_password/3,
-         check_password/3,
-         check_password/5,
+         authorize/1,
          try_register/3,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
@@ -26,11 +25,12 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         plain_password_required/0,
          store_type/1,
-         login/2,
-         get_password/3,
          stop/1]).
+
+%% Pre-mongoose_credentials API
+-export([check_password/3,
+         check_password/5]).
 
 -include("ejabberd.hrl").
 
@@ -57,9 +57,6 @@ start(Host) ->
                                       transient, 2000, supervisor, [cuesport | ChildMods]}),
     ok.
 
--spec plain_password_required() -> false.
-plain_password_required() ->
-    false.
 
 -spec store_type(binary()) -> plain | scram.
 store_type(Server) ->
@@ -71,6 +68,11 @@ store_type(Server) ->
             end;
         true -> scram
     end.
+
+-spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
+                                           | {error, any()}.
+authorize(Creds) ->
+    ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
 -spec check_password(ejabberd:luser(), ejabberd:lserver(), binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
@@ -150,7 +152,7 @@ get_vh_registered_users_number(_Server) ->
 get_vh_registered_users_number(_Server, _Opts) ->
     0.
 
--spec get_password(ejabberd:luser(), ejabberd:lserver()) -> false | binary() | scram:scram_tuple().
+-spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passwordlike() | false.
 get_password(LUser, LServer) ->
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {error, _} ->
@@ -228,20 +230,20 @@ make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
     {error, invalid_jid};
 make_req(Method, Path, LUser, LServer, Password) ->
     AuthOpts = ejabberd_config:get_local_option(auth_opts, LServer),
-    BasicAuth = case lists:keyfind(basic_auth, 1, AuthOpts) of
-                    {_, BasicAuth0} -> BasicAuth0;
-                    _ -> ""
-                end,
     PathPrefix = case lists:keyfind(path_prefix, 1, AuthOpts) of
                      {_, Prefix} -> ejabberd_binary:string_to_binary(Prefix);
                      false -> <<"/">>
                  end,
-    BasicAuth64 = base64:encode(BasicAuth),
     LUserE = list_to_binary(http_uri:encode(binary_to_list(LUser))),
     LServerE = list_to_binary(http_uri:encode(binary_to_list(LServer))),
     PasswordE = list_to_binary(http_uri:encode(binary_to_list(Password))),
     Query = <<"user=", LUserE/binary, "&server=", LServerE/binary, "&pass=", PasswordE/binary>>,
-    Header = [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}],
+    Header = case lists:keyfind(basic_auth, 1, AuthOpts) of
+                 {_, BasicAuth} ->
+                     BasicAuth64 = base64:encode(BasicAuth),
+                     [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}];
+                 _ -> []
+             end,
     Connection = cuesport:get_worker(existing_pool_name(LServer)),
 
     ?DEBUG("Making request '~s' for user ~s@~s...", [Path, LUser, LServer]),
@@ -289,12 +291,6 @@ verify_scram_password(LUser, LServer, Password) ->
         _ ->
             {error, not_exists}
     end.
-
-login(_User, _Server) ->
-    erlang:error(not_implemented).
-
-get_password(_User, _Server, _DefaultValue) ->
-    erlang:error(not_implemented).
 
 stop(Host) ->
     Id = {ejabberd_auth_http_sup, Host},

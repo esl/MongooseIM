@@ -17,7 +17,7 @@
 all() -> [{group, mnesia}, {group, redis}].
 
 init_per_suite(C) ->
-    application:start(p1_stringprep),
+    application:start(stringprep),
     application:ensure_all_started(exometer),
     F = fun() ->
         ejabberd_sm_backend_sup:start_link(),
@@ -29,7 +29,8 @@ init_per_suite(C) ->
 end_per_suite(C) ->
     Pid = ?config(pid, C),
     Pid ! stop,
-    application:stop(exometer).
+    application:stop(exometer),
+    application:stop(exometer_core).
 
 groups() ->
     [{mnesia, [], tests()},
@@ -46,7 +47,14 @@ tests() ->
      clean_up,
      too_much_sessions,
      unique_count,
-     unique_count_while_removing_entries].
+     unique_count_while_removing_entries,
+     session_info_is_stored,
+     session_info_is_updated_if_keys_match,
+     session_info_is_extended_if_new_keys_present,
+     session_info_keys_not_truncated_if_session_opened_with_empty_infolist,
+     kv_can_be_stored_for_session,
+     kv_can_be_updated_for_session
+    ].
 
 init_per_group(mnesia, Config) ->
     application:start(mnesia),
@@ -79,6 +87,7 @@ init_per_testcase(_, Config) ->
 end_per_testcase(_, Config) ->
     clean_sessions(Config),
     meck:unload(acl),
+    meck:unload(ejabberd_config),
     meck:unload(ejabberd_hooks),
     Config.
 
@@ -141,6 +150,61 @@ update_session(C) ->
     [{USR, Sid, 20, _}] = ?B(C):get_sessions(),
     [{USR, Sid, 20, _}] = ?B(C):get_sessions(S),
     [#session{priority = 20}] = ?B(C):get_sessions(U, S).
+
+session_info_is_stored(C) ->
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    [#session{sid = Sid, info = [{key1, val1}]}]
+     = ?B(C):get_sessions(U,S).
+
+session_info_is_updated_if_keys_match(C) ->
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_opened(Sid, USR, 1, [{key1, val2}]),
+
+    [#session{sid = Sid, info = [{key1, val2}]}]
+     = ?B(C):get_sessions(U,S).
+
+session_info_is_extended_if_new_keys_present(C) ->
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_opened(Sid, USR, 1, [{key1, val1}, {key2, val2}]),
+
+    [#session{sid = Sid, info = [{key1, val1}, {key2, val2}]}]
+     = ?B(C):get_sessions(U,S).
+
+session_info_keys_not_truncated_if_session_opened_with_empty_infolist(C) ->
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_opened(Sid, USR, 1, []),
+
+    [#session{sid = Sid, info = [{key1, val1}]}]
+     = ?B(C):get_sessions(U,S).
+
+
+kv_can_be_stored_for_session(C) ->
+    {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_info_stored(U, S, R, {key2, newval}),
+
+    [#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}]
+     = ?B(C):get_sessions(U,S).
+
+kv_can_be_updated_for_session(C) ->
+    {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_info_stored(U, S, R, {key2, newval}),
+    when_session_info_stored(U, S, R, {key2, override}),
+
+    [#session{sid = Sid, info = [{key1, val1}, {key2, override}]}]
+     = ?B(C):get_sessions(U,S).
+
 
 delete_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
@@ -210,6 +274,7 @@ unique_count_while_removing_entries(C) ->
     USDict = get_unique_us_dict(UsersWithManyResources),
     %% Check if unique count equals prev cached value
     UniqueCount = ejabberd_sm:get_unique_sessions_number(),
+    meck:unload(?B(C)),
     true = UniqueCount /= dict:size(USDict) + UniqueCount.
 
 set_meck(SMBackend) ->
@@ -217,6 +282,7 @@ set_meck(SMBackend) ->
     meck:expect(ejabberd_config, get_global_option,
                 fun(sm_backend) -> SMBackend;
                     (hosts) -> [<<"localhost">>] end),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
 
     meck:new(ejabberd_hooks, []),
     meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
@@ -232,6 +298,8 @@ unload_meck() ->
     meck:unload(ejabberd_commands).
 
 set_test_case_meck(MaxUserSessions) ->
+    meck:new(ejabberd_config, []),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:new(acl, []),
     meck:expect(acl, match_rule, fun(_, _, _) -> MaxUserSessions end),
     meck:new(ejabberd_hooks, []),
@@ -258,7 +326,16 @@ given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
 
 given_session_opened(Sid, {U, S, R}, Priority) ->
-    ejabberd_sm:open_session(Sid, U, S, R, Priority, []).
+    given_session_opened(Sid, {U,S,R}, Priority, []).
+
+given_session_opened(Sid, {U,S,R}, Priority, Info) ->
+    ejabberd_sm:open_session(Sid, U, S, R, Priority, Info).
+
+when_session_opened(Sid, {U,S,R}, Priority, Info) ->
+    given_session_opened(Sid, {U,S,R}, Priority, Info).
+
+when_session_info_stored(U, S, R, {_,_}=KV) ->
+    ejabberd_sm:store_info(U, S, R, KV).
 
 verify_session_opened(C, Sid, USR) ->
     do_verify_session_opened(?B(C), Sid, USR).

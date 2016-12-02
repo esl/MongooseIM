@@ -630,18 +630,19 @@
                            % default: 600 seconds
                            % {resume_timeout, 600}
                           ]},
-  {mod_muc, [
-             {host, "muc.@HOST@"},
-             {access, muc},
-             {access_create, muc_create}
-            ]},
-  {mod_muc_log,
-        [
-        {outdir, "/tmp/muclogs"},
-        {access_log, muc}
-        ]},
+  %{mod_muc, [
+             %{host, "muc.@HOST@"},
+             %{access, muc},
+             %{access_create, muc_create}
+            %]},
+  %{mod_muc_log,
+        %[
+        %{outdir, "/tmp/muclogs"},
+        %{access_log, muc}
+        %]},
   {mod_offline, [{access_max_user_messages, max_user_offline_messages}]},
   {mod_privacy, []},
+  {mod_blocking, []},
   {mod_private, []},
 % {mod_private, [{backend, mnesia}]},
 % {mod_private, [{backend, odbc}]},

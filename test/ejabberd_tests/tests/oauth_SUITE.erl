@@ -72,13 +72,30 @@ init_per_suite(Config0) ->
     case is_pgsql_available(Config0) of
         true ->
             Config = dynamic_modules:stop_running(mod_last, Config0),
+            Host = ct:get_config({hosts, mim, domain}),
+            KeyStoreOpts = [{keys, [
+                                    {token_secret, ram},
+                                    %% This is a hack for tests! As the name implies,
+                                    %% a pre-shared key should be read from a file stored
+                                    %% on disk. This way it can be shared with trusted 3rd
+                                    %% parties who can use it to sign tokens for users
+                                    %% to authenticate with and MongooseIM to verify.
+                                    {provision_pre_shared, ram}
+                                   ]}],
+            AuthOpts = [{ {validity_period, access}, {60, minutes} },
+                        { {validity_period, refresh}, {1, days} }],
+            dynamic_modules:start(Host, mod_keystore, KeyStoreOpts),
+            dynamic_modules:start(Host, mod_auth_token, AuthOpts),
             escalus:init_per_suite(Config);
         false ->
             {skip, "PostgreSQL not available - check env configuration"}
     end.
 
 end_per_suite(Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start_running(Config),
+    dynamic_modules:stop(Host, mod_auth_token),
+    dynamic_modules:stop(Host, mod_keystore),
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config0) ->
@@ -151,7 +168,7 @@ request_tokens_once_logged_in_impl(Config, User) ->
     escalus:story(Config, [{User, 1}], fun(Client) ->
                                                ClientShortJid = escalus_utils:get_short_jid(Client),
                                                R = escalus_stanza:query_el(?NS_ESL_TOKEN_AUTH, []),
-                                               IQ = escalus_stanza:iq(ClientShortJid, <<"get">>, R),
+                                               IQ = escalus_stanza:iq(ClientShortJid, <<"get">>, [R]),
                                                escalus:send(Client, IQ),
                                                Result = escalus:wait_for_stanza(Client),
                                                {AT, RT} = extract_tokens(Result),

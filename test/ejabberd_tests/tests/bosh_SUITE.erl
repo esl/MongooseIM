@@ -26,7 +26,7 @@
 %%--------------------------------------------------------------------
 
 -define(INACTIVITY, 2). %% seconds
--define(MAX_WAIT, 1). %% seconds
+-define(MAX_WAIT, 5). %% seconds
 -define(INVALID_RID_OFFSET, 999).
 
 all() ->
@@ -38,15 +38,19 @@ all() ->
      {group, acks},
 
      {group, essential_https},
-     {group, chat_https}].
+     {group, chat_https},
+     {group, interleave_requests_statem}
+     ].
 
 groups() ->
-    [{essential, [shuffle, {repeat_until_any_fail,10}], essential_test_cases()},
-     {essential_https, [shuffle, {repeat_until_any_fail,10}], essential_test_cases()},
-     {chat, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
-     {chat_https, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
-     {time, [shuffle, {repeat_until_any_fail,10}], time_test_cases()},
-     {acks, [shuffle, {repeat_until_any_fail,5}], acks_test_cases()}].
+    [{essential, [shuffle], essential_test_cases()},
+     {essential_https, [shuffle], essential_test_cases()},
+     {chat, [shuffle], chat_test_cases()},
+     {chat_https, [shuffle], chat_test_cases()},
+     {time, [parallel], time_test_cases()},
+     {acks, [shuffle], acks_test_cases()},
+     {interleave_requests_statem, [parallel], [interleave_requests_statem]}
+     ].
 
 suite() ->
     escalus:suite().
@@ -68,7 +72,8 @@ chat_test_cases() ->
      cant_send_invalid_rid,
      multiple_stanzas,
      namespace,
-     stream_error].
+     stream_error
+    ].
 
 time_test_cases() ->
     [disconnect_inactive,
@@ -94,9 +99,12 @@ init_per_suite(Config) ->
     escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config]).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
-
+init_per_group(time, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(max_wait(), Config),
+    escalus_ejabberd:setup_option(inactivity(), NewConfig);
 init_per_group(essential, Config) ->
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
@@ -108,61 +116,24 @@ init_per_group(_GroupName, Config) ->
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol} | Config1].
 
+end_per_group(time, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(max_wait(), Config),
+    escalus_ejabberd:reset_option(inactivity(), NewConfig);
 end_per_group(GroupName, Config)
     when GroupName =:= essential; GroupName =:= essential_https ->
     Config;
 end_per_group(_GroupName, Config) ->
     R = escalus:delete_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     mongoose_helper:clear_last_activity(Config, carol),
+    Config,
     R.
 
-
-init_per_testcase(disconnect_inactive = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
-    escalus:init_per_testcase(CaseName, NewConfig);
-init_per_testcase(connection_interrupted = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
-    NewerConfig = escalus_ejabberd:setup_option(max_wait(), NewConfig),
-    escalus:init_per_testcase(CaseName, NewerConfig);
-init_per_testcase(interrupt_long_poll_is_activity = CaseName, Config) ->
-    InactConfig = escalus_ejabberd:setup_option(inactivity(), Config),
-    NewConfig = escalus_users:update_userspec(InactConfig, carol, bosh_wait, 10),
-    escalus:init_per_testcase(CaseName, NewConfig);
-init_per_testcase(reply_on_pause = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
-    escalus:init_per_testcase(CaseName, NewConfig);
-init_per_testcase(pause_request_is_activity = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(inactivity(5), Config),
-    escalus:init_per_testcase(CaseName, NewConfig);
-init_per_testcase(reply_in_time = CaseName, Config) ->
-    InactConfig = escalus_ejabberd:setup_option(inactivity(10), Config),
-    NewConfig = escalus_users:update_userspec(InactConfig, carol, bosh_wait, 3),
-    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(server_acks = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(server_acks_opt(), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(disconnect_inactive = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
-    escalus:end_per_testcase(CaseName, NewConfig);
-end_per_testcase(connection_interrupted = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(max_wait(), Config),
-    NewerConfig = escalus_ejabberd:reset_option(inactivity(), NewConfig),
-    escalus:end_per_testcase(CaseName, NewerConfig);
-end_per_testcase(interrupt_long_poll_is_activity = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
-    escalus:end_per_testcase(CaseName, NewConfig);
-end_per_testcase(reply_on_pause = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
-    escalus:end_per_testcase(CaseName, NewConfig);
-end_per_testcase(pause_request_is_activity = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
-    escalus:end_per_testcase(CaseName, NewConfig);
-end_per_testcase(reply_in_time = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
-    escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(server_acks = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(server_acks_opt(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
@@ -291,7 +262,7 @@ stream_error(Config) ->
               escalus:assert(is_stream_error, [<<"invalid-from">>, <<>>],
                              escalus_client:wait_for_stanza(Carol)),
               %% connection should be closed, let's wait
-              true = wait_for_close(Carol, 10)
+              true = escalus_connection:wait_for_close(Carol, timer:seconds(1))
       end).
 
 interleave_requests(Config) ->
@@ -301,22 +272,40 @@ interleave_requests(Config) ->
         Rid = get_bosh_rid(Carol),
         Sid = get_bosh_sid(Carol),
 
-        Empty2 = escalus_bosh:empty_body(Rid + 1, Sid),
-        Chat2 = Empty2#xmlel{
-                children = [escalus_stanza:chat_to(Geralt, <<"2nd!">>)]},
-        escalus_bosh:send_raw(Carol, Chat2),
+        Msg1 = <<"1st!">>,
+        Msg2 = <<"2nd!">>,
+        Msg3 = <<"3rd!">>,
+        Msg4 = <<"4th!">>,
 
-        Empty1 = escalus_bosh:empty_body(Rid, Sid),
-        Chat1 = Empty1#xmlel{
-                children = [escalus_stanza:chat_to(Geralt, <<"1st!">>)]},
-        escalus_bosh:send_raw(Carol, Chat1),
+        send_message_with_rid(Carol, Geralt, Rid + 1, Sid, Msg2),
+        send_message_with_rid(Carol, Geralt, Rid, Sid, Msg1),
 
-        escalus:assert(is_chat_message, [<<"1st!">>],
+        send_message_with_rid(Carol, Geralt, Rid + 2,   Sid, Msg3),
+        send_message_with_rid(Carol, Geralt, Rid + 3,   Sid, Msg4),
+
+        escalus:assert(is_chat_message, [Msg1],
                        escalus_client:wait_for_stanza(Geralt)),
-        escalus:assert(is_chat_message, [<<"2nd!">>],
-                       escalus_client:wait_for_stanza(Geralt))
+        escalus:assert(is_chat_message, [Msg2],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [Msg3],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [Msg4],
+                       escalus_client:wait_for_stanza(Geralt)),
 
+        true = escalus_bosh:is_connected(Carol)
     end).
+
+interleave_requests_statem(Config) ->
+    true = bosh_interleave_reqs:test([{user, carol} | Config]).
+
+interleave_requests_statem_https(Config) ->
+    interleave_requests_statem([{user, carol_s} | Config]).
+
+send_message_with_rid(From, To, Rid, Sid, Msg) ->
+    Empty = escalus_bosh:empty_body(Rid, Sid),
+    Chat = Empty#xmlel{
+             children = [escalus_stanza:chat_to(To, Msg)]},
+    escalus_bosh:send_raw(From, Chat).
 
 
 simple_chat(Config) ->
@@ -369,7 +358,7 @@ cant_send_invalid_rid(Config) ->
         escalus_bosh:send_raw(Carol, Empty),
 
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
-        true = wait_for_close(Carol, 10),
+        true = escalus_connection:wait_for_close(Carol, timer:seconds(1)),
         true = wait_for_session_close(Sid, 10)
         end).
 
@@ -432,12 +421,10 @@ namespace(Config) ->
         end).
 
 disconnect_inactive(Config) ->
-    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+    escalus:fresh_story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
-        %% Sanity check - there should be one BOSH session belonging
-        %% to Carol.
-        1 = length(get_bosh_sessions()),
-
+        Sid = get_bosh_sid(Carol),
+        {_, Sid, CarolSessionPid} = get_bosh_session(Sid),
         %% Don't send new long-polling requests waiting for server push.
         set_keepalive(Carol, false),
 
@@ -448,9 +435,7 @@ disconnect_inactive(Config) ->
         escalus:assert(is_chat_message, [<<"Hello!">>],
                        escalus_client:wait_for_stanza(Carol)),
 
-        Sid = get_bosh_sid(Carol),
         %% Ensure all connections for Carol have been closed.
-        {_, Sid, CarolSessionPid} = get_bosh_session(Sid),
         [] = get_handlers(CarolSessionPid),
 
         %% Wait for disconnection because of inactivity timeout.
@@ -465,12 +450,10 @@ disconnect_inactive(Config) ->
         end).
 
 connection_interrupted(Config) ->
-    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+    escalus:fresh_story(Config, [{carol, 1}], fun(Carol) ->
 
         %% Sanity check - there should be one BOSH session belonging
         %% to Carol.
-        1 = length(get_bosh_sessions()),
-
         %% Turn off Escalus auto-reply, so that inactivity is triggered.
         set_keepalive(Carol, false),
 
@@ -487,7 +470,7 @@ connection_interrupted(Config) ->
         %% Keep in mind this only works due to the max_wait also being lowered.
         %% In other words, wait timeout must happen, so that there are
         %% no requests held by the server for inactivity to cause disconnection.
-        timer:sleep(2 * timer:seconds(?INACTIVITY)),
+        timer:sleep(timer:seconds(?INACTIVITY) + timer:seconds(?MAX_WAIT)),
 
         %% Assert Carol has been disconnected due to inactivity.
         false = is_sesssion_alive(Sid)
@@ -496,8 +479,10 @@ connection_interrupted(Config) ->
 
 %% Ensure that a new request replacing an existing long-poll does not start the
 %% inactivity timer.
-interrupt_long_poll_is_activity(Config) ->
-    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+interrupt_long_poll_is_activity(ConfigIn) ->
+    Config = escalus_users:update_userspec(ConfigIn, carol, bosh_wait, 10),
+
+    escalus:fresh_story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
         %% Sanity check - there should be one BOSH session belonging
         %% to Carol and one handler for Carol.
@@ -522,8 +507,7 @@ interrupt_long_poll_is_activity(Config) ->
         end).
 
 reply_on_pause(Config) ->
-    escalus:story(Config, [{carol, 1}], fun(Carol) ->
-
+    escalus:fresh_story(Config, [{carol, 1}], fun(Carol) ->
 
         Sid = get_bosh_sid(Carol),
         {_, _, CarolSessionPid} = get_bosh_session(Sid),
@@ -543,7 +527,7 @@ reply_on_pause(Config) ->
         end).
 
 cant_pause_for_too_long(Config) ->
-    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+    escalus:fresh_story(Config, [{carol, 1}], fun(Carol) ->
 
         Sid = get_bosh_sid(Carol),
         {_, _, CarolSessionPid} = get_bosh_session(Sid),
@@ -561,7 +545,7 @@ cant_pause_for_too_long(Config) ->
 
 %% Ensure that a pause request causes inactivity timer cancellation.
 pause_request_is_activity(Config) ->
-    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+    escalus:fresh_story(Config, [{carol, 1}], fun(Carol) ->
 
         Sid = get_bosh_sid(Carol),
         {_, _, CarolSessionPid} = get_bosh_session(Sid),
@@ -571,13 +555,13 @@ pause_request_is_activity(Config) ->
         1 = wait_for_handler(CarolSessionPid),
 
         %% Wait most of the allowed inactivity interval.
-        timer:sleep(timer:seconds(4)),
+        timer:sleep(timer:seconds(?INACTIVITY - 1)),
 
         %% This should cancel the inactivity timer.
         pause(Carol, 10),
 
         %% Wait a bit past the inactivity interval.
-        timer:sleep(timer:seconds(4)),
+        timer:sleep(timer:seconds(?INACTIVITY - 1)),
 
         %% No disconnection should've occured.
         escalus_assert:has_no_stanzas(Carol),
@@ -585,8 +569,9 @@ pause_request_is_activity(Config) ->
 
         end).
 
-reply_in_time(Config) ->
-    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+reply_in_time(ConfigIn) ->
+    Config = escalus_users:update_userspec(ConfigIn, carol, bosh_wait, 1),
+    escalus:fresh_story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
         Wait = proplists:get_value(bosh_wait,
                                    escalus_users:get_userspec(Config, carol)),
@@ -810,17 +795,6 @@ wait_for_stanzas(Client, Count) ->
 
 wait_for_stanza(Client) ->
     escalus_client:wait_for_stanza(Client).
-
-wait_for_close(Client, 0) ->
-    false == escalus_connection:is_connected(Client);
-wait_for_close(Client, N) ->
-    case escalus_connection:is_connected(Client) of
-        false ->
-            true;
-        _ ->
-            timer:sleep(100),
-            wait_for_close(Client, N-1)
-    end.
 
 ack_body(Body, Rid) ->
     Attrs = Body#xmlel.attrs,

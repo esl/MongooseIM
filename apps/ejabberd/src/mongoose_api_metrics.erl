@@ -91,7 +91,7 @@ host_metric(Bindings) ->
     {metric, Metric} = lists:keyfind(metric, 1, Bindings),
     try
         MetricAtom = binary_to_existing_atom(Metric, utf8),
-        {ok, Value} = mongoose_metrics:get_metric_value({Host, MetricAtom}),
+        {ok, Value} = mongoose_metrics:get_metric_value([Host, MetricAtom]),
         {ok, {metric, Value}}
     catch error:badarg ->
         {error, not_found}
@@ -109,7 +109,7 @@ host_metrics(Bindings) ->
 global_metric(Bindings) ->
     {metric, Metric} = lists:keyfind(metric, 1, Bindings),
     MetricAtom = binary_to_existing_atom(Metric, utf8),
-    case mongoose_metrics:get_metric_value({global, MetricAtom}) of
+    case mongoose_metrics:get_metric_value(global, MetricAtom) of
         {ok, Value} ->
             {ok, {metric, Value}};
         _Other ->
@@ -160,5 +160,9 @@ get_host_metrics(Host) ->
     [{prep_name(NameParts), Value} || {[_Host | NameParts], Value} <- Metrics].
 
 prep_name(NameParts) ->
-    ToStrings = [atom_to_list(NamePart) || NamePart <- NameParts],
-    string:join(ToStrings, "_").
+    ToStrings = [part_to_string(NamePart) || NamePart <- NameParts],
+    string:join(ToStrings, ".").
+
+part_to_string(Part) when is_atom(Part) -> atom_to_list(Part);
+part_to_string(Part) when is_binary(Part) -> binary_to_list(Part);
+part_to_string(Part) -> Part.

@@ -26,7 +26,10 @@
 start(Opts) ->
     ejabberd_redis:start_link(Opts),
     %% Clean current node's sessions from previous life
-    cleanup(node()).
+    {Elapsed, RetVal} = timer:tc(?MODULE, cleanup, [node()]),
+    ?WARNING_MSG("cleanup on start took=~pms~n",
+                 [erlang:round(Elapsed / 1000)]),
+    RetVal.
 
 
 -spec get_sessions() -> [ejabberd_sm:ses_tuple()].
@@ -78,11 +81,11 @@ get_sessions(User, Server, Resource) ->
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(User, Server, Resource, Session) ->
     OldSessions = get_sessions(User, Server, Resource),
-    BSession = term_to_binary(Session),
     case lists:keysearch(Session#session.sid, #session.sid, OldSessions) of
         {value, OldSession} ->
+            MergedInfoSession = mongoose_session:merge_info(Session,OldSession),
             BOldSession = term_to_binary(OldSession),
-
+            BSession = term_to_binary(MergedInfoSession),
             error_or_ok(
               ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
                                   ["SREM", hash(User, Server), BOldSession],
@@ -90,6 +93,7 @@ create_session(User, Server, Resource, Session) ->
                                   ["SADD", hash(User, Server), BSession],
                                   ["SADD", hash(User, Server, Resource), BSession]]));
         false ->
+            BSession = term_to_binary(Session),
             error_or_ok(
               ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
                                   ["SADD", hash(User, Server), BSession],

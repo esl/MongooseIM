@@ -25,6 +25,7 @@
 -include_lib("exml/include/exml.hrl").
 
 -define(NS_CLIENT,       <<"jabber:client">>).
+-define(NS_CONFERENCE,   <<"jabber:x:conference">>).
 -define(NS_DISCO_ITEMS,  <<"http://jabber.org/protocol/disco#items">>).
 -define(NS_DISCO_INFO,   <<"http://jabber.org/protocol/disco#info">>).
 -define(NS_VCARD,        <<"vcard-temp">>).
@@ -40,6 +41,7 @@
 -define(NS_ROSTER_VER,   <<"urn:xmpp:features:rosterver">>).
 -define(NS_PRIVACY,      <<"jabber:iq:privacy">>).
 -define(NS_BLOCKING,     <<"urn:xmpp:blocking">>).
+-define(NS_BLOCKING_ERRORS,<<"urn:xmpp:blocking:errors">>).
 -define(NS_PRIVATE,      <<"jabber:iq:private">>).
 -define(NS_VERSION,      <<"jabber:iq:version">>).
 -define(NS_TIME90,       <<"jabber:iq:time">>). % TODO: Remove once XEP-0090 is Obsolete
@@ -60,6 +62,7 @@
 -define(NS_MUC_OWNER,   <<"http://jabber.org/protocol/muc#owner">>).
 -define(NS_MUC_UNIQUE,  <<"http://jabber.org/protocol/muc#unique">>).
 -define(NS_MUC_REQUEST,  <<"http://jabber.org/protocol/muc#request">>).
+-define(NS_MUC_CONFIG,  <<"http://jabber.org/protocol/muc#roomconfig">>).
 -define(NS_PING,        <<"urn:xmpp:ping">>).
 -define(NS_PUBSUB,      <<"http://jabber.org/protocol/pubsub">>).
 -define(NS_PUBSUB_EVENT,<<"http://jabber.org/protocol/pubsub#event">>).
@@ -69,7 +72,7 @@
 -define(NS_PUBSUB_NODE_CONFIG,<<"http://jabber.org/protocol/pubsub#node_config">>).
 -define(NS_PUBSUB_SUB_OPTIONS,<<"http://jabber.org/protocol/pubsub#subscribe_options">>).
 -define(NS_PUBSUB_SUB_AUTH,<<"http://jabber.org/protocol/pubsub#subscribe_authorization">>).
--define(NS_PUBSUB_GET_PENDING, "http://jabber.org/protocol/pubsub#get-pending").
+-define(NS_PUBSUB_GET_PENDING, <<"http://jabber.org/protocol/pubsub#get-pending">>).
 -define(NS_COMMANDS,    <<"http://jabber.org/protocol/commands">>).
 -define(NS_BYTESTREAMS, <<"http://jabber.org/protocol/bytestreams">>).
 -define(NS_ADMIN,       <<"http://jabber.org/protocol/admin">>).
@@ -87,9 +90,7 @@
 -define(NS_STREAMS,     <<"urn:ietf:params:xml:ns:xmpp-streams">>).
 
 -define(NS_TLS,        <<"urn:ietf:params:xml:ns:xmpp-tls">>).
--define(NS_TLS_BIN,         <<"urn:ietf:params:xml:ns:xmpp-tls">>).
 -define(NS_SASL,       <<"urn:ietf:params:xml:ns:xmpp-sasl">>).
--define(NS_SASL_BIN,        <<"urn:ietf:params:xml:ns:xmpp-sasl">>).
 -define(NS_SESSION,      <<"urn:ietf:params:xml:ns:xmpp-session">>).
 -define(NS_BIND,         <<"urn:ietf:params:xml:ns:xmpp-bind">>).
 
@@ -99,7 +100,6 @@
 -define(NS_FEATURE_MSGOFFLINE,<<"msgoffline">>).
 
 -define(NS_COMPRESS,     <<"http://jabber.org/protocol/compress">>).
--define(NS_COMPRESS_BIN, <<"http://jabber.org/protocol/compress">>).
 
 -define(NS_CAPS,         <<"http://jabber.org/protocol/caps">>).
 -define(NS_SHIM,         <<"http://jabber.org/protocol/shim">>).
@@ -108,6 +108,8 @@
 -define(NS_HTTPBIND,     <<"http://jabber.org/protocol/httpbind">>).
 
 -define(NS_STREAM_MGNT_3, <<"urn:xmpp:sm:3">>).
+
+-define(NS_CSI, <<"urn:xmpp:csi:0">>).
 
 %% Erlang Solutions custom extension - token based authentication
 -define(NS_ESL_TOKEN_AUTH, <<"erlang-solutions.com:xmpp:token-auth:0">>).
@@ -130,6 +132,10 @@
         jlib:stanza_error(<<"400">>,<<"modify">>,<<"jid-malformed">>)).
 -define(ERR_NOT_ACCEPTABLE,
         jlib:stanza_error(<<"406">>,<<"modify">>,<<"not-acceptable">>)).
+-define(ERR_NOT_ACCEPTABLE_CANCEL,
+        jlib:stanza_error(<<"406">>,<<"cancel">>,<<"not-acceptable">>)).
+-define(ERR_NOT_ACCEPTABLE_BLOCKED,
+        jlib:stanza_error(<<"406">>,<<"cancel">>,<<"not-acceptable">>, <<"blocked">>, ?NS_BLOCKING_ERRORS)).
 -define(ERR_NOT_ALLOWED,
         jlib:stanza_error(<<"405">>,<<"cancel">>,<<"not-allowed">>)).
 -define(ERR_NOT_AUTHORIZED,
@@ -343,13 +349,19 @@
                       to_id     :: non_neg_integer() | undefined
                      }).
 
--record(rsm_out, {count :: pos_integer(),
-                  index :: pos_integer(),
-                  first :: binary(),
-                  last :: binary()
+-record(rsm_out, {count :: non_neg_integer(),
+                  index :: non_neg_integer() | undefined,
+                  first :: binary() | undefined,
+                  last  :: binary() | undefined
                  }).
 
 -type iq() :: #iq{}.
 -type jid() :: #jid{}.
+-type ljid() :: {ejabberd:luser(), ejabberd:lserver(), ejabberd:lresource()}.
+
+-type xmlel() :: #xmlel{}.
+
+-type rsm_in() :: #rsm_in{}.
+-type rsm_out() :: #rsm_out{}.
 
 -endif.

@@ -67,8 +67,8 @@ remove_smid(SID, _JID, _Info, _Reason) ->
             mnesia:sync_dirty(fun mnesia:delete_object/1, [SMSession])
     end.
 
--spec session_cleanup(LUser :: ejabber:luser(), LServer :: ejabberd:lserver(),
-                   LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+-spec session_cleanup(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+                      LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(_LUser, _LServer, _LResource, SID) ->
     remove_smid(SID, undefined, undefined, undefined).
 

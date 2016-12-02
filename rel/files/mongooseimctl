@@ -31,23 +31,69 @@ if [ -z "$NODENAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1
 fi
+FORCE_FLAG1='"--force"'
+FORCE_FLAG2='"-f"'
 
 NAME_TYPE="${NODENAME_ARG% *}"
 NODENAME="${NODENAME_ARG#* }"
 
-add_to_cluster()
+join_cluster()
 {
-    $RUNNER_SCRIPT_DIR/mongooseim $ARGS
+        WARNING="Warning. This will drop all current connections and will discard all persistent data from Mnesia.
+        Do you want to continue? (yes/no)"
+        DISPLAY="Joining the cluster..."
+        manage_cluster "$WARNING" "$DISPLAY"
+}
+
+leave_cluster()
+{
+        WARNING="Warning. This will drop all current connections and will discard all persistent data from Mnesia.
+        Do you want to continue? (yes/no)"
+        DISPLAY="Leaving the cluster..."
+
+        manage_cluster "$WARNING" "$DISPLAY"
 }
 
 remove_from_cluster()
 {
-    $RUNNER_SCRIPT_DIR/mongooseim $ARGS
+        WARNING="Warning. If the node is alive this will drop all current connections on the remote node and will discard all persistent data from Mnesia.
+        Do you want to continue? (yes/no)"
+        DISPLAY="Removing node from the cluster..."
+        manage_cluster "$WARNING" "$DISPLAY"
+}
+
+manage_cluster()
+{
+        case $QUOTED_ARGS in
+            *$FORCE_FLAG1*|*$FORCE_FLAG2*)
+                QUOTED_ARGS=$(echo $QUOTED_ARGS|sed "s/$FORCE_FLAG1//")
+                QUOTED_ARGS=$(echo $QUOTED_ARGS|sed "s/$FORCE_FLAG2//")
+                ctl $QUOTED_ARGS;;
+             *)
+                GUARD="unknown"
+                until [ "$GUARD" = "yes" ] || [ "$GUARD" = "no" ] ; do
+                    echo $1
+                    read GUARD
+                    if [ "$GUARD" =  "yes" ]; then
+                        echo $2
+                        ctl $QUOTED_ARGS
+                    elif [ "$GUARD" = "no" ]; then
+                        echo "Operation discarded by user"
+                        exit 1
+                    else
+                        echo "Command unknown. Do you want to continue? (yes/no)"
+                    fi
+                done;;
+        esac
 }
 
 start ()
 {
     $RUNNER_SCRIPT_DIR/mongooseim start
+}
+stop ()
+{
+    $RUNNER_SCRIPT_DIR/mongooseim stop
 }
 
 # attach to server
@@ -70,8 +116,9 @@ help ()
     echo "  debug  Attach an interactive Erlang shell to a running MongooseIM node"
     echo "  live   Start MongooseIM node in live (interactive) mode"
     echo "MongooseIM cluster management commads:"
-    echo "  add_to_cluster other_node_name       Add current node to cluster"
-    echo "  remove_from_cluster dead_node_name   Remove other node from cluster"
+    echo "  join_cluster other_node_name                Add current node to cluster"
+    echo "  leave_cluster                               Leave current node from the cluster"
+    echo "  remove_from_cluster other_node_name         Remove dead node from the cluster"
     echo ""
 }
 
@@ -108,7 +155,7 @@ ctl ()
 	# concurrent invocations using a bound
 	# number of atoms
 	for N in $(seq 1 $MAXCONNID); do
-	    CTL_CONN="mongooseimctl-$N"
+	    CTL_CONN="mongooseimctl-$N-${NODENAME}"
 	    CTL_LOCKFILE="$CONNLOCKDIR/$CTL_CONN"
 	    (
 		exec 8>"$CTL_LOCKFILE"
@@ -161,7 +208,7 @@ ctlexec ()
       -noinput \
       -hidden \
       $COOKIE_ARG \
-      -pa $EJABBERD_EBIN_PATH \
+      -pa "$EJABBERD_EBIN_PATH" \
       -s ejabberd_ctl -extra $NODENAME $COMMAND
 }
 
@@ -219,7 +266,9 @@ done
 
 case $1 in
     'start') start;;
-    'add_to_cluster') add_to_cluster;;
+    'stop') stop;;
+    'join_cluster') join_cluster;;
+    'leave_cluster') leave_cluster;;
     'remove_from_cluster') remove_from_cluster;;
     'debug') debug;;
     'live') live;;

@@ -23,10 +23,8 @@
 -export([start/1,
          stop/1,
          store_type/1,
-         login/2,
          set_password/3,
-         check_password/3,
-         check_password/5,
+         authorize/1,
          try_register/3,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
@@ -35,13 +33,16 @@
          get_vh_registered_users_number/2,
          get_password/2,
          get_password_s/2,
-         get_password/3,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
-         plain_password_required/0]).
+         remove_user/3
+        ]).
 
 -export([bucket_type/1]).
+
+%% Internal
+-export([check_password/3,
+         check_password/5]).
 
 -spec start(ejabberd:lserver()) -> ok.
 start(_Host) ->
@@ -68,6 +69,11 @@ set_password(LUser, LServer, Password) ->
             User = mongoose_riak:fetch_type(bucket_type(LServer), LUser),
             do_set_password(User, LUser, LServer, Password)
     end.
+
+-spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
+                                           | {error, any()}.
+authorize(Creds) ->
+    ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
 -spec check_password(ejabberd:luser(), ejabberd:lserver(), binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
@@ -135,7 +141,7 @@ get_vh_registered_users_number(LServer) ->
 get_vh_registered_users_number(LServer, _Opts) ->
     get_vh_registered_users_number(LServer).
 
--spec get_password(ejabberd:luser(), ejabberd:lserver()) -> binary() | false | scram:scram_tuple().
+-spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passwordlike() | false.
 get_password(LUser, LServer) ->
     case do_get_password(LUser, LServer) of
         false ->
@@ -153,9 +159,6 @@ get_password_s(LUser, LServer) ->
         _ ->
             <<"">>
     end.
-
-get_password(_LUser, _LServer, _DefaultValue) ->
-    erlang:error(not_implemented).
 
 -spec does_user_exist(ejabberd:luser(), ejabberd:lserver()) -> boolean().
 does_user_exist(LUser, LServer) ->
@@ -177,12 +180,6 @@ remove_user(LUser, LServer) ->
     end.
 
 remove_user(_LUser, _LServer, _Password) ->
-    erlang:error(not_implemented).
-
-plain_password_required() ->
-    false.
-
-login(_LUser, _LServer) ->
     erlang:error(not_implemented).
 
 -spec bucket_type(ejabberd:lserver()) -> {binary(), ejabberd:lserver()}.

@@ -1,7 +1,9 @@
 Test suite for ESL's branch of ejabberd
 =======================================
 
-This repository contains test code for ejabberd/MongooseIM.
+This directory contains test code for ejabberd/MongooseIM - previously
+located in
+[esl/ejabberd_tests](https://github.com/esl/ejabberd_tests/commit/913fb0a5a8c1ab753eb35c1e1b491e8572633b54).
 It's used mainly for [ESL's branch of ejabberd](https://github.com/esl/MongooseIM),
 but one that may be reused in other projects.
 

@@ -2,7 +2,7 @@
 
 main(Directories) ->
     Files = lists:foldl(fun(Dir, Acc) ->
-                    Wildcard = filename:join([Dir, "ejabberd_tests.*.logs",
+                    Wildcard = filename:join([Dir, "*.logs",
                                               "*", "suite.summary"]),
                     Acc ++ filelib:wildcard(Wildcard)
             end, [], Directories),

@@ -122,11 +122,9 @@ CREATE TABLE privacy_list (
     username varchar(250) NOT NULL,
     name varchar(250) NOT NULL,
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (username(75), name(75))
 ) CHARACTER SET utf8;
-
-CREATE INDEX i_privacy_list_username  USING BTREE ON privacy_list(username);
-CREATE UNIQUE INDEX i_privacy_list_username_name USING BTREE ON privacy_list (username(75), name(75));
 
 CREATE TABLE privacy_list_data (
     id bigint,
@@ -138,7 +136,8 @@ CREATE TABLE privacy_list_data (
     match_iq boolean NOT NULL,
     match_message boolean NOT NULL,
     match_presence_in boolean NOT NULL,
-    match_presence_out boolean NOT NULL
+    match_presence_out boolean NOT NULL,
+    PRIMARY KEY (id, ord)
 ) CHARACTER SET utf8;
 
 CREATE TABLE private_storage (
@@ -207,8 +206,7 @@ CREATE TABLE mam_message(
   -- Don't try to decode it using MySQL tools
   message blob NOT NULL,
   PRIMARY KEY (user_id, id),
-  INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id),
-  INDEX i_mam_message_uid USING BTREE (user_id, id)
+  INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id)
 )  ENGINE=InnoDB
    PARTITION BY HASH(user_id)
    PARTITIONS 32;
@@ -224,32 +222,29 @@ CREATE TABLE mam_config(
   -- A - always archive;
   -- N - never archive;
   -- R - roster (only for remote_jid == "")
-  behaviour ENUM('A', 'N', 'R') NOT NULL
+  behaviour ENUM('A', 'N', 'R') NOT NULL,
+  PRIMARY KEY (user_id, remote_jid)
 );
-CREATE INDEX i_mam_config USING HASH ON mam_config(user_id, remote_jid);
 
 CREATE TABLE mam_server_user(
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   server    varchar(250) CHARACTER SET binary NOT NULL,
   user_name varchar(250) CHARACTER SET binary NOT NULL,
   PRIMARY KEY(id) USING HASH,
-  CONSTRAINT uc_mam_server_user_name UNIQUE (server, user_name)
+  CONSTRAINT uc_mam_server_user_name UNIQUE USING HASH (server, user_name)
 );
-CREATE INDEX i_mam_server_user_name USING HASH ON mam_server_user(server, user_name);
-
 
 CREATE TABLE mam_muc_message(
   -- Message UID
   -- A server-assigned UID that MUST be unique within the archive.
-  id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  id BIGINT UNSIGNED NOT NULL,
   room_id INT UNSIGNED NOT NULL,
   -- A nick of the message's originator
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
-  message blob NOT NULL
+  message blob NOT NULL,
+  PRIMARY KEY (room_id, id)
 );
-CREATE INDEX i_mam_muc_message_room_name_added_at USING BTREE ON mam_muc_message(room_id, id);
-
 
 CREATE TABLE offline_message(
   id BIGINT UNSIGNED        NOT NULL AUTO_INCREMENT PRIMARY KEY,

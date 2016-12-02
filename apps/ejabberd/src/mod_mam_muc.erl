@@ -51,7 +51,8 @@
 
 %% private
 -export([archive_message/8]).
-
+-export([lookup_messages/13]).
+-export([archive_id_int/2]).
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -73,8 +74,8 @@
          get_one_of_path/2,
          wrap_message/6,
          result_set/4,
-         result_query/1,
-         result_prefs/3,
+         result_query/2,
+         result_prefs/4,
          make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
@@ -91,7 +92,6 @@
 %% Other
 -import(mod_mam_utils,
         [maybe_integer/2,
-         is_function_exist/3,
          mess_id_to_external_binary/1,
          is_last_page/4]).
 
@@ -349,17 +349,8 @@ is_room_action_allowed_by_default(Action, From, To) ->
 
 -spec is_room_owner(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
 is_room_owner(From, To) ->
-    case mod_muc_room:is_room_owner(To, From) of
-        {error, _} -> false;
-        {ok, IsOwner} -> IsOwner
-    end.
+    ejabberd_hooks:run_fold(is_muc_room_owner, To#jid.lserver, false, [To, From]).
 
--spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
-can_access_room(From, To) ->
-    case mod_muc_room:can_access_room(To, From) of
-        {error, _} -> false;
-        {ok, CanAccess} -> CanAccess
-    end.
 
 %% @doc Return true if user element should be removed from results
 -spec is_user_identity_hidden(From :: ejabberd:jid(), ArcJID :: ejabberd:jid()) -> boolean().
@@ -368,6 +359,10 @@ is_user_identity_hidden(From, ArcJID) ->
         {error, _} -> true;
         {ok, CanAccess} -> (not CanAccess)
     end.
+
+-spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
+can_access_room(From, To) ->
+    ejabberd_hooks:run_fold(can_access_room, To#jid.lserver, false, [From, To]).
 
 
 -spec action_type(action()) -> 'get' | 'set'.
@@ -454,7 +449,7 @@ handle_set_prefs(ArcJID=#jid{},
     handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
 
 handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
-    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
+    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_set_prefs_result({error, Reason},
                         _DefaultMode, _AlwaysJIDs, _NeverJIDs, IQ) ->
@@ -472,7 +467,7 @@ handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
 handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
     ?DEBUG("Extracted data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
               [DefaultMode, AlwaysJIDs, NeverJIDs]),
-    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
+    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_get_prefs_result({error, Reason}, IQ) ->
     return_error_iq(IQ, Reason).
@@ -524,7 +519,7 @@ handle_lookup_messages(
         [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row, QueryID))
          || Row <- MessageRows],
         ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-        ResultQueryEl = result_query(ResultSetEl),
+        ResultQueryEl = result_query(ResultSetEl, MamNs),
         %% On receiving the query, the server pushes to the client a series of
         %% messages from the archive that match the client's given criteria,
         %% and finally returns the <iq/> result.

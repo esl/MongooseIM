@@ -32,7 +32,6 @@ Writes rel/configure.vars.config which can be used as Reltool input.
 
     with-none           include no 3rd party drivers
     with-all            include all drivers
-    with-cassandra      include cassandra driver
     with-mysql          include mysql driver
     with-odbc           include standard ODBC driver shipped with Erlang/OTP
     with-pgsql          include pgsql driver
@@ -53,9 +52,9 @@ This script is also accessible via make `configure` target.
 For example if only `mysql` and `redis` drivers should be included in the
 release, following command has to be run before `make rel`:
 
-        $ make configure with-mysql with-redis
+    $ ./tools/configure with-mysql with-redis
 
-The `make configure` command has to be run only once (unless one needs to 
+The `./tools/configure` command has to be run only once (unless one needs to
 change the release's config and include some other dependencies).
 
 ### System install

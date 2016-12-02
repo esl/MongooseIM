@@ -27,13 +27,13 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
--behaviour(xmpp_router).
 
 %% API
 -export([start_link/0,
          route/3,
          open_session/5, open_session/6,
          close_session/5,
+         store_info/4,
          check_in_subscription/6,
          bounce_offline_message/3,
          disconnect_removed_user/2,
@@ -55,7 +55,8 @@
          get_session_pid/3,
          get_session/3,
          get_session_ip/3,
-         get_user_present_resources/2
+         get_user_present_resources/2,
+         get_raw_sessions/2
         ]).
 
 %% Hook handlers
@@ -66,6 +67,7 @@
          terminate/2, code_change/3]).
 
 %% xmpp_router callback
+-export([do_filter/3]).
 -export([do_route/3]).
 
 -include("ejabberd.hrl").
@@ -116,7 +118,7 @@
 %%--------------------------------------------------------------------
 -spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
-    mongoose_metrics:ensure_metric(?UNIQUE_COUNT_CACHE, gauge),
+    mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
@@ -125,7 +127,14 @@ start_link() ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel() | ejabberd_c2s:broadcast().
 route(From, To, Packet) ->
-    xmpp_router:route(?MODULE, From, To, Packet).
+    case (catch do_route(From, To, Packet)) of
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+                [jid:to_binary(From), jid:to_binary(To),
+                    ?MODULE, Reason, exml:to_binary(Packet),
+                    erlang:get_stacktrace()]);
+        _ -> ok
+    end.
 
 -spec open_session(SID, User, Server, Resource, Info) -> ok when
       SID :: 'undefined' | sid(),
@@ -171,6 +180,16 @@ close_session(SID, User, Server, Resource, Reason) ->
     ejabberd_hooks:run(sm_remove_connection_hook, JID#jid.lserver,
                        [SID, JID, Info, Reason]).
 
+-spec store_info(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+                 {any(), any()}) -> {ok, {any(), any()}} | {error, offline}.
+store_info(User, Server, Resource, {Key, _Value} = KV) ->
+    case get_session(User, Server, Resource) of
+        offline -> {error, offline};
+        {_SUser,SID,SPriority,SInfo} ->
+            set_session(SID, User, Server, Resource, SPriority,
+                        lists:keystore(Key, 1, SInfo, KV)),
+            {ok, KV}
+    end.
 
 -spec check_in_subscription(Acc, User, Server, JID, Type, Reason) -> any() | {stop, false} when
       Acc :: any(),
@@ -200,9 +219,7 @@ bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
     ejabberd_router:route(To, From, Err),
     stop.
 
-
--spec disconnect_removed_user(User :: ejabberd:user(), Server :: ejabberd:server()) ->
-    'ok'.
+-spec disconnect_removed_user(User :: ejabberd:user(), Server :: ejabberd:server()) -> ok.
 disconnect_removed_user(User, Server) ->
     ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),
@@ -252,7 +269,10 @@ get_session(User, Server, Resource) ->
              Session#session.priority,
              Session#session.info}
     end.
-
+-spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [#session{}].
+get_raw_sessions(User, Server) ->
+    clean_session_list(
+      ?SM_BACKEND:get_sessions(jid:nodeprep(User), jid:nameprep(Server))).
 
 -spec set_presence(SID, User, Server, Resource, Prio, Presence, Info) -> ok when
       SID :: 'undefined' | sid(),
@@ -318,7 +338,7 @@ get_session_pid(User, Server, Resource) ->
 get_unique_sessions_number() ->
     try
         C = ?SM_BACKEND:unique_count(),
-        mongoose_metrics:update(?UNIQUE_COUNT_CACHE, C),
+        mongoose_metrics:update(global, ?UNIQUE_COUNT_CACHE, C),
         C
     catch
         _:_ ->
@@ -368,7 +388,8 @@ unregister_iq_handler(Host, XMLNS) ->
 %%====================================================================
 
 node_cleanup(Node) ->
-    gen_server:call(?MODULE, {node_cleanup, Node}).
+    Timeout = timer:minutes(1),
+    gen_server:call(?MODULE, {node_cleanup, Node}, Timeout).
 
 %%====================================================================
 %% gen_server callbacks
@@ -394,6 +415,8 @@ init([]) ->
               ejabberd_hooks:add(roster_in_subscription, Host,
                                  ejabberd_sm, check_in_subscription, 20),
               ejabberd_hooks:add(offline_message_hook, Host,
+                                 ejabberd_sm, bounce_offline_message, 100),
+              ejabberd_hooks:add(offline_groupchat_message_hook, Host,
                                  ejabberd_sm, bounce_offline_message, 100),
               ejabberd_hooks:add(remove_user, Host,
                                  ejabberd_sm, disconnect_removed_user, 100)
@@ -440,7 +463,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 -spec handle_info(_,_) -> {'noreply',_}.
 handle_info({route, From, To, Packet}, State) ->
-    xmpp_router:route(?MODULE,From,To,Packet),
+    route(From, To, Packet),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function}),
@@ -505,6 +528,9 @@ set_session(SID, User, Server, Resource, Priority, Info) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+do_filter(From, To, Packet) ->
+    {From, To, Packet}.
+
 -spec do_route(From, To, Packet) -> ok when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
@@ -517,7 +543,7 @@ do_route(From, To, {broadcast, _} = Broadcast) ->
             CurrentPids = get_user_present_pids(LUser, LServer),
             ejabberd_hooks:run(sm_broadcast, To#jid.lserver,
                                [From, To, Broadcast, length(CurrentPids)]),
-            ?DEBUG("bc_to=~p~n", CurrentPids),
+            ?DEBUG("bc_to=~p~n", [CurrentPids]),
             lists:foreach(fun({_, Pid}) -> Pid ! Broadcast end, CurrentPids);
         _ ->
             case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
@@ -620,7 +646,15 @@ do_route_no_resource(_, _, _, _, _) ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
 do_route_offline(<<"message">>, _, From, To, Packet)  ->
-        route_message(From, To, Packet);
+    Drop = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
+                   false, [From, To, Packet]),
+    case Drop of
+        false ->
+            route_message(From, To, Packet);
+        true ->
+            ?DEBUG("issue=\"message droped\", to=~1000p", [To]),
+            ok
+    end;
 do_route_offline(<<"iq">>, <<"error">>, _From, _To, _Packet) ->
         ok;
 do_route_offline(<<"iq">>, <<"result">>, _From, _To, _Packet) ->
@@ -702,10 +736,12 @@ route_message(From, To, Packet) ->
                 <<"error">> ->
                     ok;
                 <<"groupchat">> ->
-                    bounce_offline_message(From, To, Packet);
+                    ejabberd_hooks:run(offline_groupchat_message_hook,
+                                       LServer,
+                                       [From, To, Packet]);
                 <<"headline">> ->
                     bounce_offline_message(From, To, Packet);
-                _ ->
+                _Type ->
                     case ejabberd_auth:is_user_exists(LUser, LServer) of
                         true ->
                             case is_privacy_allow(From, To, Packet) of
@@ -714,6 +750,8 @@ route_message(From, To, Packet) ->
                                                        LServer,
                                                        [From, To, Packet]);
                                 false ->
+                                    ejabberd_hooks:run_fold(failed_to_store_message,
+                                                            LServer, Packet, [From]),
                                     ok
                             end;
                         _ ->
@@ -723,7 +761,6 @@ route_message(From, To, Packet) ->
                     end
             end
     end.
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -929,10 +966,9 @@ sm_backend(Backend) ->
 
 -spec get_cached_unique_count() -> non_neg_integer().
 get_cached_unique_count() ->
-    case mongoose_metrics:get_metric_value(?UNIQUE_COUNT_CACHE) of
+    case mongoose_metrics:get_metric_value(global, ?UNIQUE_COUNT_CACHE) of
         {ok, DataPoints} ->
             proplists:get_value(value, DataPoints);
         _ ->
             0
     end.
-

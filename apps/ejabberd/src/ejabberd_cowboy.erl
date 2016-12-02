@@ -16,7 +16,6 @@
 %%% @end
 %%%===================================================================
 -module(ejabberd_cowboy).
--behaviour(gen_mod).
 -behavior(gen_server).
 
 %% ejabberd_listener API
@@ -32,15 +31,25 @@
          code_change/3,
          terminate/2]).
 
-%% gen_mod API
--export([start/2,
-         stop/1]).
-
 %% helper for internal use
--export([handler/1]).
+-export([ref/1, reload_dispatch/1]).
+-export([start_cowboy/2, stop_cowboy/1]).
 
 -include("ejabberd.hrl").
+-type options()  :: [any()].
+-type path() :: iodata().
+-type paths() :: [path()].
+-type route() :: {path() | paths(), module(), options()}.
+-type implemented_result() :: [route()].
 
+-export_type([options/0]).
+-export_type([path/0]).
+-export_type([route/0]).
+-export_type([implemented_result/0]).
+
+-callback cowboy_router_paths(path(), options()) -> implemented_result().
+
+-record(cowboy_state, {ref, opts = []}).
 %%--------------------------------------------------------------------
 %% ejabberd_listener API
 %%--------------------------------------------------------------------
@@ -49,82 +58,111 @@ socket_type() ->
     independent.
 
 start_listener({Port, IP, tcp}=Listener, Opts) ->
-    IPPort = handler(Listener),
-    ChildSpec = {Listener, {?MODULE, start_link, [IPPort]}, transient,
-                 infinity, worker, [?MODULE]},
+    Ref = ref(Listener),
+    ChildSpec = {Listener, {?MODULE, start_link,
+                            [#cowboy_state{ref = Ref, opts = Opts}]},
+                 transient, infinity, worker, [?MODULE]},
     {ok, Pid} = supervisor:start_child(ejabberd_listeners, ChildSpec),
-    {ok, _} = start_cowboy(IPPort, [{port, Port}, {ip, IP} | Opts]),
+    {ok, _} = start_cowboy(Ref, [{port, Port}, {ip, IP} | Opts]),
     {ok, Pid}.
+
+reload_dispatch(Ref) ->
+    gen_server:call(Ref, reload_dispatch).
 
 %% @doc gen_server for handling shutdown when started via ejabberd_listener
 -spec start_link(_) -> 'ignore' | {'error',_} | {'ok',pid()}.
-start_link(Ref) ->
-    gen_server:start_link(?MODULE, [Ref], []).
-init(Ref) ->
+start_link(State) ->
+    gen_server:start_link(?MODULE, State, []).
+
+init(State) ->
     process_flag(trap_exit, true),
-    {ok, Ref}.
-handle_call(_Request, _From, Ref) ->
-    {noreply, Ref}.
-handle_cast(_Request, Ref) ->
-    {noreply, Ref}.
-handle_info(_Info, Ref) ->
-    {noreply, Ref}.
-code_change(_OldVsn, Ref, _Extra) ->
-    {ok, Ref}.
-terminate(_Reason, Ref) ->
-    stop_cowboy(Ref).
+    {ok, State}.
+
+handle_call(reload_dispatch, _From, #cowboy_state{ref = Ref, opts = Opts} = State) ->
+    reload_dispatch(Ref, Opts),
+    {reply, ok, State};
+handle_call(_Request, _From, State) ->
+    {noreply, State}.
+
+handle_cast(_Request, State) ->
+    {noreply, State}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+terminate(_Reason, State) ->
+    stop_cowboy(State#cowboy_state.ref).
 
 -spec handler({integer(), inet:ip_address(), tcp}) -> list().
 handler({Port, IP, tcp}) ->
     [inet_parse:ntoa(IP), <<"_">>, integer_to_list(Port)].
 
 %%--------------------------------------------------------------------
-%% gen_mod API
-%%--------------------------------------------------------------------
-
-start(Host, Opts) ->
-    start_cowboy(Host, Opts).
-
-stop(Host) ->
-    stop_cowboy(Host).
-
-%%--------------------------------------------------------------------
 %% Internal Functions
 %%--------------------------------------------------------------------
 
 start_cowboy(Ref, Opts) ->
-    %% Port and Dispatch are required
+    {Retries, SleepTime} = gen_mod:get_opt(retries, Opts, {20, 50}),
+    do_start_cowboy(Ref, Opts, Retries, SleepTime).
+
+
+do_start_cowboy(Ref, Opts, 0, _) ->
+    do_start_cowboy(Ref, Opts);
+do_start_cowboy(Ref, Opts, Retries, SleepTime) ->
+    case do_start_cowboy(Ref, Opts) of
+        {error, eaddrinuse} ->
+            timer:sleep(SleepTime),
+            do_start_cowboy(Ref, Opts, Retries - 1, SleepTime);
+        Other ->
+            Other
+    end.
+
+do_start_cowboy(Ref, Opts) ->
     Port = gen_mod:get_opt(port, Opts),
-    IP = gen_mod:get_opt(ip, Opts, {0,0,0,0}),
-    SSLCert = gen_mod:get_opt(cert, Opts, undefined),
-    SSLKey = gen_mod:get_opt(key, Opts, undefined),
-    SSLKeyPass = gen_mod:get_opt(key_pass, Opts, ""),
+    IP = gen_mod:get_opt(ip, Opts, {0, 0, 0, 0}),
+    SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
+    Compress = gen_mod:get_opt(compress, Opts, false),
     Middlewares = case gen_mod:get_opt(middlewares, Opts, undefined) of
         undefined -> [];
         M -> [{middlewares, M}]
     end,
+    TransportOpts = [{port, Port},
+                     {ip, IP},
+                     {max_connections, MaxConns}
+                    ],
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
-    case {SSLCert, SSLKey} of
-        {undefined, undefined} ->
-            cowboy:start_http(cowboy_ref(Ref), NumAcceptors,
-                              [{port, Port}, {ip, IP}, {max_connections, MaxConns}],
-                              [{env, [{dispatch, Dispatch}]} | Middlewares]);
-        _ ->
-            cowboy:start_https(cowboy_ref(Ref), NumAcceptors,
-                               [{port, Port}, {ip, IP}, {max_connections, MaxConns},
-                                {certfile, SSLCert}, {keyfile, SSLKey},
-                                {password, SSLKeyPass}],
-                               [{env, [{dispatch, Dispatch}]} | Middlewares])
+    ProtocolOpts = [{compress, Compress}, {env, [{dispatch, Dispatch}]} | Middlewares],
+    case catch start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) of
+        {error, {{shutdown,
+                  {failed_to_start_child, ranch_acceptors_sup,
+                   {{badmatch, {error, eaddrinuse}}, _ }}}, _}} ->
+            {error, eaddrinuse};
+        Result ->
+            Result
     end.
 
+start_http_or_https(undefined, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+    cowboy:start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
+start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+    FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOpts),
+    TransportOptsWithSSL = TransportOpts ++ FilteredSSLOptions,
+    cowboy:start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts).
+
+reload_dispatch(Ref, Opts) ->
+    Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
+    cowboy:set_env(Ref, dispatch, Dispatch).
+
 stop_cowboy(Ref) ->
-    cowboy:stop_listener(cowboy_ref(Ref)),
-    ok.
+    cowboy:stop_listener(Ref).
 
 
-cowboy_ref(Ref) ->
+ref(Listener) ->
+    Ref = handler(Listener),
     ModRef = [?MODULE_STRING, <<"_">>, Ref],
     list_to_atom(binary_to_list(iolist_to_binary(ModRef))).
 
@@ -142,6 +180,7 @@ get_routes(Modules) ->
     Final = Merged ++ [{'_', WildcardPaths}],
     ?DEBUG("Configured Cowboy Routes: ~p", [Final]),
     Final.
+
 get_routes([], Routes) ->
     Routes;
 get_routes([{Host, BasePath, Module} | Tail], Routes) ->
@@ -160,3 +199,21 @@ get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
         _ -> [{BasePath, Module, Opts}]
     end,
     get_routes(Tail, lists:keystore(CowboyHost, 1, Routes, {CowboyHost, Paths})).
+
+ignored_ssl_options() ->
+    %% these options are specified in the listener section
+    %% and should be ignored if they creep into ssl section
+    [port, ip, max_connections].
+
+filter_options(IgnoreOpts, [Opt | Opts]) when is_atom(Opt) ->
+    case lists:member(Opt, IgnoreOpts) of
+        true  -> filter_options(IgnoreOpts, Opts);
+        false -> [Opt | filter_options(IgnoreOpts, Opts)]
+    end;
+filter_options(IgnoreOpts, [Opt | Opts]) when tuple_size(Opt) >= 1 ->
+    case lists:member(element(1, Opt), IgnoreOpts) of
+        true  -> filter_options(IgnoreOpts, Opts);
+        false -> [Opt | filter_options(IgnoreOpts, Opts)]
+    end;
+filter_options(_, []) ->
+    [].

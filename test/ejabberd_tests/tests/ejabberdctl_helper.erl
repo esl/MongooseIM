@@ -9,11 +9,16 @@
 -module(ejabberdctl_helper).
 -author("ludwikbukowski").
 -include_lib("escalus/include/escalus.hrl").
+-import(ejabberd_node_utils, [mim/0]).
 %% API
--export([ejabberdctl/3, rpc_call/3]).
+-compile(export_all).
 
 ejabberdctl(Cmd, Args, Config) ->
-    CtlCmd = escalus_config:get_config(ctl_path, Config),
+    Node = mim(),
+   ejabberdctl(Node, Cmd, Args, Config).
+
+ejabberdctl(Node, Cmd, Args, Config) ->
+    CtlCmd = distributed_helper:ctl_path(Node, Config),
     run(string:join([CtlCmd, Cmd | normalize_args(Args)], " ")).
 
 rpc_call(M, F, Args) ->
@@ -34,7 +39,7 @@ normalize_args(Args) ->
               end, Args).
 
 run(Cmd) ->
-    run(Cmd, 5000).
+    run(Cmd, 60000).
 
 run(Cmd, Timeout) ->
     Port = erlang:open_port({spawn, Cmd},[exit_status]),

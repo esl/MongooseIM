@@ -5,13 +5,17 @@
 -export([auth_modules/0]).
 
 -export([total_offline_messages/0,
+         total_offline_messages/1,
          total_active_users/0,
          total_privacy_items/0,
          total_private_items/0,
          total_vcard_items/0,
          total_roster_items/0]).
 
--export([clear_last_activity/2]).
+-export([clear_last_activity/2,
+         clear_caps_cache/1]).
+
+-export([kick_everyone/0]).
 
 -define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
 
@@ -26,6 +30,10 @@ auth_modules() ->
 -spec total_offline_messages() -> integer() | false.
 total_offline_messages() ->
     generic_count(mod_offline_backend).
+
+-spec total_offline_messages({binary(), binary()}) -> integer() | false.
+total_offline_messages(User) ->
+    generic_count(mod_offline_backend, User).
 
 -spec total_active_users() -> integer() | false.
 total_active_users() ->
@@ -83,11 +91,18 @@ do_clear_last_activity(_Config, User) when is_binary(User) ->
 do_clear_last_activity(Config, Users) when is_list(Users) ->
     lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
 
+clear_caps_cache(CapsNode) ->
+    ok = ?RPC(mod_caps, delete_caps, [CapsNode]).
+
 get_backend(Module) ->
   case ?RPC(Module, backend, []) of
     {badrpc, _Reason} -> false;
     Backend -> Backend
   end.
+
+generic_count(mod_offline_backend, {User, Server}) ->
+    ?RPC(mod_offline_backend, count_offline_messages, [User, Server, 100]).
+
 
 generic_count(Module) ->
     case get_backend(Module) of
@@ -105,12 +120,10 @@ generic_count_backend(mod_last_odbc) -> count_odbc(<<"last">>);
 generic_count_backend(mod_last_riak) -> count_riak(<<"last">>);
 generic_count_backend(mod_privacy_mnesia) -> count_wildpattern(privacy);
 generic_count_backend(mod_privacy_odbc) -> count_odbc(<<"privacy_list">>);
-generic_count_backend(mod_privacy_cassandra) -> count_cassandra(privacy_list);
 generic_count_backend(mod_private_mnesia) -> count_wildpattern(private_storage);
 generic_count_backend(mod_private_odbc) -> count_odbc(<<"private_storage">>);
 generic_count_backend(mod_private_mysql) -> count_odbc(<<"private_storage">>);
 generic_count_backend(mod_private_riak) -> count_riak(<<"private">>);
-generic_count_backend(mod_private_cassandra) -> count_cassandra(private_storage);
 generic_count_backend(mod_vcard_mnesia) -> count_wildpattern(vcard);
 generic_count_backend(mod_vcard_odbc) -> count_odbc(<<"vcard">>);
 generic_count_backend(mod_vcard_riak) -> count_riak(<<"vcard">>);
@@ -122,12 +135,12 @@ generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
 generic_count_backend(mod_roster_riak) ->
     count_riak(<<"rosters">>),
     count_riak(<<"roster_versions">>);
-generic_count_backend(mod_roster_cassandra) -> count_cassandra(rosterusers);
 generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
 
 count_wildpattern(Table) ->
     Pattern = ?RPC(mnesia, table_info, [Table, wild_pattern]),
     length(?RPC(mnesia, dirty_match_object, [Pattern])).
+
 
 count_odbc(Table) ->
     {selected, _, [{N}]} =
@@ -144,6 +157,31 @@ count_riak(BucketType) ->
     BucketKeys = [?RPC(mongoose_riak, list_keys, [{BucketType, Bucket}]) || Bucket <- Buckets],
     length(lists:flatten(BucketKeys)).
 
-count_cassandra(Table) ->
-    %% Only default pool is supported
-    ?RPC(mongoose_cassandra_worker, total_count_query, [default, Table]).
+kick_everyone() ->
+    [?RPC(ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
+    asset_session_count(0, 50).
+    
+asset_session_count(Expected, Retries) ->
+    case wait_for_session_count(Expected, Retries) of
+        Expected ->
+            ok;
+        Other ->
+            ct:fail({asset_session_count, {expected, Expected}, {value, Other}})
+    end.
+
+wait_for_session_count(Expected, Retries) ->
+    case length(get_session_specs()) of
+        Expected ->
+            Expected;
+        _Other when Retries > 0 ->
+            timer:sleep(100),
+            wait_for_session_count(Expected, Retries-1);
+        Other ->
+            Other
+    end.
+
+get_session_specs() ->
+    ?RPC(supervisor, which_children, [ejabberd_c2s_sup]).
+
+get_session_pids() ->
+    [element(2, X) || X <- get_session_specs()].

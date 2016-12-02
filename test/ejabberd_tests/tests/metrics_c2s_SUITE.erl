@@ -133,7 +133,7 @@ presence_direct_one(Config) ->
         {value, StanzaSent} = get_counter_value(xmppStanzaSent),
         {value, StanzaReceived} = get_counter_value(xmppStanzaReceived),
 
-        Presence = escalus_stanza:presence_direct(bob, <<"available">>),
+        Presence = escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"available">>),
         escalus:send(Alice, Presence),
         escalus:wait_for_stanza(Bob),
 
@@ -250,11 +250,13 @@ error_presence(Config) ->
     {value, Errors} = get_counter_value(xmppErrorPresence),
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
-        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"available">>)),
+        escalus:send(Alice, escalus_stanza:presence_direct(
+                              escalus_client:short_jid(Bob), <<"available">>)),
         escalus:wait_for_stanza(Bob),
 
         ErrorElt = escalus_stanza:error_element(<<"cancel">>, <<"gone">>),
-        Presence = escalus_stanza:presence_direct(alice, <<"error">>, ErrorElt),
+        Presence = escalus_stanza:presence_direct(escalus_client:short_jid(Alice),
+                                                  <<"error">>, [ErrorElt]),
         escalus:send(Bob, Presence),
         escalus:wait_for_stanza(Alice),
 
@@ -265,7 +267,8 @@ error_presence(Config) ->
 error_iq(Config) ->
     {value, Errors} = get_counter_value(xmppErrorIq),
 
-    Alice = escalus_users:get_user_by_name(alice),
+    Users = escalus_config:get_config(escalus_users, Config),
+    Alice = escalus_users:get_user_by_name(alice, Users),
     escalus_users:create_user(Config, Alice),
 
     timer:sleep(?WAIT_TIME),

@@ -4,8 +4,7 @@
 
 %% TODO: it might make sense to expose this stuff as mod_admin_extra_cluster
 
--export([join/1,
-         leave/0]).
+-export([join/1, leave/0, remove_from_cluster/1, is_node_alive/1]).
 
 -include("ejabberd.hrl").
 
@@ -17,8 +16,6 @@
 %% This drops all current connections and discards all persistent
 %% data from Mnesia. Use with caution!
 %% Next time the node starts, it will connect to other members automatically.
-%% TODO: when/if exposing through ejabberd_admin make sure it's guarded
-%%       by an interactive yes/no question or some flag
 -spec join(node()) -> ok.
 join(ClusterMember) ->
     ?INFO_MSG("join ~p", [ClusterMember]),
@@ -33,8 +30,6 @@ join(ClusterMember) ->
 %% data from Mnesia. Use with caution!
 %% Next time the node starts, it will NOT connect to previous members.
 %% Remaining members will remove this node from the cluster Mnesia schema.
-%% TODO: when/if exposing through ejabberd_admin make sure it's guarded
-%%       by an interactive yes/no question or some flag
 -spec leave() -> ok.
 leave() ->
     ?INFO_MSG("leave", []),
@@ -46,9 +41,35 @@ leave() ->
                              ok = mnesia:start()
                      end).
 
+%% @doc Remove dead node from the cluster.
+%% The removing node must be down
+-spec remove_from_cluster(node()) -> ok.
+remove_from_cluster(Node) ->
+    NodeAlive = is_node_alive(Node),
+    NodeAlive andalso error({node_is_alive, Node}),
+    remove_dead_from_cluster(Node).
+
 %%
 %% Helpers
 %%
+
+remove_dead_from_cluster(DeadNode) ->
+    ?INFO_MSG("removing dead node ~p from the cluster", [DeadNode]),
+    case mnesia:del_table_copy(schema, DeadNode) of
+        {atomic, ok} ->
+            ok;
+        {aborted, R} ->
+            error({del_table_copy_schema, R})
+    end.
+
+is_node_alive(Node) ->
+    try check_networking(Node) of
+        true ->
+            true
+    catch
+        error:_ ->
+            false
+    end.
 
 is_app_running(App) ->
     lists:keymember(App, 1, application:which_applications()).
@@ -61,15 +82,34 @@ unsafe_join(Node, ClusterMember) ->
     ok = mnesia:start(),
     {ok, [ClusterMember]} = mnesia:change_config(extra_db_nodes, [ClusterMember]),
     true = lists:member(ClusterMember, mnesia:system_info(running_db_nodes)),
-    {atomic, ok} = mnesia:change_table_copy_type(schema, Node, disc_copies),
+    ok = change_schema_type(Node),
     Tables = [ {T, table_type(ClusterMember, T)}
                || T <- mnesia:system_info(tables),
                   T /= schema ],
     Copied = [ {Table, mnesia:add_table_copy(T, Node, Type)}
                || {T, Type} = Table <- Tables ],
-    Expected = lists:zip(Tables, repeat(length(Tables), {atomic, ok})),
-    Expected = Copied,
+    lists:foreach(fun check_if_successful_copied/1, Copied),
     ok.
+
+check_if_successful_copied(TableEl) ->
+    case TableEl of
+        {_, {atomic, ok}} ->
+            ok;
+        {_, {aborted, {already_exists, _, _}}} ->
+            ok;
+        Other ->
+            error({add_table_copy_error, TableEl, Other})
+    end.
+
+change_schema_type(Node) ->
+    case mnesia:change_table_copy_type(schema, Node, disc_copies) of
+        {atomic, ok} ->
+            ok;
+        {aborted, {already_exists, _, _, _}} ->
+            ok;
+        {aborted, R} ->
+            {error, R}
+    end.
 
 table_type(ClusterMember, T) ->
     try rpc:call(ClusterMember, mnesia, table_info, [T, storage_type]) of
@@ -77,7 +117,7 @@ table_type(ClusterMember, T) ->
                   Type =:= ram_copies;
                   Type =:= disc_only_copies -> Type
     catch
-        E:R -> error({cant_get_storage_type, {E,R}}, [T])
+        E:R -> error({cant_get_storage_type, {T,E,R}}, [T])
     end.
 
 %% This will remove all your Mnesia data!
@@ -96,9 +136,6 @@ delete_mnesia() ->
     ok = rmrf(Dir),
     ?WARNING_MSG("Mnesia schema and files deleted", []),
     ok.
-
-repeat(N, El) ->
-    [ El || _ <- lists:seq(1, N) ].
 
 wait_for_pong(Node) ->
     wait_for_pong(net_adm:ping(Node), Node, 5, 100).

@@ -351,12 +351,6 @@ send_registration_notifications(UJID, Source) ->
             ok
     end.
 
-check_from(no_JID, _Server) ->
-    allow;
-check_from(JID, Server) ->
-    Access = gen_mod:get_module_opt(Server, ?MODULE, access_from, none),
-    acl:match_rule(Server, Access, JID).
-
 check_timeout(undefined) ->
     true;
 check_timeout(Source) ->
@@ -415,38 +409,6 @@ clean_treap(Treap, CleanPriority) ->
             end
     end.
 
-remove_timeout(undefined) ->
-    true;
-remove_timeout(Source) ->
-    Timeout = case ejabberd_config:get_local_option(registration_timeout) of
-                  undefined -> 600;
-                  TO -> TO
-              end,
-    if
-        is_integer(Timeout) ->
-            F = fun() ->
-                        Treap = case mnesia:read(mod_register_ip, treap,
-                                                 write) of
-                                    [] ->
-                                        treap:empty();
-                                    [{mod_register_ip, treap, T}] -> T
-                                end,
-                        Treap1 = treap:delete(Source, Treap),
-                        mnesia:write({mod_register_ip, treap, Treap1}),
-                        ok
-                end,
-            case mnesia:transaction(F) of
-                {atomic, ok} ->
-                    ok;
-                {aborted, Reason} ->
-                    ?ERROR_MSG("mod_register: timeout remove error: ~p~n",
-                               [Reason]),
-                    ok
-            end;
-        true ->
-            ok
-    end.
-
 ip_to_string(Source) when is_tuple(Source) -> inet_parse:ntoa(Source);
 ip_to_string(undefined) -> "undefined";
 ip_to_string(_) -> "unknown".
@@ -475,11 +437,6 @@ is_strong_password(Server, Password) ->
 %%%
 %%% ip_access management
 %%%
-
-may_remove_resource({_, _, _} = From) ->
-    jid:to_bare(From);
-may_remove_resource(From) ->
-    From.
 
 get_ip_access(Host) ->
     IPAccess = gen_mod:get_module_opt(Host, ?MODULE, ip_access, []),

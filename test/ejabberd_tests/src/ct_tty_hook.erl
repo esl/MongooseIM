@@ -83,14 +83,18 @@ pre_init_per_testcase(TC,Config,State) ->
     {Config, State#state{ ts = now(), total = State#state.suite_total + 1 } }.
 
 %% @doc Called after each test case.
-post_end_per_testcase(TC,_Config,Return,State) ->
-    TCInfo = {testcase, TC, Return, timer:now_diff(now(), State#state.ts)},
+post_end_per_testcase(TC, _Config, Return, State) ->
+    ParallelTestDiffOverride = 1,
+    %%% this fails when running in parallel:
+    %%% timer:now_diff(now(), State#state.ts),
+    TCInfo = {testcase, TC, Return, ParallelTestDiffOverride},
     print_case_enter(TC, State, "Finished"),
-    {Return, State#state{ ts = undefined, tcs = [TCInfo | State#state.tcs] } }.
+    {Return, State#state{ts = undefined, tcs = [TCInfo | State#state.tcs]}}.
 
 %% @doc Called after post_init_per_suite, post_end_per_suite, post_init_per_group,
 %% post_end_per_group and post_end_per_testcase if the suite, group or test case failed.
-on_tc_fail(_TC, _Reason, State) ->
+on_tc_fail(TC, Reason, State) ->
+    ct:print("~p~n~p", [TC, Reason]),
     State.
 
 %% @doc Called when a test case is skipped by either user action

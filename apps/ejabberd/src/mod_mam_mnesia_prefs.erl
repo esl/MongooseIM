@@ -26,8 +26,7 @@
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
--record(mam_prefs, {archive_key :: mod_mam:archive_key(),
-                    host_user,
+-record(mam_prefs, {host_user :: {ejabberd:server(), ejabberd:user()},
                     default_mode,
                     always_rules :: list(),
                     never_rules  :: list()
@@ -41,7 +40,6 @@
 
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
-    compile_params_module(Opts),
     mnesia:create_table(mam_prefs,
             [{disc_copies, [node()]},
              {attributes, record_info(fields, mam_prefs)}]),
@@ -125,11 +123,11 @@ stop_muc(Host) ->
     ArcID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
     RemJID :: ejabberd:jid()) -> any().
 get_behaviour(DefaultBehaviour, _Host,
-              ArcID,
+              _ArcID,
               LocJID=#jid{},
               RemJID=#jid{}) ->
-    ArcKey = archive_key(ArcID, LocJID),
-    case mnesia:dirty_read(mam_prefs, ArcKey) of
+    SU = su_key(LocJID),
+    case mnesia:dirty_read(mam_prefs, SU) of
         [] -> DefaultBehaviour;
         [User] -> get_behaviour(User, LocJID, RemJID)
     end.
@@ -175,13 +173,11 @@ set_prefs(_Result, _Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
         {error, Error}
     end.
 
-set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    ArcKey = archive_key(ArcID, ArcJID),
+set_prefs1(_ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     SU = su_key(ArcJID),
     NewARules = lists:usort(rules(ArcJID, AlwaysJIDs)),
     NewNRules = lists:usort(rules(ArcJID, NeverJIDs)),
     User = #mam_prefs{
-        archive_key = ArcKey,
         host_user = SU,
         default_mode = DefaultMode,
         always_rules = NewARules,
@@ -196,9 +192,9 @@ set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 -spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
                 _ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()
                 ) -> mod_mam:preference().
-get_prefs({GlobalDefaultMode, _, _}, _Host, ArcID, ArcJID) ->
-    ArcKey = archive_key(ArcID, ArcJID),
-    case mnesia:dirty_read(mam_prefs, ArcKey) of
+get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
+    SU = su_key(ArcJID),
+    case mnesia:dirty_read(mam_prefs, SU) of
         [] ->
             {GlobalDefaultMode, [], []};
         [#mam_prefs{default_mode=DefaultMode,
@@ -210,14 +206,19 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, ArcID, ArcJID) ->
 
 
 -spec remove_archive(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> any().
-remove_archive(_Host, ArcID, ArcJID) ->
-    ArcKey = archive_key(ArcID, ArcJID),
+remove_archive(_Host, _ArcID, ArcJID) ->
+    SU = su_key(ArcJID),
     mnesia:sync_dirty(fun() ->
-            mnesia:delete(mam_prefs, ArcKey, write)
+            mnesia:delete(mam_prefs, SU, write)
         end).
 
 %% ----------------------------------------------------------------------
 %% Helpers
+
+-spec su_key(ejabberd:jid()) -> ejabberd:simple_bare_jid().
+su_key(#jid{lserver=LocLServer, luser=LocLUser}) ->
+    {LocLServer, LocLUser}.
+
 
 -spec jids(ejabberd:jid(),
     [ejabberd:literal_jid() | ejabberd:simple_bare_jid() | ejabberd:simple_jid()]
@@ -269,34 +270,3 @@ match_jid(ArcJID, JID, JIDs) ->
             orelse
         ordsets:is_element(rule(ArcJID, JID), JIDs)
     end.
-
--spec su_key(ejabberd:jid()) -> ejabberd:simple_bare_jid().
-su_key(#jid{lserver=LocLServer, luser=LocLUser}) ->
-    {LocLServer, LocLUser}.
-
-archive_key(ArcID, ArcJID) ->
-    %% Module implementing mam_archive_key behaviour
-    Module = archive_key(),
-    Module:archive_key(ArcID, ArcJID).
-
-%% ----------------------------------------------------------------------
-%% Dynamic params module
-
-%% compile_params_module([
-%%      {archive_key, module()}
-%%      ])
-compile_params_module(Params) ->
-    CodeStr = params_helper(Params),
-    {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_cassandra_arch_params.erl", Code).
-
-params_helper(Params) ->
-    binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_mnesia_prefs_params).~n"
-        "-compile(export_all).~n"
-        "archive_key() -> ~p.~n",
-        [proplists:get_value(archive_key, Params, mam_archive_key_integer)]))).
-
--spec archive_key() -> module().
-archive_key() ->
-    mod_mam_mnesia_prefs_params:archive_key().

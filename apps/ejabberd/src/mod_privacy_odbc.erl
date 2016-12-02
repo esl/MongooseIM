@@ -225,7 +225,8 @@ raw_to_item({BType, BValue, BAction, BOrder, BMatchAll, BMatchIQ,
     Action =
     case BAction of
         <<"a">> -> allow;
-        <<"d">> -> deny
+        <<"d">> -> deny;
+        <<"b">> -> block
     end,
     Order = binary_to_integer(BOrder),
     MatchAll = ejabberd_odbc:to_bool(BMatchAll),
@@ -277,7 +278,8 @@ item_to_raw(#listitem{type = Type,
     BAction =
     case Action of
         allow -> <<"a">>;
-        deny -> <<"d">>
+        deny -> <<"d">>;
+        block -> <<"b">>
     end,
     BOrder = integer_to_binary(Order),
     BMatchAll = boolean_to_binary_number(MatchAll),

@@ -120,7 +120,7 @@ stop_pm(Host) ->
         true ->
             ok;
         false ->
-            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50)
+            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50)
     end,
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
@@ -190,7 +190,7 @@ archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
 index_hint_sql(Host) ->
     case ejabberd_odbc:db_engine(Host) of
         mysql ->
-            "USE INDEX(i_mam_message_uid, i_mam_message_rem) ";
+            "USE INDEX(PRIMARY, i_mam_message_rem) ";
         _ ->
             ""
     end.
@@ -208,20 +208,20 @@ insert_ignore(Host) ->
 -spec archive_message(_Result, Host :: ejabberd:server(),
         MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
         LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
-        SrcJID :: ejabberd:jid(), incoming, Packet :: any()) -> ok.
+        SrcJID :: ejabberd:jid(), Dir :: atom(), Packet :: any()) -> ok.
 archive_message(Result, Host, MessID, UserID,
-                     LocJID, RemJID, SrcJID, Dir, Packet) ->
+                LocJID, RemJID, SrcJID, Dir, Packet) ->
     try
-        archive_message_2(Result, Host, MessID, UserID,
-                        LocJID, RemJID, SrcJID, Dir, Packet)
+        do_archive_message(Result, Host, MessID, UserID,
+                           LocJID, RemJID, SrcJID, Dir, Packet)
     catch _Type:Reason ->
         {error, Reason}
     end.
 
-archive_message_2(_Result, Host, MessID, UserID,
-                LocJID=#jid{},
-                RemJID=#jid{lresource=RemLResource},
-                SrcJID, Dir, Packet) ->
+do_archive_message(_Result, Host, MessID, UserID,
+                   LocJID=#jid{},
+                   RemJID=#jid{lresource=RemLResource},
+                   SrcJID, Dir, Packet) ->
     SUserID = integer_to_list(UserID),
     SBareRemJID = minify_and_escape_bare_jid(LocJID, RemJID),
     SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
@@ -299,10 +299,10 @@ archive_messages(LServer, Acc, N) ->
                       IsSimple :: boolean()  | opt_count) ->
     {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages({error, _Reason}=Result, _Host,
-                     _UserID, _UserJID, _RSM, _Borders,
-                     _Start, _End, _Now, _WithJID,
-                     _PageSize, _LimitPassed, _MaxResultLimit,
-                     _IsSimple) ->
+                _UserID, _UserJID, _RSM, _Borders,
+                _Start, _End, _Now, _WithJID,
+                _PageSize, _LimitPassed, _MaxResultLimit,
+                _IsSimple) ->
     Result;
 lookup_messages(_Result, Host,
                 UserID, UserJID, RSM, Borders,
@@ -310,26 +310,15 @@ lookup_messages(_Result, Host,
                 PageSize, LimitPassed, MaxResultLimit,
                 IsSimple) ->
     try
-        lookup_messages_2(Host,
-                          UserID, UserJID, RSM, Borders,
-                          Start, End, Now, WithJID,
-                          PageSize, LimitPassed, MaxResultLimit,
-                          IsSimple)
+        do_lookup_messages(Host,
+                           UserID, UserJID, RSM, Borders,
+                           Start, End, Now, WithJID,
+                           PageSize, LimitPassed, MaxResultLimit,
+                           IsSimple, is_opt_count_supported_for(RSM))
     catch _Type:Reason ->
         S = erlang:get_stacktrace(),
         {error, {Reason, S}}
     end.
-
-lookup_messages_2(Host,
-                  UserID, UserJID = #jid{}, RSM, Borders,
-                  Start, End, Now, WithJID,
-                  PageSize, LimitPassed, MaxResultLimit,
-                  IsSimple) ->
-    lookup_messages_3(Host,
-                      UserID, UserJID, RSM, Borders,
-                      Start, End, Now, WithJID,
-                      PageSize, LimitPassed, MaxResultLimit,
-                      IsSimple, is_opt_count_supported_for(RSM)).
 
 %% Not supported:
 %% - #rsm_in{direction = aft, id = ID}
@@ -343,25 +332,30 @@ is_opt_count_supported_for(undefined) ->
 is_opt_count_supported_for(_) ->
     false.
 
-lookup_messages_3(Host, UserID, UserJID,
-                  RSM, Borders,
-                  Start, End, _Now, WithJID,
-                  PageSize, _LimitPassed, _MaxResultLimit, true, _) ->
+%% There are several strategies how to extract messages:
+%% - we can use regular query that requires counting;
+%% - we can reduce number of queries if we skip counting for small data sets;
+%% - sometimes we want not to count at all
+%%   (for example, our client side counts ones and keep the information)
+do_lookup_messages(Host, UserID, UserJID,
+                   RSM, Borders,
+                   Start, End, _Now, WithJID,
+                   PageSize, _LimitPassed, _MaxResultLimit, true, _) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     lookup_messages_simple(Host, UserID, UserJID, RSM, PageSize, Filter);
-lookup_messages_3(Host, UserID, UserJID,
-                  RSM, Borders,
-                  Start, End, _Now, WithJID,
-                  PageSize, _LimitPassed, _MaxResultLimit, opt_count, true) ->
+do_lookup_messages(Host, UserID, UserJID,
+                   RSM, Borders,
+                   Start, End, _Now, WithJID,
+                   PageSize, _LimitPassed, _MaxResultLimit, opt_count, true) ->
     %% Extract messages first than calculate offset and total count
     %% Useful for small result sets (less than one page, than one query is enough)
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     lookup_messages_opt_count(Host, UserID, UserJID, RSM, PageSize, Filter);
-lookup_messages_3(Host, UserID, UserJID,
-                  RSM, Borders,
-                  Start, End, _Now, WithJID,
-                  PageSize, LimitPassed, MaxResultLimit, _, _) ->
+do_lookup_messages(Host, UserID, UserJID,
+                   RSM, Borders,
+                   Start, End, _Now, WithJID,
+                   PageSize, LimitPassed, MaxResultLimit, _, _) ->
     %% Unsupported opt_count or just a regular query
     %% Calculate offset and total count first than extract messages
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
@@ -391,7 +385,7 @@ lookup_messages_simple(Host, UserID, UserJID,
     MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
 
-%% Cannot be optimized:
+%% Cases that cannot be optimized and used with this function:
 %% - #rsm_in{direction = aft, id = ID}
 %% - #rsm_in{direction = before, id = ID}
 lookup_messages_opt_count(Host, UserID, UserJID,

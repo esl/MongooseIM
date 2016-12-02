@@ -1,26 +1,30 @@
 .PHONY: rel deps test show_test_results
-
+LOG=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log; exit 1))
+SILENCE_COVER =  | grep -v "logs.*\\.coverdata"
+SILENCE_COVER += | grep -v "Analysis includes data from imported files"
+SILENCE_COVER += | grep -v "WARNING: Deleting data for module"
+LOG_SILENCE_COVER=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log $(SILENCE_COVER); exit 1))
 EJABBERD_DIR = apps/ejabberd
 EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
 XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
-DEVNODES = node1 node2 fed1
+DEVNODES = node1 node2 node3 fed1
 
 all: deps compile
 
 compile: rebar
-	./rebar $(OPTS) compile > $@.log 2>&1 || (cat $@.log; exit 1)
+	./rebar $(OPTS) compile > $(LOG)
 
 deps: rebar
-	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
+	./rebar get-deps > $(LOG)
 
 clean: rebar configure.out
 	rm -rf apps/*/logs
 	. ./configure.out && ./rebar clean
 
 quick_compile: rebar
-	./rebar $(OPTS) compile skip_deps=true > $@.log 2>&1 || (cat $@.log; exit 1)
+	./rebar $(OPTS) compile skip_deps=true > $(LOG)
 
 reload: quick_compile
 	@E=`ls ./rel/mongooseim/lib/ | grep ejabberd-2 | sort -r | head -n 1` ;\
@@ -32,9 +36,14 @@ reload_dev: quick_compile
 		rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_$$NODE/lib/$$E/ebin/ ;\
 	done
 
+# Run a single suite
+# Example to run apps/ejabberd/test/cassandra_SUITE.erl:
+# make ct SUITE=cassandra
 ct: deps quick_compile
-	@(if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
-		else ./rebar ct skip_deps=true; fi) > $@.log 2>&1 || (cat $@.log; exit 1)
+	@(if [ "$(SUITE)" ]; \
+		then ./rebar $(OPTS) ct suite=$(SUITE) skip_deps=true; \
+		else ./rebar $(OPTS) ct skip_deps=true; fi) \
+		> $(LOG_SILENCE_COVER)
 
 # This compiles and runs one test suite. For quick feedback/TDD.
 # Example:
@@ -52,6 +61,9 @@ test: test_deps
 test_preset: test_deps
 	cd test/ejabberd_tests; make test_preset
 
+rock:
+	@if [ "$(FILE)" ]; then elvis rock $(FILE);\
+	else tools/rock_changed.sh; fi
 
 run: deps compile quickrun
 
@@ -84,9 +96,6 @@ eunit: rebar deps
 	./rebar compile
 	./rebar skip_deps=true eunit
 
-configure:
-	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
-
 rel: certs rebar deps configure.out rel/vars.config
 	. ./configure.out && ./rebar compile generate -f
 
@@ -103,8 +112,8 @@ $(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config
 	@echo "building $@"
 	(. ./configure.out && \
 	 cd rel && \
-	 ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config) \
-		> $@.log 2>&1 || (cat $@.log; exit 1)
+	 DEVNODE=true ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config) \
+		> $(LOG)
 	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
 
 deps_dev:
@@ -114,13 +123,12 @@ devclean:
 	-@rm -rf dev/* > /dev/null 2>&1
 
 cover_report: /tmp/mongoose_combined.coverdata
-	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()' \
-		> $@.log 2>&1 || (cat $@.log; exit 1)
+	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()' > $(LOG)
 
 relclean:
 	rm -rf rel/mongooseim
 
-certs: fake_cert.pem fake_server.pem
+certs: fake_cert.pem fake_server.pem fake_dh_server.pem
 
 certs_priv: certs
 	@mkdir -p priv/ssl
@@ -135,6 +143,9 @@ fake_cert.pem:
 fake_server.pem:
 	cat fake_cert.pem fake_key.pem > fake_server.pem
 
+fake_dh_server.pem:
+	openssl dhparam -outform PEM -out fake_dh_server.pem 1024
+
 include dialyzer.mk
 
 xeplist: escript
@@ -142,9 +153,6 @@ xeplist: escript
 
 test_deps:
 	cd test/ejabberd_tests; make get-deps
-
-%:
-	@:
 
 install: configure.out rel
 	@. ./configure.out && tools/install

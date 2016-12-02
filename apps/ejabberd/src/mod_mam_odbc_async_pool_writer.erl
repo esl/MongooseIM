@@ -300,7 +300,7 @@ wait_flushing_before(Host, ArcID, End, Now) ->
     end.
 
 are_recent_entries_required(End, Now) when is_integer(End) ->
-    %% 1o seconds
+    %% 10 seconds
     End + 10000000 > Now;
 are_recent_entries_required(_End, _Now) ->
     true.

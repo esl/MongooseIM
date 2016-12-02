@@ -122,6 +122,7 @@
                     | {mongooseimctl_access_commands, list()}
                     | {loglevel, _}
                     | {max_fsm_queue, _}
+                    | {sasl_mechanisms, _}
                     | host_term().
 
 -type host_term() :: {acl, _, _}
@@ -267,13 +268,8 @@ normalize_hosts([Host|Hosts], PrepHosts) ->
             normalize_hosts(Hosts, [PrepHost|PrepHosts])
     end.
 
--ifdef(latin1_characters).
-host_to_binary(Host) ->
-    list_to_binary(Host).
--else.
 host_to_binary(Host) ->
     unicode:characters_to_binary(Host).
--endif.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Errors reading the config file
@@ -567,11 +563,19 @@ process_term(Term, State) ->
             add_option(registration_timeout, Timeout, State);
         {mongooseimctl_access_commands, ACs} ->
             add_option(mongooseimctl_access_commands, ACs, State);
+        {routing_modules, Mods} ->
+            add_option(routing_modules, Mods, State);
         {loglevel, Loglevel} ->
             ejabberd_loglevel:set(Loglevel),
             State;
         {max_fsm_queue, N} ->
             add_option(max_fsm_queue, N, State);
+        {sasl_mechanisms, Mechanisms} ->
+            add_option(sasl_mechanisms, Mechanisms, State);
+        {http_connections, HttpConnections} ->
+            add_option(http_connections, HttpConnections, State);
+        {all_metrics_are_global, Value} ->
+            add_option(all_metrics_are_global, Value, State);
         {_Opt, _Val} ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)
@@ -1004,7 +1008,7 @@ handle_local_config_add(#local_config{key = riak_server}) ->
 handle_local_config_add(#local_config{key = cassandra_servers}) ->
     mongoose_cassandra:start();
 handle_local_config_add(#local_config{key=Key} = El) ->
-    case Key of
+    case can_be_ignored(Key) of
         true ->
             ok;
         false ->
@@ -1162,7 +1166,7 @@ add_virtual_host(Host) ->
 
 -spec can_be_ignored(Key :: atom()) -> boolean().
 can_be_ignored(Key) when is_atom(Key) ->
-    L = [domain_certfile, s2s],
+    L = [domain_certfile, s2s, all_metrics_are_global],
     lists:member(Key,L).
 
 -spec remove_virtual_host(ejabberd:server()) -> any().

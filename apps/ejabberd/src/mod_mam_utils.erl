@@ -32,15 +32,16 @@
          is_complete_message/3,
          wrap_message/6,
          result_set/4,
-         result_query/1,
-         result_prefs/3,
+         result_query/2,
+         result_prefs/4,
          make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
          decode_optimizations/1,
          form_borders_decode/1,
-         form_decode_optimizations/1]).
+         form_decode_optimizations/1,
+         is_mam_result_message/1]).
 
 %% Forms
 -export([form_field_value_s/2,
@@ -98,7 +99,6 @@
 
 %% Constants
 rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
-mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 
 %% ----------------------------------------------------------------------
 %% Datetime types
@@ -422,24 +422,25 @@ result_set(FirstId, LastId, FirstIndexI, CountI)
         children = FirstEl ++ LastEl ++ [CountEl]}.
 
 
--spec result_query(jlib:xmlcdata() | jlib:xmlel()) -> jlib:xmlel().
-result_query(SetEl) ->
+-spec result_query(jlib:xmlcdata() | jlib:xmlel(), binary()) -> jlib:xmlel().
+result_query(SetEl, Namespace) ->
      #xmlel{
         name = <<"query">>,
-        attrs = [{<<"xmlns">>, mam_ns_binary()}],
+        attrs = [{<<"xmlns">>, Namespace}],
         children = [SetEl]}.
 
 -spec result_prefs(DefaultMode :: archive_behaviour(),
                    AlwaysJIDs :: [ejabberd:literal_jid()],
-                   NeverJIDs :: [ejabberd:literal_jid()]) -> jlib:xmlel().
-result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs) ->
+                   NeverJIDs :: [ejabberd:literal_jid()],
+                   Namespace :: binary()) -> jlib:xmlel().
+result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
     NeverEl  = #xmlel{name = <<"never">>,
                       children = encode_jids(NeverJIDs)},
     #xmlel{
        name = <<"prefs">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()},
+       attrs = [{<<"xmlns">>, Namespace},
                 {<<"default">>, atom_to_binary(DefaultMode, utf8)}],
        children = [AlwaysEl, NeverEl]
     }.
@@ -582,7 +583,22 @@ form_decode_optimizations(QueryEl) ->
         {<<"true">>, _}     -> true;
         {_, _}              -> false
     end.
-    
+
+
+is_mam_result_message(Packet = #xmlel{name = <<"message">>}) ->
+    Ns = maybe_get_result_namespace(Packet),
+    is_mam_namespace(Ns);
+is_mam_result_message(_) ->
+    false.
+
+maybe_get_result_namespace(Packet) ->
+    xml:get_path_s(Packet, [{elem, <<"result">>}, {attr, <<"xmlns">>}]).
+
+is_mam_namespace(?NS_MAM)    -> true;
+is_mam_namespace(?NS_MAM_03) -> true;
+is_mam_namespace(?NS_MAM_04) -> true;
+is_mam_namespace(_)          -> false.
+
 
 %% -----------------------------------------------------------------------
 %% Forms
@@ -627,10 +643,11 @@ field_to_value(FieldEl) ->
 
 -spec message_form(binary()) -> jlib:xmlel().
 message_form(MamNs) ->
-    #xmlel{name = <<"x">>,
+    SubEl = #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, <<"jabber:x:data">>},
                     {<<"type">>, <<"form">>}],
-           children = message_form_fields(MamNs)}.
+           children = message_form_fields(MamNs)},
+    result_query(SubEl, MamNs).
 
 message_form_fields(MamNs) ->
     [form_type_field(MamNs),
@@ -642,7 +659,8 @@ form_type_field(MamNs) when is_binary(MamNs) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"type">>, <<"hidden">>},
                     {<<"var">>, <<"FORM_TYPE">>}],
-           children = [#xmlcdata{content = MamNs}]}.
+           children = [#xmlel{name = <<"value">>,
+                              children = [#xmlcdata{content = MamNs}]}]}.
 
 form_field(Type, VarName) ->
     #xmlel{name = <<"field">>,
@@ -721,12 +739,12 @@ test_jids() ->
      <<"bob@street/mobile">>].
 
 check_stringprep() ->
-    is_loaded_application(p1_stringprep) orelse start_stringprep().
+    is_loaded_application(stringprep) orelse start_stringprep().
 
 start_stringprep() ->
     EJ = code:lib_dir(ejabberd),
-    code:add_path(filename:join([EJ, "..", "..", "deps", "p1_stringprep", "ebin"])),
-    ok = application:start(p1_stringprep).
+    code:add_path(filename:join([EJ, "..", "..", "deps", "stringprep", "ebin"])),
+    ok = application:start(stringprep).
 
 is_loaded_application(AppName) when is_atom(AppName) ->
     lists:keymember(AppName, 1, application:loaded_applications()).
@@ -862,7 +880,7 @@ success_sql_query(Host, Query) ->
         {error, Reason} ->
             ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p~n",
                        [Host, Query, Reason]),
-            error(sql_error);
+            error({sql_error, Reason});
         Result ->
             Result
     end.

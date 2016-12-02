@@ -296,6 +296,7 @@ wait_flushing_before(Host, ArcID, End, Now) ->
     end.
 
 
+%% @doc Returns true, if `End' is too old.
 -spec are_recent_entries_required(mod_mam:unix_timestamp(),
                                   mod_mam:unix_timestamp()) -> boolean().
 are_recent_entries_required(End, Now) when is_integer(End) ->

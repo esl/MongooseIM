@@ -35,27 +35,27 @@
 %% External exports
 -behaviour(ejabberd_gen_auth).
 -export([start/1,
-    stop/1,
-    start_link/1,
-    set_password/3,
-    check_password/3,
-    check_password/5,
-    try_register/3,
-    dirty_get_registered_users/0,
-    get_vh_registered_users/1,
-    get_vh_registered_users/2,
-    get_vh_registered_users_number/1,
-    get_vh_registered_users_number/2,
-    get_password/2,
-    get_password_s/2,
-    does_user_exist/2,
-    remove_user/2,
-    remove_user/3,
-    store_type/1,
-    plain_password_required/0]).
+         stop/1,
+         start_link/1,
+         set_password/3,
+         authorize/1,
+         try_register/3,
+         dirty_get_registered_users/0,
+         get_vh_registered_users/1,
+         get_vh_registered_users/2,
+         get_vh_registered_users_number/1,
+         get_vh_registered_users_number/2,
+         get_password/2,
+         get_password_s/2,
+         does_user_exist/2,
+         remove_user/2,
+         remove_user/3,
+         store_type/1
+        ]).
 
-%% Exported for behaviour but not implemented
--export([login/2, get_password/3]).
+%% Internal
+-export([check_password/3,
+         check_password/5]).
 
 -export([config_change/4]).
 
@@ -134,15 +134,17 @@ init(Host) ->
 
 store_type(_) -> external.
 
-plain_password_required() -> true.
-
-
 config_change(Acc, Host, ldap, _NewConfig) ->
     stop(Host),
     start(Host),
     Acc;
 config_change(Acc, _, _, _) ->
     Acc.
+
+-spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
+                                           | {error, any()}.
+authorize(Creds) ->
+    ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
 -spec check_password(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver(),
@@ -550,7 +552,3 @@ check_filter(F) ->
     {ok, _} = eldap_filter:parse(NewF),
     NewF.
 
-
-%% @doc gen_auth unimplemented callbacks
-login(_LUser, _LServer) -> erlang:error(not_implemented).
-get_password(_LUser, _LServer, _DefaultValue) -> erlang:error(not_implemented).

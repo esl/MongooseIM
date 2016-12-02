@@ -25,7 +25,8 @@
 -define(RT_WINDOW, 3).  % seconds
 
 -import(metrics_helper, [assert_counter/2,
-                      get_counter_value/1]).
+                         assert_counter/3,
+                         get_counter_value/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -112,7 +113,7 @@ session_global(Config) ->
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
-        assert_counter(1, [global, totalSessionCount])
+        assert_counter(global, 1, totalSessionCount)
 
         end).
 
@@ -120,7 +121,7 @@ session_unique(Config) ->
     escalus:story(Config, [{alice, 2}], fun(_Alice1, _Alice2) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
-        assert_counter(1, [global, uniqueSessionCount]),
-        assert_counter(2, [global, totalSessionCount])
+        assert_counter(global, 1, uniqueSessionCount),
+        assert_counter(global, 2, totalSessionCount)
 
         end).

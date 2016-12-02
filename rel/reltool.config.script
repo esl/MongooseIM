@@ -1,10 +1,42 @@
-{ok, Path} = file:get_cwd(),
-EnvApps = os:getenv("APPS"),
-EnvApps =/= false orelse error("APPS not defined"),
-EnvAppsToInclude = [ list_to_atom(App)
-                     || App <- string:tokens(EnvApps, " \n\r") ],
+MaybeReadFromConfig =
+fun ({ok, Content}) ->
+        Parts = binary:split(Content, <<"\n">>, [global]),
+	%% find only this line which starts with "export APPS="
+	[Apps] = [Item || <<"export APPS=\"",Item/binary>> <- Parts],
+	%% remove trailing " and conver to string
+	binary_to_list(binary:part(Apps, 0, size(Apps) - 1));
+    (_) ->
+        io:format("WARNING! The configure.out file was not created, using minimal configuration~n"),
+	""
+end,
+
+ReadFromConfig = fun(Path) ->
+    case filelib:is_file(Path) of
+        true ->
+	    MaybeReadFromConfig(file:read_file(Path));
+        _ ->
+	    Script = filename:join(["..", "tools", "configure"]),
+	    os:cmd(Script ++ " with-all"),
+	    MaybeReadFromConfig(file:read_file("configure.out"))
+  end
+end,
+
+GetEnvApps = fun() ->
+    case os:getenv("APPS") of
+        false ->
+	  ConfigurePath = filename:join("..", "configure.out"),
+	  ReadFromConfig(ConfigurePath);
+	EnvApps ->
+	   EnvApps
+    end
+end,
+
+EnvApps = GetEnvApps(),
+EnvAppsToInclude = [ list_to_atom(App) || App <- string:tokens(EnvApps, " \n\r") ],
 AppsToRun = [compiler,
              lager,
+             syslog,
+             lager_syslog,
              kernel,
              mnesia,
              sasl,
@@ -13,12 +45,13 @@ AppsToRun = [compiler,
              ejabberd,
              inets,
              syntax_tools,
-             p1_stringprep,
+             stringprep,
              xmerl,
              exml,
              cowboy,
              fusco,
-             exometer],
+             exometer,
+             fast_tls],
 
 BaseAppsToInclude = AppsToRun ++
                     [asn1,
@@ -31,7 +64,8 @@ BaseAppsToInclude = AppsToRun ++
                      cowlib,
                      bear,
                      mochijson2,
-                     p1_cache_tab,
+                     jiffy,
+                     cache_tab,
                      pa,
                      usec,
                      base16,
@@ -39,9 +73,18 @@ BaseAppsToInclude = AppsToRun ++
                      alarms,
                      idna,
                      recon,
-                     setup],
+                     poolboy,
+		     uuid,
+                     setup,
+                     exometer_core
+                     ],
 
-AppsToIncludeIn = BaseAppsToInclude ++ EnvAppsToInclude,
+DevAppsToInclude = case os:getenv("DEVNODE") of
+                       false -> [];
+                       _ -> [meck]
+                   end.
+
+AppsToIncludeIn = BaseAppsToInclude ++ EnvAppsToInclude ++ DevAppsToInclude,
 
 AppsToInclude = ordsets:to_list(ordsets:from_list(AppsToIncludeIn)),
 
@@ -75,6 +118,7 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
            {copy, "../fake_cert.pem", "priv/ssl/fake_cert.pem"},
            {copy, "../fake_key.pem", "priv/ssl/fake_key.pem"},
            {copy, "../fake_server.pem", "priv/ssl/fake_server.pem"},
+           {copy, "../fake_dh_server.pem", "priv/ssl/fake_dh_server.pem"},
 
            {copy, "files/erl", "\{\{erts_vsn\}\}/bin/erl"},
            {copy, "files/nodetool", "\{\{erts_vsn\}\}/bin/nodetool"},

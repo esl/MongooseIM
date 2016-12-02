@@ -39,7 +39,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--type xmlel_or_cdata() :: jlib:xmlel() | jlib:xmlcdata().
+-type xmlel_or_cdata() :: jlib:xmlch().
 
 -spec remove_cdata_p(xmlel_or_cdata()) -> boolean().
 remove_cdata_p(#xmlel{}) -> true;
@@ -121,7 +121,8 @@ append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
     XE#xmlel{children = SubTags1 ++ SubTags2}.
 
 
--spec get_path_s(jlib:xmlel(), [{elem, binary()} | {attr, binary()} | cdata]) -> binary().
+-spec get_path_s(jlib:xmlel(), [{elem, binary()} | {attr, binary()} | cdata]) ->
+    iodata() | jlib:xmlel().
 get_path_s(El, []) ->
     El;
 get_path_s(El, [{elem, Name} | Path]) ->

@@ -28,7 +28,7 @@
 
 -author('stephen.roettger@googlemail.com').
 
--export([start/1, stop/0, mech_new/4, mech_step/2]).
+-export([start/1, stop/0, mech_new/2, mech_step/2]).
 
 -include("ejabberd.hrl").
 
@@ -41,11 +41,11 @@
          stored_key = <<"">>   :: binary(),
          server_key = <<"">>   :: binary(),
          username = <<"">>     :: binary(),
-         get_password          :: fun(),
-         check_password        :: fun(),
+         creds                 :: mongoose_credentials:t(),
          auth_message = <<"">> :: binary(),
          client_nonce = <<"">> :: binary(),
-         server_nonce = <<"">> :: binary()}).
+         server_nonce = <<"">> :: binary(),
+         auth_module           :: ejabberd_gen_auth:t()}).
 
 -define(SALT_LENGTH, 16).
 
@@ -57,9 +57,8 @@ start(_Opts) ->
 
 stop() -> ok.
 
-mech_new(_Host, GetPassword, _CheckPassword,
-         _CheckPasswordDigest) ->
-    {ok, #state{step = 2, get_password = GetPassword}}.
+mech_new(_Host, Creds) ->
+    {ok, #state{step = 2, creds = Creds}}.
 
 mech_step(#state{step = 2} = State, ClientIn) ->
     case re:split(ClientIn, <<",">>, [{return, binary}]) of
@@ -76,9 +75,11 @@ mech_step(#state{step = 2} = State, ClientIn) ->
                         UserName ->
                             case parse_attribute(ClientNonceAttribute) of
                                 {$r, ClientNonce} ->
-                                    case (State#state.get_password)(UserName) of
+                                    Creds = State#state.creds,
+                                    LServer = mongoose_credentials:lserver(Creds),
+                                    case ejabberd_auth:get_password_with_authmodule(UserName, LServer) of
                                         {false, _} -> {error, <<"not-authorized">>, UserName};
-                                        {Ret, _AuthModule} ->
+                                        {Ret, AuthModule} ->
                                             {StoredKey, ServerKey, Salt, IterationCount} =
                                             if is_tuple(Ret) -> Ret;
                                                true ->
@@ -116,7 +117,8 @@ mech_step(#state{step = 2} = State, ClientIn) ->
                                                            ",", ServerFirstMessage/binary>>,
                                                          client_nonce = ClientNonce,
                                                          server_nonce = ServerNonce,
-                                                         username = UserName}}
+                                                         username = UserName,
+                                                         auth_module = AuthModule}}
                                     end;
                                 _Else -> {error, <<"not-supported">>}
                             end
@@ -156,9 +158,11 @@ mech_step(#state{step = 4} = State, ClientIn) ->
                                                   ServerSignature =
                                                   scram:server_signature(State#state.server_key,
                                                                          AuthMessage),
-                                                  {ok, [{username, State#state.username}],
-                                                   <<"v=",
-                                                     (jlib:encode_base64(ServerSignature))/binary>>};
+                                                  R = [{username, State#state.username},
+                                                       {sasl_success_response,
+                                                        <<"v=", (jlib:encode_base64(ServerSignature))/binary>>},
+                                                       {auth_module, State#state.username}],
+                                                  {ok, mongoose_credentials:extend(State#state.creds, R)};
                                               true -> {error, <<"bad-auth">>}
                                            end;
                                        _Else -> {error, <<"bad-protocol">>}

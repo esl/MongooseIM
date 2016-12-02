@@ -9,12 +9,22 @@
 
 -export([set_and_activate/2,
          set_list/2,
+         set_list/3,
          send_set_list/2,
          activate_list/2,
          set_default_list/2,
          privacy_list/1,
+         gets_error/2,
+         gets_error/3,
          is_privacy_list_push/1,
          is_presence_error/1]).
+
+gets_error(Who, Type) ->
+    gets_error(Who, <<"cancel">>, Type).
+
+gets_error(Who, Type, Subtype) ->
+    Response = escalus_client:wait_for_stanza(Who),
+    escalus_assert:is_error(Response, Type, Subtype).
 
 %% Sets the list on server and makes it the active one.
 set_and_activate(Client, ListName) ->
@@ -29,8 +39,21 @@ send_set_list(Client, ListName) ->
 %% Sets the list on server.
 set_list(Client, ListName) ->
     Stanza = send_set_list(Client, ListName),
+    verify_set_list_response(Client),
+    verify_list(Client, ListName, Stanza).
+
+set_list(Client, ListName, NewItems) ->
+    PrivacyList = escalus_stanza:privacy_list(ListName, NewItems),
+    Stanza = escalus_stanza:privacy_set_list(PrivacyList),
+    escalus:send(Client, Stanza),
+    verify_set_list_response(Client),
+    verify_list(Client, ListName, Stanza).
+
+verify_set_list_response(Client) ->
     Responses = escalus:wait_for_stanzas(Client, 2),
-    escalus:assert_many([is_iq_result, is_privacy_set], Responses),
+    escalus:assert_many([is_iq_result, is_privacy_set], Responses).
+
+verify_list(Client, ListName, Stanza) ->
     GetStanza = escalus_stanza:privacy_get_lists([ListName]),
     escalus:send(Client, GetStanza),
     GetResultStanza = escalus:wait_for_stanza(Client),
@@ -94,6 +117,11 @@ is_presence_error(Stanza) ->
 privacy_list(Name) ->
     escalus_stanza:privacy_list(Name, list_content(Name)).
 
+% Geralt is not used by the privacy tests, but lists have to have
+% at least one element so we use him for a no-op.
+list_content(<<"noop_list">>) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, geralt, [])
+    ];
 list_content(<<"deny_bob">>) -> [
         escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [])
     ];
@@ -124,7 +152,11 @@ list_content(<<"deny_all_message_but_subscription_both">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"allow">>, <<"subscription">>, <<"both">>, [<<"message">>]),
         escalus_stanza:privacy_list_item(<<"2">>, <<"deny">>, [<<"message">>])
     ];
-
+list_content(<<"deny_not_both_presence_out">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"subscription">>, <<"from">>, [<<"presence-out">>]),
+        escalus_stanza:privacy_list_item(<<"2">>, <<"deny">>, <<"subscription">>, <<"to">>, [<<"presence-out">>]),
+        escalus_stanza:privacy_list_item(<<"3">>, <<"deny">>, <<"subscription">>, <<"none">>, [<<"presence-out">>])
+    ];
 list_content(<<"deny_bob_presence_in">>) -> [
         escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [<<"presence-in">>])
     ];
