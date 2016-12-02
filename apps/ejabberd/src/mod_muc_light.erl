@@ -218,14 +218,14 @@ process_packet(From, To, {ok, {get, #disco_info{} = DI}}, _OrigPacket) ->
 process_packet(From, To, {ok, {get, #disco_items{} = DI}}, OrigPacket) ->
     handle_disco_items_get(From, To, DI, OrigPacket);
 process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, OrigPacket) ->
+    RouteFun = fun ejabberd_router:route/3,
     case get_opt(To#jid.lserver, blocking, ?DEFAULT_BLOCKING) of
         true ->
             case handle_blocking(From, To, Blocking) of
                 ok ->
                     ok;
                 Error ->
-                    mod_muc_light_codec_backend:encode_error(Error, From, To, OrigPacket,
-                                                     fun ejabberd_router:route/3)
+                    mod_muc_light_codec_backend:encode_error(Error, From, To, OrigPacket, RouteFun)
             end;
         false -> mod_muc_light_codec_backend:encode_error(
                    {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
@@ -338,15 +338,14 @@ process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
     case {mod_muc_light_codec_backend:decode(From, To, IQ),
           get_opt(MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->
-            case lists:any(fun({_, _, {WhoU, WhoS}}) ->
-                                   WhoU =:= <<>> orelse WhoS =:= <<>>
-                           end, Items) of
+            RouteFun = fun(_, _, Packet) -> put(encode_res, Packet) end,
+            ConditionFun = fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end,
+            case lists:any(ConditionFun, Items) of
                 true ->
                     {stop, {error, ?ERR_BAD_REQUEST}};
                 false ->
                     ok = mod_muc_light_db_backend:set_blocking(jid:to_lus(From), MUCHost, Items),
-                    mod_muc_light_codec_backend:encode(Blocking, From, jid:to_lus(To),
-                                  fun(_, _, Packet) -> put(encode_res, Packet) end),
+                    mod_muc_light_codec_backend:encode(Blocking, From, jid:to_lus(To), RouteFun),
                     #xmlel{ children = ResponseChildren } = erase(encode_res),
                     {stop, {result, ResponseChildren}}
             end;
@@ -475,16 +474,16 @@ handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
         Rooms ->
             RoomsInfo = get_rooms_info(lists:sort(Rooms)),
             RoomsPerPage = get_opt(To#jid.lserver, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
+            RouteFun = fun ejabberd_router:route/3,
             case apply_rsm(RoomsInfo, length(RoomsInfo),
                            page_service_limit(DiscoItems0#disco_items.rsm, RoomsPerPage)) of
                 {ok, RoomsInfoSlice, RSMOut} ->
                     DiscoItems = DiscoItems0#disco_items{ rooms = RoomsInfoSlice, rsm = RSMOut },
                     mod_muc_light_codec_backend:encode({get, DiscoItems}, From, jid:to_lus(To),
-                                  fun ejabberd_router:route/3);
+                                                       RouteFun);
                 {error, item_not_found} ->
-                    mod_muc_light_codec_backend:encode_error(
-                      {error, item_not_found}, From, To, OrigPacket, fun ejabberd_router:route/3)
-
+                    mod_muc_light_codec_backend:encode_error({error, item_not_found},
+                                                             From, To, OrigPacket, RouteFun)
             end
     end.
 
