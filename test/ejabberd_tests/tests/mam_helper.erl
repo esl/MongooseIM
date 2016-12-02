@@ -1058,9 +1058,9 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     rpc_apply(jid, make, [U, S, R]).
 
--spec backend() -> odbc | riak | false.
+-spec backend() -> odbc | riak | cassandra | false.
 backend() ->
-    Funs = [fun maybe_odbc/1, fun maybe_riak/1],
+    Funs = [fun maybe_odbc/1, fun maybe_riak/1, fun maybe_cassandra/1],
     determine_backend(host(), Funs).
 
 determine_backend(_, []) ->
@@ -1089,8 +1089,16 @@ maybe_riak(Host) ->
             false
     end.
 
+maybe_cassandra(Host) ->
+    case is_cassandra_enabled(Host) of
+        true ->
+            cassandra;
+        _ ->
+            false
+    end.
+
 is_mam_possible(Host) ->
-    is_odbc_enabled(Host) orelse is_riak_enabled(Host).
+    is_odbc_enabled(Host) orelse is_riak_enabled(Host) orelse is_cassandra_enabled(Host).
 
 is_odbc_enabled(Host) ->
     case sql_transaction(Host, fun erlang:now/0) of
@@ -1106,6 +1114,23 @@ is_riak_enabled(_Host) ->
             true;
         _ ->
             false
+    end.
+
+is_cassandra_enabled(_) ->
+    case escalus_ejabberd:rpc(mongoose_cassandra_sup, get_all_workers, []) of
+        [_|_]=_Pools ->
+            true;
+        _ ->
+            false
+    end.
+
+
+maybe_wait_for_cassandra(Config) ->
+    case ?config(ca_wait, Config) of
+        undefined ->
+            ok;
+        Value ->
+            timer:sleep(Value)
     end.
 
 sql_transaction(Host, F) ->
