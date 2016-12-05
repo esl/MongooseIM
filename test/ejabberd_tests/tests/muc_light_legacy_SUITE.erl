@@ -126,8 +126,13 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    Backend = case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
+                  true -> odbc;
+                  false -> mnesia
+              end,
     dynamic_modules:start(<<"localhost">>, mod_muc_light,
                           [{host, binary_to_list(?MUCHOST)},
+                           {backend, Backend},
                            {legacy_mode, true}]),
     Config1 = escalus:init_per_suite(Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).

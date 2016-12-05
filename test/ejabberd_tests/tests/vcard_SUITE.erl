@@ -266,7 +266,7 @@ server_vcard(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              ServJID = escalus_ct:get_config(ejabberd_domain),
+              ServJID = ct:get_config({hosts, mim, domain}),
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request(ServJID)),
               ServerVCardTups = get_server_vcard(ServJID, Config),
@@ -288,7 +288,7 @@ vcard_service_discovery(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-          ServJID = escalus_ct:get_config(ejabberd_domain),
+          ServJID = ct:get_config({hosts, mim, domain}),
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:disco_info(ServJID)),
               escalus:assert(is_iq_result, Res),
@@ -367,7 +367,7 @@ search_some(Config) ->
 
               %% Basically test that the right values exist
               %% and map to the right column headings
-              Domain = escalus_ct:get_config(ejabberd_domain),
+              Domain = ct:get_config({hosts, mim, domain}),
               AliceJID = <<"alice@", Domain/binary>>,
 
               [{AliceJID, ItemTups}] = search_result_item_tuples(Res),
@@ -379,7 +379,7 @@ search_wildcard(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
-                Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -411,7 +411,7 @@ search_some_many_fields(Config) ->
       end).
 
 search_vcard_by_many_fields(Client) ->
-    Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+    Domain = ct:get_config({hosts, mim, secondary_domain}),
     DirJID = <<"vjud.", Domain/binary>>,
 
     Fields = [{get_first_name_search_field(), <<"Alice">>},
@@ -462,8 +462,8 @@ search_open_limited(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Server = escalus_ct:get_config(ejabberd_domain),
-              DirJID = <<"directory.",Server/binary>>,
+              Server = ct:get_config({hosts, mim, domain}),
+              DirJID = <<"directory.", Server/binary>>,
               Fields = [null],
               Res = escalus:send_and_wait(Client,
                            escalus_stanza:search_iq(DirJID,
@@ -477,7 +477,7 @@ search_some_limited(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+              Domain = ct:get_config({hosts, mim, secondary_domain}),
               DirJID = <<"directory.", Domain/binary>>,
               Server = escalus_client:server(Client),
               Fields = [{get_last_name_search_field(), <<"Doe">>}],
@@ -500,8 +500,8 @@ search_in_service_discovery(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              ServJID = escalus_ct:get_config(ejabberd_domain),
-              DirJID = <<"directory.",ServJID/binary>>,
+              ServJID = ct:get_config({hosts, mim, domain}),
+              DirJID = <<"directory.", ServJID/binary>>,
 
               %% Item
               ItemsRes = escalus:send_and_wait(Client,
@@ -541,7 +541,7 @@ search_not_in_service_discovery(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              ServJID = escalus_ct:get_config(ejabberd_domain),
+              ServJID = ct:get_config({hosts, mim, domain}),
               DirJID = ?config(directory_jid, Config),
               %% Item
               ItemsRes = escalus:send_and_wait(Client,
@@ -702,18 +702,18 @@ restart_vcard_mod(Config, _GN) ->
     restart_mod(params_all(Config)).
 
 start_running_vcard_mod(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     OriginalVcardConfig = ?config(mod_vcard, Config),
     dynamic_modules:start(Domain, mod_vcard, OriginalVcardConfig).
 stop_running_vcard_mod(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     CurrentConfigs = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
     dynamic_modules:stop(Domain, mod_vcard),
     [{mod_vcard, CurrentVcardConfig} | Config].
 
 stop_vcard_mod(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Domain, mod_vcard).
 
 params_all(Config) ->
@@ -752,8 +752,8 @@ add_backend_param(Opts, CurrentVCardConfig) ->
 
 
 restart_mod(Params) ->
-    Domain = escalus_ct:get_config(ejabberd_domain),
-    SecDomain = escalus_ct:get_config(ejabberd_secondary_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
+    SecDomain = ct:get_config({hosts, mim, secondary_domain}),
     dynamic_modules:stop(Domain, mod_vcard),
     dynamic_modules:stop(SecDomain, mod_vcard),
     {ok, _Pid} = dynamic_modules:start(Domain, mod_vcard, Params),
@@ -1084,6 +1084,4 @@ vcard_result_mapping(_) -> undefined.
 
 get_utf8_city() ->
     %% This is the UTF-8 of Москва
-    <<208,156,208,190,209,129,208,186,208,178,208,176>>.
-
-
+    <<208, 156, 208, 190, 209, 129, 208, 186, 208, 178, 208, 176>>.

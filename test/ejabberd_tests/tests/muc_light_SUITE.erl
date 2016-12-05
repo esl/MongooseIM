@@ -191,8 +191,13 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    Backend = case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
+                  true -> odbc;
+                  false -> mnesia
+              end,
     dynamic_modules:start(<<"localhost">>, mod_muc_light,
                           [{host, binary_to_list(?MUCHOST)},
+                           {backend, Backend},
                            {rooms_in_rosters, true}]),
     Config1 = escalus:init_per_suite(Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike, carol])).
@@ -293,7 +298,8 @@ disco_service(Config) ->
             escalus:send(Alice, escalus_stanza:service_discovery(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(has_service, [?MUCHOST], Stanza),
-            escalus:assert(is_stanza_from, [escalus_config:get_config(ejabberd_domain, Config)], Stanza)
+            escalus:assert(is_stanza_from,
+              [ct:get_config({hosts, mim, domain})], Stanza)
         end).
 
 disco_features(Config) ->
@@ -1171,10 +1177,11 @@ set_default_mod_config() ->
 set_custom_config(RawSchema, RawDefaultConfig) ->
     ConfigSchema = rpc(mod_muc_light_utils, make_config_schema, [RawSchema]),
     _ = hd(ConfigSchema), %% checks if is a list
-    set_mod_config(config_schema, ConfigSchema),
 
     DefaultConfig = rpc(mod_muc_light_utils, make_default_config, [RawDefaultConfig, ConfigSchema]),
     _ = hd(DefaultConfig), %% checks if is a list
+
+    set_mod_config(config_schema, ConfigSchema),
     set_mod_config(default_config, DefaultConfig).
 
 -spec set_mod_config(K :: atom(), V :: any()) -> ok.
@@ -1188,4 +1195,3 @@ ns_muc_light_affiliations() ->
 -spec room2() -> binary().
 room2() ->
     ?ROOM2.
-

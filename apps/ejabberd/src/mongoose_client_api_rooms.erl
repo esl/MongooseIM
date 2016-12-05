@@ -89,7 +89,7 @@ to_json(Req, #{room := Room} = State) ->
             },
     {jiffy:encode(Resp), Req, State};
 to_json(Req, #{jid := #jid{luser = User, lserver = Server}} = State) ->
-    Rooms = mod_muc_light_db_backend:get_user_rooms({User, Server}),
+    Rooms = mod_muc_light_db_backend:get_user_rooms({User, Server}, undefined),
     RoomsMap = [get_room_details(RoomUS) || RoomUS <- Rooms],
     {jiffy:encode(lists:flatten(RoomsMap)), Req, State}.
 

@@ -121,8 +121,8 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config1).
 
 init_per_group(vcard, Config) ->
-    case escalus_ejabberd:rpc(gen_mod,get_module_opt,
-                              [ct:get_config(ejabberd_domain),
+    case escalus_ejabberd:rpc(gen_mod, get_module_opt,
+                              [ct:get_config({hosts, mim, domain}),
                                mod_vcard, backend, mnesia]) of
         ldap ->
             {skip, vcard_set_not_supported_with_ldap};
@@ -131,7 +131,9 @@ init_per_group(vcard, Config) ->
     end;
 
 init_per_group(roster_advanced, Config) ->
-    case escalus_ejabberd:rpc(gen_mod,get_module_opt,[ct:get_config(ejabberd_domain), mod_roster, backend, mnesia]) of
+    case escalus_ejabberd:rpc(gen_mod, get_module_opt,
+                             [ct:get_config({hosts, mim, domain}),
+                             mod_roster, backend, mnesia]) of
         mnesia ->
             Config;
         _ ->
@@ -273,7 +275,7 @@ delete_old_users(Config) ->
 delete_old_users_vhost(Config) ->
     {AliceName, Domain, _} = get_user_data(alice, Config),
     {KateName, Domain, KatePass} = get_user_data(kate, Config),
-    SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
+    SecDomain = ct:get_config({hosts, mim, secondary_domain}),
 
     {Mega, Secs, _} = erlang:now(),
     Now = Mega*1000000+Secs,
@@ -314,7 +316,7 @@ kick_session(Config) ->
 status(Config) ->
     escalus:story(Config, [{alice, 1}, {mike, 1}, {bob, 1}], fun(User1, User2, User3) ->
                 PriDomain = escalus_client:server(User1),
-                SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
+                SecDomain = ct:get_config({hosts, mim, secondary_domain}),
                 AwayPresence = escalus_stanza:presence_show(<<"away">>),
                 escalus_client:send(User2, AwayPresence),
 
@@ -335,7 +337,7 @@ sessions_info(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(User1, User2, User3) ->
                 Username1 = escalus_client:username(User1),
                 PriDomain = escalus_client:server(User1),
-                SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
+                SecDomain = ct:get_config({hosts, mim, secondary_domain}),
                 AwayPresence = escalus_stanza:presence_show(<<"away">>),
                 escalus_client:send(User2, AwayPresence),
 
@@ -814,7 +816,7 @@ stats_host(Config) ->
                 Registered = integer_to_list(RegisteredCount) ++ "\n",
 
                 PriDomain = escalus_client:server(Alice),
-                SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
+                SecDomain = ct:get_config({hosts, mim, secondary_domain}),
 
                 {Registered, 0} = ejabberdctl("stats_host", ["registeredusers", PriDomain], Config),
                 {"0\n", 0} = ejabberdctl("stats_host", ["registeredusers", SecDomain], Config),
@@ -833,7 +835,7 @@ stats_host(Config) ->
 
 simple_register(Config) ->
     %% given
-    Domain = escalus_ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     {Name, Password} = {<<"tyler">>, <<"durden">>},
     %% when
     {_, 0} = ejabberdctl("register", [Name, Domain, Password], Config),
@@ -843,7 +845,7 @@ simple_register(Config) ->
 
 simple_unregister(Config) ->
     %% given
-    Domain = escalus_ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     {Name, _} = {<<"tyler">>, <<"durden">>},
     %% when
     {_, 0} = ejabberdctl("unregister", [Name, Domain], Config),
@@ -853,7 +855,7 @@ simple_unregister(Config) ->
 
 register_twice(Config) ->
     %% given
-    Domain = escalus_ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     {Name,  Password} = {<<"tyler">>, <<"durden">>},
     %% when
     {_, 0} = ejabberdctl("register", [Name, Domain, Password], Config),
@@ -1000,7 +1002,7 @@ fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
 
 
 start_mod_admin_extra() ->
-    Domain = ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     ok = dynamic_modules:restart(Domain, mod_admin_extra, []).
 
 get_user_data(User, Config) when is_atom(User) ->

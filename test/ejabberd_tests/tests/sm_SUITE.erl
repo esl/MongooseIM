@@ -781,7 +781,7 @@ get_session_pid(UserSpec, Resource) ->
     end.
 
 clear_session_table() ->
-    Node = escalus_ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     SessionBackend  = escalus_ejabberd:rpc(ejabberd_sm_backend, backend, []),
     escalus_ejabberd:rpc(SessionBackend, cleanup, [Node]).
 
@@ -823,4 +823,3 @@ given_fresh_user_with_spec(Spec) ->
     escalus:wait_for_stanza(User),
     JID = get_bjid(Props),
     {User#client{jid  = JID}, Spec}.
-

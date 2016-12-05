@@ -23,7 +23,7 @@
 
 -import(reload_helper, [reload_through_ctl/2]).
 
--define(RELOADED_DOMAIN, ct:get_config(ejabberd_reloaded_domain)).
+-define(RELOADED_DOMAIN, ct:get_config({hosts, mim, reloaded_domain})).
 
 -define(SAMPLE_USERNAME, <<"astrid">>).
 -define(RELOADED_DOMAIN_USER, astrid).
@@ -46,7 +46,7 @@ groups() ->
        ]}].
 
 suite() ->
-    [{required, ejabberd_reloaded_domain} | escalus:suite()].
+    [{required, {hosts, mim, reloaded_domain}} | escalus:suite()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -185,6 +185,6 @@ delete_user(User, Config) ->
     escalus_users:delete_user(Config, {User, UserSpec}).
 
 default_node(Config) ->
-    Node = escalus_config:get_config(ejabberd_node, Config),
+    Node = ct:get_config({hosts, mim, node}),
     Node == undefined andalso error(node_undefined, [Config]),
     Node.

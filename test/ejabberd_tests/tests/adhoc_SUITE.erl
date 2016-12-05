@@ -55,12 +55,14 @@ end_per_testcase(CaseName, Config) ->
 ping(Config) ->
     escalus:story(Config, [{alice, 1}],
                   fun(Alice) ->
-                          %% Alice pings the server using adhoc command
-                          escalus_client:send(Alice, escalus_stanza:to(escalus_stanza:adhoc_request(<<"ping">>),
-                                                                       ct:get_config(ejabberd_domain))),
+                      Host = ct:get_config({hosts, mim, domain}),
+                      %% Alice pings the server using adhoc command
+                      escalus_client:send(Alice, escalus_stanza:to(
+                                      escalus_stanza:adhoc_request(<<"ping">>),
+                                      Host)),
 
-                          %% Server replies to Alice with pong
-                          AdHocResp = escalus_client:wait_for_stanza(Alice),
-                          escalus:assert(is_adhoc_response, [<<"ping">>, <<"completed">>],
-                                         AdHocResp)
+                      %% Server replies to Alice with pong
+                      AdHocResp = escalus_client:wait_for_stanza(Alice),
+                      escalus:assert(is_adhoc_response, [<<"ping">>, <<"completed">>],
+                                     AdHocResp)
                   end).

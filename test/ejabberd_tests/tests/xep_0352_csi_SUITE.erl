@@ -34,12 +34,12 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    Domain = escalus_ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Domain, mod_csi, [{buffer_max, ?CSI_BUFFER_MAX}]),
     [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
-    Domain = escalus_ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Domain, mod_csi),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
@@ -245,4 +245,3 @@ given_client_is_inactive(Alice) ->
 csi_stanza(Name) ->
     #xmlel{name = Name,
            attrs = [{<<"xmlns">>, <<"urn:xmpp:csi:0">>}]}.
-

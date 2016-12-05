@@ -102,11 +102,11 @@ is_sic_response() ->
 %%%===================================================================
 
 start_module(ModuleName, Options) ->
-    Args = [ct:get_config(ejabberd_domain), ModuleName, Options],
+    Args = [ct:get_config({hosts, mim, domain}), ModuleName, Options],
     escalus_ejabberd:rpc(gen_mod, start_module, Args).
 
 stop_module(ModuleName) ->
-    Args = [ct:get_config(ejabberd_domain), ModuleName],
+    Args = [ct:get_config({hosts, mim, domain}), ModuleName],
     escalus_ejabberd:rpc(gen_mod, stop_module, Args).
 
 sic_iq_get() ->

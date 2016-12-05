@@ -2659,7 +2659,8 @@ disco_service(Config) ->
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_service, [muc_host()], Stanza),
-        escalus:assert(is_stanza_from, [escalus_config:get_config(ejabberd_domain, Config)], Stanza)
+        escalus:assert(is_stanza_from,
+                       [ct:get_config({hosts, mim, domain})], Stanza)
     end).
 
 disco_features(Config) ->
@@ -4288,7 +4289,7 @@ stanza_get_services(Config) ->
     %%   <query xmlns='http://jabber.org/protocol/disco#items'/>
     %% </iq>
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), <<"to">>,
-        escalus_config:get_config(ejabberd_domain, Config)).
+        ct:get_config({hosts, mim, domain})).
 
 %%--------------------------------------------------------------------
 %% Helpers (assertions)
@@ -4559,4 +4560,3 @@ fresh_room_name(Username) ->
 
 fresh_room_name() ->
     fresh_room_name(base16:encode(crypto:rand_bytes(5))).
-

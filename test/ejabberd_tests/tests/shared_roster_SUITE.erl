@@ -135,7 +135,7 @@ add_user(Config) ->
 %%--------------------------------------------------------------------
 start_roster_module(ldap) ->
     case escalus_ejabberd:rpc(gen_mod, start_module,
-                              [ct:get_config(ejabberd_domain),
+                              [ct:get_config({hosts, mim, domain}),
                                mod_shared_roster_ldap, get_ldap_args()]) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [mod_shared_roster, Reason]);
@@ -145,7 +145,9 @@ start_roster_module(_) ->
     ok.
 
 stop_roster_module(ldap)->
-    case escalus_ejabberd:rpc(gen_mod, stop_module, [ct:get_config(ejabberd_domain), mod_shared_roster_ldap]) of
+    case escalus_ejabberd:rpc(gen_mod, stop_module,
+                              [ct:get_config({hosts, mim, domain}),
+                               mod_shared_roster_ldap]) of
         {badrpc, Reason} ->
             ct:fail("Cannot stop module ~p reason ~p", [mod_shared_roster_ldap, Reason]);
         _ -> ok
@@ -154,8 +156,9 @@ stop_roster_module(_)->
     ok.
 
 get_auth_method() ->
-    XMPPDomain = ct:get_config(ejabberd_domain),
-    escalus_ejabberd:rpc(ejabberd_config, get_local_option,[{auth_method, XMPPDomain}]).
+    XMPPDomain = ct:get_config({hosts, mim, domain}),
+    escalus_ejabberd:rpc(ejabberd_config, get_local_option,
+                         [{auth_method, XMPPDomain}]).
 
 get_ldap_args() ->
     [

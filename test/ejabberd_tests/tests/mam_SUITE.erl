@@ -93,7 +93,6 @@
 -import(mam_helper,
         [rpc_apply/3,
          rpc_call/3,
-         is_odbc_enabled/1,
          is_riak_enabled/1,
          is_cassandra_enabled/1,
          is_mam_possible/1,
@@ -179,7 +178,7 @@
 
 configurations() ->
     cassandra_configs(is_cassandra_enabled(host()))
-    ++ odbc_configs(is_odbc_enabled(host()))
+    ++ odbc_configs(mongoose_helper:is_odbc_enabled(host()))
     ++ riak_configs(is_riak_enabled(host())).
 
 odbc_configs(true) ->
@@ -1993,7 +1992,7 @@ mam_service_discovery(Config) ->
 muc_service_discovery(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        Domain = escalus_config:get_config(ejabberd_domain, Config),
+        Domain = ct:get_config({hosts, mim, domain}),
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),

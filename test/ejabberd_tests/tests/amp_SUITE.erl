@@ -15,10 +15,10 @@ all() -> [{group, Group} || Group <- enabled_group_names()].
 
 enabled_group_names() ->
     [basic, offline] ++
-        case is_odbc_enabled() of
-            true -> [mam];
-            false -> []
-        end.
+    case mongoose_helper:is_odbc_enabled(domain()) of
+        true -> [mam];
+        false -> []
+    end.
 
 groups() ->
     [{basic, [parallel], [{group, G} || G <- subgroup_names()] ++ basic_test_cases()},
@@ -736,10 +736,10 @@ client_receives_notification(Client, IntendedRecipient, Rule) ->
     assert_notification(Client, IntendedRecipient, Msg, Rule).
 
 disco_info(Config) ->
-    Server = escalus_config:get_config(ejabberd_domain, Config),
+    Server = ct:get_config({hosts, mim, domain}),
     escalus_stanza:disco_info(Server).
 disco_info_amp_node(Config) ->
-    Server = escalus_config:get_config(ejabberd_domain, Config),
+    Server = ct:get_config({hosts, mim, domain}),
     escalus_stanza:disco_info(Server, ns_amp()).
 
 assert_amp_error(Client, Response, Rules, AmpErrorKind) when is_list(Rules) ->
@@ -902,12 +902,6 @@ amp_error_container(<<"not-acceptable">>) -> <<"invalid-rules">>;
 amp_error_container(<<"unsupported-actions">>) -> <<"unsupported-actions">>;
 amp_error_container(<<"unsupported-conditions">>) -> <<"unsupported-conditions">>;
 amp_error_container(<<"undefined-condition">>) -> <<"failed-rules">>.
-
-is_odbc_enabled() ->
-    case escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [domain(), fun erlang:yield/0]) of
-        {atomic, _} -> true;
-        _ -> false
-    end.
 
 is_module_loaded(Mod) ->
     escalus_ejabberd:rpc(gen_mod, is_loaded, [domain(), Mod]).
