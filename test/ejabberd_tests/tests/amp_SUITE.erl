@@ -15,10 +15,10 @@ all() -> [{group, Group} || Group <- enabled_group_names()].
 
 enabled_group_names() ->
     [basic, offline] ++
-        case is_odbc_enabled() of
-            true -> [mam];
-            false -> []
-        end.
+    case mongoose_helper:is_odbc_enabled(domain()) of
+        true -> [mam];
+        false -> []
+    end.
 
 groups() ->
     [{basic, [parallel], [{group, G} || G <- subgroup_names()] ++ basic_test_cases()},
@@ -902,12 +902,6 @@ amp_error_container(<<"not-acceptable">>) -> <<"invalid-rules">>;
 amp_error_container(<<"unsupported-actions">>) -> <<"unsupported-actions">>;
 amp_error_container(<<"unsupported-conditions">>) -> <<"unsupported-conditions">>;
 amp_error_container(<<"undefined-condition">>) -> <<"failed-rules">>.
-
-is_odbc_enabled() ->
-    case escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [domain(), fun erlang:yield/0]) of
-        {atomic, _} -> true;
-        _ -> false
-    end.
 
 is_module_loaded(Mod) ->
     escalus_ejabberd:rpc(gen_mod, is_loaded, [domain(), Mod]).

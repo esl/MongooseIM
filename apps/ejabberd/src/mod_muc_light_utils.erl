@@ -30,6 +30,7 @@
 -export([change_aff_users/2]).
 -export([b2aff/1, aff2b/1]).
 -export([bin_ts/0]).
+-export([room_limit_reached/2]).
 -export([filter_out_prevented/3]).
 
 -include("jlib.hrl").
@@ -135,6 +136,12 @@ bin_ts() ->
     MicroB = integer_to_binary(Micro),
     <<MegaB/binary, $-, SecsB/binary, $-, MicroB/binary>>.
 
+-spec room_limit_reached(UserUS :: ejabberd:simple_bare_jid(), RoomS :: ejabberd:lserver()) ->
+    boolean().
+room_limit_reached(UserUS, RoomS) ->
+    room_limit_reached(
+      UserUS, RoomS, mod_muc_light:get_opt(RoomS, rooms_per_user, ?DEFAULT_ROOMS_PER_USER)).
+
 -spec filter_out_prevented(FromUS :: ejabberd:simple_bare_jid(),
                           RoomUS :: ejabberd:simple_bare_jid(),
                           AffUsers :: aff_users()) -> aff_users().
@@ -150,30 +157,47 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
                         false ->
                             undefined
                     end,
-    if
-        BlockingQuery == undefined andalso RoomsPerUser == infinity -> AffUsers;
-        true -> filter_out_loop(FromUS, BlockingQuery, RoomsPerUser, AffUsers)
+    case BlockingQuery == undefined andalso RoomsPerUser == infinity of
+        true -> AffUsers;
+        false -> filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, AffUsers)
     end.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
+%% ---------------- Checks ----------------
+
+-spec room_limit_reached(UserUS :: ejabberd:simple_bare_jid(),
+                         RoomS :: ejabberd:lserver(),
+                         RoomsPerUser :: infinity | pos_integer()) ->
+    boolean().
+room_limit_reached(_UserUS, _RoomS, infinity) ->
+    false;
+room_limit_reached(UserUS, RoomS, RoomsPerUser) ->
+    mod_muc_light_db_backend:get_user_rooms_count(UserUS, RoomS) >= RoomsPerUser.
+
 %% ---------------- Filter for blocking ----------------
 
 -spec filter_out_loop(FromUS :: ejabberd:simple_bare_jid(),
-                      BlockingQuery :: [{blocking_who(), ejabberd:simple_bare_jid()}],
+                      MUCServer :: ejabberd:lserver(),
+                      BlockingQuery :: [{blocking_what(), ejabberd:simple_bare_jid()}],
                       RoomsPerUser :: rooms_per_user(),
                       AffUsers :: aff_users()) -> aff_users().
-filter_out_loop(FromUS, BlockingQuery, RoomsPerUser, [{UserUS, _} = AffUser | RAffUsers]) ->
-    case (BlockingQuery == undefined orelse UserUS =:= FromUS
-          orelse ?BACKEND:get_blocking(UserUS, BlockingQuery) == allow)
-         andalso
-         (RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(UserUS)) < RoomsPerUser) of
-        true -> [AffUser | filter_out_loop(FromUS, BlockingQuery, RoomsPerUser, RAffUsers)];
-        false -> filter_out_loop(FromUS, BlockingQuery, RoomsPerUser, RAffUsers)
+filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser,
+                [{UserUS, _} = AffUser | RAffUsers]) ->
+    NotBlocked = case (BlockingQuery == undefined orelse UserUS =:= FromUS) of
+                     false -> mod_muc_light_db_backend:get_blocking(
+                                UserUS, MUCServer, BlockingQuery) == allow;
+                     true -> true
+                 end,
+    case NotBlocked andalso not room_limit_reached(FromUS, MUCServer, RoomsPerUser) of
+        true ->
+            [AffUser | filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)];
+        false ->
+            filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)
     end;
-filter_out_loop(_FromUS, _BlockingQuery, _RoomsPerUser, []) ->
+filter_out_loop(_FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, []) ->
     [].
 
 %% ---------------- Configuration processing ----------------

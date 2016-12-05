@@ -93,7 +93,6 @@
 -import(mam_helper,
         [rpc_apply/3,
          rpc_call/3,
-         is_odbc_enabled/1,
          is_riak_enabled/1,
          is_mam_possible/1,
          print_configuration_not_supported/2,
@@ -177,7 +176,7 @@
 
 
 configurations() ->
-    odbc_configs(is_odbc_enabled(host()))
+    odbc_configs(mongoose_helper:is_odbc_enabled(host()))
     ++ riak_configs(is_riak_enabled(host())).
 
 odbc_configs(true) ->

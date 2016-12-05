@@ -2,6 +2,8 @@
 
 %% API
 
+-export([is_odbc_enabled/1]).
+
 -export([auth_modules/0]).
 
 -export([total_offline_messages/0,
@@ -17,7 +19,14 @@
 
 -export([kick_everyone/0]).
 
--define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
+-define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
+
+-spec is_odbc_enabled(Host :: binary()) -> boolean().
+is_odbc_enabled(Host) ->
+    case escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [Host, fun erlang:yield/0]) of
+        {atomic, _} -> true;
+        _ -> false
+    end.
 
 -spec auth_modules() -> [atom()].
 auth_modules() ->
