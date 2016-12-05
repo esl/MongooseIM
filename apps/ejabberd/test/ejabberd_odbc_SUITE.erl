@@ -5,11 +5,8 @@
 
 -compile([export_all]).
 
--define(_eq(E, I), ?_assertEqual(E, I)).
--define(eq(E, I), ?assertEqual(E, I)).
--define(ne(E, I), ?assert(E =/= I)).
+-define(EQ(E, I), ?assertEqual(E, I)).
 
--define(HOST, <<"localhost">>).
 -define(KEEPALIVE_INTERVAL, 1).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 
@@ -58,19 +55,19 @@ end_per_testcase(_, Config) ->
 
 %% Test cases
 keepalive_interval(Config) ->
-    {ok, Pid} = ejabberd_odbc:start_link(?HOST, 1000, true),
+    {ok, Pid} = ejabberd_odbc:start_link(domain(), 1000, true),
     true = erlang:unlink(Pid),
     timer:sleep(5500),
-    ?eq(5, query_calls(Config)),
+    ?EQ(5, query_calls(Config)),
     true = erlang:exit(Pid, kill),
     ok.
 
 keepalive_exit(Config) ->
-    {ok, Pid} = ejabberd_odbc:start_link(?HOST, 1000, true),
+    {ok, Pid} = ejabberd_odbc:start_link(domain(), 1000, true),
     true = erlang:unlink(Pid),
     Monitor = erlang:monitor(process, Pid),
     timer:sleep(3500),
-    ?eq(3, query_calls(Config)),
+    ?EQ(3, query_calls(Config)),
     meck_error(?config(db_type, Config)),
     timer:sleep(1500),
     receive
@@ -166,3 +163,6 @@ server(mysql) ->
     {mysql, "fake-host", "fake-db", "fake-user", "fake-pass"};
 server(pgsql) ->
     {pgsql, "fake-host", "fake-db", "fake-user", "fake-pass"}.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).
