@@ -681,7 +681,7 @@ set_opts(State) ->
                         lists:foreach(fun(K) ->
                                               mnesia:delete({local_config, K})
                                       end, lists:delete(node_start, Ksl));
-                    true ->
+                    _ ->
                         ok
                 end,
                 case State of
@@ -690,7 +690,7 @@ set_opts(State) ->
                         lists:foreach(fun(K) ->
                                               mnesia:delete({acl, K})
                                       end, Ksa);
-                    true ->
+                    _ ->
                         ok
                 end,
                 lists:foreach(fun(R) ->
