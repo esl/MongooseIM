@@ -20,8 +20,8 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--define(DOMAIN1, <<"localhost">>).
--define(DOMAIN2, <<"localhost2">>).
+-define(DOMAIN1, domain()).
+-define(DOMAIN2, <<domain()/binary, "2">>).
 -define(AUTH_HOST, "http://localhost:12000").
 -define(BASIC_AUTH, "softkitty:purrpurrpurr").
 
@@ -194,3 +194,4 @@ do_scram(Pass, Config) ->
             Pass
     end.
 
+domain() -> ct:get_config({hosts, mim, domain}).

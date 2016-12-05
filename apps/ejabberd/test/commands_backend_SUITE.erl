@@ -8,7 +8,6 @@
 -include_lib("ejabberd/include/ejabberd_commands.hrl").
 
 -define(PORT, 5288).
--define(HOST, "localhost").
 -define(IP,  {127,0,0,1}).
 
 %% Error messages
@@ -111,7 +110,7 @@ setup(Module) ->
     %% HTTP API config
     Opts = [{num_acceptors, 10},
         {max_connections, 1024},
-        {modules, [{"localhost", "/api", Module, []}]}],
+        {modules, [{binary_to_list(domain()), "/api", Module, []}]}],
     ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
 
 teardown() ->
@@ -155,7 +154,7 @@ end_per_testcase(_, C) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 get_simple(_Config) ->
-    Arg = {arg1, <<"bob@localhost">>},
+    Arg = {arg1, <<"bob@", domain()/binary>>},
     Base = "/api/users",
     ExpectedBody = get_simple_command(element(2, Arg)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg]), "GET", admin),
@@ -190,7 +189,7 @@ post_simple_with_subcategory(_Config) ->
     check_location_header(Response, list_to_binary(build_path_prefix()++"/api/weather/10/subcategory/" ++ Result)).
 
 put_simple(_Config) ->
-    Binds = [{arg1, <<"username">>}, {arg2,<<"localhost">>}],
+    Binds = [{arg1, <<"username">>}, {arg2, domain()}],
     Args = [{arg3, <<"newusername">>}],
     Base = "/api/users",
     {ok, Response} = request(create_path_with_binds(Base, Binds), "PUT", Args, admin),
@@ -326,14 +325,14 @@ put_too_less_binds(_Config) ->
     check_status_code(Response, 404).
 
 put_wrong_bind_name(_Config) ->
-    Binds = [{usersrejm, <<"username">>}, {domain, <<"localhost">>}],
+    Binds = [{usersrejm, <<"username">>}, {domain, domain()}],
     Parameters = [{age, 20}, {kids, 3}],
     Base = "/api/dragons",
     {ok, Response} = request(create_path_with_binds(Base, Binds), "PUT", Parameters, admin),
     check_status_code(Response, 404).
 
 put_wrong_param_name(_Config) ->
-    Binds = [{username, <<"username">>}, {domain, <<"localhost">>}],
+    Binds = [{username, <<"username">>}, {domain, domain()}],
     Parameters = [{age, 20}, {srids, 3}],
     Base = "/api/dragons",
     {ok, Response} = request(create_path_with_binds(Base, Binds), "PUT", Parameters, admin),
@@ -344,9 +343,9 @@ put_wrong_param_name(_Config) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 get_simple_client(_Config) ->
-    Arg = {arg1, <<"bob@localhost">>},
+    Arg = {arg1, <<"bob@", domain()/binary>>},
     Base = "/api/clients",
-    Username = <<"username@localhost">>,
+    Username = <<"username@", domain()/binary>>,
     Auth = {binary_to_list(Username), "secret"},
     ExpectedBody = get_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg]), "GET", {Auth, true}),
@@ -354,10 +353,10 @@ get_simple_client(_Config) ->
     check_response_body(Response, ExpectedBody).
 
 get_two_args_client(_Config) ->
-    Arg1 = {other, <<"bob@localhost">>},
+    Arg1 = {other, <<"bob@", domain()/binary>>},
     Arg2 = {limit, 10},
     Base = "/api/message",
-    Username = <<"alice@localhost">>,
+    Username = <<"alice@", domain()/binary>>,
     Auth = {binary_to_list(Username), "secret"},
     ExpectedBody = get_two_args_client_command(Username, element(2, Arg1), element(2, Arg2)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg1, Arg2]), "GET", {Auth, true}),
@@ -365,9 +364,9 @@ get_two_args_client(_Config) ->
     check_response_body(Response, ExpectedBody).
 
 get_bad_auth(_Config) ->
-    Arg = {arg1, <<"bob@localhost">>},
+    Arg = {arg1, <<"bob@", domain()/binary>>},
     Base = "/api/clients",
-    Username = <<"username@localhost">>,
+    Username = <<"username@", domain()/binary>>,
     Auth = {binary_to_list(Username), "secret"},
     get_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg]), "GET", {Auth, false}),
@@ -377,7 +376,7 @@ post_simple_client(_Config) ->
     Arg1 = {title, <<"Juliet's despair">>},
     Arg2 = {content, <<"If they do see thee, they will murder thee!">>},
     Base = <<"/api/ohmyromeo">>,
-    Username = <<"username@localhost">>,
+    Username = <<"username@", domain()/binary>>,
     Auth = {binary_to_list(Username), "secret"},
     Result = binary_to_list(post_simple_client_command(Username, element(2, Arg1), element(2, Arg2))),
     {ok, Response} = request(Base, "POST", [Arg1, Arg2], {Auth, true}),
@@ -387,7 +386,7 @@ post_simple_client(_Config) ->
 put_simple_client(_Config) ->
     Arg = {password, <<"ilovepancakes">>},
     Base = <<"/api/superusers">>,
-    Username = <<"joe@localhost">>,
+    Username = <<"joe@", domain()/binary>>,
     Auth = {binary_to_list(Username), "secretpassword"},
     put_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(Base, "PUT", [Arg], {Auth, true}),
@@ -396,7 +395,7 @@ put_simple_client(_Config) ->
 delete_simple_client(_Config) ->
     Arg = {name, <<"giant">>},
     Base = "/api/bikes",
-    Username = <<"username@localhost">>,
+    Username = <<"username@", domain()/binary>>,
     Auth = {binary_to_list(Username), "secret"},
     get_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg]), "DELETE", {Auth, true}),
@@ -613,7 +612,8 @@ delete_simple_client_command(_Username, _BikeName) ->
 %%%% utilities
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 build_path_prefix() ->
-    "http://" ++ ?HOST ++ ":" ++ integer_to_list(?PORT).
+    Host = binary_to_list(domain()),
+    "http://" ++ Host ++ ":" ++ integer_to_list(?PORT).
 
 maybe_add_body([]) ->
     [];
@@ -662,7 +662,7 @@ request(Path, "DELETE", Entity) ->
 -spec request(binary(), method(), list({atom(), any()}),
               {headers, list()} | admin | {{binary(), binary()}, boolean()}) -> any.
 do_request(Path, Method, Body, {headers, Headers}) ->
-    {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
+    {ok, Pid} = fusco:start_link(build_path_prefix(), []),
     R = fusco:request(Pid, Path, Method, Headers, Body, 5000),
     fusco:disconnect(Pid),
     teardown(),
@@ -705,3 +705,5 @@ check_location_header(Response, Path) ->
     {_, Headers, _, _ , _} = Response,
     Location = proplists:get_value(<<"location">>, Headers),
     ?assertEqual(Path, Location).
+
+domain() -> ct:get_config({hosts, mim, domain}).
