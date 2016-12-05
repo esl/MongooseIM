@@ -21,9 +21,6 @@
 
 -define(MAX_USERS_DEFAULT, 200).
 
--define(SETS, gb_sets).
--define(DICT, dict).
-
 -record(lqueue, {queue,
                  len :: non_neg_integer(),
                  max :: non_neg_integer()
@@ -76,10 +73,10 @@
                 access              :: mod_muc:access(),
                 jid                 :: ejabberd:jid(),
                 config = #config{}  :: mod_muc_room:config(),
-                users = ?DICT:new(),
-                sessions = ?DICT:new(),
-                robots = ?DICT:new(),
-                affiliations = ?DICT:new(),
+                users = dict:new(),
+                sessions = dict:new(),
+                robots = dict:new(),
+                affiliations = dict:new(),
                 history,
                 subject = <<>>,
                 subject_author = <<>>,
