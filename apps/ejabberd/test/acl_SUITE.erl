@@ -41,7 +41,7 @@ all_rule_returns_allow(_Config) ->
     JID = jid:make(<<"pawel">>, <<"phost">>, <<"test">>),
     ?assertEqual(allow, acl:match_rule(global, all, JID)),
     ?assertEqual(allow, acl:match_rule(<<"phost">>, all, JID)),
-    ?assertEqual(allow, acl:match_rule(<<"localhost">>, all, JID)),
+    ?assertEqual(allow, acl:match_rule(domain(), all, JID)),
     ok.
 
 none_rule_returns_deny(_Config) ->
@@ -278,3 +278,6 @@ set_host_rule(Rule, Host, ACLs) ->
 set_global_rule(Rule, ACLs) ->
     ejabberd_config:add_global_option({access, Rule, global}, ACLs),
     ok.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).
