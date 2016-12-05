@@ -112,7 +112,6 @@ db_init() ->
 %% @doc Start all the modules in all the hosts
 -spec start_modules() -> 'ok'.
 start_modules() ->
-
     lists:foreach(
       fun(Host) ->
               StartModuleFun =
@@ -131,7 +130,6 @@ start_modules() ->
 %% Stop all the modules in all the hosts
 -spec stop_modules() -> 'ok'.
 stop_modules() ->
-
     lists:foreach(
       fun(Host) ->
               StopModuleFun =

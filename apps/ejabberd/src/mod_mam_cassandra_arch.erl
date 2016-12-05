@@ -47,6 +47,9 @@
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-callback encode(binary()) -> binary().
+-callback decode(binary()) -> binary().
+
 -record(mam_ca_filter, {
           user_jid,
           with_jid,
@@ -528,7 +531,7 @@ purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
             Messages = [#mam_message{
                            id         = MessID,
                            user_jid   = BUserJID,
-                           remote_jid = RemFullJID, %% set the field for debugging
+                           remote_jid = BRemFullJID, %% set the field for debugging
                            with_jid   = BWithJID
                           }           || BWithJID <- BWithJIDs],
             delete_messages(Worker, UserJID, Messages),
@@ -728,9 +731,9 @@ filter_to_cql() ->
       TotalCount :: non_neg_integer(),
       RSM :: rsm_in() | undefined,
       Offset :: non_neg_integer().
-calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
-  when is_integer(Index) ->
-    Index;
+% calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+%   when is_integer(Index) ->
+%     Index;
 %% Requesting the Last Page in a Result Set
 calc_offset(_W, _UserJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
@@ -752,7 +755,6 @@ bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
     jid:to_binary(jid:to_bare(jid:to_lower(JID))).
 
-full_jid(undefined) -> undefined;
 full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
 

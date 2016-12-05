@@ -62,6 +62,9 @@
 
 -type worker() :: pid() | atom().
 
+-callback encode(binary()) -> binary().
+-callback decode(binary()) -> binary().
+
 %% ----------------------------------------------------------------------
 %% Types
 
@@ -161,13 +164,13 @@ insert_query_cql() ->
 archive_message(Result, Host, MessID, _RoomID,
                 LocJID, NickName, NickName, Dir, Packet) ->
     try
-        archive_message_2(Result, Host, MessID,
-                          LocJID, NickName, NickName, Dir, Packet)
+        archive_message2(Result, Host, MessID,
+                         LocJID, NickName, NickName, Dir, Packet)
     catch _Type:Reason ->
             {error, Reason}
     end.
 
-archive_message_2(_Result, _Host, MessID,
+archive_message2(_Result, _Host, MessID,
                   LocJID = #jid{},
                   _RemJID = #jid{},
                   _SrcJID = #jid{lresource = BNick}, _Dir, Packet) ->
@@ -285,11 +288,11 @@ lookup_messages(_Result, Host,
     try
         WithNick = maybe_jid_to_nick(WithJID),
         Worker = select_worker(RoomJID),
-        lookup_messages_2(Worker, Host,
-                          RoomJID, RSM, Borders,
-                          Start, End, WithNick,
-                          PageSize, LimitPassed, MaxResultLimit,
-                          IsSimple)
+        lookup_messages2(Worker, Host,
+                         RoomJID, RSM, Borders,
+                         Start, End, WithNick,
+                         PageSize, LimitPassed, MaxResultLimit,
+                         IsSimple)
     catch _Type:Reason ->
             S = erlang:get_stacktrace(),
             {error, {Reason, S}}
@@ -299,19 +302,19 @@ maybe_jid_to_nick(#jid{lresource = BNick}) -> BNick;
 maybe_jid_to_nick(undefined) -> undefined.
 
 
-lookup_messages_2(Worker, Host,
+lookup_messages2(Worker, Host,
                   RoomJID = #jid{}, RSM, Borders,
-                  Start, End, WithNick,
-                  PageSize, _LimitPassed, _MaxResultLimit,
+                 Start, End, WithNick,
+                 PageSize, _LimitPassed, _MaxResultLimit,
                   _IsSimple = true) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
     lookup_messages_simple(Worker, Host, RoomJID, RSM, PageSize, Filter);
-lookup_messages_2(Worker, Host,
+lookup_messages2(Worker, Host,
                   RoomJID = #jid{}, RSM, Borders,
-                  Start, End, WithNick,
-                  PageSize, LimitPassed, MaxResultLimit,
-                  _IsSimple) ->
+                 Start, End, WithNick,
+                 PageSize, LimitPassed, MaxResultLimit,
+                 _IsSimple) ->
     %% Query with offset calculation
     %% We cannot just use ODBC code because "LIMIT X,Y" is not supported by cassandra
     %% Not all queries are optimal. You would like to disable something for production
@@ -511,7 +514,7 @@ row_to_message_id([MessID, _, _]) ->
                            Now) ->
                                   ok  | {error, 'not-supported'} when
       Host :: server_host(), MessID :: message_id(),
-      _RoomID :: user_id(), RoomJID :: #jid{},
+      _RoomID :: user_id(), RoomJID :: jid(),
       Now :: unix_timestamp().
 purge_single_message(_Result, _Host, MessID, _RoomID, RoomJID, _Now) ->
     Worker = select_worker(RoomJID),
@@ -538,11 +541,11 @@ purge_single_message(_Result, _Host, MessID, _RoomID, RoomJID, _Now) ->
                               Start, End, Now, WithNick) ->
                                      ok when
       Host :: server_host(), _RoomID :: user_id(),
-      RoomJID :: #jid{}, Borders :: #mam_borders{},
+      RoomJID :: jid(), Borders :: mam_borders(),
       Start :: unix_timestamp()  | undefined,
       End :: unix_timestamp()  | undefined,
       Now :: unix_timestamp(),
-      WithNick :: #jid{}  | undefined.
+      WithNick :: jid()  | undefined.
 purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
                         Start, End, Now, WithNick) ->
     %% Simple query without calculating offset and total count
@@ -723,11 +726,11 @@ filter_to_cql() ->
       Filter :: filter(),
       PageSize :: non_neg_integer(),
       TotalCount :: non_neg_integer(),
-      RSM :: #rsm_in{} | undefined,
+      RSM :: rsm_in() | undefined,
       Offset :: non_neg_integer().
-calc_offset(_W, _RoomJID, _LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
-  when is_integer(Index) ->
-    Index;
+% calc_offset(_W, _RoomJID, _LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+%   when is_integer(Index) ->
+%     Index;
 %% Requesting the Last Page in a Result Set
 calc_offset(_W, _RoomJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
@@ -833,7 +836,8 @@ params_helper(Params) ->
                                       "-compile(export_all).~n"
                                       "db_message_format() -> ~p.~n"
                                       "pool_name() -> ~p.~n",
-                                      [proplists:get_value(db_message_format, Params, mam_message_compressed_eterm),
+                                      [proplists:get_value(db_message_format, Params,
+                                                           mam_message_compressed_eterm),
                                        proplists:get_value(pool_name, Params, default)
                                       ]))).
 

@@ -41,6 +41,8 @@
 -behaviour(gen_server).
 -behaviour(mongoose_cassandra).
 
+-callback prepared_queries() -> proplists:proplist().
+
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -49,11 +51,11 @@
 -include_lib("exml/include/exml.hrl").
 
 -record(state, {
-    pool_name,
-    conn,
-    prepared_queries,
-    query_refs,
-    query_refs_count}).
+          pool_name,
+          conn,
+          prepared_queries,
+          query_refs,
+          query_refs_count}).
 
 -record(prepared_query, {
           query_id,
@@ -101,11 +103,11 @@ cql_batch(Worker, _UserJID, Module, Queries, BatchType) ->
 cql_query_multi(Worker, UserJID, Module, Queries) ->
     cql_query_multi(Worker, UserJID, Module, Queries, []).
 
-cql_query_multi(Worker, UserJID, Module, [{QueryName, Params}|Queries], Results) ->
-    case cql_query(Worker, UserJID, Module, QueryName, Params) of
+cql_query_multi(Worker, UserJID, Module, [{QueryName, Params} | Queries], Results) ->
+    case catch cql_query(Worker, UserJID, Module, QueryName, Params) of
         {ok, Result} ->
-            cql_query_multi(Worker, UserJID, Module, Queries, [Result|Results]);
-        {error, Reason} ->
+            cql_query_multi(Worker, UserJID, Module, Queries, [Result | Results]);
+        Reason ->
             {error, [{reason, Reason}, {results, Results}]}
     end;
 cql_query_multi(_Worker, _UserJID, _Module, [], Results) ->
@@ -139,7 +141,7 @@ cql_query_pool_multi_async(PoolName, UserJID, Module, QueryName, MultiParams) ->
 
 prepared_queries() ->
     [{test_query, test_query_sql()}] ++
-    total_count_queries().
+        total_count_queries().
 
 tables() ->
     [mam_message,
@@ -164,7 +166,7 @@ test_query(PoolName) ->
 test_query(PoolName, UserJID) ->
     Workers = mongoose_cassandra_sup:get_all_workers(PoolName),
     [{Worker, try cql_query(Worker, UserJID, ?MODULE, test_query, []) of
-                  [[_Now]] -> ok;
+                  {ok, [[_Now]]} -> ok;
                   Other -> {error, Other}
               catch Class:Reason -> {error, {Class, Reason}}
               end} || Worker <- Workers].
@@ -202,20 +204,20 @@ worker_queue_length(Worker) ->
     %% We really don't want to call process, because it can does not respond
     Info = erlang:process_info(Worker, [message_queue_len, dictionary]),
     case Info of
-    undefined -> %% dead
-        0;
-    [{message_queue_len, ExtLen}, {dictionary, Dict}] ->
-        %% External queue contains not only queued queries but also waiting responds.
-        %% But it's usually 0.
-        IntLen = proplists:get_value(query_refs_count, Dict, 0),
-        ExtLen + IntLen
+        undefined -> %% dead
+            0;
+        [{message_queue_len, ExtLen}, {dictionary, Dict}] ->
+            %% External queue contains not only queued queries but also waiting responds.
+            %% But it's usually 0.
+            IntLen = proplists:get_value(query_refs_count, Dict, 0),
+            ExtLen + IntLen
     end.
 
 %%====================================================================
 %% Internal SQL part
 %%====================================================================
 
-get_prepared_query(Conn, Module, QueryName, State=#state{prepared_queries=PreparedQueries}) ->
+get_prepared_query(Conn, Module, QueryName, State = #state{prepared_queries = PreparedQueries}) ->
     Key = {Module, QueryName},
     case dict:find(Key, PreparedQueries) of
         {ok, Query} ->
@@ -224,14 +226,15 @@ get_prepared_query(Conn, Module, QueryName, State=#state{prepared_queries=Prepar
             get_prepared_query_first_time(Conn, Module, QueryName, State)
     end.
 
-get_prepared_query_first_time(Conn, Module, QueryName, State=#state{prepared_queries=PreparedQueries}) ->
+get_prepared_query_first_time(Conn, Module, QueryName,
+                              State = #state{prepared_queries = PreparedQueries}) ->
     Key = {Module, QueryName},
     case get_query_cql(Module, QueryName) of
         {ok, Cql} ->
             case prepare_query(Conn, Cql, Module, QueryName) of
                 {ok, PreparedQuery} ->
                     PreparedQueries2 = dict:store(Key, PreparedQuery, PreparedQueries),
-                    State2 = State#state{prepared_queries=PreparedQueries2},
+                    State2 = State#state{prepared_queries = PreparedQueries2},
                     {ok, PreparedQuery, State2};
                 {error, Reason} ->
                     {error, Reason}
@@ -243,10 +246,11 @@ get_prepared_query_first_time(Conn, Module, QueryName, State=#state{prepared_que
 get_query_cql(Module, QueryName) ->
     try get_query_cql_unsafe(Module, QueryName)
     catch Class:Error ->
-        Stacktrace = erlang:get_stacktrace(),
-        ?ERROR_MSG("issue=get_query_cql_failed, query_module=~p, query_name=~p, reason=~p:~p, stacktrace=~1000p",
-                   [Module, QueryName, Class, Error, Stacktrace]),
-        {error, get_query_cql_failed}
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("issue=get_query_cql_failed, query_module=~p, query_name=~p,
+                        reason=~p:~p, stacktrace=~1000p",
+               [Module, QueryName, Class, Error, Stacktrace]),
+            {error, get_query_cql_failed}
     end.
 
 get_query_cql_unsafe(Module, QueryName) ->
@@ -259,27 +263,27 @@ prepare_query(Conn, Query, Module, QueryName) ->
         {ok, Res} ->
             Types = seestar_result:types(Res),
             QueryID = seestar_result:query_id(Res),
-            {ok, #prepared_query{query_id=QueryID, query_types=Types}};
+            {ok, #prepared_query{query_id = QueryID, query_types = Types}};
         {error, Reason} ->
             ?ERROR_MSG("issue=preparing_query_failed, query_module=~p, query_name=~p, reason=~p",
                        [Module, QueryName, Reason]),
             {error, Reason}
     end.
 
-execute_prepared_query(Conn, #prepared_query{query_id=QueryID, query_types=Types}, Params) ->
+execute_prepared_query(Conn, #prepared_query{query_id = QueryID, query_types = Types}, Params) ->
     seestar_session:execute_async(Conn, QueryID, Types, Params, one).
 
-new_prepared_query(#prepared_query{query_id=QueryID, query_types=Types}, Params) ->
+new_prepared_query(#prepared_query{query_id = QueryID, query_types = Types}, Params) ->
     seestar_session:new_batch_execute(QueryID, Types, Params).
 
 new_batch_queries(Conn, Module, Queries, State) ->
     new_batch_queries(Conn, Module, Queries, [], State).
 
-new_batch_queries(Conn, Module, [{QueryName, Params}|Queries], BatchQueries, State) ->
+new_batch_queries(Conn, Module, [{QueryName, Params} | Queries], BatchQueries, State) ->
     case get_prepared_query(Conn, Module, QueryName, State) of
         {ok, PreparedQuery, State2} ->
             BatchQuery = new_prepared_query(PreparedQuery, Params),
-            new_batch_queries(Conn, Module, Queries, [BatchQuery|BatchQueries], State2);
+            new_batch_queries(Conn, Module, Queries, [BatchQuery | BatchQueries], State2);
         {error, Reason} ->
             {error, Reason, State}
     end;
@@ -289,21 +293,20 @@ new_batch_queries(_Conn, _Module, [], BatchQueries, State) ->
 run_batch(Conn, BatchType, BatchQueries) ->
     seestar_session:batch_async(Conn, BatchType, BatchQueries, one).
 
-save_query_ref(From, QueryRef, State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
+save_query_ref(From, QueryRef, State = #state{query_refs = Refs, query_refs_count = RefsCount}) ->
     Refs2 = dict:store(QueryRef, From, Refs),
-    put(query_refs_count, RefsCount+1),
-    State#state{query_refs=Refs2, query_refs_count=RefsCount+1}.
+    put(query_refs_count, RefsCount + 1),
+    State#state{query_refs = Refs2, query_refs_count = RefsCount + 1}.
 
 forward_query_respond(ResultF, QueryRef,
-    State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
+                      State = #state{query_refs = Refs, query_refs_count = RefsCount}) ->
     case dict:find(QueryRef, Refs) of
         {ok, From} ->
             Refs2 = dict:erase(QueryRef, Refs),
             gen_server:reply(From, ResultF),
-            put(query_refs_count, RefsCount-1),
-            State#state{query_refs=Refs2, query_refs_count=RefsCount-1};
-        error ->
-%           lager:warning("Ignore response ~p ~p", [QueryRef, ResultF()]),
+            put(query_refs_count, RefsCount - 1),
+            State#state{query_refs = Refs2, query_refs_count = RefsCount - 1};
+        error -> % lager:warning("Ignore response ~p ~p", [QueryRef, ResultF()]),
             State
     end.
 
@@ -321,18 +324,18 @@ forward_query_respond(ResultF, QueryRef,
 %%--------------------------------------------------------------------
 init([PoolName, Addr, Port, ClientOptions]) ->
     async_spawn(Addr, Port, ClientOptions),
-    State = #state{pool_name=PoolName},
+    State = #state{pool_name = PoolName},
     {ok, State}.
 
-init_connection(ConnPid, Conn, State=#state{pool_name=PoolName}) ->
+init_connection(ConnPid, Conn, State = #state{pool_name = PoolName}) ->
     erlang:monitor(process, ConnPid),
     mongoose_cassandra_sup:register_worker(PoolName, self()),
     put(query_refs_count, 0),
     State#state{
-        conn=Conn,
-        query_refs=dict:new(),
-        query_refs_count=0,
-        prepared_queries=dict:new()}.
+      conn             = Conn,
+      query_refs       = dict:new(),
+      query_refs_count = 0,
+      prepared_queries = dict:new()}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -343,10 +346,10 @@ init_connection(ConnPid, Conn, State=#state{pool_name=PoolName}) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(_, _From, State=#state{conn=undefined}) ->
+handle_call(_, _From, State = #state{conn = undefined}) ->
     {reply, no_connection, State};
 handle_call({cql_query, Module, QueryName, Params}, From,
-    State=#state{conn=Conn}) ->
+            State = #state{conn = Conn}) ->
     case get_prepared_query(Conn, Module, QueryName, State) of
         {ok, PreparedQuery, State2} ->
             QueryRef = execute_prepared_query(Conn, PreparedQuery, Params),
@@ -355,7 +358,7 @@ handle_call({cql_query, Module, QueryName, Params}, From,
             {reply, {error, Reason}, State}
     end;
 handle_call({cql_batch, Module, BatchType, Queries}, From,
-    State=#state{conn=Conn}) ->
+            State = #state{conn = Conn}) ->
     case new_batch_queries(Conn, Module, Queries, State) of
         {ok, BatchQueries, State2} ->
             QueryRef = run_batch(Conn, BatchType, BatchQueries),
@@ -363,7 +366,7 @@ handle_call({cql_batch, Module, BatchType, Queries}, From,
         {error, Reason, State2} ->
             {reply, {error, Reason}, State2}
     end;
-handle_call(_, _From, State=#state{}) ->
+handle_call(_, _From, State = #state{}) ->
     {reply, ok, State}.
 
 
@@ -374,10 +377,10 @@ handle_call(_, _From, State=#state{}) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
-handle_cast(_, State=#state{conn=undefined}) ->
+handle_cast(_, State = #state{conn = undefined}) ->
     {noreply, State};
 handle_cast({async_cql_query, Module, QueryName, Params},
-    State=#state{conn=Conn}) ->
+            State = #state{conn = Conn}) ->
     case get_prepared_query(Conn, Module, QueryName, State) of
         {ok, PreparedQuery, State2} ->
             execute_prepared_query(Conn, PreparedQuery, Params),
@@ -386,7 +389,7 @@ handle_cast({async_cql_query, Module, QueryName, Params},
             {noreply, State}
     end;
 handle_cast({multi_async_cql_query, Module, QueryName, MultiParams},
-    State=#state{conn=Conn}) ->
+            State = #state{conn = Conn}) ->
     case get_prepared_query(Conn, Module, QueryName, State) of
         {ok, PreparedQuery, State2} ->
             [execute_prepared_query(Conn, PreparedQuery, Params) || Params <- MultiParams],
@@ -406,17 +409,17 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 
-handle_info({connection_result, {ok, ConnPid, Conn}}, State=#state{conn=undefined}) ->
+handle_info({connection_result, {ok, ConnPid, Conn}}, State = #state{conn = undefined}) ->
     State2 = init_connection(ConnPid, Conn, State),
     {noreply, State2};
-handle_info({connection_result, Reason}, State=#state{conn=undefined}) ->
+handle_info({connection_result, Reason}, State = #state{conn = undefined}) ->
     ?ERROR_MSG("issue=\"Fail to connect to Cassandra\", reason=~1000p", [Reason]),
     {stop, {connection_result, Reason}, State};
-handle_info(_, State=#state{conn=undefined}) ->
+handle_info(_, State = #state{conn = undefined}) ->
     {noreply, State};
 handle_info({seestar_response, QueryRef, ResultF}, State) ->
     {noreply, forward_query_respond(ResultF, QueryRef, State)};
-handle_info({'DOWN', _, process, Pid, Reason}, State=#state{conn=Pid}) ->
+handle_info({'DOWN', _, process, Pid, Reason}, State = #state{conn = Pid}) ->
     ?ERROR_MSG("issue=\"Cassandra connection closed\", reason=~1000p", [Reason]),
     {stop, {dead_connection, Pid, Reason}, State};
 handle_info(Msg, State) ->
@@ -446,23 +449,28 @@ code_change(_OldVsn, State, _Extra) ->
 async_spawn(Addr, Port, ClientOptions) ->
     ?INFO_MSG("issue=\"Connecting to Cassandra\", address=~p, port=~p", [Addr, Port]),
     Parent = self(),
-    proc_lib:spawn_link(fun() ->
-          ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
-          ?DEBUG("issue=\"seestar_session:start_link\", address=~p, port=~p, "
-                 "client_options=~p, connect_options=~p",
-                 [Addr, Port, ClientOptions, ConnectOptions]),
-          Res = (catch seestar_session:start_link(Addr, Port, ClientOptions, ConnectOptions)),
-          ?DEBUG("issue=\"seestar_session:start_link result\", result=~p",
-                 [Res]),
-          Parent ! {connection_result, Res},
-          case Res of
-              {ok, Pid} ->
-                  Mon = erlang:monitor(process, Pid),
-                  receive
-                      {'DOWN', Mon, process, Pid, _} -> ok
-                  end;
-              _ ->
-                ok
-          end
+    proc_lib:spawn_link(
+      fun() ->
+              ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
+              ?DEBUG("issue=\"seestar_session:start_link\", address=~p, port=~p, "
+                     "client_options=~p, connect_options=~p",
+                     [Addr, Port, ClientOptions, ConnectOptions]),
+              Res = (catch seestar_session:start_link(Addr, Port, ClientOptions, ConnectOptions)),
+              ?DEBUG("issue=\"seestar_session:start_link result\", result=~p",
+                     [Res]),
+              Parent ! {connection_result, Res},
+              maybe_waitfor(Res)
       end).
+
+-spec maybe_waitfor({ok, pid()} | term()) -> ok.
+maybe_waitfor(Res) ->
+    case Res of
+        {ok, Pid} ->
+            Mon = erlang:monitor(process, Pid),
+            receive
+                {'DOWN', Mon, process, Pid, _} -> ok
+            end;
+        _ ->
+            ok
+    end.
 

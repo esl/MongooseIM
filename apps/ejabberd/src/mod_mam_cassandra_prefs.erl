@@ -116,7 +116,8 @@ prepared_queries() ->
      {get_behaviour_bare_query,
       "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid IN ('', ?)"},
      {get_behaviour_full_query,
-      "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid IN ('', ?, ?)"},
+      "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid",
+      "IN ('', ?, ?)"},
      {del_prefs_ts_query,
       "DELETE FROM mam_config USING TIMESTAMP ? WHERE user_jid = ?"}
     ].
@@ -199,7 +200,7 @@ remove_archive(_Host, _UserID, UserJID) ->
     ok.
 
 
--spec query_behaviour(ejabberd:server(), UserJID :: ejabberd:jid(), BUserJID :: string(),
+-spec query_behaviour(ejabberd:server(), UserJID :: ejabberd:jid(), BUserJID :: binary() | string(),
                       BRemJID :: binary() | string(), BRemBareJID :: binary() | string()) -> any().
 query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID) ->
     PoolName = pool_name(UserJID),

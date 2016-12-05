@@ -37,6 +37,7 @@ after_script:
 services:
         - redis-server
         - docker
+
 branches:
         only:
                 - master

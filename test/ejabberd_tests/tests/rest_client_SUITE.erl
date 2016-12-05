@@ -176,7 +176,8 @@ user_can_leave_a_room(Config) ->
 invitation_to_room_is_forbidden_for_non_memeber(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room({alice, Alice}),
-        {{<<"403">>, <<"Forbidden">>}, _ } = invite_to_room({bob, Bob}, RoomID, <<"auser@domain.com">>)
+        {{<<"403">>, <<"Forbidden">>}, _ } = invite_to_room({bob, Bob}, RoomID,
+                                                            <<"auser@domain.com">>)
     end).
 
 msg_is_sent_and_delivered_in_room(Config) ->
@@ -303,7 +304,7 @@ user_password(User) ->
 send_message(User, From, To) ->
     AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(From)),
     BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
-    M = #{to => BobJID, body => <<"hello, ", BobJID/binary," it's me">>},
+    M = #{to => BobJID, body => <<"hello, ", BobJID/binary, " it's me">>},
     Cred = {AliceJID, user_password(User)},
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(<<"/messages">>, M, Cred),
     ID = proplists:get_value(<<"id">>, Result),
@@ -333,7 +334,7 @@ get_room_messages(Client, RoomID, Count) ->
 get_room_messages(Client, RoomID, Count, Before) ->
     Creds = credentials(Client),
     BasePathList = ["/rooms/", RoomID, "/messages?limit=", integer_to_binary(Count)],
-    PathList = BasePathList ++ [["&before=",integer_to_binary(Before)] || Before /= undefined],
+    PathList = BasePathList ++ [["&before=", integer_to_binary(Before)] || Before /= undefined],
     Path = erlang:iolist_to_binary(PathList),
     get_messages(Path, Creds).
 

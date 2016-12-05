@@ -62,7 +62,7 @@ groups() ->
 
 test_cases() ->
     [commands_are_listed,
-     non_existent_command_returns_404,
+     non_existent_command_returns404,
      user_can_be_registered_and_removed,
      sessions_are_listed,
      session_can_be_kicked,
@@ -113,7 +113,7 @@ commands_are_listed(_C) ->
     DecCmds = decode_maplist(Lcmds),
     assert_inlist(#{name => <<"list_methods">>}, DecCmds).
 
-non_existent_command_returns_404(_C) ->
+non_existent_command_returns404(_C) ->
     {?NOT_FOUND, _} = gett(<<"/isitthereornot">>).
 
 user_can_be_registered_and_removed(_Config) ->

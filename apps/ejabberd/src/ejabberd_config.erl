@@ -132,6 +132,8 @@
                    | {hosts, _}
                    | {odbc_server, _}.
 
+-callback stop(host()) -> any().
+
 
 -spec start() -> ok.
 start() ->
@@ -319,11 +321,11 @@ get_config_lines2(_Fd, _NewLine, _CurrLine, [], R) ->
     lists:reverse(R);
 get_config_lines2(Fd, Data, CurrLine, [NextWanted | LNumbers], R) when is_list(Data) ->
     NextL = io:get_line(Fd, no_prompt),
-    if
-        CurrLine >= NextWanted ->
+    case CurrLine >= NextWanted of
+        true ->
             Line2 = [integer_to_list(CurrLine), ": " | Data],
             get_config_lines2(Fd, NextL, CurrLine + 1, LNumbers, [Line2 | R]);
-        true ->
+        false ->
             get_config_lines2(Fd, NextL, CurrLine + 1, [NextWanted | LNumbers], R)
     end.
 
@@ -422,23 +424,22 @@ replace_macros(Terms) ->
 %% @doc Split Terms into normal terms and macro definitions.
 -spec split_terms_macros(Terms :: [term()]) -> {[term()], [macro()]}.
 split_terms_macros(Terms) ->
-    lists:foldl(
-      fun(Term, {TOs, Ms}) ->
-              case Term of
-                  {define_macro, Key, Value} ->
-                      case is_atom(Key) and is_all_uppercase(Key) of
-                          true ->
-                              {TOs, Ms ++ [{Key, Value}]};
-                          false ->
-                              exit({macro_not_properly_defined, Term})
-                      end;
-                  Term ->
-                      {TOs ++ [Term], Ms}
-              end
-      end,
-      {[], []},
-      Terms).
+    lists:foldl(fun split_terms_macros_fold/2, {[], []}, Terms).
 
+-spec split_terms_macros_fold(any(), Acc) -> Acc when
+    Acc :: {[term()], [{Key :: any(), Value :: any()}]}.
+split_terms_macros_fold(Term, {TOs, Ms}) ->
+    case Term of
+        {define_macro, Key, Value} ->
+            case is_atom(Key) and is_all_uppercase(Key) of
+                true ->
+                    {TOs, Ms ++ [{Key, Value}]};
+                false ->
+                    exit({macro_not_properly_defined, Term})
+            end;
+        Term ->
+            {TOs ++ [Term], Ms}
+    end.
 
 %% @doc Recursively replace in Terms macro usages with the defined value.
 -spec replace(Terms :: [term()],
@@ -664,40 +665,7 @@ compact(Opt, Val, [O | Os1], Os2) ->
 
 -spec set_opts(state()) -> 'ok' | none().
 set_opts(State) ->
-    Opts = lists:reverse(State#state.opts),
-    F = fun() ->
-                case State of
-                    #state{override_global = true} ->
-                        Ksg = mnesia:all_keys(config),
-                        lists:foreach(fun(K) ->
-                                              mnesia:delete({config, K})
-                                      end, Ksg);
-                    _ ->
-                        ok
-                end,
-                case State of
-                    #state{override_local = true} ->
-                        Ksl = mnesia:all_keys(local_config),
-                        lists:foreach(fun(K) ->
-                                              mnesia:delete({local_config, K})
-                                      end, lists:delete(node_start, Ksl));
-                    _ ->
-                        ok
-                end,
-                case State of
-                    #state{override_acls = true} ->
-                        Ksa = mnesia:all_keys(acl),
-                        lists:foreach(fun(K) ->
-                                              mnesia:delete({acl, K})
-                                      end, Ksa);
-                    _ ->
-                        ok
-                end,
-                lists:foreach(fun(R) ->
-                                      mnesia:write(R)
-                              end, Opts)
-        end,
-    case mnesia:transaction(F) of
+    case mnesia:transaction(fun() -> do_set_opts(State) end) of
         {atomic, _} -> ok;
         {aborted, {no_exists, Table}} ->
             MnesiaDirectory = mnesia:system_info(directory),
@@ -711,6 +679,33 @@ set_opts(State) ->
                        [Table, MnesiaDirectory, node()]),
             exit("Error reading Mnesia database")
     end.
+
+-spec do_set_opts(state()) -> 'ok' | none().
+do_set_opts(State) ->
+    Opts = lists:reverse(State#state.opts),
+    case State of
+        #state{override_global = true} ->
+            Ksg = mnesia:all_keys(config),
+            lists:foreach(fun(K) -> mnesia:delete({config, K}) end, Ksg);
+        _ ->
+            ok
+    end,
+    case State of
+        #state{override_local = true} ->
+            Ksl = mnesia:all_keys(local_config),
+            lists:foreach(fun(K) -> mnesia:delete({local_config, K}) end,
+                          lists:delete(node_start, Ksl));
+        _ ->
+            ok
+    end,
+    case State of
+        #state{override_acls = true} ->
+            Ksa = mnesia:all_keys(acl),
+            lists:foreach(fun(K) -> mnesia:delete({acl, K}) end, Ksa);
+        _ ->
+            ok
+    end,
+    lists:foreach(fun(R) -> mnesia:write(R) end, Opts).
 
 
 -spec add_global_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
