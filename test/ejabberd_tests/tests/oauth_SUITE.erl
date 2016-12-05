@@ -325,13 +325,13 @@ extract_tokens(#xmlel{name = <<"iq">>, children = [#xmlel{name = <<"items">>} = 
 
 get_auth_method()        ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config(ejabberd_domain)),
+                   ct:get_config({hosts, mim, domain})),
     escalus_ejabberd:rpc(ejabberd_auth, store_type,
                          [XMPPDomain]).
 
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config(ejabberd_domain)),
+                   ct:get_config({hosts, mim, domain})),
     AuthOpts = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
                                     [{auth_opts, XMPPDomain}]),
     NewAuthOpts = lists:keystore(password_format, 1, AuthOpts, {password_format, Type}),
@@ -370,7 +370,7 @@ record_set(Record, FieldValues) ->
     lists:foldl(F, Record, FieldValues).
 
 mimctl(Config, CmdAndArgs) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     ejabberd_node_utils:call_ctl_with_args(Node, convert_args(CmdAndArgs), Config).
 
 convert_args(Args) -> [ convert_arg(A) || A <- Args ].

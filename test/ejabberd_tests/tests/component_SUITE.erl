@@ -543,7 +543,7 @@ cluster_users() ->
     [proplists:lookup(alice, AllUsers), proplists:lookup(clusterguy, AllUsers)].
 
 default_node(Config) ->
-    Node = escalus_config:get_config(ejabberd_node, Config),
+    Node = ct:get_config({hosts, mim, node}),
     Node == undefined andalso error(node_undefined, [Config]),
     Node.
 
@@ -565,7 +565,7 @@ common(Config) ->
     common(Config, 8888).
 
 common(Config, Port) ->
-    [{server, ct:get_config(ejabberd_domain, Config)},
-     {host, ct:get_config(ejabberd_domain, Config)},
+    [{server, ct:get_config({hosts, mim, domain})},
+     {host, ct:get_config({hosts, mim, domain})},
      {password, <<"secret">>},
      {port, Port}].

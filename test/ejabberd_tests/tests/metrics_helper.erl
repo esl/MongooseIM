@@ -10,7 +10,7 @@
 -define(ONLY_GLOBAL_METRICS_GROUP_USERS, [clusterguy, clusterbuddy]).
 
 get_counter_value(CounterName) ->
-    get_counter_value(ct:get_config(ejabberd_domain), CounterName).
+    get_counter_value(ct:get_config({hosts, mim, domain}), CounterName).
 
 get_counter_value(Host, Metric) ->
     case escalus_ejabberd:rpc(mongoose_metrics, get_metric_value, [Host, Metric]) of
@@ -25,8 +25,8 @@ get_counter_value(Host, Metric) ->
     end.
 
 assert_counter(Value, CounterName) ->
-    assert_counter(escalus_ct:get_config(ejabberd_domain), Value, CounterName).
-    
+    assert_counter(ct:get_config({hosts, mim, domain}), Value, CounterName).
+
 assert_counter(Host, Value, CounterName) ->
     {value, Value} = get_counter_value(Host, CounterName).
 
@@ -83,4 +83,3 @@ user_ids(Config) ->
         true -> ?ONLY_GLOBAL_METRICS_GROUP_USERS;
         _ -> ?METRICS_GROUP_USERS
     end.
-

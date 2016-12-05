@@ -736,10 +736,10 @@ client_receives_notification(Client, IntendedRecipient, Rule) ->
     assert_notification(Client, IntendedRecipient, Msg, Rule).
 
 disco_info(Config) ->
-    Server = escalus_config:get_config(ejabberd_domain, Config),
+    Server = ct:get_config({hosts, mim, domain}),
     escalus_stanza:disco_info(Server).
 disco_info_amp_node(Config) ->
-    Server = escalus_config:get_config(ejabberd_domain, Config),
+    Server = ct:get_config({hosts, mim, domain}),
     escalus_stanza:disco_info(Server, ns_amp()).
 
 assert_amp_error(Client, Response, Rules, AmpErrorKind) when is_list(Rules) ->
