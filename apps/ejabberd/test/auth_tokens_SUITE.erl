@@ -126,9 +126,10 @@ validation_test(Config) ->
 
 validation_test(_, ExampleToken) ->
     %% given
-    Serialized = tested():serialize(ExampleToken),
+    Tested = tested(),
+    Serialized = Tested:serialize(ExampleToken),
     %% when
-    Result = tested():authenticate(Serialized),
+    Result = Tested:authenticate(Serialized),
     %% then
     ?AE(true, is_validation_success(Result)).
 
@@ -138,13 +139,14 @@ validation_property(_) ->
 
 validity_period_test(_) ->
     %% given
-    ok = tested():start(domain(), validity_period_cfg(access, {13, hours})),
+    Tested = tested(),
+    ok = Tested:start(domain(), validity_period_cfg(access, {13, hours})),
     UTCSeconds = utc_now_as_seconds(),
     ExpectedSeconds = UTCSeconds + (    13 %% hours
                                     * 3600 %% seconds per hour
                                    ),
     %% when
-    ActualDT = tested():expiry_datetime(domain(),
+    ActualDT = Tested:expiry_datetime(domain(),
                                        access, UTCSeconds),
     %% then
     ?AE(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
@@ -154,11 +156,12 @@ choose_key_by_token_type(_) ->
     %% given mocked keystore (see init_per_testcase)
     Domain = domain(),
     JID = jid:from_binary(<<"alice@", Domain/binary>>),
+    Tested = tested(),
     %% when mod_auth_token asks for key for given token type
     %% then the correct key is returned
-    ?AE(<<"access_or_refresh">>, tested():get_key_for_user(access, JID)),
-    ?AE(<<"access_or_refresh">>, tested():get_key_for_user(refresh, JID)),
-    ?AE(<<"provision">>, tested():get_key_for_user(provision, JID)).
+    ?AE(<<"access_or_refresh">>, Tested:get_key_for_user(access, JID)),
+    ?AE(<<"access_or_refresh">>, Tested:get_key_for_user(refresh, JID)),
+    ?AE(<<"provision">>, Tested:get_key_for_user(provision, JID)).
 
 is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     MAC = base16:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
@@ -173,11 +176,13 @@ is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     end.
 
 is_serialization_reversible(Token) ->
-    Token =:= tested():deserialize(tested():serialize(Token)).
+    Tested = tested(),
+    Token =:= Tested:deserialize(Tested:serialize(Token)).
 
 is_valid_token_prop(Token) ->
-    Serialized = tested():serialize(Token),
-    R = tested():authenticate(Serialized),
+    Tested = tested(),
+    Serialized = Tested:serialize(Token),
+    R = Tested:authenticate(Serialized),
     case is_validation_success(R) of
         true -> true;
         _    -> ct:fail(R)
@@ -195,14 +200,15 @@ revoked_token_is_not_valid(_) ->
     ValidSeqNo = 123456,
     RevokedSeqNo = 123455,
     Domain = domain(),
+    Tested = tested(),
     self() ! {valid_seq_no, ValidSeqNo},
     T = #token{type = refresh,
-               expiry_datetime = tested():seconds_to_datetime(utc_now_as_seconds() + 10),
+               expiry_datetime = Tested:seconds_to_datetime(utc_now_as_seconds() + 10),
                user_jid = jid:from_binary(<<"alice@", Domain/binary>>),
                sequence_no = RevokedSeqNo},
-    Revoked = tested():serialize(tested():token_with_mac(T)),
+    Revoked = Tested:serialize(Tested:token_with_mac(T)),
     %% when
-    ValidationResult = tested():authenticate(Revoked),
+    ValidationResult = Tested:authenticate(Revoked),
     %% then
     {error, _} = ValidationResult.
 
@@ -363,13 +369,14 @@ make_token({Type, Expiry, JID, SeqNo, VCard}) ->
     T = #token{type = Type,
                expiry_datetime = Expiry,
                user_jid = jid:from_binary(JID)},
+    Tested = tested(),
     case Type of
         access ->
-            tested():token_with_mac(T);
+            Tested:token_with_mac(T);
         refresh ->
-            tested():token_with_mac(T#token{sequence_no = SeqNo});
+            Tested:token_with_mac(T#token{sequence_no = SeqNo});
         provision ->
-            tested():token_with_mac(T#token{vcard = VCard})
+            Tested:token_with_mac(T#token{vcard = VCard})
     end.
 
 serialized_token(Sep) ->
