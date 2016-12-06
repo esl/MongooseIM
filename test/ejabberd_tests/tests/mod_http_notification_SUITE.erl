@@ -113,7 +113,7 @@ simple_message(Config) ->
            after 2000 ->
                    error(missing_request)
            end,
-    ct:pal("Got request ~p~n", [Body]),
+    % ct:pal("Got request ~p~n", [Body]),
     {_, _} = binary:match(Body, <<"alice">>),
     {_, _} = binary:match(Body, <<"Simple">>).
 
