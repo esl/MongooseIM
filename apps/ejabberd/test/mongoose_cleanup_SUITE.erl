@@ -12,7 +12,6 @@
          bosh/1
         ]).
 
--define(HOST, <<"localhost">>).
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 
 %% -----------------------------------------------------
@@ -75,33 +74,33 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     end.
 
 auth_anonymous(_Config) ->
-    ejabberd_auth_anonymous:start(?HOST),
+    ejabberd_auth_anonymous:start(domain()),
     {U, S, R, JID, SID} = get_fake_session(),
     Info = [{auth_module, ejabberd_auth_anonymous}],
     ejabberd_auth_anonymous:register_connection(SID, JID, Info),
     true = ejabberd_auth_anonymous:anonymous_user_exist(U, S),
-    ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
+    ejabberd_hooks:run(session_cleanup, domain(), [U, S, R, SID]),
     false = ejabberd_auth_anonymous:anonymous_user_exist(U, S).
 
 last(_Config) ->
-    mod_last:start(?HOST, [{iqdisc, no_queue}]),
+    mod_last:start(domain(), [{iqdisc, no_queue}]),
     {U, S, R, _JID, SID} = get_fake_session(),
     not_found = mod_last:get_last_info(U, S),
     Status1 = <<"status1">>,
     ok = mod_last:on_presence_update(U, S, R, Status1),
     {ok, TS1, Status1} = mod_last:get_last_info(U, S),
     timer:sleep(2000),
-    ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
+    ejabberd_hooks:run(session_cleanup, domain(), [U, S, R, SID]),
     {ok, TS2, <<>>} = mod_last:get_last_info(U, S),
     true = TS2 - TS1 > 0.
 
 stream_management(_Config) ->
-    mod_stream_management:start(?HOST, []),
+    mod_stream_management:start(domain(), []),
     {U, S, R, _JID, SID} = get_fake_session(),
     SMID = <<"123">>,
     mod_stream_management:register_smid(SMID, SID),
     [SID] = mod_stream_management:get_sid(SMID),
-    ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
+    ejabberd_hooks:run(session_cleanup, domain(), [U, S, R, SID]),
     [] = mod_stream_management:get_sid(SMID).
 
 local(_Config) ->
@@ -110,14 +109,14 @@ local(_Config) ->
     SelfNotify = fun(Arg) -> Self ! Arg end,
     ID = <<"abc123">>,
 
-    ejabberd_local:register_iq_response_handler(?HOST, ID, undefined, SelfNotify, 50),
+    ejabberd_local:register_iq_response_handler(domain(), ID, undefined, SelfNotify, 50),
     receive
         timeout -> ok
     after
         2000 -> ct:fail({timeout, valid_iq_timeout})
     end,
 
-    ejabberd_local:register_iq_response_handler(?HOST, ID, undefined, SelfNotify, 2000),
+    ejabberd_local:register_iq_response_handler(domain(), ID, undefined, SelfNotify, 2000),
     ejabberd_hooks:run(node_cleanup, [node()]),
     receive
         timeout -> ct:fail({timeout, cleaned_iq_timeout})
@@ -127,7 +126,7 @@ local(_Config) ->
 
 s2s(_Config) ->
     ejabberd_s2s:start_link(),
-    FromTo = {?HOST, <<"foreign">>},
+    FromTo = {domain(), <<"foreign">>},
     ejabberd_s2s:try_register(FromTo),
     Self = self(),
     [Self] = ejabberd_s2s:get_connections_pids(FromTo),
@@ -135,7 +134,7 @@ s2s(_Config) ->
     [] = ejabberd_s2s:get_connections_pids(FromTo).
 
 bosh(_Config) ->
-    mod_bosh:start(?HOST, []),
+    mod_bosh:start(domain(), []),
     SID = <<"sid">>,
     Self = self(),
     {'EXIT', _} = (catch mod_bosh:get_session_socket(SID)),
@@ -198,9 +197,11 @@ unload_meck(Mods) ->
      JID :: ejabberd:jid(), SID :: ejabberd_sm:sid()}.
 get_fake_session() ->
     U = <<"someuser">>,
-    S = ?HOST,
+    S = domain(),
     R = <<"someresource">>,
     JID = jid:make(U, S, R),
     SID = {os:timestamp(), self()},
     {U, S, R, JID, SID}.
 
+domain() ->
+    ct:get_config({hosts, mim, domain}).

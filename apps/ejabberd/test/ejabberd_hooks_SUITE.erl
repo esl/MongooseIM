@@ -37,7 +37,8 @@ a_fun_can_be_added(_) ->
     ejabberd_hooks:add(test_run_hook, domain(), fun(_) -> ok end, 1),
 
     % then
-    [{{test_run_hook, domain()}, [{1, undefined, _}]}] = get_hooks().
+    Domain = domain(),
+    [{{test_run_hook, Domain}, [{1, undefined, _}]}] = get_hooks().
 
 
 a_module_fun_can_be_added(_) ->
@@ -45,22 +46,24 @@ a_module_fun_can_be_added(_) ->
     given_module(hook_mod, fun_a, fun(_) -> ok end),
 
     % when
-    ejabberd_hooks:add(test_run_hook, domain(), hook_mod, fun_a, 1),
+    Domain = domain(),
+    ejabberd_hooks:add(test_run_hook, Domain, hook_mod, fun_a, 1),
 
     % then
-    [{{test_run_hook, domain()}, [{1, hook_mod, fun_a}]}] = get_hooks().
+    [{{test_run_hook, Domain}, [{1, hook_mod, fun_a}]}] = get_hooks().
 
 
 a_fun_can_be_removed(_) ->
     given_hooks_started(),
     GivenFun = fun(_) -> ok end,
-    ejabberd_hooks:add(test_run_hook, domain(), GivenFun, 1),
+    Domain = domain(),
+    ejabberd_hooks:add(test_run_hook, Domain, GivenFun, 1),
 
     % when
-    ejabberd_hooks:delete(test_run_hook, domain(), GivenFun, 1),
+    ejabberd_hooks:delete(test_run_hook, Domain, GivenFun, 1),
 
     % then
-    [{{test_run_hook, domain()}, []}] = get_hooks().
+    [{{test_run_hook, Domain}, []}] = get_hooks().
 
 a_module_fun_can_be_removed(_) ->
     given_hooks_started(),
@@ -71,7 +74,8 @@ a_module_fun_can_be_removed(_) ->
     ejabberd_hooks:delete(test_run_hook, domain(), hook_mod, fun_nullary, 1),
 
     % then
-    [{{test_run_hook, domain()}, []}] = get_hooks().
+    Domain = domain(),
+    [{{test_run_hook, Domain}, []}] = get_hooks().
 
 
 hooks_run_launches_nullary_fun(_) ->

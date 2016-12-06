@@ -11,11 +11,10 @@
 
 -import(prop_helper, [prop/2]).
 
--define(TESTED, mod_auth_token).
--define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
+-define(AE(Expected, Actual), ?assertEqual(Expected, Actual)).
 
--define(l2b(List), list_to_binary(List)).
--define(i2b(I), integer_to_binary(I)).
+-define(L2B(List), list_to_binary(List)).
+-define(I2B(I), integer_to_binary(I)).
 
 all() ->
     [{group, creation},
@@ -107,10 +106,10 @@ end_per_testcase(_, C) -> C.
 %%
 
 expiry_date_roundtrip_test(_) ->
-    D = {{2015,9,17},{20,28,21}}, %% DateTime
+    D = {{2015, 9, 17}, {20, 28, 21}}, %% DateTime
     S =  mod_auth_token:datetime_to_seconds(D),
     ResD = mod_auth_token:seconds_to_datetime(S),
-    ?ae(D, ResD).
+    ?AE(D, ResD).
 
 join_and_split_with_base16_and_zeros_are_reversible_property(_) ->
     prop(join_and_split_are_reversible_property,
@@ -127,11 +126,11 @@ validation_test(Config) ->
 
 validation_test(_, ExampleToken) ->
     %% given
-    Serialized = ?TESTED:serialize(ExampleToken),
+    Serialized = tested():serialize(ExampleToken),
     %% when
-    Result = ?TESTED:authenticate(Serialized),
+    Result = tested():authenticate(Serialized),
     %% then
-    ?ae(true, is_validation_success(Result)).
+    ?AE(true, is_validation_success(Result)).
 
 validation_property(_) ->
     prop(validation_property,
@@ -139,26 +138,27 @@ validation_property(_) ->
 
 validity_period_test(_) ->
     %% given
-    ok = ?TESTED:start(domain(), validity_period_cfg(access, {13, hours})),
+    ok = tested():start(domain(), validity_period_cfg(access, {13, hours})),
     UTCSeconds = utc_now_as_seconds(),
     ExpectedSeconds = UTCSeconds + (    13 %% hours
                                     * 3600 %% seconds per hour
                                    ),
     %% when
-    ActualDT = ?TESTED:expiry_datetime(domain(),
+    ActualDT = tested():expiry_datetime(domain(),
                                        access, UTCSeconds),
     %% then
-    ?ae(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
+    ?AE(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
         ActualDT).
 
 choose_key_by_token_type(_) ->
     %% given mocked keystore (see init_per_testcase)
-    JID = jid:from_binary(<<"alice@", domain()/binary>>),
+    Domain = domain(),
+    JID = jid:from_binary(<<"alice@", Domain/binary>>),
     %% when mod_auth_token asks for key for given token type
     %% then the correct key is returned
-    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_user(access, JID)),
-    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_user(refresh, JID)),
-    ?ae(<<"provision">>, ?TESTED:get_key_for_user(provision, JID)).
+    ?AE(<<"access_or_refresh">>, tested():get_key_for_user(access, JID)),
+    ?AE(<<"access_or_refresh">>, tested():get_key_for_user(refresh, JID)),
+    ?AE(<<"provision">>, tested():get_key_for_user(provision, JID)).
 
 is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     MAC = base16:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
@@ -173,11 +173,11 @@ is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     end.
 
 is_serialization_reversible(Token) ->
-    Token =:= ?TESTED:deserialize(?TESTED:serialize(Token)).
+    Token =:= tested():deserialize(tested():serialize(Token)).
 
 is_valid_token_prop(Token) ->
-    Serialized = ?TESTED:serialize(Token),
-    R = ?TESTED:authenticate(Serialized),
+    Serialized = tested():serialize(Token),
+    R = tested():authenticate(Serialized),
     case is_validation_success(R) of
         true -> true;
         _    -> ct:fail(R)
@@ -194,14 +194,15 @@ revoked_token_is_not_valid(_) ->
     %% given
     ValidSeqNo = 123456,
     RevokedSeqNo = 123455,
+    Domain = domain(),
     self() ! {valid_seq_no, ValidSeqNo},
     T = #token{type = refresh,
-               expiry_datetime = ?TESTED:seconds_to_datetime(utc_now_as_seconds() + 10),
-               user_jid = jid:from_binary(<<"alice@", domain()/binary>>),
+               expiry_datetime = tested():seconds_to_datetime(utc_now_as_seconds() + 10),
+               user_jid = jid:from_binary(<<"alice@", Domain/binary>>),
                sequence_no = RevokedSeqNo},
-    Revoked = ?TESTED:serialize(?TESTED:token_with_mac(T)),
+    Revoked = tested():serialize(tested():token_with_mac(T)),
     %% when
-    ValidationResult = ?TESTED:authenticate(Revoked),
+    ValidationResult = tested():authenticate(Revoked),
     %% then
     {error, _} = ValidationResult.
 
@@ -225,7 +226,7 @@ utc_now_as_seconds() ->
 %%           ]}.
 validity_period_cfg(Type, Period) ->
     Opts = [ {{validity_period, Type}, Period} ],
-    ets:insert(ejabberd_modules, {ejabberd_module, {?TESTED, domain()}, Opts}),
+    ets:insert(ejabberd_modules, {ejabberd_module, {tested(), domain()}, Opts}),
     Opts.
 
 %% This is a negative test case helper - that's why we invert the logic below.
@@ -241,7 +242,7 @@ mock_mongoose_metrics() ->
     ok.
 
 mock_odbc_backend() ->
-    gen_mod:start_backend_module(?TESTED, [{backend, odbc}]),
+    gen_mod:start_backend_module(tested(), [{backend, odbc}]),
     meck:new(mod_auth_token_odbc, []),
     meck:expect(mod_auth_token_odbc, get_valid_sequence_number,
                 fun (_) -> valid_seq_no_threshold() end).
@@ -271,7 +272,7 @@ mock_ejabberd_commands() ->
     meck:expect(ejabberd_commands, register_commands, fun (_) -> ok end).
 
 provision_token_example() ->
-    {token,provision,
+    {token, provision,
      {{2055, 10, 27}, {10, 54, 22}},
      {jid, <<"cEE2M1S0I">>, domain(), <<>>, <<"cee2m1s0i">>,
       domain(), <<>>},
@@ -291,7 +292,7 @@ provision_token_example() ->
            {<<"xaxforb">>, <<"jrdeydsqhj">>}],
           []},
          {xmlcdata, <<"pncgsaxl">>},
-         {xmlel, <<"jfofazuau">>, [{<<"si">>,<<"l">>}], []}]},
+         {xmlel, <<"jfofazuau">>, [{<<"si">>, <<"l">>}], []}]},
        {xmlel, <<"moy">>,
         [{<<"femjc">>, <<"qqb">>}, {<<"tirfmekvpk">>, <<"sa">>}],
         []},
@@ -345,7 +346,7 @@ valid_token() ->
 
 %% Arbitrary date in the future.
 validity_threshold() ->
-    {{2055,10,27}, {10,54,14}}.
+    {{2055, 10, 27}, {10, 54, 14}}.
 
 valid_seq_no_threshold() ->
     3.
@@ -364,11 +365,11 @@ make_token({Type, Expiry, JID, SeqNo, VCard}) ->
                user_jid = jid:from_binary(JID)},
     case Type of
         access ->
-            ?TESTED:token_with_mac(T);
+            tested():token_with_mac(T);
         refresh ->
-            ?TESTED:token_with_mac(T#token{sequence_no = SeqNo});
+            tested():token_with_mac(T#token{sequence_no = SeqNo});
         provision ->
-            ?TESTED:token_with_mac(T#token{vcard = VCard})
+            tested():token_with_mac(T#token{vcard = VCard})
     end.
 
 serialized_token(Sep) ->
@@ -376,10 +377,10 @@ serialized_token(Sep) ->
          {oneof([<<"access">>, <<"refresh">>]), bare_jid(), expiry_date_as_seconds(), seq_no()},
          case Type of
              <<"access">> ->
-                 <<"access", Sep/bytes, JID/bytes, Sep/bytes, (?i2b(Expiry))/bytes>>;
+                 <<"access", Sep/bytes, JID/bytes, Sep/bytes, (?I2B(Expiry))/bytes>>;
              <<"refresh">> ->
-                 <<"refresh", Sep/bytes, JID/bytes, Sep/bytes, (?i2b(Expiry))/bytes,
-                   Sep/bytes, (?i2b(SeqNo))/bytes>>
+                 <<"refresh", Sep/bytes, JID/bytes, Sep/bytes, (?I2B(Expiry))/bytes,
+                   Sep/bytes, (?I2B(SeqNo))/bytes>>
          end).
 
 token_type() ->
@@ -390,7 +391,7 @@ expiry_datetime() ->
 
 valid_expiry_datetime() ->
     ?LET(Seconds, integer( datetime_to_seconds(validity_threshold()),
-                           datetime_to_seconds({{2100,1,1},{0,0,0}}) ),
+                           datetime_to_seconds({{2100, 1, 1}, {0, 0, 0}})),
          seconds_to_datetime(Seconds)).
 
 expiry_date_as_seconds() -> pos_integer().
@@ -403,11 +404,11 @@ vcard() ->
 
 bare_jid() ->
     ?LET({Username, Domain}, {username(), domain()},
-         <<(?l2b(Username))/bytes, "@", (Domain)/bytes>>).
+         <<(?L2B(Username))/bytes, "@", (Domain)/bytes>>).
 
 %full_jid() ->
 %    ?LET({Username, Domain, Res}, {username(), domain(), resource()},
-%         <<(?l2b(Username))/bytes, "@", (?l2b(Domain))/bytes, "/", (?l2b(Res))/bytes>>).
+%         <<(?L2B(Username))/bytes, "@", (?L2B(Domain))/bytes, "/", (?L2B(Res))/bytes>>).
 
 username() -> ascii_string().
 domain()   -> ct:get_config({hosts, mim, domain}).
@@ -421,3 +422,5 @@ ascii_lower() -> choose($a, $z).
 ascii_upper() -> choose($A, $Z).
 ascii_alpha() -> union([ascii_lower(), ascii_upper()]).
 ascii_alnum() -> union([ascii_alpha(), ascii_digit()]).
+
+tested() -> mod_auth_token.

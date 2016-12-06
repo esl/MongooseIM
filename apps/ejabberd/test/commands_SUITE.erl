@@ -264,13 +264,14 @@ new_execute(_C) ->
     Domain = domain(),
     % a caller arg
     % called by admin
-    {ok, <<"admin@", Domain/binary, "/zbzzzz">>} =
+    DomainSize = size(Domain),
+    {ok, <<"admin@", Domain:DomainSize/binary, "/zbzzzz">>} =
                           mongoose_commands:execute(admin,
                                  command_withcaller,
                                  #{caller => <<"admin@", Domain/binary, "/z">>,
                                    msg => <<"bzzzz">>}),
     % called by user
-    {ok, <<"zenek@", Domain/binary, "/zbzzzz">>} =
+    {ok, <<"zenek@", Domain:DomainSize/binary, "/zbzzzz">>} =
                           mongoose_commands:execute(<<"zenek@", Domain/binary>>,
                                  command_withcaller,
                                  #{caller => <<"zenek@", Domain/binary, "/z">>,
@@ -570,9 +571,9 @@ the_same_types(_, _) ->
     <<"wrong response">>.
 
 different_types(10, <<"binary">>) ->
-	<<"response2">>;
+    <<"response2">>;
 different_types(_, _) ->
-	<<"wrong content">>.
+    <<"wrong content">>.
 
 cmd_concat(A, B) ->
     <<A/binary, B/binary>>.
@@ -610,6 +611,7 @@ domain() ->
     ct:get_config({hosts, mim, domain}).
 
 ujid() ->
-    <<"zenek@", domain()/binary, "/k">>.
+    Domain = domain(),
+    <<"zenek@", Domain/binary, "/k">>.
 %%    #jid{user = <<"zenek">>, server = <<"localhost">>, resource = "k",
 %%         luser = <<"zenek">>, lserver = <<"localhost">>, lresource = "k"}.

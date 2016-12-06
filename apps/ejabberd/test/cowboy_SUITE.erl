@@ -168,7 +168,7 @@ mixed_requests(_Config) ->
     TextPing = ws_tx_frame(<<"ping">>, 1),
     TextPong = ws_rx_frame(<<"pong">>, 1),
 
-    Host = binaryy_to_list(domain()),
+    Host = binary_to_list(domain()),
     Port = 8080,
 
     HTTPHost = server(),
@@ -394,5 +394,6 @@ domain() ->
     ct:get_config({hosts, mim, domain}).
 
 server() ->
-    Server = <<"http://", domain()/binary, ":8080">>,
+    Domain = domain(),
+    Server = <<"http://", Domain/binary, ":8080">>,
     binary_to_list(Server).

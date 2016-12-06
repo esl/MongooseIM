@@ -21,7 +21,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -define(DOMAIN1, domain()).
--define(DOMAIN2, <<domain()/binary, "2">>).
+-define(DOMAIN2, domain2()).
 -define(AUTH_HOST, "http://localhost:12000").
 -define(BASIC_AUTH, "softkitty:purrpurrpurr").
 
@@ -156,12 +156,14 @@ remove_user(_Config) ->
     false = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1),
 
     true = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
-    {error, not_allowed} = ejabberd_auth_http:remove_user(<<"toremove2">>, ?DOMAIN1, <<"wrongpass">>),
+    {error, not_allowed} = ejabberd_auth_http:remove_user(<<"toremove2">>,
+                                                    ?DOMAIN1, <<"wrongpass">>),
     true = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
     ok = ejabberd_auth_http:remove_user(<<"toremove2">>, ?DOMAIN1, <<"pass">>),
     false = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
 
-    {error, not_exists} = ejabberd_auth_http:remove_user(<<"toremove3">>, ?DOMAIN1, <<"wrongpass">>).
+    {error, not_exists} = ejabberd_auth_http:remove_user(<<"toremove3">>,
+                                                    ?DOMAIN1, <<"wrongpass">>).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -195,3 +197,7 @@ do_scram(Pass, Config) ->
     end.
 
 domain() -> ct:get_config({hosts, mim, domain}).
+
+domain2() ->
+    Domain = domain(),
+    <<Domain/binary, "2">>.
