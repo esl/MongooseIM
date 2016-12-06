@@ -116,7 +116,7 @@ prepared_queries() ->
      {get_behaviour_bare_query,
       "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid IN ('', ?)"},
      {get_behaviour_full_query,
-      "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid",
+      "SELECT remote_jid, behaviour FROM mam_config WHERE user_jid = ? AND remote_jid "
       "IN ('', ?, ?)"},
      {del_prefs_ts_query,
       "DELETE FROM mam_config USING TIMESTAMP ? WHERE user_jid = ?"}

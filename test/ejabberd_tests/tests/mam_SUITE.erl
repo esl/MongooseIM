@@ -497,7 +497,7 @@ do_init_per_group(C, ConfigIn) ->
         riak_timed_yz_buckets ->
             [{yz_wait, 2500} | Config0];
         cassandra ->
-            [{ca_wait, 500} | Config0];
+            [{ca_wait, 2500} | Config0];
         _ ->
             Config0
     end.

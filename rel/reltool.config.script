@@ -51,7 +51,6 @@ AppsToRun = [compiler,
              cowboy,
              fusco,
              exometer,
-             seestar,
              fast_tls],
 
 BaseAppsToInclude = AppsToRun ++
