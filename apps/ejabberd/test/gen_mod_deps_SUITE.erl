@@ -55,7 +55,11 @@ starts_dependencies(_Config) ->
 starts_dependency_chain(_Config) ->
     set_deps(#{mod_a => [{mod_b, hard}], mod_b => [{mod_c, hard}]}),
     gen_mod_deps:start_modules(<<"host">>, [{mod_a, []}]),
-    check_started([mod_a, mod_b, mod_c]).
+
+    check_started([mod_a, mod_b, mod_c]),
+
+    StartOrder = [Mod || {_, {_, start_module, [_, Mod, _]}, _} <- meck:history(gen_mod)],
+    ?assertEqual([mod_c, mod_b, mod_a], StartOrder).
 
 
 starts_dependency_dag(_Config) ->
