@@ -117,10 +117,7 @@ start_modules() ->
                   undefined ->
                       ok;
                   Modules ->
-                      lists:foreach(
-                        fun({Module, Args}) ->
-                                gen_mod:start_module(Host, Module, Args)
-                        end, Modules)
+                      gen_mod_deps:start_modules(Host, Modules)
               end
       end, ?MYHOSTS).
 
