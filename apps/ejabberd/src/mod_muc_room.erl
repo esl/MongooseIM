@@ -102,7 +102,7 @@
 
 -type statename() :: 'locked_state' | 'normal_state'.
 -type fsm_return() :: {'next_state', statename(), state()}
-                    | {'next_state', statename(), state(), timeout()}
+                    | {'next_state', statename(), state(), timeout() | hibernate}
                     | {'stop', any(), state()}.
 
 -type lqueue() :: #lqueue{}.
