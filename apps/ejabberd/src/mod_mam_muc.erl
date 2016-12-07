@@ -898,7 +898,7 @@ return_error_iq(IQ, not_implemented) ->
 return_error_iq(IQ, missing_with_jid) ->
     Error =  ?ERRT_BAD_REQUEST(<<"en">>,
                                <<"Limited set of queries allowed in the conversation mode.",
-                               "Missing with_jid filter">>),
+                                 "Missing with_jid filter">>),
     {error, bad_request, IQ#iq{type = error, sub_el = [Error]}};
 return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.

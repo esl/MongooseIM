@@ -17,10 +17,10 @@ start_pool({PoolName, PoolConfig}) ->
 
 extend_config(PoolConfig) ->
     PoolConfig
-    ++ [{servers, [{"localhost", 9042, 1}]},
-        {socket_options, [{connect_timeout, 4000}]},
-        {keyspace, "mongooseim"},
-        {credentials, undefined}].
+        ++ [{servers, [{"localhost", 9042, 1}]},
+            {socket_options, [{connect_timeout, 4000}]},
+            {keyspace, "mongooseim"},
+            {credentials, undefined}].
 
 -spec stop() -> _.
 stop() ->

@@ -170,9 +170,9 @@ archive_message(Result, Host, MessID, _UserID,
     end.
 
 archive_message2(_Result, _Host, MessID,
-                  LocJID = #jid{},
-                  RemJID = #jid{},
-                  SrcJID = #jid{}, _Dir, Packet) ->
+                 LocJID = #jid{},
+                 RemJID = #jid{},
+                 SrcJID = #jid{}, _Dir, Packet) ->
     BLocJID = bare_jid(LocJID),
     BRemBareJID = bare_jid(RemJID),
     BRemFullJID = full_jid(RemJID),
@@ -301,15 +301,15 @@ lookup_messages(_Result, Host,
     end.
 
 lookup_messages2(Worker, Host,
-                  UserJID = #jid{}, RSM, Borders,
+                 UserJID = #jid{}, RSM, Borders,
                  Start, End, WithJID,
                  PageSize, _LimitPassed, _MaxResultLimit,
-                  _IsSimple = true) ->
+                 _IsSimple = true) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
     lookup_messages_simple(Worker, Host, UserJID, RSM, PageSize, Filter);
 lookup_messages2(Worker, Host,
-                  UserJID = #jid{}, RSM, Borders,
+                 UserJID = #jid{}, RSM, Borders,
                  Start, End, WithJID,
                  PageSize, LimitPassed, MaxResultLimit,
                  _IsSimple) ->
@@ -716,10 +716,8 @@ prepare_filter_cql(StartID, EndID) ->
         end.
 
 filter_to_cql() ->
-    [{select_filter(StartID, EndID),
-      prepare_filter_cql(StartID, EndID)}
-     || StartID <- [undefined, 0],
-        EndID <- [undefined, 0]].
+    [{select_filter(StartID, EndID), prepare_filter_cql(StartID, EndID)}
+     || StartID <- [undefined, 0], EndID <- [undefined, 0]].
 
 -spec calc_offset(Worker, UserJID, Host, Filter, PageSize, TotalCount, RSM) -> Offset
                                                                                    when
@@ -731,9 +729,6 @@ filter_to_cql() ->
       TotalCount :: non_neg_integer(),
       RSM :: rsm_in() | undefined,
       Offset :: non_neg_integer().
-% calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
-%   when is_integer(Index) ->
-%     Index;
 %% Requesting the Last Page in a Result Set
 calc_offset(_W, _UserJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);

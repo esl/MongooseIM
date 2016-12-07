@@ -373,7 +373,7 @@ include_config_files([Term | Terms], Res) ->
 delete_disallowed(Disallowed, Terms) ->
     lists:foldl(
       fun(Dis, Ldis) ->
-              delete_disallowed2(Dis, Ldis)
+          delete_disallowed2(Dis, Ldis)
       end,
       Terms,
       Disallowed).
@@ -402,7 +402,7 @@ keep_only_allowed(all, Terms) ->
 keep_only_allowed(Allowed, Terms) ->
     {As, NAs} = lists:partition(
                   fun(Term) ->
-                          lists:member(element(1, Term), Allowed)
+                      lists:member(element(1, Term), Allowed)
                   end,
                   Terms),
     [?WARNING_MSG("This option is not allowed, "
@@ -427,7 +427,7 @@ split_terms_macros(Terms) ->
     lists:foldl(fun split_terms_macros_fold/2, {[], []}, Terms).
 
 -spec split_terms_macros_fold(any(), Acc) -> Acc when
-    Acc :: {[term()], [{Key :: any(), Value :: any()}]}.
+      Acc :: {[term()], [{Key :: any(), Value :: any()}]}.
 split_terms_macros_fold(Term, {TOs, Ms}) ->
     case Term of
         {define_macro, Key, Value} ->
@@ -508,15 +508,15 @@ process_term(Term, State) ->
             State;
         {host_config, Host, Terms} ->
             lists:foldl(fun(T, S) ->
-                                process_host_term(T, list_to_binary(Host), S) end,
+                            process_host_term(T, list_to_binary(Host), S) end,
                         State, Terms);
         {listen, Listeners} ->
             Listeners2 =
                 lists:map(
                   fun({PortIP, Module, Opts}) ->
-                          {Port, IPT, _, _, Proto, OptsClean} =
-                              ejabberd_listener:parse_listener_portip(PortIP, Opts),
-                          {{Port, IPT, Proto}, Module, OptsClean}
+                      {Port, IPT, _, _, Proto, OptsClean} =
+                          ejabberd_listener:parse_listener_portip(PortIP, Opts),
+                      {{Port, IPT, Proto}, Module, OptsClean}
                   end,
                   Listeners),
             add_option(listen, Listeners2, State);
@@ -711,16 +711,16 @@ do_set_opts(State) ->
 -spec add_global_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_global_option(Opt, Val) ->
     mnesia:transaction(fun() ->
-                               mnesia:write(#config{key   = Opt,
-                                                    value = Val})
+                           mnesia:write(#config{key   = Opt,
+                                                value = Val})
                        end).
 
 
 -spec add_local_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_local_option(Opt, Val) ->
     mnesia:transaction(fun() ->
-                               mnesia:write(#local_config{key   = Opt,
-                                                          value = Val})
+                           mnesia:write(#local_config{key   = Opt,
+                                                      value = Val})
                        end).
 
 -spec del_local_option(Opt :: key()) -> {atomic | aborted, _}.
@@ -875,12 +875,12 @@ groups_to_string(Header, S) ->
 -spec group_nodes_results(list(), [atom]) -> {[string()], [string()]}.
 group_nodes_results(SuccessfullRPC, FailedRPC) ->
     {S, F} = lists:foldl(fun(El, {SN, FN}) ->
-                                 case El of
-                                     {ok, Node} ->
-                                         {[atom_to_list(Node) | SN], FN};
-                                     {error, Node, Reason} ->
-                                         {SN, [atom_to_list(Node) ++ " " ++ Reason | FN]}
-                                 end
+                             case El of
+                                 {ok, Node} ->
+                                     {[atom_to_list(Node) | SN], FN};
+                                 {error, Node, Reason} ->
+                                     {SN, [atom_to_list(Node) ++ " " ++ Reason | FN]}
+                             end
                          end, {[], []}, SuccessfullRPC),
     {S, F ++ lists:map(fun(E) -> {atom_to_list(E) ++ " " ++ "RPC failed"} end, FailedRPC)}.
 
@@ -1057,7 +1057,7 @@ handle_local_hosts_config_add({{ldap, _Host}, _}) ->
 handle_local_hosts_config_add({{modules, Host}, Modules}) ->
     lists:foreach(
       fun({Module, Args}) ->
-              gen_mod:start_module(Host, Module, Args)
+          gen_mod:start_module(Host, Module, Args)
       end, Modules);
 handle_local_hosts_config_add({{Key, _Host}, _} = El) ->
     case can_be_ignored(Key) of
@@ -1074,7 +1074,7 @@ handle_local_hosts_config_del({{auth, Host}, Opts}) ->
         {auth_method, Val} ->
             AuthModules = methods_to_auth_modules(Val),
             lists:foreach(fun(M) ->
-                                  M:stop(Host)
+                              M:stop(Host)
                           end, AuthModules)
     end;
 handle_local_hosts_config_del({{odbc, Host}, _}) ->
@@ -1085,7 +1085,7 @@ handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
 handle_local_hosts_config_del({{modules, Host}, Modules}) ->
     lists:foreach(
       fun({Module, _Args}) ->
-              gen_mod:stop_module(Host, Module)
+          gen_mod:stop_module(Host, Module)
       end, Modules);
 handle_local_hosts_config_del({{Key, _}, _} = El) ->
     case can_be_ignored(Key) of
@@ -1112,7 +1112,7 @@ handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
             %% stop old modules
             AuthModules = methods_to_auth_modules(Val),
             lists:foreach(fun(M) ->
-                                  M:stop(Host)
+                              M:stop(Host)
                           end, AuthModules)
     end,
     ejabberd_auth:start(Host);
@@ -1174,13 +1174,13 @@ reload_modules(Host, #compare_result{to_start  = Start, to_stop = Stop,
                                      to_reload = Reload} = ChangedModules) ->
     ?DEBUG("reload modules: ~p", [lager:pr(ChangedModules, ?MODULE)]),
     lists:foreach(fun({M, _}) ->
-                          gen_mod:stop_module(Host, M)
+                      gen_mod:stop_module(Host, M)
                   end, Stop),
     lists:foreach(fun({M, Args}) ->
-                          gen_mod:start_module(Host, M, Args)
+                      gen_mod:start_module(Host, M, Args)
                   end, Start),
     lists:foreach(fun({M, _, Args}) ->
-                          gen_mod:reload_module(Host, M, Args)
+                      gen_mod:reload_module(Host, M, Args)
                   end, Reload).
 
 -spec reload_listeners(ChangedListeners :: compare_result()) -> 'ok'.
@@ -1188,14 +1188,14 @@ reload_listeners(#compare_result{to_start  = Add, to_stop = Del,
                                  to_reload = Change} = ChangedListeners) ->
     ?DEBUG("reload listeners: ~p", [lager:pr(ChangedListeners, ?MODULE)]),
     lists:foreach(fun({{PortIP, Module}, Opts}) ->
-                          ejabberd_listener:delete_listener(PortIP, Module, Opts)
+                      ejabberd_listener:delete_listener(PortIP, Module, Opts)
                   end, Del),
     lists:foreach(fun({{PortIP, Module}, Opts}) ->
-                          ejabberd_listener:add_listener(PortIP, Module, Opts)
+                      ejabberd_listener:add_listener(PortIP, Module, Opts)
                   end, Add),
     lists:foreach(fun({{PortIP, Module}, OldOpts, NewOpts}) ->
-                          ejabberd_listener:delete_listener(PortIP, Module, OldOpts),
-                          ejabberd_listener:add_listener(PortIP, Module, NewOpts)
+                      ejabberd_listener:delete_listener(PortIP, Module, OldOpts),
+                      ejabberd_listener:add_listener(PortIP, Module, NewOpts)
                   end, Change).
 
 -spec compare_modules(term(), term()) -> compare_result().
@@ -1208,20 +1208,20 @@ compare_listeners(OldListeners, NewListeners) ->
 
 map_listeners(Listeners) ->
     lists:map(fun({PortIP, Module, Opts}) ->
-                      {{PortIP, Module}, Opts}
+                  {{PortIP, Module}, Opts}
               end, Listeners).
 
                                                 % group values which can be grouped like odbc ones
 -spec group_host_changes([term()]) -> [{atom(), [term()]}].
 group_host_changes(Changes) when is_list(Changes) ->
     D = lists:foldl(fun(#local_config{key = {Key, Host}, value = Val}, Dict) ->
-                            BKey = atom_to_binary(Key, utf8),
-                            case get_key_group(BKey, Key) of
-                                Key ->
-                                    dict:append({Key, Host}, Val, Dict);
-                                NewKey ->
-                                    dict:append({NewKey, Host}, {Key, Val}, Dict)
-                            end
+                        BKey = atom_to_binary(Key, utf8),
+                        case get_key_group(BKey, Key) of
+                            Key ->
+                                dict:append({Key, Host}, Val, Dict);
+                            NewKey ->
+                                dict:append({NewKey, Host}, {Key, Val}, Dict)
+                        end
                     end, dict:new(), Changes),
     [{Group, lists:sort(lists:flatten(MaybeDeepList))}
      || {Group, MaybeDeepList} <- dict:to_list(D)].
@@ -1235,7 +1235,7 @@ get_host_local_config() ->
 get_local_config() ->
     Keys = lists:filter(fun is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
     lists:flatten(lists:map(fun(Key) ->
-                                    mnesia:dirty_read(local_config, Key)
+                                mnesia:dirty_read(local_config, Key)
                             end,
                             Keys)).
 
@@ -1255,18 +1255,18 @@ is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
       HostsConfig :: list().
 categorize_options(Opts) ->
     lists:foldl(fun({config, _, _} = El, Acc) ->
-                        as_global(El, Acc);
+                    as_global(El, Acc);
                    ({local_config, {Key, Host}, _} = El, Acc)
                       when is_atom(Key), is_binary(Host) ->
-                        as_hosts(El, Acc);
+                    as_hosts(El, Acc);
                    ({local_config, _, _} = El, Acc) ->
-                        as_local(El, Acc);
+                    as_local(El, Acc);
                    ({acl, _, _}, R) ->
-                        %% no need to do extra work here
-                        R;
+                    %% no need to do extra work here
+                    R;
                    (R, R2) ->
-                        ?ERROR_MSG("not matched ~p", [R]),
-                        R2
+                    ?ERROR_MSG("not matched ~p", [R]),
+                    R2
                 end, {[], [], []}, Opts).
 
 as_global(El, {Config, Local, HostLocal}) -> {[El | Config], Local, HostLocal}.
@@ -1330,18 +1330,18 @@ find_modules_to_change(KeyPos, NewTerms, ValuePos,
 
 mk_node_start_filter() ->
     fun(#local_config{key = node_start}) ->
-            false;
+        false;
        (_) ->
-            true
+        true
     end.
 
 sort_config(Config) when is_list(Config) ->
     L = lists:map(fun(ConfigItem) when is_list(ConfigItem) ->
-                          sort_config(ConfigItem);
+                      sort_config(ConfigItem);
                      (ConfigItem) when is_tuple(ConfigItem) ->
-                          sort_config(tuple_to_list(ConfigItem));
+                      sort_config(tuple_to_list(ConfigItem));
                      (ConfigItem) ->
-                          ConfigItem
+                      ConfigItem
                   end, Config),
     lists:sort(L).
 

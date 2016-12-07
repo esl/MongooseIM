@@ -114,17 +114,17 @@ db_init() ->
 start_modules() ->
     lists:foreach(
       fun(Host) ->
-              StartModuleFun =
-                  fun({Module, Args}) ->
-                          gen_mod:start_module(Host, Module, Args)
-                  end,
-              case ejabberd_config:get_local_option({modules, Host}) of
-                  undefined ->
-                      ok;
-                  Modules ->
-                      lists:foreach(StartModuleFun, Modules)
+          StartModuleFun =
+              fun({Module, Args}) ->
+                  gen_mod:start_module(Host, Module, Args)
+              end,
+          case ejabberd_config:get_local_option({modules, Host}) of
+              undefined ->
+                  ok;
+              Modules ->
+                  lists:foreach(StartModuleFun, Modules)
 
-              end
+          end
       end, ?MYHOSTS).
 
 %% Stop all the modules in all the hosts
@@ -132,16 +132,16 @@ start_modules() ->
 stop_modules() ->
     lists:foreach(
       fun(Host) ->
-              StopModuleFun =
-                  fun({Module, _Args}) ->
-                          gen_mod:stop_module_keep_config(Host, Module)
-                  end,
-              case ejabberd_config:get_local_option({modules, Host}) of
-                  undefined ->
-                      ok;
-                  Modules ->
-                      lists:foreach(StopModuleFun, Modules)
-              end
+          StopModuleFun =
+              fun({Module, _Args}) ->
+                  gen_mod:stop_module_keep_config(Host, Module)
+              end,
+          case ejabberd_config:get_local_option({modules, Host}) of
+              undefined ->
+                  ok;
+              Modules ->
+                  lists:foreach(StopModuleFun, Modules)
+          end
       end, ?MYHOSTS).
 
 -spec maybe_start_alarms() -> 'ok'.
@@ -161,7 +161,7 @@ connect_nodes() ->
             ok;
         Nodes when is_list(Nodes) ->
             lists:foreach(fun(Node) ->
-                                  net_kernel:connect_node(Node)
+                              net_kernel:connect_node(Node)
                           end, Nodes)
     end.
 
@@ -170,7 +170,7 @@ broadcast_c2s_shutdown() ->
     Children = supervisor:which_children(ejabberd_c2s_sup),
     lists:foreach(
       fun({_, C2SPid, _, _}) ->
-              C2SPid ! system_shutdown
+          C2SPid ! system_shutdown
       end, Children).
 
 %%%

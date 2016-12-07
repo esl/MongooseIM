@@ -241,7 +241,7 @@ full_jid(JID) ->
                         DefaultMode :: mod_mam:archive_behaviour(),
                         AlwaysJIDs :: [ejabberd:literal_jid()],
                         NeverJIDs :: [ejabberd:literal_jid()]) -> {
-                         mod_mam:archive_behaviour(),
+                             mod_mam:archive_behaviour(),
                          [ejabberd:literal_jid()],
                          [ejabberd:literal_jid()]
                         }.

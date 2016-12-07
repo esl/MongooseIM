@@ -248,8 +248,8 @@ get_query_cql(Module, QueryName) ->
     catch Class:Error ->
             Stacktrace = erlang:get_stacktrace(),
             ?ERROR_MSG("issue=get_query_cql_failed, query_module=~p, query_name=~p,
-                        reason=~p:~p, stacktrace=~1000p",
-               [Module, QueryName, Class, Error, Stacktrace]),
+reason=~p:~p, stacktrace=~1000p",
+[Module, QueryName, Class, Error, Stacktrace]),
             {error, get_query_cql_failed}
     end.
 
@@ -451,15 +451,15 @@ async_spawn(Addr, Port, ClientOptions) ->
     Parent = self(),
     proc_lib:spawn_link(
       fun() ->
-              ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
-              ?DEBUG("issue=\"seestar_session:start_link\", address=~p, port=~p, "
-                     "client_options=~p, connect_options=~p",
-                     [Addr, Port, ClientOptions, ConnectOptions]),
-              Res = (catch seestar_session:start_link(Addr, Port, ClientOptions, ConnectOptions)),
-              ?DEBUG("issue=\"seestar_session:start_link result\", result=~p",
-                     [Res]),
-              Parent ! {connection_result, Res},
-              maybe_waitfor(Res)
+          ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
+          ?DEBUG("issue=\"seestar_session:start_link\", address=~p, port=~p, "
+                 "client_options=~p, connect_options=~p",
+                 [Addr, Port, ClientOptions, ConnectOptions]),
+          Res = (catch seestar_session:start_link(Addr, Port, ClientOptions, ConnectOptions)),
+          ?DEBUG("issue=\"seestar_session:start_link result\", result=~p",
+                 [Res]),
+          Parent ! {connection_result, Res},
+          maybe_waitfor(Res)
       end).
 
 -spec maybe_waitfor({ok, pid()} | term()) -> ok.

@@ -33,7 +33,7 @@
          post/3,
          putt/3,
          delete/2]
-    ).
+       ).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
@@ -70,7 +70,7 @@ test_cases() ->
      messages_are_archived,
      messages_can_be_paginated,
      password_can_be_changed
-     ].
+    ].
 
 suite() ->
     escalus:suite().
@@ -117,146 +117,150 @@ non_existent_command_returns404(_C) ->
     {?NOT_FOUND, _} = gett(<<"/isitthereornot">>).
 
 user_can_be_registered_and_removed(_Config) ->
-    % list users
+    %% list users
     {?OK, Lusers} = gett(<<"/users/localhost">>),
     assert_inlist(<<"alice@localhost">>, Lusers),
-    % create user
+    %% create user
     CrUser = #{username => <<"mike">>, password => <<"nicniema">>},
     {?CREATED, _} = post(<<"/users/localhost">>, CrUser),
     {?OK, Lusers1} = gett(<<"/users/localhost">>),
     assert_inlist(<<"mike@localhost">>, Lusers1),
-    % try to create the same user
+    %% try to create the same user
     {?ERROR, _} = post(<<"/users/localhost">>, CrUser),
-    % delete user
+    %% delete user
     {?NOCONTENT, _} = delete(<<"/users/localhost/mike">>),
     {?OK, Lusers2} = gett(<<"/users/localhost">>),
     assert_notinlist(<<"mike@localhost">>, Lusers2),
     ok.
 
 sessions_are_listed(_) ->
-    % no session
+    %% no session
     {?OK, Sessions} = gett("/sessions/localhost"),
     true = is_list(Sessions).
 
 session_can_be_kicked(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        % Alice is connected
-        {?OK, Sessions1} = gett("/sessions/localhost"),
-        assert_inlist(<<"alice@localhost/res1">>, Sessions1),
-        % kick alice
-        {?NOCONTENT, _} = delete("/sessions/localhost/alice/res1"),
-        escalus:wait_for_stanza(Alice),
-        true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
-        {?OK, Sessions2} = gett("/sessions/localhost"),
-        assert_notinlist(<<"alice@localhost/res1">>, Sessions2)
-    end).
+    F = fun(Alice) ->
+            %% Alice is connected
+            {?OK, Sessions1} = gett("/sessions/localhost"),
+            assert_inlist(<<"alice@localhost/res1">>, Sessions1),
+            %% kick alice
+            {?NOCONTENT, _} = delete("/sessions/localhost/alice/res1"),
+            escalus:wait_for_stanza(Alice),
+            true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
+            {?OK, Sessions2} = gett("/sessions/localhost"),
+            assert_notinlist(<<"alice@localhost/res1">>, Sessions2)
+        end,
+    escalus:story(Config, [{alice, 1}], F).
 
 messages_are_sent_and_received(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {M1, M2} = send_messages(Alice, Bob),
-        Res = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_chat_message, [maps:get(body, M1)], Res),
-        Res1 = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_chat_message, [maps:get(body, M2)], Res1)
-    end).
+    F = fun(Alice, Bob) ->
+            {M1, M2} = send_messages(Alice, Bob),
+            Res = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_chat_message, [maps:get(body, M1)], Res),
+            Res1 = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_chat_message, [maps:get(body, M2)], Res1)
+        end,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 send_messages(Alice, Bob) ->
-        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
-        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        M = #{caller => BobJID, to => AliceJID, body => <<"hello from Bob">>},
-        {?NOCONTENT, _} = post(<<"/messages">>, M),
-        M1 = #{caller => AliceJID, to => BobJID, body => <<"hello from Alice">>},
-        {?NOCONTENT, _} = post(<<"/messages">>, M1),
-        {M, M1}.
+    AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+    BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+    M = #{caller => BobJID, to => AliceJID, body => <<"hello from Bob">>},
+    {?NOCONTENT, _} = post(<<"/messages">>, M),
+    M1 = #{caller => AliceJID, to => BobJID, body => <<"hello from Alice">>},
+    {?NOCONTENT, _} = post(<<"/messages">>, M1),
+    {M, M1}.
 
 messages_are_archived(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {M1, _M2} = send_messages(Alice, Bob),
-        AliceJID = maps:get(to, M1),
-        BobJID = maps:get(caller, M1),
-        GetPath = lists:flatten(["/messages",
-                                 "/", binary_to_list(AliceJID),
-                                 "/", binary_to_list(BobJID),
-                                 "?limit=10"]),
-        mam_helper:maybe_wait_for_backend(Config),
-        {?OK, Msgs} = gett(GetPath),
-        [Last, Previous|_] = lists:reverse(decode_maplist(Msgs)),
-        <<"hello from Alice">> = maps:get(body, Last),
-        AliceJID = maps:get(sender, Last),
-        <<"hello from Bob">> = maps:get(body, Previous),
-        BobJID = maps:get(sender, Previous),
-        % now if we leave limit out we should get the same result
-        GetPath1 = lists:flatten(["/messages",
-                                  "/", binary_to_list(AliceJID),
-                                  "/", binary_to_list(BobJID)]),
-        mam_helper:maybe_wait_for_backend(Config),
-        {?OK, Msgs1} = gett(GetPath1),
-        [Last1, Previous1|_] = lists:reverse(decode_maplist(Msgs1)),
-        <<"hello from Alice">> = maps:get(body, Last1),
-        AliceJID = maps:get(sender, Last1),
-        <<"hello from Bob">> = maps:get(body, Previous1),
-        BobJID = maps:get(sender, Previous1),
-        % and we can do the same without specifying contact
-        GetPath2 = lists:flatten(["/messages/", binary_to_list(AliceJID)]),
-        mam_helper:maybe_wait_for_backend(Config),
-        {?OK, Msgs2} = gett(GetPath2),
-        [Last2, Previous2|_] = lists:reverse(decode_maplist(Msgs2)),
-        <<"hello from Alice">> = maps:get(body, Last2),
-        AliceJID = maps:get(sender, Last2),
-        <<"hello from Bob">> = maps:get(body, Previous2),
-        BobJID = maps:get(sender, Previous2)
-    end).
+    F = fun(Alice, Bob) ->
+            {M1, _M2} = send_messages(Alice, Bob),
+            AliceJID = maps:get(to, M1),
+            BobJID = maps:get(caller, M1),
+            GetPath = lists:flatten(["/messages",
+                                     "/", binary_to_list(AliceJID),
+                                     "/", binary_to_list(BobJID),
+                                     "?limit=10"]),
+            mam_helper:maybe_wait_for_backend(Config),
+            {?OK, Msgs} = gett(GetPath),
+            [Last, Previous|_] = lists:reverse(decode_maplist(Msgs)),
+            <<"hello from Alice">> = maps:get(body, Last),
+            AliceJID = maps:get(sender, Last),
+            <<"hello from Bob">> = maps:get(body, Previous),
+            BobJID = maps:get(sender, Previous),
+            %% now if we leave limit out we should get the same result
+            GetPath1 = lists:flatten(["/messages",
+                                      "/", binary_to_list(AliceJID),
+                                      "/", binary_to_list(BobJID)]),
+            mam_helper:maybe_wait_for_backend(Config),
+            {?OK, Msgs1} = gett(GetPath1),
+            [Last1, Previous1|_] = lists:reverse(decode_maplist(Msgs1)),
+            <<"hello from Alice">> = maps:get(body, Last1),
+            AliceJID = maps:get(sender, Last1),
+            <<"hello from Bob">> = maps:get(body, Previous1),
+            BobJID = maps:get(sender, Previous1),
+            %% and we can do the same without specifying contact
+            GetPath2 = lists:flatten(["/messages/", binary_to_list(AliceJID)]),
+            mam_helper:maybe_wait_for_backend(Config),
+            {?OK, Msgs2} = gett(GetPath2),
+            [Last2, Previous2|_] = lists:reverse(decode_maplist(Msgs2)),
+            <<"hello from Alice">> = maps:get(body, Last2),
+            AliceJID = maps:get(sender, Last2),
+            <<"hello from Bob">> = maps:get(body, Previous2),
+            BobJID = maps:get(sender, Previous2)
+        end,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 messages_can_be_paginated(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
-        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        rest_helper:fill_archive(Alice, Bob),
-        mam_helper:maybe_wait_for_backend(Config),
-        % recent msgs with a limit
-        M1 = get_messages(AliceJID, BobJID, 10),
-        ?assertEqual(6, length(M1)),
-        M2 = get_messages(AliceJID, BobJID, 3),
-        ?assertEqual(3, length(M2)),
-        % older messages - earlier then the previous midnight
-        PriorTo = rest_helper:make_timestamp(-1, {0, 0, 1}) div 1000,
-        M3 = get_messages(AliceJID, BobJID, PriorTo, 10),
-        ?assertEqual(4, length(M3)),
-        [Oldest|_] = decode_maplist(M3),
-        ?assertEqual(maps:get(body, Oldest), <<"A">>),
-        % same with limit
-        M4 = get_messages(AliceJID, BobJID, PriorTo, 2),
-        ?assertEqual(2, length(M4)),
-        [Oldest2|_] = decode_maplist(M4),
-        ?assertEqual(maps:get(body, Oldest2), <<"B">>),
-        ok
-    end).
+    F = fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+            rest_helper:fill_archive(Alice, Bob),
+            mam_helper:maybe_wait_for_backend(Config),
+            %% recent msgs with a limit
+            M1 = get_messages(AliceJID, BobJID, 10),
+            ?assertEqual(6, length(M1)),
+            M2 = get_messages(AliceJID, BobJID, 3),
+            ?assertEqual(3, length(M2)),
+            %% older messages - earlier then the previous midnight
+            PriorTo = rest_helper:make_timestamp(-1, {0, 0, 1}) div 1000,
+            M3 = get_messages(AliceJID, BobJID, PriorTo, 10),
+            ?assertEqual(4, length(M3)),
+            [Oldest|_] = decode_maplist(M3),
+            ?assertEqual(maps:get(body, Oldest), <<"A">>),
+            %% same with limit
+            M4 = get_messages(AliceJID, BobJID, PriorTo, 2),
+            ?assertEqual(2, length(M4)),
+            [Oldest2|_] = decode_maplist(M4),
+            ?assertEqual(maps:get(body, Oldest2), <<"B">>),
+            ok
+        end,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 password_can_be_changed(Config) ->
-    % bob logs in with his regular password
+    %% bob logs in with his regular password
     escalus:story(Config, [{bob, 1}], fun(_Bob) ->
-        skip
-    end),
-    % we change password
+                                          skip
+                                      end),
+    %% we change password
     {?NOCONTENT, _} = putt("/users/localhost/bob",
                            #{newpass => <<"niemakrolika">>}),
-    % he logs with his alternative password
+    %% he logs with his alternative password
     escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
-        ignore
-    end),
-    % we can't log with regular passwd anymore
+                                                  ignore
+                                              end),
+    %% we can't log with regular passwd anymore
     try escalus:story(Config, [{bob, 1}], fun(Bob) -> ?PRT("Bob", Bob) end) of
         _ -> ct:fail("bob connected with old password")
     catch error:{badmatch, _} ->
-        ok
+            ok
     end,
-    % we change it back
+    %% we change it back
     {?NOCONTENT, _} = putt("/users/localhost/bob",
                            #{newpass => <<"makrolika">>}),
-    % now he logs again with the regular one
+    %% now he logs again with the regular one
     escalus:story(Config, [{bob, 1}], fun(_Bob) ->
-        just_dont_do_anything
-    end),
+                                          just_dont_do_anything
+                                      end),
     ok.
 
 %%--------------------------------------------------------------------

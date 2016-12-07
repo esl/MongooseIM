@@ -171,9 +171,9 @@ archive_message(Result, Host, MessID, _RoomID,
     end.
 
 archive_message2(_Result, _Host, MessID,
-                  LocJID = #jid{},
-                  _RemJID = #jid{},
-                  _SrcJID = #jid{lresource = BNick}, _Dir, Packet) ->
+                 LocJID = #jid{},
+                 _RemJID = #jid{},
+                 _SrcJID = #jid{lresource = BNick}, _Dir, Packet) ->
     BLocJID = bare_jid(LocJID),
     BPacket = packet_to_stored_binary(Packet),
     Message = #mam_muc_message{
@@ -303,15 +303,15 @@ maybe_jid_to_nick(undefined) -> undefined.
 
 
 lookup_messages2(Worker, Host,
-                  RoomJID = #jid{}, RSM, Borders,
+                 RoomJID = #jid{}, RSM, Borders,
                  Start, End, WithNick,
                  PageSize, _LimitPassed, _MaxResultLimit,
-                  _IsSimple = true) ->
+                 _IsSimple = true) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
     lookup_messages_simple(Worker, Host, RoomJID, RSM, PageSize, Filter);
 lookup_messages2(Worker, Host,
-                  RoomJID = #jid{}, RSM, Borders,
+                 RoomJID = #jid{}, RSM, Borders,
                  Start, End, WithNick,
                  PageSize, LimitPassed, MaxResultLimit,
                  _IsSimple) ->
@@ -728,9 +728,6 @@ filter_to_cql() ->
       TotalCount :: non_neg_integer(),
       RSM :: rsm_in() | undefined,
       Offset :: non_neg_integer().
-% calc_offset(_W, _RoomJID, _LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
-%   when is_integer(Index) ->
-%     Index;
 %% Requesting the Last Page in a Result Set
 calc_offset(_W, _RoomJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
