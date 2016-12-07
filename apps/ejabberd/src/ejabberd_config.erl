@@ -1013,7 +1013,7 @@ handle_local_config_add(#local_config{key = Key} = El) ->
 handle_local_config_del(#local_config{key = riak_server}) ->
     mongoose_riak:stop();
 handle_local_config_del(#local_config{key = cassandra_servers}) ->
-    mongoose_cassandra:start();
+    mongoose_cassandra:stop();
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
