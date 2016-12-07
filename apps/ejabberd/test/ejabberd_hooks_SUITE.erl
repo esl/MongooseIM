@@ -112,7 +112,7 @@ hooks_run_ignores_different_arity_funs(_) ->
     ejabberd_hooks:run(test_run_hook, domain(), [one, two]),
 
     %% then
-    [{_, {hook_mod, un_twoarg, [one, two]}, success2}] = meck:history(hook_mod).
+    [{_, {hook_mod, fun_twoarg, [one, two]}, success2}] = meck:history(hook_mod).
 
 hooks_run_stops_when_fun_returns_stop(_) ->
     given_hooks_started(),
