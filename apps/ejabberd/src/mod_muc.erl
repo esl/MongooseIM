@@ -56,6 +56,10 @@
          muc_room_pid/2,
          can_access_room/3]).
 
+%% Stats
+-export([online_rooms_number/0]).
+-export([hibernated_rooms_number/0]).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
@@ -113,7 +117,9 @@
                 history_size        :: integer(),
                 default_room_opts   :: list(),
                 room_shaper         :: shaper:shaper(),
-                http_auth_pool      :: mongoose_http_client:pool()
+                http_auth_pool      :: mongoose_http_client:pool(),
+                hibernated_room_check_interval :: timeout(),
+                hibernated_room_timeout :: timeout()
               }).
 
 -type state() :: #state{}.
@@ -137,9 +143,10 @@ start_link(Host, Opts) ->
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
 
--spec start(ejabberd:server(),_) -> {'error',_}
-            | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
+-spec start(ejabberd:server(), _) ->
+    {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(Host, Opts) ->
+    ensure_metrics(Host),
     start_supervisor(Host),
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     ChildSpec =
@@ -292,14 +299,17 @@ init([Host, Opts]) ->
     HistorySize = gen_mod:get_opt(history_size, Opts, 20),
     DefRoomOpts = gen_mod:get_opt(default_room_options, Opts, []),
     RoomShaper = gen_mod:get_opt(room_shaper, Opts, none),
-
+    CheckInterval = gen_mod:get_opt(hibernated_room_check_interval, Opts, infinity),
+    HibernatedTimeout = gen_mod:get_opt(hibernated_room_timeout, Opts, infinity),
     State = #state{host = MyHost,
                    server_host = Host,
                    access = {Access, AccessCreate, AccessAdmin, AccessPersistent},
                    default_room_opts = DefRoomOpts,
                    history_size = HistorySize,
                    room_shaper = RoomShaper,
-                   http_auth_pool = HttpAuthPool},
+                   http_auth_pool = HttpAuthPool,
+                   hibernated_room_check_interval = CheckInterval,
+                   hibernated_room_timeout = HibernatedTimeout},
 
     ejabberd_hooks:add(is_muc_room_owner, MyHost, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:add(muc_room_pid, MyHost, ?MODULE, muc_room_pid, 50),
@@ -313,7 +323,13 @@ init([Host, Opts]) ->
     load_permanent_rooms(MyHost, Host,
                          {Access, AccessCreate, AccessAdmin, AccessPersistent},
                          HistorySize, RoomShaper, HttpAuthPool),
+    set_persistent_rooms_timer(State),
     {ok, State}.
+
+set_persistent_rooms_timer(#state{hibernated_room_check_interval = infinity}) ->
+    ok;
+set_persistent_rooms_timer(#state{hibernated_room_check_interval = Timeout}) ->
+    timer:send_after(Timeout, stop_hibernated_persistent_rooms).
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -387,8 +403,41 @@ handle_info({room_destroyed, RoomHost, Pid}, State) ->
 handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
     clean_table_from_bad_node(Node),
     {noreply, State};
+handle_info(stop_hibernated_persistent_rooms,
+            #state{server_host = ServerHost,
+                   hibernated_room_timeout = Timeout} = State) when is_integer(Timeout) ->
+    ?INFO_MSG("Closing hibernated persistent rooms", []),
+    Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
+    Now = os:timestamp(),
+    [stop_if_hibernated(Pid, Now, Timeout * 1000) ||
+     {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)],
+
+    set_persistent_rooms_timer(State),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
+
+stop_if_hibernated(Pid, Now, Timeout) ->
+    stop_if_hibernated(Pid, Now, Timeout, erlang:process_info(Pid, current_function)).
+
+stop_if_hibernated(Pid, Now, Timeout, {current_function, {erlang, hibernate, 3}}) ->
+    {dictionary, Dictionary} = erlang:process_info(Pid, dictionary),
+    LastHibernated = lists:keyfind(hibernated, 1, Dictionary),
+    stop_if_hibernated_for_specified_time(Pid, Now, Timeout, LastHibernated),
+    ok;
+stop_if_hibernated(_, _, _, _) ->
+    ok.
+
+stop_if_hibernated_for_specified_time(_Pid, _, _, false) ->
+    ok;
+stop_if_hibernated_for_specified_time(Pid, Now, Timeout, {hibernated, LastHibernated}) ->
+    TimeDiff = timer:now_diff(Now, LastHibernated),
+    case TimeDiff >= Timeout of
+        true ->
+            Pid ! stop_persistent_room_process;
+        _ ->
+            ok
+    end.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -480,47 +529,70 @@ route_to_room(Room, {From,To,Packet} = Routed, #state{host=Host} = State) ->
 
 
 -spec route_to_nonexistent_room(room(), from_to_packet(), state()) -> 'ok'.
-route_to_nonexistent_room(Room, {From, To, Packet},
-                          #state{host=Host} = State) ->
+route_to_nonexistent_room(Room, {From, To, Packet}, State) ->
     #xmlel{name = Name, attrs = Attrs} = Packet,
     Type = xml:get_attr_s(<<"type">>, Attrs),
     case {Name, Type} of
         {<<"presence">>, <<>>} ->
-            ServerHost = State#state.server_host,
-            Access = State#state.access,
-            {_, AccessCreate, _, _} = Access,
-            case check_user_can_create_room(ServerHost, AccessCreate,
-                                            From, Room) of
-                true ->
-                    #state{history_size = HistorySize,
-                           room_shaper = RoomShaper,
-                           http_auth_pool = HttpAuthPool,
-                           default_room_opts = DefRoomOpts} = State,
-                    {_, _, Nick} = jid:to_lower(To),
-                    {ok, Pid} = start_new_room(Host, ServerHost, Access, Room,
-                                               HistorySize, RoomShaper, HttpAuthPool,
-                                               From, Nick, DefRoomOpts),
-                    register_room(Host, Room, Pid),
-                    mod_muc_room:route(Pid, From, Nick, Packet),
-                    ok;
-                false ->
-                    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-                    ErrText = <<"Room creation is denied by service policy">>,
-                    Err = jlib:make_error_reply(
-                            Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
-                    ejabberd_router:route(To, From, Err)
-            end;
+            route_presence_to_nonexistent_room(Room, From, To, Packet, State);
         _ ->
-            Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-            ErrText = <<"Conference room does not exist">>,
+            route_packet_to_nonexistent_room(Room, From, To, Packet, State)
+    end.
+
+route_presence_to_nonexistent_room(Room, From, To, Packet,
+                                   #state{server_host = ServerHost,
+                                          host = Host,
+                                          access = Access} = State) ->
+    {_, AccessCreate, _, _} = Access,
+    case check_user_can_create_room(ServerHost, AccessCreate,
+                                    From, Room) of
+        true ->
+            #state{history_size = HistorySize,
+                   room_shaper = RoomShaper,
+                   http_auth_pool = HttpAuthPool,
+                   default_room_opts = DefRoomOpts} = State,
+            {_, _, Nick} = jid:to_lower(To),
+            {ok, Pid} = start_new_room(Host, ServerHost, Access, Room,
+                                       HistorySize, RoomShaper, HttpAuthPool,
+                                       From, Nick, DefRoomOpts),
+            register_room(Host, Room, Pid),
+            mod_muc_room:route(Pid, From, Nick, Packet),
+            ok;
+        false ->
+            Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
+            ErrText = <<"Room creation is denied by service policy">>,
             Err = jlib:make_error_reply(
-                    Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+                    Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
             ejabberd_router:route(To, From, Err)
     end.
 
+route_packet_to_nonexistent_room(Room, From, To, Packet,
+                                 #state{server_host = ServerHost,
+                                        host = Host,
+                                        access = Access} = State) ->
+
+    case restore_room(Host, Room) of
+        error ->
+            Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
+            ErrText = <<"Conference room does not exist">>,
+            Err = jlib:make_error_reply(
+                    Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+            ejabberd_router:route(To, From, Err);
+        Opts ->
+            ?DEBUG("MUC: restore room '~s'~n", [Room]),
+            #state{history_size = HistorySize,
+                   room_shaper = RoomShaper,
+                   http_auth_pool = HttpAuthPool} = State,
+            {ok, Pid} = mod_muc_room:start(Host, ServerHost, Access,
+                                           Room, HistorySize,
+                                           RoomShaper, HttpAuthPool, Opts),
+            {_, _, Nick} = jid:to_lower(To),
+            register_room(Host, Room, Pid),
+            mod_muc_room:route(Pid, From, Nick, Packet)
+    end.
 
 -spec route_by_nick(room(), from_to_packet(), state()) -> 'ok' | pid().
-route_by_nick(<<>>, {_,_,Packet} = Routed, State) ->
+route_by_nick(<<>>, {_, _, Packet} = Routed, State) ->
     #xmlel{name = Name} = Packet,
     route_by_type(Name, Routed, State);
 route_by_nick(_Nick, {From, To, Packet}, _State) ->
@@ -1126,4 +1198,55 @@ can_access_room(_, From, To) ->
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
     end.
+
+online_rooms_number() ->
+    lists:sum([online_rooms_number(Host) || Host <- ?MYHOSTS]).
+
+online_rooms_number(Host) ->
+    try
+        Supervisor = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
+        Stats = supervisor:count_children(Supervisor),
+        proplists:get_value(active, Stats)
+    catch _:_ ->
+              0
+    end.
+
+hibernated_rooms_number() ->
+    lists:sum([hibernated_rooms_number(Host) || Host <- ?MYHOSTS]).
+
+hibernated_rooms_number(Host) ->
+    try
+        count_hibernated_rooms(Host)
+    catch _:_ ->
+              0
+    end.
+
+count_hibernated_rooms(Host) ->
+    AllRooms = all_room_pids(Host),
+    lists:foldl(fun count_hibernated_rooms/2, 0, AllRooms).
+
+all_room_pids(Host) ->
+    Supervisor = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
+    [Pid || {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)].
+
+
+count_hibernated_rooms(Pid, Count) ->
+    case erlang:process_info(Pid, current_function) of
+        {current_function, {erlang, hibernate, _}} ->
+            Count + 1;
+        _ ->
+            Count
+    end.
+
+-define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}], [value]}).
+ensure_metrics(_Host) ->
+    mongoose_metrics:ensure_metric(global, [mod_muc, deep_hibernations], spiral),
+    mongoose_metrics:ensure_metric(global, [mod_muc, process_recreations], spiral),
+    mongoose_metrics:ensure_metric(global, [mod_muc, hibernations], spiral),
+    mongoose_metrics:ensure_metric(global, [mod_muc, hibernated_rooms],
+                                   {function, mod_muc, hibernated_rooms_number, [],
+                                    eval, ?EX_EVAL_SINGLE_VALUE}),
+    mongoose_metrics:ensure_metric(global, [mod_muc, online_rooms],
+                                   {function, mod_muc, online_rooms_number, [],
+                                    eval, ?EX_EVAL_SINGLE_VALUE}).
 

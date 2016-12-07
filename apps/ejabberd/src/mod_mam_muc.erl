@@ -49,6 +49,8 @@
          room_process_mam_iq/3,
          forget_room/2]).
 
+-export([server_host/1]).
+
 %% private
 -export([archive_message/8]).
 -export([lookup_messages/13]).
