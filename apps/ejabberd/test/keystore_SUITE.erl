@@ -183,7 +183,7 @@ get_key(Domain, KeyName) ->
     ejabberd_hooks:run_fold(get_key, Domain, [], [{KeyName, Domain}]).
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.
 
 %%{mod_keystore, [{keys, [{asdqwe_access_secret, ram},
 %%                        {asdqwe_access_psk,    {file, "priv/asdqwe_access_psk"}},

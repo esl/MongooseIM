@@ -411,7 +411,7 @@ bare_jid() ->
 %         <<(?L2B(Username))/bytes, "@", (?L2B(Domain))/bytes, "/", (?L2B(Res))/bytes>>).
 
 username() -> ascii_string().
-domain()   -> ct:get_config({hosts, mim, domain}).
+domain()  -> <<"localhost">>.
 %resource() -> ascii_string().
 
 ascii_string() ->

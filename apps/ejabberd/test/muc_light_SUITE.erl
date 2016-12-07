@@ -412,4 +412,4 @@ check_count(Hooks, Handlers) ->
     ets:insert(testcalls, {handlers, 0}).
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.

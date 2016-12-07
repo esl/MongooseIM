@@ -608,7 +608,7 @@ checkauth(ErrMess, AccessCommands, Auth) ->
     {error, ErrMess} = ejabberd_commands:execute_command(AccessCommands, Auth, command_one, [B]).
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.
 
 ujid() ->
     Domain = domain(),

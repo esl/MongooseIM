@@ -391,7 +391,7 @@ ws_websocket_terminate(_Reason, _Req, _State) ->
     ok.
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.
 
 server() ->
     Domain = domain(),

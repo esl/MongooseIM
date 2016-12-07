@@ -280,4 +280,4 @@ set_global_rule(Rule, ACLs) ->
     ok.
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.

@@ -718,4 +718,4 @@ check_location_header(Response, Path) ->
     Location = proplists:get_value(<<"location">>, Headers),
     ?assertEqual(Path, Location).
 
-domain() -> ct:get_config({hosts, mim, domain}).
+domain() -> <<"localhost">>.

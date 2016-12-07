@@ -434,4 +434,4 @@ is_redis_running() ->
     [] =/= os:cmd("ps aux | grep '[r]edis'").
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.

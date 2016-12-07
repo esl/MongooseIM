@@ -278,4 +278,4 @@ get_hooks() ->
     ets:tab2list(hooks).
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.

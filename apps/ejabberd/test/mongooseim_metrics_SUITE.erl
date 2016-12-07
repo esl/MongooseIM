@@ -80,7 +80,7 @@ no_skip_metric(_C) ->
     undefined = exometer:info([domain(), sm_register_connection_hook]).
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.
 
 
 subscriptions_initialised(_C) ->

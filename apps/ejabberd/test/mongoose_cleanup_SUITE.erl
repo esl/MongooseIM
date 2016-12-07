@@ -204,4 +204,4 @@ get_fake_session() ->
     {U, S, R, JID, SID}.
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.

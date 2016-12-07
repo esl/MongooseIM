@@ -196,7 +196,7 @@ do_scram(Pass, Config) ->
             Pass
     end.
 
-domain() -> ct:get_config({hosts, mim, domain}).
+domain() -> <<"localhost">>.
 
 domain2() ->
     Domain = domain(),

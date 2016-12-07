@@ -165,4 +165,4 @@ server(pgsql) ->
     {pgsql, "fake-host", "fake-db", "fake-user", "fake-pass"}.
 
 domain() ->
-    ct:get_config({hosts, mim, domain}).
+    <<"localhost">>.
