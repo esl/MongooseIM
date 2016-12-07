@@ -105,7 +105,7 @@ resolve_deps(Host, [{Module, Args} | ModuleQueue], KnownModules) ->
             Deps = lists:map(
                      fun
                          ({Mod, _Hardness}) -> {Mod, []};
-                         ({Mod, Args, _Hardness}) -> {Mod, Args}
+                         ({Mod, ModArgs, _Hardness}) -> {Mod, ModArgs}
                      end,
                      gen_mod:get_deps(Host, Module, NewArgs)),
 
