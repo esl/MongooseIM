@@ -6,93 +6,61 @@ Configure MAM with different storage backends:
 * ODBC (RDBMS, like MySQL, PostgreSQL, MS SQL Server)
 * Riak KV (NOSQL)
 
-### Configure MAM with ODBC backend
 
-#### Options
-* `mod_mam_odbc_prefs`, `mod_mam_mnesia_prefs`:
-Consider the process as a kind of recipe. For each step you can enable none ("optional"), one ("single") or more ("multi") modules, according to instructions. Provided there are any, please use the options described in a specific step. All config parameters are boolean, so you can enable them by adding an atom to the configuration list, e.g. `{mod_mam_odbc_arch, [pm, no_writer]}`.
+`mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
-##### Step 1 (multi)
-* `*mod_mam` + `mod_mam_odbc_arch`: Enables support for one-to-one messages archive.
-* `mod_mam_muc` + `mod_mam_muc_odbc_arch`: Enables support for group chat messages archive.
+### Options
 
-If you haven't chosen any of the above, skip the next part.
+* **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak` and `cassandra` are supported.
+* **add_archived_element** (atom, default: `false`) - Add `<archived/>` element from MAM v0.2.
+* **is_complete_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_complete_message/3` callback](#is_complete_message) that determines if the message should be archived.
+* **host** (string, default: `"conference.@HOST@"`) - MUC host that will be archived if MUC archiving is enabled. **Warning**: if you are using MUC Light, make sure this option is set to MUC Light domain.
+* **pm** (list | `false`, default: `[]`) - Override options for archivization of one-to-one messages. If the value of this option is `false`, one-to-one message archive is disabled.
+* **muc** (list | `false`, default: `false`) - Override options for archivization of group chat messages. If the value of this option is `false`, group chat message archive is disabled.
 
-**Options:**
-
-* `mod_mam_muc`:
-    * `host` (optional, default: `"conference.@HOST@"`): MUC host that will be archived; **Warning:** If you are using MUC Light, make sure this option is set to MUC Light domain.
-* `mod_mam_odbc_arch`:
-    * `pm` (mandatory when `mod_mam` enabled): Enable archiving one-to-one messages
-    * `muc` (optional): Enable group chat archive, mutually exclusive with `mod_mam_muc_odbc_arch`. **Not recommended**, `mod_mam_muc_odbc_arch` is more efficient.
-    * `simple`: Same as `{simple, true}`
-    * `{simple, true}`: Store messages in XML and full JIDs. Archive MUST be empty to change this option.
-    * `{simple, false} (default)`: Store messages and JIDs in internal format.
-* `mod_mam_odbc_arch`, `mod_mam_muc_odbc_arch`:
-    * `no_writer`: Disables default synchronous, slow writer and uses async one (step 5 & 6) instead.
-    * `{simple, true}`: Store messages in XML and full JIDs. Archive MUST be empty to change this option.
-    * `{simple, false} (default)`: Store messages and JIDs in internal format.
-
-##### Step 2 (mandatory)
-* `mod_mam_odbc_user`: Maps archive ID to integer.
-
-**Options**
-
-* `pm`: Mandatory when `mod_mam` enabled.
-* `muc`: Mandatory when `mod_mam_muc` enabled.
-
-##### Step 3 (optional, recommended)
-* `mod_mam_cache_user`: Enables Archive ID to integer mappings cache.
-
-**Options**
-
-* `pm`: Optional, enables cache for one-to-one messaging, works only with `mod_mam` enabled.
-* `muc`: Optional, enables cache for group chat messaging, works only with `mod_mam_muc` enabled.
-
-##### Step 4 (single, optional)
-Skipping this step will make `mod_mam` archive all the messages and users will not be able to set their archiving preferences. It will also increase performance.
-
-* `mod_mam_odbc_prefs`: User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
-* `mod_mam_mnesia_prefs`: User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of inconsistent (in a rather harmless way) state of preferences table. Provides best performance.
-
-**Options:** (common for all three modules)
-
-* `pm`: Optional, enables MAM preferences for user-to-user messaging, works only with `mod_mam` enabled.
-* `muc`: Optional, enables MAM preferences for group chat messaging, works only with `mod_mam_muc` enabled.
-
-##### Step 5 (single, optional, recommended, requires `mod_mam` module enabled and `no_writer` option set in `mod_mam_odbc_arch`)
-
-Enabling asynchronous writers will make debugging more difficult.
-
-* `mod_mam_odbc_async_pool_writer`: Asynchronous writer, will insert batches of messages, grouped by archive ID.
-
-**Options:** (common for both modules)
-
-* `pm`: Optional, enables the chosen writer for one-to-one messaging, works only with `mod_mam` enabled.
-* `muc`: Optional, enables the chosen writer for group chat messaging, use only when `mod_mam_odbc_arch` has `muc` enabled. **Not recommended**.
-
-##### Step 6 (single, optional, recommended, requires `mod_mam_muc` module enabled and `no_writer` option set in `mod_mam_muc_odbc_arch`)
-
-Enabling asynchronous writers will make debugging more difficult.
-
-* `mod_mam_muc_odbc_async_pool_writer`: Asychronous writer, will insert batches of messages, grouped by archive ID.
-
-### Configure MAM with Riak KV backend
-
-In order to use Riak KV as the backend for one-to-one archives, the following configuration must be used:
+All options described in this document can be overriden for specific type of messages through `pm` and `muc` options, e.g.:
 
 ```erlang
-{mod_mam, []}.
-{mod_mam_riak_timed_arch_yz, [pm]}.
+{mod_mam_meta, [
+  {backend, odbc},
+  {async_writer, true}, %% this option enables async writer for ODBC backend
+  {muc, [
+    {async_writer, false} %% disable async writer for MUC archive only
+  ]}
+]}
 ```
 
-To archive both one-to-one and group chat (MUC, Multi-User Chat) messages use this configuration instead:
+#### ODBC backend options
+
+These options will only have effect when `odbc` backend is used:
+
+* [**user_prefs_store**](#user_prefs_store)
+* **cache_users** (boolean, default: `true`) - Enables Archive ID to integer mappings cache.
+* **odbc_message_format** (atom, default: `internal`) - When set to `simple`, stores messages in XML and full JIDs. When set to `internal`, stores messages and JIDs in internal format. **Warning**: Archive MUST be empty to change this option.
+* **async_writer** (boolean, default: `true`) - Enables asynchronous writer that is faster than synchronous but harder to debug.
+
+#### Common backend options
+
+* **user_prefs_store** (atom, default: `false`) - Leaving this option as `false` will prevent users from setting their archiving preferences. It will also increase performance. Other possible values are:
+  * `odbc` (ODBC backend only) - User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
+  * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
+  * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of inconsistent (in a rather harmless way) state of preferences table.
+  * `mnesia_dirty` - like `mnesia`, but dirty synchronous writes are enabled.
+
+#### <a id="is_complete_message"></a>`is_complete_message/3` callback
+
+`is_complete_message` option has to name a module exporting `is_complete_message/3` function conforming to the spec:
 
 ```erlang
-{mod_mam, []}.
-{mod_mam_muc, []}.
-{mod_mam_riak_timed_arch_yz, [pm, muc]}.
+-spec is_complete_message(Mod :: module(), Dir :: incoming | outgoing,
+                          Packet :: jlib:xmlel()) -> boolean().
 ```
+
+Servers SHOULD NOT archive messages that do not have a `<body/>` child tag. Servers SHOULD NOT archive delayed messages.
+
+From MAM v0.3 onwards it is expected that all messages that hold meaningful content, rather than state changes such as Chat State Notifications, would be archived.
+
+### Riak backend
 
 The Riak KV backend for MAM stores messages in weekly buckets so it's easier to remove old buckets.
 Archive querying is done using Riak KV 2.0 [search mechanism](http://docs.basho.com/riak/2.1.1/dev/using/search/)
@@ -100,23 +68,21 @@ called Yokozuna. Your instance of Riak KV must be configured with Yokozuna enabl
 
 This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
-### `mod_mam` options
-
-- `add_archived_element`: add `<archived/>` element from MAM v0.2
-- `is_complete_message`: module name implementing is_complete_message/3 callback.
-  This callback returns true if message should be archived.
-
 ### Example configuration
 
-Default configuration for `mod_mam`:
-
 ```erlang
-{mod_mam, []}.
-```
+{mod_mam_meta, [
+        {backend, odbc},
 
-It's expanded to:
+        cache_users,
+        add_archived_element,
 
-```erlang
-{mod_mam, [{add_archived_element, false},
-           {is_complete_message, mod_mam_utils}]}
+        {pm, [{user_prefs_store, odbc}]},
+        {muc, [
+               {host, "muc.example.com"},
+               {odbc_message_format, simple},
+               async_writer,
+               {user_prefs_store, mnesia}
+              ]}
+       ]}.
 ```
