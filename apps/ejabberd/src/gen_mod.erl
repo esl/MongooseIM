@@ -53,8 +53,6 @@
 -include("ejabberd.hrl").
 
 -record(ejabberd_module, {module_host, opts}).
--type ejabberd_module() :: #ejabberd_module{module_host :: {module(), ejabberd:server()},
-                                            opts :: list()}.
 
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
@@ -64,9 +62,18 @@
 %%     undefined.
 -callback start(Host :: ejabberd:server(), Opts :: list()) -> any().
 -callback stop(Host :: ejabberd:server()) -> any().
-% -callback deps(Host :: ejabberd:server(), Opts :: proplists:list()) ->
-%     [{module(), DepOpts :: proplists:list(), soft | hard} |
-%      {module(), soft | hard}].
+
+%% Optional callback specifying module dependencies.
+%% The dependent module can specify parameters with which the dependee should be
+%% started (the parameters will be merged with params given in user config and
+%% by other modules).
+%% The last element of the tuple specifies whether the ordering can be broken in
+%% case of cycle (in that case soft dependency may be started after the
+%% dependent module).
+%%
+%% -callback deps(Host :: ejabberd:server(), Opts :: proplists:list()) ->
+%%     [{module(), DepOpts :: proplists:list(), soft | hard} |
+%%      {module(), soft | hard}].
 
 -spec start() -> 'ok'.
 start() ->
