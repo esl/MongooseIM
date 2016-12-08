@@ -108,8 +108,7 @@
          muc_bootstrap_archive/1,
          start_alice_protected_room/1,
          start_alice_anonymous_room/1,
-         maybe_wait_for_backend/1,
-         maybe_wait_for_cassandra/1,
+         maybe_wait_for_archive/1,
          stanza_archive_request/2,
          wait_archive_respond/2,
          assert_respond_size/2,
@@ -495,9 +494,9 @@ do_init_per_group(C, ConfigIn) ->
     Config0 = create_users(ConfigIn),
     case C of
         riak_timed_yz_buckets ->
-            [{yz_wait, 2500} | Config0];
+            [{archive_wait, 2500} | Config0];
         cassandra ->
-            [{ca_wait, 1500} | Config0];
+            [{archive_wait, 1500} | Config0];
         _ ->
             Config0
     end.
@@ -906,7 +905,7 @@ simple_archive_request(Config) ->
         %%   {<<"type">>,<<"chat">>}],
         %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(P, Alice),
         assert_respond_size(1, Res),
@@ -936,7 +935,7 @@ querying_for_all_messages_with_jid(Config) ->
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
 
         Room = ?config(room, Config),
         MucMsgs = ?config(pre_generated_muc_msgs, Config),
@@ -945,7 +944,7 @@ muc_querying_for_all_messages(Config) ->
 
         IQ = stanza_archive_request(P, <<>>),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         assert_respond_size(MucArchiveLen, wait_archive_respond(P, Alice)),
 
         ok
@@ -995,7 +994,7 @@ muc_light_simple(Config) ->
             muc_light_SUITE:verify_aff_bcast([{Alice, owner}, {Bob, member}], [{Bob, member}]),
 
             P = ?config(props, Config),
-            maybe_wait_for_backend(Config),
+            maybe_wait_for_archive(Config),
 
             ArchiveReqStanza = escalus_stanza:to(stanza_archive_request(P, <<"mlight">>),
                                                  Room2BinJID),
@@ -1040,7 +1039,7 @@ archived(Config) ->
         ?assert_equal(By, escalus_client:short_jid(Bob)),
 
         %% Bob calls archive.
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
         [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
@@ -1063,7 +1062,7 @@ filter_forwarded(Config) ->
 
         %% Bob receives a message.
         escalus:wait_for_stanza(Bob),
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
         assert_respond_size(1, wait_archive_respond(P, Bob)),
 
@@ -1096,7 +1095,7 @@ strip_archived(Config) ->
 
         try
         %% Bob calls archive.
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
         [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
@@ -1128,7 +1127,7 @@ policy_violation(Config) ->
          || N <- lists:seq(1, 6)],
         %% Bob is waiting for 6 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 6, 5000),
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         %% Get whole history (queryid is "will_fail", id is random).
         escalus:send(Alice, stanza_archive_request(P, <<"will_fail">>)),
         ErrorIQ = escalus:wait_for_stanza(Alice, 5000),
@@ -1152,7 +1151,7 @@ offline_message(Config) ->
         %% Alice sends a message to Bob while bob is offline.
         escalus:send(Alice,
                      escalus_stanza:chat_to(escalus_users:get_jid(Config, bob), Msg)),
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         ok
         end,
     escalus:story(Config, [{alice, 1}], F),
@@ -1180,7 +1179,7 @@ nostore_hint(Config) ->
         %% Alice sends a message to Bob with a hint.
         escalus:send(Alice,
                      add_nostore_hint(escalus_stanza:chat_to(Bob, Msg))),
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         escalus:wait_for_stanzas(Bob, 1, 1000),
 
         %% Bob checks his archive.
@@ -1195,7 +1194,7 @@ purge_single_message(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-            maybe_wait_for_backend(Config),
+            maybe_wait_for_archive(Config),
             escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
             [Mess] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Alice))),
             ParsedMess = parse_forwarded_message(Mess),
@@ -1239,7 +1238,7 @@ purge_multiple_messages(Config) ->
                 escalus:send(Alice,
                     escalus_stanza:chat_to(Bob, generate_message_text(N)))
              end || N <- lists:seq(1, 5)],
-            maybe_wait_for_backend(Config),
+            maybe_wait_for_archive(Config),
             %% Bob is waiting for 5 messages for 5 seconds.
             escalus:wait_for_stanzas(Bob, 5, 5000),
             %% Bob purges all messages from his archive.
@@ -1287,7 +1286,7 @@ muc_archive_request(Config) ->
         %% Attribute giving the message's UID within the archive.
         Id  = exml_query:attr(Arc, <<"id">>),
 
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
@@ -1340,7 +1339,7 @@ muc_archive_purge(Config) ->
         escalus:send(Alice, stanza_to_room(stanza_purge_multiple_messages(
            undefined, undefined, undefined), Room)),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         ok
     end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -1399,7 +1398,7 @@ muc_multiple_devices(Config) ->
 
         %% Bob requests the room's archive.
 
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
 
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
         [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
@@ -1490,13 +1489,9 @@ muc_allow_access_to_owner(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_delete_x_user_in_anon_rooms(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice, Bob) ->
-        Room = ?config(room, Config),
-        RoomAddr = room_address(Room),
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {Room, RoomAddr} = enter_room(Config, [Alice, Bob]),
         Text = <<"Hi all!">>,
-        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
-        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
 
         %% Bob received presences.
         escalus:wait_for_stanzas(Bob, 2),
@@ -1510,28 +1505,24 @@ muc_delete_x_user_in_anon_rooms(Config) ->
         %% Bob receives the message.
         escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
 
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
+        Props = ?config(props, Config),
 
         %% Bob requests the room's archive.
-        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(Props, <<"q1">>), Room)),
 
         %% mod_mam_muc returns result.
-        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Props, Bob))),
 
         ?assert_equal_extra(false, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
         ok
-        end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    end).
 
 muc_show_x_user_to_moderators_in_anon_rooms(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice, Bob) ->
-        Room = ?config(room, Config),
-        RoomAddr = room_address(Room),
-        Text = <<"Hi all!">>,
-        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
-        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {Room, RoomAddr} = enter_room(Config, [Alice, Bob]),
+        Text = <<"What a lovely day!">>,
 
         %% Alice received presences.
         escalus:wait_for_stanzas(Alice, 2),
@@ -1545,28 +1536,24 @@ muc_show_x_user_to_moderators_in_anon_rooms(Config) ->
         %% Alice receives the message.
         escalus:assert(is_message, escalus:wait_for_stanza(Alice)),
 
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
+        Props = ?config(props, Config),
 
         %% Alice requests the room's archive.
-        escalus:send(Alice, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+        escalus:send(Alice, stanza_to_room(stanza_archive_request(Props, <<"q1">>), Room)),
 
         %% mod_mam_muc returns result.
-        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Alice))),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Props, Alice))),
 
         ?assert_equal_extra(true, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
         ok
-        end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    end).
 
 muc_show_x_user_for_your_own_messages_in_anon_rooms(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice, Bob) ->
-        Room = ?config(room, Config),
-        RoomAddr = room_address(Room),
-        Text = <<"Hi all!">>,
-        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
-        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {Room, RoomAddr} = enter_room(Config, [Alice, Bob]),
+        Text = <<"How are you?">>,
 
         %% Bob received presences.
         escalus:wait_for_stanzas(Bob, 2),
@@ -1580,19 +1567,19 @@ muc_show_x_user_for_your_own_messages_in_anon_rooms(Config) ->
         %% Bob receives the message.
         escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
 
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
+        Props = ?config(props, Config),
 
         %% Bob requests the room's archive.
-        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(Props, <<"q1">>), Room)),
 
         %% mod_mam_muc returns result.
-        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Props, Bob))),
 
         ?assert_equal_extra(true, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
         ok
-        end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    end).
 
 %% @doc Querying the archive for all messages in a certain timespan.
 range_archive_request(Config) ->
@@ -2033,6 +2020,14 @@ messages_filtered_when_prefs_default_policy_is_roster(Config) ->
     run_prefs_cases(roster, Config).
 
 
+-spec enter_room(Config :: proplists:proplist(), [User :: term()]) ->
+    {Room :: binary(), RoomAddr  :: binary()}.
+enter_room(Config, Users) ->
+    Room = ?config(room, Config),
+    RoomAddr = room_address(Room),
+    [escalus:send(User, stanza_muc_enter_room(Room, nick(User))) || User <- Users],
+    {Room, RoomAddr}.
+
 %% First write all messages, than read and check
 run_prefs_cases(DefaultPolicy, ConfigIn) ->
     P = ?config(props, ConfigIn),
@@ -2044,7 +2039,7 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
                 || Case <- prefs_cases2(),
                 default_policy(Case) =:= DefaultPolicy],
 
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
 
         %% Get ALL messages using several queries if required
         Stanzas = get_all_messages(P, Alice),

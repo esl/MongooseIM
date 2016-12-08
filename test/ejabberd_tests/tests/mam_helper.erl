@@ -713,7 +713,7 @@ send_muc_rsm_messages(Config) ->
         escalus:wait_for_stanzas(Bob, 15, 5000),
         escalus:wait_for_stanzas(Alice, 15, 5000),
 
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
 
         %% Get whole history.
         escalus:send(Alice,
@@ -743,7 +743,7 @@ send_rsm_messages(Config) ->
          || N <- lists:seq(1, 15)],
         %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
-        maybe_wait_for_backend(Config),
+        maybe_wait_for_archive(Config),
         %% Get whole history.
         rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
         AllMessages =
@@ -1036,7 +1036,7 @@ muc_bootstrap_archive(Config) ->
 
     put_muc_msgs(Msgs),
 
-    maybe_wait_for_backend(Config),
+    maybe_wait_for_archive(Config),
     ?assert_equal(length(Msgs),
                   wait_for_room_archive_size(Domain, Room, 10, length(Msgs))),
 
@@ -1119,15 +1119,6 @@ is_cassandra_enabled(_) ->
             false
     end.
 
-
-maybe_wait_for_cassandra(Config) ->
-    case ?config(ca_wait, Config) of
-        undefined ->
-            ok;
-        Value ->
-            timer:sleep(Value)
-    end.
-
 sql_transaction(Host, F) ->
     escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [Host, F]).
 
@@ -1137,17 +1128,13 @@ login_send_presence(Config, User) ->
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Client.
 
-maybe_wait_for_yz(Config) ->
-    case ?config(yz_wait, Config) of
+maybe_wait_for_archive(Config) ->
+    case ?config(archive_wait, Config) of
         undefined ->
             ok;
         Value ->
             timer:sleep(Value)
     end.
-
-maybe_wait_for_backend(Config) ->
-    maybe_wait_for_yz(Config),
-    maybe_wait_for_cassandra(Config).
 
 %% Bob and Alice are friends.
 %% Kate and Alice are not friends.

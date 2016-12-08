@@ -97,7 +97,7 @@ messages_can_be_paginated(Config) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         rest_helper:fill_archive(Alice, Bob),
-        mam_helper:maybe_wait_for_backend(Config),
+        mam_helper:maybe_wait_for_archive(Config),
         AliceCreds = {AliceJID, user_password(alice)},
         % recent msgs with a limit
         M1 = get_messages(AliceCreds, BobJID, 10),
@@ -188,7 +188,7 @@ msg_is_sent_and_delivered_in_room(Config) ->
 messages_are_archived_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
-        mam_helper:maybe_wait_for_backend(Config),
+        mam_helper:maybe_wait_for_archive(Config),
         {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
         [Aff, _Msg1, _Msg2] = MsgsRecv = rest_helper:decode_maplist(Result),
         %% The oldest message is aff change
@@ -214,7 +214,7 @@ messages_can_be_paginated_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         [GenMsgs1, GenMsgs2 | _] = Msgs = rest_helper:fill_room_archive(RoomID, [Alice, Bob]),
-        mam_helper:maybe_wait_for_backend(Config),
+        mam_helper:maybe_wait_for_archive(Config),
         Msgs10 = get_room_messages({alice, Alice}, RoomID, 10),
         Msgs10Len = length(Msgs10),
         true = Msgs10Len > 0 andalso Msgs10Len =< 10,
@@ -367,7 +367,7 @@ send_messages(Config, Alice, Bob, Kate) ->
     M1 = send_message(bob, Bob, Alice),
     M2 = send_message(alice, Alice, Bob),
     M3 = send_message(kate, Kate, Alice),
-    mam_helper:maybe_wait_for_backend(Config),
+    mam_helper:maybe_wait_for_archive(Config),
     [M1, M2, M3].
 
 assert_aff_change_stanza(Stanza, Target, Change) ->

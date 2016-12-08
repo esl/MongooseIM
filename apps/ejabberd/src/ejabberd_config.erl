@@ -428,18 +428,16 @@ split_terms_macros(Terms) ->
 
 -spec split_terms_macros_fold(any(), Acc) -> Acc when
       Acc :: {[term()], [{Key :: any(), Value :: any()}]}.
+split_terms_macros_fold({define_macro, Key, Value} = Term, {TOs, Ms}) ->
+    case is_atom(Key) and is_all_uppercase(Key) of
+        true ->
+            {TOs, Ms ++ [{Key, Value}]};
+        false ->
+            exit({macro_not_properly_defined, Term})
+    end;
 split_terms_macros_fold(Term, {TOs, Ms}) ->
-    case Term of
-        {define_macro, Key, Value} ->
-            case is_atom(Key) and is_all_uppercase(Key) of
-                true ->
-                    {TOs, Ms ++ [{Key, Value}]};
-                false ->
-                    exit({macro_not_properly_defined, Term})
-            end;
-        Term ->
-            {TOs ++ [Term], Ms}
-    end.
+    {TOs ++ [Term], Ms}.
+
 
 %% @doc Recursively replace in Terms macro usages with the defined value.
 -spec replace(Terms :: [term()],
