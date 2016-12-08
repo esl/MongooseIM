@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+
+pushd /
+HERE=`popd`
+popd > /dev/null 2>&1
+
+vim -u $HERE/tools/vim-reindent.rc -f +'bufdo execute "normal gg=G" | update' +qall $@
+
