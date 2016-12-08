@@ -24,6 +24,8 @@ Available on: [igniterealtime/Smack](https://github.com/igniterealtime/Smack)
 * [XEP-0308: Last Message Correction](https://github.com/igniterealtime/Smack/pull/73)
 * [MUC light](https://github.com/igniterealtime/Smack/pull/81)
 * [Token-based reconnection](https://github.com/igniterealtime/Smack/pull/85)
+* [Instant Stream Resumption](https://github.com/igniterealtime/Smack/pull/92)
+* [XEP-0231: Bits of Binary](https://github.com/igniterealtime/Smack/pull/91)
 
 ### Movim
 
