@@ -36,6 +36,9 @@ Check out our test results:
 
 ## MongooseIM platform components
 
+<img src="MongooseIM Platform components.png" alt="MongooseIM platform schema" />
+
+
 ### Server-side components
 
 We offer a set of server-side components:
