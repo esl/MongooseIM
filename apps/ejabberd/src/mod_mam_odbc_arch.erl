@@ -22,7 +22,7 @@
 -behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/14,
+         lookup_messages/15,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -294,25 +294,26 @@ archive_messages(LServer, Acc, N) ->
                       End :: mod_mam:unix_timestamp()  | undefined,
                       Now :: mod_mam:unix_timestamp(),
                       WithJID :: ejabberd:jid()  | undefined,
+                      SearchText :: binary() | undefined,
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
     {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages({error, _Reason}=Result, _Host,
                 _UserID, _UserJID, _RSM, _Borders,
-                _Start, _End, _Now, _WithJID,
+                _Start, _End, _Now, _WithJID, _SearchText,
                 _PageSize, _LimitPassed, _MaxResultLimit,
                 _IsSimple) ->
     Result;
 lookup_messages(_Result, Host,
                 UserID, UserJID, RSM, Borders,
-                Start, End, Now, WithJID,
+                Start, End, Now, WithJID, SearchText,
                 PageSize, LimitPassed, MaxResultLimit,
                 IsSimple) ->
     try
         do_lookup_messages(Host,
                            UserID, UserJID, RSM, Borders,
-                           Start, End, Now, WithJID,
+                           Start, End, Now, WithJID, SearchText,
                            PageSize, LimitPassed, MaxResultLimit,
                            IsSimple, is_opt_count_supported_for(RSM))
     catch _Type:Reason ->
@@ -339,14 +340,14 @@ is_opt_count_supported_for(_) ->
 %%   (for example, our client side counts ones and keep the information)
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
-                   Start, End, _Now, WithJID,
+                   Start, End, _Now, WithJID, SearchText,
                    PageSize, _LimitPassed, _MaxResultLimit, true, _) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     lookup_messages_simple(Host, UserID, UserJID, RSM, PageSize, Filter);
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
-                   Start, End, _Now, WithJID,
+                   Start, End, _Now, WithJID, SearchText,
                    PageSize, _LimitPassed, _MaxResultLimit, opt_count, true) ->
     %% Extract messages first than calculate offset and total count
     %% Useful for small result sets (less than one page, than one query is enough)
@@ -354,7 +355,7 @@ do_lookup_messages(Host, UserID, UserJID,
     lookup_messages_opt_count(Host, UserID, UserJID, RSM, PageSize, Filter);
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
-                   Start, End, _Now, WithJID,
+                   Start, End, _Now, WithJID, SearchText,
                    PageSize, LimitPassed, MaxResultLimit, _, _) ->
     %% Unsupported opt_count or just a regular query
     %% Calculate offset and total count first than extract messages

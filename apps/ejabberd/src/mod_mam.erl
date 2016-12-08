@@ -54,7 +54,7 @@
 
 %%private
 -export([archive_message/8]).
--export([lookup_messages/13]).
+-export([lookup_messages/14]).
 -export([archive_id_int/2]).
 
 %% for feature (escalus) tests
@@ -92,6 +92,7 @@
 %% Forms
 -import(mod_mam_utils,
         [form_field_value_s/2,
+         form_field_value/2,
          message_form/1]).
 
 %% Other
@@ -250,6 +251,7 @@ stop(Host) ->
                      IQ :: ejabberd:iq()) -> ejabberd:iq() | ignore.
 process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
     Action = iq_action(IQ),
+    ?WARNING_MSG("process_mam_iq ~p", [{From, To, IQ}]),
     case is_action_allowed(Action, From, To) of
         true  ->
             case wait_shaper(Host, Action, From) of
@@ -481,6 +483,7 @@ handle_lookup_messages(
     Start = elem_to_start_microseconds(QueryEl),
     End   = elem_to_end_microseconds(QueryEl),
     %% Filtering by contact.
+    SearchText = undefined,
     With  = elem_to_with_jid(QueryEl),
     RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = borders_decode(QueryEl),
@@ -490,7 +493,7 @@ handle_lookup_messages(
     LimitPassed = Limit =/= <<>>,
     IsSimple = decode_optimizations(QueryEl),
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With,
+                         Start, End, Now, With, SearchText,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
     {error, 'policy-violation'} ->
         ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
@@ -535,6 +538,9 @@ handle_set_message_form(
     End   = form_to_end_microseconds(QueryEl),
     %% Filtering by contact.
     With  = form_to_with_jid(QueryEl),
+    %% Filtering by text
+    Text  = form_to_text(QueryEl),
+
     RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = form_borders_decode(QueryEl),
     Limit = elem_to_limit(QueryEl),
@@ -547,7 +553,7 @@ handle_set_message_form(
     IsSimple = form_decode_optimizations(QueryEl),
 
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With,
+                         Start, End, Now, With, Text,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
     {error, Reason} ->
         report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
@@ -752,6 +758,7 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
                       End :: mod_mam:unix_timestamp()  | undefined,
                       Now :: mod_mam:unix_timestamp(),
                       WithJID :: ejabberd:jid()  | undefined,
+                      SearchText :: binary() | undefined,
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
@@ -759,11 +766,11 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     | {error, 'policy-violation'}
     | {error, Reason :: term()}.
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
-                WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
+                WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     StartT = os:timestamp(),
     R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
         [Host, ArcID, ArcJID, RSM, Borders,
-         Start, End, Now, WithJID,
+         Start, End, Now, WithJID, SearchText,
          PageSize, LimitPassed, MaxResultLimit, IsSimple]),
     Diff = timer:now_diff(os:timestamp(), StartT),
     mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
@@ -874,7 +881,6 @@ elem_to_end_microseconds(El) ->
 elem_to_with_jid(El) ->
     maybe_jid(xml:get_path_s(El, [{elem, <<"with">>}, cdata])).
 
-
 %% @doc This element's name is "limit". But it must be "max" according XEP-0313.
 -spec elem_to_limit(any()) -> any().
 elem_to_limit(QueryEl) ->
@@ -897,6 +903,10 @@ form_to_end_microseconds(El) ->
 -spec form_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
 form_to_with_jid(El) ->
     maybe_jid(form_field_value_s(El, <<"with">>)).
+
+-spec form_to_text(_) -> 'undefined' | binary().
+form_to_text(El) ->
+    form_field_value(El, <<"free-text-search">>).
 
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
