@@ -653,7 +653,8 @@ message_form_fields(MamNs) ->
     [form_type_field(MamNs),
      form_field(<<"jid-single">>, <<"with">>),
      form_field(<<"text-single">>, <<"start">>),
-     form_field(<<"text-single">>, <<"end">>)].
+     form_field(<<"text-single">>, <<"end">>),
+     form_field(<<"text-single">>, <<"free-text-search">>)].
 
 form_type_field(MamNs) when is_binary(MamNs) ->
     #xmlel{name = <<"field">>,

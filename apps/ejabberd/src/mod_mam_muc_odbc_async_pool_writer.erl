@@ -16,7 +16,7 @@
 -behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/14,
+         lookup_messages/15,
          remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -242,13 +242,14 @@ archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
         Start :: mod_mam:unix_timestamp() | undefined,
         End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
         WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
+        _SearchText :: binary() | undefined,
         LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
         IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
                                 | {error, 'policy-violation'}.
-  lookup_messages(Result, Host, ArcID, _ArcJID,
-                _RSM, _Borders,
-                _Start, End, Now, _WithJID,
-                _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
+lookup_messages(Result, Host, ArcID, _ArcJID,
+            _RSM, _Borders,
+            _Start, End, Now, _WithJID, _SearchText,
+            _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
