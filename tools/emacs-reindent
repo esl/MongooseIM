@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Format Erlang code using Emacs' erlang-mode from github.com/erlang/otp
+
+[[ $# -eq 0 ]] && echo "Usage: $0  <path to .erl or folder>+" && exit 1
+
+HERE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+EMACS=${EMACS:-emacs}
+
+function format() {
+	# sed -i '' 's/\((^|[^%])\)%\([^%]\)/\1%%\2/' "$@"
+	sed -i '' 's/^[ ]*//' "$@"
+    $EMACS --batch --quick --directory "$HERE"/emacs --load "$HERE"/emacs/fmt.el "$@"
+}
+
+while [[ "$1" != '' ]]; do
+    if [[ -d "$1" ]]; then
+        format $(find "$1" -iname '*.erl' -or -iname '*.hrl' -or -iname '*.app.src' -or -iname '*.escript')
+    elif [[ -e "$1" ]] && [[ "$1" =~ .+\.(erl|hrl|app\.src|escript)$ ]]; then
+        format "$1"
+    fi
+    shift
+done

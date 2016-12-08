@@ -1,0 +1,1 @@
+(defvar erlang-skel nil "")
