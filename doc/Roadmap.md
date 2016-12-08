@@ -2,25 +2,19 @@ This is a previsional roadmap, almost every item is subject to change.
 
 Please feel free to comment!
 
-## 2.0.x
-
-* MUC light
-* PubSub
-* REST API for backends
-* REST API for clients
-* Contributions to Smack, XMPPFramework, Movim
-
 ## 2.1.x
 
-* HTTP file upload
 * Push notifications
-* Instant Stream Resumption?
-* Archive search?
-* Contributions to Smack? XMPPFramework? Movim? Stanza.io? Strophe.js? Libervia?
+* Instant Stream Resumption
+* Full text search in archive
+* HTTP file upload
+* Contributions to Smack, XMPPFramework
+* Contributions to Jayme? Retrofit? Movim? Stanza.io? Strophe.js? Libervia?
 
 ## 3.0.x
 
 * Conversational model
+* Inbox, unread sync
 * Stories?
 * [XEP-0376: Pubsub Account Management](https://xmpp.org/extensions/xep-0376.html)?
 * Basic VoIP (relaying with ICE server)
