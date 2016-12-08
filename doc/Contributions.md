@@ -26,6 +26,8 @@ Available on: [igniterealtime/Smack](https://github.com/igniterealtime/Smack)
 * [Token-based reconnection](https://github.com/igniterealtime/Smack/pull/85)
 * [Instant Stream Resumption](https://github.com/igniterealtime/Smack/pull/92)
 * [XEP-0231: Bits of Binary](https://github.com/igniterealtime/Smack/pull/91)
+* [XEP-0333: Chat Markers](https://github.com/igniterealtime/Smack/pull/90)
+* [MAM documentation](https://github.com/igniterealtime/Smack/pull/86/files)
 
 ### Movim
 
