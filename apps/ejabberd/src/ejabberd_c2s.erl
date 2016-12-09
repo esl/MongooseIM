@@ -881,6 +881,11 @@ session_established({xmlstreamelement, El}, StateData) ->
         _NewEl ->
             NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
                                                    StateData),
+            ejabberd_hooks:run(stanza_sent,
+                               FromJID#jid.lserver,
+                               [StateData#state.jid,
+                                StateData#state.ip,
+                                El]),
             case mod_amp:check_packet(El, FromJID, initial_check) of
                 drop -> fsm_next_state(session_established, NewState);
                 NewEl -> process_outgoing_stanza(NewEl, NewState)
@@ -2570,7 +2575,12 @@ resend_csi_buffer(State) ->
     NewState = flush_csi_buffer(State),
     fsm_next_state(session_established, NewState#state{csi_state=active}).
 
-ship_to_local_user(Packet, State, StateName) ->
+ship_to_local_user(Packet = {_From, To, Element}, State, StateName) ->
+    ejabberd_hooks:run(stanza_received,
+                       To#jid.lserver,
+                       [State#state.jid,
+                        State#state.ip,
+                        Element]),
     maybe_csi_inactive_optimisation(Packet, State, StateName).
 
 maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,
