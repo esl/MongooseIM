@@ -55,6 +55,7 @@ start(normal, _Args) ->
     gen_mod:start(),
     ejabberd_config:start(),
     ejabberd_check:config(),
+    maybe_start_alarms(),
     connect_nodes(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
     ejabberd_rdbms:start(),
