@@ -7,7 +7,6 @@
   {registered, [
                ]},
   {applications, [
-                  alarms,
                   asn1,
                   base16,
                   bear,
