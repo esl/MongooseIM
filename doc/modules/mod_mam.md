@@ -74,14 +74,13 @@ This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 {mod_mam_meta, [
         {backend, odbc},
 
-        cache_users,
         add_archived_element,
 
         {pm, [{user_prefs_store, odbc}]},
         {muc, [
                {host, "muc.example.com"},
                {odbc_message_format, simple},
-               async_writer,
+               {async_writer, false}
                {user_prefs_store, mnesia}
               ]}
        ]}.
