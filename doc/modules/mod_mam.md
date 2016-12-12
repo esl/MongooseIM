@@ -13,7 +13,7 @@ Configure MAM with different storage backends:
 
 * **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak` and `cassandra` are supported.
 * **add_archived_element** (atom, default: `false`) - Add `<archived/>` element from MAM v0.2.
-* **is_complete_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_complete_message/3` callback](#is_complete_message) that determines if the message should be archived.
+* **is_archivable_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
 * **host** (string, default: `"conference.@HOST@"`) - MUC host that will be archived if MUC archiving is enabled. **Warning**: if you are using MUC Light, make sure this option is set to MUC Light domain.
 * **pm** (list | `false`, default: `[]`) - Override options for archivization of one-to-one messages. If the value of this option is `false`, one-to-one message archive is disabled.
 * **muc** (list | `false`, default: `false`) - Override options for archivization of group chat messages. If the value of this option is `false`, group chat message archive is disabled.
@@ -47,12 +47,12 @@ These options will only have effect when `odbc` backend is used:
   * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of inconsistent (in a rather harmless way) state of preferences table.
   * `mnesia_dirty` - like `mnesia`, but dirty synchronous writes are enabled.
 
-#### <a id="is_complete_message"></a>`is_complete_message/3` callback
+#### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
 
-`is_complete_message` option has to name a module exporting `is_complete_message/3` function conforming to the spec:
+`is_archivable_message` option has to name a module exporting `is_archivable_message/3` function conforming to the spec:
 
 ```erlang
--spec is_complete_message(Mod :: module(), Dir :: incoming | outgoing,
+-spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
                           Packet :: jlib:xmlel()) -> boolean().
 ```
 
