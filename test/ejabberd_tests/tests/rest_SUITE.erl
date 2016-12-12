@@ -119,18 +119,19 @@ non_existent_command_returns404(_C) ->
 user_can_be_registered_and_removed(_Config) ->
     % list users
     {?OK, Lusers} = gett(<<"/users/localhost">>),
-    assert_inlist(<<"alice@localhost">>, Lusers),
+    Domain = domain(),
+    assert_inlist(<<"alice@", Domain/binary>>, Lusers),
     % create user
     CrUser = #{username => <<"mike">>, password => <<"nicniema">>},
     {?CREATED, _} = post(<<"/users/localhost">>, CrUser),
     {?OK, Lusers1} = gett(<<"/users/localhost">>),
-    assert_inlist(<<"mike@localhost">>, Lusers1),
+    assert_inlist(<<"mike@", Domain/binary>>, Lusers1),
     % try to create the same user
     {?ERROR, _} = post(<<"/users/localhost">>, CrUser),
     % delete user
     {?NOCONTENT, _} = delete(<<"/users/localhost/mike">>),
     {?OK, Lusers2} = gett(<<"/users/localhost">>),
-    assert_notinlist(<<"mike@localhost">>, Lusers2),
+    assert_notinlist(<<"mike@", Domain/binary>>, Lusers2),
     ok.
 
 sessions_are_listed(_) ->
@@ -141,14 +142,15 @@ sessions_are_listed(_) ->
 session_can_be_kicked(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         % Alice is connected
+        Domain = domain(),
         {?OK, Sessions1} = gett("/sessions/localhost"),
-        assert_inlist(<<"alice@localhost/res1">>, Sessions1),
+        assert_inlist(<<"alice@", Domain/binary, "/res1">>, Sessions1),
         % kick alice
         {?NOCONTENT, _} = delete("/sessions/localhost/alice/res1"),
         escalus:wait_for_stanza(Alice),
         true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
         {?OK, Sessions2} = gett("/sessions/localhost"),
-        assert_notinlist(<<"alice@localhost/res1">>, Sessions2)
+        assert_notinlist(<<"alice@", Domain/binary, "/res1">>, Sessions2)
     end).
 
 messages_are_sent_and_received(Config) ->
@@ -298,3 +300,6 @@ to_list(V) when is_binary(V) ->
     binary_to_list(V);
 to_list(V) when is_list(V) ->
     V.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).

@@ -41,21 +41,19 @@ suite() ->
 -define(CAPS_NODE_NAME, <<"http://www.chatopus.com">>).
 -define(CAPS_NODE, {?CAPS_NODE_NAME, ?CAPS_HASH}).
 
--define(DOMAIN, <<"localhost">>).
-
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(dynamic_modules:save_modules(?DOMAIN, Config)).
+    escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config)).
 
 end_per_suite(Config) ->
-    dynamic_modules:restore_modules(?DOMAIN, Config),
+    dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    dynamic_modules:ensure_modules(?DOMAIN, required_modules()),
+    dynamic_modules:ensure_modules(domain(), required_modules()),
     Users = escalus_users:get_users([alice, bob]),
     escalus:create_users(Config, Users),
     escalus_story:make_everyone_friends(Config, Users).
@@ -83,7 +81,7 @@ end_per_testcase(TestName, Config) ->
 pep_caps_test(Config) ->
     escalus:story(
       Config,
-      [{bob,1}],
+      [{bob, 1}],
       fun(Bob) ->
               %% Send presence with capabilities (chap. 1 ex. 4)
               %% Server does not know the version string, so it requests feature list
@@ -96,7 +94,7 @@ pep_caps_test(Config) ->
 publish_test(Config) ->
     escalus:story(
       Config,
-      [{alice,1}],
+      [{alice, 1}],
       fun(Alice) ->
               %% Account owner publishes item (chap. 3, ex. 6)
               pubsub_tools:publish(Alice, <<"item1">>, {pep, ?NS_USER_TUNE}, [])
@@ -104,8 +102,10 @@ publish_test(Config) ->
 
 notify_test(Config) ->
     escalus:story(
-      [{escalus_overrides, [{initial_activity, {?MODULE, send_initial_presence_with_caps}}]} | Config],
-      [{alice,1}, {bob,1}],
+      [{escalus_overrides,
+       [{initial_activity, {?MODULE, send_initial_presence_with_caps}}]}
+       | Config],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               pubsub_tools:receive_item_notification(
                 Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}, []),
@@ -118,7 +118,7 @@ notify_test(Config) ->
 send_caps_after_login_test(Config) ->
     escalus:story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               Caps = caps(),
               send_presence_with_caps(Bob, Caps, false),
@@ -166,14 +166,16 @@ send_caps_disco_result(User, DiscoRequest) ->
     escalus:send(User, DiscoResult).
 
 subscribe_presence(User1, User2) ->
-    SubscribeIq = escalus_stanza:presence_direct(escalus_utils:get_short_jid(User2), <<"subscribe">>),
+    ShortJID1 = escalus_utils:get_short_jid(User2),
+    SubscribeIq = escalus_stanza:presence_direct(ShortJID1, <<"subscribe">>),
     escalus:send(User1, SubscribeIq),
 
     _Received = escalus:wait_for_stanza(User2),
 
     _ReceivedUser1 = escalus:wait_for_stanza(User1),
 
-    SubscribedIq = escalus_stanza:presence_direct(escalus_utils:get_short_jid(User1), <<"subscribed">>),
+    ShortJID2 = escalus_utils:get_short_jid(User1),
+    SubscribedIq = escalus_stanza:presence_direct(ShortJID2, <<"subscribed">>),
     escalus:send(User2, SubscribedIq),
 
     _Stanzas = escalus:wait_for_stanzas(User1, 3),
@@ -239,3 +241,6 @@ features() ->
 
 ns_notify(NS) ->
     <<NS/binary, "+notify">>.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).
