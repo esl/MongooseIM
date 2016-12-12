@@ -144,9 +144,9 @@ get_results_limit(LServer) ->
             ?JUD_MATCHES
     end.
 
--spec default_host() -> string().
+-spec default_host() -> binary().
 default_host() ->
-    "vjud.@HOST@".
+    <<"vjud.@HOST@">>.
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
@@ -177,9 +177,9 @@ init([VHost, Opts]) ->
       || {Hook, M, F, Prio} <- hook_handlers() ],
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, VHost, ?NS_VCARD,
-                                  ?MODULE,process_sm_iq, IQDisc),
+                                  ?MODULE, process_sm_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, VHost, ?NS_VCARD,
-                                  ?MODULE,process_local_iq, IQDisc),
+                                  ?MODULE, process_local_iq, IQDisc),
     DirectoryHost = gen_mod:get_opt_subhost(VHost, Opts, default_host()),
     Search = gen_mod:get_opt(search, Opts, true),
     case Search of

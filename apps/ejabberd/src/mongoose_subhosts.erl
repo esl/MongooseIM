@@ -62,4 +62,4 @@ get_host(SubHost) ->
         [#subhost_mapping{ host = Host }] -> {ok, Host};
         [] -> undefined
     end.
-    
+

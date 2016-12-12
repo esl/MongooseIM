@@ -166,15 +166,13 @@ maybe_enable_mam(odbc, Host, Config) ->
     init_module(Host, mod_mam_odbc_prefs, [muc, pm]),
     init_module(Host, mod_mam_odbc_user, [muc, pm]),
     init_module(Host, mod_mam, []),
-    init_module(Host, mod_muc, [{host, "muc.@HOST@"}]),
-    init_module(Host, mod_mam_muc, [{host, "muc.@HOST@"}]),
+    init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}]),
     [{mam_backend, odbc} | Config];
 maybe_enable_mam(riak, Host,  Config) ->
     init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
     init_module(Host, mod_mam, []),
-    init_module(Host, mod_muc, [{host, "muc.@HOST@"}]),
-    init_module(Host, mod_mam_muc, [{host, "muc.@HOST@"}]),
+    init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}]),
     [{mam_backend, riak}, {yz_wait, 2500} | Config];
 maybe_enable_mam(_, _, C) ->
     [{mam_backend, disabled} | C].
@@ -187,14 +185,12 @@ maybe_disable_mam(odbc, Host) ->
     stop_module(Host, mod_mam_odbc_prefs),
     stop_module(Host, mod_mam_odbc_user),
     stop_module(Host, mod_mam),
-    stop_module(Host, mod_mam_muc),
-    stop_module(Host, mod_muc);
+    stop_module(Host, mod_mam_muc);
 maybe_disable_mam(riak, Host) ->
     stop_module(Host, mod_mam_riak_timed_arch_yz),
     stop_module(Host, mod_mam_mnesia_prefs),
     stop_module(Host, mod_mam),
-    stop_module(Host, mod_mam_muc),
-    stop_module(Host, mod_muc);
+    stop_module(Host, mod_mam_muc);
 maybe_disable_mam(_, _) ->
     ok.
 

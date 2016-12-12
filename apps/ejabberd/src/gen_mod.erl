@@ -353,7 +353,7 @@ get_opt_subhost(Host, Opts, Default) ->
 -spec get_module_opt_subhost(ejabberd:server(), module(), list() | binary()) -> ejabberd:server().
 get_module_opt_subhost(Host, Module, Default) ->
     Subject = get_module_opt(Host, Module, host, Default),
-    re:replace(Subject, "@HOST@", Host, [global, {return,binary}]).
+    re:replace(Subject, "@HOST@", Host, [global, {return, binary}]).
 
 -spec loaded_modules(ejabberd:server()) -> [module()].
 loaded_modules(Host) ->

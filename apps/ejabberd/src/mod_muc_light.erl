@@ -88,9 +88,9 @@ standard_config_schema() -> ["roomname", "subject"].
 -spec standard_default_config() -> [{K :: string(), V :: string()}].
 standard_default_config() -> [{"roomname", "Untitled"}, {"subject", ""}].
 
--spec default_host() -> string().
+-spec default_host() -> binary().
 default_host() ->
-    "muclight.@HOST@".
+    <<"muclight.@HOST@">>.
 
 -spec default_config(MUCServer :: ejabberd:lserver()) -> config().
 default_config(MUCServer) ->

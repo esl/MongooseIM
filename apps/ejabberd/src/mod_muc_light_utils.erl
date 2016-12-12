@@ -149,16 +149,12 @@ room_limit_reached(UserUS, RoomS) ->
 filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
     RoomsPerUser = gen_mod:get_module_opt_by_subhost(
                      MUCServer, mod_muc_light, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
-    BlockingQuery = case gen_mod:get_module_opt_by_subhost(
-                           MUCServer, mod_muc_light, blocking, ?DEFAULT_BLOCKING) of
-                        true ->
-                            [{user, FromUS}
-                             | if
-                                   RoomU == <<>> -> [];
-                                   true -> [{room, RoomUS}]
-                               end];
-                        false ->
-                            undefined
+    BlockingEnabled = gen_mod:get_module_opt_by_subhost(MUCServer, mod_muc_light,
+                                                        blocking, ?DEFAULT_BLOCKING),
+    BlockingQuery = case {BlockingEnabled, RoomU} of
+                        {true, <<>>} -> [{user, FromUS}];
+                        {true, _} -> [{user, FromUS}, {room, RoomUS}];
+                        {false, _} -> undefined
                     end,
     case BlockingQuery == undefined andalso RoomsPerUser == infinity of
         true -> AffUsers;

@@ -320,6 +320,7 @@ init([Host, Opts]) ->
             mod_muc:route({From, To, Packet}, State)
         end,
     ejabberd_router:register_route(MyHost, {apply_fun, F}),
+    mongoose_subhosts:register(Host, MyHost),
 
     load_permanent_rooms(MyHost, Host,
                          {Access, AccessCreate, AccessAdmin, AccessPersistent},
@@ -448,6 +449,7 @@ stop_if_hibernated_for_specified_time(Pid, Now, Timeout, {hibernated, LastHibern
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, State) ->
+    mongoose_subhosts:unregister(State#state.host),
     ejabberd_router:unregister_route(State#state.host),
     ok.
 
@@ -777,10 +779,10 @@ room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
         {error, not_found}
     end.
 
--spec default_host() -> list().
-default_host() -> "conference.@HOST@".
+-spec default_host() -> binary().
+default_host() -> <<"conference.@HOST@">>.
 
--spec iq_disco_info(ejabberd:lang()) -> [jlib:xmlel(),...].
+-spec iq_disco_info(ejabberd:lang()) -> [jlib:xmlel(), ...].
 iq_disco_info(Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"conference">>},

@@ -135,9 +135,9 @@ send_caps_after_login_test(Config) ->
 required_modules() ->
     [{mod_caps, []},
      {mod_pubsub, [
-                   {plugins,[<<"dag">>,<<"pep">>]},
-                   {nodetree,<<"dag">>},
-                   {pep_mapping,[]},
+                   {plugins, [<<"dag">>, <<"pep">>]},
+                   {nodetree, <<"dag">>},
+                   {pep_mapping, []},
                    {host, "pubsub.@HOST@"}
                   ]}].
 

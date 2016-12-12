@@ -236,9 +236,9 @@ stop(Host) ->
     ok = supervisor:terminate_child(ejabberd_sup, Proc),
     ok = supervisor:delete_child(ejabberd_sup, Proc).
 
--spec default_host() -> string().
+-spec default_host() -> binary().
 default_host() ->
-    "pubsub.@HOST@".
+    <<"pubsub.@HOST@">>.
 
 %%====================================================================
 %% gen_server callbacks

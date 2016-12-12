@@ -457,8 +457,8 @@ map_vcard_attr(VCardName, Attributes, Pattern, UD) ->
 
 process_pattern(Str, {User, Domain}, AttrValues) ->
     eldap_filter:do_sub(Str,
-			[{<<"%u">>, User}, {<<"%d">>, Domain}] ++
-			  [{<<"%s">>, V, 1} || V <- AttrValues]).
+                        [{<<"%u">>, User}, {<<"%d">>, Domain}] ++
+                        [{<<"%s">>, V, 1} || V <- AttrValues]).
 
 parse_options(Host, Opts) ->
     MyHost = gen_mod:get_opt_subhost(Host, Opts, mod_vcard:default_host()),
