@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-
-echo "This is not rebar2 - it's a stub script to warn you."
-echo "This project is no longer compatible with rebar2."
-echo
-echo "Use rebar3."
-
-exit 1
