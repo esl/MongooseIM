@@ -4,7 +4,7 @@ BANNED_DEPS = meck edown
 BANNED_PATHS = $(addsuffix /ebin, $(addprefix deps/, $(BANNED_DEPS)))
 DEPS_LIBS = $(filter-out $(BANNED_PATHS), $(wildcard deps/*/ebin))
 
-OTP_APPS = compiler crypto erts kernel stdlib mnesia ssl ssh xmerl public_key tools sasl hipe edoc syntax_tools runtime_tools inets webtool asn1
+OTP_APPS = compiler crypto erts kernel stdlib mnesia ssl ssh xmerl public_key tools sasl hipe edoc syntax_tools runtime_tools inets asn1
 
 clean_dialyzer:
 	rm -rf dialyzer

@@ -29,7 +29,7 @@
 
 -behaviour(application).
 
--export([start_modules/0,start/2, prep_stop/1, stop/1]).
+-export([start_modules/0, start/2, prep_stop/1, stop/1]).
 
 -include("ejabberd.hrl").
 
@@ -59,6 +59,7 @@ start(normal, _Args) ->
     {ok, _} = Sup = ejabberd_sup:start_link(),
     ejabberd_rdbms:start(),
     mongoose_riak:start(),
+    mongoose_cassandra:start(),
     mongoose_http_client:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),
@@ -113,15 +114,17 @@ db_init() ->
 start_modules() ->
     lists:foreach(
       fun(Host) ->
-              case ejabberd_config:get_local_option({modules, Host}) of
-                  undefined ->
-                      ok;
-                  Modules ->
-                      lists:foreach(
-                        fun({Module, Args}) ->
-                                gen_mod:start_module(Host, Module, Args)
-                        end, Modules)
-              end
+          StartModuleFun =
+              fun({Module, Args}) ->
+                  gen_mod:start_module(Host, Module, Args)
+              end,
+          case ejabberd_config:get_local_option({modules, Host}) of
+              undefined ->
+                  ok;
+              Modules ->
+                  lists:foreach(StartModuleFun, Modules)
+
+          end
       end, ?MYHOSTS).
 
 %% Stop all the modules in all the hosts
@@ -129,15 +132,16 @@ start_modules() ->
 stop_modules() ->
     lists:foreach(
       fun(Host) ->
-              case ejabberd_config:get_local_option({modules, Host}) of
-                  undefined ->
-                      ok;
-                  Modules ->
-                      lists:foreach(
-                        fun({Module, _Args}) ->
-                                gen_mod:stop_module_keep_config(Host, Module)
-                        end, Modules)
-              end
+          StopModuleFun =
+              fun({Module, _Args}) ->
+                  gen_mod:stop_module_keep_config(Host, Module)
+              end,
+          case ejabberd_config:get_local_option({modules, Host}) of
+              undefined ->
+                  ok;
+              Modules ->
+                  lists:foreach(StopModuleFun, Modules)
+          end
       end, ?MYHOSTS).
 
 -spec maybe_start_alarms() -> 'ok'.
@@ -157,7 +161,7 @@ connect_nodes() ->
             ok;
         Nodes when is_list(Nodes) ->
             lists:foreach(fun(Node) ->
-                                  net_kernel:connect_node(Node)
+                              net_kernel:connect_node(Node)
                           end, Nodes)
     end.
 
@@ -166,14 +170,14 @@ broadcast_c2s_shutdown() ->
     Children = supervisor:which_children(ejabberd_c2s_sup),
     lists:foreach(
       fun({_, C2SPid, _, _}) ->
-              C2SPid ! system_shutdown
+          C2SPid ! system_shutdown
       end, Children).
 
 %%%
 %%% PID file
 %%%
 
--spec write_pid_file() -> 'ok' | {'error',atom()}.
+-spec write_pid_file() -> 'ok' | {'error', atom()}.
 write_pid_file() ->
     case ejabberd:get_pid_file() of
         false ->
@@ -184,7 +188,7 @@ write_pid_file() ->
 
 -spec write_pid_file(Pid :: string(),
                      PidFilename :: nonempty_string()
-                    ) -> 'ok' | {'error',atom()}.
+                    ) -> 'ok' | {'error', atom()}.
 write_pid_file(Pid, PidFilename) ->
     case file:open(PidFilename, [write]) of
         {ok, Fd} ->
@@ -195,7 +199,7 @@ write_pid_file(Pid, PidFilename) ->
             throw({cannot_write_pid_file, PidFilename, Reason})
     end.
 
--spec delete_pid_file() -> 'ok' | {'error',atom()}.
+-spec delete_pid_file() -> 'ok' | {'error', atom()}.
 delete_pid_file() ->
     case ejabberd:get_pid_file() of
         false ->

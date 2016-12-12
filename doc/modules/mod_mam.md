@@ -54,6 +54,7 @@ Skipping this step will make `mod_mam` archive all the messages and users will n
 
 * `mod_mam_odbc_prefs`: User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
 * `mod_mam_mnesia_prefs`: User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of inconsistent (in a rather harmless way) state of preferences table. Provides best performance.
+* `mod_mam_cassandra_prefs`: - User archiving preferences saved in Cassandra. Slow and not recommended, but might be used to simplify things and keep everything in Cassandra.
 
 **Options:** (common for all three modules)
 
@@ -101,6 +102,74 @@ called Yokozuna. Your instance of Riak KV must be configured with Yokozuna enabl
 This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
 ### `mod_mam` options
+
+
+## Configure MAM with Cassandra backend
+
+### Configure cassandra pool
+
+Edit main config section adding:
+
+```erlang
+{cassandra_servers, [{default, []}]}.
+```
+
+MongooseIM will create one pool with one worker to connect to localhost:9042.
+
+You can change default settings using extra parameters:
+- 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
+- Keyspace "mam";
+- Custom connect timeout in milliseconds;
+- Custom credentials.
+
+```erlang
+{cassandra_servers,
+ [
+  {default,
+   [
+    {servers,
+     [
+      {"10.0.0.1", 9042, 5},
+      {"10.0.0.2", 9042, 5},
+      {"10.0.0.3", 9042, 5},
+      {"10.0.0.4", 9042, 5}
+     ]
+    },
+    {keyspace, "mam"},
+    {connect_timeout, 5000}, % five seconds
+    {credentials, [{"username", "cassandra"}, {"password", "secret"}]}
+   ]
+  }
+ ]
+}.
+```
+
+### Configure cassandra modules
+
+There are two Cassandra modules:
+- mod_mam_cassandra_arch - for one-to-one messages
+- mod_mam_muc_cassandra_arch - for groupchat messages
+
+They can be used together.
+
+```erlang
+{mod_mam_cassandra_arch, []},
+{mod_mam, []}
+```
+
+```erlang
+{mod_mam_muc_cassandra_arch, []},
+{mod_mam_muc, []}
+```
+
+Options:
+
+`pool_name` - Poolname from `cassandra_servers` to use. Default name is `default`.
+It can be different for different cassandra modules.
+
+
+mod_mam options
+---------------
 
 - `add_archived_element`: add `<archived/>` element from MAM v0.2
 - `is_complete_message`: module name implementing is_complete_message/3 callback.
