@@ -36,10 +36,7 @@ stop(_Host) ->
 
 
 -spec deps(_Host :: ejabberd:server(), Opts :: proplists:proplist()) ->
-                  [{Mod, Args, Hardness} | {Mod, Hardness}] when
-      Mod :: module(),
-      Args :: proplists:proplist(),
-      Hardness :: soft | hard.
+                  gen_mod:deps_list().
 deps(_Host, Opts0) ->
     Opts = normalize(Opts0),
 
@@ -128,24 +125,8 @@ parse_backend_opts(odbc, Type, Opts0, Deps0) ->
     Deps = add_dep(mod_mam_odbc_user, [Type], Deps1),
 
     lists:foldl(
-      fun
-          ({cache_users, true}, Acc) ->
-              add_dep(mod_mam_cache_user, [Type], Acc);
-          ({user_prefs_store, odbc}, Acc) ->
-              add_dep(mod_mam_odbc_prefs, [Type], Acc);
-          ({user_prefs_store, mnesia}, Acc) ->
-              add_dep(mod_mam_mnesia_prefs, [Type], Acc);
-          ({user_prefs_store, mnesia_dirty}, Acc) ->
-              add_dep(mod_mam_mnesia_dirty_prefs, [Type], Acc);
-          ({odbc_message_format, simple}, Acc) ->
-              add_dep(ModODBCArch, [simple], Acc);
-          ({async_writer, true}, Acc) ->
-              AccWithNoWriter = add_dep(ModODBCArch, [no_writer], Acc),
-              add_dep(ModAsyncWriter, [Type], AccWithNoWriter);
-          (_, Acc) -> Acc
-      end,
-      Deps,
-      Opts).
+      pa:bind(fun parse_backend_opt/5, Type, ModODBCArch, ModAsyncWriter),
+      Deps, Opts).
 
 
 -spec normalize(proplists:proplist()) -> [{atom(), term()}].
@@ -168,11 +149,32 @@ add_dep(Dep, Args, Deps) ->
 -spec add_default_odbc_opts(Opts :: proplists:proplist()) -> proplists:proplist().
 add_default_odbc_opts(Opts) ->
     lists:foldl(
-    fun({Key, _} = DefaultOpt, Acc) ->
-        case proplists:lookup(Key, Opts) of
-            none -> [DefaultOpt | Acc];
-            _ -> Acc
-        end
-    end,
-    Opts,
-    [{cache_users, true}, {async_writer, true}]).
+      fun({Key, _} = DefaultOpt, Acc) ->
+              case proplists:lookup(Key, Opts) of
+                  none -> [DefaultOpt | Acc];
+                  _ -> Acc
+              end
+      end,
+      Opts,
+      [{cache_users, true}, {async_writer, true}]).
+
+
+-spec parse_backend_opt(Option :: {module(), term()}, Type :: pm | muc,
+                        module(), module(), deps()) -> deps().
+parse_backend_opt(Type, ModODBCArch, ModAsyncWriter, Option, Deps) ->
+    case Option of
+        {cache_users, true} ->
+            add_dep(mod_mam_cache_user, [Type], Deps);
+        {user_prefs_store, odbc} ->
+            add_dep(mod_mam_odbc_prefs, [Type], Deps);
+        {user_prefs_store, mnesia} ->
+            add_dep(mod_mam_mnesia_prefs, [Type], Deps);
+        {user_prefs_store, mnesia_dirty} ->
+            add_dep(mod_mam_mnesia_dirty_prefs, [Type], Deps);
+        {odbc_message_format, simple} ->
+            add_dep(ModODBCArch, [simple], Deps);
+        {async_writer, true} ->
+            DepsWithNoWriter = add_dep(ModODBCArch, [no_writer], Deps),
+            add_dep(ModAsyncWriter, [Type], DepsWithNoWriter);
+        _ -> Deps
+    end.
