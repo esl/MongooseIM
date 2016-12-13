@@ -64,7 +64,7 @@
 -type ct_aff_users() :: [ct_aff_user()].
 -type ct_block_item() :: {What :: atom(), Action :: atom(), Who :: binary()}.
 -type verify_fun() :: muc_helper:verify_fun().
--type xmlel() :: #xmlel{}.
+-type xmlel() :: exml:element().
 
 -define(DEFAULT_AFF_USERS, [{Alice, owner}, {Bob, member}, {Kate, member}]).
 

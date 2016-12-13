@@ -418,7 +418,7 @@ rosteritem_rw(Config) ->
                 {BobName, Domain, _} = get_user_data(bob, Config),
                 {MikeName, Domain, _} = get_user_data(mike, Config),
 
-                {_, 0} = add_rosteritem(AliceName, Domain, BobName, Config),
+                {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
                 {_, 0} = ejabberdctl("add_rosteritem",
                                      [AliceName, Domain, MikeName,
                                       Domain, "\"My Mike\"",
@@ -460,7 +460,7 @@ presence_after_add_rosteritem(Config) ->
                  {AliceName, Domain, _} = get_user_data(alice, Config),
                  {BobName, Domain, _} = get_user_data(bob, Config),
 
-                 {_, 0} = add_rosteritem(AliceName, Domain, BobName, Config),
+                 {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
 
                  escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
                  escalus:assert(is_presence, escalus:wait_for_stanza(Bob)),
@@ -494,7 +494,7 @@ process_rosteritems_list_simple(Config) ->
         {AliceName, Domain, _} = get_user_data(alice, Config),
         {BobName, Domain, _} = get_user_data(bob, Config),
         %% when
-        {_, 0} = add_rosteritem(AliceName, Domain, BobName, Config),
+        {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
         S = escalus:wait_for_stanzas(Alice, 2),
         {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
         %% then
@@ -538,8 +538,7 @@ process_rosteritems_list_advanced1(Config) ->
                          string:substr(binary_to_list(KateName), 1, 2) ++
                          ".*@.*",
 
-        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, MikeName,
-                                                Domain, "DearMike", "MyGroup", "both"], Config),
+        {_, 0} = add_rosteritem2(AliceName, Domain, MikeName, Domain, Config),
         {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, KateName,
                                                 Domain, "BestFriend", "MyGroup", "both"], Config),
         escalus:wait_for_stanzas(Alice, 4),
@@ -598,9 +597,7 @@ process_rosteritems_list_advanced2(Config) ->
         ContactMike = string:to_lower(binary_to_list(escalus_client:short_jid(Mike))),
         ContactKate= string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
         ContactsRegexp = ".*e@lo.*",
-        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, MikeName,
-                                                Domain, "DearMike", "MyGroup",
-                                                "both"], Config),
+        {_, 0} = add_rosteritem2(AliceName, Domain, MikeName, Domain, Config),
         {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, KateName,
                                                 Domain, "KateFromSchool",
                                                 "MyGroup", "from"], Config),
@@ -707,7 +704,7 @@ set_last(Config) ->
                 {AliceName, Domain, _} = get_user_data(alice, Config),
                 {BobName, Domain, _} = get_user_data(bob, Config),
 
-                {_, 0} = add_rosteritem(AliceName, Domain, BobName, Config),
+                {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
                 {_, 0} = ejabberdctl("add_rosteritem",
                                      [BobName, Domain, AliceName,
                                       Domain, "MyAlice", "MyGroup", "both"],
@@ -798,11 +795,7 @@ send_stanza(Config) ->
                 BobJID = <<BobName/binary, $@, Domain/binary, $/,
                            (escalus_client:resource(Bob))/binary>>,
 
-                Stanza = re:replace(exml:to_binary(escalus_stanza:from(
-                                  escalus_stanza:chat_to(Alice, "Hi"), BobJID)),
-                                  <<?DOUBLE_QUOTE_CHAR>>,
-                                  <<?SINGLE_QUOTE_CHAR>>,
-                                  [global, {return, binary}]),
+                Stanza = Stanza = create_stanza(Alice, BobJID),
                 {_, 0} = ejabberdctl("send_stanza_c2s",
                        [BobName, Domain, Resource, <<$\", Stanza/binary, $\">>],
                        Config),
@@ -819,10 +812,7 @@ send_stanzac2s_wrong(Config) ->
         WrongBobName = "bobby_the_great",
         {BobName, _, _} = get_user_data(bob, Config),
         BobJID = <<BobName/binary, $@, Domain/binary, $/, (escalus_client:resource(Bob))/binary>>,
-        Stanza = re:replace(exml:to_binary(escalus_stanza:from(
-                            escalus_stanza:chat_to(Alice, "Hi"), BobJID)),
-                            <<?DOUBLE_QUOTE_CHAR>>, <<?SINGLE_QUOTE_CHAR>>,
-                            [global, {return, binary}]),
+        Stanza = create_stanza(Alice, BobJID),
         StanzaWrong = <<"<iq type='get' id='234234'><xmlns='wrongwrong'>">>,
         {_, Err} = ejabberdctl("send_stanza_c2s",
                   [WrongBobName, Domain, Resource, <<$\", Stanza/binary, $\">>],
@@ -835,6 +825,13 @@ send_stanzac2s_wrong(Config) ->
         true = Err2 =/= 0,
         escalus_assert:has_no_stanzas(Alice)
     end).
+
+create_stanza(Name1, JID2) ->
+    re:replace(exml:to_binary(escalus_stanza:from(
+                    escalus_stanza:chat_to(Name1, "Hi"), JID2)),
+                    <<?DOUBLE_QUOTE_CHAR>>,
+                    <<?SINGLE_QUOTE_CHAR>>,
+                    [global, {return, binary}])
 
 %%--------------------------------------------------------------------
 %% mod_admin_extra_stats tests
@@ -1163,8 +1160,13 @@ string_to_binary(List) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-add_rosteritem(UserName1, Domain, UserName2, Config) ->
+add_rosteritem1(UserName1, Domain, UserName2, Config) ->
     ejabberdctl("add_rosteritem",
                 [UserName1, Domain, UserName2,
                  Domain, "MyBob", "MyGroup", "both"],
                 Config),
+
+add_rosteritem2(Name1, Domain1, Name2, Domain2, Config) ->
+    ejabberdctl("add_rosteritem",
+                [Name1, Domain1, Name2,
+                 Domain2, "DearMike", "MyGroup", "both"], Config).
