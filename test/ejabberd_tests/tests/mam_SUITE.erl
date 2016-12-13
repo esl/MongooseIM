@@ -521,7 +521,7 @@ init_modules(C, muc_light, Config) ->
     dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
     Config1 = init_modules(C, muc_all, Config), %% Init more modules!
     stop_module(host(), mod_mam_muc),
-    init_module(host(), mod_mam_muc, [{host, binary_to_list(muc_light_host())}]),
+    init_module(host(), mod_mam_muc, [{host, "muclight.@HOST@"}]),
     Config1;
 
 
@@ -653,8 +653,9 @@ init_modules(odbc_mnesia_cache, _, Config) ->
     Config.
 
 end_modules(C, muc_light, Config) ->
+    end_modules(C, generic, Config),
     dynamic_modules:stop(host(), mod_muc_light),
-    end_modules(C, generic, Config);
+    Config;
 end_modules(_, _, Config) ->
     [stop_module(host(), M) || M <- mam_modules()],
     Config.

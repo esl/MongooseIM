@@ -498,5 +498,6 @@ update_room_version_transaction({RoomU, RoomS}, Version) ->
 main_host({_, RoomS}) ->
     main_host(RoomS);
 main_host(MUCServer) ->
-    mod_muc_light:get_opt(MUCServer, main_host, <<>>).
+    {ok, MainHost} = mongoose_subhosts:get_host(MUCServer),
+    MainHost.
 

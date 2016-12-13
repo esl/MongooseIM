@@ -143,7 +143,7 @@ handle_call({starttls, TLSSocket}, _From, #state{parser = Parser} = State) ->
     NewState = State#state{socket = TLSSocket,
                            sock_mod = fast_tls,
                            parser = NewParser},
-    case fast_tls:recv_data(TLSSocket, "") of
+    case fast_tls:recv_data(TLSSocket, <<"">>) of
         {ok, TLSData} ->
             {reply, ok, process_data(TLSData, NewState), ?HIBERNATE_TIMEOUT};
         {error, _Reason} ->
