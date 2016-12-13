@@ -1,8 +1,73 @@
 os:putenv("EXOMETER_PACKAGES", "(minimal)"),
-case os:getenv("TRAVIS") of
-  "true" ->
-    JobId   = os:getenv("TRAVIS_JOB_ID"),
-    lists:keystore(coveralls_service_job_id, 1, CONFIG, {coveralls_service_job_id, JobId});
-  _ ->
-    CONFIG
-end.
+
+MaybeReadFromConfig =
+fun ({ok, Content}) ->
+        Parts = binary:split(Content, <<"\n">>, [global]),
+        %% find only this line which starts with "export APPS="
+        [Apps] = [Item || <<"export APPS=\"",Item/binary>> <- Parts],
+        %% remove trailing " and conver to string
+        binary_to_list(binary:part(Apps, 0, size(Apps) - 1));
+    (_) ->
+        io:format("WARNING! The configure.out file was not created, using minimal configuration~n"),
+        ""
+end,
+
+ReadFromConfig =
+fun(Path) ->
+        case filelib:is_file(Path) of
+            true ->
+                MaybeReadFromConfig(file:read_file(Path));
+            _ ->
+                Script = filename:join(["tools", "configure"]),
+                os:cmd(Script ++ " with-all"),
+                MaybeReadFromConfig(file:read_file("configure.out"))
+        end
+end,
+
+GetEnvApps =
+fun() ->
+        case os:getenv("APPS") of
+            false ->
+                ConfigurePath = "configure.out",
+                ReadFromConfig(ConfigurePath);
+            EnvApps ->
+                EnvApps
+        end
+end,
+
+MaybeConfigureCoveralls =
+fun(Config) ->
+        case os:getenv("TRAVIS") of
+            "true" ->
+                JobId   = os:getenv("TRAVIS_JOB_ID"),
+                lists:keystore(coveralls_service_job_id, 1, Config, {coveralls_service_job_id, JobId});
+            _ ->
+                Config
+        end
+end,
+
+DevAppsToInclude =
+fun() ->
+        case os:getenv("DEVNODE") of
+            false -> [];
+            _ -> [meck]
+        end
+end,
+
+RequiredApps = fun() -> [ejabberd, inets, tools] end,
+EnvApps = GetEnvApps(),
+
+SetupIncludedApps =
+fun(Config, EnvApps) ->
+        RelxCfg = proplists:get_value(relx, Config),
+        {release, Desc, _Apps} = lists:keyfind(release, 1, RelxCfg),
+        EnvAppsToInclude = [ list_to_atom(App) || App <- string:tokens(EnvApps, " \n\r") ],
+        AppsToIncludeIn = RequiredApps() ++ DevAppsToInclude() ++ EnvAppsToInclude,
+        AppsToInclude = ordsets:to_list(ordsets:from_list(AppsToIncludeIn)),
+        NewReleaseCfg = {release, Desc, AppsToInclude},
+        NewRelxCfg = lists:keyreplace(release, 1, RelxCfg, NewReleaseCfg),
+        lists:keyreplace(relx, 1, Config, {relx, NewRelxCfg})
+end,
+
+Config0 = MaybeConfigureCoveralls(CONFIG),
+SetupIncludedApps(Config0, EnvApps).
