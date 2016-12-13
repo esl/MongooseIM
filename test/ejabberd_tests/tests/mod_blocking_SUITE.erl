@@ -174,7 +174,7 @@ add_another_user_to_blocklist(Config) ->
 
 add_many_users_to_blocklist(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike,1}],
+        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}],
         fun(User1, User2, User3, User4) ->
             user_blocks(User1, [User2, User3, User4]),
             BlockList = get_blocklist(User1),
@@ -316,23 +316,20 @@ messages_arrive_after_unblock_and_relogin(Config) ->
 
 blocking_and_relogin_many(Config) ->
     %% given
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}, {geralt, 1}],
+    simple_story(Config,
         fun(User1, User2, User3, User4, _) ->
             user_blocks(User1, [User2, User3]),
             user_blocks(User1, [User3, User4])
         end),
     %% when
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}, {geralt, 1}],
+    simple_story(Config,
         fun(User1, User2, _, User4, User5) ->
             user_unblocks(User1,  [User4]),
             user_unblocks(User1,  [User4, User5]),
             user_unblocks(User1,  [User2, User5])
         end),
     %% then
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1},  {mike, 1}, {geralt, 1}],
+    simple_story(Config,
         fun(User1, User2, User3, User4, _) ->
             message_is_delivered(User1, [User4], <<"Under the bridge!">>),
             message_is_not_delivered(User1, [User3], <<"Cant stop">>),
@@ -341,6 +338,12 @@ blocking_and_relogin_many(Config) ->
             BlockList = get_blocklist(User1),
             blocklist_contains_jid(BlockList, User3)
         end).
+
+simple_story(Config, Fun) ->
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}, {geralt, 1}],
+        Fun
+    ).
 
 clear_list_relogin(Config) ->
     escalus:story(
@@ -385,12 +388,16 @@ notify_blockee(Config) ->
             %% make sure they're friends and Bob receives Alice's presences
             subscribe(Bob, Alice),
             escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
-            escalus:assert(is_presence_with_type, [<<"available">>], escalus:wait_for_stanza(Alice)),
-            escalus:assert(is_presence_with_type, [<<"available">>], escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_presence_with_type, [<<"available">>],
+                           escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_presence_with_type, [<<"available">>],
+                           escalus:wait_for_stanza(Bob)),
             user_blocks(Alice, [Bob]),
-            escalus:assert(is_presence_with_type, [<<"unavailable">>], escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_presence_with_type, [<<"unavailable">>],
+                           escalus:wait_for_stanza(Bob)),
             user_unblocks(Alice, [Bob]),
-            escalus:assert(is_presence_with_type, [<<"available">>], escalus:wait_for_stanza(Bob))
+            escalus:assert(is_presence_with_type, [<<"available">>],
+                           escalus:wait_for_stanza(Bob))
         end).
 
 %% common
@@ -508,7 +515,7 @@ blocklist_result_has(ExpectedUser, Stanza) ->
     Children = Blocklist#xmlel.children,
     <<"blocklist">> = Blocklist#xmlel.name,
     {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),
-    true == lists:member(ExpectedUser,get_blocklist_items(Children)).
+    true == lists:member(ExpectedUser, get_blocklist_items(Children)).
 
 is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
     attrs = Attrs}]}=Stanza) ->
@@ -520,7 +527,6 @@ is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
 is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = []}]}=Stanza) ->
     is_xep191_push(Type, Stanza);
 is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = Items}]}) ->
-    ct:pal("JIDs: should be empty contains, ~p", [Items]),
     false;
 is_xep191_push(Type, JIDs, #xmlel{attrs = A, children = [#xmlel{name = Type,
     attrs = Attrs, children = Items}]}=Stanza) ->
@@ -553,7 +559,7 @@ user_blocks(Blocker, Blockees) when is_list(Blockees) ->
     escalus_client:send(Blocker, AddStanza),
     Res = escalus:wait_for_stanzas(Blocker, 2),
     CheckPush = fun(E) -> is_xep191_push(<<"block">>, BlockeeJIDs, E) end,
-    Preds = [is_iq_result, CheckPush], %% why it sends additional presence from alice to alice, I don't know
+    Preds = [is_iq_result, CheckPush],
     escalus:assert_many(Preds, Res).
 
 blocklist_is_empty(BlockList) ->
