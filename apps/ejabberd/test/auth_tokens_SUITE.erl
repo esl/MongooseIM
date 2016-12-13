@@ -11,11 +11,10 @@
 
 -import(prop_helper, [prop/2]).
 
--define(TESTED, mod_auth_token).
--define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
+-define(AE(Expected, Actual), ?assertEqual(Expected, Actual)).
 
--define(l2b(List), list_to_binary(List)).
--define(i2b(I), integer_to_binary(I)).
+-define(L2B(List), list_to_binary(List)).
+-define(I2B(I), integer_to_binary(I)).
 
 all() ->
     [{group, creation},
@@ -107,10 +106,10 @@ end_per_testcase(_, C) -> C.
 %%
 
 expiry_date_roundtrip_test(_) ->
-    D = {{2015,9,17},{20,28,21}}, %% DateTime
+    D = {{2015, 9, 17}, {20, 28, 21}}, %% DateTime
     S =  mod_auth_token:datetime_to_seconds(D),
     ResD = mod_auth_token:seconds_to_datetime(S),
-    ?ae(D, ResD).
+    ?AE(D, ResD).
 
 join_and_split_with_base16_and_zeros_are_reversible_property(_) ->
     prop(join_and_split_are_reversible_property,
@@ -127,11 +126,11 @@ validation_test(Config) ->
 
 validation_test(_, ExampleToken) ->
     %% given
-    Serialized = ?TESTED:serialize(ExampleToken),
+    Serialized = (tested()):serialize(ExampleToken),
     %% when
-    Result = ?TESTED:authenticate(Serialized),
+    Result = (tested()):authenticate(Serialized),
     %% then
-    ?ae(true, is_validation_success(Result)).
+    ?AE(true, is_validation_success(Result)).
 
 validation_property(_) ->
     prop(validation_property,
@@ -139,26 +138,27 @@ validation_property(_) ->
 
 validity_period_test(_) ->
     %% given
-    ok = ?TESTED:start(<<"localhost">>,
-                       validity_period_cfg(access, {13, hours})),
+    ok = (tested()):start(domain(), validity_period_cfg(access, {13, hours})),
     UTCSeconds = utc_now_as_seconds(),
     ExpectedSeconds = UTCSeconds + (    13 %% hours
                                     * 3600 %% seconds per hour
                                    ),
     %% when
-    ActualDT = ?TESTED:expiry_datetime(<<"localhost">>, access, UTCSeconds),
+    ActualDT = (tested()):expiry_datetime(domain(),
+                                       access, UTCSeconds),
     %% then
-    ?ae(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
+    ?AE(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
         ActualDT).
 
 choose_key_by_token_type(_) ->
     %% given mocked keystore (see init_per_testcase)
-    JID = jid:from_binary(<<"alice@localhost">>),
+    Domain = domain(),
+    JID = jid:from_binary(<<"alice@", Domain/binary>>),
     %% when mod_auth_token asks for key for given token type
     %% then the correct key is returned
-    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_user(access, JID)),
-    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_user(refresh, JID)),
-    ?ae(<<"provision">>, ?TESTED:get_key_for_user(provision, JID)).
+    ?AE(<<"access_or_refresh">>, (tested()):get_key_for_user(access, JID)),
+    ?AE(<<"access_or_refresh">>, (tested()):get_key_for_user(refresh, JID)),
+    ?AE(<<"provision">>, (tested()):get_key_for_user(provision, JID)).
 
 is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     MAC = base16:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
@@ -173,11 +173,11 @@ is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     end.
 
 is_serialization_reversible(Token) ->
-    Token =:= ?TESTED:deserialize(?TESTED:serialize(Token)).
+    Token =:= (tested()):deserialize((tested()):serialize(Token)).
 
 is_valid_token_prop(Token) ->
-    Serialized = ?TESTED:serialize(Token),
-    R = ?TESTED:authenticate(Serialized),
+    Serialized = (tested()):serialize(Token),
+    R = (tested()):authenticate(Serialized),
     case is_validation_success(R) of
         true -> true;
         _    -> ct:fail(R)
@@ -194,14 +194,15 @@ revoked_token_is_not_valid(_) ->
     %% given
     ValidSeqNo = 123456,
     RevokedSeqNo = 123455,
+    Domain = domain(),
     self() ! {valid_seq_no, ValidSeqNo},
     T = #token{type = refresh,
-               expiry_datetime = ?TESTED:seconds_to_datetime(utc_now_as_seconds() + 10),
-               user_jid = jid:from_binary(<<"alice@localhost">>),
+               expiry_datetime = (tested()):seconds_to_datetime(utc_now_as_seconds() + 10),
+               user_jid = jid:from_binary(<<"alice@", Domain/binary>>),
                sequence_no = RevokedSeqNo},
-    Revoked = ?TESTED:serialize(?TESTED:token_with_mac(T)),
+    Revoked = (tested()):serialize((tested()):token_with_mac(T)),
     %% when
-    ValidationResult = ?TESTED:authenticate(Revoked),
+    ValidationResult = (tested()):authenticate(Revoked),
     %% then
     {error, _} = ValidationResult.
 
@@ -225,7 +226,7 @@ utc_now_as_seconds() ->
 %%           ]}.
 validity_period_cfg(Type, Period) ->
     Opts = [ {{validity_period, Type}, Period} ],
-    ets:insert(ejabberd_modules, {ejabberd_module, {?TESTED, <<"localhost">>}, Opts}),
+    ets:insert(ejabberd_modules, {ejabberd_module, {tested(), domain()}, Opts}),
     Opts.
 
 %% This is a negative test case helper - that's why we invert the logic below.
@@ -241,13 +242,13 @@ mock_mongoose_metrics() ->
     ok.
 
 mock_odbc_backend() ->
-    gen_mod:start_backend_module(?TESTED, [{backend, odbc}]),
+    gen_mod:start_backend_module(tested(), [{backend, odbc}]),
     meck:new(mod_auth_token_odbc, []),
     meck:expect(mod_auth_token_odbc, get_valid_sequence_number,
                 fun (_) -> valid_seq_no_threshold() end).
 
 mock_keystore() ->
-    ejabberd_hooks:add(get_key, <<"localhost">>, ?MODULE, mod_keystore_get_key, 50).
+    ejabberd_hooks:add(get_key, domain(), ?MODULE, mod_keystore_get_key, 50).
 
 mock_gen_iq_handler() ->
     meck:new(gen_iq_handler, []),
@@ -271,63 +272,68 @@ mock_ejabberd_commands() ->
     meck:expect(ejabberd_commands, register_commands, fun (_) -> ok end).
 
 provision_token_example() ->
-    {token,provision,
-     {{2055,10,27},{10,54,22}},
-     {jid,<<"cEE2M1S0I">>,<<"localhost">>,<<>>,<<"cee2m1s0i">>,
-      <<"localhost">>,<<>>},
+    {token, provision,
+     {{2055, 10, 27}, {10, 54, 22}},
+     {jid, <<"cEE2M1S0I">>, domain(), <<>>, <<"cee2m1s0i">>,
+      domain(), <<>>},
      undefined,
-     {xmlel,<<"vCard">>,
-      [{<<"sgzldnl">>,<<"inxdutpu">>},
-       {<<"scmgsrfi">>,<<"nhgybwu">>},
-       {<<"ixrsmzee">>,<<"rysdh">>},
-       {<<"oxwothgyei">>,<<"wderkfgexv">>}],
-      [{xmlel,<<"nqe">>,
-        [{<<"i">>,<<"u">>},
-         {<<"gagnixjgml">>,<<"odaorofnra">>},
-         {<<"ijz">>,<<"zvbrqnybi">>}],
-        [{xmlcdata,<<"uprmzqf">>},
-         {xmlel,<<"lnnitxm">>,
-          [{<<"qytehi">>,<<"axl">>},
-           {<<"xaxforb">>,<<"jrdeydsqhj">>}],
+     {xmlel, <<"vCard">>,
+      [{<<"sgzldnl">>, <<"inxdutpu">>},
+       {<<"scmgsrfi">>, <<"nhgybwu">>},
+       {<<"ixrsmzee">>, <<"rysdh">>},
+       {<<"oxwothgyei">>, <<"wderkfgexv">>}],
+      [{xmlel, <<"nqe">>,
+        [{<<"i">>, <<"u">>},
+         {<<"gagnixjgml">>, <<"odaorofnra">>},
+         {<<"ijz">>, <<"zvbrqnybi">>}],
+        [{xmlcdata, <<"uprmzqf">>},
+         {xmlel, <<"lnnitxm">>,
+          [{<<"qytehi">>, <<"axl">>},
+           {<<"xaxforb">>, <<"jrdeydsqhj">>}],
           []},
-         {xmlcdata,<<"pncgsaxl">>},
-         {xmlel,<<"jfofazuau">>,[{<<"si">>,<<"l">>}],[]}]},
-       {xmlel,<<"moy">>,
-        [{<<"femjc">>,<<"qqb">>},{<<"tirfmekvpk">>,<<"sa">>}],
+         {xmlcdata, <<"pncgsaxl">>},
+         {xmlel, <<"jfofazuau">>, [{<<"si">>, <<"l">>}], []}]},
+       {xmlel, <<"moy">>,
+        [{<<"femjc">>, <<"qqb">>}, {<<"tirfmekvpk">>, <<"sa">>}],
         []},
-       {xmlcdata,<<"bgxlyqdeeuo">>}]},
-     <<109,213,86,17,172,7,27,229,193,103,207,86,43,31,239,117,234,234,
-       232,0,223,168,125,154,189,87,232,159,77,11,35,216,127,171,83,207,
-       208,184,40,208,45,102,189,131,110,204,245,28>>,
-     <<112,114,111,118,105,115,105,111,110,0,99,69,69,50,77,49,83,48,73,
-       64,108,111,99,97,108,104,111,115,116,0,54,52,56,55,53,52,54,54,52,
-       54,50,0,60,118,67,97,114,100,32,115,103,122,108,100,110,108,61,39,
-       105,110,120,100,117,116,112,117,39,32,115,99,109,103,115,114,102,
-       105,61,39,110,104,103,121,98,119,117,39,32,105,120,114,115,109,
-       122,101,101,61,39,114,121,115,100,104,39,32,111,120,119,111,116,
-       104,103,121,101,105,61,39,119,100,101,114,107,102,103,101,120,118,
-       39,62,60,110,113,101,32,105,61,39,117,39,32,103,97,103,110,105,
-       120,106,103,109,108,61,39,111,100,97,111,114,111,102,110,114,97,
-       39,32,105,106,122,61,39,122,118,98,114,113,110,121,98,105,39,62,
-       117,112,114,109,122,113,102,60,108,110,110,105,116,120,109,32,113,
-       121,116,101,104,105,61,39,97,120,108,39,32,120,97,120,102,111,114,
-       98,61,39,106,114,100,101,121,100,115,113,104,106,39,47,62,112,110,
-       99,103,115,97,120,108,60,106,102,111,102,97,122,117,97,117,32,115,
-       105,61,39,108,39,47,62,60,47,110,113,101,62,60,109,111,121,32,102,
-       101,109,106,99,61,39,113,113,98,39,32,116,105,114,102,109,101,107,
-       118,112,107,61,39,115,97,39,47,62,98,103,120,108,121,113,100,101,
-       101,117,111,60,47,118,67,97,114,100,62>>}.
+       {xmlcdata, <<"bgxlyqdeeuo">>}]},
+     <<109, 213, 86, 17, 172, 7, 27, 229, 193, 103, 207, 86, 43, 31, 239, 117,
+       234, 234, 232, 0, 223, 168, 125, 154, 189, 87, 232, 159, 77, 11, 35, 216,
+       127, 171, 83, 207, 208, 184, 40, 208, 45, 102, 189, 131, 110, 204,
+       245, 28>>,
+     <<112, 114, 111, 118, 105, 115, 105, 111, 110, 0, 99, 69, 69, 50, 77, 49,
+       83, 48, 73, 64, 108, 111, 99, 97, 108, 104, 111, 115, 116, 0, 54, 52, 56,
+       55, 53, 52, 54, 54, 52, 54, 50, 0, 60, 118, 67, 97, 114, 100, 32, 115,
+       103, 122, 108, 100, 110, 108, 61, 39, 105, 110, 120, 100, 117, 116, 112,
+       117, 39, 32, 115, 99, 109, 103, 115, 114, 102, 105, 61, 39, 110, 104,
+       103, 121, 98, 119, 117, 39, 32, 105, 120, 114, 115, 109, 122, 101, 101,
+       61, 39, 114, 121, 115, 100, 104, 39, 32, 111, 120, 119, 111, 116, 104,
+       103, 121, 101, 105, 61, 39, 119, 100, 101, 114, 107, 102, 103, 101, 120,
+       118, 39, 62, 60, 110, 113, 101, 32, 105, 61, 39, 117, 39, 32, 103, 97,
+       103, 110, 105, 120, 106, 103, 109, 108, 61, 39, 111, 100, 97, 111, 114,
+       111, 102, 110, 114, 97, 39, 32, 105, 106, 122, 61, 39, 122, 118, 98, 114,
+       113, 110, 121, 98, 105, 39, 62, 117, 112, 114, 109, 122, 113, 102, 60,
+       108, 110, 110, 105, 116, 120, 109, 32, 113, 121, 116, 101, 104, 105, 61,
+       39, 97, 120, 108, 39, 32, 120, 97, 120, 102, 111, 114, 98, 61, 39, 106,
+       114, 100, 101, 121, 100, 115, 113, 104, 106, 39, 47, 62, 112, 110, 99,
+       103, 115, 97, 120, 108, 60, 106, 102, 111, 102, 97, 122, 117, 97, 117,
+       32, 115, 105, 61, 39, 108, 39, 47, 62, 60, 47, 110, 113, 101, 62, 60,
+       109, 111, 121, 32, 102, 101, 109, 106, 99, 61, 39, 113, 113, 98, 39, 32,
+       116, 105, 114, 102, 109, 101, 107, 118, 112, 107, 61, 39, 115, 97, 39,
+       47, 62, 98, 103, 120, 108, 121, 113, 100, 101,
+       101, 117, 111, 60, 47, 118, 67, 97, 114, 100, 62>>}.
 
 refresh_token_example() ->
-    {token,refresh,
-     {{2055,10,27},{10,54,14}},
-     {jid,<<"a">>,<<"localhost">>,<<>>,<<"a">>,<<"localhost">>,<<>>},
-     4,undefined,
-     <<151,225,117,181,0,168,228,208,238,182,157,253,24,200,231,25,189,
-       160,176,144,85,193,20,108,31,23,46,35,215,41,250,57,68,201,45,33,
-       241,219,197,83,155,118,217,92,172,42,8,118>>,
-     <<114,101,102,114,101,115,104,0,97,64,108,111,99,97,108,104,111,115,
-       116,0,54,52,56,55,53,52,54,54,52,53,52,0,52>>}.
+    {token, refresh,
+     {{2055, 10, 27}, {10, 54, 14}},
+     {jid, <<"a">>, domain(), <<>>, <<"a">>, domain(), <<>>},
+     4, undefined,
+     <<151, 225, 117, 181, 0, 168, 228, 208, 238, 182, 157, 253, 24, 200, 231,
+       25, 189, 160, 176, 144, 85, 193, 20, 108, 31, 23, 46, 35, 215, 41, 250,
+       57, 68, 201, 45, 33, 241, 219, 197, 83, 155, 118, 217, 92,
+       172, 42, 8, 118>>,
+     <<114, 101, 102, 114, 101, 115, 104, 0, 97, 64, 108, 111, 99, 97, 108, 104,
+       111, 115, 116, 0, 54, 52, 56, 55, 53, 52, 54, 54, 52, 53, 52, 0, 52>>}.
 
 %%
 %% Generators
@@ -340,7 +346,7 @@ valid_token() ->
 
 %% Arbitrary date in the future.
 validity_threshold() ->
-    {{2055,10,27}, {10,54,14}}.
+    {{2055, 10, 27}, {10, 54, 14}}.
 
 valid_seq_no_threshold() ->
     3.
@@ -359,11 +365,11 @@ make_token({Type, Expiry, JID, SeqNo, VCard}) ->
                user_jid = jid:from_binary(JID)},
     case Type of
         access ->
-            ?TESTED:token_with_mac(T);
+            (tested()):token_with_mac(T);
         refresh ->
-            ?TESTED:token_with_mac(T#token{sequence_no = SeqNo});
+            (tested()):token_with_mac(T#token{sequence_no = SeqNo});
         provision ->
-            ?TESTED:token_with_mac(T#token{vcard = VCard})
+            (tested()):token_with_mac(T#token{vcard = VCard})
     end.
 
 serialized_token(Sep) ->
@@ -371,10 +377,10 @@ serialized_token(Sep) ->
          {oneof([<<"access">>, <<"refresh">>]), bare_jid(), expiry_date_as_seconds(), seq_no()},
          case Type of
              <<"access">> ->
-                 <<"access", Sep/bytes, JID/bytes, Sep/bytes, (?i2b(Expiry))/bytes>>;
+                 <<"access", Sep/bytes, JID/bytes, Sep/bytes, (?I2B(Expiry))/bytes>>;
              <<"refresh">> ->
-                 <<"refresh", Sep/bytes, JID/bytes, Sep/bytes, (?i2b(Expiry))/bytes,
-                   Sep/bytes, (?i2b(SeqNo))/bytes>>
+                 <<"refresh", Sep/bytes, JID/bytes, Sep/bytes, (?I2B(Expiry))/bytes,
+                   Sep/bytes, (?I2B(SeqNo))/bytes>>
          end).
 
 token_type() ->
@@ -385,7 +391,7 @@ expiry_datetime() ->
 
 valid_expiry_datetime() ->
     ?LET(Seconds, integer( datetime_to_seconds(validity_threshold()),
-                           datetime_to_seconds({{2100,1,1},{0,0,0}}) ),
+                           datetime_to_seconds({{2100, 1, 1}, {0, 0, 0}})),
          seconds_to_datetime(Seconds)).
 
 expiry_date_as_seconds() -> pos_integer().
@@ -398,14 +404,14 @@ vcard() ->
 
 bare_jid() ->
     ?LET({Username, Domain}, {username(), domain()},
-         <<(?l2b(Username))/bytes, "@", (?l2b(Domain))/bytes>>).
+         <<(?L2B(Username))/bytes, "@", (Domain)/bytes>>).
 
 %full_jid() ->
 %    ?LET({Username, Domain, Res}, {username(), domain(), resource()},
-%         <<(?l2b(Username))/bytes, "@", (?l2b(Domain))/bytes, "/", (?l2b(Res))/bytes>>).
+%         <<(?L2B(Username))/bytes, "@", (?L2B(Domain))/bytes, "/", (?L2B(Res))/bytes>>).
 
 username() -> ascii_string().
-domain()   -> "localhost".
+domain()  -> <<"localhost">>.
 %resource() -> ascii_string().
 
 ascii_string() ->
@@ -416,3 +422,5 @@ ascii_lower() -> choose($a, $z).
 ascii_upper() -> choose($A, $Z).
 ascii_alpha() -> union([ascii_lower(), ascii_upper()]).
 ascii_alnum() -> union([ascii_alpha(), ascii_digit()]).
+
+tested() -> mod_auth_token.

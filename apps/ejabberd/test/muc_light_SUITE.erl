@@ -7,8 +7,6 @@
 -include_lib("ejabberd/include/mod_muc_light.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 
--define(DOMAIN, <<"localhost">>).
-
 %% ------------------------------------------------------------------
 %% Common Test callbacks
 %% ------------------------------------------------------------------
@@ -51,7 +49,7 @@ init_per_testcase(codec_calls, Config) ->
     ejabberd_hooks:start_link(),
     ejabberd_router:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
-    mod_muc_light:start(?DOMAIN, []),
+    mod_muc_light:start(domain(), []),
     ets:new(testcalls, [named_table]),
     ets:insert(testcalls, {hooks, 0}),
     ets:insert(testcalls, {handlers, 0}),
@@ -60,7 +58,7 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(codec_calls, Config) ->
-    mod_muc_light:stop(?DOMAIN),
+    mod_muc_light:stop(domain()),
     mnesia:stop(),
     exit(whereis(ejabberd_sup), kill),
     Config;
@@ -87,12 +85,13 @@ rsm_disco_item_not_found(_Config) ->
 %% Basically it makes sure that codes have a proper setup of hook calls
 %% and all hooks and handlers are called as they should.
 codec_calls(_Config) ->
-    AffUsers = [{{<<"alice">>, <<"localhost">>}, member}],
-    Sender = jid:from_binary(<<"bob@localhost/bbb">>),
-    RoomUS = {<<"pokoik">>, <<"localhost">>},
+    Domain = domain(),
+    AffUsers = [{{<<"alice">>, Domain}, member}],
+    Sender = jid:from_binary(<<"bob@", Domain/binary, "/bbb">>),
+    RoomUS = {<<"pokoik">>, domain()},
     HandleFun = fun(_, _, _) -> count_call(handler) end,
     ejabberd_hooks:add(filter_room_packet,
-                       <<"localhost">>,
+                       domain(),
                        fun(Acc, _EvData) -> count_call(hook), Acc end,
                        50),
     mod_muc_light_codec_modern:encode({#msg{id = <<"ajdi">>}, AffUsers},
@@ -135,7 +134,9 @@ prop_aff_change_success() ->
                         % are there no owners or there is exactly one?
                         true = validate_owner(NewAffUsers0, false, WithOwner),
                         % changes list applied to old list should produce the same result
-                        {ok, NewAffUsers1, _, _, _} = mod_muc_light_utils:change_aff_users(AffUsers, AffUsersChanged),
+                        {ok, NewAffUsers1, _, _, _} =
+                            mod_muc_light_utils:change_aff_users(AffUsers,
+                                                               AffUsersChanged),
                         NewAffUsers0 = NewAffUsers1,
                         true;
                     _ ->
@@ -147,7 +148,8 @@ prop_aff_change_success() ->
                      AreOwnersAllowed :: boolean()) -> boolean().
 validate_owner([{_, owner} | _], true, _) -> false; % more than one owner
 validate_owner([{_, owner} | _], _, false) -> false; % there should be no owners
-validate_owner([{_, owner} | R], _, true) -> validate_owner(R, true, true); % there should be no owners
+validate_owner([{_, owner} | R], _, true) ->
+    validate_owner(R, true, true); % there should be no owners
 validate_owner([_ | R], Found, WithOwner) -> validate_owner(R, Found, WithOwner);
 validate_owner([], _, _) -> true.
 
@@ -219,7 +221,8 @@ change_aff_params() ->
     ChangesWithOwnerPromotion :: aff_users().
 promote_owner(true, PromotedOwnerPos, Changes1, Survivors) ->
     SurvivorsNoOwner = lists:keydelete(owner, 2, Survivors),
-    {NewOwner, _} = lists:nth((PromotedOwnerPos rem length(SurvivorsNoOwner)) + 1, SurvivorsNoOwner),
+    {NewOwner, _} = lists:nth(
+         (PromotedOwnerPos rem length(SurvivorsNoOwner)) + 1, SurvivorsNoOwner),
     lists:keystore(NewOwner, 1, Changes1, {NewOwner, owner});
 promote_owner(false, _, Changes1, _) ->
     Changes1.
@@ -341,7 +344,7 @@ make_invalid_rsm_in(Direction, _RoomsInfo, Nonexistent) ->
 %% ------------------------------------------------------------------
 
 aff_user(NameLen) ->
-    ?LET(U, bitstring(NameLen*8), {{U, ?DOMAIN}, member}).
+    ?LET(U, bitstring(NameLen*8), {{U, domain()}, member}).
 
 with_owner() ->
     boolean().
@@ -376,7 +379,7 @@ insert(E, L, 1) -> [E | L];
 insert(E, [EL | L], Pos) -> [EL | insert(E, L, Pos - 1)];
 insert(E, [], _) -> [E].
 
--spec duplicate(L :: [term(),...], Pos :: pos_integer()) -> [term(),...].
+-spec duplicate(L :: [term(), ...], Pos :: pos_integer()) -> [term(), ...].
 duplicate([E | L], 1) -> [E, E | L];
 duplicate([E | L], Pos) -> [E | duplicate(L, Pos - 1)];
 duplicate([], _) -> [].
@@ -407,3 +410,6 @@ check_count(Hooks, Handlers) ->
     ?assertEqual(Handlers, Ha),
     ets:insert(testcalls, {hooks, 0}),
     ets:insert(testcalls, {handlers, 0}).
+
+domain() ->
+    <<"localhost">>.

@@ -8,8 +8,7 @@
 -include_lib("ejabberd/include/ejabberd_commands.hrl").
 
 -define(PORT, 5288).
--define(HOST, "localhost").
--define(IP,  {127,0,0,1}).
+-define(IP,  {127, 0, 0, 1}).
 
 %% Error messages
 -define(ARGS_LEN_ERROR, <<"Bad parameters length.">>).
@@ -106,12 +105,12 @@ setup(Module) ->
     meck:expect(supervisor, start_child,
         fun(ejabberd_listeners, {_, {_, start_link, [_]}, transient,
             infinity, worker, [_]}) -> {ok, self()};
-            (A,B) -> meck:passthrough([A,B])
+            (A, B) -> meck:passthrough([A, B])
         end),
     %% HTTP API config
     Opts = [{num_acceptors, 10},
         {max_connections, 1024},
-        {modules, [{"localhost", "/api", Module, []}]}],
+        {modules, [{binary_to_list(domain()), "/api", Module, []}]}],
     ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
 
 teardown() ->
@@ -155,7 +154,8 @@ end_per_testcase(_, C) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 get_simple(_Config) ->
-    Arg = {arg1, <<"bob@localhost">>},
+    Domain = domain(),
+    Arg = {arg1, <<"bob@", Domain/binary>>},
     Base = "/api/users",
     ExpectedBody = get_simple_command(element(2, Arg)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg]), "GET", admin),
@@ -177,7 +177,8 @@ post_simple(_Config) ->
     Result = binary_to_list(post_simple_command(element(2, Arg1), element(2, Arg2))),
     {ok, Response} = request(Path, "POST", Args, admin),
     check_status_code(Response, 201),
-    check_location_header(Response, list_to_binary(build_path_prefix()++"/api/weather/" ++ Result)).
+    check_location_header(Response,
+              list_to_binary(build_path_prefix() ++ "/api/weather/" ++ Result)).
 
 post_simple_with_subcategory(_Config) ->
     Arg1 = {arg1, 10},
@@ -187,10 +188,11 @@ post_simple_with_subcategory(_Config) ->
     Result = binary_to_list(post_simple_command(element(2, Arg1), element(2, Arg2))),
     {ok, Response} = request(Path, "POST", Args, admin),
     check_status_code(Response, 201),
-    check_location_header(Response, list_to_binary(build_path_prefix()++"/api/weather/10/subcategory/" ++ Result)).
+    check_location_header(Response, list_to_binary(
+              build_path_prefix() ++ "/api/weather/10/subcategory/" ++ Result)).
 
 put_simple(_Config) ->
-    Binds = [{arg1, <<"username">>}, {arg2,<<"localhost">>}],
+    Binds = [{arg1, <<"username">>}, {arg2, domain()}],
     Args = [{arg3, <<"newusername">>}],
     Base = "/api/users",
     {ok, Response} = request(create_path_with_binds(Base, Binds), "PUT", Args, admin),
@@ -235,19 +237,19 @@ get_wrong_arg_type(_Config) ->
     check_status_code(Response, 400).
 
 post_wrong_arg_number(_Config) ->
-    Args = [{arg1, 10}, {arg2,2}, {arg3, 100}],
+    Args = [{arg1, 10}, {arg2, 2}, {arg3, 100}],
     Path = <<"/api/weather">>,
     {ok, Response} = request(Path, "POST", Args, admin),
     check_status_code(Response, 404).
 
 post_wrong_arg_name(_Config) ->
-    Args = [{arg11, 10}, {arg2,2}],
+    Args = [{arg11, 10}, {arg2, 2}],
     Path = <<"/api/weather">>,
     {ok, Response} = request(Path, "POST", Args, admin),
     check_status_code(Response, 400).
 
 post_wrong_arg_type(_Config) ->
-    Args = [{arg1, 10}, {arg2,<<"weird binary">>}],
+    Args = [{arg1, 10}, {arg2, <<"weird binary">>}],
     Path = <<"/api/weather">>,
     {ok, Response} = request(Path, "POST", Args, admin),
     check_status_code(Response, 400).
@@ -260,10 +262,11 @@ post_different_arg_order(_Config) ->
     Result = binary_to_list(post_simple_command(element(2, Arg1), element(2, Arg2))),
     {ok, Response} = request(Path, "POST", Args, admin),
     check_status_code(Response, 201),
-    check_location_header(Response, list_to_binary(build_path_prefix() ++"/api/weather/" ++ Result)).
+    check_location_header(Response,
+              list_to_binary(build_path_prefix() ++ "/api/weather/" ++ Result)).
 
 post_no_command(_Config) ->
-    Args = [{arg1, 10}, {arg2,2}],
+    Args = [{arg1, 10}, {arg2, 2}],
     Path = <<"/api/weather/10">>,
     {ok, Response} = request(Path, "POST", Args, admin),
     check_status_code(Response, 404).
@@ -326,14 +329,14 @@ put_too_less_binds(_Config) ->
     check_status_code(Response, 404).
 
 put_wrong_bind_name(_Config) ->
-    Binds = [{usersrejm, <<"username">>}, {domain, <<"localhost">>}],
+    Binds = [{usersrejm, <<"username">>}, {domain, domain()}],
     Parameters = [{age, 20}, {kids, 3}],
     Base = "/api/dragons",
     {ok, Response} = request(create_path_with_binds(Base, Binds), "PUT", Parameters, admin),
     check_status_code(Response, 404).
 
 put_wrong_param_name(_Config) ->
-    Binds = [{username, <<"username">>}, {domain, <<"localhost">>}],
+    Binds = [{username, <<"username">>}, {domain, domain()}],
     Parameters = [{age, 20}, {srids, 3}],
     Base = "/api/dragons",
     {ok, Response} = request(create_path_with_binds(Base, Binds), "PUT", Parameters, admin),
@@ -344,9 +347,10 @@ put_wrong_param_name(_Config) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 get_simple_client(_Config) ->
-    Arg = {arg1, <<"bob@localhost">>},
+    Domain = domain(),
+    Arg = {arg1, <<"bob@", Domain/binary>>},
     Base = "/api/clients",
-    Username = <<"username@localhost">>,
+    Username = <<"username@", Domain/binary>>,
     Auth = {binary_to_list(Username), "secret"},
     ExpectedBody = get_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg]), "GET", {Auth, true}),
@@ -354,10 +358,11 @@ get_simple_client(_Config) ->
     check_response_body(Response, ExpectedBody).
 
 get_two_args_client(_Config) ->
-    Arg1 = {other, <<"bob@localhost">>},
+    Domain = domain(),
+    Arg1 = {other, <<"bob@", Domain/binary>>},
     Arg2 = {limit, 10},
     Base = "/api/message",
-    Username = <<"alice@localhost">>,
+    Username = <<"alice@", Domain/binary>>,
     Auth = {binary_to_list(Username), "secret"},
     ExpectedBody = get_two_args_client_command(Username, element(2, Arg1), element(2, Arg2)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg1, Arg2]), "GET", {Auth, true}),
@@ -365,9 +370,10 @@ get_two_args_client(_Config) ->
     check_response_body(Response, ExpectedBody).
 
 get_bad_auth(_Config) ->
-    Arg = {arg1, <<"bob@localhost">>},
+    Domain = domain(),
+    Arg = {arg1, <<"bob@", Domain/binary>>},
     Base = "/api/clients",
-    Username = <<"username@localhost">>,
+    Username = <<"username@", Domain/binary>>,
     Auth = {binary_to_list(Username), "secret"},
     get_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg]), "GET", {Auth, false}),
@@ -377,17 +383,21 @@ post_simple_client(_Config) ->
     Arg1 = {title, <<"Juliet's despair">>},
     Arg2 = {content, <<"If they do see thee, they will murder thee!">>},
     Base = <<"/api/ohmyromeo">>,
-    Username = <<"username@localhost">>,
+    Domain = domain(),
+    Username = <<"username@", Domain/binary>>,
     Auth = {binary_to_list(Username), "secret"},
-    Result = binary_to_list(post_simple_client_command(Username, element(2, Arg1), element(2, Arg2))),
+    Result = binary_to_list(post_simple_client_command(
+                                 Username, element(2, Arg1), element(2, Arg2))),
     {ok, Response} = request(Base, "POST", [Arg1, Arg2], {Auth, true}),
     check_status_code(Response, 201),
-    check_location_header(Response, list_to_binary(build_path_prefix() ++"/api/ohmyromeo/" ++ Result)).
+    check_location_header(Response,
+            list_to_binary(build_path_prefix() ++ "/api/ohmyromeo/" ++ Result)).
 
 put_simple_client(_Config) ->
     Arg = {password, <<"ilovepancakes">>},
     Base = <<"/api/superusers">>,
-    Username = <<"joe@localhost">>,
+    Domain = domain(),
+    Username = <<"joe@", Domain/binary>>,
     Auth = {binary_to_list(Username), "secretpassword"},
     put_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(Base, "PUT", [Arg], {Auth, true}),
@@ -396,7 +406,8 @@ put_simple_client(_Config) ->
 delete_simple_client(_Config) ->
     Arg = {name, <<"giant">>},
     Base = "/api/bikes",
-    Username = <<"username@localhost">>,
+    Domain = domain(),
+    Username = <<"username@", Domain/binary>>,
     Auth = {binary_to_list(Username), "secret"},
     get_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = request(create_path_with_binds(Base, [Arg]), "DELETE", {Auth, true}),
@@ -613,7 +624,8 @@ delete_simple_client_command(_Username, _BikeName) ->
 %%%% utilities
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 build_path_prefix() ->
-    "http://" ++ ?HOST ++ ":" ++ integer_to_list(?PORT).
+    Host = binary_to_list(domain()),
+    "http://" ++ Host ++ ":" ++ integer_to_list(?PORT).
 
 maybe_add_body([]) ->
     [];
@@ -631,7 +643,8 @@ accepted_headers() ->
     [{<<"Content-Type">>, <<"application/json">>}, {<<"Accept">>, <<"application/json">>}].
 
 maybe_add_auth_header({User, Password}) ->
-    Basic = list_to_binary("basic " ++ base64:encode_to_string(User ++ ":"++ Password)),
+    Basic = list_to_binary("basic " ++
+                              base64:encode_to_string(User ++ ":" ++ Password)),
     [{<<"authorization">>, Basic}];
 maybe_add_auth_header(admin) ->
     [].
@@ -662,7 +675,7 @@ request(Path, "DELETE", Entity) ->
 -spec request(binary(), method(), list({atom(), any()}),
               {headers, list()} | admin | {{binary(), binary()}, boolean()}) -> any.
 do_request(Path, Method, Body, {headers, Headers}) ->
-    {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
+    {ok, Pid} = fusco:start_link(build_path_prefix(), []),
     R = fusco:request(Pid, Path, Method, Headers, Body, 5000),
     fusco:disconnect(Pid),
     teardown(),
@@ -676,7 +689,6 @@ request(Path, Method, BodyData, {{_User, _Pass} = Auth, Authorized}) ->
     AcceptHeader = maybe_add_accepted_headers(Method),
     do_request(Path, Method, Body, {headers, AuthHeader ++ AcceptHeader});
 request(Path, Method, BodyData, admin) ->
-    ct:pal("~p, ~p, ~p", [Path, Method, BodyData]),
     setup(backend_module()),
     Body = maybe_add_body(BodyData),
     AcceptHeader = maybe_add_accepted_headers(Method),
@@ -705,3 +717,5 @@ check_location_header(Response, Path) ->
     {_, Headers, _, _ , _} = Response,
     Location = proplists:get_value(<<"location">>, Headers),
     ?assertEqual(Path, Location).
+
+domain() -> <<"localhost">>.

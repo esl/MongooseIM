@@ -2,7 +2,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -compile([export_all]).
 
--define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
+-define(AE(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 all() ->
     [
@@ -36,7 +36,7 @@ end_per_testcase(multiple_domains_one_stopped, C) ->
     mod_keystore:stop(<<"second.com">>),
     clean_after_testcase(C);
 end_per_testcase(_CaseName, C) ->
-    mod_keystore:stop(<<"localhost">>),
+    mod_keystore:stop(domain()),
     clean_after_testcase(C).
 
 clean_after_testcase(C) ->
@@ -50,37 +50,39 @@ clean_after_testcase(C) ->
 %%
 
 module_startup_no_opts(_) ->
-    ok = mod_keystore:start(<<"localhost">>, []).
+    ok = mod_keystore:start(domain(), []).
 
 module_startup_read_key_from_file(_) ->
     %% given
     RawKey = <<"qwe123">>,
     {ok, KeyFile} = key_at("/tmp/key-from-file", RawKey),
     %% when
-    ok = mod_keystore:start(<<"localhost">>, key_from_file(KeyFile)),
+    ok = mod_keystore:start(domain(), key_from_file(KeyFile)),
     %% then
-    ?ae([{{key_from_file, <<"localhost">>}, RawKey}],
-        get_key(<<"localhost">>, key_from_file)).
+    ?AE([{{key_from_file, domain()}, RawKey}],
+        get_key(domain(), key_from_file)).
 
 module_startup_create_ram_key(Config) ->
     module_startup_create_ram_key(Config, ram_key()),
     %% then we can access the key
-    [{{ram_key, <<"localhost">>}, Key}] = get_key(<<"localhost">>, ram_key),
+    Domain = domain(),
+    [{{ram_key, Domain}, Key}] = get_key(Domain, ram_key),
     true = is_binary(Key).
 
 module_startup_create_ram_key_of_given_size(Config) ->
     KeySize = 4,
+    Domain = domain(),
     module_startup_create_ram_key(Config, sized_ram_key(KeySize)),
     %% then
-    [{{ram_key, <<"localhost">>}, Key}] = get_key(<<"localhost">>, ram_key),
+    [{{ram_key, Domain}, Key}] = get_key(Domain, ram_key),
     true = is_binary(Key),
     KeySize = byte_size(Key).
 
 module_startup_create_ram_key(_, ModKeystoreOpts) ->
     %% given no key
-    [] = get_key(<<"localhost">>, ram_key),
+    [] = get_key(domain(), ram_key),
     %% when keystore starts with config to generate a memory-only key
-    ok = mod_keystore:start(<<"localhost">>, ModKeystoreOpts).
+    ok = mod_keystore:start(domain(), ModKeystoreOpts).
 
 module_startup_for_multiple_domains(_Config) ->
     %% given
@@ -94,9 +96,9 @@ module_startup_for_multiple_domains(_Config) ->
     ok = mod_keystore:start(<<"first.com">>, key_from_file(FirstKeyFile)),
     ok = mod_keystore:start(<<"second.com">>, key_from_file(SecondKeyFile)),
     %% then
-    ?ae([{{key_from_file, <<"first.com">>}, FirstKey}],
+    ?AE([{{key_from_file, <<"first.com">>}, FirstKey}],
         get_key(<<"first.com">>, key_from_file)),
-    ?ae([{{key_from_file, <<"second.com">>}, SecondKey}],
+    ?AE([{{key_from_file, <<"second.com">>}, SecondKey}],
         get_key(<<"second.com">>, key_from_file)).
 
 module_startup_non_unique_key_ids(_) ->
@@ -105,7 +107,7 @@ module_startup_non_unique_key_ids(_) ->
                                    {some_key, {file, "some_key.dat"}}]}],
     %% when
     try
-        mod_keystore:start(<<"localhost">>, NonUniqueKeyIDsOpts)
+        mod_keystore:start(domain(), NonUniqueKeyIDsOpts)
     %% then
     catch
         error:non_unique_key_ids -> ok
@@ -124,7 +126,7 @@ multiple_domains_one_stopped(_Config) ->
     ok = mod_keystore:start(<<"second.com">>, key_from_file(SecondKeyFile)),
     ok = mod_keystore:stop(<<"first.com">>),
     % then
-    ?ae([{{key_from_file, <<"second.com">>}, SecondKey}],
+    ?AE([{{key_from_file, <<"second.com">>}, SecondKey}],
         get_key(<<"second.com">>, key_from_file)).
 
 %%
@@ -179,6 +181,9 @@ mock_mongoose_metrics() ->
       Result :: mod_keystore:key_list().
 get_key(Domain, KeyName) ->
     ejabberd_hooks:run_fold(get_key, Domain, [], [{KeyName, Domain}]).
+
+domain() ->
+    <<"localhost">>.
 
 %%{mod_keystore, [{keys, [{asdqwe_access_secret, ram},
 %%                        {asdqwe_access_psk,    {file, "priv/asdqwe_access_psk"}},

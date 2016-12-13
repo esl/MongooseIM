@@ -5,11 +5,6 @@
 -include_lib("ejabberd/include/ejabberd.hrl").
 -compile([export_all]).
 
-
--define(_eq(E, I), ?_assertEqual(E, I)).
--define(eq(E, I), ?assertEqual(E, I)).
--define(ne(E, I), ?assert(E =/= I)).
-
 -define(B(C), (proplists:get_value(backend, C))).
 -define(MAX_USER_SESSIONS, 2).
 
@@ -92,12 +87,12 @@ end_per_testcase(_, Config) ->
     Config.
 
 open_session(C) ->
-    {Sid, USR} =  generate_random_user(<<"localhost">>),
+    {Sid, USR} =  generate_random_user(domain()),
     given_session_opened(Sid, USR),
     verify_session_opened(C, Sid, USR).
 
 get_full_session_list(C) ->
-    ManyUsers = generate_many_random_users(5, [<<"localhost">>, <<"otherhost">>]),
+    ManyUsers = generate_many_random_users(5, [domain(), <<"otherhost">>]),
     ManyUsersLen = length(ManyUsers),
     [given_session_opened(Sid, USR) || {Sid, USR} <- ManyUsers],
     AllSessions = ejabberd_sm:get_full_session_list(),
@@ -106,26 +101,29 @@ get_full_session_list(C) ->
     [verify_session_opened(C, Sid, USR) || {Sid, USR} <- ManyUsers].
 
 get_vh_session_list(C) ->
-    ManyUsersLocal = generate_many_random_users(5, [<<"localhost">>]),
+    ManyUsersLocal = generate_many_random_users(5, [domain()]),
     ManyUsersOther = generate_many_random_users(5, [<<"otherhost">>]),
     ManyUsersLocalLen = length(ManyUsersLocal),
     [given_session_opened(Sid, USR) || {Sid, USR} <- ManyUsersLocal ++ ManyUsersOther],
-    LocalhostSessions = ejabberd_sm:get_vh_session_list(<<"localhost">>),
+    LocalhostSessions = ejabberd_sm:get_vh_session_list(domain()),
     LocalhostSessionsLen = length(LocalhostSessions),
     LocalhostSessionsLen = ManyUsersLocalLen,
-    ManyUsersLocalLen = ejabberd_sm:get_vh_session_number(<<"localhost">>),
+    ManyUsersLocalLen = ejabberd_sm:get_vh_session_number(domain()),
     [verify_session_opened(C, Sid, USR) || {Sid, USR} <- ManyUsersLocal].
 
 get_sessions_2(C) ->
-    UsersWithManyResources = generate_many_random_res(5, 3, [<<"localhost">>, <<"otherhost">>]),
+    UsersWithManyResources = generate_many_random_res(5, 3,
+                                                [domain(), <<"otherhost">>]),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
     USDict = get_unique_us_dict(UsersWithManyResources),
-    [verify_session_opened(C, U, S, dict:fetch({U, S}, USDict)) || {U, S} <- dict:fetch_keys(USDict)],
-    [verify_session_opened(C, Sid, USR) || {Sid, USR} <- UsersWithManyResources].
+    [verify_session_opened(C, U, S, dict:fetch({U, S}, USDict)) ||
+        {U, S} <- dict:fetch_keys(USDict)],
+    [verify_session_opened(C, Sid, USR) ||
+        {Sid, USR} <- UsersWithManyResources].
 
 
 get_sessions_3(C) ->
-    UserRes = generate_many_random_res(1, 3, [<<"localhost">>]),
+    UserRes = generate_many_random_res(1, 3, [domain()]),
     AllSessions = length(UserRes),
     {_, {User, Server, _}} = hd(UserRes),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UserRes],
@@ -140,7 +138,7 @@ get_sessions_3(C) ->
     true = lists:all(F, UserRes).
 
 update_session(C) ->
-    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    {Sid, {U, S, _} = USR} = generate_random_user(domain()),
     given_session_opened(Sid, USR),
     verify_session_opened(C, Sid, USR),
 
@@ -152,62 +150,62 @@ update_session(C) ->
     [#session{priority = 20}] = ?B(C):get_sessions(U, S).
 
 session_info_is_stored(C) ->
-    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    {Sid, {U, S, _} = USR} = generate_random_user(domain()),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
     [#session{sid = Sid, info = [{key1, val1}]}]
-     = ?B(C):get_sessions(U,S).
+     = ?B(C):get_sessions(U, S).
 
 session_info_is_updated_if_keys_match(C) ->
-    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    {Sid, {U, S, _} = USR} = generate_random_user(domain()),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
     when_session_opened(Sid, USR, 1, [{key1, val2}]),
 
     [#session{sid = Sid, info = [{key1, val2}]}]
-     = ?B(C):get_sessions(U,S).
+     = ?B(C):get_sessions(U, S).
 
 session_info_is_extended_if_new_keys_present(C) ->
-    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    {Sid, {U, S, _} = USR} = generate_random_user(domain()),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
     when_session_opened(Sid, USR, 1, [{key1, val1}, {key2, val2}]),
 
     [#session{sid = Sid, info = [{key1, val1}, {key2, val2}]}]
-     = ?B(C):get_sessions(U,S).
+     = ?B(C):get_sessions(U, S).
 
 session_info_keys_not_truncated_if_session_opened_with_empty_infolist(C) ->
-    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    {Sid, {U, S, _} = USR} = generate_random_user(domain()),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
     when_session_opened(Sid, USR, 1, []),
 
     [#session{sid = Sid, info = [{key1, val1}]}]
-     = ?B(C):get_sessions(U,S).
+     = ?B(C):get_sessions(U, S).
 
 
 kv_can_be_stored_for_session(C) ->
-    {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
+    {Sid, {U, S, R} = USR} = generate_random_user(domain()),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
     when_session_info_stored(U, S, R, {key2, newval}),
 
     [#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}]
-     = ?B(C):get_sessions(U,S).
+     = ?B(C):get_sessions(U, S).
 
 kv_can_be_updated_for_session(C) ->
-    {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
+    {Sid, {U, S, R} = USR} = generate_random_user(domain()),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
     when_session_info_stored(U, S, R, {key2, newval}),
     when_session_info_stored(U, S, R, {key2, override}),
 
     [#session{sid = Sid, info = [{key1, val1}, {key2, override}]}]
-     = ?B(C):get_sessions(U,S).
+     = ?B(C):get_sessions(U, S).
 
 
 delete_session(C) ->
-    {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
+    {Sid, {U, S, R} = USR} = generate_random_user(domain()),
     given_session_opened(Sid, USR),
     verify_session_opened(C, Sid, USR),
 
@@ -221,7 +219,7 @@ delete_session(C) ->
 
 
 clean_up(C) ->
-    UsersWithManyResources = generate_many_random_res(5, 3, [<<"localhost">>, <<"otherhost">>]),
+    UsersWithManyResources = generate_many_random_res(5, 3, [domain(), <<"otherhost">>]),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
     ?B(C):cleanup(node()),
     %% give sm backend some time to clean all sessions
@@ -240,8 +238,9 @@ ensure_empty(C, N, Sessions) ->
 
 too_much_sessions(C) ->
     %% Max sessions set to ?MAX_USER_SESSIONS in init_per_testcase
-    UserSessions = [generate_random_user(<<"a">>, <<"localhost">>) || _ <- lists:seq(1, ?MAX_USER_SESSIONS)],
-    {AddSid, AddUSR} = generate_random_user(<<"a">>, <<"localhost">>),
+    UserSessions = [generate_random_user(<<"a">>, domain()) ||
+        _ <- lists:seq(1, ?MAX_USER_SESSIONS)],
+    {AddSid, AddUSR} = generate_random_user(<<"a">>, domain()),
 
     [given_session_opened(Sid, USR) || {Sid, USR} <- UserSessions],
 
@@ -257,7 +256,7 @@ too_much_sessions(C) ->
 
 
 unique_count(C) ->
-    UsersWithManyResources = generate_many_random_res(5, 3, [<<"localhost">>, <<"otherhost">>]),
+    UsersWithManyResources = generate_many_random_res(5, 3, [domain(), <<"otherhost">>]),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
     USDict = get_unique_us_dict(UsersWithManyResources),
     UniqueCount = ejabberd_sm:get_unique_sessions_number(),
@@ -268,7 +267,7 @@ unique_count_while_removing_entries(C) ->
     unique_count(C),
     UniqueCount = ejabberd_sm:get_unique_sessions_number(),
     %% Register more sessions and mock the crash
-    UsersWithManyResources = generate_many_random_res(10, 3, [<<"localhost">>, <<"otherhost">>]),
+    UsersWithManyResources = generate_many_random_res(10, 3, [domain(), <<"otherhost">>]),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
     set_test_case_meck_unique_count_crash(?B(C)),
     USDict = get_unique_us_dict(UsersWithManyResources),
@@ -281,7 +280,7 @@ set_meck(SMBackend) ->
     meck:new(ejabberd_config, []),
     meck:expect(ejabberd_config, get_global_option,
                 fun(sm_backend) -> SMBackend;
-                    (hosts) -> [<<"localhost">>] end),
+                    (hosts) -> [domain()] end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
 
     meck:new(ejabberd_hooks, []),
@@ -312,7 +311,8 @@ set_test_case_meck_unique_count_crash(Backend) ->
 
 get_fun_for_unique_count(ejabberd_sm_mnesia) ->
     fun() ->
-        mnesia:abort({badarg,[session,{{1442,941593,580189},list_to_pid("<0.23291.6>")}]})
+        mnesia:abort({badarg,
+            [session, {{1442, 941593, 580189}, list_to_pid("<0.23291.6>")}]})
     end;
 get_fun_for_unique_count(ejabberd_sm_redis) ->
     fun() ->
@@ -326,15 +326,15 @@ given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
 
 given_session_opened(Sid, {U, S, R}, Priority) ->
-    given_session_opened(Sid, {U,S,R}, Priority, []).
+    given_session_opened(Sid, {U, S, R}, Priority, []).
 
-given_session_opened(Sid, {U,S,R}, Priority, Info) ->
+given_session_opened(Sid, {U, S, R}, Priority, Info) ->
     ejabberd_sm:open_session(Sid, U, S, R, Priority, Info).
 
-when_session_opened(Sid, {U,S,R}, Priority, Info) ->
-    given_session_opened(Sid, {U,S,R}, Priority, Info).
+when_session_opened(Sid, {U, S, R}, Priority, Info) ->
+    given_session_opened(Sid, {U, S, R}, Priority, Info).
 
-when_session_info_stored(U, S, R, {_,_}=KV) ->
+when_session_info_stored(U, S, R, {_, _} = KV) ->
     ejabberd_sm:store_info(U, S, R, KV).
 
 verify_session_opened(C, Sid, USR) ->
@@ -394,7 +394,8 @@ generate_random_users(Count, Server) ->
 
 generate_many_random_res(UsersPerServer, ResourcesPerUser, Servers) ->
     Usernames = [base16:encode(crypto:rand_bytes(5)) || _ <- lists:seq(1, UsersPerServer)],
-    [generate_random_user(U, S) || U <- Usernames, S <- Servers, _ <- lists:seq(1, ResourcesPerUser)].
+    [generate_random_user(U, S) ||
+        U <- Usernames, S <- Servers, _ <- lists:seq(1, ResourcesPerUser)].
 
 get_unique_us_dict(USRs) ->
     F = fun({_, {U, S, _}} = I, SetAcc) ->
@@ -431,3 +432,6 @@ n(Node) ->
 
 is_redis_running() ->
     [] =/= os:cmd("ps aux | grep '[r]edis'").
+
+domain() ->
+    <<"localhost">>.

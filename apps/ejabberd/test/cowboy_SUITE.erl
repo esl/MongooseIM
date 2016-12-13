@@ -19,8 +19,6 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--define(SERVER, "http://localhost:8080").
-
 -import(ejabberd_helper, [start_ejabberd/1,
                           stop_ejabberd/0,
                           use_config_file/2,
@@ -84,7 +82,7 @@ end_per_testcase(_CaseName, Config) ->
 %%--------------------------------------------------------------------
 http_requests(_Config) ->
     %% Given
-    Host = ?SERVER,
+    Host = server(),
     Path = <<"/">>,
     Method = "GET",
     Headers = [],
@@ -104,7 +102,7 @@ http_requests(_Config) ->
 
 ws_request_bad_protocol(_Config) ->
     %% Given
-    Host = ?SERVER,
+    Host = server(),
     Path = <<"/">>,
     Method = "GET",
     Headers = ws_headers(<<"unknown-protocol">>),
@@ -118,7 +116,7 @@ ws_request_bad_protocol(_Config) ->
 
 ws_requests_xmpp(_Config) ->
     %% Given
-    Host = "localhost",
+    Host = binary_to_list(domain()),
     Port = 8080,
     Protocol = <<"xmpp">>,
     BinaryPing = ws_tx_frame(<<"ping">>, 2),
@@ -141,7 +139,7 @@ ws_requests_xmpp(_Config) ->
 
 ws_requests_other(_Config) ->
     %% Given
-    Host = "localhost",
+    Host = binary_to_list(domain()),
     Port = 8080,
     Protocol = <<"other">>,
     TextPing = ws_tx_frame(<<"ping">>, 1),
@@ -170,10 +168,10 @@ mixed_requests(_Config) ->
     TextPing = ws_tx_frame(<<"ping">>, 1),
     TextPong = ws_rx_frame(<<"pong">>, 1),
 
-    Host = "localhost",
+    Host = binary_to_list(domain()),
     Port = 8080,
 
-    HTTPHost = ?SERVER,
+    HTTPHost = server(),
     Path = <<"/">>,
     Method = "GET",
     Headers3 = ws_headers(Protocol3),
@@ -300,7 +298,7 @@ ws_handshake(Host, Port, Protocol) ->
                 "\r\n"]),
     {ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
     Packet = erlang:decode_packet(http, Handshake, []),
-    {ok, {http_response, {1,1}, 101, "Switching Protocols"}, _Rest} = Packet,
+    {ok, {http_response, {1, 1}, 101, "Switching Protocols"}, _Rest} = Packet,
     {ok, Socket}.
 
 ws_headers(Protocol) ->
@@ -379,7 +377,7 @@ ws_init(_Type, _Req, _Opts) ->
 ws_websocket_init(_Transport, Req, _Opts) ->
     {ok, Req, no_state}.
 
-ws_websocket_handle({text,<<"ping">>}, Req, State) ->
+ws_websocket_handle({text, <<"ping">>}, Req, State) ->
     {reply, {text, <<"pong">>}, Req, State};
 ws_websocket_handle({binary, <<"ping">>}, Req, State) ->
     {reply, {binary, <<"pong">>}, Req, State};
@@ -391,3 +389,11 @@ ws_websocket_info(_Info, Req, State) ->
 
 ws_websocket_terminate(_Reason, _Req, _State) ->
     ok.
+
+domain() ->
+    <<"localhost">>.
+
+server() ->
+    Domain = domain(),
+    Server = <<"http://", Domain/binary, ":8080">>,
+    binary_to_list(Server).

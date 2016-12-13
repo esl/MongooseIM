@@ -76,25 +76,28 @@ end_per_group(Name, C) ->
     C.
 
 no_skip_metric(_C) ->
-    ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection_hook),
-    undefined = exometer:info([<<"localhost">>, sm_register_connection_hook]).
+    ok = mongoose_metrics:create_generic_hook_metric(domain(), sm_register_connection_hook),
+    undefined = exometer:info([domain(), sm_register_connection_hook]).
+
+domain() ->
+    <<"localhost">>.
 
 
 subscriptions_initialised(_C) ->
     mongoose_metrics:init(),
     true = wait_for_update(exometer:get_value([carbon, packets], count), 60).
 
-wait_for_update({ok, [{count,X}]}, 0) ->
+wait_for_update({ok, [{count, X}]}, 0) ->
     X > 0;
-wait_for_update({ok, [{count,X}]}, _N) when X > 0 ->
+wait_for_update({ok, [{count, X}]}, _N) when X > 0 ->
     true;
-wait_for_update({ok, [{count,0}]}, N) ->
+wait_for_update({ok, [{count, 0}]}, N) ->
     timer:sleep(1000),
     wait_for_update(exometer:get_value([carbon, packets], count), N-1).
 
 setup_meck(Group) ->
     meck:new(ejabberd_config, [no_link]),
-    meck:expect(ejabberd_config, get_global_option, fun(hosts) -> [<<"localhost">>] end),
+    meck:expect(ejabberd_config, get_global_option, fun(hosts) -> [domain()] end),
     meck:expect(ejabberd_config, get_local_option,
                 fun (all_metrics_are_global) -> Group =:= all_metrics_are_global;
                     (_) -> undefined
@@ -111,4 +114,3 @@ get_reporters_cfg(Port) ->
                                              {api_key, ""}
                                             ]}
                 ]}].
-
