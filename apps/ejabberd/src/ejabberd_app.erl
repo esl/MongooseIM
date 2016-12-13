@@ -51,6 +51,7 @@ start(normal, _Args) ->
     ejabberd_ctl:init(),
     ejabberd_commands:init(),
     mongoose_commands:init(),
+    mongoose_subhosts:init(),
     gen_mod:start(),
     ejabberd_config:start(),
     ejabberd_check:config(),
@@ -80,6 +81,7 @@ start(_, _) ->
 prep_stop(State) ->
     ejabberd_listener:stop_listeners(),
     stop_modules(),
+    mongoose_subhosts:stop(),
     broadcast_c2s_shutdown(),
     timer:sleep(5000),
     mongoose_metrics:remove_all_metrics(),
