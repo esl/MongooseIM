@@ -67,8 +67,8 @@ effect_test_cases() ->
         messages_from_blocked_user_dont_arrive,
         messages_from_unblocked_user_arrive_again,
         messages_from_any_blocked_resource_dont_arrive,
-        blocking_doesnt_interfere
-%%        messages_from_any_blockees_resource_dont_arrive
+        blocking_doesnt_interfere,
+        blocking_propagates_to_resources
     ].
 
 offline_test_cases() ->
@@ -268,16 +268,23 @@ blocking_doesnt_interfere(Config) ->
             message_is_delivered(User3, [User1], <<"Ni hao.">>)
         end).
 
-%%messages_from_any_blockees_resource_dont_arrive(Config) ->
-%%    escalus:fresh_story(
-%%        Config, [{alice, 2}, {bob, 1}],
-%%        fun(User1a, User1b, User2) ->
+blocking_propagates_to_resources(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 2}, {bob, 1}],
+        fun(User1a, User1b, User2) ->
             %% given
-%%            user_blocks(User1a, [User2]),
+            user_blocks(User1a, [User2]),
             %% then
-%%            message_is_not_delivered(User1a, [User2], <<"roar!">>),
-%%            message_is_not_delivered(User1b, [User2], <<"woof!">>)
-%%        end).
+            client_gets_block_iq(User1b),
+            % Alice can't send from any of her resources
+            message_is_not_delivered(User1a, [User2], <<"roar!">>),
+            client_gets_blocking_error(User1a),
+            message_is_not_delivered(User1b, [User2], <<"woof!">>),
+            client_gets_blocking_error(User1b),
+            % Bob can't send to any of Alice's resources
+            message_is_not_delivered(User2, [User1a], <<"hau!">>),
+            message_is_not_delivered(User2, [User1b], <<"miau!">>),
+        end).
 
 messages_after_relogin(Config) ->
     %% given

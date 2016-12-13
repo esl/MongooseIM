@@ -118,9 +118,11 @@ process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs) ->
 complete_iq_set(blocking_command, _, _, {error, Reason}) ->
     {error, Reason};
 complete_iq_set(blocking_command, LUser, LServer, {ok, Changed, List, Type}) ->
-    broadcast_blocking_command(LUser, LServer, Changed, Type),
-    %% build a response here so that c2s sets the list in its state
-    {result, [], #userlist{name = <<"blocking">>, list = List, needdb = false}}.
+    UserList = #userlist{name = <<"blocking">>, list = List, needdb = false},
+    % send the list to all users c2s processes (resources) to make it effective immediately
+    broadcast_blocking_command(LUser, LServer, UserList, Changed, Type),
+    % return a response here so that c2s sets the list in its state
+    {result, [], UserList}.
 %%complete_iq_set(blocking_command, _, _, _) ->
 %%    {result, []}.
 
@@ -190,14 +192,14 @@ make_blocking_list_entry(J) ->
 
 %% @doc send iq confirmation to all of the user's resources
 %% if we unblock all contacts then we don't list who's been unblocked
-broadcast_blocking_command(LUser, LServer, _Changed, unblock_all) ->
-    broadcast_blocking_command(LUser, LServer, [], unblock);
-broadcast_blocking_command(LUser, LServer, Changed, Type) ->
+broadcast_blocking_command(LUser, LServer, UserList, _Changed, unblock_all) ->
+    broadcast_blocking_command(LUser, LServer, UserList, [], unblock);
+broadcast_blocking_command(LUser, LServer, UserList, Changed, Type) ->
     case jid:make(LUser, LServer, <<>>) of
         error ->
             ok;
         UserJID ->
-            ejabberd_sm:route(UserJID, UserJID, {broadcast, {blocking, Type, Changed}})
+            ejabberd_sm:route(UserJID, UserJID, {broadcast, {blocking, UserList, Type, Changed}})
     end.
 
 blocking_query_response(Lst) ->

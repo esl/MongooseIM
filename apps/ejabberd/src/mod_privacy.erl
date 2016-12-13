@@ -382,6 +382,9 @@ is_ptype_match(Item, PType) ->
             case PType of
                 message ->
                     Item#listitem.match_message;
+                message_out ->
+                    false; % according to xep-0016, privacy lists do not stop outgoing
+                           % messages (so they say)
                 iq ->
                     Item#listitem.match_iq;
                 presence_in ->
