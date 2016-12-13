@@ -1,3 +1,4 @@
+{"1.1.0",
 [{<<"base16">>,
   {git,"git://github.com/goj/base16.git",
        {ref,"f78918e7b593fbdc35ec9bcc349aa50f47f45a8b"}},
@@ -9,7 +10,7 @@
  {<<"bear">>,
   {git,"git://github.com/boundary/bear.git",
        {ref,"119234548783af19b8ec75c879c5062676b92571"}},
-  2},
+  3},
  {<<"cache_tab">>,
   {git,"git://github.com/processone/cache_tab",
        {ref,"dfad9d6079e62f99c6752fbd910e1da72e907a2b"}},
@@ -49,7 +50,7 @@
  {<<"folsom">>,
   {git,"git://github.com/boundary/folsom.git",
        {ref,"8914823067c623d2839ecd6d17785ba94ad004c8"}},
-  1},
+  2},
  {<<"fusco">>,
   {git,"git://github.com/esl/fusco.git",
        {ref,"0c2442b236e99b2564e35a76c7e86168917c052e"}},
@@ -166,4 +167,8 @@
  {<<"worker_pool">>,
   {git,"git://github.com/inaka/worker_pool.git",
        {ref,"e5cbda7b7f2af6e2f84b60f99c76e69206daad76"}},
-  0}].
+  0}]}.
+[
+{pkg_hash,[
+ {<<"p1_utils">>, <<"3E698354FDC1FEA5491D991457B0CB986C0A00A47D224FEB841DC3EC82B9F721">>}]}
+].
