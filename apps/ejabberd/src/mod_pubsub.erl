@@ -267,6 +267,8 @@ init([ServerHost, Opts]) ->
                                   fun(A) when is_integer(A) andalso A >= 0 -> A end, undefined),
     DefaultNodeCfg = gen_mod:get_opt(default_node_config, Opts,
                                      fun(A) when is_list(A) -> filter_node_options(A) end, []),
+    ItemPublisher = gen_mod:get_opt(item_publisher, Opts,
+                                    fun(A) when is_boolean(A) -> A end, false),
     pubsub_index:init(Host, ServerHost, Opts),
     ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table]),
     {Plugins, NodeTree, PepMapping} = init_plugins(Host, ServerHost, Opts),
@@ -284,6 +286,7 @@ init([ServerHost, Opts]) ->
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {ignore_pep_from_offline, PepOffline}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {host, Host}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {access, Access}),
+    ets:insert(gen_mod:get_module_proc(ServerHost, config), {item_publisher, ItemPublisher}),
     ejabberd_hooks:add(sm_remove_connection_hook, ServerHost,
                        ?MODULE, on_user_offline, 75),
     ejabberd_hooks:add(disco_local_identity, ServerHost,
@@ -2101,6 +2104,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload) ->
 publish_item(Host, ServerHost, Node, Publisher, <<>>, Payload, Access) ->
     publish_item(Host, ServerHost, Node, Publisher, uniqid(), Payload, Access);
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
+    ItemPublisher = config(serverhost(Host), item_publisher, false),
     Action = fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
                      Features = plugin_features(Host, Type),
                      PublishFeature = lists:member(<<"publish">>, Features),
@@ -2132,7 +2136,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
                               extended_error(?ERR_BAD_REQUEST, <<"item-required">>)};
                         true ->
                              node_call(Host, Type, publish_item,
-                                       [Nidx, Publisher, PublishModel, MaxItems, ItemId, Payload])
+                                       [Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemPublisher, Payload])
                      end
              end,
     Reply = [#xmlel{name = <<"pubsub">>,
@@ -2156,7 +2160,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
             case get_option(Options, deliver_notifications) of
                 true ->
                     broadcast_publish_item(Host, Node, Nidx, Type, Options, ItemId,
-                                           Publisher, BrPayload, Removed);
+                                           Publisher, BrPayload, Removed, ItemPublisher);
                 false ->
                     ok
             end,
@@ -3190,16 +3194,20 @@ event_stanza(Event, EvAttr) ->
 
 %%%%%% broadcast functions
 
-broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions, ItemId, From, Payload, Removed) ->
+broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions, ItemId, From, Payload, Removed, ItemPublisher) ->
     case get_collection_subscriptions(Host, Node) of
         SubsByDepth when is_list(SubsByDepth) ->
             Content = case get_option(NodeOptions, deliver_payloads) of
                           true -> Payload;
                           false -> []
                       end,
+            ItemAttr = case ItemPublisher of
+                           true  -> itemAttr(ItemId, From);
+                           false -> itemAttr(ItemId)
+                       end,
             Stanza = event_stanza(
                        [#xmlel{name = <<"items">>, attrs = nodeAttr(Node),
-                               children = [#xmlel{name = <<"item">>, attrs = itemAttr(ItemId),
+                               children = [#xmlel{name = <<"item">>, attrs = ItemAttr,
                                                   children = Content}]}]),
             broadcast_stanza(Host, From, Node, Nidx, Type,
                              NodeOptions, SubsByDepth, items, Stanza, true),
@@ -3892,10 +3900,10 @@ tree(Host) ->
 
 tree(_Host, <<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend
-tree(Host, Name) ->
+tree(_Host, Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
-plugin(Host, Name) ->
+plugin(_Host, Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 plugins(Host) ->
@@ -3905,7 +3913,7 @@ plugins(Host) ->
         Plugins -> Plugins
     end.
 
-subscription_plugin(Host) ->
+subscription_plugin(_Host) ->
     pubsub_subscription.
 
 config(ServerHost, Key) ->
@@ -4102,12 +4110,23 @@ uniqid() ->
 
 nodeAttr(Node) -> [{<<"node">>, Node}].
 
-itemAttr([]) -> [];
+itemAttr([])     -> [];
 itemAttr(ItemId) -> [{<<"id">>, ItemId}].
 
+itemAttr(ItemId, undefined) -> itemAttr(ItemId);
+itemAttr([], Publisher)     -> [{<<"publisher">>,
+                                 jid:to_binary(jid:to_lower(Publisher))}];
+itemAttr(ItemId, Publisher) -> [{<<"id">>, ItemId},
+                                {<<"publisher">>,
+                                 jid:to_binary(jid:to_lower(Publisher))}].
+
 itemsEls(Items) ->
-    [#xmlel{name = <<"item">>, attrs = itemAttr(ItemId), children = Payload}
-     || #pubsub_item{itemid = {ItemId, _}, payload = Payload} <- Items].
+    [#xmlel{name     = <<"item">>,
+            attrs    = itemAttr(ItemId, Publisher),
+            children = Payload}
+     || #pubsub_item{itemid    = {ItemId, _},
+                     publisher = Publisher  ,
+                     payload   = Payload    } <- Items].
 
 -spec add_message_type(
         Message :: xmlel(),

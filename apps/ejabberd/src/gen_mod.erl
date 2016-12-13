@@ -47,13 +47,12 @@
          get_hosts/2,
          get_module_proc/2,
          backend_code/3,
-         is_loaded/2]).
+         is_loaded/2,
+         get_deps/3]).
 
 -include("ejabberd.hrl").
 
 -record(ejabberd_module, {module_host, opts}).
--type ejabberd_module() :: #ejabberd_module{module_host :: {module(), ejabberd:server()},
-                                            opts :: list()}.
 
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
@@ -63,6 +62,18 @@
 %%     undefined.
 -callback start(Host :: ejabberd:server(), Opts :: list()) -> any().
 -callback stop(Host :: ejabberd:server()) -> any().
+
+%% Optional callback specifying module dependencies.
+%% The dependent module can specify parameters with which the dependee should be
+%% started (the parameters will be merged with params given in user config and
+%% by other modules).
+%% The last element of the tuple specifies whether the ordering can be broken in
+%% case of cycle (in that case soft dependency may be started after the
+%% dependent module).
+%%
+%% -callback deps(Host :: ejabberd:server(), Opts :: proplists:list()) ->
+%%     [{module(), DepOpts :: proplists:list(), soft | hard} |
+%%      {module(), soft | hard}].
 
 -spec start() -> 'ok'.
 start() ->
@@ -124,45 +135,46 @@ backend_code(Module, Backend, TrackedFuncs) when is_atom(Backend) ->
     Callbacks = Module:behaviour_info(callbacks),
     ModuleStr = atom_to_list(Module),
     BackendModuleName = ModuleStr ++ "_backend",
-    RealBackendModule = ModuleStr++"_"++atom_to_list(Backend),
+    RealBackendModule = ModuleStr ++ "_" ++ atom_to_list(Backend),
     BehaviourExports = [generate_export(F, A) || {F, A} <- Callbacks],
 
-    BehaviourImpl = [generate_fun(Module, RealBackendModule, F, A, TrackedFuncs) || {F, A} <- Callbacks],
+    BehaviourImpl = [generate_fun(Module, RealBackendModule, F, A, TrackedFuncs) ||
+                        {F, A} <- Callbacks],
     Code = lists:flatten(
-        ["-module(", BackendModuleName,").\n",
+        ["-module(", BackendModuleName, ").\n",
         "-export([backend/0]).\n",
         BehaviourExports,
 
 
         "-spec backend() -> atom().\n",
-        "backend() ->", RealBackendModule,".\n",
+        "backend() ->", RealBackendModule, ".\n",
         BehaviourImpl
         ]),
     {BackendModuleName, Code}.
 
 generate_export(F, A) ->
-    "-export(["++atom_to_list(F)++"/"++integer_to_list(A)++"]).\n".
+    "-export([" ++ atom_to_list(F) ++ "/" ++ integer_to_list(A) ++ "]).\n".
 
 generate_fun(BaseModule, RealBackendModule, F, A, TrackedFuncs) ->
-    Args = string:join(["A"++integer_to_list(I) || I <- lists:seq(1, A)], ", "),
+    Args = string:join(["A" ++ integer_to_list(I) || I <- lists:seq(1, A)], ", "),
     IsTracked = lists:member(F, TrackedFuncs),
-    [fun_header(F, Args)," ->\n",
+    [fun_header(F, Args), " ->\n",
      generate_fun_body(IsTracked, BaseModule, RealBackendModule, F, Args)].
 
 fun_header(F, Args) ->
-    [atom_to_list(F),"(",Args,")"].
+    [atom_to_list(F), "(", Args, ")"].
 
 -define(METRIC(Module, Op), [backends, Module, Op]).
 
 generate_fun_body(false, _, RealBackendModule, F, Args) ->
-    ["    ",RealBackendModule,":",fun_header(F, Args),".\n"];
+    ["    ", RealBackendModule, ":", fun_header(F, Args), ".\n"];
 generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
     FS = atom_to_list(F),
 %%     returned is the following
 %%     {Time, Result} = timer:tc(Backend, F, Args),
 %%     mongoose_metrics:update(global, ?METRIC(Backend, F), Time),
 %%     Result.
-    ["    {Time, Result} = timer:tc(",RealBackendModule,", ",FS,", [",Args,"]),\n",
+    ["    {Time, Result} = timer:tc(", RealBackendModule, ", ", FS, ", [", Args, "]),\n",
      "    mongoose_metrics:update(global, ",
           io_lib:format("~p", [?METRIC(BaseModule, F)]),
           ", Time),\n",
@@ -182,7 +194,7 @@ is_app_running(AppName) ->
 
 
 %% @doc Stop the module in a host, and forget its configuration.
--spec stop_module(ejabberd:server(), module()) -> 'error' | {'aborted',_} | {'atomic',_}.
+-spec stop_module(ejabberd:server(), module()) -> 'error' | {'aborted', _} | {'atomic', _}.
 stop_module(Host, Module) ->
     case stop_module_keep_config(Host, Module) of
         error ->
@@ -220,13 +232,13 @@ reload_module(Host, Module, Opts) ->
     stop_module_keep_config(Host, Module),
     start_module(Host, Module, Opts).
 
--spec wait_for_process(atom() | pid() | {atom(),atom()}) -> 'ok'.
+-spec wait_for_process(atom() | pid() | {atom(), atom()}) -> 'ok'.
 wait_for_process(Process) ->
     MonitorReference = erlang:monitor(process, Process),
     wait_for_stop(Process, MonitorReference).
 
 
--spec wait_for_stop(atom() | pid() | {atom(),atom()},reference()) -> 'ok'.
+-spec wait_for_stop(atom() | pid() | {atom(), atom()}, reference()) -> 'ok'.
 wait_for_stop(Process, MonitorReference) ->
     receive
         {'DOWN', MonitorReference, _Type, _Object, _Info} ->
@@ -271,7 +283,7 @@ get_opt(Opt, Opts, F, Default) ->
             F(Val)
     end.
 
--spec set_opt(_,[tuple()],_) -> [tuple(),...].
+-spec set_opt(_, [tuple()], _) -> [tuple(), ...].
 set_opt(Opt, Opts, Value) ->
     lists:keystore(Opt, 1, Opts, {Opt, Value}).
 
@@ -314,13 +326,13 @@ set_module_opt(Host, Module, Opt, Value) ->
 -spec get_module_opt_host(ejabberd:server(), module(), _) -> ejabberd:server().
 get_module_opt_host(Host, Module, Default) ->
     Val = get_module_opt(Host, Module, host, Default),
-    re:replace(Val, "@HOST@", Host, [global, {return,binary}]).
+    re:replace(Val, "@HOST@", Host, [global, {return, binary}]).
 
 
 -spec get_opt_host(ejabberd:server(), list(), _) -> ejabberd:server().
 get_opt_host(Host, Opts, Default) ->
     Val = get_opt(host, Opts, Default),
-    re:replace(Val, "@HOST@", Host, [global, {return,binary}]).
+    re:replace(Val, "@HOST@", Host, [global, {return, binary}]).
 
 
 -spec loaded_modules(ejabberd:server()) -> [module()].
@@ -341,7 +353,7 @@ loaded_modules_with_opts(Host) ->
 
 
 -spec set_module_opts_mnesia(ejabberd:server(), module(), [any()]
-                            ) -> {'aborted',_} | {'atomic',_}.
+                            ) -> {'aborted', _} | {'atomic', _}.
 set_module_opts_mnesia(Host, Module, Opts) ->
     Modules = case ejabberd_config:get_local_option({modules, Host}) of
         undefined ->
@@ -354,7 +366,7 @@ set_module_opts_mnesia(Host, Module, Opts) ->
     ejabberd_config:add_local_option({modules, Host}, Modules2).
 
 
--spec del_module_mnesia(ejabberd:server(), module()) -> {'aborted',_} | {'atomic',_}.
+-spec del_module_mnesia(ejabberd:server(), module()) -> {'aborted', _} | {'atomic', _}.
 del_module_mnesia(Host, Module) ->
     Modules = case ejabberd_config:get_local_option({modules, Host}) of
                   undefined ->
@@ -409,3 +421,17 @@ clear_opts(Module, Opts0) ->
     end.
 
 
+-spec get_deps(Host :: ejabberd:server(), Module :: module(),
+               Opts :: proplists:proplist()) ->
+                      [{module(), proplists:proplist(), hard | soft} |
+                       {module(), hard | soft}].
+get_deps(Host, Module, Opts) ->
+    %% the module has to be loaded,
+    %% otherwise the erlang:function_exported/3 returns false
+    code:ensure_loaded(Module),
+    case erlang:function_exported(Module, deps, 2) of
+        true ->
+            Module:deps(Host, Opts);
+        _ ->
+            []
+    end.

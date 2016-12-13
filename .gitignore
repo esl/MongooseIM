@@ -121,3 +121,4 @@ TAGS
 *.patch
 
 *.diff
+apps/ejabberd/compile_commands.json

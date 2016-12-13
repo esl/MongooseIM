@@ -58,7 +58,7 @@ init_per_suite(Config0) ->
     escalus:create_users(Config1, escalus:get_users([alice, bob])).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, [alice, bob]),
+    escalus:delete_users(Config, escalus:get_users([alice, bob])),
     escalus:end_per_suite(Config).
 
 init_per_group(mod_http_notification_tests, Config) ->
@@ -113,7 +113,7 @@ simple_message(Config) ->
            after 2000 ->
                    error(missing_request)
            end,
-    ct:pal("Got request ~p~n", [Body]),
+    % ct:pal("Got request ~p~n", [Body]),
     {_, _} = binary:match(Body, <<"alice">>),
     {_, _} = binary:match(Body, <<"Simple">>).
 

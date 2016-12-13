@@ -1053,11 +1053,8 @@ handle_local_hosts_config_add({{ldap, _Host}, _}) ->
     %% ignore ldap section
     ok;
 handle_local_hosts_config_add({{modules, Host}, Modules}) ->
-    lists:foreach(
-      fun({Module, Args}) ->
-          gen_mod:start_module(Host, Module, Args)
-      end, Modules);
-handle_local_hosts_config_add({{Key, _Host}, _} = El) ->
+    gen_mod_deps:start_modules(Host, Modules);
+handle_local_hosts_config_add({{Key,_Host}, _} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
@@ -1081,11 +1078,8 @@ handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
     %% ignore ldap section, only appli
     ok;
 handle_local_hosts_config_del({{modules, Host}, Modules}) ->
-    lists:foreach(
-      fun({Module, _Args}) ->
-          gen_mod:stop_module(Host, Module)
-      end, Modules);
-handle_local_hosts_config_del({{Key, _}, _} = El) ->
+    lists:foreach(fun({Mod, _}) -> gen_mod:stop_module(Host, Mod) end, Modules);
+handle_local_hosts_config_del({{Key,_}, _} =El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
@@ -1116,10 +1110,9 @@ handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
     ejabberd_auth:start(Host);
 handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
     ok = ejabberd_hooks:run_fold(host_config_update, Host, ok, [Host, ldap, NewConfig]);
-handle_local_hosts_config_change({{modules, Host}, OldModules, NewModules}) ->
-    Res = compare_modules(OldModules, NewModules),
-    reload_modules(Host, Res);
-handle_local_hosts_config_change({{Key, _Host}, _Old, _New} = El) ->
+handle_local_hosts_config_change({{modules,Host}, OldModules, NewModules}) ->
+    gen_mod_deps:replace_modules(Host, OldModules, NewModules);
+handle_local_hosts_config_change({{Key,_Host},_Old,_New} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
@@ -1165,21 +1158,6 @@ can_be_ignored(Key) when is_atom(Key) ->
 remove_virtual_host(Host) ->
     ?DEBUG("Unregister host :~p", [Host]),
     ejabberd_local:unregister_host(Host).
-
--spec reload_modules(Host :: ejabberd:server(),
-                     ChangedModules :: compare_result()) -> 'ok'.
-reload_modules(Host, #compare_result{to_start  = Start, to_stop = Stop,
-                                     to_reload = Reload} = ChangedModules) ->
-    ?DEBUG("reload modules: ~p", [lager:pr(ChangedModules, ?MODULE)]),
-    lists:foreach(fun({M, _}) ->
-                      gen_mod:stop_module(Host, M)
-                  end, Stop),
-    lists:foreach(fun({M, Args}) ->
-                      gen_mod:start_module(Host, M, Args)
-                  end, Start),
-    lists:foreach(fun({M, _, Args}) ->
-                      gen_mod:reload_module(Host, M, Args)
-                  end, Reload).
 
 -spec reload_listeners(ChangedListeners :: compare_result()) -> 'ok'.
 reload_listeners(#compare_result{to_start  = Add, to_stop = Del,
@@ -1342,4 +1320,3 @@ sort_config(Config) when is_list(Config) ->
                       ConfigItem
                   end, Config),
     lists:sort(L).
-

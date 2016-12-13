@@ -63,6 +63,7 @@ test_preset: test_deps
 
 rock:
 	@if [ "$(FILE)" ]; then elvis rock $(FILE);\
+	elif [ "$(BRANCH)" ]; then tools/rock_changed.sh $(BRANCH); \
 	else tools/rock_changed.sh; fi
 
 run: deps compile quickrun

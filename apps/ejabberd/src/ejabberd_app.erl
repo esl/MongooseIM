@@ -114,17 +114,12 @@ db_init() ->
 start_modules() ->
     lists:foreach(
       fun(Host) ->
-          StartModuleFun =
-              fun({Module, Args}) ->
-                  gen_mod:start_module(Host, Module, Args)
-              end,
-          case ejabberd_config:get_local_option({modules, Host}) of
-              undefined ->
-                  ok;
-              Modules ->
-                  lists:foreach(StartModuleFun, Modules)
-
-          end
+              case ejabberd_config:get_local_option({modules, Host}) of
+                  undefined ->
+                      ok;
+                  Modules ->
+                      gen_mod_deps:start_modules(Host, Modules)
+              end
       end, ?MYHOSTS).
 
 %% Stop all the modules in all the hosts

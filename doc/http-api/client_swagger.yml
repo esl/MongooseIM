@@ -4,12 +4,15 @@ info:
   version: "0.1.0"
   title: "MongooseIM's client REST API"
   description: |
-    This API describes how to use MongooseIM features over REST API.
-    Users are represented by **bare JIDs** (Jabber Identifiers, example **alice@wonderland.com**).
-    This allows to integrate **REST API** users with the regular **XMPP** users.
-    All the requests require authentication, currently the only supported method is **Basic Auth**.
-    Thanks to the authentication the server always knows
-    who sent the request and can decide whether given user is authorized or not.
+    Explore MongooseIM features using our REST API.
+
+    Please keep in mind that:
+    * All users are represented by **bare JIDs** (Jabber Identifiers such as **alice@wonderland.com**).
+     This is to ensure integration between the **REST API** users and regular **XMPP** users.
+    * All requests require authentication.
+    This is to make sure the server can identify who sent the request and if it comes from an authorized user.
+    Currently the only supported method is **Basic Auth**.
+
 basePath: /api
 schemes:
   - https
@@ -20,7 +23,7 @@ consumes:
 paths:
   /messages:
     post:
-      description: Sends messages
+      description: Sends a message to a user.
       tags:
         - "One-to-one messages"
       parameters:
@@ -36,7 +39,7 @@ paths:
           schema:
             $ref: '#/definitions/ResourceID'
     get:
-      description: Gets all recent messages from all users from the archive.
+      description: Returns all recent messages sent to and received from other users.
       tags:
         - "One-to-one messages"
       parameters:
@@ -54,7 +57,7 @@ paths:
   /messages/{with}:
     get:
       description: |
-        Gets all recent messages from specified user from the archive.
+        Returns all recent messages sent to and received from a specific user.
       tags:
         - "One-to-one messages"
       parameters:
@@ -125,7 +128,6 @@ paths:
       description: "Adds a user to a room."
       tags:
         - "Rooms"
-        - "Room participants"
       parameters:
         - $ref: '#/parameters/roomID'
         - in: body
@@ -149,7 +151,6 @@ paths:
         Occupant can also use this method, but can only remove itself.
       tags:
         - "Rooms"
-        - "Room participants"
       parameters:
         - $ref: '#/parameters/roomID'
         - in: path
@@ -173,7 +174,6 @@ paths:
       description: Send a message to a room.
       tags:
         - "Rooms"
-        - "Room messages"
       parameters:
         - in: body
           name: message
@@ -194,7 +194,6 @@ paths:
       description: Gets room's messages from the archive.
       tags:
         - "Rooms"
-        - "Room messages"
       parameters:
         - $ref: '#/parameters/messagesLimit'
         - $ref: '#/parameters/beforeGuard'
@@ -214,8 +213,7 @@ securityDefinitions:
   mongoose_basic_auth:
     type: basic
     description: |
-      The userid part is user's bare JID. F.e. alice@wonderland.com.
-      The password is the same as used to register the user's account.
+      Log in using your userid (users's bare JID - F.e. alice@wonderland.com) and their password.
 parameters:
   roomID:
     in: path
@@ -366,4 +364,3 @@ definitions:
     type: string
     example: Important room
     description: The room's name
-
