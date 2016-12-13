@@ -31,9 +31,9 @@ usage(Reason) ->
         " [req] --source_host HOST:PORT - Source database configuration, e.g. '127.0.0.1:9042'~n"
         " [req] --target_host HOST:PORT - Target database configuration, e.g. '127.0.0.1:9042'~n"
         " [req] --source_ks KEYSPACE    - Source database keyspace, defaults to: '"
-            ++ ?DEFAULT_SOURCE_KEYSPACE ++ "'~n"
+        ++ ?DEFAULT_SOURCE_KEYSPACE ++ "'~n"
         " [req] --target_ks KEYSPACE    - Target database keyspace, defaults to: '"
-            ++ ?DEFAULT_TARGET_KEYSPACE ++ "'~n"
+        ++ ?DEFAULT_TARGET_KEYSPACE ++ "'~n"
         " [opt] -h | --help             - Show script usage~n",
     case Reason of
         normal ->
@@ -48,36 +48,38 @@ usage(Reason) ->
 -spec main([ Arg :: string() ]) -> ok | no_return().
 main(Args) ->
     ok = set_code_path("deps"), %% Include all deps of MIM application
-                                %% (since cqerl used in this script also have several dependencies)
+    %% (since cqerl used in this script also have several dependencies)
     cqerl_app:start(normal, []),
 
 
-    {SourceClient, TargetClient} = try
-        Options = parse_args(Args),
+    {SourceClient, TargetClient} =
+        try
+            Options = parse_args(Args),
 
-        SourceURI = maps:get(source_host, Options),
-        TargetURI = maps:get(target_host, Options),
-        SourceKeyspace = maps:get(source_ks, Options, ?DEFAULT_SOURCE_KEYSPACE),
-        TargetKeyspace = maps:get(target_ks, Options, ?DEFAULT_TARGET_KEYSPACE),
+            SourceURI = maps:get(source_host, Options),
+            TargetURI = maps:get(target_host, Options),
+            SourceKeyspace = maps:get(source_ks, Options, ?DEFAULT_SOURCE_KEYSPACE),
+            TargetKeyspace = maps:get(target_ks, Options, ?DEFAULT_TARGET_KEYSPACE),
 
-        %% Connect to both source and tareget database
-        {
-         connect_to(SourceURI, SourceKeyspace),
-         connect_to(TargetURI, TargetKeyspace)
-        }
-    catch
-        error:{badkey, BadKey} ->
-            usage({badkey, BadKey})
-    end,
+            %% Connect to both source and tareget database
+            {
+              connect_to(SourceURI, SourceKeyspace),
+              connect_to(TargetURI, TargetKeyspace)
+            }
+        catch
+            error:{badkey, BadKey} ->
+                usage({badkey, BadKey})
+        end,
 
     %% Start data transfer
     ReportTo = self(),
     TablesToCopy = [mam_con_message, mam_muc_message],
 
-    lists:foreach(fun(Table) ->
-        async_copy_table(ReportTo, SourceClient, TargetClient, Table),
-        ok = report_progress(Table)
-    end, TablesToCopy).
+    lists:foreach(
+      fun(Table) ->
+              async_copy_table(ReportTo, SourceClient, TargetClient, Table),
+              ok = report_progress(Table)
+      end, TablesToCopy).
 
 %% Collect and report progress on stdout for given table
 -spec report_progress(table()) -> ok.
@@ -98,31 +100,34 @@ report_progress(Table, #{inserted := Inserted, errors := Errors} = State) ->
                 [{Error, _} | _] ->
                     {_, AllRows0} = lists:unzip(Errors),
                     _AllRows = lists:concat(AllRows0), %% @todo: maybe dump those rows to disk
-                                                       %%        for debugging purpose?
+                    %%        for debugging purpose?
                     ?PROGRESS(BaseMsg ++ "Error: ~p~n", BaseFmt ++ [Error])
             end,
             ok;
         {Table, {insert, BatchSize}} ->
             report_progress(Table, maps:put(inserted, Inserted + BatchSize, State));
         {Table, {error, Error, Rows}} ->
-             report_progress(Table, maps:put(errors, [{Error, Rows} | Errors]))
+            report_progress(Table, maps:put(errors, [{Error, Rows} | Errors]))
+    after timer:minutes(5) ->
+            report_progress(Table, maps:put(errors, [{timeout, []} | Errors])),
+            self() ! {Table, done}
     end.
 
 -spec async_copy_table(ReportTo :: pid(), SourceClient :: db_handle(),
                        TargetClient :: db_handle(), table()) -> Worker :: pid().
 async_copy_table(ReportTo, SourceClient, TargetClient, Table) ->
     TableName = atom_to_list(Table),
-    spawn_link(fun() ->
-        %% Initial query
-        {ok, Result} = cqerl:run_query(SourceClient,
-            "SELECT * FROM " ++ TableName),
-
-        copy_rows(ReportTo, TargetClient, Table, Result)
-    end).
+    spawn_link(
+      fun() ->
+              %% Initial query
+              {ok, Result} = cqerl:run_query(SourceClient,
+                                             "SELECT * FROM " ++ TableName),
+              copy_rows(ReportTo, TargetClient, Table, Result)
+      end).
 
 %% Process each page (defult is 100 rows) of SELECT results
 -spec copy_rows(ReportTo :: pid(), TargetClient :: db_handle(), table(), DBResult :: term()) ->
-    ok.
+                       ok.
 copy_rows(ReportTo, TargetClient, Table, DBResult) ->
     Rows = cqerl:all_rows(DBResult),
     ok = batch_copy_rows(ReportTo, TargetClient, Table, Rows),
@@ -137,7 +142,7 @@ copy_rows(ReportTo, TargetClient, Table, DBResult) ->
 
 %% Insert given, previously selected set of rows
 -spec batch_copy_rows(ReportTo :: pid(), TargetClient :: db_handle(), table(), [row()]) ->
-    ok.
+                             ok.
 batch_copy_rows(_ReportTo, _TargetClient, _Table, []) ->
     ok;
 batch_copy_rows(ReportTo, TargetClient, Table, Rows) ->
@@ -151,12 +156,12 @@ batch_copy_rows(ReportTo, TargetClient, Table, Rows) ->
     TargetTableName = atom_to_list(map_table(Table)),
     Columns = proplists:get_keys(Hd),
     {ColumnNames, ColumnValues} = lists:unzip([{atom_to_list(Column), "?"}
-                                                || Column <- Columns]),
+                                               || Column <- Columns]),
     ColumnNamesString = string:join(ColumnNames, ", "),
     ColumnValuesString = string:join(ColumnValues, ", "),
     InsertStatement = "INSERT INTO " ++ TargetTableName
-                    ++ "(" ++ ColumnNamesString ++ ")"
-                    ++ " VALUES("++ ColumnValuesString ++");",
+        ++ "(" ++ ColumnNamesString ++ ")"
+        ++ " VALUES("++ ColumnValuesString ++");",
 
 
     InsertQuery = #cql_query{statement = InsertStatement},
@@ -168,14 +173,13 @@ batch_copy_rows(ReportTo, TargetClient, Table, Rows) ->
 
     %% Process each batch in parallel and report progress
     pmap(fun(RowBatch) ->
-        case catch insert_rows(TargetClient, InsertQuery, RowBatch, length(RowBatch)) of
-            ok ->
-                ReportTo ! {Table, {insert, length(RowBatch)}};
-            Error ->
-                ReportTo ! {Table, {error, Error, RowBatch}}
-        end
-    end, RowBatches),
-
+                 case catch insert_rows(TargetClient, InsertQuery, RowBatch, length(RowBatch)) of
+                     ok ->
+                         ReportTo ! {Table, {insert, length(RowBatch)}};
+                     Error ->
+                         ReportTo ! {Table, {error, Error, RowBatch}}
+                 end
+         end, RowBatches),
     ok.
 
 insert_rows(_, _, [], _) ->
@@ -184,10 +188,10 @@ insert_rows(TargetClient, InsertQuery, Rows, BatchSize) ->
     {NewRows, Tail} = lists:split(min(BatchSize, length(Rows)), Rows),
     Result =
         cqerl:run_query(TargetClient, #cql_query_batch{
-                mode = unlogged,
-                queries = [InsertQuery#cql_query{values = NewRow}
-                                || NewRow <- NewRows]
-        }),
+                                         mode = unlogged,
+                                         queries = [InsertQuery#cql_query{values = NewRow}
+                                                    || NewRow <- NewRows]
+                                        }),
     case Result of
         {error, {8704, _, _}} -> %% Batch too large
             NewBatchSize = max(1, round(BatchSize * 0.75)),
@@ -208,12 +212,12 @@ convert_row(mam_con_message, Row) ->
     UpperJID = proplists:get_value(upper_jid, Row),
 
     {ToJID, FromJID} = case IsFromLower of
-        true -> {UpperJID, LowerJID};
-        false -> {UpperJID, LowerJID}
-    end,
+                           true -> {UpperJID, LowerJID};
+                           false -> {UpperJID, LowerJID}
+                       end,
 
     JIDs = [
-    %%      UserJID | FromJID | RemoteJID | WithJID
+            %%           UserJID | FromJID | RemoteJID | WithJID
             {FromJID, FromJID,  ToJID,      <<>>},     %% Outgoing message
             {ToJID,   FromJID,  FromJID,    FromJID},  %% Incoming message
             {FromJID, FromJID,  ToJID,      <<>>},     %% Outgoing message
@@ -222,13 +226,13 @@ convert_row(mam_con_message, Row) ->
 
 
     [{[
-        {id, Id},
-        {user_jid, UserJID},
-        {from_jid, SFromJID},
-        {remote_jid, RemoteJID},
-        {with_jid, WithJID},
-        {message, Message}
-    ]} || {UserJID, SFromJID, RemoteJID, WithJID} <- JIDs];
+       {id, Id},
+       {user_jid, UserJID},
+       {from_jid, SFromJID},
+       {remote_jid, RemoteJID},
+       {with_jid, WithJID},
+       {message, Message}
+      ]} || {UserJID, SFromJID, RemoteJID, WithJID} <- JIDs];
 convert_row(mam_muc_message, _Row) ->
     error(not_yet_implemented).
 
@@ -276,7 +280,7 @@ parse_args([<<"--", OptName/binary>> | Tail], Options) ->
 
 %% Connect to given cassandra master node
 -spec connect_to(URI :: string(), Keyspace :: string()) ->
-    ConnectionHandle :: term().
+                        ConnectionHandle :: term().
 connect_to(URI, Keyspace) ->
     case cqerl:get_client(URI, [{keyspace, list_to_atom(Keyspace)}]) of
         {ok, Client} ->
@@ -295,12 +299,12 @@ connect_to(URI, Keyspace) ->
 
 %% Split given list into batches with size BatchSize
 -spec make_batch([any()], BatchSize :: non_neg_integer()) ->
-    [[any()]].
+                        [[any()]].
 make_batch(List, BatchSize) ->
     make_batch(List, BatchSize, []).
 
 -spec make_batch([any()], BatchSize :: non_neg_integer(), Acc :: term()) ->
-        [[any()]].
+                        [[any()]].
 make_batch([], _, Acc) ->
     lists:reverse(Acc);
 make_batch(List, BatchSize, Acc) ->
@@ -309,7 +313,7 @@ make_batch(List, BatchSize, Acc) ->
 
 %% Parallel map implementation
 -spec pmap(fun((term()) -> term()), [any()]) ->
-    [term()].
+                  [term()].
 pmap(Fun, List) ->
     Host = self(),
     Pids = [spawn_link(fun() -> Host ! {self(), Fun(Arg)} end) || Arg <- List],
