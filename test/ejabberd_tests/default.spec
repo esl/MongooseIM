@@ -62,6 +62,7 @@
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
+{abort_if_missing_suites, true}.
 
 %% ct_tty_hook will log CT failures to TTY verbosely
 %% ct_mongoose_hook will:

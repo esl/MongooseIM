@@ -1163,8 +1163,7 @@ domain() ->
 add_rosteritem1(UserName1, Domain, UserName2, Config) ->
     ejabberdctl("add_rosteritem",
                 [UserName1, Domain, UserName2,
-                 Domain, "MyBob", "MyGroup", "both"],
-                Config),
+                 Domain, "MyBob", "MyGroup", "both"], Config).
 
 add_rosteritem2(Name1, Domain1, Name2, Domain2, Config) ->
     ejabberdctl("add_rosteritem",
