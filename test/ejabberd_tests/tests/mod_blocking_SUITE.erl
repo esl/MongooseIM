@@ -68,6 +68,7 @@ effect_test_cases() ->
         messages_from_unblocked_user_arrive_again,
         messages_from_any_blocked_resource_dont_arrive,
         blocking_doesnt_interfere
+%%        messages_from_any_blockees_resource_dont_arrive
     ].
 
 offline_test_cases() ->
@@ -79,7 +80,7 @@ offline_test_cases() ->
     ].
 
 error_test_cases() ->
-    [blocker_can_send_to_blockee].
+    [blocker_cant_send_to_blockee].
 
 push_test_cases() ->
     [block_push_sent].
@@ -267,6 +268,17 @@ blocking_doesnt_interfere(Config) ->
             message_is_delivered(User3, [User1], <<"Ni hao.">>)
         end).
 
+%%messages_from_any_blockees_resource_dont_arrive(Config) ->
+%%    escalus:fresh_story(
+%%        Config, [{alice, 2}, {bob, 1}],
+%%        fun(User1a, User1b, User2) ->
+            %% given
+%%            user_blocks(User1a, [User2]),
+            %% then
+%%            message_is_not_delivered(User1a, [User2], <<"roar!">>),
+%%            message_is_not_delivered(User1b, [User2], <<"woof!">>)
+%%        end).
+
 messages_after_relogin(Config) ->
     %% given
     escalus:story(
@@ -316,9 +328,8 @@ blocking_and_relogin_many(Config) ->
         Config, [{alice, 1}, {bob, 1}, {carol, 1},  {mike, 1}, {geralt, 1}],
         fun(User1, User2, User3, User4, _) ->
             message_is_delivered(User1, [User4], <<"Under the bridge!">>),
-            message_is_not_delivered(User3, [User1], <<"Cant stop">>),
-            privacy_helper:gets_error(User3, <<"cancel">>,
-                                      <<"service-unavailable">>),
+            message_is_not_delivered(User1, [User3], <<"Cant stop">>),
+            client_gets_blocking_error(User1),
             message_is_delivered(User1, [User2], <<"House of th rising sun">>),
             BlockList = get_blocklist(User1),
             blocklist_contains_jid(BlockList, User3)
@@ -341,13 +352,13 @@ clear_list_relogin(Config) ->
             message_is_delivered(User1, [User2], <<"Doom and gloom!">>)
         end).
 
-blocker_can_send_to_blockee(Config) ->
+blocker_cant_send_to_blockee(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
-            message_is_delivered(User1, [User2],
-                                 <<"I'm still talking to you">>)
+            message(User1, User2, <<"I'm not talking to you!">>),
+            client_gets_blocking_error(User1)
         end).
 
 block_push_sent(Config) ->
@@ -602,9 +613,12 @@ clients_have_no_messages(Cs) when is_list (Cs) -> [ client_has_no_messages(C) ||
 
 client_has_no_messages(C) -> escalus_assert:has_no_stanzas(C).
 
+client_gets_blocking_error(C) ->
+    Stanza = escalus_client:wait_for_stanza(C),
+    escalus:assert(fun is_xep191_not_available/1, [], Stanza).
+
 client_gets_block_iq(C) ->
-    escalus:assert(fun is_xep191_push/2, [<<"block">>],
-                   escalus:wait_for_stanza(C)).
+    escalus:assert(fun is_xep191_push/2, [<<"block">>], escalus:wait_for_stanza(C)).
 
 flush(User) ->
     escalus:wait_for_stanzas(User, 10, 100).
