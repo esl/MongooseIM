@@ -40,10 +40,10 @@ proc_msgs(State, 0) ->
     State;
 proc_msgs(State, Y) ->
     M = #xmlel{name = <<"message">>,
-               attrs = [{<<"type">>,<<"chat">>},{<<"to">>,<<"bob37.76184@localhost">>}],
+               attrs = [{<<"type">>, <<"chat">>}, {<<"to">>, <<"bob37.76184@localhost">>}],
                children = [#xmlel{name = <<"body">>,
                                   attrs = [],
-                                  children = [{xmlcdata,<<Y/integer>>}]}]},
+                                  children = [{xmlcdata, <<Y/integer>>}]}]},
     NState = case mod_spamctl:control(State, <<"message">>, [M]) of
                  {stop, S} -> S;
                  S -> S

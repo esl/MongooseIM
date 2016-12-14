@@ -913,8 +913,11 @@ session_established({xmlstreamerror, _}, StateData) ->
     send_element(StateData, ?INVALID_XML_ERR),
     send_trailer(StateData),
     {stop, normal, StateData};
+session_established(stop, StateData) ->
+    send_trailer(StateData),
+    {stop, normal, StateData};
 session_established(closed, StateData) ->
-    ?DEBUG("Session established closed - trying to enter resume_session",[]),
+    ?DEBUG("Session established closed - trying to enter resume_session", []),
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
@@ -1618,7 +1621,6 @@ send_trailer(StateData) when StateData#state.xml_socket ->
                                        {xmlstreamend, <<"stream:stream">>});
 send_trailer(StateData) ->
     send_text(StateData, ?STREAM_TRAILER).
-
 
 send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
     {SendResult, BufferedStateData} =

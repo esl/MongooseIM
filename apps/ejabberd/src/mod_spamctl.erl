@@ -104,7 +104,7 @@ set_decision(Dec, Now, State) ->
 %% to terminate the user connection
 -spec cutoff(state(), decision(), jid(), jid(), xmlel()) -> state().
 cutoff(State, excess, _From, _To, _Msg) ->
-    self() ! {stop, killed_by_spamctl},
+    p1_fsm_old:send_event(self(), stop),
     State;
 cutoff(State, _, _, _, _) ->
     State.
