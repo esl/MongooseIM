@@ -1,12 +1,13 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -pa deps/cqerl/ebin
-%% This^ code path is needed to use v this include_lib
+%%! -pa deps/cqerl/ebin deps/exml/ebin
+%% This^ code path is needed to use v those include_lib
 -include_lib("cqerl/include/cqerl.hrl").
+-include_lib("exml/include/exml.hrl").
 
 %% I/O macros
 -define(STDOUT(MSG), ?STDOUT(MSG, [])).
--define(STDOUT(MSG, FMT), ?WRITE_DEV(standard_output, MSG, FMT)).
+-define(STDOUT(MSG, FMT), ?WRITE_DEV(standard_io, MSG, FMT)).
 -define(STDERR(MSG), ?STDERR(MSG, [])).
 -define(STDERR(MSG, FMT), ?WRITE_DEV(standard_error, MSG, FMT)).
 -define(WRITE_DEV(DEV, MSG, FMT), io:format(DEV, MSG ++ "~n", FMT)).
@@ -15,6 +16,7 @@
 %% Defaults
 -define(DEFAULT_SOURCE_KEYSPACE, "mam").
 -define(DEFAULT_TARGET_KEYSPACE, "mongooseim").
+-define(DEFAULT_ENCODER_MODULE, "mam_message_eterm").
 
 %% Types definitions
 -type db_handle() :: term().
@@ -30,10 +32,12 @@ usage(Reason) ->
         "Available options are:~n"
         " [req] --source_host HOST:PORT - Source database configuration, e.g. '127.0.0.1:9042'~n"
         " [req] --target_host HOST:PORT - Target database configuration, e.g. '127.0.0.1:9042'~n"
-        " [req] --source_ks KEYSPACE    - Source database keyspace, defaults to: '"
+        " [opt] --source_ks KEYSPACE    - Source database keyspace, defaults to: '"
         ++ ?DEFAULT_SOURCE_KEYSPACE ++ "'~n"
-        " [req] --target_ks KEYSPACE    - Target database keyspace, defaults to: '"
+        " [opt] --target_ks KEYSPACE    - Target database keyspace, defaults to: '"
         ++ ?DEFAULT_TARGET_KEYSPACE ++ "'~n"
+        " [opt] --msg_encoder MODULE    - Module used to encode/decode messages, defaults to: '"
+        ++ ?DEFAULT_ENCODER_MODULE ++ "'~n"
         " [opt] -h | --help             - Show script usage~n",
     case Reason of
         normal ->
@@ -47,9 +51,10 @@ usage(Reason) ->
 
 -spec main([ Arg :: string() ]) -> ok | no_return().
 main(Args) ->
-    ok = set_code_path("deps"), %% Include all deps of MIM application
+    ok = set_code_path("."), %% Include all deps of MIM application
     %% (since cqerl used in this script also have several dependencies)
     cqerl_app:start(normal, []),
+    ets:new(options, [named_table, public, set]),
 
 
     {SourceClient, TargetClient} =
@@ -61,7 +66,10 @@ main(Args) ->
             SourceKeyspace = maps:get(source_ks, Options, ?DEFAULT_SOURCE_KEYSPACE),
             TargetKeyspace = maps:get(target_ks, Options, ?DEFAULT_TARGET_KEYSPACE),
 
-            %% Connect to both source and tareget database
+            MessageEncoder = list_to_atom(maps:get(msg_encoder, Options, ?DEFAULT_ENCODER_MODULE)),
+            ets:insert(options, {msg_encoder, MessageEncoder}),
+
+            %% Connect to both source and target database
             {
               connect_to(SourceURI, SourceKeyspace),
               connect_to(TargetURI, TargetKeyspace)
@@ -217,7 +225,7 @@ convert_row(mam_con_message, Row) ->
                        end,
 
     JIDs = [
-            %%           UserJID | FromJID | RemoteJID | WithJID
+            %UserJID | FromJID | RemoteJID | WithJID
             {FromJID, FromJID,  ToJID,      <<>>},     %% Outgoing message
             {ToJID,   FromJID,  FromJID,    FromJID},  %% Incoming message
             {FromJID, FromJID,  ToJID,      <<>>},     %% Outgoing message
@@ -233,17 +241,34 @@ convert_row(mam_con_message, Row) ->
        {with_jid, WithJID},
        {message, Message}
       ]} || {UserJID, SFromJID, RemoteJID, WithJID} <- JIDs];
-convert_row(mam_muc_message, _Row) ->
-    error(not_yet_implemented).
+convert_row(mam_muc_message, Row) ->
+    Id = proplists:get_value(id, Row),
+    Nickname = proplists:get_value(nick_name, Row),
+    Message = proplists:get_value(message, Row),
+    RoomId = proplists:get_value(room_id, Row),
+
+    [{_, Encoder}] = ets:lookup(options, msg_encoder),
+    #xmlel{attrs = MessageAttrs} = Encoder:decode(Message),
+    RoomJID = proplists:get_value(<<"to">>, MessageAttrs),
+
+    [{[
+       {id, Id},
+       {room_jid, RoomJID},
+       {nick_name, Nickname},
+       {with_nick, WithJID},
+       {message, Message}
+      ]} || WithJID <- [<<"">>, Nickname]].
 
 
 %% SCRIPT SETUP FUNCTIONS
 
 %% Load code of all rebar deps of current project
--spec set_code_path(DepsPath :: string()) -> ok | no_return().
-set_code_path(DepsPath) ->
+-spec set_code_path(Prefix :: string()) -> ok | no_return().
+set_code_path(Prefix) ->
+    DepsPath = filename:join(Prefix, "deps"),
     {ok, Deps} = file:list_dir(DepsPath),
-    [code:add_patha(DepsPath ++ "/" ++ DepName ++ "/ebin") || DepName <- Deps],
+    [code:add_patha(filename:join([DepsPath, DepName, "ebin"])) || DepName <- Deps],
+    code:add_patha(filename:join([Prefix, "apps", "ejabberd", "ebin"])),
     ok.
 
 %% Parse command line arguments into option map
@@ -312,8 +337,7 @@ make_batch(List, BatchSize, Acc) ->
     make_batch(Tail, BatchSize, [Batch | Acc]).
 
 %% Parallel map implementation
--spec pmap(fun((term()) -> term()), [any()]) ->
-                  [term()].
+-spec pmap(fun((term()) -> term()), [any()]) -> [term()].
 pmap(Fun, List) ->
     Host = self(),
     Pids = [spawn_link(fun() -> Host ! {self(), Fun(Arg)} end) || Arg <- List],
