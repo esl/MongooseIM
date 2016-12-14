@@ -173,7 +173,7 @@ batch_copy_rows(ReportTo, TargetClient, Table, Rows) ->
 
 
     InsertQuery = #cql_query{statement = InsertStatement},
-    InitialBatchSize = 20,
+    InitialBatchSize = 15,
     %% length(NewRows) should be max 400, since cassandra's
     %% default 'get' page size is 100.
     %% Therefore there will be ~400/InitialBatchSize concurrent insert batches.
@@ -221,14 +221,14 @@ convert_row(mam_con_message, Row) ->
 
     {ToJID, FromJID} = case IsFromLower of
                            true -> {UpperJID, LowerJID};
-                           false -> {UpperJID, LowerJID}
+                           false -> {LowerJID, UpperJID}
                        end,
 
     JIDs = [
             %UserJID | FromJID | RemoteJID | WithJID
             {FromJID, FromJID,  ToJID,      <<>>},     %% Outgoing message
-            {ToJID,   FromJID,  FromJID,    FromJID},  %% Incoming message
-            {FromJID, FromJID,  ToJID,      <<>>},     %% Outgoing message
+            {ToJID,   FromJID,  FromJID,    <<>>},     %% Incoming message
+            {FromJID, FromJID,  ToJID,      FromJID},  %% Outgoing message
             {ToJID,   FromJID,  FromJID,    FromJID}   %% Incoming message
            ],
 
