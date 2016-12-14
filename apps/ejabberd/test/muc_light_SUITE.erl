@@ -37,7 +37,6 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(Config) ->
-    exit(whereis(ejabberd_sup), kill),
     Config.
 
 init_per_group(rsm_disco, Config) ->
@@ -55,7 +54,6 @@ init_per_testcase(codec_calls, Config) ->
     application:ensure_all_started(stringprep),
     application:ensure_all_started(exometer),
     ets:new(local_config, [named_table]),
-    ets:new(ejabberd_modules, [named_table]),
     ejabberd_hooks:start_link(),
     ejabberd_router:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
