@@ -283,7 +283,7 @@ blocking_propagates_to_resources(Config) ->
             client_gets_blocking_error(User1b),
             % Bob can't send to any of Alice's resources
             message_is_not_delivered(User2, [User1a], <<"hau!">>),
-            message_is_not_delivered(User2, [User1b], <<"miau!">>),
+            message_is_not_delivered(User2, [User1b], <<"miau!">>)
         end).
 
 messages_after_relogin(Config) ->
