@@ -44,7 +44,7 @@ proc_msgs(State, Y) ->
                children = [#xmlel{name = <<"body">>,
                                   attrs = [],
                                   children = [{xmlcdata,<<Y/integer>>}]}]},
-    NState = case mod_spamctl:control(State, [M]) of
+    NState = case mod_spamctl:control(State, <<"message">>, [M]) of
                  {stop, S} -> S;
                  S -> S
              end,

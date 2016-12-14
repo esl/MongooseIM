@@ -12,13 +12,16 @@
 
 %% API
 -export([start/2, stop/1, initialise/1, control/3]).
--export([cutoff/5, notify_offender/5, notify_core/5]).
+-export([cutoff/5, notify_offender/5, notify_admin/5]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
 -define(DEFAULT_POOL_NAME, http_pool).
 -define(DEFAULT_PATH, "").
+
+-type state() :: map(). % whatever you want it to be
+-type decision() :: atom().
 
 start(Host, _Opts) ->
     ejabberd_hooks:add(spamctl_initialise, Host,
@@ -28,7 +31,7 @@ start(Host, _Opts) ->
     ejabberd_hooks:add(spamctl_react, Host,
                        ?MODULE, notify_offender, 30),
     ejabberd_hooks:add(spamctl_react, Host,
-                       ?MODULE, notify_core, 40),
+                       ?MODULE, notify_admin, 40),
     ejabberd_hooks:add(spamctl_react, Host,
                        ?MODULE, cutoff, 50),
     ok.
@@ -41,11 +44,13 @@ stop(Host) ->
     ejabberd_hooks:delete(spamctl_react, Host,
                           ?MODULE, notify_offender, 30),
     ejabberd_hooks:delete(spamctl_react, Host,
-                          ?MODULE, notify_core, 40),
+                          ?MODULE, notify_admin, 40),
     ejabberd_hooks:delete(spamctl_react, Host,
                           ?MODULE, cutoff, 50),
     ok.
 
+%% @doc Triggered by `spamctl_initialise` when stream is started, returns initial spamcontrol state.
+-spec initialise(map()) -> state().
 initialise(#{host := Host} = State) ->
     MaxRate = gen_mod:get_module_opt(Host, ?MODULE, maxrate, 10),
     Span = gen_mod:get_module_opt(Host, ?MODULE, span, 2),
@@ -58,6 +63,11 @@ initialise(#{host := Host} = State) ->
                  lasttime => usec:from_now(os:timestamp())},
     maps:merge(NState, ModState).
 
+%% @doc Triggered by `spamctl_control` every time the user sends a stanza; returns a
+%% modified spamcontrol state. The state MUST contain key `decision` which normally is
+%% `ok` - anything else means that the user violated spamcontrol rules and tells c2s
+%% to run `spamctl_react` hook.
+-spec control(state(), binary(), xmlel()) -> state().
 control(State, Name, M) ->
     NState = check_msg(Name, M, State),
     case NState of
@@ -90,12 +100,18 @@ check_msg_rate(_M, _Now, State) ->
 set_decision(Dec, Now, State) ->
     State#{decision => Dec, lasttime => Now, rate => 0}.
 
+%% @doc if a msg is determined to be spam, for any reason, we call this
+%% to terminate the user connection
+-spec cutoff(state(), decision(), jid(), jid(), xmlel()) -> state().
 cutoff(State, excess, _From, _To, _Msg) ->
     self() ! {stop, killed_by_spamctl},
     State;
 cutoff(State, _, _, _, _) ->
     State.
 
+%% @doc if a msg is determined to be spam, for any reason, we call this to notify
+%% the user he is not welcome
+-spec notify_offender(state(), decision(), jid(), jid(), xmlel()) -> state().
 notify_offender(State, excess, From, To, Msg) ->
     send_back_error(?ERR_NOT_ACCEPTABLE, From, To, Msg),
     State;
@@ -106,7 +122,10 @@ send_back_error(Etype, From, To, Packet) ->
     Err = jlib:make_error_reply(Packet, Etype),
     ejabberd_router:route(To, From, Err).
 
-notify_core(State, excess, From, _To, _Msg) ->
+%% @doc if a msg is determined to be spam, for any reason, we call this to notify
+%% some external service about what happened
+-spec notify_admin(state(), decision(), jid(), jid(), xmlel()) -> state().
+notify_admin(State, excess, From, _To, _Msg) ->
     C = jid:to_binary({From#jid.user, From#jid.server}),
     send_http_notification(maps:get(host, State), C, <<"exceeded message limit">>),
     State.
