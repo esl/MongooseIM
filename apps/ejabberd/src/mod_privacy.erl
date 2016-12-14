@@ -341,7 +341,7 @@ check_packet(_, User, Server,
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->
     allow;
 %% if we run of of list items then it is allowed
-check_packet_aux([], PType, MType, _JID, _Subscription, _Groups) ->
+check_packet_aux([], _PType, _MType, _JID, _Subscription, _Groups) ->
     allow;
 %% check packet against next privacy list item
 check_packet_aux([Item | List], PType, MType, JID, Subscription, Groups) ->
