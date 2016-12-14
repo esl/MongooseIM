@@ -328,7 +328,8 @@ add_remove_contact(Config) ->
             Inc2 = escalus:wait_for_stanza(Bob, 1),
             escalus:assert(is_roster_set, Inc2),
             % and can be edited
-            putt(lists:flatten(["/contacts/bob@localhost/alice@localhost"]), #{name => <<"Afonia">>}),
+            putt(lists:flatten(["/contacts/bob@localhost/alice@localhost"]),
+                 #{name => <<"Afonia">>}),
             {?OK, RM} = gett(lists:flatten(["/contacts/bob@localhost"])),
             [ResM] = decode_maplist(RM),
             #{name := <<"Afonia">>,
@@ -474,8 +475,12 @@ remove_contact_push(Config) ->
             [Received1] = escalus:wait_for_stanzas(Bob, 1),
             escalus:assert(is_roster_set, Received1),
             Ss = escalus:wait_for_stanzas(Alice, 3),
-            IsPresWithUnsub = fun(S) -> escalus_pred:is_presence_with_type(<<"unsubscribed">>, S) end,
-            IsPresWithUnav = fun(S) -> escalus_pred:is_presence_with_type(<<"unavailable">>, S) end,
+            IsPresWithUnsub = fun(S) ->
+                                        escalus_pred:is_presence_with_type(<<"unsubscribed">>, S)
+                              end,
+            IsPresWithUnav = fun(S) ->
+                                        escalus_pred:is_presence_with_type(<<"unavailable">>, S)
+                             end,
             escalus:assert_many([IsPresWithUnsub, IsPresWithUnav, is_roster_set], Ss),
             ok
         end).
