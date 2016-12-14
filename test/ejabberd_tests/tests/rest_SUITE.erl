@@ -88,7 +88,8 @@ roster_tests() ->
      blocked_user_can_communicate,
      blocking_push_to_resource,
      blocking_push_to_contact,
-     remove_contact_push
+     remove_contact_push,
+     rest_blocking_effective_immediately
     ].
 
 suite() ->
@@ -424,9 +425,9 @@ blocked_user_can_communicate(Config) ->
             message_is_delivered(Bob, Mike, <<"Ho ho ho">>),
             {M1, M2} = send_messages(Bob, Mike),
             Res = escalus:wait_for_stanza(Bob),
-            escalus:assert(is_chat_message, [maps:get(msg, M1)], Res),
+            escalus:assert(is_chat_message, [maps:get(body, M1)], Res),
             Res1 = escalus:wait_for_stanza(Mike),
-            escalus:assert(is_chat_message, [maps:get(msg, M2)], Res1)
+            escalus:assert(is_chat_message, [maps:get(body, M2)], Res1)
         end).
 
 blocking_push_to_resource(Config) ->
@@ -478,6 +479,20 @@ remove_contact_push(Config) ->
             escalus:assert_many([IsPresWithUnsub, IsPresWithUnav, is_roster_set], Ss),
             ok
         end).
+
+rest_blocking_effective_immediately(Config) ->
+    % is blocking done through rest propagated to user's connected resources?
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(User1, User2) ->
+            Path = lists:flatten(["/contacts/alice@localhost/bob@localhost/block"]),
+            timer:sleep(100),
+            {?NOCONTENT, _} = putt(Path, #{}),
+            message(User1, User2, <<"You should not see this!">>),
+            client_gets_nothing(User2)
+        end),
+    Path1 = lists:flatten(["/contacts/alice@localhost/bob@localhost/unblock"]),
+    {?NOCONTENT, _} = putt(Path1, #{}).
 
 %%--------------------------------------------------------------------
 %% Helpers
