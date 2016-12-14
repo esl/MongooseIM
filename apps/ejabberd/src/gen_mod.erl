@@ -27,6 +27,15 @@
 -module(gen_mod).
 -author('alexey@process-one.net').
 
+-type dep_arguments() :: proplists:proplist().
+-type dep_hardness() :: soft | hard.
+-type deps_list() :: [
+                      {module(), dep_arguments(), dep_hardness()} |
+                      {module(), dep_hardness()}
+                     ].
+
+-export_type([deps_list/0]).
+
 -export([
          % Modules start & stop
          start/0,
@@ -81,8 +90,7 @@
 %% dependent module).
 %%
 %% -callback deps(Host :: ejabberd:server(), Opts :: proplists:list()) ->
-%%     [{module(), DepOpts :: proplists:list(), soft | hard} |
-%%      {module(), soft | hard}].
+%%     deps_list().
 
 -spec start() -> 'ok'.
 start() ->
@@ -428,9 +436,7 @@ clear_opts(Module, Opts0) ->
 
 
 -spec get_deps(Host :: ejabberd:server(), Module :: module(),
-               Opts :: proplists:proplist()) ->
-                      [{module(), proplists:proplist(), hard | soft} |
-                       {module(), hard | soft}].
+               Opts :: proplists:proplist()) -> deps_list().
 get_deps(Host, Module, Opts) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false

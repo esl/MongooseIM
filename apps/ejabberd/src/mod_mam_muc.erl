@@ -212,8 +212,8 @@ stop(Host) ->
 -spec filter_room_packet(Packet :: packet(), EventData :: list()) -> packet().
 filter_room_packet(Packet, EventData) ->
     ?DEBUG("Incoming room packet.", []),
-    IsComplete = call_is_complete_message(?MODULE, incoming, Packet),
-    case IsComplete of
+    IsArchivable = mod_mam_muc_params:is_archivable_message(?MODULE, incoming, Packet),
+    case IsArchivable of
         true ->
             {_, FromNick} = lists:keyfind(from_nick, 1, EventData),
             {_, FromJID} = lists:keyfind(from_jid, 1, EventData),
@@ -944,21 +944,27 @@ compile_params_module(Params) ->
     code:load_binary(Mod, "mod_mam_muc_params.erl", Code).
 
 params_helper(Params) ->
+    %% Try is_complete_message opt for backwards compatibility
+    {IsArchivableModule, IsArchivableFunction} =
+        case proplists:get_value(is_archivable_message, Params) of
+            undefined ->
+                case proplists:get_value(is_complete_message, Params) of
+                    undefined -> {mod_mam_utils, is_archivable_message};
+                    OldStyleMod -> {OldStyleMod, is_complete_message}
+                end;
+
+            Mod -> {Mod, is_archivable_message}
+        end,
+
     binary_to_list(iolist_to_binary(io_lib:format(
-                                      "-module(mod_mam_muc_params).~n"
-                                      "-compile(export_all).~n"
-                                      "add_archived_element() -> ~p.~n"
-                                      "is_complete_message() -> ~p.~n",
-                                      [proplists:get_bool(add_archived_element, Params),
-                                       proplists:get_value(is_complete_message, Params,
-                                                           mod_mam_utils)]))).
+        "-module(mod_mam_muc_params).~n"
+        "-compile(export_all).~n"
+        "add_archived_element() -> ~p.~n"
+        "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
+        [proplists:get_bool(add_archived_element, Params),
+         IsArchivableModule, IsArchivableFunction]))).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().
 add_archived_element() ->
     mod_mam_muc_params:add_archived_element().
-
-call_is_complete_message(Module, Dir, Packet) ->
-    M = mod_mam_muc_params:is_complete_message(),
-    M:is_complete_message(Module, Dir, Packet).
-
