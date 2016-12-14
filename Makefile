@@ -46,8 +46,9 @@ ct: deps quick_compile
 		> $(LOG_SILENCE_COVER)
 
 # This compiles and runs one test suite. For quick feedback/TDD.
+# (strip _SUITE from test name, it is added automatically!)
 # Example:
-# $ make qct SUITE=amp_resolver_SUITE
+# $ make qct SUITE=amp_resolver
 qct:
 	mkdir -p /tmp/ct_log
 	@if [ "$(SUITE)" ]; then ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
