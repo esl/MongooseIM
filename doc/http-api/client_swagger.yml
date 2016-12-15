@@ -207,6 +207,63 @@ paths:
         403:
           description: |
             When the authenticated user is not allowed to read room's details.
+  /contacts:
+    get:
+      description: "Returns all contacts"
+      tags:
+        - "Contacts"
+      responses:
+        200:
+          description: "Contacts"
+          schema:
+            title: Contacts
+            type: array
+            items:
+              $ref: '#/definitions/ContactDetails'
+    post:
+      description: "Adds a user to contact list. An invitation will be sent to the remote user."
+      tags:
+        - "Contacts"
+      parameters:
+        - in: body
+          name: contact
+          required: true
+          schema:
+            properties:
+              jid:
+                type: string
+      responses:
+        204:
+          description: "The user was added to contacts list and invitation was sent."
+  /contacts/{user}:
+    put:
+      description: "Accepts invitation"
+      tags:
+        - "Contacts"
+      parameters:
+        - in: path
+          name: contact
+          required: true
+          type: string
+      responses:
+        204:
+          description: "Accepts an invitation from the user."
+        404:
+          description: "There was no such invitation."
+    delete:
+      description: "Removes contact"
+      tags:
+        - "Contacts"
+      parameters:
+        - in: path
+          name: contact
+          required: true
+          type: string
+      responses:
+        204:
+          description: "Accepts an invitation from the user."
+        404:
+          description: "There was no such contact."
   /sse:
     get:
       summary: |
@@ -417,3 +474,17 @@ definitions:
     type: string
     example: Important room
     description: The room's name
+  ContactDetails:
+    properties:
+      jid:
+        type: string
+        example: 'alice@wonderland.lit'
+        description: The message recipient's bare JID.
+      state:
+        type: string
+        description: |
+          State of the contact. There are 3 possible states:
+          * invitee - an invitation was sent to the remote user and waits acceptance
+          * inviter - an invitation was sent from the remote user and waits for your acceptance
+          * friend - invitation was accepted
+        enum: ["invitee", "friend", "inviter"]
