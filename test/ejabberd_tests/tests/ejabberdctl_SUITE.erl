@@ -831,7 +831,7 @@ create_stanza(Name1, JID2) ->
                     escalus_stanza:chat_to(Name1, "Hi"), JID2)),
                     <<?DOUBLE_QUOTE_CHAR>>,
                     <<?SINGLE_QUOTE_CHAR>>,
-                    [global, {return, binary}])
+                    [global, {return, binary}]).
 
 %%--------------------------------------------------------------------
 %% mod_admin_extra_stats tests
