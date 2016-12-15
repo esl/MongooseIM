@@ -144,6 +144,38 @@ paths:
               type: string
               description: "User's full JID"
               format: JID
+  /contacts/{owner}/{contact}/subscription:
+    parameters:
+      - name: owner
+        in: path
+        description: User's JID (f.e. alice@wonderland.lit)
+        required: true
+        type: string
+      - name: contact
+        in: path
+        description: JID of the other user, to/from whom we are setting subscription
+        required: true
+        type: string
+        format: JID
+    put:
+      tags:
+        - "user management hej"
+        - "roster"
+        - "subscription"
+      description: Set a subscription in the user's roster
+      parameters:
+        - name: subscription
+          in: body
+          description: value to set subscription to
+          required: true
+          schema:
+            properties:
+              subscription:
+                type: string
+                enum: ["none", "from", "to", "both"]
+      responses:
+        204:
+          description: subscription has been set
   /sessions/{XMPPHost}/{username}/{resource}:
     parameters:
       - $ref: '#/parameters/hostName'
@@ -492,6 +524,7 @@ parameters:
     description: The MUC Light room's **name** (i.e. **not** the room's JID)
     required: true
     type: string
+
 
 definitions:
   messageList:

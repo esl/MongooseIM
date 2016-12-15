@@ -239,6 +239,129 @@ paths:
           description: |
             When authenticated user is not allowed to read room's deatails.
 
+  /contacts:
+    get:
+      description: Returns a list of all contacts in a user's roster
+      tags:
+        - "roster"
+        - "contacts"
+        - "list contacts"
+      responses:
+        200:
+          description: Contacts
+          schema:
+            title: Contacts
+            type: array
+            items:
+              $ref: '#/definitions/Contact'
+    post:
+      description: Add a contact to roster
+      tags:
+        - "roster"
+        - "contacts"
+        - "add contact"
+      parameters:
+        - name: userdata
+          in: body
+          required: true
+          schema:
+            properties:
+              jabber_id:
+                type: string
+              name: 
+                type: string
+      responses:
+        200:
+          description: Contact was added to roster
+  /contacts/{user}/{contact}:
+    parameters:
+      - name: user
+        in: path
+        type: string
+        required: true
+        description: owner of the roster
+      - name: contact
+        in: path
+        type: string
+        required: true
+    put:
+      description: Modify a contact in roster
+      tags:
+        - "roster"
+        - "contacts"
+        - "modify contact"
+      parameters:
+        - name: userdata
+          in: body
+          required: true
+          schema:
+            properties:
+              name:
+                type: string
+      responses:
+        204:
+          description: Contact was modified
+    delete:
+      description: remove a contact from roster
+      tags:
+        - "roster"
+        - "contacts"
+        - "remove contact"
+      parameters:
+        - name: user
+          in: path
+          type: string
+          required: true
+          description: owner of the roster
+        - name: contact
+          in: path
+          type: string
+          required: true
+      responses:
+        204:
+          description: Contact was removed
+  /contacts/{user}/{contact}/block:
+    parameters:
+      - name: user
+        in: path
+        type: string
+        required: true
+        description: owner of the roster
+      - name: contact
+        in: path
+        type: string
+        required: true
+    put:
+      description: Block a contact in roster using blocking commands (xep-0191)
+      tags:
+        - "privacy"
+        - "contacts"
+        - "block contact"
+      responses:
+        204:
+          description: Contact was blocked
+  /contacts/{user}/{contact}/unblock:
+    parameters:
+      - name: user
+        in: path
+        type: string
+        required: true
+        description: owner of the roster
+      - name: contact
+        in: path
+        type: string
+        required: true
+    put:
+      description: Unblock a contact
+      tags:
+        - "privacy"
+        - "contacts"
+        - "unblock contact"
+      responses:
+        204:
+          description: Contact was unblocked
+
+
 security:
   - mongoose_basic_auth: []
 securityDefinitions:
@@ -396,3 +519,12 @@ definitions:
     type: string
     example: Important room
     description: The room's name
+  Contact:
+    properties:
+      jid:
+        type: string
+      name:
+        type: string
+      subscription:
+        type: string
+        enum: ["to", "from", "both", "none"]
