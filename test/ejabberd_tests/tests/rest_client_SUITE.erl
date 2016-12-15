@@ -117,7 +117,7 @@ messages_can_be_paginated(Config) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         rest_helper:fill_archive(Alice, Bob),
-        mam_helper:maybe_wait_for_yz(Config),
+        mam_helper:maybe_wait_for_archive(Config),
         AliceCreds = {AliceJID, user_password(alice)},
         % recent msgs with a limit
         M1 = get_messages(AliceCreds, BobJID, 10),
@@ -196,7 +196,8 @@ user_can_leave_a_room(Config) ->
 invitation_to_room_is_forbidden_for_non_memeber(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room({alice, Alice}),
-        {{<<"403">>, <<"Forbidden">>}, _ } = invite_to_room({bob, Bob}, RoomID, <<"auser@domain.com">>)
+        {{<<"403">>, <<"Forbidden">>}, _ } = invite_to_room({bob, Bob}, RoomID,
+                                                            <<"auser@domain.com">>)
     end).
 
 msg_is_sent_and_delivered_in_room(Config) ->
@@ -207,7 +208,7 @@ msg_is_sent_and_delivered_in_room(Config) ->
 messages_are_archived_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
-        mam_helper:maybe_wait_for_yz(Config),
+        mam_helper:maybe_wait_for_archive(Config),
         {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
         [Aff, _Msg1, _Msg2] = MsgsRecv = rest_helper:decode_maplist(Result),
         %% The oldest message is aff change
@@ -233,7 +234,7 @@ messages_can_be_paginated_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         [GenMsgs1, GenMsgs2 | _] = Msgs = rest_helper:fill_room_archive(RoomID, [Alice, Bob]),
-        mam_helper:maybe_wait_for_yz(Config),
+        mam_helper:maybe_wait_for_archive(Config),
         Msgs10 = get_room_messages({alice, Alice}, RoomID, 10),
         Msgs10Len = length(Msgs10),
         true = Msgs10Len > 0 andalso Msgs10Len =< 10,
@@ -358,7 +359,7 @@ get_room_messages(Client, RoomID, Count) ->
 get_room_messages(Client, RoomID, Count, Before) ->
     Creds = credentials(Client),
     BasePathList = ["/rooms/", RoomID, "/messages?limit=", integer_to_binary(Count)],
-    PathList = BasePathList ++ [["&before=",integer_to_binary(Before)] || Before /= undefined],
+    PathList = BasePathList ++ [["&before=", integer_to_binary(Before)] || Before /= undefined],
     Path = erlang:iolist_to_binary(PathList),
     get_messages(Path, Creds).
 
@@ -391,7 +392,7 @@ send_messages(Config, Alice, Bob, Kate) ->
     M1 = send_message(bob, Bob, Alice),
     M2 = send_message(alice, Alice, Bob),
     M3 = send_message(kate, Kate, Alice),
-    mam_helper:maybe_wait_for_yz(Config),
+    mam_helper:maybe_wait_for_archive(Config),
     [M1, M2, M3].
 
 assert_aff_change_stanza(Stanza, Target, Change) ->

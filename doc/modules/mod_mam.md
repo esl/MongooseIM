@@ -5,6 +5,7 @@ Configure MAM with different storage backends:
 
 * ODBC (RDBMS, like MySQL, PostgreSQL, MS SQL Server)
 * Riak KV (NOSQL)
+* Cassandra (NOSQL)
 
 
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
@@ -34,7 +35,6 @@ All options described in this document can be overriden for specific type of mes
 
 These options will only have effect when `odbc` backend is used:
 
-* [**user_prefs_store**](#user_prefs_store)
 * **cache_users** (boolean, default: `true`) - Enables Archive ID to integer mappings cache.
 * **odbc_message_format** (atom, default: `internal`) - When set to `simple`, stores messages in XML and full JIDs. When set to `internal`, stores messages and JIDs in internal format. **Warning**: Archive MUST be empty to change this option.
 * **async_writer** (boolean, default: `true`) - Enables asynchronous writer that is faster than synchronous but harder to debug.
@@ -67,6 +67,44 @@ Archive querying is done using Riak KV 2.0 [search mechanism](http://docs.basho.
 called Yokozuna. Your instance of Riak KV must be configured with Yokozuna enabled.
 
 This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
+
+### Cassandra backend
+
+Edit main config section adding:
+
+```erlang
+{cassandra_servers, [{default, []}]}.
+```
+
+MongooseIM will create one pool with one worker to connect to localhost:9042.
+
+You can change default settings using extra parameters:
+- 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
+- Keyspace "mongooseim";
+- Custom connect timeout in milliseconds;
+- Custom credentials.
+
+```erlang
+{cassandra_servers,
+ [
+  {default,
+   [
+    {servers,
+     [
+      {"10.0.0.1", 9042, 5},
+      {"10.0.0.2", 9042, 5},
+      {"10.0.0.3", 9042, 5},
+      {"10.0.0.4", 9042, 5}
+     ]
+    },
+    {keyspace, "mongooseim"},
+    {connect_timeout, 5000}, % five seconds
+    {credentials, [{"username", "cassandra"}, {"password", "secret"}]}
+   ]
+  }
+ ]
+}.
+```
 
 ### Example configuration
 
