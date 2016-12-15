@@ -52,6 +52,7 @@ suite() ->
 
 xep0114_tests() ->
     [register_one_component,
+     dirty_disconnect,
      register_two_components,
      try_registering_with_wrong_password,
      try_registering_component_twice,
@@ -109,6 +110,14 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
+dirty_disconnect(Config) ->
+    %% Given one connected component, kill the connection and reconnect
+    CompOpts = ?config(component1, Config),
+    {Component, _, _} = connect_component(CompOpts),
+    escalus_connection:kill(Component),
+    {Component1, _, _} = connect_component(CompOpts),
+    ok = escalus_connection:stop(Component1).
+
 register_one_component(Config) ->
     %% Given one connected component
     CompOpts = ?config(component1, Config),
