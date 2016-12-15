@@ -51,7 +51,7 @@ set_modules(Opts) ->
     dynamic_modules:start(host(), mod_http_notification, Opts),
     ok.
 
-host() -> <<"localhost">>.
+host() -> ct:get_config({hosts, mim, domain}).
 
 init_per_suite(Config0) ->
     Config1 = escalus:init_per_suite(Config0),
@@ -113,7 +113,7 @@ simple_message(Config) ->
            after 2000 ->
                    error(missing_request)
            end,
-    % ct:pal("Got request ~p~n", [Body]),
+
     {_, _} = binary:match(Body, <<"alice">>),
     {_, _} = binary:match(Body, <<"Simple">>).
 

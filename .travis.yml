@@ -55,6 +55,7 @@ env:
         - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
+        - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.9
         - PRESET=dialyzer_only
 
 matrix:

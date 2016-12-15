@@ -136,8 +136,8 @@ teardown_meck(G) when G == mam_failure;
     escalus_ejabberd:rpc(meck, unload, []);
 teardown_meck(_) -> ok.
 
-init_per_testcase(Name,C) -> escalus:init_per_testcase(Name,C).
-end_per_testcase(Name,C) -> escalus:end_per_testcase(Name,C).
+init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
+end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 
 initial_service_discovery_test(Config) ->
     escalus:fresh_story(
@@ -152,15 +152,15 @@ actions_and_conditions_discovery_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
-              escalus_client:send(Alice, disco_info_amp_node(Config)),
-              Response = escalus_client:wait_for_stanza(Alice),
-              assert_has_features(Response,
-                                  [ns_amp()
-                                  ,<<"http://jabber.org/protocol/amp?action=notify">>
-                                  ,<<"http://jabber.org/protocol/amp?action=error">>
-                                  ,<<"http://jabber.org/protocol/amp?condition=deliver">>
-                                  ,<<"http://jabber.org/protocol/amp?condition=match-resource">>
-                                  ])
+          Args = [ns_amp(),
+                  <<"http://jabber.org/protocol/amp?action=notify">>,
+                  <<"http://jabber.org/protocol/amp?action=error">>,
+                  <<"http://jabber.org/protocol/amp?condition=deliver">>,
+                  <<"http://jabber.org/protocol/amp?condition=match-resource">>
+                  ],
+          escalus_client:send(Alice, disco_info_amp_node(Config)),
+          Response = escalus_client:wait_for_stanza(Alice),
+          assert_has_features(Response, Args)
       end).
 
 
@@ -200,7 +200,7 @@ unacceptable_rules_test(Config) ->
       fun(Alice, Bob) ->
               %% given
               Msg = amp_message_to(Bob, [{broken, rule, spec}
-                                        ,{also_broken, rule, spec}
+                                        , {also_broken, rule, spec}
                                         ],
                                    <<"Break all the rules!">>),
               %% when
@@ -208,7 +208,7 @@ unacceptable_rules_test(Config) ->
 
               % then
               client_receives_amp_error(Alice, [{broken, rule, spec}
-                                           ,{also_broken, rule, spec}],
+                                           , {also_broken, rule, spec}],
                                     <<"not-acceptable">>)
       end).
 
@@ -238,12 +238,13 @@ notify_deliver_to_online_user_test(Config) ->
 notify_deliver_to_online_user_bare_jid_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
-      fun(Alice,Bob) ->
+      fun(Alice, Bob) ->
               %% given
+              Message = <<"One of your resources needs to get this!">>,
               Rule = {deliver, direct, notify},
               Rules = rules(Config, [Rule]),
               BobsBareJid = escalus_client:short_jid(Bob),
-              Msg = amp_message_to(BobsBareJid, Rules, <<"One of your resources needs to get this!">>),
+              Msg = amp_message_to(BobsBareJid, Rules, Message),
               %% when
               client_sends_message(Alice, Msg),
               % then
@@ -251,7 +252,7 @@ notify_deliver_to_online_user_bare_jid_test(Config) ->
                   true -> client_receives_notification(Alice, BobsBareJid, Rule);
                   false -> ok
               end,
-              client_receives_message(Bob, <<"One of your resources needs to get this!">>),
+              client_receives_message(Bob, Message),
               client_receives_nothing(Alice)
       end).
 
@@ -357,7 +358,8 @@ notify_deliver_to_stranger_test(Config) ->
               %% given
               Rule = {deliver, none, notify},
               Rules = rules(Config, [Rule]),
-              StrangerJid = <<"stranger@localhost">>,
+              Domain = domain(),
+              StrangerJid = <<"stranger@", Domain/binary>>,
               Msg = amp_message_to(StrangerJid, Rules, <<"A message in a bottle...">>),
 
               %% when
@@ -397,7 +399,7 @@ notify_deliver_to_malformed_jid_test(Config) ->
 notify_match_resource_any_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 4}],
-      fun(Alice,Bob,_,_,_) ->
+      fun(Alice, Bob, _, _, _) ->
               %% given
               Msg = amp_message_to(Bob, [{'match-resource', any, notify}],
                                    <<"Church-encoded hot-dogs">>),
@@ -412,7 +414,7 @@ notify_match_resource_any_test(Config) ->
 notify_match_resource_exact_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 4}],
-      fun(Alice,_,_,Bob3,_) ->
+      fun(Alice, _, _, Bob3, _) ->
               %% given
               Msg = amp_message_to(Bob3, [{'match-resource', exact, notify}],
                                    <<"Resource three, your battery is on fire!">>),
@@ -427,7 +429,7 @@ notify_match_resource_exact_test(Config) ->
 notify_match_resource_other_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
-      fun(Alice,Bob) ->
+      fun(Alice, Bob) ->
               %% given
               NonmatchingJid = << (escalus_client:short_jid(Bob))/binary,
                                   "/blahblahblah_resource" >>,
@@ -439,14 +441,15 @@ notify_match_resource_other_test(Config) ->
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_notification(Alice, NonmatchingJid, {'match-resource', other, notify}),
+              client_receives_notification(Alice, NonmatchingJid,
+                                           {'match-resource', other, notify}),
               client_receives_message(Bob, <<"A Bob by any other name!">>)
       end).
 
 notify_match_resource_other_bare_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
-      fun(Alice,Bob) ->
+      fun(Alice, Bob) ->
               %% given
               BareJid = escalus_client:short_jid(Bob),
               Msg = amp_message_to(BareJid,
@@ -506,15 +509,19 @@ error_deliver_to_offline_user_test(Config) ->
                   true ->
                       client_receives_amp_error(Alice, BobJid, Rule, <<"undefined-condition">>);
                   false ->
-                      case ?config(offline_storage, Config) of
-                          offline_failure -> client_receives_generic_error(Alice, <<"500">>, <<"wait">>);
-                          _ -> client_receives_nothing(Alice)
-                      end
+                      check_offline_storage(Alice, Config)
               end
       end),
     case is_offline_storage_working(Config) andalso not lists:member(Rule, Rules) of
         true -> user_has_incoming_offline_message(FreshConfig, bob, <<"A message in a bottle...">>);
         false -> user_has_no_incoming_offline_messages(FreshConfig, bob)
+    end.
+
+check_offline_storage(User, Config) ->
+    case ?config(offline_storage, Config) of
+        offline_failure ->
+            client_receives_generic_error(User, <<"500">>, <<"wait">>);
+        _ -> client_receives_nothing(User)
     end.
 
 error_deliver_to_stranger_test(Config) ->
@@ -524,7 +531,8 @@ error_deliver_to_stranger_test(Config) ->
               %% given
               Rule = {deliver, none, error},
               Rules = rules(Config, [Rule]),
-              StrangerJid = <<"stranger@localhost">>,
+              Domain = domain(),
+              StrangerJid = <<"stranger@", Domain/binary>>,
               Msg = amp_message_to(StrangerJid, Rules, <<"This cannot possibly succeed">>),
 
               %% when
@@ -532,7 +540,8 @@ error_deliver_to_stranger_test(Config) ->
 
               % then
               case lists:member(Rule, Rules) of
-                  true -> client_receives_amp_error(Alice, StrangerJid, Rule, <<"undefined-condition">>);
+                  true -> client_receives_amp_error(Alice, StrangerJid, Rule,
+                                                    <<"undefined-condition">>);
                   false -> client_receives_generic_error(Alice, <<"503">>, <<"cancel">>)
               end,
               client_receives_nothing(Alice)
@@ -570,21 +579,24 @@ drop_deliver_to_offline_user_test(Config) ->
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
+              Message = <<"A message in a bottle...">>,
               BobJid = escalus_users:get_jid(FreshConfig, bob),
-              Msg = amp_message_to(BobJid, Rules, <<"A message in a bottle...">>),
+              Msg = amp_message_to(BobJid, Rules, Message),
 
               %% when
               client_sends_message(Alice, Msg),
 
               % then
-              case lists:member(Rule, Rules) orelse ?config(offline_storage, Config) /= offline_failure of
+              case lists:member(Rule, Rules) orelse
+                   ?config(offline_storage, Config) /= offline_failure of
                   true -> client_receives_nothing(Alice);
                   false -> client_receives_generic_error(Alice, <<"500">>, <<"wait">>)
               end,
 
               % then
               case is_offline_storage_working(Config) andalso not lists:member(Rule, Rules) of
-                  true -> user_has_incoming_offline_message(FreshConfig, bob, <<"A message in a bottle...">>);
+                  true -> user_has_incoming_offline_message(FreshConfig, bob,
+                                                            Message);
                   false -> user_has_no_incoming_offline_messages(FreshConfig, bob)
               end
       end).
@@ -596,7 +608,8 @@ drop_deliver_to_stranger_test(Config) ->
               %% given
               Rule = {deliver, none, drop},
               Rules = rules(Config, [Rule]),
-              StrangerJid = <<"stranger@localhost">>,
+              Domain = domain(),
+              StrangerJid = <<"stranger@", Domain/binary>>,
               Msg = amp_message_to(StrangerJid, Rules, <<"This cannot possibly succeed">>),
 
               %% when
@@ -614,7 +627,7 @@ drop_deliver_to_stranger_test(Config) ->
 last_rule_applies_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
-      fun(Alice,Bob) ->
+      fun(Alice, Bob) ->
               %% given
               BobsBareJid = escalus_client:short_jid(Bob),
               Msg = amp_message_to(BobsBareJid, [{deliver, none, error},
@@ -695,8 +708,8 @@ setup_rules(_, Config) -> Config.
 
 rules(Config, Default) ->
     case lists:keysearch(rules, 1, Config) of
-	{value, {rules, Val}} -> Val;
-	_ -> Default
+        {value, {rules, Val}} -> Val;
+        _ -> Default
     end.
 
 ns_amp() ->
@@ -758,7 +771,7 @@ assert_amp_error(Client, Response, Rule, AmpErrorKind) ->
     assert_amp_error(Client, Response, [Rule], AmpErrorKind).
 
 assert_amp_error_with_full_amp(Client, IntendedRecipient, Response,
-                               {_C,_V,_A} = Rule, AmpErrorKind) ->
+                               {_C, _V, _A} = Rule, AmpErrorKind) ->
     ClientJID = escalus_client:full_jid(Client),
     RecipientJID = full_jid(IntendedRecipient),
     Server = escalus_client:server(Client),
@@ -772,7 +785,7 @@ assert_amp_error_with_full_amp(Client, IntendedRecipient, Response,
                    Response).
 
 
-assert_notification(Client, IntendedRecipient, Response, {_C,_V,A} = Rule) ->
+assert_notification(Client, IntendedRecipient, Response, {_C, _V, A} = Rule) ->
     ClientJID = escalus_client:full_jid(Client),
     RecipientJID = full_jid(IntendedRecipient),
     Server = escalus_client:server(Client),
@@ -803,17 +816,16 @@ amp_message_to(To, Rules, MsgText) ->
 amp_el([]) ->
     throw("cannot build <amp> with no rules!");
 amp_el(Rules) ->
-    #xmlel{name = <<"amp">>
-          ,attrs = [{<<"xmlns">>, ns_amp()}]
-          ,children = [ rule_el(R) || R <- Rules ]
-          }.
+    #xmlel{name = <<"amp">>,
+           attrs = [{<<"xmlns">>, ns_amp()}],
+           children = [ rule_el(R) || R <- Rules ]}.
 
 rule_el({Condition, Value, Action}) ->
     check_rules(Condition, Value, Action),
     #xmlel{name = <<"rule">>
-          ,attrs = [{<<"condition">>, a2b(Condition)}
-                   ,{<<"value">>, a2b(Value)}
-                   ,{<<"action">>, a2b(Action)}]}.
+          , attrs = [{<<"condition">>, a2b(Condition)}
+                    , {<<"value">>, a2b(Value)}
+                    , {<<"action">>, a2b(Action)}]}.
 
 %% @TODO: Move me out to escalus_pred %%%%%%%%%%%%
 %%%%%%%%% XML predicates %%%%% %%%%%%%%%%%%%%%%%%%
@@ -835,7 +847,8 @@ contains_amp_error(AmpErrorKind, Rules, Response) ->
         andalso
         ns_stanzas() == exml_query:attr(Marker, <<"xmlns">>)
         andalso
-        undefined =/= (Container = exml_query:subelement(ErrorEl, amp_error_container(AmpErrorKind)))
+        undefined =/= (Container = exml_query:subelement(ErrorEl,
+                                            amp_error_container(AmpErrorKind)))
         andalso
         all_present([ rule_el(R) || R <- Rules ], exml_query:subelements(Container, <<"rule">>)).
 
@@ -878,7 +891,7 @@ check_rules('expire-at', _binary, notify) -> ok; %% for testing unsupported cond
 check_rules(broken, rule, spec) -> ok;           %% for testing unacceptable rules
 check_rules(also_broken, rule, spec) -> ok;      %% for testing unacceptable rules
 
-check_rules(C,V,A) -> throw({illegal_amp_rule, {C, V, A}}).
+check_rules(C, V, A) -> throw({illegal_amp_rule, {C, V, A}}).
 
 a2b(B) when is_binary(B) -> B;
 a2b(A) -> atom_to_binary(A, utf8).

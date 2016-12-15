@@ -40,9 +40,10 @@ app_opts() ->
      {"all",       [],                  "include all drivers"},
      {"mysql",     ["p1_mysql"],        include_driver("mysql")},
      {"odbc",      ["odbc"],            "include standard ODBC driver shipped with Erlang/OTP"},
-     {"pgsql",     ["p1_pgsql"],        include_driver("pgsql")},
+     {"pgsql",     ["p1_pgsql"],           include_driver("pgsql")},
      {"redis",     ["redo"],            include_driver("redis")},
-     {"riak",      ["riakc"],           include_driver("riak")}].
+     {"riak",      ["riakc"],           include_driver("riak")},
+     {"cassandra", ["seestar"],         include_driver("cassandra")}].
 
 opts() ->
     [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},

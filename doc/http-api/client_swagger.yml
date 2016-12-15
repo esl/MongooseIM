@@ -1,4 +1,3 @@
-
 swagger: '2.0'
 info:
   version: "0.1.0"
@@ -15,11 +14,12 @@ info:
 
 basePath: /api
 schemes:
-  - https
+  - http
 produces:
   - application/json
 consumes:
   - application/json
+host: "localhost:8089"
 paths:
   /messages:
     post:
@@ -105,7 +105,7 @@ paths:
             title: Rooms
             type: array
             items:
-              $ref: '#/definitions/RoomShortDetails'
+            $ref: '#/definitions/RoomShortDetails'
   /rooms/{id}:
     get:
       description: "Returns room's details."
@@ -207,6 +207,38 @@ paths:
         403:
           description: |
             When authenticated user is not allowed to read room's details.
+  /sse:
+    get:
+      summary: |
+        WARNING: Do not try to use this endpoint from this page. Swagger doesn't understand SSE.
+      description: |
+        Opens an SSE (https://www.html5rocks.com/en/tutorials/eventsource/basics/) connection to retrieve updates from the server.
+        The simplest way to test this endpoint is `curl` command.
+
+        We recommend following libraries to consume the events:
+        * iOS - https://github.com/inaka/EventSource
+        * Erlang/Elixir - https://github.com/inaka/shotgun
+      tags:
+        - "Server Sent Events"
+      produces:
+        - "text/event-stream"
+      responses:
+        default:
+          description: "Stream of events sent by the server"
+          examples:
+            - |
+              id: 1
+              event: chat
+              data: {"to":"alice@wonderland.lit","timestamp":1477550892082343,"id":"36891c7f-cd3d-4e90-9295-5f450d66ae09","from":"rabbit@wonderland.lit","body":"Test message over SSE"}
+          schema:
+            type: object
+            x-events:
+              chat:
+                $ref: '#/definitions/RecvMessage'
+        403:
+          description: |
+            When authenticated user is not allowed to read room's deatails.
+
 security:
   - mongoose_basic_auth: []
 securityDefinitions:

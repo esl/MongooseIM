@@ -187,7 +187,7 @@ send_specific_hold(Config, HoldValue) ->
     Body = Body0#xmlel{attrs = Attrs},
 
     Result = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(Body)),
-    {{<<"200">>,<<"OK">>}, _Headers, RespBody, _, _} = Result,
+    {{<<"200">>, <<"OK">>}, _Headers, RespBody, _, _} = Result,
 
     {ok, #xmlel{attrs = RespAttrs} = Resp} = exml:parse(RespBody),
     case lists:keyfind(<<"sid">>, 1, RespAttrs) of
@@ -223,19 +223,19 @@ get_request(Config) ->
     {_Server, Path, Client} = get_fusco_connection(Config),
     Result = fusco_request(Client, <<"GET">>, Path, <<>>),
     fusco_cp:stop(Client),
-    {{<<"200">>,<<"OK">>}, _, _, _, _} = Result.
+    {{<<"200">>, <<"OK">>}, _, _, _, _} = Result.
 
 put_request(Config) ->
     {_Server, Path, Client} = get_fusco_connection(Config),
     Result = fusco_request(Client, <<"PUT">>, Path, <<"not allowed body">>),
     fusco_cp:stop(Client),
-    {{<<"405">>,<<"Method Not Allowed">>}, _, _, _, _} = Result.
+    {{<<"405">>, <<"Method Not Allowed">>}, _, _, _, _} = Result.
 
 post_empty_body(Config) ->
     {_Server, Path, Client} = get_fusco_connection(Config),
     Result = fusco_request(Client, <<"POST">>, Path, <<>>),
     fusco_cp:stop(Client),
-    {{<<"400">>,<<"Bad Request">>}, _, _, _, _} = Result.
+    {{<<"400">>, <<"Bad Request">>}, _, _, _, _} = Result.
 
 get_fusco_connection(Config) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
@@ -254,9 +254,10 @@ stream_error(Config) ->
               %% Send a stanza with invalid 'from'
               %% attribute to trigger a stream error from
               %% the server.
+              Domain = domain(),
               BadMessage = escalus_stanza:chat(
-                             <<"not_carol@localhost">>,
-                             <<"geralt@localhost">>,
+                             <<"not_carol@", Domain/binary>>,
+                             <<"geralt@", Domain/binary>>,
                              <<"I am not Carol">>),
               escalus_client:send(Carol, BadMessage),
               escalus:assert(is_stream_error, [<<"invalid-from">>, <<>>],
@@ -363,7 +364,7 @@ cant_send_invalid_rid(Config) ->
         end).
 
 multiple_stanzas(Config) ->
-    escalus:story(Config, [{?config(user, Config), 1},{geralt, 1},{alice, 1}],
+    escalus:story(Config, [{?config(user, Config), 1}, {geralt, 1}, {alice, 1}],
                   fun(Carol, Geralt, Alice) ->
                 %% send a multiple stanza
                 Server = escalus_client:server(Carol),
@@ -374,7 +375,8 @@ multiple_stanzas(Config) ->
                 RID = escalus_bosh:get_rid(Carol),
                 SID = escalus_bosh:get_sid(Carol),
                 Body = escalus_bosh:empty_body(RID, SID),
-                Stanza = Body#xmlel{children=[Stanza1,Stanza2,Stanza1,Stanza3]},
+                Stanza = Body#xmlel{children =
+                                          [Stanza1, Stanza2, Stanza1, Stanza3]},
                 escalus_bosh:send_raw(Carol, Stanza),
 
                 %% check whether each of stanzas has been processed correctly
@@ -388,7 +390,7 @@ multiple_stanzas(Config) ->
         end).
 
 namespace(Config) ->
-    escalus:story(Config, [{?config(user, Config), 1},{geralt, 1}],
+    escalus:story(Config, [{?config(user, Config), 1}, {geralt, 1}],
         fun(Carol, Geralt) ->
             %% send a multiple stanza
             Server = escalus_client:server(Carol),
@@ -730,7 +732,7 @@ force_cache_trimming(Config) ->
         %% The cache should now contain only entries newer than Rid2.
         {_, _, CarolSessionPid} = get_bosh_session(Sid),
         Cache = get_cached_responses(CarolSessionPid),
-        true = lists:all(fun({R,_,_}) when R > Rid2 -> true; (_) -> false end,
+        true = lists:all(fun({R, _, _}) when R > Rid2 -> true; (_) -> false end,
                          Cache),
         %% Not sure about this one...
         1 = length(Cache),
@@ -861,3 +863,6 @@ wait_for_handler(Pid, N) ->
         L ->
             length(L)
     end.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).

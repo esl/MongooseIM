@@ -54,6 +54,7 @@
 
 -record(state, {socket,
                 sockmod      :: ejabberd:sockmod(),
+                socket_monitor,
                 streamid,
                 password     :: binary(),
                 host         :: binary(),
@@ -156,8 +157,10 @@ init([{SockMod, Socket}, Opts]) ->
                  _ -> true
              end,
     SockMod:change_shaper(Socket, Shaper),
+    SocketMonitor = SockMod:monitor(Socket),
     {ok, wait_for_stream, #state{socket = Socket,
                                  sockmod = SockMod,
+                                 socket_monitor = SocketMonitor,
                                  streamid = new_id(),
                                  password = Password,
                                  access = Access,
@@ -351,6 +354,9 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
             ejabberd_router:route_error(To, From, Err, Packet)
     end,
     {next_state, StateName, StateData};
+handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
+  when Monitor == StateData#state.socket_monitor ->
+    {stop, normal, StateData};
 handle_info(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     {next_state, StateName, StateData}.

@@ -64,6 +64,7 @@
 -type ct_aff_users() :: [ct_aff_user()].
 -type ct_block_item() :: {What :: atom(), Action :: atom(), Who :: binary()}.
 -type verify_fun() :: muc_helper:verify_fun().
+-type xmlel() :: exml:element().
 
 -define(DEFAULT_AFF_USERS, [{Alice, owner}, {Bob, member}, {Kate, member}]).
 
@@ -270,7 +271,7 @@ change_subject(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Subject = <<"new subject">>,
             SubjectStanza = #xmlel{name = <<"message">>,
-                                   attrs = [{<<"type">>,<<"groupchat">>}],
+                                   attrs = [{<<"type">>, <<"groupchat">>}],
                                    children = [#xmlel{
                                                   name = <<"subject">>,
                                                   children = [exml:escape_cdata(Subject)]
@@ -460,8 +461,9 @@ manage_blocklist(Config) ->
             escalus:assert(is_iq_result, GetResult1),
             QueryEl1 = exml_query:subelement(GetResult1, <<"query">>),
             verify_blocklist(QueryEl1, []),
+            Domain = domain(),
 
-            BlocklistChange1 = [{user, deny, <<"user@localhost">>},
+            BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
@@ -471,7 +473,7 @@ manage_blocklist(Config) ->
             QueryEl2 = exml_query:subelement(GetResult2, <<"query">>),
             verify_blocklist(QueryEl2, BlocklistChange1),
 
-            BlocklistChange2 = [{user, allow, <<"user@localhost">>},
+            BlocklistChange2 = [{user, allow, <<"user@", Domain/binary>>},
                                 {room, allow, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange2)),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
@@ -528,8 +530,9 @@ blocking_disabled(Config) ->
             escalus:send(Alice, stanza_blocking_get()),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice)),
+            Domain = domain(),
 
-            BlocklistChange1 = [{user, deny, <<"user@localhost">>},
+            BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
@@ -552,16 +555,16 @@ user_leave(User, RemainingOccupants) ->
 %% IQ getters
 %%--------------------------------------------------------------------
 
--spec stanza_blocking_get() -> #xmlel{}.
+-spec stanza_blocking_get() -> xmlel().
 stanza_blocking_get() ->
     escalus_stanza:privacy_get_lists([?NS_MUC_LIGHT]).
 
--spec stanza_config_get(Room :: binary()) -> #xmlel{}.
+-spec stanza_config_get(Room :: binary()) -> xmlel().
 stanza_config_get(Room) ->
     escalus_stanza:to(
       escalus_stanza:iq_get(?NS_MUC_OWNER, []), room_bin_jid(Room)).
 
--spec stanza_aff_get(Room :: binary()) -> #xmlel{}.
+-spec stanza_aff_get(Room :: binary()) -> xmlel().
 stanza_aff_get(Room) ->
     escalus_stanza:to(
       escalus_stanza:iq_get(?NS_MUC_ADMIN, []), room_bin_jid(Room)).
@@ -570,7 +573,7 @@ stanza_aff_get(Room) ->
 %% IQ setters
 %%--------------------------------------------------------------------
 
--spec stanza_blocking_set(BlocklistChanges :: [ct_block_item()]) -> #xmlel{}.
+-spec stanza_blocking_set(BlocklistChanges :: [ct_block_item()]) -> xmlel().
 stanza_blocking_set(BlocklistChanges) ->
     Items = [ encode_privacy_item(What, Action, Who) || {What, Action, Who} <- BlocklistChanges ],
     escalus_stanza:privacy_set_list(escalus_stanza:privacy_list(?NS_MUC_LIGHT, Items)).
@@ -583,40 +586,40 @@ encode_privacy_item(What, Action, Who) ->
     ActionBin = atom_to_binary(Action, utf8),
     escalus_stanza:privacy_list_item(<<"1">>, ActionBin, <<"jid">>, Value, []).
 
--spec stanza_create_room(RoomNode :: binary(), Creator :: escalus:client()) -> #xmlel{}.
+-spec stanza_create_room(RoomNode :: binary(), Creator :: escalus:client()) -> xmlel().
 stanza_create_room(RoomNode, Creator) ->
     ToBinJID = <<(room_bin_jid(RoomNode))/binary, $/,
                  (lbin(escalus_client:short_jid(Creator)))/binary>>,
     X = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}] },
     escalus_stanza:to(escalus_stanza:presence(<<"available">>, [X]), ToBinJID).
 
--spec stanza_destroy_room(Room :: binary()) -> #xmlel{}.
+-spec stanza_destroy_room(Room :: binary()) -> xmlel().
 stanza_destroy_room(Room) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_OWNER, [#xmlel{ name = <<"destroy">> }]),
                       room_bin_jid(Room)).
 
--spec stanza_config_set(Room :: binary(), ConfigChanges :: [{binary(), binary()}]) -> #xmlel{}.
+-spec stanza_config_set(Room :: binary(), ConfigChanges :: [{binary(), binary()}]) -> xmlel().
 stanza_config_set(Room, ConfigChanges) ->
     IQ = escalus_stanza:iq_set(?NS_MUC_OWNER, [form_x_el(ConfigChanges)]),
     escalus_stanza:to(IQ, room_bin_jid(Room)).
 
--spec form_x_el(Fields :: [#xmlel{}]) -> #xmlel{}.
+-spec form_x_el(Fields :: [xmlel()]) -> xmlel().
 form_x_el(Fields) ->
     #xmlel{
        name = <<"x">>,
-       attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"submit">>}],
+       attrs = [{<<"xmlns">>, <<"jabber:x:data">>}, {<<"type">>, <<"submit">>}],
        children = [form_field(<<"FORM_TYPE">>, ?NS_MUC_ROOMCONFIG, <<"hidden">>)
                    | [form_field(K, V, <<"text-single">>) || {K, V} <- Fields ]]
       }.
 
--spec form_field(Var :: binary(), Value :: binary(), Type :: binary()) -> #xmlel{}.
+-spec form_field(Var :: binary(), Value :: binary(), Type :: binary()) -> xmlel().
 form_field(Var, Value, Type) ->
     #xmlel{ name  = <<"field">>,
-            attrs = [{<<"type">>, Type},{<<"var">>, Var}],
+            attrs = [{<<"type">>, Type}, {<<"var">>, Var}],
             children  = [#xmlel{name = <<"value">>,
                                 children = [#xmlcdata{content = Value}] }] }.
 
--spec stanza_aff_set(Room :: binary(), AffUsers :: ct_aff_users()) -> #xmlel{}.
+-spec stanza_aff_set(Room :: binary(), AffUsers :: ct_aff_users()) -> xmlel().
 stanza_aff_set(Room, AffUsers) ->
     Items = [#xmlel{ name = <<"item">>, attrs = [{<<"affiliation">>, AffBin},
                                                  {<<"jid">>, UserBin}] }
@@ -627,7 +630,7 @@ stanza_aff_set(Room, AffUsers) ->
 %% Verifiers
 %%--------------------------------------------------------------------
 
--spec verify_blocklist(Query :: #xmlel{}, ProperBlocklist :: [ct_block_item()]) -> [].
+-spec verify_blocklist(Query :: xmlel(), ProperBlocklist :: [ct_block_item()]) -> [].
 verify_blocklist(Query, ProperBlocklist) ->
     ?NS_PRIVACY = exml_query:attr(Query, <<"xmlns">>),
     RawItems = exml_query:paths(Query, [{element, <<"list">>}, {element, <<"item">>}]),
@@ -636,7 +639,7 @@ verify_blocklist(Query, ProperBlocklist) ->
     ProperBlocklistLen = length(Blocklist),
     [] = lists:foldl(fun lists:delete/2, Blocklist, ProperBlocklist).
 
--spec parse_blocked_item(Item :: #xmlel{}) -> ct_block_item().
+-spec parse_blocked_item(Item :: xmlel()) -> ct_block_item().
 parse_blocked_item(Item) ->
     <<"deny">> = exml_query:attr(Item, <<"action">>),
     <<"jid">> = exml_query:attr(Item, <<"type">>),
@@ -685,7 +688,7 @@ verify_no_stanzas(Users) ->
               {false, _} = {escalus_client:has_stanzas(User), User}
       end, Users).
 
--spec verify_config(ConfigFields :: [#xmlel{}], Config :: [{binary(), binary()}]) -> ok.
+-spec verify_config(ConfigFields :: [xmlel()], Config :: [{binary(), binary()}]) -> ok.
 verify_config(ConfigFields, Config) ->
     [] = lists:foldl(
            fun(Field, ConfigAcc) ->
@@ -697,7 +700,7 @@ verify_config(ConfigFields, Config) ->
                    end
            end, Config, ConfigFields).
 
--spec verify_aff_users(Items :: [#xmlel{}], BinAffUsers :: [{binary(), binary()}]) -> [].
+-spec verify_aff_users(Items :: [xmlel()], BinAffUsers :: [{binary(), binary()}]) -> [].
 verify_aff_users(Items, BinAffUsers) ->
     true = (length(Items) == length(BinAffUsers)),
     [] = lists:foldl(
@@ -771,7 +774,7 @@ presence_verify_fun({User, UserAff}) ->
     end.
 
 -spec presence_verify(User :: escalus:client(), UserAff :: none | member | owner,
-                      Incoming :: #xmlel{}) -> true.
+                      Incoming :: xmlel()) -> true.
 presence_verify(User, UserAff, #xmlel{ name = <<"presence">> } = Incoming) ->
     UserJIDBin = lbin(escalus_client:short_jid(User)),
     [RoomBareJIDBin, UserJIDBin] = binary:split(exml_query:attr(Incoming, <<"from">>), <<"/">>),
@@ -855,3 +858,5 @@ set_default_mod_config() ->
 set_mod_config(K, V) ->
     true = rpc(gen_mod, set_module_opt_by_subhost, [?MUCHOST, mod_muc_light, K, V]).
 
+domain() ->
+    ct:get_config({hosts, mim, domain}).
