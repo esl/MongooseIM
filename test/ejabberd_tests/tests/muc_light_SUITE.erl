@@ -104,6 +104,7 @@
 -type ct_aff_users() :: [ct_aff_user()].
 -type ct_block_item() :: {What :: atom(), Action :: atom(), Who :: binary()}.
 -type verify_fun() :: muc_helper:verify_fun().
+-type xmlel() :: exml:element().
 
 -define(DEFAULT_AFF_USERS, [{Alice, owner}, {Bob, member}, {Kate, member}]).
 
@@ -628,7 +629,8 @@ destroy_room_get_disco_items_empty(Config) ->
 
 destroy_room_get_disco_items_one_left(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [bob, alice], Config, ver(0)),
+        {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate,
+                                               [bob, alice], Config, ver(0)),
         ProperJID = room_bin_jid(?ROOM2),
         %% alie destroy her room
         escalus:send(Alice, stanza_destroy_room(?ROOM)),
@@ -766,8 +768,9 @@ manage_blocklist(Config) ->
             escalus:assert(is_iq_result, GetResult1),
             QueryEl1 = exml_query:subelement(GetResult1, <<"query">>),
             verify_blocklist(QueryEl1, []),
+            Domain = domain(),
 
-            BlocklistChange1 = [{user, deny, <<"user@localhost">>},
+            BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
@@ -777,7 +780,7 @@ manage_blocklist(Config) ->
             QueryEl2 = exml_query:subelement(GetResult2, <<"query">>),
             verify_blocklist(QueryEl2, BlocklistChange1),
 
-            BlocklistChange2 = [{user, allow, <<"user@localhost">>},
+            BlocklistChange2 = [{user, allow, <<"user@", Domain/binary>>},
                                 {room, allow, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange2)),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
@@ -841,8 +844,9 @@ blocking_disabled(Config) ->
             escalus:send(Alice, stanza_blocking_get()),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice)),
+            Domain = domain(),
 
-            BlocklistChange1 = [{user, deny, <<"user@localhost">>},
+            BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
@@ -862,7 +866,7 @@ user_leave(User, RemainingOccupants) ->
     verify_aff_bcast(RemainingOccupants, AffUsersChanges),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
 
--spec get_disco_rooms(User :: escalus:client()) -> list(#xmlel{}).
+-spec get_disco_rooms(User :: escalus:client()) -> list(xmlel()).
 get_disco_rooms(User) ->
     DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
     escalus:send(User, DiscoStanza),
@@ -876,21 +880,21 @@ get_disco_rooms(User) ->
 %% IQ getters
 %%--------------------------------------------------------------------
 
--spec stanza_blocking_get() -> #xmlel{}.
+-spec stanza_blocking_get() -> xmlel().
 stanza_blocking_get() ->
     escalus_stanza:to(escalus_stanza:iq_get(?NS_MUC_LIGHT_BLOCKING, []), ?MUCHOST).
 
--spec stanza_config_get(Room :: binary(), Ver :: binary()) -> #xmlel{}.
+-spec stanza_config_get(Room :: binary(), Ver :: binary()) -> xmlel().
 stanza_config_get(Room, Ver) ->
     escalus_stanza:to(
       escalus_stanza:iq_get(?NS_MUC_LIGHT_CONFIGURATION, [version_el(Ver)]), room_bin_jid(Room)).
 
--spec stanza_info_get(Room :: binary(), Ver :: binary()) -> #xmlel{}.
+-spec stanza_info_get(Room :: binary(), Ver :: binary()) -> xmlel().
 stanza_info_get(Room, Ver) ->
     escalus_stanza:to(
       escalus_stanza:iq_get(?NS_MUC_LIGHT_INFO, [version_el(Ver)]), room_bin_jid(Room)).
 
--spec stanza_aff_get(Room :: binary(), Ver :: binary()) -> #xmlel{}.
+-spec stanza_aff_get(Room :: binary(), Ver :: binary()) -> xmlel().
 stanza_aff_get(Room, Ver) ->
     escalus_stanza:to(
       escalus_stanza:iq_get(?NS_MUC_LIGHT_AFFILIATIONS, [version_el(Ver)]), room_bin_jid(Room)).
@@ -899,7 +903,7 @@ stanza_aff_get(Room, Ver) ->
 %% IQ setters
 %%--------------------------------------------------------------------
 
--spec stanza_blocking_set(BlocklistChanges :: [ct_block_item()]) -> #xmlel{}.
+-spec stanza_blocking_set(BlocklistChanges :: [ct_block_item()]) -> xmlel().
 stanza_blocking_set(BlocklistChanges) ->
     Items = [#xmlel{ name = list_to_binary(atom_to_list(What)),
                      attrs = [{<<"action">>, list_to_binary(atom_to_list(Action))}],
@@ -908,7 +912,7 @@ stanza_blocking_set(BlocklistChanges) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_BLOCKING, Items), ?MUCHOST).
 
 -spec stanza_create_room(RoomNode :: binary() | undefined, InitConfig :: [{binary(), binary()}],
-                         InitOccupants :: ct_aff_users()) -> #xmlel{}.
+                         InitOccupants :: ct_aff_users()) -> xmlel().
 stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
     ToBinJID = case RoomNode of
                      undefined -> ?MUCHOST;
@@ -924,17 +928,17 @@ stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
     escalus_stanza:to(escalus_stanza:iq_set(
                         ?NS_MUC_LIGHT_CREATE, [ConfigItem, OccupantsItem]), ToBinJID).
 
--spec stanza_destroy_room(Room :: binary()) -> #xmlel{}.
+-spec stanza_destroy_room(Room :: binary()) -> xmlel().
 stanza_destroy_room(Room) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []), room_bin_jid(Room)).
 
--spec stanza_config_set(Room :: binary(), ConfigChanges :: [{binary(), binary()}]) -> #xmlel{}.
+-spec stanza_config_set(Room :: binary(), ConfigChanges :: [{binary(), binary()}]) -> xmlel().
 stanza_config_set(Room, ConfigChanges) ->
     Items = [ kv_el(Key, Value) || {Key, Value} <- ConfigChanges],
     escalus_stanza:to(
       escalus_stanza:iq_set(?NS_MUC_LIGHT_CONFIGURATION, Items), room_bin_jid(Room)).
 
--spec stanza_aff_set(Room :: binary(), AffUsers :: ct_aff_users()) -> #xmlel{}.
+-spec stanza_aff_set(Room :: binary(), AffUsers :: ct_aff_users()) -> xmlel().
 stanza_aff_set(Room, AffUsers) ->
     Items = [#xmlel{ name = <<"user">>, attrs = [{<<"affiliation">>, AffBin}],
                      children = [#xmlcdata{ content = UserBin }] }
@@ -945,7 +949,7 @@ stanza_aff_set(Room, AffUsers) ->
 %% Verifiers
 %%--------------------------------------------------------------------
 
--spec verify_blocklist(Query :: #xmlel{}, ProperBlocklist :: [ct_block_item()]) -> [].
+-spec verify_blocklist(Query :: xmlel(), ProperBlocklist :: [ct_block_item()]) -> [].
 verify_blocklist(Query, ProperBlocklist) ->
     ?NS_MUC_LIGHT_BLOCKING = exml_query:attr(Query, <<"xmlns">>),
     BlockedRooms = exml_query:subelements(Query, <<"room">>),
@@ -961,7 +965,9 @@ verify_blocklist(Query, ProperBlocklist) ->
 -spec disco_items_verify_fun(list(Jid :: binary())) -> verify_fun().
 disco_items_verify_fun(JidList) ->
     fun(Incomming) ->
-        ResultItemList = exml_query:paths(Incomming, [{element, <<"query">>}, {element, <<"item">>}]),
+        ResultItemList = exml_query:paths(Incomming,
+                                          [{element, <<"query">>},
+                                           {element, <<"item">>}]),
         ResultJids = [exml_query:attr(ResultItem, <<"jid">>) || ResultItem <- ResultItemList],
         {SortedResult, SortedExptected} = {lists:sort(JidList), lists:sort(ResultJids)},
         SortedResult = SortedExptected
@@ -1002,14 +1008,14 @@ verify_no_stanzas(Users) ->
               {false, _} = {escalus_client:has_stanzas(User), User}
       end, Users).
 
--spec verify_config(ConfigRoot :: #xmlel{}, Config :: [{binary(), binary()}]) -> ok.
+-spec verify_config(ConfigRoot :: xmlel(), Config :: [{binary(), binary()}]) -> ok.
 verify_config(ConfigRoot, Config) ->
     lists:foreach(
       fun({Key, Val}) ->
               Val = exml_query:path(ConfigRoot, [{element, Key}, cdata])
       end, Config).
 
--spec verify_aff_users(Items :: [#xmlel{}], BinAffUsers :: [{binary(), binary()}]) -> [].
+-spec verify_aff_users(Items :: [xmlel()], BinAffUsers :: [{binary(), binary()}]) -> [].
 verify_aff_users(Items, BinAffUsers) ->
     true = (length(Items) == length(BinAffUsers)),
     [] = lists:foldl(
@@ -1103,7 +1109,8 @@ info_iq_verify_fun(AffUsers, Version, ConfigKVBin) ->
             [Query] = exml_query:subelements(Incoming, <<"query">>),
             ?NS_MUC_LIGHT_INFO = exml_query:attr(Query, <<"xmlns">>),
             Version = exml_query:path(Query, [{element, <<"version">>}, cdata]),
-            UsersItems = exml_query:paths(Query, [{element, <<"occupants">>}, {element, <<"user">>}]),
+            UsersItems = exml_query:paths(Query, [{element, <<"occupants">>},
+                                          {element, <<"user">>}]),
             verify_aff_users(UsersItems, BinAffUsers),
             ConfigurationEl = exml_query:subelement(Query, <<"configuration">>),
             verify_config(ConfigurationEl, ConfigKVBin)
@@ -1123,11 +1130,11 @@ verify_user_has_one_room(User) ->
 ver(Int) ->
     <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
 
--spec version_el(Version :: binary()) -> #xmlel{}.
+-spec version_el(Version :: binary()) -> xmlel().
 version_el(Version) ->
     #xmlel{ name = <<"version">>, children = [#xmlcdata{ content = Version }] }.
 
--spec kv_el(K :: binary(), V :: binary()) -> #xmlel{}.
+-spec kv_el(K :: binary(), V :: binary()) -> xmlel().
 kv_el(K, V) ->
     #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
 
@@ -1195,3 +1202,6 @@ ns_muc_light_affiliations() ->
 -spec room2() -> binary().
 room2() ->
     ?ROOM2.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).

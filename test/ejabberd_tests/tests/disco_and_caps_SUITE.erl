@@ -12,7 +12,7 @@ all_test_cases() ->
      user_can_query_server_caps_via_disco].
 
 domain() ->
-    <<"localhost">>.
+    ct:get_config({hosts, mim, domain}).
 
 init_per_suite(C) ->
     C2 = escalus:init_per_suite(dynamic_modules:save_modules(domain(), C)),

@@ -6,13 +6,13 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
+-define(AE(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 all() -> [{group, all}].
 
 
 groups() ->
-    [{all, [parallel,shuffle],
+    [{all, [parallel, shuffle],
       [discovering_support,
                   enabling_carbons,
                   disabling_carbons,
@@ -29,17 +29,18 @@ groups() ->
 
 init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
-init_per_testcase(Name,C) -> escalus:init_per_testcase(Name,C).
-end_per_testcase(Name,C) -> escalus:end_per_testcase(Name,C).
+init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
+end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 run_prop(PropName, Property) ->
-    ?ae(true, proper:quickcheck(proper:conjunction([{PropName, Property}]),
-                                [verbose,long_result, {numtests, 3}])).
+    ?AE(true, proper:quickcheck(proper:conjunction([{PropName, Property}]),
+                                [verbose, long_result, {numtests, 3}])).
 
 discovering_support(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
-              IqGet = escalus_stanza:disco_info(<<"localhost">>),
+              IqGet = escalus_stanza:disco_info(ct:get_config({hosts,
+                                                               mim, domain})),
               escalus_client:send(Alice, IqGet),
               Result = escalus_client:wait_for_stanza(Alice),
               escalus:assert(is_iq_result, [IqGet], Result),
@@ -58,7 +59,7 @@ avoiding_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
-              carbons_get_enabled([Alice1,Alice2]),
+              carbons_get_enabled([Alice1, Alice2]),
               Msg = escalus_stanza:chat_without_carbon_to(Bob,
                                                           <<"And pious action">>),
               escalus_client:send(Alice1, Msg),
@@ -105,7 +106,7 @@ enabled_single_resource_doesnt_get_carbons(Config) ->
                    ],
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
-      fun(Alice,Bob) ->
+      fun(Alice, Bob) ->
               carbons_get_enabled(Alice),
               [ escalus_client:send(Bob, escalus_stanza:chat_to(Alice, M))
                 || M <- BobsMessages ],
@@ -157,31 +158,34 @@ dropped_client_doesnt_create_duplicate_carbons(Config) ->
 prop_forward_received_chat_messages(Config) ->
     run_prop
       (forward_received,
-    ?FORALL({N,Msg}, {no_of_resources(), utterance()},
+    ?FORALL({N, Msg}, {no_of_resources(), utterance()},
                true_story
                  (Config, [{alice, 1}, {bob, N}],
                        fun(Users) ->
-                               all_bobs_other_resources_get_received_carbons(Users,Msg)
+                           all_bobs_other_resources_get_received_carbons(Users,
+                                                                         Msg)
                   end))).
 
 prop_forward_sent_chat_messages(Config) ->
     run_prop
         (forward_sent,
-    ?FORALL({N,Msg}, {no_of_resources(),utterance()},
+    ?FORALL({N, Msg}, {no_of_resources(), utterance()},
                  true_story
                    (Config, [{alice, 1}, {bob, N}],
                        fun(Users) ->
-                               all_bobs_other_resources_get_sent_carbons(Users,Msg)
+                               all_bobs_other_resources_get_sent_carbons(Users,
+                                                                         Msg)
                     end))).
 
 prop_normal_routing_to_bare_jid(Config) ->
     run_prop
         (normal_routing,
-    ?FORALL({N,Msg}, {no_of_resources(),utterance()},
+    ?FORALL({N, Msg}, {no_of_resources(), utterance()},
                  true_story
                    (Config, [{alice, 1}, {bob, N}],
                        fun(Users) ->
-                               all_bobs_resources_get_message_to_bare_jid(Users,Msg)
+                               all_bobs_resources_get_message_to_bare_jid(Users,
+                                                                          Msg)
                     end))).
 
 
@@ -190,7 +194,7 @@ prop_normal_routing_to_bare_jid(Config) ->
 %% Test scenarios w/assertions
 %%
 
-all_bobs_resources_get_message_to_bare_jid([Alice,Bob1|Bobs], Msg) ->
+all_bobs_resources_get_message_to_bare_jid([Alice, Bob1 | Bobs], Msg) ->
     %% All connected resources receive messages sent
     %% to the user's bare JID without carbon wrappers.
     carbons_get_enabled([Bob1|Bobs]),
@@ -205,7 +209,7 @@ all_bobs_resources_get_message_to_bare_jid([Alice,Bob1|Bobs], Msg) ->
              end,
     lists:foreach(GotMsg, [Bob1|Bobs]).
 
-all_bobs_other_resources_get_received_carbons([Alice,Bob1|Bobs], Msg) ->
+all_bobs_other_resources_get_received_carbons([Alice, Bob1 | Bobs], Msg) ->
     carbons_get_enabled([Bob1|Bobs]),
     escalus_client:send(Alice, escalus_stanza:chat_to(Bob1, Msg)),
     GotForward = fun(BobsResource) ->
@@ -218,7 +222,7 @@ all_bobs_other_resources_get_received_carbons([Alice,Bob1|Bobs], Msg) ->
                          escalus_assert:has_no_stanzas(BobsResource) end,
     lists:foreach(GotForward, Bobs).
 
-all_bobs_other_resources_get_sent_carbons([Alice,Bob1|Bobs], Msg) ->
+all_bobs_other_resources_get_sent_carbons([Alice, Bob1 | Bobs], Msg) ->
     carbons_get_enabled([Bob1|Bobs]),
     escalus_client:send(Bob1, escalus_stanza:chat_to(Alice, Msg)),
     escalus:assert(is_chat_message, [Msg], escalus_client:wait_for_stanza(Alice)),
@@ -251,7 +255,6 @@ given_client_logs_out(Client) ->
 true_story(Config, UserSpecs, TestFun) ->
     try   escalus:fresh_story(Config, UserSpecs, TestFun), true
     catch E ->
-              ct:pal("~p", [E]),
               {error, E}
     end.
 
