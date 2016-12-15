@@ -337,13 +337,25 @@ check_packet(_, User, Server,
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
     end.
 
+%% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->
     allow;
-check_packet_aux(_, message_out, _Type, _JID, _Subscription, _Groups) ->
+%% if we run of of list items then it is allowed
+check_packet_aux([], _PType, _MType, _JID, _Subscription, _Groups) ->
     allow;
-check_packet_aux([], _PType, _Type, _JID, _Subscription, _Groups) ->
-    allow;
+%% check packet against next privacy list item
 check_packet_aux([Item | List], PType, MType, JID, Subscription, Groups) ->
+    #listitem{type = Type, value = Value, action = Action} = Item,
+    do_check_packet_aux(Type, Action, PType, Value, JID, MType, Subscription, Groups, Item, List).
+
+%% list set by blocking commands (XEP-0191) block all communication, both in and out,
+%% for a given JID
+do_check_packet_aux(jid, block, message, JID, JID, _, _, _, _, _) ->
+    block;
+do_check_packet_aux(jid, block, message_out, JID, JID, _, _, _, _, _) ->
+    block;
+%% then we do more complicated checking
+do_check_packet_aux(Type, Action, PType, Value, JID, MType, Subscription, Groups, Item, List) ->
     #listitem{type = Type, value = Value, action = Action} = Item,
     case is_ptype_match(Item, PType) of
         true ->
@@ -370,6 +382,9 @@ is_ptype_match(Item, PType) ->
             case PType of
                 message ->
                     Item#listitem.match_message;
+                message_out ->
+                    false; % according to xep-0016, privacy lists do not stop outgoing
+                           % messages (so they say)
                 iq ->
                     Item#listitem.match_iq;
                 presence_in ->

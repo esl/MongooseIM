@@ -1106,7 +1106,8 @@ handle_info(replaced, _StateName, StateData) ->
 handle_info({broadcast, Broadcast}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{broadcast, Broadcast}]),
     ?DEBUG("broadcast=~p", [Broadcast]),
-    handle_broadcast_result(handle_routed_broadcast(Broadcast, StateData), StateName, StateData);
+    Res = handle_routed_broadcast(Broadcast, StateData),
+    handle_broadcast_result(Res, StateName, StateData);
 handle_info({route, From, To, Packet}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
     Name = Packet#xmlel.name,
@@ -1313,10 +1314,10 @@ handle_routed_broadcast({privacy_list, PrivList, PrivListName}, StateData) ->
             maybe_update_presence(StateData, NewPL),
             {send_new, F, T, PrivPushEl, StateData#state{privacy_list = NewPL}}
     end;
-handle_routed_broadcast({blocking, Action, JIDs}, StateData) ->
+handle_routed_broadcast({blocking, UserList, Action, JIDs}, StateData) ->
     blocking_push_to_resources(Action, JIDs, StateData),
     blocking_presence_to_contacts(Action, JIDs, StateData),
-    {new_state, StateData};
+    {new_state, StateData#state{privacy_list = UserList}};
 handle_routed_broadcast(_, StateData) ->
     {new_state, StateData}.
 

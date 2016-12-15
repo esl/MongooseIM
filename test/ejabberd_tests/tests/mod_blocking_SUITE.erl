@@ -67,7 +67,8 @@ effect_test_cases() ->
         messages_from_blocked_user_dont_arrive,
         messages_from_unblocked_user_arrive_again,
         messages_from_any_blocked_resource_dont_arrive,
-        blocking_doesnt_interfere
+        blocking_doesnt_interfere,
+        blocking_propagates_to_resources
     ].
 
 offline_test_cases() ->
@@ -79,7 +80,7 @@ offline_test_cases() ->
     ].
 
 error_test_cases() ->
-    [blocker_can_send_to_blockee].
+    [blocker_cant_send_to_blockee].
 
 push_test_cases() ->
     [block_push_sent].
@@ -173,7 +174,7 @@ add_another_user_to_blocklist(Config) ->
 
 add_many_users_to_blocklist(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike,1}],
+        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}],
         fun(User1, User2, User3, User4) ->
             user_blocks(User1, [User2, User3, User4]),
             BlockList = get_blocklist(User1),
@@ -267,6 +268,24 @@ blocking_doesnt_interfere(Config) ->
             message_is_delivered(User3, [User1], <<"Ni hao.">>)
         end).
 
+blocking_propagates_to_resources(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 2}, {bob, 1}],
+        fun(User1a, User1b, User2) ->
+            %% given
+            user_blocks(User1a, [User2]),
+            %% then
+            client_gets_block_iq(User1b),
+            % Alice can't send from any of her resources
+            message_is_not_delivered(User1a, [User2], <<"roar!">>),
+            client_gets_blocking_error(User1a),
+            message_is_not_delivered(User1b, [User2], <<"woof!">>),
+            client_gets_blocking_error(User1b),
+            % Bob can't send to any of Alice's resources
+            message_is_not_delivered(User2, [User1a], <<"hau!">>),
+            message_is_not_delivered(User2, [User1b], <<"miau!">>)
+        end).
+
 messages_after_relogin(Config) ->
     %% given
     escalus:story(
@@ -297,32 +316,34 @@ messages_arrive_after_unblock_and_relogin(Config) ->
 
 blocking_and_relogin_many(Config) ->
     %% given
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}, {geralt, 1}],
+    simple_story(Config,
         fun(User1, User2, User3, User4, _) ->
             user_blocks(User1, [User2, User3]),
             user_blocks(User1, [User3, User4])
         end),
     %% when
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}, {geralt, 1}],
+    simple_story(Config,
         fun(User1, User2, _, User4, User5) ->
             user_unblocks(User1,  [User4]),
             user_unblocks(User1,  [User4, User5]),
             user_unblocks(User1,  [User2, User5])
         end),
     %% then
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1},  {mike, 1}, {geralt, 1}],
+    simple_story(Config,
         fun(User1, User2, User3, User4, _) ->
             message_is_delivered(User1, [User4], <<"Under the bridge!">>),
-            message_is_not_delivered(User3, [User1], <<"Cant stop">>),
-            privacy_helper:gets_error(User3, <<"cancel">>,
-                                      <<"service-unavailable">>),
+            message_is_not_delivered(User1, [User3], <<"Cant stop">>),
+            client_gets_blocking_error(User1),
             message_is_delivered(User1, [User2], <<"House of th rising sun">>),
             BlockList = get_blocklist(User1),
             blocklist_contains_jid(BlockList, User3)
         end).
+
+simple_story(Config, Fun) ->
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}, {geralt, 1}],
+        Fun
+    ).
 
 clear_list_relogin(Config) ->
     escalus:story(
@@ -341,13 +362,13 @@ clear_list_relogin(Config) ->
             message_is_delivered(User1, [User2], <<"Doom and gloom!">>)
         end).
 
-blocker_can_send_to_blockee(Config) ->
+blocker_cant_send_to_blockee(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
-            message_is_delivered(User1, [User2],
-                                 <<"I'm still talking to you">>)
+            message(User1, User2, <<"I'm not talking to you!">>),
+            client_gets_blocking_error(User1)
         end).
 
 block_push_sent(Config) ->
@@ -367,12 +388,16 @@ notify_blockee(Config) ->
             %% make sure they're friends and Bob receives Alice's presences
             subscribe(Bob, Alice),
             escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
-            escalus:assert(is_presence_with_type, [<<"available">>], escalus:wait_for_stanza(Alice)),
-            escalus:assert(is_presence_with_type, [<<"available">>], escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_presence_with_type, [<<"available">>],
+                           escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_presence_with_type, [<<"available">>],
+                           escalus:wait_for_stanza(Bob)),
             user_blocks(Alice, [Bob]),
-            escalus:assert(is_presence_with_type, [<<"unavailable">>], escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_presence_with_type, [<<"unavailable">>],
+                           escalus:wait_for_stanza(Bob)),
             user_unblocks(Alice, [Bob]),
-            escalus:assert(is_presence_with_type, [<<"available">>], escalus:wait_for_stanza(Bob))
+            escalus:assert(is_presence_with_type, [<<"available">>],
+                           escalus:wait_for_stanza(Bob))
         end).
 
 %% common
@@ -490,7 +515,7 @@ blocklist_result_has(ExpectedUser, Stanza) ->
     Children = Blocklist#xmlel.children,
     <<"blocklist">> = Blocklist#xmlel.name,
     {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),
-    true == lists:member(ExpectedUser,get_blocklist_items(Children)).
+    true == lists:member(ExpectedUser, get_blocklist_items(Children)).
 
 is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
     attrs = Attrs}]}=Stanza) ->
@@ -502,7 +527,6 @@ is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
 is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = []}]}=Stanza) ->
     is_xep191_push(Type, Stanza);
 is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = Items}]}) ->
-    ct:pal("JIDs: should be empty contains, ~p", [Items]),
     false;
 is_xep191_push(Type, JIDs, #xmlel{attrs = A, children = [#xmlel{name = Type,
     attrs = Attrs, children = Items}]}=Stanza) ->
@@ -535,7 +559,7 @@ user_blocks(Blocker, Blockees) when is_list(Blockees) ->
     escalus_client:send(Blocker, AddStanza),
     Res = escalus:wait_for_stanzas(Blocker, 2),
     CheckPush = fun(E) -> is_xep191_push(<<"block">>, BlockeeJIDs, E) end,
-    Preds = [is_iq_result, CheckPush], %% why it sends additional presence from alice to alice, I don't know
+    Preds = [is_iq_result, CheckPush],
     escalus:assert_many(Preds, Res).
 
 blocklist_is_empty(BlockList) ->
@@ -602,9 +626,12 @@ clients_have_no_messages(Cs) when is_list (Cs) -> [ client_has_no_messages(C) ||
 
 client_has_no_messages(C) -> escalus_assert:has_no_stanzas(C).
 
+client_gets_blocking_error(C) ->
+    Stanza = escalus_client:wait_for_stanza(C),
+    escalus:assert(fun is_xep191_not_available/1, [], Stanza).
+
 client_gets_block_iq(C) ->
-    escalus:assert(fun is_xep191_push/2, [<<"block">>],
-                   escalus:wait_for_stanza(C)).
+    escalus:assert(fun is_xep191_push/2, [<<"block">>], escalus:wait_for_stanza(C)).
 
 flush(User) ->
     escalus:wait_for_stanzas(User, 10, 100).
