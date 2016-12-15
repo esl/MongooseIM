@@ -32,7 +32,7 @@ content_types_accepted(Req, State) ->
     mongoose_client_api_rooms:content_types_accepted(Req, State).
 
 allowed_methods(Req, State) ->
-    {[<<"POST">>, <<"DELETE">>], Req, State}.
+    {[<<"OPTIONS">>, <<"POST">>, <<"DELETE">>], Req, State}.
 
 resource_exists(Req, State) ->
     mongoose_client_api_rooms:resource_exists(Req, State).

@@ -22,7 +22,7 @@
         * RDBMS: MySQL, PostgreSQL, generic ODBC
         * NOSQL: Riak KV
 
-## Supported official XEPs
+## Supported XEPs
 
 |XEP Number|Name|Module|
 | ------------- | ------------- | ------------- |
@@ -75,7 +75,7 @@
 |0352|[Client State Indication](http://www.xmpp.org/extensions/xep-0352.html)|`mod_csi`|
 |0375|[XMPP Advanced Server 2016](http://www.xmpp.org/extensions/xep-0375.html) (without 0369: Mediated Information eXchange)||
 
-## Supported unofficial XEPs
+## Supported Open Extensions
 
 |Name|Module|
 | ------------- | ------------- |
