@@ -1154,20 +1154,25 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
 					  Feature, To, Packet]),
     case Drop of
         true ->
-            ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]);
+            ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]),
+            fsm_next_state(StateName, StateData);
         _ ->
             FinalPacket = jlib:replace_from_to(From, To, Packet),
             case StateData#state.jid of
                 To ->
                     case privacy_check_packet(StateData, From, To, FinalPacket, in) of
-                        allow -> send_element(StateData, FinalPacket);
-                        _ -> ok
+                        allow ->
+                            send_and_maybe_buffer_stanza(
+                                {From, To, FinalPacket},
+                                StateData, StateName);
+                        _ ->
+                            fsm_next_state(StateName, StateData)
                     end;
                 _ ->
-                    ejabberd_router:route(From, To, FinalPacket)
+                    ejabberd_router:route(From, To, FinalPacket),
+                    fsm_next_state(StateName, StateData)
             end
-    end,
-    fsm_next_state(StateName, StateData);
+    end;
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
     Recipients = ejabberd_hooks:run_fold(
 		   c2s_broadcast_recipients, StateData#state.server,
