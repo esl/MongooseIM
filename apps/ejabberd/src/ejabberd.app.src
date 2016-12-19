@@ -23,6 +23,7 @@
                   kernel,
                   lager,
                   lager_syslog,
+                  lasse,
                   mnesia,
                   mochijson2,
                   pa,
