@@ -29,7 +29,8 @@ groups() -> [
                pep_caps_test,
                publish_test,
                notify_test,
-               send_caps_after_login_test
+               send_caps_after_login_test,
+               h_ok_after_notify_test
               ]
              }
             ].
@@ -54,12 +55,12 @@ end_per_suite(Config) ->
 
 init_per_group(_GroupName, Config) ->
     dynamic_modules:ensure_modules(domain(), required_modules()),
-    Users = escalus_users:get_users([alice, bob]),
+    Users = escalus_users:get_users([alice, bob, kate]),
     escalus:create_users(Config, Users),
     escalus_story:make_everyone_friends(Config, Users).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus_users:get_users([alice, bob])),
+    escalus:delete_users(Config, escalus_users:get_users([alice, bob, kate])),
     ok.
 
 init_per_testcase(pep_caps_test, Config) ->
@@ -128,6 +129,28 @@ send_caps_after_login_test(Config) ->
                 Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}, [])
       end).
 
+h_ok_after_notify_test(ConfigIn) ->
+    Config = escalus_users:update_userspec(ConfigIn, kate,
+                                           stream_management, true),
+    escalus:story(
+        [{escalus_overrides, [
+            {initial_activity, {?MODULE, send_initial_presence_with_caps}}]} |
+             Config
+         ],
+        [{alice, 1}, {kate, 1}],
+        fun(Alice, Kate) ->
+            pubsub_tools:receive_item_notification(
+                Kate, <<"item2">>,
+                {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}, []),
+
+            H = escalus_tcp:get_sm_h(Kate),
+            escalus:send(Kate, escalus_stanza:sm_ack(H)),
+
+            escalus_connection:send(Kate, escalus_stanza:sm_request()),
+            escalus:assert(is_sm_ack,
+                escalus_connection:get_stanza(Kate, stream_mgmt_ack))
+        end).
+
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
@@ -144,7 +167,8 @@ required_modules() ->
 send_initial_presence_with_caps(User) ->
     case string:to_lower(binary_to_list(escalus_client:username(User))) of
         "alice" -> escalus_story:send_initial_presence(User);
-        "bob" -> do_send_presence_with_caps(User, caps())
+        "bob" -> do_send_presence_with_caps(User, caps());
+        "kate" -> do_send_presence_with_caps(User, caps())
     end.
 
 send_presence_with_caps(User, Caps, ExpectDiscoRequest) ->
