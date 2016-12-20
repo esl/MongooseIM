@@ -270,6 +270,10 @@ paths:
                 type: string
               name: 
                 type: string
+              groups:
+                type: array
+                items:
+                  type: string
       responses:
         200:
           description: Contact was added to roster
@@ -298,6 +302,10 @@ paths:
             properties:
               name:
                 type: string
+              groups:
+                type: array
+                items:
+                  type: string
       responses:
         204:
           description: Contact was modified
@@ -528,3 +536,7 @@ definitions:
       subscription:
         type: string
         enum: ["to", "from", "both", "none"]
+      groups:
+        type: array
+        items:
+          type: string
