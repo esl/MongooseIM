@@ -59,11 +59,15 @@ cql_write_async(PoolName, _UserJID, Module, QueryName, Rows)  ->
     cqerl:send_query(Client, BatchQuery).
 
 cql_write(PoolName, _UserJID, Module, QueryName, Rows)  ->
-    Tag = cql_write_async(PoolName, _UserJID, Module, QueryName, Rows),
-    receive
-        {result, Tag, void} -> ok;
-        {result, Tag, Reason} ->
-            {error, Reason}
+    QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
+    Query = #cql_query{statement = QueryStr},
+
+    {ok, Client} = cqerl:get_client(PoolName),
+    case cql_write_rows(Client, Query, Rows, 20) of
+        ok ->
+            ok;
+        Error ->
+            Error
     end.
 
 cql_read(PoolName, _UserJID, Module, QueryName, Params)  ->
@@ -88,6 +92,28 @@ cql_read_pages(Result, Acc0) ->
         false ->
             lists:concat(lists:reverse(Acc))
     end.
+
+
+cql_write_rows(_, _, [], _) ->
+    ok;
+cql_write_rows(Client, WriteQuery, Rows, BatchSize) ->
+    {NewRows, Tail} = lists:split(min(BatchSize, length(Rows)), Rows),
+    Result =
+    cqerl:run_query(Client, #cql_query_batch{
+        mode = unlogged,
+        queries = [WriteQuery#cql_query{values = NewRow}
+                   || NewRow <- NewRows]
+    }),
+    case Result of
+        {error, {8704, _, _}} -> %% Batch too large
+            NewBatchSize = max(1, round(BatchSize * 0.75)),
+            cql_write_rows(Client, WriteQuery, Rows, NewBatchSize);
+        {error, Reason} ->
+            {error, Reason};
+        {ok, _} ->
+            cql_write_rows(Client, WriteQuery, Tail, BatchSize)
+    end.
+
 
 prepared_queries() ->
     [{test_query, test_query_sql()}] ++
