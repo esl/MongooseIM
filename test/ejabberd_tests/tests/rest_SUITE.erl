@@ -317,23 +317,23 @@ add_remove_contact(Config) ->
             [] = Res,
             % adds Alice
             AddContact = #{caller => <<"bob@localhost">>, jabber_id => <<"alice@localhost">>,
-                           name => <<"Alicja">>},
+                           name => <<"Alicja">>, groups => [<<"kumple">>]},
             post(<<"/contacts">>, AddContact),
             % and she is in his roster
             {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
             [Res2] = decode_maplist(R2),
-            #{name := <<"Alicja">>,
-              jid := <<"alice@localhost">>, subscription := <<"none">>} = Res2,
+            #{name := <<"Alicja">>, jid := <<"alice@localhost">>,
+              subscription := <<"none">>, groups := [<<"kumple">>]} = Res2,
             % but did he receive a push?
             Inc2 = escalus:wait_for_stanza(Bob, 1),
             escalus:assert(is_roster_set, Inc2),
             % and can be edited
             putt(lists:flatten(["/contacts/bob@localhost/alice@localhost"]),
-                 #{name => <<"Afonia">>}),
+                 #{name => <<"Afonia">>, groups => []}),
             {?OK, RM} = gett(lists:flatten(["/contacts/bob@localhost"])),
             [ResM] = decode_maplist(RM),
-            #{name := <<"Afonia">>,
-                jid := <<"alice@localhost">>, subscription := <<"none">>} = ResM,
+            #{name := <<"Afonia">>, jid := <<"alice@localhost">>,
+              subscription := <<"none">>, groups := []} = ResM,
             % did he receive a push again?
             Inc3 = escalus:wait_for_stanza(Bob, 1),
             escalus:assert(is_roster_set, Inc3),

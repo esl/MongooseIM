@@ -16,6 +16,8 @@
          list_contacts/1,
          add_contact/3,
          update_contact/3,
+         add_contact/4,
+         update_contact/4,
          delete_contact/2,
          block_contact/2,
          unblock_contact/2,
@@ -170,18 +172,41 @@ commands() ->
       {function, add_contact},
       {action, create},
       {security_policy, [user]},
-      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]}, % TODO support groups
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]},
+      {result, ok}
+     ],
+     [
+      {name, add_contact_with_groups},
+      {category, <<"contacts">>},
+      {desc, <<"Add a contact to roster, make it a member of some groups">>},
+      {module, ?MODULE},
+      {function, add_contact},
+      {action, create},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}, {groups, [binary]}]},
       {result, ok}
      ],
      [
       {name, update_contact},
+      {category, <<"contacts">>},
+      {desc, <<"Modify a contact's name in roster (will remove the user from all groups)">>},
+      {module, ?MODULE},
+      {function, update_contact},
+      {action, update},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]},
+      {identifiers, [caller, jabber_id]},
+      {result, ok}
+     ],
+     [
+      {name, update_contact_with_groups},
       {category, <<"contacts">>},
       {desc, <<"Modify a contact's name in roster">>},
       {module, ?MODULE},
       {function, update_contact},
       {action, update},
       {security_policy, [user]},
-      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]},
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}, {groups, [binary]}]},
       {identifiers, [caller, jabber_id]},
       {result, ok}
      ],
@@ -363,12 +388,18 @@ list_contacts(Caller) ->
     lists:map(fun roster_info/1, R).
 
 add_contact(Caller, JabberID, Name) ->
+    add_contact(Caller, JabberID, Name, []).
+
+add_contact(Caller, JabberID, Name, Groups) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:set_roster_entry(CJid, JabberID, Name, []).
+    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
 
 update_contact(Caller, JabberID, Name) ->
+    update_contact(Caller, JabberID, Name, []).
+
+update_contact(Caller, JabberID, Name, Groups) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:set_roster_entry(CJid, JabberID, Name, []).
+    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
 
 delete_contact(Caller, JabberID) ->
     CJid = jid:from_binary(Caller),
