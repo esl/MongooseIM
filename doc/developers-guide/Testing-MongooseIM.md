@@ -4,40 +4,42 @@ In shell #1:
 
 ```sh
 $ cd $MONGOOSEIM
+$ ./rebar3 compile
 $ make devrel
 ```
 
 In shell #2:
 
 ```sh
-$ cd $MONGOOSEIM/dev/mongooseim_node1
+$ cd $MONGOOSEIM/_build/mim1/rel
 $ ./bin/mongooseimctl live
 ```
 
 In shell #3:
 
 ```sh
-$ cd $MONGOOSEIM/dev/mongooseim_node2
+$ cd $MONGOOSEIM/_build/mim2/rel
 $ ./bin/mongooseimctl live
 ```
 
 In shell #4:
 
 ```sh
-$ cd $MONGOOSEIM/dev/mongooseim_node3
+$ cd $MONGOOSEIM/_build/mim3/rel
 $ ./bin/mongooseimctl live
 ```
 
 In shell #5:
 
 ```sh
-$ cd $MONGOOSEIM/dev/mongooseim_fed1
+$ cd $MONGOOSEIM/_build/fed1/rel
 $ ./bin/mongooseimctl live
 ```
 
 Back to shell #1:
 
 ```sh
+$ cd test.disabled/ejabberd_tests
 $ make quicktest
 ```
 
@@ -45,14 +47,14 @@ Wait for the tests to finish and celebrate in joy (or despair in grief)!
 
 ## Step by step breakdown
 
-`make devrel` builds two server nodes:
-`$MONGOOSEIM/dev/mongooseim_node1` and `$MONGOOSEIM/dev/mongooseim_node2`.
+`make devrel` builds required server nodes:
 These are preconfigured for breadth of features and compatible
 with as many test suites as possible.
-There are other two of them:
-- `$MONGOOSEIM/dev/mongooseim_node3`, in order to test cluster-related
+There are other four of them:
+- `$MONGOOSEIM/_build/mim1/rel`, for most test SUITEs
+- `$MONGOOSEIM/_build/mim*/rel`, in order to test cluster-related
   commands;;
-- `$MONGOOSEIM/dev/mongooseim_fed1`, in order to test XMPP federation
+- `$MONGOOSEIM/_build/fed1/rel`, in order to test XMPP federation
   (server to server communication, S2S).
 
 In general, running a server in interactive mode (i.e. `mongooseimctl
@@ -79,10 +81,7 @@ The whole suite takes a significant amount of time to complete.
 When you focus on a new feature, fast iteration speed is crucial to maintain
 the flow (who doesn't like the feeling?!) and not lose focus.
 
-Therefore, it's better to run tests from `$MONGOOSEIM/test/ejabberd_tests/`
-instead of running them from the main project directory,
-as it gives finer grained control on what exactly to test and what settings to use.
-There we have:
+In  `$MONGOOSEIM/test.disabled/ejabberd_tests/` we have:
 
 ```
 $ tree test/ejabberd_tests/ -L 1 -F
@@ -110,8 +109,7 @@ or skip and some less important things.
 but it can be overridden with `TESTSPEC` variable:
 
 ```sh
-# make sure we're in $MONGOOSEIM/test/ejabberd_tests/
-# Makefile in $MONGOOSEIM/ itself doesn't accept the extra parameters
+# make sure we're in $MONGOOSEIM/test.disabled/ejabberd_tests/
 cd $MONGOOSEIM/test/ejabberd_tests/
 make quicktest TESTSPEC=my-feature.spec
 ```

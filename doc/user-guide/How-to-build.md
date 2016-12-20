@@ -16,12 +16,8 @@ To compile MongooseIM you need:
 
 To compile MongooseIM, go to the main repo directory `$REPO` and execute the command (`$` stands for the shell prompt):
 
-        $ make
 
-or
-
-        $ ./rebar get-deps
-        $ ./rebar compile
+        $ ./rebar3 compile
 
 To generate full MongooseIM release (with mysql, pgsql or other deps):
 
@@ -29,18 +25,19 @@ To generate full MongooseIM release (with mysql, pgsql or other deps):
 
 If more advanced release is required (with some specific db support only, f.e. mysql or pgsql) or you want to set `prefix` or `user` for the installation script please refer to the [release configuration](release_config.md) page in our documentation.
 
-The `make rel` commands will generate a self-contained OTP system image in the project's `rel/mongooseim` subdirectory. The contents of that directory are as follows:
+The `make rel` commands will generate a self-contained OTP system image in the project's `_build/prod/rel/mongooseim` subdirectory.
+The contents of that directory are as follows:
 
-*   `rel/mongooseim/bin` - startup/administration scripts,
-*   `rel/mongooseim/etc` - configuration files,
-*   `rel/mongooseim/lib` - MongooseIM binary, header and runtime files,
-*   `rel/mongooseim/var` - spool directory,
-*   `rel/mongooseim/log` - log file directory,
-*   `rel/mongooseim/releases` - release files directory.
+*   `bin` - startup/administration scripts,
+*   `etc` - configuration files,
+*   `lib` - MongooseIM binary, header and runtime files,
+*   `var` - spool directory,
+*   `log` - log file directory,
+*   `releases` - release files directory.
 
 ## Running MongooseIM
 
-To run MongooseIM from the project tree after compiling it, change to `$REPO/rel/mongooseim`.
+To run MongooseIM from the project tree after compiling it, change to `$REPO/_build/prod/rel/mongooseim`.
 
 There you can use the `mongooseim` command line administration script to start and stop MongooseIM. For example, this command will start the server:
 
@@ -68,12 +65,9 @@ For testing purposes there's a different make target available:
 
     $ make devrel
 
-which will generate releases in `$REPO/dev/` and prepare them for testing and generating coverage reports.
+which will generate releases `mim1`, `mim2`, `mim3`, `fed1` in `$REPO/_build/` and prepare them for testing and generating coverage reports.
 
 To run the tests (from project's root directory, i.e. `$REPO`):
 
-    $ dev/mongooseim_node1/bin/mongooseim start
-    $ dev/mongooseim_node2/bin/mongooseim start
-    $ make quicktest
+    $ tools/travis-test
 
-The test results will show up in the console`.
