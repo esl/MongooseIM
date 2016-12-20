@@ -125,6 +125,7 @@ stop_muc(Host) ->
 prepared_queries() ->
     [{insert_query, insert_query_cql()},
      {delete_query, delete_query_cql()},
+     {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
      {message_id_to_nick_name_query, message_id_to_nick_name_cql()}]
         ++ extract_messages_queries()
@@ -222,16 +223,26 @@ delete_message_to_params(#mam_muc_message{
 %% REMOVE ARCHIVE
 
 remove_archive_query_cql() ->
-    "DELETE FROM mam_muc_message WHERE room_jid = ?".
+    "DELETE FROM mam_muc_message WHERE room_jid = ? AND with_nick = ?".
+
+select_for_removal_query_cql() ->
+    "SELECT room_jid, with_nick FROM mam_muc_message WHERE room_jid = ?".
 
 remove_archive(_Host, _RoomID, RoomJID) ->
     BRoomJID = bare_jid(RoomJID),
     PoolName = pool_name(RoomJID),
     Params = [{room_jid, BRoomJID}],
     %% Wait until deleted
-    mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE, remove_archive_query,
-                                             [Params]),
-    ok.
+
+    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, select_for_removal_query,
+                                             Params),
+
+    case Rows of
+        [] -> ok;
+        _ ->
+            mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE, remove_archive_query, Rows),
+            ok
+    end.
 
 
 %% ----------------------------------------------------------------------
@@ -779,21 +790,21 @@ list_message_ids_queries() ->
 extract_messages_cql(Filter) ->
     "SELECT id, nick_name, message FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++
-        Filter ++ " ORDER BY with_nick, id LIMIT ?".
+        Filter ++ " ORDER BY id LIMIT ? ALLOW FILTERING".
 
 extract_messages_r_cql(Filter) ->
     "SELECT id, nick_name, message FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++
-        Filter ++ " ORDER BY with_nick DESC, id DESC LIMIT ?".
+        Filter ++ " ORDER BY id DESC LIMIT ? ALLOW FILTERING".
 
 calc_count_cql(Filter) ->
     "SELECT COUNT(*) FROM mam_muc_message "
-        "WHERE room_jid = ? AND with_nick = ? " ++ Filter.
+        "WHERE room_jid = ? AND with_nick = ? " ++ Filter ++ " ALLOW FILTERING".
 
 list_message_ids_cql(Filter) ->
     "SELECT id FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++ Filter ++
-        " ORDER BY with_nick, id LIMIT ?".
+        " ORDER BY id LIMIT ? ALLOW FILTERING".
 
 %% ----------------------------------------------------------------------
 %% Optimizations

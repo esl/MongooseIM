@@ -128,6 +128,7 @@ stop_pm(Host) ->
 prepared_queries() ->
     [{insert_query, insert_query_cql()},
      {delete_query, delete_query_cql()},
+     {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
      {message_id_to_remote_jid_query, message_id_to_remote_jid_cql()}]
         ++ extract_messages_queries()
@@ -228,16 +229,27 @@ delete_message_to_params(#mam_message{
 %% REMOVE ARCHIVE
 
 remove_archive_query_cql() ->
-    "DELETE FROM mam_message WHERE user_jid = ?".
+    "DELETE FROM mam_message WHERE user_jid = ? AND with_jid = ?".
+
+select_for_removal_query_cql() ->
+    "SELECT user_jid, with_jid FROM mam_message WHERE user_jid = ?".
 
 remove_archive(_Host, _UserID, UserJID) ->
     BUserJID = bare_jid(UserJID),
     PoolName = pool_name(UserJID),
     Params = [{user_jid, BUserJID}],
     %% Wait until deleted
-    mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, remove_archive_query,
-                                             [Params]),
-    ok.
+
+    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, select_for_removal_query,
+                                             Params),
+
+    case Rows of
+        [] -> ok;
+        _ ->
+            mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, remove_archive_query,
+                                         Rows),
+            ok
+    end.
 
 
 %% ----------------------------------------------------------------------
@@ -245,7 +257,7 @@ remove_archive(_Host, _UserID, UserJID) ->
 
 message_id_to_remote_jid_cql() ->
     "SELECT remote_jid FROM mam_message "
-        "WHERE user_jid = ? AND with_jid = '' AND id = ?".
+        "WHERE user_jid = ? AND with_jid = '' AND id = ? ALLOW FILTERING".
 
 message_id_to_remote_jid(PoolName, UserJID, BUserJID, MessID) ->
     Params = [{user_jid, BUserJID}, {id, MessID}],
@@ -785,21 +797,21 @@ list_message_ids_queries() ->
 extract_messages_cql(Filter) ->
     "SELECT id, from_jid, message FROM mam_message "
         "WHERE user_jid = ? AND with_jid = ? " ++
-        Filter ++ " ORDER BY with_jid, id LIMIT ?".
+        Filter ++ " ORDER BY id LIMIT ? ALLOW FILTERING".
 
 extract_messages_r_cql(Filter) ->
     "SELECT id, from_jid, message FROM mam_message "
         "WHERE user_jid = ? AND with_jid = ? " ++
-        Filter ++ " ORDER BY with_jid DESC, id DESC LIMIT ?".
+        Filter ++ " ORDER BY id DESC LIMIT ? ALLOW FILTERING".
 
 calc_count_cql(Filter) ->
     "SELECT COUNT(*) FROM mam_message "
-        "WHERE user_jid = ? AND with_jid = ? " ++ Filter.
+        "WHERE user_jid = ? AND with_jid = ? " ++ Filter ++ " ALLOW FILTERING".
 
 list_message_ids_cql(Filter) ->
     "SELECT id FROM mam_message "
         "WHERE user_jid = ? AND with_jid = ? " ++ Filter ++
-        " ORDER BY with_jid, id LIMIT ?".
+        " ORDER BY id LIMIT ? ALLOW FILTERING".
 
 
 %% ----------------------------------------------------------------------
