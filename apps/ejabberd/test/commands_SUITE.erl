@@ -146,11 +146,14 @@ old_access_ctl(_C) ->
     checkauth(account_unprivileged, [{all, [command_two], []}], noauth),
     % now we provide a role name, this requires a user and triggers password and acl check
     % this fails because password is bad
-    checkauth(invalid_account_data, [{some_acl_role, [command_one], []}], {<<"zenek">>, <<"localhost">>, <<"bbb">>}),
+    checkauth(invalid_account_data, [{some_acl_role, [command_one], []}],
+              {<<"zenek">>, <<"localhost">>, <<"bbb">>}),
     % this, because of acl
-    checkauth(account_unprivileged, [{some_acl_role, [command_one], []}], {<<"zenek">>, <<"localhost">>, <<"">>}),
-    % and this should work, because we define command_one as available to experts only, while acls in config
-    % (see ggo/1) state that experts-only funcs are available to coders and managers, and zenek is a coder, gah.
+    checkauth(account_unprivileged, [{some_acl_role, [command_one], []}],
+              {<<"zenek">>, <<"localhost">>, <<"">>}),
+    % and this should work, because we define command_one as available to experts only,
+    % while acls in config (see ggo/1) state that experts-only funcs are available to
+    % coders and managers, and zenek is a coder, gah.
     checkauth(true, [{experts_only, [command_one], []}], {<<"zenek">>, <<"localhost">>, <<"">>}),
     ok.
 
@@ -236,7 +239,8 @@ new_execute(_C) ->
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, Cmd, [<<"bzzzz">>]),
     %% call with a map
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, #{msg => <<"bzzzz">>}),
-    {ok, <<"ok">>} = mongoose_commands:execute(admin, command_one_binlist, #{msg => [<<"firstitem">>]}),
+    {ok, <<"ok">>} = mongoose_commands:execute(admin, command_one_binlist,
+                                               #{msg => [<<"firstitem">>]}),
     %% command which returns just ok
     ok = mongoose_commands:execute(admin, command_noreturn, [<<"bzzzz">>]),
     %% this user has no permissions
@@ -248,8 +252,10 @@ new_execute(_C) ->
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, []),
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{}),
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{msg => 123}),
-    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{notthis => <<"bzzzz">>}),
-    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{msg => <<"bzzzz">>, redundant => 123}),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one,
+                                                       #{notthis => <<"bzzzz">>}),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one,
+                                                       #{msg => <<"bzzzz">>, redundant => 123}),
     %% backend func throws exception
     {error, internal, _} = mongoose_commands:execute(admin, command_one, [<<"throw">>]),
     %% backend func returns error
@@ -259,22 +265,25 @@ new_execute(_C) ->
     {ok, <<"bzzzz">>} = mongoose_commands:execute(ujid(), command_foruser, #{msg => <<"bzzzz">>}),
     % a caller arg
     % called by admin
-    {ok, <<"admin@localhost/zbzzzz">>} = mongoose_commands:execute(admin,
-                                                                   command_withcaller,
-                                                                   #{caller => <<"admin@localhost/z">>,
-                                                                     msg => <<"bzzzz">>}),
+    Conc1 = <<"admin@localhost/zbzzzz">>,
+    {ok, Conc1} = mongoose_commands:execute(admin,
+                                            command_withcaller,
+                                            #{caller => <<"admin@localhost/z">>,
+                                            msg => <<"bzzzz">>}),
     % called by user
-    {ok, <<"zenek@localhost/zbzzzz">>} = mongoose_commands:execute(<<"zenek@localhost">>,
-                                                                   command_withcaller,
-                                                                   #{caller => <<"zenek@localhost/z">>,
-                                                                     msg => <<"bzzzz">>}),
+    Conc2 = <<"zenek@localhost/zbzzzz">>,
+    {ok, Concw} = mongoose_commands:execute(<<"zenek@localhost">>,
+                                            command_withcaller,
+                                            #{caller => <<"zenek@localhost/z">>,
+                                            msg => <<"bzzzz">>}),
     % call by user but jids do not match
     {error, denied, _} = mongoose_commands:execute(<<"wacek@localhost">>,
                                                    command_withcaller,
                                                    #{caller => <<"zenek@localhost/z">>,
                                                      msg => <<"bzzzz">>}),
     {ok, 30} = mongoose_commands:execute(admin, command_withoptargs, #{msg => <<"a">>}),
-    {ok, 18} = mongoose_commands:execute(admin, command_withoptargs, #{msg => <<"a">>, value => 6}),
+    {ok, 18} = mongoose_commands:execute(admin, command_withoptargs,
+                                         #{msg => <<"a">>, value => 6}),
     ok.
 
 different_types(_C) ->
@@ -455,7 +464,8 @@ commands_new_lame() ->
             {args, [{msg, binary}, integer]}, %% args have to be a flat list of named arguments
             {result, {msg, binary}}
         ],
-%%        We do not crash if command is already registered because some modules are loaded more then once
+%%        We do not crash if command is already registered because some modules
+%%        are loaded more then once
 %%        [
 %%            {name, command_one}, %% everything is fine, but it is already registered
 %%            {category, another},
@@ -504,7 +514,8 @@ commands_new_lame() ->
             {desc, <<"do nothing and return">>},
             {module, ?MODULE},
             {function, cmd_one},
-            {action, read}, %% ...but another command with the same category and action and arity is already registered
+            {action, read}, %% ...but another command with the same category and action and
+            %% arity is already registered
             {args, [{msg, binary}]},
             {result, {msg, binary}}
         ],
@@ -574,9 +585,9 @@ the_same_types(_, _) ->
     <<"wrong response">>.
 
 different_types(10, <<"binary">>) ->
-	<<"response2">>;
+    <<"response2">>;
 different_types(_, _) ->
-	<<"wrong content">>.
+    <<"wrong content">>.
 
 cmd_concat(A, B) ->
     <<A/binary, B/binary>>.
