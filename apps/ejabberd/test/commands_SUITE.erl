@@ -156,7 +156,9 @@ old_access_ctl(_C) ->
 
 
 new_type_checker(_C) ->
+    true = t_check_type([binary], [<<"tratata">>]),
     true = t_check_type({msg, binary}, <<"zzz">>),
+    true = t_check_type({msg, [binary]}, [<<"tratata">>]),
     true = t_check_type({msg, integer}, 127),
     {false, _} = t_check_type({{a, binary}, {b, integer}}, 127),
     true = t_check_type({{a, binary}, {b, integer}}, {<<"z">>, 127}),
@@ -234,6 +236,7 @@ new_execute(_C) ->
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, Cmd, [<<"bzzzz">>]),
     %% call with a map
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, #{msg => <<"bzzzz">>}),
+    {ok, <<"ok">>} = mongoose_commands:execute(admin, command_one_binlist, #{msg => [<<"firstitem">>]}),
     %% command which returns just ok
     ok = mongoose_commands:execute(admin, command_noreturn, [<<"bzzzz">>]),
     %% this user has no permissions
@@ -295,6 +298,16 @@ commands_new() ->
             {function, cmd_one},
             {action, read},
             {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ],
+        [
+            {name, command_one_binlist},
+            {category, <<"usera">>},
+            {desc, <<"do nothing and return">>},
+            {module, ?MODULE},
+            {function, cmd_one_binlist},
+            {action, read},
+            {args, [{msg, [binary]}]},
             {result, {msg, binary}}
         ],
         [
@@ -545,6 +558,9 @@ cmd_one(<<"error">>) ->
     {error, byleco};
 cmd_one(M) ->
     M.
+
+cmd_one_binlist([A]) when is_binary(A) ->
+    <<"ok">>.
 
 cmd_one_withvalue(_Msg, Value) ->
     Value * 3.
