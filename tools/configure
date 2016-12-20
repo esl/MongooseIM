@@ -44,7 +44,7 @@ app_opts() ->
      {"redis",     ["redo"],            include_driver("redis")},
      {"riak",      ["riakc", "riak_pb", "protobuffs"],
                                         include_driver("riak")},
-     {"cassandra", ["seestar"],         include_driver("cassandra")}].
+     {"cassandra", ["cqerl", "pooler"], include_driver("cassandra")}].
 
 opts() ->
     [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},

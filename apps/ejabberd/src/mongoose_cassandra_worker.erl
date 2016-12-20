@@ -10,16 +10,6 @@
 %% Exports
 
 %% API
--export([cql_query/5,
-         cql_query_pool/5,
-         cql_query_async/5,
-         cql_query_pool_async/5,
-         cql_query_multi_async/5,
-         cql_query_pool_multi_async/5,
-         cql_batch/4,
-         cql_batch_pool/4,
-         cql_batch/5,
-         cql_batch_pool/5]).
 
 %% Helpers for debugging
 -export([test_query/1,
@@ -28,8 +18,6 @@
          queue_lengths/1,
          total_count_query/2]).
 
-%% Internal exports
--export([start_link/4]).
 
 %% mongoose_cassandra_worker callbacks
 -export([prepared_queries/0]).
@@ -49,6 +37,7 @@
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("cqerl/include/cqerl.hrl").
 
 -record(state, {
           pool_name,
@@ -65,79 +54,7 @@
 %% Internal functions
 %%====================================================================
 
-start_link(PoolName, Addr, Port, ClientOptions) ->
-    gen_server:start_link(?MODULE, [PoolName, Addr, Port, ClientOptions], []).
 
-%% @doc Do CQL query
-%%
-%% UserJID is used for rate-limiting, statistics and debugging
-cql_query(Worker, _UserJID, Module, QueryName, Params) when is_pid(Worker) ->
-    ResultF = gen_server:call(Worker, {cql_query, Module, QueryName, Params}),
-    {ok, Result} = ResultF(),
-    case Result of
-        void ->
-            {ok, []};
-        _ ->
-            {ok, seestar_result:rows(Result)}
-    end.
-
-cql_query_async(Worker, _UserJID, Module, QueryName, Params) when is_pid(Worker) ->
-    gen_server:cast(Worker, {async_cql_query, Module, QueryName, Params}).
-
-cql_query_multi_async(Worker, _UserJID, Module, QueryName, MultiParams) when is_pid(Worker) ->
-    gen_server:cast(Worker, {multi_async_cql_query, Module, QueryName, MultiParams}).
-
-cql_batch(Worker, UserJID, Module, Queries, not_batch) ->
-    cql_query_multi(Worker, UserJID, Module, Queries);
-cql_batch(Worker, _UserJID, Module, Queries, BatchType) ->
-    ResultF = gen_server:call(Worker, {cql_batch, Module, BatchType, Queries}),
-    {ok, Result} = ResultF(),
-    case Result of
-        void ->
-            {ok, []};
-        _ ->
-            {ok, seestar_result:rows(Result)}
-    end.
-
-%% @doc Run queries, abort if an error. No rollback
-cql_query_multi(Worker, UserJID, Module, Queries) ->
-    cql_query_multi(Worker, UserJID, Module, Queries, []).
-
-cql_query_multi(Worker, UserJID, Module, [{QueryName, Params} | Queries], Results) ->
-    case catch cql_query(Worker, UserJID, Module, QueryName, Params) of
-        {ok, Result} ->
-            cql_query_multi(Worker, UserJID, Module, Queries, [Result | Results]);
-        Reason ->
-            {error, [{reason, Reason}, {results, Results}]}
-    end;
-cql_query_multi(_Worker, _UserJID, _Module, [], Results) ->
-    {ok, lists:reverse(Results)}.
-
-cql_batch_pool(PoolName, UserJID, Module, Queries, BatchType) ->
-    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
-    cql_batch(Worker, UserJID, Module, Queries, BatchType).
-
-cql_batch(Worker, UserJID, Module, Queries) ->
-    cql_batch(Worker, UserJID, Module, Queries, unlogged).
-
-cql_batch_pool(PoolName, UserJID, Module, Queries) ->
-    cql_batch_pool(PoolName, UserJID, Module, Queries, unlogged).
-
-%% @doc Select worker and do cql query
-cql_query_pool(PoolName, UserJID, Module, QueryName, Params) ->
-    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
-    cql_query(Worker, UserJID, Module, QueryName, Params).
-
-cql_query_pool_async(PoolName, UserJID, Module, QueryName, Params) ->
-    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
-    cql_query_async(Worker, UserJID, Module, QueryName, Params).
-
-cql_query_pool_multi_async(PoolName, UserJID, Module, QueryName, MultiParams) ->
-    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
-    cql_query_multi_async(Worker, UserJID, Module, QueryName, MultiParams).
-
-%% ----------------------------------------------------------------------
-%% mongoose_cassandra_worker behaviour callbacks
 
 prepared_queries() ->
     [{test_query, test_query_sql()}] ++
@@ -164,12 +81,12 @@ test_query(PoolName) ->
     test_query(PoolName, undefined).
 
 test_query(PoolName, UserJID) ->
-    Workers = mongoose_cassandra_sup:get_all_workers(PoolName),
-    [{Worker, try cql_query(Worker, UserJID, ?MODULE, test_query, []) of
-                  {ok, [[_Now]]} -> ok;
-                  Other -> {error, Other}
-              catch Class:Reason -> {error, {Class, Reason}}
-              end} || Worker <- Workers].
+    try  mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, test_query, []) of
+        {ok, _} -> ok
+    catch
+        Class:Reason ->
+            {error, {Class, Reason}}
+    end.
 
 %% ----------------------------------------------------------------------
 %% COUNT OBJECTS
@@ -177,7 +94,7 @@ test_query(PoolName, UserJID) ->
 
 total_count_query(PoolName, Table) ->
     UserJID = undefined,
-    Res = cql_query_pool(PoolName, UserJID, ?MODULE, {total_count_query, Table}, []),
+    Res = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, {total_count_query, Table}, []),
     {ok, [[Count]]} = Res,
     Count.
 
