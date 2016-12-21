@@ -27,6 +27,9 @@ ct:
 rel: certs configure.out rel/vars.config
 	. ./configure.out && ./rebar3 as prod release
 
+shell: certs etc/ejabberd.cfg
+	./rebar3 shell
+
 # Top-level targets' dependency chain
 
 rock:
@@ -41,6 +44,10 @@ rel/vars.config: rel/vars.config.in rel/configure.vars.config
 configure.out rel/configure.vars.config:
 	./tools/configure with-all
 
+etc/ejabberd.cfg:
+	@mkdir -p $(@D)
+	tools/generate_cfg.es etc/ejabberd.cfg rel/files/ejabberd.cfg
+
 devrel: $(DEVNODES)
 
 $(DEVNODES): certs configure.out rel/vars.config
@@ -48,19 +55,21 @@ $(DEVNODES): certs configure.out rel/vars.config
 	(. ./configure.out && \
 	DEVNODE=true ./rebar3 as $@ release) > $(LOG_SILENCE_COVER)
 
-certs: fake_cert.pem fake_server.pem fake_dh_server.pem
+certs: priv/ssl/fake_cert.pem priv/ssl/fake_server.pem priv/ssl/fake_dh_server.pem
 
-fake_cert.pem:
+priv/ssl/fake_cert.pem:
+	@mkdir -p $(@D)
 	openssl req \
 	-x509 -nodes -days 365 \
 	-subj '/C=PL/ST=ML/L=Krakow/CN=mongoose-im' \
-	-newkey rsa:2048 -keyout fake_key.pem -out fake_cert.pem
+	-newkey rsa:2048 -keyout priv/ssl/fake_key.pem -out priv/ssl/fake_cert.pem
 
-fake_server.pem:
-	cat fake_cert.pem fake_key.pem > fake_server.pem
+priv/ssl/fake_server.pem: priv/ssl/fake_cert.pem
+	cat priv/ssl/fake_cert.pem priv/ssl/fake_key.pem > priv/ssl/fake_server.pem
 
-fake_dh_server.pem:
-	openssl dhparam -outform PEM -out fake_dh_server.pem 1024
+priv/ssl/fake_dh_server.pem:
+	@mkdir -p $(@D)
+	openssl dhparam -outform PEM -out priv/ssl/fake_dh_server.pem 1024
 
 xeplist: escript
 	escript $(XEP_TOOL)/xep_tool.escript markdown $(EJD_EBIN)
