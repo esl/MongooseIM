@@ -107,12 +107,12 @@ create_room(Config) ->
 invite_online_user_to_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         Name = ?config(room_name, Config),
-        Path = <<"/mucs/localhost/", Name/binary>>,
+        Path = <<"/mucs/localhost/", Name/binary, "/participants">>,
         Reason = <<"I think you'll like this room!">>,
         Body = #{sender => escalus_client:short_jid(Alice),
                  recipient => escalus_client:short_jid(Bob),
                  reason => Reason},
-        {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
         Stanza = escalus:wait_for_stanza(Bob),
         is_direct_invitation(Stanza),
         direct_invite_has_reason(Stanza, Reason)
@@ -131,13 +131,13 @@ send_message_to_room(Config) ->
         escalus:wait_for_stanzas(Bob, 2),
         %% Parameters for this test.
         Host = <<"localhost">>,
-        Path = <<"/mucs",$/,Host/binary,$/,Name/binary,$/,"messages">>,
+        Path = <<"/mucs", $/, Host/binary, $/, Name/binary, $/, "messages">>,
         Message = <<"Greetings!">>,
-        Body = #{sender => escalus_client:short_jid(Bob),
-                 message => Message},
+        Body = #{from => escalus_client:short_jid(Bob),
+                 body => Message},
         %% The HTTP call in question. Notice: status 200 because no
         %% resource is created.
-        {{<<"200">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
         Got = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, Got),
         Message = exml_query:path(Got, [{element, <<"body">>}, cdata])
@@ -176,7 +176,7 @@ kick_user_from_room(Config) ->
         escalus:wait_for_stanza(Alice),
         escalus:wait_for_stanza(Bob),
         %% The HTTP call in question.
-        {{<<"200">>, _}, <<"">>} = rest_helper:delete(Path),
+        {{<<"204">>, _}, <<"">>} = rest_helper:delete(Path),
         BobRoomAddress = muc_helper:room_address(Name, <<"bobcat">>),
         %% Bob finds out he's been kicked.
         KickedStanza = escalus:wait_for_stanza(Bob),
@@ -197,8 +197,9 @@ multiparty_multiprotocol(Config) ->
     MUCPath = <<"/mucs/", Host/binary>>,
     Room = ?config(room_name, Config),
     RoomPath = <<MUCPath/binary, $/, Room/binary>>,
+    RoomInvitePath = <<MUCPath/binary, $/, Room/binary, "/participants">>,
     Reason = <<"I think you'll like this room!">>,
-    MessagePath = <<"/mucs",$/,Host/binary,$/,Room/binary,$/,"messages">>,
+    MessagePath = <<"/mucs", $/, Host/binary, $/, Room/binary, $/, "messages">>,
     Message = <<"Greetings!">>,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, Kate) ->
@@ -215,14 +216,14 @@ multiparty_multiprotocol(Config) ->
             %% XMPP: Kate sees the MUC room.
             true = user_sees_room(Kate, Room),
             %% HTTP: Alice invites Bob to the MUC room.
-            {{<<"200">>, _}, <<"">>} =
-                rest_helper:putt(RoomPath,
+            {{<<"204">>, _}, <<"">>} =
+                rest_helper:post(RoomInvitePath,
                                  invite_body(Alice, Bob, Reason)),
             %% XMPP: Bob recieves the invite to the MUC room.
             Room = wait_for_invite(Bob, Reason),
             %% HTTP: Alice invites Kate to the MUC room.
-            {{<<"200">>, _}, <<"">>} =
-                rest_helper:putt(RoomPath,
+            {{<<"204">>, _}, <<"">>} =
+                rest_helper:post(RoomInvitePath,
                                  invite_body(Alice, Kate, Reason)),
             %% XMPP: kate recieves the invite to the MUC room.
             Room = wait_for_invite(Kate, Reason),
@@ -246,10 +247,10 @@ multiparty_multiprotocol(Config) ->
             %% Alice & Bob get's Kate's presence.
             [ escalus:wait_for_stanza(User) || User <- [Alice, Bob] ],
             %% HTTP: Alice sends a message to the room.
-            {{<<"200">>, _}, <<"">>} =
+            {{<<"204">>, _}, <<"">>} =
                 rest_helper:post(MessagePath,
-                                 #{sender => escalus_client:short_jid(Alice),
-                                   message => Message}),
+                                 #{from => escalus_client:short_jid(Alice),
+                                   body => Message}),
             %% XMPP: All three recieve the message sent to the MUC room.
             [ Message = wait_for_group_message(User) || User <- [Alice, Bob, Kate] ],
             %% XMPP: Bob and Kate send a message to the MUC room.

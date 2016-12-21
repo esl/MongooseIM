@@ -20,6 +20,9 @@ This module implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/x
 * `user_presence_shaper` (atom, default: `none`): Shaper for user presences processed by a room (global for the room).
 * `max_user_conferences` (non-negative, default: 10): Specifies the number of rooms that a user can occupy simultaneously.
 * `http_auth_pool` (atom, default: `none`): If an external HTTP service is chosen to check passwords for password-protected rooms, this option specifies the HTTP pool name to use (see [External HTTP Authentication](#external-http-authentication) below).
+* `hibernate_timeout` (timeout, default: `90000`): Timeout (in milliseconds) defining the inactivity period after which the room's process should be hibernated.
+* `hibernated_room_check_interval` (timeout, default: `infinity`): Interval defining how often hibernated rooms will be checked.
+* `hibernated_room_timeout` (timeout, default: `inifitniy`): A time after which a hibernated room is stopped (deeply hibernated). See [MUC performance optimisation]().
 * `default_room_options` (list of key-value tuples, default: `[]`): List of room configuration options to be overridden in initial state.
     * `title` (binary, default: `<<>>`): Room title, short free text.
     * `description` (binary, default: `<<>>`): Room description, long free text.
@@ -50,6 +53,29 @@ This module implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/x
              {access_create, muc_create}
             ]},
 ```
+
+### Performance optimisations
+
+In large installation with many rooms there might be issues with memory consumption.
+Each room is represented by erlang process with it's own state which can be big.
+In MongooseIM there 2 levels for MUC rooms memory optimisations.
+
+#### Room's process hibernation
+
+By default the room's process is hibernated by the Erlang VM after 90s since last activity.
+This timeout can be modified by `hibernate_timeout` option.
+
+#### Room deep hibernation
+
+In addition to the process hibernation there is also room's deep hibernation.
+This optimisation works only for persistent rooms as only such rooms can be restored on demand.
+The improvement works as follows:
+1. Every `hibernated_room_check_interval` all room processes are traversed.
+1. If a process is hibernated for longer time then `hibernated_room_timeout` a "stop" signal is sent to it.
+1. The room's process can be stopped only if there is no online users or the only one is its owner.
+In case the owner is online, a presence with type unavailable is sent to it indicating that the room's process is being terminated.
+
+In future the room's process can be recreated on demand, for example when there is presence sent to it, or owner wants to add more users to the room.
 
 ### External HTTP Authentication
 

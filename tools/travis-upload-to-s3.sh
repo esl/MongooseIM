@@ -1,20 +1,14 @@
 #!/bin/bash
 
+source tools/travis-helpers.sh
+
 set -euo pipefail
 IFS=$'\n\t'
 
-CT_REPORTS=${TRAVIS_JOB_NUMBER:-ct_reports}
-# Replace . with / to create better dir structure
-CT_REPORTS=${CT_REPORTS/\./\/}
-BRANCH=${TRAVIS_BRANCH:-master}
-PR=${TRAVIS_PULL_REQUEST:-false}
+CT_REPORTS=$(ct_reports_dir)
 
-if [ ${PR} == false ]; then
-	CT_REPORTS=branch/${BRANCH}/${CT_REPORTS}
-else
-	CT_REPORTS=PR/${PR}/${CT_REPORTS}
-fi
-
+echo "Uploading test results to s3"
+echo $(s3_url ${CT_REPORTS})
 
 mkdir -p ${CT_REPORTS}/small
 mkdir -p ${CT_REPORTS}/big
@@ -41,13 +35,11 @@ EOL
 
 for dev_node_path in dev/mongooseim_*; do
 	dev_node=$(basename ${dev_node_path})
-	LOG_DIR=${CT_REPORTS}/big/${dev_node}/log
+	now=`date +'%Y-%m-%d_%H.%M.%S'`
+	LOG_DIR=${CT_REPORTS}/big/${dev_node}/${now}/log
 	mkdir -p ${LOG_DIR}
 	cp ${dev_node_path}/log/* ${LOG_DIR}
 done
-
-echo "Uploading test results to s3"
-echo "http://mongooseim-ct-results.s3-website-eu-west-1.amazonaws.com/${CT_REPORTS}/index.html"
 
 aws s3 sync --quiet ${CT_REPORTS} s3://mongooseim-ct-results/${CT_REPORTS}
 

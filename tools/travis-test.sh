@@ -1,15 +1,47 @@
 #!/bin/bash
 
-PRESET=$1
+PRESET="internal_mnesia"
+SMALL_TESTS="true"
+COVER_ENABLED="true"
+
+while getopts ":p::s::c:" opt; do
+  case $opt in
+    p)
+      PRESET=$OPTARG
+      ;;
+    s)
+      SMALL_TESTS=$OPTARG
+      ;;
+    c)
+      COVER_ENABLED=$OPTARG
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
 
 source tools/travis-common-vars.sh
+source tools/travis-helpers.sh
 
+if [ "$TRAVIS_SECURE_ENV_VARS" == 'true' ]; then
+  CT_REPORTS=$(ct_reports_dir)
+
+  echo "Test results will be uploaded to:"
+  echo $(s3_url ${CT_REPORTS})
+fi
 # Print ct_progress_hook output
 echo "" > /tmp/progress
 tail -f /tmp/progress &
 
-# Kill children
-trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM EXIT
+# Kill children on exit, but do not kill self on normal exit
+trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM
+trap "trap '' SIGTERM && kill -- -$$ 2> /dev/null" EXIT
 
 echo ${BASE}
 
@@ -48,36 +80,50 @@ summaries_dir() {
 }
 
 run_small_tests() {
+	echo "############################"
+	echo "Running small tests (apps/ejabberd/tests)"
+	echo "############################"
+	echo "Add option -s false to skip embeded common tests"
 	make ct
 	SMALL_SUMMARIES_DIRS=${BASE}/apps/ejabberd/logs/ct_run*
 	SMALL_SUMMARIES_DIR=$(summaries_dir ${SMALL_SUMMARIES_DIRS} 1)
 	${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
 }
 
+maybe_run_small_tests() {
+	if [ "$SMALL_TESTS" = "true" ]; then
+		run_small_tests
+	else
+		echo "############################"
+		echo "Small tests skipped"
+		echo "############################"
+	fi
+}
+
+run_test_preset() {
+	tools/print-dots.sh start
+	if [ "$COVER_ENABLED" = "true" ]; then
+		make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
+	else
+		make test_preset TESTSPEC=default.spec PRESET=$PRESET
+	fi
+	tools/print-dots.sh stop
+}
+
 run_tests() {
-
-	echo "############################"
-	echo "Running embeded common tests"
-	echo "############################"
-
-	echo "Use SKIP_SMALL=1 to skip embeded common tests"
-	[ "$SKIP_SMALL" = "1" ] || run_small_tests
+	maybe_run_small_tests
 	SMALL_STATUS=$?
-	echo ""
 	echo "SMALL_STATUS=$SMALL_STATUS"
-
+	echo ""
 	echo "############################"
-	echo "Running ejabberd_tests"
+	echo "Running big tests (tests/ejabberd_tests)"
 	echo "############################"
-
 
 	for node in ${NODES[@]}; do
 		start_node $node;
 	done
 
-	tools/print-dots.sh start
-	make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
-	tools/print-dots.sh stop
+	run_test_preset
 
 	RAN_TESTS=`cat /tmp/ct_count`
 

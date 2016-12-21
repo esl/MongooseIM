@@ -58,7 +58,7 @@ end_per_testcase(_CaseName, _Config) ->
 %% users_api tests
 %%--------------------------------------------------------------------
 user_transaction(Config) ->
-    Params = [{host, ct:get_config(ejabberd_domain)},
+    Params = [{host, ct:get_config({hosts, mim, domain})},
               {username, "http_guy"}],
     Result = katt_helper:run(user_transaction, Config, Params),
     Vars = element(4, Result),
@@ -69,7 +69,7 @@ user_transaction(Config) ->
     wait_for_user_removal(proplists:get_value(riak_auth, Config)).
 
 negative_calls(Config) ->
-    Params = [{host, ct:get_config(ejabberd_domain)}],
+    Params = [{host, ct:get_config({hosts, mim, domain})}],
     katt_helper:run(user_negative, Config, Params).
 
 %%--------------------------------------------------------------------
@@ -96,7 +96,7 @@ wait_for_user_removal(_) ->
 do_wait_for_user_removal(0) ->
     ok;
 do_wait_for_user_removal(N) ->
-    Domain = ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     case escalus_ejabberd:rpc(ejabberd_auth_riak, get_vh_registered_users_number, [Domain]) of
         0 ->
             ok;

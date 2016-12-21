@@ -34,7 +34,7 @@ is_vcard_update(_) ->
     false.
 
 has_mod_vcard_xupdate() ->
-    Server = escalus_ct:get_config(ejabberd_domain),
+    Server = ct:get_config({hosts, mim, domain}),
     escalus_ejabberd:rpc(gen_mod, is_loaded,
                          [server_string(Server), mod_vcard_xupdate]).
 

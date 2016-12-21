@@ -99,7 +99,7 @@ decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
 -spec decode_message_by_type(Type :: {binary(), binary()} | false,
                              Id :: {binary(), binary()} | false,
                              Children :: [jlib:xmlch()]) ->
-    {ok, #msg{}} | {error, bad_request} | ignore.
+    {ok, msg()} | {error, bad_request} | ignore.
 decode_message_by_type({_, <<"groupchat">>}, Id, Children) ->
     {ok, #msg{ children = Children, id = ensure_id(Id) }};
 decode_message_by_type({_, <<"error">>}, _, _) ->
@@ -317,14 +317,9 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, RoomJID, Room
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
                                                  NotifForCurrentNoPrevVersion) },
-    EventData = [{from_nick, <<>>},
-                 {from_jid, RoomJID},
-                 {room_jid, RoomJID},
-                 {role, owner},
-                 {affiliation, owner}],
     #xmlel{ children = FinalChildrenForCurrentNoPrevVersion }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
-                              [EventData]),
+                              [room_event(RoomJID)]),
     FinalChildrenForCurrent = inject_prev_version(FinalChildrenForCurrentNoPrevVersion,
                                                   Affs#affiliations.prev_version),
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, Attrs, VersionEl,
@@ -349,13 +344,8 @@ encode_iq({set, #create{} = Create, UniqueRequested}, RoomJID, RoomBin, HandleFu
     AllAffsEls = [ aff_user_to_el(AffUser) || AffUser <- Create#create.aff_users ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls) },
-    EventData = [{from_nick, <<>>},
-                 {from_jid, RoomJID},
-                 {room_jid, RoomJID},
-                 {role, owner},
-                 {affiliation, owner}],
     ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
-                              [EventData]),
+                              [room_event(RoomJID)]),
 
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
@@ -398,7 +388,7 @@ encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
                          children = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif) },
     #xmlel{ children = FinalConfigNotif }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
-                              [<<>>, RoomJID, RoomJID]),
+                              [room_event(RoomJID)]),
 
     lists:foreach(
       fun({{U, S}, _}) ->
@@ -527,3 +517,9 @@ b2what(<<"room">>) -> room.
 what2b(user) -> <<"user">>;
 what2b(room) -> <<"room">>.
 
+room_event(RoomJID) ->
+    [{from_nick, <<>>},
+     {from_jid, RoomJID},
+     {room_jid, RoomJID},
+     {role, owner},
+     {affiliation, owner}].

@@ -133,20 +133,46 @@ set_prefs(_Result, Host, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
         {error, Error}
     end.
 
+
+order_by_in_delete(Host) ->
+    case ejabberd_odbc:db_engine(Host) of
+        mysql ->
+                " ORDER BY remote_jid";
+        _ ->
+                ""
+    end.
+
 set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    %% Lock keys in the same order to avoid deadlock
     SUserID = integer_to_list(UserID),
-    DelQuery = ["DELETE FROM mam_config WHERE user_id = '", SUserID, "'"],
+    JidBehaviourA = [{JID, "A"} || JID <- AlwaysJIDs],
+    JidBehaviourN = [{JID, "N"} || JID <- NeverJIDs],
+    JidBehaviour = lists:keysort(1, JidBehaviourA ++ JidBehaviourN),
+    ValuesAN = [encode_config_row(SUserID, Behavour, ejabberd_odbc:escape(JID))
+                || {JID, Behavour} <- JidBehaviour],
+    DefaultValue = encode_first_config_row(SUserID, encode_behaviour(DefaultMode), ""),
+    Values = [DefaultValue|ValuesAN],
+    DelQuery = ["DELETE FROM mam_config WHERE user_id = '", SUserID, "'", order_by_in_delete(Host)],
     InsQuery = ["INSERT INTO mam_config(user_id, behaviour, remote_jid) "
-       "VALUES ", encode_first_config_row(SUserID, encode_behaviour(DefaultMode), ""),
-       [encode_config_row(SUserID, "A", ejabberd_odbc:escape(JID))
-        || JID <- AlwaysJIDs],
-       [encode_config_row(SUserID, "N", ejabberd_odbc:escape(JID))
-        || JID <- NeverJIDs]],
-    %% Run as a transaction
-    {atomic, [{updated, _}, {updated, _}]} =
-        sql_transaction_map(Host, [DelQuery, InsQuery]),
+                "VALUES ", Values],
+
+    run_transaction_or_retry_on_deadlock(fun() ->
+            {atomic, [{updated, _}, {updated, _}]} =
+                sql_transaction_map(Host, [DelQuery, InsQuery])
+        end, UserID, 10),
     ok.
 
+run_transaction_or_retry_on_deadlock(F, UserID, Retries) ->
+    try
+        F()
+    %% MySQL specific error
+    catch error:{badmatch, {aborted, {{sql_error, "#40001Deadlock" ++ _}, _}}}
+            when Retries > 0 ->
+        ?ERROR_MSG("issue=\"Deadlock detected. Restart\", user_id=~p, retries=~p",
+                   [UserID, Retries]),
+        timer:sleep(100),
+        run_transaction_or_retry_on_deadlock(F, UserID, Retries-1)
+    end.
 
 -spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
         ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid())

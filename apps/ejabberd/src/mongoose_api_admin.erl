@@ -22,6 +22,7 @@
          rest_terminate/2,
          init/3,
          rest_init/2,
+         options/2,
          content_types_accepted/2,
          delete_resource/2]).
 
@@ -37,9 +38,10 @@
 %% ejabberd_cowboy callbacks
 %%--------------------------------------------------------------------
 
-%% @doc This is implementation of ejabberd_cowboy callback. Returns list of all available http paths.
+%% @doc This is implementation of ejabberd_cowboy callback.
+%% Returns list of all available http paths.
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
-    ejabberd_cowboy:implemented_result() | ejabberd_cowboy:default_result().
+    ejabberd_cowboy:implemented_result().
 cowboy_router_paths(Base, _Opts) ->
     ejabberd_hooks:add(register_command, global, mongoose_api_common, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, mongoose_api_common, reload_dispatches, 50),
@@ -68,14 +70,22 @@ rest_init(Req, Opts) ->
                             bindings = Bindings,
                             command_category = CommandCategory,
                             command_subcategory = CommandSubCategory},
-    {ok, Req1, State}.
+    options(Req1, State).
 
-
+options(Req, State) ->
+    Req1 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Methods">>,
+                                      <<"GET, OPTIONS, PUT, POST, DELETE">>, Req),
+    Req2 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Origin">>,
+                                      <<"*">>, Req1),
+    Req3 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Headers">>,
+                                      <<"Content-Type">>, Req2),
+    {ok, Req3, State}.
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
     CommandList = mongoose_commands:list(admin, Name),
-    AllowedMethods = [action_to_method(mongoose_commands:action(Command)) || Command <- CommandList],
-    {AllowedMethods, Req, State}.
+    AllowedMethods = [action_to_method(mongoose_commands:action(Command))
+                      || Command <- CommandList],
+    {[<<"OPTIONS">> | AllowedMethods], Req, State}.
 
 content_types_provided(Req, State) ->
     CTP = [{{<<"application">>, <<"json">>, '*'}, to_json}],
@@ -116,7 +126,8 @@ from_json(Req, #http_api_state{command_category = Category,
         {Params, _} ->
             {Method, _} = cowboy_req:method(Req),
             Cmds = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
-            Arity = length(B) + length(Params),
+            {QVals, _} = cowboy_req:qs_vals(Req),
+            Arity = length(B) + length(Params) + length(QVals),
             case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
                 [Command] ->
                     process_request(Method, Command, {Params, Req}, State);
@@ -125,7 +136,7 @@ from_json(Req, #http_api_state{command_category = Category,
             end
     end.
 
--spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:path().
+-spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:route().
 handler_path(Base, Command) ->
     {[Base, mongoose_api_common:create_admin_url_path(Command)],
         ?MODULE, [{command_category, mongoose_commands:category(Command)},

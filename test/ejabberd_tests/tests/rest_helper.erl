@@ -44,13 +44,12 @@ assert_inlist(Pattern, L) ->
 assert_notinlist(Pattern, L) when is_map(Pattern) ->
     assert_notinmaplist(maps:keys(Pattern), Pattern, L, L);
 assert_notinlist(Pattern, L) ->
-    [H|_] = L,
     Fl = lists:filter(fun(X) -> case X of Pattern -> true; _ -> false end end, L),
     case Fl of
         [] ->
             ok;
         _ ->
-            ct:fail(io_lib:format("Fail: ~p in [~p...]", [Pattern, H]))
+            ct:fail(io_lib:format("Fail: ~p in ~p", [Pattern, L]))
     end.
 
 assert_inmaplist([], Map, L, [H|_]) ->
@@ -174,7 +173,7 @@ maybe_enable_mam(riak, Host,  Config) ->
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
     init_module(Host, mod_mam, []),
     init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}]),
-    [{mam_backend, riak}, {yz_wait, 2500} | Config];
+    [{mam_backend, riak}, {archive_wait, 2500} | Config];
 maybe_enable_mam(_, _, C) ->
     [{mam_backend, disabled} | C].
 

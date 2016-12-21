@@ -32,7 +32,7 @@ content_types_accepted(Req, State) ->
     mongoose_client_api_rooms:content_types_accepted(Req, State).
 
 allowed_methods(Req, State) ->
-    {[<<"GET">>, <<"POST">>], Req, State}.
+    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>], Req, State}.
 
 resource_exists(Req, State) ->
     mongoose_client_api_rooms:resource_exists(Req, State).
@@ -40,6 +40,8 @@ resource_exists(Req, State) ->
 allow_missing_post(Req, State) ->
     {false, Req, State}.
 
+to_json(Req, #{role_in_room := none} = State) ->
+    mongoose_client_api_rooms:forbidden_request(Req, State);
 to_json(Req, #{jid := UserJID, room := Room} = State) ->
     RoomJID = maps:get(jid, Room),
     Server = UserJID#jid.server,

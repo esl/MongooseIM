@@ -103,7 +103,8 @@
                            ISubscription :: from | to | both | none | remove}
                         | {privacy_list, PrivList :: mod_privacy:userlist(),
                            PrivListName :: binary()}
-                        | {blocking, What :: blocking_type(), [binary()]}
+                        | {blocking, UserList :: mod_privacy:userlist(), What :: blocking_type(),
+                                     [binary()]}
                         | unknown.
 
 -type broadcast() :: {broadcast, broadcast_type()}.

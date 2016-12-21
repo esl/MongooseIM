@@ -49,12 +49,16 @@
          user_send_packet/3,
          remove_user/2,
          filter_packet/1,
-         determine_amp_strategy/5]).
+         determine_amp_strategy/5,
+         sm_filter_offline_message/4]).
 
 %%private
 -export([archive_message/8]).
 -export([lookup_messages/13]).
 -export([archive_id_int/2]).
+
+%% for feature (escalus) tests
+-export([set_params/1]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -82,7 +86,8 @@
          borders_decode/1,
          decode_optimizations/1,
          form_borders_decode/1,
-         form_decode_optimizations/1]).
+         form_decode_optimizations/1,
+         is_mam_result_message/1]).
 
 %% Forms
 -import(mod_mam_utils,
@@ -149,9 +154,9 @@
 %% ----------------------------------------------------------------------
 %% Constants
 
-default_result_limit() -> 50.
+default_result_limit() -> mod_mam_params:default_result_limit().
 
-max_result_limit() -> 50.
+max_result_limit() -> mod_mam_params:max_result_limit().
 
 %% ----------------------------------------------------------------------
 %% API
@@ -208,15 +213,17 @@ start(Host, Opts) ->
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
-    mongoose_metrics:ensure_metric(global, [backends, ?MODULE, lookup], histogram),
-    mongoose_metrics:ensure_metric(Host, [modMamLookups, simple], spiral),
-    mongoose_metrics:ensure_metric(global, [backends, ?MODULE, archive], histogram),
+    ejabberd_hooks:add(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
+    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, lookup], histogram),
+    mongoose_metrics:ensure_metric(Host, [Host, modMamLookups, simple], spiral),
+    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, archive], histogram),
     ok.
 
 
 -spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
+    ejabberd_hooks:delete(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
@@ -250,6 +257,8 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
                     handle_error_iq(Host, To, Action,
                         handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
+                    ?WARNING_MSG("issue=max_delay_reached, action=~p, host=~p, from=~p",
+                                 [Action, Host, From]),
                     ejabberd_hooks:run(mam_drop_iq, Host,
                         [Host, To, IQ, Action, max_delay_reached]),
                     return_max_delay_reached_error_iq(IQ)
@@ -316,6 +325,13 @@ process_incoming_packet(From, To, Packet) ->
 -spec remove_user(ejabberd:user(), ejabberd:server()) -> 'ok'.
 remove_user(User, Server) ->
     delete_archive(Server, User).
+
+sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
+    %% If ...
+    is_mam_result_message(Packet);
+    %% ... than drop the message
+sm_filter_offline_message(Other, _From, _To, Packet) ->
+    Other.
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -618,7 +634,7 @@ handle_purge_single_message(ArcJID=#jid{},
 determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        FromJID, ToJID, Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
-    ShouldBeStored = is_complete_message(?MODULE, incoming, Packet)
+    ShouldBeStored = mod_mam_params:is_archivable_message(?MODULE, incoming, Packet)
         andalso is_interesting(ToJID, FromJID)
         andalso ejabberd_auth:is_user_exists(LUser, LServer),
     case ShouldBeStored of
@@ -635,7 +651,7 @@ handle_package(Dir, ReturnMessID,
                LocJID=#jid{},
                RemJID=#jid{},
                SrcJID=#jid{}, Packet) ->
-    case is_complete_message(?MODULE, Dir, Packet) of
+    case mod_mam_params:is_archivable_message(?MODULE, Dir, Packet) of
         true ->
             Host = server_host(LocJID),
             ArcID = archive_id_int(Host, LocJID),
@@ -747,7 +763,7 @@ lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
          Start, End, Now, WithJID,
          PageSize, LimitPassed, MaxResultLimit, IsSimple]),
     Diff = timer:now_diff(os:timestamp(), StartT),
-    mongoose_metrics:update(global, [backends, ?MODULE, lookup], Diff),
+    mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
     R.
 
 
@@ -760,7 +776,7 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     R = ejabberd_hooks:run_fold(mam_archive_message, Host, ok,
         [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]),
     Diff = timer:now_diff(os:timestamp(), StartT),
-    mongoose_metrics:update(global, [backends, ?MODULE, archive], Diff),
+    mongoose_metrics:update(Host, [backends, ?MODULE, archive], Diff),
     R.
 
 -spec purge_single_message(Host :: ejabberd:server(),
@@ -967,19 +983,37 @@ compile_params_module(Params) ->
     code:load_binary(Mod, "mod_mam_params.erl", Code).
 
 params_helper(Params) ->
+    %% Try is_complete_message opt for backwards compatibility
+    {IsArchivableModule, IsArchivableFunction} =
+        case proplists:get_value(is_archivable_message, Params) of
+            undefined ->
+                case proplists:get_value(is_complete_message, Params) of
+                    undefined -> {mod_mam_utils, is_archivable_message};
+                    OldStyleMod -> {OldStyleMod, is_complete_message}
+                end;
+
+            Mod -> {Mod, is_archivable_message}
+        end,
+
     binary_to_list(iolist_to_binary(io_lib:format(
         "-module(mod_mam_params).~n"
         "-compile(export_all).~n"
         "add_archived_element() -> ~p.~n"
-        "is_complete_message() -> ~p.~n",
+        "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
+        "default_result_limit() -> ~p.~n"
+        "max_result_limit() -> ~p.~n"
+        "params() -> ~p.~n",
         [proplists:get_bool(add_archived_element, Params),
-         proplists:get_value(is_complete_message, Params, mod_mam_utils)]))).
+         IsArchivableModule, IsArchivableFunction,
+         proplists:get_value(default_result_limit, Params, 50),
+         proplists:get_value(max_result_limit, Params, 50),
+         Params
+        ]))).
+
+set_params(Params) ->
+    compile_params_module(Params ++ mod_mam_params:params()).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().
 add_archived_element() ->
     mod_mam_params:add_archived_element().
-
-is_complete_message(Module, Dir, Packet) ->
-    M = mod_mam_params:is_complete_message(),
-    M:is_complete_message(Module, Dir, Packet).

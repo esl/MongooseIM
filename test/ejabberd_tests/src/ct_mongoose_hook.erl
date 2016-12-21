@@ -154,7 +154,7 @@ check_registered_users() ->
     end.
 
 check_registered_users_count() ->
-    D = escalus_ct:get_config(ejabberd_domain),
+    D = ct:get_config({hosts, mim, domain}),
     case ?RPC(ejabberd_auth, get_vh_registered_users_number, [D]) of
         0 -> [];
         N -> [{registered_users_count, N}]
@@ -179,7 +179,7 @@ check_roster() ->
     generic_via_mongoose_helper(total_roster_items).
 
 check_carboncopy() ->
-    D = escalus_ct:get_config(ejabberd_domain),
+    D = ct:get_config({hosts, mim, domain}),
     case ?RPC(gen_mod, is_loaded, [D, mod_carboncopy]) of
         true ->
             do_check_carboncopy();

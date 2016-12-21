@@ -96,7 +96,7 @@ init_per_suite(Config0) ->
 
     Config1 = [{s2s_opts, S2S} | escalus:init_per_suite(Config0)],
     Config2 = [{escalus_user_db, xmpp} | Config1],
-    escalus:create_users(Config2, escalus:get_users([alice2, bob2, alice, bob])).
+    escalus:create_users(Config2, escalus:get_users([alice2, alice, bob])).
 
 end_per_suite(Config) ->
     S2SOrig = ?config(s2s_opts, Config),

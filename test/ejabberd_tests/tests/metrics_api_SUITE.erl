@@ -89,7 +89,7 @@ end_per_testcase(CaseName, Config) ->
 message_flow(Config) ->
     case metrics_helper:all_metrics_are_global(Config) of
         true -> katt_helper:run(metrics_only_global, Config,
-                                [{port, escalus_ct:get_config(ejabberd2_metrics_rest_port)}]);
+                                [{port, ct:get_config({hosts, mim, metrics_rest_port2})}]);
         _ -> katt_helper:run(metrics, Config)
     end.
 
@@ -136,11 +136,11 @@ one_message_sent(Config) ->
         {xmppMessageReceived, 1}]).
 
 one_direct_presence_sent(Config) ->
-    [_, {User2ID, _}] = Userspec = metrics_helper:userspec(1, 1, Config),
+    Userspec = metrics_helper:userspec(1, 1, Config),
     instrumented_story
       (Config, Userspec,
        fun(User1, User2) ->
-               Presence = escalus_stanza:presence_direct(User2ID, <<"available">>),
+               Presence = escalus_stanza:presence_direct(User2, <<"available">>),
                escalus:send(User1, Presence),
                escalus:wait_for_stanza(User2)
         end,
@@ -254,7 +254,8 @@ find(CounterName, CounterList) ->
         {CounterName, Val} -> Val end.
 
 fetch_counter_value(Counter, Config) ->
-    Params = [{metric, atom_to_list(Counter)}, {host, ct:get_config(ejabberd_domain)}],
+    Params = [{metric, atom_to_list(Counter)},
+              {host, ct:get_config({hosts, mim, domain})}],
     {_, _, _, Vars, _} = katt_helper:run(metric, Config, Params),
     HostValue = proplists:get_value("value_host", Vars),
     HostValueList = proplists:get_value("value_host_list", Vars),
@@ -286,7 +287,7 @@ fetch_global_spiral_values(Counter, Config) ->
 
 fetch_global_counter_values(Blueprint, Counter, Config) ->
     ParamsBase = case metrics_helper:all_metrics_are_global(Config) of
-                     true -> [{port, escalus_ct:get_config(ejabberd2_metrics_rest_port)}];
+                     true -> [{port, ct:get_config({hosts, mim, metrics_rest_port2})}];
                      _ -> []
                  end,
     Params = [{metric, atom_to_list(Counter)} | ParamsBase],
@@ -308,6 +309,5 @@ assert_counter_inc(Name, Inc, Counters1, Counters2) when is_list(Counters1) ->
 assert_counter_inc(_Name, Inc, Counter1, Counter2) when Counter1 + Inc =:= Counter2 ->
     ok.
 
-get_diffs(L1,L2) ->
+get_diffs(L1, L2) ->
     lists:zip(L1, L2).
-

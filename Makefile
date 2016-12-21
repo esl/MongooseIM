@@ -61,6 +61,10 @@ test: test_deps
 test_preset: test_deps
 	cd test/ejabberd_tests; make test_preset
 
+rock:
+	@if [ "$(FILE)" ]; then elvis rock $(FILE);\
+	elif [ "$(BRANCH)" ]; then tools/rock_changed.sh $(BRANCH); \
+	else tools/rock_changed.sh; fi
 
 run: deps compile quickrun
 
@@ -125,7 +129,7 @@ cover_report: /tmp/mongoose_combined.coverdata
 relclean:
 	rm -rf rel/mongooseim
 
-certs: fake_cert.pem fake_server.pem
+certs: fake_cert.pem fake_server.pem fake_dh_server.pem
 
 certs_priv: certs
 	@mkdir -p priv/ssl
@@ -139,6 +143,9 @@ fake_cert.pem:
 
 fake_server.pem:
 	cat fake_cert.pem fake_key.pem > fake_server.pem
+
+fake_dh_server.pem:
+	openssl dhparam -outform PEM -out fake_dh_server.pem 1024
 
 include dialyzer.mk
 

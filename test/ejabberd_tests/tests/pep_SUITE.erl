@@ -29,7 +29,8 @@ groups() -> [
                pep_caps_test,
                publish_test,
                notify_test,
-               send_caps_after_login_test
+               send_caps_after_login_test,
+               h_ok_after_notify_test
               ]
              }
             ].
@@ -41,27 +42,25 @@ suite() ->
 -define(CAPS_NODE_NAME, <<"http://www.chatopus.com">>).
 -define(CAPS_NODE, {?CAPS_NODE_NAME, ?CAPS_HASH}).
 
--define(DOMAIN, <<"localhost">>).
-
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(dynamic_modules:save_modules(?DOMAIN, Config)).
+    escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config)).
 
 end_per_suite(Config) ->
-    dynamic_modules:restore_modules(?DOMAIN, Config),
+    dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    dynamic_modules:ensure_modules(?DOMAIN, required_modules()),
-    Users = escalus_users:get_users([alice, bob]),
+    dynamic_modules:ensure_modules(domain(), required_modules()),
+    Users = escalus_users:get_users([alice, bob, kate]),
     escalus:create_users(Config, Users),
     escalus_story:make_everyone_friends(Config, Users).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus_users:get_users([alice, bob])),
+    escalus:delete_users(Config, escalus_users:get_users([alice, bob, kate])),
     ok.
 
 init_per_testcase(pep_caps_test, Config) ->
@@ -83,7 +82,7 @@ end_per_testcase(TestName, Config) ->
 pep_caps_test(Config) ->
     escalus:story(
       Config,
-      [{bob,1}],
+      [{bob, 1}],
       fun(Bob) ->
               %% Send presence with capabilities (chap. 1 ex. 4)
               %% Server does not know the version string, so it requests feature list
@@ -96,7 +95,7 @@ pep_caps_test(Config) ->
 publish_test(Config) ->
     escalus:story(
       Config,
-      [{alice,1}],
+      [{alice, 1}],
       fun(Alice) ->
               %% Account owner publishes item (chap. 3, ex. 6)
               pubsub_tools:publish(Alice, <<"item1">>, {pep, ?NS_USER_TUNE}, [])
@@ -104,8 +103,10 @@ publish_test(Config) ->
 
 notify_test(Config) ->
     escalus:story(
-      [{escalus_overrides, [{initial_activity, {?MODULE, send_initial_presence_with_caps}}]} | Config],
-      [{alice,1}, {bob,1}],
+      [{escalus_overrides,
+       [{initial_activity, {?MODULE, send_initial_presence_with_caps}}]}
+       | Config],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               pubsub_tools:receive_item_notification(
                 Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}, []),
@@ -118,7 +119,7 @@ notify_test(Config) ->
 send_caps_after_login_test(Config) ->
     escalus:story(
       Config,
-      [{alice,1}, {bob,1}],
+      [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               Caps = caps(),
               send_presence_with_caps(Bob, Caps, false),
@@ -128,6 +129,28 @@ send_caps_after_login_test(Config) ->
                 Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}, [])
       end).
 
+h_ok_after_notify_test(ConfigIn) ->
+    Config = escalus_users:update_userspec(ConfigIn, kate,
+                                           stream_management, true),
+    escalus:story(
+        [{escalus_overrides, [
+            {initial_activity, {?MODULE, send_initial_presence_with_caps}}]} |
+             Config
+         ],
+        [{alice, 1}, {kate, 1}],
+        fun(Alice, Kate) ->
+            pubsub_tools:receive_item_notification(
+                Kate, <<"item2">>,
+                {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}, []),
+
+            H = escalus_tcp:get_sm_h(Kate),
+            escalus:send(Kate, escalus_stanza:sm_ack(H)),
+
+            escalus_connection:send(Kate, escalus_stanza:sm_request()),
+            escalus:assert(is_sm_ack,
+                escalus_connection:get_stanza(Kate, stream_mgmt_ack))
+        end).
+
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
@@ -135,15 +158,17 @@ send_caps_after_login_test(Config) ->
 required_modules() ->
     [{mod_caps, []},
      {mod_pubsub, [
-                   {plugins,[<<"dag">>,<<"pep">>]},
-                   {nodetree,<<"dag">>},
-                   {pep_mapping,[]}
+                   {plugins, [<<"dag">>, <<"pep">>]},
+                   {nodetree, <<"dag">>},
+                   {pep_mapping, []},
+                   {host, "pubsub.@HOST@"}
                   ]}].
 
 send_initial_presence_with_caps(User) ->
     case string:to_lower(binary_to_list(escalus_client:username(User))) of
         "alice" -> escalus_story:send_initial_presence(User);
-        "bob" -> do_send_presence_with_caps(User, caps())
+        "bob" -> do_send_presence_with_caps(User, caps());
+        "kate" -> do_send_presence_with_caps(User, caps())
     end.
 
 send_presence_with_caps(User, Caps, ExpectDiscoRequest) ->
@@ -165,14 +190,16 @@ send_caps_disco_result(User, DiscoRequest) ->
     escalus:send(User, DiscoResult).
 
 subscribe_presence(User1, User2) ->
-    SubscribeIq = escalus_stanza:presence_direct(escalus_utils:get_short_jid(User2), <<"subscribe">>),
+    ShortJID1 = escalus_utils:get_short_jid(User2),
+    SubscribeIq = escalus_stanza:presence_direct(ShortJID1, <<"subscribe">>),
     escalus:send(User1, SubscribeIq),
 
     _Received = escalus:wait_for_stanza(User2),
 
     _ReceivedUser1 = escalus:wait_for_stanza(User1),
 
-    SubscribedIq = escalus_stanza:presence_direct(escalus_utils:get_short_jid(User1), <<"subscribed">>),
+    ShortJID2 = escalus_utils:get_short_jid(User1),
+    SubscribedIq = escalus_stanza:presence_direct(ShortJID2, <<"subscribed">>),
     escalus:send(User2, SubscribedIq),
 
     _Stanzas = escalus:wait_for_stanzas(User1, 3),
@@ -238,3 +265,6 @@ features() ->
 
 ns_notify(NS) ->
     <<NS/binary, "+notify">>.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).

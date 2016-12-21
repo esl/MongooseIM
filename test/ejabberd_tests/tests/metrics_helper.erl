@@ -10,7 +10,7 @@
 -define(ONLY_GLOBAL_METRICS_GROUP_USERS, [clusterguy, clusterbuddy]).
 
 get_counter_value(CounterName) ->
-    get_counter_value(ct:get_config(ejabberd_domain), CounterName).
+    get_counter_value(ct:get_config({hosts, mim, domain}), CounterName).
 
 get_counter_value(Host, Metric) ->
     case escalus_ejabberd:rpc(mongoose_metrics, get_metric_value, [Host, Metric]) of
@@ -25,8 +25,8 @@ get_counter_value(Host, Metric) ->
     end.
 
 assert_counter(Value, CounterName) ->
-    assert_counter(escalus_ct:get_config(ejabberd_domain), Value, CounterName).
-    
+    assert_counter(ct:get_config({hosts, mim, domain}), Value, CounterName).
+
 assert_counter(Host, Value, CounterName) ->
     {value, Value} = get_counter_value(Host, CounterName).
 
@@ -47,8 +47,10 @@ finalise_by_all_metrics_are_global(Config, false) ->
 finalise_by_all_metrics_are_global(Config, true) ->
     Config1 = lists:keydelete(all_metrics_are_global, 1, Config),
     %% TODO: Refactor once escalus becomes compatible with multiple nodes RPC
-    Config2 = distributed_helper:remove_node_from_cluster(ejabberd_node_utils:mim2(), Config1),
-    escalus:delete_users(Config2, escalus:get_users(?ONLY_GLOBAL_METRICS_GROUP_USERS)).
+    distributed_helper:remove_node_from_cluster(ejabberd_node_utils:mim2(),
+                                                Config1),
+    escalus:delete_users(Config1,
+                         escalus:get_users(?ONLY_GLOBAL_METRICS_GROUP_USERS)).
 
 all_metrics_are_global(Config) ->
     case lists:keyfind(all_metrics_are_global, 1, Config) of
@@ -83,4 +85,3 @@ user_ids(Config) ->
         true -> ?ONLY_GLOBAL_METRICS_GROUP_USERS;
         _ -> ?METRICS_GROUP_USERS
     end.
-

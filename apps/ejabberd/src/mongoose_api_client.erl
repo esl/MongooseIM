@@ -35,9 +35,10 @@
 %% ejabberd_cowboy callbacks
 %%--------------------------------------------------------------------
 
-%% @doc This is implementation of ejabberd_cowboy callback. Returns list of all available http paths.
+%% @doc This is implementation of ejabberd_cowboy callback.
+%% Returns list of all available http paths.
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
-    ejabberd_cowboy:implemented_result() | ejabberd_cowboy:default_result().
+    ejabberd_cowboy:implemented_result().
 cowboy_router_paths(Base, _Opts) ->
     ejabberd_hooks:add(register_command, global, mongoose_api_common, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, mongoose_api_common, reload_dispatches, 50),
@@ -160,7 +161,7 @@ do_check_password(#jid{luser = User, lserver = Server} = JID,
 make_unauthorized_response(Req, State) ->
     {{false, <<"Basic realm=\"mongooseim\"">>}, Req, State}.
 
--spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:path().
+-spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:route().
 handler_path(Base, Command) ->
     {[Base, mongoose_api_common:create_user_url_path(Command)],
         ?MODULE, [{command_category, mongoose_commands:category(Command)}]}.

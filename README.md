@@ -1,234 +1,133 @@
-MongooseIM  [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/)
-[![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
+# MongooseIM platform
 
+<img align="left" src="doc/MongooseIM_logo.png" alt="MongooseIM platform's logo" />
 
-============
-<img align="left" src="doc/MongooseIM_logo.png"</img>
+MongooseIM is robust and efficient XMPP platform aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
 
-MongooseIM is Erlang Solutions' robust and efficient XMPP server aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM).
+The MongooseIM platform comes with server-side components and client libraries. We provide a test suite and a monitoring server. We recommand third-party, open source client libraries for XMPP and REST API.
 
-MongooseIM can accept client sessions over vanilla XMPP, Websockets, and HTTP long-polling (a.k.a. BOSH).
+The most important links:
 
-Its home on GitHub is at http://github.com/esl/MongooseIM.
+* Home: [http://github.com/esl/MongooseIM](http://github.com/esl/MongooseIM)
+* Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
+* Documentation: [http://mongooseim.readthedocs.org/](http://mongooseim.readthedocs.org/)
 
-The product page is available at https://www.erlang-solutions.com/products/mongooseim.html
+It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) and [Inaka](http://inaka.net/).
 
-Download packages
------------------
-For a quick start just
-[download the pre-built package](https://www.erlang-solutions.com/resources/download.html)
-that suits your platform: Ubuntu, Debian, CentOS, and Mac OS X.
+[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
-An _experimental_ Docker image exists on: https://registry.hub.docker.com/u/mongooseim/mongooseim-docker/
-You can contribute on: https://github.com/ppikula/mongooseim-docker
+<img src="doc/mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
+## Download packages
 
-Main differences from the parent project
-----------------------------------------
-This project began its life as a fork of
-[ejabberd v.2.1.8](https://github.com/processone/ejabberd) back in 2011, and later underwent some major cleanup, refactorization and optimization.
+For a quick start just download:
 
-Major steps performed at that time:
-*   bringing the project source tree to compliance with OTP project structure
-    recommendations,
-*   swapping `autotools` for the Erlang community-standard build tool `rebar`,
-*   removal of obsolete and/or rarely used modules to reduce maintenance
-    burden,
-*   reduction of runtime memory consumption by refactoring the code
-    to use Erlang's binary data type for string manipulation and storage
-    instead of operating on linked lists of characters,
-*   functional test coverage of the system according to corresponding
-    RFCs and XEPs.
+* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html)
+that suits your platform (Ubuntu, Debian, CentOS, and macOS)
+* The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): [https://hub.docker.com/r/mongooseim/mongooseim/](https://hub.docker.com/r/mongooseim/mongooseim/) (source code repository: [https://github.com/esl/mongooseim-docker](https://github.com/esl/mongooseim-docker))
 
-Key differences today:
-*   massive scalability
-*   code quality, through extensive refactoring, substantial optimisations, and continuous integration
-*   unique version, fully open source, fully open standards, innovations contributed to the XSF
-*   professional support, and flexible customer service
+## Public testing
 
-Documentation
--------------
+Check out our test results:
+
+* Continuous integration: [https://travis-ci.org/esl/MongooseIM](https://travis-ci.org/esl/MongooseIM)
+* Code coverage: [https://coveralls.io/github/esl/MongooseIM](https://coveralls.io/github/esl/MongooseIM)
+* Stay tuned... more soon!
+
+## MongooseIM platform components
+
+<img src="doc/MongooseIM_Platform_components.png" alt="MongooseIM platform schema" />
+
+### Server-side components
+
+We offer a set of server-side components:
+
+* [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html) is a powerful monitoring platform that comes with specific MongooseIM plugins
+* Test suite: in order to test and validate your XMPP servers, here are useful tools:
+    * [escalus](https://github.com/esl/escalus): Erlang XMPP client
+    * [amoc](https://github.com/esl/amoc): a load testing tools
+* More components? It is probable that we will offer:
+    * Icicle: ICE, STUN/TRUN server
+    * Platypus: a push notification server
+
+### Client-side components
+
+* XMPP client libraries: we recommend following client libraries:
+    * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
+    * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
+    * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io), [Strophe.js](https://github.com/strophe/strophejs)
+* REST API client libraries: we recommend following client libraries:
+    * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
+    * Android, Java: [Retrofit](https://github.com/square/retrofit)
+
+## Participate!
+
+In case of any suggestions, questions or any thoughts, please feel free to contact us:
+
+* Defacto standard [GitHub issues](https://github.com/esl/MongooseIM/issues): https://github.com/esl/MongooseIM/issues
+* Email us at <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>
+* Create a post on erlangcentral forums at <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>
+* Follow our [Twitter account](https://twitter.com/MongooseIM): [https://twitter.com/MongooseIM](https://twitter.com/MongooseIM)
+* Like our [Facebook page](https://www.facebook.com/MongooseIM/): [https://www.facebook.com/MongooseIM/](https://www.facebook.com/MongooseIM/)
+* Subscribe to our [mailing list](https://groups.google.com/d/forum/mongooseim-announce) at [https://groups.google.com/d/forum/mongooseim-announce](https://groups.google.com/d/forum/mongooseim-announce) as it is only one or two emails per month, the archives are free and open (click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message")
+
+## Documentation
 
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
-* http://mongooseim.readthedocs.org/en/latest/
-* Older versions:
-  * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
-  * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
-  * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
-  * [release 1.5.1](http://mongooseim.readthedocs.org/en/1.5.1/)
 
+* [http://mongooseim.readthedocs.org/en/latest/](http://mongooseim.readthedocs.org/en/latest/)
+* [release 2.0.0](http://mongooseim.readthedocs.org/en/2.0.0/)
+* Older versions:
+    * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
+    * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
+    * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
 
 When developing new features/modules, please take care to add basic documentation
 to the `doc/` directory, and add a link to your document in `doc/README.md`.
 
-Original documentation for Ejabberd-2.1.8, from which MongooseIM was forked, is preserved
-in `doc/ejabberd-2.1.8-OLD`.
+The MongooseIM platform documentation:
 
-
-Features and supported standards
---------------------------------
-
-*   XMPP Core: [RFC 3920](https://tools.ietf.org/html/rfc3920),
-    [RFC 6120](https://tools.ietf.org/html/rfc6120)
-*   Client connections over TCP (with TLS/STARTTLS available), Websockets,
-    and HTTP(S) (BOSH).
-*   Configurable database backends: MySQL, Postgres, generic ODBC. Mnesia
-    and Redis for transient data.
-*   Supports XEPs:
-
-|||||
-|-------------|-------------|-------------|-------------|
-|[XEP-0012: Last Activity](http://www.xmpp.org/extensions/xep-0012.html) | [XEP-0016: Privacy Lists](http://www.xmpp.org/extensions/xep-0016.html) | [XEP-0018: Invisible Presence](http://www.xmpp.org/extensions/xep-0018.html) | [XEP-0022: Message Events](http://www.xmpp.org/extensions/xep-0022.html) |
-[XEP-0023: Message Expiration](http://www.xmpp.org/extensions/xep-0023.html) | [XEP-0030: Service Discovery](http://www.xmpp.org/extensions/xep-0030.html) | [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/attic/xep-0045-1.25.html) | [XEP-0049: Private XML Storage](http://www.xmpp.org/extensions/xep-0049.html) |
-[XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/attic/xep-0050-1.2.html) | [XEP-0054: vcard-temp](http://www.xmpp.org/extensions/xep-0054.html) | [XEP-0055: Jabber Search](http://www.xmpp.org/extensions/xep-0055.html) | [XEP-0059: Result Set Management](http://www.xmpp.org/extensions/xep-0059.html) |
-[XEP-0060: Publish-Subscribe](http://xmpp.org/extensions/attic/xep-0060-1.13-1.html) | [XEP-0068: Field Standardization for Data Forms](http://www.xmpp.org/extensions/xep-0068.html) | [XEP-0077: In-Band Registration](http://www.xmpp.org/extensions/xep-0077.html) | [XEP-0078: Non-SASL Authentication](http://www.xmpp.org/extensions/xep-0078.html) |
-[XEP-0079: Advanced Message Processing](http://www.xmpp.org/extensions/xep-0079.html) | [XEP-0082: XMPP Date and Time Profiles](http://www.xmpp.org/extensions/xep-0082.html) | [XEP-0083: Nested Roster Groups](http://www.xmpp.org/extensions/xep-0083.html) | [XEP-0085: Chat State Notifications](http://www.xmpp.org/extensions/xep-0085.html) |
-[XEP-0086: Error Condition Mappings](http://www.xmpp.org/extensions/xep-0086.html) | [XEP-0092: Software Version](http://www.xmpp.org/extensions/xep-0092.html) | [XEP-0093: Roster Item Exchange](http://www.xmpp.org/extensions/xep-0093.html) | [XEP-0114: Jabber Component Protocol](http://www.xmpp.org/extensions/xep-0114.html) |
-[XEP-0115: Entity Capabilities](http://www.xmpp.org/extensions/xep-0115.html) | [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://www.xmpp.org/extensions/xep-0124.html) | [XEP-0126: Invisibility](http://www.xmpp.org/extensions/xep-0126.html) | [XEP-0138: Stream Compression](http://www.xmpp.org/extensions/xep-0138.html) |
-[XEP-0157: Contact Addresses for XMPP Services](http://www.xmpp.org/extensions/xep-0157.html) | [XEP-0160: Best Practices for Handling Offline Messages](http://www.xmpp.org/extensions/xep-0160.html) | [XEP-0163: Personal Eventing Protocol](http://www.xmpp.org/extensions/xep-0163.html) | [XEP-0175: Best Practices for Use of SASL ANONYMOUS](http://www.xmpp.org/extensions/xep-0175.html) |
-[XEP-0185: Dialback Key Generation and Validation](http://www.xmpp.org/extensions/xep-0185.html) | [XEP-0191: Blocking Command](http://www.xmpp.org/extensions/xep-0191.html) | [XEP-0198: Stream Management](http://xmpp.org/extensions/attic/xep-0198-1.3.html) | [XEP-0199: XMPP Ping](http://www.xmpp.org/extensions/xep-0199.html) |
-[XEP-0202: Entity Time](http://www.xmpp.org/extensions/xep-0202.html) | [XEP-0206: XMPP Over BOSH](http://www.xmpp.org/extensions/xep-0206.html) | [XEP-0212: XMPP Basic Server 2008](http://www.xmpp.org/extensions/xep-0212.html) | [XEP-0237: Roster Versioning](http://www.xmpp.org/extensions/xep-0237.html) |
-[XEP-0248: PubSub Collection Nodes](http://www.xmpp.org/extensions/xep-0248.html) | [XEP-0279: Server IP Check](http://www.xmpp.org/extensions/xep-0279.html) | [XEP-0280: Message Carbons](http://xmpp.org/extensions/attic/xep-0280-0.10.html) | [XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.2.html) |
-[XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.3.html) | [XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.4.1.html) | [XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.5.html) | [XEP-0352: Client State Indication](http://www.xmpp.org/extensions/xep-0352.html) |
-
-
-How to build
-------------
-1.  Requirements.
-
-    To compile MongooseIM you need:
-    *   GNU Make,
-    *   GCC,
-    *   Libexpat 1.95 or higher,
-    *   Erlang/OTP 17.5 or higher,
-    *   Reltool 0.6.6 or higher,
-    *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption,
-    *   Zlib 1.2.3 or higher for Stream Compression support (XEP-0138). Optional.
-
-2.  Compiling on UNIX-like systems.
-
-    To compile MongooseIM, go to the main repo directory `$REPO` and execute
-    the command (`$` stands for the shell prompt):
-
-        $ make
-
-    or
-
-        $ ./rebar get-deps
-        $ ./rebar compile
-
-    To generate full MongooseIM release (with mysql, pgsql or other deps):
-
-        $ make rel
-
-    If more advanced release is required (with some specific db support only,
-    f.e. mysql or pgsql) or you want to set `prefix` or `user` for the
-    installation script please refer to the
-    [release configuration](doc/user-guide/release_config.md)
-    page in our documentation
-
-    `make rel` commands will generate a self-contained OTP system image in the
-    project's `rel/mongooseim` subdirectory. The contents of that directory are as
-    follows:
-    *   `rel/mongooseim/bin` - startup/administration scripts,
-    *   `rel/mongooseim/etc` - configuration files,
-    *   `rel/mongooseim/lib` - MongooseIM binary, header and runtime files,
-    *   `rel/mongooseim/var` - spool directory,
-    *   `rel/mongooseim/log` - log file directory,
-    *   `rel/mongooseim/releases` - release files directory.
-
-3.  Running MongooseIM.
-
-    To run MongooseIM from the project tree after compiling it, change
-    to `$REPO/rel/mongooseim`.
-
-    There you can use the `mongooseim` command line administration script to
-    start and stop MongooseIM. For example:
-
-        $ bin/mongooseim start
-
-    will start the server.
-
-    You can also run the server in interactive mode:
-
-        $ bin/mongooseim live
-
-    There's also a tool called `mongooseimctl` allowing you to perform some
-    operations on a running instance, e.g.:
-
-        $ bin/mongooseimctl status
-        MongooseIM node mongooseim@localhost:
-          operating system pid: 86026
-          Erlang VM status: started (of: starting | started | stopping)
-          boot script status: started
-          version: 1.6.2-61-g48b8332
-          uptime: 1:12:46
-          logs:
-            log/ejabberd.log
-
-4.  Building the testing target and running tests.
-
-    For testing purposes there's a different make target available:
-
-        $ make devrel
-
-    which will generate releases in `$REPO/dev/` and prepare
-    them for testing and generating coverage reports.
-
-    To run the tests (from project's root directory, i.e. `$REPO`):
-
-        $ dev/mongooseim_node1/bin/mongooseim start
-        $ dev/mongooseim_node2/bin/mongooseim start
-        $ make quicktest
-
-    The test results will show up in the console`.
-
-
-Test suite
-----------
-
-In order to test and validate your XMPP servers, here are useful tools:
-* [escalus](https://github.com/esl/escalus): Erlang XMPP client
-* [amoc](https://github.com/esl/amoc): a load testing tools
-
-Public testing
---------------
-
-Continuous integration:
-https://travis-ci.org/esl/MongooseIM
-
-Code coverage:
-https://coveralls.io/github/esl/MongooseIM
-
-
-Want to get in touch with us?
------------------------------
-In case of any suggestions, questions or any thoughts on this project,
-please feel free to contact us by the standard GitHub ways or at
-<a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>.
-
-Want to discuss MongooseIM, problems with your deployement or anything else?
-Try: <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
-
-Announcements mailing-list
---------------------------
-
-We have set up a new public mailing-list for all announcements of major events happening on the MongooseIM front. Expect one or two emails per month, the archives are free and open. We highly encourage you to subscribe here: https://groups.google.com/d/forum/mongooseim-announce
-Click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message".
-
-Client libraries
-----------------
-
-We recommend following client libraries:
-* iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
-* Android, Java: [Smack](https://github.com/igniterealtime/Smack)
-* Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io)
-
-Social media
-------------
-
-Follow us on Twitter and Facebook, please ask questions, and propose features!
-
-Twitter: https://twitter.com/MongooseIM
-
-Facebook: https://www.facebook.com/MongooseIM/
+* User Guide
+    * [Features and supported standards](doc/user-guide/Features-and-supported-standards.md) contains the list of supported XEPs, RFCs and database backends
+    * [Get to know MongooseIM](doc/user-guide/Get-to-know-MongooseIM.md) contains the overview of our application, its architecture and deployment strategies
+    * [Getting started](doc/user-guide/Getting-started.md) is a step-by-step guide on how to:
+        * Build MongooseIM on a supported OS
+        * Perform basic configuration
+        * Use the main administration script, `mongooseimctl`
+    * [Release/Installation configuration](doc/user-guide/release_config.md)
+    * [High-level Architecture](doc/user-guide/MongooseIM-High-level-Architecture.md) from single to multiple node setup to multi-datacenter
+    * [How to build](doc/user-guide/How-to-build.md) from source code
+* Platform:
+    * [Roadmap](doc/Roadmap.md)
+    * [Contributions](doc/Contributions.md)
+    * [Differentiators](doc/Differentiators.md)
+* Configuration
+    * [Basic configuration](doc/Basic-configuration.md)
+    * [Advanced configuration](doc/Advanced-configuration.md)
+        * [Overview](doc/Advanced-configuration.md)
+        * [Database backends configuration](doc/advanced-configuration/database-backends-configuration.md)
+        * [Listener modules](doc/advanced-configuration/Listener-modules.md)
+        * [Extension modules](doc/advanced-configuration/Modules.md)
+        * [ACL](doc/advanced-configuration/acl.md)
+        * [HTTP authentication module](doc/advanced-configuration/HTTP-authentication-module.md)
+* MongooseIM open XMPP extensions:
+    * [MUC light](doc/open-extensions/muc_light.md)
+    * [Token-based reconnection](doc/open-extensions/token-reconnection.md)
+* [REST API for client developers](doc/REST-API.md)
+* Operation and maintenance
+    * [Cluster management considerations](doc/operation-and-maintenance/Cluster-management-considerations.md)
+    * [Cluster configuration and node management](doc/operation-and-maintenance/Cluster-configuration-and-node-management.md)
+    * [Logging & monitoring](doc/operation-and-maintenance/Logging-&-monitoring.md)
+    * [Reloading configuration on a running system](doc/operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
+    * [Metrics](doc/operation-and-maintenance/Mongoose-metrics.md)
+    * [HTTP Administration API](doc/http-api/http-administration-api-documentation.md)
+* Server developer guide
+    * [Testing MongooseIM](doc/developers-guide/Testing-MongooseIM.md)
+    * [REST Interface to Metrics](doc/developers-guide/REST-interface-to-metrics.md)
+    * [Hooks and handlers](doc/developers-guide/Hooks-and-handlers.md)
+    * [Hooks description](doc/developers-guide/hooks_description.md)
+    * [Stanza routing](doc/developers-guide/message_routing.md)
+    * [mod_amp developer's guide](doc/developers-guide/mod_amp_developers_guide.md)
+    * [mod_muc_light developer's guide](doc/developers-guide/mod_muc_light_developers_guide.md)
+    * [xep-tool usage](doc/developers-guide/xep_tool.md)
+    * [FIPS mode](doc/developers-guide/OpenSSL-and-FIPS.md)

@@ -417,7 +417,7 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
                 is_expected_rid(Rid, ExpectedRid),
                 is_acceptable_rid(Rid, ExpectedRid)}
     of
-        {_, {true, CachedResponse}, _, _} ->
+        {_, {true, CachedResponse}, _, _} when Handler /= none ->
             case CachedResponse of
                 none ->
                     NS;
@@ -894,7 +894,8 @@ bosh_wrap(Elements, Rid, #state{} = S) ->
     end,
     MaybeAck = maybe_ack(Rid, NS),
     {MaybeReport, NNS} = maybe_report(NS),
-    MaybeStreamPrefix = maybe_stream_prefix(Children),
+    HasStreamPrefix = (exml_query:attr(Body, <<"xmlns:stream">>) /= undefined),
+    MaybeStreamPrefix = maybe_stream_prefix(HasStreamPrefix, Children),
     ExtraAttrs = MaybeAck ++ MaybeReport ++ MaybeStreamPrefix,
     {Body#xmlel{attrs = Body#xmlel.attrs ++ ExtraAttrs,
                 children = maybe_add_default_ns_to_children(Children)}, NNS}.
@@ -965,38 +966,41 @@ bosh_stream_end_body() ->
                     {<<"xmlns">>, ?NS_HTTPBIND}],
            children = []}.
 
-maybe_stream_prefix(Stanzas) ->
-    case lists:any(fun is_stream_error/1, Stanzas) of
+maybe_stream_prefix(true, _) ->
+    [];
+maybe_stream_prefix(_, Stanzas) ->
+    case lists:any(fun is_stream_prefix/1, Stanzas) of
         false ->
             [];
         true ->
             [{<<"xmlns:stream">>, ?NS_STREAM}]
     end.
 
-is_stream_error(#xmlel{name = Name}) ->
-    Name =:= <<"stream:error">>.
+is_stream_prefix(#xmlel{name = <<"stream:error">>}) -> true;
+is_stream_prefix(#xmlel{name = <<"stream:features">>}) -> true;
+is_stream_prefix(_) -> false.
 
 %%--------------------------------------------------------------------
 %% ejabberd_socket compatibility
 %%--------------------------------------------------------------------
 
 %% @doc Should be negotiated on HTTP level.
--spec starttls(mod_bosh:socket(), _) -> none().
+-spec starttls(mod_bosh:socket(), _) -> no_return().
 starttls(SocketData, TLSOpts) ->
     starttls(SocketData, TLSOpts, <<>>).
 
 
--spec starttls(mod_bosh:socket(), _, _) -> none().
+-spec starttls(mod_bosh:socket(), _, _) -> no_return().
 starttls(_SocketData, _TLSOpts, _Data) ->
     throw({error, negotiate_tls_on_http_level}).
 
 
 %% @doc Should be negotiated on HTTP level.
--spec compress(mod_bosh:socket()) -> none().
+-spec compress(mod_bosh:socket()) -> no_return().
 compress(SocketData) ->
     compress(SocketData, <<>>, 0).
 
--spec compress(mod_bosh:socket(), _, integer()) -> none().
+-spec compress(mod_bosh:socket(), _, integer()) -> no_return().
 compress(_SocketData, _Data, _InflateSizeLimit) ->
     throw({error, negotiate_compression_on_http_level}).
 

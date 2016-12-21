@@ -29,7 +29,7 @@
          packet_to_x_user_jid/1,
          get_one_of_path/2,
          get_one_of_path/3,
-         is_complete_message/3,
+         is_archivable_message/3,
          wrap_message/6,
          result_set/4,
          result_query/2,
@@ -40,7 +40,8 @@
          borders_decode/1,
          decode_optimizations/1,
          form_borders_decode/1,
-         form_decode_optimizations/1]).
+         form_decode_optimizations/1,
+         is_mam_result_message/1]).
 
 %% Forms
 -export([form_field_value_s/2,
@@ -299,13 +300,13 @@ get_one_of_path(_Elem, [], Def) ->
 %% From v0.3: it is expected that all messages that hold meaningful content,
 %% rather than state changes such as Chat State Notifications, would be archived.
 %% @end
--spec is_complete_message(Mod :: module(), Dir :: incoming | outgoing,
+-spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
                           Packet :: jlib:xmlel()) -> boolean().
-is_complete_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
+is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
     is_valid_message_type(Mod, Dir, Type) andalso
     is_valid_message(Mod, Dir, Packet);
-is_complete_message(_, _, _) ->
+is_archivable_message(_, _, _) ->
     false.
 
 is_valid_message_type(_, _, <<"">>)          -> true;
@@ -582,6 +583,21 @@ form_decode_optimizations(QueryEl) ->
         {<<"true">>, _}     -> true;
         {_, _}              -> false
     end.
+
+
+is_mam_result_message(Packet = #xmlel{name = <<"message">>}) ->
+    Ns = maybe_get_result_namespace(Packet),
+    is_mam_namespace(Ns);
+is_mam_result_message(_) ->
+    false.
+
+maybe_get_result_namespace(Packet) ->
+    xml:get_path_s(Packet, [{elem, <<"result">>}, {attr, <<"xmlns">>}]).
+
+is_mam_namespace(?NS_MAM)    -> true;
+is_mam_namespace(?NS_MAM_03) -> true;
+is_mam_namespace(?NS_MAM_04) -> true;
+is_mam_namespace(_)          -> false.
 
 
 %% -----------------------------------------------------------------------
@@ -864,8 +880,7 @@ success_sql_query(Host, Query) ->
         {error, Reason} ->
             ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p~n",
                        [Host, Query, Reason]),
-            error(sql_error);
+            error({sql_error, Reason});
         Result ->
             Result
     end.
-

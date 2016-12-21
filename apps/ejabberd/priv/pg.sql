@@ -200,11 +200,9 @@ CREATE TABLE mam_config(
   -- A - always archive;
   -- N - never archive;
   -- R - roster (only for remote_jid == "")
-  behaviour mam_behaviour NOT NULL
+  behaviour mam_behaviour NOT NULL,
+  PRIMARY KEY(user_id, remote_jid)
 );
-CREATE INDEX i_mam_config
-    ON mam_config
-    (user_id, remote_jid);
 
 CREATE TABLE mam_server_user(
   id SERIAL UNIQUE PRIMARY KEY,
@@ -220,17 +218,14 @@ CREATE UNIQUE INDEX i_mam_server_user_name
 CREATE TABLE mam_muc_message(
   -- Message UID
   -- A server-assigned UID that MUST be unique within the archive.
-  id BIGINT NOT NULL PRIMARY KEY,
+  id BIGINT NOT NULL,
   room_id INT NOT NULL,
   -- A nick of the message's originator
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
-  message bytea NOT NULL
+  message bytea NOT NULL,
+  PRIMARY KEY (room_id, id)
 );
-CREATE INDEX i_mam_muc_message_room_name_added_at
-    ON mam_muc_message
-    USING BTREE
-    (room_id, id);
 
 CREATE TABLE offline_message(
     id SERIAL UNIQUE PRIMARY Key,
@@ -250,3 +245,38 @@ CREATE TABLE auth_token(
     owner   TEXT    NOT NULL PRIMARY KEY,
     seq_no  BIGINT  NOT NULL
 );
+
+CREATE TABLE muc_light_rooms(
+    id BIGSERIAL            NOT NULL UNIQUE,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    version VARCHAR(20)     NOT NULL,
+    PRIMARY KEY (lserver, luser)
+);
+
+CREATE TABLE muc_light_occupants(
+    room_id BIGINT          NOT NULL REFERENCES muc_light_rooms(id),
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    aff SMALLINT            NOT NULL
+);
+
+CREATE INDEX i_muc_light_occupants_id ON muc_light_occupants (room_id);
+CREATE INDEX i_muc_light_occupants_us ON muc_light_occupants (lserver, luser);
+
+CREATE TABLE muc_light_config(
+    room_id BIGINT          NOT NULL REFERENCES muc_light_rooms(id),
+    opt VARCHAR(100)        NOT NULL,
+    val VARCHAR(250)        NOT NULL
+);
+
+CREATE INDEX i_muc_light_config ON muc_light_config (room_id);
+
+CREATE TABLE muc_light_blocking(
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    what SMALLINT           NOT NULL,
+    who VARCHAR(500)        NOT NULL
+);
+
+CREATE INDEX i_muc_light_blocking ON muc_light_blocking (luser, lserver);

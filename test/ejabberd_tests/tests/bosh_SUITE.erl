@@ -38,7 +38,8 @@ all() ->
      {group, acks},
 
      {group, essential_https},
-     {group, chat_https}
+     {group, chat_https},
+     {group, interleave_requests_statem}
      ].
 
 groups() ->
@@ -47,7 +48,9 @@ groups() ->
      {chat, [shuffle], chat_test_cases()},
      {chat_https, [shuffle], chat_test_cases()},
      {time, [parallel], time_test_cases()},
-     {acks, [shuffle], acks_test_cases()}].
+     {acks, [shuffle], acks_test_cases()},
+     {interleave_requests_statem, [parallel], [interleave_requests_statem]}
+     ].
 
 suite() ->
     escalus:suite().
@@ -69,7 +72,8 @@ chat_test_cases() ->
      cant_send_invalid_rid,
      multiple_stanzas,
      namespace,
-     stream_error].
+     stream_error
+    ].
 
 time_test_cases() ->
     [disconnect_inactive,
@@ -148,7 +152,7 @@ create_and_terminate_session(Config) ->
     %% Assert there are no BOSH sessions on the server.
     0 = length(get_bosh_sessions()),
 
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
     ok = escalus_bosh:send_raw(Conn, Body),
     escalus_connection:get_stanza(Conn, session_creation_response),
@@ -183,7 +187,7 @@ send_specific_hold(Config, HoldValue) ->
     Body = Body0#xmlel{attrs = Attrs},
 
     Result = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(Body)),
-    {{<<"200">>,<<"OK">>}, _Headers, RespBody, _, _} = Result,
+    {{<<"200">>, <<"OK">>}, _Headers, RespBody, _, _} = Result,
 
     {ok, #xmlel{attrs = RespAttrs} = Resp} = exml:parse(RespBody),
     case lists:keyfind(<<"sid">>, 1, RespAttrs) of
@@ -219,19 +223,19 @@ get_request(Config) ->
     {_Server, Path, Client} = get_fusco_connection(Config),
     Result = fusco_request(Client, <<"GET">>, Path, <<>>),
     fusco_cp:stop(Client),
-    {{<<"200">>,<<"OK">>}, _, _, _, _} = Result.
+    {{<<"200">>, <<"OK">>}, _, _, _, _} = Result.
 
 put_request(Config) ->
     {_Server, Path, Client} = get_fusco_connection(Config),
     Result = fusco_request(Client, <<"PUT">>, Path, <<"not allowed body">>),
     fusco_cp:stop(Client),
-    {{<<"405">>,<<"Method Not Allowed">>}, _, _, _, _} = Result.
+    {{<<"405">>, <<"Method Not Allowed">>}, _, _, _, _} = Result.
 
 post_empty_body(Config) ->
     {_Server, Path, Client} = get_fusco_connection(Config),
     Result = fusco_request(Client, <<"POST">>, Path, <<>>),
     fusco_cp:stop(Client),
-    {{<<"400">>,<<"Bad Request">>}, _, _, _, _} = Result.
+    {{<<"400">>, <<"Bad Request">>}, _, _, _, _} = Result.
 
 get_fusco_connection(Config) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
@@ -250,15 +254,16 @@ stream_error(Config) ->
               %% Send a stanza with invalid 'from'
               %% attribute to trigger a stream error from
               %% the server.
+              Domain = domain(),
               BadMessage = escalus_stanza:chat(
-                             <<"not_carol@localhost">>,
-                             <<"geralt@localhost">>,
+                             <<"not_carol@", Domain/binary>>,
+                             <<"geralt@", Domain/binary>>,
                              <<"I am not Carol">>),
               escalus_client:send(Carol, BadMessage),
               escalus:assert(is_stream_error, [<<"invalid-from">>, <<>>],
                              escalus_client:wait_for_stanza(Carol)),
               %% connection should be closed, let's wait
-              true = wait_for_close(Carol, 10)
+              true = escalus_connection:wait_for_close(Carol, timer:seconds(1))
       end).
 
 interleave_requests(Config) ->
@@ -268,22 +273,40 @@ interleave_requests(Config) ->
         Rid = get_bosh_rid(Carol),
         Sid = get_bosh_sid(Carol),
 
-        Empty2 = escalus_bosh:empty_body(Rid + 1, Sid),
-        Chat2 = Empty2#xmlel{
-                children = [escalus_stanza:chat_to(Geralt, <<"2nd!">>)]},
-        escalus_bosh:send_raw(Carol, Chat2),
+        Msg1 = <<"1st!">>,
+        Msg2 = <<"2nd!">>,
+        Msg3 = <<"3rd!">>,
+        Msg4 = <<"4th!">>,
 
-        Empty1 = escalus_bosh:empty_body(Rid, Sid),
-        Chat1 = Empty1#xmlel{
-                children = [escalus_stanza:chat_to(Geralt, <<"1st!">>)]},
-        escalus_bosh:send_raw(Carol, Chat1),
+        send_message_with_rid(Carol, Geralt, Rid + 1, Sid, Msg2),
+        send_message_with_rid(Carol, Geralt, Rid, Sid, Msg1),
 
-        escalus:assert(is_chat_message, [<<"1st!">>],
+        send_message_with_rid(Carol, Geralt, Rid + 2,   Sid, Msg3),
+        send_message_with_rid(Carol, Geralt, Rid + 3,   Sid, Msg4),
+
+        escalus:assert(is_chat_message, [Msg1],
                        escalus_client:wait_for_stanza(Geralt)),
-        escalus:assert(is_chat_message, [<<"2nd!">>],
-                       escalus_client:wait_for_stanza(Geralt))
+        escalus:assert(is_chat_message, [Msg2],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [Msg3],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [Msg4],
+                       escalus_client:wait_for_stanza(Geralt)),
 
+        true = escalus_bosh:is_connected(Carol)
     end).
+
+interleave_requests_statem(Config) ->
+    true = bosh_interleave_reqs:test([{user, carol} | Config]).
+
+interleave_requests_statem_https(Config) ->
+    interleave_requests_statem([{user, carol_s} | Config]).
+
+send_message_with_rid(From, To, Rid, Sid, Msg) ->
+    Empty = escalus_bosh:empty_body(Rid, Sid),
+    Chat = Empty#xmlel{
+             children = [escalus_stanza:chat_to(To, Msg)]},
+    escalus_bosh:send_raw(From, Chat).
 
 
 simple_chat(Config) ->
@@ -336,12 +359,12 @@ cant_send_invalid_rid(Config) ->
         escalus_bosh:send_raw(Carol, Empty),
 
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
-        true = wait_for_close(Carol, 10),
+        true = escalus_connection:wait_for_close(Carol, timer:seconds(1)),
         true = wait_for_session_close(Sid, 10)
         end).
 
 multiple_stanzas(Config) ->
-    escalus:story(Config, [{?config(user, Config), 1},{geralt, 1},{alice, 1}],
+    escalus:story(Config, [{?config(user, Config), 1}, {geralt, 1}, {alice, 1}],
                   fun(Carol, Geralt, Alice) ->
                 %% send a multiple stanza
                 Server = escalus_client:server(Carol),
@@ -352,7 +375,8 @@ multiple_stanzas(Config) ->
                 RID = escalus_bosh:get_rid(Carol),
                 SID = escalus_bosh:get_sid(Carol),
                 Body = escalus_bosh:empty_body(RID, SID),
-                Stanza = Body#xmlel{children=[Stanza1,Stanza2,Stanza1,Stanza3]},
+                Stanza = Body#xmlel{children =
+                                          [Stanza1, Stanza2, Stanza1, Stanza3]},
                 escalus_bosh:send_raw(Carol, Stanza),
 
                 %% check whether each of stanzas has been processed correctly
@@ -366,7 +390,7 @@ multiple_stanzas(Config) ->
         end).
 
 namespace(Config) ->
-    escalus:story(Config, [{?config(user, Config), 1},{geralt, 1}],
+    escalus:story(Config, [{?config(user, Config), 1}, {geralt, 1}],
         fun(Carol, Geralt) ->
             %% send a multiple stanza
             Server = escalus_client:server(Carol),
@@ -708,7 +732,7 @@ force_cache_trimming(Config) ->
         %% The cache should now contain only entries newer than Rid2.
         {_, _, CarolSessionPid} = get_bosh_session(Sid),
         Cache = get_cached_responses(CarolSessionPid),
-        true = lists:all(fun({R,_,_}) when R > Rid2 -> true; (_) -> false end,
+        true = lists:all(fun({R, _, _}) when R > Rid2 -> true; (_) -> false end,
                          Cache),
         %% Not sure about this one...
         1 = length(Cache),
@@ -773,17 +797,6 @@ wait_for_stanzas(Client, Count) ->
 
 wait_for_stanza(Client) ->
     escalus_client:wait_for_stanza(Client).
-
-wait_for_close(Client, 0) ->
-    false == escalus_connection:is_connected(Client);
-wait_for_close(Client, N) ->
-    case escalus_connection:is_connected(Client) of
-        false ->
-            true;
-        _ ->
-            timer:sleep(100),
-            wait_for_close(Client, N-1)
-    end.
 
 ack_body(Body, Rid) ->
     Attrs = Body#xmlel.attrs,
@@ -850,3 +863,6 @@ wait_for_handler(Pid, N) ->
         L ->
             length(L)
     end.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).

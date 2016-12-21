@@ -29,7 +29,7 @@
 
 -behaviour(application).
 
--export([start_modules/0,start/2, prep_stop/1, stop/1]).
+-export([start_modules/0, start/2, prep_stop/1, stop/1]).
 
 -include("ejabberd.hrl").
 
@@ -45,13 +45,13 @@ start(normal, _Args) ->
     db_init(),
     application:start(cache_tab),
 
-    load_drivers([tls_drv]),
     translate:start(),
     acl:start(),
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),
     ejabberd_commands:init(),
     mongoose_commands:init(),
+    mongoose_subhosts:init(),
     gen_mod:start(),
     ejabberd_config:start(),
     ejabberd_check:config(),
@@ -60,8 +60,8 @@ start(normal, _Args) ->
     {ok, _} = Sup = ejabberd_sup:start_link(),
     ejabberd_rdbms:start(),
     mongoose_riak:start(),
-    mongoose_http_client:start(),
     mongoose_cassandra:start(),
+    mongoose_http_client:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),
     %% Profiling
@@ -82,8 +82,8 @@ start(_, _) ->
 prep_stop(State) ->
     ejabberd_listener:stop_listeners(),
     stop_modules(),
+    mongoose_subhosts:stop(),
     broadcast_c2s_shutdown(),
-    mod_websockets:stop(),
     timer:sleep(5000),
     mongoose_metrics:remove_all_metrics(),
     State.
@@ -120,10 +120,7 @@ start_modules() ->
                   undefined ->
                       ok;
                   Modules ->
-                      lists:foreach(
-                        fun({Module, Args}) ->
-                                gen_mod:start_module(Host, Module, Args)
-                        end, Modules)
+                      gen_mod_deps:start_modules(Host, Modules)
               end
       end, ?MYHOSTS).
 
@@ -132,15 +129,16 @@ start_modules() ->
 stop_modules() ->
     lists:foreach(
       fun(Host) ->
-              case ejabberd_config:get_local_option({modules, Host}) of
-                  undefined ->
-                      ok;
-                  Modules ->
-                      lists:foreach(
-                        fun({Module, _Args}) ->
-                                gen_mod:stop_module_keep_config(Host, Module)
-                        end, Modules)
-              end
+          StopModuleFun =
+              fun({Module, _Args}) ->
+                  gen_mod:stop_module_keep_config(Host, Module)
+              end,
+          case ejabberd_config:get_local_option({modules, Host}) of
+              undefined ->
+                  ok;
+              Modules ->
+                  lists:foreach(StopModuleFun, Modules)
+          end
       end, ?MYHOSTS).
 
 -spec maybe_start_alarms() -> 'ok'.
@@ -160,7 +158,7 @@ connect_nodes() ->
             ok;
         Nodes when is_list(Nodes) ->
             lists:foreach(fun(Node) ->
-                                  net_kernel:connect_node(Node)
+                              net_kernel:connect_node(Node)
                           end, Nodes)
     end.
 
@@ -169,14 +167,14 @@ broadcast_c2s_shutdown() ->
     Children = supervisor:which_children(ejabberd_c2s_sup),
     lists:foreach(
       fun({_, C2SPid, _, _}) ->
-              C2SPid ! system_shutdown
+          C2SPid ! system_shutdown
       end, Children).
 
 %%%
 %%% PID file
 %%%
 
--spec write_pid_file() -> 'ok' | {'error',atom()}.
+-spec write_pid_file() -> 'ok' | {'error', atom()}.
 write_pid_file() ->
     case ejabberd:get_pid_file() of
         false ->
@@ -187,7 +185,7 @@ write_pid_file() ->
 
 -spec write_pid_file(Pid :: string(),
                      PidFilename :: nonempty_string()
-                    ) -> 'ok' | {'error',atom()}.
+                    ) -> 'ok' | {'error', atom()}.
 write_pid_file(Pid, PidFilename) ->
     case file:open(PidFilename, [write]) of
         {ok, Fd} ->
@@ -198,30 +196,13 @@ write_pid_file(Pid, PidFilename) ->
             throw({cannot_write_pid_file, PidFilename, Reason})
     end.
 
--spec delete_pid_file() -> 'ok' | {'error',atom()}.
+-spec delete_pid_file() -> 'ok' | {'error', atom()}.
 delete_pid_file() ->
     case ejabberd:get_pid_file() of
         false ->
             ok;
         PidFilename ->
             file:delete(PidFilename)
-    end.
-
--spec load_drivers([atom()]) -> 'ok'.
-load_drivers([]) ->
-    ok;
-load_drivers([Driver | Rest]) ->
-    case erl_ddll:load_driver(ejabberd:get_so_path(), Driver) of
-        ok ->
-            load_drivers(Rest);
-        {error, permanent} ->
-            load_drivers(Rest);
-        {error, already_loaded} ->
-            load_drivers(Rest);
-        {error, Reason} ->
-            ?CRITICAL_MSG("unable to load driver 'expat_erl': ~s",
-                          [erl_ddll:format_error(Reason)]),
-            exit({driver_loading_failed, Driver, Reason})
     end.
 
 init_log() ->
@@ -232,4 +213,3 @@ init_log() ->
         false ->
             ejabberd_loglevel:set(4)
     end.
-

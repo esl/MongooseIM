@@ -78,13 +78,13 @@ end_per_testcase(CaseName, Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
-create_room(Config) ->    
+create_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Domain = <<"localhost">>,
         Path = <<"/muc-lights", $/, Domain/binary>>,
         Name = <<"wonderland">>,
         Body = #{ name => Name,
-                  creator => escalus_client:short_jid(Alice),
+                  owner => escalus_client:short_jid(Alice),
                   subject => <<"Lewis Carol">>
                 },
         {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
@@ -96,12 +96,14 @@ create_room(Config) ->
 invite_to_room(Config) ->
     Domain = <<"localhost">>,
     Name = <<"wonderland">>,
-    Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary>>,
+    Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary, $/,
+             "participants">>,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
       fun(Alice, Bob, Kate) ->
         %% XMPP: Alice creates a room.
-        escalus:send(Alice, muc_light_SUITE:stanza_create_room(undefined,
-            [{<<"roomname">>, Name}], [{Kate, member}])),
+        Stt = stanza_create_room(undefined,
+            [{<<"roomname">>, Name}], [{Kate, member}]),
+        escalus:send(Alice, Stt),
         %% XMPP: Alice recieves a affiliation message to herself and
         %% an IQ result when creating the MUC Light room.
         escalus:wait_for_stanza(Alice),
@@ -110,7 +112,7 @@ invite_to_room(Config) ->
         Body = #{ sender => escalus_client:short_jid(Alice),
                   recipient => escalus_client:short_jid(Bob)
                 },
-        {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
         %% XMPP: Bob recieves his affiliation information.
         member_is_affiliated(escalus:wait_for_stanza(Bob), Bob),
         %% XMPP: Alice recieves Bob's affiliation infromation.
@@ -130,15 +132,15 @@ send_message_to_room(Config) ->
       [{alice, 1}, {bob, 1}, {kate, 1}],
       fun(Alice, Bob, Kate) ->
         %% XMPP: Alice creates a room.
-        escalus:send(Alice, muc_light_SUITE:stanza_create_room(undefined,
+        escalus:send(Alice, stanza_create_room(undefined,
             [{<<"roomname">>, Name}], [{Bob, member}, {Kate, member}])),
         %% XMPP: Get Bob and Kate recieve their affiliation information.
         [ escalus:wait_for_stanza(U) || U <- [Bob, Kate] ],
         %% HTTP: Alice sends a message to the MUC room.
-        Body = #{ sender => escalus_client:short_jid(Alice),
-                  message => Text
+        Body = #{ from => escalus_client:short_jid(Alice),
+                  body => Text
                 },
-        {{<<"200">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
         %% XMPP: Both Bob and Kate see the message.
         [ see_message_from_user(U, Alice, Text) || U <- [Bob, Kate] ]
     end).
@@ -180,3 +182,29 @@ member_is_affiliated(Stanza, User) ->
 muc_light_domain() ->
     XMPPParentDomain = ct:get_config({hosts, mim, domain}),
     <<"muclight", ".", XMPPParentDomain/binary>>.
+
+
+stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
+    ToBinJID = case RoomNode of
+                   undefined -> muc_light_domain();
+                   _ -> <<RoomNode/binary, $@, (muc_light_domain())/binary>>
+               end,
+    ConfigItem = #xmlel{ name = <<"configuration">>,
+        children = [ kv_el(K, V) || {K, V} <- InitConfig ] },
+    OccupantsItems = [ #xmlel{ name = <<"user">>,
+        attrs = [{<<"affiliation">>, BinAff}],
+        children = [#xmlcdata{ content = BinJID }] }
+        || {BinJID, BinAff} <- bin_aff_users(InitOccupants) ],
+    OccupantsItem = #xmlel{ name = <<"occupants">>, children = OccupantsItems },
+    escalus_stanza:to(escalus_stanza:iq_set(<<"urn:xmpp:muclight:0#create">>,
+                                            [ConfigItem, OccupantsItem]),
+                      ToBinJID).
+
+kv_el(K, V) ->
+    #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
+
+bin_aff_users(AffUsers) ->
+    [ {lbin(escalus_client:short_jid(User)), list_to_binary(atom_to_list(Aff))}
+        || {User, Aff} <- AffUsers ].
+
+lbin(Bin) -> list_to_binary(string:to_lower(binary_to_list(Bin))).

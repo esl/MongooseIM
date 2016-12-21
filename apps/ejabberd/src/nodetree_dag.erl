@@ -4,13 +4,13 @@
 %%% compliance with the License. You should have received a copy of the
 %%% Erlang Public License along with this software. If not, it can be
 %%% retrieved via the world wide web at http://www.erlang.org/.
-%%% 
+%%%
 %%%
 %%% Software distributed under the License is distributed on an "AS IS"
 %%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %%% the License for the specific language governing rights and limitations
 %%% under the License.
-%%% 
+%%%
 %%%
 %%% @author Brian Cully <bjc@kublai.com>
 %%% @version {@vsn}, {@date} {@time}
@@ -167,12 +167,10 @@ oid(Key, Name) -> {Key, Name}.
 
 %% Key    = jlib:jid() | host()
 %% Node = string()
--spec(find_node/2 ::
-    (
+-spec find_node(
         Key :: mod_pubsub:hostPubsub(),
         Node :: mod_pubsub:nodeId())
-    -> mod_pubsub:pubsubNode() | false
-    ).
+    -> mod_pubsub:pubsubNode() | false.
 find_node(Key, Node) ->
     case mnesia:read(pubsub_node, oid(Key, Node), read) of
         [] -> false;
@@ -188,14 +186,12 @@ find_opt(Key, Default, Options) ->
         _ -> Default
     end.
 
--spec(traversal_helper/4 ::
-    (
+-spec traversal_helper(
         Pred    :: fun(),
-                    Tr      :: fun(),
-                                Host    :: mod_pubsub:hostPubsub(),
-                                Nodes :: [mod_pubsub:nodeId(),...])
-                                -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(),...]}]
-                                ).
+        Tr      :: fun(),
+        Host    :: mod_pubsub:hostPubsub(),
+        Nodes :: [mod_pubsub:nodeId(),...])
+        -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(),...]}].
 traversal_helper(Pred, Tr, Host, Nodes) ->
     traversal_helper(Pred, Tr, 0, Host, Nodes, []).
 
@@ -220,15 +216,13 @@ remove_config_parent(Node, [{collection, Parents} | T], Acc) ->
 remove_config_parent(Node, [H | T], Acc) ->
     remove_config_parent(Node, T, [H | Acc]).
 
--spec(validate_parentage/3 ::
-    (
+-spec validate_parentage(
         Key            :: mod_pubsub:hostPubsub(),
         Owners         :: [ljid(),...],
         Parent_Nodes :: [mod_pubsub:nodeId()])
     -> true
     %%%
-    | {error, xmlel()}
-    ).
+    | {error, xmlel()}.
 validate_parentage(_Key, _Owners, []) ->
     true;
 validate_parentage(Key, Owners, [[] | T]) ->

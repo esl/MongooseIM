@@ -288,7 +288,7 @@ wait_flushing(Host, ArcID) ->
 -spec wait_flushing_before(ejabberd:server(), mod_mam:archive_id(),
       End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp()) -> ok.
 wait_flushing_before(Host, ArcID, End, Now) ->
-    case is_recent_entries_required(End, Now) of
+    case are_recent_entries_required(End, Now) of
         true ->
             wait_flushing(Host, ArcID);
         false ->
@@ -297,12 +297,12 @@ wait_flushing_before(Host, ArcID, End, Now) ->
 
 
 %% @doc Returns true, if `End' is too old.
--spec is_recent_entries_required(mod_mam:unix_timestamp(),
-                                 mod_mam:unix_timestamp()) -> boolean().
-is_recent_entries_required(End, Now) when is_integer(End) ->
-    %% If `End' is older than 10 seconds?
-    End + 10000000 < Now;
-is_recent_entries_required(_End, _Now) ->
+-spec are_recent_entries_required(mod_mam:unix_timestamp(),
+                                  mod_mam:unix_timestamp()) -> boolean().
+are_recent_entries_required(End, Now) when is_integer(End) ->
+    %% 10 seconds
+    End + 10000000 > Now;
+are_recent_entries_required(_End, _Now) ->
     true.
 
 

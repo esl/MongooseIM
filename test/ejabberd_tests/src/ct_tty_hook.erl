@@ -93,7 +93,8 @@ post_end_per_testcase(TC, _Config, Return, State) ->
 
 %% @doc Called after post_init_per_suite, post_end_per_suite, post_init_per_group,
 %% post_end_per_group and post_end_per_testcase if the suite, group or test case failed.
-on_tc_fail(_TC, _Reason, State) ->
+on_tc_fail(TC, Reason, State) ->
+    ct:print("~p~n~p", [TC, Reason]),
     State.
 
 %% @doc Called when a test case is skipped by either user action

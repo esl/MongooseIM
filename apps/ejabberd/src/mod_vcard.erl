@@ -64,6 +64,7 @@
 -export([default_search_fields/0]).
 -export([get_results_limit/1]).
 -export([get_default_reported_fields/1]).
+-export([default_host/0]).
 
 -export([config_change/4]).
 
@@ -143,6 +144,10 @@ get_results_limit(LServer) ->
             ?JUD_MATCHES
     end.
 
+-spec default_host() -> binary().
+default_host() ->
+    <<"vjud.@HOST@">>.
+
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
@@ -172,10 +177,10 @@ init([VHost, Opts]) ->
       || {Hook, M, F, Prio} <- hook_handlers() ],
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, VHost, ?NS_VCARD,
-                                  ?MODULE,process_sm_iq, IQDisc),
+                                  ?MODULE, process_sm_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, VHost, ?NS_VCARD,
-                                  ?MODULE,process_local_iq, IQDisc),
-    DirectoryHost = gen_mod:get_opt_host(VHost, Opts, "vjud.@HOST@"),
+                                  ?MODULE, process_local_iq, IQDisc),
+    DirectoryHost = gen_mod:get_opt_subhost(VHost, Opts, default_host()),
     Search = gen_mod:get_opt(search, Opts, true),
     case Search of
         true ->
@@ -400,10 +405,11 @@ do_route(_VHost, From, To, Packet, #iq{type = set,
 do_route(VHost, From, To, _Packet, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
-    Info = ejabberd_hooks:run_fold(disco_info, VHost, [], [VHost, ?MODULE, "", ""]),
+    Info = ejabberd_hooks:run_fold(disco_info, VHost, [],
+                                   [VHost, ?MODULE, <<"">>, <<"">>]),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
-                                   attrs =[{<<"xmlns">>,?NS_DISCO_INFO}],
+                                   attrs =[{<<"xmlns">>, ?NS_DISCO_INFO}],
                                    children = [#xmlel{name = <<"identity">>,
                                                       attrs = [{<<"category">>, <<"directory">>},
                                                                {<<"type">>, <<"user">>},

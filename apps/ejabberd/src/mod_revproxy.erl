@@ -53,12 +53,12 @@ compile(Routes) ->
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
--spec start(ejabberd:host(), [option()]) -> ok.
+-spec start(ejabberd:server(), [option()]) -> ok.
 start(_Host, Opts) ->
     Routes = gen_mod:get_opt(routes, Opts, []),
     compile(Routes).
 
--spec stop(ejabberd:host()) -> ok.
+-spec stop(ejabberd:server()) -> ok.
 stop(_Host) ->
     ok.
 

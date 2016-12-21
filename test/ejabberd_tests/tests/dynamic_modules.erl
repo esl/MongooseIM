@@ -24,14 +24,10 @@ restore_modules(Domain, Config) ->
 ensure_module(_Domain, _Mod, _Opts, _Opts) ->
     ok;
 ensure_module(Domain, Mod, stopped, Opts) ->
-    ct:pal("Stop module ~p started with opts ~p", [Mod, Opts]),
     stop(Domain, Mod);
 ensure_module(Domain, Mod, Opts, stopped) ->
-    ct:pal("Start module ~p with opts ~p", [Mod, Opts]),
     start(Domain, Mod, Opts);
 ensure_module(Domain, Mod, RequiredOpts, CurrentOpts) ->
-    ct:pal("Restart module ~p (opts changed from ~p to ~p)",
-           [Mod, CurrentOpts, RequiredOpts]),
     restart(Domain, Mod, RequiredOpts).
 
 get_current_modules(Domain) ->
@@ -70,7 +66,7 @@ restart(Domain, Mod, Args) ->
     start(Domain, Mod, Args).
 
 start_running(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     case ?config(running, Config) of
         List when is_list(List) ->
             _ = [start(Domain, Mod, Args) || {Mod, Args} <- List];
@@ -81,7 +77,7 @@ start_running(Config) ->
 stop_running(Mod, Config) ->
     ModL = atom_to_list(Mod),
     Domain = escalus_ejabberd:unify_str_arg(
-               escalus_config:get_config(ejabberd_domain, Config)),
+               ct:get_config({hosts, mim, domain})),
     Modules = escalus_ejabberd:rpc(ejabberd_config,
                                    get_local_option,
                                    [{modules, Domain}]),

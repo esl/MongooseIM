@@ -153,6 +153,7 @@
     itemid                           ,% :: {mod_pubsub:itemId(), mod_pubsub:nodeIdx()},
     creation     = {unknown, unknown},% :: {erlang:timestamp(), jlib:ljid()},
     modification = {unknown, unknown},% :: {erlang:timestamp(), jlib:ljid()},
+    publisher    = undefined         ,% :: jlib:jid(),
     payload      = []                % :: mod_pubsub:payload()
 }).
 

@@ -118,22 +118,20 @@
 %%% ---------------------------------------------------
 
 -export([start/3, start/4,
-	 start_link/3, start_link/4,
-	 send_event/2, sync_send_event/2, sync_send_event/3,
-	 send_all_state_event/2,
-	 sync_send_all_state_event/2, sync_send_all_state_event/3,
-	 reply/2,
-	 start_timer/2,send_event_after/2,cancel_timer/1,
-	 enter_loop/4, enter_loop/5, enter_loop/6, wake_hib/7]).
-
--export([behaviour_info/1]).
+         start_link/3, start_link/4,
+         send_event/2, sync_send_event/2, sync_send_event/3,
+         send_all_state_event/2,
+         sync_send_all_state_event/2, sync_send_all_state_event/3,
+         reply/2,
+         start_timer/2, send_event_after/2, cancel_timer/1,
+         enter_loop/4, enter_loop/5, enter_loop/6, wake_hib/7]).
 
 %% Internal exports
 -export([init_it/6, print_event/3,
-	 system_continue/3,
-	 system_terminate/4,
-	 system_code_change/4,
-	 format_status/2]).
+         system_continue/3,
+         system_terminate/4,
+         system_code_change/4,
+         format_status/2]).
 
 -import(error_logger , [format/2]).
 
@@ -145,11 +143,38 @@
 %%% Interface functions.
 %%% ---------------------------------------------------
 
-behaviour_info(callbacks) ->
-    [{init,1},{handle_event,3},{handle_sync_event,4},{handle_info,3},
-     {terminate,3},{code_change,4}, {print_state,1}];
-behaviour_info(_Other) ->
-    undefined.
+-callback init(Args :: term()) ->
+    {ok, StateName :: atom(), StateData :: term()} |
+    {ok, StateName :: atom(), StateData :: term(), timeout()} |
+    {stop, Reason :: term()} | ignore.
+-callback handle_event(Event :: term(), StateName :: atom(),
+                       StateData :: term()) ->
+    {next_state, NextStateName :: atom(), NewStateData :: term()} |
+    {next_state, NextStateName :: atom(), NewStateData :: term(),
+     timeout() | hibernate} |
+    {stop, Reason :: term(), NewStateData :: term()}.
+-callback handle_sync_event(Event :: term(), From :: {pid(), Tag :: term()},
+                            StateName :: atom(), StateData :: term()) ->
+    {reply, Reply :: term(), NextStateName :: atom(), NewStateData :: term()} |
+    {reply, Reply :: term(), NextStateName :: atom(), NewStateData :: term(),
+     timeout() | hibernate} |
+    {next_state, NextStateName :: atom(), NewStateData :: term()} |
+    {next_state, NextStateName :: atom(), NewStateData :: term(),
+     timeout() | hibernate} |
+    {stop, Reason :: term(), Reply :: term(), NewStateData :: term()} |
+    {stop, Reason :: term(), NewStateData :: term()}.
+-callback handle_info(Info :: term(), StateName :: atom(),
+                      StateData :: term()) ->
+    {next_state, NextStateName :: atom(), NewStateData :: term()} |
+    {next_state, NextStateName :: atom(), NewStateData :: term(),
+     timeout() | hibernate} |
+    {stop, Reason :: normal | term(), NewStateData :: term()}.
+-callback terminate(Reason :: normal | shutdown | {shutdown, term()}
+                    | term(), StateName :: atom(), StateData :: term()) ->
+    term().
+-callback code_change(OldVsn :: term() | {down, term()}, StateName :: atom(),
+                      StateData :: term(), Extra :: term()) ->
+    {ok, NextStateName :: atom(), NewStateData :: term()}.
 
 %%% ---------------------------------------------------
 %%% Starts a generic state machine.
@@ -273,12 +298,20 @@ enter_loop(Mod, Options, StateName, StateData, Timeout) ->
 enter_loop(Mod, Options, StateName, StateData, ServerName, Timeout) ->
     Name = get_proc_name(ServerName),
     Parent = get_parent(),
-    Debug = gen:debug_options(Options),
+    Debug = maybe_debug_options(Options),
     Limits = limit_options(Options),
     Queue = queue:new(),
     QueueLen = 0,
     loop(Parent, Name, StateName, StateData, Mod, Timeout, Debug,
 	 Limits, Queue, QueueLen).
+
+maybe_debug_options(Opts) ->
+    case lists:keyfind(debug, 1, Opts) of
+        {_,Options} ->
+            sys:debug_options(Options);
+        false ->
+            []
+    end.
 
 get_proc_name(Pid) when is_pid(Pid) ->
     Pid;
@@ -335,7 +368,7 @@ init_it(Starter, self, Name, Mod, Args, Options) ->
     init_it(Starter, self(), Name, Mod, Args, Options);
 init_it(Starter, Parent, Name0, Mod, Args, Options) ->
     Name = name(Name0),
-    Debug = gen:debug_options(Options),
+    Debug = maybe_debug_options(Options),
     Limits = limit_options(Options),
     Queue = queue:new(),
     QueueLen = 0,
@@ -466,12 +499,13 @@ decode_msg(Msg,Parent, Name, StateName, StateData, Mod, Time, Debug,
 %% Callback functions for system messages handling.
 %%-----------------------------------------------------------------
 system_continue(Parent, Debug, [Name, StateName, StateData,
-				Mod, Time, Limits, Queue, QueueLen]) ->
+                                Mod, Time, Limits, Queue, QueueLen]) ->
     loop(Parent, Name, StateName, StateData, Mod, Time, Debug,
-	 Limits, Queue, QueueLen).
+         Limits, Queue, QueueLen).
 
+-spec system_terminate(term(), _, _, [term(), ...]) -> no_return().
 system_terminate(Reason, _Parent, Debug,
-		 [Name, StateName, StateData, Mod, _Time, _Limits]) ->
+                 [Name, StateName, StateData, Mod, _Time, _Limits]) ->
     terminate(Reason, Name, [], Mod, StateName, StateData, Debug).
 
 system_code_change([Name, StateName, StateData, Mod, Time,

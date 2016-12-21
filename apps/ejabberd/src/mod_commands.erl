@@ -1,4 +1,4 @@
--module(mod_mongoose_admin).
+-module(mod_commands).
 -author('bartlomiej.gorny@erlang-solutions.com').
 
 -behaviour(gen_mod).
@@ -62,7 +62,7 @@ commands() ->
       {module, ?MODULE},
       {function, register},
       {action, create},
-      {args, [{host, binary}, {user, binary}, {password, binary}]},
+      {args, [{host, binary}, {username, binary}, {password, binary}]},
       {result, {msg, binary}}
      ],
      [
@@ -103,29 +103,31 @@ commands() ->
       {function, send_message},
       {action, create},
       {security_policy, [user]},
-      {args, [{caller, binary}, {to, binary}, {msg, binary}]},
+      {args, [{caller, binary}, {to, binary}, {body, binary}]},
       {result, ok}
+     ],
+     [
+      {name, get_last_messages_with_everybody},
+      {category, <<"messages">>},
+      {desc, <<"Get n last messages from archive, optionally before a certain date (unixtime)">>},
+      {module, ?MODULE},
+      {function, get_recent_messages},
+      {action, read},
+      {security_policy, [user]},
+      {args, [{caller, binary}]},
+      {optargs, [{before, integer, 0}, {limit, integer, 100}]},
+      {result, []}
      ],
      [
       {name, get_last_messages},
       {category, <<"messages">>},
-      {desc, <<"Get n last messages">>},
+      {desc, <<"Get n last messages to/from given contact, with limit and date">>},
       {module, ?MODULE},
       {function, get_recent_messages},
       {action, read},
       {security_policy, [user]},
-      {args, [{caller, binary}, {other, binary}, {limit, integer}]},
-      {result, []}
-     ],
-     [
-      {name, get_messages},
-      {category, <<"messages">>},
-      {desc, <<"Get messages before a certain date ('before' is a unix timestamp in seconds)">>},
-      {module, ?MODULE},
-      {function, get_recent_messages},
-      {action, read},
-      {security_policy, [user]},
-      {args, [{caller, binary}, {other, binary}, {before, integer}, {limit, integer}]},
+      {args, [{caller, binary}, {with, binary}]},
+      {optargs, [{before, integer, 0}, {limit, integer, 100}]},
       {result, []}
      ],
      [
@@ -186,7 +188,7 @@ send_message(From, To, Body) ->
                        [F, T, Packet]),
     % privacy check is missing, but is it needed?
     ejabberd_router:route(F, T, Packet),
-    <<"">>.
+    ok.
 
 registered_commands() ->
     [#{name => mongoose_commands:name(C),
@@ -195,17 +197,21 @@ registered_commands() ->
        desc => mongoose_commands:desc(C)
       } || C <- mongoose_commands:list(admin)].
 
-get_recent_messages(Caller, Other, Limit) ->
+
+get_recent_messages(Caller, Before, Limit) ->
+    get_recent_messages(Caller, undefined, Before, Limit).
+
+get_recent_messages(Caller, With, 0, Limit) ->
     {MegaSecs, Secs, _} = now(),
     Future = (MegaSecs + 1) * 1000000 + Secs, % to make sure we return all messages
-    get_recent_messages(Caller, Other, Future, Limit).
-
-get_recent_messages(Caller, Other, Before, Limit) ->
-    Res = lookup_recent_messages(Caller, Other, Before, Limit),
+    get_recent_messages(Caller, With, Future, Limit);
+get_recent_messages(Caller, With, Before, Limit) ->
+    Res = lookup_recent_messages(Caller, With, Before, Limit),
     lists:map(fun record_to_map/1, Res).
 
 change_user_password(Host, User, Password) ->
-    ejabberd_auth:set_password(User, Host, Password).
+    ejabberd_auth:set_password(User, Host, Password),
+    ok.
 
 record_to_map({Id, From, Msg}) ->
     Jbin = jid:to_binary(From),
@@ -225,11 +231,11 @@ build_packet(message_chat, Body) ->
 
 lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
     throw({error, message_limit_too_high});
-lookup_recent_messages(ArcJID, Other, Before, Limit) when is_binary(ArcJID) ->
-    lookup_recent_messages(jid:from_binary(ArcJID), Other, Before, Limit);
-lookup_recent_messages(ArcJID, Other, Before, Limit) when is_binary(Other) ->
-    lookup_recent_messages(ArcJID, jid:from_binary(Other), Before, Limit);
-lookup_recent_messages(ArcJID, OtherJID, Before, Limit) ->
+lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(ArcJID) ->
+    lookup_recent_messages(jid:from_binary(ArcJID), With, Before, Limit);
+lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
+    lookup_recent_messages(ArcJID, jid:from_binary(With), Before, Limit);
+lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     Host = ArcJID#jid.server,
     ArcID = mod_mam:archive_id(Host, ArcJID#jid.user),
     Borders = undefined,
@@ -237,7 +243,7 @@ lookup_recent_messages(ArcJID, OtherJID, Before, Limit) ->
     Start = undefined,
     End = Before * 1000000,
     Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
-    WithJID = OtherJID,
+    WithJID = WithJID,
     PageSize = Limit,
     LimitPassed = false,
     MaxResultLimit = 1,

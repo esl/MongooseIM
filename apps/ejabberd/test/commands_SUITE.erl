@@ -270,6 +270,8 @@ new_execute(_C) ->
                                                    command_withcaller,
                                                    #{caller => <<"zenek@localhost/z">>,
                                                      msg => <<"bzzzz">>}),
+    {ok, 30} = mongoose_commands:execute(admin, command_withoptargs, #{msg => <<"a">>}),
+    {ok, 18} = mongoose_commands:execute(admin, command_withoptargs, #{msg => <<"a">>, value => 6}),
     ok.
 
 different_types(_C) ->
@@ -315,6 +317,18 @@ commands_new() ->
             {security_policy, [user]},
             {args, [{msg, binary}]},
             {result, {msg, binary}}
+        ],
+        [
+            {name, command_withoptargs},
+            {category, <<"yetanother">>},
+            {desc, <<"this is available for a user">>},
+            {module, ?MODULE},
+            {function, cmd_one_withvalue},
+            {action, read},
+            {security_policy, [user]},
+            {args, [{msg, binary}]},
+            {optargs, [{value, integer, 10}]},
+            {result, {nvalue, integer}}
         ],
         [
             {name, command_withcaller},
@@ -531,6 +545,9 @@ cmd_one(<<"error">>) ->
     {error, byleco};
 cmd_one(M) ->
     M.
+
+cmd_one_withvalue(_Msg, Value) ->
+    Value * 3.
 
 cmd_two(M) ->
     M.

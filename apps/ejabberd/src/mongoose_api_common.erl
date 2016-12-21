@@ -13,17 +13,20 @@
 %%
 %% @doc MongooseIM REST API backend
 %%
-%% This module handles the client HTTP REST requests, then respectively convert them to Commands from mongoose_commands
-%% and execute with `admin` privileges.
-%% It supports responses with appropriate HTTP Status codes returned to the client.
-%% This module implements behaviour introduced in ejabberd_cowboy which is built on top of the cowboy library.
+%% This module handles the client HTTP REST requests, then respectively convert
+%% them to Commands from mongoose_commands and execute with `admin` privileges.
+%% It supports responses with appropriate HTTP Status codes returned to the
+%% client.
+%% This module implements behaviour introduced in ejabberd_cowboy which is
+%% %% built on top of the cowboy library.
 %% The method supported: GET, POST, PUT, DELETE. Only JSON format.
 %% The library "jiffy" used to serialize and deserialized JSON data.
 %%
 %% REQUESTS
 %%
 %% The module is based on mongoose_commands registry.
-%% The root http path for a command is build based on the "category" field. It's always used as path a prefix.
+%% The root http path for a command is build based on the "category" field.
+%% %% It's always used as path a prefix.
 %% The commands are translated to HTTP API in the following manner:
 %%
 %% command of action "read" will be called by GET request
@@ -31,17 +34,19 @@
 %% command of action "update" will be called by PUT request
 %% command of action "delete" will be called by DELETE request
 %%
-%% The args of the command will be filled with the values provided in path bindings or body parameters,
-%% depending of the method type:
-%% - for command of action "read" or "delete" all the args are pulled from the path bindings. The path should be
-%% constructed of pairs "/arg_name/arg_value" so that it could match the {arg_name, type}
-%% pattern in the command registry. E.g having the record of category "users" and args:
-%% [{username, binary}, {domain, binary}] we will have to make following GET request
-%% path: http://domain:port/api/users/username/Joe/domain/localhost
+%% The args of the command will be filled with the values provided in path
+%% %% bindings or body parameters, depending of the method type:
+%% - for command of action "read" or "delete" all the args are pulled from the
+%% path bindings. The path should be constructed of pairs "/arg_name/arg_value"
+%% so that it could match the {arg_name, type} %% pattern in the command
+%% registry. E.g having the record of category "users" and args:
+%% [{username, binary}, {domain, binary}] we will have to make following GET
+%% request %% path: http://domain:port/api/users/username/Joe/domain/localhost
 %% and the command will be called with arguments "Joe" and "localhost"
 %%
-%% - for command of action "create" or "update" args are pulled from the body JSON, except those that are on the
-%% "identifiers" list of the command. Those go to the path bindings.
+%% - for command of action "create" or "update" args are pulled from the body
+%% JSON, except those that are on the "identifiers" list of the command. Those
+%% go to the path bindings.
 %% E.g having the record of category "animals", action "update" and args:
 %% [{species, binary}, {name, binary}, {age, integer}]
 %% and identifiers:
@@ -53,12 +58,13 @@
 %%
 %% RESPONSES
 %%
-%% The API supports some of the http status code like 200, 201, 400, 404 etc depending on the return value of
-%% the command execution and arguments checks. Additionally, when the command's action is "create"
-%% and it returns a value, it is concatenated to the path and return to the client
-%% in header "location" with response code 201 so that it could represent now a new created resource.
-%% If error occured while executing the command, the appropriate reason is returned in response body.
-
+%% The API supports some of the http status code like 200, 201, 400, 404 etc
+%% depending on the return value of the command execution and arguments checks.
+%% Additionally, when the command's action is "create" and it returns a value,
+%% it is concatenated to the path and return to the client in header "location"
+%% with response code 201 so that it could represent now a new created resource.
+%% If error occured while executing the command, the appropriate reason is
+%% returned in response body.
 
 %% API
 -export([create_admin_url_path/1,
@@ -95,39 +101,45 @@ create_admin_url_path(Command) ->
 create_user_url_path(Command) ->
     ["/", mongoose_commands:category(Command), maybe_add_bindings(Command, user)].
 
--spec process_request(method(), mongoose_commands:ct(), any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
+-spec process_request(method(), mongoose_commands:t(), any(), http_api_state()) ->
+                      {any(), any(), http_api_state()}.
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
-    BindsReversed = lists:reverse(Binds),
     {Params, Req2} = Req,
-    Params2 = BindsReversed ++ Params ++ maybe_add_caller(Entity),
+    {QVals, _} = cowboy_req:qs_vals(Req2),
+    QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
+    Params2 = Binds ++ Params ++ QV ++ maybe_add_caller(Entity),
     handle_request(Method, Command, Params2, Req2, State);
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity}=State)
     when ((Method == <<"GET">>) or (Method == <<"DELETE">>)) ->
-    BindsReversed = lists:reverse(Binds) ++ maybe_add_caller(Entity),
-    handle_request(Method, Command, BindsReversed, Req, State).
+    {QVals, _} = cowboy_req:qs_vals(Req),
+    QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
+    BindsAndVars = Binds ++ QV ++ maybe_add_caller(Entity),
+    handle_request(Method, Command, BindsAndVars, Req, State).
 
--spec handle_request(method(), mongoose_commands:t(), args_applied(), term(), #http_api_state{}) ->
-    {any(), any(), #http_api_state{}}.
+-spec handle_request(method(), mongoose_commands:t(), args_applied(), term(), http_api_state()) ->
+                     {any(), any(), http_api_state()}.
 handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = State) ->
-    ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command), Args),
+    ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command),
+                                           mongoose_commands:optargs(Command), Args),
     Result = execute_command(ConvertedArgs, Command, Entity),
     handle_result(Method, Result, Req, State).
 
 -type correct_result() :: ok | {ok, any()}.
 -type error_result() ::  mongoose_commands:failure() |
-                         {error, bad_request}.
+                         {error, bad_request, any()}.
 -type expected_result() :: correct_result() | error_result().
 
 -spec handle_result(Method, Result, Req, State) -> Return when
       Method :: method(),
       Result :: expected_result(),
       Req :: cowboy_req:req(),
-      State :: #http_api_state{},
-      Return :: {any(), cowboy_req:req(), #http_api_state{}}.
-handle_result(_, ok, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(200, Req),
-    {halt, Req2, State};
+      State :: http_api_state(),
+      Return :: {any(), cowboy_req:req(), http_api_state()}.
+handle_result(Verb, ok, Req, State) ->
+    handle_result(Verb, {ok, nocontent}, Req, State);
+%%    {ok, Req2} = cowboy_req:reply(200, Req),
+%%    {halt, Req2, State};
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
@@ -136,10 +148,10 @@ handle_result(<<"POST">>, {ok, Res}, Req, State) ->
     {halt, Req3, State};
 %% Ignore the returned value from a command for PUT and DELETE methods
 handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(200, Req),
+    {ok, Req2} = cowboy_req:reply(204, Req),
     {halt, Req2, State};
 handle_result(<<"PUT">>, {ok, _Res}, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(200, Req),
+    {ok, Req2} = cowboy_req:reply(204, Req),
     {halt, Req2, State};
 handle_result(_, {error, Error, Reason}, Req, State) when is_binary(Reason) ->
     error_response(Error, Reason, Req, State);
@@ -163,62 +175,38 @@ parse_request_body(Req) ->
             {error, Err}
     end.
 
-
-%% @doc Checks if the arguments are correct. Return the arguments that can be applied to the execution of command.
--spec check_and_extract_args(arg_spec_list(), args_applied()) -> arg_values() | {error, atom(), any()}.
-check_and_extract_args(CommandsArgList, RequestArgList) ->
+%% @doc Checks if the arguments are correct. Return the arguments that can be applied to the
+%% execution of command.
+-spec check_and_extract_args(arg_spec_list(), optarg_spec_list(), args_applied()) ->
+                             map() | {error, atom(), any()}.
+check_and_extract_args(ReqArgs, OptArgs, RequestArgList) ->
     try
-        Res1 = check_args_length({CommandsArgList, RequestArgList}),
-        compare_names_extract_args(Res1)
+        AllArgs = ReqArgs ++ [{N, T} || {N, T, _} <- OptArgs],
+        AllArgVals = [{N, T, proplists:get_value(N, RequestArgList)} || {N, T} <- AllArgs],
+        ConvArgs = [{N, convert_arg(T, V)} || {N, T, V} <- AllArgVals, V =/= undefined],
+        maps:from_list(ConvArgs)
     catch
-        throw:Err ->
-            Err
+        _:R ->
+            {error, bad_request, R}
     end.
 
--spec check_args_length({arg_spec_list(), args_applied()}) -> {arg_spec_list(), args_applied()}.
-
-check_args_length({CommandsArgList, RequestArgList} = Acc) ->
-    if
-        length(CommandsArgList) =/= length(RequestArgList) ->
-            throw({error, bad_request, ?ARGS_LEN_ERROR});
-        true ->
-            Acc
-    end.
-
--spec compare_names_extract_args({arg_spec_list(), args_applied()}) -> arg_values().
-compare_names_extract_args({CommandsArgList, RequestArgProplist}) ->
-    Keys = lists:sort([K || {K, _V} <- RequestArgProplist]),
-    ExpectedKeys = lists:sort([Key || {Key, _Type} <- CommandsArgList]),
-    ZippedKeys = lists:zip(Keys, ExpectedKeys),
-    case lists:member(false, [ReqKey =:= ExpKey || {ReqKey, ExpKey} <- ZippedKeys]) of
-        true ->
-            throw({error, bad_request, ?ARGS_SPEC_ERROR});
-        _ ->
-            do_extract_args(CommandsArgList, RequestArgProplist)
-    end.
-
--spec do_extract_args(arg_spec_list(), args_applied()) -> arg_values().
-do_extract_args(CommandsArgList, RequestArgList) ->
-    [element(2, lists:keyfind(Key, 1, RequestArgList)) || {Key, _Type} <- CommandsArgList].
 
 -spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()},
                       mongoose_commands:t(), admin | binary()) ->
                       correct_result() | error_result().
 execute_command({error, _Type, _Reason} = Err, _, _) ->
     Err;
-execute_command(Args, Command, Entity) ->
+execute_command(ArgMap, Command, Entity) ->
     try
-        do_execute_command(Args, Command, Entity)
+        do_execute_command(ArgMap, Command, Entity)
     catch
         _:R ->
             {error, bad_request, R}
     end.
 
--spec do_execute_command(arg_values(), mongoose_commands:t(), admin|binary()) -> ok | {ok, any()}.
-do_execute_command(Args, Command, Entity) ->
-    Types = [Type || {_Name, Type} <- mongoose_commands:args(Command)],
-    ConvertedArgs = [convert_arg(Type, Arg) || {Type, Arg} <- lists:zip(Types, Args)],
-    mongoose_commands:execute(Entity, mongoose_commands:name(Command), ConvertedArgs).
+-spec do_execute_command(map(), mongoose_commands:t(), admin|binary()) -> ok | {ok, any()}.
+do_execute_command(ArgMap, Command, Entity) ->
+    mongoose_commands:execute(Entity, mongoose_commands:name(Command), ArgMap).
 
 -spec maybe_add_caller(admin | binary) -> list() | list({caller, binary()}).
 maybe_add_caller(admin) ->
@@ -235,8 +223,8 @@ maybe_add_location_header(Result, ResourcePath, Req) when is_integer(Result) ->
     add_location_header(integer_to_list(Result), ResourcePath, Req);
 maybe_add_location_header(Result, ResourcePath, Req) when is_float(Result) ->
     add_location_header(float_to_list(Result), ResourcePath, Req);
-maybe_add_location_header(_R, _R, Req) ->
-    {ok, Req2} = cowboy_req:reply(200, [], Req),
+maybe_add_location_header(_Res, _Path, Req) ->
+    {ok, Req2} = cowboy_req:reply(204, [], Req),
     Req2.
 
 add_location_header(Result, ResourcePath, Req) ->
@@ -292,7 +280,7 @@ maybe_add_subcategory(Command) ->
             ["/", SubCategory]
     end.
 
--spec both_bind_and_body(mongoose_commands:command_action()) -> boolean().
+-spec both_bind_and_body(mongoose_commands:action()) -> boolean().
 both_bind_and_body(update) ->
     true;
 both_bind_and_body(create) ->
@@ -322,14 +310,15 @@ to_atom(Atom) when is_atom(Atom) ->
 %%--------------------------------------------------------------------
 %% HTTP utils
 %%--------------------------------------------------------------------
--spec error_response(integer() | atom(), any(), #http_api_state{}) -> {halt, any(), #http_api_state{}}.
+-spec error_response(integer() | atom(), any(), http_api_state()) ->
+                     {halt, any(), http_api_state()}.
 error_response(Code, Req, State) when is_integer(Code) ->
     {ok, Req1} = cowboy_req:reply(Code, Req),
     {halt, Req1, State};
 error_response(ErrorType, Req, State) ->
     error_response(error_code(ErrorType), Req, State).
 
--spec error_response(any(), any(), any(), #http_api_state{}) -> {halt, any(), #http_api_state{}}.
+-spec error_response(any(), any(), any(), http_api_state()) -> {halt, any(), http_api_state()}.
 error_response(Code, Reason, Req, State) when is_integer(Code) ->
     {ok, Req1} = cowboy_req:reply(Code, [], Reason, Req),
     {halt, Req1, State};
@@ -355,3 +344,4 @@ method_to_action(<<"GET">>) -> read;
 method_to_action(<<"POST">>) -> create;
 method_to_action(<<"PUT">>) -> update;
 method_to_action(<<"DELETE">>) -> delete.
+

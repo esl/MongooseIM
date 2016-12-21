@@ -149,13 +149,11 @@ create_table() ->
         Other -> Other
     end.
 
--spec(add_subscription/3 ::
-        (
+-spec add_subscription(
           _JID    :: ljid(),
           _NodeId :: mod_pubsub:nodeIdx(),
           Options :: [] | mod_pubsub:subOptions())
-        -> SubId :: mod_pubsub:subId()
-                    ).
+        -> SubId :: mod_pubsub:subId().
 
 add_subscription(_JID, _NodeId, []) -> make_subid();
 add_subscription(_JID, _NodeId, Options) ->
@@ -163,25 +161,21 @@ add_subscription(_JID, _NodeId, Options) ->
     mnesia:write(#pubsub_subscription{subid = SubID, options = Options}),
     SubID.
 
--spec(delete_subscription/3 ::
-        (
+-spec delete_subscription(
           _JID    :: _,
           _NodeId :: _,
           SubId   :: mod_pubsub:subId())
-        -> ok
-               ).
+        -> ok.
 
 delete_subscription(_JID, _NodeId, SubID) ->
     mnesia:delete({pubsub_subscription, SubID}).
 
--spec(read_subscription/3 ::
-        (
+-spec read_subscription(
           _JID    :: ljid(),
           _NodeId :: _,
           SubID   :: mod_pubsub:subId())
         -> mod_pubsub:pubsubSubscription()
-               | {error, notfound}
-               ).
+               | {error, notfound}.
 
 read_subscription(_JID, _NodeId, SubID) ->
     case mnesia:read({pubsub_subscription, SubID}) of
@@ -189,19 +183,17 @@ read_subscription(_JID, _NodeId, SubID) ->
         _ -> {error, notfound}
     end.
 
--spec(write_subscription/4 ::
-        (
+-spec write_subscription(
           _JID    :: ljid(),
           _NodeId :: _,
           SubID   :: mod_pubsub:subId(),
           Options :: mod_pubsub:subOptions())
-        -> ok
-               ).
+        -> ok.
 
 write_subscription(_JID, _NodeId, SubID, Options) ->
     mnesia:write(#pubsub_subscription{subid = SubID, options = Options}).
 
--spec(make_subid/0 :: () -> SubId::mod_pubsub:subId()).
+-spec make_subid() -> SubId::mod_pubsub:subId().
 make_subid() ->
     {T1, T2, T3} = timestamp(),
     iolist_to_binary(io_lib:fwrite("~.16B~.16B~.16B", [T1, T2, T3])).
@@ -260,13 +252,11 @@ xopt_to_bool(<<"false">>) -> false;
 xopt_to_bool(<<"true">>) -> true;
 xopt_to_bool(_) -> {error, ?ERR_NOT_ACCEPTABLE}.
 
--spec(get_option_xfield/3 ::
-        (
+-spec get_option_xfield(
           Lang :: binary(),
           Key  :: atom(),
           Options :: mod_pubsub:subOptions())
-        -> xmlel()
-               ).
+        -> xmlel().
 
 %% Return a field for an XForm for Key, with data filled in, if
 %% applicable, from Options.

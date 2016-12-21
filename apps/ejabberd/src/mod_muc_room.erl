@@ -102,6 +102,7 @@
 
 -type statename() :: 'locked_state' | 'normal_state'.
 -type fsm_return() :: {'next_state', statename(), state()}
+                    | {'next_state', statename(), state(), timeout() | hibernate}
                     | {'stop', any(), state()}.
 
 -type lqueue() :: #lqueue{}.
@@ -187,8 +188,7 @@ start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool
                         RoomShaper, HttpAuthPool, Opts],
                        ?FSMOPTS).
 
-
--spec get_room_users(RoomJID :: ejabberd:jid()) -> {ok, [#user{}]}
+-spec get_room_users(RoomJID :: ejabberd:jid()) -> {ok, [user()]}
                                                  | {error, not_found}.
 get_room_users(RoomJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
@@ -245,7 +245,8 @@ can_access_identity(RoomJID, UserJID) ->
 %% @doc A room is created. Depending on request type (MUC/groupchat 1.0) the
 %% next state is determined accordingly (a locked room for MUC or an instant
 %% one for groupchat).
--spec init([any(),...]) -> {'ok',statename(), state()}.
+-spec init([any(), ...]) ->
+    {ok, statename(), state()} | {ok, statename(), state(), timeout()}.
 init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
       Creator, _Nick, DefRoomOpts]) ->
     process_flag(trap_exit, true),
@@ -259,23 +260,23 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
                                    jid = jid:make(Room, Host, <<>>),
                                    just_created = true,
                                    room_shaper = Shaper,
-                                   http_auth_pool = HttpAuthPool}),
+                                   http_auth_pool = HttpAuthPool,
+                                   hibernate_timeout = read_hibernate_timeout(ServerHost)
+                                  }),
     State1 = set_opts(DefRoomOpts, State),
     ?INFO_MSG("Created MUC room ~s@~s by ~s",
               [Room, Host, jid:to_binary(Creator)]),
     add_to_log(room_existence, created, State1),
-    NextState = case proplists:get_value(instant, DefRoomOpts, false) of
-                    true ->
-                        %% Instant room -- groupchat 1.0 request
-                        add_to_log(room_existence, started, State1),
-                        normal_state;
-                    false ->
-                        %% Locked room waiting for configuration -- MUC request
-                        initial_state
-                end,
-    {ok, NextState, State1};
-
-
+    case proplists:get_value(instant, DefRoomOpts, false) of
+        true ->
+            %% Instant room -- groupchat 1.0 request
+            add_to_log(room_existence, started, State1),
+            save_persistent_room_state(State1),
+            {ok, normal_state, State1, State1#state.hibernate_timeout};
+        false ->
+            %% Locked room waiting for configuration -- MUC request
+            {ok, initial_state, State1}
+    end;
 %% @doc A room is restored
 init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts]) ->
     process_flag(trap_exit, true),
@@ -287,10 +288,15 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opt
                                   history = lqueue_new(HistorySize),
                                   jid = jid:make(Room, Host, <<>>),
                                   room_shaper = Shaper,
-                                  http_auth_pool = HttpAuthPool}),
+                                  http_auth_pool = HttpAuthPool,
+                                  hibernate_timeout = read_hibernate_timeout(ServerHost)
+                                 }),
     add_to_log(room_existence, started, State),
-    {ok, normal_state, State}.
+    mongoose_metrics:update(global, [mod_muc, process_recreations], 1),
+    {ok, normal_state, State, State#state.hibernate_timeout}.
 
+read_hibernate_timeout(Host) ->
+    gen_mod:get_module_opt(Host, mod_muc, hibernate_timeout, timer:seconds(90)).
 
 %%----------------------------------------------------------------------
 %% Func: StateName/2
@@ -398,7 +404,7 @@ locked_state({route, From, _ToNick,
         locked_state ->
             {next_state, NextState2, StateData3};
         normal_state ->
-            {next_state, NextState2, StateData3#state{just_created = false}}
+            next_normal_state(StateData3#state{just_created = false})
     end;
 %% Let owner leave. Destroy the room.
 locked_state({route, From, ToNick,
@@ -414,6 +420,8 @@ locked_state({route, From, ToNick,
         _ ->
             locked_error(Call, locked_state, StateData)
     end;
+locked_state(timeout, StateData) ->
+    {next_state, locked_state, StateData};
 locked_state(Call, StateData) ->
     locked_error(Call, locked_state, StateData).
 
@@ -432,7 +440,7 @@ normal_state({route, From, <<>>,
         from = From,
         packet = Packet,
         lang = Lang}, StateData),
-    {next_state, normal_state, NewStateData};
+    next_normal_state(NewStateData);
 normal_state({route, From, <<>>,
           #xmlel{name = <<"iq">>} = Packet},
          StateData) ->
@@ -441,7 +449,7 @@ normal_state({route, From, <<>>,
         from = From,
         packet = Packet}, StateData),
     case RoutingEffect of
-        ok -> {next_state, normal_state, NewStateData};
+        ok -> next_normal_state(NewStateData);
         stop -> {stop, normal, NewStateData}
     end;
 normal_state({route, From, Nick,
@@ -472,7 +480,7 @@ normal_state({route, From, Nick,
         end,
         NewActivity = Activity#activity{presence = {Nick, Packet}},
         StateData1 = store_user_activity(From, NewActivity, StateData),
-        {next_state, normal_state, StateData1}
+        next_normal_state(StateData1)
     end;
 normal_state({route, From, ToNick,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
@@ -494,7 +502,7 @@ normal_state({route, From, ToNick,
         [] -> FunRouteNickMessage(false, StateData);
         JIDs -> lists:foldl(FunRouteNickMessage, StateData, JIDs)
     end,
-    {next_state, normal_state, NewStateData};
+    next_normal_state(NewStateData);
 normal_state({route, From, ToNick,
           #xmlel{name = <<"iq">>, attrs = Attrs} = Packet},
          StateData) ->
@@ -516,14 +524,18 @@ normal_state({route, From, ToNick,
         [] -> FunRouteNickIq(false);
         JIDs -> lists:foreach(FunRouteNickIq, JIDs)
     end,
-    {next_state, normal_state, StateData};
+    next_normal_state(StateData);
 normal_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) ->
     AuthPids = StateData#state.http_auth_pids,
     StateDataWithoutPid = StateData#state{http_auth_pids = lists:delete(AuthPid, AuthPids)},
     NewStateData = handle_http_auth_result(Result, From, Nick, Packet, Role, StateDataWithoutPid),
     destroy_temporary_room_if_empty(NewStateData, normal_state);
+normal_state(timeout, StateData) ->
+    erlang:put(hibernated, os:timestamp()),
+    mongoose_metrics:update(global, [mod_muc, hibernations], 1),
+    {next_state, normal_state, StateData, hibernate};
 normal_state(_Event, StateData) ->
-    {next_state, normal_state, StateData}.
+    next_normal_state(StateData).
 
 %%----------------------------------------------------------------------
 %% Func: handle_event/3
@@ -543,12 +555,12 @@ handle_event({service_message, Msg}, _StateName, StateData) ->
         Info#user.jid,
         MessagePkt)
       end,
-      ?DICT:to_list(StateData#state.users)),
+      dict:to_list(StateData#state.users)),
     NSD = add_message_to_history(<<>>,
                  StateData#state.jid,
                  MessagePkt,
                  StateData),
-    {next_state, normal_state, NSD};
+    next_normal_state(NSD);
 
 handle_event({destroy, Reason}, _StateName, StateData) ->
     {result, [], stop} =
@@ -569,11 +581,12 @@ handle_event(destroy, StateName, StateData) ->
           [jid:to_binary(StateData#state.jid)]),
     handle_event({destroy, none}, StateName, StateData);
 
-handle_event({set_affiliations, Affiliations}, StateName, StateData) ->
-    {next_state, StateName, StateData#state{affiliations = Affiliations}};
+handle_event({set_affiliations, Affiliations},
+             #state{hibernate_timeout = Timeout} = StateName, StateData) ->
+    {next_state, StateName, StateData#state{affiliations = Affiliations}, Timeout};
 
-handle_event(_Event, StateName, StateData) ->
-    {next_state, StateName, StateData}.
+handle_event(_Event, StateName, #state{hibernate_timeout = Timeout} = StateData) ->
+    {next_state, StateName, StateData, Timeout}.
 
 %%----------------------------------------------------------------------
 %% Func: handle_sync_event/4
@@ -587,27 +600,29 @@ handle_event(_Event, StateName, StateData) ->
 handle_sync_event({get_disco_item, JID, Lang}, _From, StateName, StateData) ->
     Reply = get_roomdesc_reply(JID, StateData,
                    get_roomdesc_tail(StateData, Lang)),
-    {reply, Reply, StateName, StateData};
+    reply_with_timeout(Reply, StateName, StateData);
 handle_sync_event(get_config, _From, StateName, StateData) ->
-    {reply, {ok, StateData#state.config}, StateName, StateData};
+    reply_with_timeout({ok, StateData#state.config}, StateName, StateData);
 handle_sync_event(get_state, _From, StateName, StateData) ->
-    {reply, {ok, StateData}, StateName, StateData};
+    reply_with_timeout({ok, StateData}, StateName, StateData);
 handle_sync_event(get_room_users, _From, StateName, StateData) ->
-    {reply, {ok, dict_to_values(StateData#state.users)}, StateName, StateData};
+    reply_with_timeout({ok, dict_to_values(StateData#state.users)}, StateName, StateData);
 handle_sync_event({is_room_owner, UserJID}, _From, StateName, StateData) ->
-    {reply, {ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData};
+    reply_with_timeout({ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData);
 handle_sync_event({can_access_room, UserJID}, _From, StateName, StateData) ->
-    {reply, {ok,  can_read_conference(UserJID, StateData)}, StateName, StateData};
+    reply_with_timeout({ok,  can_read_conference(UserJID, StateData)}, StateName, StateData);
 handle_sync_event({can_access_identity, UserJID}, _From, StateName, StateData) ->
-    {reply, {ok,  can_user_access_identity(UserJID, StateData)}, StateName, StateData};
+    reply_with_timeout({ok,  can_user_access_identity(UserJID, StateData)}, StateName, StateData);
 handle_sync_event({change_config, Config}, _From, StateName, StateData) ->
     {result, [], NSD} = change_config(Config, StateData),
-    {reply, {ok, NSD#state.config}, StateName, NSD};
+    reply_with_timeout({ok, NSD#state.config}, StateName, NSD);
 handle_sync_event({change_state, NewStateData}, _From, StateName, _StateData) ->
-    {reply, {ok, NewStateData}, StateName, NewStateData};
+    reply_with_timeout({ok, NewStateData}, StateName, NewStateData);
 handle_sync_event(_Event, _From, StateName, StateData) ->
-    Reply = ok,
-    {reply, Reply, StateName, StateData}.
+    reply_with_timeout(ok, StateName, StateData).
+
+reply_with_timeout(Reply, StateName, #state{hibernate_timeout = Timeout} = State) ->
+    {reply, Reply, StateName, State, Timeout}.
 
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
@@ -618,32 +633,26 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
+maybe_prepare_room_queue(RoomQueue, StateData) ->
+    StateData1 = StateData#state{room_queue = RoomQueue},
+    case queue:is_empty(StateData#state.room_queue) of
+        true ->
+            StateData2 = prepare_room_queue(StateData1),
+            next_normal_state(StateData2);
+        _ ->
+            next_normal_state(StateData1)
+    end.
+
 -type info_msg() :: {process_user_presence | process_user_message, ejabberd:jid()}
                     | process_room_queue.
 -spec handle_info(info_msg(), statename(), state()) -> fsm_return().
 handle_info({process_user_presence, From}, normal_state = _StateName, StateData) ->
-    RoomQueueEmpty = queue:is_empty(StateData#state.room_queue),
     RoomQueue = queue:in({presence, From}, StateData#state.room_queue),
-    StateData1 = StateData#state{room_queue = RoomQueue},
-    if
-    RoomQueueEmpty ->
-        StateData2 = prepare_room_queue(StateData1),
-        {next_state, normal_state, StateData2};
-    true ->
-        {next_state, normal_state, StateData1}
-    end;
+    maybe_prepare_room_queue(RoomQueue, StateData);
 handle_info({process_user_message, From}, normal_state = _StateName, StateData) ->
-    RoomQueueEmpty = queue:is_empty(StateData#state.room_queue),
     RoomQueue = queue:in({message, From}, StateData#state.room_queue),
-    StateData1 = StateData#state{room_queue = RoomQueue},
-    if
-    RoomQueueEmpty ->
-        StateData2 = prepare_room_queue(StateData1),
-        {next_state, normal_state, StateData2};
-    true ->
-        {next_state, normal_state, StateData1}
-    end;
-handle_info(process_room_queue, normal_state = StateName, StateData) ->
+    maybe_prepare_room_queue(RoomQueue, StateData);
+handle_info(process_room_queue, normal_state, StateData) ->
     case queue:out(StateData#state.room_queue) of
     {{value, {message, From}}, RoomQueue} ->
         Activity = get_user_activity(From, StateData),
@@ -670,15 +679,45 @@ handle_info(process_room_queue, normal_state = StateName, StateData) ->
         StateData3 = prepare_room_queue(StateData2),
         process_presence(From, Nick, Packet, StateData3);
     {empty, _} ->
-        {next_state, StateName, StateData}
+            next_normal_state(StateData)
     end;
 handle_info({'EXIT', FromPid, _Reason}, StateName, StateData) ->
     AuthPids = StateData#state.http_auth_pids,
     StateWithoutPid = StateData#state{http_auth_pids = lists:delete(FromPid, AuthPids)},
     destroy_temporary_room_if_empty(StateWithoutPid, StateName);
-handle_info(_Info, StateName, StateData) ->
-    {next_state, StateName, StateData}.
+handle_info(stop_persistent_room_process, normal_state,
+            #state{room = RoomName,
+                   config = #config{persistent = true}} = StateData) ->
+    maybe_stop_persistent_room(RoomName, is_empty_room(StateData), StateData);
+handle_info(_Info, StateName, #state{hibernate_timeout = Timeout} = StateData) ->
+    {next_state, StateName, StateData, Timeout}.
 
+maybe_stop_persistent_room(RoomName, true, State) ->
+    do_stop_persistent_room(RoomName, State);
+maybe_stop_persistent_room(RoomName, _, State) ->
+    stop_if_only_owner_is_online(RoomName, count_users(State), State).
+
+stop_if_only_owner_is_online(RoomName, 1, #state{users = Users, jid = RoomJID} = State) ->
+    [{LJID, #user{jid = LastUser, nick = Nick}}] = dict:to_list(Users),
+
+    case get_affiliation(LastUser, State) of
+        owner ->
+            ItemAttrs = [{<<"affiliation">>, <<"owner">>}, {<<"role">>, <<"none">>}],
+            Packet = unavailable_presence(ItemAttrs, <<"Room hibernation">>),
+            FromRoom = jid:replace_resource(RoomJID, Nick),
+            ejabberd_router:route(FromRoom, LastUser, Packet),
+            tab_remove_online_user(LJID, State),
+            do_stop_persistent_room(RoomName, State);
+        _ ->
+            next_normal_state(State)
+    end;
+stop_if_only_owner_is_online(_, _, State) ->
+    next_normal_state(State).
+
+do_stop_persistent_room(RoomName, State) ->
+    ?INFO_MSG("Stopping persistent room's process, ~p ~p", [self(), RoomName]),
+    mongoose_metrics:update(global, [mod_muc, deep_hibernations], 1),
+    {stop, normal, State}.
 
 %% @doc Purpose: Shutdown the fsm
 -spec terminate(any(), statename(), state()) -> 'ok'.
@@ -690,31 +729,20 @@ terminate(Reason, _StateName, StateData) ->
           _ -> <<"Room terminates">>
           end,
     ItemAttrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}],
-    ReasonEl = #xmlel{name = <<"reason">>,
-                      children = [#xmlcdata{content = ReasonT}]},
-    Packet = #xmlel{name = <<"presence">>,
-                    attrs = [{<<"type">>, <<"unavailable">>}],
-                    children = [#xmlel{name = <<"x">>,
-                                       attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                       children = [#xmlel{name = <<"item">>,
-                                                          attrs = ItemAttrs,
-                                                          children = [ReasonEl]},
-                                                   #xmlel{name = <<"status">>,
-                                                          attrs = [{<<"code">>, <<"332">>}]}
-                                                  ]}]},
-    ?DICT:fold(
-       fun(LJID, Info, _) ->
-           Nick = Info#user.nick,
-           case Reason of
-           shutdown ->
-               ejabberd_router:route(
-             jid:replace_resource(StateData#state.jid, Nick),
-             Info#user.jid,
-             Packet);
-           _ -> ok
-           end,
-           tab_remove_online_user(LJID, StateData)
-       end, [], StateData#state.users),
+    Packet = unavailable_presence(ItemAttrs, ReasonT),
+    dict:fold(
+      fun(LJID, Info, _) ->
+              Nick = Info#user.nick,
+              case Reason of
+                  shutdown ->
+                      ejabberd_router:route(
+                        jid:replace_resource(StateData#state.jid, Nick),
+                        Info#user.jid,
+                        Packet);
+                  _ -> ok
+              end,
+              tab_remove_online_user(LJID, StateData)
+      end, [], StateData#state.users),
     add_to_log(room_existence, stopped, StateData),
     mod_muc:room_destroyed(StateData#state.host, StateData#state.room, self(),
                StateData#state.server_host),
@@ -723,6 +751,20 @@ terminate(Reason, _StateName, StateData) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
+
+unavailable_presence(ItemAttrs, ReasonT) ->
+    ReasonEl = #xmlel{name = <<"reason">>,
+                      children = [#xmlcdata{content = ReasonT}]},
+    #xmlel{name = <<"presence">>,
+           attrs = [{<<"type">>, <<"unavailable">>}],
+           children = [#xmlel{name = <<"x">>,
+                              attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                              children = [#xmlel{name = <<"item">>,
+                                                 attrs = ItemAttrs,
+                                                 children = [ReasonEl]},
+                                          #xmlel{name = <<"status">>,
+                                                 attrs = [{<<"code">>, <<"332">>}]}
+                                         ]}]}.
 
 -spec occupant_jid(user(), 'undefined' | ejabberd:jid()) -> 'error' | ejabberd:jid().
 occupant_jid(#user{nick=Nick}, RoomJID) ->
@@ -747,7 +789,7 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
         false ->
             send_error_only_occupants(<<"messages">>, Packet, Lang,
                                       StateData#state.jid, From),
-            {next_state, normal_state, StateData}
+            next_normal_state(StateData)
     end.
 
 can_send_to_conference(From, StateData) ->
@@ -802,13 +844,13 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
                     broadcast_room_packet(From, FromNick, Role, Packet, NewState);
                 not Changed ->
                     change_subject_error(From, FromNick, Packet, Lang, NewState),
-                    {next_state, normal_state, NewState}
+                    next_normal_state(NewState)
             end;
         not CanSendBroadcasts ->
             ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
             Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
             ejabberd_router:route(StateData#state.jid, From, Err),
-            {next_state, normal_state, StateData}
+            next_normal_state(StateData)
     end.
 
 can_send_broadcasts(Role, StateData) ->
@@ -827,7 +869,7 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                                  StateData#state.host, Packet, [EventData])
     of
         drop ->
-            {next_state, normal_state, StateData};
+            next_normal_state(StateData);
         FilteredPacket ->
             RouteFrom = jid:replace_resource(StateData#state.jid,
                                              FromNick),
@@ -835,12 +877,12 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                                   ejabberd_router:route(RouteFrom,
                                                         Info#user.jid,
                                                         FilteredPacket)
-                          end, ?DICT:to_list(StateData#state.users)),
+                          end, dict:to_list(StateData#state.users)),
             NewStateData2 = add_message_to_history(FromNick,
                                                    From,
                                                    FilteredPacket,
                                                    StateData),
-            {next_state, normal_state, NewStateData2}
+            next_normal_state(NewStateData2)
     end.
 
 change_subject_error(From, FromNick, Packet, Lang, StateData) ->
@@ -896,10 +938,9 @@ is_allowed_nonparticipant(JID, StateData) ->
 
 %% @doc Get information of this participant, or default values.
 %% If the JID is not a participant, return values for a service message.
--spec get_participant_data(ejabberd:simple_jid() | ejabberd:jid(),
-                           state()) -> {_,_}.
+-spec get_participant_data(ejabberd:simple_jid() | ejabberd:jid(), state()) -> {_, _}.
 get_participant_data(From, StateData) ->
-    case ?DICT:find(jid:to_lower(From), StateData#state.users) of
+    case dict:find(jid:to_lower(From), StateData#state.users) of
         {ok, #user{nick = FromNick, role = Role}} ->
             {FromNick, Role};
         error ->
@@ -925,6 +966,8 @@ process_presence(From, ToNick, Presence, StateData, NextState) ->
 
 
 -spec rewrite_next_state(statename(), fsm_return()) -> fsm_return().
+rewrite_next_state(NewState, {next_state, _, StateData, Timeout}) ->
+    {next_state, NewState, StateData, Timeout};
 rewrite_next_state(NewState, {next_state, _, StateData}) ->
     {next_state, NewState, StateData};
 rewrite_next_state(_, {stop, normal, StateData}) ->
@@ -941,9 +984,16 @@ destroy_temporary_room_if_empty(StateData=#state{config=C=#config{}}, NextState)
             add_to_log(room_existence, destroyed, StateData),
             {stop, normal, StateData};
         _ ->
-            {next_state, NextState, StateData}
+            case NextState of
+                normal_state ->
+                    next_normal_state(StateData);
+                _ ->
+                    {next_state, NextState, StateData}
+            end
     end.
 
+next_normal_state(#state{hibernate_timeout = Timeout} = StateData) ->
+    {next_state, normal_state, StateData, Timeout}.
 
 -spec process_presence1(From, Nick, Packet, state()) -> state() when
       From :: ejabberd:jid(),
@@ -1088,7 +1138,7 @@ handle_new_user(From, Nick, Packet, StateData, _Attrs) ->
 -spec is_user_online(ejabberd:simple_jid() | ejabberd:jid(), state()) -> boolean().
 is_user_online(JID, StateData) ->
     LJID = jid:to_lower(JID),
-    ?DICT:is_key(LJID, StateData#state.users).
+    dict:is_key(LJID, StateData#state.users).
 
 
 %% @doc Check if the user is occupant of the room, or at least is an admin
@@ -1307,13 +1357,8 @@ set_affiliation(JID, Affiliation, StateData)
         when is_atom(Affiliation) ->
     LJID = jid:to_bare(jid:to_lower(JID)),
     Affiliations = case Affiliation of
-               none ->
-               ?DICT:erase(LJID,
-                       StateData#state.affiliations);
-               _ ->
-               ?DICT:store(LJID,
-                       Affiliation,
-                       StateData#state.affiliations)
+               none -> dict:erase(LJID, StateData#state.affiliations);
+               _ -> dict:store(LJID, Affiliation, StateData#state.affiliations)
            end,
     StateData#state{affiliations = Affiliations}.
 
@@ -1324,13 +1369,8 @@ set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
         when is_atom(Affiliation) ->
     LJID = jid:to_bare(jid:to_lower(JID)),
     Affiliations = case Affiliation of
-               none ->
-               ?DICT:erase(LJID,
-                       StateData#state.affiliations);
-               _ ->
-               ?DICT:store(LJID,
-                       {Affiliation, Reason},
-                       StateData#state.affiliations)
+               none -> dict:erase(LJID, StateData#state.affiliations);
+               _ -> dict:store(LJID, {Affiliation, Reason}, StateData#state.affiliations)
            end,
     StateData#state{affiliations = Affiliations}.
 
@@ -1338,44 +1378,28 @@ set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
 -spec get_affiliation(ejabberd:jid(), state()) -> mod_muc:affiliation().
 get_affiliation(JID, StateData) ->
     AccessAdmin = access_admin(StateData),
-    Res =
     case acl:match_rule(StateData#state.server_host, AccessAdmin, JID) of
         allow ->
-        owner;
+            owner;
         _ ->
-        LJID = jid:to_lower(JID),
-        case ?DICT:find(LJID, StateData#state.affiliations) of
-            {ok, Affiliation} ->
-            Affiliation;
-            _ ->
+            LJID = jid:to_lower(JID),
             LJID1 = jid:to_bare(LJID),
-            case ?DICT:find(LJID1, StateData#state.affiliations) of
-                {ok, Affiliation} ->
-                Affiliation;
-                _ ->
-                LJID2 = setelement(1, LJID, <<>>),
-                case ?DICT:find(LJID2, StateData#state.affiliations) of
-                    {ok, Affiliation} ->
-                    Affiliation;
-                    _ ->
-                    LJID3 = jid:to_bare(LJID2),
-                    case ?DICT:find(LJID3, StateData#state.affiliations) of
-                        {ok, Affiliation} ->
-                        Affiliation;
-                        _ ->
-                        none
-                    end
-                end
-            end
-        end
-    end,
-    case Res of
-    {A, _Reason} ->
-        A;
-    _ ->
-        Res
+            LJID2 = setelement(1, LJID, <<>>),
+            LJID3 = jid:to_bare(LJID2),
+            lookup_affiliation([ LJID, LJID1, LJID2, LJID3 ], StateData#state.affiliations)
     end.
 
+-spec lookup_affiliation(JIDs :: [ejabberd:simple_jid()],
+                         Affiliations :: dict:dict(ejabberd:simple_jid(), mod_muc:affiliation())) ->
+    mod_muc:affiliation().
+lookup_affiliation([ JID | RJIDs ], Affiliations) ->
+    case dict:find(JID, Affiliations) of
+        {ok, {Affiliation, _Reason}} -> Affiliation;
+        {ok, Affiliation} -> Affiliation;
+        _ -> lookup_affiliation(RJIDs, Affiliations)
+    end;
+lookup_affiliation([], _Affiliations) ->
+    none.
 
 -spec get_service_affiliation(ejabberd:jid(), state()) -> mod_muc:affiliation().
 get_service_affiliation(JID, StateData) ->
@@ -1399,11 +1423,9 @@ set_role(JID, Role, StateData) ->
 -spec get_role( ejabberd:jid(), state()) -> mod_muc:role().
 get_role(JID, StateData) ->
     LJID = jid:to_lower(JID),
-    case ?DICT:find(LJID, StateData#state.users) of
-    {ok, #user{role = Role}} ->
-        Role;
-    _ ->
-        none
+    case dict:find(LJID, StateData#state.users) of
+        {ok, #user{role = Role}} -> Role;
+        _ -> none
     end.
 
 
@@ -1446,17 +1468,17 @@ is_empty_dict(Dict) ->
 
 -spec dict_foreach_value(fun((_) -> 'ok'), users_dict()) -> any().
 dict_foreach_value(F, Users) ->
-    ?DICT:fold(fun(_LJID, User, _) -> F(User) end, undefined, Users).
+    dict:fold(fun(_LJID, User, _) -> F(User) end, undefined, Users).
 
 
 -spec dict_to_values(dict:dict(term(), term())) -> [any()].
 dict_to_values(Dict) ->
-    [V || {_, V} <- ?DICT:to_list(Dict)].
+    [V || {_, V} <- dict:to_list(Dict)].
 
 
 -spec count_users(state()) -> non_neg_integer().
 count_users(#state{users=Users}) ->
-    ?DICT:size(Users).
+    dict:size(Users).
 
 
 -spec get_max_users(state()) -> integer() | none.
@@ -1612,14 +1634,14 @@ prepare_room_queue(StateData) ->
 
 -spec is_first_session(mod_muc:nick(), state()) -> boolean().
 is_first_session(Nick, StateData) ->
-    case ?DICT:find(Nick, StateData#state.sessions) of
+    case dict:find(Nick, StateData#state.sessions) of
         {ok, _Val} -> false;
         error -> true
     end.
 
 -spec is_last_session(mod_muc:nick(), state()) -> boolean().
 is_last_session(Nick, StateData) ->
-    case ?DICT:find(Nick, StateData#state.sessions) of
+    case dict:find(Nick, StateData#state.sessions) of
         {ok, [_Val]} -> true;
         _ -> false
     end.
@@ -1628,12 +1650,12 @@ is_last_session(Nick, StateData) ->
                         -> state().
 add_online_user(JID, Nick, Role, StateData) ->
     LJID = jid:to_lower(JID),
-    Sessions = ?DICT:append(Nick, JID, StateData#state.sessions),
-    Users = ?DICT:store(LJID,
-            #user{jid = JID,
-                  nick = Nick,
-                  role = Role},
-            StateData#state.users),
+    Sessions = dict:append(Nick, JID, StateData#state.sessions),
+    Users = dict:store(LJID,
+                       #user{jid = JID,
+                             nick = Nick,
+                             role = Role},
+                       StateData#state.users),
     case is_first_session(Nick, StateData) of
         true ->
             add_to_log(join, Nick, StateData),
@@ -1654,18 +1676,18 @@ remove_online_user(JID, StateData, Reason) ->
 
     LJID = jid:to_lower(JID),
     {ok, #user{nick = Nick}} =
-        ?DICT:find(LJID, StateData#state.users),
+        dict:find(LJID, StateData#state.users),
     Sessions = case is_last_session(Nick, StateData) of
         true ->
             add_to_log(leave, {Nick, Reason}, StateData),
             tab_remove_online_user(JID, StateData),
-            ?DICT:erase(Nick, StateData#state.sessions);
+            dict:erase(Nick, StateData#state.sessions);
         false ->
             IsOtherLJID = fun(J) -> jid:to_lower(J) /= LJID end,
             F = fun (JIDs) -> lists:filter(IsOtherLJID, JIDs) end,
-            ?DICT:update(Nick, F, StateData#state.sessions)
+            dict:update(Nick, F, StateData#state.sessions)
     end,
-    Users = ?DICT:erase(LJID, StateData#state.users),
+    Users = dict:erase(LJID, StateData#state.users),
 
     StateData#state{users = Users, sessions = Sessions}.
 
@@ -1706,11 +1728,11 @@ add_user_presence(JID, Presence, StateData) ->
     LJID = jid:to_lower(JID),
     FPresence = filter_presence(Presence),
     Users =
-    ?DICT:update(
-        LJID,
-        fun(#user{} = User) ->
-            User#user{last_presence = FPresence}
-        end, StateData#state.users),
+    dict:update(
+      LJID,
+      fun(#user{} = User) ->
+              User#user{last_presence = FPresence}
+      end, StateData#state.users),
     StateData#state{users = Users}.
 
 
@@ -1720,22 +1742,22 @@ add_user_presence_un(JID, Presence, StateData) ->
     LJID = jid:to_lower(JID),
     FPresence = filter_presence(Presence),
     Users =
-    ?DICT:update(
-       LJID,
-       fun(#user{} = User) ->
-           User#user{last_presence = FPresence, role = none}
-       end, StateData#state.users),
+    dict:update(
+      LJID,
+      fun(#user{} = User) ->
+              User#user{last_presence = FPresence, role = none}
+      end, StateData#state.users),
     StateData#state{users = Users}.
 
 
 -spec is_nick_exists(mod_muc:nick(), state()) -> boolean().
 is_nick_exists(Nick, StateData) ->
-    ?DICT:is_key(Nick, StateData#state.sessions).
+    dict:is_key(Nick, StateData#state.sessions).
 
 
 -spec find_jids_by_nick(mod_muc:nick(), state()) -> [ejabberd:jid()].
 find_jids_by_nick(Nick, StateData) ->
-    case ?DICT:find(Nick, StateData#state.sessions) of
+    case dict:find(Nick, StateData#state.sessions) of
         error -> [];
         {ok, JIDs} -> JIDs
     end.
@@ -1749,7 +1771,7 @@ is_nick_change(JID, Nick, StateData) ->
         false;
     _ ->
         {ok, #user{nick = OldNick}} =
-        ?DICT:find(LJID, StateData#state.users),
+        dict:find(LJID, StateData#state.users),
         Nick /= OldNick
     end.
 
@@ -1956,7 +1978,7 @@ do_add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet,
         true ->
             NewState#state{just_created = false};
         false ->
-            Robots = ?DICT:erase(From, StateData#state.robots),
+            Robots = dict:erase(From, StateData#state.robots),
             NewState#state{robots = Robots}
     end.
 
@@ -2134,10 +2156,10 @@ foreach_matched_jid(F, JID, #state{users=Users}) ->
                          _         -> ok
                      end
                  end,
-            ?DICT:fold(FF, ok, Users);
+            dict:fold(FF, ok, Users);
         %% Match by full JID
         _ ->
-            case ?DICT:is_key(LJID, Users) of
+            case dict:is_key(LJID, Users) of
                 true ->
                     F(JID),
                     ok;
@@ -2160,10 +2182,10 @@ foreach_matched_user(F, JID, #state{users=Users}) ->
                          _         -> ok
                      end
                  end,
-            ?DICT:fold(FF, ok, Users);
+            dict:fold(FF, ok, Users);
         %% Match by full JID
         _ ->
-            case ?DICT:find(LJID, Users) of
+            case dict:find(LJID, Users) of
                 {ok, User} -> F(User);
                 error -> ok
             end
@@ -2184,23 +2206,16 @@ erase_matched_users(JID, StateData=#state{users=Users, sessions=Sessions}) ->
 
 -spec erase_matched_users_dict('error' | ejabberd:simple_jid(),
                                users_dict(), sessions_dict()) -> any().
+erase_matched_users_dict({U, S, <<>>}, Users, Sessions) ->
+    FF = fun({U0, S0, _} = J, #user{nick=Nick}, {Us, Ss}) when U =:= U0 andalso S =:= S0->
+                 {dict:erase(J, Us), dict:erase(Nick, Ss)};
+            (_, _, Acc) ->
+                 Acc
+         end,
+    dict:fold(FF, {Users, Sessions}, Users);
 erase_matched_users_dict(LJID, Users, Sessions) ->
-    case LJID of
-        %% Match by bare JID
-        {U, S, <<>>} ->
-            FF = fun(J, #user{nick=Nick}, {Us, Ss}) ->
-                     case J of
-                         {U, S, _} -> {?DICT:erase(J, Us),?DICT:erase(Nick, Ss)};
-                         _         -> {Us, Ss}
-                     end
-                 end,
-            ?DICT:fold(FF, {Users, Sessions}, Users);
-        %% Match by full JID
-        _ ->
-            {ok, #user{nick=Nick}} = ?DICT:find(LJID, Users),
-            {?DICT:erase(LJID, Users),
-             ?DICT:erase(Nick, Sessions)}
-    end.
+    {ok, #user{nick=Nick}} = dict:find(LJID, Users),
+    {dict:erase(LJID, Users), dict:erase(Nick, Sessions)}.
 
 
 -spec update_matched_users(F :: fun((user()) -> user()), JID :: ejabberd:jid(),
@@ -2213,23 +2228,17 @@ update_matched_users(F, JID, StateData=#state{users=Users}) ->
 
 -spec update_matched_users_dict(fun((user()) -> user()),
                               'error' | ejabberd:simple_jid(), users_dict()) -> any().
+update_matched_users_dict(F, {U, S, <<>>}, Users) ->
+    FF = fun({U0, S0, _} = J, User, Us) when U =:= U0 andalso S =:= S0->
+                 dict:store(J, F(User), Us);
+            (_, _, Us) ->
+                 Us
+         end,
+    dict:fold(FF, Users, Users);
 update_matched_users_dict(F, LJID, Users) ->
-    case LJID of
-        %% Match by bare JID
-        {U, S, <<>>} ->
-            FF = fun(J, User, Us) ->
-                     case J of
-                         {U, S, _} -> ?DICT:store(J, F(User), Us);
-                         _         -> Us
-                     end
-                 end,
-            ?DICT:fold(FF, Users, Users);
-        %% Match by full JID
-        _ ->
-            case ?DICT:find(LJID, Users) of
-                {ok, User} -> ?DICT:store(LJID, F(User), Users);
-                error -> Users
-            end
+    case dict:find(LJID, Users) of
+        {ok, User} -> dict:store(LJID, F(User), Users);
+        error -> Users
     end.
 
 -spec send_new_presence_un(ejabberd:jid(), state()) -> 'ok'.
@@ -2239,15 +2248,15 @@ send_new_presence_un(NJID, StateData) ->
 
 -spec send_new_presence_un(ejabberd:jid(), binary(), state()) -> 'ok'.
 send_new_presence_un(NJID, Reason, StateData) ->
-    {ok, #user{nick = Nick}} = ?DICT:find(jid:to_lower(NJID), StateData#state.users),
+    {ok, #user{nick = Nick}} = dict:find(jid:to_lower(NJID), StateData#state.users),
     case is_last_session(Nick, StateData) of
         true ->
             send_new_presence(NJID, Reason, StateData);
         false ->
-            UserJIDs = ?DICT:fetch(Nick, StateData#state.sessions),
+            UserJIDs = dict:fetch(Nick, StateData#state.sessions),
             GetUserTupleByJID = fun(JID) ->
                 LJID = jid:to_lower(JID),
-                {LJID, ?DICT:fetch(LJID, StateData#state.users)}
+                {LJID, dict:fetch(LJID, StateData#state.users)}
             end,
             CurrentSessionUsers = lists:map(GetUserTupleByJID, UserJIDs),
             send_new_presence_to(NJID, Reason, CurrentSessionUsers, StateData)
@@ -2261,16 +2270,16 @@ send_new_presence(NJID, StateData) ->
 
 -spec send_new_presence(ejabberd:jid(), binary(), state()) -> 'ok'.
 send_new_presence(NJID, Reason, StateData) ->
-    send_new_presence_to(NJID, Reason, ?DICT:to_list(StateData#state.users), StateData).
+    send_new_presence_to(NJID, Reason, dict:to_list(StateData#state.users), StateData).
 
 
--spec send_new_presence_to(ejabberd:jid(), binary(), [{ejabberd:jid(), #user{}}], state()) -> 'ok'.
+-spec send_new_presence_to(ejabberd:jid(), binary(), [{ejabberd:jid(), user()}], state()) -> 'ok'.
 send_new_presence_to(NJID, Reason, Receivers, StateData) ->
     {ok, #user{jid = RealJID,
            nick = Nick,
            role = Role,
            last_presence = Presence}} =
-    ?DICT:find(jid:to_lower(NJID), StateData#state.users),
+    dict:find(jid:to_lower(NJID), StateData#state.users),
     Affiliation = get_affiliation(NJID, StateData),
     BAffiliation = affiliation_to_binary(Affiliation),
     BRole = role_to_binary(Role),
@@ -2338,7 +2347,7 @@ send_new_presence_to(NJID, Reason, Receivers, StateData) ->
 send_existing_presences(ToJID, StateData) ->
     LToJID = jid:to_lower(ToJID),
     {ok, #user{jid = RealToJID, role = Role, nick = _Nick}} =
-    ?DICT:find(LToJID, StateData#state.users),
+    dict:find(LToJID, StateData#state.users),
     % if you don't want to send presences of other sessions of occupant with ToJID
     % switch following lines
     % JIDsToSkip = [RealToJID | find_jids_by_nick(_Nick, StateData)],
@@ -2378,7 +2387,7 @@ send_existing_presences(ToJID, StateData) ->
                     RealToJID,
                     Packet)
             end
-        end, ?DICT:to_list(StateData#state.users)).
+        end, dict:to_list(StateData#state.users)).
 
 
 -spec send_config_update(atom(), state()) -> 'ok'.
@@ -2395,7 +2404,7 @@ send_config_update(Type, StateData) ->
             StateData#state.jid,
             Info#user.jid,
             Message)
-        end, ?DICT:to_list(StateData#state.users)).
+        end, dict:to_list(StateData#state.users)).
 
 
 -spec send_invitation(ejabberd:jid(), ejabberd:jid(), binary(), state()) -> 'ok'.
@@ -2422,15 +2431,15 @@ now_to_usec({MSec, Sec, USec}) ->
 change_nick(JID, Nick, StateData) ->
     LJID = jid:to_lower(JID),
     {ok, #user{nick = OldNick}} =
-    ?DICT:find(LJID, StateData#state.users),
+    dict:find(LJID, StateData#state.users),
     Users =
-    ?DICT:update(
-       LJID,
-       fun(#user{} = User) ->
-           User#user{nick = Nick}
-       end, StateData#state.users),
-    {ok, JIDs} = ?DICT:find(OldNick, StateData#state.sessions),
-    Sessions = ?DICT:erase(OldNick, ?DICT:store(Nick, JIDs, StateData#state.sessions)),
+    dict:update(
+      LJID,
+      fun(#user{} = User) ->
+              User#user{nick = Nick}
+      end, StateData#state.users),
+    {ok, JIDs} = dict:find(OldNick, StateData#state.sessions),
+    Sessions = dict:erase(OldNick, dict:store(Nick, JIDs, StateData#state.sessions)),
     NewStateData = StateData#state{users = Users, sessions = Sessions},
     send_nick_changing(JID, OldNick, NewStateData),
     add_to_log(nickchange, {OldNick, Nick}, StateData),
@@ -2439,7 +2448,7 @@ change_nick(JID, Nick, StateData) ->
 
 -spec send_nick_changing(ejabberd:jid(), mod_muc:nick(), state()) -> 'ok'.
 send_nick_changing(JID, OldNick, StateData) ->
-    User = ?DICT:find(jid:to_lower(JID), StateData#state.users),
+    User = dict:find(jid:to_lower(JID), StateData#state.users),
     {ok, #user{jid = RealJID,
                nick = Nick,
                role = Role,
@@ -2447,7 +2456,7 @@ send_nick_changing(JID, OldNick, StateData) ->
     Affiliation = get_affiliation(JID, StateData),
     lists:foreach(mk_send_nick_change(Presence, OldNick, JID, RealJID,
                                       Affiliation, Role, Nick, StateData),
-                  ?DICT:to_list(StateData#state.users)).
+                  dict:to_list(StateData#state.users)).
 
 mk_send_nick_change(Presence, OldNick, JID, RealJID,  Affiliation,
                     Role, Nick, StateData) ->
@@ -2562,7 +2571,7 @@ lqueue_in(Item, #lqueue{queue = Q1, len = Len, max = Max}) ->
     end.
 
 
--spec lqueue_cut(queue:queue(), non_neg_integer()) -> ejabberd:queue_t().
+-spec lqueue_cut(queue:queue(), non_neg_integer()) -> queue:queue().
 lqueue_cut(Q, 0) ->
     Q;
 lqueue_cut(Q, N) ->
@@ -2771,15 +2780,15 @@ user_to_item(#user{role = Role,
                     {<<"jid">>, jid:to_binary(JID)}]}.
 
 
--spec search_role(mod_muc:role(), state()) -> [{_,_}].
+-spec search_role(mod_muc:role(), state()) -> [{_, _}].
 search_role(Role, StateData) ->
     lists:filter(
       fun({_, #user{role = R}}) ->
           Role == R
-      end, ?DICT:to_list(StateData#state.users)).
+      end, dict:to_list(StateData#state.users)).
 
 
--spec search_affiliation(mod_muc:affiliation(), state()) -> [{_,_}].
+-spec search_affiliation(mod_muc:affiliation(), state()) -> [{_, _}].
 search_affiliation(Affiliation, StateData) when is_atom(Affiliation) ->
     lists:filter(
       fun({_, A}) ->
@@ -2789,11 +2798,11 @@ search_affiliation(Affiliation, StateData) when is_atom(Affiliation) ->
           _ ->
               Affiliation == A
           end
-      end, ?DICT:to_list(StateData#state.affiliations)).
+      end, dict:to_list(StateData#state.affiliations)).
 
 
--spec process_admin_items_set(ejabberd:jid(), [jlib:xmlel(),...], ejabberd:lang(),
-                        state()) -> {'error', jlib:xmlel()} | {'result',[],state()}.
+-spec process_admin_items_set(ejabberd:jid(), [jlib:xmlel(), ...], ejabberd:lang(), state()) ->
+    {'error', jlib:xmlel()} | {'result', [], state()}.
 process_admin_items_set(UJID, Items, Lang, StateData) ->
     UAffiliation = get_affiliation(UJID, StateData),
     URole = get_role(UJID, StateData),
@@ -3222,7 +3231,7 @@ send_kickban_presence(JID, Reason, Code, NewAffiliation, StateData) ->
 send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
     {ok, #user{jid = RealJID,
            nick = Nick}} =
-    ?DICT:find(jid:to_lower(UJID), StateData#state.users),
+    dict:find(jid:to_lower(UJID), StateData#state.users),
     BAffiliation = affiliation_to_binary(Affiliation),
     BannedJIDString = jid:to_binary(RealJID),
     lists:foreach(
@@ -3254,7 +3263,7 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
         jid:replace_resource(StateData#state.jid, Nick),
         Info#user.jid,
         Packet)
-      end, ?DICT:to_list(StateData#state.users)).
+      end, dict:to_list(StateData#state.users)).
 
 
 
@@ -3635,7 +3644,7 @@ set_config(XEl, StateData) ->
                                 end
                end,
             Users = [{U#user.jid, U#user.nick, U#user.role} ||
-                {_, U} <- ?DICT:to_list(StateData#state.users)],
+                     {_, U} <- dict:to_list(StateData#state.users)],
             add_to_log(Type, Users, NSD),
             Res;
         Err ->
@@ -3663,19 +3672,6 @@ set_config(XEl, StateData) ->
 
 -define(SET_XOPT(Opt, Val),
     set_xoption(Opts, Config#config{Opt = Val})).
-
--define(SET_JIDMULTI_XOPT(Opt, Vals),
-        begin
-            Set = lists:foldl(
-                    fun({U, S, R}, Set1) ->
-                            ?SETS:add_element({U, S, R}, Set1);
-                       (#jid{luser = U, lserver = S, lresource = R}, Set1) ->
-                            ?SETS:add_element({U, S, R}, Set1);
-                       (_, Set1) ->
-                            Set1
-                    end, ?SETS:empty(), Vals),
-            set_xoption(Opts, Config#config{Opt = Set})
-        end).
 
 -spec set_xoption([{binary(), [binary()]}], config()) -> config() | {error, jlib:xmlel()}.
 set_xoption([], Config) ->
@@ -3783,7 +3779,7 @@ remove_nonmembers(StateData) ->
         _ ->
             SD
         end
-      end, StateData, ?DICT:to_list(StateData#state.users)).
+      end, StateData, dict:to_list(StateData#state.users)).
 
 
 -spec set_opts(Opts :: [{atom(), term()}], state()) -> state().
@@ -3835,7 +3831,7 @@ set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
         maygetmemberlist ->
             SD#state{config = C#config{maygetmemberlist = Val}};
         affiliations ->
-            SD#state{affiliations = ?DICT:from_list(Val)};
+            SD#state{affiliations = dict:from_list(Val)};
         subject ->
             SD#state{subject = Val};
         subject_author ->
@@ -3873,7 +3869,7 @@ make_opts(StateData) ->
      ?MAKE_CONFIG_OPT(logging),
      ?MAKE_CONFIG_OPT(max_users),
      ?MAKE_CONFIG_OPT(maygetmemberlist),
-     {affiliations, ?DICT:to_list(StateData#state.affiliations)},
+     {affiliations, dict:to_list(StateData#state.affiliations)},
      {subject, StateData#state.subject},
      {subject_author, StateData#state.subject_author}
     ].
@@ -3991,9 +3987,9 @@ rfield(Label, Var, Val, Lang) ->
                               children = [#xmlcdata{content = Val}]}]}.
 
 
--spec iq_disco_info_extras(ejabberd:lang(), state()) -> [jlib:xmlel(),...].
+-spec iq_disco_info_extras(ejabberd:lang(), state()) -> [jlib:xmlel(), ...].
 iq_disco_info_extras(Lang, StateData) ->
-    Len = length(?DICT:to_list(StateData#state.users)),
+    Len = length(dict:to_list(StateData#state.users)),
     RoomDescription = (StateData#state.config)#config.description,
     [#xmlel{name = <<"x">>,
             attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
@@ -4067,7 +4063,7 @@ get_roomdesc_tail(StateData, Lang) ->
 -spec get_mucroom_disco_items(state()) -> [jlib:xmlel()].
 get_mucroom_disco_items(StateData=#state{jid=RoomJID}) ->
     [disco_item(User, RoomJID)
-     || {_LJID, User} <- ?DICT:to_list(StateData#state.users)].
+     || {_LJID, User} <- dict:to_list(StateData#state.users)].
 
 
 -spec disco_item(user(), 'undefined' | ejabberd:jid()) -> jlib:xmlel().
@@ -4438,7 +4434,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
                         From, NewActivity, StateData),
                     StateData2 =
                         StateData1#state{room_shaper = RoomShaper},
-                    {next_state, normal_state, StateData3} =
+                    {next_state, normal_state, StateData3, _} =
                         process_groupchat_message(From, Packet, StateData2),
                     StateData3;
                 true ->
@@ -4707,7 +4703,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
     online = true, packet = Packet, from = From, jid = ToJID}, StateData) ->
-    {ok, #user{nick = FromNick}} = ?DICT:find(jid:to_lower(From),
+    {ok, #user{nick = FromNick}} = dict:find(jid:to_lower(From),
         StateData#state.users),
     ejabberd_router:route(
         jid:replace_resource(StateData#state.jid, FromNick), ToJID, Packet),
@@ -4746,10 +4742,9 @@ route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, _, _}, jid = f
         From, Err);
 route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, NewId, FromFull},
     jid = ToJID, packet = Packet, stanza = StanzaId}, StateData) ->
-    {ok, #user{nick = FromNick}} = ?DICT:find(jid:to_lower(FromFull),
+    {ok, #user{nick = FromNick}} = dict:find(jid:to_lower(FromFull),
         StateData#state.users),
-    {ToJID2, Packet2} = handle_iq_vcard(FromFull, ToJID,
-        StanzaId, NewId,Packet),
+    {ToJID2, Packet2} = handle_iq_vcard(FromFull, ToJID, StanzaId, NewId, Packet),
     ejabberd_router:route(
         jid:replace_resource(StateData#state.jid, FromNick),
         ToJID2, Packet2);

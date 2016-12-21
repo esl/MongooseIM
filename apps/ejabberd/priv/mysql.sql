@@ -222,9 +222,9 @@ CREATE TABLE mam_config(
   -- A - always archive;
   -- N - never archive;
   -- R - roster (only for remote_jid == "")
-  behaviour ENUM('A', 'N', 'R') NOT NULL
+  behaviour ENUM('A', 'N', 'R') NOT NULL,
+  PRIMARY KEY (user_id, remote_jid)
 );
-CREATE INDEX i_mam_config USING HASH ON mam_config(user_id, remote_jid);
 
 CREATE TABLE mam_server_user(
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -256,3 +256,42 @@ CREATE TABLE offline_message(
   packet    blob            NOT NULL
 );
 CREATE INDEX i_offline_message USING BTREE ON offline_message(server, username, id);
+
+CREATE TABLE muc_light_rooms(
+    id BIGINT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    version VARCHAR(20)     NOT NULL,
+    PRIMARY KEY (lserver, luser),
+    UNIQUE KEY k_id USING HASH (id)
+);
+
+CREATE INDEX i_muc_light_rooms USING HASH ON muc_light_rooms(id);
+
+CREATE TABLE muc_light_occupants(
+    room_id BIGINT UNSIGNED NOT NULL REFERENCES muc_light_rooms(id),
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    aff TINYINT UNSIGNED    NOT NULL
+);
+
+CREATE INDEX i_muc_light_occupants_id USING HASH ON muc_light_occupants(room_id);
+CREATE INDEX i_muc_light_occupants_us USING HASH ON muc_light_occupants(lserver, luser);
+
+CREATE TABLE muc_light_config(
+    room_id BIGINT UNSIGNED NOT NULL REFERENCES muc_light_rooms(id),
+    opt VARCHAR(100)        NOT NULL,
+    val VARCHAR(250)        NOT NULL
+);
+
+CREATE INDEX i_muc_light_config USING HASH ON muc_light_config(room_id);
+
+CREATE TABLE muc_light_blocking(
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    what TINYINT UNSIGNED   NOT NULL,
+    who VARCHAR(500)        NOT NULL
+);
+
+CREATE INDEX i_muc_light_blocking USING HASH ON muc_light_blocking(luser, lserver);
+

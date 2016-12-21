@@ -4,7 +4,7 @@ BANNED_DEPS = meck edown
 BANNED_PATHS = $(addsuffix /ebin, $(addprefix deps/, $(BANNED_DEPS)))
 DEPS_LIBS = $(filter-out $(BANNED_PATHS), $(wildcard deps/*/ebin))
 
-OTP_APPS = compiler crypto erts kernel stdlib mnesia ssl ssh xmerl public_key tools sasl hipe edoc syntax_tools runtime_tools inets webtool asn1
+OTP_APPS = compiler crypto erts kernel stdlib mnesia ssl ssh xmerl public_key tools sasl hipe edoc syntax_tools runtime_tools inets asn1
 
 clean_dialyzer:
 	rm -rf dialyzer
@@ -42,8 +42,7 @@ apps_plt: dialyzer/apps.plt
 	status=$$? ; if [ $$status -ne 2 ]; then exit $$status; else exit 0; fi
 
 dialyzer: erlang_plt deps_plt apps_plt
-	@dialyzer -n -Wno_return -Wno_unused -Wno_undefined_callbacks \
-	--plts dialyzer/*.plt --no_check_plt \
+	@dialyzer -n --plts dialyzer/*.plt --verbose \
 	--get_warnings $(apps);
 #	status=$$? ; if [ $$status -ne 2 ]; then exit $$status; else exit 0; fi
 
