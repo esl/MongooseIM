@@ -57,12 +57,14 @@ terminate(_Reson, _Req, State) ->
     State.
 
 maybe_send_message_event(<<"chat">>, Packet, Timestamp, #{id := ID} = State) ->
-    Data = jiffy:encode(mongoose_client_api_messages:encode(Packet, Timestamp)),
-    Event = #{id => integer_to_binary(ID),
-              event => <<"message">>,
-              data => Data
-             },
+    Event = get_event(Packet, Timestamp, ID),
+    {send, Event, State#{id := ID + 1}};
+maybe_send_message_event(<<"groupchat">>, Packet, Timestamp, #{id := ID} = State) ->
+    Event = get_event(Packet, Timestamp, ID),
     {send, Event, State#{id := ID + 1}};
 maybe_send_message_event(_, _, _, State) ->
     {nosend, State}.
 
+get_event(Packet, Timestamp, ID) ->
+    Data = jiffy:encode(mongoose_client_api_messages:encode(Packet, Timestamp)),
+    #{id => integer_to_binary(ID), event => <<"message">>, data => Data}.

@@ -12,6 +12,7 @@ groups() ->
 test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
      msg_is_sent_and_delivered_over_sse,
+     msg_is_sent_and_delivered_over_sse_muc,
      all_messages_are_archived,
      messages_with_user_are_archived,
      messages_can_be_paginated,
@@ -86,6 +87,24 @@ msg_is_sent_and_delivered_over_sse(ConfigIn) ->
     assert_json_message(M, Data),
 
     stop_sse(Conn).
+
+msg_is_sent_and_delivered_over_sse_muc(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        true = is_participant(Bob, <<"member">>, RoomInfo),
+        IQ = escalus_stanza:iq_get(<<"urn:xmpp:muclight:0#affiliations">>, []),
+        RoomJID = <<RoomID/binary, "@muclight.localhost">>,
+        escalus:send(Alice, escalus_stanza:to(IQ, RoomJID)),
+        escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Alice)),
+        Conn = connect_to_sse({bob, Bob}),
+        Message = <<"Hi group!">>,
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomJID, Message)),
+        Event = wait_for_event(Conn),
+        Data = jiffy:decode(maps:get(data, Event), [return_maps]),
+        Message = maps:get(<<"body">>, Data),
+        stop_sse(Conn)
+    end).
 
 all_messages_are_archived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -459,4 +478,3 @@ assert_json_message(Sent, Received) ->
     To = maps:get(to, Sent),
     From = maps:get(from, Sent),
     Id = maps:get(id, Sent).
-
