@@ -42,6 +42,45 @@ typedef struct {
       z_stream *i_stream;
 } ejabberd_zlib_data;
 
+/* Wrappers around driver_alloc() that check  */
+/* for OOM.                                   */
+#ifdef HAS_ERTS_EXIT
+void erts_exit(int n, char* v, ...);
+#define erl_exit erts_exit
+#else
+void erl_exit(int n, char* v, ...);
+#endif
+
+void *ejabberd_zlib_drv_alloc(ErlDrvSizeT size);
+ErlDrvBinary *ejabberd_zlib_drv_alloc_binary(ErlDrvSizeT size);
+ErlDrvBinary *ejabberd_zlib_drv_realloc_binary(ErlDrvBinary *bin,
+    ErlDrvSizeT size);
+
+void *ejabberd_zlib_drv_alloc(ErlDrvSizeT size) {
+    void *p = driver_alloc(size);
+    if (p == NULL) {
+        erl_exit(1, "ejabberd_zlib_drv: Can't allocate %lu bytes of memory\n",
+            size);
+    }
+    return p;
+}
+
+ErlDrvBinary *ejabberd_zlib_drv_alloc_binary(ErlDrvSizeT size) {
+    ErlDrvBinary *p = driver_alloc_binary(size);
+    if (p == NULL) {
+        erl_exit(1, "ejabberd_zlib_drv: Can't allocate %lu binary\n", size);
+    }
+    return p;
+}
+
+ErlDrvBinary *ejabberd_zlib_drv_realloc_binary(ErlDrvBinary *bin, ErlDrvSizeT size) {
+    ErlDrvBinary *p = driver_realloc_binary(bin, size);
+    if (p == NULL) {
+        erl_exit(1, "ejabberd_zlib_drv: Can't reallocate %lu binary\n", size);
+    }
+    return p;
+}
+
 static void* zlib_alloc(void* data, unsigned int items, unsigned int size)
 {
     return (void*) driver_alloc(items*size);
@@ -55,10 +94,10 @@ static void zlib_free(void* data, void* addr)
 static ErlDrvData ejabberd_zlib_drv_start(ErlDrvPort port, char *buff)
 {
    ejabberd_zlib_data *d =
-      (ejabberd_zlib_data *)driver_alloc(sizeof(ejabberd_zlib_data));
+      ejabberd_zlib_drv_alloc(sizeof(ejabberd_zlib_data));
    d->port = port;
 
-   d->d_stream = (z_stream *)driver_alloc(sizeof(z_stream));
+   d->d_stream = ejabberd_zlib_drv_alloc(sizeof(z_stream));
 
    d->d_stream->zalloc = zlib_alloc;
    d->d_stream->zfree = zlib_free;
@@ -66,7 +105,7 @@ static ErlDrvData ejabberd_zlib_drv_start(ErlDrvPort port, char *buff)
 
    deflateInit(d->d_stream, Z_DEFAULT_COMPRESSION);
 
-   d->i_stream = (z_stream *)driver_alloc(sizeof(z_stream));
+   d->i_stream = ejabberd_zlib_drv_alloc(sizeof(z_stream));
 
    d->i_stream->zalloc = zlib_alloc;
    d->i_stream->zfree = zlib_free;
@@ -100,7 +139,7 @@ static void ejabberd_zlib_drv_stop(ErlDrvData handle)
 	 if (!(cond))						\
 	 {							\
 	    rlen = strlen(errstr) + 1;				\
-	    b = driver_realloc_binary(b, rlen);			\
+	    b = ejabberd_zlib_drv_realloc_binary(b, rlen);			\
 	    b->orig_bytes[0] = 1;				\
 	    strncpy(b->orig_bytes + 1, errstr, rlen - 1);	\
 	    *rbuf = (char *)b;					\
@@ -127,7 +166,7 @@ static ErlDrvSSizeT ejabberd_zlib_drv_control(ErlDrvData handle,
         case DEFLATE:
             size = BUF_SIZE + 1;
             rlen = 1;
-            b = driver_alloc_binary(size);
+            b = ejabberd_zlib_drv_alloc_binary(size);
             b->orig_bytes[0] = 0;
 
             d->d_stream->next_in = (unsigned char *)buf;
@@ -153,15 +192,15 @@ static ErlDrvSSizeT ejabberd_zlib_drv_control(ErlDrvData handle,
 
                 rlen += (BUF_SIZE - d->d_stream->avail_out);
                 size += (BUF_SIZE - d->d_stream->avail_out);
-                b = driver_realloc_binary(b, size);
+                b = ejabberd_zlib_drv_realloc_binary(b, size);
             }
-            b = driver_realloc_binary(b, rlen);
+            b = ejabberd_zlib_drv_realloc_binary(b, rlen);
             *rbuf = (char *)b;
             return rlen;
         case INFLATE:
             size = BUF_SIZE + 1;
             rlen = 1;
-            b = driver_alloc_binary(size);
+            b = ejabberd_zlib_drv_alloc_binary(size);
             b->orig_bytes[0] = 0;
 
             if (len > 0) {
@@ -191,15 +230,15 @@ static ErlDrvSSizeT ejabberd_zlib_drv_control(ErlDrvData handle,
                             "inflate_size_exceeded");
 
                     size += (BUF_SIZE - d->i_stream->avail_out);
-                    b = driver_realloc_binary(b, size);
+                    b = ejabberd_zlib_drv_realloc_binary(b, size);
                 }
             }
-            b = driver_realloc_binary(b, rlen);
+            b = ejabberd_zlib_drv_realloc_binary(b, rlen);
             *rbuf = (char *)b;
             return rlen;
     }
 
-    b = driver_alloc_binary(1);
+    b = ejabberd_zlib_drv_alloc_binary(1);
     b->orig_bytes[0] = 0;
     *rbuf = (char *)b;
     return 1;
