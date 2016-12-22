@@ -345,13 +345,13 @@ get_features(Key, Acc, _From, _To, <<"">> = _Node, _Lang) ->
     add_feature(Key, Acc, ?NS_FEATURE_MSGOFFLINE);
 get_features(Key, Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
     %% override all lesser features...
-    maps:put(Key, [], Acc);
+    mongoose_perdix:put(Key, [], Acc);
 get_features(_Key, Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 add_feature(Key, Acc, Feature) ->
-    Features = maps:get(Key, Acc),
-    maps:put(Key, Features ++ [Feature], Acc).
+    Features = mongoose_perdix:get(Key, Acc),
+    mongoose_perdix:put(Key, Features ++ [Feature], Acc).
 %%add_feature(_, Feature) ->
 %%    {result, [Feature]}.
 

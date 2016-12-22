@@ -320,10 +320,11 @@ set_vcard({error, _} = E, _From, _VCARD) -> E.
 
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
     Acc;
-get_local_features(#{features := Feat} = Acc, _From, _To, Node, _Lang) ->
+get_local_features(Acc, _From, _To, Node, _Lang) ->
+%%    Feat = mongoose_perdix:get(features, Acc, []),
     NFeat = case Node of
         <<>> ->
-            [?NS_VCARD | Feat];
+            ?NS_VCARD;
 %%            case Acc of
 %%                {result, Features} ->
 %%                    {result, [?NS_VCARD | Features]};
@@ -331,9 +332,9 @@ get_local_features(#{features := Feat} = Acc, _From, _To, Node, _Lang) ->
 %%                    {result, [?NS_VCARD]}
 %%            end;
         _ ->
-            Feat
+            []
     end,
-    maps:put(features, NFeat, Acc).
+    mongoose_perdix:append(features, NFeat, Acc).
 
 %% #rh
 remove_user(Acc, User, Server) ->

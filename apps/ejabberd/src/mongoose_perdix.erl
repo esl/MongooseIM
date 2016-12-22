@@ -28,11 +28,11 @@ to_map(P) ->
 put(Key, Val, P) ->
     maps:put(Key, Val, P).
 
-get(Key, Val) ->
-    maps:get(Key, Val).
+get(Key, P) ->
+    maps:get(Key, P).
 
-get(Key, Val, Default) ->
-    maps:get(Key, Val, Default).
+get(Key, P, Default) ->
+    maps:get(Key, P, Default).
 
 append(Key, Val, P) ->
     L = get(Key, P, []),

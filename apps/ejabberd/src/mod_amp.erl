@@ -66,8 +66,8 @@ check_packet(Packet, _, _) ->
 
 add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
     Features = result_or(Acc, []) ++ amp_features(),
-    Features = maps:get(features, Acc, []) ++ amp_features(),
-    maps:put(features, Features, Acc);
+    Features = mongoose_perdix:get(features, Acc, []) ++ amp_features(),
+    mongoose_perdix:put(features, Features, Acc);
 add_local_features(Acc, _From, _To, _NS, _Lang) ->
     Acc.
 

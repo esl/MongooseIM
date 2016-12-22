@@ -140,11 +140,16 @@ process_local_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} =
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
             Host = To#jid.lserver,
 
-            case ejabberd_hooks:run_fold(disco_local_items,
+            Acc = mongoose_perdix:new(),
+            Acc2 = ejabberd_hooks:run_fold(disco_local_items,
                                          Host,
-                                         #{local_items => []},
-                                         [From, To, Node, Lang]) of
-                #{local_items := Items} ->
+                                         Acc2,
+                                         [From, To, Node, Lang]),
+            case Acc2 of
+                {error, Error} ->
+                    IQ#iq{type = error, sub_el = [SubEl, Error]};
+                _ ->
+                    Items = mongoose_perdix:get(local_items, Acc2, []),
                     ANode = case Node of
                                 <<>> -> [];
                                 _ -> [{<<"node">>, Node}]
@@ -152,9 +157,7 @@ process_local_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} =
                     IQ#iq{type = result,
                           sub_el = [#xmlel{name = <<"query">>,
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                           children = Items}]};
-                {error, Error} ->
-                    IQ#iq{type = error, sub_el = [SubEl, Error]}
+                                           children = Items}]}
             end
     end.
 
@@ -208,8 +211,7 @@ get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
                    attrs = [{<<"category">>, <<"server">>},
                             {<<"type">>, <<"im">>},
                             {<<"name">>, <<"MongooseIM">>}]}],
-    mongoose_perdix:append(local_identity, NIds, Acc).
-
+    mongoose_perdix:append(local_identity, NIds, Acc);
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
@@ -226,10 +228,10 @@ get_local_features(Acc, _From, To, <<>>, _Lang) ->
 %%                {result, Features} -> Features;
 %%                empty -> []
 %%            end,
-    Feats = maps:get(features, Acc, []),
+    Feats = mongoose_perdix:get(features, Acc, []),
     Host = To#jid.lserver,
     NFeats = ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats,
-    maps:put(features, NFeats, Acc);
+    mongoose_perdix:put(features, NFeats, Acc);
 
 %%    {result,
 %%     ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats};
@@ -276,15 +278,15 @@ get_local_services(Acc, _From, To, <<>>, _Lang) ->
 %%                {result, Its} -> Its;
 %%                empty -> []
 %%            end,
-     Items = maps:get(local_items, Acc, []),
+%%     Items = maps:get(local_items, Acc, []),
      Host = To#jid.lserver,
      NItems = lists:usort(
        lists:map(fun domain_to_xml/1,
                  get_vh_services(Host) ++
                  ets:select(disco_extra_domains,
                             [{{{'$1', Host}}, [], ['$1']}]))
-       ) ++ Items,
-     maps:put(local_items, NItems, Acc);
+       ),
+     mongoose_perdix:append(local_items, NItems, Acc);
 get_local_services({result, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_services(empty, _From, _To, _Node, _Lang) ->
@@ -321,11 +323,15 @@ process_sm_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ
                 true ->
                     Host = To#jid.lserver,
                     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+                    Acc = mongoose_perdix:new(),
                     case ejabberd_hooks:run_fold(disco_sm_items,
                                                  Host,
-                                                 empty,
+                                                 Acc,
                                                  [From, To, Node, Lang]) of
-                        {result, Items} ->
+                        {error, Error} ->
+                            IQ#iq{type = error, sub_el = [SubEl, Error]};
+                        Acc1 ->
+                            Items = mongoose_perdix:get(sm_items, Acc1, []),
                             ANode = case Node of
                                         <<>> -> [];
                                         _ -> [{<<"node">>, Node}]
@@ -333,9 +339,7 @@ process_sm_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ
                             IQ#iq{type = result,
                                   sub_el = [#xmlel{name = <<"query">>,
                                                    attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                                   children = Items}]};
-                        {error, Error} ->
-                            IQ#iq{type = error, sub_el = [SubEl, Error]}
+                                                   children = Items}]}
                     end;
                 false ->
                     IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
@@ -352,18 +356,24 @@ get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_sm_items(Acc, From,
             #jid{user = User, server = Server} = To,
-            [], _Lang) ->
-    Items = case Acc of
-                {result, Its} -> Its;
-                empty -> []
-            end,
-    Items1 = case is_presence_subscribed(From, To) of
-                   true ->
-                       get_user_resources(User, Server);
-                   _ ->
-                       []
-                end,
-    {result, Items ++ Items1};
+            [], Lang) ->
+%%    Items = case Acc of
+%%                {result, Its} -> Its;
+%%                empty -> []
+%%            end,
+    Items = mongoose_perdix:get(sm_items, Acc, []),
+    case Items of
+        [] ->
+            get_sm_items(empty, From, To, [], Lang);
+        _ ->
+            Items1 = case is_presence_subscribed(From, To) of
+                           true ->
+                               get_user_resources(User, Server);
+                           _ ->
+                               []
+                        end,
+            mongoose_perdix:append(sm_items, Items1, Acc)
+    end;
 get_sm_items({result, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_sm_items(empty, From, To, _Node, _Lang) ->
@@ -402,15 +412,21 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
                 true ->
                     Host = To#jid.lserver,
                     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-                    #{sm_identity := Identity} = ejabberd_hooks:run_fold(disco_sm_identity,
+                    Acc = mongoose_perdix:new(),
+                    Acc1 = ejabberd_hooks:run_fold(disco_sm_identity,
                                                        Host,
-                                                       #{sm_identity => []},
+                                                       Acc,
                                                        [From, To, Node, Lang]),
-                    case ejabberd_hooks:run_fold(disco_sm_features,
+                    Acc2 = ejabberd_hooks:run_fold(disco_sm_features,
                                                  Host,
-                                                 #{sm_features => []},
-                                                 [From, To, Node, Lang]) of
-                        #{sm_features := Features} ->
+                                                 Acc1,
+                                                 [From, To, Node, Lang]),
+                    case Acc2 of
+                        {error, Error} ->
+                            IQ#iq{type = error, sub_el = [SubEl, Error]};
+                        _ ->
+                            Features = mongoose_perdix:get(sm_features, Acc2, []),
+                            Identity = mongoose_perdix:get(sm_identity, Acc2, []),
                             ANode = case Node of
                                         <<>> -> [];
                                         _ -> [{<<"node">>, Node}]
@@ -419,9 +435,7 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
                                   sub_el = [#xmlel{name = <<"query">>,
                                                    attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
                                                    children = Identity ++
-                                                              features_to_xml(Features)}]};
-                        {error, Error} ->
-                            IQ#iq{type = error, sub_el = [SubEl, Error]}
+                                                              features_to_xml(Features)}]}
                     end;
                 false ->
                     IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
@@ -434,7 +448,8 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
                       To :: ejabberd:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_sm_identity(#{sm_identity := Ids} = Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
+get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
+    Ids = mongoose_perdix:get(sm_identity, Acc, []),
     Id = case ejabberd_auth:is_user_exists(LUser, LServer) of
             true ->
                [#xmlel{name = <<"identity">>, attrs = [{<<"category">>, <<"account">>},
@@ -443,7 +458,7 @@ get_sm_identity(#{sm_identity := Ids} = Acc, _From, #jid{luser = LUser, lserver=
             _ ->
                []
          end,
-    maps:put(sm_identity, Ids ++ Id, Acc).
+    mongoose_perdix:put(sm_identity, Ids ++ Id, Acc).
 
 
 -spec get_sm_features(map(),
@@ -451,14 +466,19 @@ get_sm_identity(#{sm_identity := Ids} = Acc, _From, #jid{luser = LUser, lserver=
                       To :: ejabberd:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> any().
-get_sm_features(#{sm_features := []}, From, To, _Node, _Lang) ->
-    #jid{luser = LFrom, lserver = LSFrom} = From,
-    #jid{luser = LTo, lserver = LSTo} = To,
-    case {LFrom, LSFrom} of
-        {LTo, LSTo} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+get_sm_features(Acc, From, To, _Node, _Lang) ->
+    case mongoose_perdix:get(sm_features, Acc, []) of
+        [] ->
+            #jid{luser = LFrom, lserver = LSFrom} = From,
+            #jid{luser = LTo, lserver = LSTo} = To,
+            case {LFrom, LSFrom} of
+                {LTo, LSTo} ->
+                    {error, ?ERR_ITEM_NOT_FOUND};
+                _ ->
+                    {error, ?ERR_NOT_ALLOWED}
+            end;
         _ ->
-            {error, ?ERR_NOT_ALLOWED}
+            Acc
     end;
 get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
@@ -494,7 +514,7 @@ get_info(Acc, Host, Mod, Node, _Lang) when Node == [] ->
                                children = [#xmlel{name = <<"value">>,
                                                   children = [#xmlcdata{content = ?NS_SERVERINFO}]}]}]
                      ++ Serverinfo_fields}],
-    maps:put(info, Info, Acc);
+    mongoose_perdix:append(info, Info, Acc);
 get_info(Acc, _, _, _Node, _) ->
     Acc.
 

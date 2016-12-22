@@ -616,8 +616,10 @@ route_by_type(<<"iq">>, {From, To, Packet}, #state{host = Host} = State) ->
     ServerHost = State#state.server_host,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            #{info := Info} = ejabberd_hooks:run_fold(disco_info, ServerHost, #{},
-                                           [ServerHost, ?MODULE, <<"">>, Lang]),
+            InfoResp = ejabberd_hooks:run_fold(disco_info, ServerHost,
+                                                      mongoose_perdix:new(),
+                                                      [ServerHost, ?MODULE, <<"">>, Lang]),
+            Info = mongoose_perdix:get(info, InfoResp, []),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
