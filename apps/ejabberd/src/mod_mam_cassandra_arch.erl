@@ -662,6 +662,7 @@ calc_count(PoolName, UserJID, _Host, Filter) ->
       Filter :: filter(),
       Id :: non_neg_integer() | undefined.
 offset_to_start_id(PoolName, UserJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
+    {StartId, NewOffset} = get_offset_hint(),
     QueryName = {list_message_ids_query, select_filter(Filter)},
     Params = eval_filter_params(Filter) ++ [{'[limit]', Offset + 1}],
     {ok, RowsIds} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName,

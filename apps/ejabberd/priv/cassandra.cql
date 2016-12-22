@@ -14,7 +14,7 @@ CREATE TABLE mam_message(
   // - empty
   with_jid varchar,
   message blob,
-  PRIMARY KEY ((user_jid, with_jid), id));
+  PRIMARY KEY ((user_jid, with_jid), id)) WITH CLUSTERING ORDER BY (id DESC);
 
 CREATE TABLE mam_muc_message(
   id bigint,
@@ -25,7 +25,7 @@ CREATE TABLE mam_muc_message(
   // - empty
   with_nick varchar,
   message blob,
-  PRIMARY KEY ((room_jid, with_nick), id));
+  PRIMARY KEY ((room_jid, with_nick), id)) WITH CLUSTERING ORDER BY (id DESC);
 
 CREATE TABLE mam_config(
   user_jid varchar,
@@ -37,5 +37,5 @@ CREATE TABLE mam_config(
   PRIMARY KEY ((user_jid), remote_jid)
 );
 
-CREATE INDEX ON mongooseim.mam_message (user_jid);
-CREATE INDEX ON mongooseim.mam_muc_message (room_jid);
+//CREATE INDEX ON mongooseim.mam_message (user_jid);
+//CREATE INDEX ON mongooseim.mam_muc_message (room_jid);
