@@ -123,10 +123,14 @@ stop_muc(Host) ->
 %% mongoose_cassandra_worker callbacks
 
 prepared_queries() ->
-    [{insert_query, insert_query_cql()},
+    [
+     {insert_offset_hint_query, insert_offset_hint_query_cql()},
+     {prev_offset_query, prev_offset_query_cql()},
+     {insert_query, insert_query_cql()},
      {delete_query, delete_query_cql()},
      {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
+     {remove_archive_offsets_query, remove_archive_offsets_query_cql()},
      {message_id_to_nick_name_query, message_id_to_nick_name_cql()}]
         ++ extract_messages_queries()
         ++ extract_messages_r_queries()
@@ -184,9 +188,7 @@ archive_message2(_Result, _Host, MessID,
 write_messages(RoomJID, Messages) ->
     PoolName = pool_name(RoomJID),
     MultiParams = [message_to_params(M) || M <- Messages],
-    spawn(fun() -> mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE, insert_query,
-                                                         MultiParams) end),
-    ok.
+    mongoose_cassandra:cql_write_async(PoolName, RoomJID, ?MODULE, insert_query, MultiParams).
 
 message_to_params(#mam_muc_message{
                      id        = MessID,
@@ -209,7 +211,7 @@ delete_query_cql() ->
 delete_messages(PoolName, RoomJID, Messages) ->
     MultiParams = [delete_message_to_params(M) || M <- Messages],
     mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE, delete_query,
-                                                    MultiParams).
+                                 MultiParams).
 
 delete_message_to_params(#mam_muc_message{
                             id        = MessID,
@@ -225,8 +227,11 @@ delete_message_to_params(#mam_muc_message{
 remove_archive_query_cql() ->
     "DELETE FROM mam_muc_message WHERE room_jid = ? AND with_nick = ?".
 
+remove_archive_offsets_query_cql() ->
+    "DELETE FROM mam_muc_message_offset WHERE room_jid = ? AND with_nick = ?".
+
 select_for_removal_query_cql() ->
-    "SELECT room_jid, with_nick FROM mam_muc_message WHERE room_jid = ?".
+    "SELECT DISTINCT room_jid, with_nick FROM mam_message WHERE room_jid = ?".
 
 remove_archive(_Host, _RoomID, RoomJID) ->
     BRoomJID = bare_jid(RoomJID),
@@ -234,16 +239,17 @@ remove_archive(_Host, _RoomID, RoomJID) ->
     Params = [{room_jid, BRoomJID}],
     %% Wait until deleted
 
-    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, select_for_removal_query,
-                                             Params),
+    DeleteFun =
+        fun(Rows, _AccIn) ->
+                mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE,
+                                             remove_archive_query, Rows),
+                mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE,
+                                             remove_archive_offsets_query, Rows)
+        end,
 
-    case Rows of
-        [] -> ok;
-        _ ->
-            mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE, remove_archive_query, Rows),
-            ok
-    end.
-
+    mongoose_cassandra:cql_foldl(PoolName, RoomJID, ?MODULE,
+                                 select_for_removal_query, Params, DeleteFun, []),
+    ok.
 
 %% ----------------------------------------------------------------------
 %% GET NICK NAME
@@ -255,7 +261,7 @@ message_id_to_nick_name_cql() ->
 message_id_to_nick_name(PoolName, RoomJID, BRoomJID, MessID) ->
     Params = [{room_jid, BRoomJID}, {id, MessID}],
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE,
-                                                     message_id_to_nick_name_query, Params),
+                                             message_id_to_nick_name_query, Params),
     case Rows of
         [] ->
             {error, not_found};
@@ -564,7 +570,7 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
     QueryName = {list_message_ids_query, select_filter(Filter)},
     Params = eval_filter_params(Filter) ++ [{'[limit]', Limit}],
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName,
-                                                          Params),
+                                             Params),
     %% TODO can be faster
     %% TODO rate limiting
     [purge_single_message(ok, Host, proplists:get_value(id, Row), RoomID, RoomJID, Now)
@@ -605,7 +611,7 @@ extract_messages(PoolName, RoomJID, _Host, Filter, IMax, true) ->
 %% be returned instead.
 %% @end
 -spec calc_index(PoolName, RoomJID, Host, Filter, MessID) -> Count
-                                                               when
+                                                                 when
       PoolName :: pool_name(),
       RoomJID :: jlib:jid(),
       Host :: server_hostname(),
@@ -620,7 +626,7 @@ calc_index(PoolName, RoomJID, Host, Filter, MessID) ->
 %% The element with the passed UID can be already deleted.
 %% @end
 -spec calc_before(PoolName, RoomJID, Host, Filter, MessID) -> Count
-                                                                when
+                                                                  when
       PoolName :: pool_name(),
       RoomJID :: jlib:jid(),
       Host :: server_hostname(),
@@ -634,7 +640,7 @@ calc_before(PoolName, RoomJID, Host, Filter, MessID) ->
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_muc_message WHERE "
 -spec calc_count(PoolName, RoomJID, Host, Filter) -> Count
-                                                       when
+                                                         when
       PoolName :: pool_name(),
       RoomJID :: jlib:jid(),
       Host :: server_hostname(),
@@ -644,28 +650,88 @@ calc_count(PoolName, RoomJID, _Host, Filter) ->
     QueryName = {calc_count_query, select_filter(Filter)},
     Params = eval_filter_params(Filter),
     {ok, [Row]} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName,
-                                                          Params),
+                                              Params),
     proplists:get_value(count, Row).
 
 %% @doc Convert offset to index of the first entry
 %% Returns undefined if not there are not enough rows
--spec offset_to_start_id(PoolName, RoomJID, Filter, Offset) -> Id
-                                                                 when
-      PoolName :: pool_name(),
+%% Uses previously calculated offsets to speed up queries
+-spec offset_to_start_id(PoolName, RoomJID, Filter, Offset) -> Id when
+      PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jlib:jid(),
       Offset :: non_neg_integer(),
       Filter :: filter(),
       Id :: non_neg_integer() | undefined.
+offset_to_start_id(PoolName, RoomJID, Filter, Offset) when is_integer(Offset), Offset >= 0,
+                                                           Offset =< 100 ->
+    calc_offset_to_start_id(PoolName, RoomJID, Filter, Offset);
 offset_to_start_id(PoolName, RoomJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
+    Params = eval_filter_params(Filter) ++ [{offset, Offset}],
+    %% Try to find already calculated nearby offset to reduce query size
+    case mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, prev_offset_query, Params) of
+        {ok, []} -> %% No hints, just calculate offset sloooowly
+            StartId = calc_offset_to_start_id(PoolName, RoomJID, Filter, Offset),
+            maybe_save_offset_hint(PoolName, RoomJID, Filter, 0, Offset, StartId);
+        {ok, [Row]} -> %% Offset hint found, use it to reduce questy size
+            PrevOffset = proplists:get_value(offset, Row),
+            PrevId = proplists:get_value(id, Row),
+            case Offset of
+                PrevOffset -> PrevId;
+                _ ->
+                    StartId = calc_offset_to_start_id(PoolName, RoomJID,
+                                                      Filter#mam_muc_ca_filter{start_id = PrevId},
+                                                      Offset - PrevOffset + 1),
+                    maybe_save_offset_hint(PoolName, RoomJID, Filter, PrevOffset, Offset, StartId)
+            end
+    end.
+
+%% @doc Saves offset hint for future use in order to speed up queries with similar offset
+%% Hint is save only if previous offset hint was 50+ entires from current query
+%% This function returns given StartId as passthrough for convenience
+-spec maybe_save_offset_hint(PoolName :: mongoose_cassandra:pool_name(), RoomJID :: jlib:jid(),
+                             Filter :: filter(), HintOffset :: non_neg_integer(),
+                             NewOffset :: non_neg_integer(), StartId :: non_neg_integer()) ->
+                                    StartId :: non_neg_integer().
+maybe_save_offset_hint(PoolName, RoomJID, Filter, HintOffset, NewOffset, StartId) ->
+    case abs(NewOffset - HintOffset) > 50 of
+        true ->
+            #mam_muc_ca_filter{room_jid = FRoomJID, with_nick = FWithNick} = Filter,
+            Row = [{room_jid, FRoomJID}, {with_nick, FWithNick},
+                   {offset, NewOffset}, {id, StartId}],
+            mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE,
+                                         insert_offset_hint_query, [Row]);
+        false ->
+            skip
+    end,
+    StartId.
+
+%% @doc Convert offset to index of the first entry
+%% Returns undefined if not there are not enough rows
+-spec calc_offset_to_start_id(PoolName, RoomJID, Filter, Offset) -> Id
+                                                                        when
+      PoolName :: mongoose_cassandra:pool_name(),
+      RoomJID :: jlib:jid(),
+      Offset :: non_neg_integer(),
+      Filter :: filter(),
+      Id :: non_neg_integer() | undefined.
+calc_offset_to_start_id(PoolName, RoomJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
     QueryName = {list_message_ids_query, select_filter(Filter)},
     Params = eval_filter_params(Filter) ++ [{'[limit]', Offset + 1}],
-    {ok, RowsIds} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName,
-                                                        Params),
+    {ok, RowsIds} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName, Params),
     case RowsIds of
         [] -> unfefined;
         [_ | _] ->
             proplists:get_value(id, lists:last(RowsIds))
     end.
+
+%% @doc Get closest offset -> message id 'hint' for specified offset
+prev_offset_query_cql() ->
+    "SELECT id, offset FROM mam_muc_message_offset WHERE  = ? and with_nick = ? "
+        "and offset <= ? LIMIT 1".
+
+%% @doc Insert offset -> message id 'hint'
+insert_offset_hint_query_cql() ->
+    "INSERT INTO mam_muc_message_offset(room_jid, with_nick, id, offset) VALUES(?, ?, ?, ?)".
 
 prepare_filter(RoomJID, Borders, Start, End, WithNick) ->
     BRoomJID = bare_jid(RoomJID),
@@ -691,7 +757,7 @@ eval_filter_params(#mam_muc_ca_filter{
                       end_id    = EndID
                      }) ->
     Optional = [Value || {_, ID} = Value <- [{start_id, StartID}, {end_id, EndID}], ID =/=
-                                                                                    undefined],
+                             undefined],
     [{room_jid, BRoomJID}, {with_nick, BWithNick} | Optional].
 
 select_filter(#mam_muc_ca_filter{
@@ -731,7 +797,7 @@ filter_to_cql() ->
         EndID <- [undefined, 0]].
 
 -spec calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM) -> Offset
-                                                                                   when
+                                                                                     when
       PoolName :: pool_name(),
       RoomJID :: jlib:jid(),
       Host :: server_hostname(),
@@ -790,21 +856,21 @@ list_message_ids_queries() ->
 extract_messages_cql(Filter) ->
     "SELECT id, nick_name, message FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++
-        Filter ++ " ORDER BY id LIMIT ? ALLOW FILTERING".
+        Filter ++ " ORDER BY id LIMIT ?".
 
 extract_messages_r_cql(Filter) ->
     "SELECT id, nick_name, message FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++
-        Filter ++ " ORDER BY id DESC LIMIT ? ALLOW FILTERING".
+        Filter ++ " ORDER BY id DESC LIMIT ?".
 
 calc_count_cql(Filter) ->
     "SELECT COUNT(*) FROM mam_muc_message "
-        "WHERE room_jid = ? AND with_nick = ? " ++ Filter ++ " ALLOW FILTERING".
+        "WHERE room_jid = ? AND with_nick = ? " ++ Filter.
 
 list_message_ids_cql(Filter) ->
     "SELECT id FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++ Filter ++
-        " ORDER BY id LIMIT ? ALLOW FILTERING".
+        " ORDER BY id LIMIT ?".
 
 %% ----------------------------------------------------------------------
 %% Optimizations

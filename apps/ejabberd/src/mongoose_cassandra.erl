@@ -20,6 +20,17 @@
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("cqerl/include/cqerl.hrl").
 
+-define(READ_TIMEOUT, timer:minutes(1)).
+
+%% ====================================================================
+%% Types
+%% ====================================================================
+
+-type row() :: proplists:proplist().
+-type row_fold_fun() :: fun((Row :: row(), AccIn :: term()) -> AccOut :: term()).
+-type pool_name() :: atom().
+-type cql_query() :: #cql_query{}.
+
 %% ====================================================================
 %% Exports
 %% ====================================================================
@@ -28,12 +39,15 @@
 -export([start/0, stop/0]).
 
 %% API
--export([cql_read/5, cql_write/5]).
+-export([cql_read/5, cql_foldl/7, cql_write/5, cql_write_async/5]).
 -export([now_timestamp/0]).
 
 %% Test queries
 -export([prepared_queries/0, total_count_query_cql/1, test_query_sql/0]).
 -export([test_query/1, test_query/2, total_count_query/2]).
+
+%% Types
+-export_type([pool_name/0, row/0]).
 
 %% Callbacks definitions
 -callback prepared_queries() -> list({term(), string()}).
@@ -43,6 +57,7 @@
 %% Module API
 %% ====================================================================
 
+-spec start() -> ignore | ok | no_return().
 start() ->
     case ejabberd_config:get_local_option(cassandra_servers) of
         undefined ->
@@ -54,23 +69,27 @@ start() ->
 
 -spec stop() -> _.
 stop() ->
+    mongoose_cassandra_sup:stop(),
     cqerl_app:stop(undefined).
 
-
 %% Module helpers
+-spec init_pool({pool_name(), proplists:proplist()} |
+                {pool_name(), PoolSize :: non_neg_integer(), proplists:proplist()}) ->
+                       ok | no_return().
 init_pool({PoolName, PoolConfig}) ->
     init_pool({PoolName, 20, PoolConfig});
 init_pool({PoolName, PoolSize, PoolConfig}) ->
     ExtConfig = extend_config(PoolConfig),
     application:set_env(cqerl, num_clients, PoolSize),
-    application:set_env(cqerl, query_timeout, timer:seconds(5)),
-    cqerl_cluster:add_nodes(PoolName, proplists:get_value(servers, ExtConfig), ExtConfig).
+    ok = cqerl_cluster:add_nodes(PoolName, proplists:get_value(servers, ExtConfig), ExtConfig),
+    {ok, _} = mongoose_cassandra_sup:start(PoolName, PoolSize * 4),
+    ok.
 
 extend_config(PoolConfig) ->
     PoolConfig
-    ++ [{servers, [{"localhost", 9042}]},
-%%            {tcp_opts, [{connect_timeout, 4000}]},
-        {keyspace, mongooseim}].
+        ++ [{servers, [{"localhost", 9042}]},
+            %%            {tcp_opts, [{connect_timeout, 4000}]},
+            {keyspace, mongooseim}].
 
 
 %% ====================================================================
@@ -85,83 +104,133 @@ now_timestamp() ->
 now_to_usec({MSec, Sec, USec}) ->
     (MSec*1000000 + Sec)*1000000 + USec.
 
--spec cql_write(PoolName :: atom(), UserJID :: jid(), Module :: atom(),
+
+%% --------------------------------------------------------
+%% @doc Execute batch write query to cassandra (insert, update or delete).
+%% Note that Cassandra doesn't like big batches, therefore this function will try to
+%% split given rows into batches of 50 rows and will fall back to smaller batches if
+%% Cassandra rejects the query due to its size being to big.
+%% --------------------------------------------------------
+-spec cql_write(PoolName :: pool_name(), UserJID :: jid(), Module :: atom(),
                 QueryName :: atom() |{atom(), atom()}, Rows :: [proplists:proplist()]) ->
-    ok | {error, Reason :: any()}.
+                       ok | {error, Reason :: any()}.
 cql_write(PoolName, _UserJID, Module, QueryName, Rows)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
     Query = #cql_query{statement = QueryStr},
 
     {ok, Client} = cqerl:get_client(PoolName),
-    case cql_write_rows(Client, Query, Rows, 20, 3) of
-        ok ->
-            ok;
-        Error ->
-            Error
+    cql_write_rows(Client, Query, Rows, 50, 3).
+
+%% --------------------------------------------------------
+%% @doc Execute async batch write query to cassandra (insert, update or delete).
+%% Note that Cassandra doesn't like big batches and there's not retry login when query size will
+%% be exceeded like in cql_write/5.
+%% --------------------------------------------------------
+-spec cql_write_async(PoolName :: pool_name(), UserJID :: jid(), Module :: atom(),
+                      QueryName :: atom() |{atom(), atom()}, Rows :: [proplists:proplist()]) ->
+                             ok | {error, Reason :: any()}.
+cql_write_async(PoolName, UserJID, Module, QueryName, Rows)  ->
+    QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
+    Query = #cql_query{statement = QueryStr},
+
+    {ok, Client} = cqerl:get_client(PoolName),
+    BatchQuery =
+        #cql_query_batch{
+           mode = unlogged,
+           queries = [Query#cql_query{values = Row}
+                      || Row <- Rows]
+          },
+
+    QueryExecutor =
+        fun() ->
+                cqerl:send_query(Client, BatchQuery)
+        end,
+
+    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
+    gen_server:cast(Worker, {cql_write, QueryExecutor}).
+
+
+%% --------------------------------------------------------
+%% @doc Execute read query to cassandra (select).
+%% Returns all rows at once even if there are several query pages.
+%% --------------------------------------------------------
+-spec cql_read(PoolName :: pool_name(), UserJID :: jid(), Module :: atom(),
+               QueryName :: atom() | {atom(), atom()}, Params :: proplists:proplist()) ->
+                      {ok, Rows :: [proplists:proplist()]} | {error, Reason :: any()}.
+cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
+    Fun = fun(Row, Acc) -> [Row | Acc] end,
+    case cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, []) of
+        {ok, Rows} ->
+            {ok, lists:concat(lists:reverse(Rows))};
+        {error, Reason} ->
+            {error, Reason}
     end.
 
--spec cql_read(PoolName :: atom(), UserJID :: jid(), Module :: atom(),
-                QueryName :: atom() |{atom(), atom()}, Params :: proplists:proplist()) ->
-    {ok, Rows :: [proplists:proplist()]} | {error, Reason :: any()}.
-cql_read(PoolName, _UserJID, Module, QueryName, Params)  ->
-    cql_read(PoolName, _UserJID, Module, QueryName, Params, 30).
-cql_read(PoolName, _UserJID, Module, QueryName, Params, 0)  ->
-    error({query_timeout, QueryName, Params});
-cql_read(PoolName, _UserJID, Module, QueryName, Params, TryCount)  ->
+
+%% --------------------------------------------------------
+%% @doc Execute read query to cassandra (select).
+%% This functions behaves much like the lists:foldl/3 but the input are pages from result of given
+%% query. Therefore each execution of given fun gets list of several result rows (by default 100 at
+%% most).
+%% --------------------------------------------------------
+-spec cql_foldl(PoolName :: pool_name(), UserJID :: jid(), Module :: atom(),
+                QueryName :: atom() | {atom(), atom()}, Params :: proplists:proplist(),
+                row_fold_fun(), AccIn :: term()) ->
+                       {ok, AccOut :: term()} | {error, Reason :: any()}.
+cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn)  ->
+    cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, 3).
+cql_foldl(_PoolName, _UserJID, _Module, QueryName, Params, _Fun, _AccIn, 0)  ->
+    {error, {query_timeout, QueryName, Params}};
+cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, TryCount)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
     Query = #cql_query{statement = QueryStr, values = Params},
 
     {ok, Client} = cqerl:get_client(PoolName),
     Tag = cqerl:send_query(Client, Query),
-    Start = os:system_time(millisecond),
-    Res = receive
+    receive
         {result, Tag, Result} ->
-            cql_read_pages(Result, [], TryCount);
+            cql_read_pages(Result, Fun, AccIn, TryCount);
         {error, Tag, {16#1200, _, _}} ->
-            cql_read(PoolName, _UserJID, Module, QueryName, Params, TryCount - 1);
+            cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, TryCount - 1);
         {error, Tag, Reason} ->
             {error, Reason}
-    after timer:seconds(10) ->
-        cql_read(PoolName, _UserJID, Module, QueryName, Params, TryCount - 1)
-    end,
-    End = os:system_time(millisecond),
-    ?WARNING_MSG("TIME ~p for ~p", [End-Start, {QueryStr, Params}]),
-    Res.
-
-
-flush() ->
-    receive
-        M ->
-            M,
-            ?WARNING_MSG("FLUSH ~p", [M]),
-            flush()
-    after 0 ->
-        ok
+    after ?READ_TIMEOUT ->
+            cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, TryCount - 1)
     end.
 
-cql_read_pages(Result, _Acc0, 0) ->
-    error({query_page_timeout, Result});
-cql_read_pages(Result, Acc0, Retry) ->
-    Acc = [cqerl:all_rows(Result) | Acc0],
+
+%% ====================================================================
+%% Internal functions
+%% ====================================================================
+
+-spec cql_read_pages(ResultHandle :: term(), row_fold_fun(), AccIn :: term(),
+                     TryCount :: non_neg_integer()) ->
+                            {ok, AccOut :: term()} | {error, Reason :: any()}.
+cql_read_pages(Result, _Fun, _AccIn, 0) ->
+    {error, {query_page_timeout, Result}};
+cql_read_pages(Result, Fun, AccIn, Retry) ->
+    NextAcc = Fun(cqerl:all_rows(Result), AccIn),
     case cqerl:has_more_pages(Result) of
         true ->
             Tag = cqerl:fetch_more_async(Result),
             receive
                 {result, Tag, NextResult} ->
-                    cql_read_pages(NextResult, Acc, Retry);
+                    cql_read_pages(NextResult, Fun, NextAcc, Retry);
                 {error, Tag, {16#1200, _, _}} ->
                     timer:sleep(crypto:rand_uniform(50, 500)),
-                    cql_read_pages(Result, Acc0, Retry - 1);
+                    cql_read_pages(Result, Fun, NextAcc, Retry - 1);
                 {error, Tag, Reason} ->
                     {error, Reason}
-            after timer:seconds(10) ->
-                cql_read_pages(Result, Acc0, Retry - 1)
+            after ?READ_TIMEOUT ->
+                    cql_read_pages(Result, Fun, NextAcc, Retry - 1)
             end;
         false ->
-            {ok, lists:concat(lists:reverse(Acc))}
+            {ok, NextAcc}
     end.
 
-
+-spec cql_write_rows(Client :: cqerl:client(), WriteQuery :: cql_query(), Rows :: [row()],
+                     BatchSize :: non_neg_integer(), TryCount :: non_neg_integer()) ->
+                            ok | {error, Reason :: term()}.
 cql_write_rows(_, _, [], _, _) ->
     ok;
 
@@ -170,11 +239,11 @@ cql_write_rows(_, WriteQuery, _, _, 0) ->
 cql_write_rows(Client, WriteQuery, Rows, BatchSize, TryCount) ->
     {NewRows, Tail} = lists:split(min(BatchSize, length(Rows)), Rows),
     Tag = cqerl:send_query(Client, #cql_query_batch{
-        mode = unlogged,
-        queries = [WriteQuery#cql_query{values = NewRow}
-                   || NewRow <- NewRows]
-    }),
-    WriteTimeout = timer:minutes(5) + crypto:rand_uniform(10000, 20000),
+                                      mode = unlogged,
+                                      queries = [WriteQuery#cql_query{values = NewRow}
+                                                 || NewRow <- NewRows]
+                                     }),
+    WriteTimeout = timer:minutes(1),
     receive
         {result, _, void} ->
             cql_write_rows(Client, WriteQuery, Tail, BatchSize, TryCount);
@@ -182,35 +251,47 @@ cql_write_rows(Client, WriteQuery, Rows, BatchSize, TryCount) ->
             NewBatchSize = max(1, round(BatchSize * 0.75)),
             cql_write_rows(Client, WriteQuery, Rows, NewBatchSize, TryCount);
         {error, Tag, {16#1100, _, _}} ->
-            ?WARNING_MSG("Write timeout 1 ~p", [{WriteQuery, length(NewRows)}]),
-            timer:sleep(crypto:rand_uniform(50, 500)),
+            timer:sleep(crypto:rand_uniform(10, 50)),
             cql_write_rows(Client, WriteQuery, Rows, BatchSize, TryCount - 1);
         {error, Tag, Reason} ->
             {error, Reason}
     after WriteTimeout ->
-        ?WARNING_MSG("Write timeout 2 ~p", [{WriteQuery, length(NewRows)}]),
-        cql_write_rows(Client, WriteQuery, Tail, BatchSize, TryCount)
+            cql_write_rows(Client, WriteQuery, Tail, BatchSize, 0)
     end.
 
+%% ====================================================================
+%% Queries
+%% ====================================================================
 
 prepared_queries() ->
     [{test_query, test_query_sql()}] ++
-    total_count_queries().
+        total_count_queries().
 
 test_query_sql() ->
     "SELECT now() FROM system.local". %% "SELECT 1" for cassandra
 
+total_count_query_cql(T) when is_atom(T) ->
+    "SELECT COUNT(*) FROM " ++ atom_to_list(T).
+
+
+%% ====================================================================
+%% Diagnostic utilities
+%% ====================================================================
+
+-spec test_query(pool_name()) -> ok | {error, Reason :: term()}.
 test_query(PoolName) ->
     test_query(PoolName, undefined).
 
 test_query(PoolName, UserJID) ->
     try  mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, test_query, []) of
-        {ok, _} -> ok
+         {ok, _} -> ok
     catch
         Class:Reason ->
             {error, {Class, Reason}}
     end.
 
+-spec total_count_query(pool_name(), Table :: atom()) ->
+    non_neg_integer().
 total_count_query(PoolName, Table) ->
     UserJID = undefined,
     Res = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, {total_count_query, Table}, []),
@@ -220,18 +301,16 @@ total_count_query(PoolName, Table) ->
 total_count_queries() ->
     [{{total_count_query, T}, total_count_query_cql(T)} || T <- tables()].
 
-total_count_query_cql(T) when is_atom(T) ->
-    "SELECT COUNT(*) FROM " ++ atom_to_list(T).
 
 tables() ->
     [
      mam_message,
      mam_muc_message,
      mam_config
-%%     private_storage,
-%%     privacy_default_list,
-%%     privacy_list,
-%%     privacy_item,
-%%     rosterusers,
-%%     roster_version
+     %%     private_storage,
+     %%     privacy_default_list,
+     %%     privacy_list,
+     %%     privacy_item,
+     %%     rosterusers,
+     %%     roster_version
     ].

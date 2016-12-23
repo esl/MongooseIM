@@ -172,7 +172,7 @@ set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     SetQuery = {set_prefs_ts_query, MultiParams},
     Queries = [DelQuery, SetQuery],
     Res = [mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, Query, Params)
-        || {Query, Params} <- Queries],
+           || {Query, Params} <- Queries],
     ?DEBUG("issue=set_prefs1, result=~p", [Res]),
     ok.
 
@@ -189,7 +189,7 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
     PoolName = pool_name(UserJID),
     Params = [{user_jid, BUserJID}],
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
-                                                          get_prefs_query, Params),
+                                             get_prefs_query, Params),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
@@ -212,12 +212,12 @@ query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID) ->
         BRemBareJID ->
             Params = [{user_jid, BUserJID}, {remote_jid, BRemBareJID}],
             mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
-                                                     get_behaviour_bare_query, Params);
+                                        get_behaviour_bare_query, Params);
         _ ->
             Params = [{user_jid, BUserJID},
                       {start_remote_jid, BRemJID}, {end_remote_jid, BRemBareJID}],
             mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
-                                                     get_behaviour_full_query, Params)
+                                        get_behaviour_full_query, Params)
     end.
 
 %% ----------------------------------------------------------------------

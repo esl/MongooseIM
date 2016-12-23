@@ -242,8 +242,7 @@ is_skipped(_, _) ->
 
 basic_groups() ->
     [{mam_all, [parallel],
-           [
-            {mam_metrics, [], mam_metrics_cases()},
+           [{mam_metrics, [], mam_metrics_cases()},
             {mam02, [parallel], mam_cases() ++ [querying_for_all_messages_with_jid]},
             {mam03, [parallel], mam_cases() ++ [retrieve_form_fields]},
             {mam04, [parallel], mam_cases()},
@@ -251,27 +250,20 @@ basic_groups() ->
             {archived, [parallel], archived_cases()},
             {mam_purge, [parallel], mam_purge_cases()},
             {rsm_all, [parallel],
-             [
-              {rsm02,      [parallel], rsm_cases()},
+             [{rsm02,      [parallel], rsm_cases()},
               {rsm03,      [parallel], rsm_cases()},
               {rsm04,      [parallel], rsm_cases()},
               {with_rsm02, [parallel], with_rsm_cases()},
               {with_rsm03, [parallel], with_rsm_cases()},
-              {with_rsm04, [parallel], with_rsm_cases()}
-             ]}
-           ]},
+              {with_rsm04, [parallel], with_rsm_cases()}]}]},
      {muc_all, [parallel],
-           [
-            {muc02, [parallel], muc_cases()},
+           [{muc02, [parallel], muc_cases()},
             {muc03, [parallel], muc_cases()},
             {muc04, [parallel], muc_cases()},
             {muc_rsm_all, [parallel],
-             [
-              {muc_rsm02, [parallel], muc_rsm_cases()},
+             [{muc_rsm02, [parallel], muc_rsm_cases()},
               {muc_rsm03, [parallel], muc_rsm_cases()},
-              {muc_rsm04, [parallel], muc_rsm_cases()}
-             ]}
-            ]},
+              {muc_rsm04, [parallel], muc_rsm_cases()}]}]},
      {policy_violation, [], policy_violation_cases()},
      {muc_light,        [], muc_light_cases()},
      {prefs_cases,      [parallel], prefs_cases()},
@@ -284,13 +276,11 @@ mam_metrics_cases() ->
      metric_incremented_when_store_message].
 
 mam_cases() ->
-    [
-     mam_service_discovery,
+    [mam_service_discovery,
      simple_archive_request,
      range_archive_request,
      range_archive_request_not_empty,
-     limit_archive_request
-    ].
+     limit_archive_request].
 
 
 mam_purge_cases() ->
@@ -886,7 +876,6 @@ match_atom_prefix(Target, Prefixes) ->
     match_atom_prefix1(atom_to_list(Target), Prefixes).
 
 match_atom_prefix1(TargetS, [PrefixA | Prefixes]) ->
-    ct:print("~p", [{TargetS, PrefixA}]),
     PrefixS = atom_to_list(PrefixA),
     case lists:prefix(PrefixS, TargetS) of
         true -> PrefixA;
@@ -1041,7 +1030,6 @@ archived(Config) ->
 
         %% Bob receives a message.
         Msg = escalus:wait_for_stanza(Bob),
-        ct:print("~p", [Msg]),
         try
         Arc = exml_query:subelement(Msg, <<"archived">>),
         %% JID of the archive (i.e. where the client would send queries to)
