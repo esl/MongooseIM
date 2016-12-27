@@ -113,7 +113,8 @@
 -include_lib("ejabberd/include/amp.hrl").
 -include_lib("exml/include/exml.hrl").
 
-%% ----------------------------------------------------------------------
+%% ---------------------------------------------------
+%% -------------------
 %% Datetime types
 %% Microseconds from 01.01.1970
 -type unix_timestamp() :: non_neg_integer().
@@ -251,7 +252,6 @@ stop(Host) ->
                      IQ :: ejabberd:iq()) -> ejabberd:iq() | ignore.
 process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
     Action = iq_action(IQ),
-    ?WARNING_MSG("process_mam_iq ~p", [{From, To, IQ}]),
     case is_action_allowed(Action, From, To) of
         true  ->
             case wait_shaper(Host, Action, From) of

@@ -186,6 +186,7 @@ CREATE TABLE mam_message(
   direction mam_direction NOT NULL,
   -- Term-encoded message packet
   message bytea NOT NULL,
+  body text NOT NULL,
   PRIMARY KEY(user_id, id)
 );
 CREATE INDEX i_mam_message_username_jid_id
@@ -224,6 +225,7 @@ CREATE TABLE mam_muc_message(
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
   message bytea NOT NULL,
+  body text NOT NULL,
   PRIMARY KEY (room_id, id)
 );
 

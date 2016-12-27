@@ -34,7 +34,31 @@
          privacy_iq_set/4,
          privacy_check_packet/6,
          user_ping_timeout/2,
-         privacy_list_push/5
+         privacy_list_push/5,
+         user_ping_timeout/1,
+         privacy_list_push/4,
+         mam_get_prefs/4,
+         mam_set_prefs/7,
+         mam_remove_archive/3,
+         mam_lookup_messages/15,
+         mam_archive_message/9,
+         mam_flush_messages/2,
+         mam_drop_message/1,
+         mam_drop_iq/5,
+         mam_drop_messages/2,
+         mam_purge_single_message/6,
+         mam_purge_multiple_messages/9,
+         mam_muc_get_prefs/4,
+         mam_muc_set_prefs/7,
+         mam_muc_remove_archive/3,
+         mam_muc_lookup_messages/15,
+         mam_muc_archive_message/9,
+         mam_muc_flush_messages/2,
+         mam_muc_drop_message/1,
+         mam_muc_drop_iq/5,
+         mam_muc_drop_messages/2,
+         mam_muc_purge_single_message/6,
+         mam_muc_purge_multiple_messages/9
         ]).
 
 -type hook() :: [atom() | ejabberd:server() | integer(), ...].
@@ -250,4 +274,152 @@ privacy_check_packet(Acc, _, Server, _, _, _) ->
     end,
     Acc.
 
-%%% vim: set sts=4 ts=4 sw=4 et filetype=erlang foldmarker=%%%',%%%. foldmethod=marker:
+%% ----------------------------------------------------------------------------
+%% mod_mam
+
+-spec mam_get_prefs(Result :: any(),
+                    Host :: ejabberd:server(),
+                    _ArcID :: mod_mam:archive_id(),
+                    _ArcJID :: ejabberd:jid()) -> any().
+mam_get_prefs(Result, Host, _ArcID, _ArcJID) ->
+    mongoose_metrics:update(Host, modMamPrefsGets, 1),
+    Result.
+
+-spec mam_set_prefs(Result :: any(), Host :: ejabberd:server(),
+    _ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
+    _DefaultMode :: any(), _AlwaysJIDs :: [ejabberd:literal_jid()],
+    _NeverJIDs :: [ejabberd:literal_jid()]) -> any().
+mam_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
+    mongoose_metrics:update(Host, modMamPrefsSets, 1),
+    Result.
+
+-spec mam_remove_archive(Host :: ejabberd:server(),
+                         _ArcID :: mod_mam:archive_id(),
+                         _ArcJID :: ejabberd:jid()) -> metrics_notify_return().
+mam_remove_archive(Host, _ArcID, _ArcJID) ->
+    mongoose_metrics:update(Host, modMamArchiveRemoved, 1).
+
+mam_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
+    Host, _ArcID, _ArcJID,
+    _RSM, _Borders,
+    _Start, _End, _Now, _WithJID, _SearchText,
+    _PageSize, _LimitPassed, _MaxResultLimit, IsSimple) ->
+    mongoose_metrics:update(Host, modMamForwarded, length(MessageRows)),
+    mongoose_metrics:update(Host, modMamLookups, 1),
+    case IsSimple of
+        true ->
+            mongoose_metrics:update(Host, [modMamLookups, simple], 1);
+        _ ->
+            ok
+    end,
+    Result;
+mam_lookup_messages(Result = {error, _},
+    _Host, _ArcID, _ArcJID,
+    _RSM, _Borders,
+    _Start, _End, _Now, _WithJID, _SearchText,
+    _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
+    Result.
+
+-spec mam_archive_message(Result :: any(), Host :: ejabberd:server(),
+    _MessId :: mod_mam:message_id(), _ArcID :: mod_mam:archive_id(),
+    _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
+    _SrcJID :: ejabberd:jid(), _Dir :: atom(), _Packet :: jlib:xmlel()) -> any().
+mam_archive_message(Result, Host,
+    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
+    mongoose_metrics:update(Host, modMamArchived, 1),
+    Result.
+
+-spec mam_flush_messages(Host :: ejabberd:server(),
+                         MessageCount :: integer()) -> metrics_notify_return().
+mam_flush_messages(Host, MessageCount) ->
+    mongoose_metrics:update(Host, modMamFlushed, MessageCount).
+
+-spec mam_drop_message(Host :: ejabberd:server()) -> metrics_notify_return().
+mam_drop_message(Host) ->
+    mongoose_metrics:update(Host, modMamDropped, 1).
+
+-spec mam_drop_iq(Host :: ejabberd:server(), _To :: ejabberd:jid(),
+    _IQ :: ejabberd:iq(), _Action :: any(), _Reason :: any()) -> metrics_notify_return().
+mam_drop_iq(Host, _To, _IQ, _Action, _Reason) ->
+    mongoose_metrics:update(Host, modMamDroppedIQ, 1).
+
+-spec mam_drop_messages(Host :: ejabberd:server(),
+                        Count :: integer()) -> metrics_notify_return().
+mam_drop_messages(Host, Count) ->
+    mongoose_metrics:update(Host, modMamDropped2, Count).
+
+mam_purge_single_message(Result, Host, _MessID, _ArcID, _ArcJID, _Now) ->
+    mongoose_metrics:update(Host, modMamSinglePurges, 1),
+    Result.
+
+mam_purge_multiple_messages(Result, Host,
+    _ArcID, _ArcJID, _Borders, _Start, _End, _Now, _WithJID) ->
+    mongoose_metrics:update(Host, modMamMultiplePurges, 1),
+    Result.
+
+
+%% ----------------------------------------------------------------------------
+%% mod_mam_muc
+
+mam_muc_get_prefs(Result, Host, _ArcID, _ArcJID) ->
+    mongoose_metrics:update(Host, modMucMamPrefsGets, 1),
+    Result.
+
+mam_muc_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
+    mongoose_metrics:update(Host, modMucMamPrefsSets, 1),
+    Result.
+
+mam_muc_remove_archive(Host, _ArcID, _ArcJID) ->
+    mongoose_metrics:update(Host, modMucMamArchiveRemoved, 1).
+
+mam_muc_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
+    Host, _ArcID, _ArcJID,
+    _RSM, _Borders,
+    _Start, _End, _Now, _WithJID, _SearchText,
+    _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
+    mongoose_metrics:update(Host, modMucMamForwarded, length(MessageRows)),
+    mongoose_metrics:update(Host, modMucMamLookups, 1),
+    Result;
+mam_muc_lookup_messages(Result = {error, _},
+    _Host, _ArcID, _ArcJID,
+    _RSM, _Borders,
+    _Start, _End, _Now, _WithJID, _SearchText,
+    _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
+    Result.
+
+
+mam_muc_archive_message(Result, Host,
+    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
+    mongoose_metrics:update(Host, modMucMamArchived, 1),
+    Result.
+
+mam_muc_flush_messages(Host, MessageCount) ->
+    mongoose_metrics:update(Host, modMucMamFlushed, MessageCount).
+
+mam_muc_drop_message(Host) ->
+    mongoose_metrics:update(Host, modMucMamDropped, 1).
+
+mam_muc_drop_iq(Host, _To, _IQ, _Action, _Reason) ->
+    mongoose_metrics:update(Host, modMucMamDroppedIQ, 1).
+
+mam_muc_drop_messages(Host, Count) ->
+    mongoose_metrics:update(Host, modMucMamDropped2, Count).
+
+-spec mam_muc_purge_single_message(Result :: any(), Host :: ejabberd:server(),
+    _MessID :: mod_mam:message_id(), _ArcID :: mod_mam:archive_id(),
+    _ArcJID :: ejabberd:jid(), _Now :: mod_mam:unix_timestamp()) -> any().
+mam_muc_purge_single_message(Result, Host, _MessID, _ArcID, _ArcJID, _Now) ->
+    mongoose_metrics:update(Host, modMucMamSinglePurges, 1),
+    Result.
+
+-spec mam_muc_purge_multiple_messages(Result :: any(),
+    Host :: ejabberd:server(), _ArcID :: mod_mam:archive_id(),
+    _ArcJID :: ejabberd:jid(), _Borders :: any(), _Start :: any(),
+    _End :: any(), _Now :: mod_mam:unix_timestamp(), _WithJID :: any()) -> any().
+mam_muc_purge_multiple_messages(Result, Host,
+    _ArcID, _ArcJID, _Borders, _Start, _End, _Now, _WithJID) ->
+    mongoose_metrics:update(Host, modMucMamMultiplePurges, 1),
+    Result.
+
+
+%%% vim: set sts=4 ts=4 sw=4 et filetype=erlang foldmarker=%%%', %%%. foldmethod=marker:
