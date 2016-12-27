@@ -38,7 +38,7 @@
          mam_get_prefs/4,
          mam_set_prefs/7,
          mam_remove_archive/3,
-         mam_lookup_messages/14,
+         mam_lookup_messages/15,
          mam_archive_message/9,
          mam_flush_messages/2,
          mam_drop_message/1,
@@ -49,7 +49,7 @@
          mam_muc_get_prefs/4,
          mam_muc_set_prefs/7,
          mam_muc_remove_archive/3,
-         mam_muc_lookup_messages/14,
+         mam_muc_lookup_messages/15,
          mam_muc_archive_message/9,
          mam_muc_flush_messages/2,
          mam_muc_drop_message/1,
@@ -299,7 +299,7 @@ mam_remove_archive(Host, _ArcID, _ArcJID) ->
 mam_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
     Host, _ArcID, _ArcJID,
     _RSM, _Borders,
-    _Start, _End, _Now, _WithJID,
+    _Start, _End, _Now, _WithJID, _SearchText,
     _PageSize, _LimitPassed, _MaxResultLimit, IsSimple) ->
     mongoose_metrics:update(Host, modMamForwarded, length(MessageRows)),
     mongoose_metrics:update(Host, modMamLookups, 1),
@@ -313,7 +313,7 @@ mam_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
 mam_lookup_messages(Result = {error, _},
     _Host, _ArcID, _ArcJID,
     _RSM, _Borders,
-    _Start, _End, _Now, _WithJID,
+    _Start, _End, _Now, _WithJID, _SearchText,
     _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
     Result.
 
@@ -372,7 +372,7 @@ mam_muc_remove_archive(Host, _ArcID, _ArcJID) ->
 mam_muc_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
     Host, _ArcID, _ArcJID,
     _RSM, _Borders,
-    _Start, _End, _Now, _WithJID,
+    _Start, _End, _Now, _WithJID, _SearchText,
     _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
     mongoose_metrics:update(Host, modMucMamForwarded, length(MessageRows)),
     mongoose_metrics:update(Host, modMucMamLookups, 1),
@@ -380,7 +380,7 @@ mam_muc_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
 mam_muc_lookup_messages(Result = {error, _},
     _Host, _ArcID, _ArcJID,
     _RSM, _Borders,
-    _Start, _End, _Now, _WithJID,
+    _Start, _End, _Now, _WithJID, _SearchText,
     _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
     Result.
 

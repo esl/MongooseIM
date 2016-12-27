@@ -32,6 +32,9 @@
          archive_messages/2,
          archive_messages/3]).
 
+%% Called from mod_mam_muc_odbc_arch
+-export([packet_to_search_body/1, normalize_search_text/1]).
+
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -228,29 +231,32 @@ do_archive_message(_Result, Host, MessID, UserID,
     SDir = encode_direction(Dir),
     SRemLResource = ejabberd_odbc:escape(RemLResource),
     Data = packet_to_stored_binary(Packet),
+    TextBody = packet_to_search_body(Packet),
+    STextBody = ejabberd_odbc:escape(TextBody),
+    string:to_lower(STextBody),
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
     Table = select_table(UserID),
     write_message(Host, Table, SMessID, SUserID, SBareRemJID,
-                  SRemLResource, SDir, SSrcJID, SData).
+                  SRemLResource, SDir, SSrcJID, SData, STextBody).
 
 
 -spec write_message(Host :: ejabberd:server(), Table :: string(),
         SMessID :: string(), SUserID :: string(), SBareRemJID :: string(),
         SRemLResource :: string(), SDir :: string(), SSrcJID :: string(),
-        SData :: string()) -> 'ok'.
+        SData :: string(), TextBody :: string()) -> 'ok'.
 write_message(Host, Table, SMessID, SUserID, SBareRemJID,
-              SRemLResource, SDir, SSrcJID, SData) ->
+              SRemLResource, SDir, SSrcJID, SData, STextBody) ->
     {updated, 1} =
     mod_mam_utils:success_sql_query(
       Host,
       ["INSERT INTO ", Table, " (id, user_id, remote_bare_jid, "
                                  "remote_resource, direction, "
-                                 "from_jid, message) "
+                                 "from_jid, message, body) "
        "VALUES ('", SMessID, "', '", SUserID, "', '", SBareRemJID, "', "
                "'", SRemLResource, "', '", SDir, "', ",
-               "'", SSrcJID, "', '", SData, "');"]),
+               "'", SSrcJID, "', '", SData, "', '", STextBody, "');"]),
     ok.
 
 prepare_message(Host, MessID, UserID,
@@ -265,14 +271,16 @@ prepare_message(Host, MessID, UserID,
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData].
+    TextBody = packet_to_search_body(Packet),
+    STextBody = ejabberd_odbc:escape(TextBody),
+    [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData, STextBody].
 
 archive_messages(LServer, Acc) ->
     mod_mam_utils:success_sql_query(
       LServer,
       ["INSERT INTO mam_message(id, user_id, remote_bare_jid, "
                                 "remote_resource, direction, "
-                                "from_jid, message) "
+                                "from_jid, message, body) "
        "VALUES ", tuples(Acc)]).
 
 %% @doc N is a group id (partition number).
@@ -282,7 +290,7 @@ archive_messages(LServer, Acc, N) ->
       ["INSERT ", insert_ignore(LServer), "INTO ", select_table(N),
                              " (id, user_id, remote_bare_jid, "
                                 "remote_resource, direction, "
-                                "from_jid, message) "
+                                "from_jid, message, body) "
        "VALUES ", tuples(Acc)]).
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
@@ -313,7 +321,7 @@ lookup_messages(_Result, Host,
     try
         do_lookup_messages(Host,
                            UserID, UserJID, RSM, Borders,
-                           Start, End, Now, WithJID, SearchText,
+                           Start, End, Now, WithJID, normalize_search_text(SearchText),
                            PageSize, LimitPassed, MaxResultLimit,
                            IsSimple, is_opt_count_supported_for(RSM))
     catch _Type:Reason ->
@@ -343,7 +351,7 @@ do_lookup_messages(Host, UserID, UserJID,
                    Start, End, _Now, WithJID, SearchText,
                    PageSize, _LimitPassed, _MaxResultLimit, true, _) ->
     %% Simple query without calculating offset and total count
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText),
     lookup_messages_simple(Host, UserID, UserJID, RSM, PageSize, Filter);
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
@@ -351,7 +359,7 @@ do_lookup_messages(Host, UserID, UserJID,
                    PageSize, _LimitPassed, _MaxResultLimit, opt_count, true) ->
     %% Extract messages first than calculate offset and total count
     %% Useful for small result sets (less than one page, than one query is enough)
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText),
     lookup_messages_opt_count(Host, UserID, UserJID, RSM, PageSize, Filter);
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
@@ -359,7 +367,7 @@ do_lookup_messages(Host, UserID, UserJID,
                    PageSize, LimitPassed, MaxResultLimit, _, _) ->
     %% Unsupported opt_count or just a regular query
     %% Calculate offset and total count first than extract messages
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText),
     lookup_messages_regular(Host, UserID, UserJID, RSM, PageSize, Filter,
                             LimitPassed, MaxResultLimit).
 
@@ -562,7 +570,7 @@ purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
                                  ok  | {error, 'not-allowed'}.
 purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, undefined),
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
@@ -658,9 +666,10 @@ calc_count(Host, UserID, Filter, IndexHintSQL) ->
 
 -spec prepare_filter(UserID :: mod_mam:archive_id(), UserJID :: ejabberd:jid(),
         Borders :: mod_mam:borders(), Start :: mod_mam:unix_timestamp() | undefined,
-        End :: mod_mam:unix_timestamp() | undefined, WithJID :: ejabberd:jid())
+        End :: mod_mam:unix_timestamp() | undefined, WithJID :: ejabberd:jid(),
+        SearchText :: binary() | undefined)
             -> filter().
-prepare_filter(UserID, UserJID, Borders, Start, End, WithJID) ->
+prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
     {SWithJID, SWithResource} =
     case WithJID of
         undefined -> {undefined, undefined};
@@ -674,15 +683,16 @@ prepare_filter(UserID, UserJID, Borders, Start, End, WithJID) ->
     EndID   = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
     EndID2   = apply_end_border(Borders, EndID),
-    prepare_filter_sql(UserID, StartID2, EndID2, SWithJID, SWithResource).
+    prepare_filter_sql(UserID, StartID2, EndID2, SWithJID, SWithResource, SearchText).
 
 
 -spec prepare_filter_sql(UserID :: non_neg_integer(),
         StartID :: mod_mam:message_id() | undefined,
         EndID :: mod_mam:message_id() | undefined,
         SWithJID :: escaped_jid() | undefined,
-        SWithResource :: escaped_resource() | undefined) -> filter().
-prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource) ->
+        SWithResource :: escaped_resource() | undefined,
+        SearchText :: binary() | undefined) -> filter().
+prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) ->
    ["WHERE user_id='", escape_user_id(UserID), "'",
      case StartID of
         undefined -> "";
@@ -699,7 +709,12 @@ prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource) ->
      case SWithResource of
         undefined -> "";
         _         -> [" AND remote_resource = '", SWithResource, "'"]
-     end].
+     end,
+     case SearchText of
+         undefined -> "";
+         _         -> [" AND body like '%", SearchText, "%'"]
+     end
+   ].
 
 
 %% @doc #rsm_in{
@@ -753,6 +768,22 @@ maybe_encode_compact_uuid(undefined, _) ->
     undefined;
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
+
+packet_to_search_body(Packet) ->
+    BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
+    normalize_search_text(BodyValue, " ").
+
+normalize_search_text(Text) ->
+    normalize_search_text(Text, "%").
+normalize_search_text(undefined, _WordSeparator) ->
+    undefined;
+normalize_search_text(Text, WordSeparator) ->
+    BodyString = unicode:characters_to_list(Text),
+    LowerBody = string:to_lower(BodyString),
+    ReOpts = [{return, list}, global, unicode, ucp],
+    Re0 = re:replace(LowerBody, "[,.:;-?!]+", " ", ReOpts),
+    Re1 = re:replace(Re0, "[^\\w\\d ]+", "", ReOpts),
+    re:replace(Re1, "\s+", WordSeparator, ReOpts).
 
 
 %% ----------------------------------------------------------------------

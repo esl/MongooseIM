@@ -45,6 +45,7 @@
 
 %% Forms
 -export([form_field_value_s/2,
+         form_field_value/2,
          message_form/1]).
 
 %% JID serialization

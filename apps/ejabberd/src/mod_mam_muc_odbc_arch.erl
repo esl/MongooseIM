@@ -17,7 +17,7 @@
 
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/14,
+         lookup_messages/15,
          remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -141,19 +141,22 @@ archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData).
+    TextBody = mod_mam_odbc_arch:packet_to_search_body(Packet),
+    STextBody = ejabberd_odbc:escape(TextBody),
+    write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData, STextBody).
 
 
 -spec write_message(ejabberd:server(), string(), RoomId :: mod_mam:archive_id(),
-        SRoomId :: string(), SFromNick :: ejabberd:user(), SData :: binary()) -> 'ok'.
-write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData) ->
+        SRoomId :: string(), SFromNick :: ejabberd:user(), SData :: binary(),
+                    STextBody :: binary() | undefined) -> 'ok'.
+write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData, STextBody) ->
     {updated, 1} =
     mod_mam_utils:success_sql_query(
       Host,
       ["INSERT INTO ", select_table(RoomID), " ",
-              "(id, room_id, nick_name, message) "
+              "(id, room_id, nick_name, message, body) "
        "VALUES ('", SMessID, "', '", SRoomID, "', "
-               "'", SFromNick, "', '", SData, "')"]),
+               "'", SFromNick, "', '", SData, "', '", STextBody, "')"]),
     ok.
 
 
@@ -174,14 +177,16 @@ prepare_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    [SMessID, SRoomID, SFromNick, SData].
+    TextBody = mod_mam_odbc_arch:packet_to_search_body(Packet),
+    STextBody = ejabberd_odbc:escape(TextBody),
+    [SMessID, SRoomID, SFromNick, SData, STextBody].
 
 
 -spec archive_messages(ejabberd:lserver(), Acc :: [[any(),...]]) -> any().
 archive_messages(LServer, Acc) ->
     mod_mam_utils:success_sql_query(
       LServer,
-      ["INSERT INTO mam_muc_message(id, room_id, nick_name, message) "
+      ["INSERT INTO mam_muc_message(id, room_id, nick_name, message, body) "
        "VALUES ", tuples(Acc)]).
 
 
@@ -191,24 +196,25 @@ archive_messages(LServer, Acc, N) ->
     mod_mam_utils:success_sql_query(
       LServer,
       ["INSERT INTO ", select_table(N), " ",
-           "(id, room_id, nick_name, message) "
+           "(id, room_id, nick_name, message, body) "
        "VALUES ", tuples(Acc)]).
 
-lookup_messages({error, Reason}=Result, _Host,
+lookup_messages({error, _Reason}=Result, _Host,
                 _UserID, _UserJID, _RSM, _Borders,
-                _Start, _End, _Now, _WithJID,
+                _Start, _End, _Now, _WithJID, _SearchText,
                 _PageSize, _LimitPassed, _MaxResultLimit,
                 _IsSimple) ->
     Result;
-lookup_messages(Result, Host,
+lookup_messages(_Result, Host,
                 UserID, UserJID, RSM, Borders,
-                Start, End, Now, WithJID,
+                Start, End, Now, WithJID, SearchText,
                 PageSize, LimitPassed, MaxResultLimit,
                 IsSimple) ->
     try
         lookup_messages(Host,
                         UserID, UserJID, RSM, Borders,
                         Start, End, Now, WithJID,
+                        mod_mam_odbc_arch:normalize_search_text(SearchText),
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
@@ -224,6 +230,7 @@ lookup_messages(Result, Host,
                       End :: mod_mam:unix_timestamp()  | undefined,
                       Now :: mod_mam:unix_timestamp(),
                       WithJID :: ejabberd:jid()  | undefined,
+                      SearchText :: binary() | undefined,
                       PageSize :: integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: integer(),
                       IsSimple :: boolean()  | opt_count) ->
@@ -231,33 +238,33 @@ lookup_messages(Result, Host,
                           | {error, 'policy-violation'}.
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
-                Start, End, _Now, WithJID,
+                Start, End, _Now, WithJID, SearchText,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, RoomID, after_id(ID, Filter), 0, PageSize, false),
     {ok, {undefined, undefined,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}};
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = before, id = ID},
-                Borders, Start, End, _Now, WithJID,
+                Borders, Start, End, _Now, WithJID, SearchText,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, RoomID, before_id(ID, Filter), 0, PageSize, true),
     {ok, {undefined, undefined,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}};
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
-                Start, End, _Now, WithJID,
+                Start, End, _Now, WithJID, SearchText,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, RoomID, Filter, Offset, PageSize, false),
     {ok, {undefined, undefined,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}};
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 undefined, Borders,
-                Start, End, _Now, WithJID,
+                Start, End, _Now, WithJID, SearchText,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, false),
     {ok, {undefined, undefined,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}};
@@ -266,10 +273,10 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 %% - #rsm_in{direction = before, id = ID}
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = before, id = undefined}, Borders,
-                Start, End, _Now, WithJID,
+                Start, End, _Now, WithJID, SearchText,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
     %% Last page
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, true),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
@@ -284,10 +291,10 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     end;
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
-                Start, End, _Now, WithJID,
+                Start, End, _Now, WithJID, SearchText,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
     %% By offset
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, RoomID, Filter, Offset, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
@@ -302,10 +309,10 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     end;
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 undefined, Borders,
-                Start, End, _Now, WithJID,
+                Start, End, _Now, WithJID, SearchText,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
     %% First page
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
@@ -320,9 +327,9 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     end;
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
-                Start, End, _Now, WithJID,
+                Start, End, _Now, WithJID, SearchText,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, RoomID, Filter),
     Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
@@ -339,9 +346,9 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     end;
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID},
-                Borders, Start, End, _Now, WithJID,
+                Borders, Start, End, _Now, WithJID, SearchText,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, RoomID, Filter),
     Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
@@ -358,9 +365,9 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     end;
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM, Borders,
-                Start, End, _Now, WithJID,
+                Start, End, _Now, WithJID, SearchText,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, RoomID, Filter),
     Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
@@ -454,7 +461,7 @@ purge_single_message(_Result, Host, MessID, RoomID, _RoomJID, _Now) ->
                                  ok  | {error, 'not-allowed'}.
 purge_multiple_messages(_Result, Host, RoomID, _RoomJID, Borders,
                         Start, End, _Now, WithJID) ->
-    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, undefined),
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
@@ -546,21 +553,22 @@ calc_count(Host, RoomID, Filter) ->
 %% @doc prepare_filter/5
 -spec prepare_filter(RoomID :: mod_mam:archive_id(), Borders :: #mam_borders{} | undefined,
         Start :: unix_timestamp() | undefined, End :: unix_timestamp() | undefined,
-        WithJID :: #jid{} | undefined) -> filter().
-prepare_filter(RoomID, Borders, Start, End, WithJID) ->
+        WithJID :: #jid{} | undefined, SearchText :: binary() | undefined) -> filter().
+prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText) ->
     SWithNick = maybe_jid_to_escaped_resource(WithJID),
     StartID = maybe_encode_compact_uuid(Start, 0),
     EndID   = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
     EndID2   = apply_end_border(Borders, EndID),
-    prepare_filter_1(RoomID, StartID2, EndID2, SWithNick).
+    prepare_filter_1(RoomID, StartID2, EndID2, SWithNick, SearchText).
 
 
 -spec prepare_filter_1(RoomID  :: non_neg_integer(),
         StartID :: mod_mam:message_id() | undefined,
         EndID :: mod_mam:message_id() | undefined,
-        SWithNick :: escaped_jid() | undefined) -> filter().
-prepare_filter_1(RoomID, StartID, EndID, SWithNick) ->
+        SWithNick :: escaped_jid() | undefined,
+        SearchText :: binary() | undefined) -> filter().
+prepare_filter_1(RoomID, StartID, EndID, SWithNick, SearchText) ->
    ["WHERE room_id='", escape_room_id(RoomID), "'",
      case StartID of
         undefined -> "";
@@ -573,7 +581,12 @@ prepare_filter_1(RoomID, StartID, EndID, SWithNick) ->
      case SWithNick of
         undefined -> "";
         _         -> [" AND nick_name = '", SWithNick, "'"]
-     end].
+     end,
+     case SearchText of
+         undefined -> "";
+         _         -> [" AND body like '%", SearchText, "%'"]
+     end
+   ].
 
 
 %% @doc #rsm_in{

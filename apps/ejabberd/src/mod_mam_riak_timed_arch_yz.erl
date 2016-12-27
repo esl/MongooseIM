@@ -33,7 +33,7 @@
 -export([archive_message/9,
          archive_message_muc/9,
          lookup_messages/15,
-         lookup_messages_muc/14]).
+         lookup_messages_muc/15]).
 
 -export([key/3]).
 
@@ -169,9 +169,16 @@ lookup_messages(_Result, _Host,
         {error, Reason}
     end.
 
+
+lookup_messages_muc(_Result, _Host,
+                _UserID, _UserJID, _RSM, _Borders,
+                _Start, _End, _Now, _WithJID, <<_SearchText/binary>>,
+                _PageSize, _LimitPassed, _MaxResultLimit,
+                _IsSimple) ->
+    {error, 'not-supported'};
 lookup_messages_muc(Result, Host,
                     UserID, UserJID, RSM, Borders,
-                    Start, End, _Now, WithJID,
+                    Start, End, _Now, WithJID, _SearchText = undefined,
                     PageSize, LimitPassed, MaxResultLimit,
                     IsSimple) ->
     WithJIDMuc = maybe_muc_jid(WithJID),
