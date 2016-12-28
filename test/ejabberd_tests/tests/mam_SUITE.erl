@@ -991,27 +991,7 @@ simple_text_search_request(Config) ->
 long_text_search_request(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
-        Msgs =
-            [
-             <<"Tongue chicken jowl hamburger duis exercitation.">>,
-             <<"Ribs eu aliquip pork veniam dolor jowl id laborum in frankfurter culpa ribs.">>,
-             <<"Fatback ut labore pariatur, eiusmod esse dolore turducken jowl exercitation ",
-               "shankle shoulder.">>,
-             <<"Kevin ribeye short ribs, nostrud short loin quis voluptate cow.  Do brisket eu ",
-               "sunt tail ullamco cow in bacon burgdoggen.">>,
-             <<"Occaecat in voluptate incididunt aliqua dolor bacon salami anim picanha pork ",
-               "reprehenderit pancetta tail.">>,
-             <<"Nisi shank doner dolore officia ribeye.  Proident shankle tenderloin consequat ",
-               "bresaola quis tongue ut sirloin pork chop pariatur fatback ex cupidatat venison.">>,
-             <<"Brisket in pastrami dolore cupidatat.  Est corned beef ad ribeye ball tip aliqua ",
-               "cupidatat andouille cillum et consequat leberkas.">>,
-             <<"Qui mollit short ribs, capicola bresaola pork meatloaf kielbasa und culpa.">>,
-             <<"Meatloaf esse jowl do ham hock consequat.  Duis laboris ribeye ullamco, sed elit ",
-               "porchetta sirloin.">>,
-             <<"In boudin ad et salami exercitation sausage flank strip steak ball tip dolore ",
-               "pig officia.">>,
-             <<"Spare ribs landjaeger pork belly, chuck aliquip turducken beef culpa nostrud.">>
-            ],
+        Msgs = text_search_messages(),
 
         lists:foreach(
             fun(Msg) ->
@@ -1052,27 +1032,7 @@ muc_text_search_request(Config) ->
         %% Bob received the room's subject.
         escalus:wait_for_stanzas(Bob, 1),
 
-        Msgs =
-        [
-            <<"Tongue chicken jowl hamburger duis exercitation.">>,
-            <<"Ribs eu aliquip pork veniam dolor jowl id laborum in frankfurter culpa ribs.">>,
-            <<"Fatback ut labore pariatur, eiusmod esse dolore turducken jowl exercitation ",
-              "shankle shoulder.">>,
-            <<"Kevin ribeye short ribs, nostrud short loin quis voluptate cow.  Do brisket eu ",
-              "sunt tail ullamco cow in bacon burgdoggen.">>,
-            <<"Occaecat in voluptate incididunt aliqua dolor bacon salami anim picanha pork ",
-              "reprehenderit pancetta tail.">>,
-            <<"Nisi shank doner dolore officia ribeye.  Proident shankle tenderloin consequat ",
-              "bresaola quis tongue ut sirloin pork chop pariatur fatback ex cupidatat venison.">>,
-            <<"Brisket in pastrami dolore cupidatat.  Est corned beef ad ribeye ball tip aliqua ",
-              "cupidatat andouille cillum et consequat leberkas.">>,
-            <<"Qui mollit short ribs, capicola bresaola pork meatloaf kielbasa und culpa.">>,
-            <<"Meatloaf esse jowl do ham hock consequat.  Duis laboris ribeye ullamco, sed elit ",
-              "porchetta sirloin.">>,
-            <<"In boudin ad et salami exercitation sausage flank strip steak ball tip dolore ",
-              "pig officia.">>,
-            <<"Spare ribs landjaeger pork belly, chuck aliquip turducken beef culpa nostrud.">>
-        ],
+        Msgs = text_search_messages(),
 
         lists:foreach(
             fun(Msg) ->
@@ -1090,11 +1050,10 @@ muc_text_search_request(Config) ->
 
         [Msg1, Msg2, Msg3] = respond_messages(Res),
         #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
-        #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
-        #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
-
         ?assert_equal(lists:nth(2, Msgs), Body1),
+        #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
         ?assert_equal(lists:nth(8, Msgs), Body2),
+        #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
         ?assert_equal(lists:nth(11, Msgs), Body3),
 
         ok
@@ -2296,3 +2255,25 @@ initial_activity() ->
         %% send_initial_presence
         escalus_client:send(Client, escalus_stanza:presence(<<"available">>))
     end.
+
+text_search_messages() ->
+    [
+     <<"Tongue chicken jowl hamburger duis exercitation.">>,
+     <<"Ribs eu aliquip pork veniam dolor jowl id laborum in frankfurter culpa ribs.">>,
+     <<"Fatback ut labore pariatur, eiusmod esse dolore turducken jowl exercitation ",
+       "shankle shoulder.">>,
+     <<"Kevin ribeye short ribs, nostrud short loin quis voluptate cow.  Do brisket eu ",
+       "sunt tail ullamco cow in bacon burgdoggen.">>,
+     <<"Occaecat in voluptate incididunt aliqua dolor bacon salami anim picanha pork ",
+       "reprehenderit pancetta tail.">>,
+     <<"Nisi shank doner dolore officia ribeye.  Proident shankle tenderloin consequat ",
+       "bresaola quis tongue ut sirloin pork chop pariatur fatback ex cupidatat venison.">>,
+     <<"Brisket in pastrami dolore cupidatat.  Est corned beef ad ribeye ball tip aliqua ",
+       "cupidatat andouille cillum et consequat leberkas.">>,
+     <<"Qui mollit short ribs, capicola bresaola pork meatloaf kielbasa und culpa.">>,
+     <<"Meatloaf esse jowl do ham hock consequat.  Duis laboris ribeye ullamco, sed elit ",
+       "porchetta sirloin.">>,
+     <<"In boudin ad et salami exercitation sausage flank strip steak ball tip dolore ",
+       "pig officia.">>,
+     <<"Spare ribs landjaeger pork belly, chuck aliquip turducken beef culpa nostrud.">>
+    ].

@@ -228,8 +228,8 @@ filter_room_packet(Packet, EventData) ->
 
 %% @doc Archive without validation.
 -spec archive_room_packet(Packet :: packet(), FromNick :: ejabberd:user(),
-        FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
-        Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
+                          FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
+                          Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
 archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affiliation) ->
     {ok, Host} = mongoose_subhosts:get_host(RoomJID#jid.lserver),
     ArcID = archive_id_int(Host, RoomJID),
@@ -427,7 +427,7 @@ handle_set_prefs_result({error, Reason},
 
 
 -spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) ->
-    ejabberd:iq() | {error, any(), ejabberd:iq()}.
+                              ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
@@ -965,13 +965,15 @@ params_helper(Params) ->
             Mod -> {Mod, is_archivable_message}
         end,
 
-    binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_muc_params).~n"
-        "-compile(export_all).~n"
-        "add_archived_element() -> ~p.~n"
-        "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
-        [proplists:get_bool(add_archived_element, Params),
-         IsArchivableModule, IsArchivableFunction]))).
+    Format =
+        io_lib:format(
+          "-module(mod_mam_muc_params).~n"
+          "-compile(export_all).~n"
+          "add_archived_element() -> ~p.~n"
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
+          [proplists:get_bool(add_archived_element, Params),
+           IsArchivableModule, IsArchivableFunction]),
+    binary_to_list(iolist_to_binary(Format)).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().
