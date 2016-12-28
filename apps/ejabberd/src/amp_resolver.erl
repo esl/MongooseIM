@@ -11,8 +11,9 @@
 -include_lib("ejabberd/include/jlib.hrl").
 
 -spec verify_support(any(), amp_rules()) -> [ amp_rule_support() ].
-verify_support(#{supported := Supp} = Acc, Rules) ->
-    maps:put(supported, Supp ++ [ verify_rule_support(Rule) || Rule <- Rules ], Acc).
+verify_support(Acc, Rules) ->
+    Supp = mongoose_perdix:get(supported, Acc),
+    mongoose_perdix:put(supported, Supp ++ [ verify_rule_support(Rule) || Rule <- Rules ], Acc).
 
 -spec verify_rule_support(amp_rule()) -> amp_rule_support().
 verify_rule_support(#amp_rule{action = alert} = Rule) ->

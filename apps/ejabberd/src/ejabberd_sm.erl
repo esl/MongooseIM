@@ -656,8 +656,10 @@ do_route_no_resource(_, _, _, _, _) ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
 do_route_offline(<<"message">>, _, From, To, Packet)  ->
-    Drop = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
-                   false, [From, To, Packet]),
+    Acc = mongoose_perdix:new(#{drop => false}),
+    Acc2 = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
+                   Acc, [From, To, Packet]),
+    Drop = mongoose_perdix:get(drop, Acc2),
     case Drop of
         false ->
             route_message(From, To, Packet);

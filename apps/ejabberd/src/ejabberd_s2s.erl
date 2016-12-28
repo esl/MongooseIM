@@ -568,8 +568,9 @@ allow_host1(MyHost, S2SHost) ->
             case ejabberd_config:get_local_option({s2s_default_policy, MyHost}) of
                 deny -> false;
                 _ ->
-                    case ejabberd_hooks:run_fold(s2s_allow_host, MyHost,
-                                                 allow, [MyHost, S2SHost]) of
+                    Acc = mongoose_perdix:new(#{allow => allow}),
+                    Acc2 = ejabberd_hooks:run_fold(s2s_allow_host, MyHost, Acc, [MyHost, S2SHost]),
+                    case allow, [MyHost, S2SHost]) of
                         deny -> false;
                         allow -> true;
                         _ -> true

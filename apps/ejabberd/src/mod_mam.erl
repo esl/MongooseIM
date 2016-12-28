@@ -329,12 +329,15 @@ remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.
 
-sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
-    %% If ...
-    is_mam_result_message(Packet);
-    %% ... than drop the message
-sm_filter_offline_message(Other, _From, _To, Packet) ->
-    Other.
+sm_filter_offline_message(Acc, _From, _To, Packet) ->
+    case mongoose_perdix:get(drop, Acc) of
+        false ->
+            %% If ...
+            mongoose_perdix:put(drop, is_mam_result_message(Packet), Acc);
+            %% ... than drop the message
+        _ ->
+            Acc
+    end.
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -634,7 +637,12 @@ handle_purge_single_message(ArcJID=#jid{},
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
 
-determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
+determine_amp_strategy(Acc, FromJID, ToJID, Packet, Arg) ->
+    Strategy = mongoose_perdix:get(strategy, Acc),
+    NStrategy = do_determine_amp_strategy(Strategy, FromJID, ToJID, Packet, Arg),
+    mongoose_perdix:put(strategy, NStrategy, Acc).
+
+do_determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        FromJID, ToJID, Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
     ShouldBeStored = mod_mam_params:is_archivable_message(?MODULE, incoming, Packet)
@@ -644,7 +652,7 @@ determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
         true -> Strategy#amp_strategy{deliver = [stored, none]};
         false -> Strategy
     end;
-determine_amp_strategy(Strategy, _, _, _, _) ->
+do_determine_amp_strategy(Strategy, _, _, _, _) ->
     Strategy.
 
 -spec handle_package(Dir :: incoming | outgoing, ReturnMessID :: boolean(),

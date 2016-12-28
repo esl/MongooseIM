@@ -122,15 +122,17 @@ process_amp_rules(Packet, From, Event, Rules) ->
 %% @doc ejabberd_hooks helpers
 -spec verify_support(binary(), amp_rules()) -> [amp_rule_support()].
 verify_support(Host, Rules) ->
-    Res = ejabberd_hooks:run_fold(amp_verify_support, Host, #{supported => []}, [Rules]),
-    maps:get(supported, Res).
+    Res = ejabberd_hooks:run_fold(amp_verify_support, Host, mongoose_perdix:new(#{supported => []}),
+                                  [Rules]),
+    mongoose_perdix:get(supported, Res).
 
 -spec determine_strategy(#xmlel{}, jid(), amp_event()) -> amp_strategy().
 determine_strategy(Packet, From, Event) ->
     To = message_target(Packet),
-    ejabberd_hooks:run_fold(amp_determine_strategy, host(From),
-                            #{strategy => amp_strategy:null_strategy()},
-                            [From, To, Packet, Event]).
+    Res = ejabberd_hooks:run_fold(amp_determine_strategy, host(From),
+                            mongoose_perdix:new(#{strategy => amp_strategy:null_strategy()}),
+                            [From, To, Packet, Event]),
+    mongoose_perdix:get(strategy, Res).
 
 -spec fold_apply_rules(#xmlel{}, jid(), amp_strategy(), [amp_rule()]) ->
                               no_match | {matched | undecided, amp_rule()}.

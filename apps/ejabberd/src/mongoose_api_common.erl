@@ -76,20 +76,20 @@
          parse_request_body/1,
          get_allowed_methods/1,
          process_request/4,
-         reload_dispatches/1]).
+         reload_dispatches/2]).
 
 
 %% @doc Reload all ejabberd_cowboy listeners.
 %% When a command is registered or unregistered, the routing paths that
 %% cowboy stores as a "dispatch" must be refreshed.
 %% Read more http://ninenines.eu/docs/en/cowboy/1.0/guide/routing/
-reload_dispatches(drop) ->
+reload_dispatches(_, drop) ->
     drop;
-reload_dispatches(_Command) ->
+reload_dispatches(Acc, _Command) ->
     Listeners = supervisor:which_children(ejabberd_listeners),
     CowboyListeners = [Child || {_Id, Child, _Type, [ejabberd_cowboy]}  <- Listeners],
     [ejabberd_cowboy:reload_dispatch(Child) || Child <- CowboyListeners],
-    drop.
+    Acc.
 
 
 -spec create_admin_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().

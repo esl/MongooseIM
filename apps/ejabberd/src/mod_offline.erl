@@ -249,7 +249,12 @@ srv_name() ->
 srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
 
-determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
+determine_amp_strategy(Acc, FromJID, ToJID, Packet, Arg) ->
+    Strategy = mongoose_perdix:get(strategy, Acc),
+    NStrategy = do_determine_amp_strategy(Strategy, FromJID, ToJID, Packet, Arg),
+    mongoose_perdix:put(strategy, NStrategy, Acc).
+
+do_determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        _FromJID, ToJID, _Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
     ShouldBeStored = ejabberd_auth:is_user_exists(LUser, LServer),
@@ -257,7 +262,7 @@ determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
         true -> Strategy#amp_strategy{deliver = [stored, none]};
         false -> Strategy
     end;
-determine_amp_strategy(Strategy, _, _, _, _) ->
+do_determine_amp_strategy(Strategy, _, _, _, _) ->
     Strategy.
 
 %%====================================================================

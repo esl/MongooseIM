@@ -3079,9 +3079,11 @@ user_allowed(JID, #state{server = Server, access = Access}) ->
     end.
 
 open_session_allowed_hook(Server, JID) ->
-    allow == ejabberd_hooks:run_fold(session_opening_allowed_for_user,
+    Res = ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                                      Server,
-                                     allow, [JID]).
+                                     mongoose_perdix:new(#{allowed => allow}), [JID]),
+    allow == mongoose_perdix:get(allowed, Res).
+
 
 terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
     Lang = StateData#state.lang,

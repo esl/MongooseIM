@@ -322,23 +322,39 @@ init() ->
 %%%% end of API
 -spec register_commands([t()]) -> ok.
 register_commands(Commands) ->
-    lists:foreach(
-        fun(Command) ->
-            check_registration(Command), %% may throw
-            ets:insert_new(mongoose_commands, Command),
-            ejabberd_hooks:run_fold(register_command, global, [Command], []),
-            ok
-        end,
-        Commands).
+    register_commands(mongoose_perdix:new(), Commands).
+register_commands(Acc, []) ->
+    Acc;
+register_commands(Acc, [Command|Tail]) ->
+    check_registration(Command), %% may throw
+    ets:insert_new(mongoose_commands, Command),
+    Acc2 = ejabberd_hooks:run_fold(register_command, global, Acc, [Command]),
+    register_commands(Acc2, Tail).
+%%    lists:foreach(
+%%        fun(Command) ->
+%%            check_registration(Command), %% may throw
+%%            ets:insert_new(mongoose_commands, Command),
+%%            ejabberd_hooks:run_fold(register_command, global, [Command], []),
+%%            ok
+%%        end,
+%%        Commands).
 
 -spec unregister_commands([t()]) -> ok.
 unregister_commands(Commands) ->
-    lists:foreach(
-        fun(Command) ->
-            ets:delete_object(mongoose_commands, Command),
-            ejabberd_hooks:run_fold(unregister_command, global, [Command], [])
-        end,
-        Commands).
+    unregister_commands(mongoose_perdix:new(), Commands).
+
+unregister_commands(Acc, []) ->
+    Acc;
+unregister_commands(Acc, [Command|Tail]) ->
+    ets:delete_object(mongoose_commands, Command),
+    Acc2 = ejabberd_hooks:run_fold(unregister_command, global, Acc, [Command]),
+    unregister_commands(Acc2, Tail).
+%%    lists:foreach(
+%%        fun(Command) ->
+%%            ets:delete_object(mongoose_commands, Command),
+%%            ejabberd_hooks:run_fold(unregister_command, global, [Command], [])
+%%        end,
+%%        Commands).
 
 execute_command(Caller, Command, Args) ->
     try check_and_execute(Caller, Command, Args) of

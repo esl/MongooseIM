@@ -298,15 +298,20 @@ unsafe_set_vcard(From, VCARD) ->
     {ok, VcardSearch} = prepare_vcard_search_params(FromUser, FromVHost, VCARD),
     ?BACKEND:set_vcard(FromUser, FromVHost, VCARD, VcardSearch).
 
--spec set_vcard(HandlerAcc, From, VCARD) -> Result when
+set_vcard(Acc, From, VCARD) ->
+    H = mongoose_perdix:get(handler, Acc),
+    Nh = do_set_vcard(H, From, VCARD),
+    mongoose_perdix:put(handler, Nh, Acc).
+
+-spec do_set_vcard(HandlerAcc, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
       From :: jid(),
       VCARD :: jlib:xmlel(),
       Result :: ok | error().
-set_vcard(ok, _From, _VCARD) ->
+do_set_vcard(ok, _From, _VCARD) ->
     ?DEBUG("hook call already handled - skipping", []),
     ok;
-set_vcard({error, no_handler_defined}, From, VCARD) ->
+do_set_vcard({error, no_handler_defined}, From, VCARD) ->
     try unsafe_set_vcard(From, VCARD) of
         ok -> ok;
         {error, Reason} ->
@@ -316,7 +321,7 @@ set_vcard({error, no_handler_defined}, From, VCARD) ->
         E:R -> ?ERROR_MSG("unsafe set_vcard failed: ~p", [{E, R}]),
                {error, {E, R}}
     end;
-set_vcard({error, _} = E, _From, _VCARD) -> E.
+do_set_vcard({error, _} = E, _From, _VCARD) -> E.
 
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
     Acc;
