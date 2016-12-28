@@ -244,8 +244,8 @@ archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
                       RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
                       Start :: mod_mam:unix_timestamp() | undefined,
                       End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
-                      WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
-                      _SearchText :: binary() | undefined,
+                      WithJID :: ejabberd:jid() | undefined,
+                      _SearchText :: binary() | undefined, PageSize :: integer(),
                       LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
                       IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
                                                     | {error, 'policy-violation'}.

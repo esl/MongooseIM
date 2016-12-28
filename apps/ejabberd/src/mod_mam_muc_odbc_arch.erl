@@ -159,7 +159,7 @@ write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData, STextBody) ->
         mod_mam_utils:success_sql_query(
           Host,
           ["INSERT INTO ", select_table(RoomID), " ",
-           "(id, room_id, nick_name, message, body) "
+           "(id, room_id, nick_name, message, search_body) "
            "VALUES ('", SMessID, "', '", SRoomID, "', "
            "'", SFromNick, "', '", SData, "', '", STextBody, "')"]),
     ok.
@@ -191,7 +191,7 @@ prepare_message1(Host, MessID, RoomID, FromNick, Packet) ->
 archive_messages(LServer, Acc) ->
     mod_mam_utils:success_sql_query(
       LServer,
-      ["INSERT INTO mam_muc_message(id, room_id, nick_name, message, body) "
+      ["INSERT INTO mam_muc_message(id, room_id, nick_name, message, search_body) "
        "VALUES ", tuples(Acc)]).
 
 
@@ -201,7 +201,7 @@ archive_messages(LServer, Acc, N) ->
     mod_mam_utils:success_sql_query(
       LServer,
       ["INSERT INTO ", select_table(N), " ",
-       "(id, room_id, nick_name, message, body) "
+       "(id, room_id, nick_name, message, search_body) "
        "VALUES ", tuples(Acc)]).
 
 lookup_messages({error, _Reason}=Result, _Host,
@@ -631,7 +631,7 @@ prepare_filter1(RoomID, StartID, EndID, SWithNick, SearchText) ->
      end,
      case SearchText of
          undefined -> "";
-         _         -> [" AND body like '%", SearchText, "%'"]
+         _         -> [" AND search_body like '%", SearchText, "%'"]
      end
     ].
 

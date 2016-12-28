@@ -258,7 +258,7 @@ write_message(Host, Table, SMessID, SUserID, SBareRemJID,
           Host,
           ["INSERT INTO ", Table, " (id, user_id, remote_bare_jid, "
            "remote_resource, direction, "
-           "from_jid, message, body) "
+           "from_jid, message, search_body) "
            "VALUES ('", SMessID, "', '", SUserID, "', '", SBareRemJID, "', "
            "'", SRemLResource, "', '", SDir, "', ",
            "'", SSrcJID, "', '", SData, "', '", STextBody, "');"]),
@@ -285,7 +285,7 @@ archive_messages(LServer, Acc) ->
       LServer,
       ["INSERT INTO mam_message(id, user_id, remote_bare_jid, "
        "remote_resource, direction, "
-       "from_jid, message, body) "
+       "from_jid, message, search_body) "
        "VALUES ", tuples(Acc)]).
 
 %% @doc N is a group id (partition number).
@@ -295,7 +295,7 @@ archive_messages(LServer, Acc, N) ->
       ["INSERT ", insert_ignore(LServer), "INTO ", select_table(N),
        " (id, user_id, remote_bare_jid, "
        "remote_resource, direction, "
-       "from_jid, message, body) "
+       "from_jid, message, search_body) "
        "VALUES ", tuples(Acc)]).
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
@@ -769,7 +769,7 @@ prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) 
      end,
      case SearchText of
          undefined -> "";
-         _         -> [" AND body like '%", SearchText, "%'"]
+         _         -> [" AND search_body like '%", SearchText, "%'"]
      end
     ].
 
