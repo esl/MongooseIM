@@ -53,7 +53,9 @@ tests() ->
      session_info_is_extended_if_new_keys_present,
      session_info_keys_not_truncated_if_session_opened_with_empty_infolist,
      kv_can_be_stored_for_session,
-     kv_can_be_updated_for_session
+     kv_can_be_updated_for_session,
+     cannot_reproduce_race_condition_in_store_info,
+     store_info_sends_message_to_the_session_owner
     ].
 
 init_per_group(mnesia, Config) ->
@@ -205,6 +207,30 @@ kv_can_be_updated_for_session(C) ->
     [#session{sid = Sid, info = [{key1, val1}, {key2, override}]}]
      = ?B(C):get_sessions(U,S).
 
+cannot_reproduce_race_condition_in_store_info(C) ->
+    ok = try_to_reproduce_race_condition(10000).
+
+store_info_sends_message_to_the_session_owner(C) ->
+    SID = {now(), self()},
+    U = <<"alice2">>,
+    S = <<"localhost">>,
+    R = <<"res1">>,
+    Session = #session{sid = SID,usr = {U,S,R},us = {U,S}, priority = 1,info = []},
+    %% Create session in one process
+    ejabberd_sm_mnesia:create_session(U, S, R, Session),
+    Parent = self(),
+    %% but call store_info from another process
+    spawn_link(fun() -> ejabberd_sm:store_info(U, S, R, {cc, undefined}) end),
+    %% The original process receives a message
+    receive {store_info, User, Server, Resource, KV, _FromPid} ->
+        ?eq(U, User),
+        ?eq(S, Server),
+        ?eq(R, Resource),
+        ?eq({cc, undefined}, KV),
+        ok
+        after 5000 ->
+            ct:fail("store_info_sends_message_to_the_session_owner=timeout")
+    end.
 
 delete_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
@@ -431,3 +457,35 @@ n(Node) ->
 
 is_redis_running() ->
     [] =/= os:cmd("ps aux | grep '[r]edis'").
+
+
+try_to_reproduce_race_condition(0) ->
+    ok; %% no more retries
+try_to_reproduce_race_condition(Retries) when Retries > 0 ->
+    SID = {now(), self()},
+    U = <<"alice">>,
+    S = <<"localhost">>,
+    R = <<"res1">>,
+    Session = #session{sid = SID,usr = {U,S,R},us = {U,S}, priority = 1,info = []},
+    ejabberd_sm_mnesia:create_session(U, S, R, Session),
+    Parent = self(),
+    %% Try to do two operations in parallel
+    spawn_link(fun() ->
+        ejabberd_sm_mnesia:delete_session(SID, U, S, R),
+        Parent ! p1_done
+        end),
+    spawn_link(fun() ->
+        ejabberd_sm:store_info(U, S, R, {cc,undefined}),
+        Parent ! p2_done
+        end),
+    receive p1_done -> ok end,
+    receive p2_done -> ok end,
+    %% Session should not exist
+    case ejabberd_sm_mnesia:get_sessions(U,S,R) of
+        [] ->
+            try_to_reproduce_race_condition(Retries-1);
+        Other ->
+            error_logger:error_msg("issue=reproduced, sid=~p, other=~1000p, retries_left=~p",
+                                   [SID, Other, Retries]),
+            {error, reproduced}
+    end.
