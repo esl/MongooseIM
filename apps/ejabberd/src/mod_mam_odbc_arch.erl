@@ -20,6 +20,10 @@
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_archive).
+
+-callback encode(term()) -> binary().
+-callback decode(binary()) -> term().
+
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/15,
@@ -164,7 +168,8 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE,
+                          purge_multiple_messages, 50),
     ok.
 
 
@@ -176,7 +181,7 @@ encode_direction(outgoing) -> "O".
 
 
 -spec archive_size(Size :: integer(), Host :: ejabberd:server(),
-        ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
+                   ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
 archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
     IndexHintSQL = index_hint_sql(Host),
     {selected, [{BSize}]} =
@@ -209,16 +214,16 @@ insert_ignore(Host) ->
     end.
 
 -spec archive_message(_Result, Host :: ejabberd:server(),
-        MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
-        LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
-        SrcJID :: ejabberd:jid(), Dir :: atom(), Packet :: any()) -> ok.
+                      MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
+                      LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
+                      SrcJID :: ejabberd:jid(), Dir :: atom(), Packet :: any()) -> ok.
 archive_message(Result, Host, MessID, UserID,
                 LocJID, RemJID, SrcJID, Dir, Packet) ->
     try
         do_archive_message(Result, Host, MessID, UserID,
                            LocJID, RemJID, SrcJID, Dir, Packet)
     catch _Type:Reason ->
-        {error, Reason}
+            {error, Reason}
     end.
 
 do_archive_message(_Result, Host, MessID, UserID,
@@ -243,20 +248,20 @@ do_archive_message(_Result, Host, MessID, UserID,
 
 
 -spec write_message(Host :: ejabberd:server(), Table :: string(),
-        SMessID :: string(), SUserID :: string(), SBareRemJID :: string(),
-        SRemLResource :: string(), SDir :: string(), SSrcJID :: string(),
-        SData :: string(), TextBody :: string()) -> 'ok'.
+                    SMessID :: string(), SUserID :: string(), SBareRemJID :: string(),
+                    SRemLResource :: string(), SDir :: string(), SSrcJID :: string(),
+                    SData :: string(), TextBody :: string()) -> 'ok'.
 write_message(Host, Table, SMessID, SUserID, SBareRemJID,
               SRemLResource, SDir, SSrcJID, SData, STextBody) ->
     {updated, 1} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["INSERT INTO ", Table, " (id, user_id, remote_bare_jid, "
-                                 "remote_resource, direction, "
-                                 "from_jid, message, body) "
-       "VALUES ('", SMessID, "', '", SUserID, "', '", SBareRemJID, "', "
-               "'", SRemLResource, "', '", SDir, "', ",
-               "'", SSrcJID, "', '", SData, "', '", STextBody, "');"]),
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["INSERT INTO ", Table, " (id, user_id, remote_bare_jid, "
+           "remote_resource, direction, "
+           "from_jid, message, body) "
+           "VALUES ('", SMessID, "', '", SUserID, "', '", SBareRemJID, "', "
+           "'", SRemLResource, "', '", SDir, "', ",
+           "'", SSrcJID, "', '", SData, "', '", STextBody, "');"]),
     ok.
 
 prepare_message(Host, MessID, UserID,
@@ -279,8 +284,8 @@ archive_messages(LServer, Acc) ->
     mod_mam_utils:success_sql_query(
       LServer,
       ["INSERT INTO mam_message(id, user_id, remote_bare_jid, "
-                                "remote_resource, direction, "
-                                "from_jid, message, body) "
+       "remote_resource, direction, "
+       "from_jid, message, body) "
        "VALUES ", tuples(Acc)]).
 
 %% @doc N is a group id (partition number).
@@ -288,9 +293,9 @@ archive_messages(LServer, Acc, N) ->
     mongoose_rdbms:sql_query(
       LServer,
       ["INSERT ", insert_ignore(LServer), "INTO ", select_table(N),
-                             " (id, user_id, remote_bare_jid, "
-                                "remote_resource, direction, "
-                                "from_jid, message, body) "
+       " (id, user_id, remote_bare_jid, "
+       "remote_resource, direction, "
+       "from_jid, message, body) "
        "VALUES ", tuples(Acc)]).
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
@@ -306,7 +311,7 @@ archive_messages(LServer, Acc, N) ->
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
-    {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
+                             {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages({error, _Reason}=Result, _Host,
                 _UserID, _UserJID, _RSM, _Borders,
                 _Start, _End, _Now, _WithJID, _SearchText,
@@ -389,8 +394,8 @@ lookup_messages_simple(Host, UserID, UserJID,
     MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
 lookup_messages_simple(Host, UserID, UserJID,
-                undefined,
-                PageSize, Filter) ->
+                       undefined,
+                       PageSize, Filter) ->
     MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
 
@@ -530,6 +535,7 @@ row_to_message_id({BMessID, _, _}) ->
     mongoose_rdbms:result_to_integer(BMessID).
 
 
+<<<<<<< HEAD
 %% #rh
 -spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
                      ArchiveID :: mod_mam:archive_id(),
@@ -541,20 +547,31 @@ remove_archive(Acc, Host, UserID, _UserJID) ->
       ["DELETE FROM ", select_table(UserID), " "
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     Acc.
+=======
+-spec remove_archive(Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
+                     RoomJID :: ejabberd:jid()) -> 'ok'.
+remove_archive(Host, UserID, _UserJID) ->
+    {updated, _} =
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["DELETE FROM ", select_table(UserID), " "
+           "WHERE user_id = '", escape_user_id(UserID), "'"]),
+    ok.
+>>>>>>> Make Elvis happy
 
 -spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
                            MessID :: mod_mam:message_id(),
                            ArchiveID :: mod_mam:archive_id(),
                            RoomJID :: ejabberd:jid(),
                            Now :: mod_mam:unix_timestamp()) ->
-    ok  | {error, 'not-allowed'  | 'not-found'}.
+                                  ok  | {error, 'not-allowed'  | 'not-found'}.
 purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
     Result =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["DELETE FROM ", select_table(UserID), " "
-       "WHERE user_id = '", escape_user_id(UserID), "' "
-       "AND id = '", escape_message_id(MessID), "'"]),
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["DELETE FROM ", select_table(UserID), " "
+           "WHERE user_id = '", escape_user_id(UserID), "' "
+           "AND id = '", escape_message_id(MessID), "'"]),
     case Result of
         {updated, 0} -> {error, 'not-found'};
         {updated, 1} -> ok
@@ -569,14 +586,14 @@ purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
                               End :: mod_mam:unix_timestamp()  | undefined,
                               Now :: mod_mam:unix_timestamp(),
                               WithJID :: ejabberd:jid()  | undefined) ->
-                                 ok  | {error, 'not-allowed'}.
+                                     ok  | {error, 'not-allowed'}.
 purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, undefined),
     {updated, _} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["DELETE FROM ", select_table(UserID), " ", Filter]),
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["DELETE FROM ", select_table(UserID), " ", Filter]),
     ok.
 
 
@@ -586,8 +603,8 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 %% Columns are `["id", "from_jid", "message"]'.
 -type msg() :: {binary(), ejabberd:literal_jid(), binary()}.
 -spec extract_messages(Host :: ejabberd:server(), _UserID :: mod_mam:archive_id(),
-        Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
-        ReverseLimit :: boolean()) -> [msg()].
+                       Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
+                       ReverseLimit :: boolean()) -> [msg()].
 extract_messages(_Host, _UserID, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Host, UserID, Filter, IOffset, IMax, false) ->
@@ -614,10 +631,10 @@ do_extract_messages(Host, UserID, Filter, IOffset, IMax, Order) ->
     {LimitSQL, _LimitMSSQL} = rdbms_queries:get_db_specific_limits(IMax),
     Offset = rdbms_queries:get_db_specific_offset(IOffset, IMax),
     mod_mam_utils:success_sql_query(
-        Host,
-        ["SELECT id, from_jid, message "
-         "FROM ", select_table(UserID), " ",
-         Filter, Order, LimitSQL, Offset]).
+      Host,
+      ["SELECT id, from_jid, message "
+       "FROM ", select_table(UserID), " ",
+       Filter, Order, LimitSQL, Offset]).
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
 %%
@@ -626,15 +643,24 @@ do_extract_messages(Host, UserID, Filter, IOffset, IMax, Order) ->
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
 -spec calc_index(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
-        Filter :: filter(), IndexHintSQL :: string(),
-        SUID :: escaped_message_id()) -> non_neg_integer().
+                 Filter :: filter(), IndexHintSQL :: string(),
+                 SUID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
+<<<<<<< HEAD
     {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        IndexHintSQL, Filter, " AND id <= '", SUID, "'"]),
     mongoose_rdbms:result_to_integer(BIndex).
+=======
+    {selected, _ColumnNames, [{BIndex}]} =
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
+           IndexHintSQL, Filter, " AND id <= '", SUID, "'"]),
+    ejabberd_odbc:result_to_integer(BIndex).
+>>>>>>> Make Elvis happy
 
 %% @doc Count of elements in RSet before the passed element.
 %%
@@ -642,37 +668,56 @@ calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
 -spec calc_before(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
-        Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()
-        ) -> non_neg_integer().
+                  Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()
+                 ) -> non_neg_integer().
 calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
+<<<<<<< HEAD
     {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        IndexHintSQL, Filter, " AND id < '", SUID, "'"]),
     mongoose_rdbms:result_to_integer(BIndex).
+=======
+    {selected, _ColumnNames, [{BIndex}]} =
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
+           IndexHintSQL, Filter, " AND id < '", SUID, "'"]),
+    ejabberd_odbc:result_to_integer(BIndex).
+>>>>>>> Make Elvis happy
 
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
 -spec calc_count(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
-        Filter :: filter(), IndexHintSQL :: string()) -> non_neg_integer().
+                 Filter :: filter(), IndexHintSQL :: string()) -> non_neg_integer().
 calc_count(Host, UserID, Filter, IndexHintSQL) ->
+<<<<<<< HEAD
     {selected, [{BCount}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        IndexHintSQL, Filter]),
     mongoose_rdbms:result_to_integer(BCount).
+=======
+    {selected, _ColumnNames, [{BCount}]} =
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
+           IndexHintSQL, Filter]),
+    ejabberd_odbc:result_to_integer(BCount).
+>>>>>>> Make Elvis happy
 
 
 -spec prepare_filter(UserID :: mod_mam:archive_id(), UserJID :: ejabberd:jid(),
-        Borders :: mod_mam:borders(), Start :: mod_mam:unix_timestamp() | undefined,
-        End :: mod_mam:unix_timestamp() | undefined, WithJID :: ejabberd:jid(),
-        SearchText :: binary() | undefined)
-            -> filter().
+                     Borders :: mod_mam:borders(), Start :: mod_mam:unix_timestamp() | undefined,
+                     End :: mod_mam:unix_timestamp() | undefined, WithJID :: ejabberd:jid(),
+                     SearchText :: binary() | undefined)
+                    -> filter().
 prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
     {SWithJID, SWithResource} =
+<<<<<<< HEAD
     case WithJID of
         undefined -> {undefined, undefined};
         #jid{lresource = <<>>} ->
@@ -681,6 +726,16 @@ prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
             {minify_and_escape_bare_jid(UserJID, WithJID),
              mongoose_rdbms:escape(WithLResource)}
     end,
+=======
+        case WithJID of
+            undefined -> {undefined, undefined};
+            #jid{lresource = <<>>} ->
+                {minify_and_escape_bare_jid(UserJID, WithJID), undefined};
+            #jid{lresource = WithLResource} ->
+                {minify_and_escape_bare_jid(UserJID, WithJID),
+                 ejabberd_odbc:escape(WithLResource)}
+        end,
+>>>>>>> Make Elvis happy
     StartID = maybe_encode_compact_uuid(Start, 0),
     EndID   = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
@@ -689,34 +744,34 @@ prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
 
 
 -spec prepare_filter_sql(UserID :: non_neg_integer(),
-        StartID :: mod_mam:message_id() | undefined,
-        EndID :: mod_mam:message_id() | undefined,
-        SWithJID :: escaped_jid() | undefined,
-        SWithResource :: escaped_resource() | undefined,
-        SearchText :: binary() | undefined) -> filter().
+                         StartID :: mod_mam:message_id() | undefined,
+                         EndID :: mod_mam:message_id() | undefined,
+                         SWithJID :: escaped_jid() | undefined,
+                         SWithResource :: escaped_resource() | undefined,
+                         SearchText :: binary() | undefined) -> filter().
 prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) ->
-   ["WHERE user_id='", escape_user_id(UserID), "'",
+    ["WHERE user_id='", escape_user_id(UserID), "'",
      case StartID of
-        undefined -> "";
-        _         -> [" AND id >= ", integer_to_list(StartID)]
+         undefined -> "";
+         _         -> [" AND id >= ", integer_to_list(StartID)]
      end,
      case EndID of
-        undefined -> "";
-        _         -> [" AND id <= ", integer_to_list(EndID)]
+         undefined -> "";
+         _         -> [" AND id <= ", integer_to_list(EndID)]
      end,
      case SWithJID of
-        undefined -> "";
-        _         -> [" AND remote_bare_jid = '", SWithJID, "'"]
+         undefined -> "";
+         _         -> [" AND remote_bare_jid = '", SWithJID, "'"]
      end,
      case SWithResource of
-        undefined -> "";
-        _         -> [" AND remote_resource = '", SWithResource, "'"]
+         undefined -> "";
+         _         -> [" AND remote_resource = '", SWithResource, "'"]
      end,
      case SearchText of
          undefined -> "";
          _         -> [" AND body like '%", SearchText, "%'"]
      end
-   ].
+    ].
 
 
 %% @doc #rsm_in{
@@ -725,20 +780,20 @@ prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) 
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
 -spec calc_offset(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
-        Filter :: filter(), IndexHintSQL :: string(), PageSize :: non_neg_integer(),
-        TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
+                  Filter :: filter(), IndexHintSQL :: string(), PageSize :: non_neg_integer(),
+                  TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
 calc_offset(_LS, _UserID, _F, _IH, _PS, _TC, #rsm_in{direction = undefined, index = Index})
-    when is_integer(Index) ->
+  when is_integer(Index) ->
     Index;
 %% Requesting the Last Page in a Result Set
 calc_offset(_LS, _UserID, _F, _IH, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
 calc_offset(Host, UserID, F, IH, PS, _TC, #rsm_in{direction = before, id = ID})
-    when is_integer(ID) ->
+  when is_integer(ID) ->
     SID = escape_message_id(ID),
     max(0, calc_before(Host, UserID, F, IH, SID) - PS);
 calc_offset(Host, UserID, F, IH, _PS, _TC, #rsm_in{direction = aft, id = ID})
-    when is_integer(ID) ->
+  when is_integer(ID) ->
     SID = escape_message_id(ID),
     calc_index(Host, UserID, F, IH, SID);
 calc_offset(_LS, _UserID, _F, _IH, _PS, _TC, _RSM) ->
@@ -783,7 +838,7 @@ normalize_search_text(Text, WordSeparator) ->
     BodyString = unicode:characters_to_list(Text),
     LowerBody = string:to_lower(BodyString),
     ReOpts = [{return, list}, global, unicode, ucp],
-    Re0 = re:replace(LowerBody, "[,.:;-?!]+", " ", ReOpts),
+    Re0 = re:replace(LowerBody, "[, .:;-?!]+", " ", ReOpts),
     Re1 = re:replace(Re0, "[^\\w\\d ]+", "", ReOpts),
     re:replace(Re1, "\s+", WordSeparator, ReOpts).
 
@@ -846,15 +901,17 @@ simple_params() ->
     [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
 
 params_helper(Params) ->
-    binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_odbc_arch_params).~n"
-        "-compile(export_all).~n"
-        "db_jid_format() -> ~p.~n"
-        "db_message_format() -> ~p.~n"
-        "hand_made_partitions() -> ~p.~n",
-        [proplists:get_value(db_jid_format, Params, mam_jid_mini),
-         proplists:get_value(db_message_format, Params, mam_message_compressed_eterm),
-         proplists:get_bool(hand_made_partitions, Params)]))).
+    Format =
+        io_lib:format(
+          "-module(mod_mam_odbc_arch_params).~n"
+          "-compile(export_all).~n"
+          "db_jid_format() -> ~p.~n"
+          "db_message_format() -> ~p.~n"
+          "hand_made_partitions() -> ~p.~n",
+          [proplists:get_value(db_jid_format, Params, mam_jid_mini),
+           proplists:get_value(db_message_format, Params, mam_message_compressed_eterm),
+           proplists:get_bool(hand_made_partitions, Params)]),
+    binary_to_list(iolist_to_binary(Format)).
 
 -spec db_jid_format() -> module().
 db_jid_format() ->

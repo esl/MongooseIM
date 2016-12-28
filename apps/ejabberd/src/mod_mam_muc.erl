@@ -229,8 +229,8 @@ filter_room_packet(Packet, EventData) ->
 
 %% @doc Archive without validation.
 -spec archive_room_packet(Packet :: packet(), FromNick :: ejabberd:user(),
-        FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
-        Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
+                          FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
+                          Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
 archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affiliation) ->
     {ok, Host} = mongoose_subhosts:get_host(RoomJID#jid.lserver),
     ArcID = archive_id_int(Host, RoomJID),
@@ -435,7 +435,7 @@ handle_set_prefs_result({error, Reason},
 
 
 -spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) ->
-    ejabberd:iq() | {error, any(), ejabberd:iq()}.
+                              ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
@@ -457,7 +457,7 @@ handle_lookup_messages(
   From = #jid{},
   ArcJID = #jid{},
   IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -514,7 +514,7 @@ handle_set_message_form(
   From = #jid{},
   ArcJID = #jid{},
   IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -605,7 +605,7 @@ handle_get_message_form(_From = #jid{}, _ArcJID = #jid{}, IQ = #iq{}) ->
                                             ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_multiple_messages(ArcJID = #jid{},
                                IQ = #iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
@@ -625,7 +625,7 @@ handle_purge_multiple_messages(ArcJID = #jid{},
                                          ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_single_message(ArcJID = #jid{},
                             IQ = #iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
@@ -973,13 +973,15 @@ params_helper(Params) ->
             Mod -> {Mod, is_archivable_message}
         end,
 
-    binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_muc_params).~n"
-        "-compile(export_all).~n"
-        "add_archived_element() -> ~p.~n"
-        "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
-        [proplists:get_bool(add_archived_element, Params),
-         IsArchivableModule, IsArchivableFunction]))).
+    Format =
+        io_lib:format(
+          "-module(mod_mam_muc_params).~n"
+          "-compile(export_all).~n"
+          "add_archived_element() -> ~p.~n"
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
+          [proplists:get_bool(add_archived_element, Params),
+           IsArchivableModule, IsArchivableFunction]),
+    binary_to_list(iolist_to_binary(Format)).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().
