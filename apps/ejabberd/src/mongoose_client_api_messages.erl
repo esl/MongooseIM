@@ -65,6 +65,7 @@ maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
                                 End,
                                 Now,
                                 WithJID,
+                                _SearchText = undefined,
                                 PageSize,
                                 _LimitPassed = true,
                                 _MaxResultLimit = 50,

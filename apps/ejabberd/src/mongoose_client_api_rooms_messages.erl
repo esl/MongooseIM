@@ -63,6 +63,7 @@ to_json(Req, #{jid := UserJID, room := Room} = State) ->
                                     End,
                                     Now,
                                     _WithJID = undefined,
+                                    _SearchText = undefined,
                                     PageSize,
                                     _LimitPassed = true,
                                     _MaxResultLimit = 50,

@@ -17,8 +17,8 @@
                           Start :: mod_mam:unix_timestamp() | undefined,
                           End :: mod_mam:unix_timestamp() | undefined,
                           Now :: mod_mam:unix_timestamp(),
-                          WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
-                          SearchText :: binary() | undefined,
+                          WithJID :: ejabberd:jid() | undefined,
+                          SearchText :: binary() | undefined, PageSize :: integer(),
                           LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
                           IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
                                                         | {error, 'policy-violation'}.
