@@ -787,9 +787,9 @@ init_per_testcase(C=prefs_set_request, Config) ->
 init_per_testcase(C=prefs_set_cdata_request, Config) ->
     skip_if_riak(C, Config);
 init_per_testcase(C=simple_text_search_request, Config) ->
-    skip_if_not_odbc(Config, fun() -> escalus:init_per_testcase(C, Config) end);
+    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=long_text_search_request, Config) ->
-    skip_if_not_odbc(Config, fun() -> escalus:init_per_testcase(C, Config) end);
+    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=muc_text_search_request, Config) ->
     Init =
         fun() ->
@@ -797,7 +797,7 @@ init_per_testcase(C=muc_text_search_request, Config) ->
             escalus:init_per_testcase(C, start_alice_room(Config1))
         end,
 
-    skip_if_not_odbc(Config, Init);
+    skip_if_cassandra(Config, Init);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -809,12 +809,12 @@ skip_if_riak(C, Config) ->
             escalus:init_per_testcase(C, Config)
     end.
 
-skip_if_not_odbc(Config, Init) ->
-    case lists:prefix("odbc", atom_to_list(?config(configuration, Config))) of
-        true ->
-            Init();
-        false ->
-            {skip, "full text search is implemented only for odbc backend"}
+skip_if_cassandra(Config, Init) ->
+    case ?config(configuration, Config) of
+        cassandra ->
+            {skip, "full text search is not implemented for cassandra backend"};
+        _ ->
+            Init()
     end.
 
 end_per_testcase(C=muc_text_search_request, Config) ->
@@ -959,8 +959,8 @@ simple_text_search_request(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi there! My cat's name is John">>)),
-        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Also my car broke down so I'm unable to",
-                                                          " get him home">>)),
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Also my bike broke down so I'm unable ",
+                                                          "to return him home">>)),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Cats are awesome by the way">>)),
         maybe_wait_for_archive(Config),
 
@@ -975,14 +975,14 @@ simple_text_search_request(Config) ->
         ?assert_equal(<<"Hi there! My cat's name is John">>, Body1),
         ?assert_equal(<<"Cats are awesome by the way">>, Body2),
 
-        %% 'Car' query
-        escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"car">>)),
+        %% 'Bike' query
+        escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"bike">>)),
         Res2 = wait_archive_respond(P, Alice),
         assert_respond_size(1, Res2),
         assert_respond_query_id(P, <<"q2">>, parse_result_iq(P, Res2)),
         [Msg3] = respond_messages(Res2),
         #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
-        ?assert_equal(<<"Also my car broke down so I'm unable to get him home">>, Body3),
+        ?assert_equal(<<"Also my bike broke down so I'm unable to return him home">>, Body3),
 
         ok
         end,

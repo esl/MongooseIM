@@ -36,16 +36,19 @@
          archive_messages/2,
          archive_messages/3]).
 
-%% Called from mod_mam_muc_odbc_arch
--export([packet_to_search_body/1, normalize_search_text/1]).
-
-
 %% ----------------------------------------------------------------------
 %% Imports
 
 %% UID
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
+
+%% Text search
+-import(mod_mam_utils, [
+    packet_to_search_body/1,
+    normalize_search_text/1,
+    normalize_search_text/2
+]).
 
 %% Other
 -import(mod_mam_utils,
@@ -825,23 +828,6 @@ maybe_encode_compact_uuid(undefined, _) ->
     undefined;
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
-
-packet_to_search_body(Packet) ->
-    BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
-    normalize_search_text(BodyValue, " ").
-
-normalize_search_text(Text) ->
-    normalize_search_text(Text, "%").
-normalize_search_text(undefined, _WordSeparator) ->
-    undefined;
-normalize_search_text(Text, WordSeparator) ->
-    BodyString = unicode:characters_to_list(Text),
-    LowerBody = string:to_lower(BodyString),
-    ReOpts = [{return, list}, global, unicode, ucp],
-    Re0 = re:replace(LowerBody, "[, .:;-?!]+", " ", ReOpts),
-    Re1 = re:replace(Re0, "[^\\w\\d ]+", "", ReOpts),
-    re:replace(Re1, "\s+", WordSeparator, ReOpts).
-
 
 %% ----------------------------------------------------------------------
 %% Optimizations

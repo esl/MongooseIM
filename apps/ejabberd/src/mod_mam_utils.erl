@@ -48,6 +48,13 @@
          form_field_value/2,
          message_form/1]).
 
+%% Text search
+-export([
+    packet_to_search_body/1,
+    normalize_search_text/1,
+    normalize_search_text/2
+]).
+
 %% JID serialization
 -export([jid_to_opt_binary/2,
          expand_minified_jid/2]).
@@ -665,6 +672,29 @@ form_field(Type, VarName) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"type">>, Type},
                     {<<"var">>, VarName}]}.
+
+%% -----------------------------------------------------------------------
+%% Text search tokenization
+
+-spec packet_to_search_body(Packet :: xmlel()) -> string().
+packet_to_search_body(Packet) ->
+    BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
+    normalize_search_text(BodyValue, " ").
+
+-spec normalize_search_text(string()) -> string().
+normalize_search_text(Text) ->
+    normalize_search_text(Text, "%").
+
+-spec normalize_search_text(string(), string()) -> string().
+normalize_search_text(undefined, _WordSeparator) ->
+    undefined;
+normalize_search_text(Text, WordSeparator) ->
+    BodyString = unicode:characters_to_list(Text),
+    LowerBody = string:to_lower(BodyString),
+    ReOpts = [{return, list}, global, unicode, ucp],
+    Re0 = re:replace(LowerBody, "[, .:;-?!]+", " ", ReOpts),
+    Re1 = re:replace(Re0, "[^\\w\\d ]+", "", ReOpts),
+    re:replace(Re1, "\s+", WordSeparator, ReOpts).
 
 %% -----------------------------------------------------------------------
 %% JID serialization

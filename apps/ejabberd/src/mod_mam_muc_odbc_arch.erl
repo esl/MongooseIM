@@ -38,6 +38,13 @@
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
 
+%% Text search
+-import(mod_mam_utils, [
+    packet_to_search_body/1,
+    normalize_search_text/1,
+    normalize_search_text/2
+]).
+
 %% Other
 -import(mod_mam_utils,
         [apply_start_border/2,
@@ -146,7 +153,7 @@ archive_message1(Host, MessID, RoomID, FromNick, Packet) ->
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    TextBody = mod_mam_odbc_arch:packet_to_search_body(Packet),
+    TextBody = packet_to_search_body(Packet),
     STextBody = ejabberd_odbc:escape(TextBody),
     write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData, STextBody).
 
@@ -182,7 +189,7 @@ prepare_message1(Host, MessID, RoomID, FromNick, Packet) ->
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    TextBody = mod_mam_odbc_arch:packet_to_search_body(Packet),
+    TextBody = packet_to_search_body(Packet),
     STextBody = ejabberd_odbc:escape(TextBody),
     [SMessID, SRoomID, SFromNick, SData, STextBody].
 
@@ -219,7 +226,7 @@ lookup_messages(_Result, Host,
         lookup_messages(Host,
                         UserID, UserJID, RSM, Borders,
                         Start, End, Now, WithJID,
-                        mod_mam_odbc_arch:normalize_search_text(SearchText),
+                        normalize_search_text(SearchText),
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
