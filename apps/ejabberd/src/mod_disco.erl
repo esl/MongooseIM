@@ -140,7 +140,7 @@ process_local_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} =
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
             Host = To#jid.lserver,
 
-            Acc = mongoose_perdix:new(),
+            Acc = mongoose_stanza:new(),
             Acc2 = ejabberd_hooks:run_fold(disco_local_items,
                                          Host,
                                          Acc2,
@@ -149,7 +149,7 @@ process_local_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} =
                 {error, Error} ->
                     IQ#iq{type = error, sub_el = [SubEl, Error]};
                 _ ->
-                    Items = mongoose_perdix:get(local_items, Acc2, []),
+                    Items = mongoose_stanza:get(local_items, Acc2, []),
                     ANode = case Node of
                                 <<>> -> [];
                                 _ -> [{<<"node">>, Node}]
@@ -172,7 +172,7 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
         get ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            A1 = mongoose_perdix:new(#{local_identity => [], info => [], features => []}),
+            A1 = mongoose_stanza:new(#{local_identity => [], info => [], features => []}),
             A2 = ejabberd_hooks:run_fold(disco_local_identity,
                                                Host,
                                                A1,
@@ -183,7 +183,7 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
                                          Host,
                                          A3,
                                          [From, To, Node, Lang]),
-            case mongoose_perdix:to_map(Res) of
+            case mongoose_stanza:to_map(Res) of
                 #{features := Features, info := Info, local_identity := Identity} ->
                     ANode = case Node of
                                 <<>> -> [];
@@ -211,7 +211,7 @@ get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
                    attrs = [{<<"category">>, <<"server">>},
                             {<<"type">>, <<"im">>},
                             {<<"name">>, <<"MongooseIM">>}]}],
-    mongoose_perdix:append(local_identity, NIds, Acc);
+    mongoose_stanza:append(local_identity, NIds, Acc);
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
@@ -228,10 +228,10 @@ get_local_features(Acc, _From, To, <<>>, _Lang) ->
 %%                {result, Features} -> Features;
 %%                empty -> []
 %%            end,
-    Feats = mongoose_perdix:get(features, Acc, []),
+    Feats = mongoose_stanza:get(features, Acc, []),
     Host = To#jid.lserver,
     NFeats = ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats,
-    mongoose_perdix:put(features, NFeats, Acc);
+    mongoose_stanza:put(features, NFeats, Acc);
 
 %%    {result,
 %%     ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats};
@@ -286,7 +286,7 @@ get_local_services(Acc, _From, To, <<>>, _Lang) ->
                  ets:select(disco_extra_domains,
                             [{{{'$1', Host}}, [], ['$1']}]))
        ),
-     mongoose_perdix:append(local_items, NItems, Acc);
+     mongoose_stanza:append(local_items, NItems, Acc);
 get_local_services({result, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_services(empty, _From, _To, _Node, _Lang) ->
@@ -323,7 +323,7 @@ process_sm_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ
                 true ->
                     Host = To#jid.lserver,
                     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-                    Acc = mongoose_perdix:new(),
+                    Acc = mongoose_stanza:new(),
                     case ejabberd_hooks:run_fold(disco_sm_items,
                                                  Host,
                                                  Acc,
@@ -331,7 +331,7 @@ process_sm_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ
                         {error, Error} ->
                             IQ#iq{type = error, sub_el = [SubEl, Error]};
                         Acc1 ->
-                            Items = mongoose_perdix:get(sm_items, Acc1, []),
+                            Items = mongoose_stanza:get(sm_items, Acc1, []),
                             ANode = case Node of
                                         <<>> -> [];
                                         _ -> [{<<"node">>, Node}]
@@ -361,7 +361,7 @@ get_sm_items(Acc, From,
 %%                {result, Its} -> Its;
 %%                empty -> []
 %%            end,
-    Items = mongoose_perdix:get(sm_items, Acc, []),
+    Items = mongoose_stanza:get(sm_items, Acc, []),
     case Items of
         [] ->
             get_sm_items(empty, From, To, [], Lang);
@@ -372,7 +372,7 @@ get_sm_items(Acc, From,
                            _ ->
                                []
                         end,
-            mongoose_perdix:append(sm_items, Items1, Acc)
+            mongoose_stanza:append(sm_items, Items1, Acc)
     end;
 get_sm_items({result, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
@@ -412,7 +412,7 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
                 true ->
                     Host = To#jid.lserver,
                     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-                    Acc = mongoose_perdix:new(),
+                    Acc = mongoose_stanza:new(),
                     Acc1 = ejabberd_hooks:run_fold(disco_sm_identity,
                                                        Host,
                                                        Acc,
@@ -425,8 +425,8 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
                         {error, Error} ->
                             IQ#iq{type = error, sub_el = [SubEl, Error]};
                         _ ->
-                            Features = mongoose_perdix:get(sm_features, Acc2, []),
-                            Identity = mongoose_perdix:get(sm_identity, Acc2, []),
+                            Features = mongoose_stanza:get(sm_features, Acc2, []),
+                            Identity = mongoose_stanza:get(sm_identity, Acc2, []),
                             ANode = case Node of
                                         <<>> -> [];
                                         _ -> [{<<"node">>, Node}]
@@ -449,7 +449,7 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> [jlib:xmlel()].
 get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
-    Ids = mongoose_perdix:get(sm_identity, Acc, []),
+    Ids = mongoose_stanza:get(sm_identity, Acc, []),
     Id = case ejabberd_auth:is_user_exists(LUser, LServer) of
             true ->
                [#xmlel{name = <<"identity">>, attrs = [{<<"category">>, <<"account">>},
@@ -458,7 +458,7 @@ get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) 
             _ ->
                []
          end,
-    mongoose_perdix:put(sm_identity, Ids ++ Id, Acc).
+    mongoose_stanza:put(sm_identity, Ids ++ Id, Acc).
 
 
 -spec get_sm_features(map(),
@@ -467,7 +467,7 @@ get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) 
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> any().
 get_sm_features(Acc, From, To, _Node, _Lang) ->
-    case mongoose_perdix:get(sm_features, Acc, []) of
+    case mongoose_stanza:get(sm_features, Acc, []) of
         [] ->
             #jid{luser = LFrom, lserver = LSFrom} = From,
             #jid{luser = LTo, lserver = LSTo} = To,
@@ -514,7 +514,7 @@ get_info(Acc, Host, Mod, Node, _Lang) when Node == [] ->
                                children = [#xmlel{name = <<"value">>,
                                                   children = [#xmlcdata{content = ?NS_SERVERINFO}]}]}]
                      ++ Serverinfo_fields}],
-    mongoose_perdix:append(info, Info, Acc);
+    mongoose_stanza:append(info, Info, Acc);
 get_info(Acc, _, _, _Node, _) ->
     Acc.
 

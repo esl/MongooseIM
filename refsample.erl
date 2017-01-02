@@ -39,20 +39,20 @@ processing(El) ->
     ok.
 
 processing_stage_one(El, _Arg1, _Arg2) ->
-    Acc = mongoose_perdix:new(#{element => El}),
+    Acc = mongoose_stanza:new(#{element => El}),
     Acc2 = ejabberd_hooks:run_fold(a_hook, [Acc]),
     something_with_result(Acc2),
     ok.
 
 processing_stage_two(El, _Arg3) ->
-    Acc = mongoose_perdix:new(#{element => El}),
+    Acc = mongoose_stanza:new(#{element => El}),
     ejabberd_hooks:run(another_hook, [Acc]),
     ok.
 
 something_with_result(Acc) ->
-    R = mongoose_perdix:get(sthg, Acc),
+    R = mongoose_stanza:get(sthg, Acc),
     Nr = do_something_with_result(R),
-    mongoose_perdix:put(sthg, Nr, Acc).
+    mongoose_stanza:put(sthg, Nr, Acc).
 
 do_something_with_result(Res) ->
     ok.
@@ -60,7 +60,7 @@ do_something_with_result(Res) ->
 %%%% STAGE TWO - FOLLOW %%%%
 
 processing(El) ->
-    Acc = mongoose_perdix:new(#{element => El}),
+    Acc = mongoose_stanza:new(#{element => El}),
     Acc2 = processing_stage_one(Acc, 1, 2),
     Acc3 = processing_stage_two(Acc2, 3),
     Acc3.
@@ -75,9 +75,9 @@ processing_stage_two(Acc, _Arg3) ->
     Acc1.
 
 something_with_result(Acc) ->
-    R = mongoose_perdix:get(sthg, Acc),
+    R = mongoose_stanza:get(sthg, Acc),
     Nr = do_something_with_result(R),
-    mongoose_perdix:put(sthg, Nr, Acc).
+    mongoose_stanza:put(sthg, Nr, Acc).
 
 do_something_with_result(Res) ->
     ok.

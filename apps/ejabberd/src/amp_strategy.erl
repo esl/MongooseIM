@@ -22,7 +22,7 @@ determine_strategy(Acc, _, To, _, Event) ->
     Strategy = #amp_strategy{deliver = Deliver,
                   'match-resource' = MatchResource,
                   'expire-at' = undefined},
-    mongoose_perdix:put(strategy, Strategy, Acc).
+    mongoose_stanza:put(strategy, Strategy, Acc).
 
 %% @doc This strategy will never be matched by any amp_rules.
 %% Use it as a seed parameter to ejaberd_hooks:run_fold

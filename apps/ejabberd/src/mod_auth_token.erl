@@ -215,9 +215,9 @@ do_authenticate(SerializedToken) ->
     end.
 
 set_vcard(Domain, #jid{} = User, #xmlel{} = VCard) ->
-    Acc = mongoose_perdix:new(#{handler => {error, no_handler_defined}}),
+    Acc = mongoose_stanza:new(#{handler => {error, no_handler_defined}}),
     Acc1 = ejabberd_hooks:run_fold(set_vcard, Domain, Acc, [User, VCard]),
-    mongoose_perdix:get(handler, Acc1).
+    mongoose_stanza:get(handler, Acc1).
 
 
 validate_token(Token) ->

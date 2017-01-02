@@ -12,8 +12,8 @@
 
 -spec verify_support(any(), amp_rules()) -> [ amp_rule_support() ].
 verify_support(Acc, Rules) ->
-    Supp = mongoose_perdix:get(supported, Acc),
-    mongoose_perdix:put(supported, Supp ++ [ verify_rule_support(Rule) || Rule <- Rules ], Acc).
+    Supp = mongoose_stanza:get(supported, Acc),
+    mongoose_stanza:put(supported, Supp ++ [ verify_rule_support(Rule) || Rule <- Rules ], Acc).
 
 -spec verify_rule_support(amp_rule()) -> amp_rule_support().
 verify_rule_support(#amp_rule{action = alert} = Rule) ->

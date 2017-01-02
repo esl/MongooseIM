@@ -502,7 +502,7 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
           Lang   :: binary())
         -> [xmlel()].
 disco_local_identity(Acc, _From, To, <<>>, _Lang) ->
-    Ids = mongoose_perdix:get(local_identity, Acc, []),
+    Ids = mongoose_stanza:get(local_identity, Acc, []),
     NIds = case lists:member(?PEPNODE, plugins(To#jid.lserver)) of
         true ->
             [#xmlel{name = <<"identity">>,
@@ -525,13 +525,13 @@ disco_local_identity(Acc, _From, _To, _Node, _Lang) ->
         -> [binary(),...].
 disco_local_features(Acc, _From, To, <<>>, _Lang) ->
     Host = To#jid.lserver,
-    Feats = mongoose_perdix:get(features, Acc, []),
+    Feats = mongoose_stanza:get(features, Acc, []),
 %%    Feats = case Acc of
 %%                {result, I} -> I;
 %%                _ -> []
 %%            end,
     NFeats = Feats ++ [feature(F) || F <- features(Host, <<>>)],
-    mongoose_perdix:put(features, NFeats, Acc);
+    mongoose_stanza:put(features, NFeats, Acc);
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -548,10 +548,10 @@ disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 %%disco_sm_identity(empty, From, To, Node, Lang) ->
 %%    disco_sm_identity([], From, To, Node, Lang);
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
-    Ids = mongoose_perdix:get(sm_identity, Acc, []),
+    Ids = mongoose_stanza:get(sm_identity, Acc, []),
     NIds = disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
         ++ Ids,
-    mongoose_perdix:put(sm_identity, NIds, Acc).
+    mongoose_stanza:put(sm_identity, NIds, Acc).
 
 disco_identity(_Host, <<>>, _From) ->
     [#xmlel{name = <<"identity">>,
@@ -591,10 +591,10 @@ disco_identity(Host, Node, From) ->
 %%disco_sm_features(empty, From, To, Node, Lang) ->
 %%    disco_sm_features({result, []}, From, To, Node, Lang);
 disco_sm_features(#{sm_features := OtherFeatures} = Acc, From, To, Node, _Lang) ->
-    OtherFeatures = mongoose_perdix:get(sm_features, Acc, []),
+    OtherFeatures = mongoose_stanza:get(sm_features, Acc, []),
     NFeat = OtherFeatures ++
         disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
-    mongoose_perdix:put(sm_features, NFeat, Acc).
+    mongoose_stanza:put(sm_features, NFeat, Acc).
 %%disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 disco_features(Host, <<>>, _From) ->
@@ -627,9 +627,9 @@ disco_features(Host, Node, From) ->
 %%    disco_sm_items({result, []}, From, To, Node, Lang);
 disco_sm_items(Acc, From, To, Node, _Lang) ->
 %%    {result, lists:usort(OtherItems ++ disco_items(jid:to_lower(jid:to_bare(To)), Node, From))};
-    OtherItems = mongoose_perdix:get(sm_items, Acc, []),
+    OtherItems = mongoose_stanza:get(sm_items, Acc, []),
     NItems = lists:usort(OtherItems ++ disco_items(jid:to_lower(jid:to_bare(To)), Node, From)),
-    mongoose_perdix:put(sm_items, NItems, Acc).
+    mongoose_stanza:put(sm_items, NItems, Acc).
 %%disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_items(
@@ -952,9 +952,9 @@ do_route(ServerHost, Access, Plugins, Host, From, To, Packet) ->
                             #xmlel{attrs = QAttrs} = SubEl,
                             Node = xml:get_attr_s(<<"node">>, QAttrs),
                             InfoResp = ejabberd_hooks:run_fold(disco_info, ServerHost,
-                                                           mongoose_perdix:new(),
+                                                           mongoose_stanza:new(),
                                                            [ServerHost, ?MODULE, <<>>, <<>>]),
-                            Info = mongoose_perdix:get(info, InfoResp, []),
+                            Info = mongoose_stanza:get(info, InfoResp, []),
                             Res = case iq_disco_info(Host, Node, From, Lang) of
                                       {result, IQRes} ->
                                           jlib:iq_to_xml(IQ#iq{type = result,

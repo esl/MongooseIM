@@ -299,9 +299,9 @@ unsafe_set_vcard(From, VCARD) ->
     ?BACKEND:set_vcard(FromUser, FromVHost, VCARD, VcardSearch).
 
 set_vcard(Acc, From, VCARD) ->
-    H = mongoose_perdix:get(handler, Acc),
+    H = mongoose_stanza:get(handler, Acc),
     Nh = do_set_vcard(H, From, VCARD),
-    mongoose_perdix:put(handler, Nh, Acc).
+    mongoose_stanza:put(handler, Nh, Acc).
 
 -spec do_set_vcard(HandlerAcc, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
@@ -326,7 +326,7 @@ do_set_vcard({error, _} = E, _From, _VCARD) -> E.
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_features(Acc, _From, _To, Node, _Lang) ->
-%%    Feat = mongoose_perdix:get(features, Acc, []),
+%%    Feat = mongoose_stanza:get(features, Acc, []),
     NFeat = case Node of
         <<>> ->
             ?NS_VCARD;
@@ -339,7 +339,7 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
         _ ->
             []
     end,
-    mongoose_perdix:append(features, NFeat, Acc).
+    mongoose_stanza:append(features, NFeat, Acc).
 
 %% #rh
 remove_user(Acc, User, Server) ->

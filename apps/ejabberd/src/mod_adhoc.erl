@@ -97,7 +97,7 @@ get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
                             attrs = [{<<"jid">>, LServer},
                                      {<<"node">>, ?NS_COMMANDS},
                                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
-            mongoose_perdix:append(local_items, Nodes, Acc)
+            mongoose_stanza:append(local_items, Nodes, Acc)
     end;
 get_local_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
     ejabberd_hooks:run_fold(adhoc_local_items, LServer, #{result => []}, [From, To, Lang]);
@@ -123,11 +123,11 @@ get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
                             attrs = [{<<"jid">>, jid:to_binary(To)},
                                      {<<"node">>, ?NS_COMMANDS},
                                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
-            mongoose_perdix:append(sm_commands, Nodes, Acc)
+            mongoose_stanza:append(sm_commands, Nodes, Acc)
     end;
 
 get_sm_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    ejabberd_hooks:run_fold(adhoc_sm_items, LServer, mongoose_perdix:new(#{result => []}), [From, To, Lang]);
+    ejabberd_hooks:run_fold(adhoc_sm_items, LServer, mongoose_stanza:new(#{result => []}), [From, To, Lang]);
 
 get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
@@ -142,7 +142,7 @@ get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
                          ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_local_identity(Acc, From, To, Ns, Lang) ->
     LId = do_get_local_identity(From, To, Ns, Lang),
-    mongoose_perdix:append(local_identity, LId, Acc).
+    mongoose_stanza:append(local_identity, LId, Acc).
 
 do_get_local_identity(_From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
@@ -186,14 +186,14 @@ get_local_features(Acc, _From, _To, <<"">>, _Lang) ->
 %%                {result, I} -> I;
 %%                _ -> []
 %%            end,
-    Feats = mongoose_perdix:get(features, Acc, []),
-    mongoose_perdix:put(features, Feats ++ [?NS_COMMANDS], Acc);
+    Feats = mongoose_stanza:get(features, Acc, []),
+    mongoose_stanza:put(features, Feats ++ [?NS_COMMANDS], Acc);
 get_local_features(Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
-    mongoose_perdix:put(features, [], Acc);
+    mongoose_stanza:put(features, [], Acc);
 get_local_features(Acc, _From, _To, <<"ping">>, _Lang) ->
     %% override all lesser features...
-    mongoose_perdix:put(features, [?NS_COMMANDS], Acc);
+    mongoose_stanza:put(features, [?NS_COMMANDS], Acc);
 get_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -205,11 +205,11 @@ get_local_features(Acc, _From, _To, _Node, _Lang) ->
                              NS :: binary(),
                              ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = mongoose_perdix:get(sm_features, Acc, []),
-    mongoose_perdix:put(sm_features, Feats ++ [?NS_COMMANDS], Acc);
+    Feats = mongoose_stanza:get(sm_features, Acc, []),
+    mongoose_stanza:put(sm_features, Feats ++ [?NS_COMMANDS], Acc);
 get_sm_features(Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
-    mongoose_perdix:put(sm_features, [], Acc);
+    mongoose_stanza:put(sm_features, [], Acc);
 get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 

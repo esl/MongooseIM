@@ -330,10 +330,10 @@ remove_user(Acc, User, Server) ->
     Acc.
 
 sm_filter_offline_message(Acc, _From, _To, Packet) ->
-    case mongoose_perdix:get(drop, Acc) of
+    case mongoose_stanza:get(drop, Acc) of
         false ->
             %% If ...
-            mongoose_perdix:put(drop, is_mam_result_message(Packet), Acc);
+            mongoose_stanza:put(drop, is_mam_result_message(Packet), Acc);
             %% ... than drop the message
         _ ->
             Acc
@@ -638,9 +638,9 @@ handle_purge_single_message(ArcJID=#jid{},
     return_purge_single_message_iq(IQ, PurgingResult).
 
 determine_amp_strategy(Acc, FromJID, ToJID, Packet, Arg) ->
-    Strategy = mongoose_perdix:get(strategy, Acc),
+    Strategy = mongoose_stanza:get(strategy, Acc),
     NStrategy = do_determine_amp_strategy(Strategy, FromJID, ToJID, Packet, Arg),
-    mongoose_perdix:put(strategy, NStrategy, Acc).
+    mongoose_stanza:put(strategy, NStrategy, Acc).
 
 do_determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        FromJID, ToJID, Packet, initial_check) ->

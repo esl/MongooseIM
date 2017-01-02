@@ -322,7 +322,7 @@ init() ->
 %%%% end of API
 -spec register_commands([t()]) -> ok.
 register_commands(Commands) ->
-    register_commands(mongoose_perdix:new(), Commands).
+    register_commands(mongoose_stanza:new(), Commands).
 register_commands(Acc, []) ->
     Acc;
 register_commands(Acc, [Command|Tail]) ->
@@ -341,7 +341,7 @@ register_commands(Acc, [Command|Tail]) ->
 
 -spec unregister_commands([t()]) -> ok.
 unregister_commands(Commands) ->
-    unregister_commands(mongoose_perdix:new(), Commands).
+    unregister_commands(mongoose_stanza:new(), Commands).
 
 unregister_commands(Acc, []) ->
     Acc;

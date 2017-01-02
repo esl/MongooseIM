@@ -66,8 +66,8 @@ check_packet(Packet, _, _) ->
 
 add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
     Features = result_or(Acc, []) ++ amp_features(),
-    Features = mongoose_perdix:get(features, Acc, []) ++ amp_features(),
-    mongoose_perdix:put(features, Features, Acc);
+    Features = mongoose_stanza:get(features, Acc, []) ++ amp_features(),
+    mongoose_stanza:put(features, Features, Acc);
 add_local_features(Acc, _From, _To, _NS, _Lang) ->
     Acc.
 
@@ -122,17 +122,17 @@ process_amp_rules(Packet, From, Event, Rules) ->
 %% @doc ejabberd_hooks helpers
 -spec verify_support(binary(), amp_rules()) -> [amp_rule_support()].
 verify_support(Host, Rules) ->
-    Res = ejabberd_hooks:run_fold(amp_verify_support, Host, mongoose_perdix:new(#{supported => []}),
+    Res = ejabberd_hooks:run_fold(amp_verify_support, Host, mongoose_stanza:new(#{supported => []}),
                                   [Rules]),
-    mongoose_perdix:get(supported, Res).
+    mongoose_stanza:get(supported, Res).
 
 -spec determine_strategy(#xmlel{}, jid(), amp_event()) -> amp_strategy().
 determine_strategy(Packet, From, Event) ->
     To = message_target(Packet),
     Res = ejabberd_hooks:run_fold(amp_determine_strategy, host(From),
-                            mongoose_perdix:new(#{strategy => amp_strategy:null_strategy()}),
+                            mongoose_stanza:new(#{strategy => amp_strategy:null_strategy()}),
                             [From, To, Packet, Event]),
-    mongoose_perdix:get(strategy, Res).
+    mongoose_stanza:get(strategy, Res).
 
 -spec fold_apply_rules(#xmlel{}, jid(), amp_strategy(), [amp_rule()]) ->
                               no_match | {matched | undecided, amp_rule()}.

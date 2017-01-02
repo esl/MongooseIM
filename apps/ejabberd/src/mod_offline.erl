@@ -250,9 +250,9 @@ srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
 
 determine_amp_strategy(Acc, FromJID, ToJID, Packet, Arg) ->
-    Strategy = mongoose_perdix:get(strategy, Acc),
+    Strategy = mongoose_stanza:get(strategy, Acc),
     NStrategy = do_determine_amp_strategy(Strategy, FromJID, ToJID, Packet, Arg),
-    mongoose_perdix:put(strategy, NStrategy, Acc).
+    mongoose_stanza:put(strategy, NStrategy, Acc).
 
 do_determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        _FromJID, ToJID, _Packet, initial_check) ->
@@ -350,13 +350,13 @@ get_features(Key, Acc, _From, _To, <<"">> = _Node, _Lang) ->
     add_feature(Key, Acc, ?NS_FEATURE_MSGOFFLINE);
 get_features(Key, Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
     %% override all lesser features...
-    mongoose_perdix:put(Key, [], Acc);
+    mongoose_stanza:put(Key, [], Acc);
 get_features(_Key, Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 add_feature(Key, Acc, Feature) ->
-    Features = mongoose_perdix:get(Key, Acc),
-    mongoose_perdix:put(Key, Features ++ [Feature], Acc).
+    Features = mongoose_stanza:get(Key, Acc),
+    mongoose_stanza:put(Key, Features ++ [Feature], Acc).
 %%add_feature(_, Feature) ->
 %%    {result, [Feature]}.
 
