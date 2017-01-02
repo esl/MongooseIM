@@ -143,7 +143,7 @@ process_local_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} =
             Acc = mongoose_stanza:new(),
             Acc2 = ejabberd_hooks:run_fold(disco_local_items,
                                          Host,
-                                         Acc2,
+                                         Acc,
                                          [From, To, Node, Lang]),
             case Acc2 of
                 {error, Error} ->

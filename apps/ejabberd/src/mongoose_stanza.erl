@@ -29,6 +29,15 @@ to_map(P) ->
 put(Key, Val, P) ->
     maps:put(Key, Val, P).
 
+get([], _) ->
+    undefined;
+get([Key|Keys], P) ->
+    case maps:is_key(Key, P) of
+        true ->
+            maps:get(Key, P);
+        _ ->
+            get(Keys, P)
+    end;
 get(Key, P) ->
     maps:get(Key, P).
 

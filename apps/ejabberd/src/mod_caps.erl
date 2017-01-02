@@ -183,18 +183,17 @@ user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
 
 -spec caps_stream_features([xmlel()], binary()) -> [xmlel()].
 
-caps_stream_features(#{features := Feat} = Acc, MyHost) ->
+caps_stream_features(Acc, MyHost) ->
     NFeat = case make_my_disco_hash(MyHost) of
-        <<"">> -> Feat;
+        <<"">> -> [];
         Hash ->
             [#xmlel{name = <<"c">>,
                     attrs =
                         [{<<"xmlns">>, ?NS_CAPS}, {<<"hash">>, <<"sha-1">>},
                          {<<"node">>, ?MONGOOSE_URI}, {<<"ver">>, Hash}],
-                    children = []}
-             | Feat]
+                    children = []}]
     end,
-    maps:put(features, NFeat, Acc).
+    mongoose_stanza:append(enabled_features, NFeat, Acc).
 
 disco_features(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
@@ -225,8 +224,8 @@ disco_info(Acc, Host, Module, Node, Lang) ->
             Acc
     end.
 
-c2s_presence_in(#{c2s_state := C2SState} = Acc,
-                {From, To, {_, _, Attrs, Els}}) ->
+c2s_presence_in(Acc, {From, To, {_, _, Attrs, Els}}) ->
+    C2SState = mongoose_stanza:get(c2s_state, Acc),
     ?DEBUG("Presence to ~p from ~p with Els ~p", [To, From, Els]),
     Type = xml:get_attr_s(<<"type">>, Attrs),
     Subscription = ejabberd_c2s:get_subscription(From,
@@ -267,7 +266,7 @@ c2s_presence_in(#{c2s_state := C2SState} = Acc,
                     end,
             NState = ejabberd_c2s:set_aux_field(caps_resources, NewRs,
                                        C2SState),
-            maps:put(state, NState, Acc);
+            mongoose_stanza:put(state, NState, Acc);
        _ -> Acc
     end.
 
@@ -279,9 +278,9 @@ c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
             case gb_trees:lookup(LTo, Rs) of
                 {value, Caps} ->
                     Drop = not lists:member(Feature, get_features(Host, Caps)),
-                    {stop, maps:put(drop, Drop, InAcc)};
+                    {stop, mongoose_stanza:put(drop, Drop, InAcc)};
                 none ->
-                    {stop, maps:put(drop, true, InAcc)}
+                    {stop, mongoose_stanza:put(drop, true, InAcc)}
             end;
         _ -> InAcc
     end;

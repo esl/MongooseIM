@@ -379,11 +379,12 @@ maybe_sasl_mechanisms(Server) ->
     end.
 
 hook_enabled_features(Server) ->
-    #{features := Features} = ejabberd_hooks:run_fold(c2s_stream_features,
-                                                      Server,
-                                                      #{features => []},
-                                                      [Server]),
-    Features.
+    Acc = mongoose_stanza:from_kv(enabled_features, []),
+    Acc1 = ejabberd_hooks:run_fold(c2s_stream_features,
+                                   Server,
+                                   Acc,
+                                   [Server]),
+    mongoose_stanza:get(enabled_features, Acc1).
 
 starttls(TLSRequired)
   when TLSRequired =:= required;
@@ -958,10 +959,12 @@ process_outgoing_stanza(error, _Name, Args) ->
     end;
 process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
     {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
-    #{packet := PresenceEl} = ejabberd_hooks:run_fold(c2s_update_presence,
+    Acc = mongoose_stanza:from_element(NewEl),
+    Res = ejabberd_hooks:run_fold(c2s_update_presence,
                                          Server,
-                                         #{packet => NewEl},
+                                         Acc,
                                          [User, Server]),
+    PresenceEl = mongoose_stanza:get(element, Res),
     ejabberd_hooks:run(user_send_packet,
                        Server,
                        [FromJID, ToJID, PresenceEl]),
@@ -1153,10 +1156,11 @@ handle_info({force_update_presence, LUser}, StateName,
     end,
     {next_state, StateName, NewStateData};
 handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
+    Acc = mongoose_stanza:from_kv(drop, true),
     Res = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
-				   #{drop => true}, [StateData#state.server, StateData,
+				   Acc, [StateData#state.server, StateData,
 					  Feature, To, Packet]),
-    case maps:get(drop, Res) of
+    case mongoose_stanza:get(drop, Res) of
         true ->
             ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]),
             fsm_next_state(StateName, StateData);
@@ -1352,8 +1356,10 @@ privacy_list_push_iq(PrivListName) ->
 -spec handle_routed_presence(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel(),
                             StateData :: state()) -> routing_result().
 handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
-    #{c2s_state := State} = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
-                                    #{c2s_state => StateData}, [{From, To, Packet}]),
+    Acc = mongoose_stanza:from_kv(c2s_state, StateData),
+    Acc1 = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
+                                    Acc, [{From, To, Packet}]),
+    State = mongoose_stanza:get(c2s_state, Acc1),
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"probe">> ->
             {LFrom, LBFrom} = lowcase_and_bare(From),
@@ -2276,12 +2282,13 @@ process_unauthenticated_stanza(StateData, El) ->
             end,
     case jlib:iq_query_info(NewEl) of
         #iq{} = IQ ->
+            Acc = mongoose_stanza:new(),
             Res = ejabberd_hooks:run_fold(c2s_unauthenticated_iq,
                                           StateData#state.server,
-                                          #{},
+                                          Acc,
                                           [StateData#state.server, IQ,
                                            StateData#state.ip]),
-            case Res of
+            case mongoose_stanza:to_map(Res) of
                 #{} ->
                     % The only reasonable IQ's here are auth and register IQ's
                     % They contain secrets, so don't include subelements to response
@@ -2348,10 +2355,9 @@ fsm_reply(Reply, StateName, StateData) ->
 is_ip_blacklisted(undefined) ->
     false;
 is_ip_blacklisted({IP,_Port}) ->
-    #{is_ip_blacklisted := Res} = ejabberd_hooks:run_fold(check_bl_c2s,
-                                                          #{is_ip_blacklisted => false},
-                                                          [IP]),
-    Res.
+    Acc = mongoose_stanza:from_kv(is_ip_blacklisted, false),
+    Res = ejabberd_hooks:run_fold(check_bl_c2s, Acc, [IP]),
+    mongoose_stanza:get(is_ip_blacklisted, Res).
 
 
 %% @doc Check from attributes.

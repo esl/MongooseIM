@@ -13,11 +13,16 @@
 -export([do_route/5]).
 
 
-do_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
+do_route(From, To, OrigPacket, LDstDomain, Handler) ->
+    Acc = mongoose_stanza:from_element(OrigPacket),
+    Acc1 = mongoose_stanza:put(from, From, Acc),
+    Acc2 = mongoose_stanza:put(to, To, Acc1),
+    Acc3 = mongoose_stanza:put(routing_decision, send, Acc2),
     %% Filter locally
-    case ejabberd_hooks:run_fold(filter_local_packet, LDstDomain,
-        {OrigFrom, OrigTo, OrigPacket}, []) of
-        {From, To, Packet} ->
+    Acc4 = ejabberd_hooks:run_fold(filter_local_packet, LDstDomain, Acc3, []),
+    case mongoose_stanza:get(routing_decision, Acc4) of
+        send ->
+            Packet = mongoose_stanza:get(element, Acc4),
             case Handler of
                 {apply_fun, Fun} ->
                     Fun(From, To, Packet);
@@ -26,7 +31,7 @@ do_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
             end;
         drop ->
             ejabberd_hooks:run(xmpp_stanza_dropped,
-                OrigFrom#jid.lserver,
-                [OrigFrom, OrigTo, OrigPacket]),
+                From#jid.lserver,
+                [From, To, OrigPacket]),
             ok
     end.

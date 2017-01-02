@@ -29,9 +29,10 @@ stop(Host) ->
 hooks() ->
     [{c2s_stream_features, ?MODULE, add_csi_feature, 60}].
 
-add_csi_feature(#{features := Feat} = Acc, _Host) ->
+add_csi_feature(Acc, _Host) ->
+    Feat = mongoose_stanza:get(enabled_features, Acc),
     NFeat = lists:keystore(<<"csi">>, #xmlel.name, Feat, csi()),
-    maps:put(features, NFeat, Acc).
+    mongoose_stanza:put(enabled_features, NFeat, Acc).
 
 csi() ->
     #xmlel{name = <<"csi">>,

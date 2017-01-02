@@ -3,12 +3,12 @@ Fold:
 v adhoc_sm_items
 v amp_determine_strategy
 v amp_verify_support
-c2s_filter_packet
-c2s_presence_in
-c2s_stream_features
-c2s_unauthenticated_iq
-c2s_update_presence
-check_bl_c2s
+v c2s_filter_packet
+v c2s_presence_in
+v c2s_stream_features
+v c2s_unauthenticated_iq
+v c2s_update_presence
+v check_bl_c2s
 v disco_info
 v disco_local_features
 v disco_local_identity
@@ -16,13 +16,13 @@ v disco_local_items
 v disco_sm_features
 v disco_sm_identity
 v disco_sm_items
-ejabberd_ctl_process
-failed_to_store_message
-filter_local_packet
-filter_packet
-filter_room_packet
-find_s2s_bridge
-get_key
+- ejabberd_ctl_process
+v failed_to_store_message
+v filter_local_packet
+v filter_packet
+??? filter_room_packet
+? find_s2s_bridge
+? get_key
 host_config_update
 is_muc_room_owner
 mam_archive_id

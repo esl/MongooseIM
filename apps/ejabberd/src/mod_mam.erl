@@ -295,9 +295,14 @@ user_send_packet(Acc, From, To, Packet) ->
                     To :: ejabberd:jid(),
                     Packet :: jlib:xmlel()}.
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
-filter_packet(drop) ->
-    drop;
-filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
+%%filter_packet(drop) ->
+%%    drop;
+%%filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
+filter_packet(Acc) ->
+    Packet = mongoose_stanza:get(element, Acc),
+    From = mongoose_stanza:get(from, Acc),
+    To = mongoose_stanza:get(to, Acc),
+    #jid{luser=LUser, lserver=LServer} = To,
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
     {AmpEvent, PacketAfterArchive} =
@@ -317,7 +322,7 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
                 end
         end,
     PacketAfterAmp = mod_amp:check_packet(PacketAfterArchive, From, AmpEvent),
-    {From, To, PacketAfterAmp}.
+    PacketAfterAmp.
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
