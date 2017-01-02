@@ -9,14 +9,18 @@
 -author("bartek").
 
 %% API
--export([new/0, new/1, put/3, get/2, get/3, append/3, to_map/1]).
+-export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1]).
+-export([from_element/1]).
 
 
 new() ->
     #{}.
 
-new(A) when is_map(A) ->
-    A.
+from_kv(K, V) ->
+    maps:put(K, V, #{}).
+
+from_element(El) ->
+    #{element => El}.
 
 %% @doc convert to map so that we can pattern-match on it
 to_map(P) ->

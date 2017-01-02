@@ -3081,8 +3081,8 @@ user_allowed(JID, #state{server = Server, access = Access}) ->
 open_session_allowed_hook(Server, JID) ->
     Res = ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                                      Server,
-                                     mongoose_stanza:new(#{allowed => allow}), [JID]),
-    allow == mongoose_stanza:get(allowed, Res).
+                                     mongoose_stanza:from_kv(session_allowed, allow), [JID]),
+    allow == mongoose_stanza:get(session_allowed, Res).
 
 
 terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->

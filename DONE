@@ -2,7 +2,7 @@ Fold:
 
 v adhoc_sm_items
 v amp_determine_strategy
-> amp_verify_support
+v amp_verify_support
 c2s_filter_packet
 c2s_presence_in
 c2s_stream_features

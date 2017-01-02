@@ -656,7 +656,7 @@ do_route_no_resource(_, _, _, _, _) ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
 do_route_offline(<<"message">>, _, From, To, Packet)  ->
-    Acc = mongoose_stanza:new(#{drop => false}),
+    Acc = mongoose_stanza:from_kv(drop, false),
     Acc2 = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
                    Acc, [From, To, Packet]),
     Drop = mongoose_stanza:get(drop, Acc2),

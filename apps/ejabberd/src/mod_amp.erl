@@ -122,7 +122,7 @@ process_amp_rules(Packet, From, Event, Rules) ->
 %% @doc ejabberd_hooks helpers
 -spec verify_support(binary(), amp_rules()) -> [amp_rule_support()].
 verify_support(Host, Rules) ->
-    Res = ejabberd_hooks:run_fold(amp_verify_support, Host, mongoose_stanza:new(#{supported => []}),
+    Res = ejabberd_hooks:run_fold(amp_verify_support, Host, mongoose_stanza:from_kv(supported, []),
                                   [Rules]),
     mongoose_stanza:get(supported, Res).
 
@@ -130,7 +130,7 @@ verify_support(Host, Rules) ->
 determine_strategy(Packet, From, Event) ->
     To = message_target(Packet),
     Res = ejabberd_hooks:run_fold(amp_determine_strategy, host(From),
-                            mongoose_stanza:new(#{strategy => amp_strategy:null_strategy()}),
+                            mongoose_stanza:from_kv(strategy, amp_strategy:null_strategy()),
                             [From, To, Packet, Event]),
     mongoose_stanza:get(strategy, Res).
 

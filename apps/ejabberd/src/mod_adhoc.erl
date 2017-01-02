@@ -127,7 +127,7 @@ get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
     end;
 
 get_sm_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    ejabberd_hooks:run_fold(adhoc_sm_items, LServer, mongoose_stanza:new(#{result => []}), [From, To, Lang]);
+    ejabberd_hooks:run_fold(adhoc_sm_items, LServer, mongoose_stanza:from_kv(result, []), [From, To, Lang]);
 
 get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
