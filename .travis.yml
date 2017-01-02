@@ -74,9 +74,6 @@ cache:
         directories:
                 - $HOME/.cache/rebar3
 
-before_cache:
-        - rm -f $HOME/.cache/rebar3/hex
-
 deploy:
   provider: releases
   api-key: $GITHUB_TOKEN
