@@ -300,7 +300,7 @@ lookup_messages(_Result, _Host,
                 _Start, _End, _Now, _WithJID, <<_SearchText/binary>>,
                 _PageSize, _LimitPassed, _MaxResultLimit,
                 _IsSimple) ->
-    omg;
+    {error, 'not-supported'};
 lookup_messages(_Result, Host,
                 _UserID, UserJID, RSM, Borders,
                 Start, End, _Now, WithJID, _SearchText = undefined,
