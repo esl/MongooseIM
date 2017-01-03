@@ -56,11 +56,9 @@ check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
 
 -spec check_packet(#xmlel{}, jid(), amp_event()) -> #xmlel{} | drop.
 check_packet(Packet = #xmlel{name = <<"message">>}, #jid{lserver = Host} = From, Event) ->
-    #{packet := NPacket} = ejabberd_hooks:run_fold(amp_check_packet,
-                                                  Host,
-                                                  #{packet => Packet},
-                                                  [From, Event]),
-    NPacket;
+    Stanza = mongoose_stanza:from_element(Packet),
+    NStanza = ejabberd_hooks:run_fold(amp_check_packet, Host, Stanza, [From, Event]),
+    mongoose_stanza:get(element, NStanza);
 check_packet(Packet, _, _) ->
     Packet.
 
@@ -77,19 +75,21 @@ add_stream_feature(Acc, _Host) ->
     mongoose_stanza:put(enabled_features, NFeat, Acc).
 
 -spec amp_check_packet(map() | drop, jid(), amp_event()) -> map() | drop.
-amp_check_packet(#{packet := Packet} = Acc, From, Event) ->
-    case amp_check_packet(Packet, From, Event) of
-        NPacket -> maps:put(packet, NPacket, Acc);
-        drop -> drop
-    end;
-amp_check_packet(#xmlel{name = <<"message">>} = Packet, From, Event) ->
+amp_check_packet(Acc, From, Event) ->
+    Packet = mongoose_stanza:get(element, Acc),
+    case do_amp_check_packet(Packet, From, Event) of
+        drop -> mongoose_stanza:put(element, drop, Acc);
+        NPacket -> mongoose_stanza:put(element, NPacket, Acc)
+    end.
+
+do_amp_check_packet(#xmlel{name = <<"message">>} = Packet, From, Event) ->
     ?DEBUG("handle event ~p for packet ~p from ~p", [Event, Packet, From]),
     case amp:extract_requested_rules(Packet) of
         none                    -> Packet;
         {rules, Rules}          -> process_amp_rules(Packet, From, Event, Rules);
         {errors, Errors}        -> send_errors_and_drop(Packet, From, Errors)
     end;
-amp_check_packet(Packet, _From, _Event) -> Packet.
+do_amp_check_packet(Packet, _From, _Event) -> Packet.
 
 strip_amp_el_from_request(Packet) ->
     case amp:is_amp_request(Packet) of

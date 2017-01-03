@@ -322,7 +322,7 @@ filter_packet(Acc) ->
                 end
         end,
     PacketAfterAmp = mod_amp:check_packet(PacketAfterArchive, From, AmpEvent),
-    PacketAfterAmp.
+    mongoose_stanza:put(element, PacketAfterAmp, Acc).
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).

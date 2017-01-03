@@ -163,6 +163,9 @@ stop(Host) ->
 %% Server side functions
 %% ------------------------------------------------------------------
 
+amp_failed_event(#xmlel{} = Packet, From) ->
+    ?DEPRECATED,
+    amp_failed_event(mongoose_stanza:from_element(Packet), From);
 amp_failed_event(Acc, From) ->
     mod_amp:check_packet(mongoose_stanza:get(element, Acc), From, offline_failed),
     Acc.
