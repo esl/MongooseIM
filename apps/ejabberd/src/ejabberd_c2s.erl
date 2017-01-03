@@ -877,7 +877,9 @@ session_established({xmlstreamelement,
 
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
-    M = #{element=>El, from_jid=>FromJID, luser=>FromJID#jid.luser, lserver=>FromJID#jid.lserver},
+    #xmlel{name = Name} = El,
+    M = #{element=>El, from_jid=>FromJID, luser=>FromJID#jid.luser, lserver=>FromJID#jid.lserver,
+          name=>Name, original_element=>El},
     Stanza = ?INITIALISE(M),
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
     case check_from(El, FromJID) of
@@ -923,11 +925,12 @@ session_established(closed, StateData) ->
 %% connection)
 -spec process_outgoing_stanza(El :: jlib:xmlel(), state()) -> fsm_return().
 process_outgoing_stanza(Stanza, StateData) ->
-    El = ?TERMINATE(Stanza),
-    #xmlel{name = Name, attrs = Attrs} = El,
+    El = mongoose_stanza:get(element, Stanza),
+    Name = mongoose_stanza:get(name, Stanza),
+    #xmlel{attrs = Attrs} = El,
+    Type = xml:get_attr_s(<<"type">>, Attrs),
     User = StateData#state.user,
     Server = StateData#state.server,
-    FromJID = StateData#state.jid,
     To = xml:get_attr_s(<<"to">>, Attrs),
     ToJID = case To of
                 <<>> ->
@@ -935,8 +938,10 @@ process_outgoing_stanza(Stanza, StateData) ->
                 _ ->
                     jid:from_binary(To)
             end,
+    Stanza1 = mongoose_stanza:update(Stanza, #{to_jid=>ToJID, user=>User, server=>Server,
+                                               type=>Type}),
     NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El)),
-    NewEl = case xml:get_attr_s(<<"xml:lang">>, Attrs) of
+    NewEl2 = case xml:get_attr_s(<<"xml:lang">>, Attrs) of
                 <<>> ->
                     case StateData#state.lang of
                         <<>> -> NewEl1;
@@ -946,14 +951,15 @@ process_outgoing_stanza(Stanza, StateData) ->
                 _ ->
                     NewEl1
             end,
-    NewState = process_outgoing_stanza(ToJID, Name, {Attrs, NewEl, FromJID, StateData, Server, User}),
+    Stanza2 = mongoose_stanza:put(element, NewEl2, Stanza1),
+    NewState = process_outgoing_stanza(ToJID, Name, Stanza2, StateData),
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
     fsm_next_state(session_established, NewState).
 
 
-process_outgoing_stanza(error, _Name, Args) ->
-    {Attrs, NewEl, _FromJID, StateData, _Server, _User} = Args,
-    case xml:get_attr_s(<<"type">>, Attrs) of
+process_outgoing_stanza(error, _Name, Stanza, StateData) ->
+    NewEl = ?TERMINATE(Stanza),
+    case mongoose_stanza:get(type, Stanza) of
         <<"error">> -> StateData;
         <<"result">> -> StateData;
         _ ->
@@ -961,14 +967,15 @@ process_outgoing_stanza(error, _Name, Args) ->
             send_element(StateData, Err),
             StateData
     end;
-process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
-    {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
-    Acc = mongoose_stanza:from_element(NewEl),
-    Res = ejabberd_hooks:run_fold(c2s_update_presence,
+process_outgoing_stanza(ToJID, <<"presence">>, Stanza, StateData) ->
+    Server = mongoose_stanza:get(server, Stanza),
+    User = mongoose_stanza:get(user, Stanza),
+    FromJID = mongoose_stanza:get(from_jid, Stanza),
+    _Res = ejabberd_hooks:run_fold(c2s_update_presence,
                                          Server,
-                                         Acc,
+                                         Stanza,
                                          [User, Server]),
-    PresenceEl = mongoose_stanza:get(element, Res),
+    PresenceEl = ?TERMINATE(Stanza),
     ejabberd_hooks:run(user_send_packet,
                        Server,
                        [FromJID, ToJID, PresenceEl]),
@@ -984,8 +991,10 @@ process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
              presence_track(FromJID, ToJID, PresenceEl,
                             StateData)
     end;
-process_outgoing_stanza(ToJID, <<"iq">>, Args) ->
-    {_Attrs, NewEl, FromJID, StateData, Server, _User} = Args,
+process_outgoing_stanza(ToJID, <<"iq">>, Stanza, StateData) ->
+    FromJID = mongoose_stanza:get(from_jid, Stanza),
+    Server = mongoose_stanza:get(server, Stanza),
+    NewEl = ?TERMINATE(Stanza),
     case jlib:iq_query_info(NewEl) of
         #iq{xmlns = Xmlns} = IQ
             when Xmlns == ?NS_PRIVACY;
@@ -998,16 +1007,17 @@ process_outgoing_stanza(ToJID, <<"iq">>, Args) ->
             check_privacy_and_route(FromJID, StateData, FromJID, ToJID, NewEl),
             StateData
     end;
-process_outgoing_stanza(ToJID, <<"message">>, Args) ->
-    {_Attrs, NewEl, FromJID, StateData, Server, _User} = Args,
+process_outgoing_stanza(ToJID, <<"message">>, Stanza, StateData) ->
+    FromJID = mongoose_stanza:get(from_jid, Stanza),
+    Server = mongoose_stanza:get(server, Stanza),
+    NewEl = ?TERMINATE(Stanza),
     ejabberd_hooks:run(user_send_packet,
                        Server,
                        [FromJID, ToJID, NewEl]),
     check_privacy_and_route(FromJID, StateData, FromJID,
                             ToJID, NewEl),
     StateData;
-process_outgoing_stanza(_ToJID, _Name, Args) ->
-    {_Attrs, _NewEl, _FromJID, StateData, _Server, _User} = Args,
+process_outgoing_stanza(_ToJID, _Name, _Stanza, StateData) ->
     StateData.
 
 %%-------------------------------------------------------------------------
