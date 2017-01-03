@@ -88,23 +88,20 @@ msg_is_sent_and_delivered_over_sse(ConfigIn) ->
 
     stop_sse(Conn).
 
-msg_is_sent_and_delivered_over_sse_muc(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
-        RoomInfo = get_room_info({alice, Alice}, RoomID),
-        true = is_participant(Bob, <<"member">>, RoomInfo),
-        IQ = escalus_stanza:iq_get(<<"urn:xmpp:muclight:0#affiliations">>, []),
-        RoomJID = <<RoomID/binary, "@muclight.localhost">>,
-        escalus:send(Alice, escalus_stanza:to(IQ, RoomJID)),
-        escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Alice)),
-        Conn = connect_to_sse({bob, Bob}),
-        Message = <<"Hi group!">>,
-        escalus:send(Alice, escalus_stanza:groupchat_to(RoomJID, Message)),
-        Event = wait_for_event(Conn),
-        Data = jiffy:decode(maps:get(data, Event), [return_maps]),
-        Message = maps:get(<<"body">>, Data),
-        stop_sse(Conn)
-    end).
+msg_is_sent_and_delivered_over_sse_muc(ConfigIn) ->
+    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
+    Bob = escalus_users:get_userspec(Config, bob),
+    Alice = escalus_users:get_userspec(Config, alice),
+    RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+    RoomInfo = get_room_info({alice, Alice}, RoomID),
+    true = is_participant(Bob, <<"member">>, RoomInfo),
+    Conn = connect_to_sse({bob, Bob}),
+    Message = given_message_sent_to_room(RoomID, {alice, Alice}),
+    Event = wait_for_event(Conn),
+    Data = jiffy:decode(maps:get(data, Event), [return_maps]),
+    BobJID = user_jid(Bob),
+    assert_json_message(Message#{to => BobJID}, Data),
+    stop_sse(Conn).
 
 all_messages_are_archived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -181,7 +178,8 @@ user_is_invited_to_a_room(Config) ->
         RoomInfo = get_room_info({alice, Alice}, RoomID),
         true = is_participant(Bob, <<"member">>, RoomInfo),
         IQ = escalus_stanza:iq_get(<<"urn:xmpp:muclight:0#affiliations">>, []),
-        RoomJID = <<RoomID/binary, "@muclight.localhost">>,
+        Host = ct:get_config({hosts, mim, domain}),
+        RoomJID = <<RoomID/binary, "@muclight.",Host/binary>>,
         escalus:send(Alice, escalus_stanza:to(IQ, RoomJID)),
         escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Alice))
 
@@ -294,13 +292,17 @@ wait_for_room_msg(Msg, User) ->
     escalus:assert(is_groupchat_message, [maps:get(body, Msg)], Stanza).
 
 given_message_sent_to_room(RoomID, Sender) ->
-    Creds = credentials(Sender),
+    {UserJID, _} = Creds = credentials(Sender),
     Path = <<"/rooms/", RoomID/binary, "/messages">>,
     Body = #{body => <<"Hi all!">>},
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(Path, Body, Creds),
     MsgId = proplists:get_value(<<"id">>, Result),
     true = is_binary(MsgId),
-    Body#{id => MsgId}.
+
+    Host = ct:get_config({hosts, mim, domain}),
+    RoomJID = <<RoomID/binary, "@muclight.",Host/binary>>,
+    From = <<RoomJID/binary, "/", UserJID/binary>>,
+    Body#{id => MsgId, from => From}.
 
 given_new_room_with_users(Owner, Users) ->
     RoomID = given_new_room(Owner),
@@ -313,12 +315,16 @@ given_new_room(Owner) ->
     create_room(Creds, RoomName, <<"This room subject">>).
 
 given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
-    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Invitee)),
+    JID = user_jid(Invitee),
     {{<<"204">>, <<"No Content">>}, _} = invite_to_room(Owner, RoomID, JID),
-    Stanza = escalus:wait_for_stanza(Invitee),
-    assert_aff_change_stanza(Stanza, Invitee, <<"member">>),
-    Stanza2 = escalus:wait_for_stanza(Inviter),
-    assert_aff_change_stanza(Stanza2, Invitee, <<"member">>).
+    maybe_wait_for_aff_stanza(Invitee, Invitee),
+    maybe_wait_for_aff_stanza(Inviter, Invitee).
+
+maybe_wait_for_aff_stanza(#client{} = Client, Invitee) ->
+    Stanza = escalus:wait_for_stanza(Client),
+    assert_aff_change_stanza(Stanza, Invitee, <<"member">>);
+maybe_wait_for_aff_stanza(_, _) ->
+    ok.
 
 invite_to_room(Inviter, RoomID, Invitee) ->
     Body = #{user => Invitee},
@@ -435,7 +441,7 @@ is_property_present(Name, Proplist) ->
 
 is_participant(User, Role, RoomInfo) ->
     Participants = proplists:get_value(<<"participants">>, RoomInfo),
-    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(User)),
+    JID = user_jid(User),
     Fun = fun({Props}) ->
                   UserJID = proplists:get_value(<<"user">>, Props),
                   UserRole = proplists:get_value(<<"role">>, Props),
