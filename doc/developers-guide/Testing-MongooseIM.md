@@ -134,3 +134,20 @@ make quicktest PREPARE=
 ```
 
 Have a look inside the `Makefile` to see how it works.
+
+### Reloading node(s) code
+
+When working on a feature or a bug fix often you modify the code and check if it works as expected.
+In order to change the code on already generated dev nodes (`mim*` and `fed*`) it's enough to
+recompil the code for specific node.
+Let's say you need to update the code on `mim1` node, all you have to do is:
+```sh
+./rebar3 as mim1 compile
+```
+
+Similar command applies to other nodes, the important thing here is rebar3's profile.
+
+When the above command finished, the code can be reloaded on the server by:
+1. loading new module(s) in the node's shell, f.e. `l(mongoose_riak)`
+1. restarting the node
+
