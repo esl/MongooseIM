@@ -12,7 +12,6 @@ groups() ->
 test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
      msg_is_sent_and_delivered_over_sse,
-     msg_is_sent_and_delivered_over_sse_muc,
      all_messages_are_archived,
      messages_with_user_are_archived,
      messages_can_be_paginated,
@@ -26,7 +25,9 @@ test_cases() ->
      msg_is_sent_and_delivered_in_room,
      messages_are_archived_in_room,
      only_room_participant_can_read_messages,
-     messages_can_be_paginated_in_room
+     messages_can_be_paginated_in_room,
+     room_msg_is_sent_and_delivered_over_sse,
+     aff_change_msg_is_delivered_over_sse
      ].
 
 init_per_suite(C) ->
@@ -88,7 +89,7 @@ msg_is_sent_and_delivered_over_sse(ConfigIn) ->
 
     stop_sse(Conn).
 
-msg_is_sent_and_delivered_over_sse_muc(ConfigIn) ->
+room_msg_is_sent_and_delivered_over_sse(ConfigIn) ->
     Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
     Bob = escalus_users:get_userspec(Config, bob),
     Alice = escalus_users:get_userspec(Config, alice),
@@ -99,8 +100,27 @@ msg_is_sent_and_delivered_over_sse_muc(ConfigIn) ->
     Message = given_message_sent_to_room(RoomID, {alice, Alice}),
     Event = wait_for_event(Conn),
     Data = jiffy:decode(maps:get(data, Event), [return_maps]),
+    assert_json_room_sse_message(Message#{room => RoomID, type => <<"message">>},
+                                 Data),
+    stop_sse(Conn).
+
+aff_change_msg_is_delivered_over_sse(ConfigIn) ->
+    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
+    Bob = escalus_users:get_userspec(Config, bob),
+    Alice = escalus_users:get_userspec(Config, alice),
+    RoomID = given_new_room({alice, Alice}),
+    Conn = connect_to_sse({bob, Bob}),
+    given_user_invited({alice, Alice}, RoomID, Bob),
+    Event = wait_for_event(Conn),
+    Data = jiffy:decode(maps:get(data, Event), [return_maps]),
     BobJID = user_jid(Bob),
-    assert_json_message(Message#{to => BobJID}, Data),
+    Host = ct:get_config({hosts, mim, domain}),
+    RoomJID = <<RoomID/binary, "@muclight.", Host/binary>>,
+    assert_json_room_sse_message(#{room => RoomID,
+                                   from => RoomJID,
+                                   type => <<"affiliation">>,
+                                   user => BobJID},
+                                 Data),
     stop_sse(Conn).
 
 all_messages_are_archived(Config) ->
@@ -179,7 +199,7 @@ user_is_invited_to_a_room(Config) ->
         true = is_participant(Bob, <<"member">>, RoomInfo),
         IQ = escalus_stanza:iq_get(<<"urn:xmpp:muclight:0#affiliations">>, []),
         Host = ct:get_config({hosts, mim, domain}),
-        RoomJID = <<RoomID/binary, "@muclight.",Host/binary>>,
+        RoomJID = <<RoomID/binary, "@muclight.", Host/binary>>,
         escalus:send(Alice, escalus_stanza:to(IQ, RoomJID)),
         escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Alice))
 
@@ -227,7 +247,7 @@ messages_are_archived_in_room(Config) ->
         {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
         mam_helper:maybe_wait_for_archive(Config),
         {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
-        [Aff, _Msg1, _Msg2] = MsgsRecv = rest_helper:decode_maplist(Result),
+        [Aff, _Msg1, _Msg2] = rest_helper:decode_maplist(Result),
         %% The oldest message is aff change
         <<"affiliation">> = maps:get(type, Aff),
         <<"member">> = maps:get(affiliation, Aff),
@@ -299,10 +319,7 @@ given_message_sent_to_room(RoomID, Sender) ->
     MsgId = proplists:get_value(<<"id">>, Result),
     true = is_binary(MsgId),
 
-    Host = ct:get_config({hosts, mim, domain}),
-    RoomJID = <<RoomID/binary, "@muclight.",Host/binary>>,
-    From = <<RoomJID/binary, "/", UserJID/binary>>,
-    Body#{id => MsgId, from => From}.
+    Body#{id => MsgId, from => UserJID}.
 
 given_new_room_with_users(Owner, Users) ->
     RoomID = given_new_room(Owner),
@@ -484,3 +501,23 @@ assert_json_message(Sent, Received) ->
     To = maps:get(to, Sent),
     From = maps:get(from, Sent),
     Id = maps:get(id, Sent).
+
+assert_json_room_sse_message(Expected, Received) ->
+    #{<<"from">> := From,
+      <<"room">> := Room,
+      <<"id">> := _Id,
+      <<"type">> := Type} = Received,
+
+    Room = maps:get(room, Expected),
+    Type = maps:get(type, Expected),
+    From = maps:get(from, Expected),
+    case Type of
+        <<"message">> ->
+            Body = maps:get(<<"body">>, Received),
+            Body = maps:get(body, Expected);
+        _ ->
+            User = maps:get(<<"user">>, Received),
+            User = maps:get(user, Expected)
+    end.
+
+
