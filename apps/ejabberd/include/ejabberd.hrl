@@ -52,8 +52,18 @@
 -define(ERROR_MSG(Format, Args),
     lager:error(Format, Args)).
 
+-define(DEPRECATED,
+    ok).
+%%    lager:error("Deprecated call", [])).
+
 -define(CRITICAL_MSG(Format, Args),
     lager:critical(Format, Args)).
+
+-define(INITIALISE(Map),
+    mongoose_stanza:initialise(Map, ?FILE, ?LINE)).
+
+-define(TERMINATE(Stanza),
+    mongoose_stanza:terminate(Stanza, ?FILE, ?LINE)).
 
 -record(session, {sid,
                   usr,

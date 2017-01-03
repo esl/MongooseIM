@@ -877,6 +877,8 @@ session_established({xmlstreamelement,
 
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
+    M = #{element=>El, from_jid=>FromJID, luser=>FromJID#jid.luser, lserver=>FromJID#jid.lserver},
+    Stanza = ?INITIALISE(M),
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
     case check_from(El, FromJID) of
         'invalid-from' ->
@@ -886,9 +888,10 @@ session_established({xmlstreamelement, El}, StateData) ->
         _NewEl ->
             NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
                                                    StateData),
-            case mod_amp:check_packet(El, FromJID, initial_check) of
+            StanzaChecked = mod_amp:check_packet(Stanza, initial_check),
+            case mongoose_stanza:get(amp_check, StanzaChecked, ok) of
                 drop -> fsm_next_state(session_established, NewState);
-                NewEl -> process_outgoing_stanza(NewEl, NewState)
+                ok -> process_outgoing_stanza(StanzaChecked, NewState)
             end
     end;
 
@@ -919,7 +922,8 @@ session_established(closed, StateData) ->
 %% @doc Process packets sent by user (coming from user on c2s XMPP
 %% connection)
 -spec process_outgoing_stanza(El :: jlib:xmlel(), state()) -> fsm_return().
-process_outgoing_stanza(El, StateData) ->
+process_outgoing_stanza(Stanza, StateData) ->
+    El = ?TERMINATE(Stanza),
     #xmlel{name = Name, attrs = Attrs} = El,
     User = StateData#state.user,
     Server = StateData#state.server,

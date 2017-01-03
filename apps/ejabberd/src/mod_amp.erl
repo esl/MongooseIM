@@ -47,19 +47,26 @@ stop(Host) ->
 
 -spec check_packet(#xmlel{}, amp_event()) -> #xmlel{} | drop.
 check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
+    ?DEPRECATED,
     case xml:get_attr(<<"from">>, Attrs) of
         {value, From} ->
             check_packet(Packet, jid:from_binary(From), Event);
         _ ->
             Packet
-    end.
+    end;
+check_packet(Stanza, Event) ->
+    Host = mongoose_stanza:get(lserver, Stanza),
+    From = mongoose_stanza:get(from_jid, Stanza),
+    ejabberd_hooks:run_fold(amp_check_packet, Host, Stanza, [From, Event]).
 
 -spec check_packet(#xmlel{}, jid(), amp_event()) -> #xmlel{} | drop.
 check_packet(Packet = #xmlel{name = <<"message">>}, #jid{lserver = Host} = From, Event) ->
+    ?DEPRECATED,
     Stanza = mongoose_stanza:from_element(Packet),
     NStanza = ejabberd_hooks:run_fold(amp_check_packet, Host, Stanza, [From, Event]),
     mongoose_stanza:get(element, NStanza);
 check_packet(Packet, _, _) ->
+    ?DEPRECATED,
     Packet.
 
 add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
@@ -78,7 +85,7 @@ add_stream_feature(Acc, _Host) ->
 amp_check_packet(Acc, From, Event) ->
     Packet = mongoose_stanza:get(element, Acc),
     case do_amp_check_packet(Packet, From, Event) of
-        drop -> mongoose_stanza:put(element, drop, Acc);
+        drop -> mongoose_stanza:put(amp_check, drop, Acc);
         NPacket -> mongoose_stanza:put(element, NPacket, Acc)
     end.
 
@@ -89,7 +96,8 @@ do_amp_check_packet(#xmlel{name = <<"message">>} = Packet, From, Event) ->
         {rules, Rules}          -> process_amp_rules(Packet, From, Event, Rules);
         {errors, Errors}        -> send_errors_and_drop(Packet, From, Errors)
     end;
-do_amp_check_packet(Packet, _From, _Event) -> Packet.
+do_amp_check_packet(Packet, _From, _Event) ->
+    Packet.
 
 strip_amp_el_from_request(Packet) ->
     case amp:is_amp_request(Packet) of
