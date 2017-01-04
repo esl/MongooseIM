@@ -34,7 +34,7 @@ end_per_suite(C) ->
 
 groups() ->
     [{mnesia, [],
-      tests() ++ [cannot_reproduce_race_condition_in_store_info]},
+      [cannot_reproduce_race_condition_in_store_info]},
      {redis, [], tests()}].
 
 tests() ->
@@ -468,21 +468,49 @@ try_to_reproduce_race_condition(Retries) when Retries > 0 ->
     Session = #session{sid = SID,usr = {U,S,R},us = {U,S}, priority = 1,info = []},
     ejabberd_sm_mnesia:create_session(U, S, R, Session),
     Parent = self(),
-    %% Try to do two operations in parallel
-    spawn_link(fun() ->
-        ejabberd_sm_mnesia:delete_session(SID, U, S, R),
-        Parent ! p1_done
-        end),
-    spawn_link(fun() ->
-        ejabberd_sm:store_info(U, S, R, {cc,undefined}),
-        Parent ! p2_done
-        end),
+    %% Add some instrumentation to simulate race conditions
+    %% The goal is to delete the session after other process reads it
+    %% but before it updates it. In other words, delete a record
+    %% between get_sessions and create_session in ejabberd_sm:store_info
+    %% Step1 prepare concurrent processes
+    DeleterPid = spawn_link(fun() ->
+                                    receive start -> ok end,
+                                    ejabberd_sm_mnesia:delete_session(SID, U, S, R),
+                                    Parent ! p1_done
+                            end),
+    SetterPid = spawn_link(fun() ->
+                                   receive start -> ok end,
+                                   ejabberd_sm:store_info(U, S, R, {cc,undefined}),
+                                   Parent ! p2_done
+                           end),
+    %% Step2 setup mocking for some ejabbers_sm_mnesia functions
+    meck:new(ejabberd_sm_mnesia, []),
+    %% When the first get_sessions (run from ejabberd_sm:store_info)
+    %% is executed, the start msg is sent to Deleter process
+    %% Thanks to that, setter will get not empty list of sessions
+    PassThrough3 = fun(A, B, C) ->
+                           DeleterPid ! start,
+                           meck:passthrough([A, B, C]) end,
+    meck:expect(ejabberd_sm_mnesia, get_sessions, PassThrough3),
+    %% Wait some time before setting the sessions
+    %% so we are sure delete operation finishes
+    meck:expect(ejabberd_sm_mnesia, create_session,
+                fun(U1, S1, R1, Session1) ->
+                        timer:sleep(100),
+                        meck:passthrough([U1, S1, R1, Session1])
+                end),
+    PassThrough4 = fun(A, B, C, D) -> meck:passthrough([A, B, C, D]) end,
+    meck:expect(ejabberd_sm_mnesia, delete_session, PassThrough4),
+    %% Start the play from setter process
+    SetterPid ! start,
+    %% Wait for both process to finish
     receive p1_done -> ok end,
     receive p2_done -> ok end,
+    meck:unload(ejabberd_sm_mnesia),
     %% Session should not exist
     case ejabberd_sm_mnesia:get_sessions(U,S,R) of
         [] ->
-            try_to_reproduce_race_condition(Retries-1);
+            ok;
         Other ->
             error_logger:error_msg("issue=reproduced, sid=~p, other=~1000p, retries_left=~p",
                                    [SID, Other, Retries]),
