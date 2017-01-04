@@ -12,7 +12,7 @@
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, update/2]).
--export([from_element/1, from_map/1]).
+-export([from_element/1, from_map/1, is_stanza/1]).
 -export([initialise/3, terminate/3, dump/1]).
 
 
@@ -20,7 +20,7 @@
 initialise(Map, F, L) ->
 %%    ?ERROR_MSG("AAA Initialize stanza ~p ~p", [F, L]),
     % we call it at the entry
-    Map.
+    maps:put(mongoose_stanza, true, Map).
 terminate(Stanza, F, L) ->
 %%    ?ERROR_MSG("AAA Terminate stanza ~p ~p", [F, L]),
     % here we stop using stanza and revert to original xmlel
@@ -30,20 +30,26 @@ dump(Stanza) ->
     ?ERROR_MSG("------", []),
     lists:map(fun(K) -> ?ERROR_MSG("~p = ~p", [K, maps:get(K, Stanza)]) end, Keys).
 
+is_stanza(M) when not is_map(M) ->
+    false;
+is_stanza(M) ->
+    maps:get(mongoose_stanza, M, false).
+
 new() ->
-    #{}.
+    #{mongoose_stanza=>true}.
 
 update(Stanza, M) ->
     maps:merge(Stanza, M).
 
 from_map(M) ->
-    M.
+    maps:put(mongoose_stanza, true, M).
 
 from_kv(K, V) ->
-    maps:put(K, V, #{}).
+    M = maps:put(K, V, #{}),
+    maps:put(mongoose_stanza, true, M).
 
 from_element(El) ->
-    #{element => El}.
+    #{element => El, mongoose_stanza=>true}.
 
 %% @doc convert to map so that we can pattern-match on it
 to_map(P) ->
