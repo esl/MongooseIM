@@ -975,10 +975,12 @@ process_outgoing_stanza(ToJID, <<"presence">>, Stanza, StateData) ->
                                          Server,
                                          Stanza,
                                          [User, Server]),
-    PresenceEl = ?TERMINATE(Stanza),
-    ejabberd_hooks:run(user_send_packet,
+    PresEl = mongoose_stanza:get(element, Stanza),
+    Stanza1 = ejabberd_hooks:run_fold(user_send_packet,
                        Server,
-                       [FromJID, ToJID, PresenceEl]),
+                       Stanza,
+                       [FromJID, ToJID, PresEl]),
+    PresenceEl = ?TERMINATE(Stanza1),
     case ToJID of
         #jid{user = User,
              server = Server,
@@ -994,28 +996,31 @@ process_outgoing_stanza(ToJID, <<"presence">>, Stanza, StateData) ->
 process_outgoing_stanza(ToJID, <<"iq">>, Stanza, StateData) ->
     FromJID = mongoose_stanza:get(from_jid, Stanza),
     Server = mongoose_stanza:get(server, Stanza),
-    NewEl = ?TERMINATE(Stanza),
-    case jlib:iq_query_info(NewEl) of
+    El = mongoose_stanza:get(element, Stanza),
+    case jlib:iq_query_info(El) of
         #iq{xmlns = Xmlns} = IQ
             when Xmlns == ?NS_PRIVACY;
             Xmlns == ?NS_BLOCKING ->
             process_privacy_iq(FromJID, ToJID, IQ, StateData);
         _ ->
-            ejabberd_hooks:run(user_send_packet,
+            Stanza1 = ejabberd_hooks:run_fold(user_send_packet,
                                Server,
-                               [FromJID, ToJID, NewEl]),
+                               Stanza,
+                               [FromJID, ToJID, El]),
+            NewEl = ?TERMINATE(Stanza1),
             check_privacy_and_route(FromJID, StateData, FromJID, ToJID, NewEl),
             StateData
     end;
 process_outgoing_stanza(ToJID, <<"message">>, Stanza, StateData) ->
     FromJID = mongoose_stanza:get(from_jid, Stanza),
     Server = mongoose_stanza:get(server, Stanza),
-    NewEl = ?TERMINATE(Stanza),
-    ejabberd_hooks:run(user_send_packet,
+    Stanza1 = ejabberd_hooks:run_fold(user_send_packet,
                        Server,
-                       [FromJID, ToJID, NewEl]),
+                       Stanza,
+                       [FromJID, ToJID, mongoose_stanza:get(element, Stanza)]),
+    NewEl1 = ?TERMINATE(Stanza1),
     check_privacy_and_route(FromJID, StateData, FromJID,
-                            ToJID, NewEl),
+                            ToJID, NewEl1),
     StateData;
 process_outgoing_stanza(_ToJID, _Name, _Stanza, StateData) ->
     StateData.
