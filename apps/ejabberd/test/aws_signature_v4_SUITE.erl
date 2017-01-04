@@ -117,10 +117,10 @@ queries(Headers, UTCDateTime, ExpirationTime) ->
 
 join_headers(Headers) ->
     maps:fold(
-    fun
-                  (Key, _, <<>>) -> Key;
-                  (Key, _, Acc) -> <<Acc/binary, ";", Key/binary>>
-              end, <<>>, Headers).
+      fun
+          (Key, _, <<>>) -> Key;
+          (Key, _, Acc) -> <<Acc/binary, ";", Key/binary>>
+      end, <<>>, Headers).
 
 sign(URI, Queries, Headers) ->
     sign(URI, Queries, Headers, ?DATE).

@@ -135,8 +135,8 @@ port_component(Scheme, Port) ->
     end.
 
 
+%% Path has always at least one byte ("/")
 -spec trim_slash(binary()) -> binary().
-trim_slash(<<>>) -> <<>>;
 trim_slash(Data) ->
     case binary:last(Data) of
         $/ -> erlang:binary_part(Data, 0, byte_size(Data) - 1);
