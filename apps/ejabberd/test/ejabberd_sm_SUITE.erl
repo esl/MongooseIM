@@ -205,7 +205,7 @@ kv_can_be_updated_for_session(C) ->
     when_session_info_stored(U, S, R, {key2, override}),
 
     [#session{sid = Sid, info = [{key1, val1}, {key2, override}]}]
-     = ?B(C):get_sessions(U,S).
+     = ?B(C):get_sessions(U, S).
 
 cannot_reproduce_race_condition_in_store_info(C) ->
     ok = try_to_reproduce_race_condition(10000).
@@ -215,7 +215,7 @@ store_info_sends_message_to_the_session_owner(C) ->
     U = <<"alice2">>,
     S = <<"localhost">>,
     R = <<"res1">>,
-    Session = #session{sid = SID,usr = {U,S,R},us = {U,S}, priority = 1,info = []},
+    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = []},
     %% Create session in one process
     ?B(C):create_session(U, S, R, Session),
     %% but call store_info from another process
@@ -465,7 +465,7 @@ try_to_reproduce_race_condition(Retries) when Retries > 0 ->
     U = <<"alice">>,
     S = <<"localhost">>,
     R = <<"res1">>,
-    Session = #session{sid = SID,usr = {U,S,R},us = {U,S}, priority = 1,info = []},
+    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = []},
     ejabberd_sm_mnesia:create_session(U, S, R, Session),
     Parent = self(),
     %% Add some instrumentation to simulate race conditions
@@ -480,7 +480,7 @@ try_to_reproduce_race_condition(Retries) when Retries > 0 ->
                             end),
     SetterPid = spawn_link(fun() ->
                                    receive start -> ok end,
-                                   ejabberd_sm:store_info(U, S, R, {cc,undefined}),
+                                   ejabberd_sm:store_info(U, S, R, {cc, undefined}),
                                    Parent ! p2_done
                            end),
     %% Step2 setup mocking for some ejabbers_sm_mnesia functions
@@ -508,7 +508,7 @@ try_to_reproduce_race_condition(Retries) when Retries > 0 ->
     receive p2_done -> ok end,
     meck:unload(ejabberd_sm_mnesia),
     %% Session should not exist
-    case ejabberd_sm_mnesia:get_sessions(U,S,R) of
+    case ejabberd_sm_mnesia:get_sessions(U, S, R) of
         [] ->
             ok;
         Other ->

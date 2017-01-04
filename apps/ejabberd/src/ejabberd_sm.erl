@@ -185,7 +185,7 @@ close_session(SID, User, Server, Resource, Reason) ->
 store_info(User, Server, Resource, {Key, _Value} = KV) ->
     case get_session(User, Server, Resource) of
         offline -> {error, offline};
-        {_SUser,SID,SPriority,SInfo} ->
+        {_SUser, SID, SPriority, SInfo} ->
             case SID of
                 {_, Pid} when self() =:= Pid ->
                     %% It's safe to allow process update it's own record
