@@ -706,8 +706,14 @@ broadcast_packet(From, To, Packet) ->
 is_privacy_allow(To, Stanza) ->
     User = To#jid.user,
     Server = To#jid.server,
-    PrivacyList = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-        #userlist{}, [User, Server]),
+    Stanza1 = case mongoose_stanza:get(user_privacy_list, Stanza, undefined) of
+                  undefined ->
+                      ejabberd_hooks:run_fold(privacy_get_user_list, Server,
+                          Stanza, [User, Server]);
+                  _ ->
+                      Stanza
+              end,
+    PrivacyList = mongoose_stanza:get(user_privacy_list, Stanza1, #userlist{}),
     is_privacy_allow(To, Stanza, PrivacyList).
 
 -spec is_privacy_allow(From, To, Packet) -> boolean() when
@@ -718,8 +724,9 @@ is_privacy_allow(From, To, #xmlel{} = Packet) ->
     ?DEPRECATED,
     User = To#jid.user,
     Server = To#jid.server,
-    PrivacyList = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                                          #userlist{}, [User, Server]),
+    Res = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
+                                          mongoose_stanza:new(), [User, Server]),
+    PrivacyList = mongoose_stanza:get(user_privacy_list, Res, #userlist{}),
     is_privacy_allow(From, To, Packet, PrivacyList);
 is_privacy_allow(To, Stanza, PrivacyList) ->
     case mongoose_stanza:get(privacy_check, Stanza, undefined) of

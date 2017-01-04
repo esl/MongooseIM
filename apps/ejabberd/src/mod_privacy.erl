@@ -299,16 +299,17 @@ is_item_needdb(#listitem{type = subscription}) -> true;
 is_item_needdb(#listitem{type = group})        -> true;
 is_item_needdb(_)                              -> false.
 
-get_user_list(_, User, Server) ->
+get_user_list(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    case ?BACKEND:get_default_list(LUser, LServer) of
+    Userlist = case ?BACKEND:get_default_list(LUser, LServer) of
         {ok, {Default, List}} ->
             NeedDb = is_list_needdb(List),
             #userlist{name = Default, list = List, needdb = NeedDb};
         {error, _} ->
             #userlist{}
-    end.
+    end,
+    mongoose_stanza:put(user_privacy_list, Userlist, Acc).
 
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).

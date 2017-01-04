@@ -161,17 +161,18 @@ process_sm_iq(From, To,
             if (Subscription == both) or (Subscription == from) or
                 (From#jid.luser == To#jid.luser) and
                     (From#jid.lserver == To#jid.lserver) ->
-                UserListRecord =
-                    ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                        #userlist{}, [User, Server]),
-                case ejabberd_hooks:run_fold(privacy_check_packet,
-                    Server, allow,
+                Res = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
+                        mongoose_stanza:new(), [User, Server]),
+                UserListRecord = mongoose_stanza:get(user_privacy_list, Res, #userlist{}),
+                Res1 = ejabberd_hooks:run_fold(privacy_check_packet, % TODO delegate
+                    Server, mongoose_stanza:from_kv(privacy_check, allow),
                     [User, Server, UserListRecord,
                         {To, From,
                             #xmlel{name = <<"presence">>,
                                 attrs = [],
                                 children = []}},
-                        out])
+                        out]),
+                case mongoose_stanza:get(privacy_check, Res1)
                 of
                     allow -> get_last_iq(IQ, SubEl, User, Server);
                     deny ->

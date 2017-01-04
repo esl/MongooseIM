@@ -825,11 +825,12 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                     LJID = jid:to_lower(jid:to_bare(JID)),
                     Fs1 = [LJID | Fs],
                     Ts1 = [LJID | Ts],
-                    PrivList =
+                    Res =
                     ejabberd_hooks:run_fold(
                       privacy_get_user_list, NewStateData0#state.server,
-                      #userlist{},
+                      mongoose_stanza:new(),
                       [U, NewStateData0#state.server]),
+                    PrivList = mongoose_stanza:get(user_privacy_list, Res, #userlist{}),
                     SID = {os:timestamp(), self()},
                     Conn = get_conn_type(NewStateData0),
                     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
