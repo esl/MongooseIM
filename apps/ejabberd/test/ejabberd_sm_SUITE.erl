@@ -33,7 +33,8 @@ end_per_suite(C) ->
     application:stop(exometer_core).
 
 groups() ->
-    [{mnesia, [], tests()},
+    [{mnesia, [],
+      tests() ++ [cannot_reproduce_race_condition_in_store_info]},
      {redis, [], tests()}].
 
 tests() ->
@@ -54,7 +55,6 @@ tests() ->
      session_info_keys_not_truncated_if_session_opened_with_empty_infolist,
      kv_can_be_stored_for_session,
      kv_can_be_updated_for_session,
-     cannot_reproduce_race_condition_in_store_info,
      store_info_sends_message_to_the_session_owner
     ].
 
@@ -217,8 +217,7 @@ store_info_sends_message_to_the_session_owner(C) ->
     R = <<"res1">>,
     Session = #session{sid = SID,usr = {U,S,R},us = {U,S}, priority = 1,info = []},
     %% Create session in one process
-    ejabberd_sm_mnesia:create_session(U, S, R, Session),
-    Parent = self(),
+    ?B(C):create_session(U, S, R, Session),
     %% but call store_info from another process
     spawn_link(fun() -> ejabberd_sm:store_info(U, S, R, {cc, undefined}) end),
     %% The original process receives a message
