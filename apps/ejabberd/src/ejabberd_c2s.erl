@@ -994,8 +994,7 @@ process_outgoing_stanza(ToJID, <<"presence">>, Stanza, StateData) ->
                  [FromJID, Stanza1, StateData]),
              presence_update(Stanza1, StateData);
         _ ->
-             PresenceEl = ?TERMINATE(Stanza1),
-             presence_track(FromJID, ToJID, PresenceEl,
+             presence_track(FromJID, ToJID, Stanza,
                             StateData)
     end;
 process_outgoing_stanza(ToJID, <<"iq">>, Stanza, StateData) ->
@@ -1927,60 +1926,59 @@ presence_update(Stanza, StateData) ->
                      To :: ejabberd:jid(),
                      Pkt :: jlib:xmlel(),
                      State :: state()) -> state().
-presence_track(From, To, Packet, StateData) ->
-    #xmlel{attrs = Attrs} = Packet,
+presence_track(From, To, Stanza, StateData) ->
     LTo = jid:to_lower(To),
     User = StateData#state.user,
     Server = StateData#state.server,
-    case xml:get_attr_s(<<"type">>, Attrs) of
+    case mongoose_stanza:get(type, Stanza) of
         <<"unavailable">> ->
-            check_privacy_and_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Stanza),
             I = ?SETS:del_element(LTo, StateData#state.pres_i),
             A = ?SETS:del_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
                             pres_a = A};
         <<"invisible">> ->
-            check_privacy_and_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Stanza),
             I = ?SETS:add_element(LTo, StateData#state.pres_i),
             A = ?SETS:del_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
                             pres_a = A};
         <<"subscribe">> ->
-            ejabberd_hooks:run(roster_out_subscription,
-                               Server,
+            St = ejabberd_hooks:run_fold(roster_out_subscription,
+                               Server, Stanza,
                                [User, Server, To, subscribe]),
             check_privacy_and_route(From, StateData, jid:to_bare(From),
-                                    To, Packet),
+                                    To, St),
             StateData;
         <<"subscribed">> ->
-            ejabberd_hooks:run(roster_out_subscription,
-                               Server,
+            St = ejabberd_hooks:run_fold(roster_out_subscription,
+                               Server, Stanza,
                                [User, Server, To, subscribed]),
             check_privacy_and_route(From, StateData, jid:to_bare(From),
-                                    To, Packet),
+                                    To, St),
             StateData;
         <<"unsubscribe">> ->
-            ejabberd_hooks:run(roster_out_subscription,
-                               Server,
+            St = ejabberd_hooks:run_fold(roster_out_subscription,
+                               Server, Stanza,
                                [User, Server, To, unsubscribe]),
             check_privacy_and_route(From, StateData, jid:to_bare(From),
-                                    To, Packet),
+                                    To, St),
             StateData;
         <<"unsubscribed">> ->
-            ejabberd_hooks:run(roster_out_subscription,
-                               Server,
+            St = ejabberd_hooks:run_fold(roster_out_subscription,
+                               Server, Stanza,
                                [User, Server, To, unsubscribed]),
             check_privacy_and_route(From, StateData, jid:to_bare(From),
-                                    To, Packet),
+                                    To, St),
             StateData;
         <<"error">> ->
-            check_privacy_and_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Stanza),
             StateData;
         <<"probe">> ->
-            check_privacy_and_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Stanza),
             StateData;
         _ ->
-            check_privacy_and_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Stanza),
             I = ?SETS:del_element(LTo, StateData#state.pres_i),
             A = ?SETS:add_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
@@ -1992,9 +1990,25 @@ presence_track(From, To, Packet, StateData) ->
                               StateData :: state(),
                               FromRoute :: ejabberd:jid(),
                               To :: ejabberd:jid(),
-                              Packet :: jlib:xmlel()) -> 'ok'.
-check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
+                              Packet :: jlib:xmlel() | map()) -> 'ok'.
+check_privacy_and_route(From, StateData, FromRoute, To, #xmlel{} = Packet) ->
+    ?DEPRECATED,
     case privacy_check_packet(StateData, From, To, Packet, out) of
+        deny ->
+            Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_CANCEL),
+            ejabberd_router:route(To, From, Err),
+            ok;
+        block ->
+            Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_BLOCKED),
+            ejabberd_router:route(To, From, Err),
+            ok;
+        allow ->
+            ejabberd_router:route(FromRoute, To, Packet)
+    end;
+check_privacy_and_route(From, StateData, FromRoute, To, Stanza) ->
+    Packet = mongoose_stanza:get(element, Stanza),
+    {ok, _, Res} = privacy_check_packet(StateData, Stanza, To, out),
+    case Res of
         deny ->
             Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_CANCEL),
             ejabberd_router:route(To, From, Err),
