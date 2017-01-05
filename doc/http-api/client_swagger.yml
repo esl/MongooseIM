@@ -1,6 +1,6 @@
 swagger: '2.0'
 info:
-  version: "0.1.0"
+  version: "0.1.1"
   title: "MongooseIM's client REST API"
   description: |
     Explore MongooseIM features using our REST API.
@@ -105,7 +105,7 @@ paths:
             title: Rooms
             type: array
             items:
-            $ref: '#/definitions/RoomShortDetails'
+              $ref: '#/definitions/RoomShortDetails'
   /rooms/{id}:
     get:
       description: "Returns room's details."
@@ -218,6 +218,37 @@ paths:
         We recommend following libraries to consume the events:
         * iOS - https://github.com/inaka/EventSource
         * Erlang/Elixir - https://github.com/inaka/shotgun
+
+        Currently there are two different type of events the server can send to the client:
+        * message - regular one-to-one message
+            ```JSON
+            {"to":"alice@wonderland.lit",
+             "timestamp":1477550892082343,
+             "id":"36891c7f-cd3d-4e90-9295-5f450d66ae09",
+             "from":"rabbit@wonderland.lit",
+             "body":"Test message over SSE"}
+             ```
+        * room.message - this type cover 2 different kinds of messages from room:
+           * messages - a message sent from participant to the room
+             ```JSON
+             {"type":"message",
+              "timestamp":1483609513435964,
+              "room":"1483-609513-293487",
+              "id":"9746c6d5-e014-4391-b559-b5581ee8e43b",
+              "from":"alice@wonderland.lit",
+              "body":"Hi all!"}
+             ```
+           * notifications - an event sent by the room when a new participant subscribes or leaves the room
+             ```JSON
+             {"user":"rabbit@wonderland.lit",
+              "type":"affiliation",
+              "timestamp":1483609513429864,
+              "room":"1483-609513-295321",
+              "id":"e3e110a6-44ae-45ab-97e3-7ace25f52e53",
+              "from":"1483-609513-295321@muclight.wonderland.lit",
+              "affiliation":"member"}
+             ```
+        For more details please refer to [rooms API specifications](#/Rooms)
       tags:
         - "Server Sent Events"
       produces:
@@ -225,16 +256,6 @@ paths:
       responses:
         default:
           description: "Stream of events sent by the server"
-          examples:
-            - |
-              id: 1
-              event: chat
-              data: {"to":"alice@wonderland.lit","timestamp":1477550892082343,"id":"36891c7f-cd3d-4e90-9295-5f450d66ae09","from":"rabbit@wonderland.lit","body":"Test message over SSE"}
-          schema:
-            type: object
-            x-events:
-              chat:
-                $ref: '#/definitions/RecvMessage'
         403:
           description: |
             When authenticated user is not allowed to read room's deatails.
