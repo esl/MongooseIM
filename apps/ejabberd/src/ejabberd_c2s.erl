@@ -2012,20 +2012,15 @@ check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
     To :: ejabberd:jid(),
     Dir :: 'in' | 'out') -> any().
 privacy_check_packet(StateData, Stanza, To, Dir) ->
-    %% ŻLEEE!! wynik privacy check zależy od To!!!
-    case mongoose_stanza:get(privacy_check, Stanza, undefined) of
-        undefined ->
-            From = mongoose_stanza:get(from_jid, Stanza),
-            Packet = mongoose_stanza:get(element, Stanza),
-            ejabberd_hooks:run_fold(
-                privacy_check_packet, StateData#state.server,
-                Stanza,
-                [StateData#state.user,
-                    StateData#state.server,
-                    StateData#state.privacy_list,
-                    {From, To, Packet},
-                    Dir])
-    end.
+    mongoose_privacy:privacy_check_packet(
+        StateData#state.user,
+        StateData#state.server,
+        StateData#state.privacy_list,
+        Stanza,
+        To,
+        Dir
+    ).
+
 
 -spec privacy_check_packet(StateData :: state(),
                            From :: ejabberd:jid(),

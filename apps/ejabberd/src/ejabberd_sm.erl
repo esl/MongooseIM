@@ -730,20 +730,14 @@ is_privacy_allow(From, To, #xmlel{} = Packet) ->
     PrivacyList = mongoose_stanza:get(user_privacy_list, Res, #userlist{}),
     is_privacy_allow(From, To, Packet, PrivacyList);
 is_privacy_allow(To, Stanza, PrivacyList) ->
-    case mongoose_stanza:get(privacy_check, Stanza, undefined) of
+    case mongoose_privacy:check_result(To, Stanza) of
         undefined ->
             ?DEPRECATED, % we shouldn't call this if we haven't checked privacy before
-            From = mongoose_stanza:get(from_jid, Stanza),
-            Packet = mongoose_stanza:get(element, Stanza),
             User = To#jid.user,
             Server = To#jid.server,
-            Res = ejabberd_hooks:run_fold(
-                privacy_check_packet, Server,
-                Stanza,
-                [User, Server, PrivacyList,
-                    {From, To, Packet}, in]),
+            Res = mongoose_privacy:privacy_check_packet(User, Server, PrivacyList, Stanza, To, in),
             allow == mongoose_stanza:get(privacy_check, Res, allow);
-        Res ->
+        {ok, Res} ->
             allow == Res
     end.
 
