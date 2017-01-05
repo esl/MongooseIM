@@ -735,8 +735,8 @@ is_privacy_allow(To, Stanza, PrivacyList) ->
             ?DEPRECATED, % we shouldn't call this if we haven't checked privacy before
             User = To#jid.user,
             Server = To#jid.server,
-            Res = mongoose_privacy:privacy_check_packet(User, Server, PrivacyList, Stanza, To, in),
-            allow == mongoose_stanza:get(privacy_check, Res, allow);
+            {ok, _, Res} = mongoose_privacy:privacy_check_packet(User, Server, PrivacyList, Stanza, To, in),
+            allow == Res;
         {ok, Res} ->
             allow == Res
     end.

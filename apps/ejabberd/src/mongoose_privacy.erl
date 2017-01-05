@@ -28,7 +28,7 @@
     Dir :: 'in' | 'out') -> map().
 privacy_check_packet(User, Server, PrivList, Stanza, To, Dir) ->
     From = mongoose_stanza:get(from_jid, Stanza),
-    case check_result(To, Stanza) of
+    Stanza1 = case check_result(To, Stanza) of
         undefined ->
             Packet = mongoose_stanza:get(element, Stanza),
             S1 = ejabberd_hooks:run_fold(
@@ -44,7 +44,8 @@ privacy_check_packet(User, Server, PrivList, Stanza, To, Dir) ->
             mongoose_stanza:append(privacy_check_cache, {Key, Res}, S1);
         {ok, Res} ->
             mongoose_stanza:put(privacy_check, Res, Stanza)
-    end.
+    end,
+    {ok, Stanza1, Res}.
 
 check_result(To, Stanza) ->
     Key = {To#jid.user, To#jid.server},

@@ -1813,6 +1813,7 @@ presence_update(From, Packet, State) ->
 -spec presence_update(Stanza :: map(),
                       State :: state()) -> state().
 presence_update(Stanza, StateData) ->
+    % XXX tu jest zrobione wszystko do momentu wywołania ejabberd_route:route/3
     Packet = mongoose_stanza:get(element, Stanza),
     From = mongoose_stanza:get(from_jid, Stanza),
     #xmlel{attrs = Attrs} = Packet,
@@ -2063,7 +2064,8 @@ is_privacy_allow(StateData, To, Stanza, Dir) ->
         undefined ->
             ?DEPRECATED, % we shouldn't call this if we haven't checked privacy before
             % because we lose a result
-            case privacy_check_packet(StateData, To, Stanza, Dir) of
+            {ok, _, Res} = privacy_check_packet(StateData, Stanza, To, Dir),
+            case Res of
                 allow -> true;
                 _ -> false
             end;
@@ -2087,8 +2089,8 @@ presence_broadcast(StateData, JIDSet, Stanza) ->
     From = mongoose_stanza:get(from_jid, Stanza),
     lists:foreach(fun(JID) ->
                           FJID = jid:make(JID),
-                          Stanza1 = privacy_check_packet(StateData, Stanza, FJID, out),
-                          case mongoose_stanza:get(privacy_check, Stanza1, allow) of
+                          {ok, Stanza1, Res} = privacy_check_packet(StateData, Stanza, FJID, out),
+                          case Res of
                               allow ->
                                   Packet = ?TERMINATE(Stanza),
                                   ejabberd_router:route(From, FJID, Packet);
@@ -2111,8 +2113,8 @@ presence_broadcast_to_trusted(StateData, T, A, Stanza) ->
               case ?SETS:is_element(JID, T) of
                   true ->
                       FJID = jid:make(JID),
-                      Stanza1  = privacy_check_packet(StateData, Stanza, FJID, out),
-                      case mongoose_stanza:get(privacy_check, Stanza1) of
+                      {ok, Stanza1, Res}  = privacy_check_packet(StateData, Stanza, FJID, out),
+                      case Res of
                           allow ->
                               ejabberd_router:route(From, FJID, Packet);
                           _ ->
@@ -2147,8 +2149,8 @@ presence_broadcast_first(From, StateData, Stanza) ->
             As = ?SETS:fold(
                     fun(JID, A) ->
                             FJID = jid:make(JID),
-                            Stanza1 = privacy_check_packet(StateData, Stanza, FJID, out),
-                            case mongoose_stanza:get(privacy_check, Stanza1, allow) of
+                            {ok, Stanza1, Res} = privacy_check_packet(StateData, Stanza, FJID, out),
+                            case Res of
                                 allow ->
                                     ejabberd_router:route(From, FJID, Packet);
                                 _ ->
@@ -2311,18 +2313,14 @@ resend_offline_messages(StateData) ->
             lists:foreach(
               fun({route,
                    From, To, #xmlel{} = Packet}) ->
-                      Pass = case privacy_check_packet(StateData, From, To, Packet, in) of
-                                 allow ->
-                                     true;
-                                 _ ->
-                                     false
-                             end,
-                      if
-                          Pass ->
-                              ejabberd_router:route(From, To, Packet);
-                          true ->
-                              ok
-                      end
+                      Stanza = mongoose_stanza:from_element(Packet),
+                      {ok, _, Res} = privacy_check_packet(StateData, Stanza, To, in),
+                      case Res of
+                         allow ->
+                             ejabberd_router:route(From, To, Packet);
+                         _ ->
+                             ok
+                     end
               end, Rs)
     end.
 
