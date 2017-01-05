@@ -283,17 +283,18 @@ get_raw_sessions(User, Server) ->
     clean_session_list(
       ?SM_BACKEND:get_sessions(jid:nodeprep(User), jid:nameprep(Server))).
 
--spec set_presence(SID, User, Server, Resource, Prio, Presence, Info) -> ok when
+-spec set_presence(Stanza, SID, User, Server, Resource, Prio, Info) -> ok when
+      Stanza :: map(),
       SID :: 'undefined' | sid(),
       User :: ejabberd:user(),
       Server :: ejabberd:server(),
       Resource :: ejabberd:resource(),
       Prio :: 'undefined' | integer(),
-      Presence :: any(),
       Info :: 'undefined' | [any()].
-set_presence(SID, User, Server, Resource, Priority, Presence, Info) ->
+set_presence(Stanza, SID, User, Server, Resource, Priority, Info) ->
+    Presence = mongoose_stanza:get(element, Stanza),
     set_session(SID, User, Server, Resource, Priority, Info),
-    ejabberd_hooks:run(set_presence_hook, jid:nameprep(Server),
+    ejabberd_hooks:run_fold(set_presence_hook, jid:nameprep(Server), Stanza,
                        [User, Server, Resource, Presence]).
 
 

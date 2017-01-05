@@ -28,6 +28,7 @@
 -author('alexey@process-one.net').
 -update_info({update, 0}).
 %% External exports
+-compile(export_all).
 -export([start/2,
          stop/1,
          start_link/2,
@@ -817,11 +818,14 @@ do_open_session(El, JID, StateData) ->
 
 do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                     change_shaper(NewStateData0, JID),
-                    {Fs, Ts, Pending} = ejabberd_hooks:run_fold(
+                    SubsResult = ejabberd_hooks:run_fold(
                                           roster_get_subscription_lists,
                                           NewStateData0#state.server,
-                                          {[], [], []},
+                                          mongoose_stanza:new(),
                                           [U, NewStateData0#state.server]),
+                    Fs = mongoose_stanza:get(from, SubsResult, []),
+                    Ts = mongoose_stanza:get(to, SubsResult, []),
+                    Pending = mongoose_stanza:get(pending, SubsResult, []),
                     LJID = jid:to_lower(jid:to_bare(JID)),
                     Fs1 = [LJID | Fs],
                     Ts1 = [LJID | Ts],
@@ -1822,15 +1826,15 @@ presence_update(Stanza, StateData) ->
                      end,
             Info = [{ip, StateData#state.ip}, {conn, StateData#state.conn},
                     {auth_module, StateData#state.auth_module}],
-            ejabberd_sm:unset_presence(Stanza,
+            Stanza1 = ejabberd_sm:unset_presence(Stanza,
                                        StateData#state.sid,
                                        StateData#state.user,
                                        StateData#state.server,
                                        StateData#state.resource,
                                        Status,
                                        Info), %TERM
-            presence_broadcast(StateData, StateData#state.pres_a, Stanza),
-            presence_broadcast(StateData, StateData#state.pres_i, Stanza),
+            Stanza2 = presence_broadcast(StateData, StateData#state.pres_a, Stanza1),
+            _Stanza3 = presence_broadcast(StateData, StateData#state.pres_i, Stanza2),
             StateData#state{pres_last = undefined,
                             pres_timestamp = undefined,
                             pres_a = ?SETS:new(),
@@ -1838,18 +1842,18 @@ presence_update(Stanza, StateData) ->
                             pres_invis = false};
         <<"invisible">> ->
             NewPriority = get_priority_from_presence(Packet),
-            update_priority(NewPriority, Packet, StateData),
+            Stanza1 = update_priority(NewPriority, Stanza, StateData),
             NewState =
             if
                 not StateData#state.pres_invis ->
-                    presence_broadcast(StateData, StateData#state.pres_a, Stanza),
-                    presence_broadcast(StateData, StateData#state.pres_i, Stanza),
+                    Stanza2 = presence_broadcast(StateData, StateData#state.pres_a, Stanza1),
+                    Stanza3 = presence_broadcast(StateData, StateData#state.pres_i, Stanza2),
                     S1 = StateData#state{pres_last = undefined,
                                          pres_timestamp = undefined,
                                          pres_a = ?SETS:new(),
                                          pres_i = ?SETS:new(),
                                          pres_invis = true},
-                    presence_broadcast_first(From, S1, Packet);
+                    presence_broadcast_first(From, S1, Stanza3);
                 true ->
                     StateData
             end,
@@ -1875,7 +1879,7 @@ presence_update(Stanza, StateData) ->
                           end,
             NewPriority = get_priority_from_presence(Packet),
             Timestamp = calendar:now_to_universal_time(os:timestamp()),
-            update_priority(NewPriority, Packet, StateData),
+            Stanza1 = update_priority(NewPriority, Stanza, StateData),
             FromUnavail = (StateData#state.pres_last == undefined) or
             StateData#state.pres_invis,
             ?DEBUG("from unavail = ~p~n", [FromUnavail]),
@@ -1885,27 +1889,28 @@ presence_update(Stanza, StateData) ->
                                            pres_timestamp = Timestamp},
             if
                 FromUnavail ->
-                    ejabberd_hooks:run(user_available_hook,
+                    Stanza2 = ejabberd_hooks:run_fold(user_available_hook,
                                        NewStateData#state.server,
+                                       Stanza1,
                                        [NewStateData#state.jid]),
                     NewStateData1 = if NewPriority >= 0 ->
-                                           {_, _, Pending} = ejabberd_hooks:run_fold(
+                                            SubsListResult = ejabberd_hooks:run_fold(
                                                                roster_get_subscription_lists,
                                                                NewStateData#state.server,
-                                                               {[], [], []},
+                                                               mongoose_stanza:new(),
                                                                [StateData#state.user, NewStateData#state.server]),
+                                           Pending = mongoose_stanza:get(pending, SubsListResult, []),
                                            resend_offline_messages(NewStateData),
                                            resend_subscription_requests(NewStateData#state{pending_invitations = Pending});
                                        true ->
                                            NewStateData
                                     end,
-                    presence_broadcast_first(From, NewStateData1, Packet);
+                    presence_broadcast_first(From, NewStateData1, Stanza2);
                 true ->
-                    presence_broadcast_to_trusted(NewStateData,
-                                                  From,
+                    _Stanza2 = presence_broadcast_to_trusted(NewStateData,
                                                   NewStateData#state.pres_f,
                                                   NewStateData#state.pres_a,
-                                                  Packet),
+                                                  Stanza1),
                     if OldPriority < 0, NewPriority >= 0 ->
                            resend_offline_messages(NewStateData);
                        true ->
@@ -2007,6 +2012,7 @@ check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
     To :: ejabberd:jid(),
     Dir :: 'in' | 'out') -> any().
 privacy_check_packet(StateData, Stanza, To, Dir) ->
+    %% ŻLEEE!! wynik privacy check zależy od To!!!
     case mongoose_stanza:get(privacy_check, Stanza, undefined) of
         undefined ->
             From = mongoose_stanza:get(from_jid, Stanza),
@@ -2081,7 +2087,7 @@ presence_broadcast(StateData, From, JIDSet, Packet) ->
 
 -spec presence_broadcast(State :: state(),
     JIDSet :: jid_set(),
-    Stanza :: map()) -> 'ok'.
+    Stanza :: map()) -> map().
 presence_broadcast(StateData, JIDSet, Stanza) ->
     From = mongoose_stanza:get(from_jid, Stanza),
     lists:foreach(fun(JID) ->
@@ -2094,21 +2100,24 @@ presence_broadcast(StateData, JIDSet, Stanza) ->
                               _ ->
                                   ok
                           end
-                  end, ?SETS:to_list(JIDSet)).
+                  end, ?SETS:to_list(JIDSet)),
+    Stanza.
 
 
 -spec presence_broadcast_to_trusted(State :: state(),
-                                    From :: 'undefined' | ejabberd:jid(),
                                     T :: jid_set(),
                                     A :: jid_set(),
-                                    Packet :: jlib:xmlel()) -> 'ok'.
-presence_broadcast_to_trusted(StateData, From, T, A, Packet) ->
+                                    Packet :: map()) -> map().
+presence_broadcast_to_trusted(StateData, T, A, Stanza) ->
+    From = mongoose_stanza:get(from_jid, Stanza),
+    Packet = mongoose_stanza:get(element, Stanza),
     lists:foreach(
       fun(JID) ->
               case ?SETS:is_element(JID, T) of
                   true ->
                       FJID = jid:make(JID),
-                      case privacy_check_packet(StateData, From, FJID, Packet, out) of
+                      Stanza1  = privacy_check_packet(StateData, Stanza, FJID, out),
+                      case mongoose_stanza:get(privacy_check, Stanza1) of
                           allow ->
                               ejabberd_router:route(From, FJID, Packet);
                           _ ->
@@ -2117,13 +2126,15 @@ presence_broadcast_to_trusted(StateData, From, T, A, Packet) ->
                   _ ->
                       ok
               end
-      end, ?SETS:to_list(A)).
+      end, ?SETS:to_list(A)),
+    Stanza.
 
 
 -spec presence_broadcast_first(From :: 'undefined' | ejabberd:jid(),
                                State :: state(),
-                               Packet :: jlib:xmlel()) -> state().
-presence_broadcast_first(From, StateData, Packet) ->
+                               Stanza :: map()) -> state().
+presence_broadcast_first(From, StateData, Stanza) ->
+    Packet = mongoose_stanza:get(element, Stanza),
     ?SETS:fold(fun(JID, X) ->
                        ejabberd_router:route(
                          From,
@@ -2141,7 +2152,8 @@ presence_broadcast_first(From, StateData, Packet) ->
             As = ?SETS:fold(
                     fun(JID, A) ->
                             FJID = jid:make(JID),
-                            case privacy_check_packet(StateData, From, FJID, Packet, out) of
+                            Stanza1 = privacy_check_packet(StateData, Stanza, FJID, out),
+                            case mongoose_stanza:get(privacy_check, Stanza1, allow) of
                                 allow ->
                                     ejabberd_router:route(From, FJID, Packet);
                                 _ ->
@@ -2227,15 +2239,15 @@ roster_change(IJID, ISubscription, StateData) ->
 -spec update_priority(Priority :: integer(),
                       Packet :: jlib:xmlel(),
                       State :: state()) -> 'ok'.
-update_priority(Priority, Packet, StateData) ->
+update_priority(Priority, Stanza, StateData) ->
     Info = [{ip, StateData#state.ip}, {conn, StateData#state.conn},
             {auth_module, StateData#state.auth_module}],
-    ejabberd_sm:set_presence(StateData#state.sid,
+    ejabberd_sm:set_presence(Stanza,
+                             StateData#state.sid,
                              StateData#state.user,
                              StateData#state.server,
                              StateData#state.resource,
                              Priority,
-                             Packet,
                              Info).
 
 
