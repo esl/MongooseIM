@@ -51,14 +51,14 @@ set_modules(Opts) ->
     dynamic_modules:start(host(), mod_http_notification, Opts),
     ok.
 
-host() -> <<"localhost">>.
+host() -> ct:get_config({hosts, mim, domain}).
 
 init_per_suite(Config0) ->
     Config1 = escalus:init_per_suite(Config0),
     escalus:create_users(Config1, escalus:get_users([alice, bob])).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, [alice, bob]),
+    escalus:delete_users(Config, escalus:get_users([alice, bob])),
     escalus:end_per_suite(Config).
 
 init_per_group(mod_http_notification_tests, Config) ->
@@ -83,7 +83,7 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 start_mod_http_notification(Opts) ->
-    Domain = ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Domain, mod_http_notification, Opts).
 
 start_http_listener(simple_message, Prefix) ->
@@ -113,7 +113,7 @@ simple_message(Config) ->
            after 2000 ->
                    error(missing_request)
            end,
-    ct:pal("Got request ~p~n", [Body]),
+
     {_, _} = binary:match(Body, <<"alice">>),
     {_, _} = binary:match(Body, <<"Simple">>).
 
@@ -164,4 +164,3 @@ get_prefix(mod_http_notification_tests_with_prefix) ->
 get_prefix(Config) ->
     GroupName = proplists:get_value(name, proplists:get_value(tc_group_properties, Config)),
     get_prefix(GroupName).
-

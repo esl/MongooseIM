@@ -82,10 +82,24 @@ all() -> [
         {group, owner_no_parallel},
         {group, room_management},
         {group, http_auth_no_server},
-        {group, http_auth}
+        {group, http_auth},
+        {group, hibernation}
         ].
 
 groups() -> [
+             {hibernation, [parallel], [room_is_hibernated,
+                                        room_with_participants_is_hibernated,
+                                        hibernation_metrics_are_updated,
+                                        room_with_participants_and_messages_is_hibernated,
+                                        hibernated_room_can_be_queried_for_archive,
+                                        hibernated_room_is_stopped,
+                                        hibernated_room_is_stopped_and_restored_by_presence,
+                                        stopped_rooms_history_is_available,
+                                        stopped_members_only_room_process_invitations_correctly,
+                                        room_with_participants_is_not_stopped,
+                                        room_with_only_owner_is_stopped,
+                                        deep_hibernation_metrics_are_updated
+                                       ]},
         {disco, [parallel], [
                 disco_service,
                 disco_features,
@@ -246,8 +260,8 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    escalus_fresh:clean(),
     unload_muc(),
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(moderator, Config) ->
@@ -289,7 +303,17 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
     ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
     dynamic_modules:ensure_modules(domain(), required_modules(http_auth)),
     ConfigWithModules;
-
+init_per_group(hibernation, Config) ->
+    case mam_helper:backend() of
+        odbc ->
+    dynamic_modules:start(domain(), mod_mam_muc_odbc_arch, [muc, simple]),
+    dynamic_modules:start(domain(), mod_mam_odbc_prefs, [muc]),
+    dynamic_modules:start(domain(), mod_mam_odbc_user, [muc]),
+            dynamic_modules:start(domain(), mod_mam_muc, [{host, "muc.@HOST@"}]);
+        _ ->
+            ok
+    end,
+    Config;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
@@ -334,7 +358,17 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
     end,
     ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [muc_http_auth_test]),
     dynamic_modules:restore_modules(domain(), Config);
-
+end_per_group(hibernation, Config) ->
+    case mam_helper:backend() of
+        odbc ->
+    dynamic_modules:stop(domain(), mod_mam_muc_odbc_arch),
+    dynamic_modules:stop(domain(), mod_mam_odbc_prefs),
+    dynamic_modules:stop(domain(), mod_mam_odbc_user),
+            dynamic_modules:stop(domain(), mod_mam_muc);
+        _ ->
+            ok
+    end,
+    Config;
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
@@ -378,7 +412,15 @@ init_per_testcase(CaseName =reserved_nickname_request, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
-
+init_per_testcase(CN, Config)
+  when CN =:= hibernated_room_can_be_queried_for_archive orelse
+       CN =:= stopped_rooms_history_is_available ->
+    case mam_helper:backend() of
+        odbc ->
+            escalus:init_per_testcase(CN, Config);
+        _ ->
+            {skip, "MAM works only for ODBC as of now"}
+    end;
 init_per_testcase(CaseName, ConfigIn) ->
     Config = maybe_create_unique_room(ConfigIn),
     escalus:init_per_testcase(CaseName, Config).
@@ -2659,7 +2701,8 @@ disco_service(Config) ->
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_service, [muc_host()], Stanza),
-        escalus:assert(is_stanza_from, [escalus_config:get_config(ejabberd_domain, Config)], Stanza)
+        escalus:assert(is_stanza_from,
+                       [ct:get_config({hosts, mim, domain})], Stanza)
     end).
 
 disco_features(Config) ->
@@ -3781,6 +3824,317 @@ deny_creation_of_http_password_protected_room_service_unavailable(Config) ->
         escalus_assert:has_no_stanzas(Alice)
     end).
 
+room_is_hibernated(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        given_fresh_room_is_hibernated(Alice, RoomName, [{membersonly, false}])
+    end),
+
+    destroy_room(muc_host(), RoomName).
+
+room_with_participants_is_hibernated(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        given_fresh_room_with_participants_is_hibernated(Alice, RoomName,
+                                                         [{membersonly, false}], Bob)
+    end),
+
+    destroy_room(muc_host(), RoomName).
+
+hibernation_metrics_are_updated(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        given_fresh_room_is_hibernated(Alice, RoomName, [{membersonly, false}]),
+
+        OnlineRooms = escalus_ejabberd:rpc(mod_muc, online_rooms_number, []),
+        true = OnlineRooms > 0,
+        HibernationsCnt = get_spiral_metric_count(global, [mod_muc, hibernations]),
+        true = HibernationsCnt > 0,
+        HibernatedRooms = escalus_ejabberd:rpc(mod_muc, hibernated_rooms_number, []),
+        true = HibernatedRooms > 0
+    end),
+
+    destroy_room(muc_host(), RoomName).
+
+room_with_participants_and_messages_is_hibernated(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        given_fresh_room_with_messages_is_hibernated(Alice, RoomName,
+                                                     [{membersonly, false}], Bob)
+
+    end),
+
+    destroy_room(muc_host(), RoomName).
+
+hibernated_room_can_be_queried_for_archive(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Result = given_fresh_room_with_messages_is_hibernated(Alice, RoomName,
+                                                              [{membersonly, false}], Bob),
+        {Msg, {ok, _, Pid}} = Result,
+        wait_for_mam_result(RoomName, Bob, Msg),
+        true = wait_for_hibernation(Pid, 10)
+
+    end),
+
+    destroy_room(muc_host(), RoomName).
+
+hibernated_room_is_stopped(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        {ok, _, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{persistentroom, true}]),
+        leave_room(RoomName, Alice),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8))
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+hibernated_room_is_stopped_and_restored_by_presence(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Opts = [{persistentroom, true},
+                {subject, <<"Restorable">>}],
+        Result = given_fresh_room_with_participants_is_hibernated(Alice, RoomName, Opts, Bob),
+        {ok, RoomJID, Pid} = Result,
+        leave_room(RoomName, Alice),
+        escalus:wait_for_stanza(Bob),
+        leave_room(RoomName, Bob),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+        ct:sleep(timer:seconds(1)),
+
+        escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
+        Presence = escalus:wait_for_stanza(Bob),
+        ct:print("~p", [Presence]),
+        MessageWithSubject = escalus:wait_for_stanza(Bob),
+        ct:print("~p", [MessageWithSubject]),
+        true = is_subject_message(MessageWithSubject, <<"Restorable">>),
+
+        {ok, _Pid2} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
+        ok
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+stopped_rooms_history_is_available(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Opts = [{persistentroom, true}],
+        Result = given_fresh_room_with_messages_is_hibernated(Alice, RoomName,
+                                                              Opts, Bob),
+        {Msg, {ok, RoomJID, Pid}} = Result,
+        leave_room(RoomName, Alice),
+        escalus:wait_for_stanza(Bob),
+        leave_room(RoomName, Bob),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+
+        wait_for_mam_result(RoomName, Bob, Msg),
+
+        {ok, _Pid2} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
+        ok
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+stopped_members_only_room_process_invitations_correctly(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        Opts = [{persistentroom, true},
+                {membersonly, true}],
+        Result = given_fresh_room_for_user(Alice, RoomName, Opts),
+        {ok, _, Pid} = Result,
+
+        Stanza = stanza_set_affiliations(RoomName, [{escalus_client:short_jid(Bob), <<"member">>}]),
+        escalus:send(Alice, Stanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        is_invitation(escalus:wait_for_stanza(Bob)),
+
+        leave_room(RoomName, Alice),
+
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+
+        Stanza2 = stanza_set_affiliations(RoomName,
+                                          [{escalus_client:short_jid(Kate), <<"member">>}]),
+        escalus:send(Alice, Stanza2),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        is_invitation(escalus:wait_for_stanza(Kate)),
+
+        ok
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+room_with_participants_is_not_stopped(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {ok, _, Pid} = given_fresh_room_with_participants_is_hibernated(
+                         Alice, RoomName, [{persistentroom, true}], Bob),
+        false = wait_for_room_to_be_stopped(Pid, timer:seconds(8))
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+room_with_only_owner_is_stopped(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        {ok, _, Pid} = given_fresh_room_is_hibernated(
+                         Alice, RoomName, [{persistentroom, true}]),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+
+        Unavailable = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable)
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+deep_hibernation_metrics_are_updated(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {ok, _, Pid} = given_fresh_room_is_hibernated(
+                         Alice, RoomName, [{persistentroom, true}]),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+        DeepHibernations = get_spiral_metric_count(global, [mod_muc, deep_hibernations]),
+        true = DeepHibernations > 0,
+
+        Unavailable = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable),
+
+        escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        Recreations = get_spiral_metric_count(global, [mod_muc, process_recreations]),
+        true = Recreations > 0
+
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+get_spiral_metric_count(Host, MetricName) ->
+    Result = escalus_ejabberd:rpc(mongoose_metrics, get_metric_value,
+                                  [Host, MetricName]),
+    {ok, [{count, Count}, {one, _}]} = Result,
+    Count.
+
+given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
+    {ok, _, RoomPid} = Result = given_fresh_room_for_user(Owner, RoomName, Opts),
+    true = wait_for_hibernation(RoomPid, 10),
+    Result.
+
+given_fresh_room_for_user(Owner, RoomName, Opts) ->
+    RoomJID = {jid, RoomName, muc_host(), <<>>,
+               escalus_utils:jid_to_lower(RoomName), muc_host(), <<>>},
+    Nick = escalus_utils:get_username(Owner),
+    JoinRoom = stanza_join_room(RoomName, Nick),
+    escalus:send(Owner, JoinRoom),
+    escalus:wait_for_stanzas(Owner, 2),
+    maybe_configure(Owner, RoomName, Opts),
+    {ok, Pid} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
+    {ok, RoomJID, Pid}.
+
+maybe_configure(_, _, []) ->
+    ok;
+maybe_configure(Owner, RoomName, Opts) ->
+    Cfg = [opt_to_room_config(Opt) || Opt <- Opts],
+    Form = stanza_configuration_form(RoomName, lists:flatten(Cfg)),
+    escalus:send(Owner, Form),
+
+    Result = escalus:wait_for_stanza(Owner),
+    escalus:assert(is_iq_result, Result),
+    escalus:assert(is_stanza_from, [<<RoomName/binary, "@muc.localhost">>], Result),
+    maybe_set_subject(proplists:get_value(subject, Opts), Owner, RoomName).
+
+opt_to_room_config({Name, Value}) when is_atom(Value) ->
+    NameBin = atom_to_binary(Name, utf8),
+    OptionName = <<"muc#roomconfig_", NameBin/binary>>,
+    BinValue = boolean_to_binary(Value),
+    {OptionName, BinValue, <<"boolean">>};
+opt_to_room_config(_) -> [].
+
+boolean_to_binary(true) -> <<"1">>;
+boolean_to_binary(false) -> <<"0">>.
+
+maybe_set_subject(undefined, _, _) ->
+    ok;
+maybe_set_subject(Subject, Owner, RoomName) ->
+    S = stanza_room_subject(RoomName, Subject),
+    escalus:send(Owner, S),
+    escalus:wait_for_stanza(Owner),
+    ok.
+
+leave_room(RoomName, User) ->
+    S = stanza_to_room(escalus_stanza:presence(<<"unavailable">>), RoomName,
+                       escalus_utils:get_username(User)),
+    escalus:send(User, S),
+    escalus:wait_for_stanza(User).
+
+given_fresh_room_with_participants_is_hibernated(Owner, RoomName, Opts, Participant) ->
+    {ok, _, Pid} = Result = given_fresh_room_is_hibernated(Owner, RoomName, Opts),
+    Nick = escalus_utils:get_username(Participant),
+    JoinRoom = stanza_join_room(RoomName, Nick),
+    escalus:send(Participant, JoinRoom),
+    escalus:wait_for_stanzas(Participant, 3),
+    escalus:wait_for_stanza(Owner),
+    true = wait_for_hibernation(Pid, 10),
+    Result.
+
+given_fresh_room_with_messages_is_hibernated(Owner, RoomName, Opts, Participant) ->
+    {ok, _, Pid} = Result =
+    given_fresh_room_with_participants_is_hibernated(Owner, RoomName, Opts, Participant),
+    RoomAddr = room_address(RoomName),
+    MessageBin = <<"Restorable message">>,
+    Message = escalus_stanza:groupchat_to(RoomAddr, MessageBin),
+    escalus:send(Owner, Message),
+    escalus:assert(is_groupchat_message, [MessageBin], escalus:wait_for_stanza(Participant)),
+    escalus:assert(is_groupchat_message, [MessageBin], escalus:wait_for_stanza(Owner)),
+    true = wait_for_hibernation(Pid, 10),
+    {MessageBin, Result}.
+
+forget_room(MUCHost, RoomName) ->
+    escalus_ejabberd:rpc(mod_muc, forget_room, [domain(), MUCHost, RoomName]).
+
+wait_for_room_to_be_stopped(Pid, Timeout) ->
+    Ref = erlang:monitor(process, Pid),
+    receive
+        {'DOWN', Ref, _Type, Pid, Info} ->
+            true
+    after Timeout ->
+              false
+    end.
+
+wait_for_hibernation(Pid, 0) ->
+    is_hibernated(Pid);
+wait_for_hibernation(Pid, N) ->
+    case is_hibernated(Pid) of
+        true ->
+            true;
+        _ ->
+            timer:sleep(500),
+            wait_for_hibernation(Pid, N-1)
+    end.
+
+is_hibernated(Pid) ->
+    CurrentFunction = escalus_ejabberd:rpc(erlang, process_info, [Pid, current_function]),
+    {current_function, {erlang, hibernate, 3}} == CurrentFunction.
+
+wait_for_mam_result(RoomName, Client, Msg) ->
+    Props = [{mam_ns, mam_helper:mam_ns_binary_v04()},
+             {data_form, true}],
+    QueryStanza = mam_helper:stanza_archive_request(Props, <<"q1">>),
+    escalus:send(Client, muc_helper:stanza_to_room(QueryStanza, RoomName)),
+    S = escalus:wait_for_stanza(Client),
+    M = exml_query:path(S, [{element, <<"result">>},
+                            {element, <<"forwarded">>},
+                            {element, <<"message">>}]),
+
+    escalus:assert(is_groupchat_message, [Msg], M),
+    escalus:wait_for_stanza(Client).
+
 %% @doc Based on examples from http://xmpp.org/extensions/xep-0059.html
 %% @end
 %% <iq type='get' from='stpeter@jabber.org/roundabout'
@@ -4288,7 +4642,7 @@ stanza_get_services(Config) ->
     %%   <query xmlns='http://jabber.org/protocol/disco#items'/>
     %% </iq>
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), <<"to">>,
-        escalus_config:get_config(ejabberd_domain, Config)).
+        ct:get_config({hosts, mim, domain})).
 
 %%--------------------------------------------------------------------
 %% Helpers (assertions)
@@ -4559,4 +4913,3 @@ fresh_room_name(Username) ->
 
 fresh_room_name() ->
     fresh_room_name(base16:encode(crypto:rand_bytes(5))).
-

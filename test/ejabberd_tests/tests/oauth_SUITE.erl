@@ -165,15 +165,16 @@ request_tokens_once_logged_in(Config) ->
 request_tokens_once_logged_in_impl(Config, User) ->
     Self = self(),
     Ref = make_ref(),
-    escalus:story(Config, [{User, 1}], fun(Client) ->
-                                               ClientShortJid = escalus_utils:get_short_jid(Client),
-                                               R = escalus_stanza:query_el(?NS_ESL_TOKEN_AUTH, []),
-                                               IQ = escalus_stanza:iq(ClientShortJid, <<"get">>, [R]),
-                                               escalus:send(Client, IQ),
-                                               Result = escalus:wait_for_stanza(Client),
-                                               {AT, RT} = extract_tokens(Result),
-                                               Self ! {tokens, Ref, {AT,RT}}
-                                       end),
+    Fun = fun(Client) ->
+              ClientShortJid = escalus_utils:get_short_jid(Client),
+              R = escalus_stanza:query_el(?NS_ESL_TOKEN_AUTH, []),
+              IQ = escalus_stanza:iq(ClientShortJid, <<"get">>, [R]),
+              escalus:send(Client, IQ),
+              Result = escalus:wait_for_stanza(Client),
+              {AT, RT} = extract_tokens(Result),
+              Self ! {tokens, Ref, {AT, RT}}
+          end,
+    escalus:story(Config, [{User, 1}], Fun),
     receive
         {tokens, Ref, Tokens} ->
             Tokens
@@ -325,13 +326,13 @@ extract_tokens(#xmlel{name = <<"iq">>, children = [#xmlel{name = <<"items">>} = 
 
 get_auth_method()        ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config(ejabberd_domain)),
+                   ct:get_config({hosts, mim, domain})),
     escalus_ejabberd:rpc(ejabberd_auth, store_type,
                          [XMPPDomain]).
 
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config(ejabberd_domain)),
+                   ct:get_config({hosts, mim, domain})),
     AuthOpts = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
                                     [{auth_opts, XMPPDomain}]),
     NewAuthOpts = lists:keystore(password_format, 1, AuthOpts, {password_format, Type}),
@@ -370,7 +371,7 @@ record_set(Record, FieldValues) ->
     lists:foldl(F, Record, FieldValues).
 
 mimctl(Config, CmdAndArgs) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     ejabberd_node_utils:call_ctl_with_args(Node, convert_args(CmdAndArgs), Config).
 
 convert_args(Args) -> [ convert_arg(A) || A <- Args ].
@@ -381,7 +382,7 @@ convert_arg(S) when is_list(S) -> S.
 
 clean_token_db() ->
     Q = [<<"DELETE FROM auth_token">>],
-    ODBCHost = <<"localhost">>, %% mam is also tested against local odbc
+    ODBCHost = domain(), %% mam is also tested against local odbc
     {updated, _} = escalus_ejabberd:rpc(ejabberd_odbc, sql_query, [ODBCHost, Q]).
 
 get_users_token(C, User) ->
@@ -415,7 +416,7 @@ make_vcard(Config, User) ->
     escalus_stanza:from_template(T, [{nick, escalus_users:get_username(Config, User)}]).
 
 make_provision_token(Config, User, VCard) ->
-    ExpiryFarInTheFuture = {{2055,10,27},{10,54,22}},
+    ExpiryFarInTheFuture = {{2055, 10, 27}, {10, 54, 22}},
     Username = escalus_users:get_username(Config, User),
     Domain = escalus_users:get_server(Config, User),
     ServerSideJID = {jid, Username, Domain, <<>>,
@@ -437,9 +438,9 @@ make_provision_token(Config, User, VCard) ->
 
 serialize(ServerSideToken) ->
     Serialized = escalus_ejabberd:rpc(mod_auth_token, serialize, [ServerSideToken]),
-    if
-        is_binary(Serialized) -> Serialized;
-        not is_binary(Serialized) -> error(Serialized)
+    case is_binary(Serialized) of
+        true -> Serialized;
+        false -> error(Serialized)
     end.
 
 to_lower(B) when is_binary(B) ->
@@ -448,10 +449,13 @@ to_lower(B) when is_binary(B) ->
 is_pgsql_available(_) ->
     Q = [<<"SELECT version();">>],
     %% TODO: hardcoded ODBCHost
-    ODBCHost = <<"localhost">>,
+    ODBCHost = domain(),
     case escalus_ejabberd:rpc(ejabberd_odbc, sql_query, [ODBCHost, Q]) of
         {selected, [<<"version">>], [{<<"PostgreSQL", _/binary>>}]} ->
             true;
         _ ->
             false
     end.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).

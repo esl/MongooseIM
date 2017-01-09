@@ -66,7 +66,7 @@ restart(Domain, Mod, Args) ->
     start(Domain, Mod, Args).
 
 start_running(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     case ?config(running, Config) of
         List when is_list(List) ->
             _ = [start(Domain, Mod, Args) || {Mod, Args} <- List];
@@ -77,7 +77,7 @@ start_running(Config) ->
 stop_running(Mod, Config) ->
     ModL = atom_to_list(Mod),
     Domain = escalus_ejabberd:unify_str_arg(
-               escalus_config:get_config(ejabberd_domain, Config)),
+               ct:get_config({hosts, mim, domain})),
     Modules = escalus_ejabberd:rpc(ejabberd_config,
                                    get_local_option,
                                    [{modules, Domain}]),

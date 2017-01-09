@@ -11,8 +11,7 @@ Please see the [Authentication](#authentication) section for more details.
 1. The relevant endpoint has to be configured on the server side.
 See the [configuration section](#configuration).
 1. A list of provided actions is documented with Swagger.
-See the documentation at the [bottom](#specification) of this page or under
-[this link](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true).
+See the beatiful [specification](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true).
 
 ### Authentication
 
@@ -56,10 +55,9 @@ see the relevant documentation in [Listener-modules](../advanced-configuration/L
 
 ### Specification
 
-Find the beautiful Swagger documentation below
+See the beautiful [Swagger documentation](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true) for more information.
 
-<iframe src="http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true"
-height="800" width="800" style="margin-left: -45px;" id="swagger-ui-iframe"></iframe>
+[![Swagger](http://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true)
 
 <script>
 
@@ -76,5 +74,4 @@ $(document).ready(function() {
 })
 
 </script>
-
 

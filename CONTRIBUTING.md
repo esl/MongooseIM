@@ -33,10 +33,39 @@ Comments should give us more insight into **why** something was done (the reason
 
 ## 1. Preparation
 
+### Branch and code
+
 Always create a branch with a descriptive name from an up-to-date master.
 Do your work in the branch, push it to the ESL repository if you have access to it, otherwise to your own repository.
 
+### Run tests
+
 When done, run the whole CT suite and write tests related to what you've done.
+
+### Check coding style
+
+Check you coding style by running Elvis on your work. You need:
+
+https://github.com/inaka/elvis (make sure elvis_core is at least version 0.3.3)
+
+in your PATH. Then run:
+
+`make rock BRANCH=your_development_branch`
+
+to check all files you have modified within your branch. Alternatively, you can run:
+
+`make rock FILE=file_to_check`
+
+or just
+
+`make rock`
+
+to check only modified files (both staged and unstaged).
+
+Fix all issues Elvis reports, otherwise your build will fail.
+
+### Push
+
 Then push the changes and create a pull request to master, following the PR description template.
 Make sure all Travis tests pass (if only some jobs fail it is advisable to restart them, since they sometimes
 fail at random).
@@ -58,12 +87,14 @@ It is the reviewer who actually does the merge, so he takes at least half of the
 ## 3. Merging
 
 I. If your PR is not a trivial one, always rebase onto master.
+
 This is important, because someone may have merged before which may break your code, and it might be difficult to figure out who should fix it and how.
 For the same reason, it is recommended to tell your colleagues that you are about to merge something so that they do not merge at the same time.
 
 II. After rebase, push your branch with -f, make sure all tests pass.
 
 III. Tell your reviewer he can proceed.
+
 He hits the green button, and you can both celebrate.
 
 

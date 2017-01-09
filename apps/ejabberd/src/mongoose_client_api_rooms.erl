@@ -37,7 +37,7 @@ content_types_accepted(Req, State) ->
      ], Req, State}.
 
 allowed_methods(Req, State) ->
-    {[<<"GET">>, <<"POST">>], Req, State}.
+    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>], Req, State}.
 
 resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
     {RoomID, Req2} = cowboy_req:binding(id, Req),
@@ -89,7 +89,7 @@ to_json(Req, #{room := Room} = State) ->
             },
     {jiffy:encode(Resp), Req, State};
 to_json(Req, #{jid := #jid{luser = User, lserver = Server}} = State) ->
-    Rooms = mod_muc_light_db_backend:get_user_rooms({User, Server}),
+    Rooms = mod_muc_light_db_backend:get_user_rooms({User, Server}, undefined),
     RoomsMap = [get_room_details(RoomUS) || RoomUS <- Rooms],
     {jiffy:encode(lists:flatten(RoomsMap)), Req, State}.
 
@@ -127,7 +127,7 @@ user_to_json({UserServer, Role}) ->
       role => Role}.
 
 muc_light_domain(Server) ->
-    gen_mod:get_module_opt_host(Server, mod_muc_light, <<"muclight.@HOST@">>).
+    gen_mod:get_module_opt_subhost(Server, mod_muc_light, mod_muc_light:default_host()).
 
 determine_role(US, Users) ->
     case lists:keyfind(US, 1, Users) of

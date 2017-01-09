@@ -131,10 +131,10 @@ send_message_to_room(Config) ->
         escalus:wait_for_stanzas(Bob, 2),
         %% Parameters for this test.
         Host = <<"localhost">>,
-        Path = <<"/mucs",$/,Host/binary,$/,Name/binary,$/,"messages">>,
+        Path = <<"/mucs", $/, Host/binary, $/, Name/binary, $/, "messages">>,
         Message = <<"Greetings!">>,
-        Body = #{sender => escalus_client:short_jid(Bob),
-                 message => Message},
+        Body = #{from => escalus_client:short_jid(Bob),
+                 body => Message},
         %% The HTTP call in question. Notice: status 200 because no
         %% resource is created.
         {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
@@ -249,8 +249,8 @@ multiparty_multiprotocol(Config) ->
             %% HTTP: Alice sends a message to the room.
             {{<<"204">>, _}, <<"">>} =
                 rest_helper:post(MessagePath,
-                                 #{sender => escalus_client:short_jid(Alice),
-                                   message => Message}),
+                                 #{from => escalus_client:short_jid(Alice),
+                                   body => Message}),
             %% XMPP: All three recieve the message sent to the MUC room.
             [ Message = wait_for_group_message(User) || User <- [Alice, Bob, Kate] ],
             %% XMPP: Bob and Kate send a message to the MUC room.

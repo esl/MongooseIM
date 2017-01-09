@@ -2,6 +2,8 @@
 
 %% API
 
+-export([is_odbc_enabled/1]).
+
 -export([auth_modules/0]).
 
 -export([total_offline_messages/0,
@@ -17,7 +19,14 @@
 
 -export([kick_everyone/0]).
 
--define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
+-define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
+
+-spec is_odbc_enabled(Host :: binary()) -> boolean().
+is_odbc_enabled(Host) ->
+    case escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [Host, fun erlang:yield/0]) of
+        {atomic, _} -> true;
+        _ -> false
+    end.
 
 -spec auth_modules() -> [atom()].
 auth_modules() ->
@@ -53,7 +62,7 @@ total_vcard_items() ->
 
 -spec total_roster_items() -> integer() | false.
 total_roster_items() ->
-    Domain = escalus_ct:get_config(ejabberd_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
     RosterMnesia = ?RPC(gen_mod, is_loaded, [Domain, mod_roster]),
     RosterODBC = ?RPC(gen_mod, is_loaded, [Domain, mod_roster_odbc]),
     case {RosterMnesia, RosterODBC} of
@@ -73,7 +82,7 @@ total_roster_items() ->
 %% In such situation the last info is set back
 -spec clear_last_activity(list(), atom() | binary() | [atom() | binary()]) -> no_return().
 clear_last_activity(Config, User) ->
-    S = escalus_config:get_config(ejabberd_domain, Config),
+    S = ct:get_config({hosts, mim, domain}),
     case catch escalus_ejabberd:rpc(gen_mod, is_loaded, [S, mod_last]) of
         true ->
             do_clear_last_activity(Config, User);
@@ -128,7 +137,7 @@ generic_count_backend(mod_vcard_mnesia) -> count_wildpattern(vcard);
 generic_count_backend(mod_vcard_odbc) -> count_odbc(<<"vcard">>);
 generic_count_backend(mod_vcard_riak) -> count_riak(<<"vcard">>);
 generic_count_backend(mod_vcard_ldap) ->
-    D = escalus_ct:get_config(ejabberd_domain),
+    D = ct:get_config({hosts, mim, domain}),
     %% number of vcards in ldap is the same as number of users
     ?RPC(ejabberd_auth_ldap, get_vh_registered_users_number, [D]);
 generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
@@ -160,7 +169,7 @@ count_riak(BucketType) ->
 kick_everyone() ->
     [?RPC(ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
     asset_session_count(0, 50).
-    
+
 asset_session_count(Expected, Retries) ->
     case wait_for_session_count(Expected, Retries) of
         Expected ->

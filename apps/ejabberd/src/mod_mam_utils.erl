@@ -29,7 +29,7 @@
          packet_to_x_user_jid/1,
          get_one_of_path/2,
          get_one_of_path/3,
-         is_complete_message/3,
+         is_archivable_message/3,
          wrap_message/6,
          result_set/4,
          result_query/2,
@@ -300,13 +300,13 @@ get_one_of_path(_Elem, [], Def) ->
 %% From v0.3: it is expected that all messages that hold meaningful content,
 %% rather than state changes such as Chat State Notifications, would be archived.
 %% @end
--spec is_complete_message(Mod :: module(), Dir :: incoming | outgoing,
+-spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
                           Packet :: jlib:xmlel()) -> boolean().
-is_complete_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
+is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
     is_valid_message_type(Mod, Dir, Type) andalso
     is_valid_message(Mod, Dir, Packet);
-is_complete_message(_, _, _) ->
+is_archivable_message(_, _, _) ->
     false.
 
 is_valid_message_type(_, _, <<"">>)          -> true;
@@ -884,4 +884,3 @@ success_sql_query(Host, Query) ->
         Result ->
             Result
     end.
-

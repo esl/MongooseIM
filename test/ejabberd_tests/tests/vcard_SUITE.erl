@@ -37,7 +37,7 @@
 -define(EL(Element, Name), exml_query:path(Element, [{element, Name}])).
 -define(EL_CD(Element, Name), exml_query:path(Element, [{element, Name}, cdata])).
 
--define(PHOTO_BIN, <<130,192,33,159,204,86,12,63,132,164>>).
+-define(PHOTO_BIN, <<130, 192, 33, 159, 204, 86, 12, 63, 132, 164>>).
 -define(PHOTO_BASE_64, <<"gsAhn8xWDD+EpA==">>). %% jlib:encode_base64(?PHOTO_BIN)
 
 %%--------------------------------------------------------------------
@@ -106,21 +106,23 @@ init_per_suite(Config) ->
     NewConfig1 = vcard_config(NewConfig),
     NewConfig2 = stop_running_vcard_mod(NewConfig1),
     AliceAndBob = escalus_users:get_users([alice, bob]),
-    BisUsers = [{aliceb,[{username,<<"aliceb">>},
-                        {server,<<"localhost.bis">>},
-                        {host, <<"localhost">>},
-                        {password,<<"makota">>}]},
-                {bobb,[{username,<<"bobb">>},
-                      {server,<<"localhost.bis">>},
-                      {host, <<"localhost">>},
-                      {password,<<"makrolika">>}]}],
+    Domain = domain(),
+    BisUsers = [{aliceb, [{username, <<"aliceb">>},
+                          {server, <<Domain/binary, ".bis">>},
+                          {host, Domain},
+                          {password, <<"makota">>}]},
+                {bobb, [{username, <<"bobb">>},
+                        {server, <<Domain/binary, ".bis">>},
+                        {host, Domain},
+                        {password, <<"makrolika">>}]}],
     NewUsers = AliceAndBob ++ BisUsers,
     escalus:create_users([{escalus_users, NewUsers} | NewConfig2], NewUsers).
 
 vcard_config(Config) ->
+    Domain = domain(),
     [{all_vcards, get_all_vcards()},
      {server_vcards, get_server_vcards()},
-     {directory_jid, <<"vjud.localhost">>}
+     {directory_jid, <<"vjud.", Domain/binary>>}
     ] ++ Config.
 
 end_per_suite(Config) ->
@@ -209,7 +211,8 @@ user_doesnt_exist(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              BadJID = <<"nonexistent@localhost">>,
+              Domain = domain(),
+              BadJID = <<"nonexistent@", Domain/binary>>,
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request(BadJID)),
           case
@@ -266,7 +269,7 @@ server_vcard(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              ServJID = escalus_ct:get_config(ejabberd_domain),
+              ServJID = ct:get_config({hosts, mim, domain}),
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request(ServJID)),
               ServerVCardTups = get_server_vcard(ServJID, Config),
@@ -288,7 +291,7 @@ vcard_service_discovery(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-          ServJID = escalus_ct:get_config(ejabberd_domain),
+          ServJID = ct:get_config({hosts, mim, domain}),
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:disco_info(ServJID)),
               escalus:assert(is_iq_result, Res),
@@ -367,7 +370,7 @@ search_some(Config) ->
 
               %% Basically test that the right values exist
               %% and map to the right column headings
-              Domain = escalus_ct:get_config(ejabberd_domain),
+              Domain = ct:get_config({hosts, mim, domain}),
               AliceJID = <<"alice@", Domain/binary>>,
 
               [{AliceJID, ItemTups}] = search_result_item_tuples(Res),
@@ -379,7 +382,7 @@ search_wildcard(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
-                Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -390,8 +393,8 @@ search_wildcard(Config) ->
 
                 ItemTups = search_result_item_tuples(Res),
                 ExpectedItemTups = get_search_results(Config,
-                                                      [<<"bobb@localhost.bis">>,
-                                                       <<"aliceb@localhost.bis">>]),
+                                                      [<<"bobb@", Domain/binary>>,
+                                                       <<"aliceb@", Domain/binary>>]),
                 case vcard_simple_SUITE:is_vcard_ldap() of
                     true ->
                         3 = length(ItemTups);
@@ -405,20 +408,20 @@ search_some_many_fields(Config) ->
       Config, [{alice, 1}],
       fun(Client) ->
               {Domain, ItemTups} = search_vcard_by_many_fields(Client),
-              SomeJID = <<"aliceb@",Domain/binary>>,
+              SomeJID = <<"aliceb@", Domain/binary>>,
               [{SomeJID, _JIDsFields}] = ItemTups
               %{_Start, _Length} = binary:match(SomeJID, <<"@", Server/binary>>)
       end).
 
 search_vcard_by_many_fields(Client) ->
-    Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+    Domain = ct:get_config({hosts, mim, secondary_domain}),
     DirJID = <<"vjud.", Domain/binary>>,
 
     Fields = [{get_first_name_search_field(), <<"Alice">>},
               {get_last_name_search_field(), <<"Doe">>}],
     Stanza = escalus_stanza:search_iq(DirJID,
                                       escalus_stanza:search_fields(Fields)),
-    Res = escalus:send_and_wait(Client,Stanza),
+    Res = escalus:send_and_wait(Client, Stanza),
     escalus:assert(is_iq_result, Res),
     ItemTups = search_result_item_tuples(Res),
     %% exactly one result returned and its JID domain is correct
@@ -462,8 +465,8 @@ search_open_limited(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Server = escalus_ct:get_config(ejabberd_domain),
-              DirJID = <<"directory.",Server/binary>>,
+              Server = ct:get_config({hosts, mim, domain}),
+              DirJID = <<"directory.", Server/binary>>,
               Fields = [null],
               Res = escalus:send_and_wait(Client,
                            escalus_stanza:search_iq(DirJID,
@@ -477,7 +480,7 @@ search_some_limited(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+              Domain = ct:get_config({hosts, mim, secondary_domain}),
               DirJID = <<"directory.", Domain/binary>>,
               Server = escalus_client:server(Client),
               Fields = [{get_last_name_search_field(), <<"Doe">>}],
@@ -500,8 +503,8 @@ search_in_service_discovery(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              ServJID = escalus_ct:get_config(ejabberd_domain),
-              DirJID = <<"directory.",ServJID/binary>>,
+              ServJID = ct:get_config({hosts, mim, domain}),
+              DirJID = <<"directory.", ServJID/binary>>,
 
               %% Item
               ItemsRes = escalus:send_and_wait(Client,
@@ -541,7 +544,7 @@ search_not_in_service_discovery(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              ServJID = escalus_ct:get_config(ejabberd_domain),
+              ServJID = ct:get_config({hosts, mim, domain}),
               DirJID = ?config(directory_jid, Config),
               %% Item
               ItemsRes = escalus:send_and_wait(Client,
@@ -618,7 +621,7 @@ prepare_vcard(ldap, JID, Fields) ->
         end
     end,
     Modificators = convert_vcard_fields(Fields, [], Fun),
-    Dn = <<"cn=",User/binary,",",Base/binary>>,
+    Dn = <<"cn=", User/binary, ",", Base/binary>>,
     ok = escalus_ejabberd:rpc(eldap, modify, [EPid, Dn, Modificators]);
 prepare_vcard(_, JID, Fields) ->
     RJID = get_jid_record(JID),
@@ -627,11 +630,11 @@ prepare_vcard(_, JID, Fields) ->
 
 insert_alice_photo(Config) ->
     User = <<"alice">>,
-    Server = <<"localhost">>,
+    Server = domain(),
     {EPid, Base} = get_ldap_pid_and_base(Server),
     Photo = ?PHOTO_BIN,
     Modificators = [escalus_ejabberd:rpc(eldap, mod_replace, [<<"jpegPhoto">>, [Photo]])],
-    Dn = <<"cn=",User/binary,",",Base/binary>>,
+    Dn = <<"cn=", User/binary, ",", Base/binary>>,
     ok = escalus_ejabberd:rpc(eldap, modify, [EPid, Dn, Modificators]),
     Config.
 
@@ -702,18 +705,18 @@ restart_vcard_mod(Config, _GN) ->
     restart_mod(params_all(Config)).
 
 start_running_vcard_mod(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     OriginalVcardConfig = ?config(mod_vcard, Config),
     dynamic_modules:start(Domain, mod_vcard, OriginalVcardConfig).
 stop_running_vcard_mod(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     CurrentConfigs = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
     dynamic_modules:stop(Domain, mod_vcard),
     [{mod_vcard, CurrentVcardConfig} | Config].
 
 stop_vcard_mod(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Domain, mod_vcard).
 
 params_all(Config) ->
@@ -728,16 +731,16 @@ params_no(Config) ->
 
 params_ldap_only(Config) ->
     Reported = [{<<"Full Name">>, <<"FN">>},
-	 {<<"Given Name">>, <<"FIRST">>},
-	 {<<"Middle Name">>, <<"MIDDLE">>},
-	 {<<"Family Name">>, <<"LAST">>},
-	 {<<"Nickname">>, <<"NICK">>},
-	 {<<"Birthday">>, <<"BDAY">>},
-	 {<<"Country">>, <<"CTRY">>},
-	 {<<"City">>, <<"LOCALITY">>},
-	 {<<"Email">>, <<"EMAIL">>},
-	 {<<"Organization Name">>, <<"ORGNAME">>},
-	 {<<"Organization Unit">>, <<"ORGUNIT">>},
+   {<<"Given Name">>, <<"FIRST">>},
+   {<<"Middle Name">>, <<"MIDDLE">>},
+   {<<"Family Name">>, <<"LAST">>},
+   {<<"Nickname">>, <<"NICK">>},
+   {<<"Birthday">>, <<"BDAY">>},
+   {<<"Country">>, <<"CTRY">>},
+   {<<"City">>, <<"LOCALITY">>},
+   {<<"Email">>, <<"EMAIL">>},
+   {<<"Organization Name">>, <<"ORGNAME">>},
+   {<<"Organization Unit">>, <<"ORGUNIT">>},
      {<<"Photo">>, <<"PHOTO">>}],
     add_backend_param([{ldap_search_operator, 'or'},
                        {ldap_binary_search_fields, [<<"PHOTO">>]},
@@ -752,8 +755,8 @@ add_backend_param(Opts, CurrentVCardConfig) ->
 
 
 restart_mod(Params) ->
-    Domain = escalus_ct:get_config(ejabberd_domain),
-    SecDomain = escalus_ct:get_config(ejabberd_secondary_domain),
+    Domain = ct:get_config({hosts, mim, domain}),
+    SecDomain = ct:get_config({hosts, mim, secondary_domain}),
     dynamic_modules:stop(Domain, mod_vcard),
     dynamic_modules:stop(SecDomain, mod_vcard),
     {ok, _Pid} = dynamic_modules:start(Domain, mod_vcard, Params),
@@ -780,9 +783,9 @@ field_tuples([]) ->
 field_tuples([#xmlel{name = <<"field">>,
                           attrs=Attrs,
                           children=_Children} = El| Rest]) ->
-    {<<"type">>,Type} = lists:keyfind(<<"type">>, 1, Attrs),
-    {<<"var">>,Var} = lists:keyfind(<<"var">>, 1, Attrs),
-    {<<"label">>,Label} = lists:keyfind(<<"label">>, 1, Attrs),
+    {<<"type">>, Type} = lists:keyfind(<<"type">>, 1, Attrs),
+    {<<"var">>, Var} = lists:keyfind(<<"var">>, 1, Attrs),
+    {<<"label">>, Label} = lists:keyfind(<<"label">>, 1, Attrs),
     case ?EL_CD(El, <<"value">>) of
         undefined ->
             [{Type, Var, Label}|field_tuples(Rest)];
@@ -803,7 +806,7 @@ item_field_tuples(ReportedFieldTups,
                   [#xmlel{name = <<"field">>,
                                attrs=Attrs,
                                children=_Children} = El| Rest]) ->
-    {<<"var">>,Var} = lists:keyfind(<<"var">>, 1, Attrs),
+    {<<"var">>, Var} = lists:keyfind(<<"var">>, 1, Attrs),
     {Type, Var, Label} = lists:keyfind(Var, 2, ReportedFieldTups),
     [{Type, Var, Label, ?EL_CD(El, <<"value">>)}
      | item_field_tuples(ReportedFieldTups, Rest)];
@@ -822,7 +825,7 @@ item_tuples(_, []) ->
 item_tuples(ReportedFieldTups, [#xmlel{name = <<"item">>,
                                             children = Children} | Rest]) ->
     ItemFieldTups = item_field_tuples(ReportedFieldTups, Children),
-    {_,_,_,JID} = lists:keyfind(<<"jid">>, 2, ItemFieldTups),
+    {_, _, _, JID} = lists:keyfind(<<"jid">>, 2, ItemFieldTups),
     [{JID, ItemFieldTups}|item_tuples(ReportedFieldTups, Rest)];
 item_tuples(ReportedFieldTypes, [_SomeOtherChild | Rest]) ->
     item_tuples(ReportedFieldTypes, Rest).
@@ -901,7 +904,8 @@ search_result_item_tuples(Stanza) ->
     _ItemTups = item_tuples(ReportedFieldTups, XChildren).
 
 get_all_vcards() ->
-    [{<<"alice@localhost">>,
+    Domain = domain(),
+    [{<<"alice@", Domain/binary>>,
       [{<<"NICKNAME">>, <<"alice">>},
        {<<"FN">>, <<"Wonderland, Alice">>},
        {<<"TITLE">>, <<"Executive Director">>},
@@ -926,33 +930,33 @@ get_all_vcards() ->
        {<<"ORG">>,
         [{<<"ORGNAME">>, <<"The world">>},
          {<<"ORGUNIT">>, <<"People">>}]}
-      ] ++ maybe_add_bday() ++ maybe_add_jabberd_id(<<"alice@localhost">>)},
-     {<<"bob@localhost">>,
+      ] ++ maybe_add_bday() ++ maybe_add_jabberd_id(<<"alice@", Domain/binary>>)},
+     {<<"bob@", Domain/binary>>,
       [{<<"NICKNAME">>, <<"bob">>},
        {<<"FN">>, <<"Doe, Bob">>},
        {<<"ADR">>, [{<<"STREET">>,
-           <<208,146,32,208,161,208,190,208,178,
-           208,181,209,130,209,129,208,186,208,190,208,185,32,
-           208,160,208,190,209,129,209,129,208,184,208,184,44,
-           32,208,180,208,190,209,128,208,190,208,179,208,176,
-           32,209,128,208,176,208,183,208,178,208,181,209,130,
-           208,178,208,187,209,143,208,181,209,130,209,129,209,
-           143,32,208,178,209,139>>}]}
-      ] ++ maybe_add_jabberd_id(<<"bob@localhost">>)},
-     {<<"bobb@localhost.bis">>,
+           <<208, 146, 32, 208, 161, 208, 190, 208, 178,
+           208, 181, 209, 130, 209, 129, 208, 186, 208, 190, 208, 185, 32,
+           208, 160, 208, 190, 209, 129, 209, 129, 208, 184, 208, 184, 44,
+           32, 208, 180, 208, 190, 209, 128, 208, 190, 208, 179, 208, 176,
+           32, 209, 128, 208, 176, 208, 183, 208, 178, 208, 181, 209, 130,
+           208, 178, 208, 187, 209, 143, 208, 181, 209, 130, 209, 129, 209,
+           143, 32, 208, 178, 209, 139>>}]}
+      ] ++ maybe_add_jabberd_id(<<"bob@", Domain/binary>>)},
+     {<<"bobb@", Domain/binary, ".bis">>,
       [{<<"NICKNAME">>, <<"bobb">>},
        {<<"FN">>, <<"Doe, Bob">>},
        {<<"N">>,
         [{<<"FAMILY">>, <<"Doe">>},
          {<<"GIVEN">>, <<"Bob">>}]}
-      ] ++ maybe_add_jabberd_id(<<"bobb@localhost.bis">>)},
-     {<<"aliceb@localhost.bis">>,
+      ] ++ maybe_add_jabberd_id(<<"bobb@", Domain/binary, ".bis">>)},
+     {<<"aliceb@", Domain/binary, ".bis">>,
       [{<<"NICKNAME">>, <<"aliceb">>},
        {<<"FN">>, <<"Doe, Alice">>},
        {<<"N">>,
         [{<<"FAMILY">>, <<"Doe">>},
          {<<"GIVEN">>, <<"Alice">>}]}
-      ] ++ maybe_add_jabberd_id(<<"aliceb@localhost.bis">>)}
+      ] ++ maybe_add_jabberd_id(<<"aliceb@", Domain/binary, ".bis">>)}
     ].
 
 maybe_add_ctry() ->
@@ -973,7 +977,7 @@ maybe_add(Elems) ->
     end.
 
 get_server_vcards() ->
-    [{<<"localhost">>,
+    [{domain(),
       [{<<"FN">>, <<"MongooseIM">>},
        {<<"DESC">>, <<"MongooseIM XMPP Server\nCopyright (c) Erlang Solutions Ltd.">>}]},
      {<<"vjud.localhost">>,
@@ -1046,17 +1050,17 @@ vcard_field_to_result(Field, Value) ->
     end.
 
 reported_fields() ->
-    [{<<"text-single">>,<<"fn">>, <<"Full Name">>},
-     {<<"text-single">>,<<"last">>, <<"Family Name">>},
-     {<<"text-single">>,<<"first">>,<<"Name">>},
-     {<<"text-single">>,<<"middle">>,<<"Middle Name">>},
-     {<<"text-single">>,<<"nick">>,<<"Nickname">>},
-     {<<"text-single">>,<<"bday">>,<<"Birthday">>},
-     {<<"text-single">>,<<"ctry">>,<<"Country">>},
-     {<<"text-single">>,<<"locality">>,<<"City">>},
-     {<<"text-single">>,<<"email">>,<<"Email">>},
-     {<<"text-single">>,<<"orgname">>, <<"Organization Name">>},
-     {<<"text-single">>,<<"orgunit">>, <<"Organization Unit">>}
+    [{<<"text-single">>, <<"fn">>, <<"Full Name">>},
+     {<<"text-single">>, <<"last">>, <<"Family Name">>},
+     {<<"text-single">>, <<"first">>, <<"Name">>},
+     {<<"text-single">>, <<"middle">>, <<"Middle Name">>},
+     {<<"text-single">>, <<"nick">>, <<"Nickname">>},
+     {<<"text-single">>, <<"bday">>, <<"Birthday">>},
+     {<<"text-single">>, <<"ctry">>, <<"Country">>},
+     {<<"text-single">>, <<"locality">>, <<"City">>},
+     {<<"text-single">>, <<"email">>, <<"Email">>},
+     {<<"text-single">>, <<"orgname">>, <<"Organization Name">>},
+     {<<"text-single">>, <<"orgunit">>, <<"Organization Unit">>}
     ] ++ maybe_add_jabberd_field().
 
 maybe_add_jabberd_field() ->
@@ -1064,7 +1068,7 @@ maybe_add_jabberd_field() ->
         true ->
             [];
         _ ->
-            [{<<"jid-single">>,<<"jid">>,<<"Jabber ID">>}]
+            [{<<"jid-single">>, <<"jid">>, <<"Jabber ID">>}]
     end.
 
 
@@ -1084,6 +1088,7 @@ vcard_result_mapping(_) -> undefined.
 
 get_utf8_city() ->
     %% This is the UTF-8 of Москва
-    <<208,156,208,190,209,129,208,186,208,178,208,176>>.
+    <<208, 156, 208, 190, 209, 129, 208, 186, 208, 178, 208, 176>>.
 
-
+domain() ->
+    ct:get_config({hosts, mim, domain}).

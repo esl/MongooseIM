@@ -33,6 +33,13 @@ groups() ->
         {codec, [sequence], [codec_calls]}
     ].
 
+init_per_suite(Config) ->
+    Config.
+
+end_per_suite(Config) ->
+    exit(whereis(ejabberd_sup), kill),
+    Config.
+
 init_per_group(rsm_disco, Config) ->
     application:start(stringprep),
     Config;
@@ -51,6 +58,8 @@ init_per_testcase(codec_calls, Config) ->
     ejabberd_hooks:start_link(),
     ejabberd_router:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
+    mongoose_subhosts:init(),
+    gen_mod:start(),
     mod_muc_light:start(?DOMAIN, []),
     ets:new(testcalls, [named_table]),
     ets:insert(testcalls, {hooks, 0}),
@@ -62,7 +71,7 @@ init_per_testcase(_, Config) ->
 end_per_testcase(codec_calls, Config) ->
     mod_muc_light:stop(?DOMAIN),
     mnesia:stop(),
-    exit(whereis(ejabberd_sup), kill),
+    mongoose_subhosts:stop(),
     Config;
 end_per_testcase(_, Config) ->
     Config.

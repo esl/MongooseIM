@@ -114,6 +114,7 @@
         PublishModel :: publishModel(),
         Max_Items :: non_neg_integer(),
         ItemId :: <<>> | itemId(),
+        ItemPublisher :: boolean(),
         Payload :: payload()) ->
     {result, {default, broadcast, [itemId()]}} |
     {error, xmlel()}.

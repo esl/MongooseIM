@@ -62,7 +62,7 @@ commands() ->
       {module, ?MODULE},
       {function, register},
       {action, create},
-      {args, [{host, binary}, {user, binary}, {password, binary}]},
+      {args, [{host, binary}, {username, binary}, {password, binary}]},
       {result, {msg, binary}}
      ],
      [
@@ -103,7 +103,7 @@ commands() ->
       {function, send_message},
       {action, create},
       {security_policy, [user]},
-      {args, [{caller, binary}, {to, binary}, {msg, binary}]},
+      {args, [{caller, binary}, {to, binary}, {body, binary}]},
       {result, ok}
      ],
      [

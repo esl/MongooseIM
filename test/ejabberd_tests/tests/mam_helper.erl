@@ -40,7 +40,7 @@ rpc_apply(M, F, Args) ->
     end.
 
 rpc_call(M, F, A) ->
-    Node = escalus_ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, 10000, Cookie).
 
@@ -164,12 +164,12 @@ rsm_send(Config, User, Packet) ->
     case ?config(with_rsm, Config) of
         true ->
             BWithJID = nick_to_jid(bob, Config),
-            rsm_send_1(Config, User, add_with_jid(BWithJID, Packet));
+            rsm_send1(Config, User, add_with_jid(BWithJID, Packet));
         _ ->
-            rsm_send_1(Config, User, Packet)
+            rsm_send1(Config, User, Packet)
     end.
 
-rsm_send_1(Config, User, Packet) ->
+rsm_send1(Config, User, Packet) ->
     case ?config(muc_rsm, Config) of
         true ->
             Room = ?config(room, Config),
@@ -193,13 +193,13 @@ muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 stanza_purge_single_message(MessId) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"purge">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}, {<<"id">>, MessId}]
+       attrs = [{<<"xmlns">>, mam_ns_binary()}, {<<"id">>, MessId}]
     }]).
 
 stanza_purge_multiple_messages(BStart, BEnd, BWithJID) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"purge">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}],
+       attrs = [{<<"xmlns">>, mam_ns_binary()}],
        children = skip_undefined([
            maybe_start_elem(BStart),
            maybe_end_elem(BEnd),
@@ -216,7 +216,7 @@ maybe_attr(K, V) ->
     [{K, V}].
 
 mam_ns_attr(P) ->
-    [{<<"xmlns">>,get_prop(mam_ns, P)}].
+    [{<<"xmlns">>, get_prop(mam_ns, P)}].
 
 maybe_start_elem(undefined) ->
     undefined;
@@ -481,46 +481,46 @@ parse_forwarded_message(#xmlel{name = <<"message">>,
         from = proplists:get_value(<<"from">>, Attrs),
         to   = proplists:get_value(<<"to">>, Attrs),
         has_x_user_element = false},
-    lists:foldl(fun 'parse_children[message]'/2, M, Children).
+    lists:foldl(fun parse_children_message/2, M, Children).
 
-'parse_children[message]'(#xmlel{name = <<"result">>,
-                                 attrs = Attrs,
-                                 children = Children}, M) ->
+parse_children_message(#xmlel{name = <<"result">>,
+                              attrs = Attrs,
+                              children = Children}, M) ->
     M1 = M#forwarded_message{
         result_queryid = proplists:get_value(<<"queryid">>, Attrs),
         result_id      = proplists:get_value(<<"id">>, Attrs)},
-    lists:foldl(fun 'parse_children[message/result]'/2, M1, Children).
+    lists:foldl(fun parse_children_message_result/2, M1, Children).
 
-'parse_children[message/result]'(#xmlel{name = <<"forwarded">>,
-                                        children = Children}, M) ->
-    lists:foldl(fun 'parse_children[message/result/forwarded]'/2, M, Children).
+parse_children_message_result(#xmlel{name = <<"forwarded">>,
+                                     children = Children}, M) ->
+    lists:foldl(fun parse_children_message_result_forwarded/2, M, Children).
 
 
-'parse_children[message/result/forwarded]'(#xmlel{name = <<"delay">>,
-                                                  attrs = Attrs}, M) ->
+parse_children_message_result_forwarded(#xmlel{name = <<"delay">>,
+                                               attrs = Attrs}, M) ->
     M#forwarded_message{
         delay_from  = proplists:get_value(<<"from">>, Attrs),
         delay_stamp = proplists:get_value(<<"stamp">>, Attrs)};
-'parse_children[message/result/forwarded]'(#xmlel{name = <<"message">>,
-                                                  attrs = Attrs,
-                                                  children = Children}, M) ->
+parse_children_message_result_forwarded(#xmlel{name = <<"message">>,
+                                               attrs = Attrs,
+                                               children = Children}, M) ->
     M1 = M#forwarded_message{
         message_to   = proplists:get_value(<<"to">>, Attrs),
         message_from = proplists:get_value(<<"from">>, Attrs),
         message_type = proplists:get_value(<<"type">>, Attrs)},
-    lists:foldl(fun 'parse_children[message/result/forwarded/message]'/2,
+    lists:foldl(fun parse_children_message_result_forwarded_message/2,
                 M1, Children).
 
-'parse_children[message/result/forwarded/message]'(#xmlel{name = <<"body">>,
-        children = [{xmlcdata, Body}]}, M) ->
+parse_children_message_result_forwarded_message(#xmlel{name = <<"body">>,
+                                                       children = [{xmlcdata, Body}]}, M) ->
     M#forwarded_message{message_body = Body};
-'parse_children[message/result/forwarded/message]'(#xmlel{name = <<"x">>,
-        attrs = Attrs} = XEl, M) ->
+parse_children_message_result_forwarded_message(#xmlel{name = <<"x">>,
+                                                       attrs = Attrs} = XEl, M) ->
     IsUser = lists:member({<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}, Attrs),
     M#forwarded_message{has_x_user_element = IsUser,
                         message_xs = [XEl | M#forwarded_message.message_xs]};
 %% Parse `<archived />' here.
-'parse_children[message/result/forwarded/message]'(_, M) ->
+parse_children_message_result_forwarded_message(_, M) ->
     M.
 
 %% Num is 1-based.
@@ -589,9 +589,11 @@ parse_set_and_iq(IQ, Set, QueryId) ->
         to          = exml_query:attr(IQ, <<"to">>),
         id          = exml_query:attr(IQ, <<"id">>),
         first       = exml_query:path(Set, [{element, <<"first">>}, cdata]),
-        first_index = maybe_binary_to_integer(exml_query:path(Set, [{element, <<"first">>}, {attr, <<"index">>}])),
+        first_index = maybe_binary_to_integer(exml_query:path(Set, [{element, <<"first">>},
+                                                                    {attr, <<"index">>}])),
         last        = exml_query:path(Set, [{element, <<"last">>}, cdata]),
-        count       = maybe_binary_to_integer(exml_query:path(Set, [{element, <<"count">>}, cdata]))}.
+        count       = maybe_binary_to_integer(exml_query:path(Set, [{element, <<"count">>},
+                                                                    cdata]))}.
 
 
 is_def(X) -> X =/= undefined.
@@ -600,23 +602,23 @@ is_def(X) -> X =/= undefined.
 
 parse_prefs_result_iq(#xmlel{name = <<"iq">>, children = Children}) ->
     IQ = #prefs_result_iq{},
-    lists:foldl(fun 'parse_children[prefs_iq]'/2, IQ, Children).
+    lists:foldl(fun parse_children_prefs_iq/2, IQ, Children).
 
-'parse_children[prefs_iq]'(#xmlel{name = <<"prefs">>,
-                                  attrs = Attrs, children = Children},
-                           IQ) ->
+parse_children_prefs_iq(#xmlel{name = <<"prefs">>,
+                               attrs = Attrs, children = Children},
+                        IQ) ->
     DefaultMode = proplists:get_value(<<"default">>, Attrs),
     IQ1 = IQ#prefs_result_iq{default_mode = DefaultMode},
-    lists:foldl(fun 'parse_children[prefs_iq/prefs]'/2, IQ1, Children).
+    lists:foldl(fun parse_children_prefs_iq_prefs/2, IQ1, Children).
 
 
-'parse_children[prefs_iq/prefs]'(#xmlel{name = <<"always">>,
-                                        children = Children},
-                                 IQ) ->
+parse_children_prefs_iq_prefs(#xmlel{name = <<"always">>,
+                                     children = Children},
+                              IQ) ->
     IQ#prefs_result_iq{always_jids = lists:sort(parse_jids(Children))};
-'parse_children[prefs_iq/prefs]'(#xmlel{name = <<"never">>,
-                                        children = Children},
-                                 IQ) ->
+parse_children_prefs_iq_prefs(#xmlel{name = <<"never">>,
+                                     children = Children},
+                              IQ) ->
     IQ#prefs_result_iq{never_jids = lists:sort(parse_jids(Children))}.
 
 
@@ -636,30 +638,30 @@ parse_error_iq(#xmlel{name = <<"iq">>,
     IQ = #error_iq{
         type = proplists:get_value(<<"type">>, Attrs),
         id   = proplists:get_value(<<"id">>, Attrs)},
-    lists:foldl(fun 'parse_children[error_iq]'/2, IQ, Children).
+    lists:foldl(fun parse_children_error_iq/2, IQ, Children).
 
 
-'parse_children[error_iq]'(#xmlel{name = <<"error">>,
-                                  attrs = Attrs, children = Children}, IQ) ->
+parse_children_error_iq(#xmlel{name = <<"error">>,
+                               attrs = Attrs, children = Children}, IQ) ->
     IQ1 = IQ#error_iq{
         error_type = proplists:get_value(<<"type">>, Attrs)},
-    lists:foldl(fun 'parse_children[error_iq/error]'/2, IQ1, Children);
-'parse_children[error_iq]'(_, IQ) ->
+    lists:foldl(fun parse_children_error_iq_error/2, IQ1, Children);
+parse_children_error_iq(_, IQ) ->
     IQ.
 
-'parse_children[error_iq/error]'(#xmlel{name = <<"text">>,
-                                 children = [{xmlcdata, Text}]}, IQ) ->
+parse_children_error_iq_error(#xmlel{name = <<"text">>,
+                                     children = [{xmlcdata, Text}]}, IQ) ->
     IQ#error_iq{text = Text};
-'parse_children[error_iq/error]'(#xmlel{name = Condition}, IQ) ->
+parse_children_error_iq_error(#xmlel{name = Condition}, IQ) ->
     IQ#error_iq{condition = Condition};
-'parse_children[error_iq/error]'(_, IQ) ->
+parse_children_error_iq_error(_, IQ) ->
     IQ.
 
 %%--------------------------------------------------------------------
 %% Helpers (muc)
 %%--------------------------------------------------------------------
 
-generate_rpc_jid({_,User}) ->
+generate_rpc_jid({_, User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
     {server, Server} = lists:keyfind(server, 1, User),
     LUsername = escalus_utils:jid_to_lower(Username),
@@ -711,7 +713,7 @@ send_muc_rsm_messages(Config) ->
         escalus:wait_for_stanzas(Bob, 15, 5000),
         escalus:wait_for_stanzas(Alice, 15, 5000),
 
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_archive(Config),
 
         %% Get whole history.
         escalus:send(Alice,
@@ -741,7 +743,7 @@ send_rsm_messages(Config) ->
          || N <- lists:seq(1, 15)],
         %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
-        maybe_wait_for_yz(Config),
+        maybe_wait_for_archive(Config),
         %% Get whole history.
         rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
         AllMessages =
@@ -954,7 +956,7 @@ sort_msgs(Msgs) ->
     SortFun = fun({{ID1, _}, _, _, _, _}, {{ID2, _}, _, _, _, _}) ->
         ID1 =< ID2
     end,
-    lists:sort(SortFun,Msgs).
+    lists:sort(SortFun, Msgs).
 
 generate_msgs_for_days(OwnerJID, OtherUsers, Days) ->
     {TodayDate, _} = calendar:local_time(),
@@ -986,7 +988,7 @@ random_time() ->
     RandSeconds = random:uniform(MaxSecondsInDay),
     calendar:seconds_to_time(RandSeconds).
 
-datetime_to_microseconds({{_,_,_}, {_,_,_}} = DateTime) ->
+datetime_to_microseconds({{_, _, _}, {_, _, _}} = DateTime) ->
     S1 = calendar:datetime_to_gregorian_seconds(DateTime),
     S0 = calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
     Seconds = S1 - S0,
@@ -1000,7 +1002,7 @@ put_msg({{MsgIdOwner, MsgIdRemote},
          {_FromBin, FromJID, FromArcID},
          {_ToBin, ToJID, ToArcID},
          {_, Source, _}, Packet}) ->
-    Host = escalus_ct:get_config(ejabberd_domain),
+    Host = ct:get_config({hosts, mim, domain}),
     archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
     archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]).
 
@@ -1023,7 +1025,7 @@ muc_bootstrap_archive(Config) ->
 
     Domain = muc_host(),
     Host = host(),
-    RoomJid = make_jid(Room,Domain, <<>>),
+    RoomJid = make_jid(Room, Domain, <<>>),
     ArcJID = {R, RoomJid,
               rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
     Msgs = generate_msgs_for_days(ArcJID,
@@ -1034,7 +1036,7 @@ muc_bootstrap_archive(Config) ->
 
     put_muc_msgs(Msgs),
 
-    maybe_wait_for_yz(Config),
+    maybe_wait_for_archive(Config),
     ?assert_equal(length(Msgs),
                   wait_for_room_archive_size(Domain, Room, 10, length(Msgs))),
 
@@ -1058,9 +1060,9 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     rpc_apply(jid, make, [U, S, R]).
 
--spec backend() -> odbc | riak | false.
+-spec backend() -> odbc | riak | cassandra | false.
 backend() ->
-    Funs = [fun maybe_odbc/1, fun maybe_riak/1],
+    Funs = [fun maybe_odbc/1, fun maybe_riak/1, fun maybe_cassandra/1],
     determine_backend(host(), Funs).
 
 determine_backend(_, []) ->
@@ -1074,7 +1076,7 @@ determine_backend(Host, [F | Rest]) ->
     end.
 
 maybe_odbc(Host) ->
-    case is_odbc_enabled(Host) of
+    case mongoose_helper:is_odbc_enabled(Host) of
         true ->
             odbc;
         _ ->
@@ -1089,20 +1091,29 @@ maybe_riak(Host) ->
             false
     end.
 
-is_mam_possible(Host) ->
-    is_odbc_enabled(Host) orelse is_riak_enabled(Host).
-
-is_odbc_enabled(Host) ->
-    case sql_transaction(Host, fun erlang:now/0) of
-        {atomic, _} -> true;
+maybe_cassandra(Host) ->
+    case is_cassandra_enabled(Host) of
+        true ->
+            cassandra;
         _ ->
-            %ct:pal("ODBC disabled (check failed ~p)", [Other]),
             false
     end.
+
+is_mam_possible(Host) ->
+    mongoose_helper:is_odbc_enabled(Host) orelse is_riak_enabled(Host) orelse
+    is_cassandra_enabled(Host).
 
 is_riak_enabled(_Host) ->
     case escalus_ejabberd:rpc(mongoose_riak, get_worker, []) of
         Pid when is_pid(Pid) ->
+            true;
+        _ ->
+            false
+    end.
+
+is_cassandra_enabled(_) ->
+    case escalus_ejabberd:rpc(mongoose_cassandra_sup, get_all_workers, []) of
+        [_|_]=_Pools ->
             true;
         _ ->
             false
@@ -1117,8 +1128,8 @@ login_send_presence(Config, User) ->
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Client.
 
-maybe_wait_for_yz(Config) ->
-    case ?config(yz_wait, Config) of
+maybe_wait_for_archive(Config) ->
+    case ?config(archive_wait, Config) of
         undefined ->
             ok;
         Value ->
@@ -1167,24 +1178,29 @@ prefs_cases2() ->
      {{always, [], [bob, kate]},     [false, false, false, false]}
     ].
 
-default_policy({{Default,_,_}, _}) -> Default.
+default_policy({{Default, _, _}, _}) -> Default.
 
 make_alice_and_bob_friends(Alice, Bob) ->
-        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribe">>)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob),
+                                                                  <<"subscribe">>)),
         escalus:wait_for_stanzas(Alice, 1, 5000), % iq set
         escalus:wait_for_stanzas(Bob, 1, 5000), % presence subscribe
 
-        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribed">>)),
+        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice),
+                                                                <<"subscribed">>)),
         escalus:wait_for_stanzas(Alice, 3, 5000), % iq set, presence subscribed, presence
         escalus:wait_for_stanzas(Bob, 1, 5000), % iq set subscription=from
 
-        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribe">>)),
+        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice),
+                                                                <<"subscribe">>)),
         escalus:wait_for_stanzas(Alice, 2, 5000), % iq set subscription=to, presence subscribe
         escalus:wait_for_stanzas(Bob, 1, 5000), % iq set subscription=from
 
-        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribed">>)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob),
+                                                                  <<"subscribed">>)),
         escalus:wait_for_stanzas(Alice, 1, 5000), % iq set subscription=both
-        escalus:wait_for_stanzas(Bob, 3, 5000), % iq set subscription=both, presence subscribed, presence
+        escalus:wait_for_stanzas(Bob, 3, 5000), % iq set subscription=both, presence subscribed,
+                                                % presence
         ok.
 
 run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate, Config) ->
@@ -1194,7 +1210,7 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate,
     _ReplySet = escalus:wait_for_stanza(Alice),
     Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
                                                [N, PrefsState, now()]))
-                || N <- [1,2,3,4]],
+                || N <- [1, 2, 3, 4]],
     %% Messages:
     %% 1. Bob sends a message to Alice
     %% 2. Alice sends a message to Bob

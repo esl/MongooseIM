@@ -63,7 +63,7 @@ commands() ->
         %% configured.
         {domain, binary},
         {name, binary},
-        {creator, binary},
+        {owner, binary},
         {subject, binary}
        ]},
       {result, {name, binary}}],
@@ -95,8 +95,8 @@ commands() ->
       {args,
        [{domain, binary},
         {name, binary},
-        {sender, binary},
-        {message, binary}
+        {from, binary},
+        {body, binary}
        ]},
       {result, ok}]
     ].
@@ -108,8 +108,8 @@ commands() ->
 
 create_unique_room(Domain, RoomName, Creator, Subject) ->
     C = jid:to_lus(jid:from_binary(Creator)),
-    MUCLightDomain = gen_mod:get_module_opt_host(Domain, mod_muc_light,
-                                            <<"muclight.@HOST@">>),
+    MUCLightDomain = gen_mod:get_module_opt_subhost(
+                       Domain, mod_muc_light, mod_muc_light:default_host()),
     MUCService = jid:make(<<>>, MUCLightDomain, <<>>),
     Config = make_room_config(RoomName, Subject),
     case mod_muc_light:try_to_create_room(C, MUCService, Config) of
@@ -130,8 +130,8 @@ invite_to_room(Domain, RoomName, Sender, Recipient0) ->
 
 change_affiliation(Domain, RoomID, Sender, Recipient0, Affiliation) ->
     Recipient1 = jid:binary_to_bare(Recipient0),
-    MUCLightDomain = gen_mod:get_module_opt_host(Domain, mod_muc_light,
-                                                 <<"muclight.@HOST@">>),
+    MUCLightDomain = gen_mod:get_module_opt_subhost(Domain, mod_muc_light,
+                                                    mod_muc_light:default_host()),
     R = jid:make(RoomID, MUCLightDomain, <<>>),
     S = jid:binary_to_bare(Sender),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
@@ -148,7 +148,7 @@ send_message(Domain, RoomName, Sender, Message) ->
                     children = [ Body ]
                    },
     S = jid:binary_to_bare(Sender),
-    case get_user_rooms(S) of
+    case get_user_rooms(S, Domain) of
         [] ->
             {error, given_user_does_not_occupy_any_room};
         RoomJIDs when is_list(RoomJIDs) ->
@@ -169,7 +169,7 @@ make_room_config(Name, Subject) ->
            }.
 
 muc_light_room_name_to_jid(Participant, RoomName, Domain) ->
-    case get_user_rooms(Participant) of
+    case get_user_rooms(Participant, Domain) of
         [] ->
             {error, given_user_does_not_occupy_any_room};
         RoomJIDs when is_list(RoomJIDs) ->
@@ -179,11 +179,11 @@ muc_light_room_name_to_jid(Participant, RoomName, Domain) ->
             jid:make(RU, RS, <<>>)
     end.
 
-get_user_rooms(UserJID) ->
-    ?BACKEND:get_user_rooms(jid:to_lus(UserJID)).
+get_user_rooms(UserJID, Domain) ->
+    mod_muc_light_db_backend:get_user_rooms(jid:to_lus(UserJID), Domain).
 
 name_of_room_with_jid(RoomJID) ->
-    case ?BACKEND:get_info(RoomJID) of
+    case mod_muc_light_db_backend:get_info(RoomJID) of
         {ok, Cfg, _, _} ->
             {roomname, N} = lists:keyfind(roomname, 1, Cfg),
             N

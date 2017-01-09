@@ -41,7 +41,7 @@ run(BlueprintName, Config) ->
 run(BlueprintName, Config, Params) ->
     Blueprint = blueprint(BlueprintName, Config),
     Params1 = [{hostname, "localhost"},
-               {port, ct:get_config(ejabberd_metrics_rest_port)}],
+               {port, ct:get_config({hosts, mim, metrics_rest_port})}],
     Params2 = lists:ukeymerge(1, lists:keysort(1, Params), lists:keysort(1, Params1)),
     {TestResult, _, _, _, TransResults} = Result = katt:run(Blueprint, Params2),
     case TestResult of

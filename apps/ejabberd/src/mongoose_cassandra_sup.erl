@@ -1,11 +1,3 @@
-%%%-------------------------------------------------------------------
-%%% @author Uvarov Michael <arcusfelis@gmail.com>
-%%% @copyright 2016 Erlang Solutions, Ltd.
-%%% @doc Cassandra supervisor
-%%%
-%%% One supervisor for each pool
-%%% @end
-%%%-------------------------------------------------------------------
 -module(mongoose_cassandra_sup).
 -author('arcusfelis@gmail.com').
 
@@ -37,7 +29,7 @@ stop(PoolName) ->
     delete_worker_pool(PoolName).
 
 start_link(PoolName, Config) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [PoolName, Config]).
+    supervisor2:start_link({local, ?MODULE}, ?MODULE, [PoolName, Config]).
 
 supervisor_spec(PoolName, Config) ->
     {{mongoose_cassandra_sup, PoolName},
@@ -50,7 +42,7 @@ supervisor_spec(PoolName, Config) ->
 worker_spec(PoolName, Addr, Port, WorkerNumber, ClientOptions) ->
     {{PoolName, Addr, Port, WorkerNumber},
      {mongoose_cassandra_worker, start_link, [PoolName, Addr, Port, ClientOptions]},
-     permanent,
+     {permanent, 10}, %% Delay is 10 seconds
      infinity,
      worker,
      [mongoose_cassandra_worker]}.

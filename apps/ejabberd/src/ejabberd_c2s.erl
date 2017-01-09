@@ -175,6 +175,8 @@ init([{SockMod, Socket}, Opts]) ->
     TLSOpts1 =
     lists:filter(fun({certfile, _}) -> true;
                     ({ciphers, _}) -> true;
+                    ({protocol_options, _}) -> true;
+                    ({dhfile, _}) -> true;
                     (_) -> false
                  end, Opts),
     TLSOpts = [verify_none | TLSOpts1],
@@ -391,7 +393,7 @@ can_use_tls(SockMod, TLS, TLSEnabled) ->
 
 can_use_zlib_compression(Zlib, SockMod) ->
     Zlib andalso ( (SockMod == gen_tcp) orelse
-                   (SockMod == ejabberd_tls) ).
+                   (SockMod == fast_tls) ).
 
 compression_zlib() ->
     #xmlel{name = <<"compression">>,
@@ -584,20 +586,11 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
                                           });
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
-                                             (SockMod == ejabberd_tls)) ->
+                                             (SockMod == fast_tls)) ->
           check_compression_auth(El, wait_for_feature_before_auth, StateData);
         _ ->
-            if
-                TLSRequired and not TLSEnabled ->
-                    Lang = StateData#state.lang,
-                    send_element(StateData, ?POLICY_VIOLATION_ERR(
-                                               Lang, <<"Use of STARTTLS required">>)),
-                    send_trailer(StateData),
-                    {stop, normal, StateData};
-                true ->
-                    process_unauthenticated_stanza(StateData, El),
-                    fsm_next_state(wait_for_feature_before_auth, StateData)
-            end
+          terminate_when_tls_required_but_not_enabled(TLSRequired, TLSEnabled,
+                                                      StateData, El)
     end;
 wait_for_feature_before_auth(timeout, StateData) ->
     {stop, normal, StateData};
@@ -758,7 +751,7 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
-                                             (SockMod == ejabberd_tls)) ->
+                                             (SockMod == fast_tls)) ->
             check_compression_auth(El, NextState, StateData);
         _ ->
             process_unauthenticated_stanza(StateData, El),
@@ -1113,7 +1106,8 @@ handle_info(replaced, _StateName, StateData) ->
 handle_info({broadcast, Broadcast}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{broadcast, Broadcast}]),
     ?DEBUG("broadcast=~p", [Broadcast]),
-    handle_broadcast_result(handle_routed_broadcast(Broadcast, StateData), StateName, StateData);
+    Res = handle_routed_broadcast(Broadcast, StateData),
+    handle_broadcast_result(Res, StateName, StateData);
 handle_info({route, From, To, Packet}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
     Name = Packet#xmlel.name,
@@ -1160,20 +1154,25 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
 					  Feature, To, Packet]),
     case Drop of
         true ->
-            ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]);
+            ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]),
+            fsm_next_state(StateName, StateData);
         _ ->
             FinalPacket = jlib:replace_from_to(From, To, Packet),
             case StateData#state.jid of
                 To ->
                     case privacy_check_packet(StateData, From, To, FinalPacket, in) of
-                        allow -> send_element(StateData, FinalPacket);
-                        _ -> ok
+                        allow ->
+                            send_and_maybe_buffer_stanza(
+                                {From, To, FinalPacket},
+                                StateData, StateName);
+                        _ ->
+                            fsm_next_state(StateName, StateData)
                     end;
                 _ ->
-                    ejabberd_router:route(From, To, FinalPacket)
+                    ejabberd_router:route(From, To, FinalPacket),
+                    fsm_next_state(StateName, StateData)
             end
-    end,
-    fsm_next_state(StateName, StateData);
+    end;
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
     Recipients = ejabberd_hooks:run_fold(
 		   c2s_broadcast_recipients, StateData#state.server,
@@ -1320,10 +1319,10 @@ handle_routed_broadcast({privacy_list, PrivList, PrivListName}, StateData) ->
             maybe_update_presence(StateData, NewPL),
             {send_new, F, T, PrivPushEl, StateData#state{privacy_list = NewPL}}
     end;
-handle_routed_broadcast({blocking, Action, JIDs}, StateData) ->
+handle_routed_broadcast({blocking, UserList, Action, JIDs}, StateData) ->
     blocking_push_to_resources(Action, JIDs, StateData),
     blocking_presence_to_contacts(Action, JIDs, StateData),
-    {new_state, StateData};
+    {new_state, StateData#state{privacy_list = UserList}};
 handle_routed_broadcast(_, StateData) ->
     {new_state, StateData}.
 
@@ -1673,11 +1672,11 @@ get_auth_tags([], U, P, D, R) ->
 get_conn_type(StateData) ->
     case (StateData#state.sockmod):get_sockmod(StateData#state.socket) of
         gen_tcp -> c2s;
-        ejabberd_tls -> c2s_tls;
+        fast_tls -> c2s_tls;
         ejabberd_zlib ->
             case ejabberd_zlib:get_sockmod((StateData#state.socket)#socket_state.socket) of
                 gen_tcp -> c2s_compressed;
-                ejabberd_tls -> c2s_compressed_tls
+                fast_tls -> c2s_compressed_tls
             end;
         ejabberd_http_poll -> http_poll;
         ejabberd_http_bind -> http_bind;
@@ -3076,3 +3075,13 @@ open_session_allowed_hook(Server, JID) ->
     allow == ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                                      Server,
                                      allow, [JID]).
+
+terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
+    Lang = StateData#state.lang,
+    send_element(StateData, ?POLICY_VIOLATION_ERR(
+                               Lang, <<"Use of STARTTLS required">>)),
+    send_trailer(StateData),
+    {stop, normal, StateData};
+terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
+    process_unauthenticated_stanza(StateData, El),
+    fsm_next_state(wait_for_feature_before_auth, StateData).

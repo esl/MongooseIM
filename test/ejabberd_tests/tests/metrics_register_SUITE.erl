@@ -61,7 +61,7 @@ init_per_testcase(unregister, Config) ->
     escalus_users:create_user(Config, Alice),
     Config;
 init_per_testcase(registered_users, Config) ->
-    XMPPDomain = ct:get_config(ejabberd_domain),
+    XMPPDomain = ct:get_config({hosts, mim, domain}),
     case escalus_ejabberd:rpc(ejabberd_config, get_local_option,
                               [{auth_method, XMPPDomain}]) of
         external ->
@@ -100,4 +100,3 @@ unregister(Config) ->
     escalus_users:delete_user(Config, Alice),
 
     assert_counter(Deregistarations + 1, modUnregisterCount).
-

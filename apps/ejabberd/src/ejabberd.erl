@@ -41,7 +41,7 @@
                  | ejabberd_socket
                  | mod_bosh_socket
                  | mod_websockets
-                 | ejabberd_tls
+                 | fast_tls
                  | ejabberd_zlib.
 
 -type user()      :: binary().

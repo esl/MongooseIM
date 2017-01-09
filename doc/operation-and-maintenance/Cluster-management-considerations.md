@@ -34,7 +34,7 @@ This setup fits mid and large-scale deployments, such as production environments
 
 ## Multi-datacenter MongooseIM
 
-With a multi-node MongooseIM, one can set up a system that is highly scalable both vertically and horizontally. The MongooseIM clusters are simply distributed across continents for local, low-lag client connections, and the clusters are interconnected via high-speed links. In this setup, MongooseIM can scale up to hundreds of millions of concurrent users.
+With a multi-datacenter MongooseIM, one can set up a system that is highly scalable both vertically and horizontally. The MongooseIM clusters are simply distributed across continents for local, low-lag client connections, and the clusters are interconnected via high-speed links. In this setup, MongooseIM can scale up to hundreds of millions of concurrent users.
 
 This applies to large and very large-scale deployments.
 

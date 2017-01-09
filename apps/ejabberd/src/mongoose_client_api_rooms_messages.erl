@@ -11,6 +11,7 @@
 
 -export([to_json/2]).
 -export([from_json/2]).
+-export([encode/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -32,7 +33,7 @@ content_types_accepted(Req, State) ->
     mongoose_client_api_rooms:content_types_accepted(Req, State).
 
 allowed_methods(Req, State) ->
-    {[<<"GET">>, <<"POST">>], Req, State}.
+    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>], Req, State}.
 
 resource_exists(Req, State) ->
     mongoose_client_api_rooms:resource_exists(Req, State).
@@ -94,11 +95,21 @@ build_message(From, To, ID, Body) ->
            attrs = Attrs,
            children = [BodyEl]}.
 
+-spec encode(Packet :: exml:el(), Timestamp :: integer()) -> map().
+encode(Packet, Timestamp) ->
+    From = exml_query:attr(Packet, <<"from">>),
+    FromJID = jid:from_binary(From),
+    Msg = make_json_item(Packet, FromJID, Timestamp),
+    Msg#{room => FromJID#jid.luser}.
+
 make_json_item({MAMID, JID, Msg}) ->
     {Microsec, _} = mod_mam_utils:decode_compact_uuid(MAMID),
+    make_json_item(Msg, JID, Microsec div 1000).
+
+make_json_item(Msg, JID, Timestamp) ->
     Item = #{id => exml_query:attr(Msg, <<"id">>),
              from => make_from(JID),
-             timestamp => Microsec div 1000},
+             timestamp => Timestamp},
     add_body_and_type(Item, Msg).
 
 make_from(#jid{lresource = <<>>} = JID) ->
