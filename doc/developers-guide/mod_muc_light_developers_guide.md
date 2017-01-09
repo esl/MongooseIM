@@ -96,19 +96,11 @@ Drawbacks are:
   5. Resumption timeout
   6. User queries MAM for all messages after B and misses A
 
-Design decisions & explanations
------------------------
-
-### ETS table with options
-
-There is no easy way of getting module configuration when only service domain is available (e.g. `muclight.localhost` registered when booting `localhost` domain). Maybe it can result in common module solving this problem, that other modules could use too, but for now MUC Light handles it internally by maintaining own config tab that stores mappings between actual MUC domain and configuration.
-
 Ideas for Further Development
 -----------------------------
 
 ### Easy
 
-  * ODBC backend
   * Add more tests for negative cases
 
 ### Medium
@@ -116,7 +108,6 @@ Ideas for Further Development
   * Add optional per-room processes to avoid the need of DB transactions and ensure message ordering (maybe "hard"?).
   * Riak backend
   * Redis backend
-  * Extract per service subdomain config tab as separate, generic module (maybe "easy"?).
 
 ### Hard
 
