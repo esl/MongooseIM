@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>XEP-xxxx: Multi-User Chat Light</title><link rel="stylesheet" type="text/css" href="../xmpp.css" /><link href="../prettify.css" type="text/css" rel="stylesheet" /><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /><script type="text/javascript" src="../prettify.js"></script><meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=2.0" /><meta name="DC.Title" content="Multi-User Chat Light" /><meta name="DC.Creator" content="Piotr Nosek" /><meta name="DC.Description" content="This specification provides a presence-less standard for Multi-User Chats. Its feature set is a response to mobile XMPP applications needs and specific environment." /><meta name="DC.Publisher" content="XMPP Standards Foundation" /><meta name="DC.Contributor" content="XMPP Extensions Editor" /><meta name="DC.Date" content="2015-10-29" /><meta name="DC.Type" content="XMPP Extension Protocol" /><meta name="DC.Format" content="XHTML" /><meta name="DC.Identifier" content="XEP-xxxx" /><meta name="DC.Language" content="en" /><meta name="DC.Rights" content="This XMPP Extension Protocol is copyright (c) 1999 - 2014 by the XMPP Standards Foundation (XSF)." /></head><body onload="prettyPrint()"><h1>XEP-xxxx: Multi-User Chat Light</h1><table><tr valign="top"><td><strong>Abstract:</strong></td><td>This specification provides a presence-less standard for Multi-User Chats. Its feature set is a response to mobile XMPP applications needs and specific environment.</td></tr><tr valign="top"><td><strong>Author:</strong></td><td>Piotr Nosek</td></tr><tr valign="top"><td><strong>Copyright:</strong></td><td>© 1999 - 2015 XMPP Standards Foundation. <a href="#appendix-legal">SEE LEGAL NOTICES</a>.</td></tr><tr valign="top"><td><strong>Status:</strong></td><td>ProtoXEP</td></tr><tr valign="top"><td><strong>Type:</strong></td><td>Standards Track</td></tr><tr valign="top"><td><strong>Version:</strong></td><td>0.1.0</td></tr><tr valign="top"><td><strong>Last Updated:</strong></td><td>2015-10-29</td></tr></table><hr /><p style="color:red">WARNING: This document has not yet been accepted for consideration or approved in any official manner by the XMPP Standards Foundation, and this document is not yet an XMPP Extension Protocol (XEP). If this document is accepted as a XEP by the XMPP Council, it will be published at &lt;<a href="http://xmpp.org/extensions/">http://xmpp.org/extensions/</a>&gt; and announced on the &lt;standards@xmpp.org&gt; mailing list.</p><hr /><h2>Table of Contents</h2><div class="indent"><p><br />1.  <a href="#intro">Introduction</a><br />2.  <a href="#reqs">Requirements</a><br />3.  <a href="#entity-usecases">Entity Use Cases</a><br />   
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>XEP-xxxx: Multi-User Chat Light</title><link rel="stylesheet" type="text/css" href="xmpp.css" /><link href="prettify.css" type="text/css" rel="stylesheet" /><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /><script type="text/javascript" src="prettify.js"></script><meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=2.0" /><meta name="DC.Title" content="Multi-User Chat Light" /><meta name="DC.Creator" content="Piotr Nosek" /><meta name="DC.Description" content="This specification provides a presence-less standard for Multi-User Chats. Its feature set is a response to mobile XMPP applications needs and specific environment." /><meta name="DC.Publisher" content="XMPP Standards Foundation" /><meta name="DC.Contributor" content="XMPP Extensions Editor" /><meta name="DC.Date" content="2015-10-29" /><meta name="DC.Type" content="XMPP Extension Protocol" /><meta name="DC.Format" content="XHTML" /><meta name="DC.Identifier" content="XEP-xxxx" /><meta name="DC.Language" content="en" /><meta name="DC.Rights" content="This XMPP Extension Protocol is copyright (c) 1999 - 2014 by the XMPP Standards Foundation (XSF)." /></head><body onload="prettyPrint()"><h1>XEP-xxxx: Multi-User Chat Light</h1><table><tr valign="top"><td><strong>Abstract:</strong></td><td>This specification provides a presence-less standard for Multi-User Chats. Its feature set is a response to mobile XMPP applications needs and specific environment.</td></tr><tr valign="top"><td><strong>Author:</strong></td><td>Piotr Nosek</td></tr><tr valign="top"><td><strong>Copyright:</strong></td><td>© 1999 - 2015 XMPP Standards Foundation. <a href="#appendix-legal">SEE LEGAL NOTICES</a>.</td></tr><tr valign="top"><td><strong>Status:</strong></td><td>ProtoXEP</td></tr><tr valign="top"><td><strong>Type:</strong></td><td>Standards Track</td></tr><tr valign="top"><td><strong>Version:</strong></td><td>0.1.0</td></tr><tr valign="top"><td><strong>Last Updated:</strong></td><td>2015-10-29</td></tr></table><hr /><p style="color:red">WARNING: This document has not yet been accepted for consideration or approved in any official manner by the XMPP Standards Foundation, and this document is not yet an XMPP Extension Protocol (XEP). If this document is accepted as a XEP by the XMPP Council, it will be published at &lt;<a href="http://xmpp.org/extensions/">http://xmpp.org/extensions/</a>&gt; and announced on the &lt;standards@xmpp.org&gt; mailing list.</p><hr /><h2>Table of Contents</h2><div class="indent"><p><br />1.  <a href="#intro">Introduction</a><br />2.  <a href="#reqs">Requirements</a><br />3.  <a href="#entity-usecases">Entity Use Cases</a><br />   
       3.1.  <a href="#disco-service">Discovering a MUC Light Service</a><br />   
       3.2.  <a href="#disco-service-features">Discovering the Features Supported by a MUC Light Service</a><br />   
       3.3.  <a href="#disco-occupied-rooms">Discovering Occupied Rooms</a><br />4.  <a href="#occupant-usecases">Occupant Use Cases</a><br />   
@@ -799,7 +799,7 @@
         &lt;user affiliation='none'&gt;hag88@shakespeare.lit&lt;/user&gt;
     &lt;/query&gt;
 &lt;/iq&gt;
-            
+
 &lt;message from='coven@muclight.shakespeare.lit'
          to='crone1@shakespeare.lit'
          type='groupchat'
@@ -1229,7 +1229,7 @@
             <p class="" style="">Blocking functionality uses small subset of Privacy Lists protocol. Stanzas MUST be addressed to the server JID and.</p>
             <p class="" style="">The privacy list name MUST be equal to "urn:xmpp:muclight:0"</p>
             <p class="" style="">Obviously, this method won't work properly in XMPP Server Federation.</p>
-            <p class="" style="">As opposed to XEP-0016, it is allowed to send "delta" privacy lists.</p> 
+            <p class="" style="">As opposed to XEP-0016, it is allowed to send "delta" privacy lists.</p>
             <div class="indent"><h3>8.1.8.1 <a name="comp-get-blocking" id="comp-get-blocking">Request blocking list</a></h3>
                 <p class="caption"><a name="example-41" id="example-41"></a>Example 41. Retrieving blocking list</p><div class="indent"><pre class="prettyprint">
 &lt;iq from='crone1@shakespeare.lit/desktop' type='get' id='comp-getlist'&gt;
@@ -1547,7 +1547,7 @@
             &lt;/xs:sequence&gt;
         &lt;/xs:complexType&gt;
     &lt;/xs:element&gt;
-    
+
     &lt;xs:element name='query'&gt;
         &lt;xs:complexType&gt;
             &lt;xs:sequence&gt;
@@ -1820,7 +1820,7 @@
             Series: <a href="http://xmpp.org/extensions/">XEP</a><br />
             Number: xxxx<br />
             Publisher: <a href="/xsf/">XMPP Standards Foundation</a><br />
-            Status: 
+            Status:
             <a href="http://xmpp.org/extensions/xep-0001.html#states-ProtoXEP">ProtoXEP</a><br />
             Type:
             <a href="http://xmpp.org/extensions/xep-0001.html#types-Standards Track">Standards Track</a><br />
@@ -1830,7 +1830,7 @@
                 Supersedes: None<br />
                 Superseded By: None<br />
             Short Name: NOT_YET_ASSIGNED<br />
-            This document in other formats: 
+            This document in other formats:
                 <a class="standardsButton" href="http://xmpp.org/extensions/xep-xxxx.xml">XML</a> 
                 <a class="standardsButton" href="http://xmpp.org/extensions/xep-xxxx.pdf">PDF</a></p><hr /><a name="appendix-authorinfo" id="appendix-authorinfo"></a><h3>Appendix B: Author Information</h3><div class="indent"><h3>Piotr Nosek</h3><p class="indent">
         Email:
