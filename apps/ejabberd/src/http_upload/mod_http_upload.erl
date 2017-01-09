@@ -121,7 +121,8 @@ parse_request(Request) ->
     Size = (catch erlang:binary_to_integer(SizeBin)),
     ContentType = exml_query:path(Request, [{element, <<"content-type">>}, cdata]),
 
-    case is_binary(Filename) andalso <<>> =/= Filename andalso is_integer(Size) of
+    case is_binary(Filename) andalso <<>> =/= Filename
+        andalso is_integer(Size) andalso Size >= 0 of
         false -> bad_request;
         true -> {Filename, Size, ContentType}
     end.

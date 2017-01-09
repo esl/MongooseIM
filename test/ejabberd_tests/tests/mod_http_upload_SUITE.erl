@@ -30,7 +30,10 @@ groups() ->
                            http_upload_service_discovery,
                            request_slot,
                            get_url_ends_with_filename,
-                           urls_contain_s3_hostname
+                           urls_contain_s3_hostname,
+                           rejects_empty_filename,
+                           rejects_negative_filesize,
+                           rejects_invalid_size_type
                           ]}].
 
 suite() ->
@@ -108,12 +111,44 @@ urls_contain_s3_hostname(Config) ->
               escalus:assert(fun check_url_contains/3, [<<"put">>, <<?S3_HOSTNAME>>], Result)
       end).
 
+rejects_empty_filename(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              ServJID = escalus_client:server(Bob),
+              Request = create_slot_request_stanza(ServJID, <<>>, 123, undefined),
+              Result = escalus:send_and_wait(Bob, Request),
+              escalus_assert:is_error(Result, <<"modify">>, <<"bad-request">>)
+      end).
+
+rejects_negative_filesize(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              ServJID = escalus_client:server(Bob),
+              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, -1, undefined),
+              Result = escalus:send_and_wait(Bob, Request),
+              escalus_assert:is_error(Result, <<"modify">>, <<"bad-request">>)
+      end).
+
+rejects_invalid_size_type(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              ServJID = escalus_client:server(Bob),
+              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>,
+                                                   <<"filesize">>, undefined),
+              Result = escalus:send_and_wait(Bob, Request),
+              escalus_assert:is_error(Result, <<"modify">>, <<"bad-request">>)
+      end).
+
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
 
-create_slot_request_stanza(Server, Filename, Size, ContentType) ->
-    BinSize = integer_to_binary(Size),
+create_slot_request_stanza(Server, Filename, Size, ContentType) when is_integer(Size) ->
+    create_slot_request_stanza(Server, Filename, integer_to_binary(Size), ContentType);
+create_slot_request_stanza(Server, Filename, BinSize, ContentType) ->
     ContentTypeEl =
         case ContentType of
             undefined -> [];
