@@ -25,7 +25,9 @@ test_cases() ->
      msg_is_sent_and_delivered_in_room,
      messages_are_archived_in_room,
      only_room_participant_can_read_messages,
-     messages_can_be_paginated_in_room
+     messages_can_be_paginated_in_room,
+     room_msg_is_sent_and_delivered_over_sse,
+     aff_change_msg_is_delivered_over_sse
      ].
 
 init_per_suite(C) ->
@@ -85,6 +87,40 @@ msg_is_sent_and_delivered_over_sse(ConfigIn) ->
 
     assert_json_message(M, Data),
 
+    stop_sse(Conn).
+
+room_msg_is_sent_and_delivered_over_sse(ConfigIn) ->
+    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
+    Bob = escalus_users:get_userspec(Config, bob),
+    Alice = escalus_users:get_userspec(Config, alice),
+    RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+    RoomInfo = get_room_info({alice, Alice}, RoomID),
+    true = is_participant(Bob, <<"member">>, RoomInfo),
+    Conn = connect_to_sse({bob, Bob}),
+    Message = given_message_sent_to_room(RoomID, {alice, Alice}),
+    Event = wait_for_event(Conn),
+    Data = jiffy:decode(maps:get(data, Event), [return_maps]),
+    assert_json_room_sse_message(Message#{room => RoomID, type => <<"message">>},
+                                 Data),
+    stop_sse(Conn).
+
+aff_change_msg_is_delivered_over_sse(ConfigIn) ->
+    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
+    Bob = escalus_users:get_userspec(Config, bob),
+    Alice = escalus_users:get_userspec(Config, alice),
+    RoomID = given_new_room({alice, Alice}),
+    Conn = connect_to_sse({bob, Bob}),
+    given_user_invited({alice, Alice}, RoomID, Bob),
+    Event = wait_for_event(Conn),
+    Data = jiffy:decode(maps:get(data, Event), [return_maps]),
+    BobJID = user_jid(Bob),
+    Host = ct:get_config({hosts, mim, domain}),
+    RoomJID = <<RoomID/binary, "@muclight.", Host/binary>>,
+    assert_json_room_sse_message(#{room => RoomID,
+                                   from => RoomJID,
+                                   type => <<"affiliation">>,
+                                   user => BobJID},
+                                 Data),
     stop_sse(Conn).
 
 all_messages_are_archived(Config) ->
@@ -162,7 +198,8 @@ user_is_invited_to_a_room(Config) ->
         RoomInfo = get_room_info({alice, Alice}, RoomID),
         true = is_participant(Bob, <<"member">>, RoomInfo),
         IQ = escalus_stanza:iq_get(<<"urn:xmpp:muclight:0#affiliations">>, []),
-        RoomJID = <<RoomID/binary, "@muclight.localhost">>,
+        Host = ct:get_config({hosts, mim, domain}),
+        RoomJID = <<RoomID/binary, "@muclight.", Host/binary>>,
         escalus:send(Alice, escalus_stanza:to(IQ, RoomJID)),
         escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Alice))
 
@@ -210,7 +247,7 @@ messages_are_archived_in_room(Config) ->
         {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
         mam_helper:maybe_wait_for_archive(Config),
         {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
-        [Aff, _Msg1, _Msg2] = MsgsRecv = rest_helper:decode_maplist(Result),
+        [Aff, _Msg1, _Msg2] = rest_helper:decode_maplist(Result),
         %% The oldest message is aff change
         <<"affiliation">> = maps:get(type, Aff),
         <<"member">> = maps:get(affiliation, Aff),
@@ -275,13 +312,14 @@ wait_for_room_msg(Msg, User) ->
     escalus:assert(is_groupchat_message, [maps:get(body, Msg)], Stanza).
 
 given_message_sent_to_room(RoomID, Sender) ->
-    Creds = credentials(Sender),
+    {UserJID, _} = Creds = credentials(Sender),
     Path = <<"/rooms/", RoomID/binary, "/messages">>,
     Body = #{body => <<"Hi all!">>},
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(Path, Body, Creds),
     MsgId = proplists:get_value(<<"id">>, Result),
     true = is_binary(MsgId),
-    Body#{id => MsgId}.
+
+    Body#{id => MsgId, from => UserJID}.
 
 given_new_room_with_users(Owner, Users) ->
     RoomID = given_new_room(Owner),
@@ -294,12 +332,16 @@ given_new_room(Owner) ->
     create_room(Creds, RoomName, <<"This room subject">>).
 
 given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
-    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Invitee)),
+    JID = user_jid(Invitee),
     {{<<"204">>, <<"No Content">>}, _} = invite_to_room(Owner, RoomID, JID),
-    Stanza = escalus:wait_for_stanza(Invitee),
-    assert_aff_change_stanza(Stanza, Invitee, <<"member">>),
-    Stanza2 = escalus:wait_for_stanza(Inviter),
-    assert_aff_change_stanza(Stanza2, Invitee, <<"member">>).
+    maybe_wait_for_aff_stanza(Invitee, Invitee),
+    maybe_wait_for_aff_stanza(Inviter, Invitee).
+
+maybe_wait_for_aff_stanza(#client{} = Client, Invitee) ->
+    Stanza = escalus:wait_for_stanza(Client),
+    assert_aff_change_stanza(Stanza, Invitee, <<"member">>);
+maybe_wait_for_aff_stanza(_, _) ->
+    ok.
 
 invite_to_room(Inviter, RoomID, Invitee) ->
     Body = #{user => Invitee},
@@ -416,7 +458,7 @@ is_property_present(Name, Proplist) ->
 
 is_participant(User, Role, RoomInfo) ->
     Participants = proplists:get_value(<<"participants">>, RoomInfo),
-    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(User)),
+    JID = user_jid(User),
     Fun = fun({Props}) ->
                   UserJID = proplists:get_value(<<"user">>, Props),
                   UserRole = proplists:get_value(<<"role">>, Props),
@@ -459,4 +501,23 @@ assert_json_message(Sent, Received) ->
     To = maps:get(to, Sent),
     From = maps:get(from, Sent),
     Id = maps:get(id, Sent).
+
+assert_json_room_sse_message(Expected, Received) ->
+    #{<<"from">> := From,
+      <<"room">> := Room,
+      <<"id">> := _Id,
+      <<"type">> := Type} = Received,
+
+    Room = maps:get(room, Expected),
+    Type = maps:get(type, Expected),
+    From = maps:get(from, Expected),
+    case Type of
+        <<"message">> ->
+            Body = maps:get(<<"body">>, Received),
+            Body = maps:get(body, Expected);
+        _ ->
+            User = maps:get(<<"user">>, Received),
+            User = maps:get(user, Expected)
+    end.
+
 
