@@ -44,7 +44,12 @@ typedef struct {
 
 /* Wrappers around driver_alloc() that check  */
 /* for OOM.                                   */
-void erl_exit(int n, char* v, ...) { abort(); }
+#ifdef HAS_ERTS_EXIT
+void erts_exit(int n, char* v, ...);
+#define erl_exit erts_exit
+#else
+void erl_exit(int n, char* v, ...);
+#endif
 
 void *ejabberd_zlib_drv_alloc(ErlDrvSizeT size);
 ErlDrvBinary *ejabberd_zlib_drv_alloc_binary(ErlDrvSizeT size);
