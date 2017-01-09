@@ -40,10 +40,10 @@
 
 %% Text search
 -import(mod_mam_utils, [
-    packet_to_search_body/1,
     normalize_search_text/1,
     normalize_search_text/2
 ]).
+-import(mod_mam_muc, [packet_to_search_body/2]).
 
 %% Other
 -import(mod_mam_utils,
@@ -153,7 +153,7 @@ archive_message1(Host, MessID, RoomID, FromNick, Packet) ->
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    TextBody = packet_to_search_body(Packet),
+    TextBody = packet_to_search_body(Host, Packet),
     STextBody = ejabberd_odbc:escape(TextBody),
     write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData, STextBody).
 
@@ -189,7 +189,7 @@ prepare_message1(Host, MessID, RoomID, FromNick, Packet) ->
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    TextBody = packet_to_search_body(Packet),
+    TextBody = packet_to_search_body(Host, Packet),
     STextBody = ejabberd_odbc:escape(TextBody),
     [SMessID, SRoomID, SFromNick, SData, STextBody].
 
@@ -607,7 +607,7 @@ calc_count(Host, RoomID, Filter) ->
 %% @doc prepare_filter/5
 -spec prepare_filter(RoomID :: mod_mam:archive_id(), Borders :: mam_borders() | undefined,
                      Start :: unix_timestamp() | undefined, End :: unix_timestamp() | undefined,
-                     WithJID :: jid() | undefined, SearchText :: binary() | undefined) -> filter().
+                     WithJID :: jid() | undefined, SearchText :: string() | undefined) -> filter().
 prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText) ->
     SWithNick = maybe_jid_to_escaped_resource(WithJID),
     StartID = maybe_encode_compact_uuid(Start, 0),

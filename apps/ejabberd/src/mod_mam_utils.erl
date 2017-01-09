@@ -46,11 +46,10 @@
 %% Forms
 -export([form_field_value_s/2,
          form_field_value/2,
-         message_form/1]).
+         message_form/3]).
 
 %% Text search
 -export([
-    packet_to_search_body/1,
     normalize_search_text/1,
     normalize_search_text/2
 ]).
@@ -94,6 +93,8 @@
                    result/4,
                    valid_behavior/1]}).
 -endif.
+
+-callback has_full_text_search(Host :: ejabberd:lserver()) -> boolean().
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
@@ -646,20 +647,25 @@ find_field([], _Name) ->
 field_to_value(FieldEl) ->
     xml:get_path_s(FieldEl, [{elem, <<"value">>}, cdata]).
 
--spec message_form(binary()) -> jlib:xmlel().
-message_form(MamNs) ->
+-spec message_form(Mod :: mod_mam | mod_mam_muc, Host :: ejabberd:lserver(), binary()) ->
+    jlib:xmlel().
+message_form(Module, Host, MamNs) ->
     SubEl = #xmlel{name = <<"x">>,
                    attrs = [{<<"xmlns">>, <<"jabber:x:data">>},
                             {<<"type">>, <<"form">>}],
-                   children = message_form_fields(MamNs)},
+                   children = message_form_fields(Module, Host, MamNs)},
     result_query(SubEl, MamNs).
 
-message_form_fields(MamNs) ->
+message_form_fields(Mod, Host, MamNs) ->
+    TextSearch =
+        case Mod:has_full_text_search(Host) of
+            true -> [form_field(<<"text-single">>, <<"full-text-search">>)];
+            false -> []
+        end,
     [form_type_field(MamNs),
      form_field(<<"jid-single">>, <<"with">>),
      form_field(<<"text-single">>, <<"start">>),
-     form_field(<<"text-single">>, <<"end">>),
-     form_field(<<"text-single">>, <<"free-text-search">>)].
+     form_field(<<"text-single">>, <<"end">>)] ++ TextSearch.
 
 form_type_field(MamNs) when is_binary(MamNs) ->
     #xmlel{name = <<"field">>,
@@ -676,16 +682,11 @@ form_field(Type, VarName) ->
 %% -----------------------------------------------------------------------
 %% Text search tokenization
 
--spec packet_to_search_body(Packet :: xmlel()) -> string().
-packet_to_search_body(Packet) ->
-    BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
-    normalize_search_text(BodyValue, " ").
-
--spec normalize_search_text(string()) -> string().
+-spec normalize_search_text(binary() | string() | undefined) -> string() | undefined.
 normalize_search_text(Text) ->
     normalize_search_text(Text, "%").
 
--spec normalize_search_text(string(), string()) -> string().
+-spec normalize_search_text(binary() | string() | undefined, string()) -> string() | undefined.
 normalize_search_text(undefined, _WordSeparator) ->
     undefined;
 normalize_search_text(Text, WordSeparator) ->

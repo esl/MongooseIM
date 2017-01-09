@@ -42,12 +42,11 @@
 -export([key/3]).
 
 %% For tests only
--export([create_obj/3, read_archive/7, bucket/1,
+-export([create_obj/5, read_archive/7, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
 %% Text search
 -import(mod_mam_utils, [
-    packet_to_search_body/1,
     normalize_search_text/2
 ]).
 
@@ -127,26 +126,26 @@ stop_muc_archive(Host) ->
                           purge_multiple_messages, 50),
     ok.
 
-archive_message(_Result, Host, MessID, _UserID,
-                LocJID, RemJID, SrcJID, _Dir, Packet) ->
+archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     try
-        R = archive_message(MessID, LocJID, RemJID, SrcJID, Packet),
-        case R of
-            ok ->
-                ok;
-            Other ->
-                throw(Other)
-        end,
-        R
+        archive_message(Host, MessId, LocJID, RemJID, SrcJID, Packet, pm)
     catch _Type:Reason ->
-            ?WARNING_MSG("Could not write message to archive, reason: ~p", [Reason]),
+            ?WARNING_MSG("Could not write message to archive, reason: ~p",
+                         [{Reason, erlang:get_stacktrace()}]),
             ejabberd_hooks:run(mam_drop_message, Host, [Host]),
             {error, Reason}
     end.
 
-archive_message_muc(Result, Host, MessId, UserID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+archive_message_muc(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     RemJIDMuc = maybe_muc_jid(RemJID),
-    archive_message(Result, Host, MessId, UserID, LocJID, RemJIDMuc, SrcJID, Dir, Packet).
+    try
+        archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, Packet, muc)
+    catch _Type:Reason ->
+        ?WARNING_MSG("Could not write MUC message to archive, reason: ~p",
+                     [{Reason, erlang:get_stacktrace()}]),
+        ejabberd_hooks:run(mam_muc_drop_message, Host, [Host]),
+        {error, Reason}
+    end.
 
 maybe_muc_jid(#jid{lresource = RemRes}) ->
     {<<>>, RemRes, <<>>};
@@ -227,7 +226,7 @@ remove_bucket(Bucket) ->
     {ok, Keys} = mongoose_riak:list_keys(Bucket),
     [mongoose_riak:delete(Bucket, Key) || Key <- Keys].
 
-archive_message(MessID, LocJID, RemJID, SrcJID, Packet) ->
+archive_message(Host, MessID, LocJID, RemJID, SrcJID, Packet, Type) ->
     LocalJID = bare_jid(LocJID),
     RemoteJID = bare_jid(RemJID),
     SourceJID = full_jid(SrcJID),
@@ -236,12 +235,20 @@ archive_message(MessID, LocJID, RemJID, SrcJID, Packet) ->
 
     Bucket = bucket(MessID),
 
-    RiakMap = create_obj(MsgId, SourceJID, Packet),
-    mongoose_riak:update_type(Bucket, Key, riakc_map:to_op(RiakMap)).
+    RiakMap = create_obj(Host, MsgId, SourceJID, Packet, Type),
+    case mongoose_riak:update_type(Bucket, Key, riakc_map:to_op(RiakMap)) of
+        ok -> ok;
+        Other -> throw(Other)
+    end.
 
-create_obj(MsgId, SourceJID, Packet) ->
-%%    SearchBody = mod_mam_odbc_arch:packet_to_search_body(Packet),
-    BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
+create_obj(Host, MsgId, SourceJID, Packet, Type) ->
+    ModMAM =
+        case Type of
+            pm -> mod_mam;
+            muc -> mod_mam_muc
+        end,
+    BodyValue = list_to_binary(ModMAM:packet_to_search_body(Host, Packet)),
+%%    BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
     Ops = [
            {{<<"msg_id">>, register},
             fun(R) -> riakc_register:set(MsgId, R) end},

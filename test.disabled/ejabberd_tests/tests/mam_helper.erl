@@ -300,7 +300,7 @@ form_x(BStart, BEnd, BWithJID, RSM, TextSearch) ->
                 form_field(<<"start">>, BStart),
                 form_field(<<"end">>, BEnd),
                 form_field(<<"with">>, BWithJID),
-                form_field(<<"free-text-search">>, TextSearch)]
+                form_field(<<"full-text-search">>, TextSearch)]
                 ++ form_extra_fields(RSM)
                 ++ form_border_fields(RSM))}.
 

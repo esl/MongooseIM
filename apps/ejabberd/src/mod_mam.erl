@@ -56,6 +56,8 @@
 -export([archive_message/8]).
 -export([lookup_messages/14]).
 -export([archive_id_int/2]).
+-export([packet_to_search_body/2]).
+-export([has_full_text_search/1]).
 
 %% for feature (escalus) tests
 -export([set_params/1]).
@@ -65,7 +67,8 @@
 
 -import(mod_mam_utils,
         [maybe_microseconds/1,
-         microseconds_to_now/1]).
+         microseconds_to_now/1,
+         normalize_search_text/2]).
 
 %% UID
 -import(mod_mam_utils,
@@ -93,7 +96,7 @@
 -import(mod_mam_utils,
         [form_field_value_s/2,
          form_field_value/2,
-         message_form/1]).
+         message_form/3]).
 
 %% Other
 -import(mod_mam_utils,
@@ -356,6 +359,21 @@ is_action_allowed(Action, From, To=#jid{lserver=Host}) ->
         default -> is_action_allowed_by_default(Action, From, To)
     end.
 
+
+-spec packet_to_search_body(Host :: ejabberd:server(), Packet :: xmlel()) ->
+    string().
+packet_to_search_body(Host, Packet) ->
+    case has_full_text_search(Host) of
+        true ->
+            BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
+            normalize_search_text(BodyValue, " ");
+        false -> ""
+    end.
+
+-spec has_full_text_search(Host :: ejabberd:server()) -> boolean().
+has_full_text_search(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, full_text_search, true).
+
 -spec is_action_allowed_by_default(Action :: action(), From :: ejabberd:jid(),
                                    To :: ejabberd:jid()) -> boolean().
 is_action_allowed_by_default(_Action, From, To) ->
@@ -607,8 +625,8 @@ handle_set_message_form(
 
 -spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
                                      ejabberd:iq().
-handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}) ->
-    return_message_form_iq(IQ).
+handle_get_message_form(_From=#jid{lserver = Host}, _ArcJID=#jid{}, IQ=#iq{}) ->
+    return_message_form_iq(Host, IQ).
 
 
 %% @doc Purging multiple messages
@@ -772,13 +790,18 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     StartT = os:timestamp(),
-    R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
-                                [Host, ArcID, ArcJID, RSM, Borders,
-                                 Start, End, Now, WithJID, SearchText,
-                                 PageSize, LimitPassed, MaxResultLimit, IsSimple]),
-    Diff = timer:now_diff(os:timestamp(), StartT),
-    mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
-    R.
+    case not has_full_text_search(Host) andalso SearchText /= undefined of
+        true -> %% Use of disabled full text search
+            {error, 'not-supported'};
+        false ->
+            R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
+                                        [Host, ArcID, ArcJID, RSM, Borders,
+                                         Start, End, Now, WithJID, SearchText,
+                                         PageSize, LimitPassed, MaxResultLimit, IsSimple]),
+            Diff = timer:now_diff(os:timestamp(), StartT),
+            mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
+            R
+    end.
 
 
 -spec archive_message(Host :: ejabberd:server(), MessID :: message_id(),
@@ -911,7 +934,7 @@ form_to_with_jid(El) ->
 
 -spec form_to_text(_) -> 'undefined' | binary().
 form_to_text(El) ->
-    form_field_value(El, <<"free-text-search">>).
+    form_field_value(El, <<"full-text-search">>).
 
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
@@ -973,8 +996,8 @@ return_error_iq(IQ, not_implemented) ->
 return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.
 
-return_message_form_iq(IQ) ->
-    IQ#iq{type = result, sub_el = [message_form(IQ#iq.xmlns)]}.
+return_message_form_iq(Host, IQ) ->
+    IQ#iq{type = result, sub_el = [message_form(?MODULE, Host, IQ#iq.xmlns)]}.
 
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
     report_issue(Reason, Stacktrace, Issue, ArcJID, IQ);

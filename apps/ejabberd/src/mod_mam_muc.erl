@@ -54,6 +54,8 @@
 -export([archive_message/8]).
 -export([lookup_messages/14]).
 -export([archive_id_int/2]).
+-export([packet_to_search_body/2]).
+-export([has_full_text_search/1]).
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -64,7 +66,8 @@
 %% UID
 -import(mod_mam_utils,
         [generate_message_id/0,
-         decode_compact_uuid/1]).
+         decode_compact_uuid/1,
+         normalize_search_text/2]).
 
 %% XML
 -import(mod_mam_utils,
@@ -89,7 +92,7 @@
 -import(mod_mam_utils,
         [form_field_value_s/2,
          form_field_value/2,
-         message_form/1]).
+         message_form/3]).
 
 %% Other
 -import(mod_mam_utils,
@@ -309,6 +312,19 @@ is_action_allowed(Action, From, To = #jid{lserver = Host}) ->
         default -> is_action_allowed_by_default(Action, From, To)
     end.
 
+-spec packet_to_search_body(Host :: ejabberd:server(), Packet :: xmlel()) ->
+    string().
+packet_to_search_body(Host, Packet) ->
+    case has_full_text_search(Host) of
+        true ->
+            BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
+            normalize_search_text(BodyValue, " ");
+        false -> ""
+    end.
+
+-spec has_full_text_search(Host :: ejabberd:server()) -> boolean().
+has_full_text_search(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, full_text_search, true).
 
 -spec is_action_allowed_by_default(Action :: action(), From :: ejabberd:jid(),
                                    To :: ejabberd:jid()) -> boolean().
@@ -596,8 +612,8 @@ handle_set_message_form(
 
 -spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
                                      ejabberd:iq().
-handle_get_message_form(_From = #jid{}, _ArcJID = #jid{}, IQ = #iq{}) ->
-    return_message_form_iq(IQ).
+handle_get_message_form(_From = #jid{lserver = Host}, _ArcJID = #jid{}, IQ = #iq{}) ->
+    return_message_form_iq(Host, IQ).
 
 
 %% @doc Purging multiple messages.
@@ -701,10 +717,15 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
                                  | {error, Reason :: term()}.%Result :: any(),
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
-                            [Host, ArcID, ArcJID, RSM, Borders,
-                             Start, End, Now, WithJID, SearchText,
-                             PageSize, LimitPassed, MaxResultLimit, IsSimple]).
+    case not has_full_text_search(Host) andalso SearchText /= undefined of
+        true -> %% Use of disabled full text search
+            {error, 'not-supported'};
+        false ->
+            ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
+                                    [Host, ArcID, ArcJID, RSM, Borders,
+                                     Start, End, Now, WithJID, SearchText,
+                                     PageSize, LimitPassed, MaxResultLimit, IsSimple])
+    end.
 
 
 -spec archive_message(ejabberd:server(), MessId :: mod_mam:message_id(),
@@ -861,7 +882,7 @@ form_to_with_jid(El) ->
 
 -spec form_to_text(_) -> 'undefined' | binary().
 form_to_text(El) ->
-    form_field_value(El, <<"free-text-search">>).
+    form_field_value(El, <<"full-text-search">>).
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_muc_drop_iq, Host,
@@ -929,8 +950,8 @@ return_purge_single_message_iq(IQ, {error, Reason}) ->
     return_error_iq(IQ, Reason).
 
 
-return_message_form_iq(IQ) ->
-    IQ#iq{type = result, sub_el = [message_form(IQ#iq.xmlns)]}.
+return_message_form_iq(Host, IQ) ->
+    IQ#iq{type = result, sub_el = [message_form(?MODULE, Host, IQ#iq.xmlns)]}.
 
 
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->

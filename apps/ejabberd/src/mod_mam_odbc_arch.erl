@@ -45,10 +45,10 @@
 
 %% Text search
 -import(mod_mam_utils, [
-    packet_to_search_body/1,
     normalize_search_text/1,
     normalize_search_text/2
 ]).
+-import(mod_mam, [packet_to_search_body/2]).
 
 %% Other
 -import(mod_mam_utils,
@@ -239,8 +239,13 @@ do_archive_message(_Result, Host, MessID, UserID,
     SDir = encode_direction(Dir),
     SRemLResource = mongoose_rdbms:escape(RemLResource),
     Data = packet_to_stored_binary(Packet),
+<<<<<<< HEAD
     TextBody = packet_to_search_body(Packet),
     STextBody = mongoose_rdbms:escape(TextBody),
+=======
+    TextBody = packet_to_search_body(Host, Packet),
+    STextBody = ejabberd_odbc:escape(TextBody),
+>>>>>>> Make full text search in MAM optional
     string:to_lower(STextBody),
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
@@ -279,8 +284,13 @@ prepare_message(Host, MessID, UserID,
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
+<<<<<<< HEAD
     TextBody = packet_to_search_body(Packet),
     STextBody = mongoose_rdbms:escape(TextBody),
+=======
+    TextBody = packet_to_search_body(Host, Packet),
+    STextBody = ejabberd_odbc:escape(TextBody),
+>>>>>>> Make full text search in MAM optional
     [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData, STextBody].
 
 archive_messages(LServer, Acc) ->
@@ -538,7 +548,6 @@ row_to_message_id({BMessID, _, _}) ->
     mongoose_rdbms:result_to_integer(BMessID).
 
 
-<<<<<<< HEAD
 %% #rh
 -spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
                      ArchiveID :: mod_mam:archive_id(),
@@ -550,17 +559,6 @@ remove_archive(Acc, Host, UserID, _UserJID) ->
       ["DELETE FROM ", select_table(UserID), " "
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     Acc.
-=======
--spec remove_archive(Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
-                     RoomJID :: ejabberd:jid()) -> 'ok'.
-remove_archive(Host, UserID, _UserJID) ->
-    {updated, _} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["DELETE FROM ", select_table(UserID), " "
-           "WHERE user_id = '", escape_user_id(UserID), "'"]),
-    ok.
->>>>>>> Make Elvis happy
 
 -spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
                            MessID :: mod_mam:message_id(),
@@ -716,7 +714,7 @@ calc_count(Host, UserID, Filter, IndexHintSQL) ->
 -spec prepare_filter(UserID :: mod_mam:archive_id(), UserJID :: ejabberd:jid(),
                      Borders :: mod_mam:borders(), Start :: mod_mam:unix_timestamp() | undefined,
                      End :: mod_mam:unix_timestamp() | undefined, WithJID :: ejabberd:jid(),
-                     SearchText :: binary() | undefined)
+                     SearchText :: string() | undefined)
                     -> filter().
 prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
     {SWithJID, SWithResource} =
@@ -751,7 +749,7 @@ prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
                          EndID :: mod_mam:message_id() | undefined,
                          SWithJID :: escaped_jid() | undefined,
                          SWithResource :: escaped_resource() | undefined,
-                         SearchText :: binary() | undefined) -> filter().
+                         SearchText :: string() | undefined) -> filter().
 prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) ->
     ["WHERE user_id='", escape_user_id(UserID), "'",
      case StartID of
