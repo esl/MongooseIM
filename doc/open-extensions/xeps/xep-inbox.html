@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>XEP-xxxx: Inbox</title><link rel="stylesheet" type="text/css" href="xmpp.css" /><link href="prettify.css" type="text/css" rel="stylesheet" /><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /><script type="text/javascript" src="prettify.js"></script><meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=2.0" /><meta name="DC.Title" content="Inbox" /><meta name="DC.Creator" content="Micha&#x142; Piotrowski" /><meta name="DC.Description" content="This specification defines a protocol to read all user's conversations." /><meta name="DC.Publisher" content="XMPP Standards Foundation" /><meta name="DC.Contributor" content="XMPP Extensions Editor" /><meta name="DC.Date" content="2017-01-05" /><meta name="DC.Type" content="XMPP Extension Protocol" /><meta name="DC.Format" content="XHTML" /><meta name="DC.Identifier" content="XEP-xxxx" /><meta name="DC.Language" content="en" /><meta name="DC.Rights" content="This XMPP Extension Protocol is copyright &#xA9; 1999 - 2016 by the XMPP Standards Foundation (XSF)." /></head><body onload="prettyPrint()"><h1>XEP-xxxx: Inbox</h1><table><tr valign="top"><td><strong>Abstract:</strong></td><td>This specification defines a protocol to read all user's conversations.</td></tr><tr valign="top"><td><strong>Author:</strong></td><td>Michał Piotrowski</td></tr><tr valign="top"><td><strong>Copyright:</strong></td><td>© 1999 - 2016 XMPP Standards Foundation. <a href="#appendix-legal">SEE LEGAL NOTICES</a>.</td></tr><tr valign="top"><td><strong>Status:</strong></td><td>ProtoXEP</td></tr><tr valign="top"><td><strong>Type:</strong></td><td>Standards Track</td></tr><tr valign="top"><td><strong>Version:</strong></td><td>0.0.1</td></tr><tr valign="top"><td><strong>Last Updated:</strong></td><td>2017-01-05</td></tr></table><hr /><p style="color:red">WARNING: This document has not yet been accepted for consideration or approved in any official manner by the XMPP Standards Foundation, and this document is not yet an XMPP Extension Protocol (XEP). If this document is accepted as a XEP by the XMPP Council, it will be published at &lt;<a href="http://xmpp.org/extensions/">http://xmpp.org/extensions/</a>&gt; and announced on the &lt;standards@xmpp.org&gt; mailing list.</p><hr /><h2>Table of Contents</h2><div class="indent"><p><br />1.  <a href="#intro">Introduction</a><br />2.  <a href="#reqs">Requirements</a><br />3.  <a href="#usecases">Use Cases</a><br />   
+      3.1.  <a href="#reading-the-inbox">Reading the inbox</a><br />   
+      3.2.  <a href="#reading-the-inbox-with-last-msg">Reading the inbox with last message</a><br />4.  <a href="#rules">Business Rules</a><br />5.  <a href="#impl">Implementation Notes</a><br />6.  <a href="#access">Accessibility Considerations</a><br />7.  <a href="#security">Security Considerations</a><br />8.  <a href="#iana">IANA Considerations</a><br />9.  <a href="#registrar">XMPP Registrar Considerations</a><br />10.  <a href="#schema">XML Schema</a></p><p><a href="#appendices">Appendices</a><br />    <a href="#appendix-docinfo">A: Document Information</a><br />    <a href="#appendix-authorinfo">B: Author Information</a><br />    <a href="#appendix-legal">C: Legal Notices</a><br />    <a href="#appendix-xmpp">D: Relation to XMPP</a><br />    <a href="#appendix-discuss">E: Discussion Venue</a><br />    <a href="#appendix-conformance">F: Requirements Conformance</a><br />    <a href="#appendix-notes">G: Notes</a><br />    <a href="#appendix-revs">H: Revision History</a></p></div><hr /><h2>1.
+       <a name="intro" id="intro">Introduction</a></h2>
+  <p class="" style="">List of all user's conversations along with number of unread messages is very desirable feature especially in mobile clients.
+    This experience can partially be achieved with <span class="ref" style=""><a href="http://xmpp.org/extensions/xep-0313.html">Message Archive Management (XEP-0313)</a></span>  [<a href="#nt-idm376692088960">1</a>] and roster but it is not very convenient.
+    For every user from the contact list, the client has query the archive or read the archive without filtering by JID wich may not be handy.</p>
+  <p class="" style="">This extensions provides simple protocol to read all user's conversations with number of unread messages for each item from the inbox.
+    Optionally the server may return last message for each conversation if the clinets asks for it.</p>
+<h2>2.
+       <a name="reqs" id="reqs">Requirements</a></h2>
+  <p class="" style="">Both servers and clients has to understand <span class="ref" style=""><a href="http://xmpp.org/extensions/xep-0313.html">Message Archive Management (XEP-0313)</a></span>  [<a href="#nt-idm376692090736">2</a>] as this extensions assumes that following messages sync is done with MAM.
+    Also the server has to add the ID of a message as used in the archive as described in <span class="ref" style=""><a href="http://xmpp.org/extensions/xep-0358.html">Publishing Available Jingle Sessions (XEP-0358)</a></span>  [<a href="#nt-idm376692078960">3</a>], this is to allow users to mark a message as read.</p>
+<h2>3.
+       <a name="usecases" id="usecases">Use Cases</a></h2>
+  <div class="indent"><h3>3.1 <a name="reading-the-inbox" id="reading-the-inbox">Reading the inbox</a></h3>
+    <p class="" style="">Reading the inbox is as simple as sending following IQ to the server:</p>
+    <p class="caption"><a name="example-1" id="example-1"></a>Example 1. Quering the inbox</p><div class="indent"><pre class="prettyprint">
+&lt;iq type='get' id='inbox1'&gt;
+  &lt;query xmlns='urn:xmpp:inbox:1'/&gt;
+&lt;/iq&gt;</pre></div>
+
+    <p class="caption"><a name="example-2" id="example-2"></a>Example 2. Server returns conversations list</p><div class="indent"><pre class="prettyprint">
+&lt;iq type='result' from='alice@wonderland.lit' to='alice@wonderland.lit/resource'&gt;
+  &lt;query xmlns='urn:xmpp:inbox:1'&gt;
+    &lt;item with='rabbit@wonderland.lit' unread='3' stamp='2016-12-31T20:00:27Z'/&gt;
+    &lt;item with='rome@shekspear.lit' unread='0' stamp='2017-01-02T12:34:32Z'/&gt;
+  &lt;/query&gt;
+&lt;/iq&gt;
+  </pre></div>
+    <p class="" style="">The <span class="strong">stamp</span> attribute in every item contains the timestamp (as seen by ther server) of the last <span class="strong">read</span> message.
+      This value can be later used by the user to query MAM to read all unread messages with specific contact.</p>
+
+  </div>
+  <div class="indent"><h3>3.2 <a name="reading-the-inbox-with-last-msg" id="reading-the-inbox-with-last-msg">Reading the inbox with last message</a></h3>
+    <p class="" style="">The server MAY provide an extended inbox view where for each conversation the content of last message is included.</p>
+    <p class="" style="">This optional query may proof usefull if the application UI displays last message for each conversation.
+      With this query the result will be bigger, but the client will need to send only one request to the server.</p>
+    <p class="caption"><a name="example-3" id="example-3"></a>Example 3. Quering the inbox with last message for each conversation</p><div class="indent"><pre class="prettyprint">
+&lt;iq type='get' id='inbox2'&gt;
+  &lt;query xmlns='urn:xmpp:inbox:1'&gt;
+    &lt;x xmlns='jabber:x:data' type='submit'&gt;
+      &lt;field var='FORM_TYPE' type='hidden'&gt;
+        &lt;value&gt;urn:xmpp:inbox:1&lt;/value&gt;
+      &lt;/field&gt;
+      &lt;field var='last-message'&gt;
+        &lt;value&gt;1&lt;/value&gt;
+      &lt;/field&gt;
+    &lt;/x&gt;
+  &lt;/query&gt;
+&lt;/iq&gt;
+
+</pre></div>
+
+  <p class="caption"><a name="example-4" id="example-4"></a>Example 4. Server returns conversations list with last messages</p><div class="indent"><pre class="prettyprint">
+&lt;iq type='result' from='alice@wonderland.lit' to='alice@wonderland.lit/resource'&gt;
+  &lt;query xmlns='urn:xmpp:inbox:1'&gt;
+    &lt;item with='rabbit@wonderland.lit' unread='3' stamp='2016-12-31T20:00:27Z'&gt;
+      &lt;message from='alice@wonderland.lit' to='rabbit@wonderlang.lit' type='chat'&gt;
+        &lt;body&gt;Hi rabbit, what are your New Year's Eve plans?&lt;/body&gt;
+      &lt;/message&gt;
+    &lt;/item&gt;
+    &lt;item with='rome@shekspear.lit' unread='0' stamp='2017-01-02T12:34:32Z'&gt;
+      &lt;message from='rome@shekspear.lit' to='alice@wonderlang.lit' type='chat'&gt;
+        &lt;body&gt;Happy New Year!&lt;/body&gt;
+      &lt;/message&gt;
+    &lt;/item&gt;
+  &lt;/query&gt;
+&lt;/iq&gt;
+
+    
+  </pre></div>
+
+  </div>
+<h2>4.
+       <a name="rules" id="rules">Business Rules</a></h2>
+  <p class="" style="">OPTIONAL.</p>
+<h2>5.
+       <a name="impl" id="impl">Implementation Notes</a></h2>
+  <p class="" style="">OPTIONAL.</p>
+<h2>6.
+       <a name="access" id="access">Accessibility Considerations</a></h2>
+  <p class="" style="">OPTIONAL.</p>
+<h2>7.
+       <a name="security" id="security">Security Considerations</a></h2>
+  <p class="" style="">REQUIRED.</p>
+<h2>8.
+       <a name="iana" id="iana">IANA Considerations</a></h2>
+  <p class="" style="">REQUIRED.</p>
+<h2>9.
+       <a name="registrar" id="registrar">XMPP Registrar Considerations</a></h2>
+  <p class="" style="">REQUIRED.</p>
+<h2>10.
+       <a name="schema" id="schema">XML Schema</a></h2>
+  <p class="" style="">REQUIRED for protocol specifications.</p>
+<hr /><a name="appendices" id="appendices"></a><h2>Appendices</h2><hr /><a name="appendix-docinfo" id="appendix-docinfo"></a><h3>Appendix A: Document Information</h3><p class="indent">
+            Series: <a href="http://xmpp.org/extensions/">XEP</a><br />
+            Number: xxxx<br />
+            Publisher: <a href="/xsf/">XMPP Standards Foundation</a><br />
+            Status: 
+            <a href="http://xmpp.org/extensions/xep-0001.html#states-ProtoXEP">ProtoXEP</a><br />
+            Type:
+            <a href="http://xmpp.org/extensions/xep-0001.html#types-Standards Track">Standards Track</a><br />
+            Version: 0.0.1<br />
+            Last Updated: 2017-01-05<br />
+                Approving Body: <a href="http://xmpp.org/council/">XMPP Council</a><br />Dependencies: XMPP Core, XEP-0001, XEP-0313, XEP-0359<br />
+                Supersedes: None<br />
+                Superseded By: None<br />
+            Short Name: NOT_YET_ASSIGNED<br />
+            This document in other formats: 
+                <a class="standardsButton" href="http://xmpp.org/extensions/xep-xxxx.xml">XML</a> 
+                <a class="standardsButton" href="http://xmpp.org/extensions/xep-xxxx.pdf">PDF</a></p><hr /><a name="appendix-authorinfo" id="appendix-authorinfo"></a><h3>Appendix B: Author Information</h3><div class="indent"><h3>Michał Piotrowski</h3><p class="indent">
+        Email:
+        <a href="mailto:michal.piotrowski@erlang-solutions.com">michal.piotrowski@erlang-solutions.com</a><br />
+        JabberID: 
+        <a href="xmpp:michal.piotrowski@erlang-solutions.com">michal.piotrowski@erlang-solutions.com</a><br /></p></div><hr /><a name="appendix-legal" id="appendix-legal"></a><h3>Appendix C: Legal Notices</h3><div class="indent"><h4>Copyright</h4>This XMPP Extension Protocol is copyright © 1999 - 2016 by the <a href="http://xmpp.org/">XMPP Standards Foundation</a> (XSF).<h4>Permissions</h4>Permission is hereby granted, free of charge, to any person obtaining a copy of this specification (the "Specification"), to make use of the Specification without restriction, including without limitation the rights to implement the Specification in a software program, deploy the Specification in a network service, and copy, modify, merge, publish, translate, distribute, sublicense, or sell copies of the Specification, and to permit persons to whom the Specification is furnished to do so, subject to the condition that the foregoing copyright notice and this permission notice shall be included in all copies or substantial portions of the Specification. Unless separate permission is granted, modified works that are redistributed shall not contain misleading information regarding the authors, title, number, or publisher of the Specification, and shall not claim endorsement of the modified works by the authors, any organization or project to which the authors belong, or the XMPP Standards Foundation.<h4>Disclaimer of Warranty</h4><span style="font-weight: bold">## NOTE WELL: This Specification is provided on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. ##</span><h4>Limitation of Liability</h4>In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall the XMPP Standards Foundation or any author of this Specification be liable for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising from, out of, or in connection with the Specification or the implementation, deployment, or other use of the Specification (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if the XMPP Standards Foundation or such author has been advised of the possibility of such damages.<h4>IPR Conformance</h4>This XMPP Extension Protocol has been contributed in full conformance with the XSF's Intellectual Property Rights Policy (a copy of which can be found at &lt;<a href="http://xmpp.org/about-xmpp/xsf/xsf-ipr-policy/">http://xmpp.org/about-xmpp/xsf/xsf-ipr-policy/</a>&gt; or obtained by writing to XMPP Standards Foundation, P.O. Box 787, Parker, CO 80134 USA).</div><hr /><a name="appendix-xmpp" id="appendix-xmpp"></a><h3>Appendix D: Relation to XMPP</h3><p class="indent">The Extensible Messaging and Presence Protocol (XMPP) is defined in the XMPP Core (RFC 6120) and XMPP IM (RFC 6121) specifications contributed by the XMPP Standards Foundation to the Internet Standards Process, which is managed by the Internet Engineering Task Force in accordance with RFC 2026. Any protocol defined in this document has been developed outside the Internet Standards Process and is to be understood as an extension to XMPP rather than as an evolution, development, or modification of XMPP itself.</p><hr /><a name="appendix-discuss" id="appendix-discuss"></a><h3>Appendix E: Discussion Venue</h3><p class="indent">The primary venue for discussion of XMPP Extension Protocols is the &lt;<a href="http://mail.jabber.org/mailman/listinfo/standards">standards@xmpp.org</a>&gt; discussion list.</p><p class="indent">Discussion on other xmpp.org discussion lists might also be appropriate; see &lt;<a href="http://xmpp.org/about/discuss.shtml">http://xmpp.org/about/discuss.shtml</a>&gt; for a complete list.</p><p class="indent">Errata can be sent to &lt;<a href="mailto:editor@xmpp.org">editor@xmpp.org</a>&gt;.</p><hr /><a name="appendix-conformance" id="appendix-conformance"></a><h3>Appendix F: Requirements Conformance</h3><p class="indent">The following requirements keywords as used in this document are to be interpreted as described in <a href="http://www.ietf.org/rfc/rfc2119.txt">RFC 2119</a>: "MUST", "SHALL", "REQUIRED"; "MUST NOT", "SHALL NOT"; "SHOULD", "RECOMMENDED"; "SHOULD NOT", "NOT RECOMMENDED"; "MAY", "OPTIONAL".</p><hr /><a name="appendix-notes" id="appendix-notes"></a><h3>Appendix G: Notes</h3><div class="indent"><p><a name="nt-idm376692088960" id="nt-idm376692088960">1</a>. XEP-0313: Message Archive Management &lt;<a href="http://xmpp.org/extensions/xep-0313.html">http://xmpp.org/extensions/xep-0313.html</a>&gt;.</p><p><a name="nt-idm376692090736" id="nt-idm376692090736">2</a>. XEP-0313: Message Archive Management &lt;<a href="http://xmpp.org/extensions/xep-0313.html">http://xmpp.org/extensions/xep-0313.html</a>&gt;.</p><p><a name="nt-idm376692078960" id="nt-idm376692078960">3</a>. XEP-0358: Publishing Available Jingle Sessions &lt;<a href="http://xmpp.org/extensions/xep-0358.html">http://xmpp.org/extensions/xep-0358.html</a>&gt;.</p></div><hr /><a name="appendix-revs" id="appendix-revs"></a><h3>Appendix H: Revision History</h3><p>Note: Older versions of this specification might be available at <a href="http://xmpp.org/extensions/attic/">http://xmpp.org/extensions/attic/</a></p><div class="indent"><h4>Version 0.0.1 (2017-01-05)</h4><div class="indent"><p class="" style="">First draft.</p> (mp)
+    </div></div><hr /><p>END</p></body></html>
