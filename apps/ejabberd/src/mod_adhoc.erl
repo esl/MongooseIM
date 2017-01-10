@@ -186,8 +186,7 @@ get_local_features(Acc, _From, _To, <<"">>, _Lang) ->
 %%                {result, I} -> I;
 %%                _ -> []
 %%            end,
-    Feats = mongoose_stanza:get(features, Acc, []),
-    mongoose_stanza:put(features, Feats ++ [?NS_COMMANDS], Acc);
+    mongoose_stanza:append(features, ?NS_COMMANDS, Acc);
 get_local_features(Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
     mongoose_stanza:put(features, [], Acc);

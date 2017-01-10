@@ -486,7 +486,11 @@ caps_delete_fun(Node) ->
 
 make_my_disco_hash(Host) ->
     JID = jid:make(<<"">>, Host, <<"">>),
-    A0 = mongoose_stanza:new(),
+    F = fun(K, A) -> mongoose_stanza:put(K, [], A) end,
+    % TODO: replace with mongoose_stanza:from_map
+    A0 = lists:foldl(F,
+                     mongoose_stanza:new(),
+                     [features, identities, info]), % we are soooo functional
     A1 = ejabberd_hooks:run_fold(disco_local_features, Host, A0, [JID, JID, <<"">>, <<"">>]),
     A2 = ejabberd_hooks:run_fold(disco_local_identity, Host, A1, [JID, JID, <<"">>, <<"">>]),
     A3 = ejabberd_hooks:run_fold(disco_info, Host, A2, [Host, undefined, <<"">>, <<"">>]),

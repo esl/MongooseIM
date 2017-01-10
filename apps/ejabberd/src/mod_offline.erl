@@ -164,7 +164,6 @@ stop(Host) ->
 %% ------------------------------------------------------------------
 
 amp_failed_event(#xmlel{} = Packet, From) ->
-    ?DEPRECATED,
     amp_failed_event(mongoose_stanza:from_element(Packet), From);
 amp_failed_event(Acc, From) ->
     mod_amp:check_packet(mongoose_stanza:get(element, Acc), From, offline_failed),
@@ -359,8 +358,7 @@ get_features(_Key, Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 add_feature(Key, Acc, Feature) ->
-    Features = mongoose_stanza:get(Key, Acc),
-    mongoose_stanza:put(Key, Features ++ [Feature], Acc).
+    mongoose_stanza:append(Key, Feature, Acc).
 %%add_feature(_, Feature) ->
 %%    {result, [Feature]}.
 
