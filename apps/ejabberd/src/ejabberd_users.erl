@@ -87,7 +87,7 @@ does_user_exist(LUser, LServer) ->
 %% Hooks
 %%====================================================================
 
--spec remove_user(Acc :: map(),
+-spec remove_user(Acc :: any(),
                   LUser :: ejabberd:luser(),
                   LServer :: ejabberd:lserver() | string()) -> map().
 remove_user(Acc, LUser, LServer) ->

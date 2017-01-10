@@ -329,7 +329,7 @@ process_incoming_packet(From, To, Packet) ->
 
 %% @doc A ejabberd's callback with diferent order of arguments.
 %% #rh
--spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map().
+-spec remove_user(any(), ejabberd:user(), ejabberd:server()) -> map().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.

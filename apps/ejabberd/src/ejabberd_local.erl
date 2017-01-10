@@ -255,7 +255,7 @@ unregister_host(Host) ->
 %% API
 %%====================================================================
 
-node_cleanup(Acc, Node) ->
+node_cleanup(_, Node) ->
     F = fun() ->
                 Keys = mnesia:select(
                          iq_response,
@@ -266,8 +266,7 @@ node_cleanup(Acc, Node) ->
                                       mnesia:delete({iq_response, Key})
                               end, Keys)
         end,
-    Res = mnesia:async_dirty(F),
-    maps:put(cleanup_result, Res, Acc).
+    mnesia:async_dirty(F).
 
 %%====================================================================
 %% gen_server callbacks

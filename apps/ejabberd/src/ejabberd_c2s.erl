@@ -2355,9 +2355,7 @@ fsm_reply(Reply, StateName, StateData) ->
 is_ip_blacklisted(undefined) ->
     false;
 is_ip_blacklisted({IP,_Port}) ->
-    Acc = mongoose_stanza:from_kv(is_ip_blacklisted, false),
-    Res = ejabberd_hooks:run_fold(check_bl_c2s, Acc, [IP]),
-    mongoose_stanza:get(is_ip_blacklisted, Res).
+    ejabberd_hooks:run_fold(check_bl_c2s, false, [IP]).
 
 
 %% @doc Check from attributes.
@@ -3085,10 +3083,9 @@ user_allowed(JID, #state{server = Server, access = Access}) ->
     end.
 
 open_session_allowed_hook(Server, JID) ->
-    Res = ejabberd_hooks:run_fold(session_opening_allowed_for_user,
+    allow == ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                                      Server,
-                                     mongoose_stanza:from_kv(session_allowed, allow), [JID]),
-    allow == mongoose_stanza:get(session_allowed, Res).
+                                     allow, [JID]).
 
 
 terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->

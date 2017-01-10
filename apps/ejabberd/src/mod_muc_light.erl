@@ -262,7 +262,7 @@ get_muc_service(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
 %%get_muc_service(Acc, _From, _To, _Node, _Lang) ->
 %%    Acc.
 
--spec remove_user(Acc :: map(), User :: binary(), Server :: binary()) -> ok.
+-spec remove_user(Acc :: any(), User :: binary(), Server :: binary()) -> ok.
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),

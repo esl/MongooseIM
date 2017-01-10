@@ -246,7 +246,7 @@ get_last_info(LUser, LServer) ->
     end.
 
 %% #rh
--spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map() | {error, term()}.
+-spec remove_user(any(), ejabberd:user(), ejabberd:server()) -> map() | {error, term()}.
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),

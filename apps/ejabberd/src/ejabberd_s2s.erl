@@ -157,7 +157,7 @@ dirty_get_connections() ->
 %% Hooks callbacks
 %%====================================================================
 
-node_cleanup(Acc, Node) ->
+node_cleanup(_, Node) ->
     F = fun() ->
                 Es = mnesia:select(
                        s2s,
@@ -168,8 +168,7 @@ node_cleanup(Acc, Node) ->
                                       mnesia:delete_object(E)
                               end, Es)
         end,
-    Res = mnesia:async_dirty(F),
-    maps:put(cleanup_result, Res, Acc).
+    mnesia:async_dirty(F).
 
 -spec key({ejabberd:lserver(), ejabberd:lserver()}, binary()) ->
     binary().
@@ -568,9 +567,8 @@ allow_host1(MyHost, S2SHost) ->
             case ejabberd_config:get_local_option({s2s_default_policy, MyHost}) of
                 deny -> false;
                 _ ->
-                    Acc = mongoose_stanza:from_kv(host_allowed, allow),
-                    Acc2 = ejabberd_hooks:run_fold(s2s_allow_host, MyHost, Acc, [MyHost, S2SHost]),
-                    case mongoose_stanza:get(host_allowed, Acc2) of
+                    case ejabberd_hooks:run_fold(s2s_allow_host, MyHost,
+                                                 allow, [MyHost, S2SHost]) of
                         deny -> false;
                         allow -> true;
                         _ -> true
