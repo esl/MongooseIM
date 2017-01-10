@@ -230,12 +230,8 @@ lookup_messages(_Result, Host,
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
-<<<<<<< HEAD
         S = erlang:get_stacktrace(),
         {error, {Reason, {stacktrace, S}}}
-=======
-            {error, Reason}
->>>>>>> Make Elvis happy
     end.
 
 -spec lookup_messages(Host :: ejabberd:server(),
@@ -441,20 +437,11 @@ row_to_message_id({BMessID, _, _}) ->
 -spec remove_archive(map(), ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> map().
 remove_archive(Acc, Host, RoomID, _RoomJID) ->
     {updated, _} =
-<<<<<<< HEAD
     mod_mam_utils:success_sql_query(
       Host,
       ["DELETE FROM ", select_table(RoomID), " "
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
     Acc.
-=======
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["DELETE FROM ", select_table(RoomID), " "
-           "WHERE room_id = '", escape_room_id(RoomID), "'"]),
-    ok.
-
->>>>>>> Make Elvis happy
 
 -spec purge_single_message(_Result, Host :: ejabberd:server(),
                            MessID :: mod_mam:message_id(),
@@ -537,7 +524,6 @@ do_extract_messages(Host, RoomID, Filter, IOffset, IMax, Order) ->
 -spec calc_index(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
                  Filter :: iodata(), SUMessID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, RoomID, Filter, SUMessID) ->
-<<<<<<< HEAD
     {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
@@ -545,15 +531,6 @@ calc_index(Host, RoomID, Filter, SUMessID) ->
        "FROM ", select_table(RoomID), " ",
        Filter, " AND id <= '", SUMessID, "'"]),
     mongoose_rdbms:result_to_integer(BIndex).
-=======
-    {selected, _ColumnNames, [{BIndex}]} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["SELECT COUNT(*) "
-           "FROM ", select_table(RoomID), " ",
-           Filter, " AND id <= '", SUMessID, "'"]),
-    ejabberd_odbc:result_to_integer(BIndex).
->>>>>>> Make Elvis happy
 
 
 %% @doc Count of elements in RSet before the passed element.
@@ -563,7 +540,6 @@ calc_index(Host, RoomID, Filter, SUMessID) ->
 -spec calc_before(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
                   Filter :: iodata(), SUMessID :: escaped_message_id()) -> non_neg_integer().
 calc_before(Host, RoomID, Filter, SUMessID) ->
-<<<<<<< HEAD
     {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
@@ -571,15 +547,6 @@ calc_before(Host, RoomID, Filter, SUMessID) ->
        "FROM ", select_table(RoomID), " ",
        Filter, " AND id < '", SUMessID, "'"]),
     mongoose_rdbms:result_to_integer(BIndex).
-=======
-    {selected, _ColumnNames, [{BIndex}]} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["SELECT COUNT(*) "
-           "FROM ", select_table(RoomID), " ",
-           Filter, " AND id < '", SUMessID, "'"]),
-    ejabberd_odbc:result_to_integer(BIndex).
->>>>>>> Make Elvis happy
 
 
 %% @doc Get the total result set size.
@@ -587,21 +554,12 @@ calc_before(Host, RoomID, Filter, SUMessID) ->
 -spec calc_count(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
                  Filter :: filter()) -> non_neg_integer().
 calc_count(Host, RoomID, Filter) ->
-<<<<<<< HEAD
     {selected, [{BCount}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) ",
        "FROM ", select_table(RoomID), " ", Filter]),
     mongoose_rdbms:result_to_integer(BCount).
-=======
-    {selected, _ColumnNames, [{BCount}]} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["SELECT COUNT(*) ",
-           "FROM ", select_table(RoomID), " ", Filter]),
-    ejabberd_odbc:result_to_integer(BCount).
->>>>>>> Make Elvis happy
 
 
 %% @doc prepare_filter/5

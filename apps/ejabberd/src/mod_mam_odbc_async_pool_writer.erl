@@ -173,21 +173,12 @@ stop_workers(Host) ->
 
 start_worker(WriterProc, N, Host, Pool) ->
     WriterChildSpec =
-<<<<<<< HEAD
     {WriterProc,
      {mod_mam_odbc_async_pool_writer, start_link, [WriterProc, N, Host, Pool]},
      permanent,
      5000,
      worker,
      [mod_mam_odbc_async_writer]},
-=======
-        {WriterProc,
-         {mod_mam_odbc_async_pool_writer, start_link, [WriterProc, N, Host]},
-         permanent,
-         5000,
-         worker,
-         [mod_mam_odbc_async_writer]},
->>>>>>> Make Elvis happy
     supervisor:start_child(mod_mam_sup, WriterChildSpec).
 
 stop_worker(Proc) ->
@@ -273,17 +264,11 @@ lookup_messages(Result, Host, ArcID, _ArcJID,
     Result.
 
 
-<<<<<<< HEAD
 %% #rh
 -spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
                      RoomId :: mod_mam:archive_id(),
                      RoomJID :: ejabberd:jid()) -> map().
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
-=======
--spec remove_archive(Host :: ejabberd:server(),
-                     RoomId :: mod_mam:archive_id(), RoomJID :: ejabberd:jid()) -> 'ok'.
-remove_archive(Host, ArcID, _ArcJID) ->
->>>>>>> Make Elvis happy
     wait_flushing(Host, ArcID),
     Acc.
 

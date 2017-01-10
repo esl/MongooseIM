@@ -239,14 +239,8 @@ do_archive_message(_Result, Host, MessID, UserID,
     SDir = encode_direction(Dir),
     SRemLResource = mongoose_rdbms:escape(RemLResource),
     Data = packet_to_stored_binary(Packet),
-<<<<<<< HEAD
     TextBody = packet_to_search_body(Packet),
     STextBody = mongoose_rdbms:escape(TextBody),
-=======
-    TextBody = packet_to_search_body(Host, Packet),
-    STextBody = ejabberd_odbc:escape(TextBody),
->>>>>>> Make full text search in MAM optional
-    string:to_lower(STextBody),
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
@@ -284,13 +278,8 @@ prepare_message(Host, MessID, UserID,
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-<<<<<<< HEAD
     TextBody = packet_to_search_body(Packet),
     STextBody = mongoose_rdbms:escape(TextBody),
-=======
-    TextBody = packet_to_search_body(Host, Packet),
-    STextBody = ejabberd_odbc:escape(TextBody),
->>>>>>> Make full text search in MAM optional
     [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData, STextBody].
 
 archive_messages(LServer, Acc) ->
@@ -647,21 +636,12 @@ do_extract_messages(Host, UserID, Filter, IOffset, IMax, Order) ->
                  Filter :: filter(), IndexHintSQL :: string(),
                  SUID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
-<<<<<<< HEAD
     {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        IndexHintSQL, Filter, " AND id <= '", SUID, "'"]),
     mongoose_rdbms:result_to_integer(BIndex).
-=======
-    {selected, _ColumnNames, [{BIndex}]} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
-           IndexHintSQL, Filter, " AND id <= '", SUID, "'"]),
-    ejabberd_odbc:result_to_integer(BIndex).
->>>>>>> Make Elvis happy
 
 %% @doc Count of elements in RSet before the passed element.
 %%
@@ -672,21 +652,12 @@ calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
                   Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()
                  ) -> non_neg_integer().
 calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
-<<<<<<< HEAD
     {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        IndexHintSQL, Filter, " AND id < '", SUID, "'"]),
     mongoose_rdbms:result_to_integer(BIndex).
-=======
-    {selected, _ColumnNames, [{BIndex}]} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
-           IndexHintSQL, Filter, " AND id < '", SUID, "'"]),
-    ejabberd_odbc:result_to_integer(BIndex).
->>>>>>> Make Elvis happy
 
 
 %% @doc Get the total result set size.
@@ -694,21 +665,12 @@ calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
 -spec calc_count(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
                  Filter :: filter(), IndexHintSQL :: string()) -> non_neg_integer().
 calc_count(Host, UserID, Filter, IndexHintSQL) ->
-<<<<<<< HEAD
     {selected, [{BCount}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        IndexHintSQL, Filter]),
     mongoose_rdbms:result_to_integer(BCount).
-=======
-    {selected, _ColumnNames, [{BCount}]} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
-           IndexHintSQL, Filter]),
-    ejabberd_odbc:result_to_integer(BCount).
->>>>>>> Make Elvis happy
 
 
 -spec prepare_filter(UserID :: mod_mam:archive_id(), UserJID :: ejabberd:jid(),
@@ -718,25 +680,14 @@ calc_count(Host, UserID, Filter, IndexHintSQL) ->
                     -> filter().
 prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
     {SWithJID, SWithResource} =
-<<<<<<< HEAD
-    case WithJID of
-        undefined -> {undefined, undefined};
-        #jid{lresource = <<>>} ->
-            {minify_and_escape_bare_jid(UserJID, WithJID), undefined};
-        #jid{lresource = WithLResource} ->
-            {minify_and_escape_bare_jid(UserJID, WithJID),
-             mongoose_rdbms:escape(WithLResource)}
-    end,
-=======
         case WithJID of
             undefined -> {undefined, undefined};
             #jid{lresource = <<>>} ->
                 {minify_and_escape_bare_jid(UserJID, WithJID), undefined};
             #jid{lresource = WithLResource} ->
                 {minify_and_escape_bare_jid(UserJID, WithJID),
-                 ejabberd_odbc:escape(WithLResource)}
+                 mongoose_rdbms:escape(WithLResource)}
         end,
->>>>>>> Make Elvis happy
     StartID = maybe_encode_compact_uuid(Start, 0),
     EndID   = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),

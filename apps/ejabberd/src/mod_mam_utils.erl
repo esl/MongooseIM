@@ -682,6 +682,16 @@ form_field(Type, VarName) ->
 %% -----------------------------------------------------------------------
 %% Text search tokenization
 
+%% -----------------------------------------------------------------------
+%% @doc
+%% Normalize given text to improve text search in some MAM backends.
+%% This normalization involves making text all lowercase, replacing some word separators
+%% ([, .:;-?!]) with given one (by default "%") and removing all unicode characters that are
+%% considered non-alphanumerical.
+%% For example, text: "My cat, was eaten by: my dog?!? Why...?!?" will be normalized as:
+%% "my%cat%was%eaten%by%my%dog%why"
+%% @end
+%% -----------------------------------------------------------------------
 -spec normalize_search_text(binary() | string() | undefined) -> string() | undefined.
 normalize_search_text(Text) ->
     normalize_search_text(Text, "%").
@@ -694,7 +704,7 @@ normalize_search_text(Text, WordSeparator) ->
     LowerBody = string:to_lower(BodyString),
     ReOpts = [{return, list}, global, unicode, ucp],
     Re0 = re:replace(LowerBody, "[, .:;-?!]+", " ", ReOpts),
-    Re1 = re:replace(Re0, "[^\\w\\d ]+", "", ReOpts),
+    Re1 = re:replace(Re0, "([^\\w\\d ]+)|(^\\s+)|(\\s+$)", "", ReOpts),
     re:replace(Re1, "\s+", WordSeparator, ReOpts).
 
 %% -----------------------------------------------------------------------
