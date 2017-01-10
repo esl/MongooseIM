@@ -89,7 +89,7 @@ does_user_exist(LUser, LServer) ->
 
 -spec remove_user(Acc :: any(),
                   LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver() | string()) -> map().
+                  LServer :: ejabberd:lserver() | string()) -> any().
 remove_user(Acc, LUser, LServer) ->
     delete_user(LUser, LServer),
     Acc.

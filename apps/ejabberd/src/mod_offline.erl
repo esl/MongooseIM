@@ -359,13 +359,10 @@ get_features(_Key, Acc, _From, _To, _Node, _Lang) ->
 
 add_feature(Key, Acc, Feature) ->
     mongoose_stanza:append(Key, Feature, Acc).
-%%add_feature(_, Feature) ->
-%%    {result, [Feature]}.
 
 %% This function should be called only from hook
 %% Calling it directly is dangerous and my store unwanted message
 %% in the offline storage (f.e. messages of type error or groupchat)
-%% #rh
 inspect_packet(Acc, From, To, Packet) ->
     case check_event_chatstates(From, To, Packet) of
         true ->

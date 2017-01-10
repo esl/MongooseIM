@@ -56,7 +56,6 @@
 -include_lib("ejabberd/include/jlib.hrl").
 
 -type classification() :: 'ignore' | 'forward'.
-%%-type matchspec_atom() :: '_' | '$1' | '$2' | '$3'.
 
 is_carbon_copy(Packet) ->
     case xml:get_subtag(Packet, <<"sent">>) of

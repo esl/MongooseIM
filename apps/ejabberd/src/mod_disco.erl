@@ -172,13 +172,15 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
         get ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            A1 = mongoose_stanza:new(),
-            A1a = mongoose_stanza:put(local_identity, [], A1),
-            A1b = mongoose_stanza:put(info, [], A1a),
-            A1c = mongoose_stanza:put(features, [], A1b),
+%%            A1 = mongoose_stanza:new(),
+%%            A1a = mongoose_stanza:put(local_identity, [], A1),
+%%            A1b = mongoose_stanza:put(info, [], A1a),
+%%            A1c = mongoose_stanza:put(features, [], A1b),
+            F = fun(K, A) -> mongoose_stanza:put(K, [], A) end,
+            A1 = lists:foldl(F, mongoose_stanza:new(), [local_identity, info, features]),
             A2 = ejabberd_hooks:run_fold(disco_local_identity,
                                                Host,
-                                               A1c,
+                                               A1,
                                                [From, To, Node, Lang]),
             A3 = ejabberd_hooks:run_fold(disco_info, Host, A2,
                                            [Host, ?MODULE, Node, Lang]),
@@ -204,11 +206,11 @@ process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
     end.
 
 
--spec get_local_identity(Acc :: map(),
+-spec get_local_identity(Acc :: mongoose_stanza:t(),
                         From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
                         Node :: binary(),
-                        Lang :: ejabberd:lang()) -> [jlib:xmlel()].
+                        Lang :: ejabberd:lang()) -> mongoose_stanza:t().
 get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
     NIds = [#xmlel{name = <<"identity">>,
                    attrs = [{<<"category">>, <<"server">>},
@@ -219,25 +221,17 @@ get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
 
--spec get_local_features(Acc :: map(),% | {'error',_} | {'result',_},
+-spec get_local_features(Acc :: mongoose_stanza:t(),
                         From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
                         Node :: binary(),
-                        Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
-%%get_local_features({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
-%%    Acc;
+                        Lang :: ejabberd:lang()) -> mongoose_stanza:t().
 get_local_features(Acc, _From, To, <<>>, _Lang) ->
-%%    Feats = case Acc of
-%%                {result, Features} -> Features;
-%%                empty -> []
-%%            end,
     Feats = mongoose_stanza:get(features, Acc, []),
     Host = To#jid.lserver,
     NFeats = ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats,
     mongoose_stanza:put(features, NFeats, Acc);
 
-%%    {result,
-%%     ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats};
 get_local_features(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     #{features := F} = Acc,
     case F of
@@ -269,19 +263,12 @@ domain_to_xml(Domain) ->
     #xmlel{name = <<"item">>, attrs = [{<<"jid">>, Domain}]}.
 
 
--spec get_local_services(Acc :: map(),
+-spec get_local_services(Acc :: mongoose_stanza:t(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          Node :: binary(),
-                         Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
-%%get_local_services({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
-%%    Acc;
+                         Lang :: ejabberd:lang()) -> mongoose_stanza:t().
 get_local_services(Acc, _From, To, <<>>, _Lang) ->
-%%    Items = case Acc of
-%%                {result, Its} -> Its;
-%%                empty -> []
-%%            end,
-%%     Items = maps:get(local_items, Acc, []),
      Host = To#jid.lserver,
      NItems = lists:usort(
        lists:map(fun domain_to_xml/1,
@@ -360,23 +347,19 @@ get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
 get_sm_items(Acc, From,
             #jid{user = User, server = Server} = To,
             [], Lang) ->
-%%    Items = case Acc of
-%%                {result, Its} -> Its;
-%%                empty -> []
-%%            end,
     Items = mongoose_stanza:get(sm_items, Acc, []),
-    case Items of
+    Items1 = case Items of
         [] ->
             get_sm_items(empty, From, To, [], Lang);
         _ ->
-            Items1 = case is_presence_subscribed(From, To) of
-                           true ->
-                               get_user_resources(User, Server);
-                           _ ->
-                               []
-                        end,
-            mongoose_stanza:append(sm_items, Items1, Acc)
-    end;
+            case is_presence_subscribed(From, To) of
+                true ->
+                    get_user_resources(User, Server);
+                _ ->
+                    []
+            end
+    end,
+    mongoose_stanza:append(sm_items, Items1, Acc);
 get_sm_items({result, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_sm_items(empty, From, To, _Node, _Lang) ->
@@ -446,11 +429,11 @@ process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ)
     end.
 
 
--spec get_sm_identity(Acc :: map(),
+-spec get_sm_identity(Acc :: mongoose_stanza:t(),
                       From :: ejabberd:jid(),
                       To :: ejabberd:jid(),
                       Node :: binary(),
-                      Lang :: ejabberd:lang()) -> [jlib:xmlel()].
+                      Lang :: ejabberd:lang()) -> mongoose_stanza:t().
 get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
     Ids = mongoose_stanza:get(sm_identity, Acc, []),
     Id = case ejabberd_auth:is_user_exists(LUser, LServer) of
@@ -464,11 +447,11 @@ get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) 
     mongoose_stanza:put(sm_identity, Ids ++ Id, Acc).
 
 
--spec get_sm_features(map(),
+-spec get_sm_features(Acc :: mongoose_stanza:t(),
                       From :: ejabberd:jid(),
                       To :: ejabberd:jid(),
                       Node :: binary(),
-                      Lang :: ejabberd:lang()) -> any().
+                      Lang :: ejabberd:lang()) -> mongoose_stanza:t().
 get_sm_features(Acc, From, To, _Node, _Lang) ->
     case mongoose_stanza:get(sm_features, Acc, []) of
         [] ->
@@ -500,8 +483,8 @@ get_user_resources(User, Server) ->
 
 %%% Support for: XEP-0157 Contact Addresses for XMPP Services
 
--spec get_info(A :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
-        Lang :: ejabberd:lang()) -> [jlib:xmlel()].
+-spec get_info(Acc :: mongoose_stanza:t(), ejabberd:server(), module(), Node :: binary(),
+        Lang :: ejabberd:lang()) -> mongoose_stanza:t().
 get_info(Acc, Host, Mod, Node, _Lang) when Node == [] ->
     Module = case Mod of
                  undefined ->

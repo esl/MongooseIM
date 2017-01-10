@@ -70,8 +70,10 @@ remove_smid(Acc, SID, _JID, _Info, _Reason) ->
     end,
     Acc.
 
--spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
-                      LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+-spec session_cleanup(Acc :: mongoose_stanza:t(), LUser :: ejabberd:luser(),
+                      LServer :: ejabberd:lserver(), LResource :: ejabberd:lresource(),
+                      SID :: ejabberd_sm:sid()) ->
+    mongoose_stanza:t().
 session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
     remove_smid(Acc, SID, undefined, undefined, undefined).
 

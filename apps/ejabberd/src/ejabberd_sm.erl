@@ -207,9 +207,8 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
     end.
 
 
-%% #rh
 -spec bounce_offline_message(Acc, From, To, Packet) -> {stop, Acc} when
-      Acc :: map(),
+      Acc :: mongoose_stanza:t(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
@@ -219,15 +218,14 @@ bounce_offline_message(Acc, From, To, Packet) ->
 
 bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
     ejabberd_hooks:run(xmpp_bounce_message,
-        Server,
-        [Server, Packet]),
+                       Server,
+                       [Server, Packet]),
     Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
     ejabberd_router:route(To, From, Err),
     stop.
 
-%% #rh
--spec disconnect_removed_user(map(), User :: ejabberd:user(),
-                              Server :: ejabberd:server()) -> map().
+-spec disconnect_removed_user(mongoose_stanza:t(), User :: ejabberd:user(),
+                              Server :: ejabberd:server()) -> mongoose_stanza:t().
 disconnect_removed_user(Acc, User, Server) ->
     ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),

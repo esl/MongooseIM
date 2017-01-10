@@ -1141,11 +1141,13 @@ handle_info({force_update_presence, LUser}, StateName,
     NewStateData =
     case StateData#state.pres_last of
         #xmlel{name = <<"presence">>} ->
-            #{packet := PresenceEl} = ejabberd_hooks:run_fold(
+            Stanza = mongoose_stanza:from_kv(packet, StateData#state.pres_last),
+            Res = ejabberd_hooks:run_fold(
                            c2s_update_presence,
                            LServer,
-                           #{packet => StateData#state.pres_last},
+                           Stanza,
                            [LUser, LServer]),
+            PresenceEl = mongoose_stanza:get(packet, Res),
             StateData2 = StateData#state{pres_last = PresenceEl},
             presence_update(StateData2#state.jid,
                             PresenceEl,
@@ -1182,10 +1184,12 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
             end
     end;
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
-    #{recipients := Recipients} = ejabberd_hooks:run_fold(
+    Stanza = mongoose_stanza:new(),
+    Res = ejabberd_hooks:run_fold(
 		   c2s_broadcast_recipients, StateData#state.server,
-		   #{recipients => []},
+		   Stanza,
 		   [StateData#state.server, StateData, Type, From, Packet]),
+    Recipients = mongoose_stanza:get(recipients, Res, []),
     lists:foreach(
       fun(USR) ->
 	      ejabberd_router:route(
@@ -2288,8 +2292,8 @@ process_unauthenticated_stanza(StateData, El) ->
                                           Acc,
                                           [StateData#state.server, IQ,
                                            StateData#state.ip]),
-            case mongoose_stanza:to_map(Res) of
-                #{} ->
+            case mongoose_stanza:get(response, Res, undefined) of
+                undefined ->
                     % The only reasonable IQ's here are auth and register IQ's
                     % They contain secrets, so don't include subelements to response
                     ResIQ = IQ#iq{type = error,
@@ -2299,8 +2303,8 @@ process_unauthenticated_stanza(StateData, El) ->
                              jid:make(<<>>, <<>>, <<>>),
                              jlib:iq_to_xml(ResIQ)),
                     send_element(StateData, jlib:remove_attr(<<"to">>, Res1));
-                _ ->
-                    send_element(StateData, Res)
+                Response ->
+                    send_element(StateData, Response)
             end;
         _ ->
             % Drop any stanza, which isn't IQ stanza

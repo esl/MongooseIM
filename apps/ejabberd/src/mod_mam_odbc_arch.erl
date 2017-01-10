@@ -521,10 +521,9 @@ row_to_message_id({BMessID,_,_}) ->
     list_to_integer(binary_to_list(BMessID)).
 
 
-%% #rh
--spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
+-spec remove_archive(Acc :: any(), Host :: ejabberd:server(),
                      ArchiveID :: mod_mam:archive_id(),
-                     RoomJID :: ejabberd:jid()) -> map().
+                     RoomJID :: ejabberd:jid()) -> any().
 remove_archive(Acc, Host, UserID, _UserJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(

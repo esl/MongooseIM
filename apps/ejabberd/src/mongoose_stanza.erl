@@ -11,7 +11,9 @@
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1]).
 -export([from_element/1]).
+-export_type([t/0]).
 
+-opaque t() :: map().
 
 new() ->
     #{}.
@@ -23,8 +25,10 @@ from_element(El) ->
     #{element => El}.
 
 %% @doc convert to map so that we can pattern-match on it
-to_map(P) ->
-    P.
+to_map(P) when is_map(P) ->
+    P;
+to_map(_) ->
+    {error, cant_convert_to_map}.
 
 put(Key, Val, P) ->
     maps:put(Key, Val, P).

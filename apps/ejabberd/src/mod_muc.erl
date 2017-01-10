@@ -1199,14 +1199,14 @@ is_room_owner(_, Room, User) ->
 muc_room_pid(_, Room) ->
     room_jid_to_pid(Room).
 
--spec can_access_room(Acc :: map(), From :: ejabberd:jid(), To :: ejabberd:jid()) ->
-    boolean().
+-spec can_access_room(Acc :: mongoose_stanza:t(), From :: ejabberd:jid(), To :: ejabberd:jid()) ->
+    mongoose_stanza:t().
 can_access_room(Acc, From, To) ->
     Can = case mod_muc_room:can_access_room(To, From) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
     end,
-    maps:put(can_access_room, Can, Acc).
+    mongoose_stanza:put(can_access_room, Can, Acc).
 
 online_rooms_number() ->
     lists:sum([online_rooms_number(Host) || Host <- ?MYHOSTS]).

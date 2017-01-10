@@ -167,11 +167,9 @@ store_archive_id(UserID, _Host, ArcJID) ->
     maybe_cache_archive_id(ArcJID, UserID),
     UserID.
 
-
-%% #rh
--spec remove_archive(Acc :: map(), _Host :: ejabberd:server(),
+-spec remove_archive(Acc :: mongoose_stanza:t(), _Host :: ejabberd:server(),
                      _UserID :: ejabberd:user(),
-                     ArcJID :: ejabberd:jid()) -> map().
+                     ArcJID :: ejabberd:jid()) -> mongoose_stanza:t().
 remove_archive(Acc, _Host, _UserID, ArcJID) ->
     clean_cache(ArcJID),
     Acc.

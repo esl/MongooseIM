@@ -284,10 +284,8 @@ room_process_mam_iq(From = #jid{lserver = Host}, To, IQ) ->
         false -> return_action_not_allowed_error_iq(IQ)
     end.
 
-
-%% #rh
 %% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
--spec forget_room(map(), ejabberd:lserver(), binary()) -> map().
+-spec forget_room(mongoose_stanza:t(), ejabberd:lserver(), binary()) -> mongoose_stanza:t().
 forget_room(Acc, LServer, RoomName) ->
     forget_room(LServer, RoomName),
     Acc.
@@ -339,11 +337,12 @@ is_user_identity_hidden(From, ArcJID) ->
 
 -spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
 can_access_room(From, To) ->
-    #{can_access_room := Can} = ejabberd_hooks:run_fold(can_access_room,
-                                                        To#jid.lserver,
-                                                        #{can_access_room => false},
-                                                        [From, To]),
-    Can.
+    Stanza = mongoose_stanza:new(), % some day original stanza will reach this stage
+    Res = ejabberd_hooks:run_fold(can_access_room,
+                                  To#jid.lserver,
+                                  Stanza,
+                                  [From, To]),
+    mongoose_stanza:get(can_access_room, Res, false).
 
 
 -spec action_type(action()) -> 'get' | 'set'.
@@ -457,8 +456,8 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
                              IQ :: ejabberd:iq()) -> ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_lookup_messages(
-  From=#jid{},
-  ArcJID=#jid{},
+  From = #jid{},
+  ArcJID = #jid{},
   IQ=#iq{xmlns = MamNs, sub_el = QueryEl}) ->
     Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
