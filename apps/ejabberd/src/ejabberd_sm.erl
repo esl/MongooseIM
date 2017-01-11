@@ -195,7 +195,7 @@ store_info(User, Server, Resource, {Key, _Value} = KV) ->
                 {_, Pid} ->
                     %% Ask the process to update it's record itself
                     %% Async operation
-                    ejabberd_c2s:store_info(Pid, User, Server, Resource, KV),
+                    ejabberd_c2s:store_session_info(Pid, User, Server, Resource, KV),
                     {ok, KV}
             end
     end.

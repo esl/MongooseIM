@@ -34,7 +34,7 @@ end_per_suite(C) ->
 
 groups() ->
     [{mnesia, [],
-      [cannot_reproduce_race_condition_in_store_info]},
+      tests() ++ [cannot_reproduce_race_condition_in_store_info]},
      {redis, [], tests()}].
 
 tests() ->
@@ -221,7 +221,7 @@ store_info_sends_message_to_the_session_owner(C) ->
     %% but call store_info from another process
     spawn_link(fun() -> ejabberd_sm:store_info(U, S, R, {cc, undefined}) end),
     %% The original process receives a message
-    receive {store_info, User, Server, Resource, KV, _FromPid} ->
+    receive {store_session_info, User, Server, Resource, KV, _FromPid} ->
         ?eq(U, User),
         ?eq(S, Server),
         ?eq(R, Resource),
