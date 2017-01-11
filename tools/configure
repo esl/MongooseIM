@@ -44,6 +44,7 @@ app_opts() ->
      {"redis",     ["redo"],            include_driver("redis")},
      {"riak",      ["riakc"],           include_driver("riak")},
      {"cassandra", ["cqerl"],           include_driver("cassandra")}].
+     {"aws",       ["erlcloud"],        "include support for AWS services"}].
 
 opts() ->
     [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
