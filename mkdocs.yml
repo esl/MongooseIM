@@ -42,6 +42,7 @@ pages:
       - 'mod_csi': 'modules/mod_csi.md'
       - 'mod_disco': 'modules/mod_disco.md'
       - 'mod_http_notification': 'modules/mod_http_notification.md'
+      - 'mod_http_upload': 'modules/mod_http_upload.md'
       - 'mod_keystore': 'modules/mod_keystore.md'
       - 'mod_last': 'modules/mod_last.md'
       - 'mod_mam': 'modules/mod_mam.md'
