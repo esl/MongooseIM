@@ -132,77 +132,66 @@ unregister_extra_domain(Host, Domain) ->
 
 -spec process_local_iq_items(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
             -> ejabberd:iq().
-process_local_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ) ->
-    case Type of
-        set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-        get ->
-            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Host = To#jid.lserver,
+process_local_iq_items(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_local_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+    Host = To#jid.lserver,
 
-            Acc = mongoose_stanza:new(),
-            Acc2 = ejabberd_hooks:run_fold(disco_local_items,
-                                         Host,
-                                         Acc,
-                                         [From, To, Node, Lang]),
-            case Acc2 of
-                {error, Error} ->
-                    IQ#iq{type = error, sub_el = [SubEl, Error]};
-                _ ->
-                    Items = mongoose_stanza:get(local_items, Acc2, []),
-                    ANode = case Node of
-                                <<>> -> [];
-                                _ -> [{<<"node">>, Node}]
-                    end,
-                    IQ#iq{type = result,
-                          sub_el = [#xmlel{name = <<"query">>,
-                                           attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                           children = Items}]}
-            end
+    Acc = mongoose_stanza:new(),
+    Acc2 = ejabberd_hooks:run_fold(disco_local_items,
+                                 Host,
+                                 Acc,
+                                 [From, To, Node, Lang]),
+    case Acc2 of
+        {error, Error} ->
+            IQ#iq{type = error, sub_el = [SubEl, Error]};
+        _ ->
+            Items = mongoose_stanza:get(local_items, Acc2, []),
+            ANode = case Node of
+                        <<>> -> [];
+                        _ -> [{<<"node">>, Node}]
+            end,
+            IQ#iq{type = result,
+                  sub_el = [#xmlel{name = <<"query">>,
+                                   attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
+                                   children = Items}]}
     end.
 
 
 -spec process_local_iq_info(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
             -> ejabberd:iq().
-process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
-                                     sub_el = SubEl} = IQ) ->
-    case Type of
-        set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-        get ->
-            Host = To#jid.lserver,
-            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-%%            A1 = mongoose_stanza:new(),
-%%            A1a = mongoose_stanza:put(local_identity, [], A1),
-%%            A1b = mongoose_stanza:put(info, [], A1a),
-%%            A1c = mongoose_stanza:put(features, [], A1b),
-            F = fun(K, A) -> mongoose_stanza:put(K, [], A) end,
-            A1 = lists:foldl(F, mongoose_stanza:new(), [local_identity, info, features]),
-            A2 = ejabberd_hooks:run_fold(disco_local_identity,
-                                               Host,
-                                               A1,
-                                               [From, To, Node, Lang]),
-            A3 = ejabberd_hooks:run_fold(disco_info, Host, A2,
-                                           [Host, ?MODULE, Node, Lang]),
-            Res = ejabberd_hooks:run_fold(disco_local_features,
-                                         Host,
-                                         A3,
-                                         [From, To, Node, Lang]),
-            case mongoose_stanza:to_map(Res) of
-                #{features := Features, info := Info, local_identity := Identity} ->
-                    ANode = case Node of
-                                <<>> -> [];
-                                _ -> [{<<"node">>, Node}]
-                            end,
-                    IQ#iq{type = result,
-                          sub_el = [#xmlel{name = <<"query">>,
-                                           attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                           children = Identity ++
-                                                      Info ++
-                                                      features_to_xml(Features)}]};
-                {error, Error} ->
-                    IQ#iq{type = error, sub_el = [SubEl, Error]}
-            end
+process_local_iq_info(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_local_iq_info(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    Host = To#jid.lserver,
+    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+    F = fun(K, A) -> mongoose_stanza:put(K, [], A) end,
+    A1 = lists:foldl(F, mongoose_stanza:new(), [local_identity, info, features]),
+    A2 = ejabberd_hooks:run_fold(disco_local_identity,
+                                       Host,
+                                       A1,
+                                       [From, To, Node, Lang]),
+    A3 = ejabberd_hooks:run_fold(disco_info, Host, A2,
+                                   [Host, ?MODULE, Node, Lang]),
+    Res = ejabberd_hooks:run_fold(disco_local_features,
+                                 Host,
+                                 A3,
+                                 [From, To, Node, Lang]),
+    case mongoose_stanza:to_map(Res) of
+        #{features := Features, info := Info, local_identity := Identity} ->
+            ANode = case Node of
+                        <<>> -> [];
+                        _ -> [{<<"node">>, Node}]
+                    end,
+            IQ#iq{type = result,
+                  sub_el = [#xmlel{name = <<"query">>,
+                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
+                                   children = Identity ++
+                                              Info ++
+                                              features_to_xml(Features)}]};
+        {error, Error} ->
+            IQ#iq{type = error, sub_el = [SubEl, Error]}
     end.
 
 
@@ -304,38 +293,34 @@ get_vh_services(Host) ->
 
 -spec process_sm_iq_items(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
             -> ejabberd:iq().
-process_sm_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ) ->
-    case Type of
-        set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-        get ->
-            case is_presence_subscribed(From, To) of
-                true ->
-                    Host = To#jid.lserver,
-                    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-                    Acc = mongoose_stanza:new(),
-                    case ejabberd_hooks:run_fold(disco_sm_items,
-                                                 Host,
-                                                 Acc,
-                                                 [From, To, Node, Lang]) of
-                        {error, Error} ->
-                            IQ#iq{type = error, sub_el = [SubEl, Error]};
-                        Acc1 ->
-                            Items = mongoose_stanza:get(sm_items, Acc1, []),
-                            ANode = case Node of
-                                        <<>> -> [];
-                                        _ -> [{<<"node">>, Node}]
-                                    end,
-                            IQ#iq{type = result,
-                                  sub_el = [#xmlel{name = <<"query">>,
-                                                   attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                                   children = Items}]}
-                    end;
-                false ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
-            end
+process_sm_iq_items(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
+        IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_sm_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    case is_presence_subscribed(From, To) of
+        true ->
+            Host = To#jid.lserver,
+            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+            Acc = mongoose_stanza:new(),
+            case ejabberd_hooks:run_fold(disco_sm_items,
+                Host,
+                Acc,
+                [From, To, Node, Lang]) of
+                {error, Error} ->
+                    IQ#iq{type = error, sub_el = [SubEl, Error]};
+                Acc1 ->
+                    Items = mongoose_stanza:get(sm_items, Acc1, []),
+                    ANode = case Node of
+                                <<>> -> [];
+                                _ -> [{<<"node">>, Node}]
+                            end,
+                    IQ#iq{type = result,
+                        sub_el = [#xmlel{name = <<"query">>,
+                            attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
+                            children = Items}]}
+            end;
+        false ->
+            IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
     end.
-
 
 -spec get_sm_items(Acc :: 'empty' | {'error',_} | {'result',_},
                    From :: ejabberd:jid(),
@@ -498,7 +483,7 @@ get_info(Acc, Host, Mod, Node, _Lang) when Node == [] ->
             children = [#xmlel{name = <<"field">>,
                                attrs = [{<<"var">>, <<"FORM_TYPE">>}, {<<"type">>, <<"hidden">>}],
                                children = [#xmlel{name = <<"value">>,
-                                                  children = [#xmlcdata{content = ?NS_SERVERINFO}]}]}]
+                                           children = [#xmlcdata{content = ?NS_SERVERINFO}]}]}]
                      ++ Serverinfo_fields}],
     mongoose_stanza:append(info, Info, Acc);
 get_info(Acc, _, _, _Node, _) ->

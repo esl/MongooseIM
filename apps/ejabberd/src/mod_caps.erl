@@ -151,13 +151,14 @@ user_send_packet(Acc,
                  #xmlel{name = <<"presence">>, attrs = Attrs,
                         children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    if Type == <<"">>; Type == <<"available">> ->
+    case ((Type == <<"">>) or (Type == <<"available">>)) of
+        true ->
             case read_caps(Els) of
                 nothing -> ok;
                 #caps{version = Version, exts = Exts} = Caps ->
                     feature_request(Server, From, Caps, [Version | Exts])
             end;
-       true -> ok
+        _ -> ok
     end,
     Acc;
 user_send_packet(Acc, _From, _To, _Pkt) ->
@@ -168,18 +169,21 @@ user_receive_packet(Acc, #jid{lserver = Server}, From, _To,
                            children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     IsRemote = not lists:member(From#jid.lserver, ?MYHOSTS),
-    if IsRemote and
-       ((Type == <<"">>) or (Type == <<"available">>)) ->
-            case read_caps(Els) of
-                nothing -> ok;
-                #caps{version = Version, exts = Exts} = Caps ->
-                    feature_request(Server, From, Caps, [Version | Exts])
-            end;
-       true -> ok
-    end,
+    IsAvailable = ((Type == <<"">>) or (Type == <<"available">>)),
+    process_remote_available(IsRemote, IsAvailable, Els, Server, From),
     Acc;
 user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
     Acc.
+
+process_remote_available(true, true, Els, Server, From) ->
+    case read_caps(Els) of
+        nothing -> ok;
+        #caps{version = Version, exts = Exts} = Caps ->
+            feature_request(Server, From, Caps, [Version | Exts])
+    end;
+process_remote_available(_, _, _, _, _) ->
+    ok.
+
 
 -spec caps_stream_features([xmlel()], binary()) -> [xmlel()].
 
@@ -244,31 +248,33 @@ c2s_presence_in(Acc, {From, To, {_, _, Attrs, Els}}) ->
                      {ok, Rs1} -> Rs1;
                      error -> gb_trees:empty()
                  end,
-            Caps = read_caps(Els),
-            NewRs = case Caps of
-                        nothing when Insert == true -> Rs;
-                        _ when Insert == true ->
-                            ?DEBUG("Set CAPS to ~p for ~p in ~p", [Caps, LFrom, To]),
-                            case gb_trees:lookup(LFrom, Rs) of
-                                {value, Caps} -> Rs;
-                                none ->
-                                    ejabberd_hooks:run(caps_add, To#jid.lserver,
-                                                       [From, To, self(),
-                                                        get_features(To#jid.lserver, Caps)]),
-                                    gb_trees:insert(LFrom, Caps, Rs);
-                                _ ->
-                                    ejabberd_hooks:run(caps_update, To#jid.lserver,
-                                                       [From, To, self(),
-                                                        get_features(To#jid.lserver, Caps)]),
-                                    gb_trees:update(LFrom, Caps, Rs)
-                            end;
-                        _ -> gb_trees:delete_any(LFrom, Rs)
-                    end,
+            NewCaps = read_caps(Els),
+            NewRs = modify_caps_resources(NewCaps, Insert, Rs, LFrom, To, From),
             NState = ejabberd_c2s:set_aux_field(caps_resources, NewRs,
                                        C2SState),
             mongoose_stanza:put(state, NState, Acc);
        _ -> Acc
     end.
+
+modify_caps_resources(nothing, true, Rs, _, _, _) ->
+    Rs;
+modify_caps_resources(NewCaps, true, Rs, LFrom, To, From) ->
+    ?DEBUG("Set CAPS to ~p for ~p in ~p", [NewCaps, LFrom, To]),
+    case gb_trees:lookup(LFrom, Rs) of
+        {value, NewCaps} -> Rs;
+        none ->
+            ejabberd_hooks:run(caps_add, To#jid.lserver,
+                [From, To, self(),
+                    get_features(To#jid.lserver, NewCaps)]),
+            gb_trees:insert(LFrom, NewCaps, Rs);
+        _ ->
+            ejabberd_hooks:run(caps_update, To#jid.lserver,
+                [From, To, self(),
+                    get_features(To#jid.lserver, NewCaps)]),
+            gb_trees:update(LFrom, NewCaps, Rs)
+    end;
+modify_caps_resources(_, _, Rs, LFrom, _, _) ->
+    gb_trees:delete_any(LFrom, Rs).
 
 c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of

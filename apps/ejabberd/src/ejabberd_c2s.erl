@@ -1160,8 +1160,8 @@ handle_info({force_update_presence, LUser}, StateName,
 handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     Acc = mongoose_stanza:from_kv(drop, true),
     Res = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
-				   Acc, [StateData#state.server, StateData,
-					  Feature, To, Packet]),
+                                  Acc, [StateData#state.server, StateData,
+                                  Feature, To, Packet]),
     case mongoose_stanza:get(drop, Res) of
         true ->
             ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]),
@@ -1185,10 +1185,9 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     end;
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
     Stanza = mongoose_stanza:new(),
-    Res = ejabberd_hooks:run_fold(
-		   c2s_broadcast_recipients, StateData#state.server,
-		   Stanza,
-		   [StateData#state.server, StateData, Type, From, Packet]),
+    Res = ejabberd_hooks:run_fold(c2s_broadcast_recipients, StateData#state.server,
+                                  Stanza,
+                                  [StateData#state.server, StateData, Type, From, Packet]),
     Recipients = mongoose_stanza:get(recipients, Res, []),
     lists:foreach(
       fun(USR) ->

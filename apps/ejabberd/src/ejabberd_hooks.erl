@@ -231,9 +231,10 @@ code_change(_OldVsn, State, _Extra) ->
 run1([], _Hook, Acc, _Args) ->
     Acc;
 run1([{_Seq, Module, Function} | Ls], Hook, Acc, Args) ->
-    Res = if is_function(Function) ->
+    Res = case Function of
+              _ when is_function(Function) ->
                   safely:apply(Function, [Acc|Args]);
-             true ->
+              _ ->
                   safely:apply(Module, Function, [Acc|Args])
           end,
     case Res of
