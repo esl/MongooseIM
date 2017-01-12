@@ -60,6 +60,7 @@
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", websockets_SUITE}.
 {suites, "tests", xep_0352_csi_SUITE}.
+{suites, "tests", mod_aws_sns_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
