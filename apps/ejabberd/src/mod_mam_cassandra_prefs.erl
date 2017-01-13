@@ -137,8 +137,13 @@ get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
             DefaultBehaviour;
         {ok, [_ | _] = Rows} ->
             %% After sort <<>>, <<"a">>, <<"a/b">>
-            LastRow = lists:last(lists:sort(Rows)),
-            decode_behaviour(proplists:get_value(behaviour, LastRow))
+            SortedRows = lists:sort(
+                fun(#{remote_jid := JID1, behaviour := B1},
+                    #{remote_jid := JID2, behaviour := B2}) ->
+                    {JID1, B1} < {JID2, B2}
+                end, Rows),
+            #{behaviour := Behaviour} = lists:last(SortedRows),
+            decode_behaviour(Behaviour)
     end.
 
 
@@ -164,7 +169,7 @@ set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     %% http://stackoverflow.com/questions/30317877/cassandra-batch-statement-execution-order
     Now = mongoose_cassandra:now_timestamp(),
     Next = Now + 1,
-    DelParams = [{'[timestamp]', Now}, {user_jid, BUserJID}],
+    DelParams = #{'[timestamp]' => Now, user_jid => BUserJID},
     MultiParams = [encode_row(BUserJID, <<>>, encode_behaviour(DefaultMode), Next)]
         ++ [encode_row(BUserJID, BinJID, <<"A">>, Next) || BinJID <- AlwaysJIDs]
         ++ [encode_row(BUserJID, BinJID, <<"N">>, Next) || BinJID <- NeverJIDs],
@@ -177,8 +182,8 @@ set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     ok.
 
 encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
-    [{user_jid, BUserJID}, {remote_jid, BRemoteJID},
-     {behaviour, Behaviour}, {'[timestamp]', Timestamp}].
+    #{user_jid => BUserJID, remote_jid => BRemoteJID,
+      behaviour => Behaviour, '[timestamp]' => Timestamp}.
 
 
 -spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
@@ -187,7 +192,7 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
 get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
     BUserJID = bare_jid(UserJID),
     PoolName = pool_name(UserJID),
-    Params = [{user_jid, BUserJID}],
+    Params = #{user_jid => BUserJID},
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
                                              get_prefs_query, Params),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
@@ -199,7 +204,7 @@ remove_archive(_Host, _UserID, UserJID) ->
     PoolName = pool_name(UserJID),
     BUserJID = bare_jid(UserJID),
     Now = mongoose_cassandra:now_timestamp(),
-    Params = [{'[timestamp]', Now}, {user_jid, BUserJID}],
+    Params = #{'[timestamp]' => Now, user_jid => BUserJID},
     mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, del_prefs_ts_query, [Params]),
     ok.
 
@@ -210,12 +215,12 @@ query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID) ->
     PoolName = pool_name(UserJID),
     case BRemJID of
         BRemBareJID ->
-            Params = [{user_jid, BUserJID}, {remote_jid, BRemBareJID}],
+            Params = #{user_jid => BUserJID, remote_jid => BRemBareJID},
             mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
                                         get_behaviour_bare_query, Params);
         _ ->
-            Params = [{user_jid, BUserJID},
-                      {start_remote_jid, BRemJID}, {end_remote_jid, BRemBareJID}],
+            Params = #{user_jid => BUserJID, start_remote_jid => BRemJID,
+                       end_remote_jid => BRemBareJID},
             mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
                                         get_behaviour_full_query, Params)
     end.
@@ -252,18 +257,16 @@ full_jid(JID) ->
                         }.
 decode_prefs_rows([], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs};
-decode_prefs_rows([Row | Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    JID = proplists:get_value(remote_jid, Row),
-    Behaviour = proplists:get_value(behaviour, Row),
-    case {JID, Behaviour} of
-        {<<>>, Behaviour} ->
-            decode_prefs_rows(Rows, decode_behaviour(Behaviour), AlwaysJIDs, NeverJIDs);
-        {JID, <<"A">>} ->
-            decode_prefs_rows(Rows, DefaultMode, [JID | AlwaysJIDs], NeverJIDs);
-        {JID, <<"N">>} ->
-            decode_prefs_rows(Rows, DefaultMode, AlwaysJIDs, [JID | NeverJIDs])
-    end.
 
+decode_prefs_rows([#{remote_jid := <<>>, behaviour := Behaviour} | Rows],
+                  _DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    decode_prefs_rows(Rows, decode_behaviour(Behaviour), AlwaysJIDs, NeverJIDs);
+decode_prefs_rows([#{remote_jid := JID, behaviour := <<"A">>} | Rows],
+                  DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    decode_prefs_rows(Rows, DefaultMode, [JID | AlwaysJIDs], NeverJIDs);
+decode_prefs_rows([#{remote_jid := JID, behaviour := <<"N">>} | Rows],
+                  DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    decode_prefs_rows(Rows, DefaultMode, AlwaysJIDs, [JID | NeverJIDs]).
 
 %% ----------------------------------------------------------------------
 %% Dynamic params module

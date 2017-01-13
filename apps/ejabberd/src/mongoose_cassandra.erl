@@ -26,7 +26,8 @@
 %% Types
 %% ====================================================================
 
--type row() :: proplists:proplist().
+-type row() :: #{atom() => term()}.
+-type parameters() :: proplists:proplist() | row().
 -type row_fold_fun() :: fun((Page :: [row()], AccIn :: term()) -> AccOut :: term()).
 -type pool_name() :: atom().
 -type cql_query() :: #cql_query{}.
@@ -60,6 +61,7 @@
 
 -spec start() -> ignore | ok | no_return().
 start() ->
+    application:set_env(cqerl, maps, true),
     case ejabberd_config:get_local_option(cassandra_servers) of
         undefined ->
             ignore;
@@ -113,7 +115,7 @@ now_to_usec({MSec, Sec, USec}) ->
 %% Cassandra rejects the query due to its size being to big.
 %% --------------------------------------------------------
 -spec cql_write(PoolName :: pool_name(), UserJID :: jid(), Module :: atom(),
-                QueryName :: query_name(), Rows :: [proplists:proplist()]) ->
+                QueryName :: query_name(), Rows :: [parameters()]) ->
                        ok | {error, Reason :: any()}.
 cql_write(PoolName, _UserJID, Module, QueryName, Rows)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
@@ -128,7 +130,7 @@ cql_write(PoolName, _UserJID, Module, QueryName, Rows)  ->
 %% be exceeded like in cql_write/5.
 %% --------------------------------------------------------
 -spec cql_write_async(PoolName :: pool_name(), UserJID :: jid(), Module :: atom(),
-                      QueryName :: query_name(), Rows :: [proplists:proplist()]) ->
+                      QueryName :: query_name(), Rows :: [parameters()]) ->
                              ok | {error, Reason :: any()}.
 cql_write_async(PoolName, UserJID, Module, QueryName, Rows)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
@@ -156,8 +158,8 @@ cql_write_async(PoolName, UserJID, Module, QueryName, Rows)  ->
 %% Returns all rows at once even if there are several query pages.
 %% --------------------------------------------------------
 -spec cql_read(PoolName :: pool_name(), UserJID :: jid() | undefined, Module :: atom(),
-               QueryName :: query_name(), Params :: proplists:proplist()) ->
-                      {ok, Rows :: [proplists:proplist()]} | {error, Reason :: any()}.
+               QueryName :: query_name(), Params :: parameters()) ->
+                      {ok, Rows :: [row()]} | {error, Reason :: any()}.
 cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
     Fun = fun(Page, Acc) -> [Page | Acc] end,
     case cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, []) of
@@ -175,14 +177,14 @@ cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
 %% most).
 %% --------------------------------------------------------
 -spec cql_foldl(PoolName :: pool_name(), UserJID :: jid() | undefined, Module :: atom(),
-                QueryName :: query_name(), Params :: proplists:proplist(),
+                QueryName :: query_name(), Params :: parameters(),
                 row_fold_fun(), AccIn :: term()) ->
                        {ok, AccOut :: term()} | {error, Reason :: any()}.
 cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn)  ->
     cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, 3).
 
 -spec cql_foldl(PoolName :: pool_name(), UserJID :: jid() | undefined, Module :: atom(),
-                QueryName :: query_name(), Params :: proplists:proplist(),
+                QueryName :: query_name(), Params :: parameters(),
                 row_fold_fun(), AccIn :: term(), TryCount :: non_neg_integer()) ->
                    {ok, AccOut :: term()} | {error, Reason :: any()}.
 cql_foldl(_PoolName, _UserJID, _Module, QueryName, Params, _Fun, _AccIn, 0)  ->
@@ -301,8 +303,8 @@ test_query(PoolName, UserJID) ->
 total_count_query(PoolName, Table) ->
     UserJID = undefined,
     Res = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, {total_count_query, Table}, []),
-    {ok, [Row]} = Res,
-    proplists:get_value(count, Row).
+    {ok, [#{count := Count}]} = Res,
+    Count.
 
 total_count_queries() ->
     [{{total_count_query, T}, total_count_query_cql(T)} || T <- tables()].

@@ -190,8 +190,8 @@ message_to_params(#mam_muc_message{
                      with_nick = BWithNick,
                      message   = BPacket
                     }) ->
-    [{id, MessID}, {room_jid, BLocJID}, {nick_name, BNick}, {with_nick, BWithNick},
-     {message, BPacket}].
+    #{id => MessID, room_jid => BLocJID, nick_name => BNick,
+      with_nick => BWithNick, message => BPacket}.
 
 
 %% ----------------------------------------------------------------------
@@ -211,7 +211,7 @@ delete_message_to_params(#mam_muc_message{
                             room_jid  = BLocJID,
                             with_nick = BWithNick
                            }) ->
-    [{room_jid, BLocJID}, {with_nick, BWithNick}, {id, MessID}].
+    #{room_jid => BLocJID, with_nick => BWithNick, id => MessID}.
 
 
 %% ----------------------------------------------------------------------
@@ -223,7 +223,7 @@ remove_archive_query_cql() ->
 remove_archive(_Host, _RoomID, RoomJID) ->
     BRoomJID = bare_jid(RoomJID),
     PoolName = pool_name(RoomJID),
-    Params = [{room_jid, BRoomJID}],
+    Params = #{room_jid => BRoomJID},
     %% Wait until deleted
 
     mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE, remove_archive_query, [Params]),
@@ -237,14 +237,14 @@ message_id_to_nick_name_cql() ->
         "WHERE room_jid = ? AND with_nick = '' AND id = ?".
 
 message_id_to_nick_name(PoolName, RoomJID, BRoomJID, MessID) ->
-    Params = [{room_jid, BRoomJID}, {id, MessID}],
+    Params = #{room_jid => BRoomJID, id => MessID},
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE,
                                              message_id_to_nick_name_query, Params),
     case Rows of
         [] ->
             {error, not_found};
-        [Row] ->
-            {ok, proplists:get_value(nick_name, Row)}
+        [#{nick_name := NickName}] ->
+            {ok, NickName}
     end.
 
 
@@ -492,16 +492,13 @@ from_id(ID, Filter = #mam_muc_ca_filter{start_id = AfterID}) ->
 rows_to_uniform_format(MessageRows, RoomJID) ->
     [row_to_uniform_format(Row, RoomJID) || Row <- MessageRows].
 
-row_to_uniform_format(Row, RoomJID) ->
-    BNick = proplists:get_value(nick_name, Row),
-    Data = proplists:get_value(message, Row),
-    MessID = proplists:get_value(id, Row),
+row_to_uniform_format(#{nick_name := BNick, message := Data, id := MessID}, RoomJID) ->
     SrcJID = jid:replace_resource(RoomJID, BNick),
     Packet = stored_binary_to_packet(Data),
     {MessID, SrcJID, Packet}.
 
-row_to_message_id(Row) ->
-    proplists:get_value(id, Row).
+row_to_message_id(#{id := MsgID}) ->
+    MsgID.
 
 -spec purge_single_message(_Result, Host, MessID, _RoomID, RoomJID,
                            Now) ->
@@ -546,13 +543,13 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
     PoolName = pool_name(RoomJID),
     Limit = 100, %% TODO something smarter
     QueryName = {list_message_ids_query, select_filter(Filter)},
-    Params = eval_filter_params(Filter) ++ [{'[limit]', Limit}],
+    Params = maps:put('[limit]', Limit, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName,
                                              Params),
     %% TODO can be faster
     %% TODO rate limiting
-    [purge_single_message(ok, Host, proplists:get_value(id, Row), RoomID, RoomJID, Now)
-     || Row <- Rows],
+    [purge_single_message(ok, Host, Id, RoomID, RoomJID, Now)
+     || #{id := Id} <- Rows],
     ok.
 
 
@@ -568,17 +565,17 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
       Filter :: filter(),
       IMax :: pos_integer(),
       ReverseLimit :: boolean(),
-      Row :: list().
+      Row :: mongoose_cassandra:row().
 extract_messages(_Worker, _RoomJID, _Host, _Filter, 0, _) ->
     [];
 extract_messages(PoolName, RoomJID, _Host, Filter, IMax, false) ->
     QueryName = {extract_messages_query, select_filter(Filter)},
-    Params = eval_filter_params(Filter) ++ [{'[limit]', IMax}],
+    Params = maps:put('[limit]', IMax, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName, Params),
     Rows;
 extract_messages(PoolName, RoomJID, _Host, Filter, IMax, true) ->
     QueryName = {extract_messages_r_query, select_filter(Filter)},
-    Params = eval_filter_params(Filter) ++ [{'[limit]', IMax}],
+    Params = maps:put('[limit]', IMax, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName, Params),
     lists:reverse(Rows).
 
@@ -627,9 +624,9 @@ calc_before(PoolName, RoomJID, Host, Filter, MessID) ->
 calc_count(PoolName, RoomJID, _Host, Filter) ->
     QueryName = {calc_count_query, select_filter(Filter)},
     Params = eval_filter_params(Filter),
-    {ok, [Row]} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName,
+    {ok, [#{count := Count}]} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName,
                                               Params),
-    proplists:get_value(count, Row).
+    Count.
 
 %% @doc Convert offset to index of the first entry
 %% Returns undefined if not there are not enough rows
@@ -641,12 +638,12 @@ calc_count(PoolName, RoomJID, _Host, Filter) ->
     Id :: non_neg_integer() | undefined.
 offset_to_start_id(PoolName, RoomJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
     QueryName = {list_message_ids_query, select_filter(Filter)},
-    Params = eval_filter_params(Filter) ++ [{'[limit]', Offset + 1}],
+    Params = maps:put('[limit]', Offset + 1, eval_filter_params(Filter)),
     {ok, RowsIds} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName, Params),
     case RowsIds of
         [] -> undefined;
         [_ | _] ->
-            proplists:get_value(id, lists:last(RowsIds))
+            maps:get(id, lists:last(RowsIds))
     end.
 
 prepare_filter(RoomJID, Borders, Start, End, WithNick) ->
@@ -672,9 +669,9 @@ eval_filter_params(#mam_muc_ca_filter{
                       start_id  = StartID,
                       end_id    = EndID
                      }) ->
-    Optional = [Value || {_, ID} = Value <- [{start_id, StartID}, {end_id, EndID}], ID =/=
-                             undefined],
-    [{room_jid, BRoomJID}, {with_nick, BWithNick} | Optional].
+    Optional = maps:filter(fun(_K, V) -> V =/= undefined end,
+                           #{start_id => StartID, end_id =>EndID}),
+    maps:merge(#{room_jid => BRoomJID, with_nick => BWithNick}, Optional).
 
 select_filter(#mam_muc_ca_filter{
                  start_id = StartID,

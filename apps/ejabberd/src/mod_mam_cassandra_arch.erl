@@ -193,8 +193,8 @@ message_to_params(#mam_message{
                      with_jid   = BWithJID,
                      message    = BPacket
                     }) ->
-    [{id, MessID}, {user_jid, BLocJID}, {from_jid, BSrcJID},
-     {remote_jid, BRemJID}, {with_jid, BWithJID}, {message, BPacket}].
+    #{id => MessID, user_jid => BLocJID, from_jid => BSrcJID,
+      remote_jid => BRemJID, with_jid => BWithJID, message => BPacket}.
 
 
 %% ----------------------------------------------------------------------
@@ -214,7 +214,7 @@ delete_message_to_params(#mam_message{
                             user_jid = BLocJID,
                             with_jid = BWithJID
                            }) ->
-    [{user_jid, BLocJID}, {with_jid, BWithJID}, {id, MessID}].
+    #{user_jid => BLocJID, with_jid => BWithJID, id => MessID}.
 
 
 %% ----------------------------------------------------------------------
@@ -226,7 +226,7 @@ remove_archive_query_cql() ->
 remove_archive(_Host, _UserID, UserJID) ->
     BUserJID = bare_jid(UserJID),
     PoolName = pool_name(UserJID),
-    Params = [{user_jid, BUserJID}],
+    Params = #{user_jid => BUserJID},
     %% Wait until deleted
 
     mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, remove_archive_query, [Params]),
@@ -241,14 +241,14 @@ message_id_to_remote_jid_cql() ->
         "WHERE user_jid = ? AND with_jid = '' AND id = ?".
 
 message_id_to_remote_jid(PoolName, UserJID, BUserJID, MessID) ->
-    Params = [{user_jid, BUserJID}, {id, MessID}, {with_jid, <<>>}],
+    Params = #{user_jid => BUserJID, id => MessID, with_jid => <<>>},
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
                                              message_id_to_remote_jid_query, Params),
     case Rows of
         [] ->
             {error, not_found};
-        [Row] ->
-            {ok, proplists:get_value(remote_jid, Row)}
+        [#{remote_jid := RemoteJID}] ->
+            {ok, RemoteJID}
     end.
 
 
@@ -492,14 +492,13 @@ from_id(ID, Filter = #mam_ca_filter{start_id = AfterID}) ->
 rows_to_uniform_format(MessageRows) ->
     [row_to_uniform_format(Row) || Row <- MessageRows].
 
-row_to_uniform_format(Row) ->
-    SrcJID = unserialize_jid(proplists:get_value(from_jid, Row)),
-    Packet = stored_binary_to_packet(proplists:get_value(message, Row)),
-    MsgID = proplists:get_value(id, Row),
+row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
+    SrcJID = unserialize_jid(FromJID),
+    Packet = stored_binary_to_packet(Msg),
     {MsgID, SrcJID, Packet}.
 
-row_to_message_id(Row) ->
-    proplists:get_value(id, Row).
+row_to_message_id(#{id := MsgID}) ->
+    MsgID.
 
 -spec purge_single_message(_Result, Host, MessID, _UserID, UserJID,
                            Now) ->
@@ -548,13 +547,13 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
     PoolName = pool_name(UserJID),
     Limit = 500, %% TODO something smarter
     QueryName = {list_message_ids_query, select_filter(Filter)},
-    Params = eval_filter_params(Filter) ++ [{'[limit]', Limit}],
+    Params = maps:put('[limit]', Limit, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName,
                                              Params),
     %% TODO can be faster
     %% TODO rate limiting
-    [purge_single_message(ok, Host, proplists:get_value(id, Row), UserID, UserJID, Now)
-     || Row <- Rows],
+    [purge_single_message(ok, Host, Id, UserID, UserJID, Now)
+     || #{id := Id} <- Rows],
     ok.
 
 
@@ -570,17 +569,17 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
       Filter :: filter(),
       IMax :: pos_integer(),
       ReverseLimit :: boolean(),
-      Row :: list().
+      Row :: mongoose_cassandra:row().
 extract_messages(_Worker, _UserJID, _Host, _Filter, 0, _) ->
     [];
 extract_messages(PoolName, UserJID, _Host, Filter, IMax, false) ->
     QueryName = {extract_messages_query, select_filter(Filter)},
-    Params = eval_filter_params(Filter) ++ [{'[limit]', IMax}],
+    Params = maps:put('[limit]', IMax, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, Params),
     Rows;
 extract_messages(PoolName, UserJID, _Host, Filter, IMax, true) ->
     QueryName = {extract_messages_r_query, select_filter(Filter)},
-    Params = eval_filter_params(Filter) ++ [{'[limit]', IMax}],
+    Params = maps:put('[limit]', IMax, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, Params),
     lists:reverse(Rows).
 
@@ -629,9 +628,9 @@ calc_before(PoolName, UserJID, Host, Filter, MessID) ->
 calc_count(PoolName, UserJID, _Host, Filter) ->
     QueryName = {calc_count_query, select_filter(Filter)},
     Params = eval_filter_params(Filter),
-    {ok, [Row]} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName,
+    {ok, [#{count := Count}]} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName,
                                               Params),
-    proplists:get_value(count, Row).
+    Count.
 
 %% @doc Convert offset to index of the first entry
 %% Returns undefined if not there are not enough rows
@@ -643,12 +642,12 @@ calc_count(PoolName, UserJID, _Host, Filter) ->
     Id :: non_neg_integer() | undefined.
 offset_to_start_id(PoolName, UserJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
     QueryName = {list_message_ids_query, select_filter(Filter)},
-    Params = eval_filter_params(Filter) ++ [{'[limit]', Offset + 1}],
+    Params = maps:put('[limit]', Offset + 1, eval_filter_params(Filter)),
     {ok, RowsIds} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, Params),
     case RowsIds of
         [] -> undefined;
         [_ | _] ->
-            proplists:get_value(id, lists:last(RowsIds))
+            maps:get(id, lists:last(RowsIds))
     end.
 
 prepare_filter(UserJID, Borders, Start, End, WithJID) ->
@@ -674,9 +673,9 @@ eval_filter_params(#mam_ca_filter{
                       start_id = StartID,
                       end_id   = EndID
                      }) ->
-    Optional = [Value || {_, ID} = Value <- [{start_id, StartID}, {end_id, EndID}], ID =/=
-                             undefined],
-    [{user_jid, BUserJID}, {with_jid, BWithJID} | Optional].
+    Optional = maps:filter(fun(_K, V) -> V =/= undefined end,
+                           #{start_id => StartID, end_id =>EndID}),
+    maps:merge(#{user_jid => BUserJID, with_jid => BWithJID}, Optional).
 
 select_filter(#mam_ca_filter{
                  start_id = StartID,
