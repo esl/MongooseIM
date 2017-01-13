@@ -295,23 +295,25 @@ c2s_filter_packet(Acc, _, _, _, _, _) -> Acc.
 c2s_broadcast_recipients(Acc, Host, C2SState,
                          {pep_message, Feature}, _From, _Packet) ->
     Rec = mongoose_stanza:get(recipients, Acc, []),
-    NRec = case ejabberd_c2s:get_aux_field(caps_resources,
-                                    C2SState)
-    of
-        {ok, Rs} ->
-            gb_trees_fold(fun (USR, Caps, Ac) ->
-                                  case lists:member(Feature,
-                                                    get_features(Host, Caps))
-                                  of
-                                      true -> [USR | Ac];
-                                      false -> Ac
-                                  end
-                          end,
-                          Rec, Rs);
-        _ -> Rec
-    end,
+    Resources = ejabberd_c2s:get_aux_field(caps_resources, C2SState),
+    NRec = c2s_broadcast_recipients(Resources, Rec, Feature, Host),
     maps:put(recipients, NRec, Acc);
 c2s_broadcast_recipients(Acc, _, _, _, _, _) -> Acc.
+
+c2s_broadcast_recipients({ok, Rs}, Rec, Feature, Host) ->
+    gb_trees_fold(fun(USR, Caps, Ac) ->
+        case lists:member(Feature,
+            get_features(Host, Caps))
+        of
+            true -> [USR | Ac];
+            false -> Ac
+        end
+                  end,
+        Rec, Rs),
+    Rec;
+c2s_broadcast_recipients(_, Rec, _, _) ->
+    Rec.
+
 
 init_db(mnesia, _Host) ->
     case catch mnesia:table_info(caps_features, storage_type) of

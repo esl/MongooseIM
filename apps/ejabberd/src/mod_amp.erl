@@ -177,7 +177,7 @@ reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
 send_error_and_drop(Packet, From, AmpError, MatchedRule) ->
     send_errors_and_drop(Packet, From, [{AmpError, MatchedRule}]).
 
--spec send_errors_and_drop(xmlel(), jid(), [{amp_error(),amp_rule()}]) -> drop.
+-spec send_errors_and_drop(xmlel(), jid(), [{amp_error(), amp_rule()}]) -> drop.
 send_errors_and_drop(Packet, From, []) ->
     ?ERROR_MSG("~p from ~p generated an empty list of errors. This shouldn't happen!",
                [Packet, From]),

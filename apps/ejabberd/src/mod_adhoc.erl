@@ -263,15 +263,17 @@ ping_command(Acc, _From, _To,
                             node = <<"ping">>,
                             session_id = _Sessionid,
                             action = Action} = Request) ->
-    Response = if
-        Action == <<"">>; Action == <<"execute">> ->
-            adhoc:produce_response(
-              Request,
-              #adhoc_response{status = completed,
-                              notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
-        true ->
-            {error, ?ERR_BAD_REQUEST}
-    end,
+    Respond = ((Action == <<"">>) or (Action == <<"execute">>)),
+    Response = case Respond of
+                    true ->
+                        adhoc:produce_response(
+                            Request,
+                            #adhoc_response{status = completed,
+                                            notes = [{<<"info">>,
+                                                      translate:translate(Lang, <<"Pong">>)}]});
+                    _ ->
+                        {error, ?ERR_BAD_REQUEST}
+                end,
     mongoose_stanza:put(response, Response, Acc);
 ping_command(Acc, _From, _To, _Request) ->
     Acc.

@@ -1191,7 +1191,7 @@ handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
     Recipients = mongoose_stanza:get(recipients, Res, []),
     lists:foreach(
       fun(USR) ->
-	      ejabberd_router:route(
+        ejabberd_router:route(
 		From, jid:make(USR), Packet)
       end, lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);

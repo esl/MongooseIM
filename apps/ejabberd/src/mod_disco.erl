@@ -295,32 +295,33 @@ get_vh_services(Host) ->
             -> ejabberd:iq().
 process_sm_iq_items(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
         IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_sm_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
-    case is_presence_subscribed(From, To) of
-        true ->
-            Host = To#jid.lserver,
-            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Acc = mongoose_stanza:new(),
-            case ejabberd_hooks:run_fold(disco_sm_items,
-                Host,
-                Acc,
-                [From, To, Node, Lang]) of
-                {error, Error} ->
-                    IQ#iq{type = error, sub_el = [SubEl, Error]};
-                Acc1 ->
-                    Items = mongoose_stanza:get(sm_items, Acc1, []),
-                    ANode = case Node of
-                                <<>> -> [];
-                                _ -> [{<<"node">>, Node}]
-                            end,
-                    IQ#iq{type = result,
-                        sub_el = [#xmlel{name = <<"query">>,
-                            attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                            children = Items}]}
-            end;
-        false ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
-    end.
+process_sm_iq_items(From, To, #iq{type = get} = IQ) ->
+    IsSubscribed = is_presence_subscribed(From, To),
+    process_sm_iq_items(IsSubscribed, From, To, IQ).
+
+process_sm_iq_items(true, From, To, #iq{lang = Lang, sub_el = SubEl} = IQ) ->
+    Host = To#jid.lserver,
+    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+    Acc = mongoose_stanza:new(),
+    case ejabberd_hooks:run_fold(disco_sm_items,
+        Host,
+        Acc,
+        [From, To, Node, Lang]) of
+        {error, Error} ->
+            IQ#iq{type = error, sub_el = [SubEl, Error]};
+        Acc1 ->
+            Items = mongoose_stanza:get(sm_items, Acc1, []),
+            ANode = case Node of
+                        <<>> -> [];
+                        _ -> [{<<"node">>, Node}]
+                    end,
+            IQ#iq{type = result,
+                sub_el = [#xmlel{name = <<"query">>,
+                    attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
+                    children = Items}]}
+    end;
+process_sm_iq_items(false, From, To, #iq{lang = Lang, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}.
 
 -spec get_sm_items(Acc :: mongoose_stanza:t(),
                    From :: ejabberd:jid(),
@@ -331,7 +332,7 @@ get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_sm_items(Acc, From,
             #jid{user = User, server = Server} = To,
-            [], Lang) ->
+            [], _Lang) ->
     Items = mongoose_stanza:get(sm_items, Acc, []),
     Items1 = case Items of
         [] ->
@@ -372,44 +373,42 @@ is_presence_subscribed(#jid{luser=User, lserver=Server}, #jid{luser=LUser, lserv
 
 -spec process_sm_iq_info(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
             -> ejabberd:iq().
-process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ) ->
-    case Type of
-        set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-        get ->
-            case is_presence_subscribed(From, To) of
-                true ->
-                    Host = To#jid.lserver,
-                    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-                    Acc = mongoose_stanza:new(),
-                    Acc1 = ejabberd_hooks:run_fold(disco_sm_identity,
-                                                       Host,
-                                                       Acc,
-                                                       [From, To, Node, Lang]),
-                    Acc2 = ejabberd_hooks:run_fold(disco_sm_features,
-                                                 Host,
-                                                 Acc1,
-                                                 [From, To, Node, Lang]),
-                    case Acc2 of
-                        {error, Error} ->
-                            IQ#iq{type = error, sub_el = [SubEl, Error]};
-                        _ ->
-                            Features = mongoose_stanza:get(sm_features, Acc2, []),
-                            Identity = mongoose_stanza:get(sm_identity, Acc2, []),
-                            ANode = case Node of
-                                        <<>> -> [];
-                                        _ -> [{<<"node">>, Node}]
-                                    end,
-                            IQ#iq{type = result,
-                                  sub_el = [#xmlel{name = <<"query">>,
-                                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                                   children = Identity ++
-                                                              features_to_xml(Features)}]}
-                    end;
-                false ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
-            end
-    end.
+process_sm_iq_info(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_sm_iq_info(From, To, #iq{type = get} = IQ) ->
+    IsSubscribed = is_presence_subscribed(From, To),
+    process_sm_iq_info(IsSubscribed, From, To, IQ).
+
+process_sm_iq_info(true, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    Host = To#jid.lserver,
+    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+    Acc = mongoose_stanza:new(),
+    Acc1 = ejabberd_hooks:run_fold(disco_sm_identity,
+                                       Host,
+                                       Acc,
+                                       [From, To, Node, Lang]),
+    Acc2 = ejabberd_hooks:run_fold(disco_sm_features,
+                                 Host,
+                                 Acc1,
+                                 [From, To, Node, Lang]),
+    case Acc2 of
+        {error, Error} ->
+            IQ#iq{type = error, sub_el = [SubEl, Error]};
+        _ ->
+            Features = mongoose_stanza:get(sm_features, Acc2, []),
+            Identity = mongoose_stanza:get(sm_identity, Acc2, []),
+            ANode = case Node of
+                        <<>> -> [];
+                        _ -> [{<<"node">>, Node}]
+                    end,
+            IQ#iq{type = result,
+                  sub_el = [#xmlel{name = <<"query">>,
+                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
+                                   children = Identity ++
+                                              features_to_xml(Features)}]}
+    end;
+process_sm_iq_info(false, _From, _To, #iq{type = get, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}.
 
 
 -spec get_sm_identity(Acc :: mongoose_stanza:t(),
