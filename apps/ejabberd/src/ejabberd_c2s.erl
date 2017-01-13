@@ -379,12 +379,10 @@ maybe_sasl_mechanisms(Server) ->
     end.
 
 hook_enabled_features(Server) ->
-    Acc = mongoose_stanza:from_kv(enabled_features, []),
-    Acc1 = ejabberd_hooks:run_fold(c2s_stream_features,
+    ejabberd_hooks:run_fold(c2s_stream_features,
                                    Server,
-                                   Acc,
-                                   [Server]),
-    mongoose_stanza:get(enabled_features, Acc1).
+                                   [],
+                                   [Server]).
 
 starttls(TLSRequired)
   when TLSRequired =:= required;

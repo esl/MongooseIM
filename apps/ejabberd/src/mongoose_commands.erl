@@ -321,26 +321,21 @@ init() ->
 
 %%%% end of API
 -spec register_commands([t()]) -> ok.
-register_commands(Commands) ->
-    register_commands(mongoose_stanza:new(), Commands).
-register_commands(Acc, []) ->
-    Acc;
-register_commands(Acc, [Command|Tail]) ->
+register_commands([]) ->
+    ok;
+register_commands([Command|Tail]) ->
     check_registration(Command), %% may throw
     ets:insert_new(mongoose_commands, Command),
-    Acc2 = ejabberd_hooks:run_fold(register_command, global, Acc, [Command]),
-    register_commands(Acc2, Tail).
+    ejabberd_hooks:run_fold(register_command, global, undefined, [Command]),
+    register_commands(Tail).
 
 -spec unregister_commands([t()]) -> ok.
-unregister_commands(Commands) ->
-    unregister_commands(mongoose_stanza:new(), Commands).
-
-unregister_commands(Acc, []) ->
-    Acc;
-unregister_commands(Acc, [Command|Tail]) ->
+unregister_commands([]) ->
+    ok;
+unregister_commands([Command|Tail]) ->
     ets:delete_object(mongoose_commands, Command),
-    Acc2 = ejabberd_hooks:run_fold(unregister_command, global, Acc, [Command]),
-    unregister_commands(Acc2, Tail).
+    ejabberd_hooks:run_fold(unregister_command, global, undefined, [Command]),
+    unregister_commands(Tail).
 
 execute_command(Caller, Command, Args) ->
     try check_and_execute(Caller, Command, Args) of

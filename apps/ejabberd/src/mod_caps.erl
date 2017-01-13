@@ -185,9 +185,9 @@ process_remote_available(_, _, _, _, _) ->
     ok.
 
 
--spec caps_stream_features(mongoose_stanza:t(), binary()) -> mongoose_stanza:t().
+-spec caps_stream_features([xmlel()], binary()) -> [xmlel()].
 
-caps_stream_features(Acc, MyHost) ->
+caps_stream_features(Feat, MyHost) ->
     NFeat = case make_my_disco_hash(MyHost) of
         <<"">> -> [];
         Hash ->
@@ -197,7 +197,7 @@ caps_stream_features(Acc, MyHost) ->
                          {<<"node">>, ?MONGOOSE_URI}, {<<"ver">>, Hash}],
                     children = []}]
     end,
-    mongoose_stanza:append(enabled_features, NFeat, Acc).
+    Feat ++ NFeat.
 
 disco_features(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of

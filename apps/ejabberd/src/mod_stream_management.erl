@@ -52,10 +52,8 @@ stop(Host) ->
 %% `ejabberd_hooks' handlers
 %%
 
-add_sm_feature(Acc, _Server) ->
-    Feat = mongoose_stanza:get(enabled_features, Acc),
-    NFeat = lists:keystore(<<"sm">>, #xmlel.name, Feat, sm()),
-    maps:put(features, NFeat, Acc).
+add_sm_feature(Feat, _Server) ->
+    lists:keystore(<<"sm">>, #xmlel.name, Feat, sm()).
 
 sm() ->
     #xmlel{name = <<"sm">>,

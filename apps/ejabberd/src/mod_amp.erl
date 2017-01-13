@@ -67,10 +67,8 @@ add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
 add_local_features(Acc, _From, _To, _NS, _Lang) ->
     Acc.
 
-add_stream_feature(Acc, _Host) ->
-    Feat = mongoose_stanza:get(enabled_features, Acc),
-    NFeat = lists:keystore(<<"amp">>, #xmlel.name, Feat, ?AMP_FEATURE),
-    mongoose_stanza:put(enabled_features, NFeat, Acc).
+add_stream_feature(Feat, _Host) ->
+    lists:keystore(<<"amp">>, #xmlel.name, Feat, ?AMP_FEATURE).
 
 -spec amp_check_packet(mongoose_stanza:t() | drop, jid(), amp_event()) -> mongoose_stanza:t().
 amp_check_packet(Acc, From, Event) ->

@@ -320,7 +320,7 @@ process_sm_iq_items(true, From, To, #iq{lang = Lang, sub_el = SubEl} = IQ) ->
                     attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
                     children = Items}]}
     end;
-process_sm_iq_items(false, From, To, #iq{lang = Lang, sub_el = SubEl} = IQ) ->
+process_sm_iq_items(false, _From, _To, #iq{sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}.
 
 -spec get_sm_items(Acc :: mongoose_stanza:t(),

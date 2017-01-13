@@ -74,10 +74,10 @@ clean_opt({registration_watchers, Watchers}) ->
 clean_opt(Item) ->
     Item.
 
-stream_feature_register(Acc, _Host) ->
-    NFeat = [#xmlel{name = <<"register">>,
-            attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]}],
-    mongoose_stanza:append(enabled_features, NFeat, Acc).
+stream_feature_register(Feat, _Host) ->
+    NFeat = #xmlel{name = <<"register">>,
+            attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]},
+    [NFeat|Feat].
 
 unauthenticated_iq_register(Acc, Server, #iq{xmlns = ?NS_REGISTER} = IQ, IP) ->
     Address = case IP of
