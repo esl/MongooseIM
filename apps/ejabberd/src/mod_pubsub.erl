@@ -64,7 +64,7 @@
 
 %% exports for hooks
 -export([presence_probe/4, caps_change/4, caps_change/5,
-         in_subscription/7, out_subscription/5,
+         in_subscription/6, out_subscription/5,
          on_user_offline/5, remove_user/2, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_local_items/5, disco_sm_identity/5,
@@ -705,10 +705,10 @@ out_subscription(Acc, User, Server, JID, subscribed) ->
 out_subscription(Acc, _, _, _, _) ->
     Acc.
 
-in_subscription(Acc, _, User, Server, Owner, unsubscribed, _) ->
+in_subscription(Acc, User, Server, Owner, unsubscribed, _) ->
     unsubscribe_user(jid:make(User, Server, <<>>), Owner),
     Acc;
-in_subscription(Acc, _, _, _, _, _, _) ->
+in_subscription(Acc, _, _, _, _, _) ->
     Acc.
 
 unsubscribe_user(Entity, Owner) ->
