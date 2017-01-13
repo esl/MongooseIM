@@ -21,7 +21,7 @@ filter(From, To, OrigPacket) ->
     Acc2 = mongoose_stanza:put(to, To, Acc1),
     Acc3 = mongoose_stanza:put(routing_decision, send, Acc2),
     %% Filter globally
-    Res = ejabberd_hooks:run_fold(stanza, Acc3, []),
+    Res = ejabberd_hooks:run_fold(filter_packet, Acc3, []),
     case mongoose_stanza:get(routing_decision, Res) of
         send ->
             {From, To, mongoose_stanza:get(element, Res)};
