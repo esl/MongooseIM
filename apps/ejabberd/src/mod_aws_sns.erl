@@ -46,7 +46,7 @@
 -export([start/2, stop/1]).
 
 %% Hooks
--export([user_send_packet/3, user_present/1, user_not_present/4]).
+-export([user_send_packet/3, user_present/1, user_not_present/4, filter_room_packet/2]).
 
 %% Types
 -export_type([user_guid/0, topic_arn/0, topic/0, attributes/0]).
@@ -56,7 +56,9 @@
 %%%===================================================================
 
 -spec start(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> ok.
-start(Host, _Opts) ->
+start(Host, Opts) ->
+    MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
+    ejabberd_hooks:add(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(user_available_hook, Host, ?MODULE, user_present, 90),
@@ -79,15 +81,17 @@ start(Host, _Opts) ->
 
 -spec stop(Host :: ejabberd:server()) -> ok.
 stop(Host) ->
+    MUCHost = gen_mod:get_module_opt_subhost(Host, ?MODULE, mod_muc:default_host()),
     ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
     ejabberd_hooks:delete(user_available_hook, Host, ?MODULE, user_present, 90),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
+    ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
 
     ok.
 
 
-%% Handle user_send_packet hook
+%% Handle user_send_packet hook and muc messages
 -spec user_send_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
                        Packet :: jlib:xmlel()) -> 'ok'.
 user_send_packet(From = #jid{lserver = Host}, To, Packet) ->
@@ -114,6 +118,15 @@ user_send_packet(From = #jid{lserver = Host}, To, Packet) ->
     end,
 
     ok.
+
+%% Handle filter_room_packet
+-spec filter_room_packet(Packet :: jlib:xmlel(), EventData :: proplists:proplist()) ->
+    Packet :: jlib:xmlel().
+filter_room_packet(Packet, EventData) ->
+    {_, FromJID} = lists:keyfind(from_jid, 1, EventData),
+    {_, RoomJID} = lists:keyfind(room_jid, 1, EventData),
+    catch user_send_packet(FromJID, RoomJID, Packet),
+    Packet.
 
 %% Handle user_available_hook
 -spec user_present(UserJID :: ejabberd:jid()) -> ok.

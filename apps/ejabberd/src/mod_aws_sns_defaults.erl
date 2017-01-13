@@ -28,7 +28,7 @@
 %% -------------------------------------------------------------------
 -spec user_guid(UserJID :: ejabberd:jid()) -> mod_aws_sns:user_guid().
 user_guid(#jid{} = UserJID) ->
-    jid:to_binary(jid:to_bare(UserJID)).
+    jid:to_binary(jid:to_lower(jid:to_bare(UserJID))).
 
 %% -------------------------------------------------------------------
 %% @doc Returns SNS Message Attributes for presence change notification.
