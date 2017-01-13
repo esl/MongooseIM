@@ -118,7 +118,7 @@ user_send_packet(From = #jid{lserver = Host}, To, Packet) ->
 %% Handle user_available_hook
 -spec user_present(UserJID :: ejabberd:jid()) -> ok.
 user_present(#jid{} = UserJID) ->
-    user_precence_changed(UserJID, true).
+    user_presence_changed(UserJID, true).
 
 %% Handle unset_presence_hook
 -spec user_not_present(User     :: ejabberd:luser(),
@@ -126,10 +126,10 @@ user_present(#jid{} = UserJID) ->
                        Resource :: ejabberd:lresource(),
                        _Status :: any()) -> ok.
 user_not_present(User, Host, Resource, _Status) ->
-    user_precence_changed(jid:make_noprep(User, Host, Resource), false).
+    user_presence_changed(jid:make_noprep(User, Host, Resource), false).
 
--spec user_precence_changed(UserJID :: ejabberd:jid(), IsOnline :: boolean()) -> ok.
-user_precence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
+-spec user_presence_changed(UserJID :: ejabberd:jid(), IsOnline :: boolean()) -> ok.
+user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
     Topic = opt(Host, presence_updates_topic),
     case Topic of
         undefined ->
@@ -154,8 +154,8 @@ user_precence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
                      MessageId :: string().
 publish(Host, TopicARN, Content, Attributes) ->
     EncodedContent = jiffy:encode(Content),
-    erlcloud_sns:publish(topic, TopicARN, EncodedContent, undefined, maps:to_list(Attributes),
-                         aws_handle(Host)).
+    erlcloud_sns:publish(topic, TopicARN, unicode:characters_to_list(EncodedContent),
+                         undefined, maps:to_list(Attributes), aws_handle(Host)).
 
 %% @doc Returns AWS SNS handle base on configured AWS credentials
 -spec aws_handle(Host :: ejabberd:lserver()) -> erlcloud:sns_handle().
@@ -228,4 +228,3 @@ message_attributes(Host, TopicARN, UserJID, IsOnline) ->
 message_attributes(Host, TopicARN, From, To, MessageType, Packet) ->
     PluginModule = opt(Host, plugin_module, mod_aws_sns_defaults),
     PluginModule:message_attributes(TopicARN, From, To, MessageType, Packet).
-
