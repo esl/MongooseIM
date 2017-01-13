@@ -165,7 +165,7 @@ get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]},
-    maps:append(sm_identity, Id, Acc);
+    mongoose_stanza:append(sm_identity, Id, Acc);
 get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -251,7 +251,7 @@ ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
                     attrs = [{<<"jid">>, Server},
                              {<<"node">>, <<"ping">>},
                              {<<"name">>, translate:translate(Lang, <<"Ping">>)}]}],
-    mongoose_stanza:append({local_items, Nodes, Acc}).
+    mongoose_stanza:append(local_items, Nodes, Acc).
 
 
 -spec ping_command(Acc :: mongoose_stanza:t(),

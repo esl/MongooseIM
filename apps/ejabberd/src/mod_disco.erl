@@ -322,11 +322,11 @@ process_sm_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ)
             IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
     end.
 
--spec get_sm_items(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_sm_items(Acc :: mongoose_stanza:t(),
                    From :: ejabberd:jid(),
                    To :: ejabberd:jid(),
                    Node :: binary(),
-                   Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
+                   Lang :: ejabberd:lang()) -> mongoose_stanza:t().
 get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_sm_items(Acc, From,
@@ -335,7 +335,7 @@ get_sm_items(Acc, From,
     Items = mongoose_stanza:get(sm_items, Acc, []),
     Items1 = case Items of
         [] ->
-            get_sm_items(empty, From, To, [], Lang);
+            get_sm_items(From, To);
         _ ->
             case is_presence_subscribed(From, To) of
                 true ->
@@ -344,10 +344,8 @@ get_sm_items(Acc, From,
                     []
             end
     end,
-    mongoose_stanza:append(sm_items, Items1, Acc);
-get_sm_items({result, _} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-get_sm_items(empty, From, To, _Node, _Lang) ->
+    mongoose_stanza:append(sm_items, Items1, Acc).
+get_sm_items(From, To) ->
     #jid{luser = LFrom, lserver = LSFrom} = From,
     #jid{luser = LTo, lserver = LSTo} = To,
     case {LFrom, LSFrom} of
@@ -450,9 +448,7 @@ get_sm_features(Acc, From, To, _Node, _Lang) ->
             end;
         _ ->
             Acc
-    end;
-get_sm_features(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
+    end.
 
 
 -spec get_user_resources(ejabberd:user(), ejabberd:server()) -> [jlib:xmlel()].

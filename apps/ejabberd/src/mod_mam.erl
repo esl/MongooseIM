@@ -291,9 +291,6 @@ user_send_packet(Acc, From, To, Packet) ->
 %%
 %% Return drop to drop the packet, or the original input to let it through.
 %% From and To are jid records.
--type fpacket() :: {From :: ejabberd:jid(),
-                    To :: ejabberd:jid(),
-                    Packet :: jlib:xmlel()}.
 -spec filter_packet(mongoose_stanza:t()) -> mongoose_stanza:t().
 filter_packet(Acc) ->
     Packet = mongoose_stanza:get(element, Acc),

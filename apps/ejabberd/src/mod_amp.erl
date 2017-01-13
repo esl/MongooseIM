@@ -197,8 +197,6 @@ update_metric_and_drop(Packet, From) ->
     drop.
 
 %% Internal
-result_or({result, I},_) -> I;
-result_or(_, Or)         -> Or.
 
 -spec is_supported_rule(amp_rule_support()) -> boolean().
 is_supported_rule({supported, _}) -> true;

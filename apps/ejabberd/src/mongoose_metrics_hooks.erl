@@ -61,7 +61,7 @@
 
 -type hook() :: [atom() | ejabberd:server() | integer(),...].
 -type metrics_notify_return() ::
-                map()
+                ok
                 | {'error',_,'nonexistent_metric' | 'unsupported_metric_type'}.
 
 %%-------------------
@@ -110,28 +110,28 @@ get_hooks(Host) ->
      [mam_muc_purge_multiple_messages, Host, ?MODULE, mam_muc_purge_multiple_messages, 50]].
 
 
--spec sm_register_connection_hook(map(), tuple(), ejabberd:jid(), term()
-                                 ) -> metrics_notify_return().
+-spec sm_register_connection_hook(mongoose_stanza:t(), tuple(), ejabberd:jid(), term()
+                                 ) -> mongoose_stanza:t().
 sm_register_connection_hook(Acc, _,#jid{server = Server}, _) ->
     mongoose_metrics:update(Server, sessionSuccessfulLogins, 1),
     mongoose_metrics:update(Server, sessionCount, 1),
     Acc.
 
--spec sm_remove_connection_hook(map(), tuple(), ejabberd:jid(),
+-spec sm_remove_connection_hook(mongoose_stanza:t(), tuple(), ejabberd:jid(),
                                 term(), ejabberd_sm:close_reason()
-                               ) -> metrics_notify_return().
+                               ) -> mongoose_stanza:t().
 sm_remove_connection_hook(Acc, _,#jid{server = Server},_, _Reason) ->
     mongoose_metrics:update(Server, sessionLogouts, 1),
     mongoose_metrics:update(Server, sessionCount, -1),
     Acc.
 
--spec auth_failed(map(), binary(), binary()) -> metrics_notify_return().
+-spec auth_failed(mongoose_stanza:t(), binary(), binary()) -> mongoose_stanza:t().
 auth_failed(Acc, _,Server) ->
     mongoose_metrics:update(Server, sessionAuthFails, 1),
     Acc.
 
--spec user_send_packet(map(), ejabberd:jid(), tuple(), tuple()
-                      ) -> metrics_notify_return().
+-spec user_send_packet(mongoose_stanza:t(), ejabberd:jid(), tuple(), tuple()
+                      ) -> mongoose_stanza:t().
 user_send_packet(Acc, #jid{server = Server},_,Packet) ->
     mongoose_metrics:update(Server, xmppStanzaSent, 1),
     user_send_packet_type(Server, Packet),
@@ -146,7 +146,8 @@ user_send_packet_type(Server, #xmlel{name = <<"iq">>}) ->
 user_send_packet_type(Server, #xmlel{name = <<"presence">>}) ->
     mongoose_metrics:update(Server, xmppPresenceSent, 1).
 
--spec user_receive_packet(map(), ejabberd:jid(), tuple(), tuple(), tuple()) -> term().
+-spec user_receive_packet(mongoose_stanza:t(), ejabberd:jid(), tuple(), tuple(), tuple()) ->
+    mongoose_stanza:t().
 user_receive_packet(Acc, #jid{server = Server} ,_,_,Packet) ->
     mongoose_metrics:update(Server, xmppStanzaReceived, 1),
     user_receive_packet_type(Server, Packet),
@@ -161,23 +162,24 @@ user_receive_packet_type(Server, #xmlel{name = <<"iq">>}) ->
 user_receive_packet_type(Server, #xmlel{name = <<"presence">>}) ->
     mongoose_metrics:update(Server, xmppPresenceReceived, 1).
 
--spec xmpp_bounce_message(Acc :: map(), Server :: ejabberd:server(),
-                          tuple()) -> metrics_notify_return().
+-spec xmpp_bounce_message(Acc :: mongoose_stanza:t(), Server :: ejabberd:server(),
+                          tuple()) -> mongoose_stanza:t().
 xmpp_bounce_message(Acc, Server, _) ->
     case mongoose_metrics:update(Server, xmppMessageBounced, 1) of
         ok -> Acc;
         E -> E
     end.
 
--spec xmpp_stanza_dropped(map(), ejabberd:jid(), tuple(), tuple()) -> metrics_notify_return().
+-spec xmpp_stanza_dropped(mongoose_stanza:t(), ejabberd:jid(), tuple(), tuple()) ->
+    mongoose_stanza:t().
 xmpp_stanza_dropped(Acc, #jid{server = Server} ,_,_) ->
    case mongoose_metrics:update(Server, xmppStanzaDropped, 1) of
        ok -> Acc;
        E -> E
    end.
 
--spec xmpp_send_element(Acc :: map(), Server :: ejabberd:server(),
-                        Packet :: jlib:xmlel()) -> ok | metrics_notify_return().
+-spec xmpp_send_element(Acc :: mongoose_stanza:t(), Server :: ejabberd:server(),
+                        Packet :: jlib:xmlel()) -> mongoose_stanza:t().
 xmpp_send_element(Acc, Server, #xmlel{name = Name, attrs = Attrs}) ->
     mongoose_metrics:update(Server, xmppStanzaCount, 1),
     case lists:keyfind(<<"type">>, 1, Attrs) of
@@ -200,20 +202,19 @@ xmpp_send_element(Acc, _, _) ->
 
 %% Roster
 
--spec roster_get(list(), {_, ejabberd:server()}) -> list().
+-spec roster_get(mongoose_stanza:t(), {_, ejabberd:server()}) -> mongoose_stanza:t().
 roster_get(Acc, {_, Server}) ->
     mongoose_metrics:update(Server, modRosterGets, 1),
     Acc.
 
--spec roster_set(Acc :: map(), JID :: ejabberd:jid(), tuple(), tuple()) ->
-    metrics_notify_return().
+-spec roster_set(Acc :: mongoose_stanza:t(), JID :: ejabberd:jid(), tuple(), tuple()) ->
+    mongoose_stanza:t().
 roster_set(Acc, #jid{server = Server},_,_) ->
-    case mongoose_metrics:update(Server, modRosterSets, 1) of
-        ok -> Acc;
-        E -> E
-    end.
+    mongoose_metrics:update(Server, modRosterSets, 1),
+    Acc.
 
--spec roster_in_subscription(term(), binary(), binary(), tuple(), atom(), term()) -> term().
+-spec roster_in_subscription(mongoose_stanza:t(), binary(), binary(), tuple(), atom(), term()) ->
+    mongoose_stanza:t().
 roster_in_subscription(Acc,_,Server,_,subscribed,_) ->
     mongoose_metrics:update(Server, modPresenceSubscriptions, 1),
     Acc;
@@ -223,39 +224,37 @@ roster_in_subscription(Acc,_,Server,_,unsubscribed,_) ->
 roster_in_subscription(Acc,_,_,_,_,_) ->
     Acc.
 
--spec roster_push(map(), ejabberd:jid(), term()) -> metrics_notify_return().
-roster_push(Acc, #jid{server = Server},_) ->
-    case mongoose_metrics:update(Server, modRosterPush, 1) of
-        ok -> Acc;
-        E -> E
-    end.
+-spec roster_push(mongoose_stanza:t(), ejabberd:jid(), term()) -> mongoose_stanza:t().
+roster_push(Acc, #jid{server = Server}, _) ->
+    mongoose_metrics:update(Server, modRosterPush, 1),
+    Acc.
 
 %% Register
 
-%% #rh
--spec register_user(map(), binary(), ejabberd:server()) -> metrics_notify_return().
+-spec register_user(mongoose_stanza:t(), binary(), ejabberd:server()) -> mongoose_stanza:t().
 register_user(Acc, _,Server) ->
     case mongoose_metrics:update(Server, modRegisterCount, 1) of
         ok -> Acc;
         E -> E
     end.
 
--spec remove_user(any(), binary(), ejabberd:server()) -> metrics_notify_return().
+-spec remove_user(mongoose_stanza:t(), binary(), ejabberd:server()) -> mongoose_stanza:t().
 remove_user(Acc, _,Server) ->
     mongoose_metrics:update(Server, modUnregisterCount, 1),
     Acc.
 
 %% Privacy
 
--spec privacy_iq_get(term(), ejabberd:jid(), ejabberd:jid(), term(), term()) -> term().
+-spec privacy_iq_get(mongoose_stanza:t(), ejabberd:jid(), ejabberd:jid(), term(), term()) ->
+    mongoose_stanza:t().
 privacy_iq_get(Acc, #jid{server  = Server}, _, _, _) ->
     mongoose_metrics:update(Server, modPrivacyGets, 1),
     Acc.
 
--spec privacy_iq_set(Acc :: term(),
+-spec privacy_iq_set(Acc :: mongoose_stanza:t(),
                      From :: ejabberd:jid(),
                      _To :: ejabberd:jid(),
-                     _IQ :: ejabberd:iq()) -> ok | metrics_notify_return() | term().
+                     _IQ :: ejabberd:iq()) -> mongoose_stanza:t().
 privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
@@ -269,24 +268,22 @@ privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
     mongoose_metrics:update(Server, modPrivacySets, 1),
     Acc.
 
--spec privacy_list_push(Acc :: map(),
+-spec privacy_list_push(Acc :: mongoose_stanza:t(),
                         _From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
                         Broadcast :: ejabberd_c2s:broadcast(),
-                        SessionCount :: non_neg_integer()) -> ok | metrics_notify_return().
+                        SessionCount :: non_neg_integer()) -> mongoose_stanza:t().
 privacy_list_push(Acc, _From, #jid{server = Server} = _To, _Broadcast, SessionCount) ->
-    case mongoose_metrics:update(Server, modPrivacyPush, SessionCount) of
-        ok -> Acc;
-        E -> E
-    end.
+    mongoose_metrics:update(Server, modPrivacyPush, SessionCount),
+    Acc.
 
 user_ping_timeout(Acc, _JID) ->
     Acc.
 
--spec privacy_check_packet(Acc :: allow | deny | block,
+-spec privacy_check_packet(Acc :: allow | deny | block | mongoose_stanza:t(),
                           binary(),
                           Server :: ejabberd:server(),
-                          term(), term(), term()) -> allow | deny | block.
+                          term(), term(), term()) -> allow | deny | block | mongoose_stanza:t().
 privacy_check_packet(Acc, _, Server, _, _, _) ->
     mongoose_metrics:update(Server, modPrivacyStanzaAll, 1),
     case Acc of
@@ -318,10 +315,10 @@ mam_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJI
     mongoose_metrics:update(Host, modMamPrefsSets, 1),
     Result.
 
--spec mam_remove_archive(Acc :: map(),
+-spec mam_remove_archive(Acc :: mongoose_stanza:t(),
                          Host :: ejabberd:server(),
                          _ArcID :: mod_mam:archive_id(),
-                         _ArcJID :: ejabberd:jid()) -> metrics_notify_return().
+                         _ArcJID :: ejabberd:jid()) -> mongoose_stanza:t().
 mam_remove_archive(Acc, Host, _ArcID, _ArcJID) ->
     mongoose_metrics:update(Host, modMamArchiveRemoved, 1),
     Acc.
@@ -356,41 +353,31 @@ mam_archive_message(Result, Host,
     mongoose_metrics:update(Host, modMamArchived, 1),
     Result.
 
--spec mam_flush_messages(Acc :: map(),
+-spec mam_flush_messages(Acc :: mongoose_stanza:t(),
                          Host :: ejabberd:server(),
-                         MessageCount :: integer()) -> metrics_notify_return().
+                         MessageCount :: integer()) -> mongoose_stanza:t().
 mam_flush_messages(Acc, Host, MessageCount) ->
-    case mongoose_metrics:update(Host, modMamFlushed, MessageCount) of
-        ok -> Acc;
-        E -> E
-    end.
+    mongoose_metrics:update(Host, modMamFlushed, MessageCount),
+    Acc.
 
-%% #rh
--spec mam_drop_message(Acc :: map(), Host :: ejabberd:server()) -> metrics_notify_return().
+-spec mam_drop_message(Acc :: mongoose_stanza:t(), Host :: ejabberd:server()) ->
+    mongoose_stanza:t().
 mam_drop_message(Acc, Host) ->
-    case mongoose_metrics:update(Host, modMamDropped, 1)of
-        ok -> Acc;
-        E -> E
-    end.
+    mongoose_metrics:update(Host, modMamDropped, 1),
+    Acc.
 
-%% #rh
--spec mam_drop_iq(Acc :: map(), Host :: ejabberd:server(), _To :: ejabberd:jid(),
-    _IQ :: ejabberd:iq(), _Action :: any(), _Reason :: any()) -> metrics_notify_return().
+-spec mam_drop_iq(Acc :: mongoose_stanza:t(), Host :: ejabberd:server(), _To :: ejabberd:jid(),
+    _IQ :: ejabberd:iq(), _Action :: any(), _Reason :: any()) -> mongoose_stanza:t().
 mam_drop_iq(Acc, Host, _To, _IQ, _Action, _Reason) ->
-    case mongoose_metrics:update(Host, modMamDroppedIQ, 1) of
-        ok -> Acc;
-        E -> E
-    end.
+    mongoose_metrics:update(Host, modMamDroppedIQ, 1),
+    Acc.
 
-%% #rh
--spec mam_drop_messages(Acc :: map(),
+-spec mam_drop_messages(Acc :: mongoose_stanza:t(),
                         Host :: ejabberd:server(),
-                        Count :: integer()) -> metrics_notify_return().
+                        Count :: integer()) -> mongoose_stanza:t().
 mam_drop_messages(Acc, Host, Count) ->
-    case mongoose_metrics:update(Host, modMamDropped2, Count) of
-        ok -> Acc;
-        E -> E
-    end.
+    mongoose_metrics:update(Host, modMamDropped2, Count),
+    Acc.
 
 mam_purge_single_message(Result, Host, _MessID, _ArcID, _ArcJID, _Now) ->
     mongoose_metrics:update(Host, modMamSinglePurges, 1),

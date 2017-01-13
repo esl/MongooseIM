@@ -185,7 +185,7 @@ process_remote_available(_, _, _, _, _) ->
     ok.
 
 
--spec caps_stream_features([xmlel()], binary()) -> [xmlel()].
+-spec caps_stream_features(mongoose_stanza:t(), binary()) -> mongoose_stanza:t().
 
 caps_stream_features(Acc, MyHost) ->
     NFeat = case make_my_disco_hash(MyHost) of
