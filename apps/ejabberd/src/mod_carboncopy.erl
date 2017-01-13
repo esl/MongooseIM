@@ -70,7 +70,8 @@ is_carbon_copy(Packet) ->
     end.
 
 start(Host, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+    %% execute disable/enable actions in the c2s process itself
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     mod_disco:register_feature(Host, ?NS_CC_1),
     mod_disco:register_feature(Host, ?NS_CC_2),
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, remove_connection, 10),

@@ -185,10 +185,19 @@ close_session(SID, User, Server, Resource, Reason) ->
 store_info(User, Server, Resource, {Key, _Value} = KV) ->
     case get_session(User, Server, Resource) of
         offline -> {error, offline};
-        {_SUser,SID,SPriority,SInfo} ->
-            set_session(SID, User, Server, Resource, SPriority,
-                        lists:keystore(Key, 1, SInfo, KV)),
-            {ok, KV}
+        {_SUser, SID, SPriority, SInfo} ->
+            case SID of
+                {_, Pid} when self() =:= Pid ->
+                    %% It's safe to allow process update it's own record
+                    set_session(SID, User, Server, Resource, SPriority,
+                                lists:keystore(Key, 1, SInfo, KV)),
+                    {ok, KV};
+                {_, Pid} ->
+                    %% Ask the process to update it's record itself
+                    %% Async operation
+                    ejabberd_c2s:store_session_info(Pid, User, Server, Resource, KV),
+                    {ok, KV}
+            end
     end.
 
 -spec check_in_subscription(Acc, User, Server, JID, Type, Reason) -> any() | {stop, false} when

@@ -41,7 +41,8 @@
          get_subscription/2,
          get_subscribed/1,
          send_filtered/5,
-         broadcast/4]).
+         broadcast/4,
+         store_session_info/5]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -138,6 +139,9 @@ broadcast(FsmRef, Type, From, Packet) ->
 
 stop(FsmRef) ->
     ?GEN_FSM:send_event(FsmRef, closed).
+
+store_session_info(FsmRef, User, Server, Resource, KV) ->
+    FsmRef ! {store_session_info, User, Server, Resource, KV, self()}.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -1199,6 +1203,9 @@ handle_info(check_buffer_full, StateName, StateData) ->
             fsm_next_state(StateName,
                            StateData#state{stream_mgmt_constraint_check_tref = undefined})
     end;
+handle_info({store_session_info, User, Server, Resource, KV, _FromPid}, StateName, StateData) ->
+    ejabberd_sm:store_info(User, Server, Resource, KV),
+    fsm_next_state(StateName, StateData);
 handle_info(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
@@ -2396,7 +2403,9 @@ bounce_messages() ->
     receive
         {route, From, To, El} ->
             ejabberd_router:route(From, To, El),
-            bounce_messages()
+            bounce_messages();
+        {store_session_info, User, Server, Resource, KV, _FromPid} ->
+            ejabberd_sm:store_info(User, Server, Resource, KV)
     after 0 ->
               ok
     end.
