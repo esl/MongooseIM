@@ -64,11 +64,13 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config) ->
-    dynamic_modules:start(<<"localhost">>, mod_aws_sns, ?SNS_OPTS),
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:start(Host, mod_aws_sns, ?SNS_OPTS),
     escalus:create_users(Config, escalus:get_users([bob, alice, john])).
 
 end_per_group(_, Config) ->
-    dynamic_modules:stop(<<"localhost">>, mod_aws_sns),
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:stop(Host, mod_aws_sns),
     escalus:delete_users(Config, escalus:get_users([bob, alice, john])).
 
 init_per_testcase(CaseName, Config) ->

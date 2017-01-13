@@ -25,7 +25,8 @@ presence change notifications. Remove this option to disable those notifications
 private messages notifications. Remove this option to disable those notifications.
 * **token_muc_messages_topic** (optional, string, default: unset) - Defines Amazon SNS Topic for 
 group messages notifications. Remove this option to disable those notifications.
-* **plugin_module** (atom, default: unset) - Sets callback module used for creating user's 
+* **plugin_module** (atom, default: 'mod_aws_sns_defaults') - Sets callback module used for creating 
+user's 
 guid used in notifications (from user's jid) and defining custom attributes attached published SNS
 message ().
 
