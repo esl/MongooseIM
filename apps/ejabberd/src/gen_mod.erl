@@ -54,6 +54,7 @@
          set_module_opt/4,
          get_module_opts/2,
          get_opt_subhost/3,
+         get_opt_subhost/4,
          get_module_opt_subhost/3,
          % Get/set opts by subhost
          get_module_opt_by_subhost/4,
@@ -300,7 +301,11 @@ set_module_opt_by_subhost(SubHost, Module, Opt, Value) ->
 
 -spec get_opt_subhost(ejabberd:server(), list(), list() | binary()) -> ejabberd:server().
 get_opt_subhost(Host, Opts, Default) ->
-    Val = get_opt(host, Opts, Default),
+    get_opt_subhost(Host, host, Opts, Default).
+
+-spec get_opt_subhost(ejabberd:server(), atom(), list(), list() | binary()) -> ejabberd:server().
+    get_opt_subhost(Host, OptName, Opts, Default) ->
+    Val = get_opt(OptName, Opts, Default),
     re:replace(Val, "@HOST@", Host, [global, {return, binary}]).
 
 -spec get_module_opt_subhost(ejabberd:server(), module(), list() | binary()) -> ejabberd:server().

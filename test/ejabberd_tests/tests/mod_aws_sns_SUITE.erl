@@ -20,7 +20,7 @@
         {presence_updates_topic, "user_presence_updated-dev-1"},
         {pm_messages_topic, "user_message_sent-dev-1"},
         {muc_messages_topic, "user_messagegroup_sent-dev-1"},
-        {host, "muc.@HOST@"}
+        {muc_host, "muc.@HOST@"}
     ]).
 
 -record(publish, {

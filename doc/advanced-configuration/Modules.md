@@ -21,6 +21,9 @@ Implements [XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/xep-0050.html)
 ### [mod_amp](../modules/mod_amp.md)
 Implements a subset of [XEP-0079: Advanced Message Processing](http://xmpp.org/extensions/xep-0079.html) functionality, that enables entities to request, and servers to perform, advanced processing of XMPP message stanzas, including reliable data transport, time-sensitive delivery, and expiration of transient messages.
 
+### [mod_aws_sns](../modules/mod_aws_sns.md)
+Allows sending online/offline notifications, chat and groupchat messages as events to [Amazon Simple Notification Service](https://aws.amazon.com/sns/).
+
 ### [mod_blocking](../modules/mod_blocking.md)
 Implements [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html), a simplified interface to privacy lists.
 

@@ -57,7 +57,7 @@
 
 -spec start(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> ok.
 start(Host, Opts) ->
-    MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
+    MUCHost = gen_mod:get_opt_subhost(Host, muc_host, Opts, mod_muc:default_host()),
     ejabberd_hooks:add(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
