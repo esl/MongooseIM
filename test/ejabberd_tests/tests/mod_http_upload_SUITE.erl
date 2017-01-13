@@ -86,7 +86,7 @@ request_slot(Config) ->
               Result = escalus:send_and_wait(Bob, Request),
               escalus:assert(is_iq_result, Result),
               escalus:assert(fun check_namespace/1, Result),
-              escalus:assert(fun check_put_and_get_presence/1, Result)
+              escalus:assert(fun check_put_and_get_fields/1, Result)
       end).
 
 get_url_ends_with_filename(Config) ->
@@ -179,16 +179,16 @@ check_namespace(#xmlel{name = <<"iq">>, children = [Slot]}) ->
 check_namespace(_) ->
     false.
 
-check_put_and_get_presence(#xmlel{name = <<"iq">>, children = [Slot]}) ->
-    check_put_and_get_presence(Slot);
-check_put_and_get_presence(#xmlel{name = <<"slot">>, children = PutGet}) ->
+check_put_and_get_fields(#xmlel{name = <<"iq">>, children = [Slot]}) ->
+    check_put_and_get_fields(Slot);
+check_put_and_get_fields(#xmlel{name = <<"slot">>, children = PutGet}) ->
     Put = lists:keyfind(<<"put">>, 2, PutGet),
     Get = lists:keyfind(<<"get">>, 2, PutGet),
-    check_put_and_get_presence(Put) andalso check_put_and_get_presence(Get);
-check_put_and_get_presence(#xmlel{name = Name, children = [#xmlcdata{content = Content}]})
+    check_put_and_get_fields(Put) andalso check_put_and_get_fields(Get);
+check_put_and_get_fields(#xmlel{name = Name, children = [#xmlcdata{content = Content}]})
   when Name =:= <<"put">>; Name =:= <<"get">> ->
     is_binary(Content) andalso Content =/= <<>>;
-check_put_and_get_presence(_) ->
+check_put_and_get_fields(_) ->
     false.
 
 check_path_ends_with(UrlType, Filename, Result) ->
