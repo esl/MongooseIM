@@ -326,22 +326,14 @@ do_set_vcard({error, _} = E, _From, _VCARD) -> E.
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_features(Acc, _From, _To, Node, _Lang) ->
-%%    Feat = mongoose_stanza:get(features, Acc, []),
     NFeat = case Node of
         <<>> ->
             ?NS_VCARD;
-%%            case Acc of
-%%                {result, Features} ->
-%%                    {result, [?NS_VCARD | Features]};
-%%                empty ->
-%%                    {result, [?NS_VCARD]}
-%%            end;
         _ ->
             []
     end,
     mongoose_stanza:append(features, NFeat, Acc).
 
-%% #rh
 remove_user(Acc, User, Server) ->
     remove_user(User, Server),
     Acc.
@@ -419,7 +411,9 @@ do_route(_VHost, From, To, Packet, #iq{type = set,
 do_route(VHost, From, To, _Packet, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
-    #{info := Info} = ejabberd_hooks:run_fold(disco_info, VHost, #{}, [VHost, ?MODULE, "", ""]),
+    Stanza = mongoose_stanza:new(),
+    Res = ejabberd_hooks:run_fold(disco_info, VHost, Stanza, [VHost, ?MODULE, "", ""]),
+    Info = mongoose_stanza:get(info, Res, []),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs =[{<<"xmlns">>, ?NS_DISCO_INFO}],

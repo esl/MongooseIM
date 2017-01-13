@@ -151,13 +151,14 @@ user_send_packet(Acc,
                  #xmlel{name = <<"presence">>, attrs = Attrs,
                         children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    if Type == <<"">>; Type == <<"available">> ->
+    case ((Type == <<"">>) or (Type == <<"available">>)) of
+        true ->
             case read_caps(Els) of
                 nothing -> ok;
                 #caps{version = Version, exts = Exts} = Caps ->
                     feature_request(Server, From, Caps, [Version | Exts])
             end;
-       true -> ok
+        _ -> ok
     end,
     Acc;
 user_send_packet(Acc, _From, _To, _Pkt) ->
@@ -168,20 +169,23 @@ user_receive_packet(Acc, #jid{lserver = Server}, From, _To,
                            children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     IsRemote = not lists:member(From#jid.lserver, ?MYHOSTS),
-    if IsRemote and
-       ((Type == <<"">>) or (Type == <<"available">>)) ->
-            case read_caps(Els) of
-                nothing -> ok;
-                #caps{version = Version, exts = Exts} = Caps ->
-                    feature_request(Server, From, Caps, [Version | Exts])
-            end;
-       true -> ok
-    end,
+    IsAvailable = ((Type == <<"">>) or (Type == <<"available">>)),
+    process_remote_available(IsRemote, IsAvailable, Els, Server, From),
     Acc;
 user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
     Acc.
 
--spec caps_stream_features([xmlel()], binary()) -> [xmlel()].
+process_remote_available(true, true, Els, Server, From) ->
+    case read_caps(Els) of
+        nothing -> ok;
+        #caps{version = Version, exts = Exts} = Caps ->
+            feature_request(Server, From, Caps, [Version | Exts])
+    end;
+process_remote_available(_, _, _, _, _) ->
+    ok.
+
+
+-spec caps_stream_features(mongoose_stanza:t(), binary()) -> mongoose_stanza:t().
 
 caps_stream_features(Acc, MyHost) ->
     NFeat = case make_my_disco_hash(MyHost) of
@@ -244,31 +248,33 @@ c2s_presence_in(Acc, {From, To, {_, _, Attrs, Els}}) ->
                      {ok, Rs1} -> Rs1;
                      error -> gb_trees:empty()
                  end,
-            Caps = read_caps(Els),
-            NewRs = case Caps of
-                        nothing when Insert == true -> Rs;
-                        _ when Insert == true ->
-                            ?DEBUG("Set CAPS to ~p for ~p in ~p", [Caps, LFrom, To]),
-                            case gb_trees:lookup(LFrom, Rs) of
-                                {value, Caps} -> Rs;
-                                none ->
-                                    ejabberd_hooks:run(caps_add, To#jid.lserver,
-                                                       [From, To, self(),
-                                                        get_features(To#jid.lserver, Caps)]),
-                                    gb_trees:insert(LFrom, Caps, Rs);
-                                _ ->
-                                    ejabberd_hooks:run(caps_update, To#jid.lserver,
-                                                       [From, To, self(),
-                                                        get_features(To#jid.lserver, Caps)]),
-                                    gb_trees:update(LFrom, Caps, Rs)
-                            end;
-                        _ -> gb_trees:delete_any(LFrom, Rs)
-                    end,
+            NewCaps = read_caps(Els),
+            NewRs = modify_caps_resources(NewCaps, Insert, Rs, LFrom, To, From),
             NState = ejabberd_c2s:set_aux_field(caps_resources, NewRs,
                                        C2SState),
             mongoose_stanza:put(state, NState, Acc);
        _ -> Acc
     end.
+
+modify_caps_resources(nothing, true, Rs, _, _, _) ->
+    Rs;
+modify_caps_resources(NewCaps, true, Rs, LFrom, To, From) ->
+    ?DEBUG("Set CAPS to ~p for ~p in ~p", [NewCaps, LFrom, To]),
+    case gb_trees:lookup(LFrom, Rs) of
+        {value, NewCaps} -> Rs;
+        none ->
+            ejabberd_hooks:run(caps_add, To#jid.lserver,
+                [From, To, self(),
+                    get_features(To#jid.lserver, NewCaps)]),
+            gb_trees:insert(LFrom, NewCaps, Rs);
+        _ ->
+            ejabberd_hooks:run(caps_update, To#jid.lserver,
+                [From, To, self(),
+                    get_features(To#jid.lserver, NewCaps)]),
+            gb_trees:update(LFrom, NewCaps, Rs)
+    end;
+modify_caps_resources(_, _, Rs, LFrom, _, _) ->
+    gb_trees:delete_any(LFrom, Rs).
 
 c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
@@ -286,25 +292,28 @@ c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
     end;
 c2s_filter_packet(Acc, _, _, _, _, _) -> Acc.
 
-c2s_broadcast_recipients(#{recipients := Rec} = Acc, Host, C2SState,
+c2s_broadcast_recipients(Acc, Host, C2SState,
                          {pep_message, Feature}, _From, _Packet) ->
-    NRec = case ejabberd_c2s:get_aux_field(caps_resources,
-                                    C2SState)
-    of
-        {ok, Rs} ->
-            gb_trees_fold(fun (USR, Caps, Ac) ->
-                                  case lists:member(Feature,
-                                                    get_features(Host, Caps))
-                                  of
-                                      true -> [USR | Ac];
-                                      false -> Ac
-                                  end
-                          end,
-                          Rec, Rs);
-        _ -> Rec
-    end,
+    Rec = mongoose_stanza:get(recipients, Acc, []),
+    Resources = ejabberd_c2s:get_aux_field(caps_resources, C2SState),
+    NRec = c2s_broadcast_recipients(Resources, Rec, Feature, Host),
     maps:put(recipients, NRec, Acc);
 c2s_broadcast_recipients(Acc, _, _, _, _, _) -> Acc.
+
+c2s_broadcast_recipients({ok, Rs}, Rec, Feature, Host) ->
+    gb_trees_fold(fun(USR, Caps, Ac) ->
+        case lists:member(Feature,
+            get_features(Host, Caps))
+        of
+            true -> [USR | Ac];
+            false -> Ac
+        end
+                  end,
+        Rec, Rs),
+    Rec;
+c2s_broadcast_recipients(_, Rec, _, _) ->
+    Rec.
+
 
 init_db(mnesia, _Host) ->
     case catch mnesia:table_info(caps_features, storage_type) of
@@ -486,7 +495,11 @@ caps_delete_fun(Node) ->
 
 make_my_disco_hash(Host) ->
     JID = jid:make(<<"">>, Host, <<"">>),
-    A0 = mongoose_stanza:new(),
+    F = fun(K, A) -> mongoose_stanza:put(K, [], A) end,
+    % TODO: replace with mongoose_stanza:from_map
+    A0 = lists:foldl(F,
+                     mongoose_stanza:new(),
+                     [features, identities, info]), % we are soooo functional
     A1 = ejabberd_hooks:run_fold(disco_local_features, Host, A0, [JID, JID, <<"">>, <<"">>]),
     A2 = ejabberd_hooks:run_fold(disco_local_identity, Host, A1, [JID, JID, <<"">>, <<"">>]),
     A3 = ejabberd_hooks:run_fold(disco_info, Host, A2, [Host, undefined, <<"">>, <<"">>]),

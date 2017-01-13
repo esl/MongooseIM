@@ -495,12 +495,12 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 %%
 
 -spec disco_local_identity(
-        Acc    :: map(),
+        Acc    :: mongoose_stanza:t(),
           _From  :: jid(),
           To     :: jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
-        -> [xmlel()].
+        -> mongoose_stanza:t().
 disco_local_identity(Acc, _From, To, <<>>, _Lang) ->
     Ids = mongoose_stanza:get(local_identity, Acc, []),
     NIds = case lists:member(?PEPNODE, plugins(To#jid.lserver)) of
@@ -517,21 +517,16 @@ disco_local_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 -spec disco_local_features(
-        Acc    :: map(),
+        Acc    :: mongoose_stanza:t(),
           _From  :: jid(),
           To     :: jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
-        -> [binary(),...].
+        -> mongoose_stanza:t().
 disco_local_features(Acc, _From, To, <<>>, _Lang) ->
     Host = To#jid.lserver,
-    Feats = mongoose_stanza:get(features, Acc, []),
-%%    Feats = case Acc of
-%%                {result, I} -> I;
-%%                _ -> []
-%%            end,
-    NFeats = Feats ++ [feature(F) || F <- features(Host, <<>>)],
-    mongoose_stanza:put(features, NFeats, Acc);
+    NFeats = [feature(F) || F <- features(Host, <<>>)],
+    mongoose_stanza:append(features, NFeats, Acc);
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -539,14 +534,12 @@ disco_local_items(Acc, _From, _To, <<>>, _Lang) -> Acc;
 disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_sm_identity(
-        Acc  :: map(),
+        Acc  :: mongoose_stanza:t(),
           From :: jid(),
           To   :: jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
-        -> [xmlel()].
-%%disco_sm_identity(empty, From, To, Node, Lang) ->
-%%    disco_sm_identity([], From, To, Node, Lang);
+        -> mongoose_stanza:t().
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
     Ids = mongoose_stanza:get(sm_identity, Acc, []),
     NIds = disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
@@ -582,20 +575,15 @@ disco_identity(Host, Node, From) ->
     end.
 
 -spec disco_sm_features(
-        Acc  :: map(),
+        Acc  :: mongoose_stanza:t(),
           From :: jid(),
           To   :: jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
-        -> {result, Features::[Feature::binary()]}.
-%%disco_sm_features(empty, From, To, Node, Lang) ->
-%%    disco_sm_features({result, []}, From, To, Node, Lang);
-disco_sm_features(#{sm_features := OtherFeatures} = Acc, From, To, Node, _Lang) ->
-    OtherFeatures = mongoose_stanza:get(sm_features, Acc, []),
-    NFeat = OtherFeatures ++
-        disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
-    mongoose_stanza:put(sm_features, NFeat, Acc).
-%%disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
+        -> mongoose_stanza:t().
+disco_sm_features(Acc, From, To, Node, _Lang) ->
+    NFeat = disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
+    mongoose_stanza:append(sm_features, NFeat, Acc).
 
 disco_features(Host, <<>>, _From) ->
     [?NS_PUBSUB | [feature(F) || F <- plugin_features(Host, <<"pep">>)]];
@@ -613,24 +601,16 @@ disco_features(Host, Node, From) ->
     end.
 
 -spec disco_sm_items(
-        Acc  :: empty | {result, [xmlel()]},
+        Acc  :: mongoose_stanza:t(),
           From :: jid(),
           To   :: jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
-        -> {result, [xmlel()]}.
-                                                %disco_sm_items(Acc, From, To, Node, Lang)
-                                                %    when is_binary(Node) ->
-                                                %    disco_sm_items(Acc, From, To, iolist_to_binary(Node),
-                                                %                   Lang);
-%%disco_sm_items(empty, From, To, Node, Lang) ->
-%%    disco_sm_items({result, []}, From, To, Node, Lang);
+        -> mongoose_stanza:t().
 disco_sm_items(Acc, From, To, Node, _Lang) ->
-%%    {result, lists:usort(OtherItems ++ disco_items(jid:to_lower(jid:to_bare(To)), Node, From))};
     OtherItems = mongoose_stanza:get(sm_items, Acc, []),
     NItems = lists:usort(OtherItems ++ disco_items(jid:to_lower(jid:to_bare(To)), Node, From)),
     mongoose_stanza:put(sm_items, NItems, Acc).
-%%disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_items(
         Host :: mod_pubsub:host(),
@@ -686,7 +666,6 @@ disco_items(Host, Node, From) ->
 %% presence hooks handling functions
 %%
 
-%% #rh
 caps_change(Acc, FromJID, ToJID, Pid, Features) ->
     caps_change(FromJID, ToJID, Pid, Features),
     Acc.
@@ -697,7 +676,6 @@ caps_change(#jid{luser = _U, lserver = S, lresource = _R} = FromJID, ToJID, Pid,
         false -> ok
     end.
 
-%% #rh
 presence_probe(Acc, #jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
     notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID}),
     Acc;
@@ -775,7 +753,6 @@ unsubscribe_user(Host, Entity, Owner) ->
 %% user remove hook handling function
 %%
 
-%% #rh
 remove_user(Acc, User, Server) ->
     remove_user(User, Server),
     Acc.

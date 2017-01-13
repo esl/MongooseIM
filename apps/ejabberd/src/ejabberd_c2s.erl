@@ -1164,11 +1164,13 @@ handle_info({force_update_presence, LUser}, StateName,
     NewStateData =
     case StateData#state.pres_last of
         #xmlel{name = <<"presence">>} ->
-            #{packet := PresenceEl} = ejabberd_hooks:run_fold(
+            Stanza = mongoose_stanza:from_kv(packet, StateData#state.pres_last),
+            Res = ejabberd_hooks:run_fold(
                            c2s_update_presence,
                            LServer,
-                           #{packet => StateData#state.pres_last},
+                           Stanza,
                            [LUser, LServer]),
+            PresenceEl = mongoose_stanza:get(packet, Res),
             StateData2 = StateData#state{pres_last = PresenceEl},
             presence_update(StateData2#state.jid,
                             PresenceEl,
@@ -1181,8 +1183,8 @@ handle_info({force_update_presence, LUser}, StateName,
 handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     Acc = mongoose_stanza:from_kv(drop, true),
     Res = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
-				   Acc, [StateData#state.server, StateData,
-					  Feature, To, Packet]),
+                                  Acc, [StateData#state.server, StateData,
+                                  Feature, To, Packet]),
     case mongoose_stanza:get(drop, Res) of
         true ->
             ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]),
@@ -1205,13 +1207,14 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
             end
     end;
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
-    #{recipients := Recipients} = ejabberd_hooks:run_fold(
-		   c2s_broadcast_recipients, StateData#state.server,
-		   #{recipients => []},
-		   [StateData#state.server, StateData, Type, From, Packet]),
+    Stanza = mongoose_stanza:new(),
+    Res = ejabberd_hooks:run_fold(c2s_broadcast_recipients, StateData#state.server,
+                                  Stanza,
+                                  [StateData#state.server, StateData, Type, From, Packet]),
+    Recipients = mongoose_stanza:get(recipients, Res, []),
     lists:foreach(
       fun(USR) ->
-	      ejabberd_router:route(
+        ejabberd_router:route(
 		From, jid:make(USR), Packet)
       end, lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);
@@ -2390,8 +2393,8 @@ process_unauthenticated_stanza(StateData, El) ->
                                           Acc,
                                           [StateData#state.server, IQ,
                                            StateData#state.ip]),
-            case mongoose_stanza:to_map(Res) of
-                #{} ->
+            case mongoose_stanza:get(response, Res, undefined) of
+                undefined ->
                     % The only reasonable IQ's here are auth and register IQ's
                     % They contain secrets, so don't include subelements to response
                     ResIQ = IQ#iq{type = error,
@@ -2401,8 +2404,8 @@ process_unauthenticated_stanza(StateData, El) ->
                              jid:make(<<>>, <<>>, <<>>),
                              jlib:iq_to_xml(ResIQ)),
                     send_element(StateData, jlib:remove_attr(<<"to">>, Res1));
-                _ ->
-                    send_element(StateData, Res)
+                Response ->
+                    send_element(StateData, Response)
             end;
         _ ->
             % Drop any stanza, which isn't IQ stanza
@@ -2457,9 +2460,7 @@ fsm_reply(Reply, StateName, StateData) ->
 is_ip_blacklisted(undefined) ->
     false;
 is_ip_blacklisted({IP,_Port}) ->
-    Acc = mongoose_stanza:from_kv(is_ip_blacklisted, false),
-    Res = ejabberd_hooks:run_fold(check_bl_c2s, Acc, [IP]),
-    mongoose_stanza:get(is_ip_blacklisted, Res).
+    ejabberd_hooks:run_fold(check_bl_c2s, false, [IP]).
 
 
 %% @doc Check from attributes.
@@ -3187,10 +3188,9 @@ user_allowed(JID, #state{server = Server, access = Access}) ->
     end.
 
 open_session_allowed_hook(Server, JID) ->
-    Res = ejabberd_hooks:run_fold(session_opening_allowed_for_user,
+    allow == ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                                      Server,
-                                     mongoose_stanza:from_kv(session_allowed, allow), [JID]),
-    allow == mongoose_stanza:get(session_allowed, Res).
+                                     allow, [JID]).
 
 
 terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->

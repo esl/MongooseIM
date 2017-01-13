@@ -274,9 +274,9 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
 %%
 %% Note: for outgoing messages, the server MUST use the value of the 'to'
 %%       attribute as the target JID.
--spec user_send_packet(Acc :: map(), From :: ejabberd:jid(),
+-spec user_send_packet(Acc :: mongoose_stanza:t(), From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
-                       Packet :: jlib:xmlel()) -> map().
+                       Packet :: jlib:xmlel()) -> mongoose_stanza:t().
 user_send_packet(Acc, From, To, Packet) ->
     ?DEBUG("Send packet~n    from ~p ~n    to ~p~n    packet ~p.",
               [From, To, Packet]),
@@ -291,13 +291,7 @@ user_send_packet(Acc, From, To, Packet) ->
 %%
 %% Return drop to drop the packet, or the original input to let it through.
 %% From and To are jid records.
--type fpacket() :: {From :: ejabberd:jid(),
-                    To :: ejabberd:jid(),
-                    Packet :: jlib:xmlel()}.
--spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
-%%filter_packet(drop) ->
-%%    drop;
-%%filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
+-spec filter_packet(mongoose_stanza:t()) -> mongoose_stanza:t().
 filter_packet(Acc) ->
     Packet = mongoose_stanza:get(element, Acc),
     From = mongoose_stanza:get(from_jid, Acc),
@@ -328,8 +322,7 @@ process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
 %% @doc A ejabberd's callback with diferent order of arguments.
-%% #rh
--spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map().
+-spec remove_user(any(), ejabberd:user(), ejabberd:server()) -> any().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.

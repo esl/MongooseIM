@@ -157,7 +157,7 @@ dirty_get_connections() ->
 %% Hooks callbacks
 %%====================================================================
 
-node_cleanup(Acc, Node) ->
+node_cleanup(_, Node) ->
     F = fun() ->
                 Es = mnesia:select(
                        s2s,
@@ -168,8 +168,7 @@ node_cleanup(Acc, Node) ->
                                       mnesia:delete_object(E)
                               end, Es)
         end,
-    Res = mnesia:async_dirty(F),
-    maps:put(cleanup_result, Res, Acc).
+    mnesia:async_dirty(F).
 
 -spec key({ejabberd:lserver(), ejabberd:lserver()}, binary()) ->
     binary().
@@ -548,6 +547,7 @@ update_tables() ->
     end.
 
 %% Check if host is in blacklist or white list
+%% first see if it is a subdomain of something we know
 allow_host(MyServer, S2SHost) ->
     Hosts = ?MYHOSTS,
     case lists:dropwhile(
@@ -555,27 +555,31 @@ allow_host(MyServer, S2SHost) ->
                    not lists:member(ParentDomain, Hosts)
            end, parent_domains(MyServer)) of
         [MyHost|_] ->
-            allow_host1(MyHost, S2SHost);
+            allow_host_local_option(MyHost, S2SHost);
         [] ->
-            allow_host1(MyServer, S2SHost)
+            allow_host_local_option(MyServer, S2SHost)
     end.
 
-allow_host1(MyHost, S2SHost) ->
-    case ejabberd_config:get_local_option({{s2s_host, S2SHost}, MyHost}) of
+allow_host_local_option(MyHost, S2SHost) ->
+    LocalDecision = ejabberd_config:get_local_option({{s2s_host, S2SHost}, MyHost}),
+    allow_host_default_policy(LocalDecision, MyHost, S2SHost).
+
+allow_host_default_policy(deny, _, _) ->
+    false;
+allow_host_default_policy(allow, _, _) ->
+    true;
+allow_host_default_policy(_, MyHost, S2SHost) ->
+    DefaultDecision =  ejabberd_config:get_local_option({s2s_default_policy, MyHost}),
+    allow_host_hook(DefaultDecision, MyHost, S2SHost).
+
+allow_host_hook(deny, _, _) ->
+    false;
+allow_host_hook(_, MyHost, S2SHost) ->
+    case ejabberd_hooks:run_fold(s2s_allow_host, MyHost,
+        allow, [MyHost, S2SHost]) of
         deny -> false;
         allow -> true;
-        _ ->
-            case ejabberd_config:get_local_option({s2s_default_policy, MyHost}) of
-                deny -> false;
-                _ ->
-                    Acc = mongoose_stanza:from_kv(host_allowed, allow),
-                    Acc2 = ejabberd_hooks:run_fold(s2s_allow_host, MyHost, Acc, [MyHost, S2SHost]),
-                    case mongoose_stanza:get(host_allowed, Acc2) of
-                        deny -> false;
-                        allow -> true;
-                        _ -> true
-                    end
-            end
+        _ -> true
     end.
 
 %% @doc Get information about S2S connections of the specified type.

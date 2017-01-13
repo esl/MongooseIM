@@ -45,7 +45,7 @@ stop(Host) ->
 
 %% Business API
 
--spec check_packet(#xmlel{}, amp_event()) -> #xmlel{} | drop.
+-spec check_packet(xmlel(), amp_event()) -> xmlel() | drop.
 check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
     ?DEPRECATED,
     case xml:get_attr(<<"from">>, Attrs) of
@@ -59,7 +59,7 @@ check_packet(Stanza, Event) ->
     From = mongoose_stanza:get(from_jid, Stanza),
     ejabberd_hooks:run_fold(amp_check_packet, Host, Stanza, [From, Event]).
 
--spec check_packet(#xmlel{}, jid(), amp_event()) -> #xmlel{} | drop.
+-spec check_packet(xmlel(), jid(), amp_event()) -> xmlel() | drop.
 check_packet(Packet = #xmlel{name = <<"message">>}, #jid{lserver = Host} = From, Event) ->
     ?DEPRECATED,
     Stanza = mongoose_stanza:from_element(Packet),
@@ -70,9 +70,7 @@ check_packet(Packet, _, _) ->
     Packet.
 
 add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
-    Features = result_or(Acc, []) ++ amp_features(),
-    Features = mongoose_stanza:get(features, Acc, []) ++ amp_features(),
-    mongoose_stanza:put(features, Features, Acc);
+    mongoose_stanza:append(features, amp_features(), Acc);
 add_local_features(Acc, _From, _To, _NS, _Lang) ->
     Acc.
 
@@ -81,7 +79,7 @@ add_stream_feature(Acc, _Host) ->
     NFeat = lists:keystore(<<"amp">>, #xmlel.name, Feat, ?AMP_FEATURE),
     mongoose_stanza:put(enabled_features, NFeat, Acc).
 
--spec amp_check_packet(map() | drop, jid(), amp_event()) -> map() | drop.
+-spec amp_check_packet(mongoose_stanza:t() | drop, jid(), amp_event()) -> mongoose_stanza:t().
 amp_check_packet(Acc, From, Event) ->
     Packet = mongoose_stanza:get(element, Acc),
     case do_amp_check_packet(Packet, From, Event) of
@@ -114,7 +112,7 @@ amp_features() ->
     ,<<"http://jabber.org/protocol/amp?condition=match-resource">>
     ].
 
--spec process_amp_rules(#xmlel{}, jid(), amp_event(), amp_rules()) -> #xmlel{} | drop.
+-spec process_amp_rules(xmlel(), jid(), amp_event(), amp_rules()) -> xmlel() | drop.
 process_amp_rules(Packet, From, Event, Rules) ->
     VerifiedRules = verify_support(host(From), Rules),
     {Good, Bad} = lists:partition(fun is_supported_rule/1, VerifiedRules),
@@ -135,7 +133,7 @@ verify_support(Host, Rules) ->
                                   [Rules]),
     mongoose_stanza:get(supported, Res).
 
--spec determine_strategy(#xmlel{}, jid(), amp_event()) -> amp_strategy().
+-spec determine_strategy(xmlel(), jid(), amp_event()) -> amp_strategy().
 determine_strategy(Packet, From, Event) ->
     To = message_target(Packet),
     Res = ejabberd_hooks:run_fold(amp_determine_strategy, host(From),
@@ -143,7 +141,7 @@ determine_strategy(Packet, From, Event) ->
                             [From, To, Packet, Event]),
     mongoose_stanza:get(strategy, Res).
 
--spec fold_apply_rules(#xmlel{}, jid(), amp_strategy(), [amp_rule()]) ->
+-spec fold_apply_rules(xmlel(), jid(), amp_strategy(), [amp_rule()]) ->
                               no_match | {matched | undecided, amp_rule()}.
 fold_apply_rules(_, _, _, []) -> 'no_match';
 fold_apply_rules(Packet, From, Strategy, [Rule|Rest]) ->
@@ -158,8 +156,8 @@ resolve_condition(From, Strategy, Rule) ->
       (amp_check_condition, host(From), no_match,
        [Strategy, Rule]).
 
--spec take_action(#xmlel{}, jid(), amp_event(), no_match | {matched | undecided, amp_rule()}) ->
-                         #xmlel{} | drop.
+-spec take_action(xmlel(), jid(), amp_event(), no_match | {matched | undecided, amp_rule()}) ->
+                         xmlel() | drop.
 take_action(Packet, _From, initial_check, no_match) ->
     amp:strip_amp_el(Packet);
 take_action(Packet, From, _, {match, Rule}) ->
@@ -167,7 +165,7 @@ take_action(Packet, From, _, {match, Rule}) ->
 take_action(Packet, _From, _, _) ->
     Packet.
 
--spec take_action_for_matched_rule(#xmlel{}, jid(), amp_rule()) -> #xmlel{} | drop.
+-spec take_action_for_matched_rule(xmlel(), jid(), amp_rule()) -> xmlel() | drop.
 take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule) ->
     Host = host(From),
     reply_to_sender(Rule, server_jid(From), From, Packet),
@@ -178,16 +176,16 @@ take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule) ->
 take_action_for_matched_rule(Packet, From, #amp_rule{action = drop}) ->
     update_metric_and_drop(Packet, From).
 
--spec reply_to_sender(amp_rule(), jid(), jid(), #xmlel{}) -> ok.
+-spec reply_to_sender(amp_rule(), jid(), jid(), xmlel()) -> ok.
 reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
     Response = amp:make_response(MatchedRule, OriginalSender, OriginalPacket),
     ejabberd_router:route(ServerJid, OriginalSender, Response).
 
--spec send_error_and_drop(#xmlel{}, jid(), amp_error(), amp_rule()) -> drop.
+-spec send_error_and_drop(xmlel(), jid(), amp_error(), amp_rule()) -> drop.
 send_error_and_drop(Packet, From, AmpError, MatchedRule) ->
     send_errors_and_drop(Packet, From, [{AmpError, MatchedRule}]).
 
--spec send_errors_and_drop(#xmlel{}, jid(), [{amp_error(),amp_rule()}]) -> drop.
+-spec send_errors_and_drop(xmlel(), jid(), [{amp_error(), amp_rule()}]) -> drop.
 send_errors_and_drop(Packet, From, []) ->
     ?ERROR_MSG("~p from ~p generated an empty list of errors. This shouldn't happen!",
                [Packet, From]),
@@ -200,15 +198,13 @@ send_errors_and_drop(Packet, From, ErrorRules) ->
     ejabberd_hooks:run(amp_error_action_triggered, Host, [Host]),
     update_metric_and_drop(Packet, From).
 
--spec update_metric_and_drop(#xmlel{}, jid()) -> drop.
+-spec update_metric_and_drop(xmlel(), jid()) -> drop.
 update_metric_and_drop(Packet, From) ->
     ejabberd_hooks:run(xmpp_stanza_dropped, host(From),
                        [From, message_target(Packet), Packet]),
     drop.
 
 %% Internal
-result_or({result, I},_) -> I;
-result_or(_, Or)         -> Or.
 
 -spec is_supported_rule(amp_rule_support()) -> boolean().
 is_supported_rule({supported, _}) -> true;
@@ -220,7 +216,7 @@ host(#jid{lserver=Host}) -> Host.
 server_jid(#jid{lserver = Host}) ->
     jid:from_binary(Host).
 
--spec message_target(#xmlel{}) -> jid() | undefined.
+-spec message_target(xmlel()) -> jid() | undefined.
 message_target(El) ->
     case exml_query:attr(El, <<"to">>) of
         undefined -> undefined;

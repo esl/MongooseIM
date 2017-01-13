@@ -175,10 +175,10 @@ remove_connection(SID, LUser, LServer) ->
 
 
 %% @doc Register connection
--spec register_connection(Acc :: map(),
+-spec register_connection(Acc :: mongoose_stanza:t(),
                           SID :: ejabberd_sm:sid(),
                           JID :: ejabberd:jid(),
-                          Info :: list()) -> map().
+                          Info :: list()) -> mongoose_stanza:t().
 register_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, Info) ->
     case lists:keyfind(auth_module, 1, Info) of
         {_, ?MODULE} ->
@@ -194,10 +194,10 @@ register_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, Info) ->
 
 
 %% @doc Remove an anonymous user from the anonymous users table
--spec unregister_connection(Acc :: map(),
+-spec unregister_connection(Acc :: mongoose_stanza:t(),
                             SID :: ejabberd_sm:sid(),
                             JID :: ejabberd:jid(),
-                            any(), ejabberd_sm:close_reason()) -> {atomic|error|aborted, _}.
+                            any(), ejabberd_sm:close_reason()) -> mongoose_stanza:t().
 unregister_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, _, _) ->
     purge_hook(anonymous_user_exist(LUser, LServer),
                LUser, LServer),
@@ -212,10 +212,10 @@ purge_hook(false, _LUser, _LServer) ->
 purge_hook(true, LUser, LServer) ->
     ejabberd_hooks:run(anonymous_purge_hook, LServer, [LUser, LServer]).
 
--spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(),
+-spec session_cleanup(Acc :: mongoose_stanza:t(), LUser :: ejabberd:luser(),
                       LServer :: ejabberd:lserver(),
                       LResource :: ejabberd:lresource(),
-                      SID :: ejabberd_sm:sid()) -> any().
+                      SID :: ejabberd_sm:sid()) -> mongoose_stanza:t().
 session_cleanup(Acc, LUser, LServer, _LResource, SID) ->
     remove_connection(SID, LUser, LServer),
     Acc.

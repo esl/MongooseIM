@@ -205,7 +205,6 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
             {DefaultMode, AlwaysJIDs, NeverJIDs}
     end.
 
-%% #rh
 remove_archive(Host, ArcID, ArcJID) ->
     remove_archive(ok, Host, ArcID, ArcJID).
 

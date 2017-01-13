@@ -260,10 +260,9 @@ lookup_messages(Result, Host, ArcID, _ArcJID,
     Result.
 
 
-%% #rh
--spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
+-spec remove_archive(Acc :: any(), Host :: ejabberd:server(),
                      RoomId :: mod_mam:archive_id(),
-                     RoomJID :: ejabberd:jid()) -> map().
+                     RoomJID :: ejabberd:jid()) -> any().
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
     wait_flushing(Host, ArcID),
     Acc.

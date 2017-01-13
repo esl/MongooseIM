@@ -12,8 +12,9 @@
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 
--spec determine_strategy(amp_strategy(), jid() | undefined, jid() | undefined, #xmlel{}, amp_event()) ->
-                                amp_strategy().
+-spec determine_strategy(amp_strategy(), jid() | undefined, jid() | undefined,
+                         #xmlel{}, amp_event()) ->
+    amp_strategy().
 determine_strategy(_, _, undefined, _, _) -> null_strategy();
 determine_strategy(Acc, _, To, _, Event) ->
     TargetResources = get_target_resources(To),

@@ -330,14 +330,6 @@ register_commands(Acc, [Command|Tail]) ->
     ets:insert_new(mongoose_commands, Command),
     Acc2 = ejabberd_hooks:run_fold(register_command, global, Acc, [Command]),
     register_commands(Acc2, Tail).
-%%    lists:foreach(
-%%        fun(Command) ->
-%%            check_registration(Command), %% may throw
-%%            ets:insert_new(mongoose_commands, Command),
-%%            ejabberd_hooks:run_fold(register_command, global, [Command], []),
-%%            ok
-%%        end,
-%%        Commands).
 
 -spec unregister_commands([t()]) -> ok.
 unregister_commands(Commands) ->
@@ -349,12 +341,6 @@ unregister_commands(Acc, [Command|Tail]) ->
     ets:delete_object(mongoose_commands, Command),
     Acc2 = ejabberd_hooks:run_fold(unregister_command, global, Acc, [Command]),
     unregister_commands(Acc2, Tail).
-%%    lists:foreach(
-%%        fun(Command) ->
-%%            ets:delete_object(mongoose_commands, Command),
-%%            ejabberd_hooks:run_fold(unregister_command, global, [Command], [])
-%%        end,
-%%        Commands).
 
 execute_command(Caller, Command, Args) ->
     try check_and_execute(Caller, Command, Args) of

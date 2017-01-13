@@ -135,9 +135,8 @@ stop(_Host) ->
 %% Hooks handlers
 %%--------------------------------------------------------------------
 
-node_cleanup(Acc, Node) ->
-    Res = ?BOSH_BACKEND:node_cleanup(Node),
-    maps:put(cleanup_result, Res, Acc).
+node_cleanup(_, Node) ->
+    ?BOSH_BACKEND:node_cleanup(Node).
 
 %%--------------------------------------------------------------------
 %% cowboy_loop_handler callbacks

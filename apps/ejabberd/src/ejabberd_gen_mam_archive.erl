@@ -19,8 +19,8 @@
         IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
                                 | {error, 'policy-violation'}.
 
--callback remove_archive(Host :: ejabberd:server(),
-    ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid()) -> 'ok'.
+-callback remove_archive(Acc :: mongoose_stanza:t(), Host :: ejabberd:server(),
+    ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid()) -> any().
 
 -callback purge_single_message(Result :: purge_single_message_result(), Host :: ejabberd:server(),
         MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),

@@ -117,7 +117,6 @@ store_archive_id(UserID, _Host, ArcJID) ->
     maybe_cache_archive_id(ArcJID, UserID),
     UserID.
 
-%% #rh
 remove_archive(Acc, _Host, _UserID, ArcJID) ->
     clean_cache(ArcJID),
     Acc.
