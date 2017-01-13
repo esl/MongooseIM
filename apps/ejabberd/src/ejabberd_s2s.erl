@@ -572,11 +572,9 @@ allow_host_default_policy(_, MyHost, S2SHost) ->
     DefaultDecision =  ejabberd_config:get_local_option({s2s_default_policy, MyHost}),
     allow_host_hook(DefaultDecision, MyHost, S2SHost).
 
-allow_host_hook(deny, _, _) ->
-    false;
-allow_host_hook(_, MyHost, S2SHost) ->
+allow_host_hook(Default, MyHost, S2SHost) ->
     case ejabberd_hooks:run_fold(s2s_allow_host, MyHost,
-        allow, [MyHost, S2SHost]) of
+        Default, [MyHost, S2SHost]) of
         deny -> false;
         allow -> true;
         _ -> true
