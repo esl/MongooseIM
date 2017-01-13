@@ -30,7 +30,10 @@ all() ->
      forwards_offline_presence_to_presence_topic,
      does_not_forward_messages_without_body,
      does_not_forward_messages_when_topic_is_unset,
-     does_not_forward_presences_when_topic_is_unset
+     does_not_forward_presences_when_topic_is_unset,
+     calls_callback_module_to_get_user_id,
+     calls_callback_module_to_retrieve_attributes_for_presence,
+     calls_callback_module_to_retrieve_attributes_for_message
     ].
 
 %% Tests
@@ -93,6 +96,27 @@ does_not_forward_presences_when_topic_is_unset(Config) ->
     user_not_present_callback(Config),
     ?assertNot(meck:called(erlcloud_sns, publish, '_')).
 
+calls_callback_module_to_get_user_id(Config) ->
+    Module = custom_callback_module("customuserid", #{}),
+    set_sns_config(#{plugin_module => Module}),
+    expect_message_entry(<<"user_id">>, "customuserid"),
+    user_not_present_callback(Config),
+    ?assert(meck:called(Module, user_guid, '_')).
+
+calls_callback_module_to_retrieve_attributes_for_presence(Config) ->
+    Module = custom_callback_module("", #{"a" => 123}),
+    set_sns_config(#{plugin_module => Module}),
+    expect_attributes("a", 123),
+    user_not_present_callback(Config),
+    ?assert(meck:called(Module, message_attributes, ['_', '_', '_'])).
+
+calls_callback_module_to_retrieve_attributes_for_message(Config) ->
+    Module = custom_callback_module("", #{"b" => "abc"}),
+    set_sns_config(#{plugin_module => Module}),
+    expect_attributes("b", "abc"),
+    send_packet_callback(Config, <<"groupchat">>, <<"message">>),
+    ?assert(meck:called(Module, message_attributes, ['_', '_', '_', '_', '_'])).
+
 %% Fixtures
 
 init_per_suite(Config) ->
@@ -127,6 +151,15 @@ user_not_present_callback(Config) ->
 
 %% Helpers
 
+custom_callback_module(UserId, Attributes) ->
+    Module = mod_aws_sns_SUITE_mockcb,
+    set_sns_config(#{plugin_module => Module}),
+    meck:new(Module, [non_strict]),
+    meck:expect(Module, user_guid, fun(_) -> UserId end),
+    meck:expect(Module, message_attributes, fun(_, _, _) -> Attributes end),
+    meck:expect(Module, message_attributes, fun(_, _, _, _, _) -> Attributes end),
+    Module.
+
 craft_arn(Topic) ->
     craft_arn(proplists:get_value(region, ?DEFAULT_SNS_CONFIG),
               proplists:get_value(account_id, ?DEFAULT_SNS_CONFIG), Topic).
@@ -145,6 +178,11 @@ expect_message_entry(Key, Value) ->
               MessageObject = jiffy:decode(unicode:characters_to_binary(JSON), [return_maps]),
               Value = maps:get(Key, MessageObject)
       end).
+
+expect_attributes(Key, Value) ->
+    meck:expect(
+      erlcloud_sns, publish,
+      fun(_, _, _, _, Attrs, _) -> Value = proplists:get_value(Key, Attrs) end).
 
 set_sns_config(Overrides) ->
     meck:expect(gen_mod, get_module_opt,
