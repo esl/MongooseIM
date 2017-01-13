@@ -56,7 +56,13 @@ creates_proper_sns_topic_arn(Config) ->
     meck:expect(erlcloud_sns, publish, fun(_, _, _, _, _, _) -> ok end),
     ExpectedTopic = craft_arn("user_message_sent-dev-1"),
     send_packet_callback(Config, <<"chat">>, <<"message">>),
-    ?assert(meck:called(erlcloud_sns, publish, [topic, ExpectedTopic, '_', '_', '_', '_'])).
+    ?assert(meck:called(erlcloud_sns, publish, [topic, ExpectedTopic, '_', '_', '_', '_'])),
+
+    set_sns_config(#{pm_messages_topic => "othertopicname", account_id =>
+                         "otheraccountid", region => "otherregion"}),
+    OtherExpectedTopic = craft_arn("otherregion", "otheraccountid", "othertopicname"),
+    send_packet_callback(Config, <<"chat">>, <<"message">>),
+    ?assert(meck:called(erlcloud_sns, publish, [topic, OtherExpectedTopic, '_', '_', '_', '_'])).
 
 forwards_online_presence_to_presence_topic(Config) ->
     expect_message_entry(<<"present">>, true),
@@ -122,7 +128,11 @@ user_not_present_callback(Config) ->
 %% Helpers
 
 craft_arn(Topic) ->
-    "arn:aws:sns:eu-west-1:251423380551:" ++ Topic.
+    craft_arn(proplists:get_value(region, ?DEFAULT_SNS_CONFIG),
+              proplists:get_value(account_id, ?DEFAULT_SNS_CONFIG), Topic).
+
+craft_arn(Region, UserId, Topic) ->
+    "arn:aws:sns:" ++ Region ++ ":" ++ UserId ++ ":" ++ Topic.
 
 expect_topic(ExpectedTopic) ->
     meck:expect(erlcloud_sns, publish,
