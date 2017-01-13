@@ -42,7 +42,8 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     mod_disco:register_feature(Host, ?NS_HTTP_UPLOAD),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_HTTP_UPLOAD, ?MODULE,
-                                  iq_handler, IQDisc).
+                                  iq_handler, IQDisc),
+    gen_mod:start_backend_module(?MODULE, with_default_backend(Opts), [create_slot]).
 
 
 -spec stop(Host :: ejabberd:server()) -> any().
@@ -60,11 +61,10 @@ iq_handler(_From, _To, IQ = #iq{type = get, sub_el = Request}) ->
         {Filename, Size, ContentType} ->
             UTCDateTime = calendar:universal_time(),
             Token = generate_token(),
-            BackendModule = backend_module(),
             Opts = module_opts(),
 
-            {PutUrl, GetUrl} = BackendModule:create_slot(UTCDateTime, Token, Filename,
-                                                         ContentType, Size, Opts),
+            {PutUrl, GetUrl} = mod_http_upload_backend:create_slot(
+                                 UTCDateTime, Token, Filename, ContentType, Size, Opts),
 
             compose_iq_reply(IQ, PutUrl, GetUrl);
 
@@ -95,10 +95,12 @@ token_bytes() ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, token_bytes, 32).
 
 
--spec backend_module() -> atom().
-backend_module() ->
-    Backend = gen_mod:get_module_opt(?MYNAME, ?MODULE, backend, s3),
-    binary_to_atom(<<"http_upload_", (atom_to_binary(Backend, latin1))/binary>>, latin1).
+-spec with_default_backend(Opts :: proplists:proplist()) -> proplists:proplist().
+with_default_backend(Opts) ->
+    case lists:keyfind(backend, 1, Opts) of
+        false -> [{backend, s3} | Opts];
+        _ -> Opts
+    end.
 
 
 -spec module_opts() -> proplists:proplist().
