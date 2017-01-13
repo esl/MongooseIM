@@ -1,4 +1,4 @@
--module(http_upload_s3_SUITE).
+-module(mod_http_upload_s3_SUITE).
 -compile([export_all]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -157,7 +157,7 @@ creates_get_url_to_the_resource(_Config) ->
 %% Helpers
 
 create_slot(Args) ->
-    http_upload_s3:create_slot(
+    mod_http_upload_s3:create_slot(
       maps:get(timestamp, Args, ?TIMESTAMP),
       maps:get(token, Args, ?TOKEN),
       maps:get(filename, Args, ?FILENAME),

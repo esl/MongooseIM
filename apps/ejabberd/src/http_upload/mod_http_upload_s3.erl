@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 
--module(http_upload_s3).
+-module(mod_http_upload_s3).
 -author('konrad.zemek@gmail.com').
 -behaviour(mod_http_upload).
 

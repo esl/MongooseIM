@@ -23,18 +23,18 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, http_upload_s3}].
+    [{group, mod_http_upload_s3}].
 
 groups() ->
-    [{http_upload_s3, [], [
-                           http_upload_service_discovery,
-                           request_slot,
-                           get_url_ends_with_filename,
-                           urls_contain_s3_hostname,
-                           rejects_empty_filename,
-                           rejects_negative_filesize,
-                           rejects_invalid_size_type
-                          ]}].
+    [{mod_http_upload_s3, [], [
+                               http_upload_service_discovery,
+                               request_slot,
+                               get_url_ends_with_filename,
+                               urls_contain_s3_hostname,
+                               rejects_empty_filename,
+                               rejects_negative_filesize,
+                               rejects_invalid_size_type
+                              ]}].
 
 suite() ->
     escalus:suite().
@@ -49,7 +49,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(http_upload_s3, Config) ->
+init_per_group(mod_http_upload_s3, Config) ->
     dynamic_modules:start(<<"localhost">>, mod_http_upload, ?S3_OPTS),
     escalus:create_users(Config, escalus:get_users([bob])).
 
