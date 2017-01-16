@@ -515,7 +515,10 @@ get_subscription_lists(Acc, User, Server) ->
     LServer = jid:nameprep(Server),
     Items = ?BACKEND:get_subscription_lists(Acc, LUser, LServer),
     JID = jid:make(User, Server, <<>>),
-    fill_subscription_lists(JID, LServer, Items, [], [], []).
+    {F, T, P} = fill_subscription_lists(JID, LServer, Items, [], [], []),
+    A1 = mongoose_stanza:append(from, F, Acc),
+    A2 = mongoose_stanza:append(to, T, A1),
+    mongoose_stanza:append(pending, P, A2).
 
 
 fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->

@@ -39,7 +39,7 @@
          disconnect_removed_user/3,
          get_user_resources/2,
          set_presence/7,
-         unset_presence/6,
+         unset_presence/7,
          close_session_unset_presence/6,
          get_unique_sessions_number/0,
          get_total_sessions_number/0,
@@ -290,31 +290,33 @@ get_raw_sessions(User, Server) ->
     clean_session_list(
       ?SM_BACKEND:get_sessions(jid:nodeprep(User), jid:nameprep(Server))).
 
--spec set_presence(SID, User, Server, Resource, Prio, Presence, Info) -> ok when
+-spec set_presence(Stanza, SID, User, Server, Resource, Prio, Info) -> ok when
+      Stanza :: map(),
       SID :: 'undefined' | sid(),
       User :: ejabberd:user(),
       Server :: ejabberd:server(),
       Resource :: ejabberd:resource(),
       Prio :: 'undefined' | integer(),
-      Presence :: any(),
       Info :: 'undefined' | [any()].
-set_presence(SID, User, Server, Resource, Priority, Presence, Info) ->
+set_presence(Stanza, SID, User, Server, Resource, Priority, Info) ->
+    Presence = mongoose_stanza:get(element, Stanza),
     set_session(SID, User, Server, Resource, Priority, Info),
-    ejabberd_hooks:run(set_presence_hook, jid:nameprep(Server),
+    ejabberd_hooks:run_fold(set_presence_hook, jid:nameprep(Server), Stanza,
                        [User, Server, Resource, Presence]).
 
 
--spec unset_presence(SID, User, Server, Resource, Status, Info) -> ok when
+-spec unset_presence(Stanza, SID, User, Server, Resource, Status, Info) -> ok when
+      Stanza :: map(),
       SID :: 'undefined' | sid(),
       User :: ejabberd:user(),
       Server :: ejabberd:server(),
       Resource :: ejabberd:resource(),
       Status :: any(),
       Info :: 'undefined' | [any()].
-unset_presence(SID, User, Server, Resource, Status, Info) ->
+unset_presence(Stanza, SID, User, Server, Resource, Status, Info) ->
     set_session(SID, User, Server, Resource, undefined, Info),
     LServer = jid:nameprep(Server),
-    ejabberd_hooks:run(unset_presence_hook, LServer,
+    ejabberd_hooks:run_fold(unset_presence_hook, LServer, Stanza,
                        [jid:nodeprep(User), LServer,
                         jid:resourceprep(Resource), Status]).
 
@@ -699,17 +701,51 @@ broadcast_packet(From, To, Packet) ->
 %% and is processed if there is no active list set
 %% for the target session/resource to which a stanza is addressed,
 %% or if there are no current sessions for the user.
+%% There are now many ways of calling this func, but only a few of them are correct
+%% The correct ones are:
+%% is_privacy_allow(To, Stanza)
+%% is_privacy_allow(To, Stanza, PrivacyList)
+%% but only if the Stanza has already been checked by privacy_check or something similary
+%% because, since this function returns only true|false, we lose the check result
+-spec is_privacy_allow(To, Stanza) -> boolean() when
+    To :: ejabberd:jid(),
+    Stanza :: map().
+is_privacy_allow(To, Stanza) ->
+    User = To#jid.user,
+    Server = To#jid.server,
+    Stanza1 = case mongoose_stanza:get(user_privacy_list, Stanza, undefined) of
+                  undefined ->
+                      ejabberd_hooks:run_fold(privacy_get_user_list, Server,
+                          Stanza, [User, Server]);
+                  _ ->
+                      Stanza
+              end,
+    PrivacyList = mongoose_stanza:get(user_privacy_list, Stanza1, #userlist{}),
+    is_privacy_allow(To, Stanza, PrivacyList).
+
 -spec is_privacy_allow(From, To, Packet) -> boolean() when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
-      Packet :: jlib:xmlel().
-is_privacy_allow(From, To, Packet) ->
+      Packet :: jlib:xmlel() | map().
+is_privacy_allow(From, To, #xmlel{} = Packet) ->
+    ?DEPRECATED,
     User = To#jid.user,
     Server = To#jid.server,
-    PrivacyList = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                                          #userlist{}, [User, Server]),
-    is_privacy_allow(From, To, Packet, PrivacyList).
-
+    Res = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
+                                          mongoose_stanza:new(), [User, Server]),
+    PrivacyList = mongoose_stanza:get(user_privacy_list, Res, #userlist{}),
+    is_privacy_allow(From, To, Packet, PrivacyList);
+is_privacy_allow(To, Stanza, PrivacyList) ->
+    case mongoose_privacy:check_result(To, Stanza) of
+        undefined ->
+            ?DEPRECATED, % we shouldn't call this if we haven't checked privacy before
+            User = To#jid.user,
+            Server = To#jid.server,
+            {ok, _, Res} = mongoose_privacy:privacy_check_packet(User, Server, PrivacyList, Stanza, To, in),
+            allow == Res;
+        {ok, Res} ->
+            allow == Res
+    end.
 
 %% @doc Check if privacy rules allow this delivery
 %% Function copied from ejabberd_c2s.erl
@@ -719,13 +755,15 @@ is_privacy_allow(From, To, Packet) ->
       Packet :: jlib:xmlel(),
       PrivacyList :: list().
 is_privacy_allow(From, To, Packet, PrivacyList) ->
+    ?DEPRECATED,
     User = To#jid.user,
     Server = To#jid.server,
-    allow == ejabberd_hooks:run_fold(
+    Res = ejabberd_hooks:run_fold(
                privacy_check_packet, Server,
-               allow,
+               mongoose_stanza:from_kv(privacy_check, allow),
                [User, Server, PrivacyList,
-                {From, To, Packet}, in]).
+                {From, To, Packet}, in]),
+    allow == mongoose_stanza:get(privacy_check, Res).
 
 
 -spec route_message(From, To, Packet) -> ok | stop when

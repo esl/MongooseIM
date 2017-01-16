@@ -294,8 +294,8 @@ user_send_packet(Acc, From, To, Packet) ->
 -spec filter_packet(mongoose_stanza:t()) -> mongoose_stanza:t().
 filter_packet(Acc) ->
     Packet = mongoose_stanza:get(element, Acc),
-    From = mongoose_stanza:get(from, Acc),
-    To = mongoose_stanza:get(to, Acc),
+    From = mongoose_stanza:get(from_jid, Acc),
+    To = mongoose_stanza:get(to_jid, Acc),
     #jid{luser=LUser, lserver=LServer} = To,
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
@@ -315,8 +315,8 @@ filter_packet(Acc) ->
                         {archived, replace_archived_elem(BareTo, MessID, Packet)}
                 end
         end,
-    PacketAfterAmp = mod_amp:check_packet(PacketAfterArchive, From, AmpEvent),
-    mongoose_stanza:put(element, PacketAfterAmp, Acc).
+    StanzaAfterArchive = mongoose_stanza:put(element, PacketAfterArchive, Acc),
+    mod_amp:check_packet(StanzaAfterArchive, AmpEvent). % we return stanza with packet after amp
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
