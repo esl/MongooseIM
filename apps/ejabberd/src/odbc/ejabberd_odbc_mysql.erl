@@ -61,7 +61,7 @@ mysql_to_odbc({error, MySQLRes}) ->
 
 %% @doc When tabular data is returned, convert it to the ODBC formalism
 -spec mysql_item_to_odbc(Columns :: [tuple()],
-                         Recs :: [[any()]]) -> {'selected',[any()],[tuple()]}.
+                         Recs :: [[any()]]) -> {'selected', [any()], [tuple()]}.
 mysql_item_to_odbc(Columns, Recs) ->
     %% For now, there is a bug and we do not get the correct value from MySQL
     %% module:

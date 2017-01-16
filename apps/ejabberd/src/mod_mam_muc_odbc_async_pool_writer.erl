@@ -91,7 +91,7 @@ worker_number(Host, ArcID) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(),_) -> 'ok'.
+-spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
     {ok, Pool} = ejabberd_odbc_sup:add_pool(Host, ?MODULE, undefined, worker_count(Host)),
     start_workers(Host, Pool),
@@ -132,9 +132,9 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
--spec start_workers(ejabberd:server(), Pool :: pid()) -> [{'error',_}
-                                        | {'ok','undefined' | pid()}
-                                        | {'ok','undefined' | pid(),_}].
+-spec start_workers(ejabberd:server(), Pool :: pid()) -> [{'error', _}
+                                        | {'ok', 'undefined' | pid()}
+                                        | {'ok', 'undefined' | pid(), _}].
 start_workers(Host, Pool) ->
     [start_worker(WriterProc, N, Host, Pool)
      || {N, WriterProc} <- worker_names(Host)].
@@ -148,8 +148,8 @@ stop_workers(Host) ->
 
 -spec start_worker(atom(), integer(), ejabberd:server(), Pool :: pid())
       -> {'error', _}
-         | {'ok','undefined' | pid()}
-         | {'ok','undefined' | pid(), _}.
+         | {'ok', 'undefined' | pid()}
+         | {'ok', 'undefined' | pid(), _}.
 start_worker(WriterProc, N, Host, Pool) ->
     WriterChildSpec =
     {WriterProc,
@@ -168,7 +168,7 @@ stop_worker(Proc) ->
     supervisor:delete_child(mod_mam_sup, Proc).
 
 
--spec start_link(atom(),_,_, Pool :: pid()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(atom(), _, _, Pool :: pid()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(ProcName, N, Host, Pool) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host, N, Pool], []).
 
@@ -381,7 +381,7 @@ init([Host, N, Pool]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 -spec handle_call('wait_flushing', _, state())
-      -> {'noreply', state()} | {'reply','ok',state()}.
+      -> {'noreply', state()} | {'reply', 'ok', state()}.
 handle_call(get_connection, _From, State=#state{host = Host, conn = Conn}) ->
     {reply, {Host, Conn}, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->

@@ -46,12 +46,12 @@
 % a timeout error to the request
 -define(CONNECT_TIMEOUT, 500). % milliseconds
 
--spec start_link(binary() | string()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(binary() | string()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host) ->
     supervisor:start_link({local, gen_mod:get_module_proc(Host, ?MODULE)},
                           ?MODULE, [Host]).
 
--spec init([ejabberd:server(),...]) -> {'ok',{{_,_,_},[any()]}}.
+-spec init([ejabberd:server(), ...]) -> {'ok', {{_, _, _}, [any()]}}.
 init([Host]) ->
     PoolSize = pool_size(Host),
     PoolName = gen_mod:get_module_proc(Host, ?POOL_NAME),
