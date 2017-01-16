@@ -26,7 +26,7 @@
          queue_lengths/1]).
 
 %% Internal exports
--export([start_link/3]).
+-export([start_link/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -82,7 +82,8 @@ worker_number(Host, ArcID) ->
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
-    start_workers(Host),
+    {ok, Pool} = ejabberd_odbc_sup:add_pool(Host, ?MODULE, undefined, worker_count(Host)),
+    start_workers(Host, Pool),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -109,7 +110,8 @@ stop(Host) ->
         false ->
             ok
     end,
-    stop_workers(Host).
+    stop_workers(Host),
+    ejabberd_odbc_sup:remove_pool(Host, ?MODULE).
 
 
 %% ----------------------------------------------------------------------
@@ -160,17 +162,17 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
-start_workers(Host) ->
-    [start_worker(WriterProc, N, Host)
+start_workers(Host, Pool) ->
+    [start_worker(WriterProc, N, Host, Pool)
      || {N, WriterProc} <- worker_names(Host)].
 
 stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
-start_worker(WriterProc, N, Host) ->
+start_worker(WriterProc, N, Host, Pool) ->
     WriterChildSpec =
     {WriterProc,
-     {mod_mam_odbc_async_pool_writer, start_link, [WriterProc, N, Host]},
+     {mod_mam_odbc_async_pool_writer, start_link, [WriterProc, N, Host, Pool]},
      permanent,
      5000,
      worker,
@@ -182,8 +184,8 @@ stop_worker(Proc) ->
     supervisor:delete_child(mod_mam_sup, Proc).
 
 
-start_link(ProcName, N, Host) ->
-    gen_server:start_link({local, ProcName}, ?MODULE, [Host, N], []).
+start_link(ProcName, N, Host, Pool) ->
+    gen_server:start_link({local, ProcName}, ?MODULE, [Host, N, Pool], []).
 
 
 -spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
@@ -355,9 +357,9 @@ cancel_and_flush_timer(TRef) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, N]) ->
+init([Host, N, Pool]) ->
     %% Use a private ODBC-connection.
-    {ok, Conn} = ejabberd_odbc:get_dedicated_connection(Host),
+    Conn = poolboy:checkout(Pool),
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 500),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
     MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
@@ -375,8 +377,8 @@ init([Host, N]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(get_connection, _From, State=#state{conn = Conn}) ->
-    {reply, Conn, State};
+handle_call(get_connection, _From, State=#state{host = Host, conn = Conn}) ->
+    {reply, {Host, Conn}, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From,
@@ -439,4 +441,3 @@ terminate(_Reason, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
