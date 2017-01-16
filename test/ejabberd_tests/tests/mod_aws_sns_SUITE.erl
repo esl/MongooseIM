@@ -86,12 +86,17 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    %% For mocking with unnamed functions
-    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-    rpc(code, load_binary, [?MODULE, Filename, Binary]),
+    case rpc(application, ensure_all_started, [erlcloud]) of
+        {ok, _} ->
+            %% For mocking with unnamed functions
+            {_Module, Binary, Filename} = code:get_object_code(?MODULE),
+            rpc(code, load_binary, [?MODULE, Filename, Binary]),
 
-    muc_helper:load_muc(muc_host()),
-    escalus:init_per_suite(Config).
+            muc_helper:load_muc(muc_host()),
+            escalus:init_per_suite(Config);
+        {error, _} ->
+            {skip, "erlcloud dependency is not enabled"}
+    end.
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
