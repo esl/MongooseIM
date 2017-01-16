@@ -346,11 +346,10 @@ is_room_owner(_, Room, User) ->
 muc_room_pid(_, _) ->
     {ok, processless}.
 
--spec can_access_room(Acc :: mongoose_stanza:t(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
-    mongoose_stanza:t().
-can_access_room(Acc, User, Room) ->
-    Can = none =/= get_affiliation(Room, User),
-    mongoose_stanza:put(can_access_room, Can, Acc).
+-spec can_access_room(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
+    boolean().
+can_access_room(_, User, Room) ->
+    none =/= get_affiliation(Room, User).
 
 %%====================================================================
 %% Internal functions

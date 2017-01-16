@@ -1186,11 +1186,9 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
             end
     end;
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
-    Stanza = mongoose_stanza:new(),
-    Res = ejabberd_hooks:run_fold(c2s_broadcast_recipients, StateData#state.server,
-                                  Stanza,
+    Recipients = ejabberd_hooks:run_fold(c2s_broadcast_recipients, StateData#state.server,
+                                  [],
                                   [StateData#state.server, StateData, Type, From, Packet]),
-    Recipients = mongoose_stanza:get(recipients, Res, []),
     lists:foreach(
       fun(USR) ->
         ejabberd_router:route(

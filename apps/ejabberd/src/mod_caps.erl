@@ -294,10 +294,8 @@ c2s_filter_packet(Acc, _, _, _, _, _) -> Acc.
 
 c2s_broadcast_recipients(Acc, Host, C2SState,
                          {pep_message, Feature}, _From, _Packet) ->
-    Rec = mongoose_stanza:get(recipients, Acc, []),
     Resources = ejabberd_c2s:get_aux_field(caps_resources, C2SState),
-    NRec = c2s_broadcast_recipients(Resources, Rec, Feature, Host),
-    maps:put(recipients, NRec, Acc);
+    c = c2s_broadcast_recipients(Resources, [], Feature, Host).
 c2s_broadcast_recipients(Acc, _, _, _, _, _) -> Acc.
 
 c2s_broadcast_recipients({ok, Rs}, Rec, Feature, Host) ->

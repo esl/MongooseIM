@@ -337,12 +337,10 @@ is_user_identity_hidden(From, ArcJID) ->
 
 -spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
 can_access_room(From, To) ->
-    Stanza = mongoose_stanza:new(), % some day original stanza will reach this stage
-    Res = ejabberd_hooks:run_fold(can_access_room,
-                                  To#jid.lserver,
-                                  Stanza,
-                                  [From, To]),
-    mongoose_stanza:get(can_access_room, Res, false).
+    ejabberd_hooks:run_fold(can_access_room,
+                            To#jid.lserver,
+                            false,
+                            [From, To]).
 
 
 -spec action_type(action()) -> 'get' | 'set'.
