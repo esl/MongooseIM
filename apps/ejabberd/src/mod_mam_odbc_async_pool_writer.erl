@@ -17,7 +17,6 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
-         remove_archive/3,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -270,9 +269,6 @@ lookup_messages(Result, Host, ArcID, _ArcJID,
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
     wait_flushing(Host, ArcID),
     Acc.
-
-remove_archive(Host, ArcID, _ArcJID) ->
-    wait_flushing(Host, ArcID).
 
 -spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
         MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),

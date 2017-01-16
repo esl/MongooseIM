@@ -102,19 +102,13 @@ delete(Hook, Host, Module, Function, Seq) ->
 -spec run(Hook :: atom(),
           Args :: [any()]) -> ok.
 run(Hook, Args) ->
-    run(Hook, global, Args).
+    run_fold(Hook, global, #{}, Args).
 
 -spec run(Hook :: atom(),
           Host :: ejabberd:server() | global,
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
-    case ets:lookup(hooks, {Hook, Host}) of
-        [{_, Ls}] ->
-            mongoose_metrics:increment_generic_hook_metric(Host, Hook),
-            run1(Ls, Hook, #{}, Args); % run with empty map as accumulator
-        [] ->
-            ok
-    end.
+    run_fold(Hook, Host, #{}, Args).
 
 %% @spec (Hook::atom(), Val, Args) -> Val | stopped | NewVal
 %% @doc Run the calls of this hook in order.
@@ -227,27 +221,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
-
-run1([], _Hook, Acc, _Args) ->
-    Acc;
-run1([{_Seq, Module, Function} | Ls], Hook, Acc, Args) ->
-    Res = if is_function(Function) ->
-                  safely:apply(Function, [Acc|Args]);
-             true ->
-                  safely:apply(Module, Function, [Acc|Args])
-          end,
-    case Res of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p",
-                       [Reason, {Hook, Args}, Module, Function]),
-            run1(Ls, Hook, Acc, Args);
-        stop ->
-            stopped;
-        {stop, NAcc} ->
-            NAcc;
-        NewAcc ->
-            run1(Ls, Hook, NewAcc, Args)
-    end.
 
 run_fold1([], _Hook, Val, _Args) ->
     Val;

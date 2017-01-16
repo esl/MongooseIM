@@ -48,7 +48,6 @@
          get_subscription_lists/3,
          get_roster/2,
          in_subscription/6,
-         in_subscription/7,
          out_subscription/5,
          set_items/3,
          remove_user/2,
@@ -570,19 +569,13 @@ roster_subscribe_t(LUser, LServer, LJID, Item) ->
 transaction(LServer, F) ->
     ?BACKEND:transaction(LServer, F).
 
-in_subscription(Acc, _, User, Server, JID, Type, Reason) ->
+in_subscription(_, User, Server, JID, Type, Reason) ->
     process_subscription(in, User, Server, JID, Type,
-        Reason),
-    Acc.
+        Reason).
 
 out_subscription(Acc, User, Server, JID, Type) ->
     process_subscription(out, User, Server, JID, Type, <<"">>),
     Acc.
-
-%% temporary - for folds
-in_subscription(_, User, Server, JID, Type, Reason) ->
-    process_subscription(in, User, Server, JID, Type,
-                         Reason).
 
 get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
     ?BACKEND:get_roster_by_jid_with_groups_t(LUser, LServer, LJID).

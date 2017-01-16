@@ -258,8 +258,5 @@ remove_user(Acc, User, Server) ->
 -spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
                       LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
-    case on_presence_update(Acc, LUser, LServer, LResource, <<>>) of
-        Acc when is_map(Acc) -> Acc;
-        E -> E
-    end.
+    on_presence_update(Acc, LUser, LServer, LResource, <<>>).
 

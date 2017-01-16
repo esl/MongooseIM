@@ -123,7 +123,6 @@ start(Host, Opts) ->
                                                  remove_privacy_list, replace_privacy_list,
                                                  get_default_list]),
     ?BACKEND:init(Host, Opts),
-%%    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(privacy_iq_get, Host,
                ?MODULE, process_iq_get, 50),
     ejabberd_hooks:add(privacy_iq_set, Host,

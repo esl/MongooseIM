@@ -266,8 +266,8 @@ node_cleanup(Acc, Node) ->
                                       mnesia:delete({iq_response, Key})
                               end, Keys)
         end,
-    Res = mnesia:async_dirty(F),
-    maps:put(cleanup_result, Res, Acc).
+    mnesia:async_dirty(F),
+    Acc.
 
 %%====================================================================
 %% gen_server callbacks

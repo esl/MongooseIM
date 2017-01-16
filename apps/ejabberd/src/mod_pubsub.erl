@@ -64,7 +64,7 @@
 
 %% exports for hooks
 -export([presence_probe/4, caps_change/4, caps_change/5,
-         in_subscription/7, out_subscription/5,
+         in_subscription/6, out_subscription/5,
          on_user_offline/5, remove_user/2, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_local_items/5, disco_sm_identity/5,
@@ -677,7 +677,6 @@ disco_items(Host, Node, From) ->
 %% presence hooks handling functions
 %%
 
-%% #rh
 caps_change(Acc, FromJID, ToJID, Pid, Features) ->
     caps_change(FromJID, ToJID, Pid, Features),
     Acc.
@@ -688,7 +687,6 @@ caps_change(#jid{luser = _U, lserver = S, lresource = _R} = FromJID, ToJID, Pid,
         false -> ok
     end.
 
-%% #rh
 presence_probe(Acc, #jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
     notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID}),
     Acc;
@@ -718,11 +716,11 @@ out_subscription(Acc, User, Server, JID, subscribed) ->
 out_subscription(Acc, _, _, _, _) ->
     Acc.
 
-in_subscription(Acc, _, User, Server, Owner, unsubscribed, _) ->
+in_subscription(_, User, Server, Owner, unsubscribed, _) ->
     unsubscribe_user(jid:make(User, Server, <<>>), Owner),
-    Acc;
-in_subscription(Acc, _, _, _, _, _, _) ->
-    Acc.
+    true;
+in_subscription(_, _, _, _, _, _) ->
+    true.
 
 unsubscribe_user(Entity, Owner) ->
     spawn(fun () ->
@@ -766,7 +764,6 @@ unsubscribe_user(Host, Entity, Owner) ->
 %% user remove hook handling function
 %%
 
-%% #rh
 remove_user(Acc, User, Server) ->
     remove_user(User, Server),
     Acc.

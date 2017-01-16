@@ -39,7 +39,7 @@
          handle_info/2, terminate/2, code_change/3]).
 
 -export([get_user_roster/2, get_subscription_lists/3,
-         get_jid_info/4, process_item/2, in_subscription/7,
+         get_jid_info/4, process_item/2, in_subscription/6,
          out_subscription/5]).
 
 -export([config_change/4]).
@@ -179,12 +179,12 @@ get_jid_info({Subscription, Groups}, User, Server, JID) ->
         error -> {Subscription, Groups}
     end.
 
-in_subscription(Acc, _, User, Server, JID, Type, _Reason) ->
+in_subscription(Acc, User, Server, JID, Type, _Reason) ->
     case process_subscription(in, User, Server, JID, Type) of
         stop ->
             {stop, Acc};
         {stop, false} ->
-            {stop, acc};
+            {stop, false};
         _ -> Acc
     end.
 
@@ -193,7 +193,7 @@ out_subscription(Acc, User, Server, JID, Type) ->
         stop ->
             {stop, Acc};
         {stop, false} ->
-            {stop, acc};
+            {stop, Acc};
         _ -> Acc
     end.
 

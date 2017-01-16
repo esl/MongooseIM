@@ -35,7 +35,7 @@ end_per_suite(_C) ->
 
 init_per_testcase(_, C) ->
     ejabberd_hooks:start_link(),
-    ets:new(local_config, [named_table]),
+    catch ets:new(local_config, [named_table]),
     C.
 
 a_fun_can_be_added(_) ->
