@@ -216,9 +216,8 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
     end.
 
 
-%% #rh
 -spec bounce_offline_message(Acc, From, To, Packet) -> {stop, Acc} when
-      Acc :: map(),
+      Acc :: mongoose_stanza:t(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
@@ -228,15 +227,14 @@ bounce_offline_message(Acc, From, To, Packet) ->
 
 bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
     ejabberd_hooks:run(xmpp_bounce_message,
-        Server,
-        [Server, Packet]),
+                       Server,
+                       [Server, Packet]),
     Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
     ejabberd_router:route(To, From, Err),
     stop.
 
-%% #rh
--spec disconnect_removed_user(map(), User :: ejabberd:user(),
-                              Server :: ejabberd:server()) -> map().
+-spec disconnect_removed_user(mongoose_stanza:t(), User :: ejabberd:user(),
+                              Server :: ejabberd:server()) -> mongoose_stanza:t().
 disconnect_removed_user(Acc, User, Server) ->
     ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),
@@ -405,10 +403,9 @@ unregister_iq_handler(Host, XMLNS) ->
 %% Hook handlers
 %%====================================================================
 
-node_cleanup(Acc, Node) ->
+node_cleanup(_, Node) ->
     Timeout = timer:minutes(1),
-    Res = gen_server:call(?MODULE, {node_cleanup, Node}, Timeout),
-    maps:put(cleanup_result, Res, Acc).
+    gen_server:call(?MODULE, {node_cleanup, Node}, Timeout).
 
 %%====================================================================
 %% gen_server callbacks
@@ -665,8 +662,10 @@ do_route_no_resource(_, _, _, _, _) ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
 do_route_offline(<<"message">>, _, From, To, Packet)  ->
-    Drop = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
-                   false, [From, To, Packet]),
+    Acc = mongoose_stanza:from_kv(drop, false),
+    Acc2 = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
+                   Acc, [From, To, Packet]),
+    Drop = mongoose_stanza:get(drop, Acc2),
     case Drop of
         false ->
             route_message(From, To, Packet);
@@ -734,9 +733,10 @@ is_privacy_allow(From, To, Packet, PrivacyList) ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
 route_message(From, To, Packet) ->
+    Acc = mongoose_stanza:from_element(Packet),
     LUser = To#jid.luser,
     LServer = To#jid.lserver,
-    PrioPid = get_user_present_pids(LUser,LServer),
+    PrioPid = get_user_present_pids(LUser, LServer),
     case catch lists:max(PrioPid) of
         {Priority, _} when is_integer(Priority), Priority >= 0 ->
             lists:foreach(
@@ -770,7 +770,7 @@ route_message(From, To, Packet) ->
                                                        [From, To, Packet]);
                                 false ->
                                     ejabberd_hooks:run_fold(failed_to_store_message,
-                                                            LServer, Packet, [From]),
+                                                            LServer, Acc, [From]),
                                     ok
                             end;
                         _ ->

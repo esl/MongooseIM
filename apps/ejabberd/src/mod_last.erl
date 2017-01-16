@@ -223,8 +223,9 @@ get_last(LUser, LServer) ->
 count_active_users(LServer, Timestamp) ->
     ?BACKEND:count_active_users(LServer, Timestamp).
 
--spec on_presence_update(map(), ejabberd:user(), ejabberd:server(), ejabberd:resource(),
-                         Status :: binary()) -> map() | {error, term()}.
+-spec on_presence_update(mongoose_stanza:t(), ejabberd:user(), ejabberd:server(),
+                         ejabberd:resource(),
+                         Status :: binary()) -> mongoose_stanza:t() | {error, term()}.
 on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
     TimeStamp = now_to_seconds(os:timestamp()),
     case store_last_info(LUser, LServer, TimeStamp, Status) of
@@ -245,8 +246,7 @@ get_last_info(LUser, LServer) ->
         Res -> Res
     end.
 
-%% #rh
--spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map() | {error, term()}.
+-spec remove_user(any(), ejabberd:user(), ejabberd:server()) -> any() | {error, term()}.
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -255,11 +255,8 @@ remove_user(Acc, User, Server) ->
         E -> E
     end.
 
--spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+-spec session_cleanup(Acc :: any(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
                       LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
-    case on_presence_update(Acc, LUser, LServer, LResource, <<>>) of
-        Acc when is_map(Acc) -> Acc;
-        E -> E
-    end.
+    on_presence_update(Acc, LUser, LServer, LResource, <<>>).
 

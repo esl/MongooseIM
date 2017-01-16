@@ -111,7 +111,7 @@ run(Hook, Host, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Host, Hook),
-            run1(Ls, Hook, #{}, Args); % run with empty map as accumulator
+            run1(Ls, Hook, mongoose_stanza:new(), Args); % run with empty accumulator
         [] ->
             ok
     end.
@@ -231,9 +231,10 @@ code_change(_OldVsn, State, _Extra) ->
 run1([], _Hook, Acc, _Args) ->
     Acc;
 run1([{_Seq, Module, Function} | Ls], Hook, Acc, Args) ->
-    Res = if is_function(Function) ->
+    Res = case Function of
+              _ when is_function(Function) ->
                   safely:apply(Function, [Acc|Args]);
-             true ->
+              _ ->
                   safely:apply(Module, Function, [Acc|Args])
           end,
     case Res of

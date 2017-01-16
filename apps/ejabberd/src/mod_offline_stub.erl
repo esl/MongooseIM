@@ -48,6 +48,6 @@ stop(Host) ->
 handlers() ->
     [{offline_message_hook, ?MODULE, stop_hook_processing, 75}].
 
--spec stop_hook_processing(map(), any(), any(), any()) -> {stop, map()}.
+-spec stop_hook_processing(mongoose_stanza:t(), any(), any(), any()) -> {stop, mongoose_stanza:t()}.
 stop_hook_processing(Acc, _From, _To, _Packet) ->
     {stop, Acc}.

@@ -321,24 +321,21 @@ init() ->
 
 %%%% end of API
 -spec register_commands([t()]) -> ok.
-register_commands(Commands) ->
-    lists:foreach(
-        fun(Command) ->
-            check_registration(Command), %% may throw
-            ets:insert_new(mongoose_commands, Command),
-            ejabberd_hooks:run_fold(register_command, global, [Command], []),
-            ok
-        end,
-        Commands).
+register_commands([]) ->
+    ok;
+register_commands([Command|Tail]) ->
+    check_registration(Command), %% may throw
+    ets:insert_new(mongoose_commands, Command),
+    ejabberd_hooks:run_fold(register_command, global, undefined, [Command]),
+    register_commands(Tail).
 
 -spec unregister_commands([t()]) -> ok.
-unregister_commands(Commands) ->
-    lists:foreach(
-        fun(Command) ->
-            ets:delete_object(mongoose_commands, Command),
-            ejabberd_hooks:run_fold(unregister_command, global, [Command], [])
-        end,
-        Commands).
+unregister_commands([]) ->
+    ok;
+unregister_commands([Command|Tail]) ->
+    ets:delete_object(mongoose_commands, Command),
+    ejabberd_hooks:run_fold(unregister_command, global, undefined, [Command]),
+    unregister_commands(Tail).
 
 execute_command(Caller, Command, Args) ->
     try check_and_execute(Caller, Command, Args) of
@@ -373,7 +370,6 @@ check_and_execute(Caller, Command, Args) when is_map(Args) ->
     check_and_execute(Caller, Command, ArgList);
 check_and_execute(Caller, Command, Args) ->
     % check permissions
-    Av = is_available_for(Caller, Command),
     case is_available_for(Caller, Command) of
         true ->
             ok;

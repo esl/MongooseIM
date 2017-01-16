@@ -10,9 +10,10 @@
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 
--spec verify_support(any(), amp_rules()) -> [ amp_rule_support() ].
-verify_support(HookAcc, Rules) ->
-    HookAcc ++ [ verify_rule_support(Rule) || Rule <- Rules ].
+-spec verify_support(mongoose_stanza:t(), amp_rules()) -> mongoose_stanza:t().
+verify_support(Acc, Rules) ->
+    Supp = mongoose_stanza:get(supported, Acc),
+    mongoose_stanza:put(supported, Supp ++ [ verify_rule_support(Rule) || Rule <- Rules ], Acc).
 
 -spec verify_rule_support(amp_rule()) -> amp_rule_support().
 verify_rule_support(#amp_rule{action = alert} = Rule) ->
