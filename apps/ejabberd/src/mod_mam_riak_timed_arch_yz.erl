@@ -26,7 +26,6 @@
          stop/1,
          archive_size/4,
          lookup_messages/10,
-         remove_archive/3,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).

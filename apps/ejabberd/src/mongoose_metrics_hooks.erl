@@ -138,7 +138,7 @@ user_send_packet(Acc, #jid{server = Server},_,Packet) ->
     Acc.
 
 -spec user_send_packet_type(Server :: ejabberd:server(),
-                            Packet :: jlib:xmlel()) -> metrics_notify_return().
+                            Packet :: jlib:xmlel()) -> ok | {error, not_found}.
 user_send_packet_type(Server, #xmlel{name = <<"message">>}) ->
     mongoose_metrics:update(Server, xmppMessageSent, 1);
 user_send_packet_type(Server, #xmlel{name = <<"iq">>}) ->
@@ -153,7 +153,7 @@ user_receive_packet(Acc, #jid{server = Server} ,_,_,Packet) ->
     Acc.
 
 -spec user_receive_packet_type(Server :: ejabberd:server(),
-                               Packet :: jlib:xmlel()) -> metrics_notify_return().
+                               Packet :: jlib:xmlel()) -> ok | {error, not_found}.
 user_receive_packet_type(Server, #xmlel{name = <<"message">>}) ->
     mongoose_metrics:update(Server, xmppMessageReceived, 1);
 user_receive_packet_type(Server, #xmlel{name = <<"iq">>}) ->

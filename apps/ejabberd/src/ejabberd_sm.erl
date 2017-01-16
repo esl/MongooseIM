@@ -157,7 +157,8 @@ open_session(SID, User, Server, Resource, Priority, Info) ->
     check_for_sessions_to_replace(User, Server, Resource),
     JID = jid:make(User, Server, Resource),
     ejabberd_hooks:run(sm_register_connection_hook, JID#jid.lserver,
-                       [SID, JID, Info]).
+                       [SID, JID, Info]),
+    ok.
 
 -spec close_session(SID, User, Server, Resource, Reason) -> ok when
     SID :: 'undefined' | sid(),

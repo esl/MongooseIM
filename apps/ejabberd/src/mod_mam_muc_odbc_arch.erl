@@ -18,7 +18,6 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
-         remove_archive/3,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -423,9 +422,6 @@ remove_archive(Acc, Host, RoomID, _RoomJID) ->
       ["DELETE FROM ", select_table(RoomID), " "
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
     Acc.
-
-remove_archive(Host, RoomID, RoomJID) ->
-    remove_archive(ok, Host, RoomID, RoomJID).
 
 -spec purge_single_message(_Result, Host :: ejabberd:server(),
                            MessID :: mod_mam:message_id(),
