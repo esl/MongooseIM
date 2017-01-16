@@ -253,8 +253,7 @@ archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
     Result.
 
 
-%% #rh
--spec remove_archive(map(), ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> map().
+-spec remove_archive(any(), ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> any().
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
     wait_flushing(Host, ArcID),
     Acc.

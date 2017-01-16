@@ -188,9 +188,8 @@ get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
-%% #rh
--spec remove_archive(map(), ejabberd:server(), mod_mam:archive_id(),
-                     ejabberd:jid()) -> map().
+-spec remove_archive(any(), ejabberd:server(), mod_mam:archive_id(),
+                     ejabberd:jid()) -> any().
 remove_archive(Acc, Host, UserID, _ArcJID) ->
     SUserID = integer_to_list(UserID),
     {updated, _} =

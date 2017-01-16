@@ -120,8 +120,8 @@ init_per_group(GroupName, Config) when
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
-end_per_group(register, _Config) ->
-    ok;
+end_per_group(register, Config) ->
+    escalus:delete_users(Config, escalus:get_users([admin, alice, bob]));
 end_per_group(change_account_details, Config) ->
     ok;
 end_per_group(bad_registration, _Config) ->
@@ -216,8 +216,11 @@ register(Config) ->
     [Username1, Server1, _Pass1] = escalus_users:get_usp(Config, UserSpec1),
     [Username2, Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
     [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
+    ct:pal("~p", [{AdminU, AdminS, AdminP}]),
 
-    ok = escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+    Res = escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+    ct:pal("Res: ~p", [Res]),
+    #{} = escalus_ejabberd:rpc(mongoose_stanza, to_map, [Res]),
 
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
             escalus:create_users(Config, escalus:get_users([Name1, Name2])),

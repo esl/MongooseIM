@@ -274,9 +274,9 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
 %%
 %% Note: for outgoing messages, the server MUST use the value of the 'to'
 %%       attribute as the target JID.
--spec user_send_packet(Acc :: map(), From :: ejabberd:jid(),
+-spec user_send_packet(Acc :: mongoose_stanza:t(), From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
-                       Packet :: jlib:xmlel()) -> map().
+                       Packet :: jlib:xmlel()) -> mongoose_stanza:t().
 user_send_packet(Acc, From, To, Packet) ->
     ?DEBUG("Send packet~n    from ~p ~n    to ~p~n    packet ~p.",
               [From, To, Packet]),
@@ -291,13 +291,12 @@ user_send_packet(Acc, From, To, Packet) ->
 %%
 %% Return drop to drop the packet, or the original input to let it through.
 %% From and To are jid records.
--type fpacket() :: {From :: ejabberd:jid(),
-                    To :: ejabberd:jid(),
-                    Packet :: jlib:xmlel()}.
--spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
-filter_packet(drop) ->
-    drop;
-filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
+-spec filter_packet(mongoose_stanza:t()) -> mongoose_stanza:t().
+filter_packet(Acc) ->
+    Packet = mongoose_stanza:get(element, Acc),
+    From = mongoose_stanza:get(from, Acc),
+    To = mongoose_stanza:get(to, Acc),
+    #jid{luser=LUser, lserver=LServer} = To,
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
     {AmpEvent, PacketAfterArchive} =
@@ -317,24 +316,26 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
                 end
         end,
     PacketAfterAmp = mod_amp:check_packet(PacketAfterArchive, From, AmpEvent),
-    {From, To, PacketAfterAmp}.
+    mongoose_stanza:put(element, PacketAfterAmp, Acc).
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
 %% @doc A ejabberd's callback with diferent order of arguments.
-%% #rh
--spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map().
+-spec remove_user(any(), ejabberd:user(), ejabberd:server()) -> any().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.
 
-sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
-    %% If ...
-    is_mam_result_message(Packet);
-    %% ... than drop the message
-sm_filter_offline_message(Other, _From, _To, Packet) ->
-    Other.
+sm_filter_offline_message(Acc, _From, _To, Packet) ->
+    case mongoose_stanza:get(drop, Acc) of
+        false ->
+            %% If ...
+            mongoose_stanza:put(drop, is_mam_result_message(Packet), Acc);
+            %% ... than drop the message
+        _ ->
+            Acc
+    end.
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -634,7 +635,12 @@ handle_purge_single_message(ArcJID=#jid{},
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
 
-determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
+determine_amp_strategy(Acc, FromJID, ToJID, Packet, Arg) ->
+    Strategy = mongoose_stanza:get(strategy, Acc),
+    NStrategy = do_determine_amp_strategy(Strategy, FromJID, ToJID, Packet, Arg),
+    mongoose_stanza:put(strategy, NStrategy, Acc).
+
+do_determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        FromJID, ToJID, Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
     ShouldBeStored = mod_mam_params:is_archivable_message(?MODULE, incoming, Packet)
@@ -644,7 +650,7 @@ determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
         true -> Strategy#amp_strategy{deliver = [stored, none]};
         false -> Strategy
     end;
-determine_amp_strategy(Strategy, _, _, _, _) ->
+do_determine_amp_strategy(Strategy, _, _, _, _) ->
     Strategy.
 
 -spec handle_package(Dir :: incoming | outgoing, ReturnMessID :: boolean(),

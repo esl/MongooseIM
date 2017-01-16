@@ -124,9 +124,9 @@ archive_id(undefined, Host, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
 archive_id(ArcID, _Host, _ArcJID) ->
     ArcID.
 
--spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
+-spec remove_archive(Acc :: any(), Host :: ejabberd:server(),
                      ArchiveID :: mod_mam:archive_id(),
-                     ArchiveJID :: ejabberd:jid()) -> map().
+                     ArchiveJID :: ejabberd:jid()) -> any().
 remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
     SUserName = ejabberd_odbc:escape(UserName),
     SServer   = ejabberd_odbc:escape(Server),

@@ -52,8 +52,8 @@ stop(Host) ->
 %% `ejabberd_hooks' handlers
 %%
 
-add_sm_feature(Acc, _Server) ->
-    lists:keystore(<<"sm">>, #xmlel.name, Acc, sm()).
+add_sm_feature(Feat, _Server) ->
+    lists:keystore(<<"sm">>, #xmlel.name, Feat, sm()).
 
 sm() ->
     #xmlel{name = <<"sm">>,
@@ -68,8 +68,10 @@ remove_smid(Acc, SID, _JID, _Info, _Reason) ->
     end,
     Acc.
 
--spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
-                      LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+-spec session_cleanup(Acc :: mongoose_stanza:t(), LUser :: ejabberd:luser(),
+                      LServer :: ejabberd:lserver(), LResource :: ejabberd:lresource(),
+                      SID :: ejabberd_sm:sid()) ->
+    mongoose_stanza:t().
 session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
     remove_smid(Acc, SID, undefined, undefined, undefined).
 

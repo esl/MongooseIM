@@ -74,12 +74,12 @@ cleanup_modules(Node) ->
             ?DEBUG("could not get ~p~n" , [?NODE_CLEANUP_LOCK(Node)]),
             {ok, aborted};
         Result ->
-            ?WARNING_MSG("cleanup result: ~p~n", [maps:get(cleanup_result, Result, none)]),
+            ?WARNING_MSG("cleanup result: ~p~n", [Result]),
             {ok, Result}
     end.
 
 run_node_cleanup(Node) ->
     {Elapsed, RetVal} = timer:tc(ejabberd_hooks, run, [node_cleanup, [Node]]),
     ?WARNING_MSG("cleanup took=~pms, result: ~p~n",
-                 [erlang:round(Elapsed / 1000), maps:get(cleanup_result, RetVal, none)]),
+                 [erlang:round(Elapsed / 1000), RetVal]),
     RetVal.

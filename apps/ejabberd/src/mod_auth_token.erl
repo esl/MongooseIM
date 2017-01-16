@@ -215,8 +215,10 @@ do_authenticate(SerializedToken) ->
     end.
 
 set_vcard(Domain, #jid{} = User, #xmlel{} = VCard) ->
-    Acc0 = {error, no_handler_defined},
-    ejabberd_hooks:run_fold(set_vcard, Domain, Acc0, [User, VCard]).
+    Acc = mongoose_stanza:from_kv(auth_handler, {error, no_handler_defined}),
+    Acc1 = ejabberd_hooks:run_fold(set_vcard, Domain, Acc, [User, VCard]),
+    mongoose_stanza:get(auth_handler, Acc1).
+
 
 validate_token(Token) ->
     Criteria = [{mac_valid, is_mac_valid(Token)},
