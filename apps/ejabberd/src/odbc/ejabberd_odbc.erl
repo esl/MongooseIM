@@ -29,6 +29,12 @@
 
 -behaviour(gen_server).
 
+-callback escape_format(Host :: ejabberd:server()) -> atom().
+-callback connect(Args :: any()) ->
+    {ok, Connection :: term()} | {error, Reason :: any()}.
+-callback disconnect(Connection :: term()) -> any().
+-callback query(Connection :: term(), Query :: any()) -> term().
+
 %% External exports
 -export([start_link/1,
          sql_query/2,
@@ -66,20 +72,17 @@
 -record(state, {db_ref,
                 db_type :: atom(),
                 start_interval :: integer(),
-                host :: ejabberd:server()
+                host :: ejabberd:server(),
+                backend :: module()
                }).
 -type state() :: #state{}.
 
 -define(STATE_KEY, ejabberd_odbc_state).
 -define(MAX_TRANSACTION_RESTARTS, 10).
--define(PGSQL_PORT, 5432).
--define(MYSQL_PORT, 3306).
 
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
 -define(KEEPALIVE_TIMEOUT, 60000).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
-
--define(QUERY_TIMEOUT, 5000).
 
 %% Points to ODBC server process
 -type odbc_server() :: ejabberd:server() | pid() | {atom(), pid()}.
@@ -174,20 +177,8 @@ escape_like(S) ->
 
 -spec escape_format(odbc_server()) -> hex | simple_escape.
 escape_format(Host) ->
-    case db_engine(Host) of
-        pgsql -> hex;
-        odbc ->
-            Key = {odbc_server_type, Host},
-            case ejabberd_config:get_local_option_or_default(Key, odbc) of
-                pgsql ->
-                    hex;
-                mssql ->
-                    mssql_hex;
-                _ ->
-                    simple_escape
-            end;
-        _     -> simple_escape
-    end.
+    Backend = backend(Host),
+    Backend:escape_format(Host).
 
 
 -spec escape_binary('hex' | 'simple_escape', binary()) -> binary() | string().
@@ -241,11 +232,12 @@ to_bool(_) -> false.
 init(Host) ->
     ok = pg2:create({Host, ?MODULE}),
     ok = pg2:join({Host, ?MODULE}, self()),
-    [DBType | _] = DBOpts = db_opts(Host),
-    {ok, DbRef} = connect(DBOpts),
-    link(DbRef),
+    Backend = backend(Host),
+    Settings = ejabberd_config:get_local_option({odbc_server, Host}),
+    {ok, DbRef} = Backend:connect(Settings),
+    catch link(DbRef),
     schedule_keepalive(Host),
-    {ok, #state{db_type = DBType, host = Host, db_ref = DbRef}}.
+    {ok, #state{db_type = db_engine(Host), host = Host, db_ref = DbRef, backend = Backend}}.
 
 
 handle_call({sql_cmd, Command, Timestamp}, From, State) ->
@@ -263,7 +255,7 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 handle_info(keepalive, State) ->
-    case sql_query_internal(?KEEPALIVE_QUERY, State) of
+    case sql_query_internal([?KEEPALIVE_QUERY], State) of
         {selected, _, _} ->
             schedule_keepalive(State#state.host),
             {noreply, State};
@@ -275,12 +267,8 @@ handle_info(Info, State) ->
     {noreply, State}.
 
 -spec terminate(Reason :: term(), state()) -> any().
-terminate(_Reason, #state{db_type = mysql, db_ref = DbRef}) ->
-    catch p1_mysql_conn:stop(DbRef);
-terminate(_Reason, #state{db_type = pgsql, db_ref = DbRef}) ->
-    catch pgsql:terminate(DbRef);
-terminate(_Reason, _State) ->
-    ok.
+terminate(_Reason, #state{backend = Backend, db_ref = DbRef}) ->
+    catch Backend:disconnect(DbRef).
 
 %%----------------------------------------------------------------------
 %% Func: print_state/1
@@ -397,21 +385,13 @@ execute_bloc(F, _State) ->
             {atomic, Res}
     end.
 
-sql_query_internal(Query, #state{db_type = DBType, db_ref = DBRef}) ->
-    case sql_query_internal(Query, DBType, DBRef) of
+sql_query_internal(Query, #state{backend = Backend, db_ref = DBRef}) ->
+    case Backend:query(DBRef, Query) of
         {error, "No SQL-driver information available."} ->
             {updated, 0}; %% workaround for odbc bug
         Result ->
             Result
     end.
-
-sql_query_internal(Query, odbc, DBRef) ->
-    binaryze_odbc(odbc:sql_query(DBRef, Query, ?QUERY_TIMEOUT));
-sql_query_internal(Query, pgsql, DBRef) ->
-    pgsql_to_odbc(pgsql:squery(DBRef, Query, ?QUERY_TIMEOUT));
-sql_query_internal(Query, mysql, DBRef) ->
-    mysql_to_odbc(p1_mysql_conn:squery(DBRef, Query, self(),
-                                       [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}])).
 
 %% @doc Generate the OTP callback return tuple depending on the driver result.
 -spec abort_on_driver_error(_, state()) ->
@@ -425,155 +405,6 @@ abort_on_driver_error({error, "Failed sending data on socket" ++ _} = Reply, Sta
     {stop, closed, Reply, State};
 abort_on_driver_error(Reply, State) ->
     {reply, Reply, State}.
-
-
-%% == pure ODBC code
-
-%% part of init/1
-%% @doc Open an ODBC database connection
--spec odbc_connect(ConnString :: string()) -> {ok | error, _}.
-odbc_connect(SQLServer) ->
-    application:start(odbc),
-    Opts = [{scrollable_cursors, off},
-            {binary_strings, on},
-            {timeout, 5000}],
-    odbc:connect(SQLServer, Opts).
-
-binaryze_odbc(ODBCResults) when is_list(ODBCResults) ->
-    lists:map(fun binaryze_odbc/1, ODBCResults);
-binaryze_odbc({selected, ColNames, Rows}) ->
-    ColNamesB = lists:map(fun ejabberd_binary:string_to_binary/1, ColNames),
-    {selected, ColNamesB, Rows};
-binaryze_odbc(ODBCResult) ->
-    ODBCResult.
-
-%% == Native PostgreSQL code
-
-%% part of init/1
-%% @doc Open a database connection to PostgreSQL
-pgsql_connect(Server, Port, DB, Username, Password) ->
-    Params = [
-              {host, Server},
-              {database, DB},
-              {user, Username},
-              {password, Password},
-              {port, Port},
-              {as_binary, true}],
-    case pgsql:connect(Params) of
-        {ok, Ref} ->
-            {ok,[<<"SET">>]} =
-                pgsql:squery(Ref, "SET standard_conforming_strings=off;", ?QUERY_TIMEOUT),
-            {ok, Ref};
-        Err -> Err
-    end.
-
-
-%% @doc Convert PostgreSQL query result to Erlang ODBC result formalism
--spec pgsql_to_odbc({'ok', PGSQLResult :: [any()]})
-                   -> [{'error', _} | {'updated', 'undefined' | integer()}
-                       | {'selected', [any()], [any()]}]
-                          | {'error',_}
-                          | {'updated','undefined' | integer()}
-                          | {'selected',[any()],[tuple()]}.
-pgsql_to_odbc({ok, PGSQLResult}) ->
-    case PGSQLResult of
-        [Item] ->
-            pgsql_item_to_odbc(Item);
-        Items ->
-            [pgsql_item_to_odbc(Item) || Item <- Items]
-    end.
-
--spec pgsql_item_to_odbc(tuple() | binary())
-                        -> {'error',_}
-                               | {'updated','undefined' | integer()}
-                               | {'selected',[any()],[tuple()]}.
-pgsql_item_to_odbc({<<"SELECT", _/binary>>, Rows, Recs}) ->
-    {selected,
-     [element(1, Row) || Row <- Rows],
-     [list_to_tuple(Rec) || Rec <- Recs]};
-pgsql_item_to_odbc(<<"INSERT ", OIDN/binary>>) ->
-    [_OID, N] = binary:split(OIDN, <<" ">>),
-    {updated, list_to_integer(binary_to_list(N))};
-pgsql_item_to_odbc(<<"DELETE ", N/binary>>) ->
-    {updated, list_to_integer(binary_to_list(N))};
-pgsql_item_to_odbc(<<"UPDATE ", N/binary>>) ->
-    {updated, list_to_integer(binary_to_list(N))};
-pgsql_item_to_odbc({error, Error}) ->
-    {error, Error};
-pgsql_item_to_odbc(_) ->
-    {updated,undefined}.
-
-%% == Native MySQL code
-
-%% part of init/1
-%% @doc Open a database connection to MySQL
-mysql_connect(Server, Port, Database, Username, Password) ->
-    case p1_mysql_conn:start(Server, Port, Username, Password, Database, fun log/3) of
-        {ok, Ref} ->
-            p1_mysql_conn:squery(Ref, [<<"set names 'utf8';">>],
-                                 self(), [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}]),
-            p1_mysql_conn:squery(Ref, [<<"SET SESSION query_cache_type=1;">>],
-                                 self(), [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}]),
-            {ok, Ref};
-        Err ->
-            Err
-    end.
-
-%% @doc Convert MySQL query result to Erlang ODBC result formalism
--spec mysql_to_odbc({'data', _} | {'error', _} | {'updated', _})
-                   -> {'error', _} | {'updated', _} | {'selected', [any()], [tuple()]}.
-mysql_to_odbc({updated, MySQLRes}) ->
-    {updated, p1_mysql:get_result_affected_rows(MySQLRes)};
-mysql_to_odbc({data, MySQLRes}) ->
-    mysql_item_to_odbc(p1_mysql:get_result_field_info(MySQLRes),
-                       p1_mysql:get_result_rows(MySQLRes));
-mysql_to_odbc({error, MySQLRes}) when is_list(MySQLRes) ->
-    {error, MySQLRes};
-mysql_to_odbc({error, MySQLRes}) ->
-    {error, p1_mysql:get_result_reason(MySQLRes)}.
-
-%% @doc When tabular data is returned, convert it to the ODBC formalism
--spec mysql_item_to_odbc(Columns :: [tuple()],
-                         Recs :: [[any()]]) -> {'selected',[any()],[tuple()]}.
-mysql_item_to_odbc(Columns, Recs) ->
-    %% For now, there is a bug and we do not get the correct value from MySQL
-    %% module:
-    {selected,
-     [element(2, Column) || Column <- Columns],
-     [list_to_tuple(Rec) || Rec <- Recs]}.
-
-
-%% @doc log function used by MySQL driver
--spec log(Level :: 'debug' | 'error' | 'normal',
-          Format :: string(),
-          Args :: list()) -> any().
-log(Level, Format, Args) ->
-    case Level of
-        debug ->
-            ?DEBUG(Format, Args);
-        normal ->
-            ?INFO_MSG(Format, Args);
-        error ->
-            ?ERROR_MSG(Format, Args)
-    end.
-
-
--spec db_opts(Host :: ejabberd:server()) -> [odbc | mysql | pgsql | [char() | tuple()],...].
-db_opts(Host) ->
-    case ejabberd_config:get_local_option({odbc_server, Host}) of
-        %% Default pgsql port
-        {pgsql, Server, DB, User, Pass} ->
-            [pgsql, Server, ?PGSQL_PORT, DB, User, Pass];
-        {pgsql, Server, Port, DB, User, Pass} when is_integer(Port) ->
-            [pgsql, Server, Port, DB, User, Pass];
-        %% Default mysql port
-        {mysql, Server, DB, User, Pass} ->
-            [mysql, Server, ?MYSQL_PORT, DB, User, Pass];
-        {mysql, Server, Port, DB, User, Pass} when is_integer(Port) ->
-            [mysql, Server, Port, DB, User, Pass];
-        SQLServer when is_list(SQLServer) ->
-            [odbc, SQLServer]
-    end.
 
 
 -spec db_engine(Host :: odbc_server() | pid()) -> ejabberd_config:value().
@@ -591,14 +422,10 @@ db_engine({Host, _Pid}) ->
     db_engine(Host).
 
 
--spec connect(Opts :: proplists:proplist()) ->
-                     {ok, Ref :: term()} | {error, Reason :: any()}.
-connect([mysql | Args]) ->
-    apply(fun mysql_connect/5, Args);
-connect([pgsql | Args]) ->
-    apply(fun pgsql_connect/5, Args);
-connect([odbc | Args]) ->
-    apply(fun odbc_connect/1, Args).
+-spec backend(Host :: ejabberd:server()) -> module().
+backend(Host) when is_binary(Host) ->
+    Engine = atom_to_binary(db_engine(Host), latin1),
+    binary_to_atom(<<"ejabberd_odbc_", Engine/binary>>, latin1).
 
 
 -spec schedule_keepalive(ejabberd:server()) -> any().
