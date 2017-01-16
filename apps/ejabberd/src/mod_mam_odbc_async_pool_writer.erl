@@ -43,7 +43,7 @@
     max_packet_size,
     max_subscribers,
     host,
-    conn,
+    connection_pool :: pid(),
     number,
     acc=[],
     subscribers=[],
@@ -82,7 +82,9 @@ worker_number(Host, ArcID) ->
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
-    {ok, Pool} = ejabberd_odbc_sup:add_pool(Host, ?MODULE, undefined, worker_count(Host)),
+    {ok, Pool} = ejabberd_odbc_sup:add_pool(Host, ?MODULE,
+                                            {local, mod_mam_odbc_async_pool_writer_pool},
+                                            worker_count(Host)),
     start_workers(Host, Pool),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -314,12 +316,14 @@ are_recent_entries_required(_End, _Now) ->
 
 run_flush(State=#state{acc=[]}) ->
     State;
-run_flush(State=#state{host=Host, conn=Conn, number=N,
+run_flush(State=#state{host=Host, connection_pool=Pool, number=N,
                        flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
     MessageCount = length(Acc),
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
-    Result = mod_mam_odbc_arch:archive_messages(Conn, Acc, N),
+    Result = poolboy:transaction(
+                Pool,
+                fun(Conn) -> mod_mam_odbc_arch:archive_messages(Conn, Acc, N) end),
     case Result of
         {updated, _Count} -> ok;
         {error, Reason} ->
@@ -359,11 +363,10 @@ cancel_and_flush_timer(TRef) ->
 %%--------------------------------------------------------------------
 init([Host, N, Pool]) ->
     %% Use a private ODBC-connection.
-    Conn = poolboy:checkout(Pool),
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 500),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
     MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
-    {ok, #state{host=Host, conn=Conn, number=N,
+    {ok, #state{host=Host, connection_pool=Pool, number=N,
                 flush_interval = Int,
                 max_packet_size = MaxSize,
                 max_subscribers = MaxSubs}}.
@@ -377,8 +380,6 @@ init([Host, N, Pool]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(get_connection, _From, State=#state{host = Host, conn = Conn}) ->
-    {reply, {Host, Conn}, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From,
