@@ -18,6 +18,7 @@
          archive_message/9,
          lookup_messages/14,
          remove_archive/3,
+         remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
@@ -259,12 +260,16 @@ lookup_messages(Result, Host, ArcID, _ArcJID,
     Result.
 
 
--spec remove_archive(Host :: ejabberd:server(),
-        RoomId :: mod_mam:archive_id(), RoomJID :: ejabberd:jid()) -> 'ok'.
-remove_archive(Host, ArcID, _ArcJID) ->
+%% #rh
+-spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
+                     RoomId :: mod_mam:archive_id(),
+                     RoomJID :: ejabberd:jid()) -> map().
+remove_archive(Acc, Host, ArcID, _ArcJID) ->
     wait_flushing(Host, ArcID),
-    ok.
+    Acc.
 
+remove_archive(Host, ArcID, _ArcJID) ->
+    wait_flushing(Host, ArcID).
 
 -spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
         MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),

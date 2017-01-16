@@ -17,7 +17,7 @@
 -export([get_behaviour/5,
          get_prefs/4,
          set_prefs/7,
-         remove_archive/3]).
+         remove_archive/4]).
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
@@ -188,9 +188,10 @@ get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
--spec remove_archive(ejabberd:server(), mod_mam:archive_id(),
-                     ejabberd:jid()) -> 'ok'.
-remove_archive(Host, UserID, _ArcJID) ->
+%% #rh
+-spec remove_archive(map(), ejabberd:server(), mod_mam:archive_id(),
+                     ejabberd:jid()) -> map().
+remove_archive(Acc, Host, UserID, _ArcJID) ->
     SUserID = integer_to_list(UserID),
     {updated, _} =
     mod_mam_utils:success_sql_query(
@@ -198,7 +199,7 @@ remove_archive(Host, UserID, _ArcJID) ->
       ["DELETE "
        "FROM mam_config "
        "WHERE user_id='", SUserID, "'"]),
-    ok.
+    Acc.
 
 
 -spec query_behaviour(ejabberd:server(), SUserID :: string(),

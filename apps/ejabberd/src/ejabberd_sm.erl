@@ -35,8 +35,8 @@
          close_session/5,
          store_info/4,
          check_in_subscription/6,
-         bounce_offline_message/3,
-         disconnect_removed_user/2,
+         bounce_offline_message/4,
+         disconnect_removed_user/3,
          get_user_resources/2,
          set_presence/7,
          unset_presence/6,
@@ -60,7 +60,7 @@
         ]).
 
 %% Hook handlers
--export([node_cleanup/1]).
+-export([node_cleanup/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -216,23 +216,32 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
     end.
 
 
--spec bounce_offline_message(From, To, Packet) -> stop when
+%% #rh
+-spec bounce_offline_message(Acc, From, To, Packet) -> {stop, Acc} when
+      Acc :: map(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
+bounce_offline_message(Acc, From, To, Packet) ->
+    bounce_offline_message(From, To, Packet),
+    {stop, Acc}.
+
 bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
     ejabberd_hooks:run(xmpp_bounce_message,
-                       Server,
-                       [Server, Packet]),
+        Server,
+        [Server, Packet]),
     Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
     ejabberd_router:route(To, From, Err),
     stop.
 
--spec disconnect_removed_user(User :: ejabberd:user(), Server :: ejabberd:server()) -> ok.
-disconnect_removed_user(User, Server) ->
+%% #rh
+-spec disconnect_removed_user(map(), User :: ejabberd:user(),
+                              Server :: ejabberd:server()) -> map().
+disconnect_removed_user(Acc, User, Server) ->
     ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),
-                      {broadcast, {exit, <<"User removed">>}}).
+                      {broadcast, {exit, <<"User removed">>}}),
+    Acc.
 
 
 -spec get_user_resources(User :: ejabberd:user(), Server :: ejabberd:server()) -> [binary()].
@@ -396,9 +405,10 @@ unregister_iq_handler(Host, XMLNS) ->
 %% Hook handlers
 %%====================================================================
 
-node_cleanup(Node) ->
+node_cleanup(Acc, Node) ->
     Timeout = timer:minutes(1),
-    gen_server:call(?MODULE, {node_cleanup, Node}, Timeout).
+    Res = gen_server:call(?MODULE, {node_cleanup, Node}, Timeout),
+    maps:put(cleanup_result, Res, Acc).
 
 %%====================================================================
 %% gen_server callbacks

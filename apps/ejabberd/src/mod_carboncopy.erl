@@ -36,11 +36,11 @@
          classify_packet/1]).
 
 %% Hooks
--export([user_send_packet/3,
-         user_receive_packet/4,
+-export([user_send_packet/4,
+         user_receive_packet/5,
          iq_handler2/3,
          iq_handler1/3,
-         remove_connection/4
+         remove_connection/5
         ]).
 
 %% For testing and debugging
@@ -117,11 +117,13 @@ iq_handler(From, _To,  #iq{type = set, sub_el = #xmlel{name = Operation, childre
 iq_handler(_From, _To, IQ, _CC) ->
     IQ#iq{type=error, sub_el = [?ERR_NOT_ALLOWED]}.
 
-user_send_packet(From, To, Packet) ->
-    check_and_forward(From, To, Packet, sent).
+user_send_packet(Acc, From, To, Packet) ->
+    check_and_forward(From, To, Packet, sent),
+    Acc.
 
-user_receive_packet(JID, _From, To, Packet) ->
-    check_and_forward(JID, To, Packet, received).
+user_receive_packet(Acc, JID, _From, To, Packet) ->
+    check_and_forward(JID, To, Packet, received),
+    Acc.
 
 % Check if the traffic is local.
 % Modified from original version:
@@ -182,15 +184,15 @@ is_forwarded(SubTag) ->
         _ -> ignore
     end.
 
-remove_connection(User, Server, Resource, _Status) ->
+remove_connection(Acc, User, Server, Resource, _Status) ->
     disable(Server, User, Resource),
-    ok.
+    Acc.
 
 
 %%
 %% Internal
 %%
-is_bare_to(Direction, To, PrioRes) ->
+is_bare_to(Direction, To, _PrioRes) ->
     case {Direction, To} of
         {received, #jid{lresource = <<>>}} -> true;
         _ -> false

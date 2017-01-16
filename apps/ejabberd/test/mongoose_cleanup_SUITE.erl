@@ -62,7 +62,7 @@ meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, ejabberd_config].
 cleaner_runs_hook_on_nodedown(_Config) ->
     {ok, Cleaner} = mongoose_cleaner:start_link(),
     Self = self(),
-    NotifySelf = fun (Node) -> Self ! {got_nodedown, Node} end,
+    NotifySelf = fun (_Acc, Node) -> Self ! {got_nodedown, Node} end,
     ejabberd_hooks:add(node_cleanup, global, undefined, NotifySelf, 50),
 
     FakeNode = fakename@fakehost,
@@ -78,7 +78,7 @@ auth_anonymous(_Config) ->
     ejabberd_auth_anonymous:start(?HOST),
     {U, S, R, JID, SID} = get_fake_session(),
     Info = [{auth_module, ejabberd_auth_anonymous}],
-    ejabberd_auth_anonymous:register_connection(SID, JID, Info),
+    ejabberd_auth_anonymous:register_connection(#{}, SID, JID, Info),
     true = ejabberd_auth_anonymous:anonymous_user_exist(U, S),
     ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
     false = ejabberd_auth_anonymous:anonymous_user_exist(U, S).
@@ -88,7 +88,7 @@ last(_Config) ->
     {U, S, R, _JID, SID} = get_fake_session(),
     not_found = mod_last:get_last_info(U, S),
     Status1 = <<"status1">>,
-    ok = mod_last:on_presence_update(U, S, R, Status1),
+    #{} = mod_last:on_presence_update(#{}, U, S, R, Status1),
     {ok, TS1, Status1} = mod_last:get_last_info(U, S),
     timer:sleep(2000),
     ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
