@@ -51,21 +51,8 @@ start_link(Host) ->
     supervisor:start_link({local, gen_mod:get_module_proc(Host, ?MODULE)},
                           ?MODULE, [Host]).
 
-% -spec get_dedicated_connection(Host :: ejabberd:server())
-%       -> 'ignore' | {'error',_} | {'ok',{Host :: atom(), pid()}}.
-% get_dedicated_connection(Host) ->
-%     StartInterval = start_interval(Host)*1000,
-%     case ejabberd_odbc:start_link(Host, StartInterval, true) of
-%         {ok, Pid} ->
-%             {ok, {Host, Pid}};
-%         Other ->
-%             Other
-%     end.
-
 -spec init([ejabberd:server(),...]) -> {'ok',{{_,_,_},[any()]}}.
 init([Host]) ->
-    ok = pg2:create(Host),
-    ok = pg2:join(Host, self()),
     PoolSize = pool_size(Host),
     PoolName = gen_mod:get_module_proc(Host, ?POOL_NAME),
     ChildrenSpec = [pool_spec(Host, default_pool, {local, PoolName}, PoolSize)],
@@ -85,21 +72,13 @@ remove_pool(Host, Id) ->
 
 
 pool_spec(Host, Id, Name, Size) ->
-    StartInterval = timer:seconds(start_interval(Host)),
     PoolboyArgs = [{name, Name}, {worker_module, ejabberd_odbc}, {size, Size}],
-    WorkerArgs = [Host, StartInterval],
-    poolboy:child_spec(Id, PoolboyArgs, WorkerArgs).
+    poolboy:child_spec(Id, PoolboyArgs, Host).
 
 
 -spec get_pids(ejabberd:server()) -> [pid()].
 get_pids(Host) ->
-    Poolboys = pg2:get_members(Host),
-    lists:flatmap(
-        fun(Poolboy) ->
-            WorkerList = gen_server:call(Poolboy, get_all_workers),
-            [Pid || {_, Pid, _, _} <- WorkerList, is_pid(Pid)]
-        end,
-        Poolboys).
+    pg2:get_members({Host, ejabberd_odbc}).
 
 
 default_pool(Host) ->
@@ -119,21 +98,4 @@ pool_size(Host) ->
                        "for host ~p, default to ~p~n",
                        [InvalidSize, Host, Size]),
             Size
-    end.
-
-
--spec start_interval(ejabberd:server()) -> integer().
-start_interval(Host) ->
-    case ejabberd_config:get_local_option({odbc_start_interval, Host}) of
-        undefined ->
-            ?DEFAULT_ODBC_START_INTERVAL;
-        Interval when is_integer(Interval) ->
-            Interval;
-        InvalidInterval ->
-            Interval = ?DEFAULT_ODBC_START_INTERVAL,
-            ?ERROR_MSG("Wrong odbc_start_interval "
-                       "definition '~p' for host ~p, "
-                       "defaulting to ~p~n",
-                       [InvalidInterval, Host, Interval]),
-            Interval
     end.
