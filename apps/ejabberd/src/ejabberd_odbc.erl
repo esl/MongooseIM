@@ -27,7 +27,7 @@
 -module(ejabberd_odbc).
 -author('alexey@process-one.net').
 
--behaviour(p1_fsm).
+-behaviour(gen_server).
 
 %% External exports
 -export([start_link/1,
@@ -38,8 +38,8 @@
          escape/1,
          escape_like/1,
          to_bool/1,
-         keep_alive/1,
-         db_engine/1]).
+         db_engine/1,
+         print_state/1]).
 
 %% BLOB escaping
 -export([escape_format/1,
@@ -50,20 +50,13 @@
 %% count / integra types decoding
 -export([result_to_integer/1]).
 
-%% gen_fsm callbacks
+%% gen_server callbacks
 -export([init/1,
-         handle_event/3,
-         handle_sync_event/4,
-         handle_info/3,
-         terminate/3,
-         print_state/1,
-         code_change/4]).
-
-%% gen_fsm states
--export([connecting/2,
-         connecting/3,
-         session_established/2,
-         session_established/3]).
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
 
 %% internal usage
 -export([get_db_info/1]).
@@ -73,9 +66,7 @@
 -record(state, {db_ref,
                 db_type :: atom(),
                 start_interval :: integer(),
-                host :: odbc_server(),
-                max_pending_requests_len :: integer(),
-                pending_requests
+                host :: ejabberd:server()
                }).
 -type state() :: #state{}.
 
@@ -90,14 +81,6 @@
 
 -define(QUERY_TIMEOUT, 5000).
 
-%%-define(DBGFSM, true).
-
--ifdef(DBGFSM).
--define(FSMOPTS, [{debug, [trace]}]).
--else.
--define(FSMOPTS, []).
--endif.
-
 %% Points to ODBC server process
 -type odbc_server() :: ejabberd:server() | pid() | {atom(), pid()}.
 -export_type([odbc_server/0]).
@@ -105,12 +88,10 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start_link([Host :: ejabberd:server() |
-                 integer()]) ->
+-spec start_link(Host :: ejabberd:server()) ->
                         'ignore' | {'error',_} | {'ok',pid()}.
-start_link([Host, StartInterval]) ->
-    p1_fsm:start_link(ejabberd_odbc, [Host, StartInterval],
-                        fsm_limit_opts() ++ ?FSMOPTS).
+start_link(Host) ->
+    gen_server:start_link(ejabberd_odbc, Host, []).
 
 -spec sql_query(Host :: odbc_server(), Query :: any()) -> any().
 sql_query(Host, Query) ->
@@ -148,21 +129,11 @@ sql_call({_Host, Pid}, Msg) when is_pid(Pid) ->
     sql_call(Pid, Msg);
 sql_call(Pid, Msg) when is_pid(Pid) ->
     Timestamp = p1_time_compat:monotonic_time(milli_seconds),
-    p1_fsm:sync_send_event(Pid, {sql_cmd, Msg, Timestamp}, ?TRANSACTION_TIMEOUT).
+    gen_server:call(Pid, {sql_cmd, Msg, Timestamp}, ?TRANSACTION_TIMEOUT).
 
 
-%% @doc perform a harmless query on all opened connexions to avoid connexion close.
-keep_alive(PID) ->
-    case sql_call(PID, {sql_query, [?KEEPALIVE_QUERY]}) of
-        {selected, _, _} ->
-            ok;
-        {error, _} = Error ->
-            ok = p1_fsm:sync_send_all_state_event(PID, {keepalive_failed, Error})
-    end.
-
-
-get_db_info(Pid) ->
-    p1_fsm:sync_send_all_state_event(Pid, get_db_info).
+get_db_info(Pid) when is_pid(Pid) ->
+    gen_server:call(Pid, get_db_info).
 
 
 %% This function is intended to be used from inside an sql_transaction:
@@ -264,149 +235,51 @@ to_bool(1) -> true;
 to_bool(_) -> false.
 
 %%%----------------------------------------------------------------------
-%%% Callback functions from gen_fsm
+%%% Callback functions from gen_server
 %%%----------------------------------------------------------------------
-init([Host, StartInterval]) ->
-    %% For debugging and introspection only.
-    put(mim_host, Host),
-    put(mim_process_type, odbc_worker),
-    case ejabberd_config:get_local_option({odbc_keepalive_interval, Host}) of
-        KeepaliveInterval when is_integer(KeepaliveInterval) ->
-            timer:apply_interval(timer:seconds(KeepaliveInterval), ?MODULE,
-                                 keep_alive, [self()]);
-        undefined ->
-            ok;
-        _Other ->
-            ?ERROR_MSG("Wrong odbc_keepalive_interval definition '~p'"
-                       " for host ~p.~n", [_Other, Host])
-    end,
-    [DBType | _] = db_opts(Host),
+-spec init(ejabberd:server()) -> {ok, state()}.
+init(Host) ->
+    ok = pg2:create({Host, ?MODULE}),
+    ok = pg2:join({Host, ?MODULE}, self()),
+    [DBType | _] = DBOpts = db_opts(Host),
+    {ok, DbRef} = connect(DBOpts),
+    link(DbRef),
+    schedule_keepalive(Host),
+    {ok, #state{db_type = DBType, host = Host, db_ref = DbRef}}.
 
-    p1_fsm:send_event(self(), connect),
 
-    erlang:process_flag(trap_exit, true),
-    {ok, connecting, #state{db_type = DBType,
-                            host = Host,
-                            max_pending_requests_len = max_fsm_queue(),
-                            pending_requests = {0, queue:new()},
-                            start_interval = StartInterval}}.
-
--spec connecting(_, state())
-                -> {'next_state','connecting' | 'session_established',_}.
-connecting(connect, #state{host = Host} = State) ->
-    ConnectRes = case db_opts(Host) of
-                     [mysql | Args] ->
-                         apply(fun mysql_connect/5, Args);
-                     [pgsql | Args] ->
-                         apply(fun pgsql_connect/5, Args);
-                     [odbc | Args] ->
-                         apply(fun odbc_connect/1, Args)
-                 end,
-    {_, PendingRequests} = State#state.pending_requests,
-    case ConnectRes of
-        {ok, Ref} ->
-            erlang:monitor(process, Ref),
-            lists:foreach(
-              fun(Req) ->
-                      p1_fsm:send_event(self(), Req)
-              end, queue:to_list(PendingRequests)),
-            {next_state, session_established,
-             State#state{db_ref = Ref,
-                         pending_requests = {0, queue:new()}}};
-        {error, Reason} ->
-            ?INFO_MSG("~p connection failed:~n"
-                      "** Reason: ~p~n"
-                      "** Retry after: ~p seconds",
-                      [State#state.db_type, Reason,
-                       State#state.start_interval div 1000]),
-            p1_fsm:send_event_after(State#state.start_interval,
-                                      connect),
-            {next_state, connecting, State}
-    end;
-connecting(Event, State) ->
-    ?WARNING_MSG("unexpected event in 'connecting': ~p", [Event]),
-    {next_state, connecting, State}.
-
--spec connecting(_, From :: any(), state()) ->
-                        {'next_state','connecting',_} | {'reply',{'error','badarg'},'connecting',_}.
-connecting({sql_cmd, {sql_query, ?KEEPALIVE_QUERY}, _Timestamp}, From, State) ->
-    p1_fsm:reply(From, {error, "SQL connection failed"}),
-    {next_state, connecting, State};
-connecting({sql_cmd, Command, Timestamp} = Req, From, State) ->
-    ?DEBUG("queuing pending request while connecting:~n\t~p", [Req]),
-    {Len, PendingRequests} = State#state.pending_requests,
-    NewPendingRequests =
-        if Len < State#state.max_pending_requests_len ->
-                {Len + 1, queue:in({sql_cmd, Command, From, Timestamp}, PendingRequests)};
-           true ->
-                lists:foreach(
-                  fun({sql_cmd, _, To, _Timestamp}) ->
-                          p1_fsm:reply(
-                             To, {error, "SQL connection failed"})
-                  end, queue:to_list(PendingRequests)),
-                {1, queue:from_list([{sql_cmd, Command, From, Timestamp}])}
-        end,
-    {next_state, connecting,
-     State#state{pending_requests = NewPendingRequests}};
-connecting(Request, {Who, _Ref}, State) ->
-    ?WARNING_MSG("unexpected call ~p from ~p in 'connecting'",
-                 [Request, Who]),
-    {reply, {error, badarg}, connecting, State}.
-
--spec session_established(_, From :: _, state())
-                         -> {'next_state','session_established',_}
-                                | {'stop','closed' | 'timeout',_}
-                                | {'reply',{'error','badarg'},'session_established',_}.
-session_established({sql_cmd, Command, Timestamp}, From, State) ->
+handle_call({sql_cmd, Command, Timestamp}, From, State) ->
     run_sql_cmd(Command, From, State, Timestamp);
-session_established(Request, {Who, _Ref}, State) ->
-    ?WARNING_MSG("unexpected call ~p from ~p in 'session_established'",
-                 [Request, Who]),
-    {reply, {error, badarg}, session_established, State}.
+handle_call(get_db_info, _, #state{db_ref = DbRef, db_type = DbType} = State) ->
+    {reply, {ok, DbType, DbRef}, State};
+handle_call(_Event, _From, State) ->
+    {reply, {error, badarg}, State}.
 
--spec session_established(_, state()) -> {'next_state','session_established',_}
-                                             | {'stop','closed' | 'timeout',_}.
-session_established(Event, State) ->
-    ?WARNING_MSG("unexpected event in 'session_established': ~p", [Event]),
-    {next_state, session_established, State}.
+handle_cast(Request, State) ->
+    ?WARNING_MSG("unexpected cast: ~p", [Request]),
+    {noreply, State}.
 
-handle_event(_Event, StateName, State) ->
-    {next_state, StateName, State}.
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
 
-handle_sync_event(get_db_info, _, StateName,
-                  #state{db_ref = DbRef, db_type = DbType} = State) ->
-    {reply, {ok, DbType, DbRef}, StateName, State};
-handle_sync_event({keepalive_failed, Error}, _From, _StateName, State) ->
-    {stop, {keepalive_failed, Error}, ok, State};
-handle_sync_event(_Event, _From, StateName, State) ->
-    {reply, {error, badarg}, StateName, State}.
+handle_info(keepalive, State) ->
+    case sql_query_internal(?KEEPALIVE_QUERY, State) of
+        {selected, _, _} ->
+            schedule_keepalive(State#state.host),
+            {noreply, State};
+        {error, _} = Error ->
+            {stop, {keepalive_failed, Error}, ok, State}
+    end;
+handle_info(Info, State) ->
+    ?WARNING_MSG("unexpected info: ~p", [Info]),
+    {noreply, State}.
 
-code_change(_OldVsn, StateName, State, _Extra) ->
-    {ok, StateName, State}.
-
-%% We receive the down signal when we loose the MySQL connection (we are
-%% monitoring the connection)
-handle_info({'DOWN', _MonitorRef, process, _Pid, _Info}, _StateName, State) ->
-    p1_fsm:send_event(self(), connect),
-    {next_state, connecting, State};
-handle_info({'EXIT', _From, _Reason}, StateName, State) ->
-    {next_state, StateName, State};
-handle_info(Info, StateName, State) ->
-    ?WARNING_MSG("unexpected info in ~p: ~p", [StateName, Info]),
-    {next_state, StateName, State}.
-
--spec terminate(_,_,state()) -> 'ok'.
-terminate(_Reason, _StateName, State) ->
-    case State#state.db_type of
-        mysql ->
-            %% old versions of mysql driver don't have the stop function
-            %% so the catch
-            catch p1_mysql_conn:stop(State#state.db_ref);
-        pgsql ->
-            catch pgsql:terminate(State#state.db_ref);
-        _ ->
-            ok
-    end,
+-spec terminate(Reason :: term(), state()) -> any().
+terminate(_Reason, #state{db_type = mysql, db_ref = DbRef}) ->
+    catch p1_mysql_conn:stop(DbRef);
+terminate(_Reason, #state{db_type = pgsql, db_ref = DbRef}) ->
+    catch pgsql:terminate(DbRef);
+terminate(_Reason, _State) ->
     ok.
 
 %%----------------------------------------------------------------------
@@ -420,14 +293,10 @@ print_state(State) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
--type odbc_timestamp() :: {non_neg_integer(),non_neg_integer(),non_neg_integer()}.
--spec run_sql_cmd(Command :: any(),
-                  From :: any(),
-                  State :: state(),
-                  Timestamp :: odbc_timestamp())
-                 -> {'next_state','session_established',state()}
-                        | {'stop','closed' | 'timeout',state()}.
-run_sql_cmd(Command, From, State, Timestamp) ->
+-spec run_sql_cmd(Command :: any(), From :: any(), State :: state(), Timestamp :: integer()) ->
+                         {reply, Reply :: any(), state()} | {stop, Reason :: term(), state()} |
+                         {noreply, state()}.
+run_sql_cmd(Command, _From, State, Timestamp) ->
     Now = p1_time_compat:monotonic_time(milli_seconds),
     case Now - Timestamp of
         Age when Age  < ?TRANSACTION_TIMEOUT ->
@@ -436,12 +305,12 @@ run_sql_cmd(Command, From, State, Timestamp) ->
             ?ERROR_MSG("Database was not available or too slow,"
                        " discarding ~p milliseconds old request~n~p~n",
                        [Age, Command]),
-            {next_state, session_established, State}
+            {noreply, State}
     end.
 
 %% @doc Only called by handle_call, only handles top level operations.
 -spec outer_op({'sql_bloc',_} | {'sql_query',_} | {'sql_transaction',fun()}, state()) ->
-    {error | aborted | atomic, _}.
+                      {error | aborted | atomic, _}.
 outer_op({sql_query, Query}, State) ->
     sql_query_internal(Query, State);
 outer_op({sql_transaction, F}, State) ->
@@ -528,30 +397,26 @@ execute_bloc(F, _State) ->
             {atomic, Res}
     end.
 
-sql_query_internal(Query, State) ->
-    Res = case State#state.db_type of
-              odbc ->
-                  binaryze_odbc(odbc:sql_query(State#state.db_ref, Query,
-                                               ?QUERY_TIMEOUT));
-              pgsql ->
-                  ?DEBUG("Postres, Send query~n~p~n", [Query]),
-                  pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query,
-                                             ?QUERY_TIMEOUT));
-              mysql ->
-                  ?DEBUG("MySQL, Send query~n~p~n", [Query]),
-                  mysql_to_odbc(p1_mysql_conn:squery(State#state.db_ref, Query,
-                                                     self(), [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}]))
-          end,
-    case Res of
+sql_query_internal(Query, #state{db_type = DBType, db_ref = DBRef}) ->
+    case sql_query_internal(Query, DBType, DBRef) of
         {error, "No SQL-driver information available."} ->
-                                                % workaround for odbc bug
-            {updated, 0};
-        _Else -> Res
+            {updated, 0}; %% workaround for odbc bug
+        Result ->
+            Result
     end.
 
+sql_query_internal(Query, odbc, DBRef) ->
+    binaryze_odbc(odbc:sql_query(DBRef, Query, ?QUERY_TIMEOUT));
+sql_query_internal(Query, pgsql, DBRef) ->
+    pgsql_to_odbc(pgsql:squery(DBRef, Query, ?QUERY_TIMEOUT));
+sql_query_internal(Query, mysql, DBRef) ->
+    mysql_to_odbc(p1_mysql_conn:squery(DBRef, Query, self(),
+                                       [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}])).
+
 %% @doc Generate the OTP callback return tuple depending on the driver result.
--spec abort_on_driver_error(_, state())
-                           -> {'next_state','session_established',_} | {'stop','closed' | 'timeout',_}.
+-spec abort_on_driver_error(_, state()) ->
+                                   {reply, Reply :: term(), state()} |
+                                   {stop, timeout | closed, state()}.
 abort_on_driver_error({error, "query timed out"} = Reply, State) ->
     %% mysql driver error
     {stop, timeout, Reply, State};
@@ -559,7 +424,7 @@ abort_on_driver_error({error, "Failed sending data on socket" ++ _} = Reply, Sta
     %% mysql driver error
     {stop, closed, Reply, State};
 abort_on_driver_error(Reply, State) ->
-    {reply, Reply, session_established, State}.
+    {reply, Reply, State}.
 
 
 %% == pure ODBC code
@@ -605,7 +470,8 @@ pgsql_connect(Server, Port, DB, Username, Password) ->
 
 %% @doc Convert PostgreSQL query result to Erlang ODBC result formalism
 -spec pgsql_to_odbc({'ok', PGSQLResult :: [any()]})
-                   -> [{'error',_} | {'updated','undefined' | integer()} | {'selected',[any()],[any()]}]
+                   -> [{'error', _} | {'updated', 'undefined' | integer()}
+                       | {'selected', [any()], [any()]}]
                           | {'error',_}
                           | {'updated','undefined' | integer()}
                           | {'selected',[any()],[tuple()]}.
@@ -692,7 +558,7 @@ log(Level, Format, Args) ->
     end.
 
 
--spec db_opts(Host :: atom()) -> [odbc | mysql | pgsql | [char() | tuple()],...].
+-spec db_opts(Host :: ejabberd:server()) -> [odbc | mysql | pgsql | [char() | tuple()],...].
 db_opts(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
         %% Default pgsql port
@@ -712,7 +578,7 @@ db_opts(Host) ->
 
 -spec db_engine(Host :: odbc_server() | pid()) -> ejabberd_config:value().
 db_engine(Pid) when is_pid(Pid) ->
-    {ok, DbType, _} = p1_fsm:sync_send_all_state_event(Pid, get_db_info),
+    {ok, DbType, _} = gen_server:call(Pid, get_db_info),
     DbType;
 db_engine(Host) when is_binary(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
@@ -725,23 +591,27 @@ db_engine({Host, _Pid}) ->
     db_engine(Host).
 
 
--spec max_fsm_queue() -> 'undefined' | pos_integer().
-max_fsm_queue() ->
-    case ejabberd_config:get_local_option(max_fsm_queue) of
-        N when is_integer(N), N>0 ->
-            N;
-        _ ->
-            undefined
-    end.
+-spec connect(Opts :: proplists:proplist()) ->
+                     {ok, Ref :: term()} | {error, Reason :: any()}.
+connect([mysql | Args]) ->
+    apply(fun mysql_connect/5, Args);
+connect([pgsql | Args]) ->
+    apply(fun pgsql_connect/5, Args);
+connect([odbc | Args]) ->
+    apply(fun odbc_connect/1, Args).
 
 
--spec fsm_limit_opts() -> [{'max_queue',pos_integer()}].
-fsm_limit_opts() ->
-    case max_fsm_queue() of
-        N when is_integer(N) ->
-            [{max_queue, N}];
-        _ ->
-            []
+-spec schedule_keepalive(ejabberd:server()) -> any().
+schedule_keepalive(Host) ->
+    case ejabberd_config:get_local_option({odbc_keepalive_interval, Host}) of
+        KeepaliveInterval when is_integer(KeepaliveInterval) ->
+            erlang:send_after(timer:seconds(KeepaliveInterval), self(), keepalive);
+        undefined ->
+            ok;
+        _Other ->
+            ?ERROR_MSG("Wrong odbc_keepalive_interval definition '~p'"
+                       " for host ~p.~n", [_Other, Host]),
+            ok
     end.
 
 

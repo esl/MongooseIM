@@ -188,19 +188,19 @@ do_increment_generic_hook_metric(Host, Name) ->
     update(Host, Name, 1).
 
 get_odbc_stats(ODBCWorkers) ->
-    ODBCConnections = [catch ejabberd_odbc:get_db_info(Pid) || Pid <- ODBCWorkers],
+    ODBCConnections = [{catch ejabberd_odbc:get_db_info(Pid), Pid} || Pid <- ODBCWorkers],
     Ports = [get_port_from_odbc_connection(Conn) || Conn <- ODBCConnections],
     PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
     [{workers, length(ODBCConnections)} | merge_stats(PortStats)].
 
-get_port_from_odbc_connection({ok, DbType, Pid}) when DbType =:= mysql; DbType =:= pgsql ->
+get_port_from_odbc_connection({{ok, DbType, Pid}, WorkerPid}) when DbType =:= mysql; DbType =:= pgsql ->
     %% Pid of p1_mysql_conn process
-    {links, [MySQLRecv]} = erlang:process_info(Pid, links),
+    [MySQLRecv] = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
     %% Port is hold by p1_mysql_recv process which is linked to the p1_mysql_conn
     {links, Links} = erlang:process_info(MySQLRecv, links),
     [Port || Port <- Links, is_port(Port)];
-get_port_from_odbc_connection({ok, odbc, Pid}) ->
-    {links, Links} = erlang:process_info(Pid, links),
+get_port_from_odbc_connection({{ok, odbc, Pid}, WorkerPid}) ->
+    Links = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
     [Port || Port <- Links, is_port(Port), {name, "tcp_inet"} == erlang:port_info(Port, name)];
 get_port_from_odbc_connection(_) ->
     undefined.

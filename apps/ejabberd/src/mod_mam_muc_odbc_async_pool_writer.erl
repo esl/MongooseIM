@@ -98,8 +98,7 @@ start(Host, Opts) ->
     start_muc(Host, Opts).
 
 
--spec stop(ejabberd:server()) -> ['ok' | {'error','not_found' | 'restarting'
-                                  | 'running' | 'simple_one_for_one'}].
+-spec stop(ejabberd:server()) -> any().
 stop(Host) ->
     stop_muc(Host),
     stop_workers(Host),
