@@ -29,6 +29,8 @@
 -export([mam_service_discovery/1,
          muc_service_discovery/1,
          simple_archive_request/1,
+         text_search_query_fails_if_disabled/1,
+         text_search_is_not_available/1,
          simple_text_search_request/1,
          long_text_search_request/1,
          text_search_is_available/1,
@@ -272,7 +274,8 @@ basic_groups() ->
      {policy_violation, [], policy_violation_cases()},
      {muc_light,        [], muc_light_cases()},
      {prefs_cases,      [parallel], prefs_cases()},
-     {impl_specific,    [], impl_specific()}
+     {impl_specific,    [], impl_specific()},
+     {disabled_text_search, [], disabled_text_search_cases()}
     ].
 
 
@@ -292,6 +295,12 @@ text_search_cases() ->
      simple_text_search_request,
      long_text_search_request,
      text_search_is_available
+    ].
+
+disabled_text_search_cases() ->
+    [
+     text_search_is_not_available,
+     text_search_query_fails_if_disabled
     ].
 
 muc_text_search_cases() ->
@@ -611,6 +620,18 @@ init_modules(odbc_simple, _, Config) ->
     init_module(host(), mod_mam_odbc_arch, [pm, simple]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
+    Config;
+init_modules(riak_timed_yz_buckets, disabled_text_search, Config) ->
+    init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm, muc,
+                                               {archive_key, mam_archive_key_server_user}]),
+    init_module(host(), mod_mam, [add_archived_element, {full_text_search, false}]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    Config;
+init_modules(cassandra, disabled_text_search, Config) ->
+    init_module(host(), mod_mam_cassandra_arch, [pm]),
+    init_module(host(), mod_mam_cassandra_prefs, [pm]),
+    init_module(host(), mod_mam, [add_archived_element, {full_text_search, false}]),
     Config;
 init_modules(cassandra, _, Config) ->
     init_module(host(), mod_mam_cassandra_arch, [pm]),
@@ -952,6 +973,33 @@ simple_archive_request(Config) ->
         assert_respond_size(1, Res),
         assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
 
+
+        ok
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+text_search_is_not_available(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Namespace = get_prop(mam_ns, P),
+        escalus:send(Alice, stanza_retrieve_form_fields(<<"q">>, Namespace)),
+        Res = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_with_ns, [Namespace], Res),
+        QueryEl = exml_query:subelement(Res, <<"query">>),
+        XEl = exml_query:subelement(QueryEl, <<"x">>),
+        escalus:assert(has_field_with_type, [<<"full-text-search">>, <<"text-single">>], XEl),
+        ok
+        end,
+    escalus_fresh:story(Config, [{alice, 1}], F).
+
+text_search_query_fails_if_disabled(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, _Bob) ->
+        %% 'Cat' query
+        escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
+        Res1 = wait_archive_respond(P, Alice),
+        assert_respond_size(0, Res1),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res1)),
 
         ok
         end,
