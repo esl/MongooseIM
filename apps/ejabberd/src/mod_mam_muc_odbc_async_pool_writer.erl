@@ -43,7 +43,7 @@
                 max_packet_size     :: non_neg_integer(),
                 max_subscribers     :: non_neg_integer(),
                 host                :: ejabberd:server(),
-                conn,
+                connection_pool     :: pid(),
                 number              :: non_neg_integer(),
                 acc=[]              :: list(),
                 subscribers=[]      :: list(),
@@ -93,7 +93,9 @@ worker_number(Host, ArcID) ->
 
 -spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
-    {ok, Pool} = ejabberd_odbc_sup:add_pool(Host, ?MODULE, undefined, worker_count(Host)),
+    {ok, Pool} = ejabberd_odbc_sup:add_pool(Host, ?MODULE,
+                                            {local, mod_mam_muc_odbc_async_pool_writer_pool},
+                                            worker_count(Host)),
     start_workers(Host, Pool),
     start_muc(Host, Opts).
 
@@ -314,12 +316,14 @@ are_recent_entries_required(_End, _Now) ->
 -spec run_flush(state()) -> state().
 run_flush(State=#state{acc=[]}) ->
     State;
-run_flush(State=#state{host=Host, conn=Conn, number=N,
+run_flush(State=#state{host=Host, connection_pool=Pool, number=N,
                        flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
     MessageCount = length(Acc),
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
-    Result = mod_mam_muc_odbc_arch:archive_messages(Conn, Acc, N),
+    Result = poolboy:transaction(
+                Pool,
+                fun(Conn) -> mod_mam_muc_odbc_arch:archive_messages(Conn, Acc, N) end),
     case Result of
         {updated, _Count} -> ok;
         {error, Reason} ->
@@ -362,11 +366,10 @@ cancel_and_flush_timer(TRef) ->
 %%--------------------------------------------------------------------
 init([Host, N, Pool]) ->
     %% Use a private ODBC-connection.
-    Conn = poolboy:checkout(Pool),
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 500),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
     MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
-    {ok, #state{host=Host, conn=Conn, number=N,
+    {ok, #state{host=Host, connection_pool=Pool, number=N,
                 flush_interval = Int,
                 max_packet_size = MaxSize,
                 max_subscribers = MaxSubs}}.
@@ -382,8 +385,6 @@ init([Host, N, Pool]) ->
 %%--------------------------------------------------------------------
 -spec handle_call('wait_flushing', _, state())
       -> {'noreply', state()} | {'reply', 'ok', state()}.
-handle_call(get_connection, _From, State=#state{host = Host, conn = Conn}) ->
-    {reply, {Host, Conn}, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From,

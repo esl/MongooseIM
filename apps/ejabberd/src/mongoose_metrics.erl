@@ -129,11 +129,17 @@ get_odbc_data_stats() ->
 
 get_odbc_mam_async_stats() ->
     %% MAM async ODBC workers are organized differently...
-    MamChildren = case catch supervisor:which_children(mod_mam_sup) of
-                      [_ | _] = Children -> Children;
-                      _ -> []
+    GetChildren = fun(Name) ->
+                        case catch gen_server:call(Name, get_all_workers) of
+                            [_ | _] = Children -> Children;
+                            _ -> []
+                        end
                   end,
-    MamAsynODBCWorkers = [catch element(2, gen_server:call(Pid, get_connection, 1000)) || {_, Pid, worker, _} <- MamChildren],
+
+    MamChildren = GetChildren(mod_mam_odbc_async_pool_writer_pool) ++
+                  GetChildren(mod_mam_muc_odbc_async_pool_writer_pool),
+
+    MamAsynODBCWorkers = [Pid || {_, Pid, worker, _} <- MamChildren],
     get_odbc_stats(MamAsynODBCWorkers).
 
 get_dist_data_stats() ->
