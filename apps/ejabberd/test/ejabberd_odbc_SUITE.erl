@@ -58,7 +58,7 @@ end_per_testcase(_, Config) ->
 
 %% Test cases
 keepalive_interval(Config) ->
-    {ok, Pid} = ejabberd_odbc:start_link(?HOST, 1000, true),
+    {ok, Pid} = ejabberd_odbc:start_link(?HOST),
     true = erlang:unlink(Pid),
     timer:sleep(5500),
     ?eq(5, query_calls(Config)),
@@ -66,7 +66,7 @@ keepalive_interval(Config) ->
     ok.
 
 keepalive_exit(Config) ->
-    {ok, Pid} = ejabberd_odbc:start_link(?HOST, 1000, true),
+    {ok, Pid} = ejabberd_odbc:start_link(?HOST),
     true = erlang:unlink(Pid),
     Monitor = erlang:monitor(process, Pid),
     timer:sleep(3500),
@@ -115,16 +115,19 @@ meck_db(pgsql) ->
                 end).
 
 meck_error(odbc) ->
+    meck:expect(odbc, connect, fun(_, _) -> {ok, self()} end),
     meck:expect(odbc, sql_query,
                 fun(_Ref, _Query, _Timeout) ->
                         {error, "connection broken"}
                 end);
 meck_error(mysql) ->
+    meck:expect(p1_mysql_conn, start, fun(_, _, _, _, _, _) -> {ok, self()} end),
     meck:expect(p1_mysql_conn, squery,
                 fun(_Ref, _Query, _Pid, _Options) ->
                         {error, "connection broken"}
                 end);
 meck_error(pgsql) ->
+    meck:expect(pgsql, connect, fun(_) -> {ok, self()} end),
     meck:expect(pgsql, squery,
                 fun(_Ref, _Query, _Timeout) ->
                         {ok, [{error, "connection broken"}]}

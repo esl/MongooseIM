@@ -92,7 +92,7 @@
 %%% API
 %%%----------------------------------------------------------------------
 -spec start_link(Host :: ejabberd:server()) ->
-                        'ignore' | {'error',_} | {'ok',pid()}.
+                        'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host) ->
     gen_server:start_link(ejabberd_odbc, Host, []).
 
@@ -116,7 +116,7 @@ sql_bloc(Host, F) ->
 
 %% TODO: Better spec for RPC calls
 -spec sql_call(Host :: odbc_server(),
-               Msg :: {'sql_bloc',_} | {'sql_query',_} | {'sql_transaction',fun()}) ->
+               Msg :: {'sql_bloc', _} | {'sql_query', _} | {'sql_transaction', fun()}) ->
                       any().
 sql_call(Host, Msg) when is_binary(Host) ->
     case get(?STATE_KEY) of
@@ -211,9 +211,9 @@ result_to_integer(Bin) when is_binary(Bin) ->
 hex_to_bin(Bin) when is_binary(Bin) ->
     << <<(hex_to_int(X, Y))>> || <<X, Y>> <= Bin>>.
 
--spec hex_to_int(byte(),byte()) -> integer().
+-spec hex_to_int(byte(), byte()) -> integer().
 hex_to_int(X, Y) when is_integer(X), is_integer(Y) ->
-    list_to_integer([X,Y], 16).
+    list_to_integer([X, Y], 16).
 
 -spec to_bool(binary() | string() | atom() | integer() | any()) -> boolean().
 to_bool(B) when is_binary(B) ->
@@ -260,7 +260,7 @@ handle_info(keepalive, State) ->
             schedule_keepalive(State#state.host),
             {noreply, State};
         {error, _} = Error ->
-            {stop, {keepalive_failed, Error}, ok, State}
+            {stop, {keepalive_failed, Error}, State}
     end;
 handle_info(Info, State) ->
     ?WARNING_MSG("unexpected info: ~p", [Info]),
@@ -297,7 +297,7 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
     end.
 
 %% @doc Only called by handle_call, only handles top level operations.
--spec outer_op({'sql_bloc',_} | {'sql_query',_} | {'sql_transaction',fun()}, state()) ->
+-spec outer_op({'sql_bloc', _} | {'sql_query', _} | {'sql_transaction', fun()}, state()) ->
                       {error | aborted | atomic, _}.
 outer_op({sql_query, Query}, State) ->
     sql_query_internal(Query, State);
@@ -308,7 +308,7 @@ outer_op({sql_bloc, F}, State) ->
 
 %% @doc Called via sql_query/transaction/bloc from client code when inside a
 %% nested operation
--spec nested_op({'sql_bloc',_} | {'sql_query',_} | {'sql_transaction',fun()}, state()) -> any().
+-spec nested_op({'sql_bloc', _} | {'sql_query', _} | {'sql_transaction', fun()}, state()) -> any().
 nested_op({sql_query, Query}, State) ->
     %% XXX - use sql_query_t here insted? Most likely would break
     %% callers who expect {error, _} tuples (sql_query_t turns
@@ -327,7 +327,7 @@ nested_op({sql_bloc, F}, State) ->
     execute_bloc(F, State).
 
 %% @doc Never retry nested transactions - only outer transactions
--spec inner_transaction(fun(), state()) -> {'EXIT',_} | {'aborted',_} | {'atomic',_}.
+-spec inner_transaction(fun(), state()) -> {'EXIT', _} | {'aborted', _} | {'atomic', _}.
 inner_transaction(F, _State) ->
     case catch F() of
         {aborted, Reason} ->
@@ -342,7 +342,7 @@ inner_transaction(F, _State) ->
 
 -spec outer_transaction(F :: fun(),
                         NRestarts :: 0..10,
-                        Reason :: any(), state()) -> {'aborted',_} | {'atomic',_}.
+                        Reason :: any(), state()) -> {'aborted', _} | {'atomic', _}.
 outer_transaction(F, NRestarts, _Reason, State) ->
     sql_query_internal(odbc_queries:begin_trans(), State),
     put(?STATE_KEY, State),
@@ -374,7 +374,7 @@ outer_transaction(F, NRestarts, _Reason, State) ->
             {atomic, Res}
     end.
 
--spec execute_bloc(fun(), state()) -> {'aborted',_} | {'atomic',_}.
+-spec execute_bloc(fun(), state()) -> {'aborted', _} | {'atomic', _}.
 execute_bloc(F, _State) ->
     case catch F() of
         {aborted, Reason} ->
