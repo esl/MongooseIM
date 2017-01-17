@@ -230,8 +230,6 @@ to_bool(_) -> false.
 %%%----------------------------------------------------------------------
 -spec init(ejabberd:server()) -> {ok, state()}.
 init(Host) ->
-    ok = pg2:create({Host, ?MODULE}),
-    ok = pg2:join({Host, ?MODULE}, self()),
     Backend = backend(Host),
     Settings = ejabberd_config:get_local_option({odbc_server, Host}),
     {ok, DbRef} = Backend:connect(Settings),
