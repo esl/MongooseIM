@@ -65,7 +65,7 @@ mech_new(Host, Creds) ->
 mech_step(#state{step = 1, nonce = Nonce} = State, _) ->
     {continue,
      list_to_binary("nonce=\"" ++ Nonce ++
-     "\", qop=\"auth\", charset=utf-8, algorithm=md5-sess"),
+     "\",qop=\"auth\",charset=utf-8,algorithm=md5-sess"),
      State#state{step = 3}};
 mech_step(#state{step = 3, nonce = Nonce} = State, ClientIn) ->
     case parse(ClientIn) of

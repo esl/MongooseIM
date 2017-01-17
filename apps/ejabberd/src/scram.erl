@@ -62,7 +62,7 @@
 
 -define(SALT_LENGTH, 16).
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
--define(SCRAM_SERIAL_PREFIX, "==SCRAM==, ").
+-define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
 
 -spec salted_password(binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Password, Salt, IterationCount) ->
@@ -161,7 +161,7 @@ serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
        $,,Salt/binary, $,,IterationCountBin/binary>>.
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
-    case catch binary:split(Serialized, <<", ">>, [global]) of
+    case catch binary:split(Serialized, <<",">>, [global]) of
         [StoredKey, ServerKey, Salt, IterationCount] ->
             {ok, #scram{storedkey = StoredKey,
                         serverkey = ServerKey,

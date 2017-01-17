@@ -61,7 +61,7 @@ mech_new(_Host, Creds) ->
     {ok, #state{step = 2, creds = Creds}}.
 
 mech_step(#state{step = 2} = State, ClientIn) ->
-    case re:split(ClientIn, <<", ">>, [{return, binary}]) of
+    case re:split(ClientIn, <<",">>, [{return, binary}]) of
         [_CBind, _AuthorizationIdentity, _UserNameAttribute, _ClientNonceAttribute, ExtensionAttribute | _]
           when ExtensionAttribute /= [] ->
             {error, <<"protocol-error-extension-not-supported">>};
@@ -105,16 +105,16 @@ mech_step(#state{step = 2} = State, ClientIn) ->
                                               [<<"r=">>,
                                                ClientNonce,
                                                ServerNonce,
-                                               <<", s=">>,
+                                               <<",s=">>,
                                                jlib:encode_base64(Salt),
-                                               <<", i=">>,
+                                               <<",i=">>,
                                                integer_to_list(IterationCount)]),
                                             {continue, ServerFirstMessage,
                                              State#state{step = 4, stored_key = StoredKey,
                                                          server_key = ServerKey,
                                                          auth_message =
                                                          <<ClientFirstMessageBare/binary,
-                                                           ", ", ServerFirstMessage/binary>>,
+                                                           ",", ServerFirstMessage/binary>>,
                                                          client_nonce = ClientNonce,
                                                          server_nonce = ServerNonce,
                                                          username = UserName,
@@ -127,7 +127,7 @@ mech_step(#state{step = 2} = State, ClientIn) ->
         _Else -> {error, <<"bad-protocol">>}
     end;
 mech_step(#state{step = 4} = State, ClientIn) ->
-    case re:split(ClientIn, <<", ">>) of
+    case re:split(ClientIn, <<",">>) of
         [GS2ChannelBindingAttribute, NonceAttribute,
          ClientProofAttribute] ->
             case parse_attribute(GS2ChannelBindingAttribute) of
@@ -142,10 +142,10 @@ mech_step(#state{step = 4} = State, ClientIn) ->
                                    case parse_attribute(ClientProofAttribute) of
                                        {$p, ClientProofB64} ->
                                            ClientProof = jlib:decode_base64(ClientProofB64),
-                                           {PStart, _} = binary:match(ClientIn, <<", p=">>),
+                                           {PStart, _} = binary:match(ClientIn, <<",p=">>),
                                            AuthMessage = iolist_to_binary(
                                                            [State#state.auth_message,
-                                                            ", ",
+                                                            ",",
                                                             binary:part(ClientIn, 0, PStart)
                                                            ]),
                                            ClientSignature =
@@ -212,7 +212,7 @@ unescape_username(UnescapedUsername) ->
                                 binary:replace(UnescapedUsername,
                                                <<"=3D">>, <<"=">>,
                                                [global]),
-                                <<"=2C">>, <<", ">>, [global]),
+                                <<"=2C">>, <<",">>, [global]),
             case binary:match(EscapedUsername, <<"=">>) of
                 nomatch ->
                     EscapedUsername;
