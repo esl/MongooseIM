@@ -54,7 +54,7 @@ start_link(Host) ->
 -spec init([ejabberd:server(), ...]) -> {'ok', {{_, _, _}, [any()]}}.
 init([Host]) ->
     PoolSize = pool_size(Host),
-    PoolName = gen_mod:get_module_proc(Host, ?POOL_NAME),
+    PoolName = default_pool(Host),
     ChildrenSpec = [pool_spec(Host, default_pool, {local, PoolName}, PoolSize)],
     {ok, {{one_for_one, PoolSize * 10, 1}, ChildrenSpec}}.
 
@@ -78,7 +78,8 @@ pool_spec(Host, Id, Name, Size) ->
 
 -spec get_pids(ejabberd:server()) -> [pid()].
 get_pids(Host) ->
-    pg2:get_members({Host, ejabberd_odbc}).
+    PoolName = default_pool(Host),
+    [Pid || {_, Pid, worker, _} <- gen_server:call(PoolName, get_all_workers)].
 
 
 default_pool(Host) ->
