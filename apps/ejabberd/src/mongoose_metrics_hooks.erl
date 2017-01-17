@@ -285,8 +285,15 @@ user_ping_timeout(Acc, _JID) ->
                           Server :: ejabberd:server(),
                           term(), term(), term()) -> allow | deny | block | mongoose_stanza:t().
 privacy_check_packet(Acc, _, Server, _, _, _) ->
+    Res = case mongoose_stanza:is_stanza(Acc) of
+        true ->
+            mongoose_stanza:get(privacy_check, Acc, allow);
+        false ->
+            ?DEPRECATED,
+            Acc
+    end,
     mongoose_metrics:update(Server, modPrivacyStanzaAll, 1),
-    case Acc of
+    case Res of
         deny ->
             mongoose_metrics:update(Server, modPrivacyStanzaDenied, 1);
         block ->

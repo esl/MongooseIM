@@ -151,7 +151,10 @@ process_item(RosterItem, _Host) ->
         _ -> RosterItem#roster{subscription = both, ask = none}
     end.
 
-get_subscription_lists({F, T, P}, User, Server) ->
+get_subscription_lists(Acc, User, Server) ->
+    F = mongoose_stanza:get(from, Acc, []),
+    T = mongoose_stanza:get(to, Acc, []),
+    P = mongoose_stanza:get(pending, Acc, []),
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     US = {LUser, LServer},
@@ -161,7 +164,8 @@ get_subscription_lists({F, T, P}, User, Server) ->
                                         end,
                                         DisplayedGroups)),
     SRJIDs = [{U1, S1, <<"">>} || {U1, S1} <- SRUsers],
-    {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P}.
+    {F1, T1, P1} = {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P},
+    mongoose_stanza:update(Acc, #{from=>F1, to=>T1, pending=>P1}).
 
 get_jid_info({Subscription, Groups}, User, Server, JID) ->
     LUser = jid:nodeprep(User),
