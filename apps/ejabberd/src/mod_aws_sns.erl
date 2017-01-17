@@ -35,7 +35,7 @@
 -type user_guid() :: binary().
 -type topic_arn() :: string(). %% Full topic ARN in format arn:aws:sns:{REGION}:{ACCOUNT_ID}:{TOPIC}
 -type topic() :: string(). %% {TOPIC} part of topic_arn() type
--type attributes() :: erlcloud:sns_message_attributes().
+-type attributes() :: #{string() => string() | binary() | number()}.
 
 
 %%%===================================================================
@@ -97,16 +97,15 @@ stop(Host) ->
 user_send_packet(From = #jid{lserver = Host}, To, Packet) ->
     ?DEBUG("SNS Packet handle~n    from ~p ~n    to ~p~n    packet ~p.", [From, To, Packet]),
 
-    case {get_topic(Host, Packet), xml:get_subtag(Packet, <<"body">>)} of
+    case {get_topic(Host, Packet), exml_query:subelement(Packet, <<"body">>)} of
         {undefined, _} -> %% Skip if there is no topic set in configuration for the packet type
             skip;
-        {_, false} -> %% Skip if there is no message body in the packet
+        {_, undefined} -> %% Skip if there is no message body in the packet
             skip;
         {Topic, BodyTag} ->
             FromGUID = user_guid(Host, From),
             ToGUID = user_guid(Host, To),
-
-            MessageBody = xml:get_tag_cdata(BodyTag),
+            MessageBody = exml_query:cdata(BodyTag),
             Content = #{from_user_id => FromGUID,
                         to_user_id => ToGUID,
                         message => MessageBody},
@@ -163,15 +162,15 @@ user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
 %%%===================================================================
 
 %% @doc Publish notification to AWS SNS service. Content should be valid JSON term
--spec publish(Host :: ejabberd:lserver(), topic_arn(), Content :: #{}, attributes()) ->
-                     MessageId :: string().
+-spec publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
+              attributes()) -> MessageId :: string().
 publish(Host, TopicARN, Content, Attributes) ->
     EncodedContent = jiffy:encode(Content),
     erlcloud_sns:publish(topic, TopicARN, unicode:characters_to_list(EncodedContent),
                          undefined, maps:to_list(Attributes), aws_handle(Host)).
 
 %% @doc Returns AWS SNS handle base on configured AWS credentials
--spec aws_handle(Host :: ejabberd:lserver()) -> erlcloud:sns_handle().
+-spec aws_handle(Host :: ejabberd:lserver()) -> aws_config().
 aws_handle(Host) ->
     AccessKeyId = opt(Host, access_key_id),
     SecretKey = opt(Host, secret_access_key),
@@ -203,7 +202,7 @@ make_topic_arn(Host, Topic) ->
 %% @doc Returns message type
 -spec message_type(Packet :: jlib:xmlel()) -> pm | muc | undefined.
 message_type(Packet) ->
-    case xml:get_tag_attr_s(<<"type">>, Packet) of
+    case exml_query:attr(Packet, <<"type">>) of
         <<"chat">> -> pm;
         <<"groupchat">> -> muc;
         _ -> undefined
