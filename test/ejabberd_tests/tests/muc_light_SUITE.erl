@@ -5,6 +5,10 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-export([ % muc_light_presence
+  simple_test/1
+]).
+
 -export([ % service
          mismatched_default_config_is_rejected/1,
          removing_users_from_server_triggers_room_destruction/1
@@ -51,7 +55,8 @@
          remove_and_add_users/1,
          explicit_owner_change/1,
          implicit_owner_change/1,
-         edge_case_owner_change/1
+         edge_case_owner_change/1,
+         adding_wrongly_named_user_triggers_infinite_loop/1
         ]).
 -export([ % limits
          rooms_per_user/1,
@@ -114,6 +119,7 @@
 
 all() ->
     [
+     {group, muc_light_presence},
      {group, service},
      {group, entity},
      {group, occupant},
@@ -124,6 +130,7 @@ all() ->
 
 groups() ->
     [
+     {muc_light_presence, [sequence], [simple_test]},
      {service, [sequence], [
                             mismatched_default_config_is_rejected,
                             removing_users_from_server_triggers_room_destruction
@@ -167,6 +174,7 @@ groups() ->
                           set_config_with_custom_schema,
                           deny_config_change_that_conflicts_with_schema,
                           assorted_config_doesnt_lead_to_duplication,
+                          adding_wrongly_named_user_triggers_infinite_loop,
                           remove_and_add_users,
                           explicit_owner_change,
                           implicit_owner_change,
@@ -279,6 +287,20 @@ clear_db() ->
 %%--------------------------------------------------------------------
 %% MUC light tests
 %%--------------------------------------------------------------------
+
+%% ---------------------- MUC Light presences ----------------------
+
+simple_test(Config) ->
+  escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, _Kate) ->
+    logout(Bob),
+    Stanza = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_presence, Stanza)
+                                                           end).
+
+%% MUC Light presence helpers
+logout(User) ->
+  escalus_client:stop(User),
+  timer:sleep(100).
 
 %% ---------------------- Service ----------------------
 
@@ -626,6 +648,44 @@ destroy_room_get_disco_items_empty(Config) ->
         DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
         foreach_occupant([Alice, Bob, Kate], DiscoStanza, disco_items_verify_fun([]))
      end).
+
+adding_wrongly_named_user_triggers_infinite_loop(Config)->
+  escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    BuggyRoomName = <<"buggyroom">>,
+    Username = <<"buggyuser">>,
+    escalus:send(Alice, generate_buggy_aff_staza(BuggyRoomName, Username)),
+    timer:sleep(300),
+    [SessionRecPid] = rpc(ets, tab2list, [session]),
+    {session, {_, Pid}, _, _, _, _} = SessionRecPid,
+    case check_process_memory_loop(Pid, 0, 2) of
+      ok ->
+        ok;
+      _ ->
+        throw({memory_consumption_is_growing})
+    end,
+    escalus:wait_for_stanzas(Alice, 2),
+    ok
+    end).
+
+generate_buggy_aff_staza(RoomName, Username) ->
+    BuggyJid = <<Username/binary, "@muclight.localhost">>,
+    BuggyUser = #client{jid = BuggyJid},
+    stanza_create_room(RoomName, [], [{BuggyUser, member}]).
+
+check_process_memory_loop(_, _, Count) when Count > 4 ->
+  memory_consumption_is_growing;
+check_process_memory_loop(_, _, Count) when Count == 0 ->
+  ok;
+check_process_memory_loop(Pid, CurrentMemory, Count) ->
+  Mem = rpc(erlang, process_info, [Pid, memory]),
+  case Mem of
+    CurrentMemory ->
+      timer:sleep(1000),
+      check_process_memory_loop(Pid, Mem, Count - 1);
+    _ ->
+      timer:sleep(1000),
+      check_process_memory_loop(Pid, Mem, Count + 1)
+  end.
 
 destroy_room_get_disco_items_one_left(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
