@@ -61,7 +61,7 @@
                 privacy_list = #userlist{} :: mod_privacy:userlist(),
                 conn = unknown,
                 auth_module     :: ejabberd_auth:authmodule(),
-                ip              :: inet:ip_address(),
+                ip              :: {inet:ip_address(), inet:port_number()},
                 aux_fields = [] :: [{aux_key(), aux_value()}],
                 lang            :: ejabberd:lang(),
                 stream_mgmt = false,
