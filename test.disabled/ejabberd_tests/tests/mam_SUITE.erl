@@ -217,7 +217,8 @@ basic_group_names() ->
      muc_light,
      policy_violation,
      prefs_cases,
-     impl_specific
+     impl_specific,
+     disabled_text_search
     ].
 
 all() ->
@@ -275,7 +276,11 @@ basic_groups() ->
      {muc_light,        [], muc_light_cases()},
      {prefs_cases,      [parallel], prefs_cases()},
      {impl_specific,    [], impl_specific()},
-     {disabled_text_search, [], disabled_text_search_cases()}
+     {disabled_text_search, [],
+         [
+          {mam03, [], disabled_text_search_cases()},
+          {mam04, [], disabled_text_search_cases()}
+         ]}
     ].
 
 
@@ -609,71 +614,60 @@ init_modules(odbc_mnesia_cache, muc_all, Config) ->
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
-init_modules(odbc, _, Config) ->
-    init_module(host(), mod_mam, [add_archived_element]),
+init_modules(odbc, C, Config) ->
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
-init_modules(odbc_simple, _, Config) ->
-    init_module(host(), mod_mam, [add_archived_element]),
+init_modules(odbc_simple, C, Config) ->
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
     init_module(host(), mod_mam_odbc_arch, [pm, simple]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
-init_modules(riak_timed_yz_buckets, disabled_text_search, Config) ->
+init_modules(riak_timed_yz_buckets, C, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(host(), mod_mam_mnesia_prefs, [pm, muc,
                                                {archive_key, mam_archive_key_server_user}]),
-    init_module(host(), mod_mam, [add_archived_element, {full_text_search, false}]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam_muc,
+                [{host, "muc.@HOST@"}, add_archived_element] ++ addin_mam_options(C)),
     Config;
-init_modules(cassandra, disabled_text_search, Config) ->
+init_modules(cassandra, C, Config) ->
     init_module(host(), mod_mam_cassandra_arch, [pm]),
     init_module(host(), mod_mam_cassandra_prefs, [pm]),
-    init_module(host(), mod_mam, [add_archived_element, {full_text_search, false}]),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
     Config;
-init_modules(cassandra, _, Config) ->
-    init_module(host(), mod_mam_cassandra_arch, [pm]),
-    init_module(host(), mod_mam_cassandra_prefs, [pm]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    Config;
-init_modules(odbc_async, _, Config) ->
-    init_module(host(), mod_mam, [add_archived_element]),
+init_modules(odbc_async, C, Config) ->
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
     init_module(host(), mod_mam_odbc_async_writer, [pm, {flush_interval, 1}]), % 1ms
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
-init_modules(riak_timed_yz_buckets, _, Config) ->
-    init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
-    init_module(host(), mod_mam_mnesia_prefs, [pm, muc,
-                                               {archive_key, mam_archive_key_server_user}]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    Config;
-init_modules(odbc_async_pool, _, Config) ->
-    init_module(host(), mod_mam, [add_archived_element]),
+init_modules(odbc_async_pool, C, Config) ->
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
     init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
-init_modules(odbc_mnesia, _, Config) ->
-    init_module(host(), mod_mam, [add_archived_element]),
+init_modules(odbc_mnesia, C, Config) ->
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
-init_modules(odbc_cache, _, Config) ->
-    init_module(host(), mod_mam, [add_archived_element]),
+init_modules(odbc_cache, C, Config) ->
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
-init_modules(odbc_async_cache, _, Config) ->
-    init_module(host(), mod_mam, [add_archived_element]),
+init_modules(odbc_async_cache, C, Config) ->
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
     init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_odbc_prefs, [pm]),
@@ -682,8 +676,8 @@ init_modules(odbc_async_cache, _, Config) ->
     Config;
 init_modules(odbc_mnesia_muc_cache, _, _Config) ->
     skip;
-init_modules(odbc_mnesia_cache, _, Config) ->
-    init_module(host(), mod_mam, [add_archived_element]),
+init_modules(odbc_mnesia_cache, C, Config) ->
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
@@ -697,6 +691,11 @@ end_modules(C, muc_light, Config) ->
 end_modules(_, _, Config) ->
     [stop_module(host(), M) || M <- mam_modules()],
     Config.
+
+addin_mam_options(disabled_text_search) ->
+    [{full_text_search, false}];
+addin_mam_options(_) ->
+    [].
 
 mam_modules() ->
     [mod_mam,
@@ -987,21 +986,21 @@ text_search_is_not_available(Config) ->
         escalus:assert(is_iq_with_ns, [Namespace], Res),
         QueryEl = exml_query:subelement(Res, <<"query">>),
         XEl = exml_query:subelement(QueryEl, <<"x">>),
-        escalus:assert(has_field_with_type, [<<"full-text-search">>, <<"text-single">>], XEl),
-        ok
+        Fields = exml_query:paths(XEl, [{element, <<"field">>}]),
+        HasFullTextSearch = lists:any(fun(Item) ->
+            exml_query:attr(Item, <<"var">>) == <<"full-text-search">>
+        end, Fields),
+
+        ?assert_equal(false, HasFullTextSearch)
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
 
 text_search_query_fails_if_disabled(Config) ->
     P = ?config(props, Config),
-    F = fun(Alice, _Bob) ->
-        %% 'Cat' query
-        escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
-        Res1 = wait_archive_respond(P, Alice),
-        assert_respond_size(0, Res1),
-        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res1)),
-
-        ok
+    F = fun(_Alice, Bob) ->
+        escalus:send(Bob, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
+        Res = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_iq_error, Res)
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 

@@ -74,7 +74,7 @@
 -export([send_message/3,
          is_jid_in_user_roster/2]).
 
-                                                %-define(MAM_INLINE_UTILS, true).
+%-define(MAM_INLINE_UTILS, true).
 
 -ifdef(MAM_INLINE_UTILS).
 -compile({inline, [
@@ -128,7 +128,7 @@ rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
 %% "maybe" means, that the function may return `undefined'.
 %% @end
 -spec maybe_microseconds(iso8601_datetime_binary()) -> unix_timestamp();
-                        (<<>>) -> undefined.
+                          (<<>>) -> undefined.
 maybe_microseconds(<<>>) -> undefined;
 maybe_microseconds(ISODateTime) ->
     case iso8601_datetime_binary_to_timestamp(ISODateTime) of
@@ -150,7 +150,7 @@ microseconds_to_now(MicroSeconds) when is_integer(MicroSeconds) ->
 
 %% @doc Returns time in `now()' format.
 -spec iso8601_datetime_binary_to_timestamp(iso8601_datetime_binary())
-                                          -> erlang:timestamp() | undefined.
+        -> erlang:timestamp() | undefined.
 iso8601_datetime_binary_to_timestamp(DateTime) when is_binary(DateTime) ->
     jlib:datetime_binary_to_timestamp(DateTime).
 
@@ -184,7 +184,7 @@ generate_message_id() ->
 %% The maximum date, that can be encoded is `{{4253, 5, 31}, {22, 20, 37}}'.
 -spec encode_compact_uuid(integer(), integer()) -> integer().
 encode_compact_uuid(Microseconds, NodeId)
-  when is_integer(Microseconds), is_integer(NodeId) ->
+    when is_integer(Microseconds), is_integer(NodeId) ->
     (Microseconds bsl 8) + NodeId.
 
 
@@ -550,16 +550,16 @@ form_borders_decode(QueryEl) ->
               BeforeID :: 'undefined' | non_neg_integer(),
               FromID :: 'undefined' | non_neg_integer(),
               ToID :: 'undefined' | non_neg_integer()
-             ) -> 'undefined' | mod_mam:borders().
+            ) -> 'undefined' | mod_mam:borders().
 borders(undefined, undefined, undefined, undefined) ->
     undefined;
 borders(AfterID, BeforeID, FromID, ToID) ->
     #mam_borders{
-       after_id  = AfterID,
-       before_id = BeforeID,
-       from_id   = FromID,
-       to_id     = ToID
-      }.
+        after_id  = AfterID,
+        before_id = BeforeID,
+        from_id   = FromID,
+        to_id     = ToID
+    }.
 
 
 -spec tag_id(jlib:xmlel(), binary()) -> 'undefined' | integer().
@@ -711,7 +711,7 @@ normalize_search_text(Text, WordSeparator) ->
 %% JID serialization
 
 -spec jid_to_opt_binary(UserJID :: ejabberd:jid(), JID :: ejabberd:jid()
-                       ) -> ejabberd:literal_jid().
+                        ) -> ejabberd:literal_jid().
 jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
                   #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
     <<>>;
@@ -735,20 +735,20 @@ jid_to_opt_binary(_,
 
 
 -spec expand_minified_jid(UserJID :: ejabberd:jid(),
-                          OptJID :: ejabberd:literal_jid()) -> ejabberd:literal_jid().
+                    OptJID :: ejabberd:literal_jid()) -> ejabberd:literal_jid().
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<>>) ->
     <<LUser/binary, $@, LServer/binary>>;
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<$/, LResource/binary>>) ->
     <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;
 expand_minified_jid(UserJID, Encoded) ->
     Part = binary:match(Encoded, [<<$@>>, <<$/>>, <<$:>>]),
-    expand_minified_jid2(Part, UserJID, Encoded).
+    expand_minified_jid_2(Part, UserJID, Encoded).
 
 -spec expand_minified_jid_2('nomatch' | {non_neg_integer(), 1},
             ejabberd:jid(), Encoded :: ejabberd:luser() | binary()) -> binary().
 expand_minified_jid_2(nomatch,  #jid{lserver=ThisServer}, LUser) ->
     <<LUser/binary, $@, ThisServer/binary>>;
-expand_minified_jid2({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
+expand_minified_jid_2({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
     case Encoded of
         <<LServer:Pos/binary, $:, LUser/binary>> ->
             <<LUser/binary, $@, LServer/binary>>;
@@ -765,8 +765,8 @@ jid_to_opt_binary_test_() ->
     check_stringprep(),
     UserJID = jid:from_binary(<<"alice@room">>),
     [?_assertEqual(JID,
-                   (expand_minified_jid(UserJID,
-                                        jid_to_opt_binary(UserJID, jid:from_binary(JID)))))
+        (expand_minified_jid(UserJID,
+              jid_to_opt_binary(UserJID, jid:from_binary(JID)))))
      || JID <- test_jids()].
 
 test_jids() ->

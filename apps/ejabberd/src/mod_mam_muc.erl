@@ -717,7 +717,7 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
                                  | {error, Reason :: term()}.%Result :: any(),
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    case not has_full_text_search(Host) andalso SearchText /= undefined of
+    case SearchText /= undefined andalso not has_full_text_search(Host) of
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
