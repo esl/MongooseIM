@@ -51,7 +51,7 @@
 
 %% private
 -export([archive_message/8]).
--export([lookup_messages/13]).
+-export([lookup_messages/14]).
 -export([archive_id_int/2]).
 %% ----------------------------------------------------------------------
 %% Imports
@@ -87,6 +87,7 @@
 %% Forms
 -import(mod_mam_utils,
         [form_field_value_s/2,
+         form_field_value/2,
          message_form/1]).
 
 %% Other
@@ -227,8 +228,8 @@ filter_room_packet(Packet, EventData) ->
 
 %% @doc Archive without validation.
 -spec archive_room_packet(Packet :: packet(), FromNick :: ejabberd:user(),
-        FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
-        Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
+                          FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
+                          Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
 archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affiliation) ->
     {ok, Host} = mongoose_subhosts:get_host(RoomJID#jid.lserver),
     ArcID = archive_id_int(Host, RoomJID),
@@ -426,7 +427,7 @@ handle_set_prefs_result({error, Reason},
 
 
 -spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) ->
-    ejabberd:iq() | {error, any(), ejabberd:iq()}.
+                              ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
@@ -457,6 +458,7 @@ handle_lookup_messages(
     Start = elem_to_start_microseconds(QueryEl),
     End = elem_to_end_microseconds(QueryEl),
     %% Filtering by contact.
+    SearchText = undefined,
     With = elem_to_with_jid(QueryEl),
     RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = borders_decode(QueryEl),
@@ -466,7 +468,7 @@ handle_lookup_messages(
     LimitPassed = Limit =/= <<>>,
     IsSimple = decode_optimizations(QueryEl),
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With,
+                         Start, End, Now, With, SearchText,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
         {error, 'policy-violation'} ->
             ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
@@ -514,6 +516,9 @@ handle_set_message_form(
     End = form_to_end_microseconds(QueryEl),
     %% Filtering by contact.
     With = form_to_with_jid(QueryEl),
+    %% Filtering by text
+    Text  = form_to_text(QueryEl),
+
     RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = form_borders_decode(QueryEl),
     Limit = elem_to_limit(QueryEl),
@@ -526,7 +531,7 @@ handle_set_message_form(
     IsSimple = form_decode_optimizations(QueryEl),
 
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With,
+                         Start, End, Now, With, Text,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
         {error, Reason} ->
             report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
@@ -679,6 +684,7 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
                       End :: mod_mam:unix_timestamp()  | undefined,
                       Now :: mod_mam:unix_timestamp(),
                       WithJID :: ejabberd:jid()  | undefined,
+                      SearchText :: binary() | undefined,
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
@@ -686,10 +692,10 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
                                  | {error, 'policy-violation'}
                                  | {error, Reason :: term()}.%Result :: any(),
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
-                WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
+                WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
                             [Host, ArcID, ArcJID, RSM, Borders,
-                             Start, End, Now, WithJID,
+                             Start, End, Now, WithJID, SearchText,
                              PageSize, LimitPassed, MaxResultLimit, IsSimple]).
 
 
@@ -845,6 +851,9 @@ form_to_end_microseconds(El) ->
 form_to_with_jid(El) ->
     maybe_jid(form_field_value_s(El, <<"with">>)).
 
+-spec form_to_text(_) -> 'undefined' | binary().
+form_to_text(El) ->
+    form_field_value(El, <<"free-text-search">>).
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_muc_drop_iq, Host,
@@ -956,13 +965,15 @@ params_helper(Params) ->
             Mod -> {Mod, is_archivable_message}
         end,
 
-    binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_muc_params).~n"
-        "-compile(export_all).~n"
-        "add_archived_element() -> ~p.~n"
-        "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
-        [proplists:get_bool(add_archived_element, Params),
-         IsArchivableModule, IsArchivableFunction]))).
+    Format =
+        io_lib:format(
+          "-module(mod_mam_muc_params).~n"
+          "-compile(export_all).~n"
+          "add_archived_element() -> ~p.~n"
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
+          [proplists:get_bool(add_archived_element, Params),
+           IsArchivableModule, IsArchivableFunction]),
+    binary_to_list(iolist_to_binary(Format)).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().

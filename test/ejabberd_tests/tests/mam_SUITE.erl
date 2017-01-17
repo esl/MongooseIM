@@ -29,6 +29,9 @@
 -export([mam_service_discovery/1,
          muc_service_discovery/1,
          simple_archive_request/1,
+         simple_text_search_request/1,
+         long_text_search_request/1,
+         muc_text_search_request/1,
          muc_archive_request/1,
          muc_archive_purge/1,
          muc_multiple_devices/1,
@@ -110,6 +113,7 @@
          start_alice_anonymous_room/1,
          maybe_wait_for_archive/1,
          stanza_archive_request/2,
+         stanza_text_search_archive_request/3,
          wait_archive_respond/2,
          assert_respond_size/2,
          assert_respond_query_id/3,
@@ -244,8 +248,8 @@ basic_groups() ->
     [{mam_all, [parallel],
            [{mam_metrics, [], mam_metrics_cases()},
             {mam02, [parallel], mam_cases() ++ [querying_for_all_messages_with_jid]},
-            {mam03, [parallel], mam_cases() ++ [retrieve_form_fields]},
-            {mam04, [parallel], mam_cases()},
+            {mam03, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
+            {mam04, [parallel], mam_cases() ++ text_search_cases()},
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {mam_purge, [parallel], mam_purge_cases()},
@@ -258,8 +262,8 @@ basic_groups() ->
               {with_rsm04, [parallel], with_rsm_cases()}]}]},
      {muc_all, [parallel],
            [{muc02, [parallel], muc_cases()},
-            {muc03, [parallel], muc_cases()},
-            {muc04, [parallel], muc_cases()},
+            {muc03, [parallel], muc_cases() ++ muc_text_search_cases()},
+            {muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm02, [parallel], muc_rsm_cases()},
               {muc_rsm03, [parallel], muc_rsm_cases()},
@@ -281,6 +285,17 @@ mam_cases() ->
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request].
+
+text_search_cases() ->
+    [
+     simple_text_search_request,
+     long_text_search_request
+    ].
+
+muc_text_search_cases() ->
+    [
+     muc_text_search_request
+    ].
 
 
 mam_purge_cases() ->
@@ -771,6 +786,18 @@ init_per_testcase(C=prefs_set_request, Config) ->
     skip_if_riak(C, Config);
 init_per_testcase(C=prefs_set_cdata_request, Config) ->
     skip_if_riak(C, Config);
+init_per_testcase(C=simple_text_search_request, Config) ->
+    skip_if_not_odbc(Config, fun() -> escalus:init_per_testcase(C, Config) end);
+init_per_testcase(C=long_text_search_request, Config) ->
+    skip_if_not_odbc(Config, fun() -> escalus:init_per_testcase(C, Config) end);
+init_per_testcase(C=muc_text_search_request, Config) ->
+    Init =
+        fun() ->
+            Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+            escalus:init_per_testcase(C, start_alice_room(Config1))
+        end,
+
+    skip_if_not_odbc(Config, Init);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -782,6 +809,17 @@ skip_if_riak(C, Config) ->
             escalus:init_per_testcase(C, Config)
     end.
 
+skip_if_not_odbc(Config, Init) ->
+    case lists:prefix("odbc", atom_to_list(?config(configuration, Config))) of
+        true ->
+            Init();
+        false ->
+            {skip, "full text search is implemented only for odbc backend"}
+    end.
+
+end_per_testcase(C=muc_text_search_request, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_archive_request, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
@@ -916,6 +954,112 @@ simple_archive_request(Config) ->
         ok
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+simple_text_search_request(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi there! My cat's name is John">>)),
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Also my car broke down so I'm unable to",
+                                                          " get him home">>)),
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Cats are awesome by the way">>)),
+        maybe_wait_for_archive(Config),
+
+        %% 'Cat' query
+        escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
+        Res1 = wait_archive_respond(P, Alice),
+        assert_respond_size(2, Res1),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res1)),
+        [Msg1, Msg2] = respond_messages(Res1),
+        #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
+        #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
+        ?assert_equal(<<"Hi there! My cat's name is John">>, Body1),
+        ?assert_equal(<<"Cats are awesome by the way">>, Body2),
+
+        %% 'Car' query
+        escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"car">>)),
+        Res2 = wait_archive_respond(P, Alice),
+        assert_respond_size(1, Res2),
+        assert_respond_query_id(P, <<"q2">>, parse_result_iq(P, Res2)),
+        [Msg3] = respond_messages(Res2),
+        #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
+        ?assert_equal(<<"Also my car broke down so I'm unable to get him home">>, Body3),
+
+        ok
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+long_text_search_request(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Msgs = text_search_messages(),
+
+        lists:foreach(
+            fun(Msg) ->
+                escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg)),
+                timer:sleep(50)
+            end, Msgs),
+
+        maybe_wait_for_archive(Config),
+        escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>,
+                                                               <<"Ribs poRk cUlpa">>)),
+        Res = wait_archive_respond(P, Alice),
+        assert_respond_size(3, Res),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
+
+        [Msg1, Msg2, Msg3] = respond_messages(Res),
+        #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
+        #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
+        #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
+
+        ?assert_equal(lists:nth(2, Msgs), Body1),
+        ?assert_equal(lists:nth(8, Msgs), Body2),
+        ?assert_equal(lists:nth(11, Msgs), Body3),
+
+        ok
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+muc_text_search_request(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        Msgs = text_search_messages(),
+
+        lists:foreach(
+            fun(Msg) ->
+                Stanza = escalus_stanza:groupchat_to(room_address(Room), Msg),
+                escalus:send(Alice, Stanza),
+                escalus:assert(is_message, escalus:wait_for_stanza(Bob))
+            end, Msgs),
+
+        maybe_wait_for_archive(Config),
+        SearchStanza = stanza_text_search_archive_request(P, <<"q1">>, <<"Ribs poRk cUlpa">>),
+        escalus:send(Bob,  stanza_to_room(SearchStanza, Room)),
+        Res = wait_archive_respond(P, Bob),
+        assert_respond_size(3, Res),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
+
+        [Msg1, Msg2, Msg3] = respond_messages(Res),
+        #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
+        ?assert_equal(lists:nth(2, Msgs), Body1),
+        #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
+        ?assert_equal(lists:nth(8, Msgs), Body2),
+        #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
+        ?assert_equal(lists:nth(11, Msgs), Body3),
+
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
 
 querying_for_all_messages_with_jid(Config) ->
     P = ?config(props, Config),
@@ -2111,3 +2255,25 @@ initial_activity() ->
         %% send_initial_presence
         escalus_client:send(Client, escalus_stanza:presence(<<"available">>))
     end.
+
+text_search_messages() ->
+    [
+     <<"Tongue chicken jowl hamburger duis exercitation.">>,
+     <<"Ribs eu aliquip pork veniam dolor jowl id laborum in frankfurter culpa ribs.">>,
+     <<"Fatback ut labore pariatur, eiusmod esse dolore turducken jowl exercitation ",
+       "shankle shoulder.">>,
+     <<"Kevin ribeye short ribs, nostrud short loin quis voluptate cow.  Do brisket eu ",
+       "sunt tail ullamco cow in bacon burgdoggen.">>,
+     <<"Occaecat in voluptate incididunt aliqua dolor bacon salami anim picanha pork ",
+       "reprehenderit pancetta tail.">>,
+     <<"Nisi shank doner dolore officia ribeye.  Proident shankle tenderloin consequat ",
+       "bresaola quis tongue ut sirloin pork chop pariatur fatback ex cupidatat venison.">>,
+     <<"Brisket in pastrami dolore cupidatat.  Est corned beef ad ribeye ball tip aliqua ",
+       "cupidatat andouille cillum et consequat leberkas.">>,
+     <<"Qui mollit short ribs, capicola bresaola pork meatloaf kielbasa und culpa.">>,
+     <<"Meatloaf esse jowl do ham hock consequat.  Duis laboris ribeye ullamco, sed elit ",
+       "porchetta sirloin.">>,
+     <<"In boudin ad et salami exercitation sausage flank strip steak ball tip dolore ",
+       "pig officia.">>,
+     <<"Spare ribs landjaeger pork belly, chuck aliquip turducken beef culpa nostrud.">>
+    ].
