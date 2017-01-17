@@ -51,7 +51,7 @@
 -type state()     :: #state{}.
 -type component() :: atom() | tuple().
 -type ns()        :: binary().
--type type()      :: 'no_queue' | 'one_queue' | 'parallel' | {'queues',integer()}.
+-type type()      :: 'no_queue' | 'one_queue' | 'parallel' | {'queues', integer()}.
 -type options()   :: atom() | {one_queue | queues, pid() | [pid()]}.
 
 %%====================================================================
@@ -60,7 +60,7 @@
 
 %% @doc Starts the server
 -spec start_link(ejabberd:server(), atom(), atom()
-                ) -> 'ignore' | {'error',_} | {'ok',pid()}.
+                ) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host, Module, Function) ->
     gen_server:start_link(?MODULE, [Host, Module, Function], []).
 
@@ -116,8 +116,8 @@ stop_iq_handler(_Module, _Function, Opts) ->
 -spec handle(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
              Opts :: options(), From :: ejabberd:jid(), To :: ejabberd:jid(),
              IQ :: ejabberd:iq()) -> 'ok' | 'todo' | pid()
-                                  | {'error','lager_not_running'}
-                                  | {'process_iq',_,_,_}.
+                                  | {'error', 'lager_not_running'}
+                                  | {'process_iq', _, _, _}.
 handle(Host, Module, Function, Opts, From, To, IQ) ->
     case Opts of
         no_queue ->
@@ -136,7 +136,7 @@ handle(Host, Module, Function, Opts, From, To, IQ) ->
 
 -spec process_iq(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
                  From :: ejabberd:jid(), To :: ejabberd:jid(),
-                 IQ :: ejabberd:iq()) -> 'ok' | {'error','lager_not_running'}.
+                 IQ :: ejabberd:iq()) -> 'ok' | {'error', 'lager_not_running'}.
 process_iq(_Host, Module, Function, From, To, IQ) ->
     case catch Module:Function(From, To, IQ) of
         {'EXIT', Reason} ->
@@ -163,7 +163,7 @@ check_type(parallel) -> parallel.
 %%====================================================================
 
 %% @doc Initiates the server
--spec init([atom() | binary(),...]) -> {'ok', state()}.
+-spec init([atom() | binary(), ...]) -> {'ok', state()}.
 init([Host, Module, Function]) ->
     {ok, #state{host = Host,
                 module = Module,

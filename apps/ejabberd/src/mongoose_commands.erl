@@ -70,7 +70,7 @@
 %% a list of arbitrary length, of a given type
 %% [integer]                        []
 %% [integer]                        [1]
-%% [integer]                        [1,2,3,4]
+%% [integer]                        [1, 2, 3, 4]
 %% a list of anything
 %% []
 %% a named argument (name is only for clarity)

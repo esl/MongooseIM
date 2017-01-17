@@ -61,7 +61,7 @@
 %% Description:
 %%--------------------------------------------------------------------
 -spec start(atom() | tuple(), ejabberd:sockmod(),
-    Socket :: port(), Opts :: [{atom(),_}]) -> ok.
+    Socket :: port(), Opts :: [{atom(), _}]) -> ok.
 start(Module, SockMod, Socket, Opts) ->
     case Module:socket_type() of
         xml_stream ->
@@ -122,10 +122,10 @@ start(Module, SockMod, Socket, Opts) ->
                       | integer() | inet:ip_address().
 -type option() :: 'binary' | 'inet' | 'inet6' | 'list'
                 | {atom(), option_value()}
-                | {'raw',non_neg_integer(),non_neg_integer(),binary()}.
+                | {'raw', non_neg_integer(), non_neg_integer(), binary()}.
 -spec connect(Addr :: atom() | string() | inet:ip_address(),
               Port :: inet:port_number(),
-              Opts :: [option()]) -> {'error',atom()} | {'ok',socket_state()}.
+              Opts :: [option()]) -> {'error', atom()} | {'ok', socket_state()}.
 connect(Addr, Port, Opts) ->
     connect(Addr, Port, Opts, infinity).
 
@@ -134,7 +134,7 @@ connect(Addr, Port, Opts) ->
               Port :: inet:port_number(),
               Opts :: [option()],
               Timeout :: non_neg_integer() | infinity
-              ) -> {'error',atom()} | {'ok',socket_state()}.
+              ) -> {'error', atom()} | {'ok', socket_state()}.
 connect(Addr, Port, Opts, Timeout) ->
     case gen_tcp:connect(Addr, Port, Opts, Timeout) of
         {ok, Socket} ->
@@ -195,10 +195,10 @@ send(SocketData, Data) ->
              SocketData#socket_state.socket, Data) of
         ok -> ok;
         {error, timeout} ->
-            ?INFO_MSG("Timeout on ~p:send",[SocketData#socket_state.sockmod]),
+            ?INFO_MSG("Timeout on ~p:send", [SocketData#socket_state.sockmod]),
             exit(normal);
         Error ->
-            ?DEBUG("Error in ~p:send: ~p",[SocketData#socket_state.sockmod, Error]),
+            ?DEBUG("Error in ~p:send: ~p", [SocketData#socket_state.sockmod, Error]),
             exit(normal)
     end.
 
@@ -212,7 +212,7 @@ send_xml(SocketData, Data) ->
             SocketData#socket_state.socket, Data).
 
 
--spec change_shaper(#socket_state{receiver::atom() | pid() | tuple()},_) -> any().
+-spec change_shaper(#socket_state{receiver::atom() | pid() | tuple()}, _) -> any().
 change_shaper(SocketData, Shaper)
   when is_pid(SocketData#socket_state.receiver) ->
     ejabberd_receiver:change_shaper(SocketData#socket_state.receiver, Shaper);

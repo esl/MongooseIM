@@ -314,7 +314,7 @@ call_command([CmdString | Args], Auth, AccessCommands) ->
 		    Result = ejabberd_commands:execute_command(AccessCommands, Auth, Command,
 							       ArgsFormatted),
 		    format_result(Result, ResultFormat);
-		{'EXIT', {function_clause,[{lists,zip,[A1, A2], _FileInfo} | _]}} ->
+		{'EXIT', {function_clause, [{lists, zip, [A1, A2], _FileInfo} | _]}} ->
 		    {NumCompa, TextCompa} =
 			case {length(A1), length(A2)} of
 			    {L1, L2} when L1 < L2 -> {L2-L1, "less argument"};
@@ -454,7 +454,7 @@ format_result([FirstElement | Elements], {_Name, {list, ElementsDef}}) ->
                ["\n" | format_result(Element, ElementsDef)]
        end,
        Elements)];
-%% The result is a tuple with several elements: {something1(), something2(),...}
+%% The result is a tuple with several elements: {something1(), something2(), ...}
 %% NOTE: the elements in the tuple are separated with tabular characters,
 %% if a string is empty, it will be difficult to notice in the shell,
 %% maybe a different separation character should be used, like ;;?
@@ -481,7 +481,7 @@ get_list_commands() ->
     try ejabberd_commands:list_commands() of
         Commands ->
             [tuple_command_help(Command)
-             || {N,_,_}=Command <- Commands,
+             || {N, _, _}=Command <- Commands,
                 %% Don't show again those commands, because they are already
                 %% announced by ejabberd_ctl itself
                 N /= status, N /= stop, N /= restart]
@@ -516,7 +516,7 @@ format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
                           {running, Version} -> Version;
                           not_running -> "unavailable - mongooseim app not running"
                         end, "\n",
-       "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS) ,"\n"] ++
+       "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS), "\n"] ++
       ["    logs: none - maybe enable logging to a file in app.config?\n" || LogFiles == [] ] ++
       ["    logs:\n" || LogFiles /= [] ] ++ [
       ["        ", LogFile, "\n"] || LogFile <- LogFiles ] ).
@@ -541,8 +541,8 @@ print_usage() ->
 
 
 -spec print_usage('dual' | 'long'
-                 , MaxC :: integer()
-                 , ShCode :: boolean()) -> 'ok'.
+                , MaxC :: integer()
+                , ShCode :: boolean()) -> 'ok'.
 print_usage(HelpMode, MaxC, ShCode) ->
     AllCommands =
         [
@@ -572,7 +572,7 @@ print_usage(HelpMode, MaxC, ShCode) ->
 -spec print_usage_commands(HelpMode :: 'dual' | 'long',
                            MaxC :: integer(),
                            ShCode :: boolean(),
-                           Commands :: [cmd(),...]) -> 'ok'.
+                           Commands :: [cmd(), ...]) -> 'ok'.
 print_usage_commands(HelpMode, MaxC, ShCode, Commands) ->
     CmdDescsSorted = lists:keysort(1, Commands),
 
@@ -605,7 +605,7 @@ print_usage_commands(HelpMode, MaxC, ShCode, Commands) ->
 
 %% @doc Get some info about the shell: how many columns of width and guess if
 %% it supports text formatting codes.
--spec get_shell_info() -> {integer(),boolean()}.
+-spec get_shell_info() -> {integer(), boolean()}.
 get_shell_info() ->
     case io:columns() of
         {ok, C} -> {C-2, true};
@@ -616,7 +616,7 @@ get_shell_info() ->
 %% @doc Split this command description in several lines of proper length
 -spec prepare_description(DescInit :: non_neg_integer(),
                           MaxC :: integer(),
-                          Desc :: string()) -> [[[any()]],...].
+                          Desc :: string()) -> [[[any()]], ...].
 prepare_description(DescInit, MaxC, Desc) ->
     Words = string:tokens(Desc, " "),
     prepare_long_line(DescInit, MaxC, Words).
@@ -625,7 +625,7 @@ prepare_description(DescInit, MaxC, Desc) ->
 -spec prepare_long_line(DescInit :: non_neg_integer(),
                         MaxC :: integer(),
                         Words :: [nonempty_string()]
-                        ) -> [[[any()]],...].
+                        ) -> [[[any()]], ...].
 prepare_long_line(DescInit, MaxC, Words) ->
     MaxSegmentLen = MaxC - DescInit,
     MarginString = lists:duplicate(DescInit, ?ASCII_SPACE_CHARACTER), % Put spaces
@@ -635,7 +635,7 @@ prepare_long_line(DescInit, MaxC, Words) ->
 
 
 -spec mix_desc_segments(MarginStr :: [any()],
-                        Segments :: [[[any(),...]]]) -> [[[any()],...]].
+                        Segments :: [[[any(), ...]]]) -> [[[any()], ...]].
 mix_desc_segments(MarginString, Segments) ->
     [["\n", MarginString, Segment] || Segment <- Segments].
 
@@ -645,7 +645,7 @@ split_desc_segments(MaxL, Words) ->
 
 %% @doc Join words in a segment, but stop adding to a segment if adding this
 %% word would pass L
--spec join(L :: number(), Words :: [nonempty_string()]) -> [[[any(),...]],...].
+-spec join(L :: number(), Words :: [nonempty_string()]) -> [[[any(), ...]], ...].
 join(L, Words) ->
     join(L, Words, 0, [], []).
 
@@ -654,7 +654,7 @@ join(L, Words) ->
            Words :: [nonempty_string()],
            LenLastSeg :: non_neg_integer(),
            LastSeg :: [nonempty_string()],
-           ResSeg :: [[[any(),...]]] ) -> [[[any(),...]],...].
+           ResSeg :: [[[any(), ...]]] ) -> [[[any(), ...]], ...].
 join(_L, [], _LenLastSeg, LastSeg, ResSeg) ->
     ResSeg2 = [lists:reverse(LastSeg) | ResSeg],
     lists:reverse(ResSeg2);
@@ -675,11 +675,11 @@ join(L, [Word | Words], LenLastSeg, LastSeg, ResSeg) ->
     end.
 
 
--spec format_command_lines(CALD :: [{[any()],[any()],number(),_},...],
+-spec format_command_lines(CALD :: [{[any()], [any()], number(), _}, ...],
                            MaxCmdLen :: integer(),
                            MaxC :: integer(),
                            ShCode :: boolean(),
-                           'dual' | 'long') -> [[any(),...],...].
+                           'dual' | 'long') -> [[any(), ...], ...].
 format_command_lines(CALD, MaxCmdLen, MaxC, ShCode, dual)
   when MaxC - MaxCmdLen < 40 ->
     %% If the space available for descriptions is too narrow, enforce long help mode
@@ -748,11 +748,11 @@ print_usage_help(MaxC, ShCode) ->
         ["The special 'help' mongooseimctl command provides help of MongooseIM commands.\n\n"
          "The format is:\n  ", ?B("mongooseimctl"), " ", ?B("help"), " [", ?B("--tags"), " ", ?U("[tag]"), " | ", ?U("com?*"), "]\n\n"
          "The optional arguments:\n"
-         "  ",?B("--tags"),"      Show all tags and the names of commands in each tag\n"
-         "  ",?B("--tags"), " ", ?U("tag"),"  Show description of commands in this tag\n"
-         "  ",?U("command"),"     Show detailed description of the command\n"
-         "  ",?U("com?*"),"       Show detailed description of commands that match this glob.\n"
-         "              You can use ? to match a simple character,\n"
+         "  ", ?B("--tags"), "      Show all tags and the names of commands in each tag\n"
+         "  ", ?B("--tags"), " ", ?U("tag"), "  Show description of commands in this tag\n"
+         "  ", ?U("command"), "     Show detailed description of the command\n"
+         "  ", ?U("com?*"), "       Show detailed description of commands that match this glob.\n"
+         "              You can use ? to match a simple character, \n"
          "              and * to match several characters.\n"
          "\n",
          "Some example usages:\n",
@@ -762,7 +762,7 @@ print_usage_help(MaxC, ShCode) ->
          " mongooseimctl help register\n",
          " mongooseimctl help regist*\n",
          "\n",
-         "Please note that 'mongooseimctl help' shows all MongooseIM commands,\n",
+         "Please note that 'mongooseimctl help' shows all MongooseIM commands, \n",
          "even those that cannot be used in the shell with mongooseimctl.\n",
          "Those commands can be identified because the description starts with: *"],
     ArgsDef = [],
@@ -860,11 +860,11 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
 
     %% Initial indentation of result is 11 = length("  Returns: ")
     ResultFmt = format_usage_ctype(ResultDef, 11),
-    ReturnsFmt = ["  ",?B("Returns"),": ", ResultFmt],
+    ReturnsFmt = ["  ", ?B("Returns"), ": ", ResultFmt],
 
-    TagsFmt = ["  ",?B("Tags"),": ", prepare_long_line(8, MaxC, [atom_to_list(TagA) || TagA <- TagsAtoms])],
+    TagsFmt = ["  ", ?B("Tags"), ": ", prepare_long_line(8, MaxC, [atom_to_list(TagA) || TagA <- TagsAtoms])],
 
-    DescFmt = ["  ",?B("Description"),": ", prepare_description(15, MaxC, Desc)],
+    DescFmt = ["  ", ?B("Description"), ": ", prepare_description(15, MaxC, Desc)],
 
     LongDescFmt = case LongDesc of
                       "" -> "";
@@ -895,11 +895,11 @@ format_usage_ctype({Name, {tuple, ElementsDef}}, Indentation) ->
 format_usage_tuple([], _Indentation) ->
     [];
 format_usage_tuple([ElementDef], Indentation) ->
-    [format_usage_ctype(ElementDef, Indentation) , " }"];
+    [format_usage_ctype(ElementDef, Indentation), " }"];
 format_usage_tuple([ElementDef | ElementsDef], Indentation) ->
     ElementFmt = format_usage_ctype(ElementDef, Indentation),
     MarginString = lists:duplicate(Indentation, ?ASCII_SPACE_CHARACTER), % Put spaces
-    [ElementFmt, ",\n", MarginString, format_usage_tuple(ElementsDef, Indentation)].
+    [ElementFmt, ", \n", MarginString, format_usage_tuple(ElementsDef, Indentation)].
 
 get_mongoose_status() ->
     case lists:keyfind(mongooseim, 1, application:which_applications()) of

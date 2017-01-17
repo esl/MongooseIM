@@ -213,8 +213,8 @@ process_subscription(Direction, User, Server, JID, _Type, Acc) ->
 config_change(Acc, Host, ldap, _NewConfig) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     Mods = ejabberd_config:get_local_option({modules, Host}),
-    Opts = proplists:get_value(?MODULE,Mods,[]),
-    ok = gen_server:call(Proc,{new_config, Host, Opts}),
+    Opts = proplists:get_value(?MODULE, Mods, []),
+    ok = gen_server:call(Proc, {new_config, Host, Opts}),
     Acc;
 config_change(Acc, _, _, _) ->
     Acc.
@@ -225,7 +225,7 @@ config_change(Acc, _, _, _) ->
 %%====================================================================
 init([Host, Opts]) ->
     State = parse_options(Host, Opts),
-    process_flag(trap_exit,true),
+    process_flag(trap_exit, true),
     cache_tab:new(shared_roster_ldap_user,
                   [{max_size, State#state.user_cache_size}, {lru, false},
                    {life_time, State#state.user_cache_validity}]),
@@ -476,7 +476,7 @@ get_user_part_re(String, Pattern) ->
     end.
 
 parse_options(Host, Opts) ->
-    Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE),utf8),
+    Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE), utf8),
     Cfg = eldap_utils:get_config(Host, Opts),
     GroupAttr = eldap_utils:get_mod_opt(ldap_groupattr, Opts,
                                         fun iolist_to_binary/1,
@@ -557,7 +557,7 @@ parse_options(Host, Opts) ->
     GroupFilter = case ConfigFilter of
                       <<"">> -> GroupSubFilter;
                       _ ->
-                          <<"(&", GroupSubFilter/binary, ConfigFilter/binary,")">>
+                          <<"(&", GroupSubFilter/binary, ConfigFilter/binary, ")">>
                   end,
     #state{host = Host, eldap_id = Eldap_ID,
            servers = Cfg#eldap_config.servers,

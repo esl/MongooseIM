@@ -114,7 +114,7 @@
 %%%----------------------------------------------------------------------
 -spec start_link(Host :: ejabberd:server(),
                  StartInterval :: integer(),
-                 Dedicated :: boolean()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+                 Dedicated :: boolean()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host, StartInterval, Dedicated) when is_boolean(Dedicated) ->
     ?GEN_FSM:start_link(ejabberd_odbc, [Host, StartInterval, self(), Dedicated],
                         fsm_limit_opts() ++ ?FSMOPTS).
@@ -124,7 +124,7 @@ sql_query(Host, Query) ->
     sql_call(Host, {sql_query, Query}).
 
 -spec get_dedicated_connection(Host :: ejabberd:server())
-      -> 'ignore' | {'error',_} | {'ok',{Host :: ejabberd:server(), pid()}}.
+      -> 'ignore' | {'error', _} | {'ok', {Host :: ejabberd:server(), pid()}}.
 get_dedicated_connection(Host) ->
     ejabberd_odbc_sup:get_dedicated_connection(Host).
 
@@ -149,7 +149,7 @@ sql_bloc(Host, F) ->
 
 %% TODO: Better spec for RPC calls
 -spec sql_call(Host :: odbc_server(),
-             Msg :: {'sql_bloc',_} | {'sql_query',_} | {'sql_transaction',fun()}
+             Msg :: {'sql_bloc', _} | {'sql_query', _} | {'sql_transaction', fun()}
              ) -> any().
 sql_call(Host, Msg) when is_binary(Host) ->
     case get(?STATE_KEY) of
@@ -259,9 +259,9 @@ result_to_integer(Bin) when is_binary(Bin) ->
 hex_to_bin(Bin) when is_binary(Bin) ->
     << <<(hex_to_int(X, Y))>> || <<X, Y>> <= Bin>>.
 
--spec hex_to_int(byte(),byte()) -> integer().
+-spec hex_to_int(byte(), byte()) -> integer().
 hex_to_int(X, Y) when is_integer(X), is_integer(Y) ->
-    list_to_integer([X,Y], 16).
+    list_to_integer([X, Y], 16).
 
 -spec to_bool(binary() | string() | atom() | integer() | any()) -> boolean().
 to_bool(B) when is_binary(B) ->
@@ -310,7 +310,7 @@ init([Host, StartInterval, ParentPid, Dedicated]) ->
                             start_interval = StartInterval}}.
 
 -spec connecting(_, state())
-      -> {'next_state','connecting' | 'session_established',_}.
+      -> {'next_state', 'connecting' | 'session_established', _}.
 connecting(connect, #state{host = Host} = State) ->
     ConnectRes = case db_opts(Host) of
                      [mysql | Args] ->
@@ -346,7 +346,7 @@ connecting(Event, State) ->
     {next_state, connecting, State}.
 
 -spec connecting(_, From :: any(), state()) ->
-  {'next_state','connecting',_} | {'reply',{'error','badarg'},'connecting',_}.
+  {'next_state', 'connecting', _} | {'reply', {'error', 'badarg'}, 'connecting', _}.
 connecting({sql_cmd, {sql_query, ?KEEPALIVE_QUERY}, _Timestamp}, From, State) ->
     ?GEN_FSM:reply(From, {error, "SQL connection failed"}),
     {next_state, connecting, State};
@@ -372,9 +372,9 @@ connecting(Request, {Who, _Ref}, State) ->
     {reply, {error, badarg}, connecting, State}.
 
 -spec session_established(_, From :: _, state())
-                       -> {'next_state','session_established',_}
-                        | {'stop','closed' | 'timeout',_}
-                        | {'reply',{'error','badarg'},'session_established',_}.
+                       -> {'next_state', 'session_established', _}
+                        | {'stop', 'closed' | 'timeout', _}
+                        | {'reply', {'error', 'badarg'}, 'session_established', _}.
 session_established({sql_cmd, Command, Timestamp}, From, State) ->
     run_sql_cmd(Command, From, State, Timestamp);
 session_established(Request, {Who, _Ref}, State) ->
@@ -382,8 +382,8 @@ session_established(Request, {Who, _Ref}, State) ->
                  [Request, Who]),
     {reply, {error, badarg}, session_established, State}.
 
--spec session_established(_, state()) -> {'next_state','session_established',_}
-                                       | {'stop','closed' | 'timeout',_}.
+-spec session_established(_, state()) -> {'next_state', 'session_established', _}
+                                       | {'stop', 'closed' | 'timeout', _}.
 session_established({sql_cmd, Command, From, Timestamp}, State) ->
     run_sql_cmd(Command, From, State, Timestamp);
 session_established(Event, State) ->
@@ -421,7 +421,7 @@ handle_info(Info, StateName, State) ->
     ?WARNING_MSG("unexpected info in ~p: ~p", [StateName, Info]),
     {next_state, StateName, State}.
 
--spec terminate(_,_,state()) -> 'ok'.
+-spec terminate(_, _, state()) -> 'ok'.
 terminate(_Reason, _StateName, State) ->
     case State#state.dedicated of
         true ->
@@ -452,13 +452,13 @@ print_state(State) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
--type odbc_timestamp() :: {non_neg_integer(),non_neg_integer(),non_neg_integer()}.
+-type odbc_timestamp() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
 -spec run_sql_cmd(Command :: any(),
                   From :: any(),
                   State :: state(),
                   Timestamp :: odbc_timestamp())
-      -> {'next_state','session_established',state()}
-       | {'stop','closed' | 'timeout',state()}.
+      -> {'next_state', 'session_established', state()}
+       | {'stop', 'closed' | 'timeout', state()}.
 run_sql_cmd(Command, From, State, Timestamp) ->
     case timer:now_diff(now(), Timestamp) div 1000 of
         Age when Age  < ?TRANSACTION_TIMEOUT ->
@@ -466,14 +466,14 @@ run_sql_cmd(Command, From, State, Timestamp) ->
             put(?STATE_KEY, State),
             abort_on_driver_error(outer_op(Command), From);
         Age ->
-            ?ERROR_MSG("Database was not available or too slow,"
+            ?ERROR_MSG("Database was not available or too slow, "
                        " discarding ~p milliseconds old request~n~p~n",
                        [Age, Command]),
             {next_state, session_established, State}
     end.
 
 %% @doc Only called by handle_call, only handles top level operations.
--spec outer_op({'sql_bloc',_} | {'sql_query',_} | {'sql_transaction',fun()}
+-spec outer_op({'sql_bloc', _} | {'sql_query', _} | {'sql_transaction', fun()}
               ) -> {error | aborted | atomic, _}.
 outer_op({sql_query, Query}) ->
     sql_query_internal(Query);
@@ -484,7 +484,7 @@ outer_op({sql_bloc, F}) ->
 
 %% @doc Called via sql_query/transaction/bloc from client code when inside a
 %% nested operation
--spec nested_op({'sql_bloc',_} | {'sql_query',_} | {'sql_transaction',fun()}) -> any().
+-spec nested_op({'sql_bloc', _} | {'sql_query', _} | {'sql_transaction', fun()}) -> any().
 nested_op({sql_query, Query}) ->
     %% XXX - use sql_query_t here insted? Most likely would break
     %% callers who expect {error, _} tuples (sql_query_t turns
@@ -503,7 +503,7 @@ nested_op({sql_bloc, F}) ->
     execute_bloc(F).
 
 %% @doc Never retry nested transactions - only outer transactions
--spec inner_transaction(fun()) -> {'EXIT',_} | {'aborted',_} | {'atomic',_}.
+-spec inner_transaction(fun()) -> {'EXIT', _} | {'aborted', _} | {'atomic', _}.
 inner_transaction(F) ->
     PreviousNestingLevel = get(?NESTING_KEY),
     case get(?NESTING_KEY) of
@@ -530,7 +530,7 @@ inner_transaction(F) ->
 
 -spec outer_transaction(F :: fun(),
                         NRestarts :: 0..10,
-                        Reason :: any()) -> {'aborted',_} | {'atomic',_}.
+                        Reason :: any()) -> {'aborted', _} | {'atomic', _}.
 outer_transaction(F, NRestarts, _Reason) ->
     PreviousNestingLevel = get(?NESTING_KEY),
     case get(?NESTING_KEY) of
@@ -572,7 +572,7 @@ outer_transaction(F, NRestarts, _Reason) ->
             {atomic, Res}
     end.
 
--spec execute_bloc(fun()) -> {'aborted',_} | {'atomic',_}.
+-spec execute_bloc(fun()) -> {'aborted', _} | {'atomic', _}.
 execute_bloc(F) ->
     %% We don't alter ?NESTING_KEY here as only SQL transactions alter
     %% txn nesting
@@ -608,8 +608,8 @@ sql_query_internal(Query) ->
     end.
 
 %% @doc Generate the OTP callback return tuple depending on the driver result.
--spec abort_on_driver_error(_, From :: {_,_})
-      -> {'next_state','session_established',_} | {'stop','closed' | 'timeout',_}.
+-spec abort_on_driver_error(_, From :: {_, _})
+      -> {'next_state', 'session_established', _} | {'stop', 'closed' | 'timeout', _}.
 abort_on_driver_error({error, "query timed out"} = Reply, From) ->
     %% mysql driver error
     ?GEN_FSM:reply(From, Reply),
@@ -658,7 +658,7 @@ pgsql_connect(Server, Port, DB, Username, Password) ->
             {as_binary, true}],
     case pgsql:connect(Params) of
         {ok, Ref} ->
-            {ok,[<<"SET">>]} =
+            {ok, [<<"SET">>]} =
             pgsql:squery(Ref, "SET standard_conforming_strings=off;", ?QUERY_TIMEOUT),
             {ok, Ref};
         Err -> Err
@@ -667,10 +667,10 @@ pgsql_connect(Server, Port, DB, Username, Password) ->
 
 %% @doc Convert PostgreSQL query result to Erlang ODBC result formalism
 -spec pgsql_to_odbc({'ok', PGSQLResult :: [any()]})
-  -> [{'error',_} | {'updated','undefined' | integer()} | {'selected',[any()],[any()]}]
-     | {'error',_}
-     | {'updated','undefined' | integer()}
-     | {'selected',[any()],[tuple()]}.
+  -> [{'error', _} | {'updated', 'undefined' | integer()} | {'selected', [any()], [any()]}]
+     | {'error', _}
+     | {'updated', 'undefined' | integer()}
+     | {'selected', [any()], [tuple()]}.
 pgsql_to_odbc({ok, PGSQLResult}) ->
     case PGSQLResult of
         [Item] ->
@@ -680,9 +680,9 @@ pgsql_to_odbc({ok, PGSQLResult}) ->
     end.
 
 -spec pgsql_item_to_odbc(tuple() | binary())
-      -> {'error',_}
-       | {'updated','undefined' | integer()}
-       | {'selected',[any()],[tuple()]}.
+      -> {'error', _}
+       | {'updated', 'undefined' | integer()}
+       | {'selected', [any()], [tuple()]}.
 pgsql_item_to_odbc({<<"SELECT", _/binary>>, Rows, Recs}) ->
     {selected,
      [element(1, Row) || Row <- Rows],
@@ -697,7 +697,7 @@ pgsql_item_to_odbc(<<"UPDATE ", N/binary>>) ->
 pgsql_item_to_odbc({error, Error}) ->
     {error, Error};
 pgsql_item_to_odbc(_) ->
-    {updated,undefined}.
+    {updated, undefined}.
 
 %% == Native MySQL code
 
@@ -730,7 +730,7 @@ mysql_to_odbc({error, MySQLRes}) ->
 
 %% @doc When tabular data is returned, convert it to the ODBC formalism
 -spec mysql_item_to_odbc(Columns :: [tuple()],
-                         Recs :: [[any()]]) -> {'selected',[any()],[tuple()]}.
+                         Recs :: [[any()]]) -> {'selected', [any()], [tuple()]}.
 mysql_item_to_odbc(Columns, Recs) ->
     %% For now, there is a bug and we do not get the correct value from MySQL
     %% module:
@@ -752,7 +752,7 @@ log(Level, Format, Args) ->
             ?ERROR_MSG(Format, Args)
     end.
 
--spec db_opts(Host :: atom()) -> [odbc | mysql | pgsql | [char() | tuple()],...].
+-spec db_opts(Host :: atom()) -> [odbc | mysql | pgsql | [char() | tuple()], ...].
 db_opts(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
         %% Default pgsql port
@@ -789,7 +789,7 @@ max_fsm_queue() ->
             undefined
     end.
 
--spec fsm_limit_opts() -> [{'max_queue',pos_integer()}].
+-spec fsm_limit_opts() -> [{'max_queue', pos_integer()}].
 fsm_limit_opts() ->
     case max_fsm_queue() of
         N when is_integer(N) ->

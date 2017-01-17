@@ -47,7 +47,7 @@
 %%% Register commands
 %%%
 
--spec commands() -> [ejabberd_commands:cmd(),...].
+-spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     Vcard1FieldsString = "Some vcard field names in get/set_vcard are:\n"
                          " FN		- Full Name\n"
@@ -226,7 +226,7 @@ set_vcard_content(User, Server, Data, ContentList) ->
     Module:Function(JID, JID, IQ2),
     {ok, ""}.
 
--spec update_vcard_els(Data :: [binary(),...],
+-spec update_vcard_els(Data :: [binary(), ...],
                        ContentList :: [binary() | string()],
                        Els :: [jlib:xmlcdata() | jlib:xmlel()]
                       ) -> [jlib:xmlcdata() | jlib:xmlel()].

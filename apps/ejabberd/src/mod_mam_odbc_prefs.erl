@@ -28,7 +28,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(),_) -> 'ok'.
+-spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -63,7 +63,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(),_) -> 'ok'.
+-spec start_pm(ejabberd:server(), _) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -84,7 +84,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc_muc
 
--spec start_muc(ejabberd:server(),_) -> 'ok'.
+-spec start_muc(ejabberd:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -210,7 +210,7 @@ query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) ->
     Result =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT ", LimitMSSQL," behaviour "
+      ["SELECT ", LimitMSSQL, " behaviour "
        "FROM mam_config "
        "WHERE user_id='", SUserID, "' "
          "AND (remote_jid='' OR remote_jid='", SRemLJID, "'",
@@ -227,7 +227,7 @@ query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec encode_behaviour('always' | 'never' | 'roster') -> [65|78|82,...].
+-spec encode_behaviour('always' | 'never' | 'roster') -> [65|78|82, ...].
 encode_behaviour(roster) -> "R";
 encode_behaviour(always) -> "A";
 encode_behaviour(never)  -> "N".
@@ -244,19 +244,19 @@ esc_jid(JID) ->
     ejabberd_odbc:escape(jid:to_binary(JID)).
 
 
--spec encode_first_config_row(SUserID :: string(), SBehaviour :: [65|78|82,...],
-    SJID :: string()) -> [string(),...].
+-spec encode_first_config_row(SUserID :: string(), SBehaviour :: [65|78|82, ...],
+    SJID :: string()) -> [string(), ...].
 encode_first_config_row(SUserID, SBehavour, SJID) ->
     ["('", SUserID, "', '", SBehavour, "', '", SJID, "')"].
 
 
--spec encode_config_row(SUserID :: string(), SBehaviour :: [65 | 78,...],
-        SJID :: binary() | string()) -> [binary() | string(),...].
+-spec encode_config_row(SUserID :: string(), SBehaviour :: [65 | 78, ...],
+        SJID :: binary() | string()) -> [binary() | string(), ...].
 encode_config_row(SUserID, SBehavour, SJID) ->
     [", ('", SUserID, "', '", SBehavour, "', '", SJID, "')"].
 
 
--spec sql_transaction_map(ejabberd:server(), [iolist(),...]) -> any().
+-spec sql_transaction_map(ejabberd:server(), [iolist(), ...]) -> any().
 sql_transaction_map(LServer, Queries) ->
     AtomicF = fun() ->
         [mod_mam_utils:success_sql_query(LServer, Query) || Query <- Queries]
@@ -268,7 +268,7 @@ sql_transaction_map(LServer, Queries) ->
         DefaultMode :: mod_mam:archive_behaviour(),
         AlwaysJIDs :: [ejabberd:literal_jid()],
         NeverJIDs :: [ejabberd:literal_jid()]) ->
-    {mod_mam:archive_behaviour(),[ejabberd:literal_jid()],[ejabberd:literal_jid()]}.
+    {mod_mam:archive_behaviour(), [ejabberd:literal_jid()], [ejabberd:literal_jid()]}.
 decode_prefs_rows([{<<>>, Behavour}|Rows], _DefaultMode, AlwaysJIDs, NeverJIDs) ->
     decode_prefs_rows(Rows, decode_behaviour(Behavour), AlwaysJIDs, NeverJIDs);
 decode_prefs_rows([{JID, <<"A">>}|Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->

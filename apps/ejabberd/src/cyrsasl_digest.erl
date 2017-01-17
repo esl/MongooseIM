@@ -65,7 +65,7 @@ mech_new(Host, Creds) ->
 mech_step(#state{step = 1, nonce = Nonce} = State, _) ->
     {continue,
      list_to_binary("nonce=\"" ++ Nonce ++
-     "\",qop=\"auth\",charset=utf-8,algorithm=md5-sess"),
+     "\", qop=\"auth\", charset=utf-8, algorithm=md5-sess"),
      State#state{step = 3}};
 mech_step(#state{step = 3, nonce = Nonce} = State, ClientIn) ->
     case parse(ClientIn) of
@@ -124,11 +124,11 @@ mech_step(#state{step = 5,
                                              {authzid, AuthzId},
                                              {auth_module, AuthModule}])};
 mech_step(A, B) ->
-    ?DEBUG("SASL DIGEST: A ~p B ~p", [A,B]),
+    ?DEBUG("SASL DIGEST: A ~p B ~p", [A, B]),
     {error, <<"bad-protocol">>}.
 
 
--spec parse(binary()) -> 'bad' | [{binary(),binary()}].
+-spec parse(binary()) -> 'bad' | [{binary(), binary()}].
 parse(S) ->
     parse1(S, <<>>, []).
 
@@ -164,8 +164,8 @@ parse3(<<>>, _, _, _) ->
 -spec parse4(binary(),
     Key :: binary(),
     Val :: binary(),
-    Ts :: [{binary(),binary()}]) -> 'bad' | [{K :: binary(), V :: binary()}].
-parse4(<<$, , Cs/binary>>, Key, Val, Ts) ->
+    Ts :: [{binary(), binary()}]) -> 'bad' | [{K :: binary(), V :: binary()}].
+parse4(<<$,, Cs/binary>>, Key, Val, Ts) ->
     parse1(Cs, <<>>, [{Key, binary_reverse(Val)} | Ts]);
 parse4(<<$\s, Cs/binary>>, Key, Val, Ts) ->
     parse4(Cs, Key, Val, Ts);
@@ -176,8 +176,8 @@ parse4(<<>>, Key, Val, Ts) ->
 
 binary_reverse(<<>>) ->
     <<>>;
-binary_reverse(<<H,T/binary>>) ->
-    <<(binary_reverse(T))/binary,H>>.
+binary_reverse(<<H, T/binary>>) ->
+    <<(binary_reverse(T))/binary, H>>.
 
 %% @doc Check if the digest-uri is valid.
 %% RFC-2831 allows to provide the IP address in Host,
@@ -210,7 +210,7 @@ digit_to_xchar(D) ->
 hex(S) ->
     hex(S, <<>>).
 
--spec hex(binary(),binary()) -> binary().
+-spec hex(binary(), binary()) -> binary().
 hex(<<>>, Res) ->
     binary_reverse(Res);
 hex(<<N, Ns/binary>>, Res) ->
@@ -219,7 +219,7 @@ hex(<<N, Ns/binary>>, Res) ->
     hex(Ns, <<D1, D2, Res/binary>>).
 
 
--spec response(KeyVals :: [{binary(),binary()}],
+-spec response(KeyVals :: [{binary(), binary()}],
                User :: ejabberd:user(),
                Passwd :: binary(),
                Nonce :: binary(),

@@ -59,7 +59,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(),_) -> 'ok'.
+-spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
     compile_params_module(Opts),
     start_muc(Host, Opts).
@@ -73,7 +73,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(),_) -> 'ok'.
+-spec start_muc(ejabberd:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -177,7 +177,7 @@ prepare_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     [SMessID, SRoomID, SFromNick, SData].
 
 
--spec archive_messages(ejabberd:lserver(), Acc :: [[any(),...]]) -> any().
+-spec archive_messages(ejabberd:lserver(), Acc :: [[any(), ...]]) -> any().
 archive_messages(LServer, Acc) ->
     mod_mam_utils:success_sql_query(
       LServer,
@@ -185,7 +185,7 @@ archive_messages(LServer, Acc) ->
        "VALUES ", tuples(Acc)]).
 
 
--spec archive_messages(ejabberd:lserver(), Acc :: [[any(),...]],
+-spec archive_messages(ejabberd:lserver(), Acc :: [[any(), ...]],
                        N :: any()) -> any().
 archive_messages(LServer, Acc, N) ->
     mod_mam_utils:success_sql_query(
@@ -377,13 +377,13 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     end.
 
 
--spec after_id(integer(), [[binary()],...]) -> [[binary()],...].
+-spec after_id(integer(), [[binary()], ...]) -> [[binary()], ...].
 after_id(ID, Filter) ->
     SID = escape_message_id(ID),
     [Filter, " AND id > '", SID, "'"].
 
 
--spec before_id('undefined' | integer(), [[binary()],...]) -> [[binary()],...].
+-spec before_id('undefined' | integer(), [[binary()], ...]) -> [[binary()], ...].
 before_id(undefined, Filter) ->
     Filter;
 before_id(ID, Filter) ->
@@ -400,7 +400,7 @@ rows_to_uniform_format(MessageRows, Host, RoomJID) ->
 
 
 -spec row_to_uniform_format(atom(), atom(), raw_row(), ejabberd:jid()) -> mod_mam_muc:row().
-row_to_uniform_format(DbEngine, EscFormat, {BMessID,BNick,SDataRaw}, RoomJID) ->
+row_to_uniform_format(DbEngine, EscFormat, {BMessID, BNick, SDataRaw}, RoomJID) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
     SrcJID = jid:replace_resource(RoomJID, BNick),
     SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
@@ -409,8 +409,8 @@ row_to_uniform_format(DbEngine, EscFormat, {BMessID,BNick,SDataRaw}, RoomJID) ->
     {MessID, SrcJID, Packet}.
 
 
--spec row_to_message_id({binary(),_,_}) -> integer().
-row_to_message_id({BMessID,_,_}) ->
+-spec row_to_message_id({binary(), _, _}) -> integer().
+row_to_message_id({BMessID, _, _}) ->
     list_to_integer(binary_to_list(BMessID)).
 
 
@@ -462,7 +462,7 @@ purge_multiple_messages(_Result, Host, RoomID, _RoomJID, Borders,
     ok.
 
 
-%% @doc Columns are `["id","nick_name","message"]'.
+%% @doc Columns are `["id", "nick_name", "message"]'.
 -spec extract_messages(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
         Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
         ReverseLimit :: boolean()) -> [raw_row()].
@@ -623,17 +623,17 @@ maybe_jid_to_escaped_resource(#jid{lresource = WithLResource}) ->
     ejabberd_odbc:escape(WithLResource).
 
 
--spec join([[any(),...],...]) -> [[any()],...].
+-spec join([[any(), ...], ...]) -> [[any()], ...].
 join([H|T]) ->
     [H, [", " ++ X || X <- T]].
 
 
--spec tuples([[any(),...]]) -> [[any()],...].
+-spec tuples([[any(), ...]]) -> [[any()], ...].
 tuples(Rows) ->
     join([tuple(Row) || Row <- Rows]).
 
 
--spec tuple([any(),...]) -> [any(),...].
+-spec tuple([any(), ...]) -> [any(), ...].
 tuple([H|T]) ->
     ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
 
@@ -684,7 +684,7 @@ compile_params_module(Params) ->
 
 expand_simple_param(Params) ->
     lists:flatmap(fun(simple) -> simple_params();
-                     ({simple,true}) -> simple_params();
+                     ({simple, true}) -> simple_params();
                      (Param) -> [Param]
                   end, Params).
 

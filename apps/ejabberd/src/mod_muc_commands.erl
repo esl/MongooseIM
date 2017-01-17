@@ -135,7 +135,7 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
     %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
     X = #xmlel{name = <<"x">>,
                attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
-                        {<<"jid">> , room_address(Name, Host)},
+                        {<<"jid">>, room_address(Name, Host)},
                         {<<"reason">>, Reason}]
               },
     Invite = message(S, R, <<>>, [ X ]),

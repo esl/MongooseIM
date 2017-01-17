@@ -144,7 +144,7 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
--spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
     gen_server:start_link({local, srv_name()}, ?MODULE, [], []).
 

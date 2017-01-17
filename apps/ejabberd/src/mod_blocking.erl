@@ -138,7 +138,7 @@ blocking_list_modify(block, Change, Old) ->
 blocking_list_modify(unblock, [], Old) ->
     %% unblock with empty list means unblocking all contacts
     Rem = [jid:to_binary(J#listitem.value) || J <- Old],
-    {unblock_all, Rem,[]};
+    {unblock_all, Rem, []};
 blocking_list_modify(unblock, Change, Old) ->
     {Removed, O} = remove_from(Change, Old),
     {unblock, Removed, O}.

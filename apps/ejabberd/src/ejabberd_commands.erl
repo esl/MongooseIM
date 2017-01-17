@@ -124,11 +124,11 @@
 %%%
 %%% When your module is initialized or started, register your commands:
 %%%
-%%% <pre>ejabberd_commands:register_commands(commands()),</pre>
+%%% <pre>ejabberd_commands:register_commands(commands()), </pre>
 %%%
 %%% And when your module is stopped, unregister your commands:
 %%%
-%%% <pre>ejabberd_commands:unregister_commands(commands()),</pre>
+%%% <pre>ejabberd_commands:unregister_commands(commands()), </pre>
 %%%
 %%% That's all! Now when your module is started, the command will be
 %%% registered and any frontend can access it. For example:
@@ -448,7 +448,7 @@ check_access(Access, Auth) ->
     end.
 
 
--spec check_access_command(_,tuple(),_,_,_) -> boolean().
+-spec check_access_command(_, tuple(), _, _, _) -> boolean().
 check_access_command(Commands, Command, ArgumentRestrictions, Method, Arguments) ->
     case Commands==all orelse lists:member(Method, Commands) of
         true -> check_access_arguments(Command, ArgumentRestrictions, Arguments);
@@ -471,8 +471,8 @@ check_access_arguments(Command, ArgumentRestrictions, Arguments) ->
       end, ArgumentRestrictions).
 
 
--spec tag_arguments(ArgsDefs :: [{atom(), integer() | string() | {_,_}}],
-                    Args :: [any()] ) -> [{_,_}].
+-spec tag_arguments(ArgsDefs :: [{atom(), integer() | string() | {_, _}}],
+                    Args :: [any()] ) -> [{_, _}].
 tag_arguments(ArgsDefs, Args) ->
     lists:zipwith(
       fun({ArgName, _ArgType}, ArgValue) ->

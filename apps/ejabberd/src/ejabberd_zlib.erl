@@ -81,7 +81,7 @@ recv_data2(ZlibSock, Packet) ->
             Res
     end.
 
--spec recv_data1(zlibsock(), iolist()) -> {'error',string()} | {'ok',binary()}.
+-spec recv_data1(zlibsock(), iolist()) -> {'error', string()} | {'ok', binary()}.
 recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSock, Packet) ->
     case port_control(Port, SizeLimit bsl 2 + ?INFLATE, Packet) of
 	<<0, In/binary>> ->

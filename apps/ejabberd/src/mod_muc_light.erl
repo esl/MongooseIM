@@ -268,7 +268,7 @@ remove_user(User, Server) ->
     Version = mod_muc_light_utils:bin_ts(),
     case mod_muc_light_db_backend:remove_user(UserUS, Version) of
         {error, _} = Err ->
-            ?ERROR_MSG("hook=remove_user,error=~p", [Err]);
+            ?ERROR_MSG("hook=remove_user, error=~p", [Err]);
         AffectedRooms ->
             bcast_removed_user(UserUS, AffectedRooms, Version),
             maybe_forget_rooms(AffectedRooms)

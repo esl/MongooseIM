@@ -150,7 +150,7 @@ archive_size(Size, Host, _RoomID, RoomJID) when is_integer(Size) ->
 insert_query_cql() ->
     "INSERT INTO mam_muc_message "
         "(id, room_jid, nick_name, with_nick, message) "
-        "VALUES (?,?,?,?,?)".
+        "VALUES (?, ?, ?, ?, ?)".
 
 archive_message(Result, Host, MessID, _RoomID,
                 LocJID, NickName, NickName, Dir, Packet) ->
@@ -306,7 +306,7 @@ lookup_messages2(PoolName, Host,
                  PageSize, LimitPassed, MaxResultLimit,
                  _IsSimple) ->
     %% Query with offset calculation
-    %% We cannot just use ODBC code because "LIMIT X,Y" is not supported by cassandra
+    %% We cannot just use ODBC code because "LIMIT X, Y" is not supported by cassandra
     %% Not all queries are optimal. You would like to disable something for production
     %% once you know how you will call bd
     Strategy = rsm_to_strategy(RSM),
@@ -555,8 +555,8 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
 
 %% Offset is not supported
 %% Each record is a tuple of form
-%% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
-%% Columns are `["id","nick_name","message"]'.
+%% `{<<"13663125233">>, <<"bob@localhost">>, <<"res1">>, <<binary>>}'.
+%% Columns are `["id", "nick_name", "message"]'.
 -spec extract_messages(PoolName, RoomJID, Host, Filter, IMax, ReverseLimit) ->
                               [Row] when
       PoolName :: mongoose_cassandra:pool_name(),

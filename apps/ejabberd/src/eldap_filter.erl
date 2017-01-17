@@ -45,8 +45,8 @@
 %%% Example:
 %%%   > eldap_filter:parse("(&(!(uid<=100))(mail=*))").
 %%%
-%%%   {ok,{'and',[{'not',{lessOrEqual,{'AttributeValueAssertion',"uid","100"}}},
-%%%           {present,"mail"}]}}
+%%%   {ok, {'and', [{'not', {lessOrEqual, {'AttributeValueAssertion', "uid", "100"}}},
+%%%           {present, "mail"}]}}
 %%%-------------------------------------------------------------------
 -spec parse(binary()) -> {error, any()} | {ok, eldap:filter()}.
 parse(L) ->
@@ -70,12 +70,12 @@ parse(L) ->
 %%% Example:
 %%%    > eldap_filter:parse(
 %%%            "(|(mail=%u@%d)(jid=%u@%d))",
-%%%            [{"%u", "xramtsov"},{"%d","gmail.com"}]).
+%%%            [{"%u", "xramtsov"}, {"%d", "gmail.com"}]).
 %%%
-%%%    {ok,{'or',[{equalityMatch,{'AttributeValueAssertion',
+%%%    {ok, {'or', [{equalityMatch, {'AttributeValueAssertion',
 %%%                              "mail",
 %%%                              "xramtsov@gmail.com"}},
-%%%           {equalityMatch,{'AttributeValueAssertion',
+%%%           {equalityMatch, {'AttributeValueAssertion',
 %%%                              "jid",
 %%%                              "xramtsov@gmail.com"}}]}}
 %%%-------------------------------------------------------------------
@@ -101,13 +101,13 @@ parse(L, SList) ->
 -define(do_scan(L), scan(Rest, <<>>, [{L, 1} | check(Buf, S) ++ Result], L, S)).
 
 
--spec scan([byte()],_) -> [{atom(),1} | {'str',1,[any()]}].
+-spec scan([byte()], _) -> [{atom(), 1} | {'str', 1, [any()]}].
 scan(L, SList) ->
     scan(L, <<"">>, [], undefined, SList).
 
 
--spec scan([byte()], Buf :: binary(), Result :: [{atom(),1} | {'str',1,[any()]}],
-    atom(), S :: any()) -> [{atom(),1} | {'str',1,[any()]}].
+-spec scan([byte()], Buf :: binary(), Result :: [{atom(), 1} | {'str', 1, [any()]}],
+    atom(), S :: any()) -> [{atom(), 1} | {'str', 1, [any()]}].
 scan("=*)" ++ Rest, Buf, Result, '(', S) ->
     scan(Rest, <<>>, [{')', 1}, {'=*', 1} | check(Buf, S) ++ Result], ')', S);
 scan(":dn" ++ Rest, Buf, Result, '(', S) -> ?do_scan(':dn');
@@ -133,7 +133,7 @@ scan([], Buf, Result, _, S) ->
     lists:reverse(check(Buf, S) ++ Result).
 
 
--spec check(binary(),_) -> [{'str',1,[byte()]}].
+-spec check(binary(), _) -> [{'str', 1, [byte()]}].
 check(<<>>, _) ->
     [];
 check(Buf, S) ->

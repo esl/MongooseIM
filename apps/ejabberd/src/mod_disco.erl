@@ -210,11 +210,11 @@ get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
 
--spec get_local_features(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_local_features(Acc :: 'empty' | {'error', _} | {'result', _},
                         From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
                         Node :: binary(),
-                        Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
+                        Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_local_features({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_features(Acc, _From, To, <<>>, _Lang) ->
@@ -255,11 +255,11 @@ domain_to_xml(Domain) ->
     #xmlel{name = <<"item">>, attrs = [{<<"jid">>, Domain}]}.
 
 
--spec get_local_services(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_local_services(Acc :: 'empty' | {'error', _} | {'result', _},
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          Node :: binary(),
-                         Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
+                         Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_local_services({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_services(Acc, _From, To, <<>>, _Lang) ->
@@ -333,11 +333,11 @@ process_sm_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ
     end.
 
 
--spec get_sm_items(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_sm_items(Acc :: 'empty' | {'error', _} | {'result', _},
                    From :: ejabberd:jid(),
                    To :: ejabberd:jid(),
                    Node :: binary(),
-                   Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
+                   Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_sm_items(Acc, From,

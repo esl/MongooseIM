@@ -63,7 +63,7 @@ stop(Host) ->
 
 -spec start_link(ProcName :: atom(),
                  Host :: ejabberd:server())
-      -> 'ignore' | {'error',_} | {'ok',pid()}.
+      -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(ProcName, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host], []).
 
@@ -104,7 +104,7 @@ remove_user(LUser, LServer) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
--spec init([ejabberd:server() | string(),...]) -> {'ok',#state{}}.
+-spec init([ejabberd:server() | string(), ...]) -> {'ok', #state{}}.
 init([Host]) ->
     Tab = tbl_name(Host),
     TabOpts = [named_table, public, set,

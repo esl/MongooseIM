@@ -123,15 +123,15 @@
 
 -type statename() :: 'active' | 'active_bind' | 'connecting'.
 -type fsm_return() :: {'next_state', statename(), _}
-                    | {'stop','normal',_}.
+                    | {'stop', 'normal', _}.
 
--type eldap_cmd() :: {'delete',_}
+-type eldap_cmd() :: {'delete', _}
                    | {'search', eldap_search()}
-                   | {'add',_,_}
-                   | {'bind',_,_}
-                   | {'modify',_,_}
-                   | {'modify_passwd',_,_}
-                   | {'modify_dn',_,_,_,_}.
+                   | {'add', _, _}
+                   | {'bind', _, _}
+                   | {'modify', _, _}
+                   | {'modify_passwd', _, _}
+                   | {'modify_dn', _, _, _, _}.
 
 -type eldap_req_tag() :: 'addRequest' | 'bindRequest' | 'delRequest'
                        | 'extendedReq' | 'modDNRequest' | 'modifyRequest'
@@ -170,16 +170,16 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start_link(binary()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(binary()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Name) ->
-    Reg_name = binary_to_atom(<<"eldap_",Name/binary>>,utf8),
+    Reg_name = binary_to_atom(<<"eldap_", Name/binary>>, utf8),
     gen_fsm:start_link({local, Reg_name}, ?MODULE, [], []).
 
 
 -spec start_link(binary(), [binary()], inet:port_number(), binary(),
                  binary(), tlsopts()) -> any().
 start_link(Name, Hosts, Port, Rootdn, Passwd, Opts) ->
-    Reg_name = binary_to_atom(<<"eldap_",Name/binary>>,utf8),
+    Reg_name = binary_to_atom(<<"eldap_", Name/binary>>, utf8),
     gen_fsm:start_link({local, Reg_name}, ?MODULE,
                        [Hosts, Port, Rootdn, Passwd, Opts], []).
 
@@ -283,7 +283,7 @@ mod_replace(Type, Values) ->
     m(replace, Type, Values).
 
 
--spec m('add' | 'delete' | 'replace',_,_) -> #'ModifyRequest_modification_SEQOF'{}.
+-spec m('add' | 'delete' | 'replace', _, _) -> #'ModifyRequest_modification_SEQOF'{}.
 m(Operation, Type, Values) ->
     #'ModifyRequest_modification_SEQOF'{operation =
                                             Operation,
@@ -345,22 +345,22 @@ optional(Value) -> Value.
 %%%
 %%%  Example:
 %%%
-%%%     Filter = eldap:substrings("sn", [{any,"o"}]),
+%%%     Filter = eldap:substrings("sn", [{any, "o"}]),
 %%%     eldap:search(S, [{base, "dc=bluetail, dc=com"},
 %%%                      {filter, Filter},
-%%%                      {attributes,["cn"]}])),
+%%%                      {attributes, ["cn"]}])),
 %%%
 %%% Returned result:  {ok, #eldap_search_result{}}
 %%%
 %%% Example:
 %%%
-%%%  {ok,{eldap_search_result,
+%%%  {ok, {eldap_search_result,
 %%%        [{eldap_entry,
 %%%           "cn=Magnus Froberg, dc=bluetail, dc=com",
-%%%           [{"cn",["Magnus Froberg"]}]},
+%%%           [{"cn", ["Magnus Froberg"]}]},
 %%%         {eldap_entry,
 %%%           "cn=Torbjorn Tornkvist, dc=bluetail, dc=com",
-%%%           [{"cn",["Torbjorn Tornkvist"]}]}],
+%%%           [{"cn", ["Torbjorn Tornkvist"]}]}],
 %%%        []}}
 %%%
 %%% --------------------------------------------------------------------
@@ -451,7 +451,7 @@ wholeSubtree() -> wholeSubtree.
 
 %%%
 %%% The following Filter parameters consist of an attribute
-%%% and an attribute value. Example: F("uid","tobbe")
+%%% and an attribute value. Example: F("uid", "tobbe")
 %%%
 -type 'and'() :: {'and', [filter()]}.
 -spec 'and'([filter()]) -> 'and'().
@@ -520,9 +520,9 @@ av_assert(Desc, Value) ->
 %%% to substrings/2 looks like this:
 %%%
 %%% Type   ::= string( <attribute> )
-%%% SubStr ::= listof( {initial,Value} | {any,Value}, {final,Value})
+%%% SubStr ::= listof( {initial, Value} | {any, Value}, {final, Value})
 %%%
-%%% Example: substrings("sn",[{initial,"To"},{any,"kv"},{final,"st"}])
+%%% Example: substrings("sn", [{initial, "To"}, {any, "kv"}, {final, "st"}])
 %%% will match entries containing:  'sn: Tornkvist'
 %%%
 present(Attribute) ->
@@ -582,7 +582,7 @@ extensibleMatch_opts([], MRA) -> MRA.
 get_handle(Pid) when is_pid(Pid) -> Pid;
 get_handle(Atom) when is_atom(Atom) -> Atom;
 get_handle(Name) when is_binary(Name) ->
-    binary_to_atom(<<"eldap_",Name/binary>>,utf8).
+    binary_to_atom(<<"eldap_", Name/binary>>, utf8).
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -664,7 +664,7 @@ init([Hosts, Port, Rootdn, Passwd, Opts]) ->
 
 %%----------------------------------------------------------------------
 %% Func: StateName/2
-%% Called when gen_fsm:send_event/2,3 is invoked (async)
+%% Called when gen_fsm:send_event/2, 3 is invoked (async)
 %% Returns: {next_state, NextStateName, NextStateData}          |
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
@@ -675,7 +675,7 @@ connecting(timeout, S) ->
 
 %%----------------------------------------------------------------------
 %% Func: StateName/3
-%% Called when gen_fsm:sync_send_event/2,3 is invoked.
+%% Called when gen_fsm:sync_send_event/2, 3 is invoked.
 %% Returns: {next_state, NextStateName, NextStateData}            |
 %%          {next_state, NextStateName, NextStateData, Timeout}   |
 %%          {reply, Reply, NextStateName, NextStateData}          |
@@ -713,7 +713,7 @@ handle_event(_Event, StateName, S) ->
 
 %%----------------------------------------------------------------------
 %% Func: handle_sync_event/4
-%% Called when gen_fsm:sync_send_all_state_event/2,3 is invoked
+%% Called when gen_fsm:sync_send_all_state_event/2, 3 is invoked
 %% Returns: {next_state, NextStateName, NextStateData}            |
 %%          {next_state, NextStateName, NextStateData, Timeout}   |
 %%          {reply, Reply, NextStateName, NextStateData}          |
@@ -1017,7 +1017,7 @@ check_bind_reply(Other, _From) -> {error, Other}.
 
 %% @doc TODO: process reply depending on requestName:
 %% this requires BER-decoding of #'ExtendedResponse'.response
--spec check_extended_reply(_,_) -> 'ok' | {'error',_}.
+-spec check_extended_reply(_, _) -> 'ok' | {'error', _}.
 check_extended_reply(#'ExtendedResponse'{resultCode = success}, _From) ->
   ok;
 check_extended_reply(#'ExtendedResponse'{resultCode = Reason}, _From) ->
@@ -1026,7 +1026,7 @@ check_extended_reply(Other, _From) ->
   {error, Other}.
 
 
--spec get_op_rec(_, dict:dict(non_neg_integer(), [tuple()])) -> {_,_,_,_}.
+-spec get_op_rec(_, dict:dict(non_neg_integer(), [tuple()])) -> {_, _, _, _}.
 get_op_rec(Id, Dict) ->
     case dict:find(Id, Dict) of
       {ok, [{Timer, _Command, From, Name} | Res]} ->
@@ -1043,7 +1043,7 @@ get_op_rec(Id, Dict) ->
 %%  {error, Reason}
 %%  {'EXIT', Reason} - Broken packet
 %%-----------------------------------------------------------------------
--spec recvd_wait_bind_response(binary(), eldap()) -> 'bound' | {'fail_bind',_}.
+-spec recvd_wait_bind_response(binary(), eldap()) -> 'bound' | {'fail_bind', _}.
 recvd_wait_bind_response(Pkt, S) ->
     case 'ELDAPv3':decode('LDAPMessage', Pkt) of
       {ok, Msg} ->
@@ -1060,7 +1060,7 @@ recvd_wait_bind_response(Pkt, S) ->
     end.
 
 
--spec check_id(non_neg_integer(),non_neg_integer()) -> 'ok' | none().
+-spec check_id(non_neg_integer(), non_neg_integer()) -> 'ok' | none().
 check_id(Id, Id) -> ok;
 check_id(_, _) -> throw({error, wrong_bind_id}).
 
@@ -1103,10 +1103,10 @@ report_bind_failure(Host, Port, Reason) ->
 %% Sort out timed out commands
 %%-----------------------------------------------------------------------
 -spec cmd_timeout(reference(), _, eldap()
-                  ) -> {'error','timed_out_cmd_not_in_dict'}
+                  ) -> {'error', 'timed_out_cmd_not_in_dict'}
                      | {'reply',
                         any(),
-                        {'error','timeout'} | {'timeout', #eldap_search_result{}},
+                        {'error', 'timeout'} | {'timeout', #eldap_search_result{}},
                         eldap()}.
 cmd_timeout(Timer, Id, S) ->
     Dict = S#eldap.dict,
@@ -1144,7 +1144,7 @@ str_to_bin(L) ->
 polish(Entries) -> polish(Entries, [], []).
 
 
--spec polish([any()], Res :: [eldap_entry()], Ref :: [any()]) -> {[{_,_,_}],[any()]}.
+-spec polish([any()], Res :: [eldap_entry()], Ref :: [any()]) -> {[{_, _, _}], [any()]}.
 polish([H | T], Res, Ref)
     when is_record(H, 'SearchResultEntry') ->
     ObjectName = H#'SearchResultEntry'.objectName,
@@ -1163,7 +1163,7 @@ polish([], Res, Ref) -> {Res, Ref}.
 %%-----------------------------------------------------------------------
 %% Connect to next server in list and attempt to bind to it.
 %%-----------------------------------------------------------------------
--spec connect_bind(eldap()) -> {'ok','connecting' | 'wait_bind_response',eldap()}.
+-spec connect_bind(eldap()) -> {'ok', 'connecting' | 'wait_bind_response', eldap()}.
 connect_bind(S) ->
     Host = next_host(S#eldap.host, S#eldap.hosts),
     ?INFO_MSG("LDAP connection on ~s:~p",
@@ -1208,7 +1208,7 @@ connect_bind(S) ->
     end.
 
 
--spec bind_request(port() | {'sslsocket',_,_}, eldap()) -> any().
+-spec bind_request(port() | {'sslsocket', _, _}, eldap()) -> any().
 bind_request(Socket, S) ->
     Id = bump_id(S),
     Req = #'BindRequest'{version = S#eldap.version,
@@ -1225,7 +1225,7 @@ bind_request(Socket, S) ->
 
 
 %% @doc Given last tried Server, find next one to try
--spec next_host('undefined' | binary(),[binary()]) -> binary().
+-spec next_host('undefined' | binary(), [binary()]) -> binary().
 next_host(undefined, [H | _]) ->
     H;                    % First time, take first
 next_host(Host,
@@ -1251,7 +1251,7 @@ next_host(Host,
 %%% Other Stuff
 %%% --------------------------------------------------------------------
 
--spec next_host('undefined' | binary(),[binary()],[binary()]) -> binary().
+-spec next_host('undefined' | binary(), [binary()], [binary()]) -> binary().
 next_host(Host, [Host], Hosts) ->
     hd(Hosts);    % Wrap back to first
 next_host(Host, [Host | Tail], _Hosts) ->
