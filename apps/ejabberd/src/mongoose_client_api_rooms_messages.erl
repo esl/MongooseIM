@@ -95,7 +95,7 @@ build_message(From, To, ID, Body) ->
            attrs = Attrs,
            children = [BodyEl]}.
 
--spec encode(Packet :: exml:el(), Timestamp :: integer()) -> map().
+-spec encode(Packet :: exml:element(), Timestamp :: integer()) -> map().
 encode(Packet, Timestamp) ->
     From = exml_query:attr(Packet, <<"from">>),
     FromJID = jid:from_binary(From),

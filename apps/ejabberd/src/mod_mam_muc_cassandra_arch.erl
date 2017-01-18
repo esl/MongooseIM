@@ -252,18 +252,18 @@ message_id_to_nick_name(PoolName, RoomJID, BRoomJID, MessID) ->
 %% SELECT MESSAGES
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
-                      ArchiveID :: mod_mam_muc:archive_id(),
+                      ArchiveID :: mod_mam:archive_id(),
                       ArchiveJID :: ejabberd:jid(),
                       RSM :: jlib:rsm_in()  | undefined,
-                      Borders :: mod_mam_muc:borders()  | undefined,
-                      Start :: mod_mam_muc:unix_timestamp()  | undefined,
-                      End :: mod_mam_muc:unix_timestamp()  | undefined,
-                      Now :: mod_mam_muc:unix_timestamp(),
+                      Borders :: mod_mam:borders()  | undefined,
+                      Start :: mod_mam:unix_timestamp()  | undefined,
+                      End :: mod_mam:unix_timestamp()  | undefined,
+                      Now :: mod_mam:unix_timestamp(),
                       WithJID :: ejabberd:jid()  | undefined,
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
-                             {ok, mod_mam_muc:lookup_result()} | {error, 'policy-violation'}.
+                             {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages({error, _Reason} = Result, _Host,
                 _RoomID, _RoomJID, _RSM, _Borders,
                 _Start, _End, _Now, _WithJID,
@@ -560,7 +560,7 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
 -spec extract_messages(PoolName, RoomJID, Host, Filter, IMax, ReverseLimit) ->
                               [Row] when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jlib:jid(),
+      RoomJID :: jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       IMax :: pos_integer(),
@@ -588,7 +588,7 @@ extract_messages(PoolName, RoomJID, _Host, Filter, IMax, true) ->
 -spec calc_index(PoolName, RoomJID, Host, Filter, MessID) -> Count
                                                                  when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jlib:jid(),
+      RoomJID :: jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       MessID :: message_id(),
@@ -603,7 +603,7 @@ calc_index(PoolName, RoomJID, Host, Filter, MessID) ->
 -spec calc_before(PoolName, RoomJID, Host, Filter, MessID) -> Count
                                                                   when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jlib:jid(),
+      RoomJID :: jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       MessID :: message_id(),
@@ -617,7 +617,7 @@ calc_before(PoolName, RoomJID, Host, Filter, MessID) ->
 -spec calc_count(PoolName, RoomJID, Host, Filter) -> Count
                                                          when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jlib:jid(),
+      RoomJID :: jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       Count :: non_neg_integer().
@@ -632,7 +632,7 @@ calc_count(PoolName, RoomJID, _Host, Filter) ->
 %% Returns undefined if not there are not enough rows
 -spec offset_to_start_id(PoolName, RoomJID, Filter, Offset) -> Id when
     PoolName :: mongoose_cassandra:pool_name(),
-    RoomJID :: jlib:jid(),
+    RoomJID :: jid(),
     Offset :: non_neg_integer(),
     Filter :: filter(),
     Id :: non_neg_integer() | undefined.
@@ -712,7 +712,7 @@ filter_to_cql() ->
 -spec calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM) -> Offset
                                                                                      when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jlib:jid(),
+      RoomJID :: jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       PageSize :: non_neg_integer(),
@@ -833,6 +833,6 @@ params_helper(Params) ->
 db_message_format() ->
     mod_mam_muc_cassandra_arch_params:db_message_format().
 
--spec pool_name(jlib:jid()) -> term().
+-spec pool_name(jid()) -> term().
 pool_name(_UserJid) ->
     mod_mam_muc_cassandra_arch_params:pool_name().
