@@ -80,6 +80,7 @@
 -define(NS_MAM,         <<"urn:xmpp:mam:tmp">>).
 -define(NS_MAM_03,      <<"urn:xmpp:mam:0">>). % MAM 0.3
 -define(NS_MAM_04,      <<"urn:xmpp:mam:1">>). % MAM 0.4.1 or 0.5
+-define(NS_HTTP_UPLOAD, <<"urn:xmpp:http:upload">>).
 
 -define(NS_RSM,         <<"http://jabber.org/protocol/rsm">>).
 -define(NS_EJABBERD_CONFIG,<<"ejabberd:config">>).

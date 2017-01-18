@@ -52,6 +52,7 @@
          set_opt/3,
          get_module_opt/4,
          set_module_opt/4,
+         get_module_opts/2,
          get_opt_subhost/3,
          get_module_opt_subhost/3,
          % Get/set opts by subhost
@@ -312,13 +313,17 @@ get_module_opt(global, Module, Opt, Default) ->
             Default
     end;
 get_module_opt(Host, Module, Opt, Default) ->
+    ModuleOpts = get_module_opts(Host, Module),
+    get_opt(Opt, ModuleOpts, Default).
+
+
+get_module_opts(Host, Module) ->
     OptsList = ets:lookup(ejabberd_modules, {Module, Host}),
     case OptsList of
-        [] ->
-            Default;
-        [#ejabberd_module{opts = Opts} | _] ->
-            get_opt(Opt, Opts, Default)
+        [] -> [];
+        [#ejabberd_module{opts = Opts} | _] -> Opts
     end.
+
 
 -spec get_module_opt_by_subhost(
         SubHost :: ejabberd:server(),
