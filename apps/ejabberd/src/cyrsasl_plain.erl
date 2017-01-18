@@ -68,7 +68,7 @@ mech_step(Creds, ClientIn) ->
             {error, <<"bad-protocol">>}
     end.
 
--spec prepare(binary()) -> 'error' | [binary(),...].
+-spec prepare(binary()) -> 'error' | [binary(), ...].
 prepare(ClientIn) ->
     case parse(ClientIn) of
         [<<>>, UserMaybeDomain, Password] ->
@@ -90,11 +90,11 @@ prepare(ClientIn) ->
     end.
 
 
--spec parse(binary()) -> [binary(),...].
+-spec parse(binary()) -> [binary(), ...].
 parse(S) ->
     parse1(S, <<>>, []).
 
--spec parse1(binary(),binary(),[binary()]) -> [binary(),...].
+-spec parse1(binary(), binary(), [binary()]) -> [binary(), ...].
 parse1(<<0, Cs/binary>>, S, T) ->
     parse1(Cs, <<>>, [binary_reverse(S)| T]);
 parse1(<<C, Cs/binary>>, S, T) ->
@@ -105,11 +105,11 @@ parse1(<<>>, S, T) ->
     lists:reverse([binary_reverse(S)| T]).
 
 
--spec parse_domain(binary()) -> [binary(),...].
+-spec parse_domain(binary()) -> [binary(), ...].
 parse_domain(S) ->
     parse_domain1(S, <<>>, []).
 
--spec parse_domain1(binary(),binary(),[binary()]) -> [binary(),...].
+-spec parse_domain1(binary(), binary(), [binary()]) -> [binary(), ...].
 parse_domain1(<<$@, Cs/binary>>, S, T) ->
     parse_domain1(Cs, <<>>, [binary_reverse(S) | T]);
 parse_domain1(<<C, Cs/binary>>, S, T) ->
@@ -121,5 +121,5 @@ parse_domain1(<<>>, S, T) ->
 -spec binary_reverse(binary()) -> binary().
 binary_reverse(<<>>) ->
     <<>>;
-binary_reverse(<<H,T/binary>>) ->
-    <<(binary_reverse(T))/binary,H>>.
+binary_reverse(<<H, T/binary>>) ->
+    <<(binary_reverse(T))/binary, H>>.

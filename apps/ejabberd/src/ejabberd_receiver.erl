@@ -62,16 +62,16 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
+%% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link(_,_,_,_) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(_, _, _, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Socket, SockMod, Shaper, MaxStanzaSize) ->
     gen_server:start_link(
       ?MODULE, [Socket, SockMod, Shaper, MaxStanzaSize], []).
 
 %%--------------------------------------------------------------------
-%% Function: start() -> {ok,Pid} | ignore | {error,Error}
+%% Function: start() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start(Socket, SockMod, Shaper) ->
@@ -83,7 +83,7 @@ start(Socket, SockMod, Shaper, MaxStanzaSize) ->
                   [Socket, SockMod, Shaper, MaxStanzaSize]),
     Pid.
 
--spec change_shaper(atom() | pid() | {atom(),_} | {'via',_,_},_) -> 'ok'.
+-spec change_shaper(atom() | pid() | {atom(), _} | {'via', _, _}, _) -> 'ok'.
 change_shaper(Pid, Shaper) ->
     gen_server:cast(Pid, {change_shaper, Shaper}).
 
@@ -99,7 +99,7 @@ compress(Pid, ZlibSocket) ->
 become_controller(Pid, C2SPid) ->
     gen_server:call(Pid, {become_controller, C2SPid}).
 
--spec close(atom() | pid() | {atom(),_} | {'via',_,_}) -> 'ok'.
+-spec close(atom() | pid() | {atom(), _} | {'via', _, _}) -> 'ok'.
 close(Pid) ->
     gen_server:cast(Pid, close).
 
@@ -114,7 +114,7 @@ close(Pid) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
--spec init([any(),...]) -> {'ok',state()}.
+-spec init([any(), ...]) -> {'ok', state()}.
 init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
     ShaperState = shaper:new(Shaper),
     Timeout = case SockMod of
@@ -279,7 +279,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
--spec activate_socket(state()) -> 'ok' | {'tcp_closed',_}.
+-spec activate_socket(state()) -> 'ok' | {'tcp_closed', _}.
 activate_socket(#state{socket = Socket,
                        sock_mod = SockMod}) ->
     PeerName =

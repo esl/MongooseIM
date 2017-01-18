@@ -189,13 +189,13 @@ set_password(LUser, LServer, Password) ->
 try_register(LUser, LServer, Password) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
     UserStr = binary_to_list(LUser),
-    DN = "cn=" ++ UserStr ++ "," ++ binary_to_list(State#state.base),
+    DN = "cn=" ++ UserStr ++ ", " ++ binary_to_list(State#state.base),
     Attrs =   [{"objectclass", ["inetOrgPerson"]},
               {"cn", [UserStr]},
               {"sn", [UserStr]},
-              {"userPassword",[binary_to_list(Password)]},
-              {"uid",[UserStr]}],
-    case eldap_pool:add(State#state.eldap_id,DN,Attrs) of
+              {"userPassword", [binary_to_list(Password)]},
+              {"uid", [UserStr]}],
+    case eldap_pool:add(State#state.eldap_id, DN, Attrs) of
         ok -> ok;
         _ -> {error, exists}
     end.
@@ -263,7 +263,7 @@ remove_user(LUser, LServer) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
     case find_user_dn(LUser, State) of
       false -> {error, not_allowed};
-      DN -> eldap_pool:delete(State#state.eldap_id,DN)
+      DN -> eldap_pool:delete(State#state.eldap_id, DN)
     end.
 
 
@@ -394,7 +394,7 @@ find_user_dn(LUser, State) ->
 
 %% @doc apply the dn filter and the local filter:
 -spec dn_filter(DN :: binary(),
-                Attrs :: [{binary(),[any()]}],
+                Attrs :: [{binary(), [any()]}],
                 State :: state()) -> 'false' | binary().
 dn_filter(DN, Attrs, State) ->
     case check_local_filter(Attrs, State) of
@@ -405,7 +405,7 @@ dn_filter(DN, Attrs, State) ->
 
 %% @doc Check that the DN is valid, based on the dn filter
 -spec is_valid_dn(DN :: binary(),
-                  Attrs :: [{binary(),[any()]}],
+                  Attrs :: [{binary(), [any()]}],
                   State :: state()) -> 'false' | binary().
 is_valid_dn(DN, _, #state{dn_filter = undefined}) -> DN;
 is_valid_dn(DN, Attrs, State) ->
@@ -445,10 +445,10 @@ is_valid_dn(DN, Attrs, State) ->
 %% @doc The local filter is used to check an attribute in ejabberd
 %% and not in LDAP to limit the load on the LDAP directory.
 %% A local rule can be either:
-%%    {equal, {"accountStatus",["active"]}}
-%%    {notequal, {"accountStatus",["disabled"]}}
-%% {ldap_local_filter, {notequal, {"accountStatus",["disabled"]}}}
--spec check_local_filter(Attrs :: [{binary(),[any()]}],
+%%    {equal, {"accountStatus", ["active"]}}
+%%    {notequal, {"accountStatus", ["disabled"]}}
+%% {ldap_local_filter, {notequal, {"accountStatus", ["disabled"]}}}
+-spec check_local_filter(Attrs :: [{binary(), [any()]}],
                          State :: state()) -> boolean().
 check_local_filter(_Attrs,
                    #state{lfilter = undefined}) ->
@@ -460,8 +460,8 @@ check_local_filter(Attrs,
 
 
 -spec local_filter('equal' | 'notequal',
-                   Attrs :: [{binary(),[any()]}],
-                   FilterMatch :: {_,_}) -> boolean().
+                   Attrs :: [{binary(), [any()]}],
+                   FilterMatch :: {_, _}) -> boolean().
 local_filter(equal, Attrs, FilterMatch) ->
     {Attr, Value} = FilterMatch,
     case lists:keysearch(Attr, 1, Attrs) of
@@ -488,9 +488,9 @@ result_attrs(#state{uids = UIDs,
 -spec parse_options(Host :: ejabberd:lserver()) -> state().
 parse_options(Host) ->
     Cfg = eldap_utils:get_config(Host, []),
-    Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE),utf8),
+    Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE), utf8),
     Bind_Eldap_ID = atom_to_binary(
-                      gen_mod:get_module_proc(Host, bind_ejabberd_auth_ldap),utf8),
+                      gen_mod:get_module_proc(Host, bind_ejabberd_auth_ldap), utf8),
     UIDsTemp = eldap_utils:get_opt(
                  {ldap_uids, Host}, [],
                  fun(Us) ->

@@ -29,7 +29,7 @@
 -author('xram@jabber.ru').
 
 %% API
--export([start_link/7,stop/1, bind/3, search/2, delete/2, add/3,
+-export([start_link/7, stop/1, bind/3, search/2, delete/2, add/3,
          modify_passwd/3]).
 
 -include("ejabberd.hrl").
@@ -38,35 +38,35 @@
 %% API
 %%====================================================================
 
--spec bind(binary(),_,_) -> any().
+-spec bind(binary(), _, _) -> any().
 bind(PoolName, DN, Passwd) ->
     do_request(PoolName, {bind, [DN, Passwd]}).
 
 
--spec search(binary(),_) -> any().
+-spec search(binary(), _) -> any().
 search(PoolName, Opts) ->
     do_request(PoolName, {search, [Opts]}).
 
 
--spec modify_passwd(binary(),_,_) -> any().
+-spec modify_passwd(binary(), _, _) -> any().
 modify_passwd(PoolName, DN, Passwd) ->
     do_request(PoolName, {modify_passwd, [DN, Passwd]}).
 
 
--spec delete(binary(),_) -> any().
-delete(PoolName,DN) ->
+-spec delete(binary(), _) -> any().
+delete(PoolName, DN) ->
     case do_request(PoolName, {delete, [DN]}) of
         false -> not_exists;
         R -> R
     end.
 
 
--spec add(binary(),_,_) -> any().
-add(PoolName,DN,Attrs) ->
-    do_request(PoolName, {add,[DN,Attrs]}).
+-spec add(binary(), _, _) -> any().
+add(PoolName, DN, Attrs) ->
+    do_request(PoolName, {add, [DN, Attrs]}).
 
 
--spec start_link(Name :: binary(), Hosts :: [any()],_,_,_,_,_) -> 'ok'.
+-spec start_link(Name :: binary(), Hosts :: [any()], _, _, _, _, _) -> 'ok'.
 start_link(Name, Hosts, Backups, Port, Rootdn, Passwd, Opts) ->
     PoolName = make_id(Name),
     pg2:create(PoolName),
@@ -89,9 +89,9 @@ start_link(Name, Hosts, Backups, Port, Rootdn, Passwd, Opts) ->
 stop(Name) ->
     Pids = pg2:get_local_members(make_id(Name)),
     lists:foreach(fun (P) ->
-                          ok = pg2:leave(make_id(Name),P),
+                          ok = pg2:leave(make_id(Name), P),
                           eldap:close(P)
-                  end,Pids).
+                  end, Pids).
 
 
 %%====================================================================
@@ -99,7 +99,7 @@ stop(Name) ->
 %%====================================================================
 
 -type f() :: add | bind | delete | modify_passwd | search.
--spec do_request(Name :: binary(), {f() ,[any(),...]}) -> any().
+-spec do_request(Name :: binary(), {f(), [any(), ...]}) -> any().
 do_request(Name, {F, Args}) ->
     case pg2:get_closest_pid(make_id(Name)) of
       Pid when is_pid(Pid) ->
@@ -118,4 +118,4 @@ do_request(Name, {F, Args}) ->
 
 -spec make_id(binary()) -> atom().
 make_id(Name) ->
-    binary_to_atom(<<"eldap_pool_", Name/binary>>,utf8).
+    binary_to_atom(<<"eldap_pool_", Name/binary>>, utf8).

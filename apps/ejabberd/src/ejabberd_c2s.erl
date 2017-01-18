@@ -74,7 +74,7 @@
 %%%----------------------------------------------------------------------
 
 -spec start(_, list())
--> {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
+-> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(SockData, Opts) ->
     ?SUPERVISOR_START.
 
@@ -912,7 +912,7 @@ session_established({xmlstreamerror, _}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 session_established(closed, StateData) ->
-    ?DEBUG("Session established closed - trying to enter resume_session",[]),
+    ?DEBUG("Session established closed - trying to enter resume_session", []),
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
@@ -969,7 +969,7 @@ process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
         #jid{user = User,
              server = Server,
              resource = <<>>} ->
-             ?DEBUG("presence_update(~p,~n\t~p,~n\t~p)",
+             ?DEBUG("presence_update(~p, ~n\t~p, ~n\t~p)",
                  [FromJID, PresenceEl, StateData]),
              presence_update(FromJID, PresenceEl,
                              StateData);
@@ -1021,7 +1021,7 @@ resume_session(closed, StateData) ->
 resume_session(timeout, StateData) ->
     {next_state, resume_session, StateData, hibernate};
 resume_session(Msg, StateData) ->
-    ?WARNING_MSG("unexpected message ~p",[Msg]),
+    ?WARNING_MSG("unexpected message ~p", [Msg]),
     {next_state, resume_session, StateData, hibernate}.
 
 
@@ -2209,7 +2209,7 @@ process_privacy_iq(From, To,
 
 -spec resend_offline_messages(state()) -> ok.
 resend_offline_messages(StateData) ->
-    ?DEBUG("resend offline messages~n",[]),
+    ?DEBUG("resend offline messages~n", []),
     case ejabberd_hooks:run_fold(
            resend_offline_messages_hook, StateData#state.server,
            [],
@@ -2350,7 +2350,7 @@ fsm_reply(Reply, StateName, StateData) ->
                        ) -> boolean().
 is_ip_blacklisted(undefined) ->
     false;
-is_ip_blacklisted({IP,_Port}) ->
+is_ip_blacklisted({IP, _Port}) ->
     ejabberd_hooks:run_fold(check_bl_c2s, false, [IP]).
 
 
@@ -2496,7 +2496,7 @@ blocking_presence_to_contacts(Action, [Jid|JIDs], StateData) ->
     Pres = case Action of
                block ->
                    #xmlel{name = <<"presence">>,
-                       attrs = [{<<"xml:lang">>,<<"en">>},{<<"type">>,<<"unavailable">>}]
+                       attrs = [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"unavailable">>}]
                    };
                unblock ->
                    StateData#state.pres_last
@@ -2542,10 +2542,10 @@ pack_jid_set(Set, Pack) ->
     {?SETS:from_list(PackedJids), NewPack}.
 
 
--spec pack_jids([{_,_,_}], Pack :: pack_tree(), Acc :: [ejabberd:simple_jid()]) ->
-    {[ejabberd:simple_jid()],pack_tree()}.
+-spec pack_jids([{_, _, _}], Pack :: pack_tree(), Acc :: [ejabberd:simple_jid()]) ->
+    {[ejabberd:simple_jid()], pack_tree()}.
 pack_jids([], Pack, Acc) -> {Acc, Pack};
-pack_jids([{U,S,R}=Jid | Jids], Pack, Acc) ->
+pack_jids([{U, S, R}=Jid | Jids], Pack, Acc) ->
     case gb_trees:lookup(Jid, Pack) of
         {value, PackedJid} ->
             pack_jids(Jids, Pack, [PackedJid | Acc]);
@@ -2899,7 +2899,7 @@ do_resume_session(SMID, El, [{_, Pid}], StateData) ->
                                                   NSD#state.stream_mgmt_in),
                     send_element(NSD, Resumed),
                     [send_element(NSD, Packet)
-                     || {_, _,Packet} <- lists:reverse(NSD#state.stream_mgmt_buffer)],
+                     || {_, _, Packet} <- lists:reverse(NSD#state.stream_mgmt_buffer)],
 
                     NSD2 = flush_csi_buffer(NSD),
 
@@ -2907,7 +2907,7 @@ do_resume_session(SMID, El, [{_, Pid}], StateData) ->
                 catch
                     %% errors from send_element
                     _:_ ->
-                        ?INFO_MSG("resumption error while resending old stanzas entering resume state again smid: ~p~n",[SMID]),
+                        ?INFO_MSG("resumption error while resending old stanzas entering resume state again smid: ~p~n", [SMID]),
                         maybe_enter_resume_session(SMID, NSD)
                 end
         end
@@ -2984,14 +2984,14 @@ maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Time
         <<"headline">> ->
             PacketTuple;
         _ ->
-            {F, T, add_timestamp(Timestamp,<<"localhost">>, Packet)}
+            {F, T, add_timestamp(Timestamp, <<"localhost">>, Packet)}
     end;
 maybe_add_timestamp(Packet, _Timestamp) ->
     Packet.
 
-add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
-    {D,{H,M,S}} = calendar:now_to_universal_time(TimeStamp),
-    Time = {D,{H,M,S, Micro}},
+add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
+    {D, {H, M, S}} = calendar:now_to_universal_time(TimeStamp),
+    Time = {D, {H, M, S, Micro}},
     case xml:get_subtag(Packet, <<"delay">>) of
         false ->
             TimeStampXML = timestamp_xml(Server, Time),

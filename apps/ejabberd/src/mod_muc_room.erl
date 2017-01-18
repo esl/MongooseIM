@@ -156,9 +156,9 @@
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
             RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
             Creator :: ejabberd:jid(), Nick :: mod_muc:nick(),
-            DefRoomOpts :: list()) -> {'error',_}
-                                          | {'ok','undefined' | pid()}
-                                          | {'ok','undefined' | pid(),_}.
+            DefRoomOpts :: list()) -> {'error', _}
+                                          | {'ok', 'undefined' | pid()}
+                                          | {'ok', 'undefined' | pid(), _}.
 start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
       Creator, Nick, DefRoomOpts) ->
     ?SUPERVISOR_START.
@@ -167,9 +167,9 @@ start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
 -spec start(Host :: ejabberd:server(), ServerHost :: ejabberd:server(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
             RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
-            Opts :: list()) -> {'error',_}
-                                   | {'ok','undefined' | pid()}
-                                   | {'ok','undefined' | pid(),_}.
+            Opts :: list()) -> {'error', _}
+                                   | {'ok', 'undefined' | pid()}
+                                   | {'ok', 'undefined' | pid(), _}.
 start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
     Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
     supervisor:start_child(Supervisor, [Host, ServerHost, Access, Room,
@@ -308,7 +308,7 @@ read_hibernate_timeout(Host) ->
 %% @doc In the locked state StateData contains the same settings it previously
 %% held for the normal_state. The fsm awaits either a confirmation or a
 %% configuration form from the creator. Responds with error to any other queries.
--spec locked_error({'route',ejabberd:jid(),_,jlib:xmlel()},
+-spec locked_error({'route', ejabberd:jid(), _, jlib:xmlel()},
                    statename(), state()) -> fsm_return().
 locked_error({route, From, ToNick, #xmlel{attrs = Attrs} = Packet},
              NextState, StateData) ->
@@ -354,7 +354,7 @@ is_query_allowed(Query) ->
 
 
 -spec locked_state_process_owner_iq(ejabberd:jid(), jlib:xmlel(),
-        ejabberd:lang(), 'error' | 'get' | 'invalid' | 'result',_)
+        ejabberd:lang(), 'error' | 'get' | 'invalid' | 'result', _)
             -> {{'error', jlib:xmlel()}, statename()}
                | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
 locked_state_process_owner_iq(From, Query, Lang, set, StateData) ->
@@ -372,7 +372,7 @@ locked_state_process_owner_iq(_From, _Query, Lang, _Type, _StateData) ->
 
 
 %% @doc Destroy room / confirm instant room / configure room
--spec locked_state({'route',From :: ejabberd:jid(), To :: mod_muc:nick(),
+-spec locked_state({'route', From :: ejabberd:jid(), To :: mod_muc:nick(),
                    Packet :: jlib:xmlel()}, state()) -> fsm_return().
 locked_state({route, From, _ToNick,
               #xmlel{name = <<"iq">>} = Packet}, StateData) ->
@@ -771,7 +771,7 @@ occupant_jid(#user{nick=Nick}, RoomJID) ->
     jid:replace_resource(RoomJID, Nick).
 
 
--spec route(atom() | pid() | port() | {atom(),_} | {'via',_,_},
+-spec route(atom() | pid() | port() | {atom(), _} | {'via', _, _},
     From :: ejabberd:jid(), To :: mod_muc:nick(), Pkt :: jlib:xmlel()) -> 'ok'.
 route(Pid, From, ToNick, Packet) ->
     gen_fsm:send_event(Pid, {route, From, ToNick, Packet}).
@@ -1121,7 +1121,7 @@ check_and_strip_visitor_status(From, Packet, StateData) ->
 
 
 -spec handle_new_user(ejabberd:jid(), mod_muc:nick(), jlib:xmlel(), state(),
-                      [{binary(),binary()}]) -> state().
+                      [{binary(), binary()}]) -> state().
 handle_new_user(From, Nick = <<>>, _Packet, StateData, Attrs) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     ErrText = <<"No nickname">>,
@@ -1156,7 +1156,7 @@ is_occupant_or_admin(JID, StateData) ->
 %%%
 
 -spec is_user_online_iq(_, ejabberd:jid(), state())
-            -> {'false',_,ejabberd:jid()} | {'true',_,ejabberd:jid()}.
+            -> {'false', _, ejabberd:jid()} | {'true', _, ejabberd:jid()}.
 is_user_online_iq(StanzaId, JID, StateData) when JID#jid.lresource /= <<>> ->
     {is_user_online(JID, StateData), StanzaId, JID};
 is_user_online_iq(StanzaId, JID, StateData) when JID#jid.lresource == <<>> ->
@@ -1587,7 +1587,7 @@ store_user_activity(JID, UserActivity, StateData) ->
     StateData1.
 
 
--spec clean_treap(treap:treap(), {1,integer()}) -> treap:treap().
+-spec clean_treap(treap:treap(), {1, integer()}) -> treap:treap().
 clean_treap(Treap, CleanPriority) ->
     case treap:is_empty(Treap) of
     true ->
@@ -2053,7 +2053,7 @@ count_stanza_shift(Nick, Els, StateData) ->
     lists:max([Shift0, Shift1, Shift2, Shift3]).
 
 
--spec count_seconds_shift(integer(),[any()]) -> number().
+-spec count_seconds_shift(integer(), [any()]) -> number().
 count_seconds_shift(Seconds, HistoryList) ->
     lists:sum(
       lists:map(
@@ -2068,7 +2068,7 @@ count_seconds_shift(Seconds, HistoryList) ->
     end, HistoryList)).
 
 
--spec count_maxstanzas_shift(non_neg_integer(),[any()]) -> integer().
+-spec count_maxstanzas_shift(non_neg_integer(), [any()]) -> integer().
 count_maxstanzas_shift(MaxStanzas, HistoryList) ->
     S = length(HistoryList) - MaxStanzas,
     max(0, S).
@@ -2893,7 +2893,7 @@ process_admin_items_set(UJID, Items, Lang, StateData) ->
                     'affiliation' | 'role', any(), any()}.
 -spec find_changed_items(ejabberd:jid(), mod_muc:affiliation(), mod_muc:role(),
         [jlib:xmlel()], ejabberd:lang(), state(), [res_row()])
-            -> {'error', jlib:xmlel()} | {'result',[res_row()]}.
+            -> {'error', jlib:xmlel()} | {'result', [res_row()]}.
 find_changed_items(_UJID, _UAffiliation, _URole, [], _Lang, _StateData, Res) ->
     {result, Res};
 find_changed_items(UJID, UAffiliation, URole, [#xmlcdata{} | Items],
@@ -3431,7 +3431,7 @@ is_password_settings_correct(XEl, StateData) ->
         false;
     {true, undefined, _, <<>>} ->
         false;
-    {_, true , <<>>, undefined} ->
+    {_, true, <<>>, undefined} ->
         false;
     {_, true, _, <<>>} ->
         false;
@@ -3448,7 +3448,7 @@ get_default_room_maxusers(RoomState) ->
 
 
 -spec get_config(ejabberd:lang(), state(), ejabberd:jid())
-            -> {'result',[jlib:xmlel(),...], state()}.
+            -> {'result', [jlib:xmlel(), ...], state()}.
 get_config(Lang, StateData, From) ->
     AccessPersistent = access_persistent(StateData),
     ServiceMaxUsers = get_service_max_users(StateData),
@@ -3744,7 +3744,7 @@ set_xoption([_ | _Opts], _Config) ->
     {error, ?ERR_BAD_REQUEST}.
 
 
--spec change_config(config(), state()) -> {'result',[],state()}.
+-spec change_config(config(), state()) -> {'result', [], state()}.
 change_config(Config, StateData) ->
     NSD = StateData#state{config = Config},
     case {(StateData#state.config)#config.persistent,
@@ -3844,7 +3844,7 @@ set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
 
 -define(MAKE_CONFIG_OPT(Opt), {Opt, Config#config.Opt}).
 
--spec make_opts(state()) -> [{atom(),_},...].
+-spec make_opts(state()) -> [{atom(), _}, ...].
 make_opts(StateData) ->
     Config = StateData#state.config,
     [
@@ -3945,7 +3945,7 @@ config_opt_to_feature(Opt, Fiftrue, Fiffalse) ->
 
 -spec process_iq_disco_info(ejabberd:jid(), 'get' | 'set', ejabberd:lang(),
                             state()) -> {'error', jlib:xmlel()}
-                                      | {'result',[jlib:xmlel(),...],state()}.
+                                      | {'result', [jlib:xmlel(), ...], state()}.
 process_iq_disco_info(_From, set, _Lang, _StateData) ->
     {error, ?ERR_NOT_ALLOWED};
 process_iq_disco_info(_From, get, Lang, StateData) ->
@@ -4003,8 +4003,8 @@ iq_disco_info_extras(Lang, StateData) ->
 
 
 -spec process_iq_disco_items(ejabberd:jid(), 'get' | 'set', ejabberd:lang(),
-                            state()) -> {'error',jlib:xmlel()}
-                                      | {'result',[jlib:xmlel()],state()}.
+                            state()) -> {'error', jlib:xmlel()}
+                                      | {'result', [jlib:xmlel()], state()}.
 process_iq_disco_items(_From, set, _Lang, _StateData) ->
     {error, ?ERR_NOT_ALLOWED};
 process_iq_disco_items(From, get, _Lang, StateData) ->
@@ -4032,7 +4032,7 @@ get_title(StateData) ->
 
 
 -spec get_roomdesc_reply(ejabberd:jid(), state(), Tail :: binary()
-                        ) -> 'false' | {'item',_}.
+                        ) -> 'false' | {'item', _}.
 get_roomdesc_reply(JID, StateData, Tail) ->
     IsOccupantOrAdmin = is_occupant_or_admin(JID, StateData),
     if (StateData#state.config)#config.public or IsOccupantOrAdmin ->
@@ -4126,7 +4126,7 @@ get_field(_Var, []) ->
 
 -spec check_invitation(ejabberd:simple_jid() | ejabberd:jid(),
         [jlib:xmlcdata() | jlib:xmlel()], ejabberd:lang(), state())
-            -> {'error',_} | {'ok',ejabberd:jid()}.
+            -> {'error', _} | {'ok', ejabberd:jid()}.
 check_invitation(FromJID, Els, Lang, StateData) ->
     try
         unsafe_check_invitation(FromJID, Els, Lang, StateData)
@@ -4291,7 +4291,7 @@ handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From) ->
 %% packet. This function must be catched, because it crashes when the packet
 %% is not a decline message.
 -spec check_decline_invitation(jlib:xmlel()) ->
-    {'true',{jlib:xmlel(), jlib:xmlel(), jlib:xmlel(), 'error' | ejabberd:jid()}}.
+    {'true', {jlib:xmlel(), jlib:xmlel(), jlib:xmlel(), 'error' | ejabberd:jid()}}.
 check_decline_invitation(Packet) ->
     #xmlel{name = <<"message">>} = Packet,
     XEl = xml:get_subtag(Packet, <<"x">>),
@@ -4463,7 +4463,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
             MessageInterval =
                 (Activity#activity.message_time +
                 MinMessageInterval - Now) div 1000,
-                Interval = lists:max([MessageInterval,MessageShaperInterval]),
+                Interval = lists:max([MessageInterval, MessageShaperInterval]),
                 erlang:send_after(
                     Interval, self(), {process_user_message, From}),
                 NewActivity = Activity#activity{
@@ -4528,7 +4528,7 @@ route_error(Nick, From, Error, StateData) ->
     StateData.
 
 
--spec route_voice_approval('ok' | {'error',jlib:xmlel()} | {'form',binary()}
+-spec route_voice_approval('ok' | {'error', jlib:xmlel()} | {'form', binary()}
         | {'role', binary(), binary()}, ejabberd:jid(), jlib:xmlel(),
         ejabberd:lang(), state()) -> state().
 route_voice_approval({error, ErrType}, From, Packet, _Lang, StateData) ->

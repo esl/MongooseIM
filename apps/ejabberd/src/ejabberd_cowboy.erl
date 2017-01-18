@@ -70,7 +70,7 @@ reload_dispatch(Ref) ->
     gen_server:call(Ref, reload_dispatch).
 
 %% @doc gen_server for handling shutdown when started via ejabberd_listener
--spec start_link(_) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(_) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(State) ->
     gen_server:start_link(?MODULE, State, []).
 

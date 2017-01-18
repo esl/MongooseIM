@@ -190,8 +190,8 @@ find_opt(Key, Default, Options) ->
         Pred    :: fun(),
         Tr      :: fun(),
         Host    :: mod_pubsub:hostPubsub(),
-        Nodes :: [mod_pubsub:nodeId(),...])
-        -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(),...]}].
+        Nodes :: [mod_pubsub:nodeId(), ...])
+        -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 traversal_helper(Pred, Tr, Host, Nodes) ->
     traversal_helper(Pred, Tr, 0, Host, Nodes, []).
 
@@ -218,7 +218,7 @@ remove_config_parent(Node, [H | T], Acc) ->
 
 -spec validate_parentage(
         Key            :: mod_pubsub:hostPubsub(),
-        Owners         :: [ljid(),...],
+        Owners         :: [ljid(), ...],
         Parent_Nodes :: [mod_pubsub:nodeId()])
     -> true
     %%%

@@ -89,12 +89,12 @@
 %%--------------------------------------------------------------------
 
 -spec start(mod_bosh:sid(), _) ->
-    {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
+    {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(Sid, Peer) ->
     supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer]).
 
 
--spec start_link(mod_bosh:sid(),_) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(mod_bosh:sid(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Sid, Peer) ->
     gen_fsm:start_link(?MODULE, [Sid, Peer], []).
 
@@ -235,7 +235,7 @@ closing(Event, State) ->
 %% @doc
 %% There should be one instance of this function for each possible
 %% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_event/[2,3], the instance of this function with
+%% gen_fsm:sync_send_event/[2, 3], the instance of this function with
 %% the same name as the current state name StateName is called to
 %% handle the event.
 %%
@@ -310,7 +310,7 @@ determine_next_state(EventTag, SName, NNS) ->
 %% @private
 %% @doc
 %% Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_all_state_event/[2,3], this function is called
+%% gen_fsm:sync_send_all_state_event/[2, 3], this function is called
 %% to handle the event.
 %%
 %% @spec handle_sync_event(Event, From, StateName, State) ->
@@ -350,7 +350,7 @@ handle_sync_event(Event, _From, StateName, State) ->
 %% message other than a synchronous or asynchronous event
 %% (or a system message).
 %%
-%% @spec handle_info(Info,StateName,State)->
+%% @spec handle_info(Info, StateName, State)->
 %%                   {next_state, NextStateName, NextState} |
 %%                   {next_state, NextStateName, NextState, Timeout} |
 %%                   {stop, Reason, NewState}
@@ -435,7 +435,7 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
         {_, _, false, false} ->
 
             ?ERROR_MSG("invalid rid ~p, expected ~p, difference ~p:~n~p~n",
-                       [Rid, ExpectedRid, maybe_diff(Rid,ExpectedRid),
+                       [Rid, ExpectedRid, maybe_diff(Rid, ExpectedRid),
                         {EventTag, Body}]),
             [Pid ! item_not_found
              || {_, _, Pid} <- lists:sort(NS#state.handlers)],
@@ -470,7 +470,7 @@ maybe_diff(Rid, Expected) -> abs(Rid-Expected).
 
 
 -spec resend_cached({Rid :: pos_integer(),
-                     {non_neg_integer(),non_neg_integer(),non_neg_integer()},
+                     {non_neg_integer(), non_neg_integer(), non_neg_integer()},
                      CachedBody :: jlib:xmlel()},
                     state()) -> state().
 resend_cached({_Rid, _, CachedBody}, S) ->
@@ -505,7 +505,7 @@ rid(#state{} = S, Rid) when is_integer(Rid), Rid > 0 ->
                               boolean(),
                               Rid :: rid(),
                               LastProcessed :: 'undefined' | pos_integer()
-                            ) -> {'noreport',_} | {'report',_}.
+                            ) -> {'noreport', _} | {'report', _}.
 determine_report_action(undefined, false, _, _) ->
     {noreport, undefined};
 determine_report_action(undefined, true, Rid, LastProcessed) ->
@@ -540,7 +540,7 @@ is_valid_ack(_, _) ->
 maybe_trim_cache(undefined, S) ->
     S;
 maybe_trim_cache(Ack, S) ->
-    UpToAck = fun({R,_,_}) when R =< Ack ->
+    UpToAck = fun({R, _, _}) when R =< Ack ->
                     true;
                  (_) ->
                     false
@@ -664,7 +664,7 @@ pick_handler(#state{handlers = Handlers} = S) ->
     {{Rid, Pid}, S#state{handlers = HRest}}.
 
 
--spec send_to_handler({_, atom() | pid() | port() | {atom(),atom()}},
+-spec send_to_handler({_, atom() | pid() | port() | {atom(), atom()}},
                       Wrapped :: [any()] | jlib:xmlel(),
                       State :: state() ) -> state().
 send_to_handler({_, Pid}, #xmlel{name = <<"body">>} = Wrapped, State) ->
@@ -678,7 +678,7 @@ send_to_handler({Rid, Pid}, Data, State) ->
 %% @doc This is the most specific variant of send_to_handler()
 %% and the *only one* actually performing a send
 %% to the cowboy_loop_handler serving a HTTP request.
--spec send_wrapped_to_handler(atom() | pid() | port() | {atom(),atom()},
+-spec send_wrapped_to_handler(atom() | pid() | port() | {atom(), atom()},
                               Wrapped :: jlib:xmlel(),
                               State :: state()) -> state().
 send_wrapped_to_handler(Pid, Wrapped, #state{handlers = []} = State) ->
@@ -689,7 +689,7 @@ send_wrapped_to_handler(Pid, Wrapped, State) ->
     State.
 
 
--spec maybe_ack(rid(), state()) -> [{binary(),_}].
+-spec maybe_ack(rid(), state()) -> [{binary(), _}].
 maybe_ack(HandlerRid, #state{rid = Rid} = S) ->
     if
         Rid > HandlerRid ->
@@ -699,7 +699,7 @@ maybe_ack(HandlerRid, #state{rid = Rid} = S) ->
     end.
 
 
--spec maybe_report(state()) -> {[{binary(),_}], state()}.
+-spec maybe_report(state()) -> {[{binary(), _}], state()}.
 maybe_report(#state{report = false} = S) ->
     {[], S};
 maybe_report(#state{report = Report} = S) ->
@@ -710,7 +710,7 @@ maybe_report(#state{report = Report} = S) ->
 
 
 -spec cache_response({rid(), erlang:timestamp(), jlib:xmlel()}, state()) -> state().
-cache_response({Rid,_,_} = Response, #state{sent = Sent} = S) ->
+cache_response({Rid, _, _} = Response, #state{sent = Sent} = S) ->
     NewSent = lists:keymerge(1, [Response], Sent),
     CacheUpTo = case S#state.client_acks of
         true ->
@@ -733,7 +733,7 @@ cache_up_to(N, Responses) ->
     lists:nthtail(max(0, length(Responses) - N), Responses).
 
 
--spec last_processed(rid(),'undefined' | pos_integer()) -> rid().
+-spec last_processed(rid(), 'undefined' | pos_integer()) -> rid().
 last_processed(Rid, undefined) ->
     Rid;
 last_processed(Rid1, Rid2) ->
@@ -920,7 +920,7 @@ bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
                     {<<"hold">>, integer_to_binary(S#state.hold)},
                     {<<"from">>, proplists:get_value(<<"from">>, Attrs)},
                     %% TODO: how to support these with cowboy?
-                    {<<"accept">>, <<"deflate,gzip">>},
+                    {<<"accept">>, <<"deflate, gzip">>},
                     {<<"sid">>, S#state.sid},
                     {<<"xmpp:restartlogic">>, <<"true">>},
                     {<<"xmpp:version">>, <<"1.0">>},
@@ -934,18 +934,18 @@ bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
            children = []}.
 
 
--spec inactivity('infinity' | 'undefined' | pos_integer()) -> [{binary(),_}].
+-spec inactivity('infinity' | 'undefined' | pos_integer()) -> [{binary(), _}].
 inactivity(I) ->
     [{<<"inactivity">>, integer_to_binary(I)} || is_integer(I)].
 
 
--spec maxpause('undefined' | pos_integer()) -> [{binary(),_}].
+-spec maxpause('undefined' | pos_integer()) -> [{binary(), _}].
 maxpause(MP) ->
     [{<<"maxpause">>, integer_to_binary(MP)} || is_integer(MP)].
 
 
--spec server_ack('false' | 'true' | 'undefined','undefined' | rid())
-            -> [{binary(),_}].
+-spec server_ack('false' | 'true' | 'undefined', 'undefined' | rid())
+            -> [{binary(), _}].
 server_ack(ServerAcks, Rid) ->
     [{<<"ack">>, integer_to_binary(Rid)} || ServerAcks =:= true].
 
@@ -1057,7 +1057,7 @@ peername(#bosh_socket{peer = Peer}) ->
 
 %% @doc Set Fields of the Record to Values,
 %% when {Field, Value} <- FieldValues (in list comprehension syntax).
--spec record_set(state(), [{pos_integer(), _},...]) -> state().
+-spec record_set(state(), [{pos_integer(), _}, ...]) -> state().
 record_set(Record, FieldValues) ->
     F = fun({Field, Value}, Rec) ->
             setelement(Field, Rec, Value)
@@ -1088,6 +1088,6 @@ maybe_add_default_ns(El) ->
 -include_lib("eunit/include/eunit.hrl").
 
 cache_up_to_test_() ->
-    [?_test(?assertEqual( [4,5], cache_up_to(2, [1,2,3,4,5]) ))].
+    [?_test(?assertEqual( [4, 5], cache_up_to(2, [1, 2, 3, 4, 5]) ))].
 
 -endif.

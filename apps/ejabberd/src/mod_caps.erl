@@ -509,7 +509,7 @@ make_disco_hash(DiscoEls, Algo) ->
                              concat_features(DiscoEls), concat_info(DiscoEls)]),
     jlib:encode_base64(case Algo of
                            md5 -> erlang:md5(Concat);
-                           sha1 -> crypto:hash(sha,Concat);
+                           sha1 -> crypto:hash(sha, Concat);
                            sha224 -> crypto:hash(sha224, Concat);
                            sha256 -> crypto:hash(sha256, Concat);
                            sha384 -> crypto:hash(sha384, Concat);

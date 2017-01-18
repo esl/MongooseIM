@@ -50,7 +50,7 @@
                    pid :: pid()
                   }).
 
--spec start_link(binary() | string()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(binary() | string()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host) ->
     mnesia:create_table(sql_pool,
                         [{ram_copies, [node()]},
@@ -66,7 +66,7 @@ start_link(Host) ->
                           ?MODULE, [Host]).
 
 -spec get_dedicated_connection(Host :: ejabberd:server())
-      -> 'ignore' | {'error',_} | {'ok',{Host :: atom(), pid()}}.
+      -> 'ignore' | {'error', _} | {'ok', {Host :: atom(), pid()}}.
 get_dedicated_connection(Host) ->
     StartInterval = start_interval(Host)*1000,
     case ejabberd_odbc:start_link(Host, StartInterval, true) of
@@ -76,7 +76,7 @@ get_dedicated_connection(Host) ->
             Other
     end.
 
--spec init([ejabberd:server(),...]) -> {'ok',{{_,_,_},[any()]}}.
+-spec init([ejabberd:server(), ...]) -> {'ok', {{_, _, _}, [any()]}}.
 init([Host]) ->
     PoolSize = pool_size(Host),
     StartInterval = start_interval(Host)*1000,

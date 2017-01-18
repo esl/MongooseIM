@@ -71,7 +71,7 @@ cleanup_modules(Node) ->
     Retries = 1,
     case global:trans(LockRequest, C, Nodes, Retries) of
         aborted ->
-            ?DEBUG("could not get ~p~n" , [?NODE_CLEANUP_LOCK(Node)]),
+            ?DEBUG("could not get ~p~n", [?NODE_CLEANUP_LOCK(Node)]),
             {ok, aborted};
         Result ->
             ?WARNING_MSG("cleanup result: ~p~n", [Result]),

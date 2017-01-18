@@ -24,7 +24,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(),_) -> 'ok'.
+-spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -59,7 +59,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(),_) -> 'ok'.
+-spec start_pm(ejabberd:server(), _) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, archive_id, 50),
     case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
@@ -88,7 +88,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(),_) -> 'ok'.
+-spec start_muc(ejabberd:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
     case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
@@ -172,7 +172,7 @@ create_user_archive(Host, Server, UserName) ->
             ok;
         %% Ignore the race condition
         %% Duplicate entry ... for key 'uc_mam_server_user_name'
-        {error,"#23000" ++ _} ->
+        {error, "#23000" ++ _} ->
             ok
         %% TODO duplicate entry and postgres?
     end.

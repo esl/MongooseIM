@@ -117,7 +117,7 @@
 %% ------------------------------------------------------------------
 
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list,get_list_names,
+    gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list, get_list_names,
                                                  set_default_list, forget_default_list,
                                                  remove_privacy_list, replace_privacy_list,
                                                  get_default_list]),

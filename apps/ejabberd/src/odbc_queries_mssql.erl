@@ -40,7 +40,7 @@ search_vcard(LServer, RestrictionSQL, infinity) ->
     do_search_vcard(LServer, RestrictionSQL, <<"">>);
 search_vcard(LServer, RestrictionSQL, Limit) when is_integer(Limit) ->
     LimitBin = integer_to_binary(Limit),
-    do_search_vcard(LServer, RestrictionSQL, <<" TOP ", LimitBin/binary," ">>).
+    do_search_vcard(LServer, RestrictionSQL, <<" TOP ", LimitBin/binary, " ">>).
 
 do_search_vcard(LServer, RestrictionSQL, Limit) ->
     ejabberd_odbc:sql_query(
@@ -55,7 +55,7 @@ query_archive_id(Host, SServer, SUserName) ->
         Host,
         ["SELECT TOP 1 id "
         "FROM mam_server_user "
-        "WHERE server='",SServer, "' AND user_name='", SUserName, "'"]).
+        "WHERE server='", SServer, "' AND user_name='", SUserName, "'"]).
 
 count_offline_messages(LServer, SUser, SServer, Limit) ->
     ejabberd_odbc:sql_query(

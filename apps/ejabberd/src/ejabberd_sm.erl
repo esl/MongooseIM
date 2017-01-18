@@ -113,10 +113,10 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
+%% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
     mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -470,7 +470,7 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
--spec handle_info(_,_) -> {'noreply',_}.
+-spec handle_info(_, _) -> {'noreply', _}.
 handle_info({route, From, To, Packet}, State) ->
     route(From, To, Packet),
     {noreply, State};
@@ -499,7 +499,7 @@ handle_info(_Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
--spec terminate(_,state()) -> 'ok'.
+-spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
     ejabberd_commands:unregister_commands(commands()),
     ok.
@@ -545,7 +545,7 @@ do_filter(From, To, Packet) ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel() | ejabberd_c2s:broadcast().
 do_route(From, To, {broadcast, _} = Broadcast) ->
-    ?DEBUG("from=~p,to=~p,broadcast=~p", [From, To, Broadcast]),
+    ?DEBUG("from=~p, to=~p, broadcast=~p", [From, To, Broadcast]),
     #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
     case LResource of
         <<>> ->
@@ -593,7 +593,7 @@ do_route(From, To, Packet) ->
       Packet :: jlib:xmlel(),
       Type :: 'subscribe' | 'subscribed' | 'unsubscribe' | 'unsubscribed',
       Reason :: any().
-do_route_no_resource_presence_prv(From,To,Packet,Type,Reason) ->
+do_route_no_resource_presence_prv(From, To, Packet, Type, Reason) ->
     is_privacy_allow(From, To, Packet) andalso ejabberd_hooks:run_fold(
         roster_in_subscription,
         To#jid.lserver,
@@ -726,7 +726,7 @@ is_privacy_allow(From, To, Packet, PrivacyList) ->
 route_message(From, To, Packet) ->
     LUser = To#jid.luser,
     LServer = To#jid.lserver,
-    PrioPid = get_user_present_pids(LUser,LServer),
+    PrioPid = get_user_present_pids(LUser, LServer),
     case catch lists:max(PrioPid) of
         {Priority, _} when is_integer(Priority), Priority >= 0 ->
             lists:foreach(
@@ -778,7 +778,7 @@ clean_session_list(Ss) ->
     clean_session_list(lists:keysort(#session.usr, Ss), []).
 
 
--spec clean_session_list([sid()],[sid()]) -> [sid()].
+-spec clean_session_list([sid()], [sid()]) -> [sid()].
 clean_session_list([], Res) ->
     Res;
 clean_session_list([S], Res) ->
@@ -804,7 +804,7 @@ clean_session_list([S1, S2 | Rest], Res) ->
       LServer :: ejabberd:lserver().
 get_user_present_pids(LUser, LServer) ->
     Ss = clean_session_list(?SM_BACKEND:get_sessions(LUser, LServer)),
-    [{S#session.priority, element(2,S#session.sid)} || S <- Ss, is_integer(S#session.priority)].
+    [{S#session.priority, element(2, S#session.sid)} || S <- Ss, is_integer(S#session.priority)].
 
 -spec get_user_present_resources(LUser :: ejabberd:user(),
                                  LServer :: ejabberd:server()

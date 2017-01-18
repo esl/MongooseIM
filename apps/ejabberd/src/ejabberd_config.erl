@@ -670,7 +670,7 @@ set_opts(State) ->
             ?ERROR_MSG("Error reading Mnesia database spool files:~n"
                        "The Mnesia database couldn't read the spool file for the table '~p'.~n"
                        "ejabberd needs read and write access in the directory:~n   ~s~n"
-                       "Maybe the problem is a change in the computer hostname,~n"
+                       "Maybe the problem is a change in the computer hostname, ~n"
                        "or a change in the Erlang node name, which is currently:~n   ~p~n"
                        "Check the ejabberd guide for details about changing the~n"
                        "computer hostname or Erlang node name.~n",
@@ -1054,7 +1054,7 @@ handle_local_hosts_config_add({{ldap, _Host}, _}) ->
     ok;
 handle_local_hosts_config_add({{modules, Host}, Modules}) ->
     gen_mod_deps:start_modules(Host, Modules);
-handle_local_hosts_config_add({{Key,_Host}, _} = El) ->
+handle_local_hosts_config_add({{Key, _Host}, _} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
@@ -1079,7 +1079,7 @@ handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
     ok;
 handle_local_hosts_config_del({{modules, Host}, Modules}) ->
     lists:foreach(fun({Mod, _}) -> gen_mod:stop_module(Host, Mod) end, Modules);
-handle_local_hosts_config_del({{Key,_}, _} =El) ->
+handle_local_hosts_config_del({{Key, _}, _} =El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
@@ -1110,9 +1110,9 @@ handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
     ejabberd_auth:start(Host);
 handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
     ok = ejabberd_hooks:run_fold(host_config_update, Host, ok, [Host, ldap, NewConfig]);
-handle_local_hosts_config_change({{modules,Host}, OldModules, NewModules}) ->
+handle_local_hosts_config_change({{modules, Host}, OldModules, NewModules}) ->
     gen_mod_deps:replace_modules(Host, OldModules, NewModules);
-handle_local_hosts_config_change({{Key,_Host},_Old,_New} = El) ->
+handle_local_hosts_config_change({{Key, _Host}, _Old, _New} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;

@@ -157,12 +157,12 @@ serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
                      salt = Salt, iterationcount = IterationCount})->
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
-       StoredKey/binary,$,,ServerKey/binary,
-       $,,Salt/binary,$,,IterationCountBin/binary>>.
+       StoredKey/binary, $,,ServerKey/binary,
+       $,,Salt/binary, $,,IterationCountBin/binary>>.
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     case catch binary:split(Serialized, <<",">>, [global]) of
-        [StoredKey, ServerKey,Salt,IterationCount] ->
+        [StoredKey, ServerKey, Salt, IterationCount] ->
             {ok, #scram{storedkey = StoredKey,
                         serverkey = ServerKey,
                         salt = Salt,

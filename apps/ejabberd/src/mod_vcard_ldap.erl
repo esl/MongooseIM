@@ -135,7 +135,7 @@
 %%--------------------------------------------------------------------
 
 init(VHost, Options) ->
-    start_link(VHost,Options),
+    start_link(VHost, Options),
     ok.
 
 remove_user(_LUser, _LServer) ->
@@ -145,15 +145,15 @@ remove_user(_LUser, _LServer) ->
 
 get_vcard(LUser, LServer) ->
     Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
-    {ok,State} = gen_server:call(Proc, get_state),
+    {ok, State} = gen_server:call(Proc, get_state),
     LServer = State#state.serverhost,
     case ejabberd_auth:is_user_exists(LUser, LServer) of
         true ->
             VCardMap = State#state.vcard_map,
-            case find_ldap_user(LUser,State) of
+            case find_ldap_user(LUser, State) of
                 #eldap_entry{attributes = Attributes} ->
-                    Vcard = ldap_attributes_to_vcard(Attributes, VCardMap,{LUser, LServer}),
-                    {ok,Vcard};
+                    Vcard = ldap_attributes_to_vcard(Attributes, VCardMap, {LUser, LServer}),
+                    {ok, Vcard};
                 _ ->
                     {ok, []}
             end;
@@ -166,17 +166,17 @@ set_vcard(_User, _VHost, _VCard, _VCardSearch) ->
 
 search(LServer, Data) ->
     Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
-    {ok,State} = gen_server:call(Proc, get_state),
+    {ok, State} = gen_server:call(Proc, get_state),
     search_internal(State, Data).
 
 search_fields(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    {ok,State} = gen_server:call(Proc, get_state),
+    {ok, State} = gen_server:call(Proc, get_state),
     State#state.search_fields.
 
 search_reported_fields(Host, Lang) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    {ok,State} = gen_server:call(Proc, get_state),
+    {ok, State} = gen_server:call(Proc, get_state),
     SearchReported = State#state.search_reported,
     #xmlel{name = <<"reported">>, attrs = [],
            children =
@@ -417,7 +417,7 @@ search_items(Entries, State) ->
 							       LServer/binary>>)]
 						       ++
 						       [?FIELD(Name,
-                                       search_item_value(Name,Value,BinFields))
+                                       search_item_value(Name, Value, BinFields))
 							|| {Name, Value}
 							       <- RFields],
 					    [#xmlel{name = <<"item">>,
@@ -466,7 +466,7 @@ parse_options(Host, Opts) ->
                               fun(infinity) -> 0;
                                  (I) when is_integer(I), I>0 -> I
                               end, 30),
-    Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?PROCNAME),utf8),
+    Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?PROCNAME), utf8),
     Cfg = eldap_utils:get_config(Host, Opts),
     UIDsTemp = eldap_utils:get_opt(
                  {ldap_uids, Host}, Opts,

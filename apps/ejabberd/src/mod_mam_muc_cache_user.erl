@@ -136,7 +136,7 @@ maybe_cache_archive_id(ArcJID, UserID) ->
 %% @private
 cache_archive_id(ArcJID, UserID) ->
     case room_pid(ArcJID) of
-        {error,not_found} ->
+        {error, not_found} ->
             ok;
         RoomPid ->
             gen_server:call(srv_name(), {cache_archive_id, ArcJID, UserID, RoomPid})

@@ -133,7 +133,7 @@
          system_code_change/4,
          format_status/2]).
 
--import(error_logger , [format/2]).
+-import(error_logger, [format/2]).
 
 %%% Internal gen_fsm state
 %%% This state is used to defined resource control values:
@@ -214,17 +214,17 @@ send_event(Name, Event) ->
 
 sync_send_event(Name, Event) ->
     case catch gen:call(Name, '$gen_sync_event', Event) of
-	{ok,Res} ->
+	{ok, Res} ->
 	    Res;
-	{'EXIT',Reason} ->
+	{'EXIT', Reason} ->
 	    exit({Reason, {?MODULE, sync_send_event, [Name, Event]}})
     end.
 
 sync_send_event(Name, Event, Timeout) ->
     case catch gen:call(Name, '$gen_sync_event', Event, Timeout) of
-	{ok,Res} ->
+	{ok, Res} ->
 	    Res;
-	{'EXIT',Reason} ->
+	{'EXIT', Reason} ->
 	    exit({Reason, {?MODULE, sync_send_event, [Name, Event, Timeout]}})
     end.
 
@@ -237,17 +237,17 @@ send_all_state_event(Name, Event) ->
 
 sync_send_all_state_event(Name, Event) ->
     case catch gen:call(Name, '$gen_sync_all_state_event', Event) of
-	{ok,Res} ->
+	{ok, Res} ->
 	    Res;
-	{'EXIT',Reason} ->
+	{'EXIT', Reason} ->
 	    exit({Reason, {?MODULE, sync_send_all_state_event, [Name, Event]}})
     end.
 
 sync_send_all_state_event(Name, Event, Timeout) ->
     case catch gen:call(Name, '$gen_sync_all_state_event', Event, Timeout) of
-	{ok,Res} ->
+	{ok, Res} ->
 	    Res;
-	{'EXIT',Reason} ->
+	{'EXIT', Reason} ->
 	    exit({Reason, {?MODULE, sync_send_all_state_event,
 			   [Name, Event, Timeout]}})
     end.
@@ -258,7 +258,7 @@ sync_send_all_state_event(Name, Event, Timeout) ->
 %% e.g. when straddling a failover, or turn up in a restarted
 %% instance of the process.
 
-%% Returns Ref, sends event {timeout,Ref,Msg} after Time
+%% Returns Ref, sends event {timeout, Ref, Msg} after Time
 %% to the (then) current state.
 start_timer(Time, Msg) ->
     erlang:start_timer(Time, self(), {'$gen_timer', Msg}).
@@ -279,7 +279,7 @@ cancel_timer(Ref) ->
 	    RemainingTime
     end.
 
-%% enter_loop/4,5,6
+%% enter_loop/4, 5, 6
 %% Makes an existing process into a gen_fsm.
 %% The calling process will enter the gen_fsm receive loop and become a
 %% gen_fsm process.
@@ -290,8 +290,8 @@ cancel_timer(Ref) ->
 enter_loop(Mod, Options, StateName, StateData) ->
     enter_loop(Mod, Options, StateName, StateData, self(), infinity).
 
-enter_loop(Mod, Options, StateName, StateData, ServerName = {_,_}) ->
-    enter_loop(Mod, Options, StateName, StateData, ServerName,infinity);
+enter_loop(Mod, Options, StateName, StateData, ServerName = {_, _}) ->
+    enter_loop(Mod, Options, StateName, StateData, ServerName, infinity);
 enter_loop(Mod, Options, StateName, StateData, Timeout) ->
     enter_loop(Mod, Options, StateName, StateData, self(), Timeout).
 
@@ -307,7 +307,7 @@ enter_loop(Mod, Options, StateName, StateData, ServerName, Timeout) ->
 
 maybe_debug_options(Opts) ->
     case lists:keyfind(debug, 1, Opts) of
-        {_,Options} ->
+        {_, Options} ->
             sys:debug_options(Options);
         false ->
             []
@@ -394,8 +394,8 @@ init_it(Starter, Parent, Name0, Mod, Args, Options) ->
 	    exit(Error)
     end.
 
-name({local,Name}) -> Name;
-name({global,Name}) -> Name;
+name({local, Name}) -> Name;
+name({global, Name}) -> Name;
 name(Pid) when is_pid(Pid) -> Pid.
 
 %%-----------------------------------------------------------------
@@ -415,7 +415,7 @@ loop(Parent, Name, StateName, StateData, Mod, hibernate, Debug,
     end;
 loop(Parent, Name, StateName, StateData, Mod, hibernate, Debug,
      Limits, _Queue, _QueueLen) ->
-    proc_lib:hibernate(?MODULE,wake_hib,
+    proc_lib:hibernate(?MODULE, wake_hib,
 		       [Parent, Name, StateName, StateData, Mod,
 			Debug, Limits]);
 %% First we test if we have reach a defined limit ...
@@ -436,7 +436,7 @@ loop(Parent, Name, StateName, StateData, Mod, Time, Debug,
 process_message(Parent, Name, StateName, StateData, Mod, Time, Debug,
 		Limits, Queue, QueueLen) ->
     {Msg, Queue1, QueueLen1} = collect_messages(Queue, QueueLen, Time),
-    decode_msg(Msg,Parent, Name, StateName, StateData, Mod, Time,
+    decode_msg(Msg, Parent, Name, StateName, StateData, Mod, Time,
 	       Debug, Limits, Queue1, QueueLen1, false).
 
 collect_messages(Queue, QueueLen, Time) ->
@@ -475,7 +475,7 @@ wake_hib(Parent, Name, StateName, StateData, Mod, Debug,
     decode_msg(Msg, Parent, Name, StateName, StateData, Mod, hibernate,
 	       Debug, Limits, Queue, QueueLen, true).
 
-decode_msg(Msg,Parent, Name, StateName, StateData, Mod, Time, Debug,
+decode_msg(Msg, Parent, Name, StateName, StateData, Mod, Time, Debug,
 	   Limits, Queue, QueueLen, Hib) ->
     put('$internal_queue_len', QueueLen),
     case Msg of
@@ -733,16 +733,16 @@ terminate(Reason, Name, Msg, Mod, StateName, StateData, Debug) ->
 error_info(Mod, Reason, Name, Msg, StateName, StateData, Debug) ->
     Reason1 =
 	case Reason of
-	    {undef,[{M,F,A}|MFAs]} ->
+	    {undef, [{M, F, A}|MFAs]} ->
 		case code:is_loaded(M) of
 		    false ->
-			{'module could not be loaded',[{M,F,A}|MFAs]};
+			{'module could not be loaded', [{M, F, A}|MFAs]};
 		    _ ->
 			case erlang:function_exported(M, F, length(A)) of
 			    true ->
 				Reason;
 			    false ->
-				{'function not exported',[{M,F,A}|MFAs]}
+				{'function not exported', [{M, F, A}|MFAs]}
 			end
 		end;
 	    _ ->
@@ -800,7 +800,7 @@ format_status(Opt, StatusData) ->
     Specfic =
 	case erlang:function_exported(Mod, format_status, 2) of
 	    true ->
-		case catch Mod:format_status(Opt,[PDict,StateData]) of
+		case catch Mod:format_status(Opt, [PDict, StateData]) of
 		    {'EXIT', _} -> [{data, [{"StateData", StateData}]}];
 		    Else -> Else
 		end;
@@ -823,7 +823,7 @@ limit_options(Options) ->
 limit_options([], Limits) ->
     Limits;
 %% Maximum number of messages allowed in the process message queue
-limit_options([{max_queue,N}|Options], Limits)
+limit_options([{max_queue, N}|Options], Limits)
   when is_integer(N) ->
     NewLimits = Limits#limits{max_queue=N},
     limit_options(Options, NewLimits);

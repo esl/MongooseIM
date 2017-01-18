@@ -83,7 +83,7 @@
 %%--------------------------------------------------------------------
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -93,7 +93,7 @@ filter(From, To, Packet) ->
 route(From, To, Packet) ->
     do_route(From, To, Packet).
 
--spec remove_connection(_, pid()) -> 'ok' | {'aborted',_} | {'atomic',_}.
+-spec remove_connection(_, pid()) -> 'ok' | {'aborted', _} | {'atomic', _}.
 remove_connection(FromTo, Pid) ->
     case catch mnesia:dirty_match_object(s2s, #s2s{fromto = FromTo,
                                                    pid = Pid}) of
@@ -289,7 +289,7 @@ do_route(From, To, Packet) ->
     end.
 
 -spec find_connection(From :: ejabberd:jid(),
-                      To :: ejabberd:jid()) -> {'aborted',_} | {'atomic',_}.
+                      To :: ejabberd:jid()) -> {'aborted', _} | {'atomic', _}.
 find_connection(From, To) ->
     #jid{lserver = MyServer} = From,
     #jid{lserver = Server} = To,
@@ -373,7 +373,7 @@ choose_pid(From, Pids) ->
 -spec open_several_connections(N :: pos_integer(), MyServer :: ejabberd:server(),
     Server :: ejabberd:server(), From :: ejabberd:jid(), FromTo :: fromto(),
     MaxS2S :: pos_integer(), MaxS2SPerNode :: pos_integer())
-      -> {'aborted',_} | {'atomic',_}.
+      -> {'aborted', _} | {'atomic', _}.
 open_several_connections(N, MyServer, Server, From, FromTo,
                          MaxS2SConnectionsNumber,
                          MaxS2SConnectionsNumberPerNode) ->
@@ -390,7 +390,7 @@ open_several_connections(N, MyServer, Server, From, FromTo,
 
 -spec new_connection(MyServer :: ejabberd:server(), Server :: ejabberd:server(),
     From :: ejabberd:jid(), FromTo :: fromto(), MaxS2S :: pos_integer(),
-    MaxS2SPerNode :: pos_integer()) -> {'aborted',_} | {'atomic',_}.
+    MaxS2SPerNode :: pos_integer()) -> {'aborted', _} | {'atomic', _}.
 new_connection(MyServer, Server, From, FromTo,
                MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode) ->
     {ok, Pid} = ejabberd_s2s_out:start(
@@ -460,11 +460,11 @@ is_service(From, To) ->
             lists:any(P, parent_domains(To#jid.lserver))
     end.
 
--spec parent_domains(binary()) -> [binary(),...].
+-spec parent_domains(binary()) -> [binary(), ...].
 parent_domains(Domain) ->
     parent_domains(Domain, [Domain]).
 
--spec parent_domains(binary(),[binary(),...]) -> [binary(),...].
+-spec parent_domains(binary(), [binary(), ...]) -> [binary(), ...].
 parent_domains(<<>>, Acc) ->
     lists:reverse(Acc);
 parent_domains(<<$., Rest/binary>>, Acc) ->
@@ -492,7 +492,7 @@ domain_utf8_to_ascii(Domain) ->
 %%%----------------------------------------------------------------------
 %%% ejabberd commands
 
--spec commands() -> [ejabberd_commands:cmd(),...].
+-spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     [
      #ejabberd_commands{name = incoming_s2s_number,
@@ -584,33 +584,33 @@ get_info_s2s_connections(Type) ->
                     out -> ejabberd_s2s_out_sup
                 end,
     Connections = supervisor:which_children(ChildType),
-    get_s2s_info(Connections,Type).
+    get_s2s_info(Connections, Type).
 
 -type connstate() :: 'restarting' | 'undefined' | pid().
 -type conn() :: { any(), connstate(), 'supervisor' | 'worker', 'dynamic' | [_] }.
 -spec get_s2s_info(Connections :: [conn()],
                   Type :: 'in' | 'out'
-                  ) -> [[{any(), any()},...]]. % list of lists
-get_s2s_info(Connections,Type)->
-    complete_s2s_info(Connections,Type,[]).
+                  ) -> [[{any(), any()}, ...]]. % list of lists
+get_s2s_info(Connections, Type)->
+    complete_s2s_info(Connections, Type, []).
 
 -spec complete_s2s_info(Connections :: [conn()],
                         Type :: 'in' | 'out',
-                        Result :: [[{any(), any()},...]] % list of lists
-                        ) -> [[{any(), any()},...]]. % list of lists
-complete_s2s_info([],_,Result)->
+                        Result :: [[{any(), any()}, ...]] % list of lists
+                        ) -> [[{any(), any()}, ...]]. % list of lists
+complete_s2s_info([], _, Result)->
     Result;
-complete_s2s_info([Connection|T],Type,Result)->
-    {_,PID,_,_}=Connection,
+complete_s2s_info([Connection|T], Type, Result)->
+    {_, PID, _, _}=Connection,
     State = get_s2s_state(PID),
-    complete_s2s_info(T,Type,[State|Result]).
+    complete_s2s_info(T, Type, [State|Result]).
 
--spec get_s2s_state(connstate()) -> [{atom(), any()},...].
+-spec get_s2s_state(connstate()) -> [{atom(), any()}, ...].
 get_s2s_state(S2sPid)->
-    Infos = case gen_fsm:sync_send_all_state_event(S2sPid,get_state_infos) of
+    Infos = case gen_fsm:sync_send_all_state_event(S2sPid, get_state_infos) of
                 {state_infos, Is} -> [{status, open} | Is];
-                {noproc,_} -> [{status, closed}]; %% Connection closed
-                {badrpc,_} -> [{status, error}]
+                {noproc, _} -> [{status, closed}]; %% Connection closed
+                {badrpc, _} -> [{status, error}]
             end,
     [{s2s_pid, S2sPid} | Infos].
 

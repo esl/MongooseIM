@@ -59,17 +59,17 @@
          mam_muc_purge_multiple_messages/9
         ]).
 
--type hook() :: [atom() | ejabberd:server() | integer(),...].
+-type hook() :: [atom() | ejabberd:server() | integer(), ...].
 -type metrics_notify_return() ::
                 'ok'
-                | {'error',_,'nonexistent_metric' | 'unsupported_metric_type'}.
+                | {'error', _, 'nonexistent_metric' | 'unsupported_metric_type'}.
 
 %%-------------------
 %% Implementation
 %%-------------------
 
 %% @doc Here will be declared which hooks should be registered
--spec get_hooks(_) -> [hook(),...].
+-spec get_hooks(_) -> [hook(), ...].
 get_hooks(Host) ->
     [[sm_register_connection_hook, Host, ?MODULE, sm_register_connection_hook, 50],
      [sm_remove_connection_hook, Host, ?MODULE, sm_remove_connection_hook, 50],
@@ -112,24 +112,24 @@ get_hooks(Host) ->
 
 -spec sm_register_connection_hook(tuple(), ejabberd:jid(), term()
                                  ) -> metrics_notify_return().
-sm_register_connection_hook(_,#jid{server = Server}, _) ->
+sm_register_connection_hook(_, #jid{server = Server}, _) ->
     mongoose_metrics:update(Server, sessionSuccessfulLogins, 1),
     mongoose_metrics:update(Server, sessionCount, 1).
 
 -spec sm_remove_connection_hook(tuple(), ejabberd:jid(),
                                 term(), ejabberd_sm:close_reason()
                                ) -> metrics_notify_return().
-sm_remove_connection_hook(_,#jid{server = Server},_, _Reason) ->
+sm_remove_connection_hook(_, #jid{server = Server}, _, _Reason) ->
     mongoose_metrics:update(Server, sessionLogouts, 1),
     mongoose_metrics:update(Server, sessionCount, -1).
 
 -spec auth_failed(binary(), binary()) -> metrics_notify_return().
-auth_failed(_,Server) ->
+auth_failed(_, Server) ->
     mongoose_metrics:update(Server, sessionAuthFails, 1).
 
 -spec user_send_packet(ejabberd:jid(), tuple(), tuple()
                       ) -> metrics_notify_return().
-user_send_packet(#jid{server = Server},_,Packet) ->
+user_send_packet(#jid{server = Server}, _, Packet) ->
     mongoose_metrics:update(Server, xmppStanzaSent, 1),
     user_send_packet_type(Server, Packet).
 
@@ -143,7 +143,7 @@ user_send_packet_type(Server, #xmlel{name = <<"presence">>}) ->
     mongoose_metrics:update(Server, xmppPresenceSent, 1).
 
 -spec user_receive_packet(ejabberd:jid(), tuple(), tuple(), tuple()) -> term().
-user_receive_packet(#jid{server = Server} ,_,_,Packet) ->
+user_receive_packet(#jid{server = Server}, _, _, Packet) ->
     mongoose_metrics:update(Server, xmppStanzaReceived, 1),
     user_receive_packet_type(Server, Packet).
 
@@ -162,7 +162,7 @@ xmpp_bounce_message(Server, _) ->
     mongoose_metrics:update(Server, xmppMessageBounced, 1).
 
 -spec xmpp_stanza_dropped(ejabberd:jid(), tuple(), tuple()) -> metrics_notify_return().
-xmpp_stanza_dropped(#jid{server = Server} ,_,_) ->
+xmpp_stanza_dropped(#jid{server = Server}, _, _) ->
    mongoose_metrics:update(Server, xmppStanzaDropped, 1).
 
 -spec xmpp_send_element(Server :: ejabberd:server(),
@@ -194,31 +194,31 @@ roster_get(Acc, {_, Server}) ->
     Acc.
 
 -spec roster_set(JID :: ejabberd:jid(), tuple(), tuple()) -> metrics_notify_return().
-roster_set(#jid{server = Server},_,_) ->
+roster_set(#jid{server = Server}, _, _) ->
     mongoose_metrics:update(Server, modRosterSets, 1).
 
 -spec roster_in_subscription(term(), binary(), binary(), tuple(), atom(), term()) -> term().
-roster_in_subscription(Acc,_,Server,_,subscribed,_) ->
+roster_in_subscription(Acc, _, Server, _, subscribed, _) ->
     mongoose_metrics:update(Server, modPresenceSubscriptions, 1),
     Acc;
-roster_in_subscription(Acc,_,Server,_,unsubscribed,_) ->
+roster_in_subscription(Acc, _, Server, _, unsubscribed, _) ->
     mongoose_metrics:update(Server, modPresenceUnsubscriptions, 1),
     Acc;
-roster_in_subscription(Acc,_,_,_,_,_) ->
+roster_in_subscription(Acc, _, _, _, _, _) ->
     Acc.
 
--spec roster_push(ejabberd:jid(),term()) -> metrics_notify_return().
-roster_push(#jid{server = Server},_) ->
+-spec roster_push(ejabberd:jid(), term()) -> metrics_notify_return().
+roster_push(#jid{server = Server}, _) ->
     mongoose_metrics:update(Server, modRosterPush, 1).
 
 %% Register
 
 -spec register_user(binary(), ejabberd:server()) -> metrics_notify_return().
-register_user(_,Server) ->
+register_user(_, Server) ->
     mongoose_metrics:update(Server, modRegisterCount, 1).
 
 -spec remove_user(binary(), ejabberd:server()) -> metrics_notify_return().
-remove_user(_,Server) ->
+remove_user(_, Server) ->
     mongoose_metrics:update(Server, modUnregisterCount, 1).
 
 %% Privacy
@@ -419,4 +419,4 @@ mam_muc_purge_multiple_messages(Result, Host,
     Result.
 
 
-%%% vim: set sts=4 ts=4 sw=4 et filetype=erlang foldmarker=%%%',%%%. foldmethod=marker:
+%%% vim: set sts=4 ts=4 sw=4 et filetype=erlang foldmarker=%%%', %%%. foldmethod=marker:

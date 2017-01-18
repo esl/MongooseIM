@@ -415,7 +415,7 @@ ip_to_string(_) -> "unknown".
 
 get_time_string() -> write_time(erlang:localtime()).
 %% Function copied from ejabberd_logger_h.erl and customized
-write_time({{Y,Mo,D},{H,Mi,S}}) ->
+write_time({{Y, Mo, D}, {H, Mi, S}}) ->
     io_lib:format("~w-~.2.0w-~.2.0w ~.2.0w:~.2.0w:~.2.0w",
                   [Y, Mo, D, H, Mi, S]).
 

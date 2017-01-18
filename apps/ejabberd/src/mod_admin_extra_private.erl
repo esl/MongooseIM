@@ -42,7 +42,7 @@
 %%% Register commands
 %%%
 
--spec commands() -> [ejabberd_commands:cmd(),...].
+-spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     [
         #ejabberd_commands{name = private_get, tags = [private],
@@ -81,11 +81,11 @@ do_private_get(Username, Host, Element, Ns) ->
     To = jid:make(Username, Host, <<"">>),
     IQ = {iq, <<"">>, get, ?NS_PRIVATE, <<"">>,
           #xmlel{ name = <<"query">>,
-                  attrs = [{<<"xmlns">>,?NS_PRIVATE}],
+                  attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
                   children = [#xmlel{ name = Element, attrs = [{<<"xmlns">>, Ns}]}] } },
     ResIq = mod_private:process_sm_iq(From, To, IQ),
     [#xmlel{ name = <<"query">>,
-             attrs = [{<<"xmlns">>,<<"jabber:iq:private">>}],
+             attrs = [{<<"xmlns">>, <<"jabber:iq:private">>}],
              children = [SubEl] }] = ResIq#iq.sub_el,
     exml:to_binary(SubEl).
 
@@ -118,7 +118,7 @@ do_private_set2(Username, Host, Xml) ->
             To = jid:make(Username, Host, <<"">>),
             IQ = {iq, <<"">>, set, ?NS_PRIVATE, <<"">>,
                   #xmlel{ name = <<"query">>,
-                          attrs = [{<<"xmlns">>,?NS_PRIVATE}],
+                          attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
                           children = [Xml]}},
             mod_private:process_sm_iq(From, To, IQ),
             {ok, ""};

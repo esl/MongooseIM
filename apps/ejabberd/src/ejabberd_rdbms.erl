@@ -30,12 +30,12 @@
 -export([start/0, start/1, stop/1, stop_odbc/1]).
 -include("ejabberd.hrl").
 
--spec start() -> 'ok' | {'error','lager_not_running'}.
+-spec start() -> 'ok' | {'error', 'lager_not_running'}.
 start() ->
     compile_odbc_type_helper(),
     %% Check if ejabberd has been compiled with ODBC
     case catch ejabberd_odbc_sup:module_info() of
-        {'EXIT',{undef,_}} ->
+        {'EXIT', {undef, _}} ->
             ?INFO_MSG("ejabberd has not been compiled with relational database support. Skipping database startup.", []);
         _ ->
             %% If compiled with ODBC, start ODBC on the needed host

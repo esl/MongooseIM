@@ -53,12 +53,12 @@
 
 %% @doc Returns a binary that can be used with
 %% code:load_binary(Module, ModuleFilenameForInternalRecords, Binary).
--spec from_string('eof' | string()) -> {_,binary()}.
+-spec from_string('eof' | string()) -> {_, binary()}.
 from_string(CodeStr) ->
     from_string(CodeStr, []).
 
 %% @doc takes Options as for compile:forms/2
--spec from_string('eof' | string(),[any()]) -> {_,binary()}.
+-spec from_string('eof' | string(), [any()]) -> {_, binary()}.
 from_string(CodeStr, CompileFormsOptions) ->
     %% Initialise the macro dictionary with the default predefined macros,
     %% (adapted from epp.erl:predef_macros/1
@@ -108,7 +108,7 @@ from_string(CodeStr, CompileFormsOptions) ->
 %% @private
 -spec scan_and_parse('eof' | string(),
                     _CurrFilename :: file:name(),
-                    _CurrLine :: integer() | {integer(),pos_integer()},
+                    _CurrLine :: integer() | {integer(), pos_integer()},
                     RevForms :: [any()],
                     MacroDict :: macro_dict(),
                     _IncludeSearchPath :: [file:name()]) -> {[any()], macro_dict()}.
@@ -120,19 +120,19 @@ scan_and_parse(RemainingText, CurrFilename, CurrLine, RevForms, MacroDict, Inclu
                 {ok, Form} = erl_parse:parse_form(Toks),
                 scan_and_parse(NRemainingText, CurrFilename, NLine, [Form | RevForms], MacroDict, IncludeSearchPath);
             {macro, NLine, NRemainingText, NMacroDict} ->
-                scan_and_parse(NRemainingText, CurrFilename, NLine, RevForms,NMacroDict, IncludeSearchPath);
+                scan_and_parse(NRemainingText, CurrFilename, NLine, RevForms, NMacroDict, IncludeSearchPath);
         {include, NLine, NRemainingText, IncludeFilename} ->
             IncludeFileRemainingTextents = read_include_file(IncludeFilename, IncludeSearchPath),
-            %%io:format("include file ~p contents: ~n~p~nRemainingText = ~p~n", [IncludeFilename,IncludeFileRemainingTextents, RemainingText]),
+            %%io:format("include file ~p contents: ~n~p~nRemainingText = ~p~n", [IncludeFilename, IncludeFileRemainingTextents, RemainingText]),
             %% Modify the FILE macro to reflect the filename
-            %%IncludeMacroDict = dict:store('FILE', {[],IncludeFilename}, MacroDict),
+            %%IncludeMacroDict = dict:store('FILE', {[], IncludeFilename}, MacroDict),
             IncludeMacroDict = MacroDict,
 
             %% Process the header file (inc. any nested header files)
             {RevIncludeForms, IncludedMacroDict} = scan_and_parse(IncludeFileRemainingTextents, IncludeFilename, 1, [], IncludeMacroDict, IncludeSearchPath),
             %io:format("include file results = ~p~n", [R]),
             %% Restore the FILE macro in the NEW MacroDict (so we keep any macros defined in the header file)
-            %%NMacroDict = dict:store('FILE', {[],CurrFilename}, IncludedMacroDict),
+            %%NMacroDict = dict:store('FILE', {[], CurrFilename}, IncludedMacroDict),
             NMacroDict = IncludedMacroDict,
 
             %% Continue with the original file
@@ -143,15 +143,15 @@ scan_and_parse(RemainingText, CurrFilename, CurrLine, RevForms, MacroDict, Inclu
 
 %% @private
 -spec scanner(Text :: 'eof' | string(),
-              Line :: integer() | {integer(),pos_integer()},
+              Line :: integer() | {integer(), pos_integer()},
               MacroDict :: macro_dict()) ->
       'done'
-      | {'include',integer() | {integer(),pos_integer()},'eof' | string(),_}
-      | {'macro',integer() | {integer(),pos_integer()},'eof' | string(), macro_dict()}
-      | {'tokens',integer() | {integer(),pos_integer()},'eof' | string(),[any()]}.
+      | {'include', integer() | {integer(), pos_integer()}, 'eof' | string(), _}
+      | {'macro', integer() | {integer(), pos_integer()}, 'eof' | string(), macro_dict()}
+      | {'tokens', integer() | {integer(), pos_integer()}, 'eof' | string(), [any()]}.
 scanner(Text, Line, MacroDict) ->
-    case erl_scan:tokens([],Text,Line) of
-        {done, {ok,Toks,NLine}, LeftOverChars} ->
+    case erl_scan:tokens([], Text, Line) of
+        {done, {ok, Toks, NLine}, LeftOverChars} ->
             case pre_proc(Toks, MacroDict) of
                 {tokens,  NToks}      -> {tokens,  NLine, LeftOverChars, NToks};
                 {macro,   NMacroDict} -> {macro,   NLine, LeftOverChars, NMacroDict};
@@ -175,7 +175,7 @@ scanner(Text, Line, MacroDict) ->
 is_only_comments(Text) -> is_only_comments(Text, not_in_comment).
 
 %% @private
--spec is_only_comments('eof' | string(),'in_comment' | 'not_in_comment') -> boolean().
+-spec is_only_comments('eof' | string(), 'in_comment' | 'not_in_comment') -> boolean().
 is_only_comments([],       _)              -> true;
 is_only_comments([$   |T], not_in_comment) -> is_only_comments(T, not_in_comment); % skipping whitspace outside of comment
 is_only_comments([$\t |T], not_in_comment) -> is_only_comments(T, not_in_comment); % skipping whitspace outside of comment
@@ -190,44 +190,44 @@ is_only_comments([_   |T], in_comment)     -> is_only_comments(T, in_comment).  
 %% have to implement a subset of the pre-processor, since epp insists
 %% on running on a file. Only handles 2 cases;
 %% -define(MACRO, something).
-%% -define(MACRO(VAR1,VARN),{stuff,VAR1,more,stuff,VARN,extra,stuff}).
+%% -define(MACRO(VAR1, VARN), {stuff, VAR1, more, stuff, VARN, extra, stuff}).
 %% @private
--spec pre_proc([{_,_} | {_,_,_}], macro_dict()) -> {'include',_} | {'macro', macro_dict()} | {'tokens',[any()]}.
-pre_proc([{'-',_},{atom,_,define},{'(',_},{_,_,Name}|DefToks],MacroDict) ->
+-spec pre_proc([{_, _} | {_, _, _}], macro_dict()) -> {'include', _} | {'macro', macro_dict()} | {'tokens', [any()]}.
+pre_proc([{'-', _}, {atom, _, define}, {'(', _}, {_, _, Name}|DefToks], MacroDict) ->
     false = dict:is_key(Name, MacroDict),
     case DefToks of
-        [{',',_} | Macro] ->
+        [{', ', _} | Macro] ->
             {macro, dict:store(Name, {[], macro_body_def(Macro, [])},  MacroDict)};
-        [{'(',_} | Macro] ->
+        [{'(', _} | Macro] ->
             {macro, dict:store(Name, macro_params_body_def(Macro, []), MacroDict)}
     end;
-pre_proc([{'-',_}, {atom,_,include}, {'(',_}, {string,_,Filename}, {')',_}, {dot,_}], _MacroDict) ->
+pre_proc([{'-', _}, {atom, _, include}, {'(', _}, {string, _, Filename}, {')', _}, {dot, _}], _MacroDict) ->
     {include, Filename};
-pre_proc(Toks,MacroDict) ->
+pre_proc(Toks, MacroDict) ->
     {tokens, subst_macros(Toks, MacroDict)}.
 
 %% @private
--spec macro_params_body_def(Tokens :: [{_,_} | {_,_,_},...],
+-spec macro_params_body_def(Tokens :: [{_, _} | {_, _, _}, ...],
                             RevParams :: [any()]
-                            ) -> {[any()],[{_,_} | {_,_,_}]}.
-macro_params_body_def([{')',_},{',',_} | Toks], RevParams) ->
+                            ) -> {[any()], [{_, _} | {_, _, _}]}.
+macro_params_body_def([{')', _}, {', ', _} | Toks], RevParams) ->
     {reverse(RevParams), macro_body_def(Toks, [])};
-macro_params_body_def([{var,_,Param} | Toks], RevParams) ->
+macro_params_body_def([{var, _, Param} | Toks], RevParams) ->
     macro_params_body_def(Toks, [Param | RevParams]);
-macro_params_body_def([{',',_}, {var,_,Param} | Toks], RevParams) ->
+macro_params_body_def([{', ', _}, {var, _, Param} | Toks], RevParams) ->
     macro_params_body_def(Toks, [Param | RevParams]).
 
 %% @private
--spec macro_body_def(Tokens :: [{_,_} | {_,_,_},...],
-                     RevMacroBodyTokens :: [{_,_} | {_,_,_}]
-                     ) -> [{_,_} | {_,_,_}].
-macro_body_def([{')',_}, {dot,_}], RevMacroBodyToks) ->
+-spec macro_body_def(Tokens :: [{_, _} | {_, _, _}, ...],
+                     RevMacroBodyTokens :: [{_, _} | {_, _, _}]
+                     ) -> [{_, _} | {_, _, _}].
+macro_body_def([{')', _}, {dot, _}], RevMacroBodyToks) ->
     reverse(RevMacroBodyToks);
 macro_body_def([Tok|Toks], RevMacroBodyToks) ->
     macro_body_def(Toks, [Tok | RevMacroBodyToks]).
 
 %% @private
--spec subst_macros(Toks :: [{_,_} | {_,_,_}], MacroDict :: macro_dict()) -> [any()].
+-spec subst_macros(Toks :: [{_, _} | {_, _, _}], MacroDict :: macro_dict()) -> [any()].
 subst_macros(Toks, MacroDict) ->
     reverse(subst_macros_rev(Toks, MacroDict, [])).
 
@@ -236,10 +236,10 @@ subst_macros(Toks, MacroDict) ->
 -spec subst_macros_rev(Tokens :: maybe_improper_list(),
                        MacroDict :: macro_dict(),
                        RevOutToks :: [any()]) -> [any()].
-subst_macros_rev([{'?',_}, {_,LineNum,'LINE'} | Toks], MacroDict, RevOutToks) ->
+subst_macros_rev([{'?', _}, {_, LineNum, 'LINE'} | Toks], MacroDict, RevOutToks) ->
     %% special-case for ?LINE, to avoid creating a new MacroDict for every line in the source file
-    subst_macros_rev(Toks, MacroDict, [{integer,LineNum,LineNum}] ++ RevOutToks);
-subst_macros_rev([{'?',_}, {_,_,Name}, {'(',_} = Paren | Toks], MacroDict, RevOutToks) ->
+    subst_macros_rev(Toks, MacroDict, [{integer, LineNum, LineNum}] ++ RevOutToks);
+subst_macros_rev([{'?', _}, {_, _, Name}, {'(', _} = Paren | Toks], MacroDict, RevOutToks) ->
     case dict:fetch(Name, MacroDict) of
         {[], MacroValue} ->
             %% This macro does not have any vars, so ignore the fact that the invocation is followed by "(...stuff"
@@ -258,7 +258,7 @@ subst_macros_rev([{'?',_}, {_,_,Name}, {'(',_} = Paren | Toks], MacroDict, RevOu
             RevExpandedOtherMacrosToks = subst_macros_rev(ExpandedParamsToks, MacroDict, []),
             subst_macros_rev(NToks, MacroDict, RevExpandedOtherMacrosToks ++ RevOutToks)
     end;
-subst_macros_rev([{'?',_}, {_,_,Name} | Toks], MacroDict, RevOutToks) ->
+subst_macros_rev([{'?', _}, {_, _, Name} | Toks], MacroDict, RevOutToks) ->
     %% This macro invocation does not have arguments.
     %% Therefore the definition should not have parameters
     {[], MacroValue} = dict:fetch(Name, MacroDict),
@@ -273,25 +273,25 @@ subst_macros_rev([], _MacroDict, RevOutToks) -> RevOutToks.
 
 %% @private
 -spec subst_macros_get_args(Toks :: nonempty_maybe_improper_list(),
-                            RevArgs :: [any()]) -> {_,[any()]}.
-subst_macros_get_args([{')',_} | Toks], RevArgs) ->
+                            RevArgs :: [any()]) -> {_, [any()]}.
+subst_macros_get_args([{')', _} | Toks], RevArgs) ->
     {Toks, reverse(RevArgs)};
-subst_macros_get_args([{',',_}, {var,_,ArgName} | Toks], RevArgs) ->
+subst_macros_get_args([{', ', _}, {var, _, ArgName} | Toks], RevArgs) ->
     subst_macros_get_args(Toks, [ArgName| RevArgs]);
-subst_macros_get_args([{var,_,ArgName} | Toks], RevArgs) ->
+subst_macros_get_args([{var, _, ArgName} | Toks], RevArgs) ->
     subst_macros_get_args(Toks, [ArgName | RevArgs]).
 
 %% @private
--spec subst_macros_subst_args_for_vars({[any()],_},[any()]) -> any().
+-spec subst_macros_subst_args_for_vars({[any()], _}, [any()]) -> any().
 subst_macros_subst_args_for_vars({[], BodyToks}, []) ->
     BodyToks;
 subst_macros_subst_args_for_vars({[Param | Params], BodyToks}, [Arg|Args]) ->
-    NBodyToks = keyreplace(Param, 3, BodyToks, {var,1,Arg}),
+    NBodyToks = keyreplace(Param, 3, BodyToks, {var, 1, Arg}),
     subst_macros_subst_args_for_vars({Params, NBodyToks}, Args).
 
 %% @private
 -spec read_include_file(Filename :: file:name(),
-                        IncludeSearchPath :: [file:name(),...]
+                        IncludeSearchPath :: [file:name(), ...]
                         ) -> [byte()].
 read_include_file(Filename, IncludeSearchPath) ->
     case file:path_open(IncludeSearchPath, Filename, [read, raw, binary]) of

@@ -98,7 +98,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(),_) -> 'ok'.
+-spec start_pm(ejabberd:server(), _) -> 'ok'.
 start_pm(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -133,7 +133,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(),_) -> 'ok'.
+-spec start_muc(ejabberd:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -509,7 +509,7 @@ rows_to_uniform_format(Host, UserJID, MessageRows) ->
     DbEngine = ejabberd_odbc:db_engine(Host),
     [row_to_uniform_format(DbEngine, UserJID, EscFormat, Row) || Row <- MessageRows].
 
-row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID,BSrcJID,SDataRaw}) ->
+row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID, BSrcJID, SDataRaw}) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
     SrcJID = stored_binary_to_jid(UserJID, BSrcJID),
     SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
@@ -517,7 +517,7 @@ row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID,BSrcJID,SDataRaw}) 
     Packet = stored_binary_to_packet(Data),
     {MessID, SrcJID, Packet}.
 
-row_to_message_id({BMessID,_,_}) ->
+row_to_message_id({BMessID, _, _}) ->
     list_to_integer(binary_to_list(BMessID)).
 
 
@@ -571,8 +571,8 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 
 
 %% @doc Each record is a tuple of form
-%% `{<<"13663125233">>,<<"bob@localhost">>,<<binary>>}'.
-%% Columns are `["id","from_jid","message"]'.
+%% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
+%% Columns are `["id", "from_jid", "message"]'.
 -type msg() :: {binary(), ejabberd:literal_jid(), binary()}.
 -spec extract_messages(Host :: ejabberd:server(), _UserID :: mod_mam:archive_id(),
         Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
@@ -594,11 +594,11 @@ do_extract_messages(Host, UserID, Filter, 0, IMax, Order) ->
     {LimitSQL, LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
     mod_mam_utils:success_sql_query(
         Host,
-        ["SELECT ", LimitMSSQL," id, from_jid, message "
+        ["SELECT ", LimitMSSQL, " id, from_jid, message "
         "FROM ", select_table(UserID), " ",
             Filter,
             Order,
-            " ",LimitSQL]);
+            " ", LimitSQL]);
 do_extract_messages(Host, UserID, Filter, IOffset, IMax, Order) ->
     {LimitSQL, _LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
     Offset = odbc_queries:get_db_specific_offset(IOffset, IMax),
@@ -804,7 +804,7 @@ compile_params_module(Params) ->
 
 expand_simple_param(Params) ->
     lists:flatmap(fun(simple) -> simple_params();
-                     ({simple,true}) -> simple_params();
+                     ({simple, true}) -> simple_params();
                      (Param) -> [Param]
                   end, Params).
 

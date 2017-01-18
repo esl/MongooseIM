@@ -58,16 +58,16 @@ remove_user(LUser, LServer) ->
 get_vcard(LUser, LServer) ->
     U = ejabberd_odbc:escape(LUser),
     S = ejabberd_odbc:escape(LServer),
-    case odbc_queries:get_vcard(S,U) of
+    case odbc_queries:get_vcard(S, U) of
         {selected, [<<"vcard">>], [{SVCARD}]} ->
             case exml:parse(SVCARD) of
                 {error, Reason} ->
-                    ?WARNING_MSG("not sending bad vcard xml ~p~n~p",[Reason,SVCARD]),
+                    ?WARNING_MSG("not sending bad vcard xml ~p~n~p", [Reason, SVCARD]),
                     {error, ?ERR_SERVICE_UNAVAILABLE};
 		{ok, VCARD} ->
                     {ok, [VCARD]}
             end;
-        {selected, [<<"vcard">>],[]} ->
+        {selected, [<<"vcard">>], []} ->
             {error, ?ERR_SERVICE_UNAVAILABLE}
     end.
 
@@ -115,7 +115,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
 search(LServer, Data) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
     R = do_search(LServer, RestrictionSQL),
-    lists:map(fun(I) -> record_to_item(LServer,I) end, R).
+    lists:map(fun(I) -> record_to_item(LServer, I) end, R).
 
 do_search(_LServer, "") ->
     [];
@@ -148,7 +148,7 @@ filter_fields([], RestrictionSQLIn, LServer) ->
         "" ->
             "";
         _ ->
-            [" where ", [RestrictionSQLIn, " and ", ["server = '", ejabberd_odbc:escape(LServer),"'"]]]
+            [" where ", [RestrictionSQLIn, " and ", ["server = '", ejabberd_odbc:escape(LServer), "'"]]]
     end;
 filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
   when is_binary(Val) and (Val /= <<"">>) ->
@@ -171,7 +171,7 @@ filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
         end,
     filter_fields(Ds, NewRestrictionSQL, LServer);
 filter_fields([_ | Ds], RestrictionSQL, LServer) ->
-    filter_fields(Ds,RestrictionSQL , LServer).
+    filter_fields(Ds, RestrictionSQL, LServer).
 
 -spec make_val(RestrictionSQL, Field, Val) -> Result when
     RestrictionSQL :: iolist(),

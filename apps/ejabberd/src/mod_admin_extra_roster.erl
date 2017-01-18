@@ -69,7 +69,7 @@
 %%% Register commands
 %%%
 
--spec commands() -> [ejabberd_commands:cmd(),...].
+-spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     [
         #ejabberd_commands{name = add_rosteritem, tags = [roster],
@@ -198,12 +198,12 @@ do_add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
                 _Xattrs :: [jlib:binary_pair()]) -> any().
  subscribe(LU, LS, User, Server, Nick, Group, SubscriptionS, _Xattrs) ->
     ItemEl = build_roster_item(User, Server, {add, Nick, SubscriptionS, Group}),
-    case loaded_module(LS,[mod_roster_odbc,mod_roster]) of
+    case loaded_module(LS, [mod_roster_odbc, mod_roster]) of
         {ok, M} ->
             M:set_items(
                 LU, LS,
                 #xmlel{ name = <<"query">>,
-                        attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
+                        attrs = [{<<"xmlns">>, <<"jabber:iq:roster">>}],
                         children = [ItemEl]});
         {error, not_found} ->
             unknown_server
@@ -239,12 +239,12 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
                   Server :: ejabberd:server()) -> any().
 unsubscribe(LU, LS, User, Server) ->
     ItemEl = build_roster_item(User, Server, remove),
-    case loaded_module(LS,[mod_roster_odbc,mod_roster]) of
+    case loaded_module(LS, [mod_roster_odbc, mod_roster]) of
         {ok, M} ->
             M:set_items(
                 LU, LS,
                 #xmlel{ name = <<"query">>,
-                        attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
+                        attrs = [{<<"xmlns">>, <<"jabber:iq:roster">>}],
                         children = [ItemEl]});
         {error, not_found} ->
             unknown_server
@@ -253,15 +253,15 @@ unsubscribe(LU, LS, User, Server) ->
 
 
 -spec loaded_module(Domain :: binary(),
-                    Options :: ['mod_roster' | 'mod_roster_odbc',...])
-            -> {'error','not_found'} | {'ok','mod_roster' | 'mod_roster_odbc'}.
-loaded_module(Domain,Options) ->
+                    Options :: ['mod_roster' | 'mod_roster_odbc', ...])
+            -> {'error', 'not_found'} | {'ok', 'mod_roster' | 'mod_roster_odbc'}.
+loaded_module(Domain, Options) ->
     LoadedModules = gen_mod:loaded_modules(Domain),
     case lists:filter(fun(Module) ->
                     lists:member(Module, LoadedModules)
             end, Options) of
         [M|_] -> {ok, M};
-        [] -> {error,not_found}
+        [] -> {error, not_found}
     end.
 
 %% -----------------------------
@@ -462,7 +462,7 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
     rosteritem_purge({Action, Subs, Asks, Users, Contacts}),
     ok.
 
--spec rosteritem_purge(delete_action() | list_action()) -> {'atomic','ok'}.
+-spec rosteritem_purge(delete_action() | list_action()) -> {'atomic', 'ok'}.
 rosteritem_purge(Options) ->
     Num_rosteritems = mnesia:table_info(roster, size),
     case Num_rosteritems of
@@ -549,7 +549,7 @@ is_regexp_match(String, RegExp) ->
             false;
         {match, List} ->
             Size = length(binary_to_list(String)),
-            case lists:member({0,Size}, List) of
+            case lists:member({0, Size}, List) of
                 true ->
                     true;
                 false ->

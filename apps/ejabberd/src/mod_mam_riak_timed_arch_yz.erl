@@ -201,7 +201,7 @@ bucket({_, _, _} = Date) ->
 bucket({Year, Week}) ->
     YearBin = integer_to_binary(Year),
     WeekNumBin = integer_to_binary(Week),
-    {?MAM_BUCKET_TYPE, <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>};
+    {?MAM_BUCKET_TYPE, <<"mam_", YearBin/binary, "_", WeekNumBin/binary>>};
 bucket(_) ->
     undefined.
 
@@ -406,12 +406,12 @@ do_fold_archive(Fun, BucketKeys, InitialAcc) ->
     lists:foldl(fun({_Index, Props}, Acc) ->
         {_, Bucket} = lists:keyfind(<<"_yz_rb">>, 1, Props),
         {_, Type} = lists:keyfind(<<"_yz_rt">>, 1, Props),
-        {_ , Key} = lists:keyfind(<<"_yz_rk">>, 1, Props),
+        {_, Key} = lists:keyfind(<<"_yz_rk">>, 1, Props),
         Fun({Type, Bucket}, Key, Acc)
     end, InitialAcc, BucketKeys).
 
 key_filters(Jid) ->
-    <<"_yz_rk:",Jid/binary,"*">>.
+    <<"_yz_rk:", Jid/binary, "*">>.
 
 key_filters(LocalJid, undefined) ->
     key_filters(LocalJid);
@@ -420,7 +420,7 @@ key_filters(LocalJid, MsgId) when is_integer(MsgId) ->
     MsgIdBin = integer_to_binary(MsgId),
     <<StartsWith/binary, " AND msg_id_register:", MsgIdBin/binary>>;
 key_filters(LocalJid, RemoteJid) ->
-    <<"_yz_rk:",LocalJid/binary,"/", RemoteJid/binary,"*">>.
+    <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "*">>.
 
 key_filters(LocalJid, RemoteJid, undefined, undefined) ->
     key_filters(LocalJid, RemoteJid);
@@ -437,7 +437,7 @@ id_filters(StartInt, EndInt) ->
     solr_id_filters(integer_to_binary(StartInt), integer_to_binary(EndInt)).
 
 solr_id_filters(Start, End) ->
-    <<"msg_id_register:[",Start/binary," TO ", End/binary," ]">>.
+    <<"msg_id_register:[", Start/binary, " TO ", End/binary, " ]">>.
 
 calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
     calculate_msg_id_borders(undefined, Borders, Start, End);

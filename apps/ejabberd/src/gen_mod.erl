@@ -187,10 +187,10 @@ generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
 %%     {Time, Result} = timer:tc(Backend, F, Args),
 %%     mongoose_metrics:update(global, ?METRIC(Backend, F), Time),
 %%     Result.
-    ["    {Time, Result} = timer:tc(", RealBackendModule, ", ", FS, ", [", Args, "]),\n",
+    ["    {Time, Result} = timer:tc(", RealBackendModule, ", ", FS, ", [", Args, "]), \n",
      "    mongoose_metrics:update(global, ",
           io_lib:format("~p", [?METRIC(BaseModule, F)]),
-          ", Time),\n",
+          ", Time), \n",
      "    Result.\n"].
 
 ensure_backend_metrics(Module, Ops) ->
