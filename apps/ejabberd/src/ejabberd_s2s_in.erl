@@ -68,7 +68,7 @@
                 auth_domain           :: binary(),
                 connections = ?DICT:new(),
                 timer                 :: reference()
-              }).
+               }).
 -type state() :: #state{}.
 
 -type statename() :: 'stream_established' | 'wait_for_feature_request'.
@@ -76,7 +76,7 @@
 -type fsm_return() :: {'stop', Reason :: 'normal', state()}
                     | {'next_state', statename(), state()}
                     | {'next_state', statename(), state(), Timeout :: integer()}.
-%-define(DBGFSM, true).
+                                                %-define(DBGFSM, true).
 
 -ifdef(DBGFSM).
 -define(FSMOPTS, [{debug, [trace]}]).
@@ -95,11 +95,11 @@
 
 -define(STREAM_HEADER(Version),
         (<<"<?xml version='1.0'?>"
-         "<stream:stream "
-         "xmlns:stream='http://etherx.jabber.org/streams' "
-         "xmlns='jabber:server' "
-         "xmlns:db='jabber:server:dialback' "
-         "id='", (StateData#state.streamid)/binary, "'", Version/binary, ">">>)
+           "<stream:stream "
+           "xmlns:stream='http://etherx.jabber.org/streams' "
+           "xmlns='jabber:server' "
+           "xmlns:db='jabber:server:dialback' "
+           "id='", (StateData#state.streamid)/binary, "'", Version/binary, ">">>)
        ).
 
 -define(STREAM_TRAILER, <<"</stream:stream>">>).
@@ -120,8 +120,8 @@
 %%% API
 %%%----------------------------------------------------------------------
 -spec start(_,_) -> {'error',_}
-                  | {'ok','undefined' | pid()}
-                  | {'ok','undefined' | pid(),_}.
+                        | {'ok','undefined' | pid()}
+                        | {'ok','undefined' | pid(),_}.
 start(SockData, Opts) ->
     ?SUPERVISOR_START.
 
@@ -153,21 +153,21 @@ init([{SockMod, Socket}, Opts]) ->
                  _ -> none
              end,
     {StartTLS, TLSRequired, TLSCertverify} = case ejabberd_config:get_local_option(s2s_use_starttls) of
-             UseTls when (UseTls==undefined) or (UseTls==false) ->
-                 {false, false, false};
-             UseTls when (UseTls==true) or (UseTls==optional) ->
-                 {true, false, false};
-             required ->
-                 {true, true, false};
-             required_trusted ->
-                 {true, true, true}
-         end,
+                                                 UseTls when (UseTls==undefined) or (UseTls==false) ->
+                                                     {false, false, false};
+                                                 UseTls when (UseTls==true) or (UseTls==optional) ->
+                                                     {true, false, false};
+                                                 required ->
+                                                     {true, true, false};
+                                                 required_trusted ->
+                                                     {true, true, true}
+                                             end,
     TLSOpts1 = case ejabberd_config:get_local_option(s2s_certfile) of
-                  undefined ->
-                      [];
-                  CertFile ->
-                      [{certfile, CertFile}]
-              end,
+                   undefined ->
+                       [];
+                   CertFile ->
+                       [{certfile, CertFile}]
+               end,
     TLSOpts2 = lists:filter(fun({protocol_options, _}) -> true;
                                ({dhfile, _}) -> true;
                                (_) -> false
@@ -230,21 +230,21 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                            StateData#state.tls_enabled ->
                                [];
                            (not StateData#state.tls_enabled) and (not StateData#state.tls_required) ->
-                              [#xmlel{name = <<"starttls">>,
-                                      attrs = [{<<"xmlns">>, ?NS_TLS}]}];
+                               [#xmlel{name = <<"starttls">>,
+                                       attrs = [{<<"xmlns">>, ?NS_TLS}]}];
                            (not StateData#state.tls_enabled) and StateData#state.tls_required ->
-                              [#xmlel{name = <<"starttls">>,
-                                      attrs = [{<<"xmlns">>, ?NS_TLS}],
-                                      children = [#xmlel{name = <<"required">>}]}]
+                               [#xmlel{name = <<"starttls">>,
+                                       attrs = [{<<"xmlns">>, ?NS_TLS}],
+                                       children = [#xmlel{name = <<"required">>}]}]
                        end,
             case SASL of
                 {error_cert_verif, CertVerifyResult, Certificate} ->
                     CertError = fast_tls:get_cert_verify_string(CertVerifyResult, Certificate),
                     RemoteServer = xml:get_attr_s(<<"from">>, Attrs),
                     ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)",
-                      [StateData#state.server, RemoteServer, CertError]),
+                              [StateData#state.server, RemoteServer, CertError]),
                     send_text(StateData, exml:to_binary(
-                                ?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
+                                           ?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
                     {atomic, Pid} = ejabberd_s2s:find_connection(
                                       jid:make(<<"">>, Server, <<"">>),
                                       jid:make(<<"">>, RemoteServer, <<"">>)),
@@ -255,10 +255,10 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     send_element(StateData,
                                  #xmlel{name = <<"stream:features">>,
                                         children = SASL ++ StartTLS ++
-                                                   ejabberd_hooks:run_fold(
-                                                     s2s_stream_features,
-                                                     Server,
-                                                     [], [Server])}),
+                                            ejabberd_hooks:run_fold(
+                                              s2s_stream_features,
+                                              Server,
+                                              [], [Server])}),
                     {next_state, wait_for_feature_request, StateData#state{server = Server}}
             end;
         {<<"jabber:server">>, _, Server, true} when
@@ -297,8 +297,8 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_TLS, <<"starttls">>} when TLS == true,
-                                   TLSEnabled == false,
-                                   SockMod == gen_tcp ->
+                                       TLSEnabled == false,
+                                       SockMod == gen_tcp ->
             ?DEBUG(<<"starttls">>, []),
             Socket = StateData#state.socket,
             TLSOpts = case ejabberd_config:get_local_option(
@@ -362,15 +362,15 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                             (StateData#state.sockmod):reset_stream(
                               StateData#state.socket),
                             send_element(StateData,
-                                          #xmlel{name = <<"success">>,
-                                                 attrs = [{<<"xmlns">>, ?NS_SASL}]}),
-                             ?DEBUG("(~w) Accepted s2s authentication for ~s",
-                                       [StateData#state.socket, AuthDomain]),
-                             {next_state, wait_for_stream,
-                              StateData#state{streamid = new_id(),
-                                              authenticated = true,
-                                              auth_domain = AuthDomain
-                                             }};
+                                         #xmlel{name = <<"success">>,
+                                                attrs = [{<<"xmlns">>, ?NS_SASL}]}),
+                            ?DEBUG("(~w) Accepted s2s authentication for ~s",
+                                   [StateData#state.socket, AuthDomain]),
+                            {next_state, wait_for_stream,
+                             StateData#state{streamid = new_id(),
+                                             authenticated = true,
+                                             auth_domain = AuthDomain
+                                            }};
                         true ->
                             send_element(StateData,
                                          #xmlel{name = <<"failure">>,
@@ -465,8 +465,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
                                   ejabberd_router:dirty_get_all_domains()) of
                                 true ->
                                     if ((Name == <<"iq">>) or
-                                        (Name == <<"message">>) or
-                                        (Name == <<"presence">>)) ->
+                                                             (Name == <<"message">>) or
+                                                                                       (Name == <<"presence">>)) ->
                                             ejabberd_hooks:run(
                                               s2s_receive_packet,
                                               LTo,
@@ -484,8 +484,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
                                             StateData#state.connections) of
                                 {ok, established} ->
                                     if ((Name == <<"iq">>) or
-                                        (Name == <<"message">>) or
-                                        (Name == <<"presence">>)) ->
+                                                             (Name == <<"message">>) or
+                                                                                       (Name == <<"presence">>)) ->
                                             ejabberd_hooks:run(
                                               s2s_receive_packet,
                                               LTo,
@@ -550,9 +550,9 @@ stream_established(closed, StateData) ->
 %%          {stop, Reason, NewStateData}                          |
 %%          {stop, Reason, Reply, NewStateData}
 %%----------------------------------------------------------------------
-%state_name(Event, From, StateData) ->
-%    Reply = ok,
-%    {reply, Reply, state_name, StateData}.
+                                                %state_name(Event, From, StateData) ->
+                                                %    Reply = ok,
+                                                %    {reply, Reply, state_name, StateData}.
 
 %%----------------------------------------------------------------------
 %% Func: handle_event/3
@@ -585,7 +585,7 @@ handle_sync_event(get_state_infos, _From, StateName, StateData) ->
                     false ->
                         Connections = StateData#state.connections,
                         [D || {{D, _}, established} <-
-                            dict:to_list(Connections)]
+                                  dict:to_list(Connections)]
                 end,
     Infos = [
              {direction, in},
@@ -686,7 +686,7 @@ cancel_timer(Timer) ->
 
 
 -spec is_key_packet(jlib:xmlel()) -> 'false' | {'key',_,_,_,binary()}
-                                  | {'verify',_,_,_,binary()}.
+                                         | {'verify',_,_,_,binary()}.
 is_key_packet(#xmlel{name = Name, attrs = Attrs,
                      children = Els}) when Name == <<"db:result">> ->
     {key,
