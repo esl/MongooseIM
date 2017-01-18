@@ -281,21 +281,21 @@ try_register(User, Server, Password, SourceRaw, Lang) ->
                         true ->
                             case ejabberd_auth:try_register(
                                    User, Server, Password) of
-                                ok ->
+                                {error, Error} ->
+                                    case Error of
+                                        exists ->
+                                            {error, ?ERR_CONFLICT};
+                                        invalid_jid ->
+                                            {error, ?ERR_JID_MALFORMED};
+                                        not_allowed ->
+                                            {error, ?ERR_NOT_ALLOWED};
+                                        null_password ->
+                                            {error, ?ERR_NOT_ACCEPTABLE}
+                                    end;
+                                _ ->
                                     send_welcome_message(JID),
                                     send_registration_notifications(JID, SourceRaw),
-                                    ok;
-                                Error ->
-                                    case Error of
-                                        {error, exists} ->
-                                            {error, ?ERR_CONFLICT};
-                                        {error, invalid_jid} ->
-                                            {error, ?ERR_JID_MALFORMED};
-                                        {error, not_allowed} ->
-                                            {error, ?ERR_NOT_ALLOWED};
-                                        {error, null_password} ->
-                                            {error, ?ERR_NOT_ACCEPTABLE}
-                                    end
+                                    ok
                             end;
                         false ->
                             ErrText = <<"The password is too weak">>,

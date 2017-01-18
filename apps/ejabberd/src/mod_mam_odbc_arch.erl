@@ -23,7 +23,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
-         remove_archive/3,
+         remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
@@ -521,15 +521,17 @@ row_to_message_id({BMessID,_,_}) ->
     list_to_integer(binary_to_list(BMessID)).
 
 
--spec remove_archive(Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
-        RoomJID :: ejabberd:jid()) -> 'ok'.
-remove_archive(Host, UserID, _UserJID) ->
+%% #rh
+-spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
+                     ArchiveID :: mod_mam:archive_id(),
+                     RoomJID :: ejabberd:jid()) -> map().
+remove_archive(Acc, Host, UserID, _UserJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
       ["DELETE FROM ", select_table(UserID), " "
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
-    ok.
+    Acc.
 
 -spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
                            MessID :: mod_mam:message_id(),
