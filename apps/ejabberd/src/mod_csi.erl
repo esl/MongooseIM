@@ -29,8 +29,8 @@ stop(Host) ->
 hooks() ->
     [{c2s_stream_features, ?MODULE, add_csi_feature, 60}].
 
-add_csi_feature(Acc, _Host) ->
-    lists:keystore(<<"csi">>, #xmlel.name, Acc, csi()).
+add_csi_feature(Feat, _Host) ->
+    lists:keystore(<<"csi">>, #xmlel.name, Feat, csi()).
 
 csi() ->
     #xmlel{name = <<"csi">>,

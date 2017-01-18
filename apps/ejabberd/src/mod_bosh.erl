@@ -26,7 +26,7 @@
          terminate/3]).
 
 %% Hooks callbacks
--export([node_cleanup/1]).
+-export([node_cleanup/2]).
 
 %% For testing and debugging
 -export([get_session_socket/1, store_session/2]).
@@ -135,7 +135,7 @@ stop(_Host) ->
 %% Hooks handlers
 %%--------------------------------------------------------------------
 
-node_cleanup(Node) ->
+node_cleanup(_, Node) ->
     ?BOSH_BACKEND:node_cleanup(Node).
 
 %%--------------------------------------------------------------------

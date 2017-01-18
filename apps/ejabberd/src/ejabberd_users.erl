@@ -7,7 +7,7 @@
          does_user_exist/2]).
 
 %% Hooks.
--export([remove_user/2]).
+-export([remove_user/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -87,11 +87,12 @@ does_user_exist(LUser, LServer) ->
 %% Hooks
 %%====================================================================
 
--spec remove_user(LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver() | string()) -> ok.
-remove_user(LUser, LServer) ->
+-spec remove_user(Acc :: any(),
+                  LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver() | string()) -> any().
+remove_user(Acc, LUser, LServer) ->
     delete_user(LUser, LServer),
-    ok.
+    Acc.
 
 %%====================================================================
 %% gen_server callbacks

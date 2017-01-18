@@ -1,0 +1,60 @@
+Fold:
+
+v adhoc_sm_items
+v amp_determine_strategy
+v amp_verify_support
+v c2s_filter_packet
+v c2s_presence_in
+v c2s_stream_features
+v c2s_unauthenticated_iq
+v c2s_update_presence
+v check_bl_c2s
+v disco_info
+v disco_local_features
+v disco_local_identity
+v disco_local_items
+v disco_sm_features
+v disco_sm_identity
+v disco_sm_items
+- ejabberd_ctl_process
+v failed_to_store_message
+v filter_local_packet
+v filter_packet
+??? filter_room_packet
+? find_s2s_bridge
+? get_key
+host_config_update
+is_muc_room_owner
+mam_archive_id
+mam_archive_message
+mam_archive_size
+mam_get_behaviour
+mam_get_prefs
+mam_lookup_messages
+mam_muc_archive_id
+mam_muc_archive_message
+mam_muc_archive_size
+mam_muc_get_behaviour
+mam_muc_get_prefs
+mam_muc_lookup_messages
+mam_muc_purge_multiple_messages
+mam_muc_purge_single_message
+mam_muc_set_prefs
+mam_purge_multiple_messages
+mam_purge_single_message
+mam_set_prefs
+muc_room_pid
+privacy_check_packet
+privacy_get_user_list
+privacy_updated_list
+v register_command
+roster_get
+roster_get_jid_info
+roster_get_versioning_feature
+roster_groups
+roster_process_item
+v s2s_allow_host
+v session_opening_allowed_for_user
+v set_vcard
+v sm_filter_offline_message
+v unregister_command

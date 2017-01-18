@@ -111,7 +111,7 @@ run(Hook, Host, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Host, Hook),
-            run1(Ls, Hook, Args);
+            run1(Ls, Hook, mongoose_stanza:new(), Args); % run with empty accumulator
         [] ->
             ok
     end.
@@ -228,23 +228,26 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
-run1([], _Hook, _Args) ->
-    ok;
-run1([{_Seq, Module, Function} | Ls], Hook, Args) ->
-    Res = if is_function(Function) ->
-                  safely:apply(Function, Args);
-             true ->
-                  safely:apply(Module, Function, Args)
+run1([], _Hook, Acc, _Args) ->
+    Acc;
+run1([{_Seq, Module, Function} | Ls], Hook, Acc, Args) ->
+    Res = case Function of
+              _ when is_function(Function) ->
+                  safely:apply(Function, [Acc|Args]);
+              _ ->
+                  safely:apply(Module, Function, [Acc|Args])
           end,
     case Res of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p",
                        [Reason, {Hook, Args}, Module, Function]),
-            run1(Ls, Hook, Args);
+            run1(Ls, Hook, Acc, Args);
         stop ->
-            ok;
-        _ ->
-            run1(Ls, Hook, Args)
+            stopped;
+        {stop, NAcc} ->
+            NAcc;
+        NewAcc ->
+            run1(Ls, Hook, NewAcc, Args)
     end.
 
 run_fold1([], _Hook, Val, _Args) ->

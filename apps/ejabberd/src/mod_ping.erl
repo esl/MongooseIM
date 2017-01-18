@@ -52,10 +52,10 @@
 
 %% Hook callbacks
 -export([iq_ping/3,
-         user_online/3,
-         user_offline/4,
-         user_send/3,
-         user_keep_alive/1]).
+         user_online/4,
+         user_offline/5,
+         user_send/4,
+         user_keep_alive/2]).
 
 -record(state, {host = <<"">>,
                 send_pings = ?DEFAULT_SEND_PINGS,
@@ -204,17 +204,21 @@ iq_ping(_From, _To, #iq{type = Type, sub_el = SubEl} = IQ) ->
             IQ#iq{type = error, sub_el = [SubEl, ?ERR_FEATURE_NOT_IMPLEMENTED]}
     end.
 
-user_online(_SID, JID, _Info) ->
-    start_ping(JID#jid.lserver, JID).
+user_online(Acc, _SID, JID, _Info) ->
+    start_ping(JID#jid.lserver, JID),
+    Acc.
 
-user_offline(_SID, JID, _Info, _Reason) ->
-    stop_ping(JID#jid.lserver, JID).
+user_offline(Acc, _SID, JID, _Info, _Reason) ->
+    stop_ping(JID#jid.lserver, JID),
+    Acc.
 
-user_send(JID, _From, _Packet) ->
-    start_ping(JID#jid.lserver, JID).
+user_send(Acc, JID, _From, _Packet) ->
+    start_ping(JID#jid.lserver, JID),
+    Acc.
 
-user_keep_alive(JID) ->
-    start_ping(JID#jid.lserver, JID).
+user_keep_alive(Acc, JID) ->
+    start_ping(JID#jid.lserver, JID),
+    Acc.
 
 %%====================================================================
 %% Internal functions

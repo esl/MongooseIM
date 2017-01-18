@@ -77,60 +77,52 @@ stop(Host) ->
 
 %%-------------------------------------------------------------------------
 
--spec get_local_commands(Acc :: [jlib:xmlel()],
+-spec get_local_commands(Acc :: mongoose_stanza:t(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          NS :: binary(),
-                         ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
+                         ejabberd:lang()) -> mongoose_stanza:t().
 get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
     Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
     case Display of
         false ->
             Acc;
         _ ->
-            Items = case Acc of
-                        {result, I} -> I;
-                        _ -> []
-                    end,
             Nodes = [#xmlel{name = <<"item">>,
                             attrs = [{<<"jid">>, LServer},
                                      {<<"node">>, ?NS_COMMANDS},
                                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
-            {result, Items ++ Nodes}
+            mongoose_stanza:append(local_items, Nodes, Acc)
     end;
-get_local_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    ejabberd_hooks:run_fold(adhoc_local_items, LServer, {result, []}, [From, To, Lang]);
-get_local_commands(_Acc, _From, _To, <<"ping">>, _Lang) ->
-    {result, []};
+get_local_commands(Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
+    ejabberd_hooks:run_fold(adhoc_local_items, LServer, Acc, [From, To, Lang]);
+get_local_commands(Acc, _From, _To, <<"ping">>, _Lang) ->
+    Acc;
 get_local_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_commands(Acc :: [jlib:xmlel()],
+-spec get_sm_commands(Acc :: mongoose_stanza:t(),
                       From :: ejabberd:jid(),
                       To :: ejabberd:jid(),
                       NS :: binary(),
-                      ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
+                      ejabberd:lang()) -> mongoose_stanza:t().
 get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
     Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
     case Display of
         false ->
             Acc;
         _ ->
-            Items = case Acc of
-                        {result, I} -> I;
-                        _ -> []
-                    end,
             Nodes = [#xmlel{name = <<"item">>,
                             attrs = [{<<"jid">>, jid:to_binary(To)},
                                      {<<"node">>, ?NS_COMMANDS},
                                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
-            {result, Items ++ Nodes}
+            mongoose_stanza:append(sm_items, Nodes, Acc)
     end;
 
-get_sm_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    ejabberd_hooks:run_fold(adhoc_sm_items, LServer, {result, []}, [From, To, Lang]);
+get_sm_commands(Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
+    ejabberd_hooks:run_fold(adhoc_sm_items, LServer, Acc, [From, To, Lang]);
 
 get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
@@ -138,78 +130,76 @@ get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_local_identity(Acc :: [jlib:xmlel()],
+-spec get_local_identity(Acc :: mongoose_stanza:t(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          NS :: binary(),
-                         ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
-get_local_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
+                         ejabberd:lang()) -> mongoose_stanza:t().
+get_local_identity(Acc, From, To, Ns, Lang) ->
+    LId = do_get_local_identity(From, To, Ns, Lang),
+    mongoose_stanza:append(local_identity, LId, Acc).
+
+do_get_local_identity(_From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
-                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
-get_local_identity(Acc, _From, _To, <<"ping">>, Lang) ->
+                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}];
+do_get_local_identity(_From, _To, <<"ping">>, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-node">>},
-                     {<<"name">>, translate:translate(Lang, <<"Ping">>)}]} | Acc];
-get_local_identity(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
+                     {<<"name">>, translate:translate(Lang, <<"Ping">>)}]}];
+do_get_local_identity(_From, _To, _Node, _Lang) ->
+    [].
 
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_sm_identity(Acc :: [jlib:xmlel()],
+-spec get_sm_identity(Acc :: mongoose_stanza:t(),
                      From :: ejabberd:jid(),
                      To :: ejabberd:jid(),
                      NS :: binary(),
-                     ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
+                     ejabberd:lang()) -> mongoose_stanza:t().
 get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
-    [#xmlel{name = <<"identity">>,
+    Id = #xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
-                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
+                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]},
+    mongoose_stanza:append(sm_identity, Id, Acc);
 get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
--spec get_local_features(Acc :: [jlib:xmlel()],
+-spec get_local_features(Acc :: mongoose_stanza:t(),
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          NS :: binary(),
-                         ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
+                         ejabberd:lang()) -> mongoose_stanza:t().
 get_local_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [?NS_COMMANDS]};
-get_local_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
+    mongoose_stanza:append(features, ?NS_COMMANDS, Acc);
+get_local_features(Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
-    {result, []};
-get_local_features(_Acc, _From, _To, <<"ping">>, _Lang) ->
+    mongoose_stanza:put(features, [], Acc);
+get_local_features(Acc, _From, _To, <<"ping">>, _Lang) ->
     %% override all lesser features...
-    {result, [?NS_COMMANDS]};
+    mongoose_stanza:put(features, [?NS_COMMANDS], Acc);
 get_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_features(Acc :: [jlib:xmlel()],
+-spec get_sm_features(Acc :: mongoose_stanza:t(),
                              From :: ejabberd:jid(),
                              To :: ejabberd:jid(),
                              NS :: binary(),
-                             ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
+                             ejabberd:lang()) -> mongoose_stanza:t().
 get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [?NS_COMMANDS]};
-get_sm_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
+    Feats = mongoose_stanza:get(sm_features, Acc, []),
+    mongoose_stanza:put(sm_features, Feats ++ [?NS_COMMANDS], Acc);
+get_sm_features(Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
-    {result, []};
+    mongoose_stanza:put(sm_features, [], Acc);
 get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -236,8 +226,10 @@ process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
             IQ#iq{type = error, sub_el = [SubEl, Error]};
         #adhoc_request{} = AdhocRequest ->
             Host = To#jid.lserver,
-            case ejabberd_hooks:run_fold(Hook, Host, empty,
-                                         [From, To, AdhocRequest]) of
+            Stanza = mongoose_stanza:new(),
+            Resp = ejabberd_hooks:run_fold(Hook, Host, Stanza,
+                                         [From, To, AdhocRequest]),
+            case mongoose_stanza:get(response, Resp, ignore) of
                 ignore ->
                     ignore;
                 empty ->
@@ -250,42 +242,39 @@ process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
     end.
 
 
--spec ping_item(Acc :: [jlib:xmlel()],
+-spec ping_item(Acc :: mongoose_stanza:t(),
                 From :: ejabberd:jid(),
                 To :: ejabberd:jid(),
-                ejabberd:lang()) -> {result, [jlib:xmlel()]}.
+                ejabberd:lang()) -> mongoose_stanza:t().
 ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
-    Items = case Acc of
-                {result, I} ->
-                    I;
-                _ ->
-                    []
-            end,
     Nodes = [#xmlel{name = <<"item">>,
                     attrs = [{<<"jid">>, Server},
                              {<<"node">>, <<"ping">>},
                              {<<"name">>, translate:translate(Lang, <<"Ping">>)}]}],
-    {result, Items ++ Nodes}.
+    mongoose_stanza:append(local_items, Nodes, Acc).
 
 
--spec ping_command(Acc :: _,
+-spec ping_command(Acc :: mongoose_stanza:t(),
                    From :: ejabberd:jid(),
                    To :: ejabberd:jid(),
-                   adhoc:request()) -> {error, _} | adhoc:response().
-ping_command(_Acc, _From, _To,
+                   adhoc:request()) -> mongoose_stanza:t().
+ping_command(Acc, _From, _To,
              #adhoc_request{lang = Lang,
                             node = <<"ping">>,
                             session_id = _Sessionid,
                             action = Action} = Request) ->
-    if
-        Action == <<"">>; Action == <<"execute">> ->
-            adhoc:produce_response(
-              Request,
-              #adhoc_response{status = completed,
-                              notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
-        true ->
-            {error, ?ERR_BAD_REQUEST}
-    end;
+    Respond = ((Action == <<"">>) or (Action == <<"execute">>)),
+    Response = case Respond of
+                    true ->
+                        adhoc:produce_response(
+                            Request,
+                            #adhoc_response{status = completed,
+                                            notes = [{<<"info">>,
+                                                      translate:translate(Lang, <<"Pong">>)}]});
+                    _ ->
+                        {error, ?ERR_BAD_REQUEST}
+                end,
+    mongoose_stanza:put(response, Response, Acc);
 ping_command(Acc, _From, _To, _Request) ->
     Acc.
 

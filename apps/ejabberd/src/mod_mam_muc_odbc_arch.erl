@@ -19,6 +19,7 @@
          archive_message/9,
          lookup_messages/14,
          remove_archive/3,
+         remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
@@ -194,13 +195,13 @@ archive_messages(LServer, Acc, N) ->
            "(id, room_id, nick_name, message) "
        "VALUES ", tuples(Acc)]).
 
-lookup_messages({error, Reason}=Result, _Host,
+lookup_messages({error, _Reason}=Result, _Host,
                 _UserID, _UserJID, _RSM, _Borders,
                 _Start, _End, _Now, _WithJID,
                 _PageSize, _LimitPassed, _MaxResultLimit,
                 _IsSimple) ->
     Result;
-lookup_messages(Result, Host,
+lookup_messages(_Result, Host,
                 UserID, UserJID, RSM, Borders,
                 Start, End, Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit,
@@ -414,15 +415,17 @@ row_to_message_id({BMessID,_,_}) ->
     list_to_integer(binary_to_list(BMessID)).
 
 
--spec remove_archive(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> 'ok'.
-remove_archive(Host, RoomID, _RoomJID) ->
+-spec remove_archive(any(), ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> any().
+remove_archive(Acc, Host, RoomID, _RoomJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
       ["DELETE FROM ", select_table(RoomID), " "
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
-    ok.
+    Acc.
 
+remove_archive(Host, RoomID, RoomJID) ->
+    remove_archive(ok, Host, RoomID, RoomJID).
 
 -spec purge_single_message(_Result, Host :: ejabberd:server(),
                            MessID :: mod_mam:message_id(),

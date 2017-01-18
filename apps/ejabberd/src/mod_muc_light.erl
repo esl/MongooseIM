@@ -57,9 +57,9 @@
 -export([route/3]).
 
 %% Hook handlers
--export([prevent_service_unavailable/3,
+-export([prevent_service_unavailable/4,
          get_muc_service/5,
-         remove_user/2,
+         remove_user/3,
          add_rooms_to_roster/2,
          process_iq_get/5,
          process_iq_set/4,
@@ -237,16 +237,19 @@ process_packet(From, To, _InvalidReq, OrigPacket) ->
 %% Hook handlers
 %%====================================================================
 
--spec prevent_service_unavailable(From :: jid(), To :: jid(), Packet :: jlib:xmlel()) -> ok | stop.
-prevent_service_unavailable(_From, _To, Packet) ->
+-spec prevent_service_unavailable(Acc :: mongoose_stanza:t(), From :: jid(), To :: jid(),
+                                  Packet :: jlib:xmlel()) ->
+    mongoose_stanza:t() | {stop, mongoose_stanza:t()}.
+prevent_service_unavailable(Acc, _From, _To, Packet) ->
     case xml:get_tag_attr_s(<<"type">>, Packet) of
-        <<"groupchat">> -> stop;
-        _Type -> ok
+        <<"groupchat">> -> {stop, Acc};
+        _Type -> Acc
     end.
 
--spec get_muc_service(Acc :: {result, [jlib:xmlel()]}, From :: ejabberd:jid(), To :: ejabberd:jid(),
-                      NS :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]}.
-get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
+-spec get_muc_service(Acc :: mongoose_stanza:t(), From :: ejabberd:jid(), To :: ejabberd:jid(),
+                      NS :: binary(), ejabberd:lang()) -> mongoose_stanza:t().
+get_muc_service(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
+    Nodes = mongoose_stanza:get(local_items, Acc, []),
     XMLNS = case gen_mod:get_module_opt_by_subhost(
                    LServer, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
                 true -> ?NS_MUC;
@@ -256,12 +259,10 @@ get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _
     Item = [#xmlel{name = <<"item">>,
                    attrs = [{<<"jid">>, SubHost},
                             {<<"node">>, XMLNS}]}],
-    {result, [Item | Nodes]};
-get_muc_service(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
+    maps:put(local_items, [Item | Nodes], Acc).
 
--spec remove_user(User :: binary(), Server :: binary()) -> ok.
-remove_user(User, Server) ->
+-spec remove_user(Acc :: any(), User :: binary(), Server :: binary()) -> any().
+remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     UserUS = {LUser, LServer},
@@ -271,7 +272,8 @@ remove_user(User, Server) ->
             ?ERROR_MSG("hook=remove_user,error=~p", [Err]);
         AffectedRooms ->
             bcast_removed_user(UserUS, AffectedRooms, Version),
-            maybe_forget_rooms(AffectedRooms)
+            maybe_forget_rooms(AffectedRooms),
+            Acc
     end.
 
 -spec add_rooms_to_roster(Acc :: [mod_roster:roster()], UserUS :: ejabberd:simple_bare_jid()) ->
@@ -344,10 +346,11 @@ is_room_owner(_, Room, User) ->
 muc_room_pid(_, _) ->
     {ok, processless}.
 
--spec can_access_room(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
-    boolean().
-can_access_room(_, User, Room) ->
-    none =/= get_affiliation(Room, User).
+-spec can_access_room(Acc :: mongoose_stanza:t(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
+    mongoose_stanza:t().
+can_access_room(Acc, User, Room) ->
+    Can = none =/= get_affiliation(Room, User),
+    mongoose_stanza:put(can_access_room, Can, Acc).
 
 %%====================================================================
 %% Internal functions

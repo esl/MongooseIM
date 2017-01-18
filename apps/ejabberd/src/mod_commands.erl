@@ -163,8 +163,6 @@ registered_users(Host) ->
 
 register(Host, User, Password) ->
     case ejabberd_auth:try_register(User, Host, Password) of
-        ok ->
-            list_to_binary(io_lib:format("User ~s@~s successfully registered", [User, Host]));
         {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
                                    [User, Host, node()]),
@@ -172,7 +170,9 @@ register(Host, User, Password) ->
         {error, Reason} ->
             String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
                                    [User, Host, node(), Reason]),
-            throw({error, String})
+            throw({error, String});
+        _ ->
+            list_to_binary(io_lib:format("User ~s@~s successfully registered", [User, Host]))
     end.
 
 unregister(Host, User) ->
@@ -202,7 +202,7 @@ get_recent_messages(Caller, Before, Limit) ->
     get_recent_messages(Caller, undefined, Before, Limit).
 
 get_recent_messages(Caller, With, 0, Limit) ->
-    {MegaSecs, Secs, _} = now(),
+    {MegaSecs, Secs, _} = os:timestamp(),
     Future = (MegaSecs + 1) * 1000000 + Secs, % to make sure we return all messages
     get_recent_messages(Caller, With, Future, Limit);
 get_recent_messages(Caller, With, Before, Limit) ->

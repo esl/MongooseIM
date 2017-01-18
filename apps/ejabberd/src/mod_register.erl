@@ -74,12 +74,12 @@ clean_opt({registration_watchers, Watchers}) ->
 clean_opt(Item) ->
     Item.
 
-stream_feature_register(Acc, _Host) ->
-    [#xmlel{name = <<"register">>,
-            attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc].
+stream_feature_register(Feat, _Host) ->
+    NFeat = #xmlel{name = <<"register">>,
+            attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]},
+    [NFeat|Feat].
 
-unauthenticated_iq_register(_Acc,
-                            Server, #iq{xmlns = ?NS_REGISTER} = IQ, IP) ->
+unauthenticated_iq_register(Acc, Server, #iq{xmlns = ?NS_REGISTER} = IQ, IP) ->
     Address = case IP of
                   {A, _Port} -> A;
                   _ -> undefined
@@ -92,7 +92,8 @@ unauthenticated_iq_register(_Acc,
                                        make_host_only_JID(Server),
                                        IQ,
                                        Address),
-    set_sender(jlib:iq_to_xml(ResIQ), make_host_only_JID(Server));
+    Resp = set_sender(jlib:iq_to_xml(ResIQ), make_host_only_JID(Server)),
+    mongoose_stanza:put(response, Resp, Acc);
 unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
     Acc.
 
@@ -281,21 +282,21 @@ try_register(User, Server, Password, SourceRaw, Lang) ->
                         true ->
                             case ejabberd_auth:try_register(
                                    User, Server, Password) of
-                                ok ->
+                                {error, Error} ->
+                                    case Error of
+                                        exists ->
+                                            {error, ?ERR_CONFLICT};
+                                        invalid_jid ->
+                                            {error, ?ERR_JID_MALFORMED};
+                                        not_allowed ->
+                                            {error, ?ERR_NOT_ALLOWED};
+                                        null_password ->
+                                            {error, ?ERR_NOT_ACCEPTABLE}
+                                    end;
+                                _ ->
                                     send_welcome_message(JID),
                                     send_registration_notifications(JID, SourceRaw),
-                                    ok;
-                                Error ->
-                                    case Error of
-                                        {error, exists} ->
-                                            {error, ?ERR_CONFLICT};
-                                        {error, invalid_jid} ->
-                                            {error, ?ERR_JID_MALFORMED};
-                                        {error, not_allowed} ->
-                                            {error, ?ERR_NOT_ALLOWED};
-                                        {error, null_password} ->
-                                            {error, ?ERR_NOT_ACCEPTABLE}
-                                    end
+                                    ok
                             end;
                         false ->
                             ErrText = <<"The password is too weak">>,
@@ -360,7 +361,7 @@ check_timeout(Source) ->
               end,
     if
         is_integer(Timeout) ->
-            {MSec, Sec, _USec} = now(),
+            {MSec, Sec, _USec} = os:timestamp(),
             Priority = -(MSec * 1000000 + Sec),
             CleanPriority = Priority + Timeout,
             F = fun() ->

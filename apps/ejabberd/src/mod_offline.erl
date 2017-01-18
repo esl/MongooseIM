@@ -37,12 +37,14 @@
 -export([start/2, stop/1]).
 
 %% Hook handlers
--export([inspect_packet/3,
+-export([inspect_packet/4,
          pop_offline_messages/3,
          get_sm_features/5,
+         get_local_features/5,
          remove_expired_messages/1,
          remove_old_messages/2,
          remove_user/2,
+         remove_user/3,
          determine_amp_strategy/5,
          amp_failed_event/2]).
 
@@ -132,7 +134,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(disco_sm_features, Host,
 		       ?MODULE, get_sm_features, 50),
     ejabberd_hooks:add(disco_local_features, Host,
-		       ?MODULE, get_sm_features, 50),
+		       ?MODULE, get_local_features, 50),
     ejabberd_hooks:add(amp_determine_strategy, Host,
                        ?MODULE, determine_amp_strategy, 30),
     ejabberd_hooks:add(failed_to_store_message, Host,
@@ -149,7 +151,7 @@ stop(Host) ->
     ejabberd_hooks:delete(anonymous_purge_hook, Host,
 			  ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_sm_features, 50),
+    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_local_features, 50),
     ejabberd_hooks:delete(amp_determine_strategy, Host,
                           ?MODULE, determine_amp_strategy, 30),
     ejabberd_hooks:delete(failed_to_store_message, Host,
@@ -161,8 +163,11 @@ stop(Host) ->
 %% Server side functions
 %% ------------------------------------------------------------------
 
-amp_failed_event(Packet, From) ->
-    mod_amp:check_packet(Packet, From, offline_failed).
+amp_failed_event(#xmlel{} = Packet, From) ->
+    amp_failed_event(mongoose_stanza:from_element(Packet), From);
+amp_failed_event(Acc, From) ->
+    mod_amp:check_packet(mongoose_stanza:get(element, Acc), From, offline_failed),
+    Acc.
 
 handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     {LUser, LServer} = US,
@@ -247,7 +252,12 @@ srv_name() ->
 srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
 
-determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
+determine_amp_strategy(Acc, FromJID, ToJID, Packet, Arg) ->
+    Strategy = mongoose_stanza:get(strategy, Acc),
+    NStrategy = do_determine_amp_strategy(Strategy, FromJID, ToJID, Packet, Arg),
+    mongoose_stanza:put(strategy, NStrategy, Acc).
+
+do_determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        _FromJID, ToJID, _Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
     ShouldBeStored = ejabberd_auth:is_user_exists(LUser, LServer),
@@ -255,7 +265,7 @@ determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
         true -> Strategy#amp_strategy{deliver = [stored, none]};
         false -> Strategy
     end;
-determine_amp_strategy(Strategy, _, _, _, _) ->
+do_determine_amp_strategy(Strategy, _, _, _, _) ->
     Strategy.
 
 %%====================================================================
@@ -333,29 +343,33 @@ code_change(_OldVsn, State, _Extra) ->
 %% Handlers
 %% ------------------------------------------------------------------
 
-get_sm_features(Acc, _From, _To, <<"">> = _Node, _Lang) ->
-    add_feature(Acc, ?NS_FEATURE_MSGOFFLINE);
-get_sm_features(_Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
+get_sm_features(Acc, From, To, Node, Lang) ->
+    get_features(sm_features, Acc, From, To, Node, Lang).
+
+get_local_features(Acc, From, To, Node, Lang) ->
+    get_features(features, Acc, From, To, Node, Lang).
+
+get_features(Key, Acc, _From, _To, <<"">> = _Node, _Lang) ->
+    add_feature(Key, Acc, ?NS_FEATURE_MSGOFFLINE);
+get_features(Key, Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
     %% override all lesser features...
-    {result, []};
-get_sm_features(Acc, _From, _To, _Node, _Lang) ->
+    mongoose_stanza:put(Key, [], Acc);
+get_features(_Key, Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-add_feature({result, Features}, Feature) ->
-    {result, Features ++ [Feature]};
-add_feature(_, Feature) ->
-    {result, [Feature]}.
+add_feature(Key, Acc, Feature) ->
+    mongoose_stanza:append(Key, Feature, Acc).
 
 %% This function should be called only from hook
 %% Calling it directly is dangerous and my store unwanted message
 %% in the offline storage (f.e. messages of type error or groupchat)
-inspect_packet(From, To, Packet) ->
+inspect_packet(Acc, From, To, Packet) ->
     case check_event_chatstates(From, To, Packet) of
         true ->
             store_packet(From, To, Packet),
-            stop;
+            {stop, Acc};
         false ->
-            ok
+            Acc
     end.
 
 store_packet(
@@ -532,6 +546,11 @@ remove_expired_messages(Host) ->
 remove_old_messages(Host, Days) ->
     Timestamp = fallback_timestamp(Days, os:timestamp()),
     ?BACKEND:remove_old_messages(Host, Timestamp).
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     ?BACKEND:remove_user(User, Server).

@@ -20,6 +20,7 @@
 -export([get_behaviour/5,
          get_prefs/4,
          set_prefs/7,
+         remove_archive/4,
          remove_archive/3]).
 
 -include_lib("ejabberd/include/ejabberd.hrl").
@@ -204,13 +205,15 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
             {DefaultMode, AlwaysJIDs, NeverJIDs}
     end.
 
+remove_archive(Host, ArcID, ArcJID) ->
+    remove_archive(ok, Host, ArcID, ArcJID).
 
--spec remove_archive(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> any().
-remove_archive(_Host, _ArcID, ArcJID) ->
+remove_archive(Acc, _Host, _ArcID, ArcJID) ->
     SU = su_key(ArcJID),
     mnesia:sync_dirty(fun() ->
             mnesia:delete(mam_prefs, SU, write)
-        end).
+        end),
+    Acc.
 
 %% ----------------------------------------------------------------------
 %% Helpers

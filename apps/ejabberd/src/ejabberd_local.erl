@@ -45,12 +45,13 @@
          unregister_host/1,
          unregister_iq_response_handler/2,
          refresh_iq_handlers/0,
-         bounce_resource_packet/3
+         bounce_resource_packet/3,
+         bounce_resource_packet/4
         ]).
 
 %% Hooks callbacks
 
--export([node_cleanup/1]).
+-export([node_cleanup/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -226,6 +227,13 @@ unregister_iq_handler(Host, XMLNS) ->
 refresh_iq_handlers() ->
     ejabberd_local ! refresh_iq_handlers.
 
+-spec bounce_resource_packet(Acc:: mongoose_stanza:t(), From :: ejabberd:jid(),
+    To :: ejabberd:jid(),
+    Packet :: jlib:xmlel()) -> {'stop', mongoose_stanza:t()}.
+bounce_resource_packet(Acc, From, To, Packet) ->
+    bounce_resource_packet(From, To, Packet),
+    {stop, Acc}.
+
 -spec bounce_resource_packet(From :: ejabberd:jid(),
                              To :: ejabberd:jid(),
                              Packet :: jlib:xmlel()) -> 'stop'.
@@ -246,7 +254,7 @@ unregister_host(Host) ->
 %% API
 %%====================================================================
 
-node_cleanup(Node) ->
+node_cleanup(_, Node) ->
     F = fun() ->
                 Keys = mnesia:select(
                          iq_response,

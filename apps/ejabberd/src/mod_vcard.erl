@@ -58,6 +58,7 @@
          process_sm_iq/3,
          get_local_features/5,
          remove_user/2,
+         remove_user/3,
          set_vcard/3]).
 
 -export([start_link/2]).
@@ -241,7 +242,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 process_local_iq(_From,_To,#iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_local_iq(_From,_To,#iq{type = get, lang = Lang} = IQ) ->
+process_local_iq(_From,_To,#iq{type = get} = IQ) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, ?NS_VCARD}],
                            children = [#xmlel{name = <<"FN">>,
@@ -297,15 +298,20 @@ unsafe_set_vcard(From, VCARD) ->
     {ok, VcardSearch} = prepare_vcard_search_params(FromUser, FromVHost, VCARD),
     ?BACKEND:set_vcard(FromUser, FromVHost, VCARD, VcardSearch).
 
--spec set_vcard(HandlerAcc, From, VCARD) -> Result when
+set_vcard(Acc, From, VCARD) ->
+    H = mongoose_stanza:get(handler, Acc),
+    Nh = do_set_vcard(H, From, VCARD),
+    mongoose_stanza:put(handler, Nh, Acc).
+
+-spec do_set_vcard(HandlerAcc, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
       From :: jid(),
       VCARD :: jlib:xmlel(),
       Result :: ok | error().
-set_vcard(ok, _From, _VCARD) ->
+do_set_vcard(ok, _From, _VCARD) ->
     ?DEBUG("hook call already handled - skipping", []),
     ok;
-set_vcard({error, no_handler_defined}, From, VCARD) ->
+do_set_vcard({error, no_handler_defined}, From, VCARD) ->
     try unsafe_set_vcard(From, VCARD) of
         ok -> ok;
         {error, Reason} ->
@@ -315,22 +321,22 @@ set_vcard({error, no_handler_defined}, From, VCARD) ->
         E:R -> ?ERROR_MSG("unsafe set_vcard failed: ~p", [{E, R}]),
                {error, {E, R}}
     end;
-set_vcard({error, _} = E, _From, _VCARD) -> E.
+do_set_vcard({error, _} = E, _From, _VCARD) -> E.
 
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_features(Acc, _From, _To, Node, _Lang) ->
-    case Node of
+    NFeat = case Node of
         <<>> ->
-            case Acc of
-                {result, Features} ->
-                    {result, [?NS_VCARD | Features]};
-                empty ->
-                    {result, [?NS_VCARD]}
-            end;
+            ?NS_VCARD;
         _ ->
-            Acc
-    end.
+            []
+    end,
+    mongoose_stanza:append(features, NFeat, Acc).
+
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
@@ -405,8 +411,9 @@ do_route(_VHost, From, To, Packet, #iq{type = set,
 do_route(VHost, From, To, _Packet, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
-    Info = ejabberd_hooks:run_fold(disco_info, VHost, [],
-                                   [VHost, ?MODULE, <<"">>, <<"">>]),
+    Stanza = mongoose_stanza:new(),
+    Res = ejabberd_hooks:run_fold(disco_info, VHost, Stanza, [VHost, ?MODULE, "", ""]),
+    Info = mongoose_stanza:get(info, Res, []),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs =[{<<"xmlns">>, ?NS_DISCO_INFO}],
