@@ -730,8 +730,11 @@ adding_wrongly_named_user_triggers_infinite_loop(Config)->
             Username = <<"buggyuser">>,
             escalus:send(Alice, generate_buggy_aff_staza(BuggyRoomName, Username)),
             timer:sleep(300),
-            [SessionRecPid] = rpc(ets, tab2list, [session]),
-            {session, {_, Pid}, _, _, _, _} = SessionRecPid,
+            AUsername = lbin(escalus_users:get_username(Config, alice)),
+            Host = lbin(escalus_users:get_host(Config, alice)),
+            Resource = <<"res1">>,
+            SessionRecPid = rpc(ejabberd_sm, get_session, [AUsername, Host, Resource]),
+            {{AUsername, Host, Resource}, {_, Pid}, _, _} = SessionRecPid,
             %% maybe throws exception
             assert_process_memory_not_growing(Pid, 0, 2),
             escalus:wait_for_stanzas(Alice, 2)
