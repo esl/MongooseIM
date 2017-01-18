@@ -65,7 +65,7 @@
 -include("ejabberd_c2s.hrl").
 -include("jlib.hrl").
 -xep([{xep, 18}, {version, "0.2"}]).
--behaviour(?GEN_FSM).
+-behaviour(p1_fsm_old).
 
 -export_type([broadcast/0]).
 
@@ -80,7 +80,7 @@ start(SockData, Opts) ->
 
 
 start_link(SockData, Opts) ->
-    ?GEN_FSM:start_link(ejabberd_c2s, [SockData, Opts],
+    p1_fsm_old:start_link(ejabberd_c2s, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
 
 socket_type() ->
@@ -89,7 +89,7 @@ socket_type() ->
 
 %% @doc Return Username, Resource and presence information
 get_presence(FsmRef) ->
-    ?GEN_FSM:sync_send_all_state_event(FsmRef, get_presence, 1000).
+    p1_fsm_old:sync_send_all_state_event(FsmRef, get_presence, 1000).
 
 
 -spec get_aux_field(Key :: aux_key(),
@@ -125,10 +125,11 @@ get_subscription(LFrom, StateData) ->
     LBFrom = setelement(3, LFrom, <<>>),
     F = is_subscribed_to_my_presence(LFrom, LBFrom, StateData),
     T = am_i_subscribed_to_presence(LFrom, LBFrom, StateData),
-    if F and T -> both;
-       F -> from;
-       T -> to;
-       true -> none
+    case {F, T} of
+        {true, true} -> both;
+        {true, _} -> from;
+        {_, true} -> to;
+        _ -> none
     end.
 
 send_filtered(FsmRef, Feature, From, To, Packet) ->
@@ -138,7 +139,7 @@ broadcast(FsmRef, Type, From, Packet) ->
     FsmRef ! {broadcast, Type, From, Packet}.
 
 stop(FsmRef) ->
-    ?GEN_FSM:send_event(FsmRef, closed).
+    p1_fsm_old:send_event(FsmRef, closed).
 
 store_session_info(FsmRef, User, Server, Resource, KV) ->
     FsmRef ! {store_session_info, User, Server, Resource, KV, self()}.
@@ -193,13 +194,11 @@ init([{SockMod, Socket}, Opts]) ->
             {stop, normal};
         false ->
             Socket1 =
-            if
-                TLSEnabled ->
-                    SockMod:starttls(Socket, TLSOpts);
-                true ->
-                    Socket
+            case TLSEnabled of
+                true -> mongoose_sockmod:starttls(SockMod, Socket, TLSOpts);
+                false -> Socket
             end,
-            SocketMonitor = SockMod:monitor(Socket1),
+            SocketMonitor = mongoose_sockmod:monitor(SockMod, Socket1),
             {ok, wait_for_stream, #state{server         = ?MYNAME,
                                          socket         = Socket1,
                                          sockmod        = SockMod,
@@ -219,7 +218,7 @@ init([{SockMod, Socket}, Opts]) ->
 
 %% @doc Return list of all available resources of contacts,
 get_subscribed(FsmRef) ->
-    ?GEN_FSM:sync_send_all_state_event(FsmRef, get_subscribed, 1000).
+    p1_fsm_old:sync_send_all_state_event(FsmRef, get_subscribed, 1000).
 
 %%----------------------------------------------------------------------
 %% Func: StateName/2
@@ -282,7 +281,7 @@ c2s_stream_error(Error, StateData) ->
 %% (http://xmpp.org/rfcs/rfc6120.html#streams-negotiation-features)
 stream_start_by_protocol_version(<<"1.0">>, #state{} = S) ->
     stream_start_negotiate_features(S);
-stream_start_by_protocol_version(_Pre_1_0, #state{lang = Lang, server = Server} = S) ->
+stream_start_by_protocol_version(_Pre10, #state{lang = Lang, server = Server} = S) ->
     send_header(S, Server, <<"">>, default_language()),
     case is_tls_required_but_unavailable(S) of
         false ->
@@ -670,9 +669,7 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
             R1 = xml:get_path_s(SubEl, [{elem, <<"resource">>}, cdata]),
             R = case jid:resourceprep(R1) of
                     error -> error;
-                    <<>> ->
-                        list_to_binary(lists:concat(
-                                         [randoms:get_string() | tuple_to_list(now())]));
+                    <<>> -> generate_random_resource();
                     Resource -> Resource
                 end,
             case R of
@@ -682,11 +679,12 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
                     fsm_next_state(wait_for_feature_after_auth, StateData);
                 _ ->
                     JID = jid:make(U, StateData#state.server, R),
+                    JIDEl = #xmlel{name = <<"jid">>,
+                                   children = [#xmlcdata{content = jid:to_binary(JID)}]},
                     Res = IQ#iq{type = result,
                                 sub_el = [#xmlel{name = <<"bind">>,
                                                  attrs = [{<<"xmlns">>, ?NS_BIND}],
-                                                 children = [#xmlel{name = <<"jid">>,
-                                                                    children = [#xmlcdata{content = jid:to_binary(JID)}]}]}]},
+                                                 children = [JIDEl]}]},
                     XmlEl = jlib:iq_to_xml(Res),
                     send_element(StateData, XmlEl),
                     fsm_next_state(wait_for_session_or_sm,
@@ -763,14 +761,14 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
 
     end.
 
-check_compression_auth(_El, NextState, StateData) ->
+check_compression_auth(El, NextState, StateData) ->
     Auth = StateData#state.authenticated,
     case Auth of
         false ->
             send_element(StateData, compress_setup_failed()),
             fsm_next_state(NextState, StateData);
         _ ->
-            check_compression_method(_El, NextState, StateData)
+            check_compression_method(El, NextState, StateData)
     end.
 
 check_compression_method(El, NextState, StateData) ->
@@ -781,9 +779,10 @@ check_compression_method(El, NextState, StateData) ->
         <<"zlib">> ->
             {_, ZlibLimit} = StateData#state.zlib,
             Socket = StateData#state.socket,
-            ZlibSocket = (StateData#state.sockmod):compress(Socket, ZlibLimit,
-                exml:to_binary(compressed())),
-            fsm_next_state(wait_for_stream, StateData#state{socket = ZlibSocket, streamid = new_id()});
+            ZlibSocket
+            = (StateData#state.sockmod):compress(Socket, ZlibLimit, exml:to_binary(compressed())),
+            fsm_next_state(wait_for_stream,
+                           StateData#state{socket = ZlibSocket, streamid = new_id()});
         _ ->
             send_element(StateData, compress_unsupported_method()),
             fsm_next_state(NextState, StateData)
@@ -806,13 +805,11 @@ maybe_open_session(El, #state{jid = JID} = StateData) ->
     end.
 
 do_open_session(El, JID, StateData) ->
-                    ?INFO_MSG("(~w) Opened session for ~s",
-                              [StateData#state.socket,
-                               jid:to_binary(JID)]),
-                    Res = jlib:make_result_iq_reply(El),
-                    Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Res},
-                    {_, _, NewStateData0, _} = send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm),
-    do_open_session_common(JID, NewStateData0).
+    ?INFO_MSG("(~w) Opened session for ~s", [StateData#state.socket, jid:to_binary(JID)]),
+    Res = jlib:make_result_iq_reply(El),
+    Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Res},
+    {_, _, NStateData, _} = send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm),
+    do_open_session_common(JID, NStateData).
 
 do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                     change_shaper(NewStateData0, JID),
@@ -829,7 +826,7 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                       privacy_get_user_list, NewStateData0#state.server,
                       #userlist{},
                       [U, NewStateData0#state.server]),
-                    SID = {now(), self()},
+                    SID = {p1_time_compat:timestamp(), self()},
                     Conn = get_conn_type(NewStateData0),
                     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
                             {auth_module, NewStateData0#state.auth_module}],
@@ -839,8 +836,8 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                     NewStateData0#state{
                       sid = SID,
                       conn = Conn,
-                      pres_f = ?SETS:from_list(Fs1),
-                      pres_t = ?SETS:from_list(Ts1),
+                      pres_f = gb_sets:from_list(Fs1),
+                      pres_t = gb_sets:from_list(Ts1),
                       pending_invitations = Pending,
                       privacy_list = PrivList},
                     fsm_next_state_pack(session_established,
@@ -896,7 +893,7 @@ session_established({xmlstreamelement, El}, StateData) ->
 session_established(timeout, StateData) ->
     %% TODO: Options must be stored in state:
     Options = [],
-    proc_lib:hibernate(?GEN_FSM, enter_loop,
+    proc_lib:hibernate(p1_fsm_old, enter_loop,
                        [?MODULE, Options, session_established, StateData]),
     fsm_next_state(session_established, StateData);
 session_established({xmlstreamend, _Name}, StateData) ->
@@ -941,9 +938,9 @@ process_outgoing_stanza(El, StateData) ->
                 _ ->
                     NewEl1
             end,
-    NewState = process_outgoing_stanza(ToJID, Name, {Attrs, NewEl, FromJID, StateData, Server, User}),
+    NState = process_outgoing_stanza(ToJID, Name, {Attrs, NewEl, FromJID, StateData, Server, User}),
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
-    fsm_next_state(session_established, NewState).
+    fsm_next_state(session_established, NState).
 
 
 process_outgoing_stanza(error, _Name, Args) ->
@@ -1080,7 +1077,7 @@ handle_sync_event(get_presence, _From, StateName, StateData) ->
     Reply = {User, Resource, Show, Status},
     fsm_reply(Reply, StateName, StateData);
 handle_sync_event(get_subscribed, _From, StateName, StateData) ->
-    Subscribed = ?SETS:to_list(StateData#state.pres_f),
+    Subscribed = gb_sets:to_list(StateData#state.pres_f),
     {reply, Subscribed, StateName, StateData};
 handle_sync_event(_Event, _From, StateName, StateData) ->
     Reply = ok,
@@ -1154,39 +1151,31 @@ handle_info({force_update_presence, LUser}, StateName,
     {next_state, StateName, NewStateData};
 handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
-				   true, [StateData#state.server, StateData,
-					  Feature, To, Packet]),
-    case Drop of
-        true ->
+                                   true, [StateData#state.server, StateData,
+                                          Feature, To, Packet]),
+    case {Drop, StateData#state.jid} of
+        {true, _} ->
             ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]),
             fsm_next_state(StateName, StateData);
+        {_, To} ->
+            FinalPacket = jlib:replace_from_to(From, To, Packet),
+            case privacy_check_packet(StateData, From, To, FinalPacket, in) of
+                allow ->
+                    send_and_maybe_buffer_stanza({From, To, FinalPacket}, StateData, StateName);
+                _ ->
+                    fsm_next_state(StateName, StateData)
+            end;
         _ ->
             FinalPacket = jlib:replace_from_to(From, To, Packet),
-            case StateData#state.jid of
-                To ->
-                    case privacy_check_packet(StateData, From, To, FinalPacket, in) of
-                        allow ->
-                            send_and_maybe_buffer_stanza(
-                                {From, To, FinalPacket},
-                                StateData, StateName);
-                        _ ->
-                            fsm_next_state(StateName, StateData)
-                    end;
-                _ ->
-                    ejabberd_router:route(From, To, FinalPacket),
-                    fsm_next_state(StateName, StateData)
-            end
+            ejabberd_router:route(From, To, FinalPacket),
+            fsm_next_state(StateName, StateData)
     end;
 handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
     Recipients = ejabberd_hooks:run_fold(
-		   c2s_broadcast_recipients, StateData#state.server,
-		   [],
-		   [StateData#state.server, StateData, Type, From, Packet]),
-    lists:foreach(
-      fun(USR) ->
-	      ejabberd_router:route(
-		From, jid:make(USR), Packet)
-      end, lists:usort(Recipients)),
+                   c2s_broadcast_recipients, StateData#state.server,
+                   [], [StateData#state.server, StateData, Type, From, Packet]),
+    lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
+                  lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);
 handle_info(resume_timeout, resume_session, StateData) ->
     {stop, normal, StateData};
@@ -1274,38 +1263,49 @@ handle_routed(<<"message">>, From, To, Packet, StateData) ->
 handle_routed(_, _From, _To, Packet, StateData) ->
     {true, Packet#xmlel.attrs, StateData}.
 
-handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
-    case jlib:iq_query_info(Packet) of
-        %% TODO: Support for mod_last / XEP-0012. Can we move it to the respective module?
-        %%   Thanks to add_iq_handler(ejabberd_sm, ...)?
-        #iq{xmlns = ?NS_LAST} ->
-            HasFromSub = ( is_subscribed_to_my_presence(From, StateData)
-                           andalso is_privacy_allow(StateData, To, From,
-                                                    #xmlel{name = <<"presence">>}, out) ),
-            case HasFromSub of
-                true ->
-                    case privacy_check_packet(StateData, From, To, Packet, in) of
-                        allow ->
-                            {allow, Attrs, StateData};
-                        _ ->
-                            {deny, Attrs, StateData}
-                    end;
-                _ ->
-                    {forbidden, Attrs, StateData}
-            end;
-        IQ when (is_record(IQ, iq)) or (IQ == reply) ->
+-spec handle_routed_iq(From :: ejabberd:jid(),
+                       To :: ejabberd:jid(),
+                       Packet :: exml:element(),
+                       StateData :: state()) -> routing_result().
+handle_routed_iq(From, To, Packet, StateData) ->
+    handle_routed_iq(From, To, Packet, jlib:iq_query_info(Packet), StateData).
+
+-spec handle_routed_iq(From :: ejabberd:jid(),
+                       To :: ejabberd:jid(),
+                       Packet :: exml:element(),
+                       IQ :: invalid | not_iq | reply | ejabberd:iq(),
+                       StateData :: state()) -> routing_result().
+handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, #iq{ xmlns = ?NS_LAST }, StateData) ->
+    %% TODO: Support for mod_last / XEP-0012. Can we move it to the respective module?
+    %%   Thanks to add_iq_handler(ejabberd_sm, ...)?
+    HasFromSub = ( is_subscribed_to_my_presence(From, StateData)
+                   andalso is_privacy_allow(StateData, To, From,
+                                            #xmlel{name = <<"presence">>}, out) ),
+    case HasFromSub of
+        true ->
             case privacy_check_packet(StateData, From, To, Packet, in) of
                 allow ->
                     {allow, Attrs, StateData};
-                deny when is_record(IQ, iq) ->
-                    {deny, Attrs, StateData};
-                deny when IQ == reply ->
-                    %% ???
+                _ ->
                     {deny, Attrs, StateData}
             end;
-        IQ when (IQ == invalid) or (IQ == not_iq) ->
-            {invalid, Attrs, StateData}
-    end.
+        _ ->
+            {forbidden, Attrs, StateData}
+    end;
+handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, IQ, StateData)
+  when (is_record(IQ, iq)) orelse (IQ == reply) ->
+    case privacy_check_packet(StateData, From, To, Packet, in) of
+        allow ->
+            {allow, Attrs, StateData};
+        deny when is_record(IQ, iq) ->
+            {deny, Attrs, StateData};
+        deny when IQ == reply ->
+            %% ???
+            {deny, Attrs, StateData}
+    end;
+handle_routed_iq(_From, _To, #xmlel{attrs = Attrs}, IQ, StateData)
+  when (IQ == invalid) or (IQ == not_iq) ->
+    {invalid, Attrs, StateData}.
 
 -spec handle_routed_broadcast(Broadcast :: broadcast_type(), StateData :: state()) ->
     broadcast_result().
@@ -1333,7 +1333,8 @@ handle_routed_broadcast({blocking, UserList, Action, JIDs}, StateData) ->
 handle_routed_broadcast(_, StateData) ->
     {new_state, StateData}.
 
--spec handle_broadcast_result(broadcast_result(), StateName :: atom(), StateData :: state()) -> any().
+-spec handle_broadcast_result(broadcast_result(), StateName :: atom(), StateData :: state()) ->
+    any().
 handle_broadcast_result({exit, ErrorMessage}, _StateName, StateData) ->
     Lang = StateData#state.lang,
     send_element(StateData, ?SERRT_CONFLICT(Lang, ErrorMessage)),
@@ -1367,7 +1368,7 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
             process_presence_probe(From, To, NewState),
             {probe, Attrs, NewState};
         <<"error">> ->
-            NewA = ?SETS:del_element(jid:to_lower(From), State#state.pres_a),
+            NewA = gb_sets:del_element(jid:to_lower(From), State#state.pres_a),
             {allow, Attrs, State#state{pres_a = NewA}};
         <<"invisible">> ->
             Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
@@ -1385,32 +1386,39 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
             SRes = privacy_check_packet(State, From, To, Packet, in),
             {SRes, Attrs, State};
         _ ->
-            case privacy_check_packet(State, From, To, Packet, in) of
-                allow ->
-                    {LFrom, LBFrom} = lowcase_and_bare(From),
-                    case am_i_available_to(LFrom, LBFrom, State) of
-                        true -> {allow, Attrs, State};
-                        false -> {allow, Attrs, make_available_to(LFrom, LBFrom, State)}
-                    end;
-                _ ->
-                    {deny, Attrs, State}
-            end
+            handle_routed_available_presence(State, From, To, Packet)
+    end.
+
+-spec handle_routed_available_presence(State :: state(),
+                                       From :: ejabberd:jid(),
+                                       To :: ejabberd:jid(),
+                                       Packet :: exml:element()) -> routing_result().
+handle_routed_available_presence(State, From, To, #xmlel{ attrs = Attrs } = Packet) ->
+    case privacy_check_packet(State, From, To, Packet, in) of
+        allow ->
+            {LFrom, LBFrom} = lowcase_and_bare(From),
+            case am_i_available_to(LFrom, LBFrom, State) of
+                true -> {allow, Attrs, State};
+                false -> {allow, Attrs, make_available_to(LFrom, LBFrom, State)}
+            end;
+        _ ->
+            {deny, Attrs, State}
     end.
 
 am_i_available_to(LFrom, LBFrom, State) ->
-    ?SETS:is_element(LFrom, State#state.pres_a)
+    gb_sets:is_element(LFrom, State#state.pres_a)
     orelse (LFrom /= LBFrom)
-    andalso ?SETS:is_element(LBFrom, State#state.pres_a).
+    andalso gb_sets:is_element(LBFrom, State#state.pres_a).
 
 make_available_to(LFrom, LBFrom, State) ->
-    case ?SETS:is_element(LFrom, State#state.pres_f) of
+    case gb_sets:is_element(LFrom, State#state.pres_f) of
         true ->
-            A = ?SETS:add_element(LFrom, State#state.pres_a),
+            A = gb_sets:add_element(LFrom, State#state.pres_a),
             State#state{pres_a = A};
         false ->
-            case ?SETS:is_element(LBFrom, State#state.pres_f) of
+            case gb_sets:is_element(LBFrom, State#state.pres_f) of
                 true ->
-                    A = ?SETS:add_element(LBFrom, State#state.pres_a),
+                    A = gb_sets:add_element(LBFrom, State#state.pres_a),
                     State#state{pres_a = A};
                 false ->
                     State
@@ -1424,10 +1432,10 @@ make_available_to(LFrom, LBFrom, State) ->
 %%----------------------------------------------------------------------
 -spec print_state(state()) -> state().
 print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
-    State#state{pres_t = {pres_t, ?SETS:size(T)},
-                pres_f = {pres_f, ?SETS:size(F)},
-                pres_a = {pres_a, ?SETS:size(A)},
-                pres_i = {pres_i, ?SETS:size(I)}
+    State#state{pres_t = {pres_t, gb_sets:size(T)},
+                pres_f = {pres_f, gb_sets:size(F)},
+                pres_a = {pres_a, gb_sets:size(A)},
+                pres_i = {pres_i, gb_sets:size(I)}
                }.
 
 %%----------------------------------------------------------------------
@@ -1437,82 +1445,80 @@ print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
 %%----------------------------------------------------------------------
 -spec terminate(Reason :: any(), statename(), state()) -> ok.
 terminate(_Reason, StateName, StateData) ->
-    case  should_close_session(StateName) of
+    case {should_close_session(StateName), StateData#state.authenticated} of
+        {false, _} ->
+            ok;
         %% if we are in an state wich have a session established
-        true->
-            case StateData#state.authenticated of
-                replaced ->
-                    ?INFO_MSG("(~w) Replaced session for ~s",
-                              [StateData#state.socket,
-                               jid:to_binary(StateData#state.jid)]),
+        {_, replaced} ->
+            ?INFO_MSG("(~w) Replaced session for ~s",
+                      [StateData#state.socket,
+                       jid:to_binary(StateData#state.jid)]),
+            From = StateData#state.jid,
+            StatusEl = #xmlel{name = <<"status">>,
+                              children = [#xmlcdata{content = <<"Replaced by new connection">>}]},
+            Packet = #xmlel{name = <<"presence">>,
+                            attrs = [{<<"type">>, <<"unavailable">>}],
+                            children = [StatusEl]},
+            ejabberd_sm:close_session_unset_presence(
+              StateData#state.sid,
+              StateData#state.user,
+              StateData#state.server,
+              StateData#state.resource,
+              <<"Replaced by new connection">>,
+              replaced),
+            presence_broadcast(
+              StateData, From, StateData#state.pres_a, Packet),
+            presence_broadcast(
+              StateData, From, StateData#state.pres_i, Packet),
+            reroute_unacked_messages(StateData);
+        {_, resumed} ->
+            ?INFO_MSG("(~w) Stream ~p resumed for ~s",
+                      [StateData#state.socket,
+                       StateData#state.stream_mgmt_id,
+                       jid:to_binary(StateData#state.jid)]);
+        _ ->
+            ?INFO_MSG("(~w) Close session for ~s",
+                      [StateData#state.socket,
+                       jid:to_binary(StateData#state.jid)]),
+
+            EmptySet = gb_sets:new(),
+            case StateData of
+                #state{pres_last = undefined,
+                       pres_a = EmptySet,
+                       pres_i = EmptySet,
+                       pres_invis = false} ->
+                    ejabberd_sm:close_session(StateData#state.sid,
+                                              StateData#state.user,
+                                              StateData#state.server,
+                                              StateData#state.resource,
+                                              normal);
+                _ ->
                     From = StateData#state.jid,
                     Packet = #xmlel{name = <<"presence">>,
-                                    attrs = [{<<"type">>, <<"unavailable">>}],
-                                    children = [#xmlel{name = <<"status">>,
-                                                       children = [#xmlcdata{content = <<"Replaced by new connection">>}]}]},
+                                    attrs = [{<<"type">>, <<"unavailable">>}]},
                     ejabberd_sm:close_session_unset_presence(
                       StateData#state.sid,
                       StateData#state.user,
                       StateData#state.server,
                       StateData#state.resource,
-                      <<"Replaced by new connection">>,
-                      replaced),
+                      <<"">>,
+                      normal),
                     presence_broadcast(
                       StateData, From, StateData#state.pres_a, Packet),
                     presence_broadcast(
-                      StateData, From, StateData#state.pres_i, Packet);
-                resumed ->
-                    ?INFO_MSG("(~w) Stream ~p resumed for ~s",
-                              [StateData#state.socket,
-                               StateData#state.stream_mgmt_id,
-                               jid:to_binary(StateData#state.jid)]);
-                _ ->
-                    ?INFO_MSG("(~w) Close session for ~s",
-                              [StateData#state.socket,
-                               jid:to_binary(StateData#state.jid)]),
-
-                    EmptySet = ?SETS:new(),
-                    case StateData of
-                        #state{pres_last = undefined,
-                               pres_a = EmptySet,
-                               pres_i = EmptySet,
-                               pres_invis = false} ->
-                            ejabberd_sm:close_session(StateData#state.sid,
-                                                      StateData#state.user,
-                                                      StateData#state.server,
-                                                      StateData#state.resource,
-                                                      normal);
-                        _ ->
-                            From = StateData#state.jid,
-                            Packet = #xmlel{name = <<"presence">>,
-                                            attrs = [{<<"type">>, <<"unavailable">>}]},
-                            ejabberd_sm:close_session_unset_presence(
-                              StateData#state.sid,
-                              StateData#state.user,
-                              StateData#state.server,
-                              StateData#state.resource,
-                              <<"">>,
-                              normal),
-                            presence_broadcast(
-                              StateData, From, StateData#state.pres_a, Packet),
-                            presence_broadcast(
-                              StateData, From, StateData#state.pres_i, Packet)
-                    end
+                      StateData, From, StateData#state.pres_i, Packet)
             end,
-            if
-                StateData#state.authenticated =/= resumed ->
-                    ?DEBUG("rerouting unacked messages", []),
-                    flush_stream_mgmt_buffer(StateData),
-                    bounce_csi_buffer(StateData),
-                    bounce_messages();
-                true ->
-                    ok
-            end;
-        false ->
-            ok
+            reroute_unacked_messages(StateData)
     end,
     (StateData#state.sockmod):close(StateData#state.socket),
     ok.
+
+-spec reroute_unacked_messages(StateData :: state()) -> any().
+reroute_unacked_messages(StateData) ->
+    ?DEBUG("rerouting unacked messages", []),
+    flush_stream_mgmt_buffer(StateData),
+    bounce_csi_buffer(StateData),
+    bounce_messages().
 
 %%%----------------------------------------------------------------------
 %%% Internal functions
@@ -1520,6 +1526,12 @@ terminate(_Reason, StateName, StateData) ->
 should_close_session(resume_session) -> true;
 should_close_session(session_established) -> true;
 should_close_session(_) -> false.
+
+-spec generate_random_resource() -> ejabberd:lresource().
+generate_random_resource() ->
+    list_to_binary(
+      lists:concat(
+        [randoms:get_string() | tuple_to_list(p1_time_compat:timestamp())])).
 
 -spec change_shaper(state(), ejabberd:jid()) -> any().
 change_shaper(StateData, JID) ->
@@ -1546,13 +1558,10 @@ maybe_send_element_safe(State, El) ->
 
 send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
   when StateData#state.xml_socket ->
-    ejabberd_hooks:run(xmpp_send_element,
-                       Server, [Server, El]),
-    SockMod:send_xml(StateData#state.socket,
-                     {xmlstreamelement, El});
+    ejabberd_hooks:run(xmpp_send_element, Server, [Server, El]),
+    mongoose_sockmod:send_xml(SockMod, StateData#state.socket, {xmlstreamelement, El});
 send_element(#state{server = Server} = StateData, El) ->
-    ejabberd_hooks:run(xmpp_send_element,
-                       Server, [Server, El]),
+    ejabberd_hooks:run(xmpp_send_element, Server, [Server, El]),
     send_text(StateData, exml:to_binary(El)).
 
 
@@ -1619,7 +1628,8 @@ send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
                     fsm_next_state(StateName, BufferedStateData);
                 _ ->
                     ?DEBUG("Send ack request error: ~p, try enter resume session", [SendResult]),
-                    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+                    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id,
+                                               BufferedStateData)
             end;
         _ ->
             ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
@@ -1709,27 +1719,34 @@ process_presence_probe(From, To, StateData) ->
                                StateData#state.pres_last,
                                %% To is the one sending the presence (the target of the probe)
                                [jlib:timestamp_to_xml(Timestamp, utc, To, <<>>)]),
-                    case privacy_check_packet(StateData, To, From, Packet, out) of
-                        allow ->
-                            Pid = element(2, StateData#state.sid),
-                            ejabberd_hooks:run(presence_probe_hook,
-                                               StateData#state.server,
-                                               [From, To, Pid]),
-                            %% Don't route a presence probe to oneself
-                            case jid:are_equal(From, To) of
-                                false ->
-                                    ejabberd_router:route(To, From, Packet);
-                                true ->
-                                    ok
-                            end;
-                        _ ->
-                            ok
-                    end;
+                    check_privacy_and_route_probe(StateData, From, To, Packet);
                 {false, true} ->
                     ejabberd_router:route(To, From, #xmlel{name = <<"presence">>});
                 _ ->
                     ok
             end
+    end.
+
+-spec check_privacy_and_route_probe(StateData :: state(),
+                                    From :: ejabberd:jid(),
+                                    To :: ejabberd:jid(),
+                                    Packet :: exml:element()) -> any().
+check_privacy_and_route_probe(StateData, From, To, Packet) ->
+    case privacy_check_packet(StateData, To, From, Packet, out) of
+        allow ->
+            Pid = element(2, StateData#state.sid),
+            ejabberd_hooks:run(presence_probe_hook,
+                               StateData#state.server,
+                               [From, To, Pid]),
+            %% Don't route a presence probe to oneself
+            case jid:are_equal(From, To) of
+                false ->
+                    ejabberd_router:route(To, From, Packet);
+                true ->
+                    ok
+            end;
+        _ ->
+            ok
     end.
 
 should_retransmit_last_presence(LFrom, LBareFrom,
@@ -1743,29 +1760,29 @@ is_subscribed_to_my_presence(JID, S) ->
     is_subscribed_to_my_presence(Lowcase, Bare, S).
 
 is_subscribed_to_my_presence(LFrom, LBareFrom, S) ->
-    ?SETS:is_element(LFrom, S#state.pres_f)
+    gb_sets:is_element(LFrom, S#state.pres_f)
     orelse (LFrom /= LBareFrom)
-    andalso ?SETS:is_element(LBareFrom, S#state.pres_f).
+    andalso gb_sets:is_element(LBareFrom, S#state.pres_f).
 
 am_i_subscribed_to_presence(LJID, LBareJID, S) ->
-    ?SETS:is_element(LJID, S#state.pres_t)
+    gb_sets:is_element(LJID, S#state.pres_t)
     orelse (LJID /= LBareJID)
-    andalso ?SETS:is_element(LBareJID, S#state.pres_t).
+    andalso gb_sets:is_element(LBareJID, S#state.pres_t).
 
 lowcase_and_bare(JID) ->
     LJID = jid:to_lower(JID),
     { LJID, jid:to_bare(LJID)}.
 
 invisible_to(LFrom, LBareFrom, S) ->
-    ?SETS:is_element(LFrom, S#state.pres_i)
+    gb_sets:is_element(LFrom, S#state.pres_i)
     orelse (LFrom /= LBareFrom)
-    andalso ?SETS:is_element(LBareFrom, S#state.pres_i).
+    andalso gb_sets:is_element(LBareFrom, S#state.pres_i).
 
 %% @doc Is generally invisible, but visible to a particular resource?
 specifically_visible_to(LFrom, #state{pres_invis = Invisible} = S) ->
     Invisible
-    andalso ?SETS:is_element(LFrom, S#state.pres_f)
-    andalso ?SETS:is_element(LFrom, S#state.pres_a).
+    andalso gb_sets:is_element(LFrom, S#state.pres_f)
+    andalso gb_sets:is_element(LFrom, S#state.pres_a).
 
 %% @doc User updates his presence (non-directed presence packet)
 -spec presence_update(From :: 'undefined' | ejabberd:jid(),
@@ -1793,15 +1810,15 @@ presence_update(From, Packet, StateData) ->
             presence_broadcast(StateData, From, StateData#state.pres_i, Packet),
             StateData#state{pres_last = undefined,
                             pres_timestamp = undefined,
-                            pres_a = ?SETS:new(),
-                            pres_i = ?SETS:new(),
+                            pres_a = gb_sets:new(),
+                            pres_i = gb_sets:new(),
                             pres_invis = false};
         <<"invisible">> ->
             NewPriority = get_priority_from_presence(Packet),
             update_priority(NewPriority, Packet, StateData),
             NewState =
-            if
-                not StateData#state.pres_invis ->
+            case StateData#state.pres_invis of
+                false ->
                     presence_broadcast(StateData, From,
                                        StateData#state.pres_a,
                                        Packet),
@@ -1810,8 +1827,8 @@ presence_update(From, Packet, StateData) ->
                                        Packet),
                     S1 = StateData#state{pres_last = undefined,
                                          pres_timestamp = undefined,
-                                         pres_a = ?SETS:new(),
-                                         pres_i = ?SETS:new(),
+                                         pres_a = gb_sets:new(),
+                                         pres_i = gb_sets:new(),
                                          pres_invis = true},
                     presence_broadcast_first(From, S1, Packet);
                 true ->
@@ -1831,54 +1848,62 @@ presence_update(From, Packet, StateData) ->
         <<"unsubscribed">> ->
             StateData;
         _ ->
-            OldPriority = case StateData#state.pres_last of
-                              undefined ->
-                                  0;
-                              OldPresence ->
-                                  get_priority_from_presence(OldPresence)
-                          end,
-            NewPriority = get_priority_from_presence(Packet),
-            Timestamp = calendar:now_to_universal_time(os:timestamp()),
-            update_priority(NewPriority, Packet, StateData),
-            FromUnavail = (StateData#state.pres_last == undefined) or
-            StateData#state.pres_invis,
-            ?DEBUG("from unavail = ~p~n", [FromUnavail]),
-
-            NewStateData = StateData#state{pres_last = Packet,
-                                           pres_invis = false,
-                                           pres_timestamp = Timestamp},
-            if
-                FromUnavail ->
-                    ejabberd_hooks:run(user_available_hook,
-                                       NewStateData#state.server,
-                                       [NewStateData#state.jid]),
-                    NewStateData1 = if NewPriority >= 0 ->
-                                           {_, _, Pending} = ejabberd_hooks:run_fold(
-                                                               roster_get_subscription_lists,
-                                                               NewStateData#state.server,
-                                                               {[], [], []},
-                                                               [StateData#state.user, NewStateData#state.server]),
-                                           resend_offline_messages(NewStateData),
-                                           resend_subscription_requests(NewStateData#state{pending_invitations = Pending});
-                                       true ->
-                                           NewStateData
-                                    end,
-                    presence_broadcast_first(From, NewStateData1, Packet);
-                true ->
-                    presence_broadcast_to_trusted(NewStateData,
-                                                  From,
-                                                  NewStateData#state.pres_f,
-                                                  NewStateData#state.pres_a,
-                                                  Packet),
-                    if OldPriority < 0, NewPriority >= 0 ->
-                           resend_offline_messages(NewStateData);
-                       true ->
-                           ok
-                    end,
-                    NewStateData
-            end
+            presence_update_to_available(StateData, From, Packet)
     end.
 
+-spec presence_update_to_available(
+        StateData :: state(), From :: ejabberd:jid(), Packet :: exml:element()) -> state().
+presence_update_to_available(StateData, From, Packet) ->
+    OldPriority = case StateData#state.pres_last of
+                      undefined ->
+                          0;
+                      OldPresence ->
+                          get_priority_from_presence(OldPresence)
+                  end,
+    NewPriority = get_priority_from_presence(Packet),
+    Timestamp = calendar:now_to_universal_time(os:timestamp()),
+    update_priority(NewPriority, Packet, StateData),
+
+    NewStateData = StateData#state{pres_last = Packet,
+                                   pres_invis = false,
+                                   pres_timestamp = Timestamp},
+
+    FromUnavail = (StateData#state.pres_last == undefined) or StateData#state.pres_invis,
+    ?DEBUG("from unavail = ~p~n", [FromUnavail]),
+    case FromUnavail of
+        true ->
+            ejabberd_hooks:run(user_available_hook,
+                               NewStateData#state.server,
+                               [NewStateData#state.jid]),
+            NewStateData1
+            = case NewPriority >= 0 of
+                  true ->
+                      {_, _, Pending} = ejabberd_hooks:run_fold(
+                                          roster_get_subscription_lists,
+                                          NewStateData#state.server,
+                                          {[], [], []},
+                                          [StateData#state.user, NewStateData#state.server]),
+                      resend_offline_messages(NewStateData),
+                      resend_subscription_requests(NewStateData#state{
+                                                     pending_invitations = Pending});
+                  false ->
+                      NewStateData
+              end,
+            presence_broadcast_first(From, NewStateData1, Packet);
+        false ->
+            presence_broadcast_to_trusted(NewStateData,
+                                          From,
+                                          NewStateData#state.pres_f,
+                                          NewStateData#state.pres_a,
+                                          Packet),
+            case OldPriority < 0 andalso NewPriority >= 0 of
+                true ->
+                    resend_offline_messages(NewStateData);
+                false ->
+                    ok
+            end,
+            NewStateData
+    end.
 
 %% @doc User sends a directed presence packet
 -spec presence_track(From :: ejabberd:jid(),
@@ -1893,14 +1918,14 @@ presence_track(From, To, Packet, StateData) ->
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"unavailable">> ->
             check_privacy_and_route(From, StateData, From, To, Packet),
-            I = ?SETS:del_element(LTo, StateData#state.pres_i),
-            A = ?SETS:del_element(LTo, StateData#state.pres_a),
+            I = gb_sets:del_element(LTo, StateData#state.pres_i),
+            A = gb_sets:del_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
                             pres_a = A};
         <<"invisible">> ->
             check_privacy_and_route(From, StateData, From, To, Packet),
-            I = ?SETS:add_element(LTo, StateData#state.pres_i),
-            A = ?SETS:del_element(LTo, StateData#state.pres_a),
+            I = gb_sets:add_element(LTo, StateData#state.pres_i),
+            A = gb_sets:del_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
                             pres_a = A};
         <<"subscribe">> ->
@@ -1939,8 +1964,8 @@ presence_track(From, To, Packet, StateData) ->
             StateData;
         _ ->
             check_privacy_and_route(From, StateData, From, To, Packet),
-            I = ?SETS:del_element(LTo, StateData#state.pres_i),
-            A = ?SETS:add_element(LTo, StateData#state.pres_a),
+            I = gb_sets:del_element(LTo, StateData#state.pres_i),
+            A = gb_sets:add_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
                             pres_a = A}
     end.
@@ -2008,7 +2033,7 @@ presence_broadcast(StateData, From, JIDSet, Packet) ->
                               _ ->
                                   ok
                           end
-                  end, ?SETS:to_list(JIDSet)).
+                  end, gb_sets:to_list(JIDSet)).
 
 
 -spec presence_broadcast_to_trusted(State :: state(),
@@ -2019,26 +2044,21 @@ presence_broadcast(StateData, From, JIDSet, Packet) ->
 presence_broadcast_to_trusted(StateData, From, T, A, Packet) ->
     lists:foreach(
       fun(JID) ->
-              case ?SETS:is_element(JID, T) of
+              case gb_sets:is_element(JID, T) of
                   true ->
                       FJID = jid:make(JID),
-                      case privacy_check_packet(StateData, From, FJID, Packet, out) of
-                          allow ->
-                              ejabberd_router:route(From, FJID, Packet);
-                          _ ->
-                              ok
-                      end;
+                      check_privacy_and_route_or_ignore(StateData, From, FJID, Packet, out);
                   _ ->
                       ok
               end
-      end, ?SETS:to_list(A)).
+      end, gb_sets:to_list(A)).
 
 
 -spec presence_broadcast_first(From :: 'undefined' | ejabberd:jid(),
                                State :: state(),
                                Packet :: jlib:xmlel()) -> state().
 presence_broadcast_first(From, StateData, Packet) ->
-    ?SETS:fold(fun(JID, X) ->
+    gb_sets:fold(fun(JID, X) ->
                        ejabberd_router:route(
                          From,
                          jid:make(JID),
@@ -2048,23 +2068,18 @@ presence_broadcast_first(From, StateData, Packet) ->
                end,
                [],
                StateData#state.pres_t),
-    if
-        StateData#state.pres_invis ->
-            StateData;
+    case StateData#state.pres_invis of
         true ->
-            As = ?SETS:fold(
-                    fun(JID, A) ->
-                            FJID = jid:make(JID),
-                            case privacy_check_packet(StateData, From, FJID, Packet, out) of
-                                allow ->
-                                    ejabberd_router:route(From, FJID, Packet);
-                                _ ->
-                                    ok
-                            end,
-                            ?SETS:add_element(JID, A)
-                    end,
-                    StateData#state.pres_a,
-                    StateData#state.pres_f),
+            StateData;
+        false ->
+            As = gb_sets:fold(
+                   fun(JID, A) ->
+                           FJID = jid:make(JID),
+                           check_privacy_and_route_or_ignore(StateData, From, FJID, Packet, out),
+                           gb_sets:add_element(JID, A)
+                   end,
+                   StateData#state.pres_a,
+                   StateData#state.pres_f),
             StateData#state{pres_a = As}
     end.
 
@@ -2073,20 +2088,20 @@ presence_broadcast_first(From, StateData, Packet) ->
                     State :: state()) -> state().
 roster_change(IJID, ISubscription, StateData) ->
     LIJID = jid:to_lower(IJID),
-    IsFrom = (ISubscription == both) or (ISubscription == from),
-    IsTo   = (ISubscription == both) or (ISubscription == to),
-    OldIsFrom = ?SETS:is_element(LIJID, StateData#state.pres_f),
-    FSet = if
-               IsFrom ->
-                   ?SETS:add_element(LIJID, StateData#state.pres_f);
+    IsSubscribedToMe = (ISubscription == both) or (ISubscription == from),
+    AmISubscribedTo = (ISubscription == both) or (ISubscription == to),
+    WasSubscribedToMe = gb_sets:is_element(LIJID, StateData#state.pres_f),
+    FSet = case IsSubscribedToMe of
                true ->
-                   ?SETS:del_element(LIJID, StateData#state.pres_f)
+                   gb_sets:add_element(LIJID, StateData#state.pres_f);
+               false ->
+                   gb_sets:del_element(LIJID, StateData#state.pres_f)
            end,
-    TSet = if
-               IsTo ->
-                   ?SETS:add_element(LIJID, StateData#state.pres_t);
+    TSet = case AmISubscribedTo of
                true ->
-                   ?SETS:del_element(LIJID, StateData#state.pres_t)
+                   gb_sets:add_element(LIJID, StateData#state.pres_t);
+               false ->
+                   gb_sets:del_element(LIJID, StateData#state.pres_t)
            end,
     case StateData#state.pres_last of
         undefined ->
@@ -2095,44 +2110,35 @@ roster_change(IJID, ISubscription, StateData) ->
             ?DEBUG("roster changed for ~p~n", [StateData#state.user]),
             From = StateData#state.jid,
             To = jid:make(IJID),
-            Cond1 = ( (not StateData#state.pres_invis) and IsFrom
-                      and (not OldIsFrom) ),
-            Cond2 = ( (not IsFrom) and OldIsFrom
-                      and (?SETS:is_element(LIJID, StateData#state.pres_a) or
-                           ?SETS:is_element(LIJID, StateData#state.pres_i)) ),
-            if
-                Cond1 ->
-                    ?DEBUG("C1: ~p~n", [LIJID]),
-                    case privacy_check_packet(StateData, From, To, P, out) of
-                        allow ->
-                            ejabberd_router:route(From, To, P);
-                        _ ->
-                            ok
-                    end,
-                    A = ?SETS:add_element(LIJID,
+            IsntInvisible = not StateData#state.pres_invis,
+            ImAvailableTo = gb_sets:is_element(LIJID, StateData#state.pres_a),
+            ImInvisibleTo = gb_sets:is_element(LIJID, StateData#state.pres_i),
+            BecomeAvailable = IsntInvisible and IsSubscribedToMe and not WasSubscribedToMe,
+            BecomeUnavailable = not IsSubscribedToMe and WasSubscribedToMe
+                                and (ImAvailableTo or ImInvisibleTo),
+            case {BecomeAvailable, BecomeUnavailable} of
+                {true, _} ->
+                    ?DEBUG("become_available_to: ~p~n", [LIJID]),
+                    check_privacy_and_route_or_ignore(StateData, From, To, P, out),
+                    A = gb_sets:add_element(LIJID,
                                           StateData#state.pres_a),
                     StateData#state{pres_a = A,
                                     pres_f = FSet,
                                     pres_t = TSet};
-                Cond2 ->
-                    ?DEBUG("C2: ~p~n", [LIJID]),
+                {_, true} ->
+                    ?DEBUG("become_unavailable_to: ~p~n", [LIJID]),
                     PU = #xmlel{name = <<"presence">>,
                                 attrs = [{<<"type">>, <<"unavailable">>}]},
-                    case privacy_check_packet(StateData, From, To, PU, out) of
-                        allow ->
-                            ejabberd_router:route(From, To, PU);
-                        _ ->
-                            ok
-                    end,
-                    I = ?SETS:del_element(LIJID,
+                    check_privacy_and_route_or_ignore(StateData, From, To, PU, out),
+                    I = gb_sets:del_element(LIJID,
                                        StateData#state.pres_i),
-                    A = ?SETS:del_element(LIJID,
+                    A = gb_sets:del_element(LIJID,
                                        StateData#state.pres_a),
                     StateData#state{pres_i = I,
                                     pres_a = A,
                                     pres_f = FSet,
                                     pres_t = TSet};
-                true ->
+                _ ->
                     StateData#state{pres_f = FSet, pres_t = TSet}
             end
     end.
@@ -2212,38 +2218,36 @@ resend_offline_messages(StateData) ->
     ?DEBUG("resend offline messages~n", []),
     case ejabberd_hooks:run_fold(
            resend_offline_messages_hook, StateData#state.server,
-           [],
-           [StateData#state.user, StateData#state.server]) of
+           [], [StateData#state.user, StateData#state.server]) of
         Rs when is_list(Rs) ->
             lists:foreach(
-              fun({route,
-                   From, To, #xmlel{} = Packet}) ->
-                      Pass = case privacy_check_packet(StateData, From, To, Packet, in) of
-                                 allow ->
-                                     true;
-                                 _ ->
-                                     false
-                             end,
-                      if
-                          Pass ->
-                              ejabberd_router:route(From, To, Packet);
-                          true ->
-                              ok
-                      end
+              fun({route, From, To, #xmlel{} = Packet}) ->
+                      check_privacy_and_route_or_ignore(StateData, From, To, Packet, in)
               end, Rs)
     end.
 
+-spec check_privacy_and_route_or_ignore(StateData :: state(),
+                                        From :: ejabberd:jid(),
+                                        To :: ejabberd:jid(),
+                                        Packet :: exml:element(),
+                                        Dir :: in | out) -> any().
+check_privacy_and_route_or_ignore(StateData, From, To, Packet, Dir) ->
+    case privacy_check_packet(StateData, From, To, Packet, Dir) of
+        allow -> ejabberd_router:route(From, To, Packet);
+        _ -> ok
+    end.
 
 -spec resend_subscription_requests(state()) -> state().
 resend_subscription_requests(#state{pending_invitations = Pending} = StateData) ->
-    NewState = lists:foldl(fun(XMLPacket, #state{} = State) ->
-                                   send_element(State, XMLPacket),
-                                   {value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
-                                   {value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
-                                   BufferedStateData = buffer_out_stanza({From, To, XMLPacket}, State),
-                                   maybe_send_ack_request(BufferedStateData),
-                                   BufferedStateData
-                           end, StateData, Pending),
+    NewState = lists:foldl(
+                 fun(XMLPacket, #state{} = State) ->
+                         send_element(State, XMLPacket),
+                         {value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
+                         {value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
+                         BufferedStateData = buffer_out_stanza({From, To, XMLPacket}, State),
+                         maybe_send_ack_request(BufferedStateData),
+                         BufferedStateData
+                 end, StateData, Pending),
     NewState#state{pending_invitations = []}.
 
 
@@ -2309,7 +2313,7 @@ process_unauthenticated_stanza(StateData, El) ->
 peerip(SockMod, Socket) ->
     IP = case SockMod of
              gen_tcp -> inet:peername(Socket);
-             _ -> SockMod:peername(Socket)
+             _ -> mongoose_sockmod:peername(SockMod, Socket)
          end,
     case IP of
         {ok, IPOK} -> IPOK;
@@ -2355,31 +2359,18 @@ is_ip_blacklisted({IP, _Port}) ->
 
 
 %% @doc Check from attributes.
--spec check_from(El, FromJID) -> Result when
-      El :: jlib:xmlel(), FromJID :: ejabberd:jid(),
+-spec check_from(El, C2SJID) -> Result when
+      El :: jlib:xmlel(), C2SJID :: ejabberd:jid(),
       Result :: 'invalid-from'  | jlib:xmlel().
-check_from(El, FromJID) ->
+check_from(El, #jid{ luser = C2SU, lserver = C2SS, lresource = C2SR }) ->
     case xml:get_tag_attr(<<"from">>, El) of
         false ->
             El;
         {value, SJID} ->
-            JID = jid:from_binary(SJID),
-            case JID of
-                error ->
-                    'invalid-from';
-                #jid{} ->
-                    if
-                        (JID#jid.luser == FromJID#jid.luser) and
-                        (JID#jid.lserver == FromJID#jid.lserver) and
-                        (JID#jid.lresource == FromJID#jid.lresource) ->
-                            El;
-                        (JID#jid.luser == FromJID#jid.luser) and
-                        (JID#jid.lserver == FromJID#jid.lserver) and
-                        (JID#jid.lresource == <<>>) ->
-                            El;
-                        true ->
-                            'invalid-from'
-                    end
+            case jid:from_binary(SJID) of
+                #jid{ luser = U, lserver = S, lresource = R }
+                  when U == C2SU andalso S == C2SS andalso (R == C2SR orelse R == <<>>) -> El;
+                _ -> 'invalid-from'
             end
     end.
 
@@ -2431,9 +2422,9 @@ maybe_update_presence(StateData = #state{jid = JID, pres_f = Froms}, NewList) ->
     % Our own jid is added to pres_f, even though we're not a "contact", so for
     % the purposes of this check we don't want it:
     SelfJID = jid:to_lower(jid:to_bare(JID)),
-    FromsExceptSelf = ?SETS:del_element(SelfJID, Froms),
+    FromsExceptSelf = gb_sets:del_element(SelfJID, Froms),
 
-    ?SETS:fold(
+    gb_sets:fold(
       fun(T, _) ->
               send_unavail_if_newly_blocked(StateData, jid:make(T), NewList),
               ok
@@ -2459,7 +2450,9 @@ send_unavail_if_newly_blocked(_, _, _, _, _) ->
 %%% XEP-0191
 %%%----------------------------------------------------------------------
 
--spec blocking_push_to_resources(Action :: blocking_type(), JIDS :: [binary()], State :: state()) -> 'ok'.
+-spec blocking_push_to_resources(Action :: blocking_type(),
+                                 JIDS :: [binary()],
+                                 State :: state()) -> ok.
 blocking_push_to_resources(Action, JIDs, StateData) ->
     SubEl =
     case Action of
@@ -2489,7 +2482,9 @@ blocking_push_to_resources(Action, JIDs, StateData) ->
     ejabberd_router:route(F, T, PrivPushEl),
     ok.
 
--spec blocking_presence_to_contacts(Action :: blocking_type(), JIDs :: [binary()], State :: state()) -> 'ok'.
+-spec blocking_presence_to_contacts(Action :: blocking_type(),
+                                    JIDs :: [binary()],
+                                    State :: state()) -> ok.
 blocking_presence_to_contacts(_Action, [], _StateData) ->
     ok;
 blocking_presence_to_contacts(Action, [Jid|JIDs], StateData) ->
@@ -2537,9 +2532,9 @@ pack(S = #state{pres_a=A,
 -spec pack_jid_set(Set :: jid_set(),
                    Pack :: pack_tree()) -> {jid_set(), pack_tree()}.
 pack_jid_set(Set, Pack) ->
-    Jids = ?SETS:to_list(Set),
+    Jids = gb_sets:to_list(Set),
     {PackedJids, NewPack} = pack_jids(Jids, Pack, []),
-    {?SETS:from_list(PackedJids), NewPack}.
+    {gb_sets:from_list(PackedJids), NewPack}.
 
 
 -spec pack_jids([{_, _, _}], Pack :: pack_tree(), Acc :: [ejabberd:simple_jid()]) ->
@@ -2659,7 +2654,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
 enable_stream_resumption(SD) ->
     SMID = make_smid(),
     SID = case SD#state.sid of
-              undefined -> {now(), self()};
+              undefined -> {p1_time_compat:timestamp(), self()};
               RSID -> RSID
           end,
     ok = mod_stream_management:register_smid(SMID, SID),
@@ -2875,8 +2870,8 @@ maybe_resume_session(NextState, El, StateData) ->
 
 do_resume_session(SMID, El, [{_, Pid}], StateData) ->
     try
-        {ok, OldState} = ?GEN_FSM:sync_send_event(Pid, resume),
-        SID = {now(), self()},
+        {ok, OldState} = p1_fsm_old:sync_send_event(Pid, resume),
+        SID = {p1_time_compat:timestamp(), self()},
         Conn = get_conn_type(StateData),
         MergedState = merge_state(OldState,
                                   StateData#state{sid = SID, conn = Conn}),
@@ -2907,7 +2902,8 @@ do_resume_session(SMID, El, [{_, Pid}], StateData) ->
                 catch
                     %% errors from send_element
                     _:_ ->
-                        ?INFO_MSG("resumption error while resending old stanzas entering resume state again smid: ~p~n", [SMID]),
+                        ?INFO_MSG("resumption error while resending old stanzas"
+                                  " entering resume state again smid: ~p~n", [SMID]),
                         maybe_enter_resume_session(SMID, NSD)
                 end
         end
