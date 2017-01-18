@@ -1,0 +1,7 @@
+filetype plugin indent on
+
+" don't use tabs
+set expandtab
+
+" 4 spaces for indentation level
+set shiftwidth=4 tabstop=4 softtabstop=4
