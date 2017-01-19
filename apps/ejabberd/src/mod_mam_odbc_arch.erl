@@ -176,7 +176,7 @@ encode_direction(outgoing) -> "O".
         ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
 archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
     IndexHintSQL = index_hint_sql(Host),
-    {selected, _ColumnNames, [{BSize}]} =
+    {selected, [{BSize}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) "
@@ -317,7 +317,7 @@ lookup_messages(_Result, Host,
                            IsSimple, is_opt_count_supported_for(RSM))
     catch _Type:Reason ->
         S = erlang:get_stacktrace(),
-        {error, {Reason, S}}
+        {error, {Reason, {stacktrace, S}}}
     end.
 
 %% Not supported:
@@ -510,7 +510,7 @@ rows_to_uniform_format(Host, UserJID, MessageRows) ->
     [row_to_uniform_format(DbEngine, UserJID, EscFormat, Row) || Row <- MessageRows].
 
 row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID, BSrcJID, SDataRaw}) ->
-    MessID = list_to_integer(binary_to_list(BMessID)),
+    MessID = ejabberd_odbc:result_to_integer(BMessID),
     SrcJID = stored_binary_to_jid(UserJID, BSrcJID),
     SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
@@ -518,7 +518,7 @@ row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID, BSrcJID, SDataRaw}
     {MessID, SrcJID, Packet}.
 
 row_to_message_id({BMessID, _, _}) ->
-    list_to_integer(binary_to_list(BMessID)).
+    ejabberd_odbc:result_to_integer(BMessID).
 
 
 -spec remove_archive(Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
@@ -580,12 +580,12 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 extract_messages(_Host, _UserID, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Host, UserID, Filter, IOffset, IMax, false) ->
-    {selected, _ColumnNames, MessageRows} =
+    {selected, MessageRows} =
         do_extract_messages(Host, UserID, Filter, IOffset, IMax, " ORDER BY id "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     MessageRows;
 extract_messages(Host, UserID, Filter, IOffset, IMax, true) ->
-    {selected, _ColumnNames, MessageRows} =
+    {selected, MessageRows} =
         do_extract_messages(Host, UserID, Filter, IOffset, IMax, " ORDER BY id DESC "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     lists:reverse(MessageRows).
@@ -618,7 +618,7 @@ do_extract_messages(Host, UserID, Filter, IOffset, IMax, Order) ->
         Filter :: filter(), IndexHintSQL :: string(),
         SUID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
-    {selected, _ColumnNames, [{BIndex}]} =
+    {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
@@ -634,7 +634,7 @@ calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
         Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()
         ) -> non_neg_integer().
 calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
-    {selected, _ColumnNames, [{BIndex}]} =
+    {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
@@ -647,7 +647,7 @@ calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
 -spec calc_count(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
         Filter :: filter(), IndexHintSQL :: string()) -> non_neg_integer().
 calc_count(Host, UserID, Filter, IndexHintSQL) ->
-    {selected, _ColumnNames, [{BCount}]} =
+    {selected, [{BCount}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",

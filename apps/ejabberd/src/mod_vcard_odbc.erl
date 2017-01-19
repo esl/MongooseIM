@@ -59,7 +59,7 @@ get_vcard(LUser, LServer) ->
     U = ejabberd_odbc:escape(LUser),
     S = ejabberd_odbc:escape(LServer),
     case odbc_queries:get_vcard(S, U) of
-        {selected, [<<"vcard">>], [{SVCARD}]} ->
+        {selected, [{SVCARD}]} ->
             case exml:parse(SVCARD) of
                 {error, Reason} ->
                     ?WARNING_MSG("not sending bad vcard xml ~p~n~p", [Reason, SVCARD]),
@@ -67,7 +67,7 @@ get_vcard(LUser, LServer) ->
 		{ok, VCARD} ->
                     {ok, [VCARD]}
             end;
-        {selected, [<<"vcard">>], []} ->
+        {selected, []} ->
             {error, ?ERR_SERVICE_UNAVAILABLE}
     end.
 
@@ -122,9 +122,7 @@ do_search(_LServer, "") ->
 do_search(LServer, RestrictionSQL) ->
     Limit = mod_vcard:get_results_limit(LServer),
     case catch odbc_queries:search_vcard(LServer, RestrictionSQL, Limit) of
-        {selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
-            <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,
-            <<"email">>, <<"orgname">>, <<"orgunit">>], Rs} when is_list(Rs) ->
+        {selected, Rs} when is_list(Rs) ->
             Rs;
         Error ->
             ?ERROR_MSG("~p", [Error]),
@@ -214,5 +212,3 @@ record_to_item(_CallerVHost, {Username, VCardVHost, FN, Family, Given, Middle,
                         ?FIELD(<<"orgname">>, OrgName),
                         ?FIELD(<<"orgunit">>, OrgUnit)
                        ]}.
-
-

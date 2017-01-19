@@ -304,7 +304,7 @@ lookup_messages(_Result, Host,
                          IsSimple)
     catch _Type:Reason ->
             S = erlang:get_stacktrace(),
-            {error, {Reason, S}}
+            {error, {Reason, {stacktrace, S}}}
     end.
 
 maybe_jid_to_nick(#jid{lresource = BNick}) -> BNick;

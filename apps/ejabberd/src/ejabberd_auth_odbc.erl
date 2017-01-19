@@ -96,16 +96,16 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
     Username = ejabberd_odbc:escape(LUser),
     try odbc_queries:get_password(LServer, Username) of
         %% Account exists, check if password is valid
-        {selected, [<<"password">>, <<"pass_details">>], [{Passwd, null}]} ->
+        {selected, [{Passwd, null}]} ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
-        {selected, [<<"password">>, <<"pass_details">>], [{_Passwd, PassDetails}]} ->
+        {selected, [{_Passwd, PassDetails}]} ->
             case scram:deserialize(PassDetails) of
                 {ok, #scram{} = Scram} ->
                     scram:check_digest(Scram, Digest, DigestGen, Password);
                 _ ->
                     false
             end;
-        {selected, [<<"password">>, <<"pass_details">>], []} ->
+        {selected, []} ->
             false; %% Account does not exist
         {error, _Error} ->
             false %% Typical error is that table doesn't exist
@@ -119,18 +119,18 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
                                Password::binary()) -> boolean() | not_exists.
 check_password_wo_escape(LUser, LServer, Password) ->
     try odbc_queries:get_password(LServer, LUser) of
-        {selected, [<<"password">>, <<"pass_details">>], [{Password, null}]} ->
+        {selected, [{Password, null}]} ->
             Password /= <<"">>; %% Password is correct, and not empty
-        {selected, [<<"password">>, <<"pass_details">>], [{_Password2, null}]} ->
+        {selected, [{_Password2, null}]} ->
             false;
-        {selected, [<<"password">>, <<"pass_details">>], [{_Password2, PassDetails}]} ->
+        {selected, [{_Password2, PassDetails}]} ->
             case scram:deserialize(PassDetails) of
                 {ok, Scram} ->
                     scram:check_password(Password, Scram);
                 _ ->
                     false %% Password is not correct
             end;
-        {selected, [<<"password">>, <<"pass_details">>], []} ->
+        {selected, []} ->
             not_exists; %% Account does not exist
         {error, _Error} ->
             false %% Typical error is that table doesn't exist
@@ -181,7 +181,7 @@ dirty_get_registered_users() ->
 -spec get_vh_registered_users(LServer :: ejabberd:lserver()) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
     case catch odbc_queries:list_users(LServer) of
-        {selected, [<<"username">>], Res} ->
+        {selected, Res} ->
             [{U, LServer} || {U} <- Res];
         _ ->
             []
@@ -192,7 +192,7 @@ get_vh_registered_users(LServer) ->
                              ) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer, Opts) ->
     case catch odbc_queries:list_users(LServer, Opts) of
-        {selected, [<<"username">>], Res} ->
+        {selected, Res} ->
             [{U, LServer} || {U} <- Res];
         _ ->
             []
@@ -203,10 +203,10 @@ get_vh_registered_users(LServer, Opts) ->
                                     ) -> integer().
 get_vh_registered_users_number(LServer) ->
     case catch odbc_queries:users_number(LServer) of
-        {selected, [_], [{Res}]} when is_integer(Res) ->
+        {selected, [{Res}]} when is_integer(Res) ->
             Res;
-        {selected, [_], [{Res}]} ->
-            list_to_integer(binary_to_list(Res));
+        {selected, [{Res}]} ->
+            ejabberd_odbc:result_to_integer(Res);
         _ ->
             0
     end.
@@ -216,7 +216,7 @@ get_vh_registered_users_number(LServer) ->
                                      Opts :: list()) -> integer().
 get_vh_registered_users_number(LServer, Opts) ->
     case catch odbc_queries:users_number(LServer, Opts) of
-        {selected, [_], [{Res}]} ->
+        {selected, [{Res}]} ->
             list_to_integer(Res);
         _Other ->
             0
@@ -227,9 +227,9 @@ get_vh_registered_users_number(LServer, Opts) ->
 get_password(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_password(LServer, Username) of
-        {selected, [<<"password">>, <<"pass_details">>], [{Password, null}]} ->
+        {selected, [{Password, null}]} ->
             Password; %%Plain password
-        {selected, [<<"password">>, <<"pass_details">>], [{_Password, PassDetails}]} ->
+        {selected, [{_Password, PassDetails}]} ->
             case scram:deserialize(PassDetails) of
                 {ok, Scram} ->
                     scram:scram_to_tuple(Scram);
@@ -246,7 +246,7 @@ get_password(LUser, LServer) ->
 get_password_s(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_password(LServer, Username) of
-        {selected, [<<"password">>, <<"pass_details">>], [{Password, _}]} ->
+        {selected, [{Password, _}]} ->
             Password;
         _ ->
             <<"">>
@@ -259,9 +259,9 @@ get_password_s(LUser, LServer) ->
 does_user_exist(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     try odbc_queries:get_password(LServer, Username) of
-        {selected, [<<"password">>, <<"pass_details">>], [{_Password, _}]} ->
+        {selected, [{_Password, _}]} ->
             true; %% Account exists
-        {selected, [<<"password">>, <<"pass_details">>], []} ->
+        {selected, []} ->
             false; %% Account does not exist
         {error, Error} ->
             {error, Error} %% Typical error is that table doesn't exist
@@ -334,7 +334,7 @@ scram_passwords(Server, Count, Interval, ScramIterationCount) ->
     LServer = jid:nameprep(Server),
     ?INFO_MSG("Converting the stored passwords into SCRAM bits", []),
     ToConvertCount = case catch odbc_queries:get_users_without_scram_count(LServer) of
-        {selected, [_], [{Res}]} -> binary_to_integer(Res);
+        {selected, [{Res}]} -> binary_to_integer(Res);
         _ -> 0
     end,
 
@@ -343,9 +343,9 @@ scram_passwords(Server, Count, Interval, ScramIterationCount) ->
 
 scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
     case odbc_queries:get_users_without_scram(LServer, Count) of
-        {selected, _, []} ->
+        {selected, []} ->
             ?INFO_MSG("All users scrammed.", []);
-        {selected, [<<"username">>, <<"password">>], Results} ->
+        {selected, Results} ->
             ?INFO_MSG("Scramming ~p users...", [length(Results)]),
             lists:foreach(
               fun({Username, Password}) ->
@@ -361,4 +361,3 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
         Other ->
             ?ERROR_MSG("Interrupted scramming because: ~p", [Other])
     end.
-

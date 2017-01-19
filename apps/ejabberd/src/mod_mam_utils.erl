@@ -203,7 +203,7 @@ maybe_external_binary_to_mess_id(BExtMessID) ->
 %% @doc Decode a message ID received from the user.
 -spec external_binary_to_mess_id(binary()) -> integer().
 external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
-    list_to_integer(binary_to_list(BExtMessID), 32).
+    binary_to_integer(BExtMessID, 32).
 
 %% -----------------------------------------------------------------------
 %% XML
@@ -757,7 +757,7 @@ is_loaded_application(AppName) when is_atom(AppName) ->
 -spec maybe_integer(binary(), Default :: integer()) -> integer().
 maybe_integer(<<>>, Def) -> Def;
 maybe_integer(Bin, _Def) when is_binary(Bin) ->
-    list_to_integer(binary_to_list(Bin)).
+    binary_to_integer(Bin).
 
 
 -spec is_function_exist(atom() | {module(), _}, F :: atom(), A :: integer()

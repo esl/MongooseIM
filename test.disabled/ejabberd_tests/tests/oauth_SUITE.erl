@@ -301,7 +301,7 @@ token_removed_on_user_removal(Config) ->
         end,
     escalus:story(Config, [{bob, 1}], S),
     %% then token database doesn't contain user's tokens
-    {selected, _, []} = get_users_token(Config, bob).
+    {selected, []} = get_users_token(Config, bob).
 
 provision_token_login(Config) ->
     %% given
@@ -451,7 +451,7 @@ is_pgsql_available(_) ->
     %% TODO: hardcoded ODBCHost
     ODBCHost = domain(),
     case escalus_ejabberd:rpc(ejabberd_odbc, sql_query, [ODBCHost, Q]) of
-        {selected, [<<"version">>], [{<<"PostgreSQL", _/binary>>}]} ->
+        {selected, [{<<"PostgreSQL", _/binary>>}]} ->
             true;
         _ ->
             false

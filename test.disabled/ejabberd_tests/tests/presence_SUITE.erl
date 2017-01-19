@@ -600,7 +600,7 @@ remove_roster(Config, UserSpec) ->
     Mods = escalus_ejabberd:rpc(gen_mod, loaded_modules, [Server]),
     case lists:member(mod_roster, Mods) of
         true ->
-            {atomic, _} = escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]);
+            ok = escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]);
         false ->
             case lists:member(mod_roster_odbc, Mods) of
                 true ->

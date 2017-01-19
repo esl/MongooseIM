@@ -66,7 +66,7 @@ worker_count(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
 
--spec worker_names(ejabberd:server()) -> [{integer(),atom()}].
+-spec worker_names(ejabberd:server()) -> [{integer(), atom()}].
 worker_names(Host) ->
     [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
 
@@ -109,7 +109,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(),_) -> 'ok'.
+-spec start_muc(ejabberd:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
@@ -143,7 +143,7 @@ start_workers(Host, Pool) ->
 
 
 -spec stop_workers(ejabberd:server()) -> ['ok'
-    | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}].
+    | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}].
 stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
@@ -164,7 +164,7 @@ start_worker(WriterProc, N, Host, Pool) ->
 
 
 -spec stop_worker(atom()) -> 'ok'
-        | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
+        | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),
     supervisor:delete_child(mod_mam_sup, Proc).
@@ -210,7 +210,7 @@ is_overloaded(Pid) ->
 
 
 %% @doc For metrics.
--spec queue_length(ejabberd:server()) -> {'ok',number()}.
+-spec queue_length(ejabberd:server()) -> {'ok', number()}.
 queue_length(Host) ->
     Len = lists:sum(queue_lengths(Host)),
     {ok, Len}.
@@ -428,7 +428,7 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 
--spec handle_info('flush',state()) -> {'noreply',state()}.
+-spec handle_info('flush', state()) -> {'noreply', state()}.
 handle_info(flush, State) ->
     {noreply, run_flush(State#state{flush_interval_tref=undefined})}.
 

@@ -1,4 +1,21 @@
+%%==============================================================================
+%% Copyright 2016 Erlang Solutions Ltd.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%==============================================================================
+
 -module(ejabberd_odbc_mysql).
+-author('konrad.zemek@gmail.com').
 -behaviour(ejabberd_odbc).
 
 -include("ejabberd.hrl").
@@ -8,63 +25,63 @@
 
 -export([escape_format/1, connect/1, disconnect/1, query/2]).
 
+%% API
+
 -spec escape_format(Host :: ejabberd:server()) -> atom().
 escape_format(_Host) ->
     simple_escape.
 
--spec connect(Args :: any()) ->
-    {ok, Connection :: term()} | {error, Reason :: any()}.
+-spec connect(Args :: any()) -> {ok, Connection :: term()} | {error, Reason :: any()}.
 connect(Settings) ->
-    [Server, Port, Database, Username, Password] = db_opts(Settings),
-    case p1_mysql_conn:start(Server, Port, Username, Password, Database, fun log/3) of
+    [Server, Port, Database, User, Password] = db_opts(Settings),
+    case mysql_conn:start_link(Server, Port, User, Password, Database,
+                               fun log/4, utf8, undefined, true) of
         {ok, Ref} ->
-            query(Ref, [<<"set names 'utf8';">>]),
-            query(Ref, [<<"SET SESSION query_cache_type=1;">>]),
+            query(Ref, <<"SET SESSION query_cache_type=1;">>),
             {ok, Ref};
-
-        Err ->
-            Err
+        Error ->
+            Error
     end.
 
 -spec disconnect(Connection :: term()) -> any().
 disconnect(Connection) ->
-    p1_mysql_conn:stop(Connection).
+    gen_server:stop(Connection).
 
 -spec query(Connection :: term(), Query :: any()) -> term().
 query(Connection, Query) ->
-    mysql_to_odbc(p1_mysql_conn:squery(Connection, Query, self(),
-                                       [{timeout, ?QUERY_TIMEOUT}, {result_type, binary}])).
+    mysql_to_odbc(mysql_conn:fetch(Connection, iolist_to_binary(Query), self(), ?QUERY_TIMEOUT)).
+
+%% Helpers
 
 -spec db_opts(Settings :: term()) -> list().
 db_opts({mysql, Server, DB, User, Pass}) ->
-    [Server, ?MYSQL_PORT, DB, User, Pass];
+    db_opts({mysql, Server, ?MYSQL_PORT, DB, User, Pass});
 db_opts({mysql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
     [Server, Port, DB, User, Pass].
 
--spec log(Level :: 'debug' | 'error' | 'normal', Format :: string(), Args :: list()) -> any().
-log(debug, Format, Args)  -> ?DEBUG(Format, Args);
-log(normal, Format, Args) -> ?INFO_MSG(Format, Args);
-log(error, Format, Args)  -> ?ERROR_MSG(Format, Args).
-
 %% @doc Convert MySQL query result to Erlang ODBC result formalism
--spec mysql_to_odbc({'data', _} | {'error', _} | {'updated', _})
-                   -> {'error', _} | {'updated', _} | {'selected', [any()], [tuple()]}.
+-spec mysql_to_odbc({data, _} | {updated, _} | {error, _}) ->
+    {error, string()} | {updated, non_neg_integer()} | {selected, [tuple()]}.
 mysql_to_odbc({updated, MySQLRes}) ->
-    {updated, p1_mysql:get_result_affected_rows(MySQLRes)};
+    {updated, mysql:get_result_affected_rows(MySQLRes)};
 mysql_to_odbc({data, MySQLRes}) ->
-    mysql_item_to_odbc(p1_mysql:get_result_field_info(MySQLRes),
-                       p1_mysql:get_result_rows(MySQLRes));
+    {selected, [parse_row(Row) || Row <- mysql:get_result_rows(MySQLRes)]};
 mysql_to_odbc({error, MySQLRes}) when is_list(MySQLRes) ->
     {error, MySQLRes};
 mysql_to_odbc({error, MySQLRes}) ->
-    {error, p1_mysql:get_result_reason(MySQLRes)}.
+    {error, mysql:get_result_reason(MySQLRes)}.
 
-%% @doc When tabular data is returned, convert it to the ODBC formalism
--spec mysql_item_to_odbc(Columns :: [tuple()],
-                         Recs :: [[any()]]) -> {'selected', [any()], [tuple()]}.
-mysql_item_to_odbc(Columns, Recs) ->
-    %% For now, there is a bug and we do not get the correct value from MySQL
-    %% module:
-    {selected,
-     [element(2, Column) || Column <- Columns],
-     [list_to_tuple(Rec) || Rec <- Recs]}.
+-spec parse_row(Row :: [term()]) -> tuple().
+parse_row(Row) ->
+    Translated = lists:map(fun(undefined) -> null; (Col) -> Col end, Row),
+    list_to_tuple(Translated).
+
+-spec log(module(), Line :: pos_integer(), debug | normal | error,
+          fun(() -> {Format :: string(), Args :: [term()]})) -> any().
+log(_Module, _Line, Level, FormatFun) ->
+    {Format, Args} = FormatFun(),
+    case Level of
+        debug -> ?DEBUG(Format, Args);
+        normal -> ?INFO_MSG(Format, Args);
+        error -> ?ERROR_MSG(Format, Args)
+    end.
