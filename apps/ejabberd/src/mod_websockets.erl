@@ -7,7 +7,7 @@
 
 -behaviour(cowboy_http_handler).
 -behaviour(cowboy_websocket_handler).
--behaviour(mongoose_sockmod).
+-behaviour(mongoose_transport).
 
 %% cowboy_http_handler callbacks
 -export([init/3,
@@ -226,7 +226,7 @@ reset_stream(#websocket{pid = Pid} = SocketData) ->
     Pid ! reset_stream,
     SocketData.
 
--spec send_xml(socket(), mongoose_sockmod:send_xml_input()) -> ok.
+-spec send_xml(socket(), mongoose_transport:send_xml_input()) -> ok.
 send_xml(SocketData, {xmlstreamraw, Text}) ->
     send(SocketData, Text);
 send_xml(SocketData, {xmlstreamelement, XML}) ->
@@ -252,7 +252,7 @@ get_sockmod(_SocketData) ->
 close(#websocket{pid = Pid}) ->
     Pid ! close.
 
--spec peername(socket()) -> mongoose_sockmod:peername_return().
+-spec peername(socket()) -> mongoose_transport:peername_return().
 peername(#websocket{peername = PeerName}) ->
     {ok, PeerName}.
 

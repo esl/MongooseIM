@@ -1,7 +1,7 @@
 -module(mod_bosh_socket).
 
 -behaviour(gen_fsm).
--behaviour(mongoose_sockmod).
+-behaviour(mongoose_transport).
 
 %% API
 -export([start/2,
@@ -1013,7 +1013,7 @@ reset_stream(#bosh_socket{pid = Pid} = SocketData) ->
     SocketData.
 
 
--spec send_xml(mod_bosh:socket(), mongoose_sockmod:send_xml_input()) -> ok.
+-spec send_xml(mod_bosh:socket(), mongoose_transport:send_xml_input()) -> ok.
 send_xml(Socket, {xmlstreamelement, XML}) ->
     send(Socket, XML);
 send_xml(Socket, #xmlstreamstart{} = XML) ->
@@ -1047,7 +1047,7 @@ get_sockmod(_SocketData) ->
 close(#bosh_socket{pid = Pid}) ->
     Pid ! close.
 
--spec peername(mod_bosh:socket()) -> mongoose_sockmod:peername_return().
+-spec peername(mod_bosh:socket()) -> mongoose_transport:peername_return().
 peername(#bosh_socket{peer = Peer}) ->
     {ok, Peer}.
 

@@ -195,10 +195,10 @@ init([{SockMod, Socket}, Opts]) ->
         false ->
             Socket1 =
             case TLSEnabled of
-                true -> mongoose_sockmod:starttls(SockMod, Socket, TLSOpts);
+                true -> mongoose_transport:starttls(SockMod, Socket, TLSOpts);
                 false -> Socket
             end,
-            SocketMonitor = mongoose_sockmod:monitor(SockMod, Socket1),
+            SocketMonitor = mongoose_transport:monitor(SockMod, Socket1),
             {ok, wait_for_stream, #state{server         = ?MYNAME,
                                          socket         = Socket1,
                                          sockmod        = SockMod,
@@ -1559,7 +1559,7 @@ maybe_send_element_safe(State, El) ->
 send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
   when StateData#state.xml_socket ->
     ejabberd_hooks:run(xmpp_send_element, Server, [Server, El]),
-    mongoose_sockmod:send_xml(SockMod, StateData#state.socket, {xmlstreamelement, El});
+    mongoose_transport:send_xml(SockMod, StateData#state.socket, {xmlstreamelement, El});
 send_element(#state{server = Server} = StateData, El) ->
     ejabberd_hooks:run(xmpp_send_element, Server, [Server, El]),
     send_text(StateData, exml:to_binary(El)).
@@ -2313,7 +2313,7 @@ process_unauthenticated_stanza(StateData, El) ->
 peerip(SockMod, Socket) ->
     IP = case SockMod of
              gen_tcp -> inet:peername(Socket);
-             _ -> mongoose_sockmod:peername(SockMod, Socket)
+             _ -> mongoose_transport:peername(SockMod, Socket)
          end,
     case IP of
         {ok, IPOK} -> IPOK;
