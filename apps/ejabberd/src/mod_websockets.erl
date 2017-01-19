@@ -4,8 +4,10 @@
 %%% @end
 %%%===================================================================
 -module(mod_websockets).
+
 -behaviour(cowboy_http_handler).
 -behaviour(cowboy_websocket_handler).
+-behaviour(mongoose_transport).
 
 %% cowboy_http_handler callbacks
 -export([init/3,
@@ -224,6 +226,7 @@ reset_stream(#websocket{pid = Pid} = SocketData) ->
     Pid ! reset_stream,
     SocketData.
 
+-spec send_xml(socket(), mongoose_transport:send_xml_input()) -> ok.
 send_xml(SocketData, {xmlstreamraw, Text}) ->
     send(SocketData, Text);
 send_xml(SocketData, {xmlstreamelement, XML}) ->
@@ -239,6 +242,7 @@ send(#websocket{pid = Pid}, Data) ->
 change_shaper(SocketData, _Shaper) ->
     SocketData. %% TODO: we ignore shapers for now
 
+-spec monitor(socket()) -> reference().
 monitor(#websocket{pid = Pid}) ->
     erlang:monitor(process, Pid).
 
@@ -248,6 +252,7 @@ get_sockmod(_SocketData) ->
 close(#websocket{pid = Pid}) ->
     Pid ! close.
 
+-spec peername(socket()) -> mongoose_transport:peername_return().
 peername(#websocket{peername = PeerName}) ->
     {ok, PeerName}.
 

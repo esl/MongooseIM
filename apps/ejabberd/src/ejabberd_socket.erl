@@ -27,23 +27,25 @@
 -module(ejabberd_socket).
 -author('alexey@process-one.net').
 
+-behaviour(mongoose_transport).
+
 %% API
 -export([start/4,
-	 connect/3,
-	 connect/4,
-	 starttls/2,
-	 starttls/3,
-	 compress/3,
-	 reset_stream/1,
-	 send/2,
-	 send_xml/2,
-	 change_shaper/2,
-	 monitor/1,
-	 get_sockmod/1,
-	 get_peer_certificate/1,
-	 get_verify_result/1,
-	 close/1,
-	 sockname/1, peername/1]).
+         connect/3,
+         connect/4,
+         starttls/2,
+         starttls/3,
+         compress/3,
+         reset_stream/1,
+         send/2,
+         send_xml/2,
+         change_shaper/2,
+         monitor/1,
+         get_sockmod/1,
+         get_peer_certificate/1,
+         get_verify_result/1,
+         close/1,
+         sockname/1, peername/1]).
 
 -include("ejabberd.hrl").
 
@@ -156,7 +158,7 @@ connect(Addr, Port, Opts, Timeout) ->
     end.
 
 
--spec starttls(socket_state(), _) -> socket_state().
+-spec starttls(socket_state(), list()) -> socket_state().
 starttls(SocketData, TLSOpts) ->
     {ok, TLSSocket} = fast_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
@@ -206,7 +208,7 @@ send(SocketData, Data) ->
 %% @doc Can only be called when in c2s StateData#state.xml_socket is true
 %% This function is used for HTTP bind
 %% sockmod=ejabberd_http_poll|ejabberd_http_bind or any custom module
--spec send_xml(socket_state(), jlib:xmlel()) -> binary().
+-spec send_xml(socket_state(), mongoose_transport:send_xml_input()) -> ok.
 send_xml(SocketData, Data) ->
     catch (SocketData#socket_state.sockmod):send_xml(
             SocketData#socket_state.socket, Data).
@@ -222,7 +224,7 @@ change_shaper(SocketData, Shaper)
       SocketData#socket_state.socket, Shaper).
 
 
--spec monitor(socket_state()) -> any().
+-spec monitor(socket_state()) -> reference().
 monitor(SocketData) when is_pid(SocketData#socket_state.receiver) ->
     erlang:monitor(process, SocketData#socket_state.receiver);
 monitor(SocketData) when is_atom(SocketData#socket_state.receiver) ->
@@ -261,8 +263,7 @@ sockname(#socket_state{sockmod = SockMod, socket = Socket}) ->
     end.
 
 
--spec peername(socket_state()) -> {ok, {inet:ip_address(), inet:port_number()}}
-                                | {error, inet:posix()}.
+-spec peername(socket_state()) -> mongoose_transport:peername_return().
 peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
     case SockMod of
         gen_tcp ->
