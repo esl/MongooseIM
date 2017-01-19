@@ -121,9 +121,14 @@ stop_muc(Host) ->
 %% mongoose_cassandra_worker callbacks
 
 prepared_queries() ->
-    [{insert_query, insert_query_cql()},
+    [
+     {insert_offset_hint_query, insert_offset_hint_query_cql()},
+     {prev_offset_query, prev_offset_query_cql()},
+     {insert_query, insert_query_cql()},
      {delete_query, delete_query_cql()},
+     {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
+     {remove_archive_offsets_query, remove_archive_offsets_query_cql()},
      {message_id_to_nick_name_query, message_id_to_nick_name_cql()}]
         ++ extract_messages_queries()
         ++ extract_messages_r_queries()
@@ -218,7 +223,13 @@ delete_message_to_params(#mam_muc_message{
 %% REMOVE ARCHIVE
 
 remove_archive_query_cql() ->
-    "DELETE FROM mam_muc_message WHERE room_jid = ?".
+    "DELETE FROM mam_muc_message WHERE room_jid = ? AND with_nick = ?".
+
+remove_archive_offsets_query_cql() ->
+    "DELETE FROM mam_muc_message_offset WHERE room_jid = ? AND with_nick = ?".
+
+select_for_removal_query_cql() ->
+    "SELECT DISTINCT room_jid, with_nick FROM mam_muc_message WHERE room_jid = ?".
 
 remove_archive(_Host, _RoomID, RoomJID) ->
     BRoomJID = bare_jid(RoomJID),
@@ -226,7 +237,16 @@ remove_archive(_Host, _RoomID, RoomJID) ->
     Params = #{room_jid => BRoomJID},
     %% Wait until deleted
 
-    mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE, remove_archive_query, [Params]),
+    DeleteFun =
+        fun(Rows, _AccIn) ->
+                mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE,
+                                             remove_archive_query, Rows),
+                mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE,
+                                             remove_archive_offsets_query, Rows)
+        end,
+
+    mongoose_cassandra:cql_foldl(PoolName, RoomJID, ?MODULE,
+                                 select_for_removal_query, Params, DeleteFun, []),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -630,13 +650,69 @@ calc_count(PoolName, RoomJID, _Host, Filter) ->
 
 %% @doc Convert offset to index of the first entry
 %% Returns undefined if not there are not enough rows
+%% Uses previously calculated offsets to speed up queries
 -spec offset_to_start_id(PoolName, RoomJID, Filter, Offset) -> Id when
-    PoolName :: mongoose_cassandra:pool_name(),
-    RoomJID :: jid(),
-    Offset :: non_neg_integer(),
-    Filter :: filter(),
-    Id :: non_neg_integer() | undefined.
+      PoolName :: mongoose_cassandra:pool_name(),
+      RoomJID :: jlib:jid(),
+      Offset :: non_neg_integer(),
+      Filter :: filter(),
+      Id :: non_neg_integer() | undefined.
+offset_to_start_id(PoolName, RoomJID, Filter, Offset) when is_integer(Offset), Offset >= 0,
+                                                           Offset =< 100 ->
+    calc_offset_to_start_id(PoolName, RoomJID, Filter, Offset);
 offset_to_start_id(PoolName, RoomJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
+    Params = maps:put(offset, Offset, eval_filter_params(Filter)),
+    %% Try to find already calculated nearby offset to reduce query size
+    case mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, prev_offset_query, Params) of
+        {ok, []} -> %% No hints, just calculate offset sloooowly
+            StartId = calc_offset_to_start_id(PoolName, RoomJID, Filter, Offset),
+            maybe_save_offset_hint(PoolName, RoomJID, Filter, 0, Offset, StartId);
+        {ok, [#{offset := PrevOffset, id := PrevId}]} ->
+            %% Offset hint found, use it to reduce query size
+            case Offset of
+                PrevOffset -> PrevId;
+                _ ->
+                    StartId = calc_offset_to_start_id(PoolName, RoomJID,
+                                                      Filter#mam_muc_ca_filter{start_id = PrevId},
+                                                      Offset - PrevOffset + 1),
+                    maybe_save_offset_hint(PoolName, RoomJID, Filter, PrevOffset, Offset, StartId)
+            end
+    end.
+
+%% @doc Saves offset hint for future use in order to speed up queries with similar offset
+%% Hint is save only if previous offset hint was 50+ entires from current query
+%% This function returns given StartId as passthrough for convenience
+-spec maybe_save_offset_hint(PoolName :: mongoose_cassandra:pool_name(), RoomJID :: jlib:jid(),
+                             Filter :: filter(), HintOffset :: non_neg_integer(),
+                             NewOffset :: non_neg_integer(),
+                             StartId :: non_neg_integer() | undefined) ->
+    StartId :: non_neg_integer() | undefined.
+maybe_save_offset_hint(_PoolName, _UserJID, _Filter, _HintOffset, _NewOffset,
+                       StartId = undefined) ->
+    StartId;
+maybe_save_offset_hint(PoolName, RoomJID, Filter, HintOffset, NewOffset, StartId) ->
+    case abs(NewOffset - HintOffset) > 50 of
+        true ->
+            #mam_muc_ca_filter{room_jid = FRoomJID, with_nick = FWithNick} = Filter,
+            Row = #{room_jid => FRoomJID, with_nick => FWithNick,
+                    offset => NewOffset, id => StartId},
+            mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE,
+                                         insert_offset_hint_query, [Row]);
+        false ->
+            skip
+    end,
+    StartId.
+
+%% @doc Convert offset to index of the first entry
+%% Returns undefined if not there are not enough rows
+-spec calc_offset_to_start_id(PoolName, RoomJID, Filter, Offset) -> Id
+                                                                        when
+      PoolName :: mongoose_cassandra:pool_name(),
+      RoomJID :: jlib:jid(),
+      Offset :: non_neg_integer(),
+      Filter :: filter(),
+      Id :: non_neg_integer() | undefined.
+calc_offset_to_start_id(PoolName, RoomJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
     QueryName = {list_message_ids_query, select_filter(Filter)},
     Params = maps:put('[limit]', Offset + 1, eval_filter_params(Filter)),
     {ok, RowsIds} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName, Params),
@@ -645,6 +721,15 @@ offset_to_start_id(PoolName, RoomJID, Filter, Offset) when is_integer(Offset), O
         [_ | _] ->
             maps:get(id, lists:last(RowsIds))
     end.
+
+%% @doc Get closest offset -> message id 'hint' for specified offset
+prev_offset_query_cql() ->
+    "SELECT id, offset FROM mam_muc_message_offset WHERE room_jid = ? and with_nick = ?"
+    " and offset <= ? LIMIT 1".
+
+%% @doc Insert offset -> message id 'hint'
+insert_offset_hint_query_cql() ->
+    "INSERT INTO mam_muc_message_offset(room_jid, with_nick, id, offset) VALUES(?, ?, ?, ?)".
 
 prepare_filter(RoomJID, Borders, Start, End, WithNick) ->
     BRoomJID = bare_jid(RoomJID),
@@ -769,12 +854,12 @@ list_message_ids_queries() ->
 extract_messages_cql(Filter) ->
     "SELECT id, nick_name, message FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++
-        Filter ++ " ORDER BY with_nick, id LIMIT ?".
+        Filter ++ " ORDER BY id LIMIT ?".
 
 extract_messages_r_cql(Filter) ->
     "SELECT id, nick_name, message FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++
-        Filter ++ " ORDER BY with_nick DESC, id DESC LIMIT ?".
+        Filter ++ " ORDER BY id DESC LIMIT ?".
 
 calc_count_cql(Filter) ->
     "SELECT COUNT(*) FROM mam_muc_message "
@@ -783,7 +868,7 @@ calc_count_cql(Filter) ->
 list_message_ids_cql(Filter) ->
     "SELECT id FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++ Filter ++
-        " ORDER BY with_nick, id LIMIT ?".
+        " ORDER BY id LIMIT ?".
 
 %% ----------------------------------------------------------------------
 %% Optimizations

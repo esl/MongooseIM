@@ -124,9 +124,14 @@ stop_pm(Host) ->
 %% mongoose_cassandra_worker callbacks
 
 prepared_queries() ->
-    [{insert_query, insert_query_cql()},
+    [
+     {insert_offset_hint_query, insert_offset_hint_query_cql()},
+     {prev_offset_query, prev_offset_query_cql()},
+     {insert_query, insert_query_cql()},
      {delete_query, delete_query_cql()},
+     {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
+     {remove_archive_offsets_query, remove_archive_offsets_query_cql()},
      {message_id_to_remote_jid_query, message_id_to_remote_jid_cql()}]
         ++ extract_messages_queries()
         ++ extract_messages_r_queries()
@@ -221,7 +226,13 @@ delete_message_to_params(#mam_message{
 %% REMOVE ARCHIVE
 
 remove_archive_query_cql() ->
-    "DELETE FROM mam_message WHERE user_jid = ?".
+    "DELETE FROM mam_message WHERE user_jid = ? AND with_jid = ?".
+
+remove_archive_offsets_query_cql() ->
+    "DELETE FROM mam_message WHERE user_jid = ? AND with_jid = ?".
+
+select_for_removal_query_cql() ->
+    "SELECT DISTINCT user_jid, with_jid FROM mam_message WHERE user_jid = ?".
 
 remove_archive(_Host, _UserID, UserJID) ->
     BUserJID = bare_jid(UserJID),
@@ -229,8 +240,18 @@ remove_archive(_Host, _UserID, UserJID) ->
     Params = #{user_jid => BUserJID},
     %% Wait until deleted
 
-    mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, remove_archive_query, [Params]),
+    DeleteFun =
+        fun(Rows, _AccIn) ->
+                mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE,
+                                             remove_archive_query, Rows),
+                mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE,
+                                             remove_archive_offsets_query, Rows)
+        end,
+
+    mongoose_cassandra:cql_foldl(PoolName, UserJID, ?MODULE,
+                                 select_for_removal_query, Params, DeleteFun, []),
     ok.
+
 
 
 %% ----------------------------------------------------------------------
@@ -238,7 +259,7 @@ remove_archive(_Host, _UserID, UserJID) ->
 
 message_id_to_remote_jid_cql() ->
     "SELECT remote_jid FROM mam_message "
-        "WHERE user_jid = ? AND with_jid = '' AND id = ?".
+        "WHERE user_jid = ? AND with_jid = '' AND id = ? ALLOW FILTERING".
 
 message_id_to_remote_jid(PoolName, UserJID, BUserJID, MessID) ->
     Params = #{user_jid => BUserJID, id => MessID, with_jid => <<>>},
@@ -634,13 +655,69 @@ calc_count(PoolName, UserJID, _Host, Filter) ->
 
 %% @doc Convert offset to index of the first entry
 %% Returns undefined if not there are not enough rows
--spec offset_to_start_id(PoolName, UserJID, Filter, Offset) -> Id when
-    PoolName :: mongoose_cassandra:pool_name(),
-    UserJID :: jid(),
-    Offset :: non_neg_integer(),
-    Filter :: filter(),
-    Id :: non_neg_integer() | undefined.
+%% Uses previously calculated offsets to speed up queries
+-spec offset_to_start_id(PoolName, UserJID, Filter, Offset) -> Id
+                                                                   when
+      PoolName :: mongoose_cassandra:pool_name(),
+      UserJID :: jlib:jid(),
+      Offset :: non_neg_integer(),
+      Filter :: filter(),
+      Id :: non_neg_integer() | undefined.
+offset_to_start_id(PoolName, UserJID, Filter, Offset) when is_integer(Offset), Offset >= 0,
+                                                           Offset =< 100 ->
+    calc_offset_to_start_id(PoolName, UserJID, Filter, Offset);
 offset_to_start_id(PoolName, UserJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
+    Params = maps:put(offset, Offset, eval_filter_params(Filter)),
+    %% Try to find already calculated nearby offset to reduce query size
+    case mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, prev_offset_query, Params) of
+        {ok, []} -> %% No hints, just calculate offset sloooowly
+            StartId = calc_offset_to_start_id(PoolName, UserJID, Filter, Offset),
+            maybe_save_offset_hint(PoolName, UserJID, Filter, 0, Offset, StartId);
+        {ok, [#{offset := PrevOffset, id := PrevId}]} ->
+            %% Offset hint found, use it to reduce query size
+            case Offset of
+                PrevOffset -> PrevId;
+                _ ->
+                    StartId = calc_offset_to_start_id(PoolName, UserJID,
+                                                      Filter#mam_ca_filter{start_id = PrevId},
+                                                      Offset - PrevOffset + 1),
+                    maybe_save_offset_hint(PoolName, UserJID, Filter, PrevOffset, Offset, StartId)
+            end
+    end.
+
+%% @doc Saves offset hint for future use in order to speed up queries with similar offset
+%% Hint is save only if previous offset hint was 50+ entires from current query
+%% This function returns given StartId as passthrough for convenience
+-spec maybe_save_offset_hint(PoolName :: mongoose_cassandra:pool_name(), UserJID :: jlib:jid(),
+                             Filter :: filter(), HintOffset :: non_neg_integer(),
+                             NewOffset :: non_neg_integer(),
+                             StartId :: non_neg_integer() | undefined) ->
+    StartId :: non_neg_integer() | undefined.
+maybe_save_offset_hint(_PoolName, _UserJID, _Filter, _HintOffset, _NewOffset,
+                       StartId = undefined) ->
+    StartId;
+maybe_save_offset_hint(PoolName, UserJID, Filter, HintOffset, NewOffset, StartId) ->
+    case abs(NewOffset - HintOffset) > 50 of
+        true ->
+            #mam_ca_filter{user_jid = FUserJID, with_jid = FWithJID} = Filter,
+            Row = #{user_jid => FUserJID, with_jid => FWithJID, offset => NewOffset, id => StartId},
+            mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE,
+                                         insert_offset_hint_query, [Row]);
+        false ->
+            skip
+    end,
+    StartId.
+
+%% @doc Convert offset to index of the first entry
+%% Returns undefined if not there are not enough rows
+-spec calc_offset_to_start_id(PoolName, UserJID, Filter, Offset) -> Id
+                                                                        when
+      PoolName :: mongoose_cassandra:pool_name(),
+      UserJID :: jlib:jid(),
+      Offset :: non_neg_integer(),
+      Filter :: filter(),
+      Id :: non_neg_integer() | undefined.
+calc_offset_to_start_id(PoolName, UserJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
     QueryName = {list_message_ids_query, select_filter(Filter)},
     Params = maps:put('[limit]', Offset + 1, eval_filter_params(Filter)),
     {ok, RowsIds} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, Params),
@@ -649,6 +726,15 @@ offset_to_start_id(PoolName, UserJID, Filter, Offset) when is_integer(Offset), O
         [_ | _] ->
             maps:get(id, lists:last(RowsIds))
     end.
+
+%% @doc Get closest offset -> message id 'hint' for specified offset
+prev_offset_query_cql() ->
+    "SELECT id, offset FROM mam_message_offset WHERE user_jid = ? and with_jid = ? "
+        "and offset <= ? LIMIT 1".
+
+%% @doc Insert offset -> message id 'hint'
+insert_offset_hint_query_cql() ->
+    "INSERT INTO mam_message_offset(user_jid, with_jid, id, offset) VALUES(?, ?, ?, ?)".
 
 prepare_filter(UserJID, Borders, Start, End, WithJID) ->
     BUserJID = bare_jid(UserJID),
@@ -775,12 +861,12 @@ list_message_ids_queries() ->
 extract_messages_cql(Filter) ->
     "SELECT id, from_jid, message FROM mam_message "
         "WHERE user_jid = ? AND with_jid = ? " ++
-        Filter ++ " ORDER BY with_jid, id LIMIT ?".
+        Filter ++ " ORDER BY id LIMIT ?".
 
 extract_messages_r_cql(Filter) ->
     "SELECT id, from_jid, message FROM mam_message "
         "WHERE user_jid = ? AND with_jid = ? " ++
-        Filter ++ " ORDER BY with_jid DESC, id DESC LIMIT ?".
+        Filter ++ " ORDER BY id DESC LIMIT ?".
 
 calc_count_cql(Filter) ->
     "SELECT COUNT(*) FROM mam_message "
@@ -789,7 +875,7 @@ calc_count_cql(Filter) ->
 list_message_ids_cql(Filter) ->
     "SELECT id FROM mam_message "
         "WHERE user_jid = ? AND with_jid = ? " ++ Filter ++
-        " ORDER BY with_jid, id LIMIT ?".
+        " ORDER BY id LIMIT ?".
 
 
 %% ----------------------------------------------------------------------
