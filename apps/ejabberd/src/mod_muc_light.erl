@@ -229,6 +229,8 @@ process_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, OrigPacket
 process_packet(From, To, {error, _} = Err, OrigPacket) ->
     mod_muc_light_codec_backend:encode_error(
       Err, From, To, OrigPacket, fun ejabberd_router:route/3);
+process_packet(_From, _To, ignore, _OrigPacket) ->
+     ok;
 process_packet(From, To, _InvalidReq, OrigPacket) ->
     mod_muc_light_codec_backend:encode_error(
       {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3).
