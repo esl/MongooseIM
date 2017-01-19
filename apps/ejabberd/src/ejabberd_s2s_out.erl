@@ -144,12 +144,12 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(_,_,_) -> {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
+-spec start(_, _, _) -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(From, Host, Type) ->
     ?SUPERVISOR_START.
 
 
--spec start_link(_,_,_) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(_, _, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(From, Host, Type) ->
     p1_fsm:start_link(ejabberd_s2s_out, [From, Host, Type],
                       fsm_limit_opts() ++ ?FSMOPTS).
@@ -173,7 +173,7 @@ stop_connection(Pid) ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([any(),...]) -> {'ok','open_socket',state()}.
+-spec init([any(), ...]) -> {'ok', 'open_socket', state()}.
 init([From, Server, Type]) ->
     process_flag(trap_exit, true),
     ?DEBUG("started: ~p", [{From, Server, Type}]),
@@ -294,11 +294,11 @@ open_socket(_, StateData) ->
 %%----------------------------------------------------------------------
 %% IPv4
 -spec open_socket1(Host :: binary() | inet:ip_address(),
-                   Port :: inet:port_number()) -> {'error',_} | {'ok',_}.
-open_socket1({_,_,_,_} = Addr, Port) ->
+                   Port :: inet:port_number()) -> {'error', _} | {'ok', _}.
+open_socket1({_, _, _, _} = Addr, Port) ->
     open_socket2(inet, Addr, Port);
 %% IPv6
-open_socket1({_,_,_,_,_,_,_,_} = Addr, Port) ->
+open_socket1({_, _, _, _, _, _, _, _} = Addr, Port) ->
     open_socket2(inet6, Addr, Port);
 %% Hostname
 open_socket1(Host, Port) ->
@@ -316,7 +316,7 @@ open_socket1(Host, Port) ->
 
 -spec open_socket2(Type :: 'inet' | 'inet6',
                    Addr :: inet:ip_address(),
-                   Port :: inet:port_number()) -> {'error',_} | {'ok',_}.
+                   Port :: inet:port_number()) -> {'error', _} | {'ok', _}.
 open_socket2(Type, Addr, Port) ->
     ?DEBUG("s2s_out: connecting to ~p:~p~n", [Addr, Port]),
     Timeout = outgoing_s2s_timeout(),
@@ -371,7 +371,7 @@ wait_for_stream({xmlstreamerror, _}, StateData) ->
     ?INFO_MSG("Closing s2s connection: ~s -> ~s (invalid xml)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-wait_for_stream({xmlstreamend,_Name}, StateData) ->
+wait_for_stream({xmlstreamend, _Name}, StateData) ->
     ?INFO_MSG("Closing s2s connection: ~s -> ~s (xmlstreamend)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
@@ -821,12 +821,12 @@ handle_event(_Event, StateName, StateData) ->
 %%   Reply = {state_infos, [{InfoName::atom(), InfoValue::any()]
 %%----------------------------------------------------------------------
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
-    {Addr,Port} = try ejabberd_socket:peername(StateData#state.socket) of
-                      {ok, {A,P}} ->  {A,P};
-                      {error, _} -> {unknown,unknown}
+    {Addr, Port} = try ejabberd_socket:peername(StateData#state.socket) of
+                      {ok, {A, P}} ->  {A, P};
+                      {error, _} -> {unknown, unknown}
                   catch
                       _:_ ->
-                          {unknown,unknown}
+                          {unknown, unknown}
                   end,
     Infos = [
              {direction, out},
@@ -848,7 +848,7 @@ handle_sync_event(get_state_infos, _From, StateName, StateData) ->
              {verify, StateData#state.verify}
             ],
     Reply = {state_infos, Infos},
-    {reply,Reply,StateName,StateData};
+    {reply, Reply, StateName, StateData};
 
 %%----------------------------------------------------------------------
 %% Func: handle_sync_event/4
@@ -1078,7 +1078,7 @@ send_db_request(StateData) ->
     end.
 
 
--spec is_verify_res(jlib:xmlel()) -> 'false' | {'result',_,_,_,_} | {'verify',_,_,_,_}.
+-spec is_verify_res(jlib:xmlel()) -> 'false' | {'result', _, _, _, _} | {'verify', _, _, _, _}.
 is_verify_res(#xmlel{name = Name,
                      attrs = Attrs}) when Name == <<"db:result">> ->
     {result,
@@ -1135,7 +1135,7 @@ get_addr_port(Server) ->
     end.
 
 
--spec srv_lookup(ejabberd:server()) -> {'error',atom()} | {'ok', inet:hostent()}.
+-spec srv_lookup(ejabberd:server()) -> {'error', atom()} | {'ok', inet:hostent()}.
 srv_lookup(Server) ->
     Options = case ejabberd_config:get_local_option(s2s_dns_options) of
                   L when is_list(L) -> L;
@@ -1153,7 +1153,7 @@ srv_lookup(Server) ->
 -spec srv_lookup(ejabberd:server(),
                  Timeout :: non_neg_integer(),
                  Retries :: pos_integer()
-                 ) -> {'error',atom()} | {'ok', inet:hostent()}.
+                 ) -> {'error', atom()} | {'ok', inet:hostent()}.
 srv_lookup(_Server, _Timeout, Retries) when Retries < 1 ->
     {error, timeout};
 srv_lookup(Server, Timeout, Retries) ->
@@ -1217,7 +1217,7 @@ outgoing_s2s_port() ->
     end.
 
 
--spec outgoing_s2s_families() -> ['ipv4' | 'ipv6',...].
+-spec outgoing_s2s_families() -> ['ipv4' | 'ipv6', ...].
 outgoing_s2s_families() ->
     case ejabberd_config:get_local_option(outgoing_s2s_options) of
         {Families, _} when is_list(Families) ->
@@ -1323,7 +1323,7 @@ terminate_if_waiting_delay(From, To) ->
       Pids).
 
 
--spec fsm_limit_opts() -> [{'max_queue',integer()}].
+-spec fsm_limit_opts() -> [{'max_queue', integer()}].
 fsm_limit_opts() ->
     case ejabberd_config:get_local_option(max_fsm_queue) of
         N when is_integer(N) ->
@@ -1339,12 +1339,12 @@ get_predefined_addresses(Server) ->
     case ejabberd_config:get_local_option({s2s_addr, Server}) of
         undefined ->
             [];
-        {{_,_,_,_}, Port} = IP4Port when is_integer(Port) ->
+        {{_, _, _, _}, Port} = IP4Port when is_integer(Port) ->
             [IP4Port];
-        {{_,_,_,_,_,_,_,_}, Port} = IP6Port when is_integer(Port) ->
+        {{_, _, _, _, _, _, _, _}, Port} = IP6Port when is_integer(Port) ->
             [IP6Port];
-        {_,_,_,_} = IP4 ->
+        {_, _, _, _} = IP4 ->
             [{IP4, outgoing_s2s_port()}];
-        {_,_,_,_,_,_,_,_} = IP6 ->
+        {_, _, _, _, _, _, _, _} = IP6 ->
             [{IP6, outgoing_s2s_port()}]
     end.

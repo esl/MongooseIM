@@ -516,9 +516,9 @@ resend_offline_message_packet(Server,
 
 add_timestamp(undefined, _Server, Packet) ->
     Packet;
-add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
-    {D,{H,M,S}} = calendar:now_to_universal_time(TimeStamp),
-    Time = {D,{H,M,S, Micro}},
+add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
+    {D, {H, M, S}} = calendar:now_to_universal_time(TimeStamp),
+    Time = {D, {H, M, S, Micro}},
     TimeStampXML = timestamp_xml(Server, Time),
     xml:append_subtags(Packet, [TimeStampXML]).
 

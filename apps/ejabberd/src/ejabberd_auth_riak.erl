@@ -59,7 +59,7 @@ store_type(Host) ->
         true -> scram
     end.
 
--spec set_password(ejabberd:luser(),ejabberd:lserver(), binary())
+-spec set_password(ejabberd:luser(), ejabberd:lserver(), binary())
         -> ok | {error, not_allowed | invalid_jid}.
 set_password(LUser, LServer, Password) ->
     case prepare_password(LServer, Password) of

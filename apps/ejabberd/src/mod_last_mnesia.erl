@@ -45,8 +45,8 @@ get_last(LUser, LServer) ->
 
 -spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
 count_active_users(LServer, TimeStamp) ->
-    MS = [{{last_activity,{'_',LServer},'$1','_'},
-        [{'>','$1',TimeStamp}],
+    MS = [{{last_activity, {'_', LServer}, '$1', '_'},
+        [{'>', '$1', TimeStamp}],
         [true]}],
     ets:select_count(last_activity, MS).
 

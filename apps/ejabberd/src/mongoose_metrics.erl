@@ -116,7 +116,7 @@ get_global_metric_names() ->
     get_host_metric_names(global).
 
 get_aggregated_values(Metric) ->
-    exometer:aggregate([{{['_',Metric],'_','_'},[],[true]}], [one, count, value]).
+    exometer:aggregate([{{['_', Metric], '_', '_'}, [], [true]}], [one, count, value]).
 
 -spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {error, any()}.
 increment_generic_hook_metric(Host, Hook) ->

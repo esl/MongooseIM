@@ -102,7 +102,7 @@ rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
 
 %% ----------------------------------------------------------------------
 %% Datetime types
--type ne_binary() :: <<_:8,_:_*8>>.
+-type ne_binary() :: <<_:8, _:_*8>>.
 -type iso8601_datetime_binary() :: ne_binary().
 %% Microseconds from 01.01.1970
 -type unix_timestamp() :: mod_mam:unix_timestamp().
@@ -147,7 +147,7 @@ iso8601_datetime_binary_to_timestamp(DateTime) when is_binary(DateTime) ->
 
 
 -spec datetime_to_microseconds(calendar:datetime()) -> integer().
-datetime_to_microseconds({{_,_,_}, {_,_,_}} = DateTime) ->
+datetime_to_microseconds({{_, _, _}, {_, _, _}} = DateTime) ->
     S1 = calendar:datetime_to_gregorian_seconds(DateTime),
     S0 = calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
     Seconds = S1 - S0,
@@ -172,7 +172,7 @@ generate_message_id() ->
 %%
 %% It removes a leading 0 from 64-bit binary representation.
 %% It puts node id as a last byte.
-%% The maximum date, that can be encoded is `{{4253,5,31},{22,20,37}}'.
+%% The maximum date, that can be encoded is `{{4253, 5, 31}, {22, 20, 37}}'.
 -spec encode_compact_uuid(integer(), integer()) -> integer().
 encode_compact_uuid(Microseconds, NodeId)
     when is_integer(Microseconds), is_integer(NodeId) ->
@@ -180,7 +180,7 @@ encode_compact_uuid(Microseconds, NodeId)
 
 
 %% @doc Extract date and node id from a message id.
--spec decode_compact_uuid(integer()) -> {integer(),byte()}.
+-spec decode_compact_uuid(integer()) -> {integer(), byte()}.
 decode_compact_uuid(Id) ->
     Microseconds = Id bsr 8,
     NodeId = Id band 255,
@@ -247,7 +247,7 @@ append_x_user_element(FromJID, Role, Affiliation, Packet) ->
     ItemElem = x_user_item(FromJID, Role, Affiliation),
     X = #xmlel{
         name = <<"x">>,
-        attrs = [{<<"xmlns">>,?NS_MUC_USER}],
+        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
         children = [ItemElem]},
     xml:append_subtags(Packet, [X]).
 
@@ -367,7 +367,7 @@ replace_from_attribute(From, Packet=#xmlel{attrs = Attrs}) ->
 
 %% @doc Generates tag `<result />'.
 %% This element will be added in each forwarded message.
--spec result(binary(), _, MessageUID :: binary(), Children :: [jlib:xmlel(),...])
+-spec result(binary(), _, MessageUID :: binary(), Children :: [jlib:xmlel(), ...])
             -> jlib:xmlel().
 result(MamNs, QueryID, MessageUID, Children) when is_list(Children) ->
     %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
@@ -704,7 +704,7 @@ expand_minified_jid(UserJID, Encoded) ->
     Part = binary:match(Encoded, [<<$@>>, <<$/>>, <<$:>>]),
     expand_minified_jid_2(Part, UserJID, Encoded).
 
--spec expand_minified_jid_2('nomatch' | {non_neg_integer(),1},
+-spec expand_minified_jid_2('nomatch' | {non_neg_integer(), 1},
             ejabberd:jid(), Encoded :: ejabberd:luser() | binary()) -> binary().
 expand_minified_jid_2(nomatch,  #jid{lserver=ThisServer}, LUser) ->
     <<LUser/binary, $@, ThisServer/binary>>;
@@ -846,7 +846,7 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
 %% Ejabberd
 
 -spec send_message(ejabberd:jid(), ejabberd:jid(), jlib:xmlel()
-                  ) -> 'ok' | {'error','lager_not_running'}.
+                  ) -> 'ok' | {'error', 'lager_not_running'}.
 
 -ifdef(MAM_COMPACT_FORWARDED).
 

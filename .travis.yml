@@ -1,4 +1,5 @@
 language: erlang
+dist: trusty
 sudo: required
 addons:
     apt:

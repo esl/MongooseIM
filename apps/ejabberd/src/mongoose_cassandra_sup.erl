@@ -18,9 +18,9 @@ list_pools() ->
 stop() ->
     [stop(PoolName) || PoolName <- list_pools()].
 
-start(PoolName, Config) ->
+start(PoolName, WorkerCount) ->
     create_worker_pool(PoolName),
-    supervisor:start_child(ejabberd_sup, supervisor_spec(PoolName, Config)).
+    supervisor:start_child(ejabberd_sup, supervisor_spec(PoolName, WorkerCount)).
 
 stop(PoolName) ->
     Tag = {mongoose_cassandra_sup, PoolName},
@@ -28,33 +28,34 @@ stop(PoolName) ->
     supervisor:delete_child(ejabberd_sup, Tag),
     delete_worker_pool(PoolName).
 
-start_link(PoolName, Config) ->
-    supervisor2:start_link({local, ?MODULE}, ?MODULE, [PoolName, Config]).
+start_link(PoolName, WorkerCount) ->
+    supervisor2:start_link({local, PoolName}, ?MODULE, [PoolName, WorkerCount]).
 
-supervisor_spec(PoolName, Config) ->
-    {{mongoose_cassandra_sup, PoolName},
-     {?MODULE, start_link, [PoolName, Config]},
-     permanent,
-     infinity,
-     supervisor,
-     [?MODULE]}.
+supervisor_spec(PoolName, WorkerCount) ->
+    {
+      {?MODULE, PoolName},
+      {?MODULE, start_link, [PoolName, WorkerCount]},
+      permanent,
+      infinity,
+      supervisor,
+      [?MODULE]
+    }.
 
-worker_spec(PoolName, Addr, Port, WorkerNumber, ClientOptions) ->
-    {{PoolName, Addr, Port, WorkerNumber},
-     {mongoose_cassandra_worker, start_link, [PoolName, Addr, Port, ClientOptions]},
-     {permanent, 10}, %% Delay is 10 seconds
-     infinity,
-     worker,
-     [mongoose_cassandra_worker]}.
+worker_spec(PoolName, WorkerNumber) ->
+    {
+      {PoolName, WorkerNumber},
+      {mongoose_cassandra_worker, start_link, [PoolName]},
+      {permanent, 10}, %% Delay is 10 seconds
+      infinity,
+      worker,
+      [mongoose_cassandra_worker]
+    }.
 
-worker_specs(PoolName, Servers, ClientOptions) ->
-    [worker_spec(PoolName, Addr, Port, WorkerNumber, ClientOptions)
-     || {Addr, Port, WorkerCount} <- Servers,
-        WorkerNumber <- lists:seq(1, WorkerCount)].
+worker_specs(PoolName, WorkerCount) ->
+    [worker_spec(PoolName, WorkerNumber) || WorkerNumber <- lists:seq(1, WorkerCount)].
 
-init([PoolName, ClientOptions]) ->
-    Servers = proplists:get_value(servers, ClientOptions),
-    Specs = worker_specs(PoolName, Servers, ClientOptions),
+init([PoolName, WorkerCount]) ->
+    Specs = worker_specs(PoolName, WorkerCount),
     {ok, {{one_for_one, 10, 1}, Specs}}.
 
 

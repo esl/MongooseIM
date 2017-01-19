@@ -235,7 +235,7 @@ store_last_info(LUser, LServer, TimeStamp, Status) ->
     ?BACKEND:set_last_info(LUser, LServer, TimeStamp, Status).
 
 -spec get_last_info(ejabberd:luser(), ejabberd:lserver())
-        -> 'not_found' | {'ok',integer(),string()}.
+        -> 'not_found' | {'ok', integer(), string()}.
 get_last_info(LUser, LServer) ->
     case get_last(LUser, LServer) of
         {error, _Reason} -> not_found;

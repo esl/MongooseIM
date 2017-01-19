@@ -52,6 +52,7 @@
          set_opt/3,
          get_module_opt/4,
          set_module_opt/4,
+         get_module_opts/2,
          get_opt_subhost/3,
          get_module_opt_subhost/3,
          % Get/set opts by subhost
@@ -187,10 +188,10 @@ generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
 %%     {Time, Result} = timer:tc(Backend, F, Args),
 %%     mongoose_metrics:update(global, ?METRIC(Backend, F), Time),
 %%     Result.
-    ["    {Time, Result} = timer:tc(", RealBackendModule, ", ", FS, ", [", Args, "]),\n",
+    ["    {Time, Result} = timer:tc(", RealBackendModule, ", ", FS, ", [", Args, "]), \n",
      "    mongoose_metrics:update(global, ",
           io_lib:format("~p", [?METRIC(BaseModule, F)]),
-          ", Time),\n",
+          ", Time), \n",
      "    Result.\n"].
 
 ensure_backend_metrics(Module, Ops) ->
@@ -312,13 +313,17 @@ get_module_opt(global, Module, Opt, Default) ->
             Default
     end;
 get_module_opt(Host, Module, Opt, Default) ->
+    ModuleOpts = get_module_opts(Host, Module),
+    get_opt(Opt, ModuleOpts, Default).
+
+
+get_module_opts(Host, Module) ->
     OptsList = ets:lookup(ejabberd_modules, {Module, Host}),
     case OptsList of
-        [] ->
-            Default;
-        [#ejabberd_module{opts = Opts} | _] ->
-            get_opt(Opt, Opts, Default)
+        [] -> [];
+        [#ejabberd_module{opts = Opts} | _] -> Opts
     end.
+
 
 -spec get_module_opt_by_subhost(
         SubHost :: ejabberd:server(),

@@ -51,7 +51,7 @@ pop_messages(LUser, LServer) ->
     TimeStamp = now(),
     STimeStamp = encode_timestamp(TimeStamp),
     case odbc_queries:pop_offline_messages(LServer, SUser, SServer, STimeStamp) of
-        {atomic, {selected, [<<"timestamp">>,<<"from_jid">>,<<"packet">>], Rows}} ->
+        {atomic, {selected, [<<"timestamp">>, <<"from_jid">>, <<"packet">>], Rows}} ->
             {ok, rows_to_records(US, To, Rows)};
         {aborted, Reason} ->
             {error, Reason};

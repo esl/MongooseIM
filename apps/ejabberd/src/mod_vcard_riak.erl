@@ -61,7 +61,7 @@ get_vcard(LUser, LServer) ->
                 {ok, XMLEl} ->
                     {ok, [XMLEl]};
                 {error, Reason} ->
-                    ?WARNING_MSG("not sending bad vcard reason=~p, xml=~n~p",[Reason,XMLBin]),
+                    ?WARNING_MSG("not sending bad vcard reason=~p, xml=~n~p", [Reason, XMLBin]),
                     {error, ?ERR_SERVICE_UNAVAILABLE}
             end;
         {error, notfound} ->

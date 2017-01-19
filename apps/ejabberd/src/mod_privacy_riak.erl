@@ -18,7 +18,7 @@
 % NOTES:
 %   user default privacy is stored in bucket {<<"privacy_defaults">>, LServer}, key LUser
 %   user privacy lists names are stored in set {<<"privacy_lists_names">>, <<"LServer">>}, key LUser
-%   user privace lists content are stored in bucket {<<"privacy_lists">>, LServer}, key <<LUser,$/,ListName>>
+%   user privace lists content are stored in bucket {<<"privacy_lists">>, LServer}, key <<LUser, $/, ListName>>
 
 -module(mod_privacy_riak).
 -author('guillaume@bour.cc').

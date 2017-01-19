@@ -46,7 +46,7 @@ multi_get_data(LUser, LServer, NS2Def) ->
 
 -spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok.
 remove_user(LUser, LServer) ->
-    KeyFilter = [[<<"starts_with">>,LUser]],
+    KeyFilter = [[<<"starts_with">>, LUser]],
     Bucket = bucket_type(LServer),
     case mongoose_riak:mapred([{Bucket, KeyFilter}], []) of
         {ok, []} ->

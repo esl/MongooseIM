@@ -58,17 +58,17 @@ get_vcard(LUser, LServer) ->
 set_vcard(User, VHost, VCard, VCardSearch) ->
     LUser = jid:nodeprep(User),
     F = fun() ->
-                mnesia:write(#vcard{us ={LUser,VHost}, vcard = VCard}),
+                mnesia:write(#vcard{us ={LUser, VHost}, vcard = VCard}),
                 mnesia:write(VCardSearch)
         end,
     {atomic, _} = mnesia:transaction(F),
-    ejabberd_hooks:run(vcard_set, VHost,[LUser,VHost, VCard]),
+    ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
     ok.
 
 search(VHost, Data) ->
     MatchHead = make_matchhead(VHost, Data),
     R = do_search(VHost, MatchHead),
-    lists:map(fun record_to_item/1,R).
+    lists:map(fun record_to_item/1, R).
 
 do_search(_, #vcard_search{_ = '_'}) ->
     [];
@@ -187,10 +187,10 @@ update_vcard_search_table() ->
          given,    lgiven,
          middle,   lmiddle,
          nickname, lnickname,
-         bday,	   lbday,
-         ctry,	   lctry,
+         bday, 	   lbday,
+         ctry, 	   lctry,
          locality, llocality,
-         email,	   lemail,
+         email, 	   lemail,
          orgname,  lorgname,
          orgunit,  lorgunit] ->
             ?INFO_MSG("Converting vcard_search table from "
@@ -251,10 +251,10 @@ update_vcard_search_table() ->
 						given,    lgiven,
 						middle,   lmiddle,
 						nickname, lnickname,
-						bday,	   lbday,
-						ctry,	   lctry,
+						bday, 	   lbday,
+						ctry, 	   lctry,
 						locality, llocality,
-						email,	   lemail,
+						email, 	   lemail,
 						orgname,  lorgname,
 						orgunit,  lorgunit}))
 			  end, mnesia:table_info(vcard_search, index)),

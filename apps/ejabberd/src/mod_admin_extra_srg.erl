@@ -49,13 +49,13 @@
 %%% Register commands
 %%%
 
--spec commands() -> [ejabberd_commands:cmd(),...].
+-spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     [
         #ejabberd_commands{name = srg_create, tags = [shared_roster_group],
                            desc = "Create a Shared Roster Group",
                            longdesc = "If you want to specify several group "
-                           "identifiers in the Display argument,\n"
+                           "identifiers in the Display argument, \n"
                            "put  \\ \" around the argument and\nseparate the "
                            "identifiers with \\ \\ n\n"
                            "For example:\n"
@@ -129,14 +129,14 @@ srg_list(Host) ->
 
 -spec srg_get_info(group(), ejabberd:server()) -> [{string(), string()}].
 srg_get_info(Group, Host) ->
-    Opts = mod_shared_roster:get_group_opts(Host,Group),
+    Opts = mod_shared_roster:get_group_opts(Host, Group),
     [{io_lib:format("~p", [Title]),
       io_lib:format("~p", [Value])} || {Title, Value} <- Opts].
 
 
 -spec srg_get_members(group(), ejabberd:server()) -> [binary()].
 srg_get_members(Group, Host) ->
-    Members = mod_shared_roster:get_group_explicit_users(Host,Group),
+    Members = mod_shared_roster:get_group_explicit_users(Host, Group),
     [jid:to_binary(jid:make(MUser, MServer, <<"">>))
      || {MUser, MServer} <- Members].
 

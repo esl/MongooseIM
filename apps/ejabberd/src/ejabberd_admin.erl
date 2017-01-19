@@ -363,7 +363,7 @@ delete_old_messages(Days) ->
 %%% Mnesia management
 %%%
 
--spec set_master(Node :: atom() | string()) -> {'error', io_lib:chars()} | {'ok',[]}.
+-spec set_master(Node :: atom() | string()) -> {'error', io_lib:chars()} | {'ok', []}.
 set_master("self") ->
     set_master(node());
 set_master(NodeString) when is_list(NodeString) ->
@@ -378,7 +378,7 @@ set_master(Node) when is_atom(Node) ->
             {error, String}
     end.
 
--spec backup_mnesia(file:name()) -> {'cannot_backup', io_lib:chars()} | {'ok',[]}.
+-spec backup_mnesia(file:name()) -> {'cannot_backup', io_lib:chars()} | {'ok', []}.
 backup_mnesia(Path) ->
     case mnesia:backup(Path) of
         ok ->
@@ -391,7 +391,7 @@ backup_mnesia(Path) ->
 
 -spec restore_mnesia(file:name()) -> {'cannot_restore', io_lib:chars()}
                                    | {'file_not_found', io_lib:chars()}
-                                   | {'ok',[]}
+                                   | {'ok', []}
                                    | {'table_not_exists', io_lib:chars()}.
 restore_mnesia(Path) ->
     case ejabberd_admin:restore(Path) of
@@ -401,11 +401,11 @@ restore_mnesia(Path) ->
             String = io_lib:format("Can't restore backup from ~p at node ~p: ~p",
                                    [filename:absname(Path), node(), Reason]),
             {cannot_restore, String};
-        {aborted,{no_exists,Table}} ->
+        {aborted, {no_exists, Table}} ->
             String = io_lib:format("Can't restore backup from ~p at node ~p: Table ~p does not exist.",
                                    [filename:absname(Path), node(), Table]),
             {table_not_exists, String};
-        {aborted,enoent} ->
+        {aborted, enoent} ->
             String = io_lib:format("Can't restore backup from ~p at node ~p: File not found.",
                                    [filename:absname(Path), node()]),
             {file_not_found, String}
@@ -415,7 +415,7 @@ restore_mnesia(Path) ->
 %% This function is called from ejabberd_ctl, ejabberd_web_admin and
 %% mod_configure/adhoc
 restore(Path) ->
-    mnesia:restore(Path, [{keep_tables,keep_tables()},
+    mnesia:restore(Path, [{keep_tables, keep_tables()},
                           {default_op, skip_tables}]).
 
 %% @doc This function return a list of tables that should be kept from a
@@ -486,19 +486,19 @@ dump_tables(Path, Tables) ->
             {cannot_dump, String}
     end.
 
--spec dump_to_textfile(file:name()) -> 'ok' | {'error',atom()}.
+-spec dump_to_textfile(file:name()) -> 'ok' | {'error', atom()}.
 dump_to_textfile(File) ->
     Tabs = get_local_tables(),
     dump_to_textfile(File, Tabs).
 
--spec dump_to_textfile(file:name(), Tabs :: list()) -> 'ok' | {'error',atom()}.
+-spec dump_to_textfile(file:name(), Tabs :: list()) -> 'ok' | {'error', atom()}.
 dump_to_textfile(File, Tabs) ->
     dump_to_textfile(mnesia:system_info(is_running), Tabs, file:open(File, [write])).
 
 -spec dump_to_textfile(any(),
                       any(),
-                      {'error',atom()} | {'ok',pid() | {'file_descriptor',atom() | tuple(),_}}
-                      ) -> 'ok' | {'error',atom()}.
+                      {'error', atom()} | {'ok', pid() | {'file_descriptor', atom() | tuple(), _}}
+                      ) -> 'ok' | {'error', atom()}.
 dump_to_textfile(yes, Tabs, {ok, F}) ->
     Defs = lists:map(
              fun(T) -> {T, [{record_name, mnesia:table_info(T, record_name)},
@@ -514,13 +514,13 @@ dump_to_textfile(_, _, {ok, F}) ->
 dump_to_textfile(_, _, {error, Reason}) ->
     {error, Reason}.
 
--spec dump_tab(pid(),atom()) -> 'ok'.
+-spec dump_tab(pid(), atom()) -> 'ok'.
 dump_tab(F, T) ->
     W = mnesia:table_info(T, wild_pattern),
-    {atomic,All} = mnesia:transaction(
+    {atomic, All} = mnesia:transaction(
                      fun() -> mnesia:match_object(T, W, read) end),
     lists:foreach(
-      fun(Term) -> io:format(F,"~p.~n", [setelement(1, Term, T)]) end, All).
+      fun(Term) -> io:format(F, "~p.~n", [setelement(1, Term, T)]) end, All).
 
 -spec load_mnesia(file:name()) -> {'cannot_load', io_lib:chars()} | {'ok', []}.
 load_mnesia(Path) ->
@@ -534,7 +534,7 @@ load_mnesia(Path) ->
     end.
 
 -spec install_fallback_mnesia(file:name()) ->
-                        {'cannot_fallback', io_lib:chars()} | {'ok',[]}.
+                        {'cannot_fallback', io_lib:chars()} | {'ok', []}.
 install_fallback_mnesia(Path) ->
     case mnesia:install_fallback(Path) of
         ok ->
@@ -545,7 +545,7 @@ install_fallback_mnesia(Path) ->
             {cannot_fallback, String}
     end.
 
--spec mnesia_change_nodename(string(),string(),_,_) -> {ok,_} | {error,_}.
+-spec mnesia_change_nodename(string(), string(), _, _) -> {ok, _} | {error, _}.
 mnesia_change_nodename(FromString, ToString, Source, Target) ->
     From = list_to_atom(FromString),
     To = list_to_atom(ToString),
@@ -566,7 +566,7 @@ mnesia_change_nodename(FromString, ToString, Source, Target) ->
         fun
             ({schema, db_nodes, Nodes}, Acc) ->
                 io:format(" +++ db_nodes ~p~n", [Nodes]),
-                {[{schema, db_nodes, lists:map(Switch,Nodes)}], Acc};
+                {[{schema, db_nodes, lists:map(Switch, Nodes)}], Acc};
             ({schema, version, Version}, Acc) ->
                 io:format(" +++ version: ~p~n", [Version]),
                 {[{schema, version, Version}], Acc};

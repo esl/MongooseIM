@@ -187,10 +187,10 @@ update_set_t(Table, FieldsVals, Where) ->
 	       <<") values ('">>, join(Vals, "', '"), "');"])
     end.
 
-odds([X,_|T]) -> [X|odds(T)];
+odds([X, _|T]) -> [X|odds(T)];
 odds([])      -> [].
 
-evens([_,X|T]) -> [X|evens(T)];
+evens([_, X|T]) -> [X|evens(T)];
 evens([])      -> [].
 
 join_field_and_values([Field, Val|FieldsVals]) ->
@@ -270,7 +270,7 @@ set_password_t(LServer, Username, {Pass, PassDetails}) ->
       fun() ->
 	      update_t(<<"users">>, [<<"password">>, <<"pass_details">>],
 		       [Pass, PassDetails],
-		       [<<"username='">>, Username ,<<"'">>])
+		       [<<"username='">>, Username, <<"'">>])
       end);
 set_password_t(LServer, Username, Pass) ->
     ejabberd_odbc:sql_transaction(
@@ -278,7 +278,7 @@ set_password_t(LServer, Username, Pass) ->
       fun() ->
 	      update_t(<<"users">>, [<<"username">>, <<"password">>],
 		       [Username, Pass],
-		       [<<"username='">>, Username ,<<"'">>])
+		       [<<"username='">>, Username, <<"'">>])
       end).
 
 add_user(LServer, Username, {Pass, PassDetails}) ->
@@ -295,7 +295,7 @@ add_user(LServer, Username, Pass) ->
 del_user(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      [<<"delete from users where username='">>, Username ,"';"]).
+      [<<"delete from users where username='">>, Username, "';"]).
 
 del_user_return_password(_LServer, Username, Pass) ->
     P = ejabberd_odbc:sql_query_t(
@@ -725,7 +725,7 @@ set_privacy_list(ID, RItems) ->
 del_privacy_lists(LServer, _Server, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      [<<"delete from privacy_list_data where id in ( select id from privacy_list as pl where pl.username='">>,Username,<<"');">>]),
+      [<<"delete from privacy_list_data where id in ( select id from privacy_list as pl where pl.username='">>, Username, <<"');">>]),
     ejabberd_odbc:sql_query(
       LServer,
       [<<"delete from privacy_list where username='">>, Username, "';"]),

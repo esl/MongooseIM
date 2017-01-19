@@ -140,7 +140,7 @@ request_body(Req, #state{length=Length}) ->
     end.
 
 remove_confusing_headers(List) ->
-    [Header || {Field,_}=Header <- List,
+    [Header || {Field, _}=Header <- List,
                not is_header_confusing(cowboy_bstr:to_lower(Field))].
 
 is_header_confusing(<<"transfer-encoding">>) -> true;
@@ -154,7 +154,7 @@ upstream_uri(#match{upstream=Upstream, remainder=Remainder,
               host=UpHost,
               path=UpPath} = Upstream,
     BoundHost = upstream_bindings(UpHost, $., Bindings, <<>>),
-    PathSegments = case {Type,Path} of
+    PathSegments = case {Type, Path} of
         {uri, _} -> UpPath ++ Remainder;
         {_, '_'} -> UpPath ++ Remainder;
         _        -> UpPath ++ Path ++ Remainder
@@ -268,7 +268,7 @@ compile_routes([], Acc) ->
     lists:reverse(Acc);
 compile_routes([{Host, Method, Upstream}|Tail], Acc) ->
     compile_routes([{Host, '_', Method, Upstream}|Tail], Acc);
-compile_routes([{HostMatch,PathMatch,MethodMatch,UpstreamMatch}|Tail], Acc) ->
+compile_routes([{HostMatch, PathMatch, MethodMatch, UpstreamMatch}|Tail], Acc) ->
     HostRule = compile_host(HostMatch),
     Method = compile_method(MethodMatch),
     Upstream = compile_upstream(UpstreamMatch),

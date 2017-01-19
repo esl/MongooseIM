@@ -42,7 +42,7 @@
 
 -export([pool_name/0]).
 
--compile({no_auto_import,[put/2]}).
+-compile({no_auto_import, [put/2]}).
 
 -define(CALL(F, Args), call_riak(F, Args)).
 

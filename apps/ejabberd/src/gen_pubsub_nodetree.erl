@@ -80,7 +80,7 @@
 -callback get_parentnodes_tree(Host :: host(),
         NodeId :: nodeId(),
         From :: jid()) ->
-    [{0, [pubsubNode(),...]}].
+    [{0, [pubsubNode(), ...]}].
 
 -callback get_subnodes(Host :: host(),
         NodeId :: nodeId(),

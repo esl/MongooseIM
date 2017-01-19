@@ -79,10 +79,10 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
+%% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -90,7 +90,7 @@ start_link() ->
                  To :: ejabberd:jid(),
                  Packet :: jlib:xmlel()
                  ) -> 'nothing' | 'ok' | 'todo' | pid()
-                    | {'error','lager_not_running'} | {'process_iq',_,_,_}.
+                    | {'error', 'lager_not_running'} | {'process_iq', _, _, _}.
 process_iq(From, To, Packet) ->
     IQ = jlib:iq_query_info(Packet),
     case IQ of
@@ -141,7 +141,7 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
 
 -spec route(From :: ejabberd:jid(),
             To :: ejabberd:jid(),
-            Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
+            Packet :: jlib:xmlel()) -> 'ok' | {'error', 'lager_not_running'}.
 route(From, To, Packet) ->
     case (catch do_route(From, To, Packet)) of
         {'EXIT', Reason} ->
@@ -200,7 +200,7 @@ register_iq_response_handler(_Host, ID, Module, Function, Timeout0) ->
 -spec register_iq_handler(Host :: ejabberd:server(),
                           XMLNS :: binary(),
                           Module :: atom(),
-                          Function :: fun()) -> {register_iq_handler,_,_,_,_}.
+                          Function :: fun()) -> {register_iq_handler, _, _, _, _}.
 register_iq_handler(Host, XMLNS, Module, Fun) ->
     ejabberd_local ! {register_iq_handler, Host, XMLNS, Module, Fun}.
 
@@ -208,7 +208,7 @@ register_iq_handler(Host, XMLNS, Module, Fun) ->
                           XMLNS :: binary(),
                           Module :: atom(),
                           Function :: fun(),
-                          Opts :: [any()]) -> {register_iq_handler,_,_,_,_,_}.
+                          Opts :: [any()]) -> {register_iq_handler, _, _, _, _, _}.
 register_iq_handler(Host, XMLNS, Module, Fun, Opts) ->
     ejabberd_local ! {register_iq_handler, Host, XMLNS, Module, Fun, Opts}.
 
@@ -219,7 +219,7 @@ unregister_iq_response_handler(_Host, ID) ->
     ok.
 
 -spec unregister_iq_handler(Host :: ejabberd:server(),
-                           XMLNS :: binary()) -> {unregister_iq_handler,_,_}.
+                           XMLNS :: binary()) -> {unregister_iq_handler, _, _}.
 unregister_iq_handler(Host, XMLNS) ->
     ejabberd_local ! {unregister_iq_handler, Host, XMLNS}.
 
@@ -236,11 +236,11 @@ bounce_resource_packet(From, To, Packet) ->
 
 -spec register_host(Host :: ejabberd:server()) -> ok.
 register_host(Host) ->
-    gen_server:call(?MODULE,{register_host,Host}).
+    gen_server:call(?MODULE, {register_host, Host}).
 
 -spec unregister_host(Host :: ejabberd:server()) -> ok.
 unregister_host(Host) ->
-    gen_server:call(?MODULE,{unregister_host,Host}).
+    gen_server:call(?MODULE, {unregister_host, Host}).
 
 %%====================================================================
 %% API
@@ -413,7 +413,7 @@ do_route(From, To, Packet) ->
             end
         end.
 
--spec update_table() -> ok | {atomic|aborted,_}.
+-spec update_table() -> ok | {atomic|aborted, _}.
 update_table() ->
     case catch mnesia:table_info(iq_response, attributes) of
         [id, module, function] ->

@@ -66,7 +66,7 @@ worker_count(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
 
--spec worker_names(ejabberd:server()) -> [{integer(),atom()}].
+-spec worker_names(ejabberd:server()) -> [{integer(), atom()}].
 worker_names(Host) ->
     [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
 
@@ -91,13 +91,13 @@ worker_number(Host, ArcID) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(),_) -> 'ok'.
+-spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
     start_workers(Host),
     start_muc(Host, Opts).
 
 
--spec stop(ejabberd:server()) -> ['ok' | {'error','not_found' | 'restarting'
+-spec stop(ejabberd:server()) -> ['ok' | {'error', 'not_found' | 'restarting'
                                   | 'running' | 'simple_one_for_one'}].
 stop(Host) ->
     stop_muc(Host),
@@ -106,7 +106,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(),_) -> 'ok'.
+-spec start_muc(ejabberd:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
@@ -131,24 +131,24 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
--spec start_workers(ejabberd:server()) -> [{'error',_}
-                                        | {'ok','undefined' | pid()}
-                                        | {'ok','undefined' | pid(),_}].
+-spec start_workers(ejabberd:server()) -> [{'error', _}
+                                        | {'ok', 'undefined' | pid()}
+                                        | {'ok', 'undefined' | pid(), _}].
 start_workers(Host) ->
     [start_worker(WriterProc, N, Host)
      || {N, WriterProc} <- worker_names(Host)].
 
 
 -spec stop_workers(ejabberd:server()) -> ['ok'
-    | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}].
+    | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}].
 stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
 
 -spec start_worker(atom(), integer(), ejabberd:server())
       -> {'error', _}
-         | {'ok','undefined' | pid()}
-         | {'ok','undefined' | pid(), _}.
+         | {'ok', 'undefined' | pid()}
+         | {'ok', 'undefined' | pid(), _}.
 start_worker(WriterProc, N, Host) ->
     WriterChildSpec =
     {WriterProc,
@@ -161,13 +161,13 @@ start_worker(WriterProc, N, Host) ->
 
 
 -spec stop_worker(atom()) -> 'ok'
-        | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
+        | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),
     supervisor:delete_child(mod_mam_sup, Proc).
 
 
--spec start_link(atom(),_,_) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(atom(), _, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(ProcName, N, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host, N], []).
 
@@ -207,7 +207,7 @@ is_overloaded(Pid) ->
 
 
 %% @doc For metrics.
--spec queue_length(ejabberd:server()) -> {'ok',number()}.
+-spec queue_length(ejabberd:server()) -> {'ok', number()}.
 queue_length(Host) ->
     Len = lists:sum(queue_lengths(Host)),
     {ok, Len}.
@@ -380,7 +380,7 @@ init([Host, N]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 -spec handle_call('wait_flushing', _, state())
-      -> {'noreply', state()} | {'reply','ok',state()}.
+      -> {'noreply', state()} | {'reply', 'ok', state()}.
 handle_call(get_connection, _From, State=#state{conn = Conn}) ->
     {reply, Conn, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
@@ -426,7 +426,7 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 
--spec handle_info('flush',state()) -> {'noreply',state()}.
+-spec handle_info('flush', state()) -> {'noreply', state()}.
 handle_info(flush, State) ->
     {noreply, run_flush(State#state{flush_interval_tref=undefined})}.
 

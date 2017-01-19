@@ -51,7 +51,8 @@
          remove_and_add_users/1,
          explicit_owner_change/1,
          implicit_owner_change/1,
-         edge_case_owner_change/1
+         edge_case_owner_change/1,
+         adding_wrongly_named_user_triggers_infinite_loop/1
         ]).
 -export([ % limits
          rooms_per_user/1,
@@ -170,7 +171,8 @@ groups() ->
                           remove_and_add_users,
                           explicit_owner_change,
                           implicit_owner_change,
-                          edge_case_owner_change
+                          edge_case_owner_change,
+                          adding_wrongly_named_user_triggers_infinite_loop
                          ]},
      {limits, [sequence], [
                            rooms_per_user,
@@ -722,6 +724,22 @@ edge_case_owner_change(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
         end).
 
+adding_wrongly_named_user_triggers_infinite_loop(Config)->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            BuggyRoomName = <<"buggyroom">>,
+            Username = <<"buggyuser">>,
+            escalus:send(Alice, generate_buggy_aff_staza(BuggyRoomName, Username)),
+            timer:sleep(300),
+            AUsername = lbin(escalus_users:get_username(Config, alice)),
+            Host = lbin(escalus_users:get_host(Config, alice)),
+            Resource = <<"res1">>,
+            SessionRecPid = rpc(ejabberd_sm, get_session, [AUsername, Host, Resource]),
+            {{AUsername, Host, Resource}, {_, Pid}, _, _} = SessionRecPid,
+            %% maybe throws exception
+            assert_process_memory_not_growing(Pid, 0, 2),
+            escalus:wait_for_stanzas(Alice, 2)
+    end).
+
 %% ---------------------- limits ----------------------
 
 rooms_per_user(Config) ->
@@ -875,6 +893,12 @@ get_disco_rooms(User) ->
     true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
     escalus:assert(is_stanza_from, [?MUCHOST], Stanza),
     exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]).
+
+-spec generate_buggy_aff_staza(RoomName :: binary(), Username :: binary()) -> xmlel().
+generate_buggy_aff_staza(RoomName, Username) ->
+    BuggyJid = <<Username/binary, "@muclight.localhost">>,
+    BuggyUser = #client{jid = BuggyJid},
+    stanza_create_room(RoomName, [], [{BuggyUser, member}]).
 
 %%--------------------------------------------------------------------
 %% IQ getters
@@ -1153,6 +1177,22 @@ to_lus(UserAtom, Config) ->
 
 -spec lbin(Bin :: binary()) -> binary().
 lbin(Bin) -> list_to_binary(string:to_lower(binary_to_list(Bin))).
+
+-spec assert_process_memory_not_growing(pid(), integer(), integer()) -> any().
+assert_process_memory_not_growing(_, _, Counter) when Counter > 4 ->
+    throw({memory_consumption_is_growing});
+assert_process_memory_not_growing(_, _, Counter) when Counter == 0 ->
+    ok;
+assert_process_memory_not_growing(Pid, OldMemory, Counter) ->
+    {memory, Memory} = rpc(erlang, process_info, [Pid, memory]),
+    timer:sleep(1000),
+    NewCounter = case Memory =< OldMemory of
+                   true ->
+                     Counter - 1;
+                   _ ->
+                     Counter + 1
+                 end,
+  assert_process_memory_not_growing(Pid, Memory, NewCounter).
 
 -spec default_config() -> list().
 default_config() -> rpc(mod_muc_light, default_config, [?MUCHOST]).
