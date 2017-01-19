@@ -226,7 +226,7 @@ reset_stream(#websocket{pid = Pid} = SocketData) ->
     Pid ! reset_stream,
     SocketData.
 
--spec send_xml(#websocket{}, mongoose_sockmod:send_xml_input()) -> ok.
+-spec send_xml(socket(), mongoose_sockmod:send_xml_input()) -> ok.
 send_xml(SocketData, {xmlstreamraw, Text}) ->
     send(SocketData, Text);
 send_xml(SocketData, {xmlstreamelement, XML}) ->
@@ -242,7 +242,7 @@ send(#websocket{pid = Pid}, Data) ->
 change_shaper(SocketData, _Shaper) ->
     SocketData. %% TODO: we ignore shapers for now
 
--spec monitor(#websocket{}) -> reference().
+-spec monitor(socket()) -> reference().
 monitor(#websocket{pid = Pid}) ->
     erlang:monitor(process, Pid).
 
@@ -252,7 +252,7 @@ get_sockmod(_SocketData) ->
 close(#websocket{pid = Pid}) ->
     Pid ! close.
 
--spec peername(#websocket{}) -> mongoose_sockmod:peername_return().
+-spec peername(socket()) -> mongoose_sockmod:peername_return().
 peername(#websocket{peername = PeerName}) ->
     {ok, PeerName}.
 

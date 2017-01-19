@@ -31,21 +31,21 @@
 
 %% API
 -export([start/4,
-	 connect/3,
-	 connect/4,
-	 starttls/2,
-	 starttls/3,
-	 compress/3,
-	 reset_stream/1,
-	 send/2,
-	 send_xml/2,
-	 change_shaper/2,
-	 monitor/1,
-	 get_sockmod/1,
-	 get_peer_certificate/1,
-	 get_verify_result/1,
-	 close/1,
-	 sockname/1, peername/1]).
+         connect/3,
+         connect/4,
+         starttls/2,
+         starttls/3,
+         compress/3,
+         reset_stream/1,
+         send/2,
+         send_xml/2,
+         change_shaper/2,
+         monitor/1,
+         get_sockmod/1,
+         get_peer_certificate/1,
+         get_verify_result/1,
+         close/1,
+         sockname/1, peername/1]).
 
 -include("ejabberd.hrl").
 
