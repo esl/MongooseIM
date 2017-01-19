@@ -68,7 +68,7 @@ get_data(LUser, LServer, NS, Default) ->
     SLUser = ejabberd_odbc:escape(LUser),
     SNS = ejabberd_odbc:escape(NS),
     case catch odbc_queries:get_private_data(LServer, SLUser, SNS) of
-        {selected, [<<"data">>], [{SData}]} ->
+        {selected, [{SData}]} ->
 	    {ok, Elem} = exml:parse(SData),
 	    Elem;
         _ ->

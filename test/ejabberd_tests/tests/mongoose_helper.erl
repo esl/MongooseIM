@@ -152,7 +152,7 @@ count_wildpattern(Table) ->
 
 
 count_odbc(Table) ->
-    {selected, _, [{N}]} =
+    {selected, [{N}]} =
         ?RPC(ejabberd_odbc,sql_query, [<<"localhost">>,[<<"select count(*) from ", Table/binary, " ;">>]]),
     count_to_integer(N).
 

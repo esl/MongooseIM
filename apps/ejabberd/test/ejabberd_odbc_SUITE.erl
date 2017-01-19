@@ -95,7 +95,7 @@ meck_db(odbc) ->
     meck:expect(odbc, connect, fun(_, _) -> {ok, self()} end),
     meck:expect(odbc, sql_query,
                 fun(_Ref, _Query, _Timeout) ->
-                        {selected, ["column"], ["row"]}
+                        {selected, ["row"]}
                 end);
 meck_db(mysql) ->
     meck:new(p1_mysql_conn, [no_link]),

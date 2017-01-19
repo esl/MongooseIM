@@ -34,7 +34,7 @@ multi_get_data(LUser, LServer, NS2Def) ->
     SLUser = ejabberd_odbc:escape(LUser),
     SNSs = [ejabberd_odbc:escape(NS) || {NS, _Def} <- NS2Def],
     case odbc_queries:multi_get_private_data(LServer, SLUser, SNSs) of
-        {selected, [<<"namespace">>, <<"data">>], Rows} ->
+        {selected, Rows} ->
             RowsDict = dict:from_list(Rows),
             [select_value(NSDef, RowsDict) || NSDef <- NS2Def];
         _ ->

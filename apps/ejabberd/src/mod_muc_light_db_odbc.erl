@@ -102,7 +102,7 @@ destroy_room(RoomUS) ->
 -spec room_exists(RoomUS :: ejabberd:simple_bare_jid()) -> boolean().
 room_exists({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
-    {selected, _, Res} = ejabberd_odbc:sql_query(
+    {selected, Res} = ejabberd_odbc:sql_query(
                            MainHost, mod_muc_light_db_odbc_sql:select_room_id(RoomU, RoomS)),
     Res /= [].
 
@@ -113,12 +113,12 @@ get_user_rooms({LUser, LServer}, undefined) ->
     SQL = mod_muc_light_db_odbc_sql:select_user_rooms(LUser, LServer),
     lists:usort(lists:flatmap(
                   fun(Host) ->
-                          {selected, _, Rooms} = ejabberd_odbc:sql_query(Host, SQL),
+                          {selected, Rooms} = ejabberd_odbc:sql_query(Host, SQL),
                           Rooms
                   end, ?MYHOSTS));
 get_user_rooms({LUser, LServer}, MUCServer) ->
     MainHost = main_host(MUCServer),
-    {selected, _, Rooms} = ejabberd_odbc:sql_query(
+    {selected, Rooms} = ejabberd_odbc:sql_query(
                              MainHost, mod_muc_light_db_odbc_sql:select_user_rooms(LUser, LServer)),
     Rooms.
 
@@ -127,7 +127,7 @@ get_user_rooms({LUser, LServer}, MUCServer) ->
     non_neg_integer().
 get_user_rooms_count({LUser, LServer}, MUCServer) ->
     MainHost = main_host(MUCServer),
-    {selected, _, [{Cnt}]}
+    {selected, [{Cnt}]}
     = ejabberd_odbc:sql_query(
         MainHost, mod_muc_light_db_odbc_sql:select_user_rooms_count(LUser, LServer)),
     ejabberd_odbc:result_to_integer(Cnt).
@@ -147,7 +147,7 @@ get_config({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
 
     SQL = mod_muc_light_db_odbc_sql:select_config(RoomU, RoomS),
-    {selected, _ColNames, Result} = ejabberd_odbc:sql_query(MainHost, SQL),
+    {selected, Result} = ejabberd_odbc:sql_query(MainHost, SQL),
 
     case Result of
         [] ->
@@ -169,7 +169,7 @@ get_config({RoomU, RoomS} = RoomUS, Key) ->
     {KeyDB, _, _} = lists:keyfind(Key, 2, ConfigSchema),
 
     SQL = mod_muc_light_db_odbc_sql:select_config(RoomU, RoomS, KeyDB),
-    {selected, _ColNames, Result} = ejabberd_odbc:sql_query(MainHost, SQL),
+    {selected, Result} = ejabberd_odbc:sql_query(MainHost, SQL),
 
     case Result of
         [] ->
@@ -205,7 +205,7 @@ set_config(RoomJID, Key, Val, Version) ->
 get_blocking({LUser, LServer}, MUCServer) ->
     MainHost = main_host(MUCServer),
     SQL = mod_muc_light_db_odbc_sql:select_blocking(LUser, LServer),
-    {selected, _, WhatWhos} = ejabberd_odbc:sql_query(MainHost, SQL),
+    {selected, WhatWhos} = ejabberd_odbc:sql_query(MainHost, SQL),
     [ {what_db2atom(What), deny, jid:to_lus(jid:from_binary(Who))} || {What, Who} <- WhatWhos ].
 
 -spec get_blocking(UserUS :: ejabberd:simple_bare_jid(),
@@ -215,7 +215,7 @@ get_blocking({LUser, LServer}, MUCServer) ->
 get_blocking({LUser, LServer}, MUCServer, WhatWhos) ->
     MainHost = main_host(MUCServer),
     SQL = mod_muc_light_db_odbc_sql:select_blocking_cnt(LUser, LServer, WhatWhos),
-    {selected, _, [{Count}]} = ejabberd_odbc:sql_query(MainHost, SQL),
+    {selected, [{Count}]} = ejabberd_odbc:sql_query(MainHost, SQL),
     case ejabberd_odbc:result_to_integer(Count) of
         0 -> allow;
         _ -> deny
@@ -244,11 +244,11 @@ set_blocking({LUser, LServer} = UserUS, MUCServer, [{What, allow, Who} | RBlocki
 get_aff_users({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
     case ejabberd_odbc:sql_query(MainHost, mod_muc_light_db_odbc_sql:select_affs(RoomU, RoomS)) of
-        {selected, _, []} ->
+        {selected, []} ->
             {error, not_exists};
-        {selected, _, [{Version, null, null, null}]} ->
+        {selected, [{Version, null, null, null}]} ->
             {ok, [], Version};
-        {selected, _, [{Version, _, _, _} | _] = Res} ->
+        {selected, [{Version, _, _, _} | _] = Res} ->
             AffUsers = [{{UserU, UserS}, aff_db2atom(Aff)} || {_, UserU, UserS, Aff} <- Res],
             {ok, lists:sort(AffUsers), Version}
     end.
@@ -274,18 +274,18 @@ get_info({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
     case ejabberd_odbc:sql_query(
            MainHost, mod_muc_light_db_odbc_sql:select_room_id_and_version(RoomU, RoomS)) of
-        {selected, _, [{RoomID, Version}]} ->
-            {selected, _, AffUsersDB} = ejabberd_odbc:sql_query(
+        {selected, [{RoomID, Version}]} ->
+            {selected, AffUsersDB} = ejabberd_odbc:sql_query(
                                           MainHost, mod_muc_light_db_odbc_sql:select_affs(RoomID)),
             AffUsers = [{{UserU, UserS}, aff_db2atom(Aff)} || {UserU, UserS, Aff} <- AffUsersDB],
 
-            {selected, _, ConfigDB} = ejabberd_odbc:sql_query(
+            {selected, ConfigDB} = ejabberd_odbc:sql_query(
                                         MainHost, mod_muc_light_db_odbc_sql:select_config(RoomID)),
             {ok, Config} = mod_muc_light_utils:process_raw_config(
                              ConfigDB, [], mod_muc_light:config_schema(RoomS)),
 
             {ok, Config, lists:sort(AffUsers), Version};
-        {selected, _, []} ->
+        {selected, []} ->
             {error, not_exists}
     end.
 
@@ -342,17 +342,21 @@ create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
     case catch ejabberd_odbc:sql_query_t(
                  mod_muc_light_db_odbc_sql:insert_room(RoomU, RoomS, Version)) of
         {aborted, Reason} ->
+            %% At this point the transaction is broken because of failed INSERT query
+            ejabberd_odbc:sql_query_t("ROLLBACK;"),
+            ejabberd_odbc:sql_query_t(odbc_queries:begin_trans()),
+
             case {ejabberd_odbc:sql_query_t(
                     mod_muc_light_db_odbc_sql:select_room_id(RoomU, RoomS)), NodeCandidate} of
-                {{selected, _, []}, _} ->
+                {{selected, []}, _} ->
                     throw({aborted, Reason});
-                {{selected, _, [_]}, <<>>} ->
+                {{selected, [_]}, <<>>} ->
                     create_room_transaction({<<>>, RoomS}, Config, AffUsers, Version);
-                {{selected, _, [_]}, _} ->
+                {{selected, [_]}, _} ->
                     {error, exists}
             end;
         {updated, _} ->
-            {selected, _, [{RoomID}]} = ejabberd_odbc:sql_query_t(
+            {selected, [{RoomID}]} = ejabberd_odbc:sql_query_t(
                                           mod_muc_light_db_odbc_sql:select_room_id(RoomU, RoomS)),
             lists:foreach(
               fun({{UserU, UserS}, Aff}) ->
@@ -371,7 +375,7 @@ create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
 -spec destroy_room_transaction(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists}.
 destroy_room_transaction({RoomU, RoomS}) ->
     case ejabberd_odbc:sql_query_t(mod_muc_light_db_odbc_sql:select_room_id(RoomU, RoomS)) of
-        {selected, _, [{RoomID}]} ->
+        {selected, [{RoomID}]} ->
             {updated, _} = ejabberd_odbc:sql_query_t(
                              mod_muc_light_db_odbc_sql:delete_affs(RoomID)),
             {updated, _} = ejabberd_odbc:sql_query_t(
@@ -379,7 +383,7 @@ destroy_room_transaction({RoomU, RoomS}) ->
             {updated, _} = ejabberd_odbc:sql_query_t(
                              mod_muc_light_db_odbc_sql:delete_room(RoomU, RoomS)),
             ok;
-        {selected, _, []} ->
+        {selected, []} ->
             {error, not_exists}
     end.
 
@@ -405,7 +409,7 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
     MainHost = main_host(RoomUS),
     case ejabberd_odbc:sql_query_t(
            mod_muc_light_db_odbc_sql:select_room_id_and_version(RoomU, RoomS)) of
-        {selected, _, [{RoomID, PrevVersion}]} ->
+        {selected, [{RoomID, PrevVersion}]} ->
             {updated, _} = ejabberd_odbc:sql_query_t(
                              mod_muc_light_db_odbc_sql:update_room_version(RoomU, RoomS, Version)),
             lists:foreach(
@@ -416,7 +420,7 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
               end, mod_muc_light_utils:config_to_raw(
                      ConfigChanges, mod_muc_light:config_schema(RoomS))),
             {ok, PrevVersion};
-        {selected, _, []} ->
+        {selected, []} ->
             {error, not_exists}
     end.
 
@@ -432,10 +436,10 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
 modify_aff_users_transaction({RoomU, RoomS} = RoomUS, AffUsersChanges, CheckFun, Version) ->
     case ejabberd_odbc:sql_query_t(
            mod_muc_light_db_odbc_sql:select_room_id_and_version(RoomU, RoomS)) of
-        {selected, _, [{RoomID, PrevVersion}]} ->
+        {selected, [{RoomID, PrevVersion}]} ->
             modify_aff_users_transaction(
               RoomUS, RoomID, AffUsersChanges, CheckFun, PrevVersion, Version);
-        {selected, _, []} ->
+        {selected, []} ->
             {error, not_exists}
     end.
 
@@ -447,7 +451,7 @@ modify_aff_users_transaction({RoomU, RoomS} = RoomUS, AffUsersChanges, CheckFun,
                                    Version :: binary()) ->
     mod_muc_light_db:modify_aff_users_return().
 modify_aff_users_transaction(RoomUS, RoomID, AffUsersChanges, CheckFun, PrevVersion, Version) ->
-    {selected, _, AffUsersDB}
+    {selected, AffUsersDB}
     = ejabberd_odbc:sql_query_t(mod_muc_light_db_odbc_sql:select_affs(RoomID)),
     AffUsers = lists:sort(
                  [{{UserU, UserS}, aff_db2atom(Aff)} || {UserU, UserS, Aff} <- AffUsersDB]),
@@ -500,4 +504,3 @@ main_host({_, RoomS}) ->
 main_host(MUCServer) ->
     {ok, MainHost} = mongoose_subhosts:get_host(MUCServer),
     MainHost.
-

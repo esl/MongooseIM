@@ -33,9 +33,9 @@ init(_Host, _Opts) ->
 get_last(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_last(LServer, Username) of
-        {selected, [<<"seconds">>, <<"state">>], []} ->
+        {selected, []} ->
             not_found;
-        {selected, [<<"seconds">>, <<"state">>], [{STimeStamp, Status}]} ->
+        {selected, [{STimeStamp, Status}]} ->
             case catch ejabberd_odbc:result_to_integer(STimeStamp) of
                 TimeStamp when is_integer(TimeStamp) ->
                     {ok, TimeStamp, Status};
@@ -50,7 +50,7 @@ count_active_users(LServer, TimeStamp) ->
     TimeStampBin = integer_to_binary(TimeStamp),
     WhereClause = <<"where seconds > ", TimeStampBin/binary >>,
     case odbc_queries:count_records_where(LServer, <<"last">>, WhereClause) of
-        {selected, [_], [{Count}]} ->
+        {selected, [{Count}]} ->
             ejabberd_odbc:result_to_integer(Count);
         _ ->
             0

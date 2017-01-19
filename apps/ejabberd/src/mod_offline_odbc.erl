@@ -51,7 +51,7 @@ pop_messages(LUser, LServer) ->
     TimeStamp = now(),
     STimeStamp = encode_timestamp(TimeStamp),
     case odbc_queries:pop_offline_messages(LServer, SUser, SServer, STimeStamp) of
-        {atomic, {selected, [<<"timestamp">>, <<"from_jid">>, <<"packet">>], Rows}} ->
+        {atomic, {selected, Rows}} ->
             {ok, rows_to_records(US, To, Rows)};
         {aborted, Reason} ->
             {error, Reason};
@@ -64,7 +64,7 @@ rows_to_records(US, To, Rows) ->
 
 row_to_record(US, To, {STimeStamp, SFrom, SPacket}) ->
     {ok, Packet} = exml:parse(SPacket),
-    TimeStamp = usec:to_now(binary_to_integer(STimeStamp)),
+    TimeStamp = usec:to_now(ejabberd_odbc:result_to_integer(STimeStamp)),
     From = jid:from_binary(SFrom),
     #offline_msg{us = US,
              timestamp = TimeStamp,
@@ -137,7 +137,7 @@ remove_old_messages(LServer, TimeStamp) ->
 
 count_offline_messages(LServer, SUser, SServer, Limit) ->
     case odbc_queries:count_offline_messages(LServer, SUser, SServer, Limit) of
-        {selected, [_], [{Count}]} ->
+        {selected, [{Count}]} ->
             ejabberd_odbc:result_to_integer(Count);
         Error ->
             ?ERROR_MSG("count_offline_messages failed ~p", [Error]),
@@ -151,4 +151,3 @@ maybe_encode_timestamp(never) ->
     "null";
 maybe_encode_timestamp(TimeStamp) ->
     encode_timestamp(TimeStamp).
-

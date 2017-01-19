@@ -160,7 +160,8 @@ lookup_messages(_Result, _Host,
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
-        {error, Reason}
+        S = erlang:get_stacktrace(),
+        {error, {Reason, {stacktrace, S}}}
     end.
 
 lookup_messages_muc(Result, Host,

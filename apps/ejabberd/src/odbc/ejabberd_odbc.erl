@@ -233,7 +233,6 @@ init(Host) ->
     Backend = backend(Host),
     Settings = ejabberd_config:get_local_option({odbc_server, Host}),
     {ok, DbRef} = Backend:connect(Settings),
-    catch link(DbRef),
     schedule_keepalive(Host),
     {ok, #state{db_type = db_engine(Host), host = Host, db_ref = DbRef, backend = Backend}}.
 
@@ -254,7 +253,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 handle_info(keepalive, State) ->
     case sql_query_internal([?KEEPALIVE_QUERY], State) of
-        {selected, _, _} ->
+        {selected, _} ->
             schedule_keepalive(State#state.host),
             {noreply, State};
         {error, _} = Error ->

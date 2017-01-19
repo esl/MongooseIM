@@ -18,9 +18,9 @@ get_valid_sequence_number(#jid{lserver = LServer} = JID) ->
     Q = valid_sequence_number_query(EBareJID),
     [{updated, _},
      {updated, _},
-     {selected, _, [{BSeqNo}]},
+     {selected, [{BSeqNo}]},
      {updated, _}] = ejabberd_odbc:sql_query(LServer, Q),
-    binary_to_integer(BSeqNo).
+    ejabberd_odbc:result_to_integer(BSeqNo).
 
 valid_sequence_number_query(EOwner) when is_binary(EOwner) ->
     [<<"BEGIN; "

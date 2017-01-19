@@ -303,7 +303,8 @@ token(Type, User) ->
                                T#token{sequence_no = ValidSeqNo}
                        end)
     catch
-        E:R -> ?ERROR_MSG("error creating token sequence number ~p", [{E, R}]),
+        E:R -> ?ERROR_MSG("error creating token sequence number ~p~nstacktrace: ~p",
+                          [{E, R}, erlang:get_stacktrace()]),
                {error, {E, R}}
     end.
 

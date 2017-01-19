@@ -1,10 +1,29 @@
+%%==============================================================================
+%% Copyright 2016 Erlang Solutions Ltd.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%==============================================================================
+
 -module(ejabberd_odbc_odbc).
+-author('konrad.zemek@gmail.com').
 -behaviour(ejabberd_odbc).
 
 -include("ejabberd.hrl").
 -include("ejabberd_odbc.hrl").
 
 -export([escape_format/1, connect/1, disconnect/1, query/2]).
+
+%% API
 
 -spec escape_format(Host :: ejabberd:server()) -> atom().
 escape_format(Host) ->
@@ -18,14 +37,13 @@ escape_format(Host) ->
             simple_escape
     end.
 
--spec connect(Args :: any()) ->
-    {ok, Connection :: term()} | {error, Reason :: any()}.
-connect(Settings) ->
-    application:start(odbc),
+-spec connect(Args :: any()) -> {ok, Connection :: term()} | {error, Reason :: any()}.
+connect(Settings) when is_list(Settings) ->
+    ok = application:ensure_started(odbc),
     Opts = [{scrollable_cursors, off},
             {binary_strings, on},
             {timeout, 5000}],
-    odbc:connect(db_opts(Settings), Opts).
+    odbc:connect(Settings, Opts).
 
 -spec disconnect(Connection :: term()) -> any().
 disconnect(Connection) ->
@@ -33,16 +51,16 @@ disconnect(Connection) ->
 
 -spec query(Connection :: term(), Query :: any()) -> term().
 query(Connection, Query) ->
-    binaryze_odbc(odbc:sql_query(Connection, Query, ?QUERY_TIMEOUT)).
+    parse(odbc:sql_query(Connection, Query, ?QUERY_TIMEOUT)).
 
--spec db_opts(Settings :: term()) -> proplists:proplist().
-db_opts(SQLServer) when is_list(SQLServer) ->
-    SQLServer.
+%% Helpers
 
-binaryze_odbc(ODBCResults) when is_list(ODBCResults) ->
-    lists:map(fun binaryze_odbc/1, ODBCResults);
-binaryze_odbc({selected, ColNames, Rows}) ->
-    ColNamesB = lists:map(fun ejabberd_binary:string_to_binary/1, ColNames),
-    {selected, ColNamesB, Rows};
-binaryze_odbc(ODBCResult) ->
-    ODBCResult.
+-spec parse(odbc:result_tuple() | [odbc:result_tuple()] | {error, string()}) ->
+        [{updated, non_neg_integer()} | {selected, [tuple()]}] |
+        {updated, non_neg_integer()} | {selected, [tuple()]} | {error, string()}.
+parse(Items) when is_list(Items) ->
+    [parse(Item) || Item <- Items];
+parse({selected, _FieldNames, Rows}) ->
+    {selected, Rows};
+parse(Other) ->
+    Other.
