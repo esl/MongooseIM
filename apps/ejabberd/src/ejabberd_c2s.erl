@@ -663,6 +663,22 @@ wait_for_feature_after_auth({xmlstreamelement,
 wait_for_feature_after_auth({xmlstreamelement,
                          #xmlel{name = <<"resume">>} = El}, StateData) ->
     maybe_resume_session(wait_for_feature_after_auth, El, StateData);
+wait_for_feature_after_auth({xmlstreamelement,
+                             #xmlel{name = <<"bind">>}}, StateData) ->
+    NS = <<"urn:xmpp:bind2:0">>,
+    Resource = generate_random_resource(),
+    User = StateData#state.user,
+    Server = StateData#state.server,
+    JID = jid:make(User, Server, Resource),
+    JIDElem = #xmlel{name = <<"jid">>,
+                     children = [#xmlcdata{content = jid:to_binary(JID)}]},
+    Result = #xmlel{name = <<"bound">>,
+                    attrs = [{<<"xmlns">>, NS}],
+                    children = [JIDElem]},
+    send_element(StateData, Result),
+    NewStateData = StateData#state{resource = Resource,
+                                   jid = JID},
+    do_open_session_common(JID, NewStateData);
 wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_BIND, sub_el = SubEl} = IQ ->
