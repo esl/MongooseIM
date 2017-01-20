@@ -198,8 +198,8 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
--spec remove_archive(ejabberd:server(), mod_mam:archive_id(),
-                     ejabberd:jid()) -> 'ok'.
+-spec remove_archive(any(), ejabberd:server(), mod_mam:archive_id(),
+                     ejabberd:jid()) -> any().
 remove_archive(Acc, _Host, _UserID, UserJID) ->
     PoolName = pool_name(UserJID),
     BUserJID = bare_jid(UserJID),
