@@ -36,8 +36,7 @@
 -callback query(Connection :: term(), Query :: any()) -> term().
 
 %% External exports
--export([start_link/1,
-         sql_query/2,
+-export([sql_query/2,
          sql_query_t/1,
          sql_transaction/2,
          sql_bloc/2,
@@ -71,7 +70,6 @@
 
 -record(state, {db_ref,
                 db_type :: atom(),
-                start_interval :: integer(),
                 host :: ejabberd:server(),
                 backend :: module()
                }).
@@ -85,58 +83,65 @@
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 
 %% Points to ODBC server process
--type odbc_server() :: ejabberd:server() | pid() | {atom(), pid()}.
--export_type([odbc_server/0]).
+-type odbc_server() :: binary() | atom().
+-type odbc_msg() :: {sql_bloc, _} | {sql_query, _} | {sql_transaction, fun()}.
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start_link(Host :: ejabberd:server()) ->
-                        'ignore' | {'error', _} | {'ok', pid()}.
-start_link(Host) ->
-    gen_server:start_link(ejabberd_odbc, Host, []).
 
--spec sql_query(Host :: odbc_server(), Query :: any()) -> any().
-sql_query(Host, Query) ->
-    sql_call(Host, {sql_query, Query}).
+-spec sql_query(HostOrPool :: odbc_server(), Query :: any()) -> any().
+sql_query(HostOrPool, Query) ->
+    sql_call(HostOrPool, {sql_query, Query}).
 
 %% @doc SQL transaction based on a list of queries
 -spec sql_transaction(odbc_server(), fun() | maybe_improper_list()) -> any().
-sql_transaction(Host, Queries) when is_list(Queries) ->
+sql_transaction(HostOrPool, Queries) when is_list(Queries) ->
     F = fun() -> lists:foreach(fun sql_query_t/1, Queries) end,
-    sql_transaction(Host, F);
+    sql_transaction(HostOrPool, F);
 %% SQL transaction, based on a erlang anonymous function (F = fun)
-sql_transaction(Host, F) when is_function(F) ->
-    sql_call(Host, {sql_transaction, F}).
+sql_transaction(HostOrPool, F) when is_function(F) ->
+    sql_call(HostOrPool, {sql_transaction, F}).
 
 %% @doc SQL bloc, based on a erlang anonymous function (F = fun)
--spec sql_bloc(Host :: odbc_server(), F :: any()) -> any().
-sql_bloc(Host, F) ->
-    sql_call(Host, {sql_bloc, F}).
+-spec sql_bloc(HostOrPool :: odbc_server(), F :: any()) -> any().
+sql_bloc(HostOrPool, F) ->
+    sql_call(HostOrPool, {sql_bloc, F}).
+
 
 %% TODO: Better spec for RPC calls
--spec sql_call(Host :: odbc_server(),
-               Msg :: {'sql_bloc', _} | {'sql_query', _} | {'sql_transaction', fun()}) ->
-                      any().
-sql_call(Host, Msg) when is_binary(Host) ->
+-spec sql_call(HostOrPool :: binary() | atom(), Msg :: odbc_msg()) -> any().
+sql_call(HostOrPool, Msg) ->
     case get(?STATE_KEY) of
-        undefined ->
-            poolboy:transaction(ejabberd_odbc_sup:default_pool(Host),
-                                fun(Worker) -> sql_call(Worker, Msg) end,
-                                ?TRANSACTION_TIMEOUT);
-        State ->
-            nested_op(Msg, State)
+        undefined -> sql_call0(HostOrPool, Msg);
+        State     -> nested_op(Msg, State)
+    end.
+
+
+-spec sql_call0(HostOrPool :: binary() | atom(), Msg :: odbc_msg()) -> any().
+sql_call0(Host, Msg) when is_binary(Host) ->
+    sql_call0(ejabberd_odbc_sup:default_pool(Host), Msg);
+sql_call0(Pool, Msg) when is_atom(Pool) ->
+    case whereis(Pool) of
+        undefined -> {error, {no_odbc_pool, Pool}};
+        _ ->
+            Timestamp = p1_time_compat:monotonic_time(milli_seconds),
+            wpool:call(Pool, {sql_cmd, Msg, Timestamp}, best_worker, ?TRANSACTION_TIMEOUT)
+    end.
+
+
+-spec get_db_info(Target :: odbc_server() | pid()) ->
+    {ok, DbType :: atom(), DbRef :: term()} | {error, any()}.
+get_db_info(Host) when is_binary(Host) ->
+    get_db_info(ejabberd_odbc_sup:default_pool(Host));
+get_db_info(Pool) when is_atom(Pool) ->
+    case whereis(Pool) of
+        undefined -> {error, {no_odbc_pool, Pool}};
+        _ -> wpool:call(Pool, get_db_info)
     end;
-%% For dedicated connections.
-sql_call({_Host, Pid}, Msg) when is_pid(Pid) ->
-    sql_call(Pid, Msg);
-sql_call(Pid, Msg) when is_pid(Pid) ->
-    Timestamp = p1_time_compat:monotonic_time(milli_seconds),
-    gen_server:call(Pid, {sql_cmd, Msg, Timestamp}, ?TRANSACTION_TIMEOUT).
-
-
 get_db_info(Pid) when is_pid(Pid) ->
-    gen_server:call(Pid, get_db_info).
+    wpool_process:call(Pid, get_db_info, 5000).
+
 
 
 %% This function is intended to be used from inside an sql_transaction:
@@ -230,6 +235,7 @@ to_bool(_) -> false.
 %%%----------------------------------------------------------------------
 -spec init(ejabberd:server()) -> {ok, state()}.
 init(Host) ->
+    process_flag(trap_exit, true),
     Backend = backend(Host),
     Settings = ejabberd_config:get_local_option({odbc_server, Host}),
     {ok, DbRef} = Backend:connect(Settings),
@@ -259,6 +265,8 @@ handle_info(keepalive, State) ->
         {error, _} = Error ->
             {stop, {keepalive_failed, Error}, State}
     end;
+handle_info({'EXIT', _Pid, _Reason} = Reason, State) ->
+    {stop, Reason, State};
 handle_info(Info, State) ->
     ?WARNING_MSG("unexpected info: ~p", [Info]),
     {noreply, State}.
@@ -290,7 +298,7 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
             ?ERROR_MSG("Database was not available or too slow,"
                        " discarding ~p milliseconds old request~n~p~n",
                        [Age, Command]),
-            {noreply, State}
+            {reply, {error, timeout}, State}
     end.
 
 %% @doc Only called by handle_call, only handles top level operations.
@@ -404,9 +412,9 @@ abort_on_driver_error(Reply, State) ->
     {reply, Reply, State}.
 
 
--spec db_engine(Host :: odbc_server() | pid()) -> ejabberd_config:value().
-db_engine(Pid) when is_pid(Pid) ->
-    {ok, DbType, _} = gen_server:call(Pid, get_db_info),
+-spec db_engine(Host :: odbc_server()) -> ejabberd_config:value().
+db_engine(Pool) when is_atom(Pool) ->
+    {ok, DbType, _} = wpool:call(Pool, get_db_info),
     DbType;
 db_engine(Host) when is_binary(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
@@ -414,9 +422,7 @@ db_engine(Host) when is_binary(Host) ->
             odbc;
         Other when is_tuple(Other) ->
             element(1, Other)
-    end;
-db_engine({Host, _Pid}) ->
-    db_engine(Host).
+    end.
 
 
 -spec backend(Host :: ejabberd:server()) -> module().

@@ -129,18 +129,17 @@ get_odbc_data_stats() ->
 
 get_odbc_mam_async_stats() ->
     %% MAM async ODBC workers are organized differently...
-    GetChildren = fun(Name) ->
-                        case catch gen_server:call(Name, get_all_workers) of
+    GetChildren = fun(Host, Pool) ->
+                        Name = gen_mod:get_module_proc(Host, Pool),
+                        case catch ejabberd_odbc_sup:get_pids(Name) of
                             [_ | _] = Children -> Children;
                             _ -> []
                         end
                   end,
 
-    MamChildren = GetChildren(mod_mam_odbc_async_pool_writer_pool) ++
-                  GetChildren(mod_mam_muc_odbc_async_pool_writer_pool),
-
-    MamAsynODBCWorkers = [Pid || {_, Pid, worker, _} <- MamChildren],
-    get_odbc_stats(MamAsynODBCWorkers).
+    MamPools = [mod_mam_odbc_async_pool_writer, mod_mam_muc_odbc_async_pool_writer],
+    MamChildren = lists:flatten([GetChildren(Host, Pool) || Host <- ?MYHOSTS, Pool <- MamPools]),
+    get_odbc_stats(MamChildren).
 
 get_dist_data_stats() ->
     DistStats = [inet_stats(Port) || {_, Port} <- erlang:system_info(dist_ctrl)],

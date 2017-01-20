@@ -43,7 +43,7 @@
                 max_packet_size     :: non_neg_integer(),
                 max_subscribers     :: non_neg_integer(),
                 host                :: ejabberd:server(),
-                connection_pool     :: pid(),
+                connection_pool     :: atom(),
                 number              :: non_neg_integer(),
                 acc=[]              :: list(),
                 subscribers=[]      :: list(),
@@ -93,10 +93,9 @@ worker_number(Host, ArcID) ->
 
 -spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
-    {ok, Pool} = ejabberd_odbc_sup:add_pool(Host, ?MODULE,
-                                            {local, mod_mam_muc_odbc_async_pool_writer_pool},
-                                            worker_count(Host)),
-    start_workers(Host, Pool),
+    PoolName = gen_mod:get_module_proc(Host, ?MODULE),
+    {ok, _} = ejabberd_odbc_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
+    start_workers(Host, PoolName),
     start_muc(Host, Opts).
 
 
@@ -134,7 +133,7 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
--spec start_workers(ejabberd:server(), Pool :: pid()) -> [{'error', _}
+-spec start_workers(ejabberd:server(), Pool :: atom()) -> [{'error', _}
                                         | {'ok', 'undefined' | pid()}
                                         | {'ok', 'undefined' | pid(), _}].
 start_workers(Host, Pool) ->
@@ -148,7 +147,7 @@ stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
 
--spec start_worker(atom(), integer(), ejabberd:server(), Pool :: pid())
+-spec start_worker(atom(), integer(), ejabberd:server(), Pool :: atom())
       -> {'error', _}
          | {'ok', 'undefined' | pid()}
          | {'ok', 'undefined' | pid(), _}.
@@ -321,10 +320,7 @@ run_flush(State=#state{host=Host, connection_pool=Pool, number=N,
     MessageCount = length(Acc),
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
-    Result = poolboy:transaction(
-                Pool,
-                fun(Conn) -> mod_mam_muc_odbc_arch:archive_messages(Conn, Acc, N) end),
-    case Result of
+    case mod_mam_muc_odbc_arch:archive_messages(Pool, Acc, N) of
         {updated, _Count} -> ok;
         {error, Reason} ->
             ejabberd_hooks:run(mam_drop_messages, Host, [Host, MessageCount]),

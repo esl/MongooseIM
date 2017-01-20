@@ -45,7 +45,7 @@ connect(Settings) ->
 
 -spec disconnect(Connection :: term()) -> any().
 disconnect(Connection) ->
-    gen_server:stop(Connection).
+    Connection ! stop.
 
 -spec query(Connection :: term(), Query :: any()) -> term().
 query(Connection, Query) ->

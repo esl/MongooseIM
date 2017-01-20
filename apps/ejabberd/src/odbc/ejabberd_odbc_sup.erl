@@ -46,42 +46,56 @@
 % a timeout error to the request
 -define(CONNECT_TIMEOUT, 500). % milliseconds
 
--spec start_link(binary() | string()) -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link(binary() | string()) -> ignore | {error, term()} | {ok, pid()}.
 start_link(Host) ->
-    supervisor:start_link({local, gen_mod:get_module_proc(Host, ?MODULE)},
-                          ?MODULE, [Host]).
+    supervisor:start_link({local, gen_mod:get_module_proc(Host, ?MODULE)}, ?MODULE, Host).
 
--spec init([ejabberd:server(), ...]) -> {'ok', {{_, _, _}, [any()]}}.
-init([Host]) ->
+
+-spec init(ejabberd:server()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+init(Host) ->
+    ok = application:ensure_started(worker_pool),
     PoolSize = pool_size(Host),
     PoolName = default_pool(Host),
-    ChildrenSpec = [pool_spec(Host, default_pool, {local, PoolName}, PoolSize)],
-    {ok, {{one_for_one, PoolSize * 10, 1}, ChildrenSpec}}.
+    ChildrenSpec = [pool_spec(Host, default_pool, PoolName, PoolSize)],
+    {ok, {{one_for_one, 5, 60}, ChildrenSpec}}.
 
 
+-spec add_pool(Host :: ejabberd:server(), Id :: supervisor:child_id(),
+               Name :: atom(), Size :: pos_integer()) -> supervisor:startchild_ret().
 add_pool(Host, Id, Name, Size) ->
     Sup = gen_mod:get_module_proc(Host, ?MODULE),
     ChildSpec = pool_spec(Host, Id, Name, Size),
     supervisor:start_child(Sup, ChildSpec).
 
 
+-spec remove_pool(Host :: ejabberd:server(), Id :: supervisor:child_id()) -> ok.
 remove_pool(Host, Id) ->
     Sup = gen_mod:get_module_proc(Host, ?MODULE),
     ok = supervisor:terminate_child(Sup, Id),
     ok = supervisor:delete_child(Sup, Id).
 
 
+-spec pool_spec(Host :: ejabberd:server(), Id :: supervisor:child_id(),
+                Name :: atom(), Size :: pos_integer()) -> supervisor:child_spec().
 pool_spec(Host, Id, Name, Size) ->
-    PoolboyArgs = [{name, Name}, {worker_module, ejabberd_odbc}, {size, Size}],
-    poolboy:child_spec(Id, PoolboyArgs, Host).
+    Opts = [{workers, Size}, {worker, {ejabberd_odbc, Host}}],
+    {Id, {wpool, start_pool, [Name, Opts]}, transient, 200, supervisor, dynamic}.
 
 
--spec get_pids(ejabberd:server()) -> [pid()].
-get_pids(Host) ->
-    PoolName = default_pool(Host),
-    [Pid || {_, Pid, worker, _} <- gen_server:call(PoolName, get_all_workers)].
+-spec get_pids(ejabberd:server() | atom()) -> [pid()].
+get_pids(Host) when is_binary(Host) ->
+    get_pids(default_pool(Host));
+get_pids(PoolName) ->
+    case whereis(PoolName) of
+        undefined -> [];
+        _ ->
+            Stats = wpool:stats(PoolName),
+            {workers, Workers} = lists:keyfind(workers, 1, Stats),
+            [whereis(wpool_pool:worker_name(PoolName, WorkerId)) || {WorkerId, _} <- Workers]
+    end.
 
 
+-spec default_pool(Host :: ejabberd:server()) -> atom().
 default_pool(Host) ->
     gen_mod:get_module_proc(Host, ?POOL_NAME).
 

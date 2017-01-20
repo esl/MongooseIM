@@ -19,21 +19,19 @@ get_valid_sequence_number(#jid{lserver = LServer} = JID) ->
     [{updated, _},
      {updated, _},
      {selected, [{BSeqNo}]},
-     {updated, _}] = ejabberd_odbc:sql_query(LServer, Q),
+     {updated, _}] = ejabberd_odbc:sql_transaction(LServer, Q),
     ejabberd_odbc:result_to_integer(BSeqNo).
 
 valid_sequence_number_query(EOwner) when is_binary(EOwner) ->
-    [<<"BEGIN; "
-       "WITH existing AS (SELECT at.seq_no "
+    [<<"WITH existing AS (SELECT at.seq_no "
        "                  FROM auth_token at "
        "                  WHERE at.owner = '", EOwner/bytes, "') "
        "INSERT INTO auth_token "
          "SELECT '", EOwner/bytes, "', 1 "
-       "WHERE NOT EXISTS (SELECT * FROM existing); "
-       "SELECT seq_no "
+       "WHERE NOT EXISTS (SELECT * FROM existing); ">>,
+     <<"SELECT seq_no "
        "FROM auth_token "
-       "WHERE owner = '", EOwner/bytes, "'; "
-       "COMMIT;">>].
+       "WHERE owner = '", EOwner/bytes, "'; ">>].
 
 -spec revoke(JID) -> ok | not_found when
       JID :: ejabberd:jid().
