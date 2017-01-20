@@ -832,17 +832,17 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
     ?TEMPORARY,
     Acc = ejabberd_hooks:run_fold(roster_get_subscription_lists,
-                                  NewStateData0#state.server,
+                          NewStateData0#state.server,
                                   mongoose_acc:new(),
-                                  [U, NewStateData0#state.server]),
+                          [U, NewStateData0#state.server]),
     {Fs, Ts, Pending} = mongoose_acc:get(subscription_lists, Acc, {[], [], []}),
     LJID = jid:to_lower(jid:to_bare(JID)),
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
     PrivList = ejabberd_hooks:run_fold(privacy_get_user_list,
                                        NewStateData0#state.server,
-                                       #userlist{},
-                                       [U, NewStateData0#state.server]),
+      #userlist{},
+      [U, NewStateData0#state.server]),
     SID = {p1_time_compat:timestamp(), self()},
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
@@ -863,11 +863,11 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
 
     NewStateData =
     NewStateData0#state{sid = SID,
-                        conn = Conn,
-                        pres_f = gb_sets:from_list(Fs1),
-                        pres_t = gb_sets:from_list(Ts1),
-                        pending_invitations = Pending,
-                        privacy_list = PrivList},
+      conn = Conn,
+      pres_f = gb_sets:from_list(Fs1),
+      pres_t = gb_sets:from_list(Ts1),
+      pending_invitations = Pending,
+      privacy_list = PrivList},
     fsm_next_state_pack(session_established, NewStateData).
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
@@ -1002,11 +1002,11 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
                                    Res,
                                    [FromJID, ToJID, El]),
     {_Acc1, NState} = case ToJID of
-                          #jid{user = User,
-                               server = Server,
-                               resource = <<>>} ->
+        #jid{user = User,
+             server = Server,
+             resource = <<>>} ->
                                presence_update(Res1, FromJID, StateData);
-                          _ ->
+        _ ->
                                presence_track(Res1, StateData)
                       end,
     NState;
@@ -1020,9 +1020,9 @@ process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
                              process_privacy_iq(Acc, ToJID, StateData);
                          ?NS_BLOCKING ->
                              process_privacy_iq(Acc, ToJID, StateData);
-                         _ ->
+        _ ->
                              Acc2 = ejabberd_hooks:run_fold(user_send_packet,
-                                                            Server,
+                               Server,
                                                             Acc,
                                                             [FromJID, ToJID, El]),
                              Acc3 = check_privacy_and_route(Acc2, StateData),
@@ -1034,7 +1034,7 @@ process_outgoing_stanza(Acc, ToJID, <<"message">>, StateData) ->
     Server = mongoose_acc:get(server, Acc),
     El = mongoose_acc:get(element, Acc),
     Acc1 = ejabberd_hooks:run_fold(user_send_packet,
-                                   Server,
+                       Server,
                                    Acc,
                                    [FromJID, ToJID, El]),
     _Acc2 = check_privacy_and_route(Acc1, StateData),
@@ -1856,9 +1856,9 @@ presence_update(Acc, From, StateData) ->
             Acc3 = presence_broadcast(Acc2, StateData#state.pres_i, StateData),
             % and here we reach the end
             {Acc3, StateData#state{pres_last = undefined,
-                                   pres_timestamp = undefined,
-                                   pres_a = gb_sets:new(),
-                                   pres_i = gb_sets:new(),
+                            pres_timestamp = undefined,
+                            pres_a = gb_sets:new(),
+                            pres_i = gb_sets:new(),
                                    pres_invis = false}};
         <<"invisible">> ->
             NewPriority = get_priority_from_presence(Packet),
@@ -1934,7 +1934,7 @@ presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData)
                                    Acc,
                                    [StateData#state.jid]),
     Res = case NewPriority >= 0 of
-              true ->
+        true ->
                   Acc3 = ejabberd_hooks:run_fold(roster_get_subscription_lists,
                                                  StateData#state.server,
                                                  Acc2,
@@ -1944,7 +1944,7 @@ presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData)
                   Acc4 = resend_offline_messages(Acc3, StateData),
                   resend_subscription_requests(Acc4,
                                                StateData#state{pending_invitations = Pending});
-              false ->
+                  false ->
                   {Acc2, StateData}
               end,
     {Accum, NewStateData1} = Res,
@@ -1952,16 +1952,16 @@ presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData)
 presence_update_to_available(false, Acc, OldPriority, NewPriority, From, Packet, StateData) ->
     Acc2 = presence_broadcast_to_trusted(Acc,
                                          StateData,
-                                         From,
+                                          From,
                                          StateData#state.pres_f,
                                          StateData#state.pres_a,
-                                         Packet),
+                                          Packet),
     Acc3 = case OldPriority < 0 andalso NewPriority >= 0 of
-               true ->
+                true ->
                    resend_offline_messages(Acc2, StateData);
-               false ->
+                false ->
                    Acc2
-           end,
+            end,
     {Acc3, StateData}.
 
 %% @doc User sends a directed presence packet
@@ -1988,30 +1988,30 @@ presence_track(Acc, StateData) ->
                                    pres_a = A}};
         <<"subscribe">> ->
             Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
-                                           Server,
+                               Server,
                                            Acc,
-                                           [User, Server, To, subscribe]),
+                               [User, Server, To, subscribe]),
             Acc3 = check_privacy_and_route(Acc2, jid:to_bare(From), StateData),
             {Acc3, StateData};
         <<"subscribed">> ->
             Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
-                                           Server,
+                               Server,
                                            Acc,
-                                           [User, Server, To, subscribed]),
+                               [User, Server, To, subscribed]),
             Acc3 = check_privacy_and_route(Acc2, jid:to_bare(From), StateData),
             {Acc3, StateData};
         <<"unsubscribe">> ->
             Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
-                                           Server,
+                               Server,
                                            Acc,
-                                           [User, Server, To, unsubscribe]),
+                               [User, Server, To, unsubscribe]),
             Acc3 = check_privacy_and_route(Acc2, jid:to_bare(From), StateData),
             {Acc3, StateData};
         <<"unsubscribed">> ->
             Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
-                                           Server,
+                               Server,
                                            Acc,
-                                           [User, Server, To, unsubscribed]),
+                               [User, Server, To, unsubscribed]),
             Acc3 = check_privacy_and_route(Acc2, jid:to_bare(From), StateData),
             {Acc3, StateData};
         <<"error">> ->
@@ -2074,9 +2074,9 @@ privacy_check_packet(StateData, From, To, #xmlel{} = Packet, Dir) ->
                            StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet(Acc,
-                                          StateData#state.server,
+                            StateData#state.server,
                                           StateData#state.user,
-                                          StateData#state.privacy_list,
+                             StateData#state.privacy_list,
                                           To,
                                           Dir).
 
@@ -2265,7 +2265,7 @@ process_privacy_iq(Acc, To, StateData) ->
     IQ = jlib:iq_query_info(El),
     Acc1 = mongoose_acc:put(iq, IQ, Acc),
     From = mongoose_acc:get(from_jid, Acc1),
-    #iq{type = Type, sub_el = SubEl} = IQ,
+                   #iq{type = Type, sub_el = SubEl} = IQ,
     {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
     Res = mongoose_acc:get(iq_result, Acc2, {error, ?ERR_FEATURE_NOT_IMPLEMENTED}),
     IQRes = case Res of
