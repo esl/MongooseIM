@@ -71,7 +71,6 @@
 
 -record(state, {db_ref,
                 db_type :: atom(),
-                start_interval :: integer(),
                 host :: ejabberd:server(),
                 backend :: module()
                }).
