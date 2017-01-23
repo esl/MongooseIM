@@ -58,7 +58,7 @@ end_per_testcase(_, Config) ->
 
 %% Test cases
 keepalive_interval(Config) ->
-    {ok, Pid} = ejabberd_odbc:start_link(?HOST),
+    {ok, Pid} = gen_server:start_link(ejabberd_odbc, ?HOST, []),
     true = erlang:unlink(Pid),
     timer:sleep(5500),
     ?eq(5, query_calls(Config)),
@@ -66,7 +66,7 @@ keepalive_interval(Config) ->
     ok.
 
 keepalive_exit(Config) ->
-    {ok, Pid} = ejabberd_odbc:start_link(?HOST),
+    {ok, Pid} = gen_server:start_link(ejabberd_odbc, ?HOST, []),
     true = erlang:unlink(Pid),
     Monitor = erlang:monitor(process, Pid),
     timer:sleep(3500),
@@ -84,6 +84,7 @@ meck_config(Server, KeepaliveInterval) ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_local_option,
                 fun({odbc_keepalive_interval, _Host}) -> KeepaliveInterval;
+                   ({odbc_start_interval, _Host}) -> 30;
                    (max_fsm_queue) -> 1024;
                    ({odbc_server, _}) -> server(Server);
                    (Arg) -> meck:passthrough([Arg])
