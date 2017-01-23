@@ -196,7 +196,7 @@ index_hint_sql(Host) ->
     end.
 
 
--spec insert_ignore(ejabberd:server()) -> string().
+-spec insert_ignore(atom() | ejabberd:server()) -> string().
 insert_ignore(Host) ->
     case ejabberd_odbc:db_engine(Host) of
         mysql ->

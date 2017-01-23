@@ -177,7 +177,7 @@ prepare_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     [SMessID, SRoomID, SFromNick, SData].
 
 
--spec archive_messages(ejabberd:lserver(), Acc :: [[any(), ...]]) -> any().
+-spec archive_messages(atom() | ejabberd:lserver(), Acc :: [[any(), ...]]) -> any().
 archive_messages(LServer, Acc) ->
     mod_mam_utils:success_sql_query(
       LServer,
@@ -185,7 +185,7 @@ archive_messages(LServer, Acc) ->
        "VALUES ", tuples(Acc)]).
 
 
--spec archive_messages(ejabberd:lserver(), Acc :: [[any(), ...]],
+-spec archive_messages(atom() | ejabberd:lserver(), Acc :: [[any(), ...]],
                        N :: any()) -> any().
 archive_messages(LServer, Acc, N) ->
     mod_mam_utils:success_sql_query(

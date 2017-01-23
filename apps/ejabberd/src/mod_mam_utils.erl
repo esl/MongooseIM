@@ -874,12 +874,12 @@ is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
     Subscription == from orelse Subscription == both.
 
 
--spec success_sql_query(ejabberd:server(), _) -> any().
-success_sql_query(Host, Query) ->
-    case ejabberd_odbc:sql_query(Host, Query) of
+-spec success_sql_query(atom() | ejabberd:server(), _) -> any().
+success_sql_query(HostOrConn, Query) ->
+    case ejabberd_odbc:sql_query(HostOrConn, Query) of
         {error, Reason} ->
             ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p~n",
-                       [Host, Query, Reason]),
+                       [HostOrConn, Query, Reason]),
             error({sql_error, Reason});
         Result ->
             Result

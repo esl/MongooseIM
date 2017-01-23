@@ -43,7 +43,7 @@
     max_packet_size,
     max_subscribers,
     host,
-    connection_pool :: pid(),
+    connection_pool :: atom(),
     number,
     acc=[],
     subscribers=[],
@@ -82,10 +82,9 @@ worker_number(Host, ArcID) ->
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
-    {ok, Pool} = ejabberd_odbc_sup:add_pool(Host, ?MODULE,
-                                            {local, mod_mam_odbc_async_pool_writer_pool},
-                                            worker_count(Host)),
-    start_workers(Host, Pool),
+    PoolName = gen_mod:get_module_proc(Host, ?MODULE),
+    {ok, _} = ejabberd_odbc_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
+    start_workers(Host, PoolName),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -321,10 +320,7 @@ run_flush(State=#state{host=Host, connection_pool=Pool, number=N,
     MessageCount = length(Acc),
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
-    Result = poolboy:transaction(
-                Pool,
-                fun(Conn) -> mod_mam_odbc_arch:archive_messages(Conn, Acc, N) end),
-    case Result of
+    case mod_mam_odbc_arch:archive_messages(Pool, Acc, N) of
         {updated, _Count} -> ok;
         {error, Reason} ->
             ejabberd_hooks:run(mam_drop_messages, Host, [Host, MessageCount]),
