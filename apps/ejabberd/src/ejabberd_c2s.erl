@@ -678,7 +678,10 @@ wait_for_feature_after_auth({xmlstreamelement,
     send_element(StateData, Result),
     NewStateData = StateData#state{resource = Resource,
                                    jid = JID},
-    do_open_session_common(JID, NewStateData);
+    NextStateSpec = do_open_session_common(JID, NewStateData),
+    ?INFO_MSG("(~w) Bound session for ~s", [StateData#state.socket, jid:to_binary(JID)]),
+    mod_carboncopy:enable(Server, User, Resource, <<"urn:xmpp:carbons:2">>),
+    NextStateSpec;
 wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_BIND, sub_el = SubEl} = IQ ->
