@@ -97,7 +97,7 @@ sql_query(HostOrPool, Query) ->
 %% @doc SQL transaction based on a list of queries
 -spec sql_transaction(odbc_server(), fun() | maybe_improper_list()) -> any().
 sql_transaction(HostOrPool, Queries) when is_list(Queries) ->
-    F = fun() -> lists:foreach(fun sql_query_t/1, Queries) end,
+    F = fun() -> lists:map(fun sql_query_t/1, Queries) end,
     sql_transaction(HostOrPool, F);
 %% SQL transaction, based on a erlang anonymous function (F = fun)
 sql_transaction(HostOrPool, F) when is_function(F) ->
@@ -131,7 +131,7 @@ sql_call0(Pool, Msg) when is_atom(Pool) ->
 
 
 -spec get_db_info(Target :: odbc_server() | pid()) ->
-    {ok, DbType :: atom(), DbRef :: term()} | {error, any()}.
+                         {ok, DbType :: atom(), DbRef :: term()} | {error, any()}.
 get_db_info(Host) when is_binary(Host) ->
     get_db_info(ejabberd_odbc_sup:default_pool(Host));
 get_db_info(Pool) when is_atom(Pool) ->
@@ -236,9 +236,11 @@ to_bool(_) -> false.
 -spec init(ejabberd:server()) -> {ok, state()}.
 init(Host) ->
     process_flag(trap_exit, true),
+    proc_lib:init_ack({ok, self()}),
     Backend = backend(Host),
     Settings = ejabberd_config:get_local_option({odbc_server, Host}),
-    {ok, DbRef} = Backend:connect(Settings),
+    RetryAfterSeconds = get_start_interval(Host),
+    {ok, DbRef} = connect(Backend, Settings, 3, RetryAfterSeconds),
     schedule_keepalive(Host),
     {ok, #state{db_type = db_engine(Host), host = Host, db_ref = DbRef, backend = Backend}}.
 
@@ -425,6 +427,22 @@ db_engine(Host) when is_binary(Host) ->
     end.
 
 
+-spec connect(Backend :: module(), Settings :: term(), Retry :: non_neg_integer(),
+              RetryAfterSeconds :: non_neg_integer()) -> {ok, term()} | {error, any()}.
+connect(Backend, Settings, Retry, RetryAfterSeconds) ->
+    case Backend:connect(Settings) of
+        {ok, _} = Ok ->
+            Ok;
+        Error when Retry =:= 0 ->
+            Error;
+        Error ->
+            ?ERROR_MSG("Database connection attempt with ~p resulted in ~p."
+                       " Retrying in ~p seconds.", [Settings, Error, RetryAfterSeconds]),
+            timer:sleep(timer:seconds(RetryAfterSeconds)),
+            connect(Backend, Settings, Retry - 1, RetryAfterSeconds)
+    end.
+
+
 -spec backend(Host :: ejabberd:server()) -> module().
 backend(Host) when is_binary(Host) ->
     Engine = atom_to_binary(db_engine(Host), latin1),
@@ -442,6 +460,22 @@ schedule_keepalive(Host) ->
             ?ERROR_MSG("Wrong odbc_keepalive_interval definition '~p'"
                        " for host ~p.~n", [_Other, Host]),
             ok
+    end.
+
+
+-spec get_start_interval(ejabberd:server()) -> any().
+get_start_interval(Host) ->
+    DefaultInterval = 30,
+    case ejabberd_config:get_local_option({odbc_start_interval, Host}) of
+        StartInterval when is_integer(StartInterval) ->
+            StartInterval;
+        undefined ->
+            DefaultInterval;
+        _Other ->
+            ?ERROR_MSG("Wrong odbc_start_interval definition '~p'"
+                       " for host ~p, defaulting to ~p seconds.~n",
+                       [_Other, Host, DefaultInterval]),
+            DefaultInterval
     end.
 
 

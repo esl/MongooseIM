@@ -42,8 +42,8 @@
 -define(DEFAULT_POOL_SIZE, 10).
 -define(DEFAULT_ODBC_START_INTERVAL, 30). % 30 seconds
 
-% time to wait for the supervisor to start its child before returning
-% a timeout error to the request
+%% time to wait for the supervisor to start its child before returning
+%% a timeout error to the request
 -define(CONNECT_TIMEOUT, 500). % milliseconds
 
 -spec start_link(binary() | string()) -> ignore | {error, term()} | {ok, pid()}.

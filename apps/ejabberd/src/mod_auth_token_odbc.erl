@@ -16,10 +16,7 @@ get_valid_sequence_number(#jid{lserver = LServer} = JID) ->
     BBareJID = jid:to_binary(jid:to_bare(JID)),
     EBareJID = ejabberd_odbc:escape(BBareJID),
     Q = valid_sequence_number_query(EBareJID),
-    [{updated, _},
-     {updated, _},
-     {selected, [{BSeqNo}]},
-     {updated, _}] = ejabberd_odbc:sql_transaction(LServer, Q),
+    {atomic, [{updated, _}, {selected, [{BSeqNo}]}]} = ejabberd_odbc:sql_transaction(LServer, Q),
     ejabberd_odbc:result_to_integer(BSeqNo).
 
 valid_sequence_number_query(EOwner) when is_binary(EOwner) ->

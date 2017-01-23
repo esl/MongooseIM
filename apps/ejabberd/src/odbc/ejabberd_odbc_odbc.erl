@@ -50,6 +50,8 @@ disconnect(Connection) ->
     odbc:disconnect(Connection).
 
 -spec query(Connection :: term(), Query :: any()) -> term().
+query(Connection, Query) when is_binary(Query) ->
+    query(Connection, [Query]);
 query(Connection, Query) ->
     parse(odbc:sql_query(Connection, Query, ?QUERY_TIMEOUT)).
 
