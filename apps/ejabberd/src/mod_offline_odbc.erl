@@ -48,7 +48,7 @@ pop_messages(LUser, LServer) ->
     To = jid:make(LUser, LServer, <<>>),
     SUser = ejabberd_odbc:escape(LUser),
     SServer = ejabberd_odbc:escape(LServer),
-    TimeStamp = now(),
+    TimeStamp = p1_time_compat:timestamp(),
     STimeStamp = encode_timestamp(TimeStamp),
     case odbc_queries:pop_offline_messages(LServer, SUser, SServer, STimeStamp) of
         {atomic, {selected, Rows}} ->
@@ -111,7 +111,7 @@ remove_user(LUser, LServer) ->
 -spec remove_expired_messages(ejabberd:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_expired_messages(LServer) ->
-    TimeStamp = now(),
+    TimeStamp = p1_time_compat:timestamp(),
     STimeStamp = encode_timestamp(TimeStamp),
     Result = odbc_queries:remove_expired_offline_messages(LServer, STimeStamp),
     case Result of
