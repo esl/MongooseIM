@@ -22,7 +22,7 @@
 
 -define(MYSQL_PORT, 3306).
 
--export([escape_format/1, connect/1, disconnect/1, query/3]).
+-export([escape_format/1, connect/1, disconnect/1, query/3, is_error_duplicate/1]).
 
 %% API
 
@@ -36,7 +36,7 @@ connect(Settings) ->
     case mysql_conn:start_link(Server, Port, User, Password, Database,
                                fun log/4, utf8, undefined, true) of
         {ok, Ref} ->
-            mysql_conn:fetch(Ref, <<"SET SESSION query_cache_type=1;">>, self()),
+            query(Ref, <<"SET SESSION query_cache_type=1;">>, 5000),
             {ok, Ref};
         Error ->
             Error
@@ -50,6 +50,10 @@ disconnect(Connection) ->
             Timeout :: infinity | non_neg_integer()) -> term().
 query(Connection, Query, Timeout) ->
     mysql_to_odbc(mysql_conn:fetch(Connection, iolist_to_binary(Query), self(), Timeout)).
+
+-spec is_error_duplicate(Reason :: string()) -> boolean().
+is_error_duplicate("duplicate" ++ _) -> true;
+is_error_duplicate(_Reason) -> false.
 
 %% Helpers
 

@@ -18,7 +18,7 @@
 -author('konrad.zemek@gmail.com').
 -behaviour(mongoose_rdbms).
 
--export([escape_format/1, connect/1, disconnect/1, query/3]).
+-export([escape_format/1, connect/1, disconnect/1, query/3, is_error_duplicate/1]).
 
 %% API
 
@@ -52,6 +52,10 @@ query(Connection, Query, Timeout) when is_binary(Query) ->
     query(Connection, [Query], Timeout);
 query(Connection, Query, Timeout) ->
     parse(odbc:sql_query(Connection, Query, Timeout)).
+
+-spec is_error_duplicate(Reason :: string()) -> boolean().
+is_error_duplicate("ERROR: duplicate" ++ _) -> true;
+is_error_duplicate(_Reason) -> false.
 
 %% Helpers
 

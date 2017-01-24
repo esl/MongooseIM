@@ -20,7 +20,7 @@
 
 -define(PGSQL_PORT, 5432).
 
--export([escape_format/1, connect/1, disconnect/1, query/3]).
+-export([escape_format/1, connect/1, disconnect/1, query/3, is_error_duplicate/1]).
 
 %% API
 
@@ -35,8 +35,7 @@ connect(Settings) ->
     case pgsql_connection:start_link([{host, Server}, {port, Port}, {database, DB},
                                       {user, Username}, {password, Password}]) of
         {ok, Pid} ->
-            pgsql_connection:simple_query(<<"SET standard_conforming_strings=off;">>,
-                                          {pgsql_connection, Pid}),
+            query(Pid, <<"SET standard_conforming_strings=off;">>, 5000),
             {ok, Pid};
         Error ->
             Error
@@ -51,6 +50,10 @@ disconnect(Connection) ->
 query(Connection, Query, Timeout) ->
     pgsql_to_odbc(pgsql_connection:simple_query(Query, [], Timeout,
                                                 {pgsql_connection, Connection})).
+
+-spec is_error_duplicate(Reason :: string()) -> boolean().
+is_error_duplicate("Duplicate" ++ _) -> true;
+is_error_duplicate(_Reason) -> false.
 
 %% Helpers
 

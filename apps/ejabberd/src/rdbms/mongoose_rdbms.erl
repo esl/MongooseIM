@@ -31,17 +31,13 @@
 
 -behaviour(gen_server).
 
--define(QUERY_TIMEOUT, 5000).
-%% The value is arbitrary; supervisor will restart the connection once
-%% the retry counter runs out. We just attempt to reduce log pollution.
--define(CONNECT_RETRIES, 3).
-
 -callback escape_format(Host :: ejabberd:server()) -> atom().
 -callback connect(Args :: any()) ->
     {ok, Connection :: term()} | {error, Reason :: any()}.
 -callback disconnect(Connection :: term()) -> any().
 -callback query(Connection :: term(), Query :: any(), Timeout :: infinity | non_neg_integer()) ->
     term().
+-callback is_error_duplicate(Reason :: string()) -> boolean().
 
 %% External exports
 -export([sql_query/2,
@@ -52,7 +48,8 @@
          escape_like/1,
          to_bool/1,
          db_engine/1,
-         print_state/1]).
+         print_state/1,
+         is_error_duplicate/2]).
 
 %% BLOB escaping
 -export([escape_format/1,
@@ -85,10 +82,13 @@
 
 -define(STATE_KEY, mongoose_rdbms_state).
 -define(MAX_TRANSACTION_RESTARTS, 10).
-
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
 -define(KEEPALIVE_TIMEOUT, 60000).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
+-define(QUERY_TIMEOUT, 5000).
+%% The value is arbitrary; supervisor will restart the connection once
+%% the retry counter runs out. We just attempt to reduce log pollution.
+-define(CONNECT_RETRIES, 3).
 
 %% Points to ODBC server process
 -type odbc_server() :: binary() | atom().
@@ -237,6 +237,11 @@ to_bool("1") -> true;
 to_bool(true) -> true;
 to_bool(1) -> true;
 to_bool(_) -> false.
+
+-spec is_error_duplicate(Host :: ejabberd:server(), Reason :: string()) -> boolean().
+is_error_duplicate(Host, Reason) ->
+    Backend = backend(Host),
+    Backend:is_error_duplicate(Reason).
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_server
