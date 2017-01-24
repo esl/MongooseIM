@@ -19,11 +19,10 @@
 -behaviour(ejabberd_odbc).
 
 -include("ejabberd.hrl").
--include("ejabberd_odbc.hrl").
 
 -define(MYSQL_PORT, 3306).
 
--export([escape_format/1, connect/1, disconnect/1, query/2]).
+-export([escape_format/1, connect/1, disconnect/1, query/3]).
 
 %% API
 
@@ -37,7 +36,7 @@ connect(Settings) ->
     case mysql_conn:start_link(Server, Port, User, Password, Database,
                                fun log/4, utf8, undefined, true) of
         {ok, Ref} ->
-            query(Ref, <<"SET SESSION query_cache_type=1;">>),
+            mysql_conn:fetch(Ref, <<"SET SESSION query_cache_type=1;">>, self()),
             {ok, Ref};
         Error ->
             Error
@@ -47,9 +46,10 @@ connect(Settings) ->
 disconnect(Connection) ->
     Connection ! stop.
 
--spec query(Connection :: term(), Query :: any()) -> term().
-query(Connection, Query) ->
-    mysql_to_odbc(mysql_conn:fetch(Connection, iolist_to_binary(Query), self(), ?QUERY_TIMEOUT)).
+-spec query(Connection :: term(), Query :: any(),
+            Timeout :: infinity | non_neg_integer()) -> term().
+query(Connection, Query, Timeout) ->
+    mysql_to_odbc(mysql_conn:fetch(Connection, iolist_to_binary(Query), self(), Timeout)).
 
 %% Helpers
 

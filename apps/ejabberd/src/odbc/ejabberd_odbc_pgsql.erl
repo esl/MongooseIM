@@ -18,12 +18,9 @@
 -author('konrad.zemek@gmail.com').
 -behaviour(ejabberd_odbc).
 
--include("ejabberd.hrl").
--include("ejabberd_odbc.hrl").
-
 -define(PGSQL_PORT, 5432).
 
--export([escape_format/1, connect/1, disconnect/1, query/2]).
+-export([escape_format/1, connect/1, disconnect/1, query/3]).
 
 %% API
 
@@ -38,7 +35,8 @@ connect(Settings) ->
     case pgsql_connection:start_link([{host, Server}, {port, Port}, {database, DB},
                                       {user, Username}, {password, Password}]) of
         {ok, Pid} ->
-            query(Pid, <<"SET standard_conforming_strings=off;">>),
+            pgsql_connection:simple_query(<<"SET standard_conforming_strings=off;">>,
+                                          {pgsql_connection, Pid}),
             {ok, Pid};
         Error ->
             Error
@@ -48,9 +46,10 @@ connect(Settings) ->
 disconnect(Connection) ->
     pgsql_connection:close({pgsql_connection, Connection}).
 
--spec query(Connection :: term(), Query :: any()) -> term().
-query(Connection, Query) ->
-    pgsql_to_odbc(pgsql_connection:simple_query(Query, [], ?QUERY_TIMEOUT,
+-spec query(Connection :: term(), Query :: any(),
+            Timeout :: infinity | non_neg_integer()) -> term().
+query(Connection, Query, Timeout) ->
+    pgsql_to_odbc(pgsql_connection:simple_query(Query, [], Timeout,
                                                 {pgsql_connection, Connection})).
 
 %% Helpers

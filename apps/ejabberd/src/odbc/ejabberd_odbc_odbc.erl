@@ -18,10 +18,7 @@
 -author('konrad.zemek@gmail.com').
 -behaviour(ejabberd_odbc).
 
--include("ejabberd.hrl").
--include("ejabberd_odbc.hrl").
-
--export([escape_format/1, connect/1, disconnect/1, query/2]).
+-export([escape_format/1, connect/1, disconnect/1, query/3]).
 
 %% API
 
@@ -49,11 +46,12 @@ connect(Settings) when is_list(Settings) ->
 disconnect(Connection) ->
     odbc:disconnect(Connection).
 
--spec query(Connection :: term(), Query :: any()) -> term().
-query(Connection, Query) when is_binary(Query) ->
-    query(Connection, [Query]);
-query(Connection, Query) ->
-    parse(odbc:sql_query(Connection, Query, ?QUERY_TIMEOUT)).
+-spec query(Connection :: term(), Query :: any(),
+            Timeout :: infinity | non_neg_integer()) -> term().
+query(Connection, Query, Timeout) when is_binary(Query) ->
+    query(Connection, [Query], Timeout);
+query(Connection, Query, Timeout) ->
+    parse(odbc:sql_query(Connection, Query, Timeout)).
 
 %% Helpers
 

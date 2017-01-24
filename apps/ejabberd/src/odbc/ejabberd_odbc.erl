@@ -29,11 +29,17 @@
 
 -behaviour(gen_server).
 
+-define(QUERY_TIMEOUT, 5000).
+%% The value is arbitrary; supervisor will restart the connection once
+%% the retry counter runs out. We just attempt to reduce log pollution.
+-define(CONNECT_RETRIES, 3).
+
 -callback escape_format(Host :: ejabberd:server()) -> atom().
 -callback connect(Args :: any()) ->
     {ok, Connection :: term()} | {error, Reason :: any()}.
 -callback disconnect(Connection :: term()) -> any().
--callback query(Connection :: term(), Query :: any()) -> term().
+-callback query(Connection :: term(), Query :: any(), Timeout :: infinity | non_neg_integer()) ->
+    term().
 
 %% External exports
 -export([sql_query/2,
@@ -240,7 +246,7 @@ init(Host) ->
     Backend = backend(Host),
     Settings = ejabberd_config:get_local_option({odbc_server, Host}),
     RetryAfterSeconds = get_start_interval(Host),
-    {ok, DbRef} = connect(Backend, Settings, 3, RetryAfterSeconds),
+    {ok, DbRef} = connect(Backend, Settings, ?CONNECT_RETRIES, RetryAfterSeconds),
     schedule_keepalive(Host),
     {ok, #state{db_type = db_engine(Host), host = Host, db_ref = DbRef, backend = Backend}}.
 
@@ -393,7 +399,7 @@ execute_bloc(F, _State) ->
     end.
 
 sql_query_internal(Query, #state{backend = Backend, db_ref = DBRef}) ->
-    case Backend:query(DBRef, Query) of
+    case Backend:query(DBRef, Query, ?QUERY_TIMEOUT) of
         {error, "No SQL-driver information available."} ->
             {updated, 0}; %% workaround for odbc bug
         Result ->
