@@ -78,7 +78,7 @@ remove_pool(Host, Id) ->
 -spec pool_spec(Host :: ejabberd:server(), Id :: supervisor:child_id(),
                 Name :: atom(), Size :: pos_integer()) -> supervisor:child_spec().
 pool_spec(Host, Id, Name, Size) ->
-    Opts = [{workers, Size}, {worker, {ejabberd_odbc, Host}}],
+    Opts = [{workers, Size}, {worker, {ejabberd_odbc, Host}}, {pool_sup_shutdown, 2000}],
     {Id, {wpool, start_pool, [Name, Opts]}, transient, 200, supervisor, dynamic}.
 
 

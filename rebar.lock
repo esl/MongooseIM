@@ -194,7 +194,7 @@
   0},
  {<<"worker_pool">>,
   {git,"git://github.com/inaka/worker_pool.git",
-       {ref,"792a0bc7621865f9a10fb339cdcdd44fcf0788cb"}},
+       {ref,"707c2c6b36c8ba03343e760b56e87d6371a0e26e"}},
   0}]}.
 [
 {pkg_hash,[
