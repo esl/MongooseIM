@@ -83,7 +83,7 @@
 -define(NS_MAM_04,      <<"urn:xmpp:mam:1">>). % MAM 0.4.1 or 0.5
 -define(NS_HTTP_UPLOAD_025, <<"urn:xmpp:http:upload">>).
 -define(NS_HTTP_UPLOAD_030, <<"urn:xmpp:http:upload:0">>).
--define(NS_PUSH,        <<"urn:xmpp:push:0">>).
+-define(NS_PUSH,        <<"urn:xmpp:push:0">>). % Push Notifications v0.2.1
 
 -define(NS_RSM,         <<"http://jabber.org/protocol/rsm">>).
 -define(NS_EJABBERD_CONFIG,<<"ejabberd:config">>).
