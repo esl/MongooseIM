@@ -120,12 +120,23 @@ run_fold(Hook, Val, Args) ->
     run_fold(Hook, global, Val, Args).
 
 run_fold(Hook, Host, Val, Args) ->
-    case ets:lookup(hooks, {Hook, Host}) of
+    Res = case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Host, Hook),
             run_fold1(Ls, Hook, Val, Args);
         [] ->
             Val
+    end,
+    record(Hook, Res).
+
+record(Hook, Acc) ->
+    % just to show some nice things we can do now
+    % this should probably be protected by a compilation flag
+    case mongoose_acc:is_acc(Acc) of
+        true ->
+            mongoose_acc:append(hooks_run, Hook, Acc);
+        false ->
+            Acc
     end.
 
 %%%----------------------------------------------------------------------
@@ -228,7 +239,7 @@ run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
     Res = if is_function(Function) ->
                   safely:apply(Function, [Val | Args]);
              true ->
-                  safely:apply(Module, Function, [Val | Args])
+                  record(Hook, Module, Function, safely:apply(Module, Function, [Val | Args]))
           end,
     case Res of
         {'EXIT', Reason} ->
@@ -241,4 +252,14 @@ run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
             NewVal;
         NewVal ->
             run_fold1(Ls, Hook, NewVal, Args)
+    end.
+
+record(Hook, Module, Function, Acc) ->
+    % just to show some nice things we can do now
+    % this should probably be protected by a compilation flag
+    case mongoose_acc:is_acc(Acc) of
+        true ->
+            mongoose_acc:append(handlers_run, {Hook, Module, Function}, Acc);
+        false ->
+            Acc
     end.

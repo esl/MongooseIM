@@ -875,6 +875,9 @@ session_established({xmlstreamelement,
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
+    % this is where we probably should initialise accumulator, or even earlier
+    % but it would require hacking mod_amp at the very beginning
+    % so to make it simpler we do it a bit later
     case check_from(El, FromJID) of
         'invalid-from' ->
             send_element(StateData, ?INVALID_FROM),
@@ -917,10 +920,12 @@ session_established(closed, StateData) ->
 %% connection)
 -spec process_outgoing_stanza(El :: jlib:xmlel(), state()) -> fsm_return().
 process_outgoing_stanza(El, StateData) ->
-    #xmlel{name = Name, attrs = Attrs} = El,
+    % initialise accumulator, fill with data
+    Acc = ?INITIALISE(El),
     User = StateData#state.user,
     Server = StateData#state.server,
     FromJID = StateData#state.jid,
+    Attrs = mongoose_acc:get(attrs, Acc),
     To = xml:get_attr_s(<<"to">>, Attrs),
     ToJID = case To of
                 <<>> ->
@@ -928,7 +933,14 @@ process_outgoing_stanza(El, StateData) ->
                 _ ->
                     jid:from_binary(To)
             end,
-    NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El)),
+    Acc1 = mongoose_acc:update(Acc, #{user => User,
+                                      server => Server,
+                                      from_jid => FromJID,
+                                      to_jid => ToJID,
+                                      to => To}),
+    % do some cryptic preparation on xmlel
+    El0 = mongoose_acc:get(element, Acc1),
+    NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El0)),
     NewEl = case xml:get_attr_s(<<"xml:lang">>, Attrs) of
                 <<>> ->
                     case StateData#state.lang of
@@ -939,7 +951,18 @@ process_outgoing_stanza(El, StateData) ->
                 _ ->
                     NewEl1
             end,
-    NState = process_outgoing_stanza(ToJID, Name, {Attrs, NewEl, FromJID, StateData, Server, User}),
+    Acc2 = mongoose_acc:put(element, NewEl, Acc1),
+    Name = mongoose_acc:get(name, Acc2),
+    NState = case Name of
+        <<"presence">> ->
+            % new-style
+            % I think it still makes sense to pass all those arguments, for performance reasons
+            process_outgoing_stanza(ToJID, Name, {Attrs, Acc, FromJID, StateData, Server, User});
+        _ ->
+            % unpack and proceed as before
+            NewElement = ?TERMINATE(Acc2),
+            process_outgoing_stanza(ToJID, Name, {Attrs, NewElement, FromJID, StateData, Server, User})
+    end,
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
     fsm_next_state(session_established, NState).
 
@@ -955,14 +978,18 @@ process_outgoing_stanza(error, _Name, Args) ->
             StateData
     end;
 process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
-    {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
-    PresenceEl = ejabberd_hooks:run_fold(c2s_update_presence,
+    {_Attrs, Acc, FromJID, StateData, Server, User} = Args,
+    Res = ejabberd_hooks:run_fold(c2s_update_presence,
                                          Server,
-                                         NewEl,
-                                         [User, Server]),
-    ejabberd_hooks:run(user_send_packet,
-                       Server,
-                       [FromJID, ToJID, PresenceEl]),
+                                         Acc,
+                                         []),
+    El = mongoose_acc:get(element, Res),
+    Res1 = ejabberd_hooks:run_fold(user_send_packet,
+                                   Server,
+                                   Res,
+                                   [FromJID, ToJID, El]),
+    ?DUMP(Res1),
+    PresenceEl = ?TERMINATE(Res1),
     case ToJID of
         #jid{user = User,
              server = Server,
