@@ -7,7 +7,6 @@ Please feel free to comment!
 * Push notifications
 * Instant Stream Resumption
 * Full text search in archive
-* HTTP file upload
 * Contributions to Smack, XMPPFramework
 * Contributions to Jayme? Retrofit? Movim? Stanza.io? Strophe.js? Libervia?
 
