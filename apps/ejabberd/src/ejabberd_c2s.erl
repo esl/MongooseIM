@@ -921,7 +921,7 @@ session_established(closed, StateData) ->
 -spec process_outgoing_stanza(El :: jlib:xmlel(), state()) -> fsm_return().
 process_outgoing_stanza(El, StateData) ->
     % initialise accumulator, fill with data
-    Acc = ?INITIALISE(El),
+    Acc = mongoose_acc:initialise(El, ?FILE, ?LINE),
     User = StateData#state.user,
     Server = StateData#state.server,
     FromJID = StateData#state.jid,
@@ -960,7 +960,7 @@ process_outgoing_stanza(El, StateData) ->
             process_outgoing_stanza(ToJID, Name, {Attrs, Acc, FromJID, StateData, Server, User});
         _ ->
             % unpack and proceed as before
-            NewElement = ?TERMINATE(Acc2),
+            NewElement = mongoose_acc:terminate(Acc2, ?FILE, ?LINE),
             process_outgoing_stanza(ToJID, Name, {Attrs, NewElement, FromJID, StateData, Server, User})
     end,
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
@@ -989,7 +989,7 @@ process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
                                    Res,
                                    [FromJID, ToJID, El]),
     ?DUMP(Res1),
-    PresenceEl = ?TERMINATE(Res1),
+    PresenceEl = mongoose_acc:terminate(Res1, ?FILE, ?LINE),
     case ToJID of
         #jid{user = User,
              server = Server,

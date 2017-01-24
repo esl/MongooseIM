@@ -132,7 +132,8 @@ run_fold(Hook, Host, Val, Args) ->
 record(Hook, Acc) ->
     % just to show some nice things we can do now
     % this should probably be protected by a compilation flag
-    case mongoose_acc:is_acc(Acc) of
+    % unless load tests show that the impact on performance is negligible
+    case mongoose_acc:is_acc(Acc) of % this check will go away some day
         true ->
             mongoose_acc:append(hooks_run, Hook, Acc);
         false ->
@@ -257,7 +258,8 @@ run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
 record(Hook, Module, Function, Acc) ->
     % just to show some nice things we can do now
     % this should probably be protected by a compilation flag
-    case mongoose_acc:is_acc(Acc) of
+    % unless load tests show that the impact on performance is negligible
+    case mongoose_acc:is_acc(Acc) of % this check will go away some day
         true ->
             mongoose_acc:append(handlers_run, {Hook, Module, Function}, Acc);
         false ->

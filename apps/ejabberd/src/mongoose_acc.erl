@@ -20,7 +20,17 @@
 %% if it is defined as -opaque then dialyzer fails
 -type t() :: map().
 
+%%% This module encapsulates implementation of mongoose_acc
+%%% its interface is map-like but implementation might change
+%%% it is passed along many times, and relatively rarely read or written to
+%%% might be worth reimplementing as binary
+
 %%%%% devel API %%%%%
+
+%%% Eventually, we'll call initialise when a stanza enters MongooseIM and terminate
+%%% when it leaves. During development we can call both in arbitrary places, provided that
+%%% the code which is executed between them is rewritten. We will proceed by moving
+%%% both points further apart until they reach their respective ends of processing chain.
 
 initialise(El, F, L) ->
     ?ERROR_MSG("AAA initialise accumulator ~p ~p", [F, L]),
@@ -30,16 +40,17 @@ terminate(M, F, L) ->
     ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
     get(element, M).
 
-
 dump(Acc) ->
     dump(Acc, lists:sort(maps:keys(Acc))).
 
-%%%%% API %%%%%
-
+%% This function is for transitional period, eventually all hooks will use accumulator
+%% and we will not have to check
 is_acc(A) when is_map(A) ->
     maps:get(mongoose_acc, A, false);
 is_acc(_) ->
     false.
+
+%%%%% API %%%%%
 
 -spec new() -> t().
 new() ->
