@@ -49,7 +49,7 @@
          to_bool/1,
          db_engine/1,
          print_state/1,
-         is_error_duplicate/2]).
+         is_error_duplicate/1]).
 
 %% BLOB escaping
 -export([escape_format/1,
@@ -75,8 +75,7 @@
 
 -record(state, {db_ref,
                 db_type :: atom(),
-                host :: ejabberd:server(),
-                backend :: module()
+                host :: ejabberd:server()
                }).
 -type state() :: #state{}.
 
@@ -190,8 +189,7 @@ escape_like(S) ->
 
 -spec escape_format(odbc_server()) -> hex | simple_escape.
 escape_format(Host) ->
-    Backend = backend(Host),
-    Backend:escape_format(Host).
+    mongoose_rdbms_backend:escape_format(Host).
 
 
 -spec escape_binary('hex' | 'simple_escape', binary()) -> binary() | string().
@@ -238,10 +236,9 @@ to_bool(true) -> true;
 to_bool(1) -> true;
 to_bool(_) -> false.
 
--spec is_error_duplicate(Host :: ejabberd:server(), Reason :: string()) -> boolean().
-is_error_duplicate(Host, Reason) ->
-    Backend = backend(Host),
-    Backend:is_error_duplicate(Reason).
+-spec is_error_duplicate(Reason :: string()) -> boolean().
+is_error_duplicate(Reason) ->
+    mongoose_rdbms_backend:is_error_duplicate(Reason).
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -249,13 +246,13 @@ is_error_duplicate(Host, Reason) ->
 -spec init(ejabberd:server()) -> {ok, state()}.
 init(Host) ->
     process_flag(trap_exit, true),
-    proc_lib:init_ack({ok, self()}),
-    Backend = backend(Host),
+    backend_module:create(?MODULE, db_engine(Host), [query]),
     Settings = ejabberd_config:get_local_option({odbc_server, Host}),
     RetryAfterSeconds = get_start_interval(Host),
-    {ok, DbRef} = connect(Backend, Settings, ?CONNECT_RETRIES, RetryAfterSeconds),
+    proc_lib:init_ack({ok, self()}),
+    {ok, DbRef} = connect(Settings, ?CONNECT_RETRIES, RetryAfterSeconds),
     schedule_keepalive(Host),
-    {ok, #state{db_type = db_engine(Host), host = Host, db_ref = DbRef, backend = Backend}}.
+    {ok, #state{db_type = db_engine(Host), host = Host, db_ref = DbRef}}.
 
 
 handle_call({sql_cmd, Command, Timestamp}, From, State) ->
@@ -287,8 +284,8 @@ handle_info(Info, State) ->
     {noreply, State}.
 
 -spec terminate(Reason :: term(), state()) -> any().
-terminate(_Reason, #state{backend = Backend, db_ref = DbRef}) ->
-    catch Backend:disconnect(DbRef).
+terminate(_Reason, #state{db_ref = DbRef}) ->
+    catch mongoose_rdbms_backend:disconnect(DbRef).
 
 %%----------------------------------------------------------------------
 %% Func: print_state/1
@@ -405,8 +402,8 @@ execute_bloc(F, _State) ->
             {atomic, Res}
     end.
 
-sql_query_internal(Query, #state{backend = Backend, db_ref = DBRef}) ->
-    case Backend:query(DBRef, Query, ?QUERY_TIMEOUT) of
+sql_query_internal(Query, #state{db_ref = DBRef}) ->
+    case mongoose_rdbms_backend:query(DBRef, Query, ?QUERY_TIMEOUT) of
         {error, "No SQL-driver information available."} ->
             {updated, 0}; %% workaround for odbc bug
         Result ->
@@ -440,10 +437,10 @@ db_engine(Host) when is_binary(Host) ->
     end.
 
 
--spec connect(Backend :: module(), Settings :: term(), Retry :: non_neg_integer(),
+-spec connect(Settings :: term(), Retry :: non_neg_integer(),
               RetryAfterSeconds :: non_neg_integer()) -> {ok, term()} | {error, any()}.
-connect(Backend, Settings, Retry, RetryAfterSeconds) ->
-    case Backend:connect(Settings) of
+connect(Settings, Retry, RetryAfterSeconds) ->
+    case mongoose_rdbms_backend:connect(Settings) of
         {ok, _} = Ok ->
             Ok;
         Error when Retry =:= 0 ->
@@ -452,14 +449,8 @@ connect(Backend, Settings, Retry, RetryAfterSeconds) ->
             ?ERROR_MSG("Database connection attempt with ~p resulted in ~p."
                        " Retrying in ~p seconds.", [Settings, Error, RetryAfterSeconds]),
             timer:sleep(timer:seconds(RetryAfterSeconds)),
-            connect(Backend, Settings, Retry - 1, RetryAfterSeconds)
+            connect(Settings, Retry - 1, RetryAfterSeconds)
     end.
-
-
--spec backend(Host :: ejabberd:server()) -> module().
-backend(Host) when is_binary(Host) ->
-    Engine = atom_to_binary(db_engine(Host), latin1),
-    binary_to_atom(<<"mongoose_rdbms_", Engine/binary>>, latin1).
 
 
 -spec schedule_keepalive(ejabberd:server()) -> any().
