@@ -28,11 +28,12 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
+-behaviour(mongoose_packet_handler).
 
 %% API
 -export([start_link/0]).
 
--export([route/3,
+-export([process_packet/4,
          route_iq/4,
          route_iq/5,
          process_iq_reply/3,
@@ -140,16 +141,16 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
     end.
 
 
--spec route(From :: ejabberd:jid(),
-            To :: ejabberd:jid(),
-            Packet :: jlib:xmlel()) -> 'ok' | {'error', 'lager_not_running'}.
-route(From, To, Packet) ->
+-spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Extra :: any()) ->
+    ok | {error, lager_not_running}.
+process_packet(From, To, Packet, _Extra) ->
     case (catch do_route(From, To, Packet)) of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
-                [jid:to_binary(From), jid:to_binary(To),
-                    ?MODULE, Reason, exml:to_binary(Packet),
-                    erlang:get_stacktrace()]);
+            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p,"
+                       " packet=~ts, stack_trace=~p",
+                       [jid:to_binary(From), jid:to_binary(To),
+                        ?MODULE, Reason, exml:to_binary(Packet),
+                        erlang:get_stacktrace()]);
         _ -> ok
     end.
 
@@ -330,7 +331,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({route, From, To, Packet}, State) ->
-    route(From, To, Packet),
+    process_packet(From, To, Packet, undefined),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(?IQTABLE, {{XMLNS, Host}, Module, Function}),
@@ -479,7 +480,7 @@ cancel_timer(TRef) ->
     end.
 
 do_register_host(Host) ->
-    ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)),
     ejabberd_hooks:add(local_send_to_resource_hook, Host,
                        ?MODULE, bounce_resource_packet, 100).
 

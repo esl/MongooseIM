@@ -26,9 +26,10 @@
 
 -module(ejabberd_service).
 -author('alexey@process-one.net').
--define(GEN_FSM, p1_fsm).
 -xep([{xep, 114}, {version, "1.6"}]).
--behaviour(?GEN_FSM).
+
+-behaviour(p1_fsm).
+-behaviour(mongoose_packet_handler).
 
 %% External exports
 -export([start/2,
@@ -47,7 +48,10 @@
          code_change/4,
          handle_info/3,
          terminate/3,
-     print_state/1]).
+         print_state/1]).
+
+%% packet handler callback
+-export([process_packet/4]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -122,12 +126,20 @@ start(SockData, Opts) ->
 
 -spec start_link(_, list()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(SockData, Opts) ->
-    ?GEN_FSM:start_link(ejabberd_service, [SockData, Opts],
+    p1_fsm:start_link(ejabberd_service, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
 
 
 socket_type() ->
     xml_stream.
+
+%%%----------------------------------------------------------------------
+%%% mongoose_packet_handler callback
+%%%----------------------------------------------------------------------
+
+-spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
+process_packet(From, To, Packet, Pid) ->
+    Pid ! {route, From, To, Packet}.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -424,9 +436,9 @@ fsm_limit_opts(Opts) ->
 register_routes(#state{host=Subdomain, is_subdomain=true}) ->
     Hosts = ejabberd_config:get_global_option(hosts),
     Routes = component_routes(Subdomain, Hosts),
-    ejabberd_router:register_components(Routes);
+    ejabberd_router:register_components(Routes, mongoose_packet_handler:new(?MODULE, self()));
 register_routes(#state{host=Host}) ->
-    ejabberd_router:register_component(Host).
+    ejabberd_router:register_component(Host, mongoose_packet_handler:new(?MODULE, self())).
 
 -spec unregister_routes(state()) -> any().
 unregister_routes(#state{host=Subdomain, is_subdomain=true}) ->

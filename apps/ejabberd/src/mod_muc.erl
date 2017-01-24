@@ -29,6 +29,7 @@
 -xep([{xep, 45}, {version, "1.25"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
+-behaviour(mongoose_packet_handler).
 
 %% API
 -export([start_link/2,
@@ -49,8 +50,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
-%% Internal exports
--export([route/2]).
+%% packet handler callback
+-export([process_packet/4]).
 
 %% Hooks handlers
 -export([is_room_owner/3,
@@ -316,10 +317,7 @@ init([Host, Opts]) ->
     ejabberd_hooks:add(muc_room_pid, MyHost, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:add(can_access_room, MyHost, ?MODULE, can_access_room, 50),
 
-    F = fun(From, To, Packet) ->
-            mod_muc:route({From, To, Packet}, State)
-        end,
-    ejabberd_router:register_route(MyHost, {apply_fun, F}),
+    ejabberd_router:register_route(MyHost, mongoose_packet_handler:new(?MODULE, State)),
     mongoose_subhosts:register(Host, MyHost),
 
     load_permanent_rooms(MyHost, Host,
@@ -388,7 +386,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 
 handle_info({route, From, To, Packet}, State) ->
-    case catch route({From, To, Packet}, State) of
+    case catch process_packet(From, To, Packet, State) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);
         _ ->
@@ -487,23 +485,17 @@ stop_supervisor(Host) ->
     supervisor:delete_child(ejabberd_sup, Proc).
 
 
--spec route({From :: ejabberd:jid(),
-    To :: ejabberd:simple_jid() | ejabberd:jid(), Packet :: any()}, state())
-            -> 'ok' | pid().
-route(Routed, State) ->
-    route_by_privilege(Routed, State).
-
-
--spec route_by_privilege({From :: ejabberd:jid(),
-    To :: ejabberd:simple_jid() | ejabberd:jid(), Packet :: any()},
-        state()) -> 'ok' | pid().
-route_by_privilege({From, To, Packet} = Routed,
-                   #state{access={AccessRoute, _, _, _},
-                          server_host=ServerHost} = State) ->
+-spec process_packet(From :: jid(),
+                     To :: ejabberd:simple_jid() | ejabberd:jid(),
+                     Packet :: any(),
+                     State :: state()) -> ok | pid().
+process_packet(From, To, Packet, #state{
+                                    access = {AccessRoute, _, _, _},
+                                    server_host = ServerHost} = State) ->
     case acl:match_rule(ServerHost, AccessRoute, From) of
         allow ->
             {Room, _, _} = jid:to_lower(To),
-            route_to_room(Room, Routed, State);
+            route_to_room(Room, {From, To, Packet}, State);
         _ ->
             #xmlel{attrs = Attrs} = Packet,
             Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),

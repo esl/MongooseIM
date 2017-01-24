@@ -88,9 +88,8 @@ child_spec(Workers, RiakOpts) ->
     ChildMF = {mongoose_riak, start_worker},
     RiakPoolName = mongoose_riak:pool_name(),
     ChildArgs = {for_all, RiakOpts},
-    AChild = {RiakPoolName, {cuesport, start_link, [RiakPoolName, Workers, ChildMods, ChildMF, ChildArgs]},
-        Restart, Shutdown, Type, ChildMods},
-    AChild.
+    PoolMFA = {cuesport, start_link, [RiakPoolName, Workers, ChildMods, ChildMF, ChildArgs]},
+    {RiakPoolName, PoolMFA, Restart, Shutdown, Type, ChildMods}.
 
 %%%===================================================================
 %%% Internal functions
