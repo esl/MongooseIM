@@ -117,7 +117,7 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
       ["SELECT COUNT(*) "
        "FROM ", select_table(RoomID), " ",
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
-    ejabberd_odbc:result_to_integer(BSize).
+    mongoose_rdbms:result_to_integer(BSize).
 
 -spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
         RoomID :: mod_mam:archive_id(), _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
@@ -136,10 +136,10 @@ archive_message(_Result, Host, MessID, RoomID,
         FromNick :: ejabberd:user(), packet()) -> ok.
 archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
-    SFromNick = ejabberd_odbc:escape(FromNick),
+    SFromNick = mongoose_rdbms:escape(FromNick),
     Data = packet_to_stored_binary(Packet),
-    EscFormat = ejabberd_odbc:escape_format(Host),
-    SData = ejabberd_odbc:escape_binary(EscFormat, Data),
+    EscFormat = mongoose_rdbms:escape_format(Host),
+    SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
     write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData).
 
@@ -169,10 +169,10 @@ prepare_message(Host, MessID, RoomID,
 
 prepare_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
-    SFromNick = ejabberd_odbc:escape(FromNick),
+    SFromNick = mongoose_rdbms:escape(FromNick),
     Data = packet_to_stored_binary(Packet),
-    EscFormat = ejabberd_odbc:escape_format(Host),
-    SData = ejabberd_odbc:escape_binary(EscFormat, Data),
+    EscFormat = mongoose_rdbms:escape_format(Host),
+    SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
     [SMessID, SRoomID, SFromNick, SData].
 
@@ -395,24 +395,24 @@ before_id(ID, Filter) ->
 -spec rows_to_uniform_format([raw_row()], ejabberd:server(), ejabberd:jid()) ->
     [mod_mam_muc:row()].
 rows_to_uniform_format(MessageRows, Host, RoomJID) ->
-    EscFormat = ejabberd_odbc:escape_format(Host),
-    DbEngine = ejabberd_odbc:db_engine(Host),
+    EscFormat = mongoose_rdbms:escape_format(Host),
+    DbEngine = mongoose_rdbms:db_engine(Host),
     [row_to_uniform_format(DbEngine, EscFormat, Row, RoomJID) || Row <- MessageRows].
 
 
 -spec row_to_uniform_format(atom(), atom(), raw_row(), ejabberd:jid()) -> mod_mam_muc:row().
 row_to_uniform_format(DbEngine, EscFormat, {BMessID, BNick, SDataRaw}, RoomJID) ->
-    MessID = ejabberd_odbc:result_to_integer(BMessID),
+    MessID = mongoose_rdbms:result_to_integer(BMessID),
     SrcJID = jid:replace_resource(RoomJID, BNick),
-    SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
-    Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
+    SData = mongoose_rdbms:unescape_odbc_binary(DbEngine, SDataRaw),
+    Data = mongoose_rdbms:unescape_binary(EscFormat, SData),
     Packet = stored_binary_to_packet(Data),
     {MessID, SrcJID, Packet}.
 
 
 -spec row_to_message_id({binary(), _, _}) -> integer().
 row_to_message_id({BMessID, _, _}) ->
-    ejabberd_odbc:result_to_integer(BMessID).
+    mongoose_rdbms:result_to_integer(BMessID).
 
 
 -spec remove_archive(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> 'ok'.
@@ -481,7 +481,7 @@ extract_messages(Host, RoomID, Filter, IOffset, IMax, true) ->
     lists:reverse(MessageRows).
 
 do_extract_messages(Host, RoomID, Filter, 0, IMax, Order) ->
-    {LimitSQL, LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits(IMax),
     mod_mam_utils:success_sql_query(
         Host,
         ["SELECT ", LimitMSSQL, " id, nick_name, message "
@@ -490,8 +490,8 @@ do_extract_messages(Host, RoomID, Filter, 0, IMax, Order) ->
             Order,
             " ", LimitSQL]);
 do_extract_messages(Host, RoomID, Filter, IOffset, IMax, Order) ->
-    {LimitSQL, _LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
-    Offset = odbc_queries:get_db_specific_offset(IOffset, IMax),
+    {LimitSQL, _LimitMSSQL} = rdbms_queries:get_db_specific_limits(IMax),
+    Offset = rdbms_queries:get_db_specific_offset(IOffset, IMax),
     mod_mam_utils:success_sql_query(
         Host,
         ["SELECT id, nick_name, message "
@@ -512,7 +512,7 @@ calc_index(Host, RoomID, Filter, SUMessID) ->
       ["SELECT COUNT(*) "
        "FROM ", select_table(RoomID), " ",
        Filter, " AND id <= '", SUMessID, "'"]),
-    ejabberd_odbc:result_to_integer(BIndex).
+    mongoose_rdbms:result_to_integer(BIndex).
 
 
 %% @doc Count of elements in RSet before the passed element.
@@ -528,7 +528,7 @@ calc_before(Host, RoomID, Filter, SUMessID) ->
       ["SELECT COUNT(*) "
        "FROM ", select_table(RoomID), " ",
        Filter, " AND id < '", SUMessID, "'"]),
-    ejabberd_odbc:result_to_integer(BIndex).
+    mongoose_rdbms:result_to_integer(BIndex).
 
 
 %% @doc Get the total result set size.
@@ -541,7 +541,7 @@ calc_count(Host, RoomID, Filter) ->
       Host,
       ["SELECT COUNT(*) ",
        "FROM ", select_table(RoomID), " ", Filter]),
-    ejabberd_odbc:result_to_integer(BCount).
+    mongoose_rdbms:result_to_integer(BCount).
 
 
 %% @doc prepare_filter/5
@@ -621,7 +621,7 @@ maybe_jid_to_escaped_resource(undefined) ->
 maybe_jid_to_escaped_resource(#jid{lresource = <<>>}) ->
     undefined;
 maybe_jid_to_escaped_resource(#jid{lresource = WithLResource}) ->
-    ejabberd_odbc:escape(WithLResource).
+    mongoose_rdbms:escape(WithLResource).
 
 
 -spec join([[any(), ...], ...]) -> [[any()], ...].

@@ -94,7 +94,7 @@ worker_number(Host, ArcID) ->
 -spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
     PoolName = gen_mod:get_module_proc(Host, ?MODULE),
-    {ok, _} = ejabberd_odbc_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
+    {ok, _} = mongoose_rdbms_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
     start_workers(Host, PoolName),
     start_muc(Host, Opts).
 
@@ -103,7 +103,7 @@ start(Host, Opts) ->
 stop(Host) ->
     stop_muc(Host),
     stop_workers(Host),
-    ejabberd_odbc_sup:remove_pool(Host, ?MODULE).
+    mongoose_rdbms_sup:remove_pool(Host, ?MODULE).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc

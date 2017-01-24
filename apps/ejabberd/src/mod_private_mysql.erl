@@ -16,24 +16,24 @@ init(_Host, _Opts) ->
     ok.
 
 multi_set_data(LUser, LServer, NS2XML) ->
-    SLUser = ejabberd_odbc:escape(LUser),
+    SLUser = mongoose_rdbms:escape(LUser),
     Rows = [sql_row(NS, XML) || {NS, XML} <- NS2XML],
     replace_like_insert_result(
-        odbc_queries:multi_set_private_data(LServer, SLUser, Rows)).
+        rdbms_queries:multi_set_private_data(LServer, SLUser, Rows)).
 
 replace_like_insert_result({updated, _})        -> ok;
 replace_like_insert_result({error, Reason})     -> {error, Reason};
 replace_like_insert_result({aborted, Reason})   -> {aborted, Reason}.
 
 sql_row(NS, XML) ->
-    SNS = ejabberd_odbc:escape(NS),
-    SData = ejabberd_odbc:escape(exml:to_binary(XML)),
+    SNS = mongoose_rdbms:escape(NS),
+    SData = mongoose_rdbms:escape(exml:to_binary(XML)),
     {SNS, SData}.
 
 multi_get_data(LUser, LServer, NS2Def) ->
-    SLUser = ejabberd_odbc:escape(LUser),
-    SNSs = [ejabberd_odbc:escape(NS) || {NS, _Def} <- NS2Def],
-    case odbc_queries:multi_get_private_data(LServer, SLUser, SNSs) of
+    SLUser = mongoose_rdbms:escape(LUser),
+    SNSs = [mongoose_rdbms:escape(NS) || {NS, _Def} <- NS2Def],
+    case rdbms_queries:multi_get_private_data(LServer, SLUser, SNSs) of
         {selected, Rows} ->
             RowsDict = dict:from_list(Rows),
             [select_value(NSDef, RowsDict) || NSDef <- NS2Def];
@@ -51,5 +51,5 @@ select_value({NS, Def}, RowsDict) ->
     end.
 
 remove_user(LUser, LServer) ->
-    SLUser = ejabberd_odbc:escape(LUser),
-    odbc_queries:del_user_private_storage(LServer, SLUser).
+    SLUser = mongoose_rdbms:escape(LUser),
+    rdbms_queries:del_user_private_storage(LServer, SLUser).

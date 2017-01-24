@@ -83,7 +83,7 @@ worker_number(Host, ArcID) ->
 
 start(Host, Opts) ->
     PoolName = gen_mod:get_module_proc(Host, ?MODULE),
-    {ok, _} = ejabberd_odbc_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
+    {ok, _} = mongoose_rdbms_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
     start_workers(Host, PoolName),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -112,7 +112,7 @@ stop(Host) ->
             ok
     end,
     stop_workers(Host),
-    ejabberd_odbc_sup:remove_pool(Host, ?MODULE).
+    mongoose_rdbms_sup:remove_pool(Host, ?MODULE).
 
 
 %% ----------------------------------------------------------------------

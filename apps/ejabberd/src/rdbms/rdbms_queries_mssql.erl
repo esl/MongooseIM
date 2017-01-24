@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% File    : odbc_queries_mssql.erl
+%%% File    : rdbms_queries_mssql.erl
 %%% Purpose : MSSQL specific queries
 %%% Created :  17 Sep 2014
 %%%
@@ -21,7 +21,7 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
--module(odbc_queries_mssql).
+-module(rdbms_queries_mssql).
 -author("michal.piotrowski").
 
 -include("ejabberd.hrl").
@@ -43,7 +43,7 @@ search_vcard(LServer, RestrictionSQL, Limit) when is_integer(Limit) ->
     do_search_vcard(LServer, RestrictionSQL, <<" TOP ", LimitBin/binary, " ">>).
 
 do_search_vcard(LServer, RestrictionSQL, Limit) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
     LServer,
     [<<"select", Limit/binary, "username, server, fn, family, given, middle, "
      "nickname, bday, ctry, locality, "
@@ -51,14 +51,14 @@ do_search_vcard(LServer, RestrictionSQL, Limit) ->
      RestrictionSQL, ";"]).
 
 query_archive_id(Host, SServer, SUserName) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
         Host,
         ["SELECT TOP 1 id "
         "FROM mam_server_user "
         "WHERE server='", SServer, "' AND user_name='", SUserName, "'"]).
 
 count_offline_messages(LServer, SUser, SServer, Limit) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
         LServer,
         [<<"select top ">>, integer_to_list(Limit),
          <<"count(*) from offline_message "

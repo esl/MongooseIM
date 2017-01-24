@@ -14,9 +14,9 @@
 %% limitations under the License.
 %%==============================================================================
 
--module(ejabberd_odbc_odbc).
+-module(mongoose_rdbms_odbc).
 -author('konrad.zemek@gmail.com').
--behaviour(ejabberd_odbc).
+-behaviour(mongoose_rdbms).
 
 -export([escape_format/1, connect/1, disconnect/1, query/3]).
 

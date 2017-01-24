@@ -39,39 +39,39 @@ init(_Host, _Opts) ->
 -spec transaction(LServer :: ejabberd:lserver(), F :: fun()) ->
     {aborted, Reason :: any()} | {atomic, Result :: any()}.
 transaction(LServer, F) ->
-    ejabberd_odbc:sql_transaction(LServer, F).
+    mongoose_rdbms:sql_transaction(LServer, F).
 
 -spec read_roster_version(ejabberd:luser(), ejabberd:lserver())
 -> binary() | error.
 read_roster_version(LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    case odbc_queries:get_roster_version(LServer, Username)
+    Username = mongoose_rdbms:escape(LUser),
+    case rdbms_queries:get_roster_version(LServer, Username)
     of
         {selected, [{Version}]} -> Version;
         {selected, []} -> error
     end.
 
 write_roster_version(LUser, LServer, InTransaction, Ver) ->
-    Username = ejabberd_odbc:escape(LUser),
-    EVer = ejabberd_odbc:escape(Ver),
+    Username = mongoose_rdbms:escape(LUser),
+    EVer = mongoose_rdbms:escape(Ver),
     if InTransaction ->
-           odbc_queries:set_roster_version(Username, EVer);
+           rdbms_queries:set_roster_version(Username, EVer);
        true ->
-           odbc_queries:sql_transaction(LServer,
+           rdbms_queries:sql_transaction(LServer,
                                         fun () ->
-                                                odbc_queries:set_roster_version(Username,
+                                                rdbms_queries:set_roster_version(Username,
                                                                                 EVer)
                                         end)
     end.
 
 get_roster(LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    case catch odbc_queries:get_roster(LServer, Username) of
+    Username = mongoose_rdbms:escape(LUser),
+    case catch rdbms_queries:get_roster(LServer, Username) of
         {selected,
          Items}
           when is_list(Items) ->
             JIDGroups = case catch
-                             odbc_queries:get_roster_jid_groups(LServer,
+                             rdbms_queries:get_roster_jid_groups(LServer,
                                                                 Username)
                         of
                             {selected, JGrps}
@@ -105,11 +105,11 @@ get_roster(LUser, LServer) ->
     end.
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
+    Username = mongoose_rdbms:escape(LUser),
+    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
     {selected,
      Res} =
-    odbc_queries:get_roster_by_jid(LServer, Username, SJID),
+    rdbms_queries:get_roster_by_jid(LServer, Username, SJID),
     case Res of
         [] ->
             #roster{usj = {LUser, LServer, LJID},
@@ -128,8 +128,8 @@ get_roster_by_jid_t(LUser, LServer, LJID) ->
     end.
 
 get_subscription_lists(_, LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    case catch odbc_queries:get_roster(LServer, Username) of
+    Username = mongoose_rdbms:escape(LUser),
+    case catch rdbms_queries:get_roster(LServer, Username) of
         {selected,
          Items}
           when is_list(Items) ->
@@ -139,21 +139,21 @@ get_subscription_lists(_, LUser, LServer) ->
 
 roster_subscribe_t(LUser, LServer, LJID, Item) ->
     ItemVals = record_to_string(Item),
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
-    odbc_queries:roster_subscribe(LServer, Username, SJID,
+    Username = mongoose_rdbms:escape(LUser),
+    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
+    rdbms_queries:roster_subscribe(LServer, Username, SJID,
                                   ItemVals).
 
 get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
-    case odbc_queries:get_roster_by_jid(LServer, Username,
+    Username = mongoose_rdbms:escape(LUser),
+    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
+    case rdbms_queries:get_roster_by_jid(LServer, Username,
                                         SJID)
     of
         {selected,
          [I]} ->
             R = raw_to_record(LServer, I),
-            Groups = case odbc_queries:get_roster_groups(LServer,
+            Groups = case rdbms_queries:get_roster_groups(LServer,
                                                          Username, SJID)
                      of
                          {selected, JGrps} when is_list(JGrps) ->
@@ -168,21 +168,21 @@ get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
     end.
 
 remove_user(LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    odbc_queries:del_user_roster_t(LServer, Username),
+    Username = mongoose_rdbms:escape(LUser),
+    rdbms_queries:del_user_roster_t(LServer, Username),
     ok.
 
 update_roster_t(LUser, LServer, LJID, Item) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
+    Username = mongoose_rdbms:escape(LUser),
+    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
     ItemVals = record_to_string(Item),
     ItemGroups = groups_to_string(Item),
-    odbc_queries:update_roster(LServer, Username, SJID, ItemVals, ItemGroups).
+    rdbms_queries:update_roster(LServer, Username, SJID, ItemVals, ItemGroups).
 
 del_roster_t(LUser, LServer, LJID) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
-    odbc_queries:del_roster(LServer, Username, SJID).
+    Username = mongoose_rdbms:escape(LUser),
+    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
+    rdbms_queries:del_roster(LServer, Username, SJID).
 
 raw_to_record(LServer,
               {User, SJID, Nick, SSubscription, SAsk, SAskMessage,
@@ -212,9 +212,9 @@ raw_to_record(LServer,
     end.
 
 read_subscription_and_groups(LUser, LServer, LJID) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
-    case catch odbc_queries:get_subscription(LServer,
+    Username = mongoose_rdbms:escape(LUser),
+    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
+    case catch rdbms_queries:get_subscription(LServer,
                                              Username, SJID)
     of
         {selected, [{SSubscription}]} ->
@@ -225,7 +225,7 @@ read_subscription_and_groups(LUser, LServer, LJID) ->
                                _ -> none
                            end,
             Groups = case catch
-                          odbc_queries:get_rostergroup_by_jid(LServer, Username,
+                          rdbms_queries:get_rostergroup_by_jid(LServer, Username,
                                                               SJID)
                      of
                          {selected, JGrps} when is_list(JGrps) ->
@@ -243,10 +243,10 @@ read_subscription_and_groups(LUser, LServer, LJID) ->
 record_to_string(#roster{us = {User, _Server},
                          jid = JID, name = Name, subscription = Subscription,
                          ask = Ask, askmessage = AskMessage}) ->
-    Username = ejabberd_odbc:escape(User),
+    Username = mongoose_rdbms:escape(User),
     SJID =
-    ejabberd_odbc:escape(jid:to_binary(jid:to_lower(JID))),
-    Nick = ejabberd_odbc:escape(Name),
+    mongoose_rdbms:escape(jid:to_binary(jid:to_lower(JID))),
+    Nick = mongoose_rdbms:escape(Name),
     SSubscription = case Subscription of
                         both -> <<"B">>;
                         to -> <<"T">>;
@@ -261,18 +261,18 @@ record_to_string(#roster{us = {User, _Server},
                in -> <<"I">>;
                none -> <<"N">>
            end,
-    SAskMessage = ejabberd_odbc:escape(AskMessage),
+    SAskMessage = mongoose_rdbms:escape(AskMessage),
     [Username, SJID, Nick, SSubscription, SAsk, SAskMessage,
      <<"N">>, <<"">>, <<"item">>].
 
 groups_to_string(#roster{us = {User, _Server},
                          jid = JID, groups = Groups}) ->
-    Username = ejabberd_odbc:escape(User),
+    Username = mongoose_rdbms:escape(User),
     SJID =
-    ejabberd_odbc:escape(jid:to_binary(jid:to_lower(JID))),
+    mongoose_rdbms:escape(jid:to_binary(jid:to_lower(JID))),
     lists:foldl(fun (<<"">>, Acc) -> Acc;
                     (Group, Acc) ->
-                        G = ejabberd_odbc:escape(Group),
+                        G = mongoose_rdbms:escape(Group),
                         [[Username, SJID, G] | Acc]
                 end,
                 [], Groups).

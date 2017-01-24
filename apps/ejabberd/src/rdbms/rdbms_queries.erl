@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% File    : odbc_queries.erl
+%%% File    : rdbms_queries.erl
 %%% Author  : Mickael Remond <mremond@process-one.net>
 %%% Purpose : ODBC queries dependind on back-end
 %%% Created : by Mickael Remond <mremond@process-one.net>
@@ -24,7 +24,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(odbc_queries).
+-module(rdbms_queries).
 -author("mremond@process-one.net").
 
 -export([get_db_type/0,
@@ -108,7 +108,7 @@
 -define(generic, true).
 -endif.
 
--define(ODBC_TYPE, (ejabberd_odbc_type:get())).
+-define(ODBC_TYPE, (mongoose_rdbms_type:get())).
 
 -include("ejabberd.hrl").
 
@@ -122,7 +122,7 @@ join([H|T], Sep) ->
     [H, [[Sep, X] || X <- T]].
 
 %% Note: escape functions (`escape_string/1' and `escape_like_string/1')
-%%       are in this module and not in `ejabberd_odbc',
+%%       are in this module and not in `mongoose_rdbms',
 %%       because they are called a lot.
 %%       To have both `escape_string/1' and `escape_character/1' in one module
 %%       is an optimization.
@@ -155,14 +155,14 @@ get_db_type() ->
 update_t(Table, Fields, Vals, Where) ->
     UPairs = lists:zipwith(fun(A, B) -> [A, "='", B, "'"] end,
 			   Fields, Vals),
-    case ejabberd_odbc:sql_query_t(
+    case mongoose_rdbms:sql_query_t(
 	   [<<"update ">>, Table, <<" set ">>,
 	    join(UPairs, ", "),
 	    <<" where ">>, Where, ";"]) of
 	{updated, 1} ->
 	    ok;
 	_ ->
-	    ejabberd_odbc:sql_query_t(
+	    mongoose_rdbms:sql_query_t(
 	      [<<"insert into ">>, Table, "(", join(Fields, ", "),
 	       <<") values ('">>, join(Vals, "', '"), "');"])
     end.
@@ -173,7 +173,7 @@ update_t(Table, Fields, Vals, Where) ->
 %% even elements are their values.
 %% This function is useful, when there are a lot of fields to update.
 update_set_t(Table, FieldsVals, Where) ->
-    case ejabberd_odbc:sql_query_t(
+    case mongoose_rdbms:sql_query_t(
 	   [<<"update ">>, Table, <<" set ">>,
         join_field_and_values(FieldsVals),
 	    <<" where ">>, Where, ";"]) of
@@ -182,7 +182,7 @@ update_set_t(Table, FieldsVals, Where) ->
 	_ ->
         Fields = odds(FieldsVals),
         Vals = evens(FieldsVals),
-	    ejabberd_odbc:sql_query_t(
+	    mongoose_rdbms:sql_query_t(
 	      [<<"insert into ">>, Table, "(", join(Fields, ", "),
 	       <<") values ('">>, join(Vals, "', '"), "');"])
     end.
@@ -207,7 +207,7 @@ join_field_and_values_1([]) ->
 update(LServer, Table, Fields, Vals, Where) ->
     UPairs = lists:zipwith(fun(A, B) -> [A, "='", B, "'"] end,
 			   Fields, Vals),
-    case ejabberd_odbc:sql_query(
+    case mongoose_rdbms:sql_query(
 	   LServer,
 	   [<<"update ">>, Table, <<" set ">>,
 	    join(UPairs, ", "),
@@ -215,7 +215,7 @@ update(LServer, Table, Fields, Vals, Where) ->
 	{updated, 1} ->
 	    ok;
 	_ ->
-	    ejabberd_odbc:sql_query(
+	    mongoose_rdbms:sql_query(
 	      LServer,
 	      [<<"insert into ">>, Table, "(", join(Fields, ", "),
 	       <<") values ('">>, join(Vals, "', '"), "');"])
@@ -223,27 +223,27 @@ update(LServer, Table, Fields, Vals, Where) ->
 
 %% F can be either a fun or a list of queries
 %% TODO: We should probably move the list of queries transaction
-%% wrapper from the ejabberd_odbc module to this one (odbc_queries)
+%% wrapper from the mongoose_rdbms module to this one (rdbms_queries)
 sql_transaction(LServer, F) ->
-    ejabberd_odbc:sql_transaction(LServer, F).
+    mongoose_rdbms:sql_transaction(LServer, F).
 
 begin_trans() ->
     begin_trans(?ODBC_TYPE).
 
 begin_trans(mssql) ->
-    odbc_queries_mssql:begin_trans();
+    rdbms_queries_mssql:begin_trans();
 begin_trans(_) ->
     [<<"BEGIN;">>].
 
 
 get_last(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select seconds, state from last "
          "where username='">>, Username, "'"]).
 
 select_last(LServer, TStamp, Comparator) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
         LServer,
         [<<"select username, seconds, state from last "
            "where seconds ">>, Comparator, " ", integer_to_list(TStamp), ";"]).
@@ -254,18 +254,18 @@ set_last_t(LServer, Username, Seconds, State) ->
 	   [<<"username='">>, Username, "'"]).
 
 del_last(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from last where username='">>, Username, "'"]).
 
 get_password(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select password, pass_details from users "
        "where username='">>, Username, <<"';">>]).
 
 set_password_t(LServer, Username, {Pass, PassDetails}) ->
-    ejabberd_odbc:sql_transaction(
+    mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
 	      update_t(<<"users">>, [<<"password">>, <<"pass_details">>],
@@ -273,7 +273,7 @@ set_password_t(LServer, Username, {Pass, PassDetails}) ->
 		       [<<"username='">>, Username, <<"'">>])
       end);
 set_password_t(LServer, Username, Pass) ->
-    ejabberd_odbc:sql_transaction(
+    mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
 	      update_t(<<"users">>, [<<"username">>, <<"password">>],
@@ -282,32 +282,32 @@ set_password_t(LServer, Username, Pass) ->
       end).
 
 add_user(LServer, Username, {Pass, PassDetails}) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"insert into users(username, password, pass_details) "
        "values ('">>, Username, <<"', '">>, Pass, <<"', '">>, PassDetails, <<"');">>]);
 add_user(LServer, Username, Pass) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"insert into users(username, password) "
          "values ('">>, Username, <<"', '">>, Pass, <<"');">>]).
 
 del_user(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from users where username='">>, Username, "';"]).
 
 del_user_return_password(_LServer, Username, Pass) ->
-    P = ejabberd_odbc:sql_query_t(
+    P = mongoose_rdbms:sql_query_t(
 	  [<<"select password from users where username='">>,
 	   Username, "';"]),
-    ejabberd_odbc:sql_query_t([<<"delete from users "
+    mongoose_rdbms:sql_query_t([<<"delete from users "
 			       "where username='">>, Username,
 			       <<"' and password='">>, Pass, "';"]),
     P.
 
 list_users(LServer) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select username from users">>]).
 
@@ -321,7 +321,7 @@ list_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}]) when is_list(P
 
 list_users(LServer, [{limit, Limit}, {offset, Offset}]) when is_integer(Limit) and
                                                              is_integer(Offset) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select username from users "
          "order by username "
@@ -332,7 +332,7 @@ list_users(LServer, [{prefix, Prefix},
                      {offset, Offset}]) when is_list(Prefix) and
                                              is_integer(Limit) and
                                              is_integer(Offset) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select username from users "
          "where username like '">>, Prefix, <<"%' "
@@ -341,30 +341,30 @@ list_users(LServer, [{prefix, Prefix},
          "offset ">>, integer_to_list(Offset)]).
 
 users_number(LServer) ->
-    case ejabberd_odbc:db_engine(LServer) of
+    case mongoose_rdbms:db_engine(LServer) of
         mysql ->
-            ejabberd_odbc:sql_query(
+            mongoose_rdbms:sql_query(
               LServer,
               <<"select table_rows from information_schema.tables where table_name='users'">>);
         pgsql ->
             case ejabberd_config:get_local_option({pgsql_users_number_estimate, LServer}) of
                 true ->
-                    ejabberd_odbc:sql_query(
+                    mongoose_rdbms:sql_query(
                       LServer,
                       <<"select reltuples from pg_class where oid = 'users'::regclass::oid">>);
                 _ ->
-                    ejabberd_odbc:sql_query(
+                    mongoose_rdbms:sql_query(
                       LServer,
                       <<"select count(*) from users">>)
             end;
         _ ->
-            ejabberd_odbc:sql_query(
+            mongoose_rdbms:sql_query(
               LServer,
               [<<"select count(*) from users">>])
     end.
 
 users_number(LServer, [{prefix, Prefix}]) when is_list(Prefix) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select count(*) from users "
          %% Warning: Escape prefix at higher level to prevent SQL
@@ -374,89 +374,89 @@ users_number(LServer, []) ->
     users_number(LServer).
 
 get_users_without_scram(LServer, Limit) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select username, password from users where pass_details is null limit ">>,
        integer_to_binary(Limit)]).
 
 get_users_without_scram_count(LServer) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select count(*) from users where pass_details is null">>]).
 
 get_average_roster_size(Server) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
         Server,
         [<<"select avg(items) from "
            "(select count(*) as items from rosterusers group by username) as items;">>]).
 
 get_average_rostergroup_size(Server) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
         Server,
         [<<"select avg(roster) from "
            "(select count(*) as roster from rostergroups group by username) as roster;">>]).
 
 clear_rosters(Server) ->
-    ejabberd_odbc:sql_transaction(
+    mongoose_rdbms:sql_transaction(
       Server,
       fun() ->
-	      ejabberd_odbc:sql_query_t(
+	      mongoose_rdbms:sql_query_t(
 		[<<"delete from rosterusers;">>]),
-	      ejabberd_odbc:sql_query_t(
+	      mongoose_rdbms:sql_query_t(
 		[<<"delete from rostergroups;">>])
       end).
 
 get_roster(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select username, jid, nick, subscription, ask, "
          "askmessage, server, subscribe, type from rosterusers "
          "where username='">>, Username, "'"]).
 
 get_roster_jid_groups(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select jid, grp from rostergroups "
          "where username='">>, Username, "'"]).
 
 get_roster_groups(_LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"select grp from rostergroups "
          "where username='">>, Username, <<"' "
          "and jid='">>, SJID, "';"]).
 
 del_user_roster_t(LServer, Username) ->
-    ejabberd_odbc:sql_transaction(
+    mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
-	      ejabberd_odbc:sql_query_t(
+	      mongoose_rdbms:sql_query_t(
 		[<<"delete from rosterusers "
 		   "where username='">>, Username, "';"]),
-	      ejabberd_odbc:sql_query_t(
+	      mongoose_rdbms:sql_query_t(
 		[<<"delete from rostergroups "
 		   "where username='">>, Username, "';"])
       end).
 
 get_roster_by_jid(_LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"select username, jid, nick, subscription, "
          "ask, askmessage, server, subscribe, type from rosterusers "
          "where username='">>, Username, <<"' "
          "and jid='">>, SJID, "';"]).
 
 get_rostergroup_by_jid(LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select grp from rostergroups "
          "where username='">>, Username, <<"' "
          "and jid='">>, SJID, "'"]).
 
 del_roster(_LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"delete from rosterusers "
          "where username='">>, Username, <<"' "
          "and jid='">>, SJID, "';"]),
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"delete from rostergroups "
          "where username='">>, Username, <<"' "
          "and jid='">>, SJID, "';"]).
@@ -475,12 +475,12 @@ update_roster(_LServer, Username, SJID, ItemVals, ItemGroups) ->
 	      <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
 	     ItemVals,
 	     [<<"username='">>, Username, <<"' and jid='">>, SJID, "'"]),
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"delete from rostergroups "
          "where username='">>, Username, <<"' "
          "and jid='">>, SJID, "';"]),
     lists:foreach(fun(ItemGroup) ->
-			  ejabberd_odbc:sql_query_t(
+			  mongoose_rdbms:sql_query_t(
 			    [<<"insert into rostergroups(username, jid, grp) "
 			       "values ('">>, join(ItemGroup, "', '"), "');"])
 		  end,
@@ -510,7 +510,7 @@ roster_subscribe(_LServer, Username, SJID, ItemVals) ->
 	     [<<"username='">>, Username, <<"' and jid='">>, SJID, "'"]).
 
 get_subscription(LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select subscription from rosterusers "
          "where username='">>, Username, <<"' "
@@ -530,14 +530,14 @@ set_private_data_sql(Username, LXMLNS, SData) ->
         "values ('">>, Username, "', '", LXMLNS, "', '", SData, "');"]].
 
 get_private_data(LServer, Username, LXMLNS) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select data from private_storage "
          "where username='">>, Username, <<"' and "
          "namespace='">>, LXMLNS, "';"]).
 
 multi_get_private_data(LServer, Username, LXMLNSs) when length(LXMLNSs) > 0 ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select namespace, data from private_storage "
          "where username='">>, Username, <<"' and "
@@ -546,7 +546,7 @@ multi_get_private_data(LServer, Username, LXMLNSs) when length(LXMLNSs) > 0 ->
 %% set_private_data for multiple queries using MySQL's specific syntax.
 multi_set_private_data(LServer, Username, SNS2XML) when length(SNS2XML) > 0 ->
     Rows = [private_data_row(Username, NS, Data) || {NS, Data} <- SNS2XML],
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"replace into private_storage (username, namespace, data) "
          "values ">>, join(Rows, "', '")]).
@@ -555,7 +555,7 @@ private_data_row(Username, NS, Data) ->
     [<<"('">>, Username, <<"', '">>, NS, <<"', '">>, Data, <<"')">>].
 
 del_user_private_storage(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from private_storage where username='">>, Username, "';"]).
 
@@ -563,7 +563,7 @@ set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
 	  SLBDay, SLCTRY, SLEMail, SLFN, SLFamily, SLGiven, SLLocality,
 	  SLMiddle, SLNickname, SLOrgName, SLOrgUnit, SLocality, SMiddle,
 	  SNickname, SOrgName, SOrgUnit, SVCARD, Username) ->
-    ejabberd_odbc:sql_transaction(
+    mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
         update_t(<<"vcard">>,
@@ -600,7 +600,7 @@ set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
       end).
 
 get_vcard(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select vcard from vcard "
          "where username='">>, Username, <<"' and server='">>, LServer, "';"]).
@@ -611,7 +611,7 @@ search_vcard(LServer, RestrictionSQL, Limit) ->
     search_vcard(Type, LServer, RestrictionSQL, Limit).
 
 search_vcard(mssql, LServer, RestrictionSQL, Limit) ->
-    odbc_queries_mssql:search_vcard(LServer, RestrictionSQL, Limit);
+    rdbms_queries_mssql:search_vcard(LServer, RestrictionSQL, Limit);
 search_vcard(_, LServer, RestrictionSQL, Limit) ->
     do_search_vcard(LServer, RestrictionSQL, Limit).
 
@@ -623,7 +623,7 @@ do_search_vcard(LServer, RestrictionSQL, Limit) when is_integer(Limit) ->
     do_search_vcard2(LServer, RestrictionSQL, <<"LIMIT ", BinLimit/binary>>).
 
 do_search_vcard2(LServer, RestrictionSQL, Limit) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
         LServer,
         [<<"select username, server, fn, family, given, middle, "
         "nickname, bday, ctry, locality, "
@@ -631,46 +631,46 @@ do_search_vcard2(LServer, RestrictionSQL, Limit) ->
             RestrictionSQL, Limit, ";"]).
 
 get_default_privacy_list(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select name from privacy_default_list "
          "where username='">>, Username, "';"]).
 
 get_default_privacy_list_t(Username) ->
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"select name from privacy_default_list "
          "where username='">>, Username, "';"]).
 
 count_privacy_lists(LServer) ->
-    ejabberd_odbc:sql_query(LServer, [<<"select count(*) from privacy_list;">>]).
+    mongoose_rdbms:sql_query(LServer, [<<"select count(*) from privacy_list;">>]).
 
 clear_privacy_lists(LServer) ->
-    ejabberd_odbc:sql_query(LServer, [<<"delete from privacy_list;">>]).
+    mongoose_rdbms:sql_query(LServer, [<<"delete from privacy_list;">>]).
 
 get_privacy_list_names(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select name from privacy_list "
          "where username='">>, Username, "';"]).
 
 get_privacy_list_names_t(Username) ->
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"select name from privacy_list "
          "where username='">>, Username, "';"]).
 
 get_privacy_list_id(LServer, Username, SName) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select id from privacy_list "
          "where username='">>, Username, <<"' and name='">>, SName, "';"]).
 
 get_privacy_list_id_t(Username, SName) ->
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"select id from privacy_list "
          "where username='">>, Username, <<"' and name='">>, SName, "';"]).
 
 get_privacy_list_data(LServer, Username, SName) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select t, value, action, ord, match_all, match_iq, "
          "match_message, match_presence_in, match_presence_out "
@@ -680,7 +680,7 @@ get_privacy_list_data(LServer, Username, SName) ->
          "order by ord;">>]).
 
 get_privacy_list_data_by_id(LServer, ID) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select t, value, action, ord, match_all, match_iq, "
          "match_message, match_presence_in, match_presence_out "
@@ -692,27 +692,27 @@ set_default_privacy_list(Username, SName) ->
 	     [Username, SName], [<<"username='">>, Username, "'"]).
 
 unset_default_privacy_list(LServer, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from privacy_default_list "
          "where username='">>, Username, "';"]).
 
 remove_privacy_list(Username, SName) ->
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"delete from privacy_list "
          "where username='">>, Username, "' and name='", SName, "';"]).
 
 add_privacy_list(Username, SName) ->
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"insert into privacy_list(username, name) "
          "values ('">>, Username, "', '", SName, "');"]).
 
 set_privacy_list(ID, RItems) ->
-    ejabberd_odbc:sql_query_t(
+    mongoose_rdbms:sql_query_t(
       [<<"delete from privacy_list_data "
          "where id='">>, ID, "';"]),
     lists:foreach(fun(Items) ->
-			  ejabberd_odbc:sql_query_t(
+			  mongoose_rdbms:sql_query_t(
 			    [<<"insert into privacy_list_data("
 			       "id, t, value, action, ord, match_all, match_iq, "
 			       "match_message, match_presence_in, "
@@ -723,13 +723,13 @@ set_privacy_list(ID, RItems) ->
 		  end, RItems).
 
 del_privacy_lists(LServer, _Server, Username) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from privacy_list_data where id in ( select id from privacy_list as pl where pl.username='">>, Username, <<"');">>]),
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from privacy_list where username='">>, Username, "';"]),
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from privacy_default_list where username='">>, Username, "';"]).
 
@@ -746,13 +746,13 @@ escape_character(C)   -> C.
 
 %% Count number of records in a table given a where clause
 count_records_where(LServer, Table, WhereClause) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select count(*) from ">>, Table, " ", WhereClause, ";"]).
 
 
 get_roster_version(LServer, LUser) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select version from roster_version where username = '">>, LUser, "'"]).
 
@@ -768,11 +768,11 @@ pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
     SelectSQL = select_offline_messages_sql(SUser, SServer, STimeStamp),
     DeleteSQL = delete_offline_messages_sql(SUser, SServer),
     F = fun() ->
-	      Res = ejabberd_odbc:sql_query_t(SelectSQL),
-          ejabberd_odbc:sql_query_t(DeleteSQL),
+	      Res = mongoose_rdbms:sql_query_t(SelectSQL),
+          mongoose_rdbms:sql_query_t(DeleteSQL),
           Res
         end,
-    ejabberd_odbc:sql_transaction(LServer, F).
+    mongoose_rdbms:sql_transaction(LServer, F).
 
 select_offline_messages_sql(SUser, SServer, STimeStamp) ->
     [<<"select timestamp, from_jid, packet from offline_message "
@@ -787,18 +787,18 @@ delete_offline_messages_sql(SUser, SServer) ->
                   "username = '">>, SUser, <<"'">>].
 
 remove_old_offline_messages(LServer, STimeStamp) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from offline_message where timestamp < ">>, STimeStamp]).
 
 remove_expired_offline_messages(LServer, STimeStamp) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from offline_message "
             "where expire is not null and expire < ">>, STimeStamp]).
 
 remove_offline_messages(LServer, SUser, SServer) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from offline_message "
             "where server = '">>, SServer, <<"' and "
@@ -814,7 +814,7 @@ prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket) ->
      <<"')">>].
 
 push_offline_messages(LServer, Rows) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"INSERT INTO offline_message "
               "(username, server, timestamp, expire, from_jid, packet) "
@@ -825,9 +825,9 @@ count_offline_messages(LServer, SUser, SServer, Limit) ->
     count_offline_messages(?ODBC_TYPE, LServer, SUser, SServer, Limit).
 
 count_offline_messages(mssql, LServer, SUser, SServer, Limit) ->
-    odbc_queries_mssql:count_offline_messages(LServer, SUser, SServer, Limit);
+    rdbms_queries_mssql:count_offline_messages(LServer, SUser, SServer, Limit);
 count_offline_messages(_, LServer, SUser, SServer, Limit) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       [<<"select count(*) from offline_message "
             "where server = '">>, SServer, <<"' and "

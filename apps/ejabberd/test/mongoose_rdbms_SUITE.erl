@@ -1,4 +1,4 @@
--module(ejabberd_odbc_SUITE).
+-module(mongoose_rdbms_SUITE).
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("ejabberd/include/ejabberd.hrl").
@@ -58,7 +58,7 @@ end_per_testcase(_, Config) ->
 
 %% Test cases
 keepalive_interval(Config) ->
-    {ok, Pid} = gen_server:start_link(ejabberd_odbc, ?HOST, []),
+    {ok, Pid} = gen_server:start_link(mongoose_rdbms, ?HOST, []),
     true = erlang:unlink(Pid),
     timer:sleep(5500),
     ?eq(5, query_calls(Config)),
@@ -66,7 +66,7 @@ keepalive_interval(Config) ->
     ok.
 
 keepalive_exit(Config) ->
-    {ok, Pid} = gen_server:start_link(ejabberd_odbc, ?HOST, []),
+    {ok, Pid} = gen_server:start_link(mongoose_rdbms, ?HOST, []),
     true = erlang:unlink(Pid),
     Monitor = erlang:monitor(process, Pid),
     timer:sleep(3500),

@@ -1,11 +1,12 @@
 %%%----------------------------------------------------------------------
-%%% File    : ejabberd_odbc.erl
+%%% File    : mongoose_rdbms.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : Serve ODBC connection
 %%% Created :  8 Dec 2004 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2011   ProcessOne
+%%% Copyright 2016 Erlang Solutions Ltd.
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -24,8 +25,9 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(ejabberd_odbc).
+-module(mongoose_rdbms).
 -author('alexey@process-one.net').
+-author('konrad.zemek@gmail.com').
 
 -behaviour(gen_server).
 
@@ -81,7 +83,7 @@
                }).
 -type state() :: #state{}.
 
--define(STATE_KEY, ejabberd_odbc_state).
+-define(STATE_KEY, mongoose_rdbms_state).
 -define(MAX_TRANSACTION_RESTARTS, 10).
 
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
@@ -126,7 +128,7 @@ sql_call(HostOrPool, Msg) ->
 
 -spec sql_call0(HostOrPool :: binary() | atom(), Msg :: odbc_msg()) -> any().
 sql_call0(Host, Msg) when is_binary(Host) ->
-    sql_call0(ejabberd_odbc_sup:default_pool(Host), Msg);
+    sql_call0(mongoose_rdbms_sup:default_pool(Host), Msg);
 sql_call0(Pool, Msg) when is_atom(Pool) ->
     case whereis(Pool) of
         undefined -> {error, {no_odbc_pool, Pool}};
@@ -139,7 +141,7 @@ sql_call0(Pool, Msg) when is_atom(Pool) ->
 -spec get_db_info(Target :: odbc_server() | pid()) ->
                          {ok, DbType :: atom(), DbRef :: term()} | {error, any()}.
 get_db_info(Host) when is_binary(Host) ->
-    get_db_info(ejabberd_odbc_sup:default_pool(Host));
+    get_db_info(mongoose_rdbms_sup:default_pool(Host));
 get_db_info(Pool) when is_atom(Pool) ->
     case whereis(Pool) of
         undefined -> {error, {no_odbc_pool, Pool}};
@@ -174,7 +176,7 @@ sql_query_t(Query, State) ->
 %% @doc Escape character that will confuse an SQL engine
 -spec escape(binary() | string()) -> binary() | string().
 escape(S) ->
-    odbc_queries:escape_string(S).
+    rdbms_queries:escape_string(S).
 
 
 %% @doc Escape character that will confuse an SQL engine
@@ -183,7 +185,7 @@ escape(S) ->
 %% INFO: Used in mod_vcard_odbc.
 -spec escape_like(binary() | string()) -> binary() | string().
 escape_like(S) ->
-    odbc_queries:escape_like_string(S).
+    rdbms_queries:escape_like_string(S).
 
 
 -spec escape_format(odbc_server()) -> hex | simple_escape.
@@ -357,7 +359,7 @@ inner_transaction(F, _State) ->
                         NRestarts :: 0..10,
                         Reason :: any(), state()) -> {'aborted', _} | {'atomic', _}.
 outer_transaction(F, NRestarts, _Reason, State) ->
-    sql_query_internal(odbc_queries:begin_trans(), State),
+    sql_query_internal(rdbms_queries:begin_trans(), State),
     put(?STATE_KEY, State),
     Result = (catch F()),
     erase(?STATE_KEY),
@@ -452,7 +454,7 @@ connect(Backend, Settings, Retry, RetryAfterSeconds) ->
 -spec backend(Host :: ejabberd:server()) -> module().
 backend(Host) when is_binary(Host) ->
     Engine = atom_to_binary(db_engine(Host), latin1),
-    binary_to_atom(<<"ejabberd_odbc_", Engine/binary>>, latin1).
+    binary_to_atom(<<"mongoose_rdbms_", Engine/binary>>, latin1).
 
 
 -spec schedule_keepalive(ejabberd:server()) -> any().

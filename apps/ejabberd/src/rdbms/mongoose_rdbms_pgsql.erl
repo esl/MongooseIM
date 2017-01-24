@@ -14,9 +14,9 @@
 %% limitations under the License.
 %%==============================================================================
 
--module(ejabberd_odbc_pgsql).
+-module(mongoose_rdbms_pgsql).
 -author('konrad.zemek@gmail.com').
--behaviour(ejabberd_odbc).
+-behaviour(mongoose_rdbms).
 
 -define(PGSQL_PORT, 5432).
 

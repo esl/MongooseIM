@@ -35,7 +35,7 @@
 -export([select_blocking/2, select_blocking_cnt/3, insert_blocking/4,
          delete_blocking/4, delete_blocking/2]).
 
--define(ESC(T), ejabberd_odbc:escape(T)).
+-define(ESC(T), mongoose_rdbms:escape(T)).
 
 %%====================================================================
 %% General room queries

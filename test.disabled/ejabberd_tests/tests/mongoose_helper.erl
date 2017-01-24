@@ -23,7 +23,7 @@
 
 -spec is_odbc_enabled(Host :: binary()) -> boolean().
 is_odbc_enabled(Host) ->
-    case escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [Host, fun erlang:yield/0]) of
+    case escalus_ejabberd:rpc(mongoose_rdbms, sql_transaction, [Host, fun erlang:yield/0]) of
         {atomic, _} -> true;
         _ -> false
     end.
@@ -153,7 +153,7 @@ count_wildpattern(Table) ->
 
 count_odbc(Table) ->
     {selected, [{N}]} =
-        ?RPC(ejabberd_odbc,sql_query, [<<"localhost">>,[<<"select count(*) from ", Table/binary, " ;">>]]),
+        ?RPC(mongoose_rdbms,sql_query, [<<"localhost">>,[<<"select count(*) from ", Table/binary, " ;">>]]),
     count_to_integer(N).
 
 count_to_integer(N) when is_binary(N) ->

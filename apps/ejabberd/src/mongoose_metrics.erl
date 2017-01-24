@@ -124,14 +124,14 @@ increment_generic_hook_metric(Host, Hook) ->
     do_increment_generic_hook_metric(Host, FilteredHook).
 
 get_odbc_data_stats() ->
-    RegularODBCWorkers = [catch ejabberd_odbc_sup:get_pids(Host) || Host <- ?MYHOSTS],
+    RegularODBCWorkers = [catch mongoose_rdbms_sup:get_pids(Host) || Host <- ?MYHOSTS],
     get_odbc_stats(lists:flatten(RegularODBCWorkers)).
 
 get_odbc_mam_async_stats() ->
     %% MAM async ODBC workers are organized differently...
     GetChildren = fun(Host, Pool) ->
                         Name = gen_mod:get_module_proc(Host, Pool),
-                        case catch ejabberd_odbc_sup:get_pids(Name) of
+                        case catch mongoose_rdbms_sup:get_pids(Name) of
                             [_ | _] = Children -> Children;
                             _ -> []
                         end
@@ -193,7 +193,7 @@ do_increment_generic_hook_metric(Host, Name) ->
     update(Host, Name, 1).
 
 get_odbc_stats(ODBCWorkers) ->
-    ODBCConnections = [{catch ejabberd_odbc:get_db_info(Pid), Pid} || Pid <- ODBCWorkers],
+    ODBCConnections = [{catch mongoose_rdbms:get_db_info(Pid), Pid} || Pid <- ODBCWorkers],
     Ports = [get_port_from_odbc_connection(Conn) || Conn <- ODBCConnections],
     PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
     [{workers, length(ODBCConnections)} | merge_stats(PortStats)].

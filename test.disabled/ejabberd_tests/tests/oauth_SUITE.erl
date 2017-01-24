@@ -383,12 +383,12 @@ convert_arg(S) when is_list(S) -> S.
 clean_token_db() ->
     Q = [<<"DELETE FROM auth_token">>],
     ODBCHost = domain(), %% mam is also tested against local odbc
-    {updated, _} = escalus_ejabberd:rpc(ejabberd_odbc, sql_query, [ODBCHost, Q]).
+    {updated, _} = escalus_ejabberd:rpc(mongoose_rdbms, sql_query, [ODBCHost, Q]).
 
 get_users_token(C, User) ->
     Q = ["SELECT * FROM auth_token at "
          "WHERE at.owner = '", to_lower(escalus_users:get_jid(C, User)), "';"],
-    escalus_ejabberd:rpc(ejabberd_odbc, sql_query,
+    escalus_ejabberd:rpc(mongoose_rdbms, sql_query,
                          [escalus_users:get_server(C, User), Q]).
 
 is_xmpp_registration_available(Domain) ->
@@ -450,7 +450,7 @@ is_pgsql_available(_) ->
     Q = [<<"SELECT version();">>],
     %% TODO: hardcoded ODBCHost
     ODBCHost = domain(),
-    case escalus_ejabberd:rpc(ejabberd_odbc, sql_query, [ODBCHost, Q]) of
+    case escalus_ejabberd:rpc(mongoose_rdbms, sql_query, [ODBCHost, Q]) of
         {selected, [{<<"PostgreSQL", _/binary>>}]} ->
             true;
         _ ->

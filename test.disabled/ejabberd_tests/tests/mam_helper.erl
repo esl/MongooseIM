@@ -1120,7 +1120,7 @@ is_cassandra_enabled(_) ->
     end.
 
 sql_transaction(Host, F) ->
-    escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [Host, F]).
+    escalus_ejabberd:rpc(mongoose_rdbms, sql_transaction, [Host, F]).
 
 login_send_presence(Config, User) ->
     Spec = escalus_users:get_userspec(Config, User),

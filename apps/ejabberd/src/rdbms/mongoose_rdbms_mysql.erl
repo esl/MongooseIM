@@ -14,9 +14,9 @@
 %% limitations under the License.
 %%==============================================================================
 
--module(ejabberd_odbc_mysql).
+-module(mongoose_rdbms_mysql).
 -author('konrad.zemek@gmail.com').
--behaviour(ejabberd_odbc).
+-behaviour(mongoose_rdbms).
 
 -include("ejabberd.hrl").
 

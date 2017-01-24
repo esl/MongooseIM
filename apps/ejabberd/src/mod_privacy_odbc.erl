@@ -128,7 +128,7 @@ set_default_list(LUser, LServer, Name) ->
                 end
         end
         end,
-    case odbc_queries:sql_transaction(LServer, F) of
+    case rdbms_queries:sql_transaction(LServer, F) of
         {atomic, ok} ->
             ok;
         {atomic, {error, Reason}} ->
@@ -155,7 +155,7 @@ remove_privacy_list(LUser, LServer, Name) ->
                     end
             end
         end,
-    case odbc_queries:sql_transaction(LServer, F) of
+    case rdbms_queries:sql_transaction(LServer, F) of
         {atomic, {error, _} = Error} ->
             Error;
         {atomic, ok} ->
@@ -181,7 +181,7 @@ replace_privacy_list(LUser, LServer, Name, List) ->
         sql_set_privacy_list(ID, RItems),
         ok
     end,
-    case odbc_queries:sql_transaction(LServer, F) of
+    case rdbms_queries:sql_transaction(LServer, F) of
         {atomic, ok} ->
             ok;
         {aborted, Reason} ->
@@ -225,12 +225,12 @@ raw_to_item({BType, BValue, BAction, BOrder, BMatchAll, BMatchIQ,
         <<"d">> -> deny;
         <<"b">> -> block
     end,
-    Order = ejabberd_odbc:result_to_integer(BOrder),
-    MatchAll = ejabberd_odbc:to_bool(BMatchAll),
-    MatchIQ = ejabberd_odbc:to_bool(BMatchIQ),
-    MatchMessage = ejabberd_odbc:to_bool(BMatchMessage),
-    MatchPresenceIn = ejabberd_odbc:to_bool(BMatchPresenceIn),
-    MatchPresenceOut =  ejabberd_odbc:to_bool(BMatchPresenceOut),
+    Order = mongoose_rdbms:result_to_integer(BOrder),
+    MatchAll = mongoose_rdbms:to_bool(BMatchAll),
+    MatchIQ = mongoose_rdbms:to_bool(BMatchIQ),
+    MatchMessage = mongoose_rdbms:to_bool(BMatchMessage),
+    MatchPresenceIn = mongoose_rdbms:to_bool(BMatchPresenceIn),
+    MatchPresenceOut =  mongoose_rdbms:to_bool(BMatchPresenceOut),
     #listitem{type = Type,
           value = Value,
           action = Action,
@@ -257,9 +257,9 @@ item_to_raw(#listitem{type = Type,
         none ->
         {<<"n">>, <<"">>};
         jid ->
-        {<<"j">>, ejabberd_odbc:escape(jid:to_binary(Value))};
+        {<<"j">>, mongoose_rdbms:escape(jid:to_binary(Value))};
         group ->
-        {<<"g">>, ejabberd_odbc:escape(Value)};
+        {<<"g">>, mongoose_rdbms:escape(Value)};
         subscription ->
         case Value of
             none ->
@@ -291,61 +291,61 @@ boolean_to_binary_number(true) -> <<"1">>;
 boolean_to_binary_number(_)   -> <<"0">>.
 
 sql_get_default_privacy_list(LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    odbc_queries:get_default_privacy_list(LServer, Username).
+    Username = mongoose_rdbms:escape(LUser),
+    rdbms_queries:get_default_privacy_list(LServer, Username).
 
 sql_get_default_privacy_list_t(LUser) ->
-    Username = ejabberd_odbc:escape(LUser),
-    odbc_queries:get_default_privacy_list_t(Username).
+    Username = mongoose_rdbms:escape(LUser),
+    rdbms_queries:get_default_privacy_list_t(Username).
 
 sql_get_privacy_list_names(LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    odbc_queries:get_privacy_list_names(LServer, Username).
+    Username = mongoose_rdbms:escape(LUser),
+    rdbms_queries:get_privacy_list_names(LServer, Username).
 
 sql_get_privacy_list_names_t(LUser) ->
-    Username = ejabberd_odbc:escape(LUser),
-    odbc_queries:get_privacy_list_names_t(Username).
+    Username = mongoose_rdbms:escape(LUser),
+    rdbms_queries:get_privacy_list_names_t(Username).
 
 sql_get_privacy_list_id(LUser, LServer, Name) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SName = ejabberd_odbc:escape(Name),
-    odbc_queries:get_privacy_list_id(LServer, Username, SName).
+    Username = mongoose_rdbms:escape(LUser),
+    SName = mongoose_rdbms:escape(Name),
+    rdbms_queries:get_privacy_list_id(LServer, Username, SName).
 
 sql_get_privacy_list_id_t(LUser, Name) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SName = ejabberd_odbc:escape(Name),
-    odbc_queries:get_privacy_list_id_t(Username, SName).
+    Username = mongoose_rdbms:escape(LUser),
+    SName = mongoose_rdbms:escape(Name),
+    rdbms_queries:get_privacy_list_id_t(Username, SName).
 
 sql_get_privacy_list_data_by_id(ID, LServer) when is_integer(ID) ->
-    odbc_queries:get_privacy_list_data_by_id(LServer, integer_to_binary(ID));
+    rdbms_queries:get_privacy_list_data_by_id(LServer, integer_to_binary(ID));
 sql_get_privacy_list_data_by_id(ID, LServer) ->
-    odbc_queries:get_privacy_list_data_by_id(LServer, ID).
+    rdbms_queries:get_privacy_list_data_by_id(LServer, ID).
 
 sql_set_default_privacy_list(LUser, Name) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SName = ejabberd_odbc:escape(Name),
-    odbc_queries:set_default_privacy_list(Username, SName).
+    Username = mongoose_rdbms:escape(LUser),
+    SName = mongoose_rdbms:escape(Name),
+    rdbms_queries:set_default_privacy_list(Username, SName).
 
 sql_unset_default_privacy_list(LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    odbc_queries:unset_default_privacy_list(LServer, Username).
+    Username = mongoose_rdbms:escape(LUser),
+    rdbms_queries:unset_default_privacy_list(LServer, Username).
 
 sql_remove_privacy_list(LUser, Name) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SName = ejabberd_odbc:escape(Name),
-    odbc_queries:remove_privacy_list(Username, SName).
+    Username = mongoose_rdbms:escape(LUser),
+    SName = mongoose_rdbms:escape(Name),
+    rdbms_queries:remove_privacy_list(Username, SName).
 
 sql_add_privacy_list(LUser, Name) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SName = ejabberd_odbc:escape(Name),
-    odbc_queries:add_privacy_list(Username, SName).
+    Username = mongoose_rdbms:escape(LUser),
+    SName = mongoose_rdbms:escape(Name),
+    rdbms_queries:add_privacy_list(Username, SName).
 
 sql_set_privacy_list(ID, RItems) when is_integer(ID)->
-    odbc_queries:set_privacy_list(integer_to_binary(ID), RItems);
+    rdbms_queries:set_privacy_list(integer_to_binary(ID), RItems);
 sql_set_privacy_list(ID, RItems) ->
-    odbc_queries:set_privacy_list(ID, RItems).
+    rdbms_queries:set_privacy_list(ID, RItems).
 
 sql_del_privacy_lists(LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    Server = ejabberd_odbc:escape(LServer),
-    odbc_queries:del_privacy_lists(LServer, Server, Username).
+    Username = mongoose_rdbms:escape(LUser),
+    Server = mongoose_rdbms:escape(LServer),
+    rdbms_queries:del_privacy_lists(LServer, Server, Username).

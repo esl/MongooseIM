@@ -1,11 +1,12 @@
 %%%----------------------------------------------------------------------
-%%% File    : ejabberd_odbc_sup.erl
+%%% File    : mongoose_rdbms_sup.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : ODBC connections supervisor
 %%% Created : 22 Dec 2004 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2011   ProcessOne
+%%% Copyright 2016 Erlang Solutions Ltd.
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -24,8 +25,9 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(ejabberd_odbc_sup).
+-module(mongoose_rdbms_sup).
 -author('alexey@process-one.net').
+-author('konrad.zemek@gmail.com').
 
 %% API
 -export([start_link/1,
@@ -78,7 +80,7 @@ remove_pool(Host, Id) ->
 -spec pool_spec(Host :: ejabberd:server(), Id :: supervisor:child_id(),
                 Name :: atom(), Size :: pos_integer()) -> supervisor:child_spec().
 pool_spec(Host, Id, Name, Size) ->
-    Opts = [{workers, Size}, {worker, {ejabberd_odbc, Host}}, {pool_sup_shutdown, 2000}],
+    Opts = [{workers, Size}, {worker, {mongoose_rdbms, Host}}, {pool_sup_shutdown, 2000}],
     {Id, {wpool, start_pool, [Name, Opts]}, transient, 200, supervisor, dynamic}.
 
 
