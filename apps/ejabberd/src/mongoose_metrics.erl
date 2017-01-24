@@ -129,12 +129,17 @@ get_odbc_data_stats() ->
 
 get_odbc_mam_async_stats() ->
     %% MAM async ODBC workers are organized differently...
-    MamChildren = case catch supervisor:which_children(mod_mam_sup) of
-                      [_ | _] = Children -> Children;
-                      _ -> []
+    GetChildren = fun(Host, Pool) ->
+                        Name = gen_mod:get_module_proc(Host, Pool),
+                        case catch ejabberd_odbc_sup:get_pids(Name) of
+                            [_ | _] = Children -> Children;
+                            _ -> []
+                        end
                   end,
-    MamAsynODBCWorkers = [catch element(2, gen_server:call(Pid, get_connection, 1000)) || {_, Pid, worker, _} <- MamChildren],
-    get_odbc_stats(MamAsynODBCWorkers).
+
+    MamPools = [mod_mam_odbc_async_pool_writer, mod_mam_muc_odbc_async_pool_writer],
+    MamChildren = lists:flatten([GetChildren(Host, Pool) || Host <- ?MYHOSTS, Pool <- MamPools]),
+    get_odbc_stats(MamChildren).
 
 get_dist_data_stats() ->
     DistStats = [inet_stats(Port) || {_, Port} <- erlang:system_info(dist_ctrl)],
@@ -188,19 +193,21 @@ do_increment_generic_hook_metric(Host, Name) ->
     update(Host, Name, 1).
 
 get_odbc_stats(ODBCWorkers) ->
-    ODBCConnections = [catch ejabberd_odbc:get_db_info(Pid) || Pid <- ODBCWorkers],
+    ODBCConnections = [{catch ejabberd_odbc:get_db_info(Pid), Pid} || Pid <- ODBCWorkers],
     Ports = [get_port_from_odbc_connection(Conn) || Conn <- ODBCConnections],
     PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
     [{workers, length(ODBCConnections)} | merge_stats(PortStats)].
 
-get_port_from_odbc_connection({ok, DbType, Pid}) when DbType =:= mysql; DbType =:= pgsql ->
+get_port_from_odbc_connection({{ok, pgsql, Pid}, WorkerPid}) ->
+    element(2, erlang:process_info(Pid, links)) -- [WorkerPid];
+get_port_from_odbc_connection({{ok, mysql, Pid}, WorkerPid}) ->
     %% Pid of p1_mysql_conn process
-    {links, [MySQLRecv]} = erlang:process_info(Pid, links),
+    [MySQLRecv] = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
     %% Port is hold by p1_mysql_recv process which is linked to the p1_mysql_conn
     {links, Links} = erlang:process_info(MySQLRecv, links),
     [Port || Port <- Links, is_port(Port)];
-get_port_from_odbc_connection({ok, odbc, Pid}) ->
-    {links, Links} = erlang:process_info(Pid, links),
+get_port_from_odbc_connection({{ok, odbc, Pid}, WorkerPid}) ->
+    Links = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
     [Port || Port <- Links, is_port(Port), {name, "tcp_inet"} == erlang:port_info(Port, name)];
 get_port_from_odbc_connection(_) ->
     undefined.

@@ -75,7 +75,8 @@ BaseAppsToInclude = AppsToRun ++
                      idna,
                      recon,
                      poolboy,
-		     uuid,
+                     worker_pool,
+                     uuid,
                      setup,
                      exometer_core
                      ],

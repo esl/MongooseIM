@@ -114,9 +114,9 @@ get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
     SRemLJID     = esc_jid(RemLJID),
     SUserID      = integer_to_list(UserID),
     case query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) of
-        {selected, [<<"behaviour">>], [{Behavour}]} ->
+        {selected, [{Behavour}]} ->
             decode_behaviour(Behavour);
-        {selected, [<<"behaviour">>], []} ->
+        {selected, []} ->
             DefaultBehaviour
     end.
 
@@ -166,7 +166,7 @@ run_transaction_or_retry_on_deadlock(F, UserID, Retries) ->
     try
         F()
     %% MySQL specific error
-    catch error:{badmatch, {aborted, {{sql_error, "#40001Deadlock" ++ _}, _}}}
+    catch error:{badmatch, {aborted, {{sql_error, "Deadlock" ++ _}, _}}}
             when Retries > 0 ->
         ?ERROR_MSG("issue=\"Deadlock detected. Restart\", user_id=~p, retries=~p",
                    [UserID, Retries]),
@@ -179,7 +179,7 @@ run_transaction_or_retry_on_deadlock(F, UserID, Retries) ->
             -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
     SUserID = integer_to_list(UserID),
-    {selected, _ColumnNames, Rows} =
+    {selected, Rows} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT remote_jid, behaviour "
@@ -277,5 +277,3 @@ decode_prefs_rows([{JID, <<"N">>}|Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     decode_prefs_rows(Rows, DefaultMode, AlwaysJIDs, [JID|NeverJIDs]);
 decode_prefs_rows([], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs}.
-
-

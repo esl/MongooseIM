@@ -47,8 +47,8 @@ read_roster_version(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case odbc_queries:get_roster_version(LServer, Username)
     of
-        {selected, [<<"version">>], [{Version}]} -> Version;
-        {selected, [<<"version">>], []} -> error
+        {selected, [{Version}]} -> Version;
+        {selected, []} -> error
     end.
 
 write_roster_version(LUser, LServer, InTransaction, Ver) ->
@@ -68,16 +68,13 @@ get_roster(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_roster(LServer, Username) of
         {selected,
-         [<<"username">>, <<"jid">>, <<"nick">>,
-          <<"subscription">>, <<"ask">>, <<"askmessage">>,
-          <<"server">>, <<"subscribe">>, <<"type">>],
          Items}
           when is_list(Items) ->
             JIDGroups = case catch
                              odbc_queries:get_roster_jid_groups(LServer,
                                                                 Username)
                         of
-                            {selected, [<<"jid">>, <<"grp">>], JGrps}
+                            {selected, JGrps}
                               when is_list(JGrps) ->
                                 JGrps;
                             _ -> []
@@ -111,9 +108,6 @@ get_roster_by_jid_t(LUser, LServer, LJID) ->
     Username = ejabberd_odbc:escape(LUser),
     SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     {selected,
-     [<<"username">>, <<"jid">>, <<"nick">>,
-      <<"subscription">>, <<"ask">>, <<"askmessage">>,
-      <<"server">>, <<"subscribe">>, <<"type">>],
      Res} =
     odbc_queries:get_roster_by_jid(LServer, Username, SJID),
     case Res of
@@ -137,9 +131,6 @@ get_subscription_lists(_, LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_roster(LServer, Username) of
         {selected,
-         [<<"username">>, <<"jid">>, <<"nick">>,
-          <<"subscription">>, <<"ask">>, <<"askmessage">>,
-          <<"server">>, <<"subscribe">>, <<"type">>],
          Items}
           when is_list(Items) ->
             Items;
@@ -160,23 +151,17 @@ get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
                                         SJID)
     of
         {selected,
-         [<<"username">>, <<"jid">>, <<"nick">>,
-          <<"subscription">>, <<"ask">>, <<"askmessage">>,
-          <<"server">>, <<"subscribe">>, <<"type">>],
          [I]} ->
             R = raw_to_record(LServer, I),
             Groups = case odbc_queries:get_roster_groups(LServer,
                                                          Username, SJID)
                      of
-                         {selected, [<<"grp">>], JGrps} when is_list(JGrps) ->
+                         {selected, JGrps} when is_list(JGrps) ->
                              [JGrp || {JGrp} <- JGrps];
                          _ -> []
                      end,
             R#roster{groups = Groups};
         {selected,
-         [<<"username">>, <<"jid">>, <<"nick">>,
-          <<"subscription">>, <<"ask">>, <<"askmessage">>,
-          <<"server">>, <<"subscribe">>, <<"type">>],
          []} ->
             #roster{usj = {LUser, LServer, LJID},
                     us = {LUser, LServer}, jid = LJID}
@@ -232,7 +217,7 @@ read_subscription_and_groups(LUser, LServer, LJID) ->
     case catch odbc_queries:get_subscription(LServer,
                                              Username, SJID)
     of
-        {selected, [<<"subscription">>], [{SSubscription}]} ->
+        {selected, [{SSubscription}]} ->
             Subscription = case SSubscription of
                                <<"B">> -> both;
                                <<"T">> -> to;
@@ -243,7 +228,7 @@ read_subscription_and_groups(LUser, LServer, LJID) ->
                           odbc_queries:get_rostergroup_by_jid(LServer, Username,
                                                               SJID)
                      of
-                         {selected, [<<"grp">>], JGrps} when is_list(JGrps) ->
+                         {selected, JGrps} when is_list(JGrps) ->
                              [JGrp || {JGrp} <- JGrps];
                          _ -> []
                      end,

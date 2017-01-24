@@ -37,7 +37,6 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(Config) ->
-    exit(whereis(ejabberd_sup), kill),
     Config.
 
 init_per_group(rsm_disco, Config) ->

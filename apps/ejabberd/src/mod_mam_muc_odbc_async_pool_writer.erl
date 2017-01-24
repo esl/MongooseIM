@@ -26,7 +26,7 @@
          queue_lengths/1]).
 
 %% Internal exports
--export([start_link/3]).
+-export([start_link/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -43,7 +43,7 @@
                 max_packet_size     :: non_neg_integer(),
                 max_subscribers     :: non_neg_integer(),
                 host                :: ejabberd:server(),
-                conn,
+                connection_pool     :: atom(),
                 number              :: non_neg_integer(),
                 acc=[]              :: list(),
                 subscribers=[]      :: list(),
@@ -93,15 +93,17 @@ worker_number(Host, ArcID) ->
 
 -spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
-    start_workers(Host),
+    PoolName = gen_mod:get_module_proc(Host, ?MODULE),
+    {ok, _} = ejabberd_odbc_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
+    start_workers(Host, PoolName),
     start_muc(Host, Opts).
 
 
--spec stop(ejabberd:server()) -> ['ok' | {'error', 'not_found' | 'restarting'
-                                  | 'running' | 'simple_one_for_one'}].
+-spec stop(ejabberd:server()) -> any().
 stop(Host) ->
     stop_muc(Host),
-    stop_workers(Host).
+    stop_workers(Host),
+    ejabberd_odbc_sup:remove_pool(Host, ?MODULE).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
@@ -131,11 +133,11 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
--spec start_workers(ejabberd:server()) -> [{'error', _}
+-spec start_workers(ejabberd:server(), Pool :: atom()) -> [{'error', _}
                                         | {'ok', 'undefined' | pid()}
                                         | {'ok', 'undefined' | pid(), _}].
-start_workers(Host) ->
-    [start_worker(WriterProc, N, Host)
+start_workers(Host, Pool) ->
+    [start_worker(WriterProc, N, Host, Pool)
      || {N, WriterProc} <- worker_names(Host)].
 
 
@@ -145,14 +147,14 @@ stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
 
--spec start_worker(atom(), integer(), ejabberd:server())
+-spec start_worker(atom(), integer(), ejabberd:server(), Pool :: atom())
       -> {'error', _}
          | {'ok', 'undefined' | pid()}
          | {'ok', 'undefined' | pid(), _}.
-start_worker(WriterProc, N, Host) ->
+start_worker(WriterProc, N, Host, Pool) ->
     WriterChildSpec =
     {WriterProc,
-     {mod_mam_muc_odbc_async_pool_writer, start_link, [WriterProc, N, Host]},
+     {mod_mam_muc_odbc_async_pool_writer, start_link, [WriterProc, N, Host, Pool]},
      permanent,
      5000,
      worker,
@@ -167,9 +169,9 @@ stop_worker(Proc) ->
     supervisor:delete_child(mod_mam_sup, Proc).
 
 
--spec start_link(atom(), _, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
-start_link(ProcName, N, Host) ->
-    gen_server:start_link({local, ProcName}, ?MODULE, [Host, N], []).
+-spec start_link(atom(), _, _, Pool :: pid()) -> 'ignore' | {'error', _} | {'ok', pid()}.
+start_link(ProcName, N, Host, Pool) ->
+    gen_server:start_link({local, ProcName}, ?MODULE, [Host, N, Pool], []).
 
 
 -spec archive_message(_, Host :: ejabberd:server(), MessID :: mod_mam:message_id(),
@@ -313,13 +315,12 @@ are_recent_entries_required(_End, _Now) ->
 -spec run_flush(state()) -> state().
 run_flush(State=#state{acc=[]}) ->
     State;
-run_flush(State=#state{host=Host, conn=Conn, number=N,
+run_flush(State=#state{host=Host, connection_pool=Pool, number=N,
                        flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
     MessageCount = length(Acc),
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
-    Result = mod_mam_muc_odbc_arch:archive_messages(Conn, Acc, N),
-    case Result of
+    case mod_mam_muc_odbc_arch:archive_messages(Pool, Acc, N) of
         {updated, _Count} -> ok;
         {error, Reason} ->
             ejabberd_hooks:run(mam_drop_messages, Host, [Host, MessageCount]),
@@ -359,13 +360,12 @@ cancel_and_flush_timer(TRef) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, N]) ->
+init([Host, N, Pool]) ->
     %% Use a private ODBC-connection.
-    {ok, Conn} = ejabberd_odbc:get_dedicated_connection(Host),
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 500),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
     MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
-    {ok, #state{host=Host, conn=Conn, number=N,
+    {ok, #state{host=Host, connection_pool=Pool, number=N,
                 flush_interval = Int,
                 max_packet_size = MaxSize,
                 max_subscribers = MaxSubs}}.
@@ -381,8 +381,6 @@ init([Host, N]) ->
 %%--------------------------------------------------------------------
 -spec handle_call('wait_flushing', _, state())
       -> {'noreply', state()} | {'reply', 'ok', state()}.
-handle_call(get_connection, _From, State=#state{conn = Conn}) ->
-    {reply, Conn, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From,
@@ -446,4 +444,3 @@ terminate(_Reason, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-

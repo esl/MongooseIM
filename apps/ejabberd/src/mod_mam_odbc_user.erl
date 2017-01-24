@@ -148,16 +148,14 @@ query_archive_id(Host, Server, UserName) ->
     Result = do_query_archive_id(DbType, Host, SServer, SUserName),
 
     case Result of
-        {selected, [<<"id">>], [{IdBin}]} when is_binary(IdBin) ->
-            binary_to_integer(IdBin);
-        {selected, [<<"id">>], [{IdBin}]}->
-            IdBin;
-        {selected, [<<"id">>], []} ->
+        {selected, [{IdBin}]} ->
+            ejabberd_odbc:result_to_integer(IdBin);
+        {selected, []} ->
             %% The user is not found
             create_user_archive(Host, Server, UserName),
             query_archive_id(Host, Server, UserName)
     end.
-    
+
 -spec create_user_archive(ejabberd:server(), ejabberd:lserver(), ejabberd:user()) -> 'ok'.
 create_user_archive(Host, Server, UserName) ->
     SServer   = ejabberd_odbc:escape(Server),
@@ -172,9 +170,12 @@ create_user_archive(Host, Server, UserName) ->
             ok;
         %% Ignore the race condition
         %% Duplicate entry ... for key 'uc_mam_server_user_name'
-        {error, "#23000" ++ _} ->
+        {error, "duplicate" ++ _} -> %% mysql
+            ok;
+        {error, "Duplicate" ++ _} -> %% postgresql
+            ok;
+        {error, "ERROR: duplicate" ++ _} -> %% odbc
             ok
-        %% TODO duplicate entry and postgres?
     end.
 
 do_query_archive_id(mssql, Host, SServer, SUserName) ->
