@@ -1,3 +1,36 @@
+# MongooseIM 2.0.1
+
+2017-01-24
+
+This release includes:
+- extended REST API for [clients](http://mongooseim.readthedocs.io/en/2.0.1/swagger/index.html?client=true)
+    - support for SSE: [#1043](https://github.com/esl/MongooseIM/pull/1043), [#1131](https://github.com/esl/MongooseIM/pull/1131)
+- improvements to [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html): [#1084](https://github.com/esl/MongooseIM/pull/1084)
+- improvements to [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html): [#1122](https://github.com/esl/MongooseIM/pull/1122)
+- [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html) optimisations:
+    - Erlang process hibernation: [#1086](https://github.com/esl/MongooseIM/pull/1086)
+    - Stopping room's process if not actively used [#1095](https://github.com/esl/MongooseIM/pull/1095)
+- support for [XEP-363: HTTP File Upload](http://xmpp.org/extensions/xep-0363.html): [#1139](https://github.com/esl/MongooseIM/pull/1139)
+- ODBC backend for MUC Light [#1093](https://github.com/esl/MongooseIM/pull/1093)
+- Cassandra backend for MAM:
+    - restored Cassandra backend: [#1117](https://github.com/esl/MongooseIM/pull/1117)
+    - migration to cqerl: [#1147](https://github.com/esl/MongooseIM/pull/1147)
+    - performance improvements: [#1133](https://github.com/esl/MongooseIM/pull/1133)
+    - migration tool for Cassandra backends in MongooseIM 1.6.2 [#1159](https://github.com/esl/MongooseIM/pull/1159)
+- other improvements:
+    - simplified MAM configuration [#1112](https://github.com/esl/MongooseIM/pull/1112)
+    - fix for race condition in session manager [#1141](https://github.com/esl/MongooseIM/pull/1141)
+    - migration to p1_mysql [#1067](https://github.com/esl/MongooseIM/pull/1067)
+    - migration to p1_pgsql [#1074](https://github.com/esl/MongooseIM/pull/1074)
+    - migration to fast_tls [#1078](https://github.com/esl/MongooseIM/pull/1078)
+    - improved subdomain handling [#1116](https://github.com/esl/MongooseIM/pull/1116)
+    - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222016-11-09..2017-01-24%22%20sort%3Acreated-asc%20)
+    - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222016-11-09..2017-01-24%22%20)
+
+Special thanks to our contributors: @kenstir, @sstrigler, @igors, @bernardd, @msantos
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2016-11-09&to=2017-01-24&type=c)
+
 # MongooseIM 2.0.0
 
 2016-11-08
