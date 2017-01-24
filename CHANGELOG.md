@@ -5,12 +5,12 @@
 This release includes:
 - extended REST API for [clients](http://mongooseim.readthedocs.io/en/2.0.1/swagger/index.html?client=true)
     - support for SSE: [#1043](https://github.com/esl/MongooseIM/pull/1043), [#1131](https://github.com/esl/MongooseIM/pull/1131)
-- improvements to [XEP-0016 Privacy Lists](http://xmpp.org/extensions/xep-0016.html): [#1084](https://github.com/esl/MongooseIM/pull/1084)
-- improvements to [XEP-0191 Blocking Command](http://xmpp.org/extensions/xep-0191.html): [#1122](https://github.com/esl/MongooseIM/pull/1122)
-- [XEP-0045 Multi-User Chat](http://xmpp.org/extensions/xep-0045.html) optimisations:
+- improvements to [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html): [#1084](https://github.com/esl/MongooseIM/pull/1084)
+- improvements to [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html): [#1122](https://github.com/esl/MongooseIM/pull/1122)
+- [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html) optimisations:
     - Erlang process hibernation: [#1086](https://github.com/esl/MongooseIM/pull/1086)
     - Stopping room's process if not actively used [#1095](https://github.com/esl/MongooseIM/pull/1095)
-- support for [XEP-363](http://xmpp.org/extensions/xep-0363.html) [#1139](https://github.com/esl/MongooseIM/pull/1139)
+- support for [XEP-363: HTTP File Upload](http://xmpp.org/extensions/xep-0363.html): [#1139](https://github.com/esl/MongooseIM/pull/1139)
 - ODBC backend for MUC Light [#1093](https://github.com/esl/MongooseIM/pull/1093)
 - Cassandra backend for MAM:
     - restored Cassandra backend: [#1117](https://github.com/esl/MongooseIM/pull/1117)
