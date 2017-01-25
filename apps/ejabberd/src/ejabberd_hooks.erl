@@ -237,11 +237,7 @@ code_change(_OldVsn, State, _Extra) ->
 run_fold1([], _Hook, Val, _Args) ->
     Val;
 run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
-    Res = if is_function(Function) ->
-                  safely:apply(Function, [Val | Args]);
-             true ->
-                  record(Hook, Module, Function, safely:apply(Module, Function, [Val | Args]))
-          end,
+    Res = hook_apply_function(Module, Function, Hook, Val, Args),
     case Res of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p~nrunning hook: ~p",
@@ -254,6 +250,12 @@ run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
         NewVal ->
             run_fold1(Ls, Hook, NewVal, Args)
     end.
+
+hook_apply_function(_Module, Function, _Hook, Val, Args) when is_function(Function) ->
+    safely:apply(Function, [Val | Args]);
+hook_apply_function(Module, Function, Hook, Val, Args) ->
+    record(Hook, Module, Function, safely:apply(Module, Function, [Val | Args])).
+
 
 record(Hook, Module, Function, Acc) ->
     % just to show some nice things we can do now

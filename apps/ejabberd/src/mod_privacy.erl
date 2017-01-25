@@ -312,11 +312,11 @@ get_user_list(_, User, Server) ->
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).
 %% If Dir = in, User@Server is the destination account (To).
-check_packet(_, User, Server,
+check_packet(Acc, User, Server,
          #userlist{list = List, needdb = NeedDb},
          {From, To, Packet},
          Dir) ->
-    case List of
+    CheckResult = case List of
         [] ->
             allow;
         _ ->
@@ -335,7 +335,8 @@ check_packet(_, User, Server,
             end,
             Type = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
-    end.
+    end,
+    mongoose_acc:put(privacy_check, CheckResult, Acc).
 
 %% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->

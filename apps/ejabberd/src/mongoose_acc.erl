@@ -32,12 +32,12 @@
 %%% the code which is executed between them is rewritten. We will proceed by moving
 %%% both points further apart until they reach their respective ends of processing chain.
 
-initialise(El, F, L) ->
-    ?ERROR_MSG("AAA initialise accumulator ~p ~p", [F, L]),
+initialise(El, _F, _L) ->
+%%    ?ERROR_MSG("AAA initialise accumulator ~p ~p", [F, L]),
     from_element(El).
 
-terminate(M, F, L) ->
-    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
+terminate(M, _F, _L) ->
+%%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
     get(element, M).
 
 dump(Acc) ->
