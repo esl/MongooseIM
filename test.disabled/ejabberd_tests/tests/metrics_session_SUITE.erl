@@ -81,7 +81,7 @@ login_one(Config) ->
         assert_counter(Logins + 1, sessionSuccessfulLogins),
 
         {value, Logouts} = get_counter_value(sessionLogouts),
-        escalus_client:stop(Alice),
+        escalus_client:stop(Config, Alice),
         timer:sleep(?WAIT_TIME),
         assert_counter(0, sessionCount),
         assert_counter(Logouts + 1, sessionLogouts)

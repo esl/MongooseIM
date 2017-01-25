@@ -183,7 +183,7 @@ pre_xmpp_1_0_stream(Config) ->
              {legacy_stream_helper, failed_legacy_auth}
             ],
     %% ok, now do the plan from above
-    {ok, Conn, _, _} = escalus_connection:start(Spec, Steps),
+    {ok, Conn, _} = escalus_connection:start(Spec, Steps),
     escalus_connection:stop(Conn).
 
 should_fail_with_sslv3(Config) ->
@@ -217,15 +217,15 @@ should_pass_with_tls(Version, Config)->
     Result = escalus_connection:start(UserSpec1),
 
     %% THEN
-    ?assertMatch({ok, _, _, _}, Result).
+    ?assertMatch({ok, _, _}, Result).
 
 should_fail_to_authenticate_without_starttls(Config) ->
     %% GIVEN
     UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
-    {Conn, Props, Features} = start_stream_with_compression(UserSpec),
+    {Conn, Features} = start_stream_with_compression(UserSpec),
 
     %% WHEN
-    try escalus_session:authenticate(Conn, Props, Features) of
+    try escalus_session:authenticate(Conn, Features) of
     %% THEN
         _ ->
             error(authentication_without_tls_suceeded)
@@ -239,7 +239,7 @@ should_fail_to_authenticate_without_starttls(Config) ->
 
 should_not_send_other_features_with_starttls_required(Config) ->
     UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
-    {ok, Conn, _, _} = escalus_connection:start(UserSpec, [start_stream]),
+    {ok, Conn, _} = escalus_connection:start(UserSpec, [start_stream]),
     Features = case escalus_connection:get_stanza(Conn, wait_for_features) of
         #xmlel{name = <<"stream:features">>, children = Children} -> Children;
         #xmlel{name = <<"features">>, children = Children} -> Children
@@ -270,11 +270,8 @@ clients_can_connect_with_advertised_ciphers(Config) ->
 
 reset_stream_noproc(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
-    PreAuthF = fun(Conn, Props, Features) ->
-                       {Conn, Props, Features}
-               end,
     Steps = [start_stream, stream_features],
-    {ok, Conn, Props, Features} = escalus_connection:start(UserSpec, Steps),
+    {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
 
     [C2sPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_c2s_sup])),
     [RcvPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_receiver_sup])),
@@ -282,7 +279,7 @@ reset_stream_noproc(Config) ->
     ok = escalus_ejabberd:rpc(sys, suspend, [C2sPid]),
     %% Add auth element into message queue of the c2s process
     %% There is no reply because the process is suspended
-    ?assertThrow({timeout, auth_reply}, escalus_session:authenticate(Conn, Props)),
+    ?assertThrow({timeout, auth_reply}, escalus_session:authenticate(Conn)),
     %% Sim client disconnection
     ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
     %% ...c2s process receives close and DOWN messages...
@@ -300,11 +297,8 @@ reset_stream_noproc(Config) ->
 
 starttls_noproc(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
-    PreAuthF = fun(Conn, Props, Features) ->
-                       {Conn, Props, Features}
-               end,
     Steps = [start_stream, stream_features],
-    {ok, Conn, Props, Features} = escalus_connection:start(UserSpec, Steps),
+    {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
 
     [C2sPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_c2s_sup])),
     [RcvPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_receiver_sup])),
@@ -312,7 +306,7 @@ starttls_noproc(Config) ->
     ok = escalus_ejabberd:rpc(sys, suspend, [C2sPid]),
     %% Add starttls element into message queue of the c2s process
     %% There is no reply because the process is suspended
-    ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn, Props)),
+    ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn)),
     %% Sim client disconnection
     ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
     %% ...c2s process receives close and DOWN messages...
@@ -330,11 +324,8 @@ starttls_noproc(Config) ->
 
 compress_noproc(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
-    PreAuthF = fun(Conn, Props, Features) ->
-                       {Conn, Props, Features}
-               end,
     Steps = [start_stream, stream_features],
-    {ok, Conn, Props, Features} = escalus_connection:start(UserSpec, Steps),
+    {ok, Conn = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, Steps),
 
     [C2sPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_c2s_sup])),
     [RcvPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_receiver_sup])),
@@ -343,7 +334,7 @@ compress_noproc(Config) ->
     %% Add compress element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, compressed},
-                 escalus_session:compress(Conn, [{compression, <<"zlib">>}|Props])),
+                 escalus_session:compress(Conn#client{props = [{compression, <<"zlib">>}|Props]})),
     %% Sim client disconnection
     ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
     %% ...c2s process receives close and DOWN messages...
@@ -370,21 +361,21 @@ given_fresh_spec(Config, User) ->
     Config1 = escalus_fresh:create_users(Config, [{User, 1}]),
     escalus_users:get_userspec(Config1, User).
 
-verify_features(Conn, Props, Features) ->
+verify_features(Conn, Features) ->
     %% should not advertise compression before tls
     ?assert_equal(false, has_feature(compression, Features)),
     %% start tls. Starttls should be then removed from list and compression should be added
-    {Conn1, Props1} = escalus_session:starttls(Conn, Props),
-    {Conn2, Props2, Features2} = escalus_session:stream_features(Conn1, Props1, []),
+    Conn1 = escalus_session:starttls(Conn),
+    {Conn2, Features2} = escalus_session:stream_features(Conn1, []),
     ?assert_equal(false, has_feature(starttls, Features2)),
     ?assert(false =/= has_feature(compression, Features2)),
     %% start compression. Compression should be then removed from list
-    {Conn3, Props3, Features3} = escalus_session:authenticate(Conn2, Props2, Features2),
-    {Conn4, Props4} = escalus_session:compress(Conn3, Props3),
-    {Conn5, Props5, Features4} = escalus_session:stream_features(Conn4, Props4, []),
-    ?assert_equal(false, has_feature(compression, Features4)),
-    ?assert_equal(false, has_feature(starttls, Features4)),
-    {Conn5, Props5, Features4}.
+    {Conn3, _Features3} = escalus_session:authenticate(Conn2, Features2),
+    Conn4 = escalus_session:compress(Conn3),
+    {Conn5, Features5} = escalus_session:stream_features(Conn4, []),
+    ?assert_equal(false, has_feature(compression, Features5)),
+    ?assert_equal(false, has_feature(starttls, Features5)),
+    {Conn5, Features5}.
 
 has_feature(Feature, FeatureList) ->
     {_, Value} = lists:keyfind(Feature, 1, FeatureList),
@@ -412,24 +403,21 @@ tls_compression_authenticate_fail(Config) ->
 tls_authenticate_compression(Config) ->
     %% Given
     UserSpec = given_fresh_spec(Config, ?SECURE_USER),
-    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, maybe_use_compression],
-    %% then
-    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
-    % when and then
-    Compress = Conn#client.compress,
-    SSL = Conn#client.ssl,
-    ?assert(false =/= Compress),
-    ?assert(false =/= SSL).
+    ConnectionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, maybe_use_compression],
+    %% when
+    {ok, Conn, _} = escalus_connection:start(UserSpec, ConnectionSteps),
+    % then
+    true = escalus_tcp:is_using_compression(Conn#client.rcv_pid),
+    true = escalus_tcp:is_using_ssl(Conn#client.rcv_pid).
 
 tls_authenticate(Config) ->
     %% Given
     UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
-    %% then
-    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
-    % when,
-    SSL = Conn#client.ssl,
-    ?assert(false =/= SSL).
+    %% when
+    {ok, Conn, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % then
+    true = escalus_tcp:is_using_ssl(Conn#client.rcv_pid).
 
 %% should fail
 tls_compression_fail(Config) ->
@@ -455,22 +443,20 @@ auth_compression_bind_session(Config) ->
     UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
         authenticate, maybe_use_compression, bind, session],
-    %% then
-    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
-    % when
-    Compress = Conn#client.compress,
-    ?assert(false =/= Compress).
+    %% when
+    {ok, Conn, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % then
+    true = escalus_tcp:is_using_compression(Conn#client.rcv_pid).
 
 auth_bind_compression_session(Config) ->
     %% Given
     UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
         authenticate, bind, maybe_use_compression, session],
-    %% then
-    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
-    % when
-    Compress = Conn#client.compress,
-    ?assert(false =/= Compress).
+    %% when
+    {ok, Conn, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % then
+    true = escalus_tcp:is_using_compression(Conn#client.rcv_pid).
 
 auth_bind_pipelined_session(Config) ->
     UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]}
@@ -482,13 +468,13 @@ auth_bind_pipelined_session(Config) ->
     %% Stream start
     StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
     ?assertMatch(#xmlstreamstart{}, StreamResponse),
-    escalus_session:stream_features(Conn, UserSpec, []),
+    escalus_session:stream_features(Conn, []),
 
     %% Auth response
     escalus_auth:wait_for_success(Username, Conn),
     AuthStreamResponse = escalus_connection:get_stanza(Conn, stream_response),
     ?assertMatch(#xmlstreamstart{}, AuthStreamResponse),
-    escalus_session:stream_features(Conn, UserSpec, []),
+    escalus_session:stream_features(Conn, []),
 
     %% Bind response
     BindResponse = escalus_connection:get_stanza(Conn, bind_response),
@@ -508,7 +494,7 @@ auth_bind_pipelined_auth_failure(Config) ->
     %% Stream start
     StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
     ?assertMatch(#xmlstreamstart{}, StreamResponse),
-    escalus_session:stream_features(Conn, UserSpec, []),
+    escalus_session:stream_features(Conn, []),
 
     %% Auth response
     AuthResponse = escalus_connection:get_stanza(Conn, auth_response),
@@ -523,7 +509,7 @@ auth_bind_pipelined_starttls_skipped_error(Config) ->
     %% Stream start
     StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
     ?assertMatch(#xmlstreamstart{}, StreamResponse),
-    escalus_session:stream_features(Conn, UserSpec, []),
+    escalus_session:stream_features(Conn, []),
 
     %% Auth response
     AuthResponse = escalus_connection:get_stanza(Conn, auth_response),
@@ -533,7 +519,7 @@ auth_bind_pipelined_starttls_skipped_error(Config) ->
 bind_server_generated_resource(Config) ->
     UserSpec = [{resource, <<>>} | given_fresh_spec(Config, ?SECURE_USER)],
     ConnectionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, bind],
-    {ok, _Conn, NewSpec, _} = escalus_connection:start(UserSpec, ConnectionSteps),
+    {ok, #client{props = NewSpec}, _} = escalus_connection:start(UserSpec, ConnectionSteps),
     {resource, Resource} = lists:keyfind(resource, 1, NewSpec),
     ?assert(is_binary(Resource)),
     ?assert(byte_size(Resource) > 0).
@@ -591,35 +577,34 @@ set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].
 
 start_stream_with_compression(UserSpec) ->
-    ConnetctionSteps = [start_stream, stream_features, maybe_use_compression],
-    {ok, Conn, Props, Features} = escalus_connection:start(UserSpec,
-                                                            ConnetctionSteps),
-    {Conn, Props, Features}.
+    ConnectionSteps = [start_stream, stream_features, maybe_use_compression],
+    {ok, Conn, Features} = escalus_connection:start(UserSpec, ConnectionSteps),
+    {Conn, Features}.
 
 connect_to_invalid_host(Spec) ->
-    {ok, Conn, _, _} = escalus_connection:start(Spec, [{?MODULE, connect_to_invalid_host}]),
+    {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, connect_to_invalid_host}]),
     escalus:wait_for_stanzas(Conn, 3).
 
-connect_to_invalid_host(Conn, UnusedProps, UnusedFeatures) ->
+connect_to_invalid_host(Conn, UnusedFeatures) ->
     escalus:send(Conn, escalus_stanza:stream_start(<<"hopefullynonexistentdomain">>,
                                                    ?NS_JABBER_CLIENT)),
-    {Conn, UnusedProps, UnusedFeatures}.
+    {Conn, UnusedFeatures}.
 
 connect_with_bad_xml(Spec) ->
-    {ok, Conn, _, _} = escalus_connection:start(Spec, [{?MODULE, connect_with_bad_xml}]),
+    {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, connect_with_bad_xml}]),
     escalus:wait_for_stanzas(Conn, 3).
 
-connect_with_bad_xml(Conn, UnusedProps, UnusedFeatures) ->
+connect_with_bad_xml(Conn, UnusedFeatures) ->
     escalus_connection:send(Conn, #xmlcdata{content = "asdf\n"}),
-    {Conn, UnusedProps, UnusedFeatures}.
+    {Conn, UnusedFeatures}.
 
 connect_with_invalid_stream_namespace(Spec) ->
-    F = fun (Conn, UnusedProps, UnusedFeatures) ->
+    F = fun (Conn, UnusedFeatures) ->
                 Start = stream_start_invalid_stream_ns(escalus_users:get_server([], Spec)),
                 escalus:send(Conn, Start),
-                {Conn, UnusedProps, UnusedFeatures}
+                {Conn, UnusedFeatures}
         end,
-    {ok, Conn, _, _} = escalus_connection:start(Spec, [F]),
+    {ok, Conn, _} = escalus_connection:start(Spec, [F]),
     escalus:wait_for_stanzas(Conn, 3).
 
 stream_start_invalid_stream_ns(To) ->
@@ -640,7 +625,7 @@ pipeline_connect(UserSpec) ->
     Password = proplists:get_value(password, UserSpec),
     AuthPayload = <<0:8, Username/binary, 0:8, Password/binary>>,
 
-    {ok, Conn, _} = escalus_connection:connect(UserSpec),
+    Conn = escalus_connection:connect(UserSpec),
 
     Stream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
     Auth = escalus_stanza:auth(<<"PLAIN">>, [#xmlcdata{content = base64:encode(AuthPayload)}]),

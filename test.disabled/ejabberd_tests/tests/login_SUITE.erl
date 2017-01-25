@@ -447,7 +447,7 @@ messages_story(Config) ->
 message_zlib_limit(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         [{_, Spec}] = escalus_users:get_users([hacker]),
-        {ok, Hacker, _Spec2, _Features} = escalus_connection:start(Spec),
+        {ok, Hacker, _Features} = escalus_connection:start(Spec),
 
         ManySpaces = [ 32 || _N <- lists:seq(1, 10*1024) ],
 
@@ -490,7 +490,7 @@ do_legacy_auth(Spec, Function) ->
              {legacy_stream_helper, Function}
             ],
     %% ok, now do the plan from above
-    {ok, Conn, _, _} = escalus_connection:start(Spec, Steps),
+    {ok, Conn, _} = escalus_connection:start(Spec, Steps),
     escalus_connection:stop(Conn).
 
 

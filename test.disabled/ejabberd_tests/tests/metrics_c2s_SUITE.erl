@@ -185,7 +185,7 @@ bounced(Config) ->
     {value, MesgBounced} = get_counter_value(xmppMessageBounced),
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
-        escalus_client:stop(Bob),
+        escalus_client:stop(Config, Bob),
         timer:sleep(?WAIT_TIME),
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
@@ -222,7 +222,7 @@ error_total(Config) ->
     {value, Errors} = get_counter_value(xmppErrorTotal),
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
-        escalus_client:stop(Bob),
+        escalus_client:stop(Config, Bob),
         timer:sleep(?WAIT_TIME),
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
@@ -236,7 +236,7 @@ error_mesg(Config) ->
     {value, Errors} = get_counter_value(xmppErrorMessage),
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
-        escalus_client:stop(Bob),
+        escalus_client:stop(Config, Bob),
         timer:sleep(?WAIT_TIME),
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),

@@ -17,6 +17,7 @@
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("exml/include/exml.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 %%--------------------------------------------------------------------
@@ -116,8 +117,7 @@ active_keep_alive(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 wait_ping_interval(0.75),
-                Socket = Alice#client.socket,
-                gen_tcp:send(Socket, <<"\n">>),
+                escalus_tcp:send(Alice#client.rcv_pid, #xmlcdata{content = "\n"}),
                 wait_ping_interval(0.5),
 
                 false = escalus_client:has_stanzas(Alice)
@@ -141,7 +141,8 @@ server_ping_pang(ConfigIn) ->
                 %% do not resp to ping req
                 ct:sleep(timer:seconds(ping_req_timeout() + 1)),
                 TimeoutAction = ?config(timeout_action, Config),
-                check_connection(TimeoutAction, Alice)
+                check_connection(TimeoutAction, Alice),
+                escalus_client:kill_connection(Config, Alice)
         end).
 
 wait_ping_interval(Ration) ->

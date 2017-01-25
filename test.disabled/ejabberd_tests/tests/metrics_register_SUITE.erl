@@ -99,4 +99,6 @@ unregister(Config) ->
     Alice = escalus_users:get_user_by_name(alice),
     escalus_users:delete_user(Config, Alice),
 
+    %% TODO replace sleep with backoff - wait until the metric is updated
+    timer:sleep(100),
     assert_counter(Deregistarations + 1, modUnregisterCount).
