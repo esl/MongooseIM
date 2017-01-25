@@ -62,11 +62,6 @@
 
 -type domain() :: binary().
 
--type route() :: #route{
-                    domain :: domain(),
-                    handler :: mongoose_packet_handler:t()
-                   }.
-
 -type external_component() :: #external_component{domain :: domain(),
                                                   handler :: mongoose_packet_handler:t()}.
 
