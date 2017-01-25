@@ -79,6 +79,8 @@
          reload_dispatches/1]).
 
 
+-type argtype() :: integer() | float() | binary() | string().
+
 %% @doc Reload all ejabberd_cowboy listeners.
 %% When a command is registered or unregistered, the routing paths that
 %% cowboy stores as a "dispatch" must be refreshed.
@@ -233,7 +235,10 @@ add_location_header(Result, ResourcePath, Req) ->
     {ok, Req2} = cowboy_req:reply(201, [Header], Req),
     Req2.
 
--spec convert_arg(atom(), any()) -> integer() | float() | binary() | string() | {error, bad_type}.
+-spec convert_arg(atom()|[atom()], any()) ->
+     argtype() | [argtype()]| {error, bad_type}.
+convert_arg([T], Args) when is_list(Args) ->
+    convert_arg_list(T, Args, []);
 convert_arg(binary, Binary) when is_binary(Binary) ->
     Binary;
 convert_arg(integer, Binary) when is_binary(Binary) ->
@@ -246,6 +251,11 @@ convert_arg(float, Float) when is_float(Float) ->
     Float;
 convert_arg(_, _Binary) ->
     throw({error, bad_type}).
+
+convert_arg_list(_T, [], Acc) ->
+    Acc;
+convert_arg_list(T, [A|Tail], Acc) ->
+    convert_arg_list(T, Tail, [convert_arg(T, A) | Acc]).
 
 -spec create_params_proplist(list({binary(), binary()})) -> args_applied().
 create_params_proplist(ArgList) ->

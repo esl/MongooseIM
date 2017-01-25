@@ -12,6 +12,7 @@
 
 %% External exports
 -export([start/1,
+         make_http_req/5,
          set_password/3,
          authorize/1,
          try_register/3,
@@ -244,13 +245,17 @@ make_req(Method, Path, LUser, LServer, Password) ->
                      [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}];
                  _ -> []
              end,
+    FullPath = <<PathPrefix/binary, Path/binary>>,
+    ?DEBUG("Making request '~s' for user ~s@~s...", [Path, LUser, LServer]),
+    make_http_req(LServer, Method, FullPath, Query, Header).
+
+make_http_req(LServer, Method, FullPath, Query, Header) ->
     Connection = cuesport:get_worker(existing_pool_name(LServer)),
 
-    ?DEBUG("Making request '~s' for user ~s@~s...", [Path, LUser, LServer]),
     {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} = case Method of
-        get -> fusco:request(Connection, <<PathPrefix/binary, Path/binary, "?", Query/binary>>,
+        get -> fusco:request(Connection, <<FullPath/binary, "?", Query/binary>>,
                              "GET", Header, "", 2, 5000);
-        post -> fusco:request(Connection, <<PathPrefix/binary, Path/binary>>,
+        post -> fusco:request(Connection, FullPath,
                               "POST", Header, Query, 2, 5000)
     end,
 

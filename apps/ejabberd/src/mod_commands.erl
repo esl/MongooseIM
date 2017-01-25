@@ -1,5 +1,6 @@
 -module(mod_commands).
 -author('bartlomiej.gorny@erlang-solutions.com').
+-include("mod_roster.hrl").
 
 -behaviour(gen_mod).
 
@@ -12,6 +13,15 @@
          change_user_password/3,
          list_sessions/1,
          kick_session/3,
+         list_contacts/1,
+         add_contact/3,
+         update_contact/3,
+         add_contact/4,
+         update_contact/4,
+         delete_contact/2,
+         block_contact/2,
+         unblock_contact/2,
+         set_subscription/3,
          get_recent_messages/3,
          get_recent_messages/4,
          send_message/3
@@ -28,6 +38,7 @@ stop() ->
 
 start(_, _) -> start().
 stop(_) -> stop().
+
 
 %%%
 %%% mongoose commands
@@ -141,6 +152,117 @@ commands() ->
       {identifiers, [host, user]},
       {args, [{host, binary}, {user, binary}, {newpass, binary}]},
       {result, ok}
+     ],
+     [
+      {name, list_contacts},
+      {category, <<"contacts">>},
+      {desc, <<"Get roster">>},
+      {module, ?MODULE},
+      {function, list_contacts},
+      {action, read},
+      {security_policy, [user]},
+      {args, [{caller, binary}]},
+      {result, []}
+     ],
+     [
+      {name, add_contact},
+      {category, <<"contacts">>},
+      {desc, <<"Add a contact to roster">>},
+      {module, ?MODULE},
+      {function, add_contact},
+      {action, create},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]},
+      {result, ok}
+     ],
+     [
+      {name, add_contact_with_groups},
+      {category, <<"contacts">>},
+      {desc, <<"Add a contact to roster, make it a member of some groups">>},
+      {module, ?MODULE},
+      {function, add_contact},
+      {action, create},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}, {groups, [binary]}]},
+      {result, ok}
+     ],
+     [
+      {name, update_contact},
+      {category, <<"contacts">>},
+      {desc, <<"Modify a contact's name in roster (will remove the user from all groups)">>},
+      {module, ?MODULE},
+      {function, update_contact},
+      {action, update},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}]},
+      {identifiers, [caller, jabber_id]},
+      {result, ok}
+     ],
+     [
+      {name, update_contact_with_groups},
+      {category, <<"contacts">>},
+      {desc, <<"Modify a contact's name in roster">>},
+      {module, ?MODULE},
+      {function, update_contact},
+      {action, update},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}, {name, binary}, {groups, [binary]}]},
+      {identifiers, [caller, jabber_id]},
+      {result, ok}
+     ],
+     [
+      {name, set_subscription},
+      {category, <<"contacts">>},
+      {subcategory, <<"subscription">>},
+      {desc, <<"Set subscription on a contact in the user's roster">>},
+      {module, ?MODULE},
+      {function, set_subscription},
+      {action, update},
+      % rationale for security policy: this commands sets subscription to an arbitrary value,
+      % without asking the other party for permission or taking care of synchronisation of
+      % both roster; therefore, it is the caller's reponsibility to obey certain rules. Thus,
+      % we may NOT expose this command to an ordinary user.
+      {security_policy, [admin]},
+      {args, [{caller, binary}, {jabber_id, binary}, {subscription, binary}]},
+      {identifiers, [caller, jabber_id]},
+      {result, ok}
+     ],
+     [
+      {name, delete_contact},
+      {category, <<"contacts">>},
+      {desc, <<"Remove a contact from roster">>},
+      {module, ?MODULE},
+      {function, delete_contact},
+      {action, delete},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}]},
+      {result, ok}
+     ],
+     [
+      {name, block_contact},
+      {category, <<"contacts">>},
+      {subcategory, <<"block">>},
+      {desc, <<"Block a contact">>},
+      {module, ?MODULE},
+      {function, block_contact},
+      {action, update},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}]},
+      {identifiers, [caller, jabber_id]},
+      {result, ok}
+     ],
+     [
+      {name, unblock_contact},
+      {category, <<"contacts">>},
+      {subcategory, <<"unblock">>},
+      {desc, <<"Unblock a contact">>},
+      {module, ?MODULE},
+      {function, unblock_contact},
+      {action, update},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jabber_id, binary}]},
+      {identifiers, [caller, jabber_id]},
+      {result, ok}
      ]
     ].
 
@@ -202,7 +324,7 @@ get_recent_messages(Caller, Before, Limit) ->
     get_recent_messages(Caller, undefined, Before, Limit).
 
 get_recent_messages(Caller, With, 0, Limit) ->
-    {MegaSecs, Secs, _} = now(),
+    {MegaSecs, Secs, _} = os:timestamp(),
     Future = (MegaSecs + 1) * 1000000 + Secs, % to make sure we return all messages
     get_recent_messages(Caller, With, Future, Limit);
 get_recent_messages(Caller, With, Before, Limit) ->
@@ -254,4 +376,92 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
                                  PageSize, LimitPassed, MaxResultLimit, IsSimple]),
     {ok, {_, _, L}} = R,
     L.
+
+roster_info(M) ->
+    Jid = jid:to_binary(maps:get(jid, M)),
+    maps:put(jid, Jid, M).
+
+list_contacts(Caller) ->
+    {User, Host} = jid:to_lus(jid:from_binary(Caller)),
+    Res = ejabberd_hooks:run_fold(roster_get, Host, [], [{User, Host}]),
+    R = lists:map(fun mod_roster:item_to_map/1, Res),
+    lists:map(fun roster_info/1, R).
+
+add_contact(Caller, JabberID, Name) ->
+    add_contact(Caller, JabberID, Name, []).
+
+add_contact(Caller, JabberID, Name, Groups) ->
+    CJid = jid:from_binary(Caller),
+    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
+
+update_contact(Caller, JabberID, Name) ->
+    update_contact(Caller, JabberID, Name, []).
+
+update_contact(Caller, JabberID, Name, Groups) ->
+    CJid = jid:from_binary(Caller),
+    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
+
+delete_contact(Caller, JabberID) ->
+    CJid = jid:from_binary(Caller),
+    mod_roster:remove_from_roster(CJid, JabberID).
+
+block_contact(Caller, JabberID) ->
+    manage_contact(block, Caller, JabberID).
+
+unblock_contact(Caller, JabberID) ->
+    manage_contact(unblock, Caller, JabberID).
+
+manage_contact(Action, Caller, JabberID) ->
+    CJid = jid:from_binary(Caller),
+    {LUser, LServer, _} = jid:to_lower(CJid),
+    Res = mod_blocking:process_blocking_set(Action, LUser, LServer, [JabberID]),
+    case mod_blocking:complete_iq_set(blocking_command, LUser, LServer, Res) of
+        {error, Reason} ->
+            {error, Reason};
+        _ ->
+            ok
+    end.
+
+set_subscription(Caller, JabberID, Sub) ->
+    SubA = binary_to_existing_atom(Sub, utf8),
+    CJid = jid:from_binary(Caller),
+    Jid = jid:from_binary(JabberID),
+    Item = mod_roster:get_roster_by_jid(CJid#jid.luser, CJid#jid.lserver, jid:to_lower(Jid)),
+    PSubA = Item#roster.subscription,
+    lists:map(fun(S) -> run_subaction(S, CJid, Jid) end, subacts(PSubA, SubA)),
+    ok.
+
+run_subaction({Dir, S}, CJid, Jid) ->
+    Type = case S of
+               s -> subscribe;
+               sd -> subscribed;
+               u -> unsubscribe;
+               ud -> unsubscribed
+           end,
+    Server = CJid#jid.server,
+    LUser = CJid#jid.luser,
+    LServer= CJid#jid.lserver,
+    case Dir of
+       in ->
+           ejabberd_hooks:run_fold(roster_in_subscription, Server, #{},
+                                   [LUser, LServer, Jid, Type, <<>>]);
+       out ->
+           ejabberd_hooks:run(roster_out_subscription, Server,
+                             [LUser, LServer, Jid, Type])
+    end,
+    ok.
+
+subacts(none, from) -> [{in, s}, {out, sd}];
+subacts(none, to) -> [{out, s}, {in, sd}];
+subacts(none, both) -> subacts(none, to) ++ subacts(none, from);
+subacts(from, none) -> [{out, ud}];
+subacts(to, none) -> [{in, ud}];
+subacts(both, none) -> subacts(to, none) ++ subacts(from, none);
+subacts(from, to) -> subacts(from, none) ++ subacts(none, to);
+subacts(to, from) -> subacts(to, none) ++ subacts(none, from);
+subacts(to, both) -> subacts(none, from);
+subacts(from, both) -> subacts(none, to);
+subacts(both, to) -> subacts(from, none);
+subacts(both, from) -> subacts(to, none);
+subacts(S, S) -> [].
 

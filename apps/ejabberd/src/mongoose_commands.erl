@@ -422,6 +422,8 @@ check_type({_Name, binary}, Value) when is_binary(Value) ->
     true;
 check_type({_Name, integer}, Value) when is_integer(Value) ->
     true;
+check_type({_Name, Spec}, Value) when is_list(Spec) and is_list(Value) ->
+    check_type(Spec, Value);
 check_type(Spec, Value) when is_tuple(Spec) and not is_tuple(Value) ->
     th("~p is not a tuple", [Value]);
 check_type(Spec, Value) when is_tuple(Spec) ->

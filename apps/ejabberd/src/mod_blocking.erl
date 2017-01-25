@@ -13,6 +13,8 @@
 -export([start/2,
          process_iq_get/5,
          process_iq_set/4,
+         process_blocking_set/4,
+         complete_iq_set/4,
          stop/1
         ]).
 
@@ -40,8 +42,8 @@ stop(Host) ->
         ?MODULE, process_iq_set, 50),
     ok.
 
-process_iq_get(_, _From = #jid{luser = LUser, lserver = LServer}, _, #iq{xmlns = ?NS_BLOCKING}, _) ->
-    Res = case ?BACKEND:get_privacy_list(LUser, LServer, <<"blocking">>) of
+process_iq_get(_, #jid{luser = LUser, lserver = LServer}, _, #iq{xmlns = ?NS_BLOCKING}, _) ->
+    Res = case mod_privacy_backend:get_privacy_list(LUser, LServer, <<"blocking">>) of
               {error, not_found} ->
                   {ok, []};
               {ok, L} ->
@@ -64,20 +66,27 @@ process_iq_set(_, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     #xmlel{name = BType} = SubEl,
     Type = binary_to_existing_atom(BType, latin1),
     Usrs = exml_query:paths(SubEl, [{element, <<"item">>}, {attr, <<"jid">>}]),
-    CurrList = case ?BACKEND:get_privacy_list(LUser, LServer, <<"blocking">>) of
-                  {ok, List} ->
-                      List;
-                  {error, not_found} ->
-                      [];
-                  {error, Reason} ->
-                      {error, Reason}
-              end,
     %% process
-    Res = process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs),
+    Res = process_blocking_set(Type, LUser, LServer, Usrs),
     %% respond / notify
     complete_iq_set(blocking_command, LUser, LServer, Res);
 process_iq_set(Val, _, _, _) ->
     Val.
+
+-spec process_blocking_set(Type :: block | unblock, LUser:: binary(), LServer:: binary(),
+    Users :: [binary()]) ->
+    {ok, [binary()], [listitem()], block | unblock | unblock_all}
+    | {error, jlib:xmlel()}.
+process_blocking_set(Type, LUser, LServer, Usrs) ->
+    CurrList = case mod_privacy_backend:get_privacy_list(LUser, LServer, <<"blocking">>) of
+                   {ok, List} ->
+                       List;
+                   {error, not_found} ->
+                       [];
+                   {error, Reason} ->
+                       {error, Reason}
+               end,
+    process_blocking_set(Type, LUser, LServer, CurrList, Usrs).
 
 %% @doc Set IQ must do the following:
 %% * get / create a dedicated privacy list (we call it "blocking")
@@ -87,24 +96,24 @@ process_iq_set(Val, _, _, _) ->
 %% * broadcast (push) message to all the user's resources
 %% * sent 'unavailable' msg to blocked contacts, or 'available' to unblocked
 %%
--spec process_blocking_iq_set(Type :: block | unblock, LUser:: binary(), LServer:: binary(),
+-spec process_blocking_set(Type :: block | unblock, LUser:: binary(), LServer:: binary(),
                               CurrList :: [listitem()], Users :: [binary()]) ->
     {ok, [binary()], [listitem()], block | unblock | unblock_all}
     | {error, jlib:xmlel()}.
 %% fail if current default list could not be retrieved
-process_blocking_iq_set(_, _, _, {error, _}, _) ->
+process_blocking_set(_, _, _, {error, _}, _) ->
     {error, ?ERR_INTERNAL_SERVER_ERROR};
 %% reject block request with empty jid list
-process_blocking_iq_set(block, _, _, _, []) ->
+process_blocking_set(block, _, _, _, []) ->
     {error, ?ERR_BAD_REQUEST};
-process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs) ->
+process_blocking_set(Type, LUser, LServer, CurrList, Usrs) ->
     %% check who is being added / removed
     {NType, Changed, NewList} = blocking_list_modify(Type, Usrs, CurrList),
-    case ?BACKEND:replace_privacy_list(LUser, LServer, <<"blocking">>, NewList) of
+    case mod_privacy_backend:replace_privacy_list(LUser, LServer, <<"blocking">>, NewList) of
         {error, E} ->
             {error, E};
         ok ->
-            case ?BACKEND:set_default_list(LUser, LServer, <<"blocking">>) of
+            case mod_privacy_backend:set_default_list(LUser, LServer, <<"blocking">>) of
                 ok ->
                     {ok, Changed, NewList, NType};
                 {error, not_found} ->
@@ -114,7 +123,8 @@ process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs) ->
             end
     end.
 
--spec complete_iq_set(atom(), term(), term(), term()) -> {error, term()} | {result, list() | {result, list(), term()}}.
+-spec complete_iq_set(atom(), term(), term(), term()) ->
+    {error, term()} | {result, list() | {result, list(), term()}}.
 complete_iq_set(blocking_command, _, _, {error, Reason}) ->
     {error, Reason};
 complete_iq_set(blocking_command, LUser, LServer, {ok, Changed, List, Type}) ->
@@ -131,8 +141,8 @@ complete_iq_set(blocking_command, LUser, LServer, {ok, Changed, List, Type}) ->
 blocking_list_modify(block, Change, Old) ->
     N = make_blocking_list(Change),
     {_, O} = remove_from(Change, Old),
-    %% we treat all items on the "to block" list as changed becase they might have been present on the
-    %% old list with different settings
+    %% we treat all items on the "to block" list as changed becase they might have been present
+    %% on the old list with different settings
     %% and we need to set order numbers, doesn't matter how but it has to be unique
     {block, Change, set_order(N ++ O)};
 blocking_list_modify(unblock, [], Old) ->
@@ -185,7 +195,8 @@ make_blocking_list_entry(J) ->
         JID ->
             #listitem{type = jid,
                       match_all = true,
-                      %% we have to use another action because c2s has to respond differently based on why we deny
+                      %% we have to use another action because c2s has to respond differently
+                      %% based on why we deny
                       action = block,
                       value = jid:to_lower(JID)}
     end.
