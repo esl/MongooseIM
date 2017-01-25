@@ -48,10 +48,10 @@
           peername :: {inet:ip_address(), inet:port_number()}
          }).
 -record(ws_state, {
-          fsm_pid :: pid(),
-          open_tag :: stream | open,
-          parser :: exml_stream:parser(),
-          opts :: proplists:proplist(),
+          fsm_pid :: pid() | undefined,
+          open_tag :: stream | open | undefined,
+          parser :: exml_stream:parser() | undefined,
+          opts :: proplists:proplist() | undefined,
           ping_rate :: integer() | none
          }).
 

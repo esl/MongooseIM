@@ -76,9 +76,9 @@
         uids = []              :: [{binary()} | {binary(), binary()}],
         ufilter = <<"">>       :: binary(),
         sfilter = <<"">>       :: binary(),
-        lfilter                :: {any(), any()},
+        lfilter                :: {any(), any()} | undefined,
         deref_aliases = never  :: never | searching | finding | always,
-        dn_filter              :: binary(),
+        dn_filter              :: binary() | undefined,
         dn_filter_attrs = []   :: [binary()]
        }).
 -type state() :: #state{}.

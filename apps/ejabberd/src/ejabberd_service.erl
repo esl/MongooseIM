@@ -57,7 +57,7 @@
                 socket_monitor,
                 streamid,
                 password     :: binary(),
-                host         :: binary(),
+                host         :: binary() | undefined,
                 is_subdomain :: boolean(),
                 access,
                 check_from
@@ -164,7 +164,8 @@ init([{SockMod, Socket}, Opts]) ->
                                  streamid = new_id(),
                                  password = Password,
                                  access = Access,
-                                 check_from = CheckFrom
+                                 check_from = CheckFrom,
+                                 is_subdomain = false
                                  }}.
 
 %%----------------------------------------------------------------------

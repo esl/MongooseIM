@@ -38,7 +38,7 @@
 
 -record(state, {step :: integer(),
                 nonce,
-                username :: ejabberd:user(),
+                username :: ejabberd:user() | undefined,
                 authzid,
                 auth_module :: ejabberd_auth:authmodule(),
                 host :: ejabberd:server(),

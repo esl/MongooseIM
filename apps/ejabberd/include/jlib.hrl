@@ -350,7 +350,7 @@
                       to_id     :: non_neg_integer() | undefined
                      }).
 
--record(rsm_out, {count :: non_neg_integer(),
+-record(rsm_out, {count :: non_neg_integer() | undefined,
                   index :: non_neg_integer() | undefined,
                   first :: binary() | undefined,
                   last  :: binary() | undefined

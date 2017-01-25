@@ -264,7 +264,7 @@ get_command(Caller, Name) ->
 name(Cmd) ->
     Cmd#mongoose_command.name.
 
--spec category(t()) -> atom().
+-spec category(t()) -> binary().
 category(Cmd) ->
     Cmd#mongoose_command.category.
 

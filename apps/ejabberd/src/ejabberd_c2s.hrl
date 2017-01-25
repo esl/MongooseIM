@@ -28,11 +28,11 @@
                 tls_enabled = false   :: boolean(),
                 tls_options = [],
                 authenticated = false :: authenticated_state(),
-                jid                  :: ejabberd:jid(),
+                jid                  :: ejabberd:jid() | undefined,
                 user = <<>>          :: ejabberd:user(),
                 server = <<>>     :: ejabberd:server(),
                 resource = <<>>      :: ejabberd:resource(),
-                sid                  :: ejabberd_sm:sid(),
+                sid                  :: ejabberd_sm:sid() | undefined,
                 %% We have _subscription to_ these users' presence status;
                 %% i.e. they send us presence updates.
                 %% This comes from the roster.
@@ -51,13 +51,13 @@
                 pres_i = gb_sets:new() :: jid_set() | debug_presences(),
                 pending_invitations = [],
                 pres_last, pres_pri,
-                pres_timestamp :: calendar:datetime(),
+                pres_timestamp :: calendar:datetime() | undefined,
                 %% Are we invisible?
                 pres_invis = false :: boolean(),
                 privacy_list = #userlist{} :: mod_privacy:userlist(),
                 conn = unknown,
                 auth_module     :: ejabberd_auth:authmodule(),
-                ip              :: inet:ip_address(),
+                ip              :: inet:ip_address() | undefined,
                 aux_fields = [] :: [{aux_key(), aux_value()}],
                 lang            :: ejabberd:lang(),
                 stream_mgmt = false,
