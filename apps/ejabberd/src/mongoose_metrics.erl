@@ -90,7 +90,7 @@ update(Host, Name, Change) when is_list(Name) ->
 update(Host, Name, Change) ->
     update(Host, [Name], Change).
 
--spec ensure_metric(ejabberd:lserver() | global, list(), term()) -> ok | {error, term()}.
+-spec ensure_metric(ejabberd:lserver() | global, atom() | list(), term()) -> ok | {error, term()}.
 ensure_metric(Host, Metric, Type) when is_tuple(Type) ->
     ensure_metric(Host, Metric, Type, element(1, Type));
 ensure_metric(Host, Metric, Type) ->

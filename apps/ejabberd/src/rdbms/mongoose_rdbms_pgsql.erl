@@ -29,7 +29,7 @@ escape_format(_Host) ->
     hex.
 
 -spec connect(Args :: any()) ->
-    {ok, Connection :: epgsql:connection()} | {error, Reason :: any()}.
+                     {ok, Connection :: epgsql:connection()} | {error, Reason :: any()}.
 connect(Settings) ->
     [Server, Port, DB, Username, Password] = db_opts(Settings),
     case pgsql_connection:start_link([{host, Server}, {port, Port}, {database, DB},
@@ -63,11 +63,9 @@ db_opts({pgsql, Server, DB, User, Pass}) ->
 db_opts({pgsql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
     [Server, Port, DB, User, Pass].
 
--spec pgsql_to_odbc
-    (pgsql_connection:result_tuple() | {error, any()}) ->
-        {error, any()} | {selected, [tuple()]} | {updated, undefined | non_neg_integer()};
-    ([pgsql_connection:result_tuple() | {error, any()}]) ->
-        [{error, any()} | {selected, [tuple()]} | {updated, undefined | non_neg_integer()}].
+-spec pgsql_to_odbc(pgsql_connection:result_tuple() | {error, any()}) ->
+                           {error, any()} | {selected, [tuple()]} |
+                           {updated, undefined | non_neg_integer()}.
 pgsql_to_odbc(Items) when is_list(Items) ->
     lists:reverse([pgsql_to_odbc(Item) || Item <- Items]);
 pgsql_to_odbc({error, Reason}) ->
