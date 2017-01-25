@@ -74,6 +74,7 @@
 -define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
 -define(NS_PUBSUB_SUB_AUTH,<<"http://jabber.org/protocol/pubsub#subscribe_authorization">>).
 -define(NS_PUBSUB_GET_PENDING, <<"http://jabber.org/protocol/pubsub#get-pending">>).
+-define(NS_PUBSUB_PUB_OPTIONS, <<"http://jabber.org/protocol/pubsub#publish-options">>).
 -define(NS_COMMANDS,    <<"http://jabber.org/protocol/commands">>).
 -define(NS_BYTESTREAMS, <<"http://jabber.org/protocol/bytestreams">>).
 -define(NS_ADMIN,       <<"http://jabber.org/protocol/admin">>).
