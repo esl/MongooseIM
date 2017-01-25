@@ -55,7 +55,6 @@ start(normal, _Args) ->
     gen_mod:start(),
     ejabberd_config:start(),
     ejabberd_check:config(),
-    maybe_start_alarms(),
     connect_nodes(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
     ejabberd_rdbms:start(),
@@ -140,16 +139,6 @@ stop_modules() ->
                   lists:foreach(StopModuleFun, Modules)
           end
       end, ?MYHOSTS).
-
--spec maybe_start_alarms() -> 'ok'.
-maybe_start_alarms() ->
-    case ejabberd_config:get_local_option(alarms) of
-        undefined ->
-            ok;
-        Env when is_list(Env) ->
-            [application:set_env(alarms, K, V) || {K, V} <- Env],
-            alarms:start()
-    end.
 
 -spec connect_nodes() -> 'ok'.
 connect_nodes() ->

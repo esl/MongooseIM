@@ -73,6 +73,8 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     remove_handler(Config),
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
     Config.
 
 init_per_group(requests_http, Config) ->

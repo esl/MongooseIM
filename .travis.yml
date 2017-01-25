@@ -11,8 +11,10 @@ addons:
         - ldap-utils
 before_install:
         - tools/travis-generate-pass.sh
+        - tools/configure $REL_CONFIG
 install:
-        - tools/travis-build.sh
+        - ./rebar3 compile
+        - make dev
         - tools/travis-build-tests.sh
 before_script:
         - tools/travis-setup-db.sh
@@ -28,7 +30,7 @@ after_failure:
         - tail -100 dev/mongooseim_node2/log/ejabberd.log
 
 after_success:
-        - make cover_report
+        - ./rebar3 coveralls send
         - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "18.3" ]; then tools/travis-build-and-push-docker.sh; fi
 
 after_script:
@@ -71,10 +73,7 @@ notifications:
 
 cache:
         directories:
-                - dialyzer
-
-before_cache:
-        - rm -f dialyzer/apps.*
+                - $HOME/.cache/rebar3
 
 deploy:
   provider: releases

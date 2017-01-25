@@ -4,6 +4,7 @@
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
+-define(ROOT_DIR, "../../").
 
 %% DEBUG: compile time settings
 -define(PRINT_ERRORS, false).
@@ -183,16 +184,15 @@ backend(Node) ->
 
 enable_preset_on_node(Node, PresetVars, HostVars) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
-    Cfg = filename:join([Cwd, "..", "..", "rel", "files", "ejabberd.cfg"]),
-    Vars = filename:join([Cwd, "..", "..", "rel", "reltool_vars", HostVars]),
+    Cfg = filename:join(["..", "..", "rel", "files", "ejabberd.cfg"]),
+    Vars = filename:join(["..", "..", "rel", HostVars]),
     CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
-    {ok, Template} = call(Node, file, read_file, [Cfg]),
-    {ok, Default} = call(Node, file, consult, [Vars]),
+    {ok, Template} = file:read_file(Cfg),
+    {ok, Default} = file:consult(Vars),
     NewVars = lists:foldl(fun ({Var, Val}, Acc) ->
                               lists:keystore(Var, 1, Acc, {Var, Val})
                           end, Default, PresetVars),
-    LTemplate = binary_to_list(Template),
-    NewCfgFile = mustache:render(LTemplate, dict:from_list(NewVars)),
+    NewCfgFile = bbmustache:render(Template, NewVars, [{key_type, atom}]),
     ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
     call(Node, application, stop, [ejabberd]),
     call(Node, application, start, [ejabberd]),
@@ -202,14 +202,14 @@ call(Node, M, F, A) ->
     case rpc:call(Node, M, F, A) of
         {badrpc, Reason} ->
             error_logger:error_msg("RPC call ~p:~p/~p to node ~p failed because ~p",
-                                   [M, F, length(A), Node, Reason]), 
+                                   [M, F, length(A), Node, Reason]),
             {badrpc, Reason};
         Result ->
             Result
     end.
 
 get_apps() ->
-    case file:list_dir("../../apps/") of
+    case file:list_dir(?ROOT_DIR ++ "/apps/") of
         {ok, Filenames} -> lists:map(fun list_to_atom/1, Filenames);
         {error, _Reason} -> error("ejabberd parent project not found (expected apps in ../../apps)")
     end.
@@ -240,7 +240,8 @@ analyze(Test, CoverOpts) ->
     io:format("Coverage analyzing~n"),
     Nodes = get_ejabberd_nodes(Test),
     multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout()),
-    Files = filelib:wildcard("/tmp/*.coverdata"),
+    Files = filelib:wildcard(?ROOT_DIR ++ "/_build/**/cover/*.coverdata"),
+    io:format("Files: ~p", [Files]),
     [cover:import(File) || File <- Files],
     cover:export("/tmp/mongoose_combined.coverdata"),
     case os:getenv("TRAVIS_JOB_ID") of

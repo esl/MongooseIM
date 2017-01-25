@@ -38,7 +38,15 @@ start(BasicAuth, Config) ->
     Config.
 
 stop() ->
-    gen_server:call(mim_ct_rest_server, stop).
+    Pid = whereis(mim_ct_rest_server),
+    Ref = erlang:monitor(process, Pid),
+    gen_server:call(Pid, stop),
+    receive
+        {'DOWN', Ref, process, Pid, _} ->
+            ok
+    after timer:seconds(5) ->
+            error(timeout)
+    end.
 
 listen() ->
     gen_server:call(mim_ct_rest_server, listen).

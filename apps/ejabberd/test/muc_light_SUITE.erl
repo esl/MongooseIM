@@ -37,7 +37,6 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(Config) ->
-    exit(whereis(ejabberd_sup), kill),
     Config.
 
 init_per_group(rsm_disco, Config) ->
@@ -72,6 +71,9 @@ end_per_testcase(codec_calls, Config) ->
     mod_muc_light:stop(?DOMAIN),
     mnesia:stop(),
     mongoose_subhosts:stop(),
+    mnesia:delete_schema([node()]),
+    application:stop(exometer),
+    application:stop(exometer_core),
     Config;
 end_per_testcase(_, Config) ->
     Config.

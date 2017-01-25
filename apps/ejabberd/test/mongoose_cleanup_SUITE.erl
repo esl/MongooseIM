@@ -31,9 +31,9 @@ all() ->
     ].
 
 init_per_suite(Config) ->
-    catch application:ensure_all_started(stringprep),
-    mnesia:create_schema([node()]),
-    mnesia:start(),
+    {ok, _} = application:ensure_all_started(stringprep),
+    ok = mnesia:create_schema([node()]),
+    ok = mnesia:start(),
     Config.
 
 end_per_suite(Config) ->
@@ -84,7 +84,8 @@ auth_anonymous(_Config) ->
     false = ejabberd_auth_anonymous:anonymous_user_exist(U, S).
 
 last(_Config) ->
-    mod_last:start(?HOST, [{iqdisc, no_queue}]),
+    mod_last:start(?HOST, [{backend, mnesia},
+                           {iqdisc, no_queue}]),
     {U, S, R, _JID, SID} = get_fake_session(),
     not_found = mod_last:get_last_info(U, S),
     Status1 = <<"status1">>,

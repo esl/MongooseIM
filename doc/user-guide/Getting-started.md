@@ -23,17 +23,22 @@ To build and install MongooseIM from source code, do the following:
 
 1. Clone the Git repository:  `git clone https://github.com/esl/MongooseIM.git`
 2. Go to your MongooseIM directory.
-3. Run the following commands: `make` and then `make rel`.
+3. Run the following command: `make rel`.
+
+For more advanced release generation and installation please see [Release/Installation configuration](release_config.md)
 
 
 #### Install from DMG
 
-Go to the [donwloads](https://www.erlang-solutions.com/downloads/) page of Erlang Solution website, and download the version of MongooseIM you want. Once the DMG is downloaded, double click on it, it will open the content. Double click on the .pkg file, it will fire an installation wizard. Just follow the instructions.
+Go to the [donwloads](https://www.erlang-solutions.com/downloads/) page of Erlang Solution website, and download the version of MongooseIM you want.
+Once the DMG is downloaded, double click on it, it will open the content.
+Double click on the .pkg file, it will fire an installation wizard.
+Just follow the instructions.
 
 
 #### Running MongooseIM
 
-* From your MongooseIM directory, go to the release directory:  `cd rel/mongooseim`
+* From your MongooseIM directory, go to the release directory:  `cd _build/prod/rel/mongooseim`
 * To start the MongooseIM server, run the following command:  `bin/mongooseim start`
 * To verify that MongooseIM is running, enter the following:  `bin/mongooseim ping`<br \>If the response is `pong`, then MongooseIM is running.
 * To connect to the MongooseIM console after starting the server:  `bin/mongooseim debug`
@@ -69,7 +74,10 @@ Registered users wishing to add an existing account to Adium should enter the Mo
 
 #### Domains
 
-To use your system’s domain name instead of localhost, edit the following MongooseIM configuration file: `$REPO/rel/mongooseim/etc/ejabberd.cfg` (where `$REPO` is the repository root). Find the line that contains the following: `{hosts ["localhost"] }.` Replace localhost with your domain name, for example: `{hosts, ["example.org"] }.` Save the configuration file and restart the MongooseIM server. A user’s Jabber ID will then use the domain instead of localhost, for example: `user1@example.org`
+To use your system’s domain name instead of localhost, edit the following MongooseIM configuration file: `$REPO/_build/prod/rel/mongooseim/etc/ejabberd.cfg` (where `$REPO` is the repository root).
+Find the line that contains the following: `{hosts ["localhost"] }.` Replace localhost with your domain name, for example: `{hosts, ["example.org"] }`.
+Save the configuration file and restart the MongooseIM server.
+A user’s Jabber ID will then use the domain instead of localhost, for example: `user1@example.org`
 
 You can also configure multiple domains for one server:
 `{hosts, ["example1.org", "example2.org"] }.`

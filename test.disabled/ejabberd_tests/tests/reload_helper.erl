@@ -75,8 +75,8 @@ update_config_variables(CfgVarsToChange, CfgVars) ->
 
 node_cfg(N, current, C)  -> flat([node_cwd(N, C), "etc", "ejabberd.cfg"]);
 node_cfg(N, backup, C)   -> flat([node_cwd(N, C), "etc", "ejabberd.cfg.bak"]);
-node_cfg(N, template, C) -> flat([node_cwd(N, C), "..", "..", "rel", "files", "ejabberd.cfg"]);
-node_cfg(N, vars, C)     -> flat([node_cwd(N, C), "..", "..", "rel", "vars.config"]).
+node_cfg(N, template, C) -> flat([node_cwd(N, C), "..", "..", "..", "..", "rel", "files", "ejabberd.cfg"]);
+node_cfg(N, vars, C)     -> flat([node_cwd(N, C), "..", "..", "..", "..", "rel", "vars.config"]).
 
 node_ctl(N, C) -> flat([node_cwd(N, C), "bin", "mongooseimctl"]).
 

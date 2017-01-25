@@ -17,7 +17,7 @@
 all() -> [{group, mnesia}, {group, redis}].
 
 init_per_suite(C) ->
-    application:start(stringprep),
+    ok = stringprep:start(),
     application:ensure_all_started(exometer),
     F = fun() ->
         ejabberd_sm_backend_sup:start_link(),
@@ -59,7 +59,8 @@ tests() ->
     ].
 
 init_per_group(mnesia, Config) ->
-    application:start(mnesia),
+    ok = mnesia:create_schema([node()]),
+    ok = mnesia:start(),
     set_meck({mnesia, []}),
     ejabberd_sm:start_link(),
     unload_meck(),
@@ -76,6 +77,10 @@ init_redis_group(true, Config) ->
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
 
+end_per_group(mnesia, Config) ->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
+    Config;
 end_per_group(_, Config) ->
     Config.
 
