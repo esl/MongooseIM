@@ -76,7 +76,7 @@
 -record(state, {db_ref,
                 db_type :: atom(),
                 start_interval :: integer(),
-                host :: odbc_server(),
+                host :: ejabberd:server(),
                 parent_pid :: pid(),
                 dedicated :: boolean(),
                 max_pending_requests_len :: integer(),
@@ -752,7 +752,7 @@ log(Level, Format, Args) ->
             ?ERROR_MSG(Format, Args)
     end.
 
--spec db_opts(Host :: atom()) -> [odbc | mysql | pgsql | [char() | tuple()], ...].
+-spec db_opts(Host :: ejabberd:server()) -> [odbc | mysql | pgsql | [char() | tuple()], ...].
 db_opts(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
         %% Default pgsql port
