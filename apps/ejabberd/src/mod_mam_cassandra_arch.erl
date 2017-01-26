@@ -61,10 +61,10 @@
 -record(mam_message, {
           id :: non_neg_integer(),
           user_jid :: binary(),
-          remote_jid :: binary(),
+          remote_jid :: binary() | undefined,
           from_jid :: binary(),
           with_jid = <<>> :: binary(),
-          message :: binary()
+          message :: binary() | undefined
          }).
 
 %% ----------------------------------------------------------------------

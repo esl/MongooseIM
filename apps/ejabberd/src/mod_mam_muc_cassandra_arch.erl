@@ -57,7 +57,7 @@
           room_jid :: binary(),
           nick_name :: binary(),
           with_nick :: binary(),
-          message :: binary()
+          message :: binary() | undefined
          }).
 
 -callback encode(binary()) -> binary().
@@ -172,14 +172,13 @@ archive_message2(_Result, _Host, MessID,
                  _SrcJID = #jid{lresource = BNick}, _Dir, Packet) ->
     BLocJID = bare_jid(LocJID),
     BPacket = packet_to_stored_binary(Packet),
-    Message = #mam_muc_message{
+    Messages = [#mam_muc_message{
                  id        = MessID,
                  room_jid  = BLocJID,
                  nick_name = BNick,
-                 message   = BPacket
-                },
-    WithNicks = [<<>>, BNick],
-    Messages = [Message#mam_muc_message{with_nick = BWithNick} || BWithNick <- WithNicks],
+                 message   = BPacket,
+                 with_nick = BWithNick
+                } || BWithNick <- [<<>>, BNick]],
     PoolName = pool_name(LocJID),
     write_messages(PoolName, Messages).
 
