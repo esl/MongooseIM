@@ -191,17 +191,18 @@ make_invitation(From, Password, Reason) ->
 
 
 -spec form_field({binary(), binary(), binary()}
+               | {binary(), binary()}
                | {binary(), binary(), binary(), binary()}) -> xmlel().
 form_field({Var, Type, Value, Label}) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Var}, {<<"type">>, Type}, {<<"label">>, Label}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = Value}]}]};
+    Field = form_field({Var, Type, Value}),
+    Field#xmlel{attrs = [{<<"label">>, Label} | Field#xmlel.attrs]};
 form_field({Var, Type, Value}) ->
+    Field = form_field({Var, Value}),
+    Field#xmlel{attrs = [{<<"type">>, Type} | Field#xmlel.attrs]};
+form_field({Var, Value}) ->
     #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Var}, {<<"type">>, Type}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = Value}]}]}.
+           attrs = [{<<"var">>, Var}],
+           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
 
 -spec make_voice_approval_form(From :: ejabberd:simple_jid() | ejabberd:jid(),
