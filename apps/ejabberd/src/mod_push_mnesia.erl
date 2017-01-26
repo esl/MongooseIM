@@ -36,6 +36,9 @@ enable(User, PubSub, Node, Forms) ->
 
 
 -spec disable(User :: ejabberd:jid(), PubSub :: ejabberd:jid(), Node :: binary()) -> ok.
+
+disable(User, undefined, undefined) ->
+    delete(key(User));
 disable(User, PubSub, Node) ->
     ok.
 
@@ -43,7 +46,10 @@ disable(User, PubSub, Node) ->
 -spec get_publish_services(User :: ejabberd:jid()) ->
     [{PubSub :: ejabberd:jid(), Node :: binary()}].
 get_publish_services(User) ->
-    read(key(User)).
+    [{PubsubJID, Node, Forms} ||
+        #push_subscription{pubsub_jid = PubsubJID,
+                           pubsub_node = Node,
+                           forms = Forms} <- read(key(User))].
 
 
 read(Key) ->
@@ -52,6 +58,15 @@ read(Key) ->
 
 write(Record) ->
     F = fun() -> mnesia:write(Record) end,
+    case mnesia:transaction(F) of
+        {atomic, Result} ->
+            Result;
+        {aborted, Reason} ->
+            {error, {aborted, Reason}}
+    end.
+
+delete(Key) ->
+    F = fun() -> mnesia:delete({push_subscription, Key}) end,
     case mnesia:transaction(F) of
         {atomic, Result} ->
             Result;

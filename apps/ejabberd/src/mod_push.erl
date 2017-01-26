@@ -21,7 +21,7 @@
 -export([start/2, stop/1]).
 
 %% Hooks and IQ handlers
--export([handle_offline_message/3, iq_handler/3]).
+-export([iq_handler/3, handle_publish_response/4, filter_packet/1, remove_user/2]).
 
 -callback init(Host :: ejabberd:server(), Opts :: list()) -> ok.
 -callback enable(User :: ejabberd:jid(), PubSub :: ejabberd:jid(),
@@ -37,6 +37,9 @@
 start(Host, Opts) ->
     ?INFO_MSG("mod_push starting on host ~p", [Host]),
 
+    ok = application:ensure_started(worker_pool),
+    wpool:start_sup_pool(?MODULE, gen_mod:get_opt(wpool, Opts, [])),
+
     gen_mod:start_backend_module(?MODULE, Opts, []),
     mod_push_backend:init(Host, Opts),
 
@@ -47,33 +50,77 @@ start(Host, Opts) ->
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PUSH, ?MODULE,
                                   iq_handler, IQDisc),
 
-    ejabberd_hooks:add(offline_groupchat_message_hook, Host, ?MODULE, handle_offline_message, 1),
-    ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, handle_offline_message, 1),
+    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
+    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 90),
 
     ok.
 
 stop(Host) ->
 
-    ejabberd_hooks:delete(offline_message_hook, Host, ?MODULE, handle_offline_message, 1),
-    ejabberd_hooks:delete(offline_groupchat_message_hook, Host, ?MODULE, handle_offline_message, 1),
+    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 90),
+    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
 
     ok.
 
 
--spec handle_offline_message(From :: ejabberd:jid(),
+-spec publish_message(From :: ejabberd:jid(),
                              To :: ejabberd:jid(),
                              Packet :: jlib:xmlel()) -> ok.
-handle_offline_message(From, To, Packet) ->
-    ?INFO_MSG("handle_offline_message ~p", [{From, To, Packet}]),
+publish_message(From, To, Packet) ->
+    ?WARNING_MSG("handle_offline_message ~p", [{From, To, Packet}]),
 
     BareRecipient = jid:to_bare(To),
     Services = mod_push_backend:get_publish_services(BareRecipient),
     lists:foreach(
-        fun(PubsubJID, Node, Form) ->
-            Stanza = push_notification_stanza(From, BareRecipient, Packet, PubsubJID, Node, Form),
-            ejabberd_router:route(To, PubsubJID, Stanza)
+        fun({PubsubJID, Node, Form}) ->
+            Stanza = push_notification_iq(From, BareRecipient, Packet, PubsubJID, Node, Form),
+            ResponseHandler =
+                fun(Response) ->
+                    cast(handle_publish_response, [BareRecipient, PubsubJID, Node, Response])
+                end,
+            cast(ejabberd_local, route_iq, [To, PubsubJID, Stanza, ResponseHandler])
         end, Services),
 
+    ok.
+
+remove_user(LUser, LServer) ->
+    mod_push_backend:disable(jid:make_noprep(LUser, LServer, undefined), undefined, undefined),
+    ok.
+
+-type fpacket() :: {From :: ejabberd:jid(),
+                    To :: ejabberd:jid(),
+                    Packet :: jlib:xmlel()}.
+-spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
+filter_packet(drop) ->
+    drop;
+filter_packet({From, To, Packet}) ->
+    ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
+           [From, To, Packet]),
+    PacketType = exml_query:attr(Packet, <<"type">>),
+    case lists:member(PacketType, [<<"chat">>, <<"groupchat">>]) of
+        true ->
+            case catch mod_push_plugin:should_publish(From, To, Packet) of
+                true ->
+                    publish_message(From, To, Packet);
+                false ->
+                    skip
+            end;
+        false ->
+            skip
+    end,
+
+    {From, To, Packet}.
+
+
+
+handle_publish_response(_BareRecipient, _PubsubJID, _Node, timeout) ->
+    ok;
+handle_publish_response(_BareRecipient, _PubsubJID, _Node, #iq{type = result}) ->
+    ok;
+handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error}) ->
+    %% @todo: maybe filter only some errors? e.g. internal server error may be temporary and
+    %%        should not disable notifications
+    mod_push_backend:disable(BareRecipient, PubsubJID, Node),
     ok.
 
 -spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
@@ -146,7 +193,7 @@ parse_form(Form) ->
     end.
 
 
-push_notification_stanza(From, To, Packet, PubsubJID, Node, FormFields) ->
+push_notification_iq(From, To, Packet, PubsubJID, Node, FormFields) ->
     ContentFields = [
         {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
         {<<"message-count">>, <<"1">>},
@@ -154,7 +201,7 @@ push_notification_stanza(From, To, Packet, PubsubJID, Node, FormFields) ->
         {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
     ],
 
-    AlmostStanza = jlib:iq_to_xml(#iq{type = set, sub_el = [
+    #iq{type = set, sub_el = [
         #xmlel{name = <<"pubsub">>, attrs = [{<<"xmlns">>, ?NS_PUBSUB}], children = [
             #xmlel{name = <<"publish">>, attrs = [{<<"node">>, Node}], children = [
                 #xmlel{name = <<"item">>, children = [
@@ -166,9 +213,7 @@ push_notification_stanza(From, To, Packet, PubsubJID, Node, FormFields) ->
                 make_form([{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ FormFields)
             ]}
         ]}
-    ]}),
-
-    jlib:replace_from_to(To, PubsubJID, AlmostStanza).
+    ]}.
 
 
 make_form(Fields) ->
@@ -179,3 +224,8 @@ make_form_field(Name, Value) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Name}],
            children = [#xmlcdata{content = Value}]}.
+
+cast(F, A) ->
+    cast(?MODULE, F, A).
+cast(M, F, A) ->
+    wpool_worker:cast(?MODULE, M, F, A).

@@ -17,6 +17,7 @@
         {backend, mnesia}
     ]).
 
+-record(route, {from, to, packet}).
 
 -define(assertReceivedMatch(Expect), ?assertReceivedMatch(Expect, 0)).
 
@@ -49,7 +50,8 @@
 
 all() ->
     [
-        {group, toggling}
+%%        {group, toggling},
+        {group, pm_msg_notifications}
     ].
 
 groups() ->
@@ -64,6 +66,18 @@ groups() ->
             disable_should_fail_with_invalid_attributes,
             disable_all,
             disable_node
+        ]},
+        {pm_msg_notifications, [], [
+            pm_no_msg_notifications_if_not_enabled,
+            pm_no_msg_notifications_if_user_online,
+            pm_msg_notify_if_user_offline,
+            pm_msg_notify_if_user_offline_with_publish_options
+        ]},
+        {muclight_msg_notifications, [], [
+            muclight_no_msg_notifications_if_not_enabled,
+            muclight_no_msg_notifications_if_user_online,
+            muclight_msg_notify_if_user_offline,
+            muclight_msg_notify_if_user_offline_with_publish_options
         ]}
     ].
 
@@ -281,6 +295,127 @@ disable_node(Config) ->
             ok
         end).
 
+pm_no_msg_notifications_if_not_enabled(Config) ->
+    escalus_fresh:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+            Published =
+                receive
+                    #route{} -> true
+                after timer:seconds(5) ->
+                    false
+                end,
+            ?assert(not Published),
+            ok
+        end).
+
+pm_no_msg_notifications_if_user_online(Config) ->
+    escalus_fresh:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            escalus:send(Bob, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>)),
+            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+            Published =
+                receive
+                    #route{} -> true
+                after timer:seconds(5) ->
+                    false
+                end,
+            ?assert(not Published),
+            ok
+        end).
+
+pm_msg_notify_if_user_offline(Config) ->
+    escalus_fresh:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            AliceJID = escalus_client:full_jid(Alice),
+            escalus:send(Bob, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>, [])),
+            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+            Published =
+                receive
+                    #route{} = R ->
+                        R
+                after timer:seconds(5) ->
+                    timeout
+                end,
+            ?assertMatch(#route{}, Published),
+            #route{to = PubsubJID, packet = Packet} = Published,
+            ?assertMatch(<<"pubsub@localhost">>, rpc(jid, to_binary, [PubsubJID])),
+            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
+                                             {element, <<"publish">>},
+                                             {element, <<"item">>},
+                                             {element, <<"notification">>},
+                                             {element, <<"x">>}]),
+            Fields = parse_form(Form),
+            ?assertMatch(<<"OH, HAI!">>, proplists:get_value(<<"last-message-body">>, Fields)),
+            ?assertMatch(AliceJID,
+                         proplists:get_value(<<"last-message-sender">>, Fields)),
+
+            ok
+        end).
+
+pm_msg_notify_if_user_offline_with_publish_options(Config) ->
+    escalus_fresh:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            ?assert(false),
+            ok
+        end).
+
+
+muclight_no_msg_notifications_if_not_enabled(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            ?assert(false),
+            ok
+        end).
+
+muclight_no_msg_notifications_if_user_online(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            ?assert(false),
+            ok
+        end).
+
+muclight_msg_notify_if_user_offline(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            ?assert(false),
+            ok
+        end).
+
+muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            ?assert(false),
+            ok
+        end).
+
+
+
+%%--------------------------------------------------------------------
+%% Test helpers
+%%--------------------------------------------------------------------
+
+%% ----------------------------------
+%% Stanzas
+%% ----------------------------------
+
 disable_stanza(JID, undefined) ->
     disable_stanza([
         {<<"xmlns">>, <<"urn:xmpp:push:0">>},
@@ -322,117 +457,35 @@ make_form_field(Name, Value) ->
            attrs = [{<<"var">>, Name}],
            children = [#xmlcdata{content = Value}]}.
 
-%%disconnected_user_becomes_unavailable(Config) ->
-%%    escalus:story(
-%%        Config, [{bob, 1}, {alice, 1}],
-%%        fun(_Bob, _Alice) ->
-%%            %% Presences
-%%            ?assertReceivedMatch(#publish{}),
-%%            ?assertReceivedMatch(#publish{})
-%%        end),
-%%
-%%    BobJID = nick_to_jid(bob, Config),
-%%    AliceJID = nick_to_jid(alice, Config),
-%%    ?assertReceivedMatch(#publish{
-%%        message = #{<<"user_id">> := BobJID, <<"present">> := false}
-%%    }, timer:seconds(5)),
-%%    ?assertReceivedMatch(#publish{
-%%        message = #{<<"user_id">> := AliceJID, <<"present">> := false}
-%%    }, timer:seconds(5)).
-%%
-%%%%--------------------------------------------------------------------
-%%%% GROUP message_publish
-%%%%--------------------------------------------------------------------
-%%
-%%pm_messages(Config) ->
-%%    escalus:story(
-%%        Config, [{bob, 1}, {alice, 1}],
-%%        fun(Bob, Alice) ->
-%%            Topic = make_topic_arn(Config, pm_messages_topic),
-%%            BobJID = nick_to_jid(bob, Config),
-%%            AliceJID = nick_to_jid(alice, Config),
-%%
-%%            %% Presences
-%%            ?assertReceivedMatch(#publish{}),
-%%            ?assertReceivedMatch(#publish{}),
-%%
-%%            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-%%            ?assertReceivedMatch(#publish{
-%%                topic_arn = Topic,
-%%                message = #{<<"from_user_id">> := AliceJID,
-%%                            <<"to_user_id">> := BobJID,
-%%                            <<"message">> := <<"OH, HAI!">>}
-%%            }, timer:seconds(5)),
-%%
-%%            escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi there!">>)),
-%%            escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"How are you?">>)),
-%%            ?assertReceivedMatch(#publish{
-%%                topic_arn = Topic,
-%%                message = #{<<"from_user_id">> := BobJID,
-%%                            <<"to_user_id">> := AliceJID,
-%%                            <<"message">> := <<"Hi there!">>}
-%%            }, timer:seconds(5)),
-%%            ?assertReceivedMatch(#publish{
-%%                topic_arn = Topic,
-%%                message = #{<<"from_user_id">> := BobJID,
-%%                            <<"to_user_id">> := AliceJID,
-%%                            <<"message">> := <<"How are you?">>}
-%%            }, timer:seconds(5)),
-%%
-%%            ok
-%%        end).
-%%
-%%muc_messages(Config) ->
-%%    escalus:story(
-%%        Config, [{bob, 1}, {alice, 1}],
-%%        fun(Bob, Alice) ->
-%%            Topic = make_topic_arn(Config, muc_messages_topic),
-%%            Room = ?config(room, Config),
-%%            RoomAddr = room_address(Room),
-%%            BobJID = nick_to_jid(bob, Config),
-%%
-%%            %% Presences
-%%            ?assertReceivedMatch(#publish{}),
-%%            ?assertReceivedMatch(#publish{}),
-%%
-%%            escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
-%%            escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
-%%
-%%            escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, <<"Hi there!">>)),
-%%
-%%            %% 2x presence, topic and message
-%%            escalus:wait_for_stanzas(Bob, 4),
-%%            escalus:wait_for_stanzas(Alice, 4),
-%%
-%%            ?assertReceivedMatch(#publish{
-%%                topic_arn = Topic,
-%%                message = #{<<"from_user_id">> := BobJID,
-%%                            <<"to_user_id">> := RoomAddr,
-%%                            <<"message">> := <<"Hi there!">>}
-%%            }, timer:seconds(5)),
-%%
-%%            ok
-%%        end).
 
 
-%%--------------------------------------------------------------------
-%% Test helpers
-%%--------------------------------------------------------------------
+%% ----------------------------------
+%% Other helpers
+%% ----------------------------------
+
+parse_form(#xmlel{name = <<"x">>} = Form) ->
+    parse_form(exml_query:subelements(Form, <<"field">>));
+parse_form(Fields) when is_list(Fields) ->
+    lists:map(
+        fun(Field) ->
+            {exml_query:attr(Field, <<"var">>), exml_query:cdata(Field)}
+        end, Fields).
 
 %% @doc Forwards all erlcloud_sns:publish calls to local PID as messages
 start_publish_listener(Config) ->
     TestCasePid = self(),
-%%    rpc(meck, new, [erlcloud_sns, [no_link, passthrough]]),
-%%    rpc(meck, expect,
-%%        [erlcloud_sns, publish,
-%%         fun(topic, RecipientArn, Message, Subject, Attributes, AWSConfig) ->
-%%             TestCasePid ! #publish{topic_arn = RecipientArn,
-%%                                    message = jiffy:decode(Message, [return_maps]),
-%%                                    subject = Subject,
-%%                                    attributes = Attributes,
-%%                                    config = AWSConfig},
-%%             uuid:uuid_to_string(uuid:get_v4())
-%%         end]),
+    rpc(meck, new, [ejabberd_router, [no_link, passthrough]]),
+    rpc(meck, expect,
+        [ejabberd_router, route,
+         fun(From, To, Packet) ->
+             case exml_query:subelement(Packet, <<"pubsub">>) of
+                 undefined ->
+                     meck:passthrough([From, To, Packet]);
+                 _ ->
+                     TestCasePid ! #route{from = From, to = To, packet = Packet},
+                     ok
+             end
+         end]),
     Config.
 
 -spec rpc(M :: atom(), F :: atom(), A :: [term()]) -> term().

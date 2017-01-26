@@ -56,7 +56,8 @@
          get_session/3,
          get_session_ip/3,
          get_user_present_resources/2,
-         get_raw_sessions/2
+         get_raw_sessions/2,
+         get_user_present_pids/2
         ]).
 
 %% Hook handlers
