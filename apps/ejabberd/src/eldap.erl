@@ -141,7 +141,7 @@
 -record(eldap,
         {version = ?LDAP_VERSION :: non_neg_integer(),
          hosts = []              :: [ejabberd:server()],
-         host                    :: ejabberd:server(),
+         host                    :: ejabberd:server() | undefined,
          port = 389              :: inet:port_number(),
          sockmod = gen_tcp       :: ssl | gen_tcp,
          tls = none              :: none | tls,
@@ -158,7 +158,19 @@
 
 -type eldap() :: #eldap{}.
 -type eldap_config() :: #eldap_config{}.
--type eldap_search() :: #eldap_search{}.
+-type eldap_deref_aliases() :: neverDerefAliases |
+                               derefInSearching |
+                               derefFindingBaseObj |
+                               derefAlways.
+
+-type eldap_search() :: #eldap_search{scope :: scope(),
+                                      base :: binary(),
+                                      filter :: eldap:filter(),
+                                      limit :: non_neg_integer(),
+                                      attributes :: [binary()],
+                                      types_only :: boolean(),
+                                      deref_aliases :: eldap_deref_aliases(),
+                                      timeout :: non_neg_integer()}.
 -type eldap_entry() :: #eldap_entry{}.
 
 -export_type([filter/0,
