@@ -25,13 +25,14 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, mod_http_upload_s3}].
+    [{group, mod_http_upload_s3}, {group, unset_size}].
 
 groups() ->
-    [{mod_http_upload_s3, [], [
+    [{unset_size, [], [does_not_advertise_max_size_if_unset]},
+     {mod_http_upload_s3, [], [
                                http_upload_item_discovery,
                                http_upload_feature_discovery,
-                            %    advertises_max_file_size,
+                               advertises_max_file_size,
                                request_slot,
                                rejects_set_iq,
                                get_url_ends_with_filename,
@@ -55,7 +56,11 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(mod_http_upload_s3, Config) ->
+init_per_group(unset_size, Config) ->
+    dynamic_modules:start(<<"localhost">>, mod_http_upload,
+                          [{max_file_size, undefined} | ?S3_OPTS]),
+    escalus:create_users(Config, escalus:get_users([bob]));
+init_per_group(_, Config) ->
     dynamic_modules:start(<<"localhost">>, mod_http_upload, ?S3_OPTS),
     escalus:create_users(Config, escalus:get_users([bob])).
 
@@ -83,30 +88,39 @@ http_upload_item_discovery(Config) ->
               escalus:assert(has_item, [upload_service(Bob)], Result)
       end).
 
-  http_upload_feature_discovery(Config) ->
-      escalus:story(
-        Config, [{bob, 1}],
-        fun(Bob) ->
-                ServJID = escalus_client:server(Bob),
-                Result = escalus:send_and_wait(Bob, escalus_stanza:disco_info(ServJID)),
-                escalus:assert(fun has_no_feature/2, [?NS_HTTP_UPLOAD], Result),
-                SubServJID = upload_service(Bob),
-                SubResult = escalus:send_and_wait(Bob, escalus_stanza:disco_info(SubServJID)),
-                escalus:assert(has_feature, [?NS_HTTP_UPLOAD], SubResult)
-        end).
-
-advertises_max_file_size(Config) ->
+http_upload_feature_discovery(Config) ->
     escalus:story(
       Config, [{bob, 1}],
       fun(Bob) ->
               ServJID = escalus_client:server(Bob),
               Result = escalus:send_and_wait(Bob, escalus_stanza:disco_info(ServJID)),
-              Form = exml_query:path(Result, {element, <<"x">>}),
+              escalus:assert(fun has_no_feature/2, [?NS_HTTP_UPLOAD], Result),
+              SubServJID = upload_service(Bob),
+              SubResult = escalus:send_and_wait(Bob, escalus_stanza:disco_info(SubServJID)),
+              escalus:assert(has_feature, [?NS_HTTP_UPLOAD], SubResult)
+      end).
+
+advertises_max_file_size(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              ServJID = upload_service(Bob),
+              Result = escalus:send_and_wait(Bob, escalus_stanza:disco_info(ServJID)),
+              Form = exml_query:path(Result, [{element, <<"query">>}, {element, <<"x">>}]),
               escalus:assert(has_type, [<<"result">>], Form),
               escalus:assert(has_ns, [?NS_XDATA], Form),
-              escalus:assert(has_field_with_type, [<<"FORM_TYPE">>, <<"hidden">>], Form),
-              escalus:assert(has_field_value, [<<"FORM_TYPE">>, ?NS_HTTP_UPLOAD], Form),
-              escalus:assert(has_field_value, [<<"max-file-size">>, <<"1234">>], Form)
+              escalus:assert(fun has_field/4, [<<"max-file-size">>, undefined, <<"1234">>], Form),
+              escalus:assert(fun has_field/4, [<<"FORM_TYPE">>, <<"hidden">>, ?NS_HTTP_UPLOAD],
+                             Form)
+      end).
+
+does_not_advertise_max_size_if_unset(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              ServJID = upload_service(Bob),
+              Result = escalus:send_and_wait(Bob, escalus_stanza:disco_info(ServJID)),
+              undefined = exml_query:path(Result, {element, <<"x">>})
       end).
 
 rejects_set_iq(Config) ->
@@ -272,3 +286,15 @@ reverse(Binary) ->
 
 upload_service(Client) ->
     <<"upload.", (escalus_client:server(Client))/binary>>.
+
+has_field(Var, Type, Value, Form) ->
+    Fields = Form#xmlel.children,
+    VarFits = fun(I) -> Var =:= undefined orelse exml_query:attr(I, <<"var">>) =:= Var end,
+    TypeFits = fun(I) -> Type =:= undefined orelse exml_query:attr(I, <<"type">>) =:= Type end,
+    ValueFits =
+        fun(I) ->
+                Value =:= undefined orelse
+                    Value =:= exml_query:path(I, [{element, <<"value">>}, cdata])
+        end,
+    lists:any(fun(Item) -> VarFits(Item) andalso TypeFits(Item) andalso ValueFits(Item) end,
+              Fields).
