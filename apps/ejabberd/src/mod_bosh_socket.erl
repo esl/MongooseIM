@@ -54,8 +54,8 @@
 -type cached_response() :: {rid(), erlang:timestamp(), jlib:xmlel()}.
 -type rid() :: pos_integer().
 
--record(state, {from            :: binary(),
-                to              :: binary(),
+-record(state, {from            :: binary() | undefined,
+                to              :: binary() | undefined,
                 c2s_pid         :: pid(),
                 handlers = []   :: [{rid(), reference(), pid()}],
                 %% Elements buffered for sending to the client.
