@@ -14,9 +14,8 @@ MONGOOSE_TGZ=mongooseim.tar.gz
 
 BUILD_PATH=_build/prod/rel/mongooseim
 
-tar -cjh --transform='s,${BUILD_PATH},mongooseim-${TRAVIS_BRANCH},S' -f ${MIM_TAR_FULL_NAME} ${BUILD_PATH}
-tar -txj ${MIM_TAR_FULL_NAME}
-tar czh --transform='s,${BUILD_PATH},mongooseim,S' -f $MONGOOSE_TGZ ${BUILD_PATH}
+tar -cjh --transform="s,${BUILD_PATH},mongooseim-${TRAVIS_BRANCH},S" -f ${MIM_TAR_FULL_NAME} ${BUILD_PATH}
+tar czh --transform="s,${BUILD_PATH},mongooseim,S" -f $MONGOOSE_TGZ ${BUILD_PATH}
 
 export BUILDS=`pwd`
 export MEMBER_TGZ=mongooseim.tar.gz
