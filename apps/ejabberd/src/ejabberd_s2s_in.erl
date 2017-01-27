@@ -63,9 +63,9 @@
                 tls_required = false  :: boolean(),
                 tls_certverify = false :: boolean(),
                 tls_options = []      :: [{_, _}],
-                server                :: ejabberd:server(),
+                server                :: ejabberd:server() | undefined,
                 authenticated = false :: boolean(),
-                auth_domain           :: binary(),
+                auth_domain           :: binary() | undefined,
                 connections = ?DICT:new(),
                 timer                 :: reference()
               }).

@@ -212,7 +212,8 @@ init([{SockMod, Socket}, Opts]) ->
                                          streamid       = new_id(),
                                          access         = Access,
                                          shaper         = Shaper,
-                                         ip             = IP},
+                                         ip             = IP,
+                                         lang           = default_language()},
              ?C2S_OPEN_TIMEOUT}
     end.
 

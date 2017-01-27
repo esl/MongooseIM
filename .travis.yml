@@ -57,11 +57,12 @@ env:
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
         - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.9
-        - PRESET=dialyzer_only
 
 matrix:
     include:
-        - otp_release: 19.0
+        - otp_release: 19.2
+          env: PRESET=dialyzer_only
+        - otp_release: 19.2
           env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
         - otp_release: 17.5
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none

@@ -1,6 +1,5 @@
 #
 # You can add personal rules in your file .git/info/exclude
-deps
 tools/*.tar.gz
 tools/*.pyc
 apps/*/src/#*
@@ -14,19 +13,6 @@ test/ct_report
 *.swp
 *~
 contrib/extract_translations/extract_translations.beam
-doc/*.aux
-doc/*.haux
-doc/*.html
-doc/*.htoc
-doc/*.idx
-doc/*.ilg
-doc/*.ind
-doc/*.log
-doc/*.out
-doc/*.pdf
-doc/*.toc
-doc/contributed_modules.tex
-doc/version.tex
 src/*.beam
 src/*.so
 src/*.so.dSYM
@@ -65,17 +51,13 @@ apps/ejabberd/src/ejabberdctl.example
 apps/ejabberd/src/eldap_filter_yecc.erl
 apps/ejabberd/doc
 apps/*/logs
-apps/stringprep/doc
-rel/mongooseim/
-apps/stringprep/ebin
-apps/stringprep/priv
 apps/ejabberd/include/XmppAddr.hrl
 apps/ejabberd/include/EJABBERD-MIB.hrl
 apps/ejabberd/priv/mibs/EJABBERD-MIB.bin
 apps/ejabberd/ebin/ejabberd.app
 rel/configure.vars.config
 rel/vars.config
-
+compile_commands.json
 # Compilation/test ephemera
 *.d
 Mnesia.mongooseim@*

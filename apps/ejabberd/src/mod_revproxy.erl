@@ -323,11 +323,11 @@ split_path(Path) ->
     lists:reverse(Trailing).
 
 split_upstream(<<"http://", Rest/binary>>) ->
-    split_upstream(Rest, #upstream{protocol = <<"http://">>});
+    split_upstream(Rest, <<"http://">>);
 split_upstream(<<"https://", Rest/binary>>) ->
-    split_upstream(Rest, #upstream{protocol = <<"https://">>}).
+    split_upstream(Rest, <<"https://">>).
 
-split_upstream(URI, Upstream) ->
+split_upstream(URI, Protocol) ->
     {Host, Path, Type} = case binary:split(URI, <<"/">>) of
         [HostSeg] ->
             {HostSeg, <<>>, host};
@@ -336,9 +336,10 @@ split_upstream(URI, Upstream) ->
     end,
     HostSegments = split_host(Host),
     PathSegments = split_path(Path),
-    Upstream#upstream{type = Type,
-                      host = lists:reverse(HostSegments),
-                      path = PathSegments}.
+    #upstream{type = Type,
+              protocol = Protocol,
+              host = lists:reverse(HostSegments),
+              path = PathSegments}.
 
 include_trailing(<<>>, _, Segments) ->
     Segments;

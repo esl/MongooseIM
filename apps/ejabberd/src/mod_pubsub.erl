@@ -1365,8 +1365,8 @@ iq_command(Host, ServerHost, From, IQ, Access, Plugins) ->
     case adhoc:parse_request(IQ) of
         Req when is_record(Req, adhoc_request) ->
             case adhoc_request(Host, ServerHost, From, Req, Access, Plugins) of
-                Resp when is_record(Resp, adhoc_response) ->
-                    {result, [adhoc:produce_response(Req, Resp)]};
+                Resp when is_record(Resp, xmlel) ->
+                    {result, [Resp]};
                 Error ->
                     Error
             end;
@@ -1375,14 +1375,14 @@ iq_command(Host, ServerHost, From, IQ, Access, Plugins) ->
 
 %% @doc <p>Processes an Ad Hoc Command.</p>
 adhoc_request(Host, _ServerHost, Owner,
-              #adhoc_request{node = ?NS_PUBSUB_GET_PENDING,
-                             lang = Lang, action = <<"execute">>,
-                             xdata = false},
+              Request = #adhoc_request{node = ?NS_PUBSUB_GET_PENDING,
+                                       action = <<"execute">>,
+                                       xdata = false},
               _Access, Plugins) ->
-    send_pending_node_form(Host, Owner, Lang, Plugins);
+    send_pending_node_form(Request, Host, Owner, Plugins);
 adhoc_request(Host, _ServerHost, Owner,
-              #adhoc_request{node = ?NS_PUBSUB_GET_PENDING,
-                             action = <<"execute">>, xdata = XData},
+              Request = #adhoc_request{node = ?NS_PUBSUB_GET_PENDING,
+                                       action = <<"execute">>, xdata = XData},
               _Access, _Plugins) ->
     ParseOptions = case XData of
                        #xmlel{name = <<"x">>} = XEl ->
@@ -1402,15 +1402,15 @@ adhoc_request(Host, _ServerHost, Owner,
     case ParseOptions of
         {result, XForm} ->
             case lists:keysearch(node, 1, XForm) of
-                {value, {_, Node}} -> send_pending_auth_events(Host, Node, Owner);
+                {value, {_, Node}} -> send_pending_auth_events(Request, Host, Node, Owner);
                 false -> {error, extended_error(?ERR_BAD_REQUEST, <<"bad-payload">>)}
             end;
         Error -> Error
     end;
 adhoc_request(_Host, _ServerHost, _Owner,
-              #adhoc_request{action = <<"cancel">>}, _Access,
+              #adhoc_request{action = <<"cancel">>} = Request, _Access,
               _Plugins) ->
-    #adhoc_response{status = canceled};
+    adhoc:produce_response(Request, canceled);
 adhoc_request(Host, ServerHost, Owner,
               #adhoc_request{action = <<>>} = R, Access, Plugins) ->
     adhoc_request(Host, ServerHost, Owner,
@@ -1421,7 +1421,7 @@ adhoc_request(_Host, _ServerHost, _Owner, Other, _Access, _Plugins) ->
     {error, ?ERR_ITEM_NOT_FOUND}.
 
 %% @doc <p>Sends the process pending subscriptions XForm for Host to Owner.</p>
-send_pending_node_form(Host, Owner, _Lang, Plugins) ->
+send_pending_node_form(Request, Host, Owner, Plugins) ->
     Filter = fun (Type) ->
                      lists:member(<<"get-pending">>, plugin_features(Host, Type))
              end,
@@ -1441,8 +1441,7 @@ send_pending_node_form(Host, Owner, _Lang, Plugins) ->
                                               attrs = [{<<"type">>, <<"list-single">>},
                                                        {<<"var">>, <<"pubsub#node">>}],
                                               children = lists:usort(XOpts)}]},
-            #adhoc_response{status = executing,
-                            default_action = <<"execute">>, elements = [XForm]}
+            adhoc:produce_response(Request, executing, <<"execute">>, [XForm])
     end.
 
 get_pending_nodes(Host, Owner, Plugins) ->
@@ -1460,7 +1459,7 @@ get_pending_nodes(Host, Owner, Plugins) ->
 
 %% @doc <p>Send a subscription approval form to Owner for all pending
 %% subscriptions on Host and Node.</p>
-send_pending_auth_events(Host, Node, Owner) ->
+send_pending_auth_events(Request, Host, Node, Owner) ->
     ?DEBUG("Sending pending auth events for ~s on ~s:~s",
            [jid:to_binary(Owner), Host, Node]),
     Action = fun (#pubsub_node{id = Nidx, type = Type}) ->
@@ -1482,7 +1481,7 @@ send_pending_auth_events(Host, Node, Owner) ->
                               (_) -> ok
                          end,
                           Subs),
-            #adhoc_response{};
+            adhoc:produce_response(Request, undefined);
         Err ->
             Err
     end.

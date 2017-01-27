@@ -176,10 +176,10 @@ decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_BLOCKING, type = set,
             {error, bad_request}
     end;
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_CREATE, type = set, sub_el = QueryEl, id = ID }) ->
-    ConfigEl = exml_query:path(QueryEl, [{element, <<"configuration">>}], #xmlel{}),
-    OccupantsEl = exml_query:path(QueryEl, [{element, <<"occupants">>}], #xmlel{}),
-    case {catch parse_config(ConfigEl#xmlel.children),
-          catch parse_aff_users(OccupantsEl#xmlel.children)} of
+    ConfigEl = exml_query:path(QueryEl, [{element, <<"configuration">>}]),
+    OccupantsEl = exml_query:path(QueryEl, [{element, <<"occupants">>}]),
+    case {catch parse_config(safe_get_children(ConfigEl)),
+          catch parse_aff_users(safe_get_children(OccupantsEl))} of
         {{ok, RawConfig}, {ok, AffUsers}} ->
             {ok, {set, #create{
                           id = ID,
@@ -500,6 +500,10 @@ make_query_el(XMLNS, Els) ->
 %%====================================================================
 %% Common helpers and internal functions
 %%====================================================================
+
+-spec safe_get_children(exml:element() | term()) -> [exml:element() | exml:cdata()].
+safe_get_children(#xmlel{ children = Ch }) -> Ch;
+safe_get_children(_) -> [].
 
 -spec b2action(ActionBin :: binary()) -> atom().
 b2action(<<"allow">>) -> allow;

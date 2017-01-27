@@ -47,7 +47,7 @@
                 number              :: non_neg_integer(),
                 acc=[]              :: list(),
                 subscribers=[]      :: list(),
-                flush_interval_tref :: reference()
+                flush_interval_tref :: reference() | undefined
               }).
 -type state() :: #state{}.
 
@@ -446,4 +446,3 @@ terminate(_Reason, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-

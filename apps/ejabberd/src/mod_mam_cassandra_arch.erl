@@ -61,10 +61,10 @@
 -record(mam_message, {
           id :: non_neg_integer(),
           user_jid :: binary(),
-          remote_jid :: binary(),
-          from_jid :: binary(),
+          remote_jid :: binary() | undefined,
+          from_jid :: binary() | undefined,
           with_jid = <<>> :: binary(),
-          message :: binary()
+          message :: binary() | undefined
          }).
 
 %% ----------------------------------------------------------------------
@@ -545,7 +545,7 @@ purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
                            user_jid   = BUserJID,
                            remote_jid = BRemFullJID, %% set the field for debugging
                            with_jid   = BWithJID
-                          }           || BWithJID <- BWithJIDs],
+                          }           || BWithJID <- BWithJIDs, is_binary(BWithJID)],
             delete_messages(PoolName, UserJID, Messages),
             ok;
         {error, _} ->

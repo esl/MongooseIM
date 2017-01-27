@@ -54,7 +54,7 @@
                      myname :: ejabberd:server(),
                      realm :: binary(),
                      mech_mod :: sasl_module(),
-                     mech_state :: tuple(),
+                     mech_state :: any(),
                      creds :: mongoose_credentials:t()
                      }).
 -type sasl_state() :: #sasl_state{}.

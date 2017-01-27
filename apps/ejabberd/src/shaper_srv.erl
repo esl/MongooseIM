@@ -113,10 +113,11 @@ reset_shapers(ProcName) ->
 %% ------------------------------------------------------------------
 
 init(Args) ->
-    State = init_dicts(#state{
-        max_delay = proplists:get_value(max_delay, Args, 3000),
-        ttl = proplists:get_value(ttl, Args, 120)
-    }),
+    State = #state{max_delay = proplists:get_value(max_delay, Args, 3000),
+                   ttl = proplists:get_value(ttl, Args, 120),
+                   shapers = dict:new(),
+                   a_times = dict:new()
+                  },
     GCInt = proplists:get_value(gc_interval, Args, 30),
     timer:send_interval(timer:seconds(GCInt), delete_old_shapers),
     {ok, State}.

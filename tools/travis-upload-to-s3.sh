@@ -35,11 +35,11 @@ EOL
 
 now=`date +'%Y-%m-%d_%H.%M.%S'`
 LOG_DIR_ROOT=${CT_REPORTS}/logs/${now}
-for dev_node_path in `find _build -name mongooseim -type d`; do
-	dev_node=$(basename $(dirname $(dirname ${dev_node_path})))
+for dev_node_logs_path in `find _build -name log -type d`; do
+	dev_node=$(basename $(dirname $(dirname $(dirname ${dev_node_logs_path}))))
 	LOG_DIR=${LOG_DIR_ROOT}/${dev_node}/log
 	mkdir -p ${LOG_DIR}
-	cp ${dev_node_path}/log/* ${LOG_DIR}
+	cp ${dev_node_logs_path}/* ${LOG_DIR}
 done
 
 cp *.log ${LOG_DIR_ROOT}
