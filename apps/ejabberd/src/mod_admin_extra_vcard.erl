@@ -178,7 +178,7 @@ get_module_resource(Server) ->
 get_vcard_content(User, Server, Data) ->
     [{_, Module, Function, _Opts}] = ets:lookup(sm_iqtable, {?NS_VCARD, Server}),
     JID = jid:make(User, Server, list_to_binary(get_module_resource(Server))),
-    IQ = #iq{type = get, xmlns = ?NS_VCARD},
+    IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
     %% TODO: This may benefit from better type control
     IQr = Module:Function(JID, JID, IQ),
     case IQr#iq.sub_el of
@@ -208,7 +208,7 @@ set_vcard_content(U, S, D, SomeContent) when is_binary(SomeContent) ->
 set_vcard_content(User, Server, Data, ContentList) ->
     [{_, Module, Function, _Opts}] = ets:lookup(sm_iqtable, {?NS_VCARD, Server}),
     JID = jid:make(User, Server, <<>>),
-    IQ = #iq{type = get, xmlns = ?NS_VCARD},
+    IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
     IQr = Module:Function(JID, JID, IQ),
 
     %% Get old vcard
