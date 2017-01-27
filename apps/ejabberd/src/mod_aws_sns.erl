@@ -48,6 +48,9 @@
 %% Hooks
 -export([user_send_packet/3, user_present/1, user_not_present/4, filter_room_packet/2]).
 
+%% API
+-export([try_publish/5]).
+
 %% Types
 -export_type([user_guid/0, topic_arn/0, topic/0, attributes/0]).
 
@@ -65,6 +68,10 @@ start(Host, Opts) ->
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
 
     application:ensure_all_started(erlcloud),
+    application:ensure_all_started(worker_pool),
+
+    WorkerNum = gen_mod:get_opt(pool_size, Opts, 100),
+    wpool:start_sup_pool(pool_name(Host), [{workers, WorkerNum}]),
 
     %% Check for required options
     RequiredOptions = [access_key_id, secret_access_key, region, account_id, sns_host],
@@ -87,6 +94,8 @@ stop(Host) ->
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
+
+    wpool:stop(pool_name(Host)),
 
     ok.
 
@@ -113,7 +122,7 @@ user_send_packet(From = #jid{lserver = Host}, To, Packet) ->
             TopicARN = make_topic_arn(Host, Topic),
             Attributes = message_attributes(Host, TopicARN, From, To, message_type(Packet), Packet),
 
-            publish(Host, TopicARN, Content, Attributes)
+            async_publish(Host, TopicARN, Content, Attributes)
     end,
 
     ok.
@@ -151,7 +160,7 @@ user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
             Content = #{user_id => UserGUID, present => IsOnline},
             TopicARN = make_topic_arn(Host, Topic),
             Attributes = message_attributes(Host, TopicARN, UserJID, IsOnline),
-            publish(Host, TopicARN, Content, Attributes)
+            async_publish(Host, TopicARN, Content, Attributes)
     end,
 
     ok.
@@ -160,6 +169,37 @@ user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @doc Start publish process notification to AWS SNS service. Content should be valid JSON term
+-spec async_publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
+              attributes()) -> ok.
+async_publish(Host, TopicARN, Content, Attributes) ->
+    Retry = opt(Host, publish_retry_count, 2),
+    wpool:cast(pool_name(Host),
+               {?MODULE, try_publish, [Host, TopicARN, Content, Attributes, Retry]},
+               available_worker).
+
+%% @doc Publish notification to AWS SNS service. Content should be valid JSON term
+-spec try_publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
+              attributes(), TryCount :: integer()) -> MessageId :: string() | dropped | scheduled.
+try_publish(Host, TopicARN, Content, _Attributes, Retry) when Retry < 0 ->
+    ?WARNING_MSG("Dropped SNS notification ~p", [{Host, TopicARN, Content}]),
+    dropped;
+try_publish(Host, TopicARN, Content, Attributes, Retry) ->
+    try publish(Host, TopicARN, Content, Attributes)
+    catch
+        Type:Error ->
+            BackoffTime = calc_backoff_time(Host, Retry),
+            timer:apply_after(BackoffTime, wpool, cast,
+                              [pool_name(Host),
+                               {?MODULE, try_publish,
+                                [Host, TopicARN, Content, Attributes, Retry - 1]},
+                               available_worker]),
+            ?WARNING_MSG("Retrying SNS notification ~p after ~p ms due to ~p~n~p",
+                         [{Host, TopicARN, Content}, BackoffTime,
+                          {Type, Error}, erlang:get_stacktrace()]),
+            scheduled
+    end.
 
 %% @doc Publish notification to AWS SNS service. Content should be valid JSON term
 -spec publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
@@ -240,3 +280,14 @@ message_attributes(Host, TopicARN, UserJID, IsOnline) ->
 message_attributes(Host, TopicARN, From, To, MessageType, Packet) ->
     PluginModule = opt(Host, plugin_module, mod_aws_sns_defaults),
     PluginModule:message_attributes(TopicARN, From, To, MessageType, Packet).
+
+-spec calc_backoff_time(Host :: ejabberd:lserver(), integer()) -> integer().
+calc_backoff_time(Host, Retry) ->
+    MaxRetry = opt(Host, publish_retry_count),
+    BaseTime = opt(Host, publish_retry_time_ms, 50),
+    BackoffMaxTime = math:pow(2, MaxRetry - Retry) * BaseTime,
+    crypto:rand_uniform(BackoffMaxTime - BaseTime, BackoffMaxTime).
+
+-spec pool_name(Host :: ejabberd:lserver()) -> atom().
+pool_name(Host) ->
+    gen_mod:get_module_proc(Host, ?MODULE).

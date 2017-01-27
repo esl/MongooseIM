@@ -21,6 +21,9 @@ Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn
 * **access_key_id** (string, default: unset) - [ID of the access key][aws-keys] to use for authorization.
 * **secret_access_key** (string, default: unset) - [Secret access key][aws-keys] to use for authorization.
 * **account_id** (string, default: unset) - 12 digit number as defined in [AWS Account Identifiers][aws-acct-identifier] to use for creating TopicArn for publishing notifications.
+* **pool_size** (integer, default: 100) - Worker pool size for publishing notifications
+* **publish_retry_count** (integer, default: 2) - Retry count in case of publish error
+* **publish_retry_time_ms** (integer, default: 50) - Base exponential backoff time (in ms) for publish errors
 
 [aws-acct-identifier]: http://docs.aws.amazon.com/general/latest/gr/acct-identifiers.html
 [aws-virtual-host]: https://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html
@@ -40,6 +43,9 @@ Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn
     {plugin_module, mod_aws_sns_defaults},
     {presence_updates_topic, "user_presence_updated"},
     {pm_messages_topic, "user_message_sent"},
-    {muc_messages_topic, "user_messagegroup_sent"}
+    {muc_messages_topic, "user_messagegroup_sent"},
+    {pool_size, 100},
+    {publish_retry_count, 2}, 
+    {publish_retry_time_ms, 50}
    ]}.
 ```
