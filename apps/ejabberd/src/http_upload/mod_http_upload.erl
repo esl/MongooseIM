@@ -76,7 +76,7 @@ iq_handler(_From, _To, IQ = #iq{type = set, sub_el = SubEl}) ->
 iq_handler(_From, _To, IQ = #iq{type = get, sub_el = Request}) ->
     case parse_request(Request) of
         {Filename, Size, ContentType} ->
-            case max_file_size =:= undefined orelse Size =< max_file_size() of
+            case max_file_size() =:= undefined orelse Size =< max_file_size() of
                 true ->
                     UTCDateTime = calendar:universal_time(),
                     Token = generate_token(),
@@ -88,19 +88,8 @@ iq_handler(_From, _To, IQ = #iq{type = get, sub_el = Request}) ->
                     compose_iq_reply(IQ, PutUrl, GetUrl);
 
                 false ->
-                    MaxFileSizeBin = integer_to_binary(max_file_size()),
-                    Error0 = ?ERR_NOT_ACCEPTABLE,
-                    Error = Error0#xmlel{
-                              children =
-                                  [
-                                   #xmlel{name = <<"file-too-large">>,
-                                          attrs = [{<<"xmlns">>, ?NS_HTTP_UPLOAD}],
-                                          children =
-                                              [#xmlel{name = <<"max-file-size">>,
-                                                      children = [exml:escape_cdata(MaxFileSizeBin)]}]}
-                                   | Error0#xmlel.children
-                                  ]},
-                    IQ#iq{type = error, sub_el = [Error]}
+                    MaxFileSize = max_file_size(),
+                    IQ#iq{type = error, sub_el = [file_too_large_error(MaxFileSize)]}
             end;
 
         bad_request ->
@@ -191,6 +180,22 @@ module_opts() ->
 -spec generate_token() -> binary().
 generate_token() ->
     base16:encode(crypto:strong_rand_bytes(token_bytes())).
+
+
+-spec file_too_large_error(MaxFileSize :: non_neg_integer()) -> jlib:exml().
+file_too_large_error(MaxFileSize) ->
+    MaxFileSizeBin = integer_to_binary(MaxFileSize),
+    Error0 = ?ERR_NOT_ACCEPTABLE,
+    Error0#xmlel{
+      children =
+          [
+           #xmlel{name = <<"file-too-large">>,
+                  attrs = [{<<"xmlns">>, ?NS_HTTP_UPLOAD}],
+                  children =
+                      [#xmlel{name = <<"max-file-size">>,
+                              children = [exml:escape_cdata(MaxFileSizeBin)]}]}
+           | Error0#xmlel.children
+          ]}.
 
 
 -spec parse_request(Request :: exml:element()) ->

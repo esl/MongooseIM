@@ -33,6 +33,7 @@ groups() ->
                                http_upload_feature_discovery,
                             %    advertises_max_file_size,
                                request_slot,
+                               rejects_set_iq,
                                get_url_ends_with_filename,
                                urls_contain_s3_hostname,
                                rejects_empty_filename,
@@ -108,6 +109,17 @@ advertises_max_file_size(Config) ->
               escalus:assert(has_field_value, [<<"max-file-size">>, <<"1234">>], Form)
       end).
 
+rejects_set_iq(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              ServJID = upload_service(Bob),
+              IQ = escalus_stanza:iq_set(?NS_HTTP_UPLOAD, []),
+              Request = escalus_stanza:to(IQ, ServJID),
+              Result = escalus:send_and_wait(Bob, Request),
+              escalus_assert:is_error(Result, <<"cancel">>, <<"not-allowed">>)
+      end).
+
 request_slot(Config) ->
     escalus:story(
       Config, [{bob, 1}],
@@ -181,7 +193,6 @@ denies_slots_over_max_file_size(Config) ->
               Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 54321, undefined),
               Result = escalus:send_and_wait(Bob, Request),
               escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Result),
-              ct:print("~s", [exml:to_pretty_iolist(Result)]),
               <<"1234">> = exml_query:path(Result, [{element, <<"error">>},
                                                     {element, <<"file-too-large">>},
                                                     {element, <<"max-file-size">>},
