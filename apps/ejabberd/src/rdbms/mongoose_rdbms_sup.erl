@@ -27,7 +27,7 @@
 
 -module(mongoose_rdbms_sup).
 -author('alexey@process-one.net').
--author('konrad.zemek@gmail.com').
+-author('konrad.zemek@erlang-solutions.com').
 
 %% API
 -export([start_link/1,

@@ -25,7 +25,7 @@
 
 -module(backend_module).
 -author('alexey@process-one.net').
--author('konrad.zemek@gmail.com').
+-author('konrad.zemek@erlang-solutions.com').
 
 -export([create/2, create/3]).
 

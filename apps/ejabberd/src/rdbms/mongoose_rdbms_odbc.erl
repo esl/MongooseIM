@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(mongoose_rdbms_odbc).
--author('konrad.zemek@gmail.com').
+-author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
 -export([escape_format/1, connect/1, disconnect/1, query/3, is_error_duplicate/1]).

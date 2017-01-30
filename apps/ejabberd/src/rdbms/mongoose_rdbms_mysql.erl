@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(mongoose_rdbms_mysql).
--author('konrad.zemek@gmail.com').
+-author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
 -include("ejabberd.hrl").

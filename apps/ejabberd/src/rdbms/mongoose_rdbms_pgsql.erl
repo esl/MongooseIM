@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(mongoose_rdbms_pgsql).
--author('konrad.zemek@gmail.com').
+-author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
 -define(PGSQL_PORT, 5432).

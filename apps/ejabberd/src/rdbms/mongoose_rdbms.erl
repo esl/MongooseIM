@@ -27,7 +27,7 @@
 
 -module(mongoose_rdbms).
 -author('alexey@process-one.net').
--author('konrad.zemek@gmail.com').
+-author('konrad.zemek@erlang-solutions.com').
 
 -behaviour(gen_server).
 

@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(mod_http_upload).
--author('konrad.zemek@gmail.com').
+-author('konrad.zemek@erlang-solutions.com').
 -behaviour(gen_mod).
 -xep([{xep, 363}, {version, "0.2.4"}]).
 
