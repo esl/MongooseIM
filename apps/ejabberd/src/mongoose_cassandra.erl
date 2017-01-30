@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mongoose_cassandra).
--author("Rafal Slota").
+-author('rafal.slota@erlang-solutions.com').
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").

@@ -6,15 +6,25 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(NS_XDATA,        <<"jabber:x:data">>).
--define(NS_PUBSUB_PUB_OPTIONS, <<"http://jabber.org/protocol/pubsub#publish-options">>).
+-define(NS_PUSH,                <<"urn:xmpp:push:0">>).
+-define(NS_XDATA,               <<"jabber:x:data">>).
+-define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
+-define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).
+-define(MUCHOST,                <<"muclight.localhost">>).
 
--define(MUC_HOST, <<"muc.localhost">>).
--define(NS_HTTP_UPLOAD, <<"urn:xmpp:http:upload">>).
--define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
+-define(MUC_HOST,               <<"muc.localhost">>).
+-define(NS_HTTP_UPLOAD,         <<"urn:xmpp:http:upload">>).
 -define(PUSH_OPTS,
     [
         {backend, mnesia}
+    ]).
+
+-import(muc_light_SUITE,
+    [
+        stanza_create_room/3,
+        verify_aff_bcast/2,
+        room_bin_jid/1,
+        gc_message_verify_fun/3
     ]).
 
 -record(route, {from, to, packet}).
@@ -50,12 +60,18 @@
 
 all() ->
     [
-%%        {group, toggling},
-        {group, pm_msg_notifications}
+        {group, disco},
+        {group, toggling},
+        {group, pm_msg_notifications},
+        {group, muclight_msg_notifications}
     ].
 
 groups() ->
     [
+        {disco, [], [
+            push_notifications_listed_disco_when_available,
+            push_notifications_not_listed_disco_when_not_available
+        ]},
         {toggling, [], [
             enable_should_fail_with_missing_attributes,
             enable_should_fail_with_invalid_attributes,
@@ -71,13 +87,15 @@ groups() ->
             pm_no_msg_notifications_if_not_enabled,
             pm_no_msg_notifications_if_user_online,
             pm_msg_notify_if_user_offline,
-            pm_msg_notify_if_user_offline_with_publish_options
+            pm_msg_notify_if_user_offline_with_publish_options,
+            pm_msg_notify_stops_after_disabling
         ]},
         {muclight_msg_notifications, [], [
             muclight_no_msg_notifications_if_not_enabled,
             muclight_no_msg_notifications_if_user_online,
             muclight_msg_notify_if_user_offline,
-            muclight_msg_notify_if_user_offline_with_publish_options
+            muclight_msg_notify_if_user_offline_with_publish_options,
+            muclight_msg_notify_stops_after_disabling
         ]}
     ].
 
@@ -92,46 +110,102 @@ init_per_suite(Config) ->
     %% For mocking with unnamed functions
     {_Module, Binary, Filename} = code:get_object_code(?MODULE),
     rpc(code, load_binary, [?MODULE, Filename, Binary]),
-
-    muc_helper:load_muc(muc_host()),
     escalus:init_per_suite(Config).
 end_per_suite(Config) ->
-    muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
 
+init_per_group(disco, Config) ->
+    Config;
+init_per_group(muclight_msg_notifications, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:start(Host, mod_push, ?PUSH_OPTS),
+    dynamic_modules:start(<<"localhost">>, mod_muc_light,
+                          [{host, binary_to_list(?MUCHOST)},
+                           {backend, mnesia},
+                           {rooms_in_rosters, true}]),
+    Config;
 init_per_group(_, Config0) ->
     Config = [{push_config, ?PUSH_OPTS} | Config0],
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Host, mod_push, ?PUSH_OPTS),
     escalus:create_users(Config, escalus:get_users([bob, alice])).
 
+end_per_group(disco, Config) ->
+    Config;
+end_per_group(muclight_msg_notifications, _Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:stop(Host, mod_push),
+    dynamic_modules:stop(Host, mod_muc_light);
 end_per_group(_, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Host, mod_push),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
-init_per_testcase(muc_messages = C, Config) ->
-    start_publish_listener(Config),
-    [User | _] = ?config(escalus_users, Config),
-    Config2 = muc_helper:start_room(Config, User, <<"muc_publish">>, <<"user_nick">>,
-                                    [{persistent, true},
-                                     {anonymous, false}]),
-    escalus:init_per_testcase(C, Config2);
+init_per_testcase(push_notifications_listed_disco_when_available, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:start(Host, mod_push, ?PUSH_OPTS),
+    Config;
+init_per_testcase(push_notifications_not_listed_disco_when_not_available, Config) ->
+    Config;
 init_per_testcase(CaseName, Config) ->
     start_publish_listener(Config),
+    rpc(mod_muc_light_db_backend, force_clear, []),
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(muc_messages, Config) ->
-    muc_helper:destroy_room(Config),
-    escalus:delete_users(Config),
-    end_per_testcase(any, Config);
+
+end_per_testcase(push_notifications_listed_disco_when_available, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:stop(Host, mod_push),
+    Config;
+end_per_testcase(push_notifications_not_listed_disco_when_not_available, Config) ->
+    Config;
 end_per_testcase(CaseName, Config) ->
     rpc(meck, unload, []),
     escalus:end_per_testcase(CaseName, Config).
 
+%%--------------------------------------------------------------------
+%% GROUP disco
+%%--------------------------------------------------------------------
+
+push_notifications_listed_disco_when_available(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Server = escalus_client:server(Alice),
+            escalus:send(Alice, escalus_stanza:disco_info(Server)),
+            Stanza = escalus:wait_for_stanza(Alice),
+            try
+                escalus:assert(is_iq_result, Stanza),
+                escalus:assert(has_feature, [?NS_PUSH], Stanza),
+                ok
+            catch Class:Reason ->
+                Stacktrace = erlang:get_stacktrace(),
+                ct:pal("Stanza ~p.", [Stanza]),
+                erlang:raise(Class, Reason, Stacktrace)
+            end
+        end).
+
+push_notifications_not_listed_disco_when_not_available(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Server = escalus_client:server(Alice),
+            escalus:send(Alice, escalus_stanza:disco_info(Server)),
+            Stanza = escalus:wait_for_stanza(Alice),
+            try
+                escalus:assert(is_iq_result, Stanza),
+                Pred = fun(Feature, Stanza) -> not escalus_pred:has_feature(Feature, Stanza) end,
+                escalus:assert(Pred, [?NS_PUSH], Stanza),
+                ok
+            catch Class:Reason ->
+                Stacktrace = erlang:get_stacktrace(),
+                ct:pal("Stanza ~p.", [Stanza]),
+                erlang:raise(Class, Reason, Stacktrace)
+            end
+        end).
 
 %%--------------------------------------------------------------------
-%% GROUP presence_status_publish
+%% GROUP toggling
 %%--------------------------------------------------------------------
 
 enable_should_fail_with_missing_attributes(Config) ->
@@ -295,6 +369,10 @@ disable_node(Config) ->
             ok
         end).
 
+%%--------------------------------------------------------------------
+%% GROUP pm_msg_notifications
+%%--------------------------------------------------------------------
+
 pm_no_msg_notifications_if_not_enabled(Config) ->
     escalus_fresh:story(
         Config, [{bob, 1}, {alice, 1}],
@@ -302,13 +380,7 @@ pm_no_msg_notifications_if_not_enabled(Config) ->
             escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            Published =
-                receive
-                    #route{} -> true
-                after timer:seconds(5) ->
-                    false
-                end,
-            ?assert(not Published),
+            ?assert(not truly(received_route())),
             ok
         end).
 
@@ -321,13 +393,7 @@ pm_no_msg_notifications_if_user_online(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            Published =
-                receive
-                    #route{} -> true
-                after timer:seconds(5) ->
-                    false
-                end,
-            ?assert(not Published),
+            ?assert(not truly(received_route())),
             ok
         end).
 
@@ -336,19 +402,13 @@ pm_msg_notify_if_user_offline(Config) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             AliceJID = escalus_client:full_jid(Alice),
-            escalus:send(Bob, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>, [])),
+            escalus:send(Bob, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>)),
             escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
             escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            Published =
-                receive
-                    #route{} = R ->
-                        R
-                after timer:seconds(5) ->
-                    timeout
-                end,
+            Published = received_route(),
             ?assertMatch(#route{}, Published),
             #route{to = PubsubJID, packet = Packet} = Published,
             ?assertMatch(<<"pubsub@localhost">>, rpc(jid, to_binary, [PubsubJID])),
@@ -358,6 +418,7 @@ pm_msg_notify_if_user_offline(Config) ->
                                              {element, <<"notification">>},
                                              {element, <<"x">>}]),
             Fields = parse_form(Form),
+            ?assertMatch(?PUSH_FORM_TYPE, proplists:get_value(<<"FORM_TYPE">>, Fields)),
             ?assertMatch(<<"OH, HAI!">>, proplists:get_value(<<"last-message-body">>, Fields)),
             ?assertMatch(AliceJID,
                          proplists:get_value(<<"last-message-sender">>, Fields)),
@@ -369,43 +430,174 @@ pm_msg_notify_if_user_offline_with_publish_options(Config) ->
     escalus_fresh:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            ?assert(false),
+            escalus:send(Bob, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>,
+                                            [{<<"field1">>, <<"value1">>},
+                                             {<<"field2">>, <<"value2">>}])),
+            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+            Published = received_route(),
+            ?assertMatch(#route{}, Published),
+            #route{to = PubsubJID, packet = Packet} = Published,
+            ?assertMatch(<<"pubsub@localhost">>, rpc(jid, to_binary, [PubsubJID])),
+            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
+                                            {element, <<"publish-options">>},
+                                            {element, <<"x">>}]),
+            Fields = parse_form(Form),
+            ?assertMatch(?NS_PUBSUB_PUB_OPTIONS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
+            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, Fields)),
+            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, Fields)),
             ok
         end).
 
+pm_msg_notify_stops_after_disabling(Config) ->
+    escalus_fresh:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            %% Enable
+            escalus:send(Bob, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>, [])),
+            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+
+            %% Disable
+            escalus:send(Bob, disable_stanza(<<"pubsub@localhost">>, <<"NodeId">>)),
+            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+            ?assert(not received_route()),
+
+            ok
+        end).
+
+%%--------------------------------------------------------------------
+%% GROUP muclight_msg_notifications
+%%--------------------------------------------------------------------
 
 muclight_no_msg_notifications_if_not_enabled(Config) ->
-    escalus:story(
-        Config, [{bob, 1}],
-        fun(Bob) ->
-            ?assert(false),
+    escalus_fresh:story(
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(Alice, Bob, Kate) ->
+            Room = <<"bobroom">>,
+            create_room(Room, [Bob, Alice, Kate]),
+            escalus:send(Alice, escalus_stanza:presence(<<"unavailable">>)),
+            escalus:send(Kate, escalus_stanza:presence(<<"unavailable">>)),
+
+            Msg = <<"Heyah!">>,
+            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
+
+            escalus:send(Bob, Stanza),
+
+            ?assert(not truly(received_route())),
+
             ok
         end).
 
 muclight_no_msg_notifications_if_user_online(Config) ->
-    escalus:story(
-        Config, [{bob, 1}],
-        fun(Bob) ->
-            ?assert(false),
+    escalus_fresh:story(
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(Alice, Bob, Kate) ->
+            Room = <<"bobroom">>,
+            create_room(Room, [Bob, Alice, Kate]),
+            escalus:send(Alice, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>)),
+            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:send(Kate, escalus_stanza:presence(<<"unavailable">>)),
+
+            Msg = <<"Heyah!">>,
+            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
+            escalus:send(Bob, Stanza),
+
+            ?assert(not truly(received_route())),
             ok
         end).
 
 muclight_msg_notify_if_user_offline(Config) ->
-    escalus:story(
-        Config, [{bob, 1}],
-        fun(Bob) ->
-            ?assert(false),
+    escalus_fresh:story(
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(Alice, Bob, Kate) ->
+            Room = <<"bobroom">>,
+            BobJID = escalus_client:full_jid(Bob),
+            create_room(Room, [Bob, Alice, Kate]),
+            escalus:send(Alice, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>)),
+            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:send(Alice, escalus_stanza:presence(<<"unavailable">>)),
+
+            Msg = <<"Heyah!">>,
+            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
+            escalus:send(Bob, Stanza),
+
+            Published = received_route(),
+            ?assertMatch(#route{}, Published),
+            #route{to = PubsubJID, packet = Packet} = Published,
+            ?assertMatch(<<"pubsub@localhost">>, rpc(jid, to_binary, [PubsubJID])),
+            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
+                                            {element, <<"publish">>},
+                                            {element, <<"item">>},
+                                            {element, <<"notification">>},
+                                            {element, <<"x">>}]),
+            Fields = parse_form(Form),
+            ?assertMatch(?PUSH_FORM_TYPE, proplists:get_value(<<"FORM_TYPE">>, Fields)),
+            ?assertMatch(Msg, proplists:get_value(<<"last-message-body">>, Fields)),
+            ?assertMatch(BobJID,
+                         proplists:get_value(<<"last-message-sender">>, Fields)),
             ok
         end).
 
 muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
-    escalus:story(
-        Config, [{bob, 1}],
-        fun(Bob) ->
-            ?assert(false),
+    escalus_fresh:story(
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(Alice, Bob, Kate) ->
+            Room = <<"bobroom">>,
+            create_room(Room, [Bob, Alice, Kate]),
+            escalus:send(Alice, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>,
+                                            [{<<"field1">>, <<"value1">>},
+                                             {<<"field2">>, <<"value2">>}])),
+            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:send(Alice, escalus_stanza:presence(<<"unavailable">>)),
+
+            Msg = <<"Heyah!">>,
+            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
+            escalus:send(Bob, Stanza),
+
+            Published = received_route(),
+            ?assertMatch(#route{}, Published),
+            #route{to = PubsubJID, packet = Packet} = Published,
+            ?assertMatch(<<"pubsub@localhost">>, rpc(jid, to_binary, [PubsubJID])),
+            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
+                                            {element, <<"publish-options">>},
+                                            {element, <<"x">>}]),
+            Fields = parse_form(Form),
+            ?assertMatch(?NS_PUBSUB_PUB_OPTIONS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
+            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, Fields)),
+            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, Fields)),
             ok
         end).
 
+muclight_msg_notify_stops_after_disabling(Config) ->
+    escalus_fresh:story(
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(Alice, Bob, Kate) ->
+            Room = <<"bobroom">>,
+            create_room(Room, [Bob, Alice, Kate]),
+
+            %% Enable
+            escalus:send(Alice, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>)),
+            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:send(Alice, escalus_stanza:presence(<<"unavailable">>)),
+
+            %% Disable
+            escalus:send(Alice, disable_stanza(<<"pubsub@localhost">>, <<"NodeId">>)),
+            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+
+            Msg = <<"Heyah!">>,
+            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
+            escalus:send(Bob, Stanza),
+
+            ?assert(not truly(received_route())),
+            ok
+        end).
 
 
 %%--------------------------------------------------------------------
@@ -494,45 +686,25 @@ rpc(M, F, A) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, 10000, Cookie).
 
-make_topic_arn(Config, TopicVar) ->
-    SNSConfig = proplists:get_value(sns_config, Config),
-    string:join(["arn", "aws", "sns",
-                 proplists:get_value(region, SNSConfig),
-                 proplists:get_value(account_id, SNSConfig),
-                 proplists:get_value(TopicVar, SNSConfig)], ":").
+create_room(Room, [Owner | Members]) ->
+    InitOccupants = [{Member, member} || Member <- Members],
+    FinalOccupants = [{Owner, owner} | InitOccupants],
+    InitConfig = [{<<"roomname">>, <<"Bob's room">>}],
+    escalus:send(Owner, stanza_create_room(Room, InitConfig, InitOccupants)),
+    verify_aff_bcast(FinalOccupants, FinalOccupants),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Owner)).
 
-%% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
-nick_to_jid(UserName, Config) when is_atom(UserName) ->
-    UserSpec = escalus_users:get_userspec(Config, UserName),
-    escalus_utils:jid_to_lower(escalus_users:get_jid(Config, UserSpec)).
+received_route() ->
+    receive
+        #route{} = R ->
+            R
+    after timer:seconds(5) ->
+        false
+    end.
 
-stanza_muc_enter_room(Room, Nick) ->
-    stanza_to_room(
-        escalus_stanza:presence(<<"available">>,
-                                [#xmlel{name = <<"x">>,
-                                        attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}
-                                ]),
-        Room, Nick).
-
-stanza_default_muc_room(Room, Nick) ->
-    Form = escalus_stanza:x_data_form(<<"submit">>, []),
-    Query = escalus_stanza:query_el(?NS_MUC_OWNER, [Form]),
-    IQSet = escalus_stanza:iq(<<"set">>, [Query]),
-    stanza_to_room(IQSet, Room, Nick).
-
-stanza_to_room(Stanza, Room) ->
-    escalus_stanza:to(Stanza, room_address(Room)).
-
-stanza_to_room(Stanza, Room, Nick) ->
-    escalus_stanza:to(Stanza, room_address(Room, Nick)).
-
-room_address(Room) ->
-    <<Room/binary, "@", ?MUC_HOST/binary>>.
-
-room_address(Room, Nick) ->
-    <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
-
-nick(User) -> escalus_utils:get_username(User).
-
-muc_host() ->
-    ?MUC_HOST.
+truly(false) ->
+    false;
+truly(undefined) ->
+    false;
+truly(_) ->
+    true.
