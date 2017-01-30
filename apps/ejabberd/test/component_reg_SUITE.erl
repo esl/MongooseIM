@@ -43,12 +43,13 @@ registering_with_local(_C) ->
     Dom = <<"aaa.bbb.com">>,
     ThisNode = node(),
     AnotherNode = 'another@nohost',
-    Handler = mongoose_packet_handler:new(?MODULE),
+    Handler = mongoose_packet_handler:new(?MODULE), %% This handler is only for testing!
     ejabberd_router:register_component(Dom, Handler),
     %% we can find it globally
     ?assertMatch([#external_component{node = ThisNode}], ejabberd_router:lookup_component(Dom)),
     %% and for this node
-    ?assertMatch([#external_component{node = ThisNode}], ejabberd_router:lookup_component(Dom, ThisNode)),
+    ?assertMatch([#external_component{node = ThisNode}],
+                 ejabberd_router:lookup_component(Dom, ThisNode)),
     %% but not for another node
     ?assertMatch([], ejabberd_router:lookup_component(Dom, AnotherNode)),
     %% once we unregister it is not available
@@ -58,17 +59,22 @@ registering_with_local(_C) ->
     ?assertMatch([], ejabberd_router:lookup_component(Dom, AnotherNode)),
     %% we can register from both nodes
     ejabberd_router:register_component(Dom, ThisNode, Handler),
-    ejabberd_router:register_component(Dom, AnotherNode, Handler), %% passing node here is only for testing
+    %% passing node here is only for testing
+    ejabberd_router:register_component(Dom, AnotherNode, Handler),
     %% both are reachable locally
-    ?assertMatch([#external_component{node = ThisNode}], ejabberd_router:lookup_component(Dom, ThisNode)),
-    ?assertMatch([#external_component{node = AnotherNode}], ejabberd_router:lookup_component(Dom, AnotherNode)),
+    ?assertMatch([#external_component{node = ThisNode}],
+                 ejabberd_router:lookup_component(Dom, ThisNode)),
+    ?assertMatch([#external_component{node = AnotherNode}],
+                 ejabberd_router:lookup_component(Dom, AnotherNode)),
     %% if we try global lookup we get two handlers
     ?assertMatch([_, _], ejabberd_router:lookup_component(Dom)),
     %% we unregister one and the result is:
     ejabberd_router:unregister_component(Dom),
     ?assertMatch([], ejabberd_router:lookup_component(Dom, ThisNode)),
-    ?assertMatch([#external_component{node = AnotherNode}], ejabberd_router:lookup_component(Dom)),
-    ?assertMatch([#external_component{node = AnotherNode}], ejabberd_router:lookup_component(Dom, AnotherNode)),
+    ?assertMatch([#external_component{node = AnotherNode}],
+                 ejabberd_router:lookup_component(Dom)),
+    ?assertMatch([#external_component{node = AnotherNode}],
+                 ejabberd_router:lookup_component(Dom, AnotherNode)),
     ok.
 
 process_packet(_From, _To, _Packet, _Extra) ->
