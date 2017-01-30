@@ -115,7 +115,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(disco, Config) ->
-    Config;
+    escalus:create_users(Config, escalus:get_users([alice]));
 init_per_group(muclight_msg_notifications, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Host, mod_push, ?PUSH_OPTS),
@@ -131,7 +131,7 @@ init_per_group(_, Config0) ->
     escalus:create_users(Config, escalus:get_users([bob, alice])).
 
 end_per_group(disco, Config) ->
-    Config;
+    escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_group(muclight_msg_notifications, _Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Host, mod_push),
@@ -141,24 +141,24 @@ end_per_group(_, Config) ->
     dynamic_modules:stop(Host, mod_push),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
-init_per_testcase(push_notifications_listed_disco_when_available, Config) ->
+init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Host, mod_push, ?PUSH_OPTS),
-    Config;
-init_per_testcase(push_notifications_not_listed_disco_when_not_available, Config) ->
-    Config;
+    escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     start_publish_listener(Config),
     rpc(mod_muc_light_db_backend, force_clear, []),
     escalus:init_per_testcase(CaseName, Config).
 
 
-end_per_testcase(push_notifications_listed_disco_when_available, Config) ->
+end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Host, mod_push),
-    Config;
-end_per_testcase(push_notifications_not_listed_disco_when_not_available, Config) ->
-    Config;
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     rpc(meck, unload, []),
     escalus:end_per_testcase(CaseName, Config).
@@ -401,7 +401,7 @@ pm_msg_notify_if_user_offline(Config) ->
     escalus_fresh:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            AliceJID = escalus_client:full_jid(Alice),
+            AliceJID = bare_jid(Alice),
             escalus:send(Bob, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>)),
             escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
             escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
@@ -518,7 +518,7 @@ muclight_msg_notify_if_user_offline(Config) ->
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, Kate) ->
             Room = <<"bobroom">>,
-            BobJID = escalus_client:full_jid(Bob),
+            BobJID = bare_jid(Bob),
             create_room(Room, [Bob, Alice, Kate]),
             escalus:send(Alice, enable_stanza(<<"pubsub@localhost">>, <<"NodeId">>)),
             escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
@@ -708,3 +708,7 @@ truly(undefined) ->
     false;
 truly(_) ->
     true.
+
+bare_jid(JIDOrClient) ->
+    ShortJID = escalus_client:short_jid(JIDOrClient),
+    list_to_binary(string:to_lower(binary_to_list(ShortJID))).

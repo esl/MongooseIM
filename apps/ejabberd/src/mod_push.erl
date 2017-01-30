@@ -85,6 +85,10 @@ stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 90),
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
 
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PUSH),
+    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PUSH),
+    mod_disco:unregister_feature(Host, ?NS_PUSH),
+
     ok.
 
 %%--------------------------------------------------------------------
@@ -161,7 +165,7 @@ handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error}) ->
 
 -spec publish_message(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> ok.
 publish_message(From, To, Packet) ->
-    ?DEBUG("Maybe handle push notification ~p", [{From, To, Packet}]),
+    ?DEBUG("Handle push notification ~p", [{From, To, Packet}]),
 
     BareRecipient = jid:to_bare(To),
     {ok, Services} = mod_push_backend:get_publish_services(BareRecipient),
@@ -241,7 +245,7 @@ push_notification_iq(From, Packet, Node, Form) ->
         [
          {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
          {<<"message-count">>, <<"1">>},
-         {<<"last-message-sender">>, jid:to_binary(From)},
+         {<<"last-message-sender">>, mod_push_plugin:sender_id(From, Packet)},
          {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
         ],
 
@@ -256,7 +260,7 @@ push_notification_iq(From, Packet, Node, Form) ->
         ] ++ maybe_publish_options(Form)}
     ]}.
 
--spec maybe_publish_options(form()) -> [jlib:xmlel()].
+    -spec maybe_publish_options(form()) -> [jlib:xmlel()].
 maybe_publish_options([]) ->
     [];
 maybe_publish_options(FormFields) ->

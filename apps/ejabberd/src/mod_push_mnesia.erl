@@ -93,10 +93,10 @@ disable(User, PubsubJID, Node) ->
 get_publish_services(User) ->
     case safe_read(key(User)) of
         {ok, Records} ->
-            [{PubsubJID, Node, Forms} ||
+            {ok, [{PubsubJID, Node, Forms} ||
                 #push_subscription{pubsub_jid = PubsubJID,
                                    pubsub_node = Node,
-                                   form = Forms} <- Records];
+                                   form = Forms} <- Records]};
         {error, _} = E ->
             E
     end.
@@ -112,7 +112,9 @@ read(Key) ->
 
 -spec safe_read(key()) -> {ok, [record()]} | {error, Reason :: term()}.
 safe_read(Key) ->
-    try read(Key)
+    try read(Key) of
+        Records ->
+            {ok, Records}
     catch
         _:Reason ->
             {error, Reason}
