@@ -127,10 +127,10 @@ archive_id(ArcID, _Host, _ArcJID) ->
 -spec remove_archive(Host :: ejabberd:server(),
     ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
-    SUserName = ejabberd_odbc:escape(UserName),
-    SServer   = ejabberd_odbc:escape(Server),
+    SUserName = mongoose_rdbms:escape(UserName),
+    SServer   = mongoose_rdbms:escape(Server),
     {updated, _} =
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       Host,
       ["DELETE FROM mam_server_user "
        "WHERE server = '", SServer, "' AND user_name = '", SUserName, "'"]),
@@ -142,45 +142,41 @@ remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) -
 
 -spec query_archive_id(ejabberd:server(), ejabberd:lserver(), ejabberd:user()) -> integer().
 query_archive_id(Host, Server, UserName) ->
-    SServer   = ejabberd_odbc:escape(Server),
-    SUserName = ejabberd_odbc:escape(UserName),
-    DbType = ejabberd_odbc_type:get(),
+    SServer   = mongoose_rdbms:escape(Server),
+    SUserName = mongoose_rdbms:escape(UserName),
+    DbType = mongoose_rdbms_type:get(),
     Result = do_query_archive_id(DbType, Host, SServer, SUserName),
 
     case Result of
-        {selected, [<<"id">>], [{IdBin}]} when is_binary(IdBin) ->
-            binary_to_integer(IdBin);
-        {selected, [<<"id">>], [{IdBin}]}->
-            IdBin;
-        {selected, [<<"id">>], []} ->
+        {selected, [{IdBin}]} ->
+            mongoose_rdbms:result_to_integer(IdBin);
+        {selected, []} ->
             %% The user is not found
             create_user_archive(Host, Server, UserName),
             query_archive_id(Host, Server, UserName)
     end.
-    
+
 -spec create_user_archive(ejabberd:server(), ejabberd:lserver(), ejabberd:user()) -> 'ok'.
 create_user_archive(Host, Server, UserName) ->
-    SServer   = ejabberd_odbc:escape(Server),
-    SUserName = ejabberd_odbc:escape(UserName),
+    SServer   = mongoose_rdbms:escape(Server),
+    SUserName = mongoose_rdbms:escape(UserName),
     Res =
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       Host,
       ["INSERT INTO mam_server_user "
        "(server, user_name) VALUES ('", SServer, "', '", SUserName, "')"]),
     case Res of
         {updated, 1} ->
             ok;
-        %% Ignore the race condition
-        %% Duplicate entry ... for key 'uc_mam_server_user_name'
-        {error, "#23000" ++ _} ->
-            ok
-        %% TODO duplicate entry and postgres?
+        %% Ignore the race condition Duplicate entry ... for key 'uc_mam_server_user_name'
+        {error, Reason} ->
+            true = mongoose_rdbms:is_error_duplicate(Reason)
     end.
 
 do_query_archive_id(mssql, Host, SServer, SUserName) ->
-    odbc_queries_mssql:query_archive_id(Host, SServer, SUserName);
+    rdbms_queries_mssql:query_archive_id(Host, SServer, SUserName);
 do_query_archive_id(_, Host, SServer, SUserName) ->
-    ejabberd_odbc:sql_query(
+    mongoose_rdbms:sql_query(
       Host,
       ["SELECT id "
        "FROM mam_server_user "

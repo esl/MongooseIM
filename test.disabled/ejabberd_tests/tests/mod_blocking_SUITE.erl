@@ -687,4 +687,3 @@ subscribe(Bob, Alice) ->
 check_subscription_stanzas(Stanzas, Type) ->
     IsPresWithType = fun(S) -> escalus_pred:is_presence_with_type(Type, S) end,
     escalus:assert_many([is_roster_set, IsPresWithType], Stanzas).
-

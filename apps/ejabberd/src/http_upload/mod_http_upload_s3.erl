@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(mod_http_upload_s3).
--author('konrad.zemek@gmail.com').
+-author('konrad.zemek@erlang-solutions.com').
 -behaviour(mod_http_upload).
 
 -export([create_slot/6]).

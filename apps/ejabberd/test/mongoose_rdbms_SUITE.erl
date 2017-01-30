@@ -1,4 +1,4 @@
--module(ejabberd_odbc_SUITE).
+-module(mongoose_rdbms_SUITE).
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("ejabberd/include/ejabberd.hrl").
@@ -19,10 +19,13 @@ all() ->
      {group, pgsql}].
 
 init_per_suite(Config) ->
+    application:ensure_all_started(exometer),
     Config.
 
 end_per_suite(_Config) ->
-    meck:unload().
+    meck:unload(),
+    application:stop(exometer),
+    application:stop(exometer_core).
 
 groups() ->
     [{odbc, [], tests()},
@@ -58,7 +61,7 @@ end_per_testcase(_, Config) ->
 
 %% Test cases
 keepalive_interval(Config) ->
-    {ok, Pid} = ejabberd_odbc:start_link(?HOST, 1000, true),
+    {ok, Pid} = gen_server:start_link(mongoose_rdbms, ?HOST, []),
     true = erlang:unlink(Pid),
     timer:sleep(5500),
     ?eq(5, query_calls(Config)),
@@ -66,17 +69,16 @@ keepalive_interval(Config) ->
     ok.
 
 keepalive_exit(Config) ->
-    {ok, Pid} = ejabberd_odbc:start_link(?HOST, 1000, true),
+    {ok, Pid} = gen_server:start_link(mongoose_rdbms, ?HOST, []),
     true = erlang:unlink(Pid),
     Monitor = erlang:monitor(process, Pid),
     timer:sleep(3500),
     ?eq(3, query_calls(Config)),
     meck_error(?config(db_type, Config)),
-    timer:sleep(1500),
     receive
         {'DOWN', Monitor, process, Pid, {keepalive_failed, _}} ->
             ok
-    after 0 ->
+    after 1500 ->
         ct:fail(no_down_message)
     end.
 
@@ -85,9 +87,10 @@ meck_config(Server, KeepaliveInterval) ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_local_option,
                 fun({odbc_keepalive_interval, _Host}) -> KeepaliveInterval;
+                   ({odbc_start_interval, _Host}) -> 30;
                    (max_fsm_queue) -> 1024;
                    ({odbc_server, _}) -> server(Server);
-                   (Arg) -> meck:passthrough([Arg])
+                   (all_metrics_are_global) -> false
                 end).
 
 meck_db(odbc) ->
@@ -95,39 +98,42 @@ meck_db(odbc) ->
     meck:expect(odbc, connect, fun(_, _) -> {ok, self()} end),
     meck:expect(odbc, sql_query,
                 fun(_Ref, _Query, _Timeout) ->
-                        {selected, ["column"], ["row"]}
+                        {selected, ["row"]}
                 end);
 meck_db(mysql) ->
-    meck:new(p1_mysql_conn, [no_link]),
-    meck:expect(p1_mysql_conn, start, fun(_, _, _, _, _, _) -> {ok, self()} end),
-    meck:expect(p1_mysql_conn, squery,
+    meck:new(mysql_conn, [no_link]),
+    meck:expect(mysql_conn, start_link, fun(_, _, _, _, _, _, _, _, _) -> {ok, self()} end),
+    meck:expect(mysql_conn, fetch,
                fun(_Ref, _Query, _Pid, _Options) ->
-                       {data, {p1_mysql_result, [], [], 0, ""}}
+                       {data, {mysql_result, [], [], 0, 0, "", 0, ""}}
                end);
 meck_db(pgsql) ->
-    meck:new(pgsql, [no_link]),
-    meck:expect(pgsql, connect, fun(_) -> {ok, self()} end),
-    meck:expect(pgsql, squery,
-                fun(_Ref, "SET" ++ _, _Timeout) ->
-                        {ok, [<<"SET">>]};
-                   (_Ref, [<<"SELECT", _/binary>>], _Timeout) ->
-                        {ok, [{<<"SELECT">>, [], []}]}
+    meck:new(pgsql_connection, [no_link]),
+    meck:expect(pgsql_connection, start_link, fun(_) -> {ok, self()} end),
+    meck:expect(pgsql_connection, simple_query,
+                fun(<<"SET", _/binary>>, _Opts, _Timeout, _Ref) ->
+                        {set,[]};
+                   ([<<"SELECT", _/binary>>], _Opts, _Timeout, _Ref) ->
+                        {{select,1},[{1}]}
                 end).
 
 meck_error(odbc) ->
+    meck:expect(odbc, connect, fun(_, _) -> {ok, self()} end),
     meck:expect(odbc, sql_query,
                 fun(_Ref, _Query, _Timeout) ->
                         {error, "connection broken"}
                 end);
 meck_error(mysql) ->
-    meck:expect(p1_mysql_conn, squery,
+    meck:expect(mysql_conn, start, fun(_, _, _, _, _, _, _, _, _) -> {ok, self()} end),
+    meck:expect(mysql_conn, fetch,
                 fun(_Ref, _Query, _Pid, _Options) ->
                         {error, "connection broken"}
                 end);
 meck_error(pgsql) ->
-    meck:expect(pgsql, squery,
-                fun(_Ref, _Query, _Timeout) ->
-                        {ok, [{error, "connection broken"}]}
+    meck:expect(pgsql_connection, start_link, fun(_) -> {ok, self()} end),
+    meck:expect(pgsql_connection, simple_query,
+                fun(_Query, _Opts, _Timeout, _Ref) ->
+                        {error, {pgsql_error, [{message, "connection broken"}]}}
                 end).
 
 meck_unload(DbType) ->
@@ -137,9 +143,9 @@ meck_unload(DbType) ->
 do_meck_unload(odbc) ->
     meck:unload(odbc);
 do_meck_unload(mysql) ->
-    meck:unload(p1_mysql_conn);
+    meck:unload(mysql_conn);
 do_meck_unload(pgsql) ->
-    meck:unload(pgsql).
+    meck:unload(pgsql_connection).
 
 query_calls(Config) ->
     DbType = ?config(db_type, Config),
@@ -149,16 +155,16 @@ query_calls(Config) ->
 mf(odbc) ->
     {odbc, sql_query};
 mf(mysql) ->
-    {p1_mysql_conn, squery};
+    {mysql_conn, fetch};
 mf(pgsql) ->
-    {pgsql, squery}.
+    {pgsql_connection, simple_query}.
 
 a(odbc) ->
     ['_', [?KEEPALIVE_QUERY], '_'];
 a(mysql) ->
-    ['_', [?KEEPALIVE_QUERY], '_', '_'];
+    ['_', ?KEEPALIVE_QUERY, '_', '_'];
 a(pgsql) ->
-    ['_', [?KEEPALIVE_QUERY], '_'].
+    [[?KEEPALIVE_QUERY], '_', '_', '_'].
 
 server(odbc) ->
     "fake-connection-string";

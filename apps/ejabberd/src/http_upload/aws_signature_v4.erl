@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(aws_signature_v4).
--author('konrad.zemek@gmail.com').
+-author('konrad.zemek@erlang-solutions.com').
 
 -export([sign/8]).
 -export([datetime_iso8601/1, date_iso8601/1, compose_scope/3, uri_encode/1]).

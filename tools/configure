@@ -38,9 +38,9 @@ app_opts() ->
     %% Opt         Apps                 Desc
     [{"none",      [],                  "include no 3rd party drivers"},
      {"all",       [],                  "include all drivers"},
-     {"mysql",     ["p1_mysql"],        include_driver("mysql")},
+     {"mysql",     ["mysql"],           include_driver("mysql")},
      {"odbc",      ["odbc"],            "include standard ODBC driver shipped with Erlang/OTP"},
-     {"pgsql",     ["p1_pgsql"],        include_driver("pgsql")},
+     {"pgsql",     ["pgsql"],           include_driver("pgsql")},
      {"redis",     ["redo"],            include_driver("redis")},
      {"riak",      ["riakc"],           include_driver("riak")},
      {"cassandra", ["cqerl"],           include_driver("cassandra")}].

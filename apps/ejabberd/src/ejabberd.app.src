@@ -39,7 +39,8 @@
                   fast_tls,
                   usec,
                   uuid,
-                  xmerl
+                  xmerl,
+                  worker_pool
                  ]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.

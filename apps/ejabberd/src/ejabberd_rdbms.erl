@@ -34,9 +34,10 @@
 start() ->
     compile_odbc_type_helper(),
     %% Check if ejabberd has been compiled with ODBC
-    case catch ejabberd_odbc_sup:module_info() of
+    case catch mongoose_rdbms_sup:module_info() of
         {'EXIT', {undef, _}} ->
-            ?INFO_MSG("ejabberd has not been compiled with relational database support. Skipping database startup.", []);
+            ?INFO_MSG("MongooseIM has not been compiled with relational database support. "
+                      "Skipping database startup.", []);
         _ ->
             %% If compiled with ODBC, start ODBC on the needed host
             start_hosts()
@@ -64,14 +65,14 @@ start(Host) ->
 %% @doc Start the ODBC module on the given host
 -spec start_odbc(binary() | string()) -> 'ok'.
 start_odbc(Host) ->
-    Supervisor_name = gen_mod:get_module_proc(Host, ejabberd_odbc_sup),
+    Supervisor_name = gen_mod:get_module_proc(Host, mongoose_rdbms_sup),
     ChildSpec =
         {Supervisor_name,
-         {ejabberd_odbc_sup, start_link, [Host]},
+         {mongoose_rdbms_sup, start_link, [Host]},
          transient,
          infinity,
          supervisor,
-         [ejabberd_odbc_sup]},
+         [mongoose_rdbms_sup]},
     case supervisor:start_child(ejabberd_sup, ChildSpec) of
         {ok, _PID} ->
             ok;
@@ -83,7 +84,7 @@ start_odbc(Host) ->
 
 -spec stop_odbc(binary() | string()) -> 'ok'.
 stop_odbc(Host) ->
-    Proc = gen_mod:get_module_proc(Host, ejabberd_odbc_sup),
+    Proc = gen_mod:get_module_proc(Host, mongoose_rdbms_sup),
     supervisor:terminate_child(ejabberd_sup, Proc).
 
 %% @doc Returns true if we have configured odbc_server for the given host
@@ -101,11 +102,11 @@ compile_odbc_type_helper() ->
     Type = ejabberd_config:get_local_option(Key),
     CodeStr = odbc_type_helper(Type),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "ejabberd_odbc_type.erl", Code).
+    code:load_binary(Mod, "mongoose_rdbms_type.erl", Code).
 
 odbc_type_helper(Type) ->
     lists:flatten(
-        ["-module(ejabberd_odbc_type).
+        ["-module(mongoose_rdbms_type).
          -export([get/0]).
          -spec get() -> atom().
          get() -> ", normalize_type(Type), ".\n"]

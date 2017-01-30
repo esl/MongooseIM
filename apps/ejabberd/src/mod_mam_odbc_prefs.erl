@@ -114,9 +114,9 @@ get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
     SRemLJID     = esc_jid(RemLJID),
     SUserID      = integer_to_list(UserID),
     case query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) of
-        {selected, [<<"behaviour">>], [{Behavour}]} ->
+        {selected, [{Behavour}]} ->
             decode_behaviour(Behavour);
-        {selected, [<<"behaviour">>], []} ->
+        {selected, []} ->
             DefaultBehaviour
     end.
 
@@ -135,7 +135,7 @@ set_prefs(_Result, Host, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 
 
 order_by_in_delete(Host) ->
-    case ejabberd_odbc:db_engine(Host) of
+    case mongoose_rdbms:db_engine(Host) of
         mysql ->
                 " ORDER BY remote_jid";
         _ ->
@@ -148,7 +148,7 @@ set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     JidBehaviourA = [{JID, "A"} || JID <- AlwaysJIDs],
     JidBehaviourN = [{JID, "N"} || JID <- NeverJIDs],
     JidBehaviour = lists:keysort(1, JidBehaviourA ++ JidBehaviourN),
-    ValuesAN = [encode_config_row(SUserID, Behavour, ejabberd_odbc:escape(JID))
+    ValuesAN = [encode_config_row(SUserID, Behavour, mongoose_rdbms:escape(JID))
                 || {JID, Behavour} <- JidBehaviour],
     DefaultValue = encode_first_config_row(SUserID, encode_behaviour(DefaultMode), ""),
     Values = [DefaultValue|ValuesAN],
@@ -166,7 +166,7 @@ run_transaction_or_retry_on_deadlock(F, UserID, Retries) ->
     try
         F()
     %% MySQL specific error
-    catch error:{badmatch, {aborted, {{sql_error, "#40001Deadlock" ++ _}, _}}}
+    catch error:{badmatch, {aborted, {{sql_error, "Deadlock" ++ _}, _}}}
             when Retries > 0 ->
         ?ERROR_MSG("issue=\"Deadlock detected. Restart\", user_id=~p, retries=~p",
                    [UserID, Retries]),
@@ -179,7 +179,7 @@ run_transaction_or_retry_on_deadlock(F, UserID, Retries) ->
             -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
     SUserID = integer_to_list(UserID),
-    {selected, _ColumnNames, Rows} =
+    {selected, Rows} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT remote_jid, behaviour "
@@ -205,7 +205,7 @@ remove_archive(Host, UserID, _ArcJID) ->
         SRemLJID :: binary() | string(), SRemLBareJID :: binary() | string()
         ) -> any().
 query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) ->
-    {LimitSQL, LimitMSSQL} = odbc_queries:get_db_specific_limits(1),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits(1),
 
     Result =
     mod_mam_utils:success_sql_query(
@@ -241,7 +241,7 @@ decode_behaviour(<<"N">>) -> never.
 
 -spec esc_jid(ejabberd:simple_jid() | ejabberd:jid()) -> binary().
 esc_jid(JID) ->
-    ejabberd_odbc:escape(jid:to_binary(JID)).
+    mongoose_rdbms:escape(jid:to_binary(JID)).
 
 
 -spec encode_first_config_row(SUserID :: string(), SBehaviour :: [65|78|82, ...],
@@ -261,7 +261,7 @@ sql_transaction_map(LServer, Queries) ->
     AtomicF = fun() ->
         [mod_mam_utils:success_sql_query(LServer, Query) || Query <- Queries]
     end,
-    ejabberd_odbc:sql_transaction(LServer, AtomicF).
+    mongoose_rdbms:sql_transaction(LServer, AtomicF).
 
 
 -spec decode_prefs_rows([{binary() | ejabberd:jid(), binary()}],
@@ -277,5 +277,3 @@ decode_prefs_rows([{JID, <<"N">>}|Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     decode_prefs_rows(Rows, DefaultMode, AlwaysJIDs, [JID|NeverJIDs]);
 decode_prefs_rows([], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs}.
-
-
