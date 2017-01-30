@@ -36,7 +36,8 @@ start() ->
     %% Check if ejabberd has been compiled with ODBC
     case catch mongoose_rdbms_sup:module_info() of
         {'EXIT', {undef, _}} ->
-            ?INFO_MSG("ejabberd has not been compiled with relational database support. Skipping database startup.", []);
+            ?INFO_MSG("MongooseIM has not been compiled with relational database support. "
+                      "Skipping database startup.", []);
         _ ->
             %% If compiled with ODBC, start ODBC on the needed host
             start_hosts()
