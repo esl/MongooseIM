@@ -6,7 +6,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% @todo: write me!
+%%% Mnesia backend for mod_push.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_push_mnesia).
@@ -25,11 +25,11 @@
 %%--------------------------------------------------------------------
 
 -record(push_subscription, {
-    user_jid    :: key() | undefined,
-    pubsub_jid  :: ejabberd:jid(),
-    pubsub_node :: mod_push:pubsub_node(),
-    form        :: mod_push:form()
-}).
+          user_jid    :: key() | undefined,
+          pubsub_jid  :: ejabberd:jid(),
+          pubsub_node :: mod_push:pubsub_node(),
+          form        :: mod_push:form()
+         }).
 
 -type key()     :: ejabberd:simple_bare_jid().
 -type record()  :: #push_subscription{}.
@@ -49,14 +49,14 @@ init(_Host, _Opts) ->
 
 
 -spec enable(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
-                 Node :: mod_push:pubsub_node(), Form :: mod_push:form()) ->
-    ok | {error, Reason :: term()}.
+             Node :: mod_push:pubsub_node(), Form :: mod_push:form()) ->
+                    ok | {error, Reason :: term()}.
 enable(User, PubSub, Node, Forms) ->
     write(make_record(User, PubSub, Node, Forms)).
 
 
 -spec disable(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
-                  Node :: mod_push:pubsub_node()) -> ok | {error, Reason :: term()}.
+              Node :: mod_push:pubsub_node()) -> ok | {error, Reason :: term()}.
 disable(User, undefined, undefined) ->
     delete(key(User));
 disable(User, undefined, undefined) ->
@@ -64,18 +64,19 @@ disable(User, undefined, undefined) ->
 disable(User, PubsubJID, Node) ->
     Result =
         transaction(
-            fun() ->
-                PubsubFiltered =
-                    [Record ||
-                        #push_subscription{pubsub_jid = RecPubsubJID} = Record <- read(key(User)),
-                     PubsubJID == undefined orelse RecPubsubJID == PubsubJID],
+          fun() ->
+                  PubsubFiltered =
+                      [Record ||
+                          #push_subscription{pubsub_jid = RecPubsubJID} = Record <- read(key(User)),
+                          PubsubJID == undefined orelse RecPubsubJID == PubsubJID],
 
-                NodeFiltered =
-                    [Record || #push_subscription{pubsub_node = RecNode} = Record <- PubsubFiltered,
-                     Node == undefined orelse RecNode == Node],
+                  NodeFiltered =
+                      [Record ||
+                          #push_subscription{pubsub_node = RecNode} = Record <- PubsubFiltered,
+                          Node == undefined orelse RecNode == Node],
 
-                [mnesia:delete_object(Record) || Record <- NodeFiltered]
-            end),
+                  [mnesia:delete_object(Record) || Record <- NodeFiltered]
+          end),
 
     case Result of
         {error, _} = E ->
@@ -86,8 +87,9 @@ disable(User, PubsubJID, Node) ->
 
 
 -spec get_publish_services(User :: ejabberd:jid()) ->
-    {ok, [{PubSub :: ejabberd:jid(), Node :: mod_push:node(), Form :: mod_push:form()}]} |
-    {error, Reason :: term()}.
+                                  {ok, [{PubSub :: ejabberd:jid(), Node :: mod_push:node(),
+                                         Form :: mod_push:form()}]} |
+                                  {error, Reason :: term()}.
 get_publish_services(User) ->
     case safe_read(key(User)) of
         {ok, Records} ->
@@ -139,11 +141,11 @@ transaction(F) ->
                   Node :: mod_push:pubsub_node(), Form :: mod_push:form()) -> record().
 make_record(UserJID, PubsubJID, Node, Form) ->
     #push_subscription{
-        user_jid = key(UserJID),
-        pubsub_jid = PubsubJID,
-        pubsub_node = Node,
-        form = Form
-    }.
+       user_jid = key(UserJID),
+       pubsub_jid = PubsubJID,
+       pubsub_node = Node,
+       form = Form
+      }.
 
 -spec key(ejabberd:jid()) -> key() | no_return().
 key(JID) ->

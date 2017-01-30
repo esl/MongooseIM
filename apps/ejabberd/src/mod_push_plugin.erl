@@ -6,7 +6,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% @todo: write me!
+%%% Default plugin module for mod_push. This module allows for some dynamic customizations.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_push_plugin).
@@ -24,7 +24,7 @@
 
 
 -spec should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) ->
-    boolean().
+                            boolean().
 should_publish(_From, To = #jid{luser = LUser, lserver = LServer}, _Packet) ->
     try ejabberd_users:does_user_exist(LUser, LServer) of
         false ->

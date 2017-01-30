@@ -123,7 +123,7 @@ filter_packet({From, To, Packet}) ->
     {From, To, Packet}.
 
 -spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
-    ejabberd:iq() | ignore.
+                        ejabberd:iq() | ignore.
 iq_handler(_From, _To, IQ = #iq{type = get, sub_el = SubEl}) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
 iq_handler(From, _To, IQ = #iq{type = set, sub_el = Request}) ->
@@ -166,14 +166,14 @@ publish_message(From, To, Packet) ->
     BareRecipient = jid:to_bare(To),
     {ok, Services} = mod_push_backend:get_publish_services(BareRecipient),
     lists:foreach(
-        fun({PubsubJID, Node, Form}) ->
-            Stanza = push_notification_iq(From, Packet, Node, Form),
-            ResponseHandler =
-                fun(Response) ->
-                    cast(handle_publish_response, [BareRecipient, PubsubJID, Node, Response])
-                end,
-            cast(ejabberd_local, route_iq, [To, PubsubJID, Stanza, ResponseHandler])
-        end, Services),
+      fun({PubsubJID, Node, Form}) ->
+              Stanza = push_notification_iq(From, Packet, Node, Form),
+              ResponseHandler =
+                  fun(Response) ->
+                          cast(handle_publish_response, [BareRecipient, PubsubJID, Node, Response])
+                  end,
+              cast(ejabberd_local, route_iq, [To, PubsubJID, Stanza, ResponseHandler])
+      end, Services),
 
     ok.
 
@@ -182,7 +182,7 @@ publish_message(From, To, Packet) ->
 %%--------------------------------------------------------------------
 
 -spec parse_request(Request :: exml:element()) ->
-    bad_request.
+                           bad_request.
 parse_request(#xmlel{name = <<"enable">>} = Request) ->
     JID = jid:from_binary(exml_query:attr(Request, <<"jid">>, <<>>)),
     Node = exml_query:attr(Request, <<"node">>, <<>>), %% Treat unset node as empty - both forbidden
@@ -222,9 +222,9 @@ parse_form(Form) ->
     FieldsXML = exml_query:subelements(Form, <<"field">>),
     Fields = [{exml_query:attr(Field, <<"var">>), exml_query:cdata(Field)} || Field <- FieldsXML],
     {[{_, FormType}], CustomFields} = lists:partition(
-        fun({Name, _}) ->
-            Name == <<"FORM_TYPE">>
-        end, Fields),
+                                        fun({Name, _}) ->
+                                                Name == <<"FORM_TYPE">>
+                                        end, Fields),
     IsFormTypeCorrect = ?NS_PUBSUB_PUB_OPTIONS == FormType,
 
     case IsForm andalso IsSubmit andalso IsFormTypeCorrect of
@@ -237,12 +237,13 @@ parse_form(Form) ->
 -spec push_notification_iq(From :: ejabberd:jid(), Packet :: jlib:xmlel(),
                            Node :: pubsub_node(), Form :: form()) -> iq().
 push_notification_iq(From, Packet, Node, Form) ->
-    ContentFields = [
-        {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
-        {<<"message-count">>, <<"1">>},
-        {<<"last-message-sender">>, jid:to_binary(From)},
-        {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
-    ],
+    ContentFields =
+        [
+         {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
+         {<<"message-count">>, <<"1">>},
+         {<<"last-message-sender">>, jid:to_binary(From)},
+         {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
+        ],
 
     #iq{type = set, sub_el = [
         #xmlel{name = <<"pubsub">>, attrs = [{<<"xmlns">>, ?NS_PUBSUB}], children = [
@@ -259,9 +260,10 @@ push_notification_iq(From, Packet, Node, Form) ->
 maybe_publish_options([]) ->
     [];
 maybe_publish_options(FormFields) ->
-    [#xmlel{name = <<"publish-options">>, children = [
-        make_form([{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ FormFields)
-    ]}].
+    [#xmlel{name = <<"publish-options">>,
+            children = [
+                        make_form([{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ FormFields)
+                       ]}].
 
 -spec make_form(form()) -> jlib:xmlel().
 make_form(Fields) ->
