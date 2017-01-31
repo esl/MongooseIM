@@ -61,6 +61,7 @@
 -define(STDTREE, <<"tree">>).
 -define(STDNODE, <<"flat">>).
 -define(PEPNODE, <<"pep">>).
+-define(PUSHNODE, <<"push">>).
 
 %% exports for hooks
 -export([presence_probe/4, caps_change/4, caps_change/5,
@@ -131,13 +132,15 @@
 %% -type payload() defined here because the -type xmlel() is not accessible
 %% from pubsub.hrl
 -type(payload() :: [] | [xmlel(), ...]).
+-type(publishOptions() :: undefined | xmlel()).
 
 -export_type([
               pubsubNode/0,
               pubsubState/0,
               pubsubItem/0,
               pubsubSubscription/0,
-              pubsubLastItem/0
+              pubsubLastItem/0,
+              publishOptions/0
              ]).
 
 -type(pubsubNode() ::
@@ -310,6 +313,10 @@ init([ServerHost, Opts]) ->
                        ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, ServerHost,
                        ?MODULE, remove_user, 50),
+
+%%    ejabberd_hooks:add(disco_sm_identity, ServerHost,
+%%                       ?MODULE, disco_sm_identity, 75),
+
     case lists:member(?PEPNODE, Plugins) of
         true ->
             ejabberd_hooks:add(caps_add, ServerHost,
@@ -502,15 +509,25 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
           Lang   :: binary())
         -> [xmlel()].
 disco_local_identity(Acc, _From, To, <<>>, _Lang) ->
-    case lists:member(?PEPNODE, plugins(To#jid.lserver)) of
-        true ->
-            [#xmlel{name = <<"identity">>,
-                    attrs = [{<<"category">>, <<"pubsub">>},
-                             {<<"type">>, <<"pep">>}]}
-             | Acc];
-        false ->
-            Acc
-    end;
+    LServer = To#jid.lserver,
+    PepIdentity =
+    #xmlel{name = <<"identity">>,
+           attrs = [{<<"category">>, <<"pubsub">>},
+                    {<<"type">>, ?PEPNODE}]},
+    PushIdentity =
+    #xmlel{name = <<"identity">>,
+           attrs = [{<<"category">>, <<"pubsub">>},
+                    {<<"type">>, ?PUSHNODE}]},
+    HasPep = lists:member(?PEPNODE, plugins(LServer)),
+    HasPush = lists:member(?PUSHNODE, plugins(LServer)),
+    Plugins = [{HasPep, PepIdentity}, {HasPush, PushIdentity}],
+    lists:foldl(
+        fun
+            ({true, El}, AccIn) ->
+                [El | AccIn];
+            ({false, _}, AccIn) ->
+                AccIn
+        end, Acc, Plugins);
 disco_local_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -1259,7 +1276,11 @@ iq_pubsub(Host, ServerHost, From, IQType, SubEl, Lang, Access, Plugins) ->
                         [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                 children = Payload}] ->
                             ItemId = xml:get_attr_s(<<"id">>, ItemAttrs),
-                            publish_item(Host, ServerHost, Node, From, ItemId, Payload, Access);
+                            PublishOptions = exml_query:path(SubEl,
+                                                             [{element, <<"publish-options">>},
+                                                              {element, <<"x">>}]),
+                            publish_item(Host, ServerHost, Node, From, ItemId,
+                                         Payload, Access, PublishOptions);
                         [] ->
                             {error,
                              extended_error(?ERR_BAD_REQUEST, <<"item-required">>)};
@@ -2114,13 +2135,16 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
                | {error, xmlel()}.
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload) ->
     publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, all).
-publish_item(Host, ServerHost, Node, Publisher, <<>>, Payload, Access) ->
-    publish_item(Host, ServerHost, Node, Publisher, uniqid(), Payload, Access);
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
+    publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, undefined).
+publish_item(Host, ServerHost, Node, Publisher, <<>>, Payload, Access, PublishOptions) ->
+    publish_item(Host, ServerHost, Node, Publisher, uniqid(), Payload, Access, PublishOptions);
+publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, PublishOptions) ->
     ItemPublisher = config(serverhost(Host), item_publisher, false),
     Action = fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
                      Features = plugin_features(Host, Type),
                      PublishFeature = lists:member(<<"publish">>, Features),
+                     PubOptsFeature = lists:member(<<"publish-options">>, Features),
                      PublishModel = get_option(Options, publish_model),
                      DeliverPayloads = get_option(Options, deliver_payloads),
                      PersistItems = get_option(Options, persist_items),
@@ -2130,7 +2154,12 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
                      PayloadMaxSize = get_option(Options, max_payload_size),
                      if not PublishFeature ->
                              {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"publish">>)};
+                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
+                                             unsupported, <<"publish">>)};
+                        not PubOptsFeature andalso PublishOptions /= undefined ->
+                            {error,
+                             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
+                                            unsupported, <<"publish-options">>)};
                         PayloadSize > PayloadMaxSize ->
                              {error,
                               extended_error(?ERR_NOT_ACCEPTABLE, <<"payload-too-big">>)};
@@ -2149,7 +2178,8 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
                               extended_error(?ERR_BAD_REQUEST, <<"item-required">>)};
                         true ->
                              node_call(Host, Type, publish_item,
-                                       [Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemPublisher, Payload])
+                                       [Nidx, Publisher, PublishModel, MaxItems, ItemId,
+                                        ItemPublisher, Payload, PublishOptions])
                      end
              end,
     Reply = [#xmlel{name = <<"pubsub">>,
