@@ -22,8 +22,7 @@ multi_set_data(LUser, LServer, NS2XML) ->
         rdbms_queries:multi_set_private_data(LServer, SLUser, Rows)).
 
 replace_like_insert_result({updated, _})        -> ok;
-replace_like_insert_result({error, Reason})     -> {error, Reason};
-replace_like_insert_result({aborted, Reason})   -> {aborted, Reason}.
+replace_like_insert_result({error, Reason})     -> {error, Reason}.
 
 sql_row(NS, XML) ->
     SNS = mongoose_rdbms:escape(NS),
@@ -44,8 +43,8 @@ multi_get_data(LUser, LServer, NS2Def) ->
 select_value({NS, Def}, RowsDict) ->
     case dict:find(NS, RowsDict) of
         {ok, SData} ->
-	    {ok, Elem} = exml:parse(SData),
-	    Elem;
+            {ok, Elem} = exml:parse(SData),
+            Elem;
         error ->
             Def
     end.

@@ -18,7 +18,8 @@
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
--export([escape_format/1, connect/1, disconnect/1, query/3, is_error_duplicate/1]).
+-export([escape_format/1, connect/2, disconnect/1, query/3, prepare/3, execute/4,
+         is_error_duplicate/1]).
 
 %% API
 
@@ -34,24 +35,32 @@ escape_format(Host) ->
             simple_escape
     end.
 
--spec connect(Args :: any()) -> {ok, Connection :: term()} | {error, Reason :: any()}.
-connect(Settings) when is_list(Settings) ->
+-spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
+                     {ok, Connection :: term()} | {error, Reason :: any()}.
+connect(Settings, _QueryTimeout) when is_list(Settings) ->
     ok = application:ensure_started(odbc),
-    Opts = [{scrollable_cursors, off},
-            {binary_strings, on},
-            {timeout, 5000}],
-    odbc:connect(Settings, Opts).
+    odbc:connect(Settings, [{scrollable_cursors, off}, {binary_strings, on}]).
 
 -spec disconnect(Connection :: term()) -> any().
 disconnect(Connection) ->
     odbc:disconnect(Connection).
 
 -spec query(Connection :: term(), Query :: any(),
-            Timeout :: infinity | non_neg_integer()) -> term().
+            Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 query(Connection, Query, Timeout) when is_binary(Query) ->
     query(Connection, [Query], Timeout);
 query(Connection, Query, Timeout) ->
     parse(odbc:sql_query(Connection, Query, Timeout)).
+
+-spec prepare(Connection :: term(), Name :: atom(), Statement :: iodata()) -> {ok, iodata()}.
+prepare(_Connection, _Name, Statement) ->
+    {ok, Statement}.
+
+-spec execute(Connection :: term(), Statement :: iodata(), Params :: [term()],
+              Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
+execute(Connection, Statement, Params, Timeout) ->
+    Parameters = [{{varchar, 0}, to_binary(X)} || X <- Params],
+    parse(odbc:param_query(Connection, Statement, Parameters, Timeout)).
 
 -spec is_error_duplicate(Reason :: string()) -> boolean().
 is_error_duplicate("ERROR: duplicate" ++ _) -> true;
@@ -59,9 +68,12 @@ is_error_duplicate(_Reason) -> false.
 
 %% Helpers
 
+-spec to_binary(X :: integer() | binary()) -> binary().
+to_binary(X) when is_integer(X) -> integer_to_binary(X);
+to_binary(X) when is_binary(X)  -> X.
+
 -spec parse(odbc:result_tuple() | [odbc:result_tuple()] | {error, string()}) ->
-        [{updated, non_neg_integer()} | {selected, [tuple()]}] |
-        {updated, non_neg_integer()} | {selected, [tuple()]} | {error, string()}.
+                   mongoose_rdbms:query_result().
 parse(Items) when is_list(Items) ->
     [parse(Item) || Item <- Items];
 parse({selected, _FieldNames, Rows}) ->
