@@ -51,6 +51,7 @@ start_link(Host) ->
 -spec init(ejabberd:server()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(Host) ->
     ok = application:ensure_started(worker_pool),
+    catch ets:new(prepared_statements, [public, named_table, {read_concurrency, true}]),
     PoolSize = pool_size(Host),
     PoolName = default_pool(Host),
     ChildrenSpec = [pool_spec(Host, default_pool, PoolName, PoolSize)],
@@ -75,8 +76,8 @@ remove_pool(Host, Id) ->
 -spec pool_spec(Host :: ejabberd:server(), Id :: supervisor:child_id(),
                 Name :: atom(), Size :: pos_integer()) -> supervisor:child_spec().
 pool_spec(Host, Id, Name, Size) ->
-    Opts = [{workers, Size}, {worker, {mongoose_rdbms, Host}}, {pool_sup_shutdown, 2000}],
-    {Id, {wpool, start_pool, [Name, Opts]}, transient, 200, supervisor, dynamic}.
+    Opts = [{workers, Size}, {worker, {mongoose_rdbms, Host}}, {pool_sup_shutdown, infinity}],
+    {Id, {wpool, start_pool, [Name, Opts]}, transient, 2000, supervisor, dynamic}.
 
 
 -spec get_pids(ejabberd:server() | atom()) -> [pid()].

@@ -195,7 +195,7 @@ prepare_message1(Host, MessID, RoomID, FromNick, Packet) ->
 
 -spec archive_messages(atom() | ejabberd:lserver(), Acc :: [[any(), ...]]) -> any().
 archive_messages(LServer, Acc) ->
-    mod_mam_utils:success_sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       ["INSERT INTO mam_muc_message(id, room_id, nick_name, message, search_body) "
        "VALUES ", tuples(Acc)]).
@@ -204,7 +204,7 @@ archive_messages(LServer, Acc) ->
 -spec archive_messages(atom() | ejabberd:lserver(), Acc :: [[any(), ...]],
                        N :: any()) -> any().
 archive_messages(LServer, Acc, N) ->
-    mod_mam_utils:success_sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       ["INSERT INTO ", select_table(N), " ",
        "(id, room_id, nick_name, message, search_body) "

@@ -276,7 +276,7 @@ prepare_message(Host, MessID, UserID,
     [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData, STextBody].
 
 archive_messages(LServer, Acc) ->
-    mod_mam_utils:success_sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       ["INSERT INTO mam_message(id, user_id, remote_bare_jid, "
        "remote_resource, direction, "

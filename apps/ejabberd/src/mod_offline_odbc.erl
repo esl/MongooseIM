@@ -115,7 +115,7 @@ remove_expired_messages(LServer) ->
     STimeStamp = encode_timestamp(TimeStamp),
     Result = rdbms_queries:remove_expired_offline_messages(LServer, STimeStamp),
     case Result of
-        {aborted, Reason} ->
+        {error, Reason} ->
             {error, Reason};
         {updated, Count} ->
             {ok, Count}
@@ -129,7 +129,7 @@ remove_old_messages(LServer, TimeStamp) ->
     STimeStamp = encode_timestamp(TimeStamp),
     Result = rdbms_queries:remove_old_offline_messages(LServer, STimeStamp),
     case Result of
-        {aborted, Reason} ->
+        {error, Reason} ->
             {error, Reason};
         {updated, Count} ->
             {ok, Count}
