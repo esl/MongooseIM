@@ -57,9 +57,9 @@
 -export([route/3]).
 
 %% Hook handlers
--export([prevent_service_unavailable/3,
+-export([prevent_service_unavailable/4,
          get_muc_service/5,
-         remove_user/2,
+         remove_user/3,
          add_rooms_to_roster/2,
          process_iq_get/5,
          process_iq_set/4,
@@ -239,11 +239,12 @@ process_packet(From, To, _InvalidReq, OrigPacket) ->
 %% Hook handlers
 %%====================================================================
 
--spec prevent_service_unavailable(From :: jid(), To :: jid(), Packet :: jlib:xmlel()) -> ok | stop.
-prevent_service_unavailable(_From, _To, Packet) ->
+-spec prevent_service_unavailable(Acc :: map(), From :: jid(), To :: jid(),
+                                  Packet :: jlib:xmlel()) -> map() | {stop, map()}.
+prevent_service_unavailable(Acc, _From, _To, Packet) ->
     case xml:get_tag_attr_s(<<"type">>, Packet) of
-        <<"groupchat">> -> stop;
-        _Type -> ok
+        <<"groupchat">> -> {stop, Acc};
+        _Type -> Acc
     end.
 
 -spec get_muc_service(Acc :: {result, [jlib:xmlel()]}, From :: ejabberd:jid(), To :: ejabberd:jid(),
@@ -262,8 +263,8 @@ get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _
 get_muc_service(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
--spec remove_user(User :: binary(), Server :: binary()) -> ok.
-remove_user(User, Server) ->
+-spec remove_user(Acc :: map(), User :: binary(), Server :: binary()) -> ok.
+remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     UserUS = {LUser, LServer},
@@ -273,7 +274,8 @@ remove_user(User, Server) ->
             ?ERROR_MSG("hook=remove_user, error=~p", [Err]);
         AffectedRooms ->
             bcast_removed_user(UserUS, AffectedRooms, Version),
-            maybe_forget_rooms(AffectedRooms)
+            maybe_forget_rooms(AffectedRooms),
+            Acc
     end.
 
 -spec add_rooms_to_roster(Acc :: [mod_roster:roster()], UserUS :: ejabberd:simple_bare_jid()) ->

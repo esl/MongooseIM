@@ -26,7 +26,7 @@
          stop/1,
          archive_size/4,
          lookup_messages/10,
-         remove_archive/3,
+         remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
@@ -313,6 +313,10 @@ get_message2(MsgId, Bucket, Key) ->
         _ ->
             []
     end.
+
+remove_archive(Acc, Host, ArchiveID, ArchiveJID) ->
+    remove_archive(Host, ArchiveID, ArchiveJID),
+    Acc.
 
 remove_archive(Host, _ArchiveID, ArchiveJID) ->
     {ok, TotalCount, _, _} = R = remove_chunk(Host, ArchiveJID, 0),

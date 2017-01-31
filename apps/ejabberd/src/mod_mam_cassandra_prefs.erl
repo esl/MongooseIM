@@ -18,7 +18,7 @@
 -export([get_behaviour/5,
          get_prefs/4,
          set_prefs/7,
-         remove_archive/3]).
+         remove_archive/4]).
 
 -export([prepared_queries/0]).
 
@@ -198,15 +198,15 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
--spec remove_archive(ejabberd:server(), mod_mam:archive_id(),
-                     ejabberd:jid()) -> 'ok'.
-remove_archive(_Host, _UserID, UserJID) ->
+-spec remove_archive(any(), ejabberd:server(), mod_mam:archive_id(),
+                     ejabberd:jid()) -> any().
+remove_archive(Acc, _Host, _UserID, UserJID) ->
     PoolName = pool_name(UserJID),
     BUserJID = bare_jid(UserJID),
     Now = mongoose_cassandra:now_timestamp(),
     Params = #{'[timestamp]' => Now, user_jid => BUserJID},
     mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, del_prefs_ts_query, [Params]),
-    ok.
+    Acc.
 
 
 -spec query_behaviour(ejabberd:server(), UserJID :: ejabberd:jid(), BUserJID :: binary() | string(),

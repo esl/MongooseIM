@@ -40,7 +40,7 @@
 
 -export([get_user_roster/2, get_subscription_lists/3,
          get_jid_info/4, process_item/2, in_subscription/6,
-         out_subscription/4]).
+         out_subscription/5]).
 
 -export([config_change/4]).
 
@@ -180,12 +180,24 @@ get_jid_info({Subscription, Groups}, User, Server, JID) ->
     end.
 
 in_subscription(Acc, User, Server, JID, Type, _Reason) ->
-    process_subscription(in, User, Server, JID, Type, Acc).
+    case process_subscription(in, User, Server, JID, Type) of
+        stop ->
+            {stop, Acc};
+        {stop, false} ->
+            {stop, false};
+        _ -> Acc
+    end.
 
-out_subscription(User, Server, JID, Type) ->
-    process_subscription(out, User, Server, JID, Type, false).
+out_subscription(Acc, User, Server, JID, Type) ->
+    case process_subscription(out, User, Server, JID, Type) of
+        stop ->
+            {stop, Acc};
+        {stop, false} ->
+            {stop, Acc};
+        _ -> Acc
+    end.
 
-process_subscription(Direction, User, Server, JID, _Type, Acc) ->
+process_subscription(Direction, User, Server, JID, _Type) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     US = {LUser, LServer},
@@ -203,7 +215,7 @@ process_subscription(Direction, User, Server, JID, _Type, Acc) ->
                 in -> {stop, false};
                 out -> stop
             end;
-        false -> Acc
+        false -> false
     end.
 
 %%====================================================================

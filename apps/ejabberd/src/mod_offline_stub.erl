@@ -30,7 +30,7 @@
          stop/1]).
 
 %% Hook handlers
--export([stop_hook_processing/3]).
+-export([stop_hook_processing/4]).
 
 -spec start(any(), any()) -> 'ok'.
 start(Host, _Opts) ->
@@ -48,6 +48,6 @@ stop(Host) ->
 handlers() ->
     [{offline_message_hook, ?MODULE, stop_hook_processing, 75}].
 
--spec stop_hook_processing(any(), any(), any()) -> stop.
-stop_hook_processing(_From, _To, _Packet) ->
-    stop.
+-spec stop_hook_processing(map(), any(), any(), any()) -> {stop, map()}.
+stop_hook_processing(Acc, _From, _To, _Packet) ->
+    {stop, Acc}.

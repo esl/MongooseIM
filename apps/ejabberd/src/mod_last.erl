@@ -36,12 +36,12 @@
          stop/1,
          process_local_iq/3,
          process_sm_iq/3,
-         on_presence_update/4,
+         on_presence_update/5,
          store_last_info/4,
          get_last_info/2,
          count_active_users/2,
-         remove_user/2,
-         session_cleanup/4
+         remove_user/3,
+         session_cleanup/5
         ]).
 
 -include("ejabberd.hrl").
@@ -223,11 +223,14 @@ get_last(LUser, LServer) ->
 count_active_users(LServer, Timestamp) ->
     ?BACKEND:count_active_users(LServer, Timestamp).
 
--spec on_presence_update(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
-                         Status :: binary()) -> ok | {error, term()}.
-on_presence_update(LUser, LServer, _Resource, Status) ->
+-spec on_presence_update(map(), ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+                         Status :: binary()) -> map() | {error, term()}.
+on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
     TimeStamp = now_to_seconds(os:timestamp()),
-    store_last_info(LUser, LServer, TimeStamp, Status).
+    case store_last_info(LUser, LServer, TimeStamp, Status) of
+        ok -> Acc;
+        E -> E
+    end.
 
 -spec store_last_info(ejabberd:user(), ejabberd:server(), non_neg_integer(),
                       Status :: binary()) -> ok | {error, term()}.
@@ -242,14 +245,18 @@ get_last_info(LUser, LServer) ->
         Res -> Res
     end.
 
--spec remove_user(ejabberd:user(), ejabberd:server()) -> ok | {error, term()}.
-remove_user(User, Server) ->
+%% #rh
+-spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map() | {error, term()}.
+remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    ?BACKEND:remove_user(LUser, LServer).
+    case ?BACKEND:remove_user(LUser, LServer) of
+        ok -> Acc;
+        E -> E
+    end.
 
--spec session_cleanup(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+-spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
                       LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
-session_cleanup(LUser, LServer, LResource, _SID) ->
-    on_presence_update(LUser, LServer, LResource, <<>>).
+session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
+    on_presence_update(Acc, LUser, LServer, LResource, <<>>).
 

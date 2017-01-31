@@ -17,7 +17,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
-         remove_archive/3,
+         remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
@@ -234,7 +234,7 @@ remove_archive_offsets_query_cql() ->
 select_for_removal_query_cql() ->
     "SELECT DISTINCT user_jid, with_jid FROM mam_message WHERE user_jid = ?".
 
-remove_archive(_Host, _UserID, UserJID) ->
+remove_archive(Acc, _Host, _UserID, UserJID) ->
     BUserJID = bare_jid(UserJID),
     PoolName = pool_name(UserJID),
     Params = #{user_jid => BUserJID},
@@ -250,8 +250,7 @@ remove_archive(_Host, _UserID, UserJID) ->
 
     mongoose_cassandra:cql_foldl(PoolName, UserJID, ?MODULE,
                                  select_for_removal_query, Params, DeleteFun, []),
-    ok.
-
+    Acc.
 
 
 %% ----------------------------------------------------------------------

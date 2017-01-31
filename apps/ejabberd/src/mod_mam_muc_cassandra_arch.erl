@@ -14,7 +14,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
-         remove_archive/3,
+         remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
@@ -230,7 +230,7 @@ remove_archive_offsets_query_cql() ->
 select_for_removal_query_cql() ->
     "SELECT DISTINCT room_jid, with_nick FROM mam_muc_message WHERE room_jid = ?".
 
-remove_archive(_Host, _RoomID, RoomJID) ->
+remove_archive(Acc, _Host, _RoomID, RoomJID) ->
     BRoomJID = bare_jid(RoomJID),
     PoolName = pool_name(RoomJID),
     Params = #{room_jid => BRoomJID},
@@ -246,7 +246,7 @@ remove_archive(_Host, _RoomID, RoomJID) ->
 
     mongoose_cassandra:cql_foldl(PoolName, RoomJID, ?MODULE,
                                  select_for_removal_query, Params, DeleteFun, []),
-    ok.
+    Acc.
 
 %% ----------------------------------------------------------------------
 %% GET NICK NAME

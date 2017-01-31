@@ -300,8 +300,6 @@ send_service_message_all_mucs(Subject, AnnouncementText) ->
                                       | {'ok', io_lib:chars()}.
 register(User, Host, Password) ->
     case ejabberd_auth:try_register(User, Host, Password) of
-        ok ->
-            {ok, io_lib:format("User ~s@~s successfully registered", [User, Host])};
         {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
                                    [User, Host, node()]),
@@ -309,7 +307,9 @@ register(User, Host, Password) ->
         {error, Reason} ->
             String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
                                    [User, Host, node(), Reason]),
-            {cannot_register, String}
+            {cannot_register, String};
+        _ ->
+            {ok, io_lib:format("User ~s@~s successfully registered", [User, Host])}
     end.
 
 

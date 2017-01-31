@@ -19,7 +19,7 @@
 %% ejabberd handlers
 -export([cached_archive_id/3,
          store_archive_id/3,
-         remove_archive/3]).
+         remove_archive/4]).
 
 %% API
 -export([clean_cache/1]).
@@ -168,10 +168,13 @@ store_archive_id(UserID, _Host, ArcJID) ->
     UserID.
 
 
--spec remove_archive(_Host :: ejabberd:server(), _UserID :: ejabberd:user(),
-                    ArcJID :: ejabberd:jid()) -> 'ok'.
-remove_archive(_Host, _UserID, ArcJID) ->
-    clean_cache(ArcJID).
+%% #rh
+-spec remove_archive(Acc :: map(), _Host :: ejabberd:server(),
+                     _UserID :: ejabberd:user(),
+                     ArcJID :: ejabberd:jid()) -> map().
+remove_archive(Acc, _Host, _UserID, ArcJID) ->
+    clean_cache(ArcJID),
+    Acc.
 
 %%====================================================================
 %% Internal functions
