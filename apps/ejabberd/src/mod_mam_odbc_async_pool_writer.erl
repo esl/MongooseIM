@@ -25,9 +25,6 @@
 -export([queue_length/1,
          queue_lengths/1]).
 
-%% Internal exports
--export([start_link/4]).
-
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -84,7 +81,12 @@ worker_number(Host, ArcID) ->
 start(Host, Opts) ->
     PoolName = gen_mod:get_module_proc(Host, ?MODULE),
     {ok, _} = mongoose_rdbms_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
-    start_workers(Host, PoolName),
+
+    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
+    prepare_insert(insert_mam_message, 1),
+    prepare_insert(insert_mam_messages, MaxSize),
+
+    start_workers(Host, PoolName, MaxSize),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -113,7 +115,6 @@ stop(Host) ->
     end,
     stop_workers(Host),
     mongoose_rdbms_sup:remove_pool(Host, ?MODULE).
-
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
@@ -164,17 +165,17 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
-start_workers(Host, Pool) ->
-    [start_worker(WriterProc, N, Host, Pool)
+start_workers(Host, Pool, MaxSize) ->
+    [start_worker(WriterProc, N, Host, Pool, MaxSize)
      || {N, WriterProc} <- worker_names(Host)].
 
 stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
-start_worker(WriterProc, N, Host, Pool) ->
+start_worker(WriterProc, N, Host, Pool, MaxSize) ->
     WriterChildSpec =
     {WriterProc,
-     {mod_mam_odbc_async_pool_writer, start_link, [WriterProc, N, Host, Pool]},
+     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [N, Host, Pool, MaxSize], []]},
      permanent,
      5000,
      worker,
@@ -184,10 +185,6 @@ start_worker(WriterProc, N, Host, Pool) ->
 stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),
     supervisor:delete_child(mod_mam_sup, Proc).
-
-
-start_link(ProcName, N, Host, Pool) ->
-    gen_server:start_link({local, ProcName}, ?MODULE, [Host, N, Pool], []).
 
 
 -spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
@@ -318,12 +315,25 @@ are_recent_entries_required(_End, _Now) ->
 
 run_flush(State=#state{acc=[]}) ->
     State;
-run_flush(State=#state{host=Host, connection_pool=Pool, number=N,
+run_flush(State=#state{host=Host, connection_pool=Pool, max_packet_size = MaxSize,
                        flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
     MessageCount = length(Acc),
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
-    case mod_mam_odbc_arch:archive_messages(Pool, Acc, N) of
+
+    InsertResult =
+        case MessageCount of
+            MaxSize ->
+                mongoose_rdbms:execute(Pool, insert_mam_messages, lists:append(Acc));
+            OtherSize ->
+                Results = [mongoose_rdbms:execute(Pool, insert_mam_message, Row) || Row <- Acc],
+                case lists:keyfind(error, 1, Results) of
+                    false -> {updated, OtherSize};
+                    Error -> Error
+                end
+        end,
+
+    case InsertResult of
         {updated, _Count} -> ok;
         {error, Reason} ->
             ejabberd_hooks:run(mam_drop_messages, Host, [Host, MessageCount]),
@@ -360,10 +370,9 @@ cancel_and_flush_timer(TRef) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, N, Pool]) ->
+init([Host, N, Pool, MaxSize]) ->
     %% Use a private ODBC-connection.
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 500),
-    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
     MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
     {ok, #state{host=Host, connection_pool=Pool, number=N,
                 flush_interval = Int,
@@ -441,3 +450,14 @@ terminate(_Reason, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%% Helpers
+
+-spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
+prepare_insert(Name, NumRows) ->
+    Table = mam_message,
+    Fields = [id, user_id, remote_bare_jid, remote_resource,
+              direction, from_jid, message, search_body],
+    Query = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
+    {ok, _} = mongoose_rdbms:prepare(Name, Table, Fields, Query),
+    ok.

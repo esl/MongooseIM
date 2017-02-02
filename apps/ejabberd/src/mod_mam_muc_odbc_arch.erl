@@ -26,7 +26,7 @@
          purge_multiple_messages/9]).
 
 %% Called from mod_mam_odbc_async_writer
--export([prepare_message/8,
+-export([prepare_message/7,
          archive_messages/2,
          archive_messages/3]).
 
@@ -178,19 +178,9 @@ prepare_message(Host, MessID, RoomID,
                 _LocJID=#jid{luser=_RoomName},
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
-    prepare_message1(Host, MessID, RoomID, FromNick, Packet).
-
-
-prepare_message1(Host, MessID, RoomID, FromNick, Packet) ->
-    SRoomID = integer_to_list(RoomID),
-    SFromNick = mongoose_rdbms:escape(FromNick),
     Data = packet_to_stored_binary(Packet),
-    EscFormat = mongoose_rdbms:escape_format(Host),
-    SData = mongoose_rdbms:escape_binary(EscFormat, Data),
-    SMessID = integer_to_list(MessID),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
-    STextBody = mongoose_rdbms:escape(TextBody),
-    [SMessID, SRoomID, SFromNick, SData, STextBody].
+    [MessID, RoomID, FromNick, Data, TextBody].
 
 
 -spec archive_messages(atom() | ejabberd:lserver(), Acc :: [[any(), ...]]) -> any().

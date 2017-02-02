@@ -32,7 +32,7 @@
          purge_multiple_messages/9]).
 
 %% Called from mod_mam_odbc_async_writer
--export([prepare_message/8,
+-export([prepare_message/7,
          archive_messages/2,
          archive_messages/3]).
 
@@ -172,8 +172,8 @@ stop_muc(Host) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
-encode_direction(incoming) -> "I";
-encode_direction(outgoing) -> "O".
+encode_direction(incoming) -> <<"I">>;
+encode_direction(outgoing) -> <<"O">>.
 
 
 -spec archive_size(Size :: integer(), Host :: ejabberd:server(),
@@ -229,7 +229,7 @@ do_archive_message(_Result, Host, MessID, UserID,
     SUserID = integer_to_list(UserID),
     SBareRemJID = minify_and_escape_bare_jid(LocJID, RemJID),
     SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
-    SDir = encode_direction(Dir),
+    SDir = binary_to_list(encode_direction(Dir)),
     SRemLResource = mongoose_rdbms:escape(RemLResource),
     Data = packet_to_stored_binary(Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
@@ -259,21 +259,14 @@ write_message(Host, Table, SMessID, SUserID, SBareRemJID,
            "'", SSrcJID, "', '", SData, "', '", STextBody, "');"]),
     ok.
 
-prepare_message(Host, MessID, UserID,
-                LocJID=#jid{},
-                RemJID=#jid{lresource=RemLResource}, SrcJID, Dir, Packet) ->
-    SUserID = integer_to_list(UserID),
-    SBareRemJID = minify_and_escape_bare_jid(LocJID, RemJID),
-    SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
+prepare_message(Host, MessID, UserID, LocJID = #jid{}, RemJID = #jid{lresource = RemLResource},
+                SrcJID, Dir, Packet) ->
+    SBareRemJID = jid_to_stored_binary(LocJID, jid:to_bare(RemJID)),
+    SSrcJID = jid_to_stored_binary(LocJID, SrcJID),
     SDir = encode_direction(Dir),
-    SRemLResource = mongoose_rdbms:escape(RemLResource),
     Data = packet_to_stored_binary(Packet),
-    EscFormat = mongoose_rdbms:escape_format(Host),
-    SData = mongoose_rdbms:escape_binary(EscFormat, Data),
-    SMessID = integer_to_list(MessID),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
-    STextBody = mongoose_rdbms:escape(TextBody),
-    [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData, STextBody].
+    [MessID, UserID, SBareRemJID, RemLResource, SDir, SSrcJID, Data, TextBody].
 
 archive_messages(LServer, Acc) ->
     mongoose_rdbms:sql_query(
