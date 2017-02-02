@@ -92,8 +92,8 @@ start(Host, Opts) ->
     PoolName = gen_mod:get_module_proc(Host, ?MODULE),
     {ok, _} = mongoose_rdbms_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
-    prepare_insert(insert_mam_muc_message, 1),
-    prepare_insert(insert_mam_muc_messages, MaxSize),
+    mod_mam_muc_odbc_arch:prepare_insert(insert_mam_muc_message, 1),
+    mod_mam_muc_odbc_arch:prepare_insert(insert_mam_muc_messages, MaxSize),
     start_workers(Host, PoolName, MaxSize),
     start_muc(Host, Opts).
 
@@ -454,13 +454,3 @@ terminate(_Reason, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
-%% Helpers
-
--spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
-prepare_insert(Name, NumRows) ->
-    Table = mam_muc_message,
-    Fields = [id, room_id, nick_name, message, search_body],
-    Query = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
-    {ok, _} = mongoose_rdbms:prepare(Name, Table, Fields, Query),
-    ok.
