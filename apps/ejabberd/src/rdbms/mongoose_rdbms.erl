@@ -94,7 +94,7 @@
 -define(QUERY_TIMEOUT, 5000).
 %% The value is arbitrary; supervisor will restart the connection once
 %% the retry counter runs out. We just attempt to reduce log pollution.
--define(CONNECT_RETRIES, 3).
+-define(CONNECT_RETRIES, 5).
 
 %% Points to ODBC server process
 -type odbc_server() :: binary() | atom().
@@ -281,9 +281,8 @@ init(Host) ->
     process_flag(trap_exit, true),
     backend_module:create(?MODULE, db_engine(Host), [query]),
     Settings = ejabberd_config:get_local_option({odbc_server, Host}),
-    RetryAfterSeconds = get_start_interval(Host),
-    proc_lib:init_ack({ok, self()}),
-    case connect(Settings, ?CONNECT_RETRIES, RetryAfterSeconds) of
+    MaxStartInterval = get_start_interval(Host),
+    case connect(Settings, ?CONNECT_RETRIES, 2, MaxStartInterval) of
         {ok, DbRef} ->
             schedule_keepalive(Host),
             {ok, #state{db_type = db_engine(Host), host = Host, db_ref = DbRef}};
@@ -472,19 +471,21 @@ db_engine(Host) when is_binary(Host) ->
     end.
 
 
--spec connect(Settings :: term(), Retry :: non_neg_integer(),
-              RetryAfterSeconds :: non_neg_integer()) -> {ok, term()} | {error, any()}.
-connect(Settings, Retry, RetryAfterSeconds) ->
+-spec connect(Settings :: term(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
+              MaxRetryDelay :: non_neg_integer()) -> {ok, term()} | {error, any()}.
+connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
     case mongoose_rdbms_backend:connect(Settings, ?QUERY_TIMEOUT) of
         {ok, _} = Ok ->
             Ok;
         Error when Retry =:= 0 ->
             Error;
         Error ->
+            SleepFor = rand:uniform(RetryAfter),
             ?ERROR_MSG("Database connection attempt with ~p resulted in ~p."
-                       " Retrying in ~p seconds.", [Settings, Error, RetryAfterSeconds]),
-            timer:sleep(timer:seconds(RetryAfterSeconds)),
-            connect(Settings, Retry - 1, RetryAfterSeconds)
+                       " Retrying in ~p seconds.", [Settings, Error, SleepFor]),
+            timer:sleep(timer:seconds(SleepFor)),
+            NextRetryDelay = RetryAfter * RetryAfter,
+            connect(Settings, Retry - 1, max(MaxRetryDelay, NextRetryDelay), MaxRetryDelay)
     end.
 
 
