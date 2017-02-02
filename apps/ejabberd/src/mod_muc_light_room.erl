@@ -44,14 +44,14 @@
                      OrigPacket :: jlib:xmlel(), Request :: muc_light_packet()) -> ok.
 handle_request(From, To, OrigPacket, Request) ->
     RoomUS = jid:to_lus(To),
-    AffUsersRes = ?BACKEND:get_aff_users(RoomUS),
+    AffUsersRes = mod_muc_light_db_backend:get_aff_users(RoomUS),
     Response = process_request(From, RoomUS, Request, AffUsersRes),
     send_response(From, To, RoomUS, OrigPacket, Response).
 
 -spec maybe_forget(RoomUS :: ejabberd:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
 maybe_forget({RoomU, RoomS} = RoomUS, []) ->
     ejabberd_hooks:run(forget_room, RoomS, [RoomS, RoomU]),
-    ?BACKEND:destroy_room(RoomUS);
+    mod_muc_light_db_backend:destroy_room(RoomUS);
 maybe_forget(_, _) ->
     my_room_will_go_on.
 
@@ -63,7 +63,8 @@ maybe_forget(_, _) ->
                               NewAffUsers :: aff_users()) ->
     ok | {error, occupant_limit_exceeded}.
 participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
-    MaxOccupants = mod_muc_light:get_opt(MUCServer, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+    MaxOccupants = gen_mod:get_module_opt_by_subhost(
+                     MUCServer, mod_muc_light, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
     case length(NewAffUsers) > MaxOccupants of
         true -> {error, occupant_limit_exceeded};
         false -> ok
@@ -98,23 +99,23 @@ process_request(#msg{} = Msg, _From, _UserUS, _RoomUS, _Auth, AffUsers) ->
     {Msg, AffUsers};
 process_request({get, #config{} = ConfigReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
     {_, RoomS} = RoomUS,
-    {ok, Config, RoomVersion} = ?BACKEND:get_config(RoomUS),
+    {ok, Config, RoomVersion} = mod_muc_light_db_backend:get_config(RoomUS),
     RawConfig = mod_muc_light_utils:config_to_raw(Config, mod_muc_light:config_schema(RoomS)),
     {get, ConfigReq#config{ version = RoomVersion,
                             raw_config = RawConfig }};
 process_request({get, #affiliations{} = AffReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
-    {ok, AffUsers, RoomVersion} = ?BACKEND:get_aff_users(RoomUS),
+    {ok, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_aff_users(RoomUS),
     {get, AffReq#affiliations{ version = RoomVersion,
                                aff_users = AffUsers }};
 process_request({get, #info{} = InfoReq}, _From, _UserUS, {_, RoomS} = RoomUS, _Auth, _AffUsers) ->
-    {ok, Config, AffUsers, RoomVersion} = ?BACKEND:get_info(RoomUS),
+    {ok, Config, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_info(RoomUS),
     RawConfig = mod_muc_light_utils:config_to_raw(Config, mod_muc_light:config_schema(RoomS)),
     {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
                         raw_config = RawConfig }};
 process_request({set, #config{} = ConfigReq}, _From, _UserUS, {_, MUCServer} = RoomUS,
                 {_, UserAff}, AffUsers) ->
-    AllCanConfigure = mod_muc_light:get_opt(
-                        MUCServer, all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE),
+    AllCanConfigure = gen_mod:get_module_opt_by_subhost(
+                        MUCServer, mod_muc_light, all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE),
     process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
 process_request({set, #affiliations{} = AffReq}, _From, UserUS, {_, MUCServer} = RoomUS,
                 {_, UserAff}, AffUsers) ->
@@ -128,14 +129,14 @@ process_request({set, #affiliations{} = AffReq}, _From, UserUS, {_, MUCServer} =
               {ok, mod_muc_light_utils:filter_out_prevented(
                      UserUS, RoomUS, AffReq#affiliations.aff_users)};
           member ->
-              AllCanInvite = mod_muc_light:get_opt(
-                               MUCServer, all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
+              AllCanInvite = gen_mod:get_module_opt_by_subhost(
+                               MUCServer, mod_muc_light, all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
               validate_aff_changes_by_member(
                 AffReq#affiliations.aff_users, [], UserUS, OwnerUS, RoomUS, AllCanInvite)
       end,
     process_aff_set(AffReq, RoomUS, ValidateResult);
 process_request({set, #destroy{} = DestroyReq}, _From, _UserUS, RoomUS, {_, owner}, AffUsers) ->
-    ok = ?BACKEND:destroy_room(RoomUS),
+    ok = mod_muc_light_db_backend:destroy_room(RoomUS),
     maybe_forget(RoomUS, []),
     {set, DestroyReq, AffUsers};
 process_request({set, #destroy{}}, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
@@ -160,7 +161,7 @@ process_config_set(ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanCo
            ConfigReq#config.raw_config, [], mod_muc_light:config_schema(RoomS)) of
         {ok, Config} ->
             NewVersion = mod_muc_light_utils:bin_ts(),
-            {ok, PrevVersion} = ?BACKEND:set_config(RoomUS, Config, NewVersion),
+            {ok, PrevVersion} = mod_muc_light_db_backend:set_config(RoomUS, Config, NewVersion),
             {set, ConfigReq#config{ prev_version = PrevVersion, version = NewVersion }, AffUsers};
         Error ->
             Error
@@ -201,7 +202,7 @@ process_aff_set(AffReq, _RoomUS, {ok, []}) -> % It seems that all users blocked 
     {set, AffReq, [], []}; % Just return result to the user, don't change or broadcast anything
 process_aff_set(AffReq, RoomUS, {ok, FilteredAffUsers}) ->
     NewVersion = mod_muc_light_utils:bin_ts(),
-    case ?BACKEND:modify_aff_users(RoomUS, FilteredAffUsers,
+    case mod_muc_light_db_backend:modify_aff_users(RoomUS, FilteredAffUsers,
                                    fun ?MODULE:participant_limit_check/2, NewVersion) of
         {ok, OldAffUsers, NewAffUsers, AffUsersChanged, OldVersion} ->
             maybe_forget(RoomUS, NewAffUsers),
@@ -224,9 +225,10 @@ process_aff_set(_AffReq, _RoomUS, Error) ->
                     RoomUS :: ejabberd:simple_bare_jid(), OrigPacket :: jlib:xmlel(),
                     Result :: packet_processing_result()) -> ok.
 send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err) ->
-    ?CODEC:encode_error(Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
+    mod_muc_light_codec_backend:encode_error(
+      Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
 send_response(From, _RoomJID, RoomUS, _OriginalPacket, Response) ->
-    ?CODEC:encode(Response, From, RoomUS, fun ejabberd_router:route/3).
+    mod_muc_light_codec_backend:encode(Response, From, RoomUS, fun ejabberd_router:route/3).
 
 %%====================================================================
 %% Internal functions

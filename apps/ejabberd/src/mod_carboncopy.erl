@@ -36,11 +36,11 @@
          classify_packet/1]).
 
 %% Hooks
--export([user_send_packet/3,
-         user_receive_packet/4,
+-export([user_send_packet/4,
+         user_receive_packet/5,
          iq_handler2/3,
          iq_handler1/3,
-         remove_connection/4
+         remove_connection/5
         ]).
 
 %% For testing and debugging
@@ -70,12 +70,13 @@ is_carbon_copy(Packet) ->
     end.
 
 start(Host, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+    %% execute disable/enable actions in the c2s process itself
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     mod_disco:register_feature(Host, ?NS_CC_1),
     mod_disco:register_feature(Host, ?NS_CC_2),
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, remove_connection, 10),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 89),
-    ejabberd_hooks:add(user_receive_packet,Host, ?MODULE, user_receive_packet, 89),
+    ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, user_receive_packet, 89),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_CC_2, ?MODULE, iq_handler2, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_CC_1, ?MODULE, iq_handler1, IQDisc).
 
@@ -98,29 +99,31 @@ iq_handler(From, _To,  #iq{type = set, sub_el = #xmlel{name = Operation, childre
     {U, S, R} = jid:to_lower(From),
     Result = case Operation of
                  <<"enable">> ->
-                     ?INFO_MSG("carbons enabled for user ~s@~s/~s", [U,S,R]),
-                     enable(S,U,R,CC);
+                     ?INFO_MSG("carbons enabled for user ~s@~s/~s", [U, S, R]),
+                     enable(S, U, R, CC);
                  <<"disable">> ->
-                     ?INFO_MSG("carbons disabled for user ~s@~s/~s", [U,S,R]),
+                     ?INFO_MSG("carbons disabled for user ~s@~s/~s", [U, S, R]),
                      disable(S, U, R)
              end,
     case Result of
         ok ->
             ?DEBUG("carbons IQ result: ok", []),
             IQ#iq{type=result, sub_el=[]};
-        {error,_Error} ->
+        {error, _Error} ->
             ?WARNING_MSG("Error enabling / disabling carbons: ~p", [Result]),
-            IQ#iq{type=error,sub_el = [?ERR_BAD_REQUEST]}
+            IQ#iq{type=error, sub_el = [?ERR_BAD_REQUEST]}
     end;
 
 iq_handler(_From, _To, IQ, _CC) ->
     IQ#iq{type=error, sub_el = [?ERR_NOT_ALLOWED]}.
 
-user_send_packet(From, To, Packet) ->
-    check_and_forward(From, To, Packet, sent).
+user_send_packet(Acc, From, To, Packet) ->
+    check_and_forward(From, To, Packet, sent),
+    Acc.
 
-user_receive_packet(JID, _From, To, Packet) ->
-    check_and_forward(JID, To, Packet, received).
+user_receive_packet(Acc, JID, _From, To, Packet) ->
+    check_and_forward(JID, To, Packet, received),
+    Acc.
 
 % Check if the traffic is local.
 % Modified from original version:
@@ -169,7 +172,7 @@ is_received(Packet) ->
 
 -spec is_sent(_) -> classification().
 is_sent(Packet) ->
-    SubTag = xml:get_subtag(Packet,<<"sent">>),
+    SubTag = xml:get_subtag(Packet, <<"sent">>),
     if SubTag == false -> forward;
         true -> is_forwarded(SubTag)
     end.
@@ -181,15 +184,15 @@ is_forwarded(SubTag) ->
         _ -> ignore
     end.
 
-remove_connection(User, Server, Resource, _Status) ->
+remove_connection(Acc, User, Server, Resource, _Status) ->
     disable(Server, User, Resource),
-    ok.
+    Acc.
 
 
 %%
 %% Internal
 %%
-is_bare_to(Direction, To, PrioRes) ->
+is_bare_to(Direction, To, _PrioRes) ->
     case {Direction, To} of
         {received, #jid{lresource = <<>>}} -> true;
         _ -> false
@@ -221,7 +224,7 @@ drop_singleton_jid(_JID, Targets)        -> Targets.
 %% Direction = received | sent <received xmlns='urn:xmpp:carbons:1'/>
 send_copies(JID, To, Packet, Direction) ->
     {U, S, R} = jid:to_lower(JID),
-    {PrioRes, CCResList} = get_cc_enabled_resources(U,S),
+    {PrioRes, CCResList} = get_cc_enabled_resources(U, S),
     Targets = case is_bare_to(Direction, To, PrioRes) of
                   true -> jids_minus_max_priority_resource
                             (U, S, R, CCResList, PrioRes);
@@ -229,7 +232,7 @@ send_copies(JID, To, Packet, Direction) ->
               end,
     ?DEBUG("targets ~p from resources ~p and ccenabled ~p",
            [Targets, PrioRes, CCResList]),
-    lists:map(fun({Dest,Version}) ->
+    lists:map(fun({Dest, Version}) ->
                       {_, _, Resource} = jid:to_lower(Dest),
                       ?DEBUG("forwarding to ~ts", [Resource]),
                       Sender = jid:make({U, S, <<>>}),
@@ -267,7 +270,7 @@ enable(Host, U, R, CC) ->
     ok.
 
 disable(Host, U, R) ->
-    ?DEBUG("disabling for ~ts@~ts/~ts", [U,Host,R]),
+    ?DEBUG("disabling for ~ts@~ts/~ts", [U, Host, R]),
     KV = {?CC_KEY, ?CC_DISABLED},
     case ejabberd_sm:store_info(U, Host, R, KV) of
         {error, offline} -> ok;
@@ -296,7 +299,7 @@ get_cc_enabled_resources(User, Server)->
     Prios = cat_maybes([maybe_prio_resource(S) || S <- AllSessions]),
     {Prios, CCs}.
 
-maybe_cc_resource(#session{usr = {_,_,R}, info = I}) ->
+maybe_cc_resource(#session{usr = {_, _, R}, info = I}) ->
     case lists:keyfind(?CC_KEY, 1, I) of
         {?CC_KEY, V} when is_integer(V) andalso V =/= ?CC_DISABLED ->
             {{cc_ver_from_int(V), R}};
@@ -304,8 +307,8 @@ maybe_cc_resource(#session{usr = {_,_,R}, info = I}) ->
             {}
     end.
 
-maybe_prio_resource(#session{usr = {_,_,R}, priority = P})
-  when is_integer(P) -> {{P,R}};
+maybe_prio_resource(#session{usr = {_, _, R}, priority = P})
+  when is_integer(P) -> {{P, R}};
 maybe_prio_resource(_) -> {}.
 
 cc_ver_to_int(?NS_CC_1) -> 1;

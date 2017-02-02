@@ -62,7 +62,7 @@ max_node_id() ->
     mnesia:foldl(fun(#node{id=Id}, Max) -> max(Id, Max) end, 0, node).
 
 -spec select_node_id(NodeName :: atom()
-                    ) -> {'error','not_found'} | {'ok',nodeid()}.
+                    ) -> {'error', 'not_found'} | {'ok', nodeid()}.
 select_node_id(NodeName) ->
     case mnesia:dirty_read(node, NodeName) of
         [#node{id=Id}] -> {ok, Id};

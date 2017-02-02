@@ -37,6 +37,10 @@ end_per_testcase(_T, C) ->
     meck:unload(gen_tcp),
     C.
 
+end_per_suite(_C) ->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]).
+
 tcp_socket_is_started_with_default_backlog(_C) ->
    {ok, _Pid} = listener_started([]),
 

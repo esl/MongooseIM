@@ -29,6 +29,7 @@
 -xep([{xep, 50}, {version, "1.2"}]).
 -export([parse_request/1,
          produce_response/2,
+         produce_response/4,
          produce_response/1]).
 
 -include("ejabberd.hrl").
@@ -87,7 +88,9 @@ find_xdata_el1([_ | Els]) ->
 %% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record, filling in values for language, node and session id from
 %% the request.
--spec produce_response(request(), response()) -> #xmlel{}.
+-spec produce_response(request(), response() | atom()) -> #xmlel{}.
+produce_response(Request, Status) when is_atom(Status) ->
+    produce_response(Request, Status, <<>>, []);
 produce_response(#adhoc_request{lang = Lang,
                                 node = Node,
                                 session_id = SessionID},
@@ -95,6 +98,18 @@ produce_response(#adhoc_request{lang = Lang,
     produce_response(Response#adhoc_response{lang = Lang,
                                              node = Node,
                                              session_id = SessionID}).
+
+%% @doc Produce a <command/> node to use as response from an adhoc_response
+%% record, filling in values for language, node and session id from
+%% the request.
+-spec produce_response(request(), Status :: atom(), DefaultAction :: binary(),
+                       Elements :: [jlib:xmlel()]) -> jlib:xmlel().
+produce_response(Request, Status, DefaultAction, Elements) ->
+    #adhoc_request{lang = Lang, node = Node, session_id = SessionID} = Request,
+    produce_response(#adhoc_response{lang = Lang, node = Node, session_id = SessionID,
+                                     status = Status, default_action = DefaultAction,
+                                     elements = Elements}).
+
 
 %% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record.
@@ -134,4 +149,3 @@ produce_response(#adhoc_response{lang = _Lang,
                     {<<"node">>, Node},
                     {<<"status">>, list_to_binary(atom_to_list(Status))}],
            children = ActionsEls ++ NotesEls ++ Elements}.
-

@@ -49,7 +49,7 @@
 
 %% @doc Generate an 'or' LDAP query on one or several attributes
 %% If there is only one attribute
--spec generate_subfilter([{binary()} | {binary(),binary()}]) -> binary().
+-spec generate_subfilter([{binary()} | {binary(), binary()}]) -> binary().
 generate_subfilter([UID]) ->
     subfilter(UID);
 %% If there is several attributes
@@ -58,7 +58,7 @@ generate_subfilter(UIDs) ->
 
 
 %% @doc Subfilter for a single attribute
--spec subfilter({binary()} | {binary(),binary()}) -> binary().
+-spec subfilter({binary()} | {binary(), binary()}) -> binary().
 subfilter({UIDAttr, UIDAttrFormat}) ->
     %% The default UiDAttrFormat is %u
     <<$(, UIDAttr/binary, $=, UIDAttrFormat/binary, $)>>;
@@ -99,9 +99,9 @@ get_ldap_attr(LDAPAttr, Attributes) ->
 -spec get_user_part(binary(), binary()) -> {ok, binary()} | {error, badmatch}.
 get_user_part(String, Pattern) ->
     F = fun(S, P) ->
-        {First,_} = binary:match(P,<<"%u">>),
+        {First, _} = binary:match(P, <<"%u">>),
                 TailLength = byte_size(P) - (First+1),
-        binary:part(S,First,byte_size(S)-TailLength-First+1)
+        binary:part(S, First, byte_size(S)-TailLength-First+1)
         end,
     case catch F(String, Pattern) of
             {'EXIT', _} ->
@@ -122,20 +122,20 @@ get_user_part(String, Pattern) ->
 
 
 -spec generate_substring_list(binary())
-      -> [{'any',binary()} | {'final',binary()} | {'initial',binary()}].
+      -> [{'any', binary()} | {'final', binary()} | {'initial', binary()}].
 generate_substring_list(Value)->
-    Splits = binary:split(Value,<<"*">>,[global]),
-    {Acc,S}=case Splits of
-        [<<"">>|T]->{[],T};
-        [H|T]-> {[{initial,H}],T}
+    Splits = binary:split(Value, <<"*">>, [global]),
+    {Acc, S}=case Splits of
+        [<<"">>|T]->{[], T};
+        [H|T]-> {[{initial, H}], T}
     end,
-    lists:reverse(generate_substring_list(S,Acc)).
-generate_substring_list([<<"">>],Acc)->
+    lists:reverse(generate_substring_list(S, Acc)).
+generate_substring_list([<<"">>], Acc)->
     Acc;
-generate_substring_list([Last],Acc)->
-    [{final,Last}|Acc];
-generate_substring_list([H|T],Acc)->
-    generate_substring_list(T,[{any,H}|Acc]).
+generate_substring_list([Last], Acc)->
+    [{final, Last}|Acc];
+generate_substring_list([H|T], Acc)->
+    generate_substring_list(T, [{any, H}|Acc]).
 
 
 -spec make_filter([{binary(), [binary()]}], [{binary(), binary()}]) -> any().
@@ -158,9 +158,9 @@ make_filter(Data, UIDs, Op) ->
                                    _ -> []
                                end;
                            _ when Value /= <<"">> ->
-                    case binary:match(Value,<<"*">>) of
-                        nomatch -> [eldap:equalityMatch(Name,Value)];
-                        _ -> [eldap:substrings(Name,generate_substring_list(Value))]
+                    case binary:match(Value, <<"*">>) of
+                        nomatch -> [eldap:equalityMatch(Name, Value)];
+                        _ -> [eldap:substrings(Name, generate_substring_list(Value))]
                     end;
                            _ ->
                                []
@@ -184,7 +184,7 @@ case_insensitive_match(X, Y) ->
     end.
 
 
--spec get_state(binary() | string(),atom()) -> any().
+-spec get_state(binary() | string(), atom()) -> any().
 get_state(Server, Module) ->
     Proc = gen_mod:get_module_proc(Server, Module),
     gen_server:call(Proc, get_state).
@@ -196,8 +196,8 @@ get_state(Server, Module) ->
 -spec uids_domain_subst(binary(), [{binary(), binary()}]) ->
                                [{binary(), binary()}].
 uids_domain_subst(Host, UIDs) ->
-    lists:map(fun({U,V}) ->
-                      {U, eldap_filter:do_sub(V,[{<<"%d">>, Host}])};
+    lists:map(fun({U, V}) ->
+                      {U, eldap_filter:do_sub(V, [{<<"%d">>, Host}])};
                   (A) -> A
               end,
               UIDs).
@@ -212,11 +212,11 @@ get_opt({Key, Host}, Opts, F) ->
 get_opt({Key, Host}, Opts, F, Default) ->
     case gen_mod:get_opt(Key, Opts, undefined) of
         undefined ->
-            case ejabberd_config:get_local_option({Key,Host}) of
+            case ejabberd_config:get_local_option({Key, Host}) of
                 undefined ->
                     Default;
                 Val ->
-                    prepare_opt_val(Key, Val, F,Default)
+                    prepare_opt_val(Key, Val, F, Default)
             end;
         Val ->
             prepare_opt_val(Key, Val, F, Default)
@@ -225,7 +225,7 @@ get_opt({Key, Host}, Opts, F, Default) ->
 
 -spec get_mod_opt(atom(), list(), fun()) -> any().
 get_mod_opt(Key, Opts, F) ->
-    get_mod_opt(Key,Opts,F,undefined).
+    get_mod_opt(Key, Opts, F, undefined).
 
 
 -spec get_mod_opt(atom(), list(), fun(), any()) -> any().
@@ -359,13 +359,13 @@ singleton_value(_) ->
 -define(N_BMPString, 30).
 
 
--spec decode_octet_string(_,_,list()) -> binary().
+-spec decode_octet_string(_, _, list()) -> binary().
 decode_octet_string(Buffer, Range, Tags) ->
-%    NewTags = new_tags(HasTag,#tag{class=?UNIVERSAL,number=?N_OCTET_STRING}),
+%    NewTags = new_tags(HasTag, #tag{class=?UNIVERSAL, number=?N_OCTET_STRING}),
     decode_restricted_string(Buffer, Range, Tags).
 
 
--spec decode_restricted_string(_,_,list()) -> binary().
+-spec decode_restricted_string(_, _, list()) -> binary().
 decode_restricted_string(Tlv, Range, TagsIn) ->
     Val = match_tags(Tlv, TagsIn),
     Val2 =
@@ -378,9 +378,9 @@ decode_restricted_string(Tlv, Range, TagsIn) ->
     check_and_convert_restricted_string(Val2, Range).
 
 
--spec check_and_convert_restricted_string(iolist(),_) -> binary().
+-spec check_and_convert_restricted_string(iolist(), _) -> binary().
 check_and_convert_restricted_string(Val, Range) ->
-    {StrLen,NewVal} = if is_binary(Val) ->
+    {StrLen, NewVal} = if is_binary(Val) ->
                               {size(Val), Val};
                          true ->
                               {length(Val), list_to_binary(Val)}
@@ -388,21 +388,21 @@ check_and_convert_restricted_string(Val, Range) ->
     case Range of
         [] -> % No length constraint
             NewVal;
-        {Lb,Ub} when StrLen >= Lb, Ub >= StrLen -> % variable length constraint
+        {Lb, Ub} when StrLen >= Lb, Ub >= StrLen -> % variable length constraint
             NewVal;
-        {{Lb,_Ub},[]} when StrLen >= Lb ->
+        {{Lb, _Ub}, []} when StrLen >= Lb ->
             NewVal;
-        {{Lb,_Ub},_Ext=[Min|_]} when StrLen >= Lb; StrLen >= Min ->
+        {{Lb, _Ub}, _Ext=[Min|_]} when StrLen >= Lb; StrLen >= Min ->
             NewVal;
-        {{Lb1,Ub1},{Lb2,Ub2}} when StrLen >= Lb1, StrLen =< Ub1;
+        {{Lb1, Ub1}, {Lb2, Ub2}} when StrLen >= Lb1, StrLen =< Ub1;
                                    StrLen =< Ub2, StrLen >= Lb2 ->
             NewVal;
         StrLen -> % fixed length constraint
             NewVal;
-        {_,_} ->
-            exit({error,{asn1,{length,Range,Val}}});
+        {_, _} ->
+            exit({error, {asn1, {length, Range, Val}}});
         _Len when is_integer(_Len) ->
-            exit({error,{asn1,{length,Range,Val}}});
+            exit({error, {asn1, {length, Range, Val}}});
         _ -> % some strange constraint that we don't support yet
             NewVal
     end.
@@ -410,38 +410,38 @@ check_and_convert_restricted_string(Val, Range) ->
 %%----------------------------------------
 %% Decode the in buffer to bits
 %%----------------------------------------
-match_tags({T,V},[T]) ->
+match_tags({T, V}, [T]) ->
     V;
-match_tags({T,V}, [T|Tt]) ->
-    match_tags(V,Tt);
-match_tags([{T,V}],[T|Tt]) ->
+match_tags({T, V}, [T|Tt]) ->
     match_tags(V, Tt);
-match_tags(Vlist = [{T,_V}|_], [T]) ->
+match_tags([{T, V}], [T|Tt]) ->
+    match_tags(V, Tt);
+match_tags(Vlist = [{T, _V}|_], [T]) ->
     Vlist;
 match_tags(Tlv, []) ->
     Tlv;
-match_tags({Tag,_V},[T|_Tt]) ->
-    {error,{asn1,{wrong_tag,{Tag,T}}}}.
+match_tags({Tag, _V}, [T|_Tt]) ->
+    {error, {asn1, {wrong_tag, {Tag, T}}}}.
 
 
--spec collect_parts([{_,_}]) -> binary().
+-spec collect_parts([{_, _}]) -> binary().
 collect_parts(TlvList) ->
-    collect_parts(TlvList,[]).
+    collect_parts(TlvList, []).
 
 
--spec collect_parts([{_,_}],[any()]) -> binary().
-collect_parts([{_,L}|Rest],Acc) when is_list(L) ->
-    collect_parts(Rest,[collect_parts(L)|Acc]);
-collect_parts([{?N_BIT_STRING,<<Unused,Bits/binary>>}|Rest],_Acc) ->
-    collect_parts_bit(Rest,[Bits],Unused);
-collect_parts([{_T,V}|Rest],Acc) ->
-    collect_parts(Rest,[V|Acc]);
-collect_parts([],Acc) ->
+-spec collect_parts([{_, _}], [any()]) -> binary().
+collect_parts([{_, L}|Rest], Acc) when is_list(L) ->
+    collect_parts(Rest, [collect_parts(L)|Acc]);
+collect_parts([{?N_BIT_STRING, <<Unused, Bits/binary>>}|Rest], _Acc) ->
+    collect_parts_bit(Rest, [Bits], Unused);
+collect_parts([{_T, V}|Rest], Acc) ->
+    collect_parts(Rest, [V|Acc]);
+collect_parts([], Acc) ->
     list_to_binary(lists:reverse(Acc)).
 
 
--spec collect_parts_bit([{3,binary()}],[binary(),...],non_neg_integer()) -> binary().
-collect_parts_bit([{?N_BIT_STRING,<<Unused,Bits/binary>>}|Rest],Acc,Uacc) ->
-    collect_parts_bit(Rest,[Bits|Acc],Unused+Uacc);
-collect_parts_bit([],Acc,Uacc) ->
+-spec collect_parts_bit([{3, binary()}], [binary(), ...], non_neg_integer()) -> binary().
+collect_parts_bit([{?N_BIT_STRING, <<Unused, Bits/binary>>}|Rest], Acc, Uacc) ->
+    collect_parts_bit(Rest, [Bits|Acc], Unused+Uacc);
+collect_parts_bit([], Acc, Uacc) ->
     list_to_binary([Uacc|lists:reverse(Acc)]).

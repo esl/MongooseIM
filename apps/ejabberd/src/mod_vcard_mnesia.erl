@@ -60,7 +60,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     US = {LUser, VHost},
     Activated = is_vcard_activated(VCard),
     F = fun() ->
-                mnesia:write(#vcard{us = US, vcard = VCard}),
+                mnesia:write(#vcard{us ={LUser, VHost}, vcard = VCard}),
                 if
                     Activated ->
                         mnesia:write(VCardSearch);
@@ -69,7 +69,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
                 end
         end,
     {atomic, _} = mnesia:transaction(F),
-    ejabberd_hooks:run(vcard_set, VHost,[LUser,VHost, VCard]),
+    ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
     ok.
 
 is_vcard_activated(VCard) ->
@@ -91,7 +91,7 @@ is_vcard_activated(VCard) ->
 search(VHost, Data) ->
     MatchHead = make_matchhead(VHost, Data),
     R = do_search(VHost, MatchHead),
-    lists:map(fun record_to_item/1,R).
+    lists:map(fun record_to_item/1, R).
 
 do_search(VHost, MatchHeadIn) ->
     MatchHead = MatchHeadIn#vcard_search{us = {'_', VHost}},
@@ -208,10 +208,10 @@ update_vcard_search_table() ->
          given,    lgiven,
          middle,   lmiddle,
          nickname, lnickname,
-         bday,	   lbday,
-         ctry,	   lctry,
+         bday, 	   lbday,
+         ctry, 	   lctry,
          locality, llocality,
-         email,	   lemail,
+         email, 	   lemail,
          orgname,  lorgname,
          orgunit,  lorgunit] ->
             ?INFO_MSG("Converting vcard_search table from "
@@ -272,10 +272,10 @@ update_vcard_search_table() ->
 						given,    lgiven,
 						middle,   lmiddle,
 						nickname, lnickname,
-						bday,	   lbday,
-						ctry,	   lctry,
+						bday, 	   lbday,
+						ctry, 	   lctry,
 						locality, llocality,
-						email,	   lemail,
+						email, 	   lemail,
 						orgname,  lorgname,
 						orgunit,  lorgunit}))
 			  end, mnesia:table_info(vcard_search, index)),

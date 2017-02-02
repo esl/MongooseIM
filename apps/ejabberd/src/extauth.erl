@@ -43,7 +43,7 @@
 -define(CALL_TIMEOUT, 10000). % Timeout is in milliseconds: 10 seconds == 10000
 
 
--spec start(atom() | binary(),_) -> 'ok'.
+-spec start(atom() | binary(), _) -> 'ok'.
 start(Host, ExtPrg) ->
     lists:foreach(
         fun(This) ->
@@ -53,22 +53,22 @@ start(Host, ExtPrg) ->
     ).
 
 
--spec start_instance(atom(),_) -> pid().
+-spec start_instance(atom(), _) -> pid().
 start_instance(ProcessName, ExtPrg) ->
     spawn(?MODULE, init, [ProcessName, ExtPrg]).
 
 
--spec restart_instance(atom(),_) -> pid().
+-spec restart_instance(atom(), _) -> pid().
 restart_instance(ProcessName, ExtPrg) ->
     unregister(ProcessName),
     start_instance(ProcessName, ExtPrg).
 
 
--spec init(atom(),string()) -> no_return().
+-spec init(atom(), string()) -> no_return().
 init(ProcessName, ExtPrg) ->
     register(ProcessName, self()),
-    process_flag(trap_exit,true),
-    Port = open_port({spawn, ExtPrg}, [{packet,2}]),
+    process_flag(trap_exit, true),
+    Port = open_port({spawn, ExtPrg}, [{packet, 2}]),
     loop(Port, ?INIT_TIMEOUT, ProcessName, ExtPrg).
 
 
@@ -82,7 +82,7 @@ stop(Host) ->
     ).
 
 
--spec get_process_name(binary(),integer()) -> atom().
+-spec get_process_name(binary(), integer()) -> atom().
 get_process_name(Host, Integer) ->
     gen_mod:get_module_proc(lists:append([erlang:binary_to_list(Host), integer_to_list(Integer)]), eauth).
 
@@ -121,20 +121,20 @@ remove_user(User, Server, Password) ->
     call_port(Server, [<<"removeuser3">>, User, Server, Password]).
 
 
--spec call_port(ejabberd:server(), [any(),...]) -> any().
+-spec call_port(ejabberd:server(), [any(), ...]) -> any().
 call_port(Server, Msg) ->
     LServer = jid:nameprep(Server),
     ProcessName = get_process_name(LServer, random_instance(get_instances(LServer))),
     ProcessName ! {call, self(), Msg},
     receive
-        {eauth,Result} ->
+        {eauth, Result} ->
             Result
     end.
 
 
 -spec random_instance(pos_integer()) -> non_neg_integer().
 random_instance(MaxNum) ->
-    {A1,A2,A3} = now(),
+    {A1, A2, A3} = now(),
     random:seed(A1, A2, A3),
     random:uniform(MaxNum) - 1.
 
@@ -203,10 +203,10 @@ join(List, Sep) ->
 
 -spec encode([binary()]) -> [byte()].
 encode(L) ->
-    erlang:binary_to_list(join(L,<<":">>)).
+    erlang:binary_to_list(join(L, <<":">>)).
 
 
--spec decode([0 | 1,...]) -> boolean().
-decode([0,0]) -> false;
-decode([0,1]) -> true.
+-spec decode([0 | 1, ...]) -> boolean().
+decode([0, 0]) -> false;
+decode([0, 1]) -> true.
 

@@ -1,8 +1,4 @@
 -include_lib("ejabberd/include/mod_privacy.hrl").
--define(GEN_FSM, p1_fsm_old).
-
--define(SETS, gb_sets).
--define(DICT, dict).
 
 -define(STREAM_MGMT_H_MAX, (1 bsl 32 - 1)).
 -define(STREAM_MGMT_CACHE_MAX, 100).
@@ -10,7 +6,7 @@
 -define(STREAM_MGMT_RESUME_TIMEOUT, 600).  %% seconds
 -define(CONSTRAINT_CHECK_TIMEOUT, 5).  %% seconds
 
--type jid_set() :: ?SETS:set(ejabberd:simple_jid()).
+-type jid_set() :: gb_sets:set(ejabberd:simple_jid()).
 
 -type authenticated_state() :: boolean() | resumed | replaced.
 
@@ -32,36 +28,36 @@
                 tls_enabled = false   :: boolean(),
                 tls_options = [],
                 authenticated = false :: authenticated_state(),
-                jid                  :: ejabberd:jid(),
+                jid                  :: ejabberd:jid() | undefined,
                 user = <<>>          :: ejabberd:user(),
                 server = <<>>     :: ejabberd:server(),
                 resource = <<>>      :: ejabberd:resource(),
-                sid                  :: ejabberd_sm:sid(),
+                sid                  :: ejabberd_sm:sid() | undefined,
                 %% We have _subscription to_ these users' presence status;
                 %% i.e. they send us presence updates.
                 %% This comes from the roster.
-                pres_t = ?SETS:new() :: jid_set() | debug_presences(),
+                pres_t = gb_sets:new() :: jid_set() | debug_presences(),
                 %% We have _subscription from_ these users,
                 %% i.e. they have subscription to us.
                 %% We send them presence updates.
                 %% This comes from the roster.
-                pres_f = ?SETS:new() :: jid_set() | debug_presences(),
+                pres_f = gb_sets:new() :: jid_set() | debug_presences(),
                 %% We're _available_ to these users,
                 %% i.e. we broadcast presence updates to them.
                 %% This may change throughout the session.
-                pres_a = ?SETS:new() :: jid_set() | debug_presences(),
+                pres_a = gb_sets:new() :: jid_set() | debug_presences(),
                 %% We are _invisible_ to these users.
                 %% This may change throughout the session.
-                pres_i = ?SETS:new() :: jid_set() | debug_presences(),
+                pres_i = gb_sets:new() :: jid_set() | debug_presences(),
                 pending_invitations = [],
                 pres_last, pres_pri,
-                pres_timestamp :: calendar:datetime(),
+                pres_timestamp :: calendar:datetime() | undefined,
                 %% Are we invisible?
                 pres_invis = false :: boolean(),
                 privacy_list = #userlist{} :: mod_privacy:userlist(),
                 conn = unknown,
                 auth_module     :: ejabberd_auth:authmodule(),
-                ip              :: inet:ip_address(),
+                ip              :: inet:ip_address() | undefined,
                 aux_fields = [] :: [{aux_key(), aux_value()}],
                 lang            :: ejabberd:lang(),
                 stream_mgmt = false,
@@ -103,7 +99,8 @@
                            ISubscription :: from | to | both | none | remove}
                         | {privacy_list, PrivList :: mod_privacy:userlist(),
                            PrivListName :: binary()}
-                        | {blocking, What :: blocking_type(), [binary()]}
+                        | {blocking, UserList :: mod_privacy:userlist(), What :: blocking_type(),
+                                     [binary()]}
                         | unknown.
 
 -type broadcast() :: {broadcast, broadcast_type()}.
@@ -114,7 +111,7 @@
                              Packet :: jlib:xmlel(),
                              NewState :: state()}.
 
--type routing_result() :: {DoRoute :: boolean(), NewAttrs :: [{binary(), binary()}],
+-type routing_result() :: {DoRoute :: allow | atom(), NewAttrs :: [{binary(), binary()}],
                            NewState :: state()}.
 
 %-define(DBGFSM, true).

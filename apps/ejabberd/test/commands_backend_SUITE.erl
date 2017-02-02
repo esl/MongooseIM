@@ -133,6 +133,7 @@ init_per_suite(C) ->
 
 end_per_suite(C) ->
     stopped = mnesia:stop(),
+    mnesia:delete_schema([node()]),
     application:stop(lager),
     application:stop(fusco),
     application:stop(cowboy),

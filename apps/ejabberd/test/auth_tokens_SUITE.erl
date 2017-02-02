@@ -41,7 +41,7 @@ groups() ->
 
 init_per_suite(C) ->
     %lager:start(),
-    stringprep:start(),
+    ok = stringprep:start(),
     C.
 
 end_per_suite(C) ->

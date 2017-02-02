@@ -70,7 +70,7 @@
 %% a list of arbitrary length, of a given type
 %% [integer]                        []
 %% [integer]                        [1]
-%% [integer]                        [1,2,3,4]
+%% [integer]                        [1, 2, 3, 4]
 %% a list of anything
 %% []
 %% a named argument (name is only for clarity)
@@ -230,17 +230,17 @@ list(U) ->
     list(U, any, any, any).
 
 %% @doc List commands, available for this user, filtered by category.
--spec list(caller(), atom()) -> [t()].
+-spec list(caller(), binary() | any) -> [t()].
 list(U, C) ->
     list(U, C, any, any).
 
 %% @doc List commands, available for this user, filtered by category and action.
--spec list(caller(), atom(), atom()) -> [t()].
+-spec list(caller(), binary() | any, atom()) -> [t()].
 list(U, Category, Action) ->
     list(U, Category, Action, any).
 
 %% @doc List commands, available for this user, filtered by category, action and subcategory
--spec list(caller(), atom(), atom(), binary() | any) -> [t()].
+-spec list(caller(), binary() | any, atom(), binary() | any) -> [t()].
 list(U, Category, Action, SubCategory) ->
     CL = command_list(Category, Action, SubCategory),
     lists:filter(fun(C) -> is_available_for(U, C) end, CL).
@@ -264,7 +264,7 @@ get_command(Caller, Name) ->
 name(Cmd) ->
     Cmd#mongoose_command.name.
 
--spec category(t()) -> atom().
+-spec category(t()) -> binary().
 category(Cmd) ->
     Cmd#mongoose_command.category.
 

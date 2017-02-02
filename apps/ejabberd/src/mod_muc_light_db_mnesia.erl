@@ -32,7 +32,8 @@
          create_room/4,
          destroy_room/1,
          room_exists/1,
-         get_user_rooms/1,
+         get_user_rooms/2,
+         get_user_rooms_count/2,
          remove_user/2,
 
          get_config/1,
@@ -40,9 +41,9 @@
          set_config/3,
          set_config/4,
 
-         get_blocking/1,
          get_blocking/2,
-         set_blocking/2,
+         get_blocking/3,
+         set_blocking/3,
 
          get_aff_users/1,
          modify_aff_users/4,
@@ -113,11 +114,18 @@ destroy_room(RoomUS) ->
 room_exists(RoomUS) ->
     mnesia:dirty_read(?ROOM_TAB, RoomUS) =/= [].
 
--spec get_user_rooms(UserUS :: ejabberd:simple_bare_jid()) ->
+-spec get_user_rooms(UserUS :: ejabberd:simple_bare_jid(),
+                     MUCServer :: ejabberd:lserver() | undefined) ->
     [RoomUS :: ejabberd:simple_bare_jid()].
-get_user_rooms(UserUS) ->
+get_user_rooms(UserUS, _MUCHost) ->
     UsersRooms = mnesia:dirty_read(?USER_ROOM_TAB, UserUS),
     [ UserRoom#?USER_ROOM_TAB.room || UserRoom <- UsersRooms ].
+
+-spec get_user_rooms_count(UserUS :: ejabberd:simple_bare_jid(),
+                           MUCServer :: ejabberd:lserver()) ->
+    non_neg_integer().
+get_user_rooms_count(UserUS, _MUCServer) ->
+    length(mnesia:dirty_read(?USER_ROOM_TAB, UserUS)).
 
 -spec remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
     mod_muc_light_db:remove_user_return() | {error, term()}.
@@ -164,15 +172,17 @@ set_config(RoomJID, Key, Val, Version) ->
 
 %% ------------------------ Blocking manipulation ------------------------
 
--spec get_blocking(UserUS :: ejabberd:simple_bare_jid()) -> [blocking_item()].
-get_blocking(UserUS) ->
+-spec get_blocking(UserUS :: ejabberd:simple_bare_jid(), MUCServer :: ejabberd:lserver()) ->
+    [blocking_item()].
+get_blocking(UserUS, _MUCServer) ->
     [ {What, deny, Who}
       || #?BLOCKING_TAB{ item = {What, Who} } <- dirty_get_blocking_raw(UserUS) ].
 
 -spec get_blocking(UserUS :: ejabberd:simple_bare_jid(),
-                   WhatWhos :: [{blocking_who(), ejabberd:simple_bare_jid()}]) ->
+                   MUCServer :: ejabberd:lserver(),
+                   WhatWhos :: [{blocking_what(), ejabberd:simple_bare_jid()}]) ->
     blocking_action().
-get_blocking(UserUS, WhatWhos) ->
+get_blocking(UserUS, _MUCServer, WhatWhos) ->
     Blocklist = dirty_get_blocking_raw(UserUS),
     case lists:any(
            fun(WhatWho) ->
@@ -182,15 +192,17 @@ get_blocking(UserUS, WhatWhos) ->
         false -> allow
     end.
 
--spec set_blocking(UserUS :: ejabberd:simple_bare_jid(), BlockingItems :: [blocking_item()]) -> ok.
-set_blocking(_UserUS, []) ->
+-spec set_blocking(UserUS :: ejabberd:simple_bare_jid(),
+                   MUCServer :: ejabberd:lserver(),
+                   BlockingItems :: [blocking_item()]) -> ok.
+set_blocking(_UserUS, _MUCServer, []) ->
     ok;
-set_blocking(UserUS, [{What, deny, Who} | RBlockingItems]) ->
+set_blocking(UserUS, MUCServer, [{What, deny, Who} | RBlockingItems]) ->
     mnesia:dirty_write(#?BLOCKING_TAB{ user = UserUS, item = {What, Who} }),
-    set_blocking(UserUS, RBlockingItems);
-set_blocking(UserUS, [{What, allow, Who} | RBlockingItems]) ->
+    set_blocking(UserUS, MUCServer, RBlockingItems);
+set_blocking(UserUS, MUCServer, [{What, allow, Who} | RBlockingItems]) ->
     mnesia:dirty_delete_object(#?BLOCKING_TAB{ user = UserUS, item = {What, Who} }),
-    set_blocking(UserUS, RBlockingItems).
+    set_blocking(UserUS, MUCServer, RBlockingItems).
 
 %% ------------------------ Affiliations manipulation ------------------------
 
@@ -325,7 +337,7 @@ remove_user_transaction(UserUS, Version) ->
     lists:map(
       fun(#?USER_ROOM_TAB{ room = RoomUS }) ->
               {RoomUS, modify_aff_users_transaction(
-                         RoomUS, [{UserUS, none}], fun(_,_) -> ok end, Version)}
+                         RoomUS, [{UserUS, none}], fun(_, _) -> ok end, Version)}
       end, mnesia:read(?USER_ROOM_TAB, UserUS)).
 
 %% ------------------------ Configuration manipulation ------------------------

@@ -46,7 +46,7 @@
 -export([init/1, handle_info/2, handle_call/3,
          handle_cast/2, terminate/2, code_change/3]).
 
--export([user_send_packet/3, user_receive_packet/4,
+-export([user_send_packet/4, user_receive_packet/5,
          c2s_presence_in/2, c2s_filter_packet/6,
          c2s_broadcast_recipients/6]).
 
@@ -144,11 +144,12 @@ read_caps([_ | Tail], Result) ->
     read_caps(Tail, Result);
 read_caps([], Result) -> Result.
 
-user_send_packet(#jid{luser = User, lserver = Server} = From,
+user_send_packet(Acc,
+                 #jid{luser = User, lserver = Server} = From,
                  #jid{luser = User, lserver = Server,
                       lresource = <<"">>},
                  #xmlel{name = <<"presence">>, attrs = Attrs,
-                        children = Els} = Pkt) ->
+                        children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     if Type == <<"">>; Type == <<"available">> ->
             case read_caps(Els) of
@@ -158,13 +159,13 @@ user_send_packet(#jid{luser = User, lserver = Server} = From,
             end;
        true -> ok
     end,
-    Pkt;
-user_send_packet(_From, _To, Pkt) ->
-    Pkt.
+    Acc;
+user_send_packet(Acc, _From, _To, _Pkt) ->
+    Acc.
 
-user_receive_packet(#jid{lserver = Server}, From, _To,
+user_receive_packet(Acc, #jid{lserver = Server}, From, _To,
                     #xmlel{name = <<"presence">>, attrs = Attrs,
-                           children = Els} = Pkt) ->
+                           children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     IsRemote = not lists:member(From#jid.lserver, ?MYHOSTS),
     if IsRemote and
@@ -176,9 +177,9 @@ user_receive_packet(#jid{lserver = Server}, From, _To,
             end;
        true -> ok
     end,
-    Pkt;
-user_receive_packet(_JID, _From, _To, Pkt) ->
-    Pkt.
+    Acc;
+user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
+    Acc.
 
 -spec caps_stream_features([xmlel()], binary()) -> [xmlel()].
 
@@ -509,7 +510,7 @@ make_disco_hash(DiscoEls, Algo) ->
                              concat_features(DiscoEls), concat_info(DiscoEls)]),
     jlib:encode_base64(case Algo of
                            md5 -> erlang:md5(Concat);
-                           sha1 -> crypto:hash(sha,Concat);
+                           sha1 -> crypto:hash(sha, Concat);
                            sha224 -> crypto:hash(sha224, Concat);
                            sha256 -> crypto:hash(sha256, Concat);
                            sha384 -> crypto:hash(sha384, Concat);

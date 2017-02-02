@@ -69,18 +69,18 @@
         Owner   :: jid()) ->
     {result, {default, broadcast}}.
 
--callback delete_node(Nodes :: [pubsubNode(),...]) ->
+-callback delete_node(Nodes :: [pubsubNode(), ...]) ->
     {result,
         {default, broadcast,
             [{pubsubNode(),
-                    [{ljid(), [{subscription(), subId()}]},...]},...]
+                    [{ljid(), [{subscription(), subId()}]}, ...]}, ...]
             }
         }
     |
     {result,
         {[],
             [{pubsubNode(),
-                    [{ljid(), [{subscription(), subId()}]},...]},...]
+                    [{ljid(), [{subscription(), subId()}]}, ...]}, ...]
             }
         }.
 
@@ -114,6 +114,7 @@
         PublishModel :: publishModel(),
         Max_Items :: non_neg_integer(),
         ItemId :: <<>> | itemId(),
+        ItemPublisher :: boolean(),
         Payload :: payload()) ->
     {result, {default, broadcast, [itemId()]}} |
     {error, xmlel()}.
@@ -151,7 +152,7 @@
 -callback get_node_subscriptions(NodeIdx :: nodeIdx()) ->
     {result,
         [{ljid(), subscription(), subId()}] |
-        [{ljid(), none},...]
+        [{ljid(), none}, ...]
         }.
 
 -callback get_entity_subscriptions(Host :: host(),

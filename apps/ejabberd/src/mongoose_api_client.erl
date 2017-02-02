@@ -122,7 +122,7 @@ from_json(Req, #http_api_state{command_category = Category, bindings = B} = Stat
     {Method, _} = cowboy_req:method(Req),
     case parse_request_body(Req) of
         {error, _R}->
-            error_response(bad_request, ?BODY_MALFORMED , Req, State);
+            error_response(bad_request, ?BODY_MALFORMED, Req, State);
         {Params, _} ->
         Arity = length(B) + length(Params),
         Cmds = mongoose_commands:list(user, Category, method_to_action(Method)),

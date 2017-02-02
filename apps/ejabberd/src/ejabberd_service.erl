@@ -54,9 +54,10 @@
 
 -record(state, {socket,
                 sockmod      :: ejabberd:sockmod(),
+                socket_monitor,
                 streamid,
                 password     :: binary(),
-                host         :: binary(),
+                host         :: binary() | undefined,
                 is_subdomain :: boolean(),
                 access,
                 check_from
@@ -114,12 +115,12 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(_,_) -> {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
+-spec start(_, _) -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(SockData, Opts) ->
     supervisor:start_child(ejabberd_service_sup, [SockData, Opts]).
 
 
--spec start_link(_, list()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(_, list()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(SockData, Opts) ->
     ?GEN_FSM:start_link(ejabberd_service, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
@@ -139,7 +140,7 @@ socket_type() ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([list() | {atom() | tuple(),_},...]) -> {'ok','wait_for_stream',state()}.
+-spec init([list() | {atom() | tuple(), _}, ...]) -> {'ok', 'wait_for_stream', state()}.
 init([{SockMod, Socket}, Opts]) ->
     ?INFO_MSG("(~w) External service connected", [Socket]),
     Access = case lists:keysearch(access, 1, Opts) of
@@ -156,12 +157,15 @@ init([{SockMod, Socket}, Opts]) ->
                  _ -> true
              end,
     SockMod:change_shaper(Socket, Shaper),
+    SocketMonitor = SockMod:monitor(Socket),
     {ok, wait_for_stream, #state{socket = Socket,
                                  sockmod = SockMod,
+                                 socket_monitor = SocketMonitor,
                                  streamid = new_id(),
                                  password = Password,
                                  access = Access,
-                                 check_from = CheckFrom
+                                 check_from = CheckFrom,
+                                 is_subdomain = false
                                  }}.
 
 %%----------------------------------------------------------------------
@@ -196,8 +200,8 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
-    send_text(StateData,<<(iolist_to_binary(Header))/binary,
-                           (?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(iolist_to_binary(Header))/binary,
+                           (?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
@@ -230,7 +234,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
 wait_for_handshake({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,<<(?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_handshake(closed, StateData) ->
     {stop, normal, StateData}.
@@ -279,7 +283,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     % TODO ??
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 stream_established(closed, StateData) ->
     % TODO ??
@@ -340,7 +344,7 @@ handle_info({send_element, El}, StateName, StateData) ->
 handle_info({route, From, To, Packet}, StateName, StateData) ->
     case acl:match_rule(global, StateData#state.access, From) of
         allow ->
-           #xmlel{name =Name, attrs = Attrs,children = Els} = Packet,
+           #xmlel{name =Name, attrs = Attrs, children = Els} = Packet,
            Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
                                                jid:to_binary(To),
                                                Attrs),
@@ -351,6 +355,9 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
             ejabberd_router:route_error(To, From, Err, Packet)
     end,
     {next_state, StateName, StateData};
+handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
+  when Monitor == StateData#state.socket_monitor ->
+    {stop, normal, StateData};
 handle_info(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     {next_state, StateName, StateData}.
@@ -399,7 +406,7 @@ new_id() ->
     randoms:get_string().
 
 
--spec fsm_limit_opts(maybe_improper_list()) -> [{'max_queue',integer()}].
+-spec fsm_limit_opts(maybe_improper_list()) -> [{'max_queue', integer()}].
 fsm_limit_opts(Opts) ->
     case lists:keysearch(max_fsm_queue, 1, Opts) of
         {value, {_, N}} when is_integer(N) ->

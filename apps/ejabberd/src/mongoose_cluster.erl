@@ -117,7 +117,7 @@ table_type(ClusterMember, T) ->
                   Type =:= ram_copies;
                   Type =:= disc_only_copies -> Type
     catch
-        E:R -> error({cant_get_storage_type, {T,E,R}}, [T])
+        E:R -> error({cant_get_storage_type, {T, E, R}}, [T])
     end.
 
 %% This will remove all your Mnesia data!

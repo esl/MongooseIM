@@ -1299,7 +1299,7 @@ next to MUC Light one, or completely replace it, which is RECOMMENDED behaviour.
 
 ### 8.1.2 Discovering Occupied Rooms
 
-The room list MUST not include room versions.
+The room list MUST NOT include room versions.
 
 **Service Returns Disco Items Result**
 
@@ -1491,9 +1491,9 @@ and MUST include status code 321 (i.e. user leaving due to affiliation change).
 ### 8.1.8 Blocking functionality
 
 Blocking functionality uses small subset of Privacy Lists protocol.
-Stanzas MUST be addressed to the server JID.
+Stanzas MUST be addressed to the sender's bare JID (`to` attribute may be skipped).
 The privacy list name MUST be equal to "urn:xmpp:muclight:0".
-Obviously, this method won't work properly in XMPP Server Federation.
+Obviously, this method won't work properly in XMPP Server Federation, because privacy stanzas are handled by sender's server and MUC Light Blocking functionality is handled by MUC Light service server.
 As opposed to XEP-0016, it is allowed to send "delta" privacy lists.
 
 #### 8.1.8.1 Request blocking list

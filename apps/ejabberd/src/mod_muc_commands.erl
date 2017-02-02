@@ -84,8 +84,8 @@ commands() ->
       {args,
        [{host, binary},
         {name, binary},
-        {sender, binary},
-        {message, binary}
+        {from, binary},
+        {body, binary}
        ]},
       {result, ok}],
 
@@ -111,7 +111,7 @@ create_instant_room(Host, Name, Owner, Nick) ->
     %% the HTTP API, they will certainly recieve stanzas as a
     %% consequence, even if their client(s) did not initiate this.
     OwnerJID = jid:binary_to_bare(Owner),
-    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
+    MUCHost = gen_mod:get_module_opt_subhost(Host, mod_muc, mod_muc:default_host()),
     UserRoomJID = jid:make(Name, MUCHost, Nick),
     BareRoomJID = jid:make(Name, MUCHost, <<"">>),
     %% Send presence to create a room.
@@ -135,7 +135,7 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
     %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
     X = #xmlel{name = <<"x">>,
                attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
-                        {<<"jid">> , room_address(Name, Host)},
+                        {<<"jid">>, room_address(Name, Host)},
                         {<<"reason">>, Reason}]
               },
     Invite = message(S, R, <<>>, [ X ]),
@@ -172,7 +172,7 @@ kick_user_from_room(Host, Name, Nick) ->
 %%--------------------------------------------------------------------
 
 room_address(Name, Host) ->
-    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc, <<"muc.@HOST@">>),
+    MUCHost = gen_mod:get_module_opt_subhost(Host, mod_muc, mod_muc:default_host()),
     <<Name/binary, $@, MUCHost/binary>>.
 
 iq(Type, Sender, Recipient, Children)

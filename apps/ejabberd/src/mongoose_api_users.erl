@@ -98,7 +98,7 @@ maybe_register_user(Username, Host, Password) ->
             ?ERROR;
         {error, exists} ->
             maybe_change_password(Username, Host, Password);
-        ok ->
+        _ ->
             ok
     end.
 

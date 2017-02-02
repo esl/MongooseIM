@@ -47,7 +47,7 @@
 %%% Register commands
 %%%
 
--spec commands() -> [ejabberd_commands:cmd(),...].
+-spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     [
         #ejabberd_commands{name = change_password, tags = [accounts],
@@ -258,7 +258,7 @@ ban_account(User, Host, ReasonText) ->
     kick_sessions(User, Host, Reason),
     case set_random_password(User, Host, Reason) of
         ok ->
-            {ok, io_lib:format("User ~s@~s successfully banned with reason: ~s",[User, Host, ReasonText])};
+            {ok, io_lib:format("User ~s@~s successfully banned with reason: ~s", [User, Host, ReasonText])};
         {error, ErrorReason} ->
             {error, ErrorReason}
     end.
@@ -284,7 +284,7 @@ set_random_password(User, Server, Reason) ->
 
 -spec build_random_password(Reason :: binary()) -> binary().
 build_random_password(Reason) ->
-    {{Year,Month,Day},{Hour,Minute,Second}} = calendar:universal_time(),
+    {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:universal_time(),
     Date = list_to_binary(
              lists:flatten(
                io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0wZ",

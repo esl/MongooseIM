@@ -1,3 +1,16 @@
+Append = fun(Str, Flag) ->
+    string:join(sets:to_list(sets:add_element(Flag,
+                    sets:from_list(string:tokens(Str, " ")))), " ")
+end,
+
+Setenv = fun(Key, Val) ->
+    Cur = case os:getenv(Key) of
+        false -> "";
+        N -> N
+    end,
+    os:putenv(Key, Append(Cur, Val))
+end,
+
 GetFullVer = fun() ->
     Path = filename:join([code:root_dir(), "releases",
                           erlang:system_info(otp_release),
@@ -11,6 +24,8 @@ GetFullVer = fun() ->
     end
 end,
 
+SysVersion = lists:map(fun erlang:list_to_integer/1,
+               string:tokens(erlang:system_info(version), ".")),
 
 DisableCoverage = fun(Config) ->
     Opts = [{cover_enabled, false},
@@ -49,4 +64,14 @@ MaybeFIPSSupport = fun(Config) ->
     end
 end,
 
-MaybeFIPSSupport(MaybeDisableCoverage(CONFIG)).
+MaybeErtsExitSupport = fun(Config) ->
+    ExitFlag = case SysVersion >= [7, 3] of
+        true -> "-DHAS_ERTS_EXIT";
+        _ -> ""
+    end,
+    true = Setenv("CFLAGS", ExitFlag),
+    CONFIG
+end,
+
+lists:foldl(fun(Fun, Cfg) -> Fun(Cfg) end, CONFIG,
+    [MaybeDisableCoverage, MaybeFIPSSupport, MaybeErtsExitSupport]).

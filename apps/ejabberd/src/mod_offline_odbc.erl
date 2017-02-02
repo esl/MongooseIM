@@ -46,12 +46,12 @@ init(_Host, _Opts) ->
 pop_messages(LUser, LServer) ->
     US = {LUser, LServer},
     To = jid:make(LUser, LServer, <<>>),
-    SUser = ejabberd_odbc:escape(LUser),
-    SServer = ejabberd_odbc:escape(LServer),
-    TimeStamp = now(),
+    SUser = mongoose_rdbms:escape(LUser),
+    SServer = mongoose_rdbms:escape(LServer),
+    TimeStamp = p1_time_compat:timestamp(),
     STimeStamp = encode_timestamp(TimeStamp),
-    case odbc_queries:pop_offline_messages(LServer, SUser, SServer, STimeStamp) of
-        {atomic, {selected, [<<"timestamp">>,<<"from_jid">>,<<"packet">>], Rows}} ->
+    case rdbms_queries:pop_offline_messages(LServer, SUser, SServer, STimeStamp) of
+        {atomic, {selected, Rows}} ->
             {ok, rows_to_records(US, To, Rows)};
         {aborted, Reason} ->
             {error, Reason};
@@ -64,7 +64,7 @@ rows_to_records(US, To, Rows) ->
 
 row_to_record(US, To, {STimeStamp, SFrom, SPacket}) ->
     {ok, Packet} = exml:parse(SPacket),
-    TimeStamp = usec:to_now(binary_to_integer(STimeStamp)),
+    TimeStamp = usec:to_now(mongoose_rdbms:result_to_integer(STimeStamp)),
     From = jid:from_binary(SFrom),
     #offline_msg{us = US,
              timestamp = TimeStamp,
@@ -75,18 +75,18 @@ row_to_record(US, To, {STimeStamp, SFrom, SPacket}) ->
 
 
 write_messages(LUser, LServer, Msgs) ->
-    SUser = ejabberd_odbc:escape(LUser),
-    SServer = ejabberd_odbc:escape(LServer),
+    SUser = mongoose_rdbms:escape(LUser),
+    SServer = mongoose_rdbms:escape(LServer),
     write_all_messages_t(LServer, SUser, SServer, Msgs).
 
 count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
-    SUser = ejabberd_odbc:escape(LUser),
-    SServer = ejabberd_odbc:escape(LServer),
+    SUser = mongoose_rdbms:escape(LUser),
+    SServer = mongoose_rdbms:escape(LServer),
     count_offline_messages(LServer, SUser, SServer, MaxArchivedMsgs + 1).
 
 write_all_messages_t(LServer, SUser, SServer, Msgs) ->
     Rows = [record_to_row(SUser, SServer, Msg) || Msg <- Msgs],
-    case catch odbc_queries:push_offline_messages(LServer, Rows) of
+    case catch rdbms_queries:push_offline_messages(LServer, Rows) of
         {updated, _} ->
             ok;
         {aborted, Reason} ->
@@ -97,23 +97,23 @@ write_all_messages_t(LServer, SUser, SServer, Msgs) ->
 
 record_to_row(SUser, SServer, #offline_msg{
         from = From, packet = Packet, timestamp = TimeStamp, expire = Expire}) ->
-    SFrom = ejabberd_odbc:escape(jid:to_binary(From)),
-    SPacket = ejabberd_odbc:escape(exml:to_binary(Packet)),
+    SFrom = mongoose_rdbms:escape(jid:to_binary(From)),
+    SPacket = mongoose_rdbms:escape(exml:to_binary(Packet)),
     STimeStamp = encode_timestamp(TimeStamp),
     SExpire = maybe_encode_timestamp(Expire),
-    odbc_queries:prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket).
+    rdbms_queries:prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket).
 
 remove_user(LUser, LServer) ->
-    SUser   = ejabberd_odbc:escape(LUser),
-    SServer = ejabberd_odbc:escape(LServer),
-    odbc_queries:remove_offline_messages(LServer, SUser, SServer).
+    SUser   = mongoose_rdbms:escape(LUser),
+    SServer = mongoose_rdbms:escape(LServer),
+    rdbms_queries:remove_offline_messages(LServer, SUser, SServer).
 
 -spec remove_expired_messages(ejabberd:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_expired_messages(LServer) ->
-    TimeStamp = now(),
+    TimeStamp = p1_time_compat:timestamp(),
     STimeStamp = encode_timestamp(TimeStamp),
-    Result = odbc_queries:remove_expired_offline_messages(LServer, STimeStamp),
+    Result = rdbms_queries:remove_expired_offline_messages(LServer, STimeStamp),
     case Result of
         {aborted, Reason} ->
             {error, Reason};
@@ -127,7 +127,7 @@ remove_expired_messages(LServer) ->
     HowManyRemoved :: integer().
 remove_old_messages(LServer, TimeStamp) ->
     STimeStamp = encode_timestamp(TimeStamp),
-    Result = odbc_queries:remove_old_offline_messages(LServer, STimeStamp),
+    Result = rdbms_queries:remove_old_offline_messages(LServer, STimeStamp),
     case Result of
         {aborted, Reason} ->
             {error, Reason};
@@ -136,9 +136,9 @@ remove_old_messages(LServer, TimeStamp) ->
     end.
 
 count_offline_messages(LServer, SUser, SServer, Limit) ->
-    case odbc_queries:count_offline_messages(LServer, SUser, SServer, Limit) of
-        {selected, [_], [{Count}]} ->
-            ejabberd_odbc:result_to_integer(Count);
+    case rdbms_queries:count_offline_messages(LServer, SUser, SServer, Limit) of
+        {selected, [{Count}]} ->
+            mongoose_rdbms:result_to_integer(Count);
         Error ->
             ?ERROR_MSG("count_offline_messages failed ~p", [Error]),
             0
@@ -151,4 +151,3 @@ maybe_encode_timestamp(never) ->
     "null";
 maybe_encode_timestamp(TimeStamp) ->
     encode_timestamp(TimeStamp).
-

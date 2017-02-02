@@ -59,7 +59,7 @@ child_spec(ProcName) ->
      [?MODULE]}.
 
 
--spec start_link(atom()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(atom()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(ProcName) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [], []).
 
@@ -88,7 +88,7 @@ select_worker(Host, Tag) ->
     worker_name(Host, N).
 
 
--spec worker_number(ejabberd:server(),_) -> non_neg_integer().
+-spec worker_number(ejabberd:server(), _) -> non_neg_integer().
 worker_number(Host, Tag) ->
     erlang:phash2(Tag, worker_count(Host)).
 
@@ -113,10 +113,11 @@ reset_shapers(ProcName) ->
 %% ------------------------------------------------------------------
 
 init(Args) ->
-    State = init_dicts(#state{
-        max_delay = proplists:get_value(max_delay, Args, 3000),
-        ttl = proplists:get_value(ttl, Args, 120)
-    }),
+    State = #state{max_delay = proplists:get_value(max_delay, Args, 3000),
+                   ttl = proplists:get_value(ttl, Args, 120),
+                   shapers = dict:new(),
+                   a_times = dict:new()
+                  },
     GCInt = proplists:get_value(gc_interval, Args, 30),
     timer:send_interval(timer:seconds(GCInt), delete_old_shapers),
     {ok, State}.
@@ -198,7 +199,7 @@ delete_old_shapers(State=#state{shapers=Shapers, a_times=Times, ttl=TTL}) ->
         end, init_dicts(State), Times).
 
 
--spec create_shaper(key()) -> 'none' | {'maxrate',_,0,non_neg_integer()}.
+-spec create_shaper(key()) -> 'none' | {'maxrate', _, 0, non_neg_integer()}.
 create_shaper(Key) ->
     shaper:new(request_shaper_name(Key)).
 
@@ -225,7 +226,7 @@ get_shaper_name(Host, Action, FromJID, Default) ->
 %% @doc It is a small hack
 %% This function calls this in more efficient way:
 %% timer:apply_after(DelayMs, gen_server, reply, [From, Reply]).
--spec reply_after(pos_integer(),{atom() | pid(),_},'ok') -> reference().
+-spec reply_after(pos_integer(), {atom() | pid(), _}, 'ok') -> reference().
 reply_after(DelayMs, {Pid, Tag}, Reply) ->
     erlang:send_after(DelayMs, Pid, {Tag, Reply}).
 

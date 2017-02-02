@@ -46,8 +46,8 @@
 
 %% ejabberd handlers
 -export([process_mam_iq/3,
-         user_send_packet/3,
-         remove_user/2,
+         user_send_packet/4,
+         remove_user/3,
          filter_packet/1,
          determine_amp_strategy/5,
          sm_filter_offline_message/4]).
@@ -131,7 +131,7 @@
                           MessageRows :: [{message_id(), jid(), jlib:xmlel()}]}.
 
 %% Internal types
--type iterator_fun() :: fun(() -> {'ok',{_,_}}).
+-type iterator_fun() :: fun(() -> {'ok', {_, _}}).
 -type rewriter_fun() :: fun((JID :: ejabberd:literal_jid())
                                                     -> ejabberd:literal_jid()).
 -type restore_option() :: {rewrite_jids, rewriter_fun() | [{binary(), binary()}]}
@@ -274,13 +274,14 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
 %%
 %% Note: for outgoing messages, the server MUST use the value of the 'to'
 %%       attribute as the target JID.
--spec user_send_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                       Packet :: jlib:xmlel()) -> 'ok'.
-user_send_packet(From, To, Packet) ->
+-spec user_send_packet(Acc :: map(), From :: ejabberd:jid(),
+                       To :: ejabberd:jid(),
+                       Packet :: jlib:xmlel()) -> map().
+user_send_packet(Acc, From, To, Packet) ->
     ?DEBUG("Send packet~n    from ~p ~n    to ~p~n    packet ~p.",
               [From, To, Packet]),
     handle_package(outgoing, false, From, To, From, Packet),
-    ok.
+    Acc.
 
 
 %% @doc Handle an incoming message.
@@ -322,9 +323,11 @@ process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
 %% @doc A ejabberd's callback with diferent order of arguments.
--spec remove_user(ejabberd:user(), ejabberd:server()) -> 'ok'.
-remove_user(User, Server) ->
-    delete_archive(Server, User).
+%% #rh
+-spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map().
+remove_user(Acc, User, Server) ->
+    delete_archive(Server, User),
+    Acc.
 
 sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...
@@ -634,7 +637,7 @@ handle_purge_single_message(ArcJID=#jid{},
 determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        FromJID, ToJID, Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
-    ShouldBeStored = is_complete_message(?MODULE, incoming, Packet)
+    ShouldBeStored = mod_mam_params:is_archivable_message(?MODULE, incoming, Packet)
         andalso is_interesting(ToJID, FromJID)
         andalso ejabberd_auth:is_user_exists(LUser, LServer),
     case ShouldBeStored of
@@ -651,7 +654,7 @@ handle_package(Dir, ReturnMessID,
                LocJID=#jid{},
                RemJID=#jid{},
                SrcJID=#jid{}, Packet) ->
-    case is_complete_message(?MODULE, Dir, Packet) of
+    case mod_mam_params:is_archivable_message(?MODULE, Dir, Packet) of
         true ->
             Host = server_host(LocJID),
             ArcID = archive_id_int(Host, LocJID),
@@ -800,7 +803,7 @@ purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID) 
 
 
 -spec wait_shaper(ejabberd:server(), action(), ejabberd:jid()
-                  ) -> 'ok' | {'error','max_delay_reached'}.
+                  ) -> 'ok' | {'error', 'max_delay_reached'}.
 wait_shaper(Host, Action, From) ->
     case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of
         ok ->
@@ -816,17 +819,17 @@ wait_shaper(Host, Action, From) ->
                               SrcJID :: ejabberd:jid(),
                               Packet :: jlib:xmlel()}.
 -spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary()) -> jlib:xmlel().
-message_row_to_xml(MamNs, {MessID,SrcJID,Packet}, QueryID) ->
+message_row_to_xml(MamNs, {MessID, SrcJID, Packet}, QueryID) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
     wrap_message(MamNs, Packet, QueryID, BExtMessID, DateTime, SrcJID).
 
-set_client_xmlns_for_row({MessID,SrcJID,Packet}) ->
-    {MessID,SrcJID,set_client_xmlns(Packet)}.
+set_client_xmlns_for_row({MessID, SrcJID, Packet}) ->
+    {MessID, SrcJID, set_client_xmlns(Packet)}.
 
 -spec message_row_to_ext_id(messid_jid_packet()) -> binary().
-message_row_to_ext_id({MessID,_,_}) ->
+message_row_to_ext_id({MessID, _, _}) ->
     mess_id_to_external_binary(MessID).
 
 set_client_xmlns(M) ->
@@ -945,7 +948,7 @@ return_max_delay_reached_error_iq(IQ) ->
 
 
 -spec return_error_iq(ejabberd:iq(), Reason :: term()) -> {error, term(), ejabberd:iq()}.
-return_error_iq(IQ, {Reason,{stacktrace,_Stacktrace}}) ->
+return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
     {error, timeout, IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]}};
@@ -957,7 +960,7 @@ return_error_iq(IQ, Reason) ->
 return_message_form_iq(IQ) ->
     IQ#iq{type = result, sub_el = [message_form(IQ#iq.xmlns)]}.
 
-report_issue({Reason,{stacktrace,Stacktrace}}, Issue, ArcJID, IQ) ->
+report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
     report_issue(Reason, Stacktrace, Issue, ArcJID, IQ);
 report_issue(Reason, Issue, ArcJID, IQ) ->
     report_issue(Reason, [], Issue, ArcJID, IQ).
@@ -983,16 +986,28 @@ compile_params_module(Params) ->
     code:load_binary(Mod, "mod_mam_params.erl", Code).
 
 params_helper(Params) ->
+    %% Try is_complete_message opt for backwards compatibility
+    {IsArchivableModule, IsArchivableFunction} =
+        case proplists:get_value(is_archivable_message, Params) of
+            undefined ->
+                case proplists:get_value(is_complete_message, Params) of
+                    undefined -> {mod_mam_utils, is_archivable_message};
+                    OldStyleMod -> {OldStyleMod, is_complete_message}
+                end;
+
+            Mod -> {Mod, is_archivable_message}
+        end,
+
     binary_to_list(iolist_to_binary(io_lib:format(
         "-module(mod_mam_params).~n"
         "-compile(export_all).~n"
         "add_archived_element() -> ~p.~n"
-        "is_complete_message() -> ~p.~n"
+        "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
         "default_result_limit() -> ~p.~n"
         "max_result_limit() -> ~p.~n"
         "params() -> ~p.~n",
         [proplists:get_bool(add_archived_element, Params),
-         proplists:get_value(is_complete_message, Params, mod_mam_utils),
+         IsArchivableModule, IsArchivableFunction,
          proplists:get_value(default_result_limit, Params, 50),
          proplists:get_value(max_result_limit, Params, 50),
          Params
@@ -1005,7 +1020,3 @@ set_params(Params) ->
 -spec add_archived_element() -> boolean().
 add_archived_element() ->
     mod_mam_params:add_archived_element().
-
-is_complete_message(Module, Dir, Packet) ->
-    M = mod_mam_params:is_complete_message(),
-    M:is_complete_message(Module, Dir, Packet).

@@ -24,22 +24,22 @@
 
 
 -spec binaries_to_rule(binary(), binary(), binary()) -> amp_rule() | amp_invalid_rule().
-binaries_to_rule(<<"deliver">> = Condition, Value,Action) ->
-    case are_valid_deliver_params(Value,Action) of
+binaries_to_rule(<<"deliver">> = Condition, Value, Action) ->
+    case are_valid_deliver_params(Value, Action) of
         true -> mk_amp_rule('deliver', from_bin_(Value), from_bin_(Action));
         false -> mk_amp_invalid_rule(Condition, Value, Action)
     end;
-binaries_to_rule(<<"match-resource">> = Condition, Value,Action) ->
-    case are_valid_match_resource_params(Value,Action) of
+binaries_to_rule(<<"match-resource">> = Condition, Value, Action) ->
+    case are_valid_match_resource_params(Value, Action) of
         true -> mk_amp_rule('match-resource', from_bin_(Value), from_bin_(Action));
         false -> mk_amp_invalid_rule(Condition, Value, Action)
     end;
-binaries_to_rule(<<"expire-at">> = Condition, Value,Action) ->
-    case are_valid_expire_at_params(Value,Action) of
+binaries_to_rule(<<"expire-at">> = Condition, Value, Action) ->
+    case are_valid_expire_at_params(Value, Action) of
         true -> mk_amp_rule('expire-at', Value, from_bin_(Action)); %% Value is binary here!
         false -> mk_amp_invalid_rule(Condition, Value, Action)
     end;
-binaries_to_rule(Condition,Value,Action) ->
+binaries_to_rule(Condition, Value, Action) ->
     mk_amp_invalid_rule(Condition, Value, Action).
 
 
@@ -82,9 +82,9 @@ make_error_response([E|_] = Errors, [_|_] = Rules, User, Packet) ->
            attrs = [{<<"id">>, OriginalId},
                     {<<"type">>, <<"error">>}],
            children = [Error, Amp]};
-make_error_response(Errors,Rules,User,Packet) ->
+make_error_response(Errors, Rules, User, Packet) ->
     ?ERROR_MSG("amp:make_error_response/4 got invalid data: ~p",
-               [Errors,Rules,User,Packet]),
+               [Errors, Rules, User, Packet]),
     error(invalid_data).
 
 error_amp_attrs('undefined-condition', User, Packet) ->
@@ -93,12 +93,12 @@ error_amp_attrs('undefined-condition', User, Packet) ->
     [{<<"status">>, <<"error">>},
      {<<"to">>, OriginalRecipient},
      {<<"from">>, OriginalSender}];
-error_amp_attrs(_,_,_) -> [].
+error_amp_attrs(_, _, _) -> [].
 
 
 %% The lists are guaranteed to be non-empty and of equal
 %% length by make_error_message/4
--spec make_error_el([amp_error()],[amp_any_rule()]) -> #xmlel{}.
+-spec make_error_el([amp_error()], [amp_any_rule()]) -> #xmlel{}.
 make_error_el(Errors, Rules) ->
     ErrorMarker = #xmlel{name = error_marker_name(hd(Errors)),
                          attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
@@ -119,7 +119,7 @@ rule_to_xmlel(#amp_rule{condition=C, value=V, action=A}) ->
 rule_to_xmlel(#amp_invalid_rule{condition=C, value=V, action=A}) ->
     #xmlel{name = <<"rule">>,
            attrs = [{<<"condition">>, C},
-                    {<<"value">>,V},
+                    {<<"value">>, V},
                     {<<"action">>, A}]}.
 
 -spec strip_amp_el(#xmlel{}) -> #xmlel{}.
@@ -161,8 +161,8 @@ parse_rules(Stanza) ->
 
 -spec parse_rule(#xmlel{}) -> amp_rule() | amp_invalid_rule().
 parse_rule(#xmlel{attrs = Attrs}) ->
-    GetF = fun(Value) -> proplists:get_value(Value,Attrs, <<"attribute-missing">>) end,
-    {C,V,A} = {GetF(<<"condition">>),
+    GetF = fun(Value) -> proplists:get_value(Value, Attrs, <<"attribute-missing">>) end,
+    {C, V, A} = {GetF(<<"condition">>),
                GetF(<<"value">>),
                GetF(<<"action">>)},
     binaries_to_rule(C, V, A).
@@ -186,9 +186,9 @@ are_valid_expire_at_params(_Value, Action) ->
     %% We may check the value with a regexp for a proper date in the future.
     is_valid_action(Action).
 
-mk_amp_rule(C,V,A) ->
+mk_amp_rule(C, V, A) ->
     #amp_rule{condition = C, value = V, action = A}.
-mk_amp_invalid_rule(C,V,A) ->
+mk_amp_invalid_rule(C, V, A) ->
     #amp_invalid_rule{condition = C, value = V, action = A}.
 
 error_code('not-acceptable')      -> <<"405">>;

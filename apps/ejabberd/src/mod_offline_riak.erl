@@ -145,7 +145,6 @@ pop_msg(Key, LUser, LServer, To) ->
         MD = riakc_obj:get_update_metadata(Obj),
         [Timestamp] = riakc_obj:get_secondary_index(MD, ?TIMESTAMP_IDX),
         [Expire] = riakc_obj:get_secondary_index(MD, ?EXPIRE_IDX),
-        User = riakc_obj:get_secondary_index(MD, ?USER_IDX),
         From = riakc_obj:get_user_metadata_entry(MD, <<"from">>),
 
         mongoose_riak:delete(bucket_type(LServer), Key),

@@ -78,7 +78,7 @@ start(Host) ->
     mnesia:create_table(passwd, [{disc_copies, [node()]},
                                  {attributes, record_info(fields, passwd)},
                                  {storage_properties,
-                                  [{ets, [{read_concurrency,true}]}]}
+                                  [{ets, [{read_concurrency, true}]}]}
                                   ]),
     mnesia:create_table(reg_users_counter,
 			[{ram_copies, [node()]},
@@ -235,7 +235,7 @@ get_vh_registered_users(LServer, [{limit, Limit}, {offset, Offset}])
     end;
 get_vh_registered_users(LServer, [{prefix, Prefix}])
         when is_binary(Prefix) ->
-    Set = [{U,S} || {U, S} <- get_vh_registered_users(LServer),
+    Set = [{U, S} || {U, S} <- get_vh_registered_users(LServer),
                     binary:part(U, 0, bit_size(Prefix)) =:= Prefix],
     lists:keysort(1, Set);
 get_vh_registered_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}])
@@ -243,7 +243,7 @@ get_vh_registered_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}])
     get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, End-Start+1}, {offset, Start}]);
 get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, Limit}, {offset, Offset}])
         when is_binary(Prefix) and is_integer(Limit) and is_integer(Offset) ->
-    case [{U,S} || {U, S} <- get_vh_registered_users(LServer),
+    case [{U, S} || {U, S} <- get_vh_registered_users(LServer),
                    binary:part(U, 0, bit_size(Prefix)) =:= Prefix] of
     [] ->
         [];

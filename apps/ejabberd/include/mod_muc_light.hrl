@@ -6,9 +6,6 @@
 -define(NS_MUC_LIGHT_CREATE, <<"urn:xmpp:muclight:0#create">>).
 -define(NS_MUC_LIGHT_DESTROY, <<"urn:xmpp:muclight:0#destroy">>).
 
--define(CODEC, mod_muc_light_codec_backend).
--define(BACKEND, mod_muc_light_db_backend).
-
 -define(DEFAULT_EQUAL_OCCUPANTS, false).
 -define(DEFAULT_LEGACY_MODE, false).
 -define(DEFAULT_ROOMS_PER_USER, infinity).
@@ -18,7 +15,6 @@
 -define(DEFAULT_MAX_OCCUPANTS, infinity).
 -define(DEFAULT_ROOMS_PER_PAGE, 10).
 -define(DEFAULT_ROOMS_IN_ROSTERS, false).
--define(DEFAULT_HOST, <<"muclight.@HOST@">>).
 
 -type schema_value_type() :: binary | integer | float.
 -type schema_item() :: {FormFieldName :: binary(), OptionName :: atom(),
@@ -40,12 +36,13 @@
 
 -type rooms_per_user() :: infinity | non_neg_integer().
 
--type blocking_who() :: user | room.
+-type blocking_what() :: user | room.
 -type blocking_action() :: allow | deny.
+-type blocking_who() :: ejabberd:simple_bare_jid().
 -type blocking_item() :: {
-        What :: blocking_who(),
+        What :: blocking_what(),
         Action :: blocking_action(),
-        Who :: ejabberd:simple_bare_jid()
+        Who :: blocking_who()
        }.
 
 -type disco_room_info() :: {RoomUS :: ejabberd:simple_bare_jid(),
@@ -56,11 +53,15 @@
           id = <<>> :: binary()
          }).
 
+-type op_disco_info() :: #disco_info{}.
+
 -record(disco_items, {
           id = <<>> :: binary(),
           rooms = [] :: [disco_room_info()],
           rsm = none :: none | jlib:rsm_in() | jlib:rsm_out()
          }).
+
+-type op_disco_items() :: #disco_items{}.
 
 -record(msg, {
           id = <<>> :: binary(),
@@ -94,12 +95,16 @@
           items = [] :: [blocking_item()]
          }).
 
+-type op_blocking() :: #blocking{}.
+
 -record(create, {
           id = <<>> :: binary(),
           version = <<>> :: binary(),
           raw_config = [] :: raw_config(),
           aff_users = [] :: aff_users()
          }).
+
+-type op_create() :: #create{}.
 
 -record(destroy, {
           id = <<>> :: binary()

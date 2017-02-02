@@ -80,6 +80,7 @@
 -define(NS_MAM,         <<"urn:xmpp:mam:tmp">>).
 -define(NS_MAM_03,      <<"urn:xmpp:mam:0">>). % MAM 0.3
 -define(NS_MAM_04,      <<"urn:xmpp:mam:1">>). % MAM 0.4.1 or 0.5
+-define(NS_HTTP_UPLOAD, <<"urn:xmpp:http:upload">>).
 
 -define(NS_RSM,         <<"http://jabber.org/protocol/rsm">>).
 -define(NS_EJABBERD_CONFIG,<<"ejabberd:config">>).
@@ -349,7 +350,7 @@
                       to_id     :: non_neg_integer() | undefined
                      }).
 
--record(rsm_out, {count :: non_neg_integer(),
+-record(rsm_out, {count :: non_neg_integer() | undefined,
                   index :: non_neg_integer() | undefined,
                   first :: binary() | undefined,
                   last  :: binary() | undefined
@@ -358,6 +359,8 @@
 -type iq() :: #iq{}.
 -type jid() :: #jid{}.
 -type ljid() :: {ejabberd:luser(), ejabberd:lserver(), ejabberd:lresource()}.
+
+-type mam_borders() :: #mam_borders{}.
 
 -type xmlel() :: #xmlel{}.
 

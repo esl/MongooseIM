@@ -245,3 +245,38 @@ CREATE TABLE auth_token(
     owner   TEXT    NOT NULL PRIMARY KEY,
     seq_no  BIGINT  NOT NULL
 );
+
+CREATE TABLE muc_light_rooms(
+    id BIGSERIAL            NOT NULL UNIQUE,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    version VARCHAR(20)     NOT NULL,
+    PRIMARY KEY (lserver, luser)
+);
+
+CREATE TABLE muc_light_occupants(
+    room_id BIGINT          NOT NULL REFERENCES muc_light_rooms(id),
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    aff SMALLINT            NOT NULL
+);
+
+CREATE INDEX i_muc_light_occupants_id ON muc_light_occupants (room_id);
+CREATE INDEX i_muc_light_occupants_us ON muc_light_occupants (lserver, luser);
+
+CREATE TABLE muc_light_config(
+    room_id BIGINT          NOT NULL REFERENCES muc_light_rooms(id),
+    opt VARCHAR(100)        NOT NULL,
+    val VARCHAR(250)        NOT NULL
+);
+
+CREATE INDEX i_muc_light_config ON muc_light_config (room_id);
+
+CREATE TABLE muc_light_blocking(
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    what SMALLINT           NOT NULL,
+    who VARCHAR(500)        NOT NULL
+);
+
+CREATE INDEX i_muc_light_blocking ON muc_light_blocking (luser, lserver);

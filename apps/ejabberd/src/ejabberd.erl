@@ -41,7 +41,7 @@
                  | ejabberd_socket
                  | mod_bosh_socket
                  | mod_websockets
-                 | ejabberd_tls
+                 | fast_tls
                  | ejabberd_zlib.
 
 -type user()      :: binary().
@@ -62,8 +62,8 @@
 -type xml_stream_item() :: 'closed'
                           | 'timeout'
                           | {'xmlstreamelement', jlib:xmlel()}
-                          | {'xmlstreamend',_}
-                          | {'xmlstreamerror',_}
+                          | {'xmlstreamend', _}
+                          | {'xmlstreamerror', _}
                           | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
 
 -export_type([lang/0,
