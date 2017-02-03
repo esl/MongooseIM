@@ -55,6 +55,7 @@ pages:
       - 'mod_privacy': 'modules/mod_privacy.md'
       - 'mod_private': 'modules/mod_private.md'
       - 'mod_pubsub': 'modules/mod_pubsub.md'
+      - 'mod_push': 'modules/mod_push.md'
       - 'mod_push_service_mongoosepush': 'modules/mod_push_service_mongoosepush.md'
       - 'mod_register': 'modules/mod_register.md'
       - 'mod_revproxy': 'modules/mod_revproxy.md'

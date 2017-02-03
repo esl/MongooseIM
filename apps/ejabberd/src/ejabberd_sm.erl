@@ -130,7 +130,8 @@ start_link() ->
 route(From, To, Packet) ->
     case (catch do_route(From, To, Packet)) of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, "
+                       "packet=~ts, stack_trace=~p",
                        [jid:to_binary(From), jid:to_binary(To),
                         ?MODULE, Reason, exml:to_binary(Packet),
                         erlang:get_stacktrace()]);

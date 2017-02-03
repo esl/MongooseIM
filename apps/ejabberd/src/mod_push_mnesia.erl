@@ -52,13 +52,12 @@ init(_Host, _Opts) ->
              Node :: mod_push:pubsub_node(), Form :: mod_push:form()) ->
                     ok | {error, Reason :: term()}.
 enable(User, PubSub, Node, Forms) ->
+    disable(User, PubSub, Node),
     write(make_record(User, PubSub, Node, Forms)).
 
 
 -spec disable(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
               Node :: mod_push:pubsub_node()) -> ok | {error, Reason :: term()}.
-disable(User, undefined, undefined) ->
-    delete(key(User));
 disable(User, undefined, undefined) ->
     delete(key(User));
 disable(User, PubsubJID, Node) ->
