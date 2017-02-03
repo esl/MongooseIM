@@ -79,10 +79,8 @@ check_modules(DB, Modules) ->
 %% @doc Return the list of undefined modules
 -spec get_missing_modules([module()]) -> [module()].
 get_missing_modules(Modules) ->
-    case code:ensure_modules_loaded(Modules) of
-        {error, What} -> [Module || {Module, _Reason} <- What];
-        ok -> []
-    end.
+    ModulesLoadResult = [{Module, code:ensure_loaded(Module)} || Module <- Modules],
+    [Module || {Module, {error, _}} <- ModulesLoadResult].
 
 
 %% @doc Return the list of databases used

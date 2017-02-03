@@ -50,7 +50,7 @@ disconnect(Connection) ->
 -spec query(Connection :: term(), Query :: any(),
             Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 query(Connection, Query, _Timeout) ->
-    mysql_to_odbc(mysql:query(Connection, iolist_to_binary(Query)), Connection).
+    mysql_to_odbc(mysql:query(Connection, Query), Connection).
 
 -spec prepare(Host :: ejabberd:server(), Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->

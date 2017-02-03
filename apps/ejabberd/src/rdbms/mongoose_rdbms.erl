@@ -189,7 +189,7 @@ sql_query_t(Query) ->
     sql_query_t(Query, get(?STATE_KEY)).
 
 sql_query_t(Query, State) ->
-    {QRes, _} = sql_query_internal(Query, State),
+    QRes = sql_query_internal(Query, State),
     case QRes of
         {error, Reason} ->
             throw({aborted, Reason});
@@ -352,7 +352,7 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
 %% @doc Only called by handle_call, only handles top level operations.
 -spec outer_op(odbc_msg(), state()) -> query_result() | transaction_result().
 outer_op({sql_query, Query}, State) ->
-    sql_query_internal(Query, State);
+    {sql_query_internal(Query, State), State};
 outer_op({sql_transaction, F}, State) ->
     outer_transaction(F, ?MAX_TRANSACTION_RESTARTS, "", State);
 outer_op({sql_execute, Name, Params}, State) ->
@@ -365,7 +365,7 @@ nested_op({sql_query, Query}, State) ->
     %% XXX - use sql_query_t here insted? Most likely would break
     %% callers who expect {error, _} tuples (sql_query_t turns
     %% these into throws)
-    sql_query_internal(Query, State);
+    {sql_query_internal(Query, State), State};
 nested_op({sql_transaction, F}, State) ->
     %% Transaction inside a transaction
     inner_transaction(F, State);
@@ -420,12 +420,12 @@ outer_transaction(F, NRestarts, _Reason, State) ->
             {{atomic, Res}, State}
     end.
 
-sql_query_internal(Query, State = #state{db_ref = DBRef}) ->
+sql_query_internal(Query, #state{db_ref = DBRef}) ->
     case mongoose_rdbms_backend:query(DBRef, Query, ?QUERY_TIMEOUT) of
         {error, "No SQL-driver information available."} ->
-            {{updated, 0}, State}; %% workaround for odbc bug
+            {updated, 0}; %% workaround for odbc bug
         Result ->
-            {Result, State}
+            Result
     end.
 
 -spec sql_execute(Name :: atom(), Params :: [term()], state()) -> {query_result(), state()}.
