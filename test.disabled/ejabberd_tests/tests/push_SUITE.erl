@@ -647,7 +647,7 @@ make_form(Fields) ->
 make_form_field(Name, Value) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Name}],
-           children = [#xmlcdata{content = Value}]}.
+           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
 
 
@@ -660,7 +660,8 @@ parse_form(#xmlel{name = <<"x">>} = Form) ->
 parse_form(Fields) when is_list(Fields) ->
     lists:map(
         fun(Field) ->
-            {exml_query:attr(Field, <<"var">>), exml_query:cdata(Field)}
+            {exml_query:attr(Field, <<"var">>),
+             exml_query:path(Field, [{element, <<"value">>, cdata}])}
         end, Fields).
 
 %% @doc Forwards all erlcloud_sns:publish calls to local PID as messages

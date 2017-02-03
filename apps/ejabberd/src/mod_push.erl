@@ -221,10 +221,11 @@ parse_form(undefined) ->
     [];
 parse_form(Form) ->
     IsForm = ?NS_XDATA == exml_query:attr(Form, <<"xmlns">>),
-    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>),
+    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>, <<"submit">>),
 
     FieldsXML = exml_query:subelements(Form, <<"field">>),
-    Fields = [{exml_query:attr(Field, <<"var">>), exml_query:cdata(Field)} || Field <- FieldsXML],
+    Fields = [{exml_query:attr(Field, <<"var">>),
+               exml_query:path(Field, [{element, <<"value">>}, cdata])} || Field <- FieldsXML],
     {[{_, FormType}], CustomFields} = lists:partition(
                                         fun({Name, _}) ->
                                                 Name == <<"FORM_TYPE">>
@@ -278,7 +279,7 @@ make_form(Fields) ->
 make_form_field({Name, Value}) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Name}],
-           children = [#xmlcdata{content = Value}]}.
+           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
 -spec cast(F :: atom(), A :: [any()]) -> any().
 cast(F, A) ->
