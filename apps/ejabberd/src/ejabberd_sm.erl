@@ -736,7 +736,7 @@ is_privacy_allow(From, To, Packet, PrivacyList) ->
                                   Acc,
                                   [User, Server, PrivacyList,
                                    {From, To, Packet}, in]),
-    allow == mongoose_acc:get(privacy_check, Res, allow).
+    allow == mongoose_acc:retrieve(privacy_check, jid:to_lower(To), Res, allow).
 
 
 -spec route_message(From, To, Packet) -> ok | stop when

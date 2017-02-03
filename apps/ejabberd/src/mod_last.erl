@@ -175,8 +175,11 @@ process_sm_iq(From, To,
                                                                attrs = [],
                                                                children = []}},
                                                        out]),
-                        make_response(IQ, SubEl, User, Server,
-                                      mongoose_acc:get(privacy_check, Res, allow));
+                        Decision = mongoose_acc:retrieve(privacy_check,
+                                                         jid:to_lower(From),
+                                                         Res,
+                                                         allow),
+                        make_response(IQ, SubEl, User, Server, Decision);
                     false ->
                         IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
                 end
