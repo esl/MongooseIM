@@ -32,7 +32,6 @@
 
 init(Host, ServerHost, Opts) ->
     node_flat:init(Host, ServerHost, Opts),
-    complain_if_mod_push_service_disabled(ServerHost),
     ok.
 
 terminate(Host, ServerHost) ->
@@ -106,11 +105,12 @@ publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload, P
 
 do_publish_item(_Nidx, _Publisher, _Model, _MaxItems, _ItemId, _ItemPublisher,
                 [#xmlel{name = <<"notification">>} | _] = Notifications, PublishOptions) ->
+    Host = ?MYNAME,
     case catch parse_form(PublishOptions) of
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
             NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
             NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
-            ejabberd_hooks:run(push_notifications, ?MYNAME, [NotificationForms, OptionMap]),
+            ejabberd_hooks:run(push_notifications, Host, [Host, NotificationForms, OptionMap]),
             {result, default};
         _ ->
             {error, mod_pubsub:extended_error(?ERR_CONFLICT, <<"precondition-not-met">>)}
@@ -194,17 +194,6 @@ path_to_node(Path) ->
 %%%
 %%% Internal
 %%%
-
-%% @doc Check mod_push_service is enabled, otherwise show warning.
-complain_if_mod_push_service_disabled(ServerHost) ->
-    case gen_mod:is_loaded(ServerHost, mod_push_service) of
-        false ->
-            ?WARNING_MSG("The PUSH plugin is enabled in mod_pubsub "
-                         "of host ~p. This plugin requires mod_push_service "
-                         "to be enabled, but it isn't.",
-                         [ServerHost]);
-        true -> ok
-    end.
 
 is_allowed_to_publish(PublishModel, Affiliation) ->
     (PublishModel == open)

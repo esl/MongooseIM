@@ -86,7 +86,7 @@ push_notifications(AccIn, Host, Notifications, Options) ->
                                                      "https://localhost:8080")),
     ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, endpoint_version, "v1")),
     DeviceId = maps:get(<<"device_id">>, Options),
-    URL = <<ShortURL/binary, "/", ProtocolVersion/binary, "/notification", DeviceId/binary>>,
+    URL = <<ShortURL/binary, "/", ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     lists:foreach(
         fun(Notification) ->
             ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
@@ -99,7 +99,7 @@ push_notifications(AccIn, Host, Notifications, Options) ->
                 }),
             AdditionalOpts = gen_mod:get_module_opt(Host, ?MODULE, http_options, []),
             HTTPOptions = AdditionalOpts ++ [{pool, pool_name(Host, hackney)}],
-            cast(?MODULE, http_notification, [post, URL, ReqHeaders, Payload, HTTPOptions])
+            cast(Host, ?MODULE, http_notification, [post, URL, ReqHeaders, Payload, HTTPOptions])
         end, Notifications),
 
     AccIn.
@@ -112,8 +112,8 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     ok | {error, Reason :: term()}.
 http_notification(Method, URL, ReqHeaders, Payload, HTTPOptions) ->
     case hackney:request(Method, URL, ReqHeaders, Payload, HTTPOptions) of
-        {ok, 200, _} -> ok;
-        {ok, ErrorCode, ErrorDetails} ->
+        {ok, 200, _, _} -> ok;
+        {ok, ErrorCode, ErrorDetails, _} ->
             ?WARNING_MSG("Unable to submit push notification. ErrorCode ~p, Details ~p",
                          [ErrorCode, ErrorDetails]),
             {error, {ErrorCode, ErrorCode}};
@@ -126,9 +126,9 @@ http_notification(Method, URL, ReqHeaders, Payload, HTTPOptions) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
--spec cast(M :: atom(), F :: atom(), A :: [any()]) -> any().
-cast(M, F, A) ->
-    wpool:cast(?MODULE, {M, F, A}, available_worker).
+-spec cast(Host :: ejabberd:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+cast(Host, M, F, A) ->
+    wpool:cast(pool_name(Host, wpool), {M, F, A}, available_worker).
 
 -spec pool_name(Host :: ejabberd:server(), Base0 :: atom()) -> atom().
 pool_name(Host, Base0) ->
