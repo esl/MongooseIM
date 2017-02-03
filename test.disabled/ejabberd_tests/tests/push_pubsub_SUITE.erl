@@ -284,4 +284,7 @@ required_modules() ->
         {plugins, [<<"dag">>, <<"push">>]},
         {nodetree, <<"dag">>},
         {host, "pubsub.@HOST@"}
-    ]}].
+    ]},
+     {mod_push_service_mongoosepush, [
+         {apple_host, "localhost"}
+     ]}].

@@ -32,6 +32,7 @@
 
 init(Host, ServerHost, Opts) ->
     node_flat:init(Host, ServerHost, Opts),
+    complain_if_mod_push_service_disabled(ServerHost),
     ok.
 
 terminate(Host, ServerHost) ->
@@ -104,9 +105,12 @@ publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload, P
     end.
 
 do_publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher,
-                [#xmlel{name = <<"notification">>} | _], PublishOptions) ->
+                [#xmlel{name = <<"notification">>} | _] = Notifications, PublishOptions) ->
     case catch parse_form(PublishOptions) of
-        #{<<"secret">> := Secret, <<"platform">> := Platform} ->
+        #{<<"secret">> := Secret, <<"platform">> := Platform} = OptionMap ->
+            NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
+            NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
+            ejabberd_hooks:run(push_notifications, <<"localhost">>, [NotificationForms, OptionMap]),
             {result, default};
         _ ->
             {error, mod_pubsub:extended_error(?ERR_CONFLICT, <<"precondition-not-met">>)}
@@ -187,6 +191,21 @@ node_to_path(Node) ->
 path_to_node(Path) ->
     node_flat:path_to_node(Path).
 
+%%%
+%%% Internal
+%%%
+
+%% @doc Check mod_push_service is enabled, otherwise show warning.
+complain_if_mod_push_service_disabled(ServerHost) ->
+    case gen_mod:is_loaded(ServerHost, mod_push_service) of
+        false ->
+            ?WARNING_MSG("The PUSH plugin is enabled in mod_pubsub "
+                         "of host ~p. This plugin requires mod_push_service "
+                         "to be enabled, but it isn't.",
+                         [ServerHost]);
+        true -> ok
+    end.
+
 is_allowed_to_publish(PublishModel, Affiliation) ->
     (PublishModel == open)
     or (PublishModel == publishers)
@@ -204,13 +223,12 @@ parse_form(Form) ->
 
     FieldsXML = exml_query:subelements(Form, <<"field">>),
     Fields = [{exml_query:attr(Field, <<"var">>), exml_query:cdata(Field)} || Field <- FieldsXML],
-    {[{_, FormType}], CustomFields} = lists:partition(
+    {_, CustomFields} = lists:partition(
         fun({Name, _}) ->
             Name == <<"FORM_TYPE">>
         end, Fields),
-    IsFormTypeCorrect = ?NS_PUBSUB_PUB_OPTIONS == FormType,
 
-    case IsForm andalso IsSubmit andalso IsFormTypeCorrect of
+    case IsForm andalso IsSubmit of
         true ->
             maps:from_list(CustomFields);
         false ->
