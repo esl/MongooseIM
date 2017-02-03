@@ -373,7 +373,7 @@ cancel_and_flush_timer(TRef) ->
 %%--------------------------------------------------------------------
 init([Host, Pool, MaxSize]) ->
     %% Use a private ODBC-connection.
-    Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 500),
+    Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
     MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
     {ok, #state{host=Host, connection_pool=Pool,
                 flush_interval = Int,
