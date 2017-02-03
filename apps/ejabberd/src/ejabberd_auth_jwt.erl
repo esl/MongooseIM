@@ -64,7 +64,7 @@ start(_Host) ->
 stop(_Host) ->
     ok.
 
-store_type(Server) ->
+store_type(_Server) ->
     external.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
