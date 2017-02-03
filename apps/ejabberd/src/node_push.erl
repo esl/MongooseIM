@@ -222,7 +222,8 @@ parse_form(Form) ->
     IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>),
 
     FieldsXML = exml_query:subelements(Form, <<"field">>),
-    Fields = [{exml_query:attr(Field, <<"var">>), exml_query:cdata(Field)} || Field <- FieldsXML],
+    Fields = [{exml_query:attr(Field, <<"var">>),
+               exml_query:path(Field, [{element, <<"value">>}, cdata])} || Field <- FieldsXML],
     {_, CustomFields} = lists:partition(
         fun({Name, _}) ->
             Name == <<"FORM_TYPE">>
