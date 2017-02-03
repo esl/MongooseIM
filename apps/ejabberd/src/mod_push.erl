@@ -108,13 +108,13 @@ remove_user(LUser, LServer) ->
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From, To, Packet}) ->
+filter_packet({From = #jid{lserver = Host}, To, Packet}) ->
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
     PacketType = exml_query:attr(Packet, <<"type">>),
     case lists:member(PacketType, [<<"chat">>, <<"groupchat">>]) of
         true ->
-            case catch mod_push_plugin:should_publish(From, To, Packet) of
+            case mod_push_plugin:should_publish(Host, From, To, Packet) of
                 true ->
                     publish_message(From, To, Packet);
                 false ->
