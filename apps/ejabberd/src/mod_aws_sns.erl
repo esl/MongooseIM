@@ -285,7 +285,7 @@ message_attributes(Host, TopicARN, From, To, MessageType, Packet) ->
 calc_backoff_time(Host, Retry) ->
     MaxRetry = opt(Host, publish_retry_count),
     BaseTime = opt(Host, publish_retry_time_ms, 50),
-    BackoffMaxTime = math:pow(2, MaxRetry - Retry) * BaseTime,
+    BackoffMaxTime = round(math:pow(2, MaxRetry - Retry)) * BaseTime,
     crypto:rand_uniform(BackoffMaxTime - BaseTime, BackoffMaxTime).
 
 -spec pool_name(Host :: ejabberd:lserver()) -> atom().
