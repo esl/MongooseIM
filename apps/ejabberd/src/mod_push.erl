@@ -196,7 +196,6 @@ parse_request(#xmlel{name = <<"enable">>} = Request) ->
         {_, _, invalid_form}            -> bad_request;
         {_, <<>>, _}                    -> bad_request;
         {error, _, _}                   -> bad_request;
-        {#jid{luser = <<>>}, _, _}      -> bad_request;
         {#jid{lserver = <<>>}, _, _}    -> bad_request;
         {JID, Node, FormFields} ->
             {enable, jid:to_bare(JID), Node, FormFields}
