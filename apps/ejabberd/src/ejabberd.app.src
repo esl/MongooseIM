@@ -40,7 +40,8 @@
                   usec,
                   uuid,
                   xmerl,
-                  worker_pool
+                  worker_pool,
+                  hackney
                  ]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.

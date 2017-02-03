@@ -104,13 +104,13 @@ publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload, P
             {error, ?ERR_FORBIDDEN}
     end.
 
-do_publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher,
+do_publish_item(_Nidx, _Publisher, _Model, _MaxItems, _ItemId, _ItemPublisher,
                 [#xmlel{name = <<"notification">>} | _] = Notifications, PublishOptions) ->
     case catch parse_form(PublishOptions) of
-        #{<<"secret">> := Secret, <<"platform">> := Platform} = OptionMap ->
+        #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
             NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
             NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
-            ejabberd_hooks:run(push_notifications, <<"localhost">>, [NotificationForms, OptionMap]),
+            ejabberd_hooks:run(push_notifications, ?MYNAME, [NotificationForms, OptionMap]),
             {result, default};
         _ ->
             {error, mod_pubsub:extended_error(?ERR_CONFLICT, <<"precondition-not-met">>)}
