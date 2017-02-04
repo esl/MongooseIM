@@ -42,10 +42,6 @@ It offers high availability and fault tolerance which is excatly what you need f
 Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
 Erlang Solutions commercially supports Riak KV.
 
-* Cassandra - since it aims to store large amounts of data, in comparison to some ODBC databases, it's good alternative for
- the`message archive` which is usually the biggest persistent component in MongooseIM.
-
-
 # RDBMS/ODBC
 
 ## MySQL
@@ -205,6 +201,25 @@ We are using the Riak data types, so the minimal supported version is 2.0.
 To be able to store above persistent date one have to run the following command:
 
 ```bash
+RIAK_HOST="http://localhost:8098"
+
+curl -XPUT $RIAK_HOST/search/schema/vcard \
+    -H 'Content-Type:application/xml' \
+    --data-binary @tools/vcard_search_schema.xml
+
+curl -XPUT $RIAK_HOST/search/index/vcard \
+    -H 'Content-Type: application/json' \
+    -d '{"schema":"vcard"}'
+
+#MAM
+curl -XPUT $RIAK_HOST/search/schema/mam \
+    -H 'Content-Type:application/xml' \
+    --data-binary @tools/mam_search_schema.xml
+
+curl -XPUT $RIAK_HOST/search/index/mam \
+    -H 'Content-Type: application/json' \
+    -d '{"schema":"mam"}'
+
 # user base
 riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
 riak-admin bucket-type activate users
@@ -220,27 +235,9 @@ riak-admin bucket-type create private '{"props":{"last_write_wins":true, "dvv_en
 riak-admin bucket-type activate private
 
 # vCard
-RIAK_HOST="http://localhost:8098"
-
-curl -XPUT $RIAK_HOST/search/schema/vcard \
-    -H 'Content-Type:application/xml' \
-    --data-binary @tools/vcard_search_schema.xml
-
-curl -XPUT $RIAK_HOST/search/index/vcard \
-    -H 'Content-Type: application/json' \
-    -d '{"schema":"vcard"}'
 
 riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard", "dvv_enabled":false}}'
 riak-admin bucket-type activate vcard
-
-#MAM
-curl -XPUT $RIAK_HOST/search/schema/mam \
-    -H 'Content-Type:application/xml' \
-    --data-binary @tools/mam_search_schema.xml
-
-curl -XPUT $RIAK_HOST/search/index/mam \
-    -H 'Content-Type: application/json' \
-    -d '{"schema":"mam"}'
 
 riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
 riak-admin bucket-type activate mam_yz
@@ -272,23 +269,6 @@ for storing above persitent date and it will activate them.
 
 You should also configure Riak in `ejabberd.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
-
-## Cassandra
-
-**Can be used for:**
-
-* MAM (Message Archive Management)
-
-**Setup**
-
-The schema files can be found in the `apps/ejabberd/priv` directory. The default
-schema is defined in the `cassandra.cql` file.
-
-For example, you can use the following command to apply schema on localhost:
-
-```
-cqlsh localhost 9160 -f cassandra.cql
-```
 
 ## Redis
 

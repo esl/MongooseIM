@@ -30,7 +30,13 @@ init_per_suite(C) ->
     C.
 
 end_per_suite(_C) ->
-    application:stop(exometer).
+    application:stop(exometer),
+    application:stop(exometer_core).
+
+init_per_testcase(_, C) ->
+    ejabberd_hooks:start_link(),
+    catch ets:new(local_config, [named_table]),
+    C.
 
 a_fun_can_be_added(_) ->
     given_hooks_started(),
@@ -78,30 +84,31 @@ a_module_fun_can_be_removed(_) ->
 
 hooks_run_launches_nullary_fun(_) ->
     given_hooks_started(),
-    given_module(hook_mod, fun_nullary, fun() -> success0 end),
+    given_module(hook_mod, fun_nullary, fun(_) -> #{result => success0} end),
     given_hook_added(test_run_hook, hook_mod, fun_nullary, 1),
 
     %% when
     ejabberd_hooks:run(test_run_hook, ?HOST, []),
 
     %% then
-    [{_,{hook_mod,fun_nullary,[]}, success0}] = meck:history(hook_mod).
+    H = meck:history(hook_mod),
+    [{_,{hook_mod,fun_nullary,[#{}]}, #{result := success0}}] = H.
 
 hooks_run_launches_unary_fun(_) ->
     given_hooks_started(),
-    given_module(hook_mod, fun_onearg, fun(oneval) -> success1 end),
+    given_module(hook_mod, fun_onearg, fun(Acc, Val) -> maps:put(result, Val, Acc) end),
     given_hook_added(test_run_hook, hook_mod, fun_onearg, 1),
 
     %% when
     ejabberd_hooks:run(test_run_hook, ?HOST, [oneval]),
 
     %% then
-    [{_,{hook_mod,fun_onearg,[oneval]}, success1}] = meck:history(hook_mod).
+    [{_,{hook_mod,fun_onearg,[#{}, oneval]}, #{result := oneval}}] = meck:history(hook_mod).
 
 hooks_run_ignores_different_arity_funs(_) ->
     given_hooks_started(),
-    given_module(hook_mod, fun_onearg, fun(unused) -> never_return end),
-    given_fun(hook_mod, fun_twoarg, fun(one,two)-> success2 end),
+    given_module(hook_mod, fun_onearg, fun(#{}, unused) -> never_return end),
+    given_fun(hook_mod, fun_twoarg, fun(#{}, one,two)-> #{r => success2} end),
 
     given_hook_added(test_run_hook, hook_mod, fun_onearg, 1),
     given_hook_added(test_run_hook, hook_mod, fun_twoarg, 1),
@@ -110,7 +117,7 @@ hooks_run_ignores_different_arity_funs(_) ->
     ejabberd_hooks:run(test_run_hook, ?HOST, [one, two]),
 
     %% then
-    [{_,{hook_mod,fun_twoarg,[one,two]}, success2}] = meck:history(hook_mod).
+    [{_,{hook_mod,fun_twoarg,[#{}, one,two]}, #{r := success2}}] = meck:history(hook_mod).
 
 hooks_run_stops_when_fun_returns_stop(_) ->
     given_hooks_started(),
@@ -121,10 +128,10 @@ hooks_run_stops_when_fun_returns_stop(_) ->
     given_hook_added(test_run_hook, hook_mod, another_fun, 2),
 
     %% when
-    ejabberd_hooks:run(test_run_hook, ?HOST, [x]),
+    ejabberd_hooks:run(test_run_hook, ?HOST, []),
 
     %% then
-    [{_,{hook_mod,a_fun,[x]}, stop}] = meck:history(hook_mod).
+    [{_,{hook_mod,a_fun,[#{}]}, stop}] = meck:history(hook_mod).
 
 
 hooks_run_fold_folds_with_unary_fun(_) ->
@@ -257,6 +264,8 @@ const(N) -> fun(_) -> N end.
 
 given_hooks_started() ->
     error_logger:tty(false),
+    Fun = fun(all_metrics_are_global) -> false end,
+    given_module(ejabberd_config, get_local_option, Fun),
     ejabberd_hooks:start_link().
 
 given_hook_added(HookName, ModName, FunName, Prio) ->

@@ -16,11 +16,15 @@ all() ->
     ].
 
 init_per_suite(C) ->
-    stringprep:start(),
-    {ok, _} = application:ensure_all_started(mnesia),
+    ok = stringprep:start(),
+    ok = mnesia:create_schema([node()]),
+    ok = mnesia:start(),
     C.
 
-end_per_suite(C) -> C.
+end_per_suite(C) ->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
+    C.
 
 init_per_testcase(_, Config) ->
     mock_mongoose_metrics(),

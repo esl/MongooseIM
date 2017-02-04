@@ -4,11 +4,11 @@
 
 ### Modules
 
-MongooseIM is basically a huge router, that comes with a large set of modules. These modules modify and extend the behaviour and features of MongooseIM. Sysadmins and DevOps can configure these modules and potentially enable them. W wide range of modules are available, such as authentication, privacy, storage, backend integration, mobile optimisations... See '[Extension Modules](../advanced-configuration/Modules.md)' for more info.
+MongooseIM is basically a huge router, that comes with a large set of modules. These modules modify and extend the behaviour and features of MongooseIM. Sysadmins and DevOps can configure these modules and potentially enable them. A wide range of modules is available, such as authentication, privacy, storage, backend integration, mobile optimisations... See '[Extension Modules](../advanced-configuration/Modules.md)' for more info.
 
 ### Databases
 
-For a reminder, MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
+Remember that MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
 
 Please refer to '[Database Backends](../advanced-configuration/database-backends-configuration.md)' doc for more configuration information.
 
@@ -22,7 +22,7 @@ No need to backup here, since the transient data naturally rebuilds as clients r
 
 #### Persistant databases
 
-Both RDBMS/SQL (MySQL/PostgreSQL),and NOSQL (Riak KV, Cassandra) databases are supported.
+Both RDBMS/SQL (MySQL/PostgreSQL) and NOSQL (Riak KV) databases are supported.
 
 Backups should be regular, and tested.
 
@@ -52,7 +52,7 @@ MongooseIM can communicate both ways with other backend services in the datacent
 
 The MongooseIM REST API is available for control/management of MongooseIM's operations as well as functional aspects.
 
-A HTTP notification enables the forwarding of events to any other external HTTP service.
+An HTTP notification enables the forwarding of events to any other external HTTP service.
 
 ### Management and monitoring
 
@@ -70,6 +70,6 @@ Contact us.
 
 ![MongooseIM worlwide architecture](MongooseIM_worlwide_architecture.png)
 
-The MongooseIM platforms enables a service to scale worlwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
+The MongooseIM platform enables a service to scale worlwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
 
 Contact us.

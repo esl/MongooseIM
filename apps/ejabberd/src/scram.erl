@@ -157,12 +157,12 @@ serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
                      salt = Salt, iterationcount = IterationCount})->
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
-       StoredKey/binary,$,,ServerKey/binary,
-       $,,Salt/binary,$,,IterationCountBin/binary>>.
+       StoredKey/binary, $,,ServerKey/binary,
+       $,,Salt/binary, $,,IterationCountBin/binary>>.
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     case catch binary:split(Serialized, <<",">>, [global]) of
-        [StoredKey, ServerKey,Salt,IterationCount] ->
+        [StoredKey, ServerKey, Salt, IterationCount] ->
             {ok, #scram{storedkey = StoredKey,
                         serverkey = ServerKey,
                         salt = Salt,
@@ -172,7 +172,7 @@ deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
             {error, incorrect_scram}
     end;
 deserialize(Bin) ->
-    ?WARNING_MSG("Corrupted serialized SCRAM: ~p, ~p", [Bin]),
+    ?WARNING_MSG("Corrupted serialized SCRAM: ~p", [Bin]),
     {error, corrupted_scram}.
 
 -spec scram_to_tuple(scram()) -> scram_tuple().
@@ -186,4 +186,3 @@ scram_to_tuple(Scram) ->
 check_digest(#scram{storedkey = StoredKey}, Digest, DigestGen, Password) ->
     Passwd = base64:decode(StoredKey),
     ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd).
-

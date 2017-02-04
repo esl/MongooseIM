@@ -153,7 +153,7 @@ init_key({KeyName, ram}, Domain, Opts) ->
     {ok, _ActualKey} = ?BACKEND:init_ram_key(KeyRecord),
     ok.
 
-%% It's easier to trace these than ets:{insert,lookup} - much less noise.
+%% It's easier to trace these than ets:{insert, lookup} - much less noise.
 ets_get_key(KeyID) ->
     ets:lookup(keystore, KeyID).
 

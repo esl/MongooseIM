@@ -62,7 +62,7 @@
 -record(state, {}).
 
 -type handler() :: undefined
-                 | {apply_fun,fun((_,_,_) -> any())}
+                 | {apply_fun, fun((_, _, _) -> any())}
                  | {apply, M::atom(), F::atom()}.
 -type domain() :: binary().
 
@@ -80,7 +80,7 @@
 %%--------------------------------------------------------------------
 
 
--spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -455,13 +455,13 @@ route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
         drop ->
             ?DEBUG("filter dropped packet", []),
             ok;
-        {OrigFrom, OrigTo, OrigPacket} ->
+        {OrigFrom, OrigTo, OrigPacketFiltered} ->
             ?DEBUG("filter passed", []),
-            case catch(M:route(OrigFrom, OrigTo, OrigPacket)) of
+            case catch(M:route(OrigFrom, OrigTo, OrigPacketFiltered)) of
                 {'EXIT', Reason} ->
                     ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
                                [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
-                                M, Reason, exml:to_binary(OrigPacket),
+                                M, Reason, exml:to_binary(OrigPacketFiltered),
                                 erlang:get_stacktrace()]),
                     ?DEBUG("routing error", []),
                     ok;

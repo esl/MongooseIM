@@ -54,7 +54,7 @@
                      myname :: ejabberd:server(),
                      realm :: binary(),
                      mech_mod :: sasl_module(),
-                     mech_state :: tuple(),
+                     mech_state :: any(),
                      creds :: mongoose_credentials:t()
                      }).
 -type sasl_state() :: #sasl_state{}.
@@ -119,7 +119,7 @@ listmech(Host) ->
                                  [{'==', '$2', plain}];
                              scram ->
                                  [{'/=', '$2', digest}];
-                             {'EXIT',{undef,[{Module,store_type,[]} | _]}} ->
+                             {'EXIT', {undef, [{Module, store_type, []} | _]}} ->
                                  ?WARNING_MSG("~p doesn't implement the function store_type/0", [Module]),
                                  [];
                              _Else ->
@@ -144,8 +144,8 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
                  ClientIn :: binary()) -> {ok, _}
                                         | {ok, term(), term()}
                                         | {error, binary()}
-                                        | {'continue',_,sasl_state()}
-                                        | {'error',binary(),ejabberd:user()}.
+                                        | {'continue', _, sasl_state()}
+                                        | {'error', binary(), ejabberd:user()}.
 server_start(State, Mech, ClientIn) ->
     case lists:member(Mech, listmech(State#sasl_state.myname)) of
         true ->

@@ -26,12 +26,11 @@
 -define(JWT_KEY, <<"testtesttest">>).
 
 all() ->
-    Release = list_to_integer(erlang:system_info(otp_release)),
-    if
-        Release < 18 ->
+    case list_to_integer(erlang:system_info(otp_release)) of
+        Release when Release < 18 ->
             %% jwerl needs recent crypto features
             [];
-        true ->
+        _ ->
             [{group, jwt}]
     end.
 
@@ -82,13 +81,16 @@ end_per_testcase(CaseName, Config) ->
 %% JSON Web Token tests
 %%--------------------------------------------------------------------
 
-auth_ok(_Config) ->
+auth_props() ->
     Password = generate_token(0),
-    ClientProps0 = [{username, ?USERNAME},
-                    {server, <<"localhost">>},
-                    {password, Password},
-                    {ssl, false}
-                   ],
+    [{username, ?USERNAME},
+     {server, <<"localhost">>},
+     {password, Password},
+     {ssl, false}
+    ].
+
+auth_ok(_Config) ->
+    ClientProps0 = auth_props(),
     {ok, _Conn, _ClientProps, _} = escalus_connection:start(ClientProps0,
                                                             [start_stream,
                                                              stream_features,
@@ -97,12 +99,7 @@ auth_ok(_Config) ->
     ok.
 
 auth_fail(_Config) ->
-    Password = generate_token(60),
-    ClientProps0 = [{username, ?USERNAME},
-                    {server, <<"localhost">>},
-                    {password, Password},
-                    {ssl, false}
-                   ],
+    ClientProps0 = auth_props(),
     {error, _} = escalus_connection:start(ClientProps0,
                                           [start_stream,
                                            stream_features,
@@ -111,11 +108,10 @@ auth_fail(_Config) ->
     ok.
 
 generate_token(NbfDelta) ->
-<<<<<<< HEAD
-    Now = p1_time_compat:system_time(seconds),
-=======
     Now = os:system_time(seconds),
->>>>>>> vjud
-    Data = #{bookingNumber => ?USERNAME, exp => Now + 60, nbf => Now + NbfDelta, iat => Now},
+    Data = #{bookingNumber => ?USERNAME,
+             exp => Now + 60,
+             nbf => Now + NbfDelta,
+             iat => Now},
     Token = jwerl:sign(Data, #{alg => <<"HS256">>, key => ?JWT_KEY}),
     Token.

@@ -88,16 +88,16 @@ strip_amp_el_from_request(Packet) ->
 %% @doc This may eventually be configurable, but for now we return a constant list.
 amp_features() ->
     [<<"http://jabber.org/protocol/amp">>
-    ,<<"http://jabber.org/protocol/amp?action=notify">>
-    ,<<"http://jabber.org/protocol/amp?action=error">>
-    ,<<"http://jabber.org/protocol/amp?condition=deliver">>
-    ,<<"http://jabber.org/protocol/amp?condition=match-resource">>
+   , <<"http://jabber.org/protocol/amp?action=notify">>
+   , <<"http://jabber.org/protocol/amp?action=error">>
+   , <<"http://jabber.org/protocol/amp?condition=deliver">>
+   , <<"http://jabber.org/protocol/amp?condition=match-resource">>
     ].
 
 -spec process_amp_rules(#xmlel{}, jid(), amp_event(), amp_rules()) -> #xmlel{} | drop.
 process_amp_rules(Packet, From, Event, Rules) ->
     VerifiedRules = verify_support(host(From), Rules),
-    {Good,Bad} = lists:partition(fun is_supported_rule/1, VerifiedRules),
+    {Good, Bad} = lists:partition(fun is_supported_rule/1, VerifiedRules),
     ValidRules = [ Rule || {supported, Rule} <- Good ],
     case Bad of
         [{error, ValidationError, InvalidRule} | _] ->
@@ -163,7 +163,7 @@ reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
 send_error_and_drop(Packet, From, AmpError, MatchedRule) ->
     send_errors_and_drop(Packet, From, [{AmpError, MatchedRule}]).
 
--spec send_errors_and_drop(#xmlel{}, jid(), [{amp_error(),amp_rule()}]) -> drop.
+-spec send_errors_and_drop(#xmlel{}, jid(), [{amp_error(), amp_rule()}]) -> drop.
 send_errors_and_drop(Packet, From, []) ->
     ?ERROR_MSG("~p from ~p generated an empty list of errors. This shouldn't happen!",
                [Packet, From]),
@@ -183,7 +183,7 @@ update_metric_and_drop(Packet, From) ->
     drop.
 
 %% Internal
-result_or({result, I},_) -> I;
+result_or({result, I}, _) -> I;
 result_or(_, Or)         -> Or.
 
 -spec is_supported_rule(amp_rule_support()) -> boolean().

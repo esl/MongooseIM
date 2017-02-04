@@ -28,15 +28,15 @@ start_link(Opts) ->
                             transient, 2000, supervisor, [cuesport | ChildMods]}).
 
 -spec cmd(iolist()) -> undefined | binary()
-                | [binary() | [binary() | integer()] | integer() | {'error',_}]
+                | [binary() | [binary() | integer()] | integer() | {'error', _}]
                 | integer()
-                | {'error',_}.
+                | {'error', _}.
 cmd(Cmd) ->
     redo:cmd(cuesport:get_worker(?POOL_NAME), Cmd).
 
 -spec cmd(iolist(), integer()) -> undefined | binary()
-              | [binary() | [binary() | integer()] | integer() | {'error',_}]
+              | [binary() | [binary() | integer()] | integer() | {'error', _}]
               | integer()
-              | {'error',_}.
+              | {'error', _}.
 cmd(Cmd, Timeout) ->
     redo:cmd(cuesport:get_worker(?POOL_NAME), Cmd, Timeout).

@@ -118,7 +118,7 @@
 
 -ifdef(use_specs).
 -record(child, {% pid is undefined when child is not running
-	        pid = undefined :: child() | {restarting,pid()} | [pid()],
+	        pid = undefined :: child() | {restarting, pid()} | [pid()],
 		name            :: child_id(),
 		mfargs          :: mfargs(),
 		restart_type    :: restart(),
@@ -180,7 +180,7 @@
            [ChildSpec :: child_spec()]}}
     | ignore.
 -endif.
--define(restarting(_Pid_), {restarting,_Pid_}).
+-define(restarting(_Pid_), {restarting, _Pid_}).
 
 %%% ---------------------------------------------------
 %%% This is a general process supervisor built upon gen_server.erl.
@@ -267,7 +267,7 @@ terminate_child(Supervisor, Name) ->
     call(Supervisor, {terminate_child, Name}).
 
 -ifdef(use_specs).
--spec which_children(SupRef) -> [{Id,Child,Type,Modules}] when
+-spec which_children(SupRef) -> [{Id, Child, Type, Modules}] when
       SupRef :: sup_ref(),
       Id :: child_id() | undefined,
       Child :: child() | 'restarting',
@@ -336,7 +336,7 @@ cast(Supervisor, Req) ->
 -type init_sup_name() :: sup_name() | 'self'.
 
 -type stop_rsn() :: {'shutdown', term()}
-                  | {'bad_return', {module(),'init', term()}}
+                  | {'bad_return', {module(), 'init', term()}}
                   | {'bad_start_spec', term()}
                   | {'start_spec', term()}
                   | {'supervisor_data', term()}.
@@ -410,7 +410,7 @@ start_children([Child|Chs], NChildren, SupName) ->
 	{error, Reason} ->
 	    report_error(start_error, Reason, Child, SupName),
 	    {error, lists:reverse(Chs) ++ [Child | NChildren],
-	     {failed_to_start_child,Child#child.name,Reason}}
+	     {failed_to_start_child, Child#child.name, Reason}}
     end;
 start_children([], NChildren, _SupName) ->
     {ok, NChildren}.
@@ -550,7 +550,7 @@ handle_call(which_children, _From, #state{children = [#child{restart_type = RTyp
 							 child_type = CT,
 							 modules = Mods}]} =
 		State) when ?is_simple(State) ->
-    Reply = lists:map(fun({?restarting(_),_}) -> {undefined,restarting,CT,Mods};
+    Reply = lists:map(fun({?restarting(_), _}) -> {undefined, restarting, CT, Mods};
 			 ({Pid, _}) -> {undefined, Pid, CT, Mods} end,
 		      ?DICT:to_list(dynamics_db(RType, State#state.dynamics))),
     {reply, Reply, State};
@@ -612,7 +612,7 @@ handle_call(count_children, _From, State) ->
     {Specs, Active, Supers, Workers} =
 	lists:foldl(fun(Child, Counts) ->
 			   count_child(Child, Counts)
-		   end, {0,0,0,0}, State#state.children),
+		   end, {0, 0, 0, 0}, State#state.children),
 
     %% Reformat counts to a property list.
     Reply = [{specs, Specs}, {active, Active},
@@ -635,13 +635,13 @@ count_child(#child{pid = Pid, child_type = supervisor},
 
 
 %%% If a restart attempt failed, this message is sent via
-%%% timer:apply_after(0,...) in order to give gen_server the chance to
+%%% timer:apply_after(0, ...) in order to give gen_server the chance to
 %%% check it's inbox before trying again.
 -ifdef(use_specs).
 -spec handle_cast({try_again_restart, child_id() | pid(), term()}, state()) ->
 			 {'noreply', state()} | {stop, shutdown, state()}.
 -endif.
-handle_cast({try_again_restart,Pid,Reason}, #state{children=[Child]}=State)
+handle_cast({try_again_restart, Pid, Reason}, #state{children=[Child]}=State)
   when ?is_simple(State) ->
     RT = Child#child.restart_type,
     RPid = restarting(Pid),
@@ -654,13 +654,13 @@ handle_cast({try_again_restart,Pid,Reason}, #state{children=[Child]}=State)
             {noreply, State}
     end;
 
-handle_cast({try_again_restart,Name,Reason}, State) ->
+handle_cast({try_again_restart, Name, Reason}, State) ->
     %% we still support >= R12-B3 in which lists:keyfind/3 doesn't exist
-    case lists:keysearch(Name,#child.name,State#state.children) of
+    case lists:keysearch(Name, #child.name, State#state.children) of
 	{value, Child = #child{pid=?restarting(_), restart_type=RestartType}} ->
             try_restart(RestartType, Reason, Child, State);
 	_ ->
-	    {noreply,State}
+	    {noreply, State}
     end.
 
 %%
@@ -766,7 +766,7 @@ update_childspec(State, StartSpec) ->
 
 update_childspec1([Child|OldC], Children, KeepOld) ->
     case update_chsp(Child, Children) of
-	{ok,NewChildren} ->
+	{ok, NewChildren} ->
 	    update_childspec1(OldC, NewChildren, KeepOld);
 	false ->
 	    update_childspec1(OldC, Children, [Child|KeepOld])
@@ -941,8 +941,8 @@ maybe_restart(Strategy, Child, State) ->
             Id = if ?is_simple(State) -> Child#child.pid;
                     true -> Child#child.name
                  end,
-            timer:apply_after(0,?MODULE,try_again_restart,[self(),Id,Reason]),
-            {ok,NState2};
+            timer:apply_after(0, ?MODULE, try_again_restart, [self(), Id, Reason]),
+            {ok, NState2};
         Other ->
             Other
     end.
@@ -987,7 +987,7 @@ restart(rest_for_one, Child, State) ->
 	{error, ChAfter3, Reason} ->
 	    NChild = Child#child{pid=restarting(Child#child.pid)},
 	    NState = State#state{children = ChAfter3 ++ ChBefore},
-	    {try_again, Reason, replace_child(NChild,NState)}
+	    {try_again, Reason, replace_child(NChild, NState)}
     end;
 restart(one_for_all, Child, State) ->
     Children1 = del_child(Child#child.pid, State#state.children),
@@ -998,7 +998,7 @@ restart(one_for_all, Child, State) ->
 	{error, NChs, Reason} ->
 	    NChild = Child#child{pid=restarting(Child#child.pid)},
 	    NState = State#state{children = NChs},
-	    {try_again, Reason, replace_child(NChild,NState)}
+	    {try_again, Reason, replace_child(NChild, NState)}
     end.
 
 restarting(Pid) when is_pid(Pid) -> ?restarting(Pid);
@@ -1007,7 +1007,7 @@ restarting(RPid) -> RPid.
 %%-----------------------------------------------------------------
 %% Func: terminate_children/2
 %% Args: Children = [child_rec()] in termination order
-%%       SupName = {local, atom()} | {global, atom()} | {pid(),Mod}
+%%       SupName = {local, atom()} | {global, atom()} | {pid(), Mod}
 %% Returns: NChildren = [child_rec()] in
 %%          startup order (reversed termination order)
 %%-----------------------------------------------------------------
@@ -1116,7 +1116,7 @@ monitor_child(Pid) ->
 %% Func: terminate_dynamic_children/3
 %% Args: Child    = child_rec()
 %%       Dynamics = ?DICT() | ?SET()
-%%       SupName  = {local, atom()} | {global, atom()} | {pid(),Mod}
+%%       SupName  = {local, atom()} | {global, atom()} | {pid(), Mod}
 %% Returns: ok
 %%
 %%
@@ -1238,7 +1238,7 @@ dynamics_db(temporary, undefined) ->
     ?SETS:new();
 dynamics_db(_, undefined) ->
     ?DICT:new();
-dynamics_db(_,Dynamics) ->
+dynamics_db(_, Dynamics) ->
     Dynamics.
 
 dynamic_child_args(Pid, Dynamics) ->
@@ -1359,7 +1359,7 @@ init_state1(SupName, {Strategy, MaxIntensity, Period}, Mod, Args) ->
     validStrategy(Strategy),
     validIntensity(MaxIntensity),
     validPeriod(Period),
-    {ok, #state{name = supname(SupName,Mod),
+    {ok, #state{name = supname(SupName, Mod),
 		strategy = Strategy,
 		intensity = MaxIntensity,
 		period = Period,

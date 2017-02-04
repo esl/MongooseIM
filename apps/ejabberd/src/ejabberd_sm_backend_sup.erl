@@ -39,7 +39,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Whenever a supervisor is started using supervisor:start_link/[2,3],
+%% Whenever a supervisor is started using supervisor:start_link/[2, 3],
 %% this function is called by the new process to find out about
 %% restart strategy, maximum restart frequency and child
 %% specifications.

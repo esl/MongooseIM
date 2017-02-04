@@ -27,23 +27,25 @@
 -module(ejabberd_socket).
 -author('alexey@process-one.net').
 
+-behaviour(mongoose_transport).
+
 %% API
 -export([start/4,
-	 connect/3,
-	 connect/4,
-	 starttls/2,
-	 starttls/3,
-	 compress/3,
-	 reset_stream/1,
-	 send/2,
-	 send_xml/2,
-	 change_shaper/2,
-	 monitor/1,
-	 get_sockmod/1,
-	 get_peer_certificate/1,
-	 get_verify_result/1,
-	 close/1,
-	 sockname/1, peername/1]).
+         connect/3,
+         connect/4,
+         starttls/2,
+         starttls/3,
+         compress/3,
+         reset_stream/1,
+         send/2,
+         send_xml/2,
+         change_shaper/2,
+         monitor/1,
+         get_sockmod/1,
+         get_peer_certificate/1,
+         get_verify_result/1,
+         close/1,
+         sockname/1, peername/1]).
 
 -include("ejabberd.hrl").
 
@@ -61,7 +63,7 @@
 %% Description:
 %%--------------------------------------------------------------------
 -spec start(atom() | tuple(), ejabberd:sockmod(),
-    Socket :: port(), Opts :: [{atom(),_}]) -> ok.
+    Socket :: port(), Opts :: [{atom(), _}]) -> ok.
 start(Module, SockMod, Socket, Opts) ->
     case Module:socket_type() of
         xml_stream ->
@@ -122,10 +124,10 @@ start(Module, SockMod, Socket, Opts) ->
                       | integer() | inet:ip_address().
 -type option() :: 'binary' | 'inet' | 'inet6' | 'list'
                 | {atom(), option_value()}
-                | {'raw',non_neg_integer(),non_neg_integer(),binary()}.
+                | {'raw', non_neg_integer(), non_neg_integer(), binary()}.
 -spec connect(Addr :: atom() | string() | inet:ip_address(),
               Port :: inet:port_number(),
-              Opts :: [option()]) -> {'error',atom()} | {'ok',socket_state()}.
+              Opts :: [option()]) -> {'error', atom()} | {'ok', socket_state()}.
 connect(Addr, Port, Opts) ->
     connect(Addr, Port, Opts, infinity).
 
@@ -134,7 +136,7 @@ connect(Addr, Port, Opts) ->
               Port :: inet:port_number(),
               Opts :: [option()],
               Timeout :: non_neg_integer() | infinity
-              ) -> {'error',atom()} | {'ok',socket_state()}.
+              ) -> {'error', atom()} | {'ok', socket_state()}.
 connect(Addr, Port, Opts, Timeout) ->
     case gen_tcp:connect(Addr, Port, Opts, Timeout) of
         {ok, Socket} ->
@@ -156,19 +158,19 @@ connect(Addr, Port, Opts, Timeout) ->
     end.
 
 
--spec starttls(socket_state(),_) -> socket_state().
+-spec starttls(socket_state(), list()) -> socket_state().
 starttls(SocketData, TLSOpts) ->
-    {ok, TLSSocket} = ejabberd_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
+    {ok, TLSSocket} = fast_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
-    SocketData#socket_state{socket = TLSSocket, sockmod = ejabberd_tls}.
+    SocketData#socket_state{socket = TLSSocket, sockmod = fast_tls}.
 
 
--spec starttls(socket_state(),_,_) -> socket_state().
+-spec starttls(socket_state(), _, _) -> socket_state().
 starttls(SocketData, TLSOpts, Data) ->
-    {ok, TLSSocket} = ejabberd_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
+    {ok, TLSSocket} = fast_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
     send(SocketData, Data),
-    SocketData#socket_state{socket = TLSSocket, sockmod = ejabberd_tls}.
+    SocketData#socket_state{socket = TLSSocket, sockmod = fast_tls}.
 
 -spec compress(socket_state(), integer(), _) -> socket_state().
 compress(SocketData, InflateSizeLimit, Data) ->
@@ -189,16 +191,16 @@ reset_stream(SocketData) when is_atom(SocketData#socket_state.receiver) ->
       SocketData#socket_state.socket).
 
 
-%% @doc sockmod=gen_tcp|ejabberd_tls|ejabberd_zlib (ejabberd:sockmod())
+%% @doc sockmod=gen_tcp|fast_tls|ejabberd_zlib (ejabberd:sockmod())
 send(SocketData, Data) ->
     case catch (SocketData#socket_state.sockmod):send(
              SocketData#socket_state.socket, Data) of
         ok -> ok;
         {error, timeout} ->
-            ?INFO_MSG("Timeout on ~p:send",[SocketData#socket_state.sockmod]),
+            ?INFO_MSG("Timeout on ~p:send", [SocketData#socket_state.sockmod]),
             exit(normal);
         Error ->
-            ?DEBUG("Error in ~p:send: ~p",[SocketData#socket_state.sockmod, Error]),
+            ?DEBUG("Error in ~p:send: ~p", [SocketData#socket_state.sockmod, Error]),
             exit(normal)
     end.
 
@@ -206,13 +208,13 @@ send(SocketData, Data) ->
 %% @doc Can only be called when in c2s StateData#state.xml_socket is true
 %% This function is used for HTTP bind
 %% sockmod=ejabberd_http_poll|ejabberd_http_bind or any custom module
--spec send_xml(socket_state(), jlib:xmlel()) -> binary().
+-spec send_xml(socket_state(), mongoose_transport:send_xml_input()) -> ok.
 send_xml(SocketData, Data) ->
     catch (SocketData#socket_state.sockmod):send_xml(
             SocketData#socket_state.socket, Data).
 
 
--spec change_shaper(#socket_state{receiver::atom() | pid() | tuple()},_) -> any().
+-spec change_shaper(#socket_state{receiver::atom() | pid() | tuple()}, _) -> any().
 change_shaper(SocketData, Shaper)
   when is_pid(SocketData#socket_state.receiver) ->
     ejabberd_receiver:change_shaper(SocketData#socket_state.receiver, Shaper);
@@ -222,7 +224,7 @@ change_shaper(SocketData, Shaper)
       SocketData#socket_state.socket, Shaper).
 
 
--spec monitor(socket_state()) -> any().
+-spec monitor(socket_state()) -> reference().
 monitor(SocketData) when is_pid(SocketData#socket_state.receiver) ->
     erlang:monitor(process, SocketData#socket_state.receiver);
 monitor(SocketData) when is_atom(SocketData#socket_state.receiver) ->
@@ -235,14 +237,14 @@ get_sockmod(SocketData) ->
     SocketData#socket_state.sockmod.
 
 
--spec get_peer_certificate(socket_state()) -> 'error' | {'ok',_}.
+-spec get_peer_certificate(socket_state()) -> 'error' | {'ok', _}.
 get_peer_certificate(SocketData) ->
-    ejabberd_tls:get_peer_certificate(SocketData#socket_state.socket).
+    fast_tls:get_peer_certificate(SocketData#socket_state.socket).
 
 
 -spec get_verify_result(socket_state()) -> byte().
 get_verify_result(SocketData) ->
-    ejabberd_tls:get_verify_result(SocketData#socket_state.socket).
+    fast_tls:get_verify_result(SocketData#socket_state.socket).
 
 
 -spec close(socket_state()) -> ok.
@@ -261,8 +263,7 @@ sockname(#socket_state{sockmod = SockMod, socket = Socket}) ->
     end.
 
 
--spec peername(socket_state()) -> {ok, {inet:ip_address(), inet:port_number()}}
-                                | {error, inet:posix()}.
+-spec peername(socket_state()) -> mongoose_transport:peername_return().
 peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
     case SockMod of
         gen_tcp ->

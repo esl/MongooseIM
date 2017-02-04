@@ -29,7 +29,7 @@
          packet_to_x_user_jid/1,
          get_one_of_path/2,
          get_one_of_path/3,
-         is_complete_message/3,
+         is_archivable_message/3,
          wrap_message/6,
          result_set/4,
          result_query/2,
@@ -102,7 +102,7 @@ rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
 
 %% ----------------------------------------------------------------------
 %% Datetime types
--type ne_binary() :: <<_:8,_:_*8>>.
+-type ne_binary() :: <<_:8, _:_*8>>.
 -type iso8601_datetime_binary() :: ne_binary().
 %% Microseconds from 01.01.1970
 -type unix_timestamp() :: mod_mam:unix_timestamp().
@@ -147,7 +147,7 @@ iso8601_datetime_binary_to_timestamp(DateTime) when is_binary(DateTime) ->
 
 
 -spec datetime_to_microseconds(calendar:datetime()) -> integer().
-datetime_to_microseconds({{_,_,_}, {_,_,_}} = DateTime) ->
+datetime_to_microseconds({{_, _, _}, {_, _, _}} = DateTime) ->
     S1 = calendar:datetime_to_gregorian_seconds(DateTime),
     S0 = calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
     Seconds = S1 - S0,
@@ -172,7 +172,7 @@ generate_message_id() ->
 %%
 %% It removes a leading 0 from 64-bit binary representation.
 %% It puts node id as a last byte.
-%% The maximum date, that can be encoded is `{{4253,5,31},{22,20,37}}'.
+%% The maximum date, that can be encoded is `{{4253, 5, 31}, {22, 20, 37}}'.
 -spec encode_compact_uuid(integer(), integer()) -> integer().
 encode_compact_uuid(Microseconds, NodeId)
     when is_integer(Microseconds), is_integer(NodeId) ->
@@ -180,7 +180,7 @@ encode_compact_uuid(Microseconds, NodeId)
 
 
 %% @doc Extract date and node id from a message id.
--spec decode_compact_uuid(integer()) -> {integer(),byte()}.
+-spec decode_compact_uuid(integer()) -> {integer(), byte()}.
 decode_compact_uuid(Id) ->
     Microseconds = Id bsr 8,
     NodeId = Id band 255,
@@ -203,7 +203,7 @@ maybe_external_binary_to_mess_id(BExtMessID) ->
 %% @doc Decode a message ID received from the user.
 -spec external_binary_to_mess_id(binary()) -> integer().
 external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
-    list_to_integer(binary_to_list(BExtMessID), 32).
+    binary_to_integer(BExtMessID, 32).
 
 %% -----------------------------------------------------------------------
 %% XML
@@ -247,7 +247,7 @@ append_x_user_element(FromJID, Role, Affiliation, Packet) ->
     ItemElem = x_user_item(FromJID, Role, Affiliation),
     X = #xmlel{
         name = <<"x">>,
-        attrs = [{<<"xmlns">>,?NS_MUC_USER}],
+        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
         children = [ItemElem]},
     xml:append_subtags(Packet, [X]).
 
@@ -300,13 +300,13 @@ get_one_of_path(_Elem, [], Def) ->
 %% From v0.3: it is expected that all messages that hold meaningful content,
 %% rather than state changes such as Chat State Notifications, would be archived.
 %% @end
--spec is_complete_message(Mod :: module(), Dir :: incoming | outgoing,
+-spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
                           Packet :: jlib:xmlel()) -> boolean().
-is_complete_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
+is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
     is_valid_message_type(Mod, Dir, Type) andalso
     is_valid_message(Mod, Dir, Packet);
-is_complete_message(_, _, _) ->
+is_archivable_message(_, _, _) ->
     false.
 
 is_valid_message_type(_, _, <<"">>)          -> true;
@@ -367,7 +367,7 @@ replace_from_attribute(From, Packet=#xmlel{attrs = Attrs}) ->
 
 %% @doc Generates tag `<result />'.
 %% This element will be added in each forwarded message.
--spec result(binary(), _, MessageUID :: binary(), Children :: [jlib:xmlel(),...])
+-spec result(binary(), _, MessageUID :: binary(), Children :: [jlib:xmlel(), ...])
             -> jlib:xmlel().
 result(MamNs, QueryID, MessageUID, Children) when is_list(Children) ->
     %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
@@ -634,7 +634,7 @@ find_field([#xmlel{name = <<"field">>, attrs = Attrs}=Field|Fields], Name) ->
     end;
 find_field([_|Fields], Name) -> %% skip whitespaces
     find_field(Fields, Name);
-find_field([], Name) ->
+find_field([], _Name) ->
     undefined.
 
 -spec field_to_value(jlib:xmlel()) -> binary().
@@ -704,7 +704,7 @@ expand_minified_jid(UserJID, Encoded) ->
     Part = binary:match(Encoded, [<<$@>>, <<$/>>, <<$:>>]),
     expand_minified_jid_2(Part, UserJID, Encoded).
 
--spec expand_minified_jid_2('nomatch' | {non_neg_integer(),1},
+-spec expand_minified_jid_2('nomatch' | {non_neg_integer(), 1},
             ejabberd:jid(), Encoded :: ejabberd:luser() | binary()) -> binary().
 expand_minified_jid_2(nomatch,  #jid{lserver=ThisServer}, LUser) ->
     <<LUser/binary, $@, ThisServer/binary>>;
@@ -757,7 +757,7 @@ is_loaded_application(AppName) when is_atom(AppName) ->
 -spec maybe_integer(binary(), Default :: integer()) -> integer().
 maybe_integer(<<>>, Def) -> Def;
 maybe_integer(Bin, _Def) when is_binary(Bin) ->
-    list_to_integer(binary_to_list(Bin)).
+    binary_to_integer(Bin).
 
 
 -spec is_function_exist(atom() | {module(), _}, F :: atom(), A :: integer()
@@ -821,7 +821,7 @@ maybe_previous_id(X) ->
     TotalCount  :: non_neg_integer()|undefined,
     Offset      :: non_neg_integer()|undefined,
     MessageRows :: list().
-is_last_page(PageSize, TotalCount, Offset, MessageRows)
+is_last_page(PageSize, _TotalCount, _Offset, MessageRows)
     when length(MessageRows) < PageSize ->
     true;
 is_last_page(PageSize, TotalCount, Offset, MessageRows)
@@ -846,7 +846,7 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
 %% Ejabberd
 
 -spec send_message(ejabberd:jid(), ejabberd:jid(), jlib:xmlel()
-                  ) -> 'ok' | {'error','lager_not_running'}.
+                  ) -> 'ok' | {'error', 'lager_not_running'}.
 
 -ifdef(MAM_COMPACT_FORWARDED).
 
@@ -874,14 +874,13 @@ is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
     Subscription == from orelse Subscription == both.
 
 
--spec success_sql_query(ejabberd:server(), _) -> any().
-success_sql_query(Host, Query) ->
-    case ejabberd_odbc:sql_query(Host, Query) of
+-spec success_sql_query(atom() | ejabberd:server(), _) -> any().
+success_sql_query(HostOrConn, Query) ->
+    case mongoose_rdbms:sql_query(HostOrConn, Query) of
         {error, Reason} ->
             ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p~n",
-                       [Host, Query, Reason]),
+                       [HostOrConn, Query, Reason]),
             error({sql_error, Reason});
         Result ->
             Result
     end.
-

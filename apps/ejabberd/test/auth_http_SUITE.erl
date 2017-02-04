@@ -56,7 +56,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    application:start(stringprep),
+    ok = stringprep:start(),
     meck_config(Config),
     mim_ct_rest:start(?BASIC_AUTH, Config),
     % Separate process needs to do this, because this one will terminate
@@ -73,7 +73,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     ejabberd_auth_http:stop(?DOMAIN1),
     ejabberd_auth_http:stop(?DOMAIN2),
-    exit(whereis(ejabberd_sup), kill),
+    ok = mim_ct_rest:stop(),
     Config.
 
 init_per_group(GroupName, Config) ->

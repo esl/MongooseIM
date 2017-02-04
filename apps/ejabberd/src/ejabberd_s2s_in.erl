@@ -62,10 +62,10 @@
                 tls_enabled = false   :: boolean(),
                 tls_required = false  :: boolean(),
                 tls_certverify = false :: boolean(),
-                tls_options = []      :: [{_,_}],
-                server                :: ejabberd:server(),
+                tls_options = []      :: [{_, _}],
+                server                :: ejabberd:server() | undefined,
                 authenticated = false :: boolean(),
-                auth_domain           :: binary(),
+                auth_domain           :: binary() | undefined,
                 connections = ?DICT:new(),
                 timer                 :: reference()
               }).
@@ -119,14 +119,14 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(_,_) -> {'error',_}
-                  | {'ok','undefined' | pid()}
-                  | {'ok','undefined' | pid(),_}.
+-spec start(_, _) -> {'error', _}
+                  | {'ok', 'undefined' | pid()}
+                  | {'ok', 'undefined' | pid(), _}.
 start(SockData, Opts) ->
     ?SUPERVISOR_START.
 
 
--spec start_link(_,_) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(_, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(SockData, Opts) ->
     gen_fsm:start_link(ejabberd_s2s_in, [SockData, Opts], ?FSMOPTS).
 
@@ -145,7 +145,7 @@ socket_type() ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init(_) -> {'ok','wait_for_stream',state()}.
+-spec init(_) -> {'ok', 'wait_for_stream', state()}.
 init([{SockMod, Socket}, Opts]) ->
     ?DEBUG("started: ~p", [{SockMod, Socket}]),
     Shaper = case lists:keysearch(shaper, 1, Opts) of
@@ -162,12 +162,17 @@ init([{SockMod, Socket}, Opts]) ->
              required_trusted ->
                  {true, true, true}
          end,
-    TLSOpts = case ejabberd_config:get_local_option(s2s_certfile) of
+    TLSOpts1 = case ejabberd_config:get_local_option(s2s_certfile) of
                   undefined ->
                       [];
                   CertFile ->
                       [{certfile, CertFile}]
               end,
+    TLSOpts2 = lists:filter(fun({protocol_options, _}) -> true;
+                               ({dhfile, _}) -> true;
+                               (_) -> false
+                            end, Opts),
+    TLSOpts = lists:append(TLSOpts1, TLSOpts2),
     Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,
@@ -234,11 +239,15 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                        end,
             case SASL of
                 {error_cert_verif, CertVerifyResult, Certificate} ->
-                    CertError = ejabberd_tls:get_cert_verify_string(CertVerifyResult, Certificate),
+                    CertError = fast_tls:get_cert_verify_string(CertVerifyResult, Certificate),
                     RemoteServer = xml:get_attr_s(<<"from">>, Attrs),
-                    ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)", [StateData#state.server, RemoteServer, CertError]),
-                    send_text(StateData, exml:to_binary(?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
-                    {atomic, Pid} = ejabberd_s2s:find_connection(jid:make(<<"">>, Server, <<"">>), jid:make(<<"">>, RemoteServer, <<"">>)),
+                    ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)",
+                      [StateData#state.server, RemoteServer, CertError]),
+                    send_text(StateData, exml:to_binary(
+                                ?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
+                    {atomic, Pid} = ejabberd_s2s:find_connection(
+                                      jid:make(<<"">>, Server, <<"">>),
+                                      jid:make(<<"">>, RemoteServer, <<"">>)),
                     ejabberd_s2s_out:stop_connection(Pid),
 
                     {stop, normal, StateData};
@@ -561,14 +570,14 @@ handle_event(_Event, StateName, StateData) ->
 %%   Reply = {state_infos, [{InfoName::atom(), InfoValue::any()]
 %%----------------------------------------------------------------------
 -spec handle_sync_event(any(), any(), statename(), state()
-                       ) -> {'reply','ok' | {'state_infos',[any(),...]}, atom(), state()}.
+                       ) -> {'reply', 'ok' | {'state_infos', [any(), ...]}, atom(), state()}.
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
     SockMod = StateData#state.sockmod,
-    {Addr,Port} = try SockMod:peername(StateData#state.socket) of
-                      {ok, {A,P}} ->  {A,P};
-                      {error, _} -> {unknown,unknown}
+    {Addr, Port} = try SockMod:peername(StateData#state.socket) of
+                      {ok, {A, P}} ->  {A, P};
+                      {error, _} -> {unknown, unknown}
                   catch
-                      _:_ -> {unknown,unknown}
+                      _:_ -> {unknown, unknown}
                   end,
     Domains =   case StateData#state.authenticated of
                     true ->
@@ -593,7 +602,7 @@ handle_sync_event(get_state_infos, _From, StateName, StateData) ->
              {domains, Domains}
             ],
     Reply = {state_infos, Infos},
-    {reply,Reply,StateName,StateData};
+    {reply, Reply, StateName, StateData};
 
 %%----------------------------------------------------------------------
 %% Func: handle_sync_event/4
@@ -618,7 +627,7 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
--spec handle_info(_,_,_) -> {next_state, atom(), state()} | {stop, normal, state()}.
+-spec handle_info(_, _, _) -> {next_state, atom(), state()} | {stop, normal, state()}.
 handle_info({send_text, Text}, StateName, StateData) ->
     send_text(StateData, Text),
     {next_state, StateName, StateData};
@@ -676,8 +685,8 @@ cancel_timer(Timer) ->
     end.
 
 
--spec is_key_packet(jlib:xmlel()) -> 'false' | {'key',_,_,_,binary()}
-                                  | {'verify',_,_,_,binary()}.
+-spec is_key_packet(jlib:xmlel()) -> 'false' | {'key', _, _, _, binary()}
+                                  | {'verify', _, _, _, binary()}.
 is_key_packet(#xmlel{name = Name, attrs = Attrs,
                      children = Els}) when Name == <<"db:result">> ->
     {key,
@@ -794,7 +803,7 @@ match_domain(Domain, Pattern) ->
     match_labels(DLabels, PLabels).
 
 
--spec match_labels([binary()],[binary()]) -> boolean().
+-spec match_labels([binary()], [binary()]) -> boolean().
 match_labels([], []) ->
     true;
 match_labels([], [_ | _]) ->

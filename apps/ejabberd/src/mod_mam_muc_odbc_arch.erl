@@ -18,7 +18,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
-         remove_archive/3,
+         remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
@@ -59,7 +59,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(),_) -> 'ok'.
+-spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
     compile_params_module(Opts),
     start_muc(Host, Opts).
@@ -73,7 +73,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(),_) -> 'ok'.
+-spec start_muc(ejabberd:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -111,13 +111,13 @@ stop_muc(Host) ->
 -spec archive_size(integer(), ejabberd:server(), integer(), ejabberd:jid())
             -> integer().
 archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
-    {selected, _ColumnNames, [{BSize}]} =
+    {selected, [{BSize}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) "
        "FROM ", select_table(RoomID), " ",
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
-    ejabberd_odbc:result_to_integer(BSize).
+    mongoose_rdbms:result_to_integer(BSize).
 
 -spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
         RoomID :: mod_mam:archive_id(), _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
@@ -136,10 +136,10 @@ archive_message(_Result, Host, MessID, RoomID,
         FromNick :: ejabberd:user(), packet()) -> ok.
 archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
-    SFromNick = ejabberd_odbc:escape(FromNick),
+    SFromNick = mongoose_rdbms:escape(FromNick),
     Data = packet_to_stored_binary(Packet),
-    EscFormat = ejabberd_odbc:escape_format(Host),
-    SData = ejabberd_odbc:escape_binary(EscFormat, Data),
+    EscFormat = mongoose_rdbms:escape_format(Host),
+    SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
     write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData).
 
@@ -169,15 +169,15 @@ prepare_message(Host, MessID, RoomID,
 
 prepare_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
-    SFromNick = ejabberd_odbc:escape(FromNick),
+    SFromNick = mongoose_rdbms:escape(FromNick),
     Data = packet_to_stored_binary(Packet),
-    EscFormat = ejabberd_odbc:escape_format(Host),
-    SData = ejabberd_odbc:escape_binary(EscFormat, Data),
+    EscFormat = mongoose_rdbms:escape_format(Host),
+    SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
     [SMessID, SRoomID, SFromNick, SData].
 
 
--spec archive_messages(ejabberd:lserver(), Acc :: [[any(),...]]) -> any().
+-spec archive_messages(atom() | ejabberd:lserver(), Acc :: [[any(), ...]]) -> any().
 archive_messages(LServer, Acc) ->
     mod_mam_utils:success_sql_query(
       LServer,
@@ -185,7 +185,7 @@ archive_messages(LServer, Acc) ->
        "VALUES ", tuples(Acc)]).
 
 
--spec archive_messages(ejabberd:lserver(), Acc :: [[any(),...]],
+-spec archive_messages(atom() | ejabberd:lserver(), Acc :: [[any(), ...]],
                        N :: any()) -> any().
 archive_messages(LServer, Acc, N) ->
     mod_mam_utils:success_sql_query(
@@ -194,13 +194,13 @@ archive_messages(LServer, Acc, N) ->
            "(id, room_id, nick_name, message) "
        "VALUES ", tuples(Acc)]).
 
-lookup_messages({error, Reason}=Result, _Host,
+lookup_messages({error, _Reason}=Result, _Host,
                 _UserID, _UserJID, _RSM, _Borders,
                 _Start, _End, _Now, _WithJID,
                 _PageSize, _LimitPassed, _MaxResultLimit,
                 _IsSimple) ->
     Result;
-lookup_messages(Result, Host,
+lookup_messages(_Result, Host,
                 UserID, UserJID, RSM, Borders,
                 Start, End, Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit,
@@ -212,7 +212,8 @@ lookup_messages(Result, Host,
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
-        {error, Reason}
+        S = erlang:get_stacktrace(),
+        {error, {Reason, {stacktrace, S}}}
     end.
 
 -spec lookup_messages(Host :: ejabberd:server(),
@@ -377,13 +378,13 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     end.
 
 
--spec after_id(integer(), [[binary()],...]) -> [[binary()],...].
+-spec after_id(integer(), [[binary()], ...]) -> [[binary()], ...].
 after_id(ID, Filter) ->
     SID = escape_message_id(ID),
     [Filter, " AND id > '", SID, "'"].
 
 
--spec before_id('undefined' | integer(), [[binary()],...]) -> [[binary()],...].
+-spec before_id('undefined' | integer(), [[binary()], ...]) -> [[binary()], ...].
 before_id(undefined, Filter) ->
     Filter;
 before_id(ID, Filter) ->
@@ -394,35 +395,34 @@ before_id(ID, Filter) ->
 -spec rows_to_uniform_format([raw_row()], ejabberd:server(), ejabberd:jid()) ->
     [mod_mam_muc:row()].
 rows_to_uniform_format(MessageRows, Host, RoomJID) ->
-    EscFormat = ejabberd_odbc:escape_format(Host),
-    DbEngine = ejabberd_odbc:db_engine(Host),
+    EscFormat = mongoose_rdbms:escape_format(Host),
+    DbEngine = mongoose_rdbms:db_engine(Host),
     [row_to_uniform_format(DbEngine, EscFormat, Row, RoomJID) || Row <- MessageRows].
 
 
 -spec row_to_uniform_format(atom(), atom(), raw_row(), ejabberd:jid()) -> mod_mam_muc:row().
-row_to_uniform_format(DbEngine, EscFormat, {BMessID,BNick,SDataRaw}, RoomJID) ->
-    MessID = list_to_integer(binary_to_list(BMessID)),
+row_to_uniform_format(DbEngine, EscFormat, {BMessID, BNick, SDataRaw}, RoomJID) ->
+    MessID = mongoose_rdbms:result_to_integer(BMessID),
     SrcJID = jid:replace_resource(RoomJID, BNick),
-    SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
-    Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
+    SData = mongoose_rdbms:unescape_odbc_binary(DbEngine, SDataRaw),
+    Data = mongoose_rdbms:unescape_binary(EscFormat, SData),
     Packet = stored_binary_to_packet(Data),
     {MessID, SrcJID, Packet}.
 
 
--spec row_to_message_id({binary(),_,_}) -> integer().
-row_to_message_id({BMessID,_,_}) ->
-    list_to_integer(binary_to_list(BMessID)).
+-spec row_to_message_id({binary(), _, _}) -> integer().
+row_to_message_id({BMessID, _, _}) ->
+    mongoose_rdbms:result_to_integer(BMessID).
 
 
--spec remove_archive(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> 'ok'.
-remove_archive(Host, RoomID, _RoomJID) ->
+-spec remove_archive(map(), ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> map().
+remove_archive(Acc, Host, RoomID, _RoomJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
       ["DELETE FROM ", select_table(RoomID), " "
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
-    ok.
-
+    Acc.
 
 -spec purge_single_message(_Result, Host :: ejabberd:server(),
                            MessID :: mod_mam:message_id(),
@@ -462,25 +462,25 @@ purge_multiple_messages(_Result, Host, RoomID, _RoomJID, Borders,
     ok.
 
 
-%% @doc Columns are `["id","nick_name","message"]'.
+%% @doc Columns are `["id", "nick_name", "message"]'.
 -spec extract_messages(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
         Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
         ReverseLimit :: boolean()) -> [raw_row()].
 extract_messages(_Host, _RoomID, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Host, RoomID, Filter, IOffset, IMax, false) ->
-    {selected, _ColumnNames, MessageRows} =
+    {selected, MessageRows} =
         do_extract_messages(Host, RoomID, Filter, IOffset, IMax, " ORDER BY id "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     MessageRows;
 extract_messages(Host, RoomID, Filter, IOffset, IMax, true) ->
-    {selected, _ColumnNames, MessageRows} =
+    {selected, MessageRows} =
         do_extract_messages(Host, RoomID, Filter, IOffset, IMax, " ORDER BY id DESC "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     lists:reverse(MessageRows).
 
 do_extract_messages(Host, RoomID, Filter, 0, IMax, Order) ->
-    {LimitSQL, LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits(IMax),
     mod_mam_utils:success_sql_query(
         Host,
         ["SELECT ", LimitMSSQL, " id, nick_name, message "
@@ -489,8 +489,8 @@ do_extract_messages(Host, RoomID, Filter, 0, IMax, Order) ->
             Order,
             " ", LimitSQL]);
 do_extract_messages(Host, RoomID, Filter, IOffset, IMax, Order) ->
-    {LimitSQL, _LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
-    Offset = odbc_queries:get_db_specific_offset(IOffset, IMax),
+    {LimitSQL, _LimitMSSQL} = rdbms_queries:get_db_specific_limits(IMax),
+    Offset = rdbms_queries:get_db_specific_offset(IOffset, IMax),
     mod_mam_utils:success_sql_query(
         Host,
         ["SELECT id, nick_name, message "
@@ -505,13 +505,13 @@ do_extract_messages(Host, RoomID, Filter, IOffset, IMax, Order) ->
 -spec calc_index(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
     Filter :: iodata(), SUMessID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, RoomID, Filter, SUMessID) ->
-    {selected, _ColumnNames, [{BIndex}]} =
+    {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) "
        "FROM ", select_table(RoomID), " ",
        Filter, " AND id <= '", SUMessID, "'"]),
-    ejabberd_odbc:result_to_integer(BIndex).
+    mongoose_rdbms:result_to_integer(BIndex).
 
 
 %% @doc Count of elements in RSet before the passed element.
@@ -521,13 +521,13 @@ calc_index(Host, RoomID, Filter, SUMessID) ->
 -spec calc_before(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
     Filter :: iodata(), SUMessID :: escaped_message_id()) -> non_neg_integer().
 calc_before(Host, RoomID, Filter, SUMessID) ->
-    {selected, _ColumnNames, [{BIndex}]} =
+    {selected, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) "
        "FROM ", select_table(RoomID), " ",
        Filter, " AND id < '", SUMessID, "'"]),
-    ejabberd_odbc:result_to_integer(BIndex).
+    mongoose_rdbms:result_to_integer(BIndex).
 
 
 %% @doc Get the total result set size.
@@ -535,12 +535,12 @@ calc_before(Host, RoomID, Filter, SUMessID) ->
 -spec calc_count(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
                  Filter :: filter()) -> non_neg_integer().
 calc_count(Host, RoomID, Filter) ->
-    {selected, _ColumnNames, [{BCount}]} =
+    {selected, [{BCount}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) ",
        "FROM ", select_table(RoomID), " ", Filter]),
-    ejabberd_odbc:result_to_integer(BCount).
+    mongoose_rdbms:result_to_integer(BCount).
 
 
 %% @doc prepare_filter/5
@@ -620,20 +620,20 @@ maybe_jid_to_escaped_resource(undefined) ->
 maybe_jid_to_escaped_resource(#jid{lresource = <<>>}) ->
     undefined;
 maybe_jid_to_escaped_resource(#jid{lresource = WithLResource}) ->
-    ejabberd_odbc:escape(WithLResource).
+    mongoose_rdbms:escape(WithLResource).
 
 
--spec join([[any(),...],...]) -> [[any()],...].
+-spec join([[any(), ...], ...]) -> [[any()], ...].
 join([H|T]) ->
     [H, [", " ++ X || X <- T]].
 
 
--spec tuples([[any(),...]]) -> [[any()],...].
+-spec tuples([[any(), ...]]) -> [[any()], ...].
 tuples(Rows) ->
     join([tuple(Row) || Row <- Rows]).
 
 
--spec tuple([any(),...]) -> [any(),...].
+-spec tuple([any(), ...]) -> [any(), ...].
 tuple([H|T]) ->
     ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
 
@@ -684,7 +684,7 @@ compile_params_module(Params) ->
 
 expand_simple_param(Params) ->
     lists:flatmap(fun(simple) -> simple_params();
-                     ({simple,true}) -> simple_params();
+                     ({simple, true}) -> simple_params();
                      (Param) -> [Param]
                   end, Params).
 

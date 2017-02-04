@@ -136,7 +136,7 @@ get_available_hosts() ->
 get_available_metrics(Host) ->
     mongoose_metrics:get_host_metric_names(Host).
 
--spec get_available_hosts_metrics() -> {[any(),...], [any()]}.
+-spec get_available_hosts_metrics() -> {[any(), ...], [any()]}.
 get_available_hosts_metrics() ->
     Hosts = get_available_hosts(),
     Metrics = [Metric || [Metric] <- get_available_metrics(hd(Hosts))],
@@ -145,16 +145,16 @@ get_available_hosts_metrics() ->
 get_available_global_metrics() ->
     [Metric || [Metric] <- mongoose_metrics:get_global_metric_names()].
 
--spec get_sum_metrics() -> [{_,_}].
+-spec get_sum_metrics() -> [{_, _}].
 get_sum_metrics() ->
     {_Hosts, Metrics} = get_available_hosts_metrics(),
     [{Metric, get_sum_metric(Metric)} || Metric <- Metrics].
 
--spec get_sum_metric(atom()) -> [{_,_}].
+-spec get_sum_metric(atom()) -> [{_, _}].
 get_sum_metric(Metric) ->
     mongoose_metrics:get_aggregated_values(Metric).
 
--spec get_host_metrics(undefined | global | ejabberd:server()) -> [{_,_}].
+-spec get_host_metrics(undefined | global | ejabberd:server()) -> [{_, _}].
 get_host_metrics(Host) ->
     Metrics = mongoose_metrics:get_metric_values(Host),
     [{prep_name(NameParts), Value} || {[_Host | NameParts], Value} <- Metrics].

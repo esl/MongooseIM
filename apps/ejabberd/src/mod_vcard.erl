@@ -43,7 +43,7 @@
 -include("mod_vcard.hrl").
 
 %% gen_mod handlers
--export([start/2,stop/1]).
+-export([start/2, stop/1]).
 
 %% gen_server handlers
 -export([init/1,
@@ -58,19 +58,21 @@
          process_sm_iq/3,
          get_local_features/5,
          remove_user/2,
+         remove_user/3,
          set_vcard/3]).
 
 -export([start_link/2]).
 -export([default_search_fields/0]).
 -export([get_results_limit/1]).
 -export([get_default_reported_fields/1]).
+-export([default_host/0]).
 
 -export([config_change/4]).
 
 -define(PROCNAME, ejabberd_mod_vcard).
 -define(BACKEND, mod_vcard_backend).
 
--record(state,{search           :: boolean(),
+-record(state, {search           :: boolean(),
                host             :: binary(),
                directory_host   :: binary()
               }).
@@ -143,27 +145,31 @@ get_results_limit(LServer) ->
             ?JUD_MATCHES
     end.
 
+-spec default_host() -> binary().
+default_host() ->
+    <<"vjud.@HOST@">>.
+
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 start(VHost, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
-    Proc = gen_mod:get_module_proc(VHost,?PROCNAME),
+    Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [VHost, Opts]},
                  transient, 1000, worker, [?MODULE]},
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
 stop(VHost) ->
-    Proc = gen_mod:get_module_proc(VHost,?PROCNAME),
-    supervisor:terminate_child(ejabberd_sup,Proc),
-    supervisor:delete_child(ejabberd_sup,Proc).
+    Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
+    supervisor:terminate_child(ejabberd_sup, Proc),
+    supervisor:delete_child(ejabberd_sup, Proc).
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 start_link(VHost, Opts) ->
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE, [VHost, Opts],[]).
+    gen_server:start_link({local, Proc}, ?MODULE, [VHost, Opts], []).
 
 init([VHost, Opts]) ->
     process_flag(trap_exit, true),
@@ -172,10 +178,10 @@ init([VHost, Opts]) ->
       || {Hook, M, F, Prio} <- hook_handlers() ],
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, VHost, ?NS_VCARD,
-                                  ?MODULE,process_sm_iq, IQDisc),
+                                  ?MODULE, process_sm_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, VHost, ?NS_VCARD,
-                                  ?MODULE,process_local_iq, IQDisc),
-    DirectoryHost = gen_mod:get_opt_host(VHost, Opts, "vjud.@HOST@"),
+                                  ?MODULE, process_local_iq, IQDisc),
+    DirectoryHost = gen_mod:get_opt_subhost(VHost, Opts, default_host()),
     Search = gen_mod:get_opt(search, Opts, true),
     case Search of
         true ->
@@ -208,12 +214,12 @@ hook_handlers() ->
 
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
-handle_call(stop,_From,State) ->
+handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
-handle_call(_Request, _From,State) ->
+handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
-handle_info({route, From, To, Packet},State) ->
+handle_info({route, From, To, Packet}, State) ->
     IQ = jlib:iq_query_info(Packet),
     case catch do_route(State#state.host, From, To, Packet, IQ) of
         {'EXIT', Reason} ->
@@ -222,7 +228,7 @@ handle_info({route, From, To, Packet},State) ->
             ok
     end,
     {noreply, State};
-handle_info(_,State) ->
+handle_info(_, State) ->
     {noreply, State}.
 
 handle_cast(_Request, State) ->
@@ -234,9 +240,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% Hook handlers
 %%--------------------------------------------------------------------
-process_local_iq(_From,_To,#iq{type = set, sub_el = SubEl} = IQ) ->
+process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_local_iq(_From,_To,#iq{type = get, lang = Lang} = IQ) ->
+process_local_iq(_From,_To,#iq{type = get} = IQ) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, ?NS_VCARD}],
                            children = [#xmlel{name = <<"FN">>,
@@ -266,7 +272,7 @@ process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
                           sub_el = [VCARD, Reason]}
             catch
                 E:R ->
-                    ?ERROR_MSG("~p", [{E,R}]),
+                    ?ERROR_MSG("~p", [{E, R}]),
                     IQ#iq{type = error,
                           sub_el = [VCARD, ?ERR_INTERNAL_SERVER_ERROR]}
             end;
@@ -280,7 +286,7 @@ process_sm_iq(_From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
         {ok, VCARD} ->
             IQ#iq{type = result, sub_el = VCARD};
         {error, Reason} ->
-            IQ#iq{type = error, sub_el = [SubEl,Reason]};
+            IQ#iq{type = error, sub_el = [SubEl, Reason]};
         Else ->
             ?ERROR_MSG("~p", [Else]),
             IQ#iq{type = error,
@@ -327,10 +333,15 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
             Acc
     end.
 
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
+
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    ?BACKEND:remove_user(LUser,LServer).
+    ?BACKEND:remove_user(LUser, LServer).
 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->
@@ -343,7 +354,7 @@ config_change(Acc, Host, ldap, _NewConfig) ->
         _ ->
             ok
     end,
-    %ok = gen_server:call(Proc,{new_config, Host, Opts}),
+    %ok = gen_server:call(Proc, {new_config, Host, Opts}),
     Acc;
 config_change(Acc, _, _, _) ->
     Acc.
@@ -394,7 +405,7 @@ do_route(VHost, From, To, _Packet, #iq{type = get,
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_SEARCH}],
-                                   children = ?FORM(To,?BACKEND:search_fields(VHost),Lang)
+                                   children = ?FORM(To, ?BACKEND:search_fields(VHost), Lang)
                                   }]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Packet, #iq{type = set,
@@ -413,7 +424,7 @@ do_route(VHost, From, To, _Packet, #iq{type = get,
                                                       attrs = [{<<"category">>, <<"directory">>},
                                                                {<<"type">>, <<"user">>},
                                                                {<<"name">>,
-                                                                translate:translate(Lang,<<"vCard User Search">>)}]},
+                                                                translate:translate(Lang, <<"vCard User Search">>)}]},
                                                #xmlel{name = <<"feature">>,
                                                       attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
                                                #xmlel{name = <<"feature">>,

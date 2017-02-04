@@ -62,6 +62,7 @@ init_per_suite(C) ->
 
 end_per_suite(_) ->
     mnesia:stop(),
+    mnesia:delete_schema([node()]),
     ok.
 
 init_per_group(old_commands, C) ->

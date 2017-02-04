@@ -1,6 +1,6 @@
 #!/bin/sh
 
-RUNNER_SCRIPT_DIR={{mongooseim_script_dir}}
+RUNNER_SCRIPT_DIR={{{mongooseim_script_dir}}}
 RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
 ## Depending on build time config RUNNER_ETC_DIR may depend on RUNNER_BASE_DIR.
 RUNNER_ETC_DIR={{mongooseim_etc_dir}}
@@ -155,7 +155,7 @@ ctl ()
 	# concurrent invocations using a bound
 	# number of atoms
 	for N in $(seq 1 $MAXCONNID); do
-	    CTL_CONN="mongooseimctl-$N"
+	    CTL_CONN="mongooseimctl-$N-${NODENAME}"
 	    CTL_LOCKFILE="$CONNLOCKDIR/$CTL_CONN"
 	    (
 		exec 8>"$CTL_LOCKFILE"

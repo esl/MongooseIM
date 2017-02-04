@@ -33,7 +33,7 @@
 
 -define(SUBMODS, [node, accounts, sessions, vcard, roster, last,
                   private, stanza, stats
-                  %,srg %% Disabled until we add mod_shared_roster
+                  %, srg %% Disabled until we add mod_shared_roster
                  ]).
 
 %%%

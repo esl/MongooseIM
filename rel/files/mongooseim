@@ -2,7 +2,7 @@
 # -*- tab-width:4;indent-tabs-mode:nil -*-
 # ex: ts=4 sw=4 et
 
-RUNNER_SCRIPT_DIR={{mongooseim_script_dir}}
+RUNNER_SCRIPT_DIR={{{mongooseim_script_dir}}}
 
 RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
 RUNNER_ETC_DIR={{mongooseim_etc_dir}}

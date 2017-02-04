@@ -29,7 +29,7 @@
                 "%{ldap_search_operator, 'or'}, %% either 'or' or 'and'\n"
                 "%{ldap_binary_search_fields, [<<\"PHOTO\">>]},\n"
                 "%% list of binary search fields (as in vcard after mapping)\n"
-                "%{host, directory.@HOST@}\n"
+                "{host, \"vjud.@HOST@\"}\n"
                 "]},"}.
 
 {sm_backend, "{mnesia, []}"}.
@@ -40,7 +40,7 @@
 {zlib, "%%{zlib, 10000},"}. %% Second element of a tuple is inflated data size limit; 0 for no limit
 {registration_watchers, "%{registration_watchers, [\"admin@localhost\"]},"}.
 {riak_server, "%%{riak_server, [{pool_size, 20}, {address, \"127.0.0.1\"}, {port, 8087}, {riak_pb_socket_opts, []}]}."}.
-{cassandra_server, "%%{cassandra_server, []}."}.
+{cassandra_servers, "%%{cassandra_servers, [{default, []}]}."}.
 
 {http_api_old_endpoint, "{5288, \"127.0.0.1\"}"}.
 {http_api_endpoint, "{8088, \"127.0.0.1\"}"}.

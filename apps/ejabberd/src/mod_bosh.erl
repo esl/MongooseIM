@@ -26,7 +26,7 @@
          terminate/3]).
 
 %% Hooks callbacks
--export([node_cleanup/1]).
+-export([node_cleanup/2]).
 
 %% For testing and debugging
 -export([get_session_socket/1, store_session/2]).
@@ -72,8 +72,8 @@
               | 'no_body'
               | 'policy_violation'
               | {'bosh_reply', jlib:xmlel()}
-              | {'close',_}
-              | {'wrong_method',_}.
+              | {'close', _}
+              | {'wrong_method', _}.
 
 %%--------------------------------------------------------------------
 %% API
@@ -135,8 +135,9 @@ stop(_Host) ->
 %% Hooks handlers
 %%--------------------------------------------------------------------
 
-node_cleanup(Node) ->
-    ?BOSH_BACKEND:node_cleanup(Node).
+node_cleanup(Acc, Node) ->
+    Res = ?BOSH_BACKEND:node_cleanup(Node),
+    maps:put(cleanup_result, Res, Acc).
 
 %%--------------------------------------------------------------------
 %% cowboy_loop_handler callbacks
@@ -171,7 +172,7 @@ init(_Transport, Req, _Opts) ->
     {loop, NewReq, #rstate{}}.
 
 
--spec info(info(), req(), rstate()) -> {'ok',req(),_}.
+-spec info(info(), req(), rstate()) -> {'ok', req(), _}.
 info(accept_options, Req, State) ->
     {Origin, Req2} = cowboy_req:header(<<"origin">>, Req),
     Headers = ac_all(Origin),
@@ -267,7 +268,7 @@ event_type(Body) ->
 
 
 -spec forward_body(req(), jlib:xmlel(), rstate())
-            -> {'loop',_,rstate()} | {'ok',req(),rstate()}.
+            -> {'loop', _, rstate()} | {'ok', req(), rstate()}.
 forward_body(Req, #xmlel{} = Body, S) ->
     try
         case Type = event_type(Body) of
@@ -359,7 +360,7 @@ method_not_allowed_error(Req) ->
     strip_ok(cowboy_req:reply(405, ac_all(?DEFAULT_ALLOW_ORIGIN),
                               <<"Use POST request method">>, Req)).
 
--spec strip_ok({'ok',cowboy_req:req()}) -> cowboy_req:req().
+-spec strip_ok({'ok', cowboy_req:req()}) -> cowboy_req:req().
 strip_ok({ok, Req}) ->
     Req.
 
@@ -422,7 +423,7 @@ ac_max_age() ->
     {<<"Access-Control-Max-Age">>, integer_to_binary(?DEFAULT_MAX_AGE)}.
 
 
--spec ac_all('undefined' | binary()) -> [{binary(),_},...].
+-spec ac_all('undefined' | binary()) -> [{binary(), _}, ...].
 ac_all(Origin) ->
     [ac_allow_origin(Origin),
      ac_allow_methods(),

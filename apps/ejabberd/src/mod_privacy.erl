@@ -37,6 +37,7 @@
          get_user_list/3,
          check_packet/6,
          remove_user/2,
+         remove_user/3,
          updated_list/3]).
 
 -include("ejabberd.hrl").
@@ -117,12 +118,11 @@
 %% ------------------------------------------------------------------
 
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list,get_list_names,
+    gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list, get_list_names,
                                                  set_default_list, forget_default_list,
                                                  remove_privacy_list, replace_privacy_list,
                                                  get_default_list]),
     ?BACKEND:init(Host, Opts),
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(privacy_iq_get, Host,
                ?MODULE, process_iq_get, 50),
     ejabberd_hooks:add(privacy_iq_set, Host,
@@ -337,11 +337,25 @@ check_packet(_, User, Server,
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
     end.
 
+%% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->
     allow;
-check_packet_aux([], _PType, _Type, _JID, _Subscription, _Groups) ->
+%% if we run of of list items then it is allowed
+check_packet_aux([], _PType, _MType, _JID, _Subscription, _Groups) ->
     allow;
+%% check packet against next privacy list item
 check_packet_aux([Item | List], PType, MType, JID, Subscription, Groups) ->
+    #listitem{type = Type, value = Value, action = Action} = Item,
+    do_check_packet_aux(Type, Action, PType, Value, JID, MType, Subscription, Groups, Item, List).
+
+%% list set by blocking commands (XEP-0191) block all communication, both in and out,
+%% for a given JID
+do_check_packet_aux(jid, block, message, JID, JID, _, _, _, _, _) ->
+    block;
+do_check_packet_aux(jid, block, message_out, JID, JID, _, _, _, _, _) ->
+    block;
+%% then we do more complicated checking
+do_check_packet_aux(Type, Action, PType, Value, JID, MType, Subscription, Groups, Item, List) ->
     #listitem{type = Type, value = Value, action = Action} = Item,
     case is_ptype_match(Item, PType) of
         true ->
@@ -368,6 +382,9 @@ is_ptype_match(Item, PType) ->
             case PType of
                 message ->
                     Item#listitem.match_message;
+                message_out ->
+                    false; % according to xep-0016, privacy lists do not stop outgoing
+                           % messages (so they say)
                 iq ->
                     Item#listitem.match_iq;
                 presence_in ->
@@ -406,6 +423,12 @@ is_type_match(Type, Value, JID, Subscription, Groups) ->
             lists:member(Value, Groups)
     end.
 
+%% #rh
+remove_user(Acc, User, Server) ->
+    case remove_user(User, Server) of
+        ok -> Acc;
+        E -> E
+    end.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
@@ -429,7 +452,8 @@ updated_list(_,
 
 packet_directed_type(Dir, Type) ->
     case {Type, Dir} of
-         {message, _} -> message;
+         {message, out} -> message_out;
+         {message, in} -> message;
          {iq, in} -> iq;
          {presence, in} -> presence_in;
          {presence, out} -> presence_out;

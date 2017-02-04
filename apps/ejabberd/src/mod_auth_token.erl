@@ -175,7 +175,7 @@ revoke(Owner) ->
     try
         ?BACKEND:revoke(Owner)
     catch
-        E:R -> ?ERROR_MSG("backend error! ~p",[{E,R}]),
+        E:R -> ?ERROR_MSG("backend error! ~p", [{E, R}]),
                error
     end.
 
@@ -244,7 +244,7 @@ is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
         ValidSeqNo = ?BACKEND:get_valid_sequence_number(T#token.user_jid),
         TokenSeqNo < ValidSeqNo
     catch
-        E:R -> ?ERROR_MSG("error checking revocation status: ~p", [{E,R}]),
+        E:R -> ?ERROR_MSG("error checking revocation status: ~p", [{E, R}]),
                true
     end.
 
@@ -276,7 +276,7 @@ create_token_response(From, IQ) ->
                                    attrs = [{<<"xmlns">>, ?NS_ESL_TOKEN_AUTH}],
                                    children = [token_to_xmlel(AccessToken),
                                                token_to_xmlel(RefreshToken)]}]};
-        {_,_} -> {error, ?ERR_INTERNAL_SERVER_ERROR}
+        {_, _} -> {error, ?ERR_INTERNAL_SERVER_ERROR}
     end.
 
 -spec datetime_to_seconds(calendar:datetime()) -> non_neg_integer().
@@ -303,8 +303,9 @@ token(Type, User) ->
                                T#token{sequence_no = ValidSeqNo}
                        end)
     catch
-        E:R -> ?ERROR_MSG("error creating token sequence number ~p", [{E,R}]),
-               {error, {E,R}}
+        E:R -> ?ERROR_MSG("error creating token sequence number ~p~nstacktrace: ~p",
+                          [{E, R}, erlang:get_stacktrace()]),
+               {error, {E, R}}
     end.
 
 %% {modules, [

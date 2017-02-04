@@ -4,40 +4,42 @@ In shell #1:
 
 ```sh
 $ cd $MONGOOSEIM
+$ ./rebar3 compile
 $ make devrel
 ```
 
 In shell #2:
 
 ```sh
-$ cd $MONGOOSEIM/dev/mongooseim_node1
+$ cd $MONGOOSEIM/_build/mim1/rel
 $ ./bin/mongooseimctl live
 ```
 
 In shell #3:
 
 ```sh
-$ cd $MONGOOSEIM/dev/mongooseim_node2
+$ cd $MONGOOSEIM/_build/mim2/rel
 $ ./bin/mongooseimctl live
 ```
 
 In shell #4:
 
 ```sh
-$ cd $MONGOOSEIM/dev/mongooseim_node3
+$ cd $MONGOOSEIM/_build/mim3/rel
 $ ./bin/mongooseimctl live
 ```
 
 In shell #5:
 
 ```sh
-$ cd $MONGOOSEIM/dev/mongooseim_fed1
+$ cd $MONGOOSEIM/_build/fed1/rel
 $ ./bin/mongooseimctl live
 ```
 
 Back to shell #1:
 
 ```sh
+$ cd test.disabled/ejabberd_tests
 $ make quicktest
 ```
 
@@ -45,14 +47,14 @@ Wait for the tests to finish and celebrate in joy (or despair in grief)!
 
 ## Step by step breakdown
 
-`make devrel` builds two server nodes:
-`$MONGOOSEIM/dev/mongooseim_node1` and `$MONGOOSEIM/dev/mongooseim_node2`.
+`make devrel` builds required server nodes:
 These are preconfigured for breadth of features and compatible
 with as many test suites as possible.
-There are other two of them:
-- `$MONGOOSEIM/dev/mongooseim_node3`, in order to test cluster-related
+There are other four of them:
+- `$MONGOOSEIM/_build/mim1/rel`, for most test SUITEs
+- `$MONGOOSEIM/_build/mim*/rel`, in order to test cluster-related
   commands;;
-- `$MONGOOSEIM/dev/mongooseim_fed1`, in order to test XMPP federation
+- `$MONGOOSEIM/_build/fed1/rel`, in order to test XMPP federation
   (server to server communication, S2S).
 
 In general, running a server in interactive mode (i.e. `mongooseimctl
@@ -68,9 +70,8 @@ giving good overview of what does and what doesn't work in the system,
 without repeating tests.
 Why would we want to ever repeat tests?
 In order to test different backends of the same parts of the system.
-E.g. a message archive might store messages in MySQL/PostgreSQL or Riak KV or Cassandra - the
-glue code between the XMPP logic module and database is different
-in each case,
+E.g. a message archive might store messages in MySQL/PostgreSQL or Riak KV
+- the glue code between the XMPP logic module and database is different in each case,
 therefore repeating the same tests with different databases is necessary
 to guarantee a truthful code coverage measurement.
 
@@ -80,10 +81,7 @@ The whole suite takes a significant amount of time to complete.
 When you focus on a new feature, fast iteration speed is crucial to maintain
 the flow (who doesn't like the feeling?!) and not lose focus.
 
-Therefore, it's better to run tests from `$MONGOOSEIM/test/ejabberd_tests/`
-instead of running them from the main project directory,
-as it gives finer grained control on what exactly to test and what settings to use.
-There we have:
+In  `$MONGOOSEIM/test.disabled/ejabberd_tests/` we have:
 
 ```
 $ tree test/ejabberd_tests/ -L 1 -F
@@ -111,8 +109,7 @@ or skip and some less important things.
 but it can be overridden with `TESTSPEC` variable:
 
 ```sh
-# make sure we're in $MONGOOSEIM/test/ejabberd_tests/
-# Makefile in $MONGOOSEIM/ itself doesn't accept the extra parameters
+# make sure we're in $MONGOOSEIM/test.disabled/ejabberd_tests/
 cd $MONGOOSEIM/test/ejabberd_tests/
 make quicktest TESTSPEC=my-feature.spec
 ```
@@ -137,3 +134,20 @@ make quicktest PREPARE=
 ```
 
 Have a look inside the `Makefile` to see how it works.
+
+### Reloading node(s) code
+
+When working on a feature or a bug fix often you modify the code and check if it works as expected.
+In order to change the code on already generated dev nodes (`mim*` and `fed*`) it's enough to
+recompil the code for specific node.
+Let's say you need to update the code on `mim1` node, all you have to do is:
+```sh
+./rebar3 as mim1 compile
+```
+
+Similar command applies to other nodes, the important thing here is rebar3's profile.
+
+When the above command finished, the code can be reloaded on the server by:
+1. loading new module(s) in the node's shell, f.e. `l(mongoose_riak)`
+1. restarting the node
+

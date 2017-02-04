@@ -35,8 +35,8 @@
          close_session/5,
          store_info/4,
          check_in_subscription/6,
-         bounce_offline_message/3,
-         disconnect_removed_user/2,
+         bounce_offline_message/4,
+         disconnect_removed_user/3,
          get_user_resources/2,
          set_presence/7,
          unset_presence/6,
@@ -60,7 +60,7 @@
         ]).
 
 %% Hook handlers
--export([node_cleanup/1]).
+-export([node_cleanup/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -113,10 +113,10 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
+%% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
     mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -157,7 +157,8 @@ open_session(SID, User, Server, Resource, Priority, Info) ->
     check_for_sessions_to_replace(User, Server, Resource),
     JID = jid:make(User, Server, Resource),
     ejabberd_hooks:run(sm_register_connection_hook, JID#jid.lserver,
-                       [SID, JID, Info]).
+                       [SID, JID, Info]),
+    ok.
 
 -spec close_session(SID, User, Server, Resource, Reason) -> ok when
     SID :: 'undefined' | sid(),
@@ -185,10 +186,19 @@ close_session(SID, User, Server, Resource, Reason) ->
 store_info(User, Server, Resource, {Key, _Value} = KV) ->
     case get_session(User, Server, Resource) of
         offline -> {error, offline};
-        {_SUser,SID,SPriority,SInfo} ->
-            set_session(SID, User, Server, Resource, SPriority,
-                        lists:keystore(Key, 1, SInfo, KV)),
-            {ok, KV}
+        {_SUser, SID, SPriority, SInfo} ->
+            case SID of
+                {_, Pid} when self() =:= Pid ->
+                    %% It's safe to allow process update it's own record
+                    set_session(SID, User, Server, Resource, SPriority,
+                                lists:keystore(Key, 1, SInfo, KV)),
+                    {ok, KV};
+                {_, Pid} ->
+                    %% Ask the process to update it's record itself
+                    %% Async operation
+                    ejabberd_c2s:store_session_info(Pid, User, Server, Resource, KV),
+                    {ok, KV}
+            end
     end.
 
 -spec check_in_subscription(Acc, User, Server, JID, Type, Reason) -> any() | {stop, false} when
@@ -207,23 +217,32 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
     end.
 
 
--spec bounce_offline_message(From, To, Packet) -> stop when
+%% #rh
+-spec bounce_offline_message(Acc, From, To, Packet) -> {stop, Acc} when
+      Acc :: map(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
+bounce_offline_message(Acc, From, To, Packet) ->
+    bounce_offline_message(From, To, Packet),
+    {stop, Acc}.
+
 bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
     ejabberd_hooks:run(xmpp_bounce_message,
-                       Server,
-                       [Server, Packet]),
+        Server,
+        [Server, Packet]),
     Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
     ejabberd_router:route(To, From, Err),
     stop.
 
--spec disconnect_removed_user(User :: ejabberd:user(), Server :: ejabberd:server()) -> ok.
-disconnect_removed_user(User, Server) ->
+%% #rh
+-spec disconnect_removed_user(map(), User :: ejabberd:user(),
+                              Server :: ejabberd:server()) -> map().
+disconnect_removed_user(Acc, User, Server) ->
     ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),
-                      {broadcast, {exit, <<"User removed">>}}).
+                      {broadcast, {exit, <<"User removed">>}}),
+    Acc.
 
 
 -spec get_user_resources(User :: ejabberd:user(), Server :: ejabberd:server()) -> [binary()].
@@ -387,9 +406,10 @@ unregister_iq_handler(Host, XMLNS) ->
 %% Hook handlers
 %%====================================================================
 
-node_cleanup(Node) ->
+node_cleanup(Acc, Node) ->
     Timeout = timer:minutes(1),
-    gen_server:call(?MODULE, {node_cleanup, Node}, Timeout).
+    Res = gen_server:call(?MODULE, {node_cleanup, Node}, Timeout),
+    maps:put(cleanup_result, Res, Acc).
 
 %%====================================================================
 %% gen_server callbacks
@@ -461,7 +481,7 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
--spec handle_info(_,_) -> {'noreply',_}.
+-spec handle_info(_, _) -> {'noreply', _}.
 handle_info({route, From, To, Packet}, State) ->
     route(From, To, Packet),
     {noreply, State};
@@ -490,7 +510,7 @@ handle_info(_Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
--spec terminate(_,state()) -> 'ok'.
+-spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
     ejabberd_commands:unregister_commands(commands()),
     ok.
@@ -536,7 +556,7 @@ do_filter(From, To, Packet) ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel() | ejabberd_c2s:broadcast().
 do_route(From, To, {broadcast, _} = Broadcast) ->
-    ?DEBUG("from=~p,to=~p,broadcast=~p", [From, To, Broadcast]),
+    ?DEBUG("from=~p, to=~p, broadcast=~p", [From, To, Broadcast]),
     #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
     case LResource of
         <<>> ->
@@ -584,7 +604,7 @@ do_route(From, To, Packet) ->
       Packet :: jlib:xmlel(),
       Type :: 'subscribe' | 'subscribed' | 'unsubscribe' | 'unsubscribed',
       Reason :: any().
-do_route_no_resource_presence_prv(From,To,Packet,Type,Reason) ->
+do_route_no_resource_presence_prv(From, To, Packet, Type, Reason) ->
     is_privacy_allow(From, To, Packet) andalso ejabberd_hooks:run_fold(
         roster_in_subscription,
         To#jid.lserver,
@@ -717,7 +737,7 @@ is_privacy_allow(From, To, Packet, PrivacyList) ->
 route_message(From, To, Packet) ->
     LUser = To#jid.luser,
     LServer = To#jid.lserver,
-    PrioPid = get_user_present_pids(LUser,LServer),
+    PrioPid = get_user_present_pids(LUser, LServer),
     case catch lists:max(PrioPid) of
         {Priority, _} when is_integer(Priority), Priority >= 0 ->
             lists:foreach(
@@ -769,7 +789,7 @@ clean_session_list(Ss) ->
     clean_session_list(lists:keysort(#session.usr, Ss), []).
 
 
--spec clean_session_list([sid()],[sid()]) -> [sid()].
+-spec clean_session_list([sid()], [sid()]) -> [sid()].
 clean_session_list([], Res) ->
     Res;
 clean_session_list([S], Res) ->
@@ -795,7 +815,7 @@ clean_session_list([S1, S2 | Rest], Res) ->
       LServer :: ejabberd:lserver().
 get_user_present_pids(LUser, LServer) ->
     Ss = clean_session_list(?SM_BACKEND:get_sessions(LUser, LServer)),
-    [{S#session.priority, element(2,S#session.sid)} || S <- Ss, is_integer(S#session.priority)].
+    [{S#session.priority, element(2, S#session.sid)} || S <- Ss, is_integer(S#session.priority)].
 
 -spec get_user_present_resources(LUser :: ejabberd:user(),
                                  LServer :: ejabberd:server()

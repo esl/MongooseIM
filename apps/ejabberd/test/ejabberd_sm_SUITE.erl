@@ -17,7 +17,7 @@
 all() -> [{group, mnesia}, {group, redis}].
 
 init_per_suite(C) ->
-    application:start(stringprep),
+    ok = stringprep:start(),
     application:ensure_all_started(exometer),
     F = fun() ->
         ejabberd_sm_backend_sup:start_link(),
@@ -53,11 +53,14 @@ tests() ->
      session_info_is_extended_if_new_keys_present,
      session_info_keys_not_truncated_if_session_opened_with_empty_infolist,
      kv_can_be_stored_for_session,
-     kv_can_be_updated_for_session
+     kv_can_be_updated_for_session,
+     store_info_sends_message_to_the_session_owner,
+     cannot_reproduce_race_condition_in_store_info
     ].
 
 init_per_group(mnesia, Config) ->
-    application:start(mnesia),
+    ok = mnesia:create_schema([node()]),
+    ok = mnesia:start(),
     set_meck({mnesia, []}),
     ejabberd_sm:start_link(),
     unload_meck(),
@@ -74,6 +77,10 @@ init_redis_group(true, Config) ->
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
 
+end_per_group(mnesia, Config) ->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
+    Config;
 end_per_group(_, Config) ->
     Config.
 
@@ -203,8 +210,31 @@ kv_can_be_updated_for_session(C) ->
     when_session_info_stored(U, S, R, {key2, override}),
 
     [#session{sid = Sid, info = [{key1, val1}, {key2, override}]}]
-     = ?B(C):get_sessions(U,S).
+     = ?B(C):get_sessions(U, S).
 
+cannot_reproduce_race_condition_in_store_info(C) ->
+    ok = try_to_reproduce_race_condition(C).
+
+store_info_sends_message_to_the_session_owner(C) ->
+    SID = {now(), self()},
+    U = <<"alice2">>,
+    S = <<"localhost">>,
+    R = <<"res1">>,
+    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = []},
+    %% Create session in one process
+    ?B(C):create_session(U, S, R, Session),
+    %% but call store_info from another process
+    spawn_link(fun() -> ejabberd_sm:store_info(U, S, R, {cc, undefined}) end),
+    %% The original process receives a message
+    receive {store_session_info, User, Server, Resource, KV, _FromPid} ->
+        ?eq(U, User),
+        ?eq(S, Server),
+        ?eq(R, Resource),
+        ?eq({cc, undefined}, KV),
+        ok
+        after 5000 ->
+            ct:fail("store_info_sends_message_to_the_session_owner=timeout")
+    end.
 
 delete_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
@@ -431,3 +461,61 @@ n(Node) ->
 
 is_redis_running() ->
     [] =/= os:cmd("ps aux | grep '[r]edis'").
+
+
+try_to_reproduce_race_condition(Config) ->
+    SID = {now(), self()},
+    U = <<"alice">>,
+    S = <<"localhost">>,
+    R = <<"res1">>,
+    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = []},
+    ?B(Config):create_session(U, S, R, Session),
+    Parent = self(),
+    %% Add some instrumentation to simulate race conditions
+    %% The goal is to delete the session after other process reads it
+    %% but before it updates it. In other words, delete a record
+    %% between get_sessions and create_session in ejabberd_sm:store_info
+    %% Step1 prepare concurrent processes
+    DeleterPid = spawn_link(fun() ->
+                                    receive start -> ok end,
+                                    ?B(Config):delete_session(SID, U, S, R),
+                                    Parent ! p1_done
+                            end),
+    SetterPid = spawn_link(fun() ->
+                                   receive start -> ok end,
+                                   ejabberd_sm:store_info(U, S, R, {cc, undefined}),
+                                   Parent ! p2_done
+                           end),
+    %% Step2 setup mocking for some ejabbers_sm_mnesia functions
+    meck:new(?B(Config), []),
+    %% When the first get_sessions (run from ejabberd_sm:store_info)
+    %% is executed, the start msg is sent to Deleter process
+    %% Thanks to that, setter will get not empty list of sessions
+    PassThrough3 = fun(A, B, C) ->
+                           DeleterPid ! start,
+                           meck:passthrough([A, B, C]) end,
+    meck:expect(?B(Config), get_sessions, PassThrough3),
+    %% Wait some time before setting the sessions
+    %% so we are sure delete operation finishes
+    meck:expect(?B(Config), create_session,
+                fun(U1, S1, R1, Session1) ->
+                        timer:sleep(100),
+                        meck:passthrough([U1, S1, R1, Session1])
+                end),
+    PassThrough4 = fun(A, B, C, D) -> meck:passthrough([A, B, C, D]) end,
+    meck:expect(?B(Config), delete_session, PassThrough4),
+    %% Start the play from setter process
+    SetterPid ! start,
+    %% Wait for both process to finish
+    receive p1_done -> ok end,
+    receive p2_done -> ok end,
+    meck:unload(?B(Config)),
+    %% Session should not exist
+    case ?B(Config):get_sessions(U, S, R) of
+        [] ->
+            ok;
+        Other ->
+            error_logger:error_msg("issue=reproduced, sid=~p, other=~1000p",
+                                   [SID, Other]),
+            {error, reproduced}
+    end.
