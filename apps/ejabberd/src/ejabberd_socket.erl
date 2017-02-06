@@ -175,9 +175,9 @@ starttls(SocketData, TLSOpts, Data) ->
 -spec compress(socket_state(), integer(), _) -> socket_state().
 compress(SocketData, InflateSizeLimit, Data) ->
     {ok, ZlibSocket} = ejabberd_zlib:enable_zlib(
-			 SocketData#socket_state.sockmod,
-			 SocketData#socket_state.socket,
-			 InflateSizeLimit),
+                         SocketData#socket_state.sockmod,
+                         SocketData#socket_state.socket,
+                         InflateSizeLimit),
     ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
     send(SocketData, Data),
     SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.

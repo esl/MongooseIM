@@ -69,8 +69,8 @@ get_data(LUser, LServer, NS, Default) ->
     SNS = mongoose_rdbms:escape(NS),
     case catch rdbms_queries:get_private_data(LServer, SLUser, SNS) of
         {selected, [{SData}]} ->
-	    {ok, Elem} = exml:parse(SData),
-	    Elem;
+            {ok, Elem} = exml:parse(SData),
+            Elem;
         _ ->
             Default
     end.
