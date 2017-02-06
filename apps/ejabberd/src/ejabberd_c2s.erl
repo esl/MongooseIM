@@ -1872,13 +1872,15 @@ presence_update(From, Acc, StateData) ->
         <<"unsubscribed">> ->
             StateData;
         _ ->
-            mongoose_acc:terminate(Acc, ?FILE, ?LINE),
-            presence_update_to_available(StateData, From, Packet)
+            presence_update_to_available(Acc, StateData, From, Packet)
     end.
 
--spec presence_update_to_available(
-        StateData :: state(), From :: ejabberd:jid(), Packet :: exml:element()) -> state().
-presence_update_to_available(StateData, From, Packet) ->
+-spec presence_update_to_available(Acc :: mongoose_acc:t(),
+                                   StateData :: state(),
+                                   From :: ejabberd:jid(),
+                                   Packet :: exml:element()) ->
+            {mongoose_acc:t(), state()}.
+presence_update_to_available(Acc, StateData, From, Packet) ->
     OldPriority = case StateData#state.pres_last of
                       undefined ->
                           0;
@@ -1887,7 +1889,7 @@ presence_update_to_available(StateData, From, Packet) ->
                   end,
     NewPriority = get_priority_from_presence(Packet),
     Timestamp = calendar:now_to_universal_time(os:timestamp()),
-    update_priority(NewPriority, Packet, StateData),
+    Acc1 = update_priority(Acc, NewPriority, Packet, StateData),
 
     NewStateData = StateData#state{pres_last = Packet,
                                    pres_invis = false,
@@ -1897,32 +1899,39 @@ presence_update_to_available(StateData, From, Packet) ->
     ?DEBUG("from unavail = ~p~n", [FromUnavail]),
     case FromUnavail of
         true ->
-            ejabberd_hooks:run(user_available_hook,
-                               NewStateData#state.server,
-                               [NewStateData#state.jid]),
+            Acc2 = ejabberd_hooks:run_fold(user_available_hook,
+                                           NewStateData#state.server,
+                                           Acc1,
+                                           [NewStateData#state.jid]),
             NewStateData1
             = case NewPriority >= 0 of
                   true ->
+                      % XXX
                       {_, _, Pending} = ejabberd_hooks:run_fold(
                                           roster_get_subscription_lists,
                                           NewStateData#state.server,
                                           {[], [], []},
                                           [StateData#state.user, NewStateData#state.server]),
+                      % is this processing of the same stanza, or a new chain? Means: should
+                      % we pass on the same acc or create a new one there?
                       resend_offline_messages(NewStateData),
                       resend_subscription_requests(NewStateData#state{
                                                      pending_invitations = Pending});
                   false ->
                       NewStateData
               end,
-            presence_broadcast_first(From, NewStateData1, Packet);
+            {_, NState} = presence_broadcast_first(Acc2, From, NewStateData1, Packet),
+            NState;
         false ->
-            presence_broadcast_to_trusted(NewStateData,
+            presence_broadcast_to_trusted(Acc1,
+                                          NewStateData,
                                           From,
                                           NewStateData#state.pres_f,
                                           NewStateData#state.pres_a,
                                           Packet),
             case OldPriority < 0 andalso NewPriority >= 0 of
                 true ->
+                    % same question as above
                     resend_offline_messages(NewStateData);
                 false ->
                     ok
@@ -2073,33 +2082,23 @@ presence_broadcast(StateData, From, JIDSet, Acc) ->
                           end
                   end, Acc, gb_sets:to_list(JIDSet)).
 
-
--spec presence_broadcast_to_trusted(State :: state(),
+-spec presence_broadcast_to_trusted(Acc :: mongoose_acc:t(),
+                                    State :: state(),
                                     From :: 'undefined' | ejabberd:jid(),
                                     T :: jid_set(),
                                     A :: jid_set(),
-                                    Packet :: jlib:xmlel()) -> 'ok'.
-presence_broadcast_to_trusted(StateData, From, T, A, Packet) ->
-    lists:foreach(
-      fun(JID) ->
+                                    Packet :: jlib:xmlel()) -> mongoose_acc:t().
+presence_broadcast_to_trusted(Acc, StateData, From, T, A, Packet) ->
+    lists:foldl(
+      fun(JID, Ac) ->
               case gb_sets:is_element(JID, T) of
                   true ->
                       FJID = jid:make(JID),
-                      check_privacy_and_route_or_ignore(StateData, From, FJID, Packet, out);
+                      check_privacy_and_route_or_ignore(Ac, StateData, From, FJID, Packet, out);
                   _ ->
                       ok
               end
-      end, gb_sets:to_list(A)).
-
-
--spec presence_broadcast_first(From :: 'undefined' | ejabberd:jid(),
-                               State :: state(),
-                               Packet :: jlib:xmlel()) -> state().
-presence_broadcast_first(From, StateData, Packet) ->
-    ?DEPRECATED,
-    Acc = mongoose_acc:from_element(Packet),
-    {_, NStateData} = presence_broadcast_first(Acc, From, StateData, Packet),
-    NStateData.
+      end, Acc, gb_sets:to_list(A)).
 
 -spec presence_broadcast_first(mongoose_acc:t(),
                                From :: 'undefined' | ejabberd:jid(),
@@ -2191,10 +2190,6 @@ roster_change(IJID, ISubscription, StateData) ->
                     StateData#state{pres_f = FSet, pres_t = TSet}
             end
     end.
-
-update_priority(Priority, Packet, StateData) ->
-    ?DEPRECATED,
-    update_priority(mongoose_acc:from_element(Packet), Priority, Packet, StateData).
 
 -spec update_priority(Acc :: mongoose_acc:t(),
                       Priority :: integer(),
