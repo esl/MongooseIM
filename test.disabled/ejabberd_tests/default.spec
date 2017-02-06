@@ -30,6 +30,7 @@
 {suites, "tests", metrics_roster_SUITE}.
 {suites, "tests", metrics_register_SUITE}.
 {suites, "tests", metrics_session_SUITE}.
+{suites, "tests", mod_aws_sns_SUITE}.
 {suites, "tests", mod_blocking_SUITE}.
 {suites, "tests", mod_http_notification_SUITE}.
 {suites, "tests", mod_http_upload_SUITE}.
@@ -60,7 +61,6 @@
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", websockets_SUITE}.
 {suites, "tests", xep_0352_csi_SUITE}.
-{suites, "tests", mod_aws_sns_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
