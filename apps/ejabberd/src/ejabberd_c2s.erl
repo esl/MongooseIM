@@ -1853,8 +1853,8 @@ presence_update(From, Acc, StateData) ->
                                          pres_a = gb_sets:new(),
                                          pres_i = gb_sets:new(),
                                          pres_invis = true},
-                    mongoose_acc:terminate(Acc2, ?FILE, ?LINE),
-                    presence_broadcast_first(From, S1, Packet);
+                    {_, NState} = presence_broadcast_first(Acc2, From, S1, Packet),
+                    NState;
                 true ->
                     StateData
             end,
@@ -2096,6 +2096,16 @@ presence_broadcast_to_trusted(StateData, From, T, A, Packet) ->
                                State :: state(),
                                Packet :: jlib:xmlel()) -> state().
 presence_broadcast_first(From, StateData, Packet) ->
+    ?DEPRECATED,
+    Acc = mongoose_acc:from_element(Packet),
+    {_, NStateData} = presence_broadcast_first(Acc, From, StateData, Packet),
+    NStateData.
+
+-spec presence_broadcast_first(mongoose_acc:t(),
+                               From :: 'undefined' | ejabberd:jid(),
+                               State :: state(),
+                               Packet :: jlib:xmlel()) -> {mongoose_acc:t(), state()}.
+presence_broadcast_first(Acc, From, StateData, Packet) ->
     gb_sets:fold(fun(JID, X) ->
                        ejabberd_router:route(
                          From,
@@ -2108,17 +2118,18 @@ presence_broadcast_first(From, StateData, Packet) ->
                StateData#state.pres_t),
     case StateData#state.pres_invis of
         true ->
-            StateData;
+            {Acc, StateData};
         false ->
-            As = gb_sets:fold(
-                   fun(JID, A) ->
+            {As, AccFinal} = gb_sets:fold(
+                   fun(JID, {A, Accum}) ->
                            FJID = jid:make(JID),
-                           check_privacy_and_route_or_ignore(StateData, From, FJID, Packet, out),
-                           gb_sets:add_element(JID, A)
+                           Accum1 = check_privacy_and_route_or_ignore(Accum, StateData, From, FJID,
+                                                             Packet, out),
+                           {gb_sets:add_element(JID, A), Accum1}
                    end,
-                   StateData#state.pres_a,
+                   {StateData#state.pres_a, Acc},
                    StateData#state.pres_f),
-            StateData#state{pres_a = As}
+            {AccFinal, StateData#state{pres_a = As}}
     end.
 
 -spec roster_change(IJID :: ejabberd:simple_jid() | ejabberd:jid(),
@@ -2275,10 +2286,25 @@ resend_offline_messages(StateData) ->
                                         Packet :: exml:element(),
                                         Dir :: in | out) -> any().
 check_privacy_and_route_or_ignore(StateData, From, To, Packet, Dir) ->
+    ?DEPRECATED,
     case privacy_check_packet(StateData, From, To, Packet, Dir) of
         allow -> ejabberd_router:route(From, To, Packet);
         _ -> ok
     end.
+
+-spec check_privacy_and_route_or_ignore(Acc :: mongoose_acc:t(),
+                                        StateData :: state(),
+                                        From :: ejabberd:jid(),
+                                        To :: ejabberd:jid(),
+                                        Packet :: exml:element(),
+                                        Dir :: in | out) -> any().
+check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
+    {Acc1, Res} = privacy_check_packet(StateData, From, To, Acc, Dir),
+    case Res of
+        allow -> ejabberd_router:route(From, To, Packet);
+        _ -> ok
+    end,
+    Acc1.
 
 -spec resend_subscription_requests(state()) -> state().
 resend_subscription_requests(#state{pending_invitations = Pending} = StateData) ->
