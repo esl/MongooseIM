@@ -116,7 +116,7 @@ store(K, Idx, Val, Acc) ->
     NSt = maps:put(Idx, Val, St),
     maps:put(K, NSt, Acc).
 
--spec retrieve(K :: atom(), Idx :: any(), Acc :: t()) -> any().
+-spec retrieve(K :: atom(), Idx :: any(), Acc :: t()) -> any() | undefined.
 retrieve(K, Idx, Acc) ->
     retrieve(K, Idx, Acc, undefined).
 

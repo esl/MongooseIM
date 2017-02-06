@@ -2026,36 +2026,19 @@ check_privacy_and_route(Acc, From, FromRoute, To, StateData) ->
                            To :: ejabberd:jid(),
                            Packet :: jlib:xmlel() | mongoose_acc:t(),
                            Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
-%% @doc check packet, store result in accumulator, return acc and result for quick check
-%% result may vary by recipient, because it may be broadcast to multiple jids
 privacy_check_packet(StateData, From, To, #xmlel{} = Packet, Dir) ->
     ?DEPRECATED,
     {_, Res} = privacy_check_packet(StateData, From, To, mongoose_acc:from_element(Packet), Dir),
     Res;
 privacy_check_packet(StateData, From, To, Acc, Dir) ->
-    LJid = jid:to_lower(To),
-    % check if it is there, if not run a hook and check again if it returned anything,
-    % if not then store default value of 'allow'
-    case mongoose_acc:retrieve(privacy_check, LJid, Acc) of
-        undefined ->
-            Packet = mongoose_acc:get(element, Acc),
-            Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,
-                                           StateData#state.server,
-                                           Acc,
-                                           [StateData#state.user,
-                                            StateData#state.server,
-                                            StateData#state.privacy_list,
-                                            {From, To, Packet},
-                                            Dir]),
-            case mongoose_acc:retrieve(privacy_check, LJid, Acc1) of
-                undefined ->
-                    {mongoose_acc:store(privacy_check, LJid, allow, Acc1), allow};
-                Res ->
-                    {Acc1, Res}
-            end;
-        Res ->
-            {Acc, Res}
-    end.
+    mongoose_privacy:privacy_check_packet(Acc,
+                                     StateData#state.server,
+                                     StateData#state.user,
+                                     StateData#state.privacy_list,
+                                     From,
+                                     To,
+                                     mongoose_acc:get(element, Acc),
+                                     Dir).
 
 
 %% @doc Check if privacy rules allow this delivery
