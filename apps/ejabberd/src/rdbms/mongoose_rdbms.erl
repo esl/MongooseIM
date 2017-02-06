@@ -82,7 +82,7 @@
 -record(state, {db_ref,
                 db_type :: atom(),
                 host :: ejabberd:server(),
-                prepared = #{} :: #{binary() => {term(), non_neg_integer()}}
+                prepared = #{} :: #{binary() => term()}
                }).
 -type state() :: #state{}.
 
@@ -112,7 +112,7 @@
 
 -spec prepare(Name, Table :: binary() | atom(), Fields :: [binary() | atom()],
               Statement :: iodata()) ->
-                     {ok, Name}
+                     {ok, Name} | {error, already_exists}
                          when Name :: atom().
 prepare(Name, Table, Fields, Statement) when is_atom(Table) ->
     prepare(Name, atom_to_binary(Table, utf8), Fields, Statement);
@@ -120,13 +120,10 @@ prepare(Name, Table, [Field | _] = Fields, Statement) when is_atom(Field) ->
     prepare(Name, Table, [atom_to_binary(F, utf8) || F <- Fields], Statement);
 prepare(Name, Table, Fields, Statement) when is_atom(Name), is_binary(Table) ->
     true = lists:all(fun is_binary/1, Fields),
-    Version =
-        case ets:lookup(prepared_statements, Name) of
-            [{_Name, _Statement, V}] -> V + 1;
-            [] -> 0
-        end,
-    true = ets:insert(prepared_statements, {Name, {Table, Fields, Statement}, Version}),
-    {ok, Name}.
+    case ets:insert_new(prepared_statements, {Name, Table, Fields, Statement}) of
+        true  -> {ok, Name};
+        false -> {error, already_exists}
+    end.
 
 -spec execute(HostOrPool :: odbc_server(), Name :: atom(), Parameters :: [term()]) ->
                      query_result().
@@ -429,20 +426,22 @@ sql_query_internal(Query, #state{db_ref = DBRef}) ->
     end.
 
 -spec sql_execute(Name :: atom(), Params :: [term()], state()) -> {query_result(), state()}.
-sql_execute(Name, Params, State = #state{db_ref = DBRef, prepared = Prepared, host = Host}) ->
-    [{_, {Table, Fields, Statement}, Version}] = ets:lookup(prepared_statements, Name),
-    {NewPrepared, StatementRef} =
-        case maps:get(Name, Prepared, undefined) of
-            {Ref, Version} -> {Prepared, Ref};
-            _ ->
-                {ok, Ref} = mongoose_rdbms_backend:prepare(Host, DBRef, Name, Table,
-                                                           Fields, Statement),
-                NewP = maps:put(Name, {Ref, Version}, Prepared),
-                {NewP, Ref}
-        end,
+sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
+    {StatementRef, NewState} = prepare_statement(Name, State),
     Res = mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, ?QUERY_TIMEOUT),
-    {Res, State#state{prepared = NewPrepared}}.
+    {Res, NewState}.
 
+-spec prepare_statement(Name :: atom(), state()) -> {Ref :: term(), state()}.
+prepare_statement(Name, State = #state{db_ref = DBRef, prepared = Prepared, host = Host}) ->
+    case maps:get(Name, Prepared, undefined) of
+        undefined ->
+            [{_, Table, Fields, Statement}] = ets:lookup(prepared_statements, Name),
+            {ok, Ref} = mongoose_rdbms_backend:prepare(Host, DBRef, Name, Table, Fields, Statement),
+            {Ref, State#state{prepared = maps:put(Name, Ref, Prepared)}};
+
+        Ref ->
+            {Ref, State}
+    end.
 
 %% @doc Generate the OTP callback return tuple depending on the driver result.
 -spec abort_on_driver_error({_, state()}) ->

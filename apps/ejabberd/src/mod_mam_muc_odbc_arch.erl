@@ -186,7 +186,7 @@ prepare_insert(Name, NumRows) ->
     Table = mam_muc_message,
     Fields = [id, room_id, nick_name, message, search_body],
     Query = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
-    {ok, _} = mongoose_rdbms:prepare(Name, Table, Fields, Query),
+    mongoose_rdbms:prepare(Name, Table, Fields, Query),
     ok.
 
 
