@@ -187,17 +187,17 @@ init([From, Server, Type]) ->
           end,
     UseV10 = TLS,
     TLSOpts = case ejabberd_config:get_local_option(s2s_certfile) of
-		  undefined ->
-		      [connect];
-		  CertFile ->
-		      [{certfile, CertFile}, connect]
-	      end,
+                  undefined ->
+                      [connect];
+                  CertFile ->
+                      [{certfile, CertFile}, connect]
+              end,
     TLSOpts2 = case ejabberd_config:get_local_option(s2s_ciphers) of
-		       undefined ->
-			       TLSOpts;
-		       Ciphers ->
-			       [{ciphers, Ciphers} | TLSOpts]
-	       end,
+                       undefined ->
+                               TLSOpts;
+                       Ciphers ->
+                               [{ciphers, Ciphers} | TLSOpts]
+               end,
     {New, Verify} = case Type of
                         new ->
                             {true, false};
@@ -207,15 +207,15 @@ init([From, Server, Type]) ->
                     end,
     Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
     {ok, open_socket, #state{use_v10 = UseV10,
-			     tls = TLS,
-			     tls_required = TLSRequired,
-			     tls_options = TLSOpts2,
-			     queue = queue:new(),
-			     myname = From,
-			     server = Server,
-			     new = New,
-			     verify = Verify,
-			     timer = Timer}}.
+                             tls = TLS,
+                             tls_required = TLSRequired,
+                             tls_options = TLSOpts2,
+                             queue = queue:new(),
+                             myname = From,
+                             server = Server,
+                             new = New,
+                             verify = Verify,
+                             timer = Timer}}.
 
 %%----------------------------------------------------------------------
 %% Func: StateName/2
@@ -649,53 +649,53 @@ wait_for_auth_result(closed, StateData) ->
 -spec wait_for_starttls_proceed(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
     case El of
-	#xmlel{name = <<"proceed">>, attrs = Attrs} ->
-	    case xml:get_attr_s(<<"xmlns">>, Attrs) of
-		?NS_TLS ->
-		    ?DEBUG("starttls: ~p", [{StateData#state.myname,
-					     StateData#state.server}]),
-		    Socket = StateData#state.socket,
-		    TLSOpts = case ejabberd_config:get_local_option(
-				     {domain_certfile,
-				      binary_to_list(StateData#state.myname)}) of
-				  undefined ->
-				      StateData#state.tls_options;
-				  CertFile ->
-				      [{certfile, CertFile} |
-				       lists:keydelete(
-					 certfile, 1,
-					 StateData#state.tls_options)]
-			      end,
-		    TLSOpts2 = case ejabberd_config:get_local_option(s2s_ciphers) of
-				       undefined ->
-					       TLSOpts;
-				       Ciphers ->
-					       [{ciphers, Ciphers} | TLSOpts]
-			       end,
-		    TLSSocket = ejabberd_socket:starttls(Socket, TLSOpts2),
-		    NewStateData = StateData#state{socket = TLSSocket,
-						   streamid = new_id(),
-						   tls_enabled = true,
-						   tls_options = TLSOpts2
-						  },
-		    send_text(NewStateData,
+        #xmlel{name = <<"proceed">>, attrs = Attrs} ->
+            case xml:get_attr_s(<<"xmlns">>, Attrs) of
+                ?NS_TLS ->
+                    ?DEBUG("starttls: ~p", [{StateData#state.myname,
+                                             StateData#state.server}]),
+                    Socket = StateData#state.socket,
+                    TLSOpts = case ejabberd_config:get_local_option(
+                                     {domain_certfile,
+                                      binary_to_list(StateData#state.myname)}) of
+                                  undefined ->
+                                      StateData#state.tls_options;
+                                  CertFile ->
+                                      [{certfile, CertFile} |
+                                       lists:keydelete(
+                                         certfile, 1,
+                                         StateData#state.tls_options)]
+                              end,
+                    TLSOpts2 = case ejabberd_config:get_local_option(s2s_ciphers) of
+                                       undefined ->
+                                               TLSOpts;
+                                       Ciphers ->
+                                               [{ciphers, Ciphers} | TLSOpts]
+                               end,
+                    TLSSocket = ejabberd_socket:starttls(Socket, TLSOpts2),
+                    NewStateData = StateData#state{socket = TLSSocket,
+                                                   streamid = new_id(),
+                                                   tls_enabled = true,
+                                                   tls_options = TLSOpts2
+                                                  },
+                    send_text(NewStateData,
                       list_to_binary(
                         io_lib:format(?STREAM_HEADER,
                                       [StateData#state.myname, StateData#state.server,
                                        <<" version='1.0'">>]))),
-		    {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
-		_ ->
-		    send_text(StateData,
-			      <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
-			      (?STREAM_TRAILER)/binary>>),
-		    ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
-			      [StateData#state.myname, StateData#state.server]),
-		    {stop, normal, StateData}
-	    end;
-	_ ->
-	    ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
-		      [StateData#state.myname, StateData#state.server]),
-	    {stop, normal, StateData}
+                    {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
+                _ ->
+                    send_text(StateData,
+                              <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                              (?STREAM_TRAILER)/binary>>),
+                    ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
+                              [StateData#state.myname, StateData#state.server]),
+                    {stop, normal, StateData}
+            end;
+        _ ->
+            ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
+                      [StateData#state.myname, StateData#state.server]),
+            {stop, normal, StateData}
     end;
 wait_for_starttls_proceed({xmlstreamend, _Name}, StateData) ->
     ?INFO_MSG("wait for starttls proceed: xmlstreamend", []),

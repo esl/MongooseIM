@@ -81,8 +81,8 @@ start(Host) ->
                                   [{ets, [{read_concurrency, true}]}]}
                                   ]),
     mnesia:create_table(reg_users_counter,
-			[{ram_copies, [node()]},
-			 {attributes, record_info(fields, reg_users_counter)}]),
+                        [{ram_copies, [node()]},
+                         {attributes, record_info(fields, reg_users_counter)}]),
     mnesia:add_table_copy(passwd, node(), disc_copies),
     mnesia:add_table_copy(reg_users_counter, node(), ram_copies),
     update_reg_users_counter_table(Host),
@@ -136,10 +136,10 @@ check_password(LUser, LServer, Password) ->
 check_password(LUser, LServer, Password, Digest, DigestGen) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
-	[#passwd{password = Scram}] when is_record(Scram, scram) ->
+        [#passwd{password = Scram}] when is_record(Scram, scram) ->
             Passwd = base64:decode(Scram#scram.storedkey),
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
-	[#passwd{password = Passwd}] ->
+        [#passwd{password = Passwd}] ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         _ ->
             false
@@ -207,8 +207,8 @@ get_vh_registered_users(LServer) ->
     mnesia:dirty_select(
       passwd,
       [{#passwd{us = '$1', _ = '_'},
-	[{'==', {element, 2, '$1'}, LServer}],
-	['$1']}]).
+        [{'==', {element, 2, '$1'}, LServer}],
+        ['$1']}]).
 
 
 -type query_keyword() :: from | to | limit | offset | prefix.
@@ -291,15 +291,15 @@ get_vh_registered_users_number(LServer, _) ->
 get_password(LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
-	[#passwd{password = Scram}] when is_record(Scram, scram) ->
-	    {base64:decode(Scram#scram.storedkey),
-	     base64:decode(Scram#scram.serverkey),
-	     base64:decode(Scram#scram.salt),
-	     Scram#scram.iterationcount};
-	[#passwd{password = Password}] ->
-	    Password;
-	_ ->
-	    false
+        [#passwd{password = Scram}] when is_record(Scram, scram) ->
+            {base64:decode(Scram#scram.storedkey),
+             base64:decode(Scram#scram.serverkey),
+             base64:decode(Scram#scram.salt),
+             Scram#scram.iterationcount};
+        [#passwd{password = Password}] ->
+            Password;
+        _ ->
+            false
     end.
 
 -spec get_password_s(LUser :: ejabberd:luser(),
@@ -307,12 +307,12 @@ get_password(LUser, LServer) ->
 get_password_s(LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
-	[#passwd{password = Scram}] when is_record(Scram, scram) ->
-	    <<"">>;
-	[#passwd{password = Password}] ->
-	    Password;
-	_ ->
-	    <<"">>
+        [#passwd{password = Scram}] when is_record(Scram, scram) ->
+            <<"">>;
+        [#passwd{password = Password}] ->
+            Password;
+        _ ->
+            <<"">>
     end.
 
 -spec does_user_exist(LUser :: ejabberd:luser(),
@@ -412,4 +412,3 @@ write_passwd(#passwd{} = Passwd) ->
 -spec write_counter(users_counter()) -> ok.
 write_counter(#reg_users_counter{} = Counter) ->
     mnesia:write(Counter).
-

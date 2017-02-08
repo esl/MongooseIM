@@ -64,7 +64,7 @@ get_vcard(LUser, LServer) ->
                 {error, Reason} ->
                     ?WARNING_MSG("not sending bad vcard xml ~p~n~p", [Reason, SVCARD]),
                     {error, ?ERR_SERVICE_UNAVAILABLE};
-		{ok, VCARD} ->
+                {ok, VCARD} ->
                     {ok, [VCARD]}
             end;
         {selected, []} ->
@@ -178,20 +178,20 @@ filter_fields([_ | Ds], RestrictionSQL, LServer) ->
     Result :: iolist().
 make_val(RestrictionSQL, Field, Val) ->
     Condition =
-	case binary:last(Val) of
-	    $* ->
-		Val1 = binary:part(Val, 0, byte_size(Val)-1),
-		SVal = mongoose_rdbms:escape_like(Val1),
-		[Field, " LIKE '", SVal, "%'"];
-	    _ ->
-		SVal = mongoose_rdbms:escape(Val),
-		[Field, " = '", SVal, "'"]
-	end,
+        case binary:last(Val) of
+            $* ->
+                Val1 = binary:part(Val, 0, byte_size(Val)-1),
+                SVal = mongoose_rdbms:escape_like(Val1),
+                [Field, " LIKE '", SVal, "%'"];
+            _ ->
+                SVal = mongoose_rdbms:escape(Val),
+                [Field, " = '", SVal, "'"]
+        end,
     case RestrictionSQL of
-	"" ->
-	    Condition;
-	_ ->
-	    [RestrictionSQL, " and ", Condition]
+        "" ->
+            Condition;
+        _ ->
+            [RestrictionSQL, " and ", Condition]
     end.
 
 record_to_item(_CallerVHost, {Username, VCardVHost, FN, Family, Given, Middle,

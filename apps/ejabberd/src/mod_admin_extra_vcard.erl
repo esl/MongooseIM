@@ -50,21 +50,21 @@
 -spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     Vcard1FieldsString = "Some vcard field names in get/set_vcard are:\n"
-                         " FN		- Full Name\n"
-                         " NICKNAME	- Nickname\n"
-                         " BDAY		- Birthday\n"
-                         " TITLE		- Work: Position\n"
-                         " ROLE		- Work: Role",
+                         " FN\t\t- Full Name\n"
+                         " NICKNAME\t- Nickname\n"
+                         " BDAY\t\t- Birthday\n"
+                         " TITLE\t\t- Work: Position\n"
+                         " ROLE\t\t- Work: Role",
 
     Vcard2FieldsString = "Some vcard field names and subnames in get/set_vcard2 are:\n"
-                         " N FAMILY	- Family name\n"
-                         " N GIVEN	- Given name\n"
-                         " N MIDDLE	- Middle name\n"
-                         " ADR CTRY	- Address: Country\n"
-                         " ADR LOCALITY	- Address: City\n"
-                         " EMAIL USERID	- E-Mail Address\n"
-                         " ORG ORGNAME	- Work: Company\n"
-                         " ORG ORGUNIT	- Work: Department",
+                         " N FAMILY\t- Family name\n"
+                         " N GIVEN\t- Given name\n"
+                         " N MIDDLE\t- Middle name\n"
+                         " ADR CTRY\t- Address: Country\n"
+                         " ADR LOCALITY\t- Address: City\n"
+                         " EMAIL USERID\t- E-Mail Address\n"
+                         " ORG ORGNAME\t- Work: Company\n"
+                         " ORG ORGUNIT\t- Work: Department",
 
     VcardXEP = "For a full list of vCard fields check XEP-0054: vcard-temp at "
                "http://www.xmpp.org/extensions/xep-0054.html",

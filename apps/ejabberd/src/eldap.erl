@@ -153,7 +153,7 @@
          passwd = <<"">>         :: binary(),
          id = 0                  :: non_neg_integer(),
          bind_timer = make_ref() :: reference(),
-	     dict = dict:new()       :: dict:dict(),
+         dict = dict:new()       :: dict:dict(),
          req_q = queue:new()     :: queue:queue()}).
 
 -type eldap() :: #eldap{}.
@@ -912,10 +912,10 @@ gen_req({modify_dn, Entry, NewRDN, DelOldRDN,
                         deleteoldrdn = DelOldRDN, newSuperior = NewSup}};
 gen_req({modify_passwd, DN, Passwd}) ->
     {ok, ReqVal} = 'ELDAPv3':encode(
-				 'PasswdModifyRequestValue',
-				 #'PasswdModifyRequestValue'{userIdentity = DN,
-							     newPasswd =
-								 Passwd}),
+                                'PasswdModifyRequestValue',
+                                #'PasswdModifyRequestValue'{userIdentity = DN,
+                                                            newPasswd =
+                                                                Passwd}),
     {extendedReq,
      #'ExtendedRequest'{requestName = ?passwdModifyOID,
                         requestValue = iolist_to_binary(ReqVal)}};

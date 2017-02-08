@@ -31,74 +31,74 @@
          begin_trans/0,
          get_db_specific_limits/1,
          get_db_specific_offset/2,
-	     sql_transaction/2,
-	     get_last/2,
-	     select_last/3,
-	     set_last_t/4,
-	     del_last/2,
-	     get_password/2,
-	     set_password_t/3,
-	     add_user/3,
-	     del_user/2,
-	     del_user_return_password/3,
-	     list_users/1,
+         sql_transaction/2,
+         get_last/2,
+         select_last/3,
+         set_last_t/4,
+         del_last/2,
+         get_password/2,
+         set_password_t/3,
+         add_user/3,
+         del_user/2,
+         del_user_return_password/3,
+         list_users/1,
          list_users/2,
-	     users_number/1,
+         users_number/1,
          users_number/2,
-	     get_users_without_scram/2,
-	     get_users_without_scram_count/1,
+         get_users_without_scram/2,
+         get_users_without_scram_count/1,
          get_average_roster_size/1,
          get_average_rostergroup_size/1,
          clear_rosters/1,
-	     get_roster/2,
-	     get_roster_jid_groups/2,
-	     get_roster_groups/3,
-	     del_user_roster_t/2,
-	     get_roster_by_jid/3,
-	     get_rostergroup_by_jid/3,
-	     del_roster/3,
-	     del_roster_sql/2,
-	     update_roster/5,
-	     update_roster_sql/4,
-	     roster_subscribe/4,
-	     get_subscription/3,
-	     set_private_data/4,
-	     set_private_data_sql/3,
-	     get_private_data/3,
-	     multi_get_private_data/3,
-	     multi_set_private_data/3,
-	     del_user_private_storage/2,
-	     get_default_privacy_list/2,
-	     get_default_privacy_list_t/1,
+         get_roster/2,
+         get_roster_jid_groups/2,
+         get_roster_groups/3,
+         del_user_roster_t/2,
+         get_roster_by_jid/3,
+         get_rostergroup_by_jid/3,
+         del_roster/3,
+         del_roster_sql/2,
+         update_roster/5,
+         update_roster_sql/4,
+         roster_subscribe/4,
+         get_subscription/3,
+         set_private_data/4,
+         set_private_data_sql/3,
+         get_private_data/3,
+         multi_get_private_data/3,
+         multi_set_private_data/3,
+         del_user_private_storage/2,
+         get_default_privacy_list/2,
+         get_default_privacy_list_t/1,
          count_privacy_lists/1,
          clear_privacy_lists/1,
-	     get_privacy_list_names/2,
-	     get_privacy_list_names_t/1,
-	     get_privacy_list_id/3,
-	     get_privacy_list_id_t/2,
-	     get_privacy_list_data/3,
-	     get_privacy_list_data_by_id/2,
-	     set_default_privacy_list/2,
-	     unset_default_privacy_list/2,
-	     remove_privacy_list/2,
-	     add_privacy_list/2,
-	     set_privacy_list/2,
-	     del_privacy_lists/3,
-	     set_vcard/26,
-	     get_vcard/2,
+         get_privacy_list_names/2,
+         get_privacy_list_names_t/1,
+         get_privacy_list_id/3,
+         get_privacy_list_id_t/2,
+         get_privacy_list_data/3,
+         get_privacy_list_data_by_id/2,
+         set_default_privacy_list/2,
+         unset_default_privacy_list/2,
+         remove_privacy_list/2,
+         add_privacy_list/2,
+         set_privacy_list/2,
+         del_privacy_lists/3,
+         set_vcard/26,
+         get_vcard/2,
          search_vcard/3,
-	     escape_string/1,
-	     escape_like_string/1,
-	     count_records_where/3,
-	     get_roster_version/2,
-	     set_roster_version/2,
-	     prepare_offline_message/6,
-	     push_offline_messages/2,
-	     pop_offline_messages/4,
-	     count_offline_messages/4,
-	     remove_old_offline_messages/2,
-	     remove_expired_offline_messages/2,
-	     remove_offline_messages/3]).
+         escape_string/1,
+         escape_like_string/1,
+         count_records_where/3,
+         get_roster_version/2,
+         set_roster_version/2,
+         prepare_offline_message/6,
+         push_offline_messages/2,
+         pop_offline_messages/4,
+         count_offline_messages/4,
+         remove_old_offline_messages/2,
+         remove_expired_offline_messages/2,
+         remove_offline_messages/3]).
 
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
@@ -154,17 +154,17 @@ get_db_type() ->
 %% Safe atomic update.
 update_t(Table, Fields, Vals, Where) ->
     UPairs = lists:zipwith(fun(A, B) -> [A, "='", B, "'"] end,
-			   Fields, Vals),
+                           Fields, Vals),
     case mongoose_rdbms:sql_query_t(
-	   [<<"update ">>, Table, <<" set ">>,
-	    join(UPairs, ", "),
-	    <<" where ">>, Where, ";"]) of
-	{updated, 1} ->
-	    ok;
-	_ ->
-	    mongoose_rdbms:sql_query_t(
-	      [<<"insert into ">>, Table, "(", join(Fields, ", "),
-	       <<") values ('">>, join(Vals, "', '"), "');"])
+           [<<"update ">>, Table, <<" set ">>,
+            join(UPairs, ", "),
+            <<" where ">>, Where, ";"]) of
+        {updated, 1} ->
+            ok;
+        _ ->
+            mongoose_rdbms:sql_query_t(
+              [<<"insert into ">>, Table, "(", join(Fields, ", "),
+               <<") values ('">>, join(Vals, "', '"), "');"])
     end.
 
 %% Safe atomic update.
@@ -174,17 +174,17 @@ update_t(Table, Fields, Vals, Where) ->
 %% This function is useful, when there are a lot of fields to update.
 update_set_t(Table, FieldsVals, Where) ->
     case mongoose_rdbms:sql_query_t(
-	   [<<"update ">>, Table, <<" set ">>,
+           [<<"update ">>, Table, <<" set ">>,
         join_field_and_values(FieldsVals),
-	    <<" where ">>, Where, ";"]) of
-	{updated, 1} ->
-	    ok;
-	_ ->
+            <<" where ">>, Where, ";"]) of
+        {updated, 1} ->
+            ok;
+        _ ->
         Fields = odds(FieldsVals),
         Vals = evens(FieldsVals),
-	    mongoose_rdbms:sql_query_t(
-	      [<<"insert into ">>, Table, "(", join(Fields, ", "),
-	       <<") values ('">>, join(Vals, "', '"), "');"])
+            mongoose_rdbms:sql_query_t(
+              [<<"insert into ">>, Table, "(", join(Fields, ", "),
+               <<") values ('">>, join(Vals, "', '"), "');"])
     end.
 
 odds([X, _|T]) -> [X|odds(T)];
@@ -206,19 +206,19 @@ join_field_and_values_1([]) ->
 
 update(LServer, Table, Fields, Vals, Where) ->
     UPairs = lists:zipwith(fun(A, B) -> [A, "='", B, "'"] end,
-			   Fields, Vals),
+                           Fields, Vals),
     case mongoose_rdbms:sql_query(
-	   LServer,
-	   [<<"update ">>, Table, <<" set ">>,
-	    join(UPairs, ", "),
-	    <<" where ">>, Where, ";"]) of
-	{updated, 1} ->
-	    ok;
-	_ ->
-	    mongoose_rdbms:sql_query(
-	      LServer,
-	      [<<"insert into ">>, Table, "(", join(Fields, ", "),
-	       <<") values ('">>, join(Vals, "', '"), "');"])
+           LServer,
+           [<<"update ">>, Table, <<" set ">>,
+            join(UPairs, ", "),
+            <<" where ">>, Where, ";"]) of
+        {updated, 1} ->
+            ok;
+        _ ->
+            mongoose_rdbms:sql_query(
+              LServer,
+              [<<"insert into ">>, Table, "(", join(Fields, ", "),
+               <<") values ('">>, join(Vals, "', '"), "');"])
     end.
 
 %% F can be either a fun or a list of queries
@@ -250,8 +250,8 @@ select_last(LServer, TStamp, Comparator) ->
 
 set_last_t(LServer, Username, Seconds, State) ->
     update(LServer, "last", ["username", "seconds", "state"],
-	   [Username, Seconds, State],
-	   [<<"username='">>, Username, "'"]).
+           [Username, Seconds, State],
+           [<<"username='">>, Username, "'"]).
 
 del_last(LServer, Username) ->
     mongoose_rdbms:sql_query(
@@ -268,17 +268,17 @@ set_password_t(LServer, Username, {Pass, PassDetails}) ->
     mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
-	      update_t(<<"users">>, [<<"password">>, <<"pass_details">>],
-		       [Pass, PassDetails],
-		       [<<"username='">>, Username, <<"'">>])
+              update_t(<<"users">>, [<<"password">>, <<"pass_details">>],
+                       [Pass, PassDetails],
+                       [<<"username='">>, Username, <<"'">>])
       end);
 set_password_t(LServer, Username, Pass) ->
     mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
-	      update_t(<<"users">>, [<<"username">>, <<"password">>],
-		       [Username, Pass],
-		       [<<"username='">>, Username, <<"'">>])
+              update_t(<<"users">>, [<<"username">>, <<"password">>],
+                       [Username, Pass],
+                       [<<"username='">>, Username, <<"'">>])
       end).
 
 add_user(LServer, Username, {Pass, PassDetails}) ->
@@ -299,11 +299,11 @@ del_user(LServer, Username) ->
 
 del_user_return_password(_LServer, Username, Pass) ->
     P = mongoose_rdbms:sql_query_t(
-	  [<<"select password from users where username='">>,
-	   Username, "';"]),
+          [<<"select password from users where username='">>,
+           Username, "';"]),
     mongoose_rdbms:sql_query_t([<<"delete from users "
-			       "where username='">>, Username,
-			       <<"' and password='">>, Pass, "';"]),
+                               "where username='">>, Username,
+                               <<"' and password='">>, Pass, "';"]),
     P.
 
 list_users(LServer) ->
@@ -400,10 +400,10 @@ clear_rosters(Server) ->
     mongoose_rdbms:sql_transaction(
       Server,
       fun() ->
-	      mongoose_rdbms:sql_query_t(
-		[<<"delete from rosterusers;">>]),
-	      mongoose_rdbms:sql_query_t(
-		[<<"delete from rostergroups;">>])
+              mongoose_rdbms:sql_query_t(
+                [<<"delete from rosterusers;">>]),
+              mongoose_rdbms:sql_query_t(
+                [<<"delete from rostergroups;">>])
       end).
 
 get_roster(LServer, Username) ->
@@ -429,12 +429,12 @@ del_user_roster_t(LServer, Username) ->
     mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
-	      mongoose_rdbms:sql_query_t(
-		[<<"delete from rosterusers "
-		   "where username='">>, Username, "';"]),
-	      mongoose_rdbms:sql_query_t(
-		[<<"delete from rostergroups "
-		   "where username='">>, Username, "';"])
+              mongoose_rdbms:sql_query_t(
+                [<<"delete from rosterusers "
+                   "where username='">>, Username, "';"]),
+              mongoose_rdbms:sql_query_t(
+                [<<"delete from rostergroups "
+                   "where username='">>, Username, "';"])
       end).
 
 get_roster_by_jid(_LServer, Username, SJID) ->
@@ -471,20 +471,20 @@ del_roster_sql(Username, SJID) ->
 
 update_roster(_LServer, Username, SJID, ItemVals, ItemGroups) ->
     update_t(<<"rosterusers">>,
-	     [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-	      <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-	     ItemVals,
-	     [<<"username='">>, Username, <<"' and jid='">>, SJID, "'"]),
+             [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+              <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
+             ItemVals,
+             [<<"username='">>, Username, <<"' and jid='">>, SJID, "'"]),
     mongoose_rdbms:sql_query_t(
       [<<"delete from rostergroups "
          "where username='">>, Username, <<"' "
          "and jid='">>, SJID, "';"]),
     lists:foreach(fun(ItemGroup) ->
-			  mongoose_rdbms:sql_query_t(
-			    [<<"insert into rostergroups(username, jid, grp) "
-			       "values ('">>, join(ItemGroup, "', '"), "');"])
-		  end,
-		  ItemGroups).
+                          mongoose_rdbms:sql_query_t(
+                            [<<"insert into rostergroups(username, jid, grp) "
+                               "values ('">>, join(ItemGroup, "', '"), "');"])
+                  end,
+                  ItemGroups).
 
 update_roster_sql(Username, SJID, ItemVals, ItemGroups) ->
     [[<<"delete from rosterusers "
@@ -504,10 +504,10 @@ update_roster_sql(Username, SJID, ItemVals, ItemGroups) ->
 
 roster_subscribe(_LServer, Username, SJID, ItemVals) ->
     update_t(<<"rosterusers">>,
-	     [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-	      <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-	     ItemVals,
-	     [<<"username='">>, Username, <<"' and jid='">>, SJID, "'"]).
+             [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+              <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
+             ItemVals,
+             [<<"username='">>, Username, <<"' and jid='">>, SJID, "'"]).
 
 get_subscription(LServer, Username, SJID) ->
     mongoose_rdbms:sql_query(
@@ -518,9 +518,9 @@ get_subscription(LServer, Username, SJID) ->
 
 set_private_data(_LServer, Username, LXMLNS, SData) ->
     update_t(<<"private_storage">>,
-	     [<<"username">>, <<"namespace">>, <<"data">>],
-	     [Username, LXMLNS, SData],
-	     [<<"username='">>, Username, <<"' and namespace='">>, LXMLNS, "'"]).
+             [<<"username">>, <<"namespace">>, <<"data">>],
+             [Username, LXMLNS, SData],
+             [<<"username='">>, Username, <<"' and namespace='">>, LXMLNS, "'"]).
 
 set_private_data_sql(Username, LXMLNS, SData) ->
     [[<<"delete from private_storage "
@@ -560,9 +560,9 @@ del_user_private_storage(LServer, Username) ->
       [<<"delete from private_storage where username='">>, Username, "';"]).
 
 set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
-	  SLBDay, SLCTRY, SLEMail, SLFN, SLFamily, SLGiven, SLLocality,
-	  SLMiddle, SLNickname, SLOrgName, SLOrgUnit, SLocality, SMiddle,
-	  SNickname, SOrgName, SOrgUnit, SVCARD, Username) ->
+          SLBDay, SLCTRY, SLEMail, SLFN, SLFamily, SLGiven, SLLocality,
+          SLMiddle, SLNickname, SLOrgName, SLOrgUnit, SLocality, SMiddle,
+          SNickname, SOrgName, SOrgUnit, SVCARD, Username) ->
     mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
@@ -689,7 +689,7 @@ get_privacy_list_data_by_id(LServer, ID) ->
 
 set_default_privacy_list(Username, SName) ->
     update_t(<<"privacy_default_list">>, [<<"username">>, <<"name">>],
-	     [Username, SName], [<<"username='">>, Username, "'"]).
+             [Username, SName], [<<"username='">>, Username, "'"]).
 
 unset_default_privacy_list(LServer, Username) ->
     mongoose_rdbms:sql_query(
@@ -712,15 +712,15 @@ set_privacy_list(ID, RItems) ->
       [<<"delete from privacy_list_data "
          "where id='">>, ID, "';"]),
     lists:foreach(fun(Items) ->
-			  mongoose_rdbms:sql_query_t(
-			    [<<"insert into privacy_list_data("
-			       "id, t, value, action, ord, match_all, match_iq, "
-			       "match_message, match_presence_in, "
-			       "match_presence_out "
-			       ") "
-			       "values ('">>, ID, "', '",
-			     join(Items, "', '"), "');"])
-		  end, RItems).
+                          mongoose_rdbms:sql_query_t(
+                            [<<"insert into privacy_list_data("
+                               "id, t, value, action, ord, match_all, match_iq, "
+                               "match_message, match_presence_in, "
+                               "match_presence_out "
+                               ") "
+                               "values ('">>, ID, "', '",
+                             join(Items, "', '"), "');"])
+                  end, RItems).
 
 del_privacy_lists(LServer, _Server, Username) ->
     mongoose_rdbms:sql_query(
@@ -768,7 +768,7 @@ pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
     SelectSQL = select_offline_messages_sql(SUser, SServer, STimeStamp),
     DeleteSQL = delete_offline_messages_sql(SUser, SServer),
     F = fun() ->
-	      Res = mongoose_rdbms:sql_query_t(SelectSQL),
+              Res = mongoose_rdbms:sql_query_t(SelectSQL),
           mongoose_rdbms:sql_query_t(DeleteSQL),
           Res
         end,
@@ -855,5 +855,3 @@ do_get_db_specific_offset(mssql, Offset, Limit) ->
     " FETCH NEXT ", Limit, " ROWS ONLY"];
 do_get_db_specific_offset(_, Offset, _Limit) ->
     [" OFFSET ", Offset].
-
-

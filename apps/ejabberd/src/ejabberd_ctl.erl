@@ -306,24 +306,24 @@ call_command([CmdString | Args], Auth, AccessCommands) ->
     CmdStringU = re:replace(CmdString, "-", "_", [global, {return, list}]),
     Command = list_to_atom(CmdStringU),
     case ejabberd_commands:get_command_format(Command) of
-	{error, command_unknown} ->
-	    {error, command_unknown};
-	{ArgsFormat, ResultFormat} ->
-	    case (catch format_args(Args, ArgsFormat)) of
-		ArgsFormatted when is_list(ArgsFormatted) ->
-		    Result = ejabberd_commands:execute_command(AccessCommands, Auth, Command,
-							       ArgsFormatted),
-		    format_result(Result, ResultFormat);
-		{'EXIT', {function_clause, [{lists, zip, [A1, A2], _FileInfo} | _]}} ->
-		    {NumCompa, TextCompa} =
-			case {length(A1), length(A2)} of
-			    {L1, L2} when L1 < L2 -> {L2-L1, "less argument"};
-			    {L1, L2} when L1 > L2 -> {L1-L2, "more argument"}
-			end,
-		    {io_lib:format("Error: the command ~p requires ~p ~s.",
-				   [CmdString, NumCompa, TextCompa]),
-		     wrong_command_arguments}
-	    end
+        {error, command_unknown} ->
+            {error, command_unknown};
+        {ArgsFormat, ResultFormat} ->
+            case (catch format_args(Args, ArgsFormat)) of
+                ArgsFormatted when is_list(ArgsFormatted) ->
+                    Result = ejabberd_commands:execute_command(AccessCommands, Auth, Command,
+                                                               ArgsFormatted),
+                    format_result(Result, ResultFormat);
+                {'EXIT', {function_clause, [{lists, zip, [A1, A2], _FileInfo} | _]}} ->
+                    {NumCompa, TextCompa} =
+                        case {length(A1), length(A2)} of
+                            {L1, L2} when L1 < L2 -> {L2-L1, "less argument"};
+                            {L1, L2} when L1 > L2 -> {L1-L2, "more argument"}
+                        end,
+                    {io_lib:format("Error: the command ~p requires ~p ~s.",
+                                   [CmdString, NumCompa, TextCompa]),
+                     wrong_command_arguments}
+            end
     end.
 
 

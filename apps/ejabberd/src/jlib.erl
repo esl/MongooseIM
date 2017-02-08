@@ -847,7 +847,7 @@ stream_errort(Condition, Lang, Text) ->
 remove_delay_tags(#xmlel{children = Els} = Packet) ->
     NEl = lists:foldl(
              fun(#xmlel{name= <<"delay">>, attrs = Attrs} = R, El)->
-			      case xml:get_attr_s(<<"xmlns">>, Attrs) of
+                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
                                   ?NS_DELAY ->
                                       El;
                                   _ ->
