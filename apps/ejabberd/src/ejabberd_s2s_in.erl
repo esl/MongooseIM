@@ -170,6 +170,7 @@ init([{SockMod, Socket}, Opts]) ->
               end,
     TLSOpts2 = lists:filter(fun({protocol_options, _}) -> true;
                                ({dhfile, _}) -> true;
+                               ({ciphers, _}) -> true;
                                (_) -> false
                             end, Opts),
     TLSOpts = lists:append(TLSOpts1, TLSOpts2),
