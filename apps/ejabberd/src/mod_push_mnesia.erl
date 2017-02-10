@@ -32,7 +32,7 @@
          }).
 
 -type key()     :: ejabberd:simple_bare_jid().
--type record()  :: #push_subscription{}.
+-type sub_record()  :: #push_subscription{}.
 
 %%--------------------------------------------------------------------
 %% Backend callbacks
@@ -104,12 +104,12 @@ get_publish_services(User) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
--spec read(key()) -> [record()] | no_return().
+-spec read(key()) -> [sub_record()] | no_return().
 read(Key) ->
     F = fun() -> mnesia:read({push_subscription, Key}) end,
     mnesia:async_dirty(F).
 
--spec safe_read(key()) -> {ok, [record()]} | {error, Reason :: term()}.
+-spec safe_read(key()) -> {ok, [sub_record()]} | {error, Reason :: term()}.
 safe_read(Key) ->
     try read(Key) of
         Records ->
@@ -119,7 +119,7 @@ safe_read(Key) ->
             {error, Reason}
     end.
 
--spec write(record()) -> ok | {error, Reason :: term()}.
+-spec write(sub_record()) -> ok | {error, Reason :: term()}.
 write(Record) ->
     F = fun() -> mnesia:write(Record) end,
     transaction(F).
@@ -139,7 +139,7 @@ transaction(F) ->
     end.
 
 -spec make_record(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
-                  Node :: mod_push:pubsub_node(), Form :: mod_push:form()) -> record().
+                  Node :: mod_push:pubsub_node(), Form :: mod_push:form()) -> sub_record().
 make_record(UserJID, PubsubJID, Node, Form) ->
     #push_subscription{
        user_jid = key(UserJID),
@@ -150,9 +150,4 @@ make_record(UserJID, PubsubJID, Node, Form) ->
 
 -spec key(ejabberd:jid()) -> key() | no_return().
 key(JID) ->
-    case jid:to_lus(JID) of
-        error ->
-            throw({invalid_jid, JID});
-        SimpleBareJID ->
-            SimpleBareJID
-    end.
+    jid:to_lus(JID).

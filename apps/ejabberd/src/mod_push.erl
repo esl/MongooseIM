@@ -98,7 +98,7 @@ stop(Host) ->
 %% Hook 'remove_user'
 -spec remove_user(LUser :: binary(), LServer :: binary()) -> ok.
 remove_user(LUser, LServer) ->
-    mod_push_backend:disable(jid:make_noprep(LUser, LServer, undefined), undefined),
+    mod_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined),
     ok.
 
 %% Hook 'filter_packet'
@@ -186,7 +186,9 @@ publish_message(From, To, Packet) ->
 %%--------------------------------------------------------------------
 
 -spec parse_request(Request :: exml:element()) ->
-                           bad_request.
+    {enable, ejabberd:jid(), pubsub_node(), form()} |
+    {disable, ejabberd:jid(), pubsub_node()} |
+    bad_request.
 parse_request(#xmlel{name = <<"enable">>} = Request) ->
     JID = jid:from_binary(exml_query:attr(Request, <<"jid">>, <<>>)),
     Node = exml_query:attr(Request, <<"node">>, <<>>), %% Treat unset node as empty - both forbidden
