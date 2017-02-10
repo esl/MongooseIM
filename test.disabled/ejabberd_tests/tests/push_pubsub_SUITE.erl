@@ -26,17 +26,24 @@
 
 all() ->
     [
-        {group, allocate}
+        {group, disco},
+        {group, allocate},
+        {group, pubsub_publish},
+        {group, rest_integration}
     ].
 
 groups() ->
     [
-        {allocate, [], [
-            allocate_basic_node,
-            has_disco_identity,
+        {disco, [], [has_disco_identity]},
+        {allocate, [], [allocate_basic_node]},
+        {pubsub_publish, [], [
             publish_fails_with_invalid_item,
             publish_fails_with_no_options,
             publish_succeeds_with_valid_options
+        ]},
+        {rest_integration, [], [
+            rest_service_called_with_correct_path,
+            rest_service_gets_correct_payload
         ]}
     ].
 
@@ -48,6 +55,8 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    application:ensure_all_started(cowboy),
+
     %% For mocking with unnamed functions
     {_Module, Binary, Filename} = code:get_object_code(?MODULE),
     rpc(code, load_binary, [?MODULE, Filename, Binary]),
@@ -72,11 +81,26 @@ end_per_group(_, Config) ->
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(CaseName, Config) ->
+    setup_mock_rest(),
     escalus:init_per_testcase(CaseName, Config).
 
 
 end_per_testcase(CaseName, Config) ->
+    teardown_mock_rest(),
     escalus:end_per_testcase(CaseName, Config).
+
+%%--------------------------------------------------------------------
+%% GROUP disco
+%%--------------------------------------------------------------------
+has_disco_identity(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Server = escalus_client:server(Alice),
+            escalus:send(Alice, escalus_stanza:disco_info(Server)),
+            Stanza = escalus:wait_for_stanza(Alice),
+            escalus:assert(has_identity, [<<"pubsub">>, <<"push">>], Stanza)
+        end).
 
 %%--------------------------------------------------------------------
 %% GROUP allocate
@@ -90,15 +114,9 @@ allocate_basic_node(Config) ->
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}])
         end).
 
-has_disco_identity(Config) ->
-    escalus:story(
-        Config, [{alice, 1}],
-        fun(Alice) ->
-            Server = escalus_client:server(Alice),
-            escalus:send(Alice, escalus_stanza:disco_info(Server)),
-            Stanza = escalus:wait_for_stanza(Alice),
-            escalus:assert(has_identity, [<<"pubsub">>, <<"push">>], Stanza)
-        end).
+%%--------------------------------------------------------------------
+%% GROUP pubsub_publish
+%%--------------------------------------------------------------------
 
 publish_fails_with_invalid_item(Config) ->
     escalus:story(
@@ -127,8 +145,7 @@ publish_fails_with_no_options(Config) ->
             Node = pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
 
-            ContentFields =
-            [
+            ContentFields = [
                 {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
                 {<<"message-count">>, <<"1">>},
                 {<<"last-message-sender">>, <<"senderId">>},
@@ -136,9 +153,9 @@ publish_fails_with_no_options(Config) ->
             ],
 
             Item =
-            #xmlel{name = <<"notification">>,
-                   attrs = [{<<"xmlns">>, ?NS_PUSH}],
-                   children = [make_form(ContentFields)]},
+                #xmlel{name = <<"notification">>,
+                       attrs = [{<<"xmlns">>, ?NS_PUSH}],
+                       children = [make_form(ContentFields)]},
 
             Publish = escalus_pubsub_stanza:publish(Alice, <<"itemid">>, Item, <<"id">>, Node),
             escalus:send(Alice, Publish),
@@ -156,37 +173,92 @@ publish_succeeds_with_valid_options(Config) ->
             Node = pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
 
-            ContentFields =
-            [
-                {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
+            Content = [
                 {<<"message-count">>, <<"1">>},
                 {<<"last-message-sender">>, <<"senderId">>},
                 {<<"last-message-body">>, <<"message body">>}
             ],
 
-            OptionFileds =
-            [
-                {<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS},
-                {<<"secret">>, <<"sometoken">>},
-                {<<"platform">>, <<"android">>}
+            Options = [
+                {<<"device_id">>, <<"sometoken">>},
+                {<<"service">>, <<"apns">>}
             ],
 
-            Item =
-                #xmlel{name = <<"notification">>,
-                       attrs = [{<<"xmlns">>, ?NS_PUSH}],
-                       children = [make_form(ContentFields)]},
-            Options =
-                #xmlel{name = <<"publish-options">>, children = [make_form(OptionFileds)]},
-
-            Publish = escalus_pubsub_stanza:publish(Alice, <<"itemid">>, Item, <<"id">>, Node),
-            #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,
-            NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [Options]},
-            PublishIQ = Publish#xmlel{children = [NewPubsubEl]},
+            PublishIQ = publish_iq(Alice, Node, Content, Options),
             escalus:send(Alice, PublishIQ),
             escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
 
             ok
 
+        end).
+
+%%--------------------------------------------------------------------
+%% GROUP rest_integration
+%%--------------------------------------------------------------------
+
+rest_service_called_with_correct_path(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Node = pubsub_node(),
+            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
+
+            Content = [
+                {<<"message-count">>, <<"1">>},
+                {<<"last-message-sender">>, <<"senderId">>},
+                {<<"last-message-body">>, <<"message body">>}
+            ],
+
+            Options = [
+                {<<"device_id">>, <<"sometoken_34320482">>},
+                {<<"service">>, <<"apns">>}
+            ],
+
+            PublishIQ = publish_iq(Alice, Node, Content, Options),
+            escalus:send(Alice, PublishIQ),
+            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+
+            Req = next_rest_req(),
+            ?assertMatch({<<"POST">>, _}, cowboy_req:method(Req)),
+            ?assertMatch({<<"v15">>, _}, cowboy_req:binding(level1, Req)),
+            ?assertMatch({<<"notification">>, _}, cowboy_req:binding(level2, Req)),
+            ?assertMatch({<<"sometoken_34320482">>, _}, cowboy_req:binding(level3, Req)),
+            ?assertMatch({undefined, _}, cowboy_req:binding(level4, Req))
+        end).
+
+rest_service_gets_correct_payload(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Node = pubsub_node(),
+            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
+
+            Content = [
+                {<<"message-count">>, <<"876">>},
+                {<<"last-message-sender">>, <<"senderId">>},
+                {<<"last-message-body">>, <<"message body 576364!!">>}
+            ],
+
+            Options = [
+                {<<"device_id">>, <<"sometoken">>},
+                {<<"service">>, <<"some_awesome_service">>},
+                {<<"mode">>, <<"selected_mode">>}
+            ],
+
+            PublishIQ = publish_iq(Alice, Node, Content, Options),
+            escalus:send(Alice, PublishIQ),
+            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+
+            Req = next_rest_req(),
+            {ok, BodyRaw, _} = cowboy_req:body(Req),
+            Body = jsx:decode(BodyRaw, [return_maps]),
+
+            ?assertMatch(#{<<"service">> := <<"some_awesome_service">>}, Body),
+            ?assertMatch(#{<<"badge">> := 876}, Body),
+            ?assertMatch(#{<<"title">> := <<"senderId">>}, Body),
+            ?assertMatch(#{<<"tag">> := <<"senderId">>}, Body),
+            ?assertMatch(#{<<"mode">> := <<"selected_mode">>}, Body),
+            ?assertMatch(#{<<"body">> := <<"message body 576364!!">>}, Body)
         end).
 
 %%--------------------------------------------------------------------
@@ -196,6 +268,22 @@ publish_succeeds_with_valid_options(Config) ->
 %% ----------------------------------
 %% Stanzas
 %% ----------------------------------
+
+publish_iq(Client, Node, Content, Options) ->
+    ContentFields = [{<<"FORM_TYPE">>, ?PUSH_FORM_TYPE}] ++ Content,
+    OptionFileds = [{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ Options,
+
+    Item =
+        #xmlel{name = <<"notification">>,
+               attrs = [{<<"xmlns">>, ?NS_PUSH}],
+               children = [make_form(ContentFields)]},
+    OptionsEl =
+        #xmlel{name = <<"publish-options">>, children = [make_form(OptionFileds)]},
+
+    Publish = escalus_pubsub_stanza:publish(Client, <<"itemid">>, Item, <<"id">>, Node),
+    #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,
+    NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
+    Publish#xmlel{children = [NewPubsubEl]}.
 
 disable_stanza(JID, undefined) ->
     disable_stanza([
@@ -236,7 +324,7 @@ make_form(Fields) ->
 make_form_field(Name, Value) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Name}],
-           children = [#xmlcdata{content = Value}]}.
+           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
 
 
@@ -266,7 +354,8 @@ parse_form(#xmlel{name = <<"x">>} = Form) ->
 parse_form(Fields) when is_list(Fields) ->
     lists:map(
         fun(Field) ->
-            {exml_query:attr(Field, <<"var">>), exml_query:cdata(Field)}
+            {exml_query:attr(Field, <<"var">>),
+             exml_query:path(Field, [{element, <<"value">>}, cdata])}
         end, Fields).
 
 -spec rpc(M :: atom(), F :: atom(), A :: [term()]) -> term().
@@ -279,6 +368,41 @@ bare_jid(JIDOrClient) ->
     ShortJID = escalus_client:short_jid(JIDOrClient),
     list_to_binary(string:to_lower(binary_to_list(ShortJID))).
 
+%% ----------------------------------------------
+%% REST mock handler
+setup_mock_rest() ->
+    Dispatch = cowboy_router:compile([
+		{'_', [
+			{"/[:level1/[:level2/[:level3/[:level4]]]]", ?MODULE, [{pid, self()}]}
+		]}
+	]),
+	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
+		{env, [{dispatch, Dispatch}]}
+	]).
+
+init(_Transport, Req, Opts) ->
+	{ok, Req, Opts}.
+
+handle(Req, State) ->
+    Master = proplists:get_value(pid, State),
+    Master ! {rest_req, Req},
+	{ok, cowboy_req:reply(204, [], <<>>, Req), State}.
+
+terminate(_Reason, _Req, _State) ->
+	ok.
+
+teardown_mock_rest() ->
+    cowboy:stop_listener(http).
+
+next_rest_req() ->
+    receive
+        {rest_req, Req} ->
+            Req
+    after timer:seconds(5) ->
+        throw(rest_mock_timeout)
+    end.
+
+%% Module config
 required_modules() ->
     [{mod_pubsub, [
         {plugins, [<<"dag">>, <<"push">>]},
@@ -286,5 +410,6 @@ required_modules() ->
         {host, "pubsub.@HOST@"}
     ]},
      {mod_push_service_mongoosepush, [
-         {apple_host, "localhost"}
+         {endpoint, "http://localhost:8080"},
+         {api_version, "v15"}
      ]}].

@@ -15,6 +15,7 @@
   {git,"git://github.com/processone/cache_tab",
        {ref,"dfad9d6079e62f99c6752fbd910e1da72e907a2b"}},
   0},
+ {<<"certifi">>,{pkg,<<"certifi">>,<<"0.7.0">>},1},
  {<<"cowboy">>,
   {git,"git://github.com/ninenines/cowboy.git",
        {ref,"d08c2ab39d38c181abda279d5c2cadfac33a50c1"}},
@@ -63,6 +64,10 @@
   {git,"https://github.com/basho/goldrush.git",
        {ref,"8f1b715d36b650ec1e1f5612c00e28af6ab0de82"}},
   1},
+ {<<"hackney">>,
+  {git,"git://github.com/benoitc/hackney.git",
+       {ref,"f69567eb28d6cbf2fdf820100055fca5e6c66938"}},
+  0},
  {<<"hamcrest">>,
   {git,"https://github.com/basho/hamcrest-erlang.git",
        {ref,"98bc7aa19ea081478c816824aa05fc5a48acae66"}},
@@ -95,6 +100,8 @@
   {git,"git://github.com/eproxus/meck.git",
        {ref,"17b0ea5b7d9c93af3a52b5152c6bee14302b3885"}},
   0},
+ {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},1},
+ {<<"mimerl">>,{pkg,<<"mimerl">>,<<"1.0.2">>},1},
  {<<"mochijson2">>,
   {git,"git://github.com/bjnortier/mochijson2.git",
        {ref,"e162b7f5be57b8a1fcf5cc99aa4948864af42bba"}},
@@ -176,6 +183,7 @@
   {git,"https://github.com/fdmanana/snappy-erlang-nif.git",
        {ref,"c4cd1bb35f3a3a399737d64bd03b479817b90e75"}},
   1},
+ {<<"ssl_verify_fun">>,{pkg,<<"ssl_verify_fun">>,<<"1.1.1">>},1},
  {<<"stringprep">>,
   {git,"git://github.com/processone/stringprep.git",
        {ref,"7f082d7f53710837151058734009958efc07db65"}},
@@ -198,5 +206,9 @@
   0}]}.
 [
 {pkg_hash,[
- {<<"p1_utils">>, <<"3E698354FDC1FEA5491D991457B0CB986C0A00A47D224FEB841DC3EC82B9F721">>}]}
+ {<<"certifi">>, <<"861A57F3808F7EB0C2D1802AFEAAE0FA5DE813B0DF0979153CBAFCD853ABABAF">>},
+ {<<"metrics">>, <<"25F094DEA2CDA98213CECC3AEFF09E940299D950904393B2A29D191C346A8486">>},
+ {<<"mimerl">>, <<"993F9B0E084083405ED8252B99460C4F0563E41729AB42D9074FD5E52439BE88">>},
+ {<<"p1_utils">>, <<"3E698354FDC1FEA5491D991457B0CB986C0A00A47D224FEB841DC3EC82B9F721">>},
+ {<<"ssl_verify_fun">>, <<"28A4D65B7F59893BC2C7DE786DEC1E1555BD742D336043FE644AE956C3497FBE">>}]}
 ].

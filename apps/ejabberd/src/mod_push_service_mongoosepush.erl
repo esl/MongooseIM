@@ -83,8 +83,8 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     ?WARNING_MSG("push_notifications ~p", [{Notifications, Options}]),
 
     ShortURL = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, endpoint,
-                                                     "https://localhost:8080")),
-    ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, endpoint_version, "v1")),
+                                                     "https://localhost:8443")),
+    ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, api_version, "v1")),
     DeviceId = maps:get(<<"device_id">>, Options),
     URL = <<ShortURL/binary, "/", ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     lists:foreach(
@@ -95,7 +95,9 @@ push_notifications(AccIn, Host, Notifications, Options) ->
                     service => maps:get(<<"service">>, Options),
                     body => maps:get(<<"last-message-body">>, Notification),
                     title => maps:get(<<"last-message-sender">>, Notification),
-                    tag => maps:get(<<"last-message-sender">>, Notification)
+                    tag => maps:get(<<"last-message-sender">>, Notification),
+                    badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
+                    mode => maps:get(<<"mode">>, Options, <<"prod">>)
                 }),
             AdditionalOpts = gen_mod:get_module_opt(Host, ?MODULE, http_options, []),
             HTTPOptions = AdditionalOpts ++ [{pool, pool_name(Host, hackney)}],
@@ -112,7 +114,8 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     ok | {error, Reason :: term()}.
 http_notification(Method, URL, ReqHeaders, Payload, HTTPOptions) ->
     case hackney:request(Method, URL, ReqHeaders, Payload, HTTPOptions) of
-        {ok, 200, _, _} -> ok;
+        {ok, SuccessCode, _, _} when SuccessCode < 300, SuccessCode >= 200 ->
+            ok;
         {ok, ErrorCode, ErrorDetails, _} ->
             ?WARNING_MSG("Unable to submit push notification. ErrorCode ~p, Details ~p",
                          [ErrorCode, ErrorDetails]),
