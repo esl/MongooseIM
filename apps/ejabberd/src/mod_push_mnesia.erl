@@ -62,7 +62,7 @@ disable(User, undefined, undefined) ->
     delete(key(User));
 disable(User, PubsubJID, Node) ->
     Result =
-        transaction(
+    exec(
           fun() ->
                   PubsubFiltered =
                       [Record ||
@@ -122,21 +122,16 @@ safe_read(Key) ->
 -spec write(sub_record()) -> ok | {error, Reason :: term()}.
 write(Record) ->
     F = fun() -> mnesia:write(Record) end,
-    transaction(F).
+    exec(F).
 
 -spec delete(key()) -> ok | {error, Reason :: term()}.
 delete(Key) ->
     F = fun() -> mnesia:delete({push_subscription, Key}) end,
-    transaction(F).
+    exec(F).
 
--spec transaction(fun(() -> any())) -> Result :: any().
-transaction(F) ->
-    case mnesia:transaction(F) of
-        {atomic, Result} ->
-            Result;
-        {aborted, Reason} ->
-            {error, {aborted, Reason}}
-    end.
+-spec exec(fun(() -> any())) -> Result :: any().
+exec(F) ->
+    mnesia:sync_dirty(F).
 
 -spec make_record(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
                   Node :: mod_push:pubsub_node(), Form :: mod_push:form()) -> sub_record().
@@ -148,6 +143,6 @@ make_record(UserJID, PubsubJID, Node, Form) ->
        form = Form
       }.
 
--spec key(ejabberd:jid()) -> key() | no_return().
+-spec key(ejabberd:jid()) -> key().
 key(JID) ->
     jid:to_lus(JID).

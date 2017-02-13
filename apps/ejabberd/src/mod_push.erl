@@ -28,7 +28,7 @@
 -export([iq_handler/3,
          handle_publish_response/4,
          filter_packet/1,
-         remove_user/2]).
+         remove_user/3]).
 
 %% Types
 -export_type([pubsub_node/0, form_field/0, form/0]).
@@ -62,8 +62,8 @@
 start(Host, Opts) ->
     ?INFO_MSG("mod_push starting on host ~p", [Host]),
 
-    ok = application:ensure_started(worker_pool),
-    wpool:start_sup_pool(?MODULE, gen_mod:get_opt(wpool, Opts, [])),
+    {ok, _} = wpool:start_sup_pool(gen_mod:get_module_proc(Host, ?MODULE),
+                                   gen_mod:get_opt(wpool, Opts, [])),
 
     gen_mod:start_backend_module(?MODULE, Opts, []),
     mod_push_backend:init(Host, Opts),
@@ -89,6 +89,8 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PUSH),
     mod_disco:unregister_feature(Host, ?NS_PUSH),
 
+    wpool:stop_pool(gen_mod:get_module_proc(Host, ?MODULE)),
+
     ok.
 
 %%--------------------------------------------------------------------
@@ -96,10 +98,10 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 %% Hook 'remove_user'
--spec remove_user(LUser :: binary(), LServer :: binary()) -> ok.
-remove_user(LUser, LServer) ->
-    mod_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined),
-    ok.
+-spec remove_user(Acc :: map(), LUser :: binary(), LServer :: binary()) -> ok.
+remove_user(Acc, LUser, LServer) ->
+    mod_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined, undefined),
+    Acc.
 
 %% Hook 'filter_packet'
 -type fpacket() :: {From :: ejabberd:jid(),
@@ -108,7 +110,7 @@ remove_user(LUser, LServer) ->
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From = #jid{lserver = Host}, To, Packet}) ->
+filter_packet({From, To = #jid{lserver = Host}, Packet}) ->
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
     PacketType = exml_query:attr(Packet, <<"type">>),
@@ -164,7 +166,7 @@ handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error}) ->
 %%--------------------------------------------------------------------
 
 -spec publish_message(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> ok.
-publish_message(From, To, Packet) ->
+publish_message(From, To = #jid{lserver = Host}, Packet) ->
     ?DEBUG("Handle push notification ~p", [{From, To, Packet}]),
 
     BareRecipient = jid:to_bare(To),
@@ -174,9 +176,10 @@ publish_message(From, To, Packet) ->
               Stanza = push_notification_iq(From, Packet, Node, Form),
               ResponseHandler =
                   fun(Response) ->
-                          cast(handle_publish_response, [BareRecipient, PubsubJID, Node, Response])
+                          cast(Host, handle_publish_response,
+                               [BareRecipient, PubsubJID, Node, Response])
                   end,
-              cast(ejabberd_local, route_iq, [To, PubsubJID, Stanza, ResponseHandler])
+              cast(Host, ejabberd_local, route_iq, [To, PubsubJID, Stanza, ResponseHandler])
       end, Services),
 
     ok.
@@ -198,6 +201,7 @@ parse_request(#xmlel{name = <<"enable">>} = Request) ->
         {_, _, invalid_form}            -> bad_request;
         {_, <<>>, _}                    -> bad_request;
         {error, _, _}                   -> bad_request;
+        {#jid{luser = <<>>}, _, _}      -> bad_request;
         {#jid{lserver = <<>>}, _, _}    -> bad_request;
         {JID, Node, FormFields} ->
             {enable, jid:to_bare(JID), Node, FormFields}
@@ -282,10 +286,10 @@ make_form_field({Name, Value}) ->
            attrs = [{<<"var">>, Name}],
            children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
--spec cast(F :: atom(), A :: [any()]) -> any().
-cast(F, A) ->
-    cast(?MODULE, F, A).
+-spec cast(Host :: ejabberd:server(), F :: atom(), A :: [any()]) -> any().
+cast(Host, F, A) ->
+    cast(Host, ?MODULE, F, A).
 
--spec cast(M :: atom(), F :: atom(), A :: [any()]) -> any().
-cast(M, F, A) ->
-    wpool:cast(?MODULE, {M, F, A}, available_worker).
+-spec cast(Host :: ejabberd:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+cast(Host, M, F, A) ->
+    wpool:cast(gen_mod:get_module_proc(Host, ?MODULE), {M, F, A}, available_worker).

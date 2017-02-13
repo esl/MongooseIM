@@ -75,12 +75,12 @@ is_offline(#jid{luser = LUser, lserver = LServer}) ->
 
 %% Callback 'sender_id'
 -spec sender_id(From :: ejabberd:jid(), Packet :: jlib:xmlel()) -> SenderId :: binary().
-sender_id(From = #jid{lresource = LResource}, Packet) ->
+sender_id(From = #jid{lresource = LResource, luser = LUser}, Packet) ->
     case exml_query:attr(Packet, <<"type">>) of
         <<"chat">> ->
             jid:to_binary(jid:to_bare(jid:to_lower(From)));
         <<"groupchat">> ->
-            LResource
+            <<LResource/binary, " (room: ", LUser/binary, ")">>
     end.
 
 %%--------------------------------------------------------------------

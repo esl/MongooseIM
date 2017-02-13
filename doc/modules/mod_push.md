@@ -1,7 +1,7 @@
 ### Module Description
 This module implements [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html).
  It enables a service that notifies `PubSub` of user's choice about every message that he could 
- miss while being offline. There are two control stanzas that clinet may send to this module: 
+ miss while being offline. There are two control stanzas that client may send to this module:
  `enable` and `disable`. `enable` stanza enables push notifications and forwards them to 
  specified `PubSub` node. This stanza also may contain optional `Data Form` that will be added to
   each and every notification to `PubSub` node as `publish-options`. Please be sure to provide 
@@ -18,10 +18,6 @@ that handles all the requests. Please refer to [Project Site](https://github.com
  configurations. Currently this module allow configuration of parsing message `sender id` and can
   filter messages that shall not be published to `PubSub` node.
 
-
-[aws-virtual-host]: https://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html
-[aws-region]: https://docs.aws.amazon.com/general/latest/gr/rande.html?shortFooter=true#s3_region
-[aws-keys]: https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html?shortFooter=true#access-keys-and-secret-access-keys
 
 ### Example configuration
 

@@ -608,10 +608,10 @@ do_route(From, To, Packet) ->
       Reason :: any().
 do_route_no_resource_presence_prv(From, To, Packet, Type, Reason) ->
     is_privacy_allow(From, To, Packet) andalso ejabberd_hooks:run_fold(
-                                                 roster_in_subscription,
-                                                 To#jid.lserver,
-                                                 false,
-                                                 [To#jid.user, To#jid.server, From, Type, Reason]).
+        roster_in_subscription,
+        To#jid.lserver,
+        false,
+        [To#jid.user, To#jid.server, From, Type, Reason]).
 
 
 -spec do_route_no_resource_presence(Type, From, To, Packet) -> boolean() when
@@ -655,7 +655,7 @@ do_route_no_resource(<<"message">>, _, From, To, Packet) ->
 do_route_no_resource(<<"iq">>, _, From, To, Packet) ->
     process_iq(From, To, Packet);
 do_route_no_resource(<<"broadcast">>, _, From, To, Packet) ->
-                                                % Backward compatibility
+    %% Backward compatibility
     ejabberd_hooks:run(sm_broadcast, To#jid.lserver, [From, To, Packet]),
     broadcast_packet(From, To, Packet);
 do_route_no_resource(_, _, _, _, _) ->
@@ -669,7 +669,7 @@ do_route_no_resource(_, _, _, _, _) ->
       Packet :: jlib:xmlel().
 do_route_offline(<<"message">>, _, From, To, Packet)  ->
     Drop = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
-                                   false, [From, To, Packet]),
+                   false, [From, To, Packet]),
     case Drop of
         false ->
             route_message(From, To, Packet);
@@ -688,7 +688,7 @@ do_route_offline(_, _, _, _, _) ->
     ?DEBUG("packet droped~n", []),
     ok.
 
-                                                % Backward compatibility
+%% Backward compatibility
 -spec broadcast_packet(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> ok.
 broadcast_packet(From, To, Packet) ->
     #jid{user = User, server = Server} = To,
@@ -746,7 +746,7 @@ route_message(From, To, Packet) ->
               %% Route messages to all priority that equals the max, if
               %% positive
               fun({Prio, Pid}) when Prio == Priority ->
-                                                % we will lose message if PID is not alive
+                 %% we will lose message if PID is not alive
                       Pid ! {route, From, To, Packet};
                  %% Ignore other priority:
                  ({_Prio, _Pid}) ->
@@ -946,7 +946,7 @@ force_update_presence({LUser, LServer}) ->
 
 -spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
-    [
+        [
      %% TODO: Implement following API functions with pluggable backends architcture
      %% #ejabberd_commands{name = connected_users,
      %%                    tags = [session],
@@ -966,7 +966,7 @@ commands() ->
                         module = ?MODULE, function = user_resources,
                         args = [{user, string}, {host, string}],
                         result = {resources, {list, {resource, binary}}}}
-    ].
+        ].
 
 
 -spec user_resources(UserStr :: string(), ServerStr :: string()) -> [binary()].
@@ -978,19 +978,19 @@ user_resources(UserStr, ServerStr) ->
 sm_backend(Backend) ->
     lists:flatten(
       ["-module(ejabberd_sm_backend).
--export([backend/0]).
+        -export([backend/0]).
 
--spec backend() -> atom().
-backend() ->
-    ejabberd_sm_",
-atom_to_list(Backend),
-    ".\n"]).
+        -spec backend() -> atom().
+        backend() ->
+            ejabberd_sm_",
+       atom_to_list(Backend),
+       ".\n"]).
 
 -spec get_cached_unique_count() -> non_neg_integer().
 get_cached_unique_count() ->
-case mongoose_metrics:get_metric_value(global, ?UNIQUE_COUNT_CACHE) of
-{ok, DataPoints} ->
-proplists:get_value(value, DataPoints);
-_ ->
-0
-end.
+    case mongoose_metrics:get_metric_value(global, ?UNIQUE_COUNT_CACHE) of
+        {ok, DataPoints} ->
+            proplists:get_value(value, DataPoints);
+        _ ->
+            0
+    end.
