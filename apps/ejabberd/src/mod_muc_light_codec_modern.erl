@@ -52,9 +52,9 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
                  {affiliation, Aff},
                  {role, Aff}
                 ],
-    #xmlel{ children = Children }
-    = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch,
-                              [EventData]),
+    FilteredPacket = #xmlel{ children = Children }
+                     = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch, [EventData]),
+    ejabberd_hooks:run(room_send_packet, RoomS, [FilteredPacket, EventData]),
     lists:foreach(
       fun({{U, S}, _}) ->
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
@@ -317,9 +317,11 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, RoomJID, Room
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
                                                  NotifForCurrentNoPrevVersion) },
-    #xmlel{ children = FinalChildrenForCurrentNoPrevVersion }
+    EventData = room_event(RoomJID),
+    FilteredPacket = #xmlel{ children = FinalChildrenForCurrentNoPrevVersion }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
-                              [room_event(RoomJID)]),
+                              [EventData]),
+    ejabberd_hooks:run(room_send_packet, RoomJID#jid.lserver, [FilteredPacket, EventData]),
     FinalChildrenForCurrent = inject_prev_version(FinalChildrenForCurrentNoPrevVersion,
                                                   Affs#affiliations.prev_version),
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, Attrs, VersionEl,
@@ -344,8 +346,10 @@ encode_iq({set, #create{} = Create, UniqueRequested}, RoomJID, RoomBin, HandleFu
     AllAffsEls = [ aff_user_to_el(AffUser) || AffUser <- Create#create.aff_users ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls) },
-    ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
-                              [room_event(RoomJID)]),
+    EventData = room_event(RoomJID),
+    FilteredPacket = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
+                                             [EventData]),
+    ejabberd_hooks:run(room_send_packet, RoomJID#jid.lserver, [FilteredPacket, EventData]),
 
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
@@ -386,9 +390,11 @@ encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
                     | ConfigEls ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif) },
-    #xmlel{ children = FinalConfigNotif }
+    EventData = room_event(RoomJID),
+    FilteredPacket = #xmlel{ children = FinalConfigNotif }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
-                              [room_event(RoomJID)]),
+                              [EventData]),
+    ejabberd_hooks:run(room_send_packet, RoomJID#jid.lserver, [FilteredPacket, EventData]),
 
     lists:foreach(
       fun({{U, S}, _}) ->

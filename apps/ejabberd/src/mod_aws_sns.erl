@@ -46,7 +46,7 @@
 -export([start/2, stop/1]).
 
 %% Hooks
--export([user_send_packet/3, user_present/1, user_not_present/4, filter_room_packet/2]).
+-export([user_send_packet/4, user_present/2, user_not_present/5, room_send_packet/3]).
 
 %% API
 -export([try_publish/5]).
@@ -61,7 +61,7 @@
 -spec start(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> ok.
 start(Host, Opts) ->
     MUCHost = gen_mod:get_opt_subhost(Host, muc_host, Opts, mod_muc:default_host()),
-    ejabberd_hooks:add(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
+    ejabberd_hooks:add(room_send_packet, MUCHost, ?MODULE, room_send_packet, 90),
     ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(user_available_hook, Host, ?MODULE, user_present, 90),
@@ -100,54 +100,37 @@ stop(Host) ->
     ok.
 
 
-%% Handle user_send_packet hook and muc messages
--spec user_send_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                       Packet :: jlib:xmlel()) -> 'ok'.
-user_send_packet(From = #jid{lserver = Host}, To, Packet) ->
-    ?DEBUG("SNS Packet handle~n    from ~p ~n    to ~p~n    packet ~p.", [From, To, Packet]),
+%% Handle user_send_packet hook
+-spec user_send_packet(Acc :: map(), From :: ejabberd:jid(), To :: ejabberd:jid(),
+                       Packet :: jlib:xmlel()) -> Acc :: map().
+user_send_packet(Acc, From, To, Packet) ->
+    handle_packet(From, To, Packet),
+    Acc.
 
-    case {get_topic(Host, Packet), exml_query:subelement(Packet, <<"body">>)} of
-        {undefined, _} -> %% Skip if there is no topic set in configuration for the packet type
-            skip;
-        {_, undefined} -> %% Skip if there is no message body in the packet
-            skip;
-        {Topic, BodyTag} ->
-            FromGUID = user_guid(Host, From),
-            ToGUID = user_guid(Host, To),
-            MessageBody = exml_query:cdata(BodyTag),
-            Content = #{from_user_id => FromGUID,
-                        to_user_id => ToGUID,
-                        message => MessageBody},
-
-            TopicARN = make_topic_arn(Host, Topic),
-            Attributes = message_attributes(Host, TopicARN, From, To, message_type(Packet), Packet),
-
-            async_publish(Host, TopicARN, Content, Attributes)
-    end,
-
-    ok.
-
-%% Handle filter_room_packet
--spec filter_room_packet(Packet :: jlib:xmlel(), EventData :: proplists:proplist()) ->
-    Packet :: jlib:xmlel().
-filter_room_packet(Packet, EventData) ->
+%% Handle room_send_packet
+-spec room_send_packet(Acc :: map(), Packet :: jlib:xmlel(), EventData :: proplists:proplist()) ->
+    Acc :: map().
+room_send_packet(Acc, Packet, EventData) ->
     {_, FromJID} = lists:keyfind(from_jid, 1, EventData),
     {_, RoomJID} = lists:keyfind(room_jid, 1, EventData),
-    catch user_send_packet(FromJID, RoomJID, Packet),
-    Packet.
+    handle_packet(FromJID, RoomJID, Packet),
+    Acc.
 
 %% Handle user_available_hook
--spec user_present(UserJID :: ejabberd:jid()) -> ok.
-user_present(#jid{} = UserJID) ->
-    user_presence_changed(UserJID, true).
+-spec user_present(Acc :: map(), UserJID :: ejabberd:jid()) -> ok.
+user_present(Acc, #jid{} = UserJID) ->
+    user_presence_changed(UserJID, true),
+    Acc.
 
 %% Handle unset_presence_hook
--spec user_not_present(User     :: ejabberd:luser(),
+-spec user_not_present(Acc :: map(),
+                       User     :: ejabberd:luser(),
                        Server   :: ejabberd:lserver(),
                        Resource :: ejabberd:lresource(),
                        _Status :: any()) -> ok.
-user_not_present(User, Host, Resource, _Status) ->
-    user_presence_changed(jid:make_noprep(User, Host, Resource), false).
+user_not_present(Acc, User, Host, Resource, _Status) ->
+    user_presence_changed(jid:make_noprep(User, Host, Resource), false),
+    Acc.
 
 -spec user_presence_changed(UserJID :: ejabberd:jid(), IsOnline :: boolean()) -> ok.
 user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
@@ -169,6 +152,31 @@ user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @doc Handles packet and if needed publishes SNS notification
+-spec handle_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
+                    Packet :: jlib:xmlel()) -> ok | skip.
+handle_packet(From = #jid{lserver = Host}, To, Packet) ->
+    ?DEBUG("SNS Packet handle~n    from ~p ~n    to ~p~n    packet ~p.", [From, To, Packet]),
+
+    case {get_topic(Host, Packet), exml_query:subelement(Packet, <<"body">>)} of
+        {undefined, _} -> %% Skip if there is no topic set in configuration for the packet type
+            skip;
+        {_, undefined} -> %% Skip if there is no message body in the packet
+            skip;
+        {Topic, BodyTag} ->
+            FromGUID = user_guid(Host, From),
+            ToGUID = user_guid(Host, To),
+            MessageBody = exml_query:cdata(BodyTag),
+            Content = #{from_user_id => FromGUID,
+                        to_user_id => ToGUID,
+                        message => MessageBody},
+
+            TopicARN = make_topic_arn(Host, Topic),
+            Attributes = message_attributes(Host, TopicARN, From, To, message_type(Packet), Packet),
+
+            async_publish(Host, TopicARN, Content, Attributes)
+    end.
 
 %% @doc Start publish process notification to AWS SNS service. Content should be valid JSON term
 -spec async_publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),

@@ -31,7 +31,7 @@
     config
 }).
 
--define(assertReceivedMatch(Expect), ?assertReceivedMatch(Expect, 0)).
+-define(assertReceivedMatch(Expect), ?assertReceivedMatch(Expect, timer:seconds(5))).
 
 -define(assertReceivedMatch(Expect, Timeout),
     ((fun() ->
@@ -99,6 +99,7 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
 
@@ -106,27 +107,29 @@ init_per_group(_, Config0) ->
     Config = [{sns_config, ?SNS_OPTS} | Config0],
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Host, mod_aws_sns, ?SNS_OPTS),
-    escalus:create_users(Config, escalus:get_users([bob, alice])).
+    Config.
 
 end_per_group(_, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Host, mod_aws_sns),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
-init_per_testcase(muc_messages = C, Config) ->
+init_per_testcase(muc_messages = C, Config0) ->
+    Config = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}]),
     start_publish_listener(Config),
     [User | _] = ?config(escalus_users, Config),
     Config2 = muc_helper:start_room(Config, User, <<"muc_publish">>, <<"user_nick">>,
                                     [{persistent, true},
                                      {anonymous, false}]),
     escalus:init_per_testcase(C, Config2);
-init_per_testcase(CaseName, Config) ->
+init_per_testcase(CaseName, Config0) ->
+    Config = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}]),
     start_publish_listener(Config),
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(muc_messages, Config) ->
     muc_helper:destroy_room(Config),
-    escalus:delete_users(Config),
+    rpc(meck, unload, []),
     end_per_testcase(any, Config);
 end_per_testcase(CaseName, Config) ->
     rpc(meck, unload, []),
@@ -275,8 +278,8 @@ muc_messages(Config) ->
 %% @doc Forwards all erlcloud_sns:publish calls to local PID as messages
 start_publish_listener(Config) ->
     TestCasePid = self(),
-    rpc(meck, new, [erlcloud_sns, [no_link, passthrough]]),
-    rpc(meck, expect,
+    ok = rpc(meck, new, [erlcloud_sns, [no_link, passthrough]]),
+    ok = rpc(meck, expect,
         [erlcloud_sns, publish,
          fun(topic, RecipientArn, Message, Subject, Attributes, AWSConfig) ->
              TestCasePid ! #publish{topic_arn = RecipientArn,
