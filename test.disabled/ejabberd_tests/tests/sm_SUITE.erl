@@ -46,7 +46,8 @@ parallel_test_cases() ->
      resend_unacked_on_reconnection,
      session_established,
      wait_for_resumption,
-     resume_session
+     resume_session,
+     resume_session_with_wrong_h_does_not_leak_sessions
      ].
 
 parallel_manual_ack_test_cases() ->
@@ -660,6 +661,30 @@ resume_session(Config) ->
         %% Alice acks the received messages.
         escalus_connection:send(Alice, escalus_stanza:sm_ack(5 + NDiscarded)),
         escalus_connection:stop(Alice)
+    end).
+
+resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
+    AliceSpec = [{manual_ack, true}
+                 | given_fresh_spec(Config, alice)],
+    Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+
+        {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
+        %% Resume the session.
+        Steps = [start_stream,
+                 stream_features,
+                 maybe_use_ssl,
+                 authenticate,
+                 mk_resume_stream(SMID, 30)],
+        try
+            {ok, _Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+            ct:fail("conected to server by shouldn't")
+        catch error:_R ->
+                  ok
+        end,
+
+        Res = server_string("escalus-default-resource"),
+        {error, no_found} = get_session_pid(AliceSpec, Res)
     end).
 
 mk_resume_stream(SMID, PrevH) ->
