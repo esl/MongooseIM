@@ -34,7 +34,7 @@
          privacy_iq_set/4,
          privacy_check_packet/6,
          user_ping_timeout/2,
-         privacy_list_push/5,
+         privacy_list_push/5
         ]).
 
 -type hook() :: [atom() | ejabberd:server() | integer(), ...].
