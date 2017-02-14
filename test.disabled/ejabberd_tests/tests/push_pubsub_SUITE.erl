@@ -58,11 +58,6 @@ init_per_suite(Config) ->
     Config2 = dynamic_modules:save_modules(domain(), Config),
     dynamic_modules:ensure_modules(domain(), required_modules()),
 
-    %% Start HTTP pool
-    HTTPOpts = [{mongoose_push_http, [
-        {server, "http://localhost:" ++ integer_to_list(MongoosePushMockPort)}
-    ]}],
-    rpc(mongoose_http_client, start, [HTTPOpts]),
     escalus:init_per_suite([{mongoose_push_port, MongoosePushMockPort} | Config2]).
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -78,11 +73,19 @@ end_per_group(_, Config) ->
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(CaseName, Config) ->
-    setup_mock_rest(proplists:get_value(mongoose_push_port, Config)),
+    MongoosePushMockPort = proplists:get_value(mongoose_push_port, Config),
+    setup_mock_rest(MongoosePushMockPort),
+
+    %% Start HTTP pool
+    HTTPOpts = [{mongoose_push_http, [
+        {server, "http://localhost:" ++ integer_to_list(MongoosePushMockPort)}
+    ]}],
+    rpc(mongoose_http_client, start, [HTTPOpts]),
     escalus:init_per_testcase(CaseName, Config).
 
 
 end_per_testcase(CaseName, Config) ->
+    rpc(mongoose_http_client, stop, []),
     teardown_mock_rest(),
     escalus:end_per_testcase(CaseName, Config).
 
