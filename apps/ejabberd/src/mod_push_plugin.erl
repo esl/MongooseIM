@@ -54,12 +54,7 @@ should_publish(_From, To = #jid{luser = LUser, lserver = LServer}, _Packet) ->
         false ->
             false;
         true ->
-            case catch lists:max(ejabberd_sm:get_user_present_pids(LUser, LServer)) of
-                {Priority, _} when Priority >= 0 ->
-                    false;
-                _ ->
-                    is_offline(To)
-            end
+            is_offline(To)
     catch
         _:_ ->
             is_offline(To)
@@ -75,12 +70,12 @@ is_offline(#jid{luser = LUser, lserver = LServer}) ->
 
 %% Callback 'sender_id'
 -spec sender_id(From :: ejabberd:jid(), Packet :: jlib:xmlel()) -> SenderId :: binary().
-sender_id(From = #jid{lresource = LResource, luser = LUser}, Packet) ->
+sender_id(From, Packet) ->
     case exml_query:attr(Packet, <<"type">>) of
         <<"chat">> ->
             jid:to_binary(jid:to_bare(jid:to_lower(From)));
         <<"groupchat">> ->
-            <<LResource/binary, " (room: ", LUser/binary, ")">>
+            jid:to_binary(jid:to_lower(From))
     end.
 
 %%--------------------------------------------------------------------
