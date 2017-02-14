@@ -140,15 +140,15 @@ end_per_testcase(_, Config) ->
 
 send_packet_callback(Config, Type, Body) ->
     Packet = message(Config, Type, Body),
-    mod_aws_sns:user_send_packet(
+    mod_aws_sns:user_send_packet(#{},
       ?config(sender, Config), ?config(recipient, Config), Packet).
 
 user_present_callback(Config) ->
-    mod_aws_sns:user_present(?config(sender, Config)).
+    mod_aws_sns:user_present(#{}, ?config(sender, Config)).
 
 user_not_present_callback(Config) ->
     #jid{luser = User, lserver = Host, lresource = Resource} = ?config(sender, Config),
-    mod_aws_sns:user_not_present(User, Host, Resource, "mod_aws_sns_SUITE_status").
+    mod_aws_sns:user_not_present(#{}, User, Host, Resource, "mod_aws_sns_SUITE_status").
 
 %% Helpers
 
