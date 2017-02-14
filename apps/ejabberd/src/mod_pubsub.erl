@@ -314,9 +314,6 @@ init([ServerHost, Opts]) ->
     ejabberd_hooks:add(anonymous_purge_hook, ServerHost,
                        ?MODULE, remove_user, 50),
 
-%%    ejabberd_hooks:add(disco_sm_identity, ServerHost,
-%%                       ?MODULE, disco_sm_identity, 75),
-
     case lists:member(?PEPNODE, Plugins) of
         true ->
             ejabberd_hooks:add(caps_add, ServerHost,
@@ -2141,47 +2138,46 @@ publish_item(Host, ServerHost, Node, Publisher, <<>>, Payload, Access, PublishOp
     publish_item(Host, ServerHost, Node, Publisher, uniqid(), Payload, Access, PublishOptions);
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, PublishOptions) ->
     ItemPublisher = config(serverhost(Host), item_publisher, false),
-    Action = fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
-                     Features = plugin_features(Host, Type),
-                     PublishFeature = lists:member(<<"publish">>, Features),
-                     PubOptsFeature = lists:member(<<"publish-options">>, Features),
-                     PublishModel = get_option(Options, publish_model),
-                     DeliverPayloads = get_option(Options, deliver_payloads),
-                     PersistItems = get_option(Options, persist_items),
-                     MaxItems = max_items(Host, Options),
-                     PayloadCount = payload_xmlelements(Payload),
-                     PayloadSize = byte_size(term_to_binary(Payload)) - 2,
-                     PayloadMaxSize = get_option(Options, max_payload_size),
-                     if not PublishFeature ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
-                                             unsupported, <<"publish">>)};
-                        not PubOptsFeature andalso PublishOptions /= undefined ->
-                            {error,
-                             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
-                                            unsupported, <<"publish-options">>)};
-                        PayloadSize > PayloadMaxSize ->
-                             {error,
-                              extended_error(?ERR_NOT_ACCEPTABLE, <<"payload-too-big">>)};
-                        (PayloadCount == 0) and (Payload == []) ->
-                             {error,
-                              extended_error(?ERR_BAD_REQUEST, <<"payload-required">>)};
-                        (PayloadCount > 1) or (PayloadCount == 0) ->
-                             {error,
-                              extended_error(?ERR_BAD_REQUEST, <<"invalid-payload">>)};
-                        (DeliverPayloads == false) and (PersistItems == false) and
-                        (PayloadSize > 0) ->
-                             {error,
-                              extended_error(?ERR_BAD_REQUEST, <<"item-forbidden">>)};
-                        ((DeliverPayloads == true) or (PersistItems == true)) and (PayloadSize == 0) ->
-                             {error,
-                              extended_error(?ERR_BAD_REQUEST, <<"item-required">>)};
-                        true ->
-                             node_call(Host, Type, publish_item,
-                                       [Nidx, Publisher, PublishModel, MaxItems, ItemId,
-                                        ItemPublisher, Payload, PublishOptions])
-                     end
-             end,
+    Action =
+        fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
+                Features = plugin_features(Host, Type),
+                PublishFeature = lists:member(<<"publish">>, Features),
+                PubOptsFeature = lists:member(<<"publish-options">>, Features),
+                PublishModel = get_option(Options, publish_model),
+                DeliverPayloads = get_option(Options, deliver_payloads),
+                PersistItems = get_option(Options, persist_items),
+                MaxItems = max_items(Host, Options),
+                PayloadCount = payload_xmlelements(Payload),
+                PayloadSize = byte_size(term_to_binary(Payload)) - 2,
+                PayloadMaxSize = get_option(Options, max_payload_size),
+
+                Errors = [ %% [{Condition :: boolean(), Reason :: term()}]
+                    {not PublishFeature,
+                     extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"publish">>)},
+                    {not PubOptsFeature andalso PublishOptions /= undefined,
+                     extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported,
+                                    <<"publish-options">>)},
+                    {PayloadSize > PayloadMaxSize,
+                     extended_error(?ERR_NOT_ACCEPTABLE, <<"payload-too-big">>)},
+                    {(PayloadCount == 0) and (Payload == []),
+                     extended_error(?ERR_BAD_REQUEST, <<"payload-required">>)},
+                    {(PayloadCount > 1) or (PayloadCount == 0),
+                     extended_error(?ERR_BAD_REQUEST, <<"invalid-payload">>)},
+                    {(DeliverPayloads == false) and (PersistItems == false) and (PayloadSize > 0),
+                     extended_error(?ERR_BAD_REQUEST, <<"item-forbidden">>)},
+                    {((DeliverPayloads == true) or (PersistItems == true)) and (PayloadSize == 0),
+                     extended_error(?ERR_BAD_REQUEST, <<"item-required">>)}
+                ],
+
+                case lists:keyfind(true, 1, Errors) of
+                    {true, Reason} ->
+                        {error, Reason};
+                    false ->
+                        node_call(Host, Type, publish_item,
+                                  [Nidx, Publisher, PublishModel, MaxItems, ItemId,
+                                   ItemPublisher, Payload, PublishOptions])
+                end
+        end,
     Reply = [#xmlel{name = <<"pubsub">>,
                     attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
                     children = [#xmlel{name = <<"publish">>, attrs = nodeAttr(Node),

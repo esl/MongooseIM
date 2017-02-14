@@ -47,26 +47,17 @@
 start(Host, Opts) ->
     ?INFO_MSG("mod_push_service starting on host ~p", [Host]),
 
-    ok = application:ensure_started(worker_pool),
     MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
     wpool:start_sup_pool(pool_name(Host, wpool), [{workers, MaxHTTPConnections}]),
-    hackney:start(),
 
-
-    PoolName = pool_name(Host, hackney),
-    Options = [{timeout, gen_mod:get_opt(http_timeout, Opts, timer:minutes(3))},
-               {max_connections, MaxHTTPConnections}],
-    ok = hackney_pool:start_pool(PoolName, Options),
-
+    %% Hooks
     ejabberd_hooks:add(push_notifications, Host, ?MODULE, push_notifications, 10),
-
 
     ok.
 
 -spec stop(Host :: ejabberd:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(push_notifications, Host, ?MODULE, push_notifications, 10),
-    hackney_pool:stop_pool(pool_name(Host, hackney)),
     wpool:stop_pool(pool_name(Host, wpool)),
 
     ok.
@@ -80,13 +71,11 @@ stop(Host) ->
                          Notifications :: [#{binary() => binary()}],
                          Options :: #{binary() => binary()}) -> ok.
 push_notifications(AccIn, Host, Notifications, Options) ->
-    ?WARNING_MSG("push_notifications ~p", [{Notifications, Options}]),
+    ?DEBUG("push_notifications ~p", [{Notifications, Options}]),
 
-    ShortURL = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, endpoint,
-                                                     "https://localhost:8443")),
-    ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, api_version, "v1")),
     DeviceId = maps:get(<<"device_id">>, Options),
-    URL = <<ShortURL/binary, "/", ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
+    ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, api_version, "v1")),
+    Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     lists:foreach(
         fun(Notification) ->
             ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
@@ -99,9 +88,7 @@ push_notifications(AccIn, Host, Notifications, Options) ->
                     badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
                     mode => maps:get(<<"mode">>, Options, <<"prod">>)
                 }),
-            AdditionalOpts = gen_mod:get_module_opt(Host, ?MODULE, http_options, []),
-            HTTPOptions = AdditionalOpts ++ [{pool, pool_name(Host, hackney)}],
-            cast(Host, ?MODULE, http_notification, [post, URL, ReqHeaders, Payload, HTTPOptions])
+            cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
         end, Notifications),
 
     AccIn.
@@ -110,16 +97,22 @@ push_notifications(AccIn, Host, Notifications, Options) ->
 %% Module API
 %%--------------------------------------------------------------------
 
--spec http_notification(post, binary(), proplists:proplist(), binary(), [any()]) ->
+-spec http_notification(Host :: ejabberd:server(), post,
+                        binary(), proplists:proplist(), binary()) ->
     ok | {error, Reason :: term()}.
-http_notification(Method, URL, ReqHeaders, Payload, HTTPOptions) ->
-    case hackney:request(Method, URL, ReqHeaders, Payload, HTTPOptions) of
-        {ok, SuccessCode, _, _} when SuccessCode < 300, SuccessCode >= 200 ->
-            ok;
-        {ok, ErrorCode, ErrorDetails, _} ->
-            ?WARNING_MSG("Unable to submit push notification. ErrorCode ~p, Details ~p",
-                         [ErrorCode, ErrorDetails]),
-            {error, {ErrorCode, ErrorCode}};
+http_notification(Host, Method, URL, ReqHeaders, Payload) ->
+    PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, undefined),
+    Pool = mongoose_http_client:get_pool(PoolName),
+    case mongoose_http_client:Method(Pool, URL, ReqHeaders, Payload) of
+        {ok, {BinStatusCode, Body}} ->
+            StatusCode = binary_to_integer(BinStatusCode),
+            case StatusCode >= 200 andalso StatusCode < 300 of
+                true -> ok;
+                false ->
+                    ?WARNING_MSG("Unable to submit push notification. ErrorCode ~p, Payload ~p",
+                                 [StatusCode, Body]),
+                    {error, {invalid_status_code, StatusCode}}
+            end;
         {error, Reason} ->
             ?ERROR_MSG("Unable to communicate to MongoosePush service due to ~p", [Reason]),
             {error, Reason}
@@ -137,3 +130,4 @@ cast(Host, M, F, A) ->
 pool_name(Host, Base0) ->
     Base = list_to_atom(atom_to_list(?MODULE) ++ "_" ++ atom_to_list(Base0)),
     gen_mod:get_module_proc(Host, Base).
+

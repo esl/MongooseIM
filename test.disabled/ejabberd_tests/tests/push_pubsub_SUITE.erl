@@ -10,14 +10,6 @@
 -define(NS_XDATA,               <<"jabber:x:data">>).
 -define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
 -define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).
--define(MUCHOST,                <<"muclight.localhost">>).
-
--define(MUC_HOST,               <<"muc.localhost">>).
--define(NS_HTTP_UPLOAD,         <<"urn:xmpp:http:upload">>).
--define(PUSH_OPTS,
-    [
-        {backend, mnesia}
-    ]).
 
 
 %%--------------------------------------------------------------------
@@ -56,23 +48,28 @@ suite() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(cowboy),
+    MongoosePushMockPort = crypto:rand_uniform(20000, 50000),
 
     %% For mocking with unnamed functions
     {_Module, Binary, Filename} = code:get_object_code(?MODULE),
     rpc(code, load_binary, [?MODULE, Filename, Binary]),
 
+    %% Start modules
     Config2 = dynamic_modules:save_modules(domain(), Config),
     dynamic_modules:ensure_modules(domain(), required_modules()),
-    escalus:init_per_suite(Config2).
+
+    %% Start HTTP pool
+    HTTPOpts = [{mongoose_push_http, [
+        {server, "http://localhost:" ++ integer_to_list(MongoosePushMockPort)}
+    ]}],
+    rpc(mongoose_http_client, start, [HTTPOpts]),
+    escalus:init_per_suite([{mongoose_push_port, MongoosePushMockPort} | Config2]).
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
-init_per_group(_, Config0) ->
-    Config = [{push_config, ?PUSH_OPTS} | Config0],
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Host, mod_push, ?PUSH_OPTS),
+init_per_group(_, Config) ->
     escalus:create_users(Config, escalus:get_users([bob, alice])).
 
 end_per_group(_, Config) ->
@@ -81,7 +78,7 @@ end_per_group(_, Config) ->
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(CaseName, Config) ->
-    setup_mock_rest(),
+    setup_mock_rest(proplists:get_value(mongoose_push_port, Config)),
     escalus:init_per_testcase(CaseName, Config).
 
 
@@ -370,13 +367,13 @@ bare_jid(JIDOrClient) ->
 
 %% ----------------------------------------------
 %% REST mock handler
-setup_mock_rest() ->
+setup_mock_rest(Port) ->
     Dispatch = cowboy_router:compile([
 		{'_', [
 			{"/[:level1/[:level2/[:level3/[:level4]]]]", ?MODULE, [{pid, self()}]}
 		]}
 	]),
-	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
+	{ok, _} = cowboy:start_http(http, 100, [{port, Port}], [
 		{env, [{dispatch, Dispatch}]}
 	]).
 
@@ -410,6 +407,6 @@ required_modules() ->
         {host, "pubsub.@HOST@"}
     ]},
      {mod_push_service_mongoosepush, [
-         {endpoint, "http://localhost:8080"},
+         {pool_name, mongoose_push_http},
          {api_version, "v15"}
      ]}].
