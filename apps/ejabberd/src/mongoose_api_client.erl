@@ -28,8 +28,12 @@
          rest_terminate/2,
          delete_resource/2]).
 
--import(mongoose_api_common, [action_to_method/1, method_to_action/1, error_code/1, process_request/4,
-                              error_response/4, parse_request_body/1]).
+-import(mongoose_api_common, [action_to_method/1,
+                              method_to_action/1,
+                              error_code/1,
+                              process_request/4,
+                              error_response/4,
+                              parse_request_body/1]).
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
@@ -75,7 +79,8 @@ rest_init(Req, Opts) ->
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
     CommandList = mongoose_commands:list(user, Name),
-    AllowedMethods = [action_to_method(mongoose_commands:action(Command)) || Command <- CommandList],
+    AllowedMethods = [action_to_method(mongoose_commands:action(Command))
+                      || Command <- CommandList],
     {AllowedMethods, Req, State}.
 
 content_types_provided(Req, State) ->
@@ -135,7 +140,8 @@ from_json(Req, #http_api_state{command_category = Category, bindings = B} = Stat
     end.
 
 arity(C) ->
-    % we don't have caller in bindings (we know it from authorisation), so it doesn't count when checking arity
+    % we don't have caller in bindings (we know it from authorisation),
+    % so it doesn't count when checking arity
     Args = mongoose_commands:args(C),
     length([N || {N, _} <- Args, N =/= caller]).
 

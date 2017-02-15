@@ -70,6 +70,9 @@
 
 -type scram() :: #scram{}.
 
--record(route, {domain, handler}).
+-record(route, {
+          domain :: binary(),
+          handler :: mongoose_packet_handler:t()
+         }).
 
 -record(external_component, {domain, handler, node}).

@@ -53,6 +53,9 @@
          terminate/2,
          code_change/3]).
 
+%% mongoose_packet_handler export
+-export([process_packet/4]).
+
 %% Hook handlers
 -export([process_local_iq/3,
          process_sm_iq/3,
@@ -165,6 +168,14 @@ stop(VHost) ->
     supervisor:delete_child(ejabberd_sup, Proc).
 
 %%--------------------------------------------------------------------
+%% mongoose_packet_handler callbacks
+%%--------------------------------------------------------------------
+
+-spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
+process_packet(From, To, Packet, Pid) ->
+    Pid ! {route, From, To, Packet}.
+
+%%--------------------------------------------------------------------
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 start_link(VHost, Opts) ->
@@ -185,7 +196,8 @@ init([VHost, Opts]) ->
     Search = gen_mod:get_opt(search, Opts, true),
     case Search of
         true ->
-            ejabberd_router:register_route(DirectoryHost);
+            ejabberd_router:register_route(
+              DirectoryHost, mongoose_packet_handler:new(?MODULE, self()));
         _ ->
             ok
     end,

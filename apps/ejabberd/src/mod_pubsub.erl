@@ -46,6 +46,7 @@
 -module(mod_pubsub).
 -behaviour(gen_mod).
 -behaviour(gen_server).
+-behaviour(mongoose_packet_handler).
 -author('christophe.romain@process-one.net').
 
 -xep([{xep, 60}, {version, "1.13-1"}]).
@@ -93,6 +94,9 @@
          handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 -export([default_host/0]).
+
+%% packet handler export
+-export([process_packet/4]).
 
 -export([send_loop/1]).
 
@@ -243,6 +247,10 @@ stop(Host) ->
 default_host() ->
     <<"pubsub.@HOST@">>.
 
+-spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
+process_packet(From, To, Packet, Pid) ->
+    Pid ! {route, From, To, Packet}.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -333,7 +341,7 @@ init([ServerHost, Opts]) ->
         false ->
             ok
     end,
-    ejabberd_router:register_route(Host),
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, self())),
     {_, State} = init_send_loop(ServerHost),
     {ok, State}.
 
