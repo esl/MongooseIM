@@ -168,9 +168,9 @@ my_disco_name(Lang) ->
 compose_iq_reply(IQ, PutUrl, GetUrl) ->
     Slot = #xmlel{
               name = <<"slot">>,
-              attrs=[{<<"xmlns">>, ?NS_HTTP_UPLOAD}],
-              children =[#xmlel{name = <<"put">>, children = [exml:escape_cdata(PutUrl)]},
-                         #xmlel{name = <<"get">>, children = [exml:escape_cdata(GetUrl)]}]},
+              attrs = [{<<"xmlns">>, ?NS_HTTP_UPLOAD}],
+              children = [#xmlel{name = <<"put">>, children = [exml:escape_cdata(PutUrl)]},
+                          #xmlel{name = <<"get">>, children = [exml:escape_cdata(GetUrl)]}]},
     IQ#iq{type = result, sub_el =[Slot]}.
 
 
@@ -205,17 +205,12 @@ generate_token(Host) ->
 -spec file_too_large_error(MaxFileSize :: non_neg_integer()) -> jlib:exml().
 file_too_large_error(MaxFileSize) ->
     MaxFileSizeBin = integer_to_binary(MaxFileSize),
+    MaxSizeEl = #xmlel{name = <<"max-file-size">>, children = [exml:escape_cdata(MaxFileSizeBin)]},
+    FileTooLargeEl = #xmlel{name = <<"file-too-large">>,
+                            attrs = [{<<"xmlns">>, ?NS_HTTP_UPLOAD}],
+                            children = [MaxSizeEl]},
     Error0 = ?ERR_NOT_ACCEPTABLE,
-    Error0#xmlel{
-      children =
-          [
-           #xmlel{name = <<"file-too-large">>,
-                  attrs = [{<<"xmlns">>, ?NS_HTTP_UPLOAD}],
-                  children =
-                      [#xmlel{name = <<"max-file-size">>,
-                              children = [exml:escape_cdata(MaxFileSizeBin)]}]}
-           | Error0#xmlel.children
-          ]}.
+    Error0#xmlel{children = [FileTooLargeEl | Error0#xmlel.children]}.
 
 
 -spec parse_request(Request :: exml:element()) ->

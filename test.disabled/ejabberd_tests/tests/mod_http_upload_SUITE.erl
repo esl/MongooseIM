@@ -57,15 +57,14 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(unset_size, Config) ->
-    dynamic_modules:start(<<"localhost">>, mod_http_upload,
-                          [{max_file_size, undefined} | ?S3_OPTS]),
+    dynamic_modules:start(host(), mod_http_upload, [{max_file_size, undefined} | ?S3_OPTS]),
     escalus:create_users(Config, escalus:get_users([bob]));
 init_per_group(_, Config) ->
-    dynamic_modules:start(<<"localhost">>, mod_http_upload, ?S3_OPTS),
+    dynamic_modules:start(host(), mod_http_upload, ?S3_OPTS),
     escalus:create_users(Config, escalus:get_users([bob])).
 
 end_per_group(_, Config) ->
-    dynamic_modules:stop(<<"localhost">>, mod_http_upload),
+    dynamic_modules:stop(host(), mod_http_upload),
     escalus:delete_users(Config, escalus:get_users([bob])).
 
 init_per_testcase(CaseName, Config) ->
@@ -298,3 +297,6 @@ has_field(Var, Type, Value, Form) ->
         end,
     lists:any(fun(Item) -> VarFits(Item) andalso TypeFits(Item) andalso ValueFits(Item) end,
               Fields).
+
+host() ->
+    ct:get_config({hosts, mim, domain}).
