@@ -68,6 +68,14 @@
 
 -spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
+    case lists:keyfind(hand_made_partitions, 1, Opts) of
+        false -> ok;
+        _ ->
+            ?ERROR_MSG("hand_made_partitions option for mod_mam_muc_odbc_arch "
+                       "is no longer supported", []),
+            error(hand_made_partitions_not_supported)
+    end,
+
     compile_params_module(Opts),
     start_muc(Host, Opts).
 
