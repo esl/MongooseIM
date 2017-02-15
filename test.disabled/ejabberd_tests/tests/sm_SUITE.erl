@@ -47,8 +47,9 @@ parallel_test_cases() ->
      session_established,
      wait_for_resumption,
      resume_session,
-     resume_session_with_wrong_h_does_not_leak_sessions
-     ].
+     resume_session_with_wrong_h_does_not_leak_sessions,
+     resume_session_with_wrong_sid_returns_item_not_found
+    ].
 
 parallel_manual_ack_test_cases() ->
     [client_acks_more_than_sent,
@@ -645,11 +646,7 @@ resume_session(Config) ->
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
         %% Resume the session.
-        Steps = [start_stream,
-                 stream_features,
-                 maybe_use_ssl,
-                 authenticate,
-                 mk_resume_stream(SMID, 2)],
+        Steps = stream_resumption_connection_steps(SMID, 2),
         {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
         NDiscarded = discard_vcard_update(Alice),
         %% Alice receives the unacked messages from the previous
@@ -671,21 +668,36 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
 
         {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
         %% Resume the session.
-        Steps = [start_stream,
-                 stream_features,
-                 maybe_use_ssl,
-                 authenticate,
-                 mk_resume_stream(SMID, 30)],
+        Steps = stream_resumption_connection_steps(SMID, 30),
         try
             {ok, _Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
-            ct:fail("conected to server by shouldn't")
+            ct:fail("conected to server but shouldn't")
         catch error:_R ->
                   ok
         end,
 
-        Res = server_string("escalus-default-resource"),
-        {error, no_found} = get_session_pid(AliceSpec, Res)
+        [] = get_user_resources(AliceSpec)
     end).
+
+resume_session_with_wrong_sid_returns_item_not_found(Config) ->
+    AliceSpec = [{manual_ack, true}
+                 | given_fresh_spec(Config, alice)],
+    Steps = stream_resumption_connection_steps(<<"wrong-sid">>, 2),
+    try
+        {ok, _Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+        ct:fail("conected to server but shouldn't")
+    catch error:_R ->
+              ok
+    end,
+
+    [] = get_user_resources(AliceSpec).
+
+stream_resumption_connection_steps(SMID, H) ->
+    [start_stream,
+     stream_features,
+     maybe_use_ssl,
+     authenticate,
+     mk_resume_stream(SMID, H)].
 
 mk_resume_stream(SMID, PrevH) ->
     fun (Conn, Props, Features) ->
@@ -795,15 +807,23 @@ extract_state_name(SysStatus) ->
     proplists:get_value("StateName", FSMData).
 
 get_session_pid(UserSpec, Resource) ->
-    ConfigUS = [proplists:get_value(username, UserSpec),
-                proplists:get_value(server, UserSpec)],
-    [U, S] = [server_string(V) || V <- ConfigUS],
+    {U, S} = get_us_from_spec(UserSpec),
     case escalus_ejabberd:rpc(ejabberd_sm, get_session_pid, [U, S, server_string(Resource)]) of
         none ->
             {error, no_found};
         C2SPid ->
             {ok, C2SPid}
     end.
+
+get_user_resources(UserSpec) ->
+    {U, S} = get_us_from_spec(UserSpec),
+    escalus_ejabberd:rpc(ejabberd_sm, get_user_present_resources, [U, S]).
+
+get_us_from_spec(UserSpec) ->
+    ConfigUS = [proplists:get_value(username, UserSpec),
+                proplists:get_value(server, UserSpec)],
+    [U, S] = [server_string(V) || V <- ConfigUS],
+    {U, S}.
 
 clear_session_table() ->
     Node = ct:get_config({hosts, mim, node}),
