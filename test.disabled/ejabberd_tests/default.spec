@@ -48,6 +48,7 @@
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
 {suites, "tests", pubsub_SUITE}.
+{suites, "tests", push_pubsub_SUITE}.
 {suites, "tests", rest_SUITE}.
 {suites, "tests", rest_client_SUITE}.
 {suites, "tests", s2s_SUITE}.
