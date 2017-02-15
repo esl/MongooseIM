@@ -17,7 +17,7 @@
 
 -include("ejabberd.hrl").
 -include("mongoose_metrics_definitions.hrl").
--compile([export_all]).
+
 %% API
 -export([init/0,
          create_global_metrics/0,
