@@ -122,7 +122,7 @@ meck_error(mysql) ->
 meck_error(pgsql) ->
     meck:expect(epgsql, connect, fun(_) -> {ok, self()} end),
     meck:expect(epgsql, squery,
-                fun(_Ref, _Query) -> {error, {1, 2, 3, 4, <<"connection broken">>}} end).
+                fun(_Ref, _Query) -> {error, {error, 2, 3, 4, <<"connection broken">>, 5}} end).
 
 meck_unload(DbType) ->
     meck:unload(ejabberd_config),

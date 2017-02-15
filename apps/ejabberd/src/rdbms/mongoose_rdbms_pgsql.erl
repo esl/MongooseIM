@@ -18,10 +18,11 @@
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
+-include_lib("epgsql/include/epgsql.hrl").
+
 -define(PGSQL_PORT, 5432).
 
--export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4,
-         is_error_duplicate/1]).
+-export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4]).
 
 %% API
 
@@ -66,10 +67,6 @@ prepare(_Host, Connection, Name, _Table, _Fields, Statement) ->
 execute(Connection, StatementRef, Params, _Timeout) ->
     pgsql_to_odbc(epgsql:prepared_query(Connection, StatementRef, Params)).
 
--spec is_error_duplicate(Reason :: string()) -> boolean().
-is_error_duplicate("duplicate" ++ _) -> true;
-is_error_duplicate(_Reason) -> false.
-
 %% Helpers
 
 -spec db_opts(Settings :: term()) -> [term()].
@@ -87,8 +84,10 @@ db_opts({pgsql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
 -spec pgsql_to_odbc(epgsql:reply(term())) -> mongoose_rdbms:query_result().
 pgsql_to_odbc(Items) when is_list(Items) ->
     lists:reverse([pgsql_to_odbc(Item) || Item <- Items]);
-pgsql_to_odbc({error, Reason}) ->
-    {error, unicode:characters_to_list(element(5, Reason))};
+pgsql_to_odbc({error, #error{codename = unique_violation}}) ->
+    {error, duplicate_key};
+pgsql_to_odbc({error, #error{message = Message}}) ->
+    {error, unicode:characters_to_list(Message)};
 pgsql_to_odbc({ok, Count}) ->
     {updated, Count};
 pgsql_to_odbc({ok, _Columns, Rows}) ->

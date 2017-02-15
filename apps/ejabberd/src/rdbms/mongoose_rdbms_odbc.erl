@@ -18,8 +18,7 @@
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
--export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4,
-         is_error_duplicate/1]).
+-export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4]).
 
 %% API
 
@@ -75,10 +74,6 @@ execute(Connection, {SplitQuery, ParamMapper}, Params, Timeout) ->
     {Query, ODBCParams} = unsplit_query(SplitQuery, ParamMapper, Params),
     parse(odbc:param_query(Connection, Query, ODBCParams, Timeout)).
 
--spec is_error_duplicate(Reason :: string()) -> boolean().
-is_error_duplicate("ERROR: duplicate" ++ _) -> true;
-is_error_duplicate(_Reason) -> false.
-
 %% Helpers
 
 -spec parse(odbc:result_tuple() | [odbc:result_tuple()] | {error, string()}) ->
@@ -87,6 +82,8 @@ parse(Items) when is_list(Items) ->
     [parse(Item) || Item <- Items];
 parse({selected, _FieldNames, Rows}) ->
     {selected, Rows};
+parse({error, "ERROR: duplicate key" ++ _}) ->
+    {error, duplicate_key};
 parse({error, Reason}) ->
     {error, unicode:characters_to_list(list_to_binary(Reason))};
 parse(Other) ->

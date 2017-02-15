@@ -22,8 +22,7 @@
 
 -define(MYSQL_PORT, 3306).
 
--export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4,
-         is_error_duplicate/1]).
+-export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4]).
 
 %% API
 
@@ -63,10 +62,6 @@ prepare(_Host, Connection, Name, _Table, _Fields, Statement) ->
 execute(Connection, StatementRef, Params, _Timeout) ->
     mysql_to_odbc(mysql:execute(Connection, StatementRef, Params), Connection).
 
--spec is_error_duplicate(Reason :: string()) -> boolean().
-is_error_duplicate("duplicate" ++ _) -> true;
-is_error_duplicate(_Reason) -> false.
-
 %% Helpers
 
 -spec db_opts(Settings :: term()) -> list().
@@ -90,5 +85,7 @@ mysql_to_odbc({ok, _ColumnNames, Rows}, _Conn) ->
     {selected, [list_to_tuple(Row) || Row <- Rows]};
 mysql_to_odbc({ok, Results}, Conn) ->
     [mysql_to_odbc({ok, Cols, Rows}, Conn) || {Cols, Rows} <- Results];
+mysql_to_odbc({error, {1062, _SQLState, _Message}}, _Conn) ->
+    {error, duplicate_key};
 mysql_to_odbc({error, {_Code, _SQLState, Message}}, _Conn) ->
     {error, unicode:characters_to_list(Message)}.

@@ -42,7 +42,6 @@
     {ok, Ref :: term()} | {error, Reason :: any()}.
 -callback execute(Connection :: term(), Ref :: term(), Parameters :: [term()],
                   Timeout :: infinity | non_neg_integer()) -> query_result().
--callback is_error_duplicate(Reason :: string()) -> boolean().
 
 %% External exports
 -export([prepare/4,
@@ -54,8 +53,7 @@
          escape_like/1,
          to_bool/1,
          db_engine/1,
-         print_state/1,
-         is_error_duplicate/1]).
+         print_state/1]).
 
 %% BLOB escaping
 -export([escape_format/1,
@@ -101,7 +99,7 @@
 -type odbc_msg() :: {sql_query, _} | {sql_transaction, fun()} | {sql_execute, atom(), iodata()}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
-                               {error, Reason :: any()}.
+                               {error, Reason :: string() | duplicate_key}.
 -type query_result() :: single_query_result() | [single_query_result()].
 -type transaction_result() :: {aborted, _} | {atomic, _} | {error, _}.
 -export_type([query_result/0]).
@@ -265,10 +263,6 @@ to_bool("1") -> true;
 to_bool(true) -> true;
 to_bool(1) -> true;
 to_bool(_) -> false.
-
--spec is_error_duplicate(Reason :: string()) -> boolean().
-is_error_duplicate(Reason) ->
-    mongoose_rdbms_backend:is_error_duplicate(Reason).
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_server
