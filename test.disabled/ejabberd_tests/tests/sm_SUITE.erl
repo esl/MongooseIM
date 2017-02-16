@@ -611,6 +611,7 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
                                          <<"h attribute too big">>], Resumed),
 
         [] = get_user_resources(AliceSpec),
+        [] = get_sid_by_stream_id(SMID),
         false = escalus_connection:is_connected(Alice)
     end).
 
@@ -775,6 +776,9 @@ get_session_pid(UserSpec, Resource) ->
 get_user_resources(UserSpec) ->
     {U, S} = get_us_from_spec(UserSpec),
     escalus_ejabberd:rpc(ejabberd_sm, get_user_present_resources, [U, S]).
+
+get_sid_by_stream_id(SMID) ->
+    escalus_ejabberd:rpc(mod_stream_management, get_sid, [SMID]).
 
 get_us_from_spec(UserSpec) ->
     ConfigUS = [proplists:get_value(username, UserSpec),
