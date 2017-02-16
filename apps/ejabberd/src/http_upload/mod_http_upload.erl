@@ -231,7 +231,7 @@ parse_request(Request) ->
             ?NS_HTTP_UPLOAD_030 -> [exml_query:attr(Request, K) || K <- Keys]
         end,
     Size = (catch erlang:binary_to_integer(SizeBin)),
-    case is_binary(Filename) andalso <<>> =/= Filename andalso is_integer(Size) andalso Size >= 0 of
+    case is_nonempty_binary(Filename) andalso is_positive_integer(Size) of
         false -> bad_request;
         true -> {Filename, Size, ContentType, Namespace}
     end.
@@ -259,3 +259,13 @@ create_url_xmlel(Name, Url, _Headers, ?NS_HTTP_UPLOAD_025) ->
 create_url_xmlel(Name, Url, Headers, ?NS_HTTP_UPLOAD_030) ->
     HeadersXml = [header_to_xmlel(H) || H <- maps:to_list(Headers)],
     #xmlel{name = Name, attrs = [{<<"url">>, exml:escape_attr(Url)}], children = HeadersXml}.
+
+
+-spec is_nonempty_binary(term()) -> boolean().
+is_nonempty_binary(<<_, _/binary>>) -> true;
+is_nonempty_binary(_) -> false.
+
+
+-spec is_positive_integer(term()) -> boolean().
+is_positive_integer(X) when is_integer(X) -> X > 0;
+is_positive_integer(_) -> false.
