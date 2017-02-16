@@ -10,6 +10,11 @@ Configure MAM with different storage backends:
 
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
+#### Full Text Search
+This module allows for message filtering by their text body (if enabled, see *Common backend options*). This means that XMPP client, while requesting messages from archive may not only specify standard form fields (`with`, `start`, `end`), but also `full-text-search` (of type `text-single`). If this happens, the client will receive only messages that contain words specified in the request.
+
+The exact behaviour, like whether word ordering matters, may depend on used storage backend. For now `odbc` backend has very limited support for this feature, while `cassandra` does not support it at all. `riak` backend on the other hand should provide you with best results when it comes to text filtering.
+
 ### Options
 
 * **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak` and `cassandra` are supported.
@@ -46,6 +51,7 @@ These options will only have effect when `odbc` backend is used:
   * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
   * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of inconsistent (in a rather harmless way) state of preferences table.
   * `mnesia_dirty` - like `mnesia`, but dirty synchronous writes are enabled.
+* **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that full text search is currently only implemented for `odbc` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
 

@@ -465,11 +465,10 @@ key_filters(LocalJid, RemoteJid, Start, End, SearchText) ->
 search_text_filter(undefined) ->
     undefined;
 search_text_filter(SearchText) ->
-    NormText = list_to_binary(mod_mam_utils:normalize_search_text(SearchText, "~1 AND
-    search_text_register:")
-                              ++ "~2"),
+    Separator = "~1 AND search_text_register:",
+    NormText = mod_mam_utils:normalize_search_text(SearchText, Separator) ++ "~1",
     %% Fuzzy search on tokens from search phrase
-    <<"search_text_register:", NormText/binary>>.
+    <<"search_text_register:", (list_to_binary(NormText))/binary>>.
 
 jid_filters(LocalJid, undefined) ->
     <<"_yz_rk:", LocalJid/binary, "*">>;

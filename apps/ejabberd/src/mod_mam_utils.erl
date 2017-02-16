@@ -690,6 +690,7 @@ form_to_text(El) ->
 %% Text search tokenization
 %% -----------------------------------------------------------------------
 
+%% -----------------------------------------------------------------------
 %% @doc
 %% Normalize given text to improve text search in some MAM backends.
 %% This normalization involves making text all lowercase, replacing some word separators
