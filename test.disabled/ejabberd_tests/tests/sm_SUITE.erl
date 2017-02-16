@@ -48,7 +48,8 @@ parallel_test_cases() ->
      wait_for_resumption,
      resume_session,
      resume_session_with_wrong_h_does_not_leak_sessions,
-     resume_session_with_wrong_sid_returns_item_not_found
+     resume_session_with_wrong_sid_returns_item_not_found,
+     resume_session_with_wrong_namespace_is_a_noop
     ].
 
 parallel_manual_ack_test_cases() ->
@@ -614,12 +615,23 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
     end).
 
 resume_session_with_wrong_sid_returns_item_not_found(Config) ->
-    AliceSpec = [{manual_ack, true}
-                 | given_fresh_spec(Config, alice)],
+    AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_authenticate(),
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
     Resumed = try_to_resume_stream(Alice, <<"wrong-sid">>, 2),
     escalus:assert(is_sm_failed, [<<"item-not-found">>], Resumed),
+    [] = get_user_resources(AliceSpec),
+    true = escalus_connection:is_connected(Alice),
+    escalus_connection:stop(Alice).
+
+resume_session_with_wrong_namespace_is_a_noop(Config) ->
+    AliceSpec = given_fresh_spec(Config, alice),
+    Steps = connection_steps_to_authenticate(),
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    #xmlel{attrs = Attrs} = Resume = escalus_stanza:resume(<<"doesnt_matter">>, 4),
+    Attrs2 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, <<"not-stream-mgnt">>}),
+    escalus_connection:send(Alice, Resume#xmlel{attrs = Attrs2}),
+    escalus_assert:has_no_stanzas(Alice),
     [] = get_user_resources(AliceSpec),
     true = escalus_connection:is_connected(Alice),
     escalus_connection:stop(Alice).
