@@ -603,29 +603,26 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
 
         {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
         %% Resume the session.
-        Steps = connection_steps_to_stream_resumption(SMID, 30),
-        try
-            {ok, _Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
-            ct:fail("conected to server but shouldn't")
-        catch error:_R ->
-                  ok
-        end,
+        Steps = connection_steps_to_authenticate(),
+        {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+        Resumed = try_to_resume_stream(Alice, SMID, 30),
+        escalus:assert(is_stream_error, [<<"policy-violation">>,
+                                         <<"h attribute too big">>], Resumed),
 
-        [] = get_user_resources(AliceSpec)
+        [] = get_user_resources(AliceSpec),
+        false = escalus_connection:is_connected(Alice)
     end).
 
 resume_session_with_wrong_sid_returns_item_not_found(Config) ->
     AliceSpec = [{manual_ack, true}
                  | given_fresh_spec(Config, alice)],
-    Steps = connection_steps_to_stream_resumption(<<"wrong-sid">>, 2),
-    try
-        {ok, _Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
-        ct:fail("conected to server but shouldn't")
-    catch error:_R ->
-              ok
-    end,
-
-    [] = get_user_resources(AliceSpec).
+    Steps = connection_steps_to_authenticate(),
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    Resumed = try_to_resume_stream(Alice, <<"wrong-sid">>, 2),
+    escalus:assert(is_sm_failed, [<<"item-not-found">>], Resumed),
+    [] = get_user_resources(AliceSpec),
+    true = escalus_connection:is_connected(Alice),
+    escalus_connection:stop(Alice).
 
 connection_steps_to_authenticate() ->
     [start_stream,
@@ -652,11 +649,14 @@ connection_steps_to_stream_resumption(SMID, H) ->
 
 mk_resume_stream(SMID, PrevH) ->
     fun (Conn, Props, Features) ->
-            escalus_connection:send(Conn, escalus_stanza:resume(SMID, PrevH)),
-            Resumed = escalus_connection:get_stanza(Conn, get_resumed),
+            Resumed = try_to_resume_stream(Conn, SMID, PrevH),
             true = escalus_pred:is_sm_resumed(SMID, Resumed),
             {Conn, [{smid, SMID} | Props], Features}
     end.
+
+try_to_resume_stream(Conn, SMID, PrevH) ->
+    escalus_connection:send(Conn, escalus_stanza:resume(SMID, PrevH)),
+    escalus_connection:get_stanza(Conn, get_resumed).
 
 buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
     Steps = connection_steps_to_enable_stream_resumption(),
