@@ -57,21 +57,42 @@ get_vcard(LUser, LServer) ->
 
 set_vcard(User, VHost, VCard, VCardSearch) ->
     LUser = jid:nodeprep(User),
+    US = {LUser, VHost},
+    Activated = is_vcard_activated(VCard),
     F = fun() ->
                 mnesia:write(#vcard{us ={LUser, VHost}, vcard = VCard}),
-                mnesia:write(VCardSearch)
+                if
+                    Activated ->
+                        mnesia:write(VCardSearch);
+                    true ->
+                        mnesia:delete({vcard_search, US})
+                end
         end,
     {atomic, _} = mnesia:transaction(F),
     ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
     ok.
+
+is_vcard_activated(VCard) ->
+    case exml_query:path(VCard, [{element, <<"DESC">>}, cdata]) of
+        undefined ->
+            false;
+        Desc ->
+            case (catch
+                      lists:keyfind(<<"discoveryEnabled">>, 1,
+                                    jsx:decode(Desc))) of
+                {<<"discoveryEnabled">>, true} ->
+                    true;
+                Other ->
+                    ?WARNING_MSG("VCard \"DESC\" JSON decoded to: ~p~n", [Other]),
+                    false
+            end
+    end.
 
 search(VHost, Data) ->
     MatchHead = make_matchhead(VHost, Data),
     R = do_search(VHost, MatchHead),
     lists:map(fun record_to_item/1, R).
 
-do_search(_, #vcard_search{_ = '_'}) ->
-    [];
 do_search(VHost, MatchHeadIn) ->
     MatchHead = MatchHeadIn#vcard_search{us = {'_', VHost}},
     case catch mnesia:dirty_select(vcard_search,

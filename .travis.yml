@@ -67,11 +67,6 @@ matrix:
         - otp_release: 17.5
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
 
-notifications:
-    webhooks:
-        # trigger Buildtime Trend Service to parse Travis CI log
-        - https://buildtimetrend.herokuapp.com/travis
-
 cache:
         directories:
                 - $HOME/.cache/rebar3
@@ -84,4 +79,3 @@ deploy:
   on:
     tags: true
     condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
-
