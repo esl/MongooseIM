@@ -54,8 +54,6 @@
 -export([archive_message/8]).
 -export([lookup_messages/14]).
 -export([archive_id_int/2]).
--export([packet_to_search_body/2]).
--export([has_full_text_search/1]).
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -312,20 +310,6 @@ is_action_allowed(Action, From, To = #jid{lserver = Host}) ->
         default -> is_action_allowed_by_default(Action, From, To)
     end.
 
--spec packet_to_search_body(Host :: ejabberd:server(), Packet :: xmlel()) ->
-    string().
-packet_to_search_body(Host, Packet) ->
-    case has_full_text_search(Host) of
-        true ->
-            BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
-            normalize_search_text(BodyValue, " ");
-        false -> ""
-    end.
-
--spec has_full_text_search(Host :: ejabberd:server()) -> boolean().
-has_full_text_search(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, full_text_search, true).
-
 -spec is_action_allowed_by_default(Action :: action(), From :: ejabberd:jid(),
                                    To :: ejabberd:jid()) -> boolean().
 is_action_allowed_by_default(Action, From, To) ->
@@ -541,7 +525,7 @@ handle_set_message_form(
     %% Filtering by contact.
     With = form_to_with_jid(QueryEl),
     %% Filtering by text
-    Text  = form_to_text(QueryEl),
+    Text  = mod_mam_utils:form_to_text(QueryEl),
 
     RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = form_borders_decode(QueryEl),
@@ -717,7 +701,7 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
                                  | {error, Reason :: term()}.%Result :: any(),
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    case SearchText /= undefined andalso not has_full_text_search(Host) of
+    case SearchText /= undefined andalso not mod_mam_utils:has_full_text_search(?MODULE, Host) of
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
@@ -879,10 +863,6 @@ form_to_end_microseconds(El) ->
 -spec form_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
 form_to_with_jid(El) ->
     maybe_jid(form_field_value_s(El, <<"with">>)).
-
--spec form_to_text(_) -> 'undefined' | binary().
-form_to_text(El) ->
-    form_field_value(El, <<"full-text-search">>).
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_muc_drop_iq, Host,

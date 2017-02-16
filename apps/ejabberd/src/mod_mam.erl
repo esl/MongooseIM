@@ -56,8 +56,6 @@
 -export([archive_message/8]).
 -export([lookup_messages/14]).
 -export([archive_id_int/2]).
--export([packet_to_search_body/2]).
--export([has_full_text_search/1]).
 
 %% for feature (escalus) tests
 -export([set_params/1]).
@@ -67,8 +65,7 @@
 
 -import(mod_mam_utils,
         [maybe_microseconds/1,
-         microseconds_to_now/1,
-         normalize_search_text/2]).
+         microseconds_to_now/1]).
 
 %% UID
 -import(mod_mam_utils,
@@ -116,8 +113,7 @@
 -include_lib("ejabberd/include/amp.hrl").
 -include_lib("exml/include/exml.hrl").
 
-%% ---------------------------------------------------
-%% -------------------
+%% ----------------------------------------------------------------------
 %% Datetime types
 %% Microseconds from 01.01.1970
 -type unix_timestamp() :: non_neg_integer().
@@ -338,7 +334,7 @@ remove_user(Acc, User, Server) ->
 sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...
     is_mam_result_message(Packet);
-%% ... than drop the message
+    %% ... than drop the message
 sm_filter_offline_message(Other, _From, _To, _Packet) ->
     Other.
 
@@ -358,21 +354,6 @@ is_action_allowed(Action, From, To=#jid{lserver=Host}) ->
         deny    -> false;
         default -> is_action_allowed_by_default(Action, From, To)
     end.
-
-
--spec packet_to_search_body(Host :: ejabberd:server(), Packet :: xmlel()) ->
-    string().
-packet_to_search_body(Host, Packet) ->
-    case has_full_text_search(Host) of
-        true ->
-            BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
-            normalize_search_text(BodyValue, " ");
-        false -> ""
-    end.
-
--spec has_full_text_search(Host :: ejabberd:server()) -> boolean().
-has_full_text_search(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, full_text_search, true).
 
 -spec is_action_allowed_by_default(Action :: action(), From :: ejabberd:jid(),
                                    To :: ejabberd:jid()) -> boolean().
@@ -559,7 +540,7 @@ handle_set_message_form(
     %% Filtering by contact.
     With  = form_to_with_jid(QueryEl),
     %% Filtering by text
-    Text  = form_to_text(QueryEl),
+    Text  = mod_mam_utils:form_to_text(QueryEl),
 
     RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = form_borders_decode(QueryEl),
@@ -590,9 +571,12 @@ handle_set_message_form(
                     [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                               message_row_to_ext_id(lists:last(MessageRows))}
                 end,
-            [send_message(ArcJID, From,
-                          message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
-             || M <- MessageRows],
+
+            lists:foreach(
+                fun(M) ->
+                    send_message(ArcJID, From,
+                                 message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
+                end, MessageRows),
 
             %% Make fin message
             IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
@@ -611,9 +595,11 @@ handle_set_message_form(
                     [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                               message_row_to_ext_id(lists:last(MessageRows))}
                 end,
-            [send_message(ArcJID, From, message_row_to_xml(MamNs,
-                                                           set_client_xmlns_for_row(M), QueryID))
-             || M <- MessageRows],
+            lists:foreach(
+                fun(M) ->
+                    send_message(ArcJID, From,
+                                 message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
+                end, MessageRows),
 
             %% Make fin iq
             IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
@@ -790,7 +776,7 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     StartT = os:timestamp(),
-    case SearchText /= undefined andalso not has_full_text_search(Host) of
+    case SearchText /= undefined andalso not mod_mam_utils:has_full_text_search(?MODULE, Host) of
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
@@ -931,10 +917,6 @@ form_to_end_microseconds(El) ->
 -spec form_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
 form_to_with_jid(El) ->
     maybe_jid(form_field_value_s(El, <<"with">>)).
-
--spec form_to_text(_) -> 'undefined' | binary().
-form_to_text(El) ->
-    form_field_value(El, <<"full-text-search">>).
 
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->

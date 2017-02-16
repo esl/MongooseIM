@@ -45,11 +45,6 @@
 -export([create_obj/5, read_archive/7, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
-%% Text search
--import(mod_mam_utils, [
-    normalize_search_text/2
-]).
-
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
 
 -define(YZ_SEARCH_INDEX, <<"mam">>).
@@ -247,8 +242,7 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
             pm -> mod_mam;
             muc -> mod_mam_muc
         end,
-    BodyValue = list_to_binary(ModMAM:packet_to_search_body(Host, Packet)),
-%%    BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
+    BodyValue = list_to_binary(mod_mam_utils:packet_to_search_body(ModMAM, Host, Packet)),
     Ops = [
            {{<<"msg_id">>, register},
             fun(R) -> riakc_register:set(MsgId, R) end},
@@ -471,7 +465,8 @@ key_filters(LocalJid, RemoteJid, Start, End, SearchText) ->
 search_text_filter(undefined) ->
     undefined;
 search_text_filter(SearchText) ->
-    NormText = list_to_binary(normalize_search_text(SearchText, "~1 AND search_text_register:")
+    NormText = list_to_binary(mod_mam_utils:normalize_search_text(SearchText, "~1 AND
+    search_text_register:")
                               ++ "~2"),
     %% Fuzzy search on tokens from search phrase
     <<"search_text_register:", NormText/binary>>.

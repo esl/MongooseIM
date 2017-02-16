@@ -44,14 +44,19 @@
          is_mam_result_message/1]).
 
 %% Forms
--export([form_field_value_s/2,
-         form_field_value/2,
-         message_form/3]).
+-export([
+    form_field_value_s/2,
+    form_field_value/2,
+    message_form/3,
+    form_to_text/1
+]).
 
 %% Text search
 -export([
     normalize_search_text/1,
-    normalize_search_text/2
+    normalize_search_text/2,
+    packet_to_search_body/3,
+    has_full_text_search/2
 ]).
 
 %% JID serialization
@@ -93,8 +98,6 @@
                    result/4,
                    valid_behavior/1]}).
 -endif.
-
--callback has_full_text_search(Host :: ejabberd:lserver()) -> boolean().
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
@@ -470,9 +473,9 @@ make_fin_element03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
     #xmlel{
        name = <<"fin">>,
        attrs = [{<<"xmlns">>, MamNs}]
-       ++ [{<<"complete">>, <<"true">>} || IsComplete]
-       ++ [{<<"stable">>, <<"false">>} || not IsStable]
-       ++ [{<<"queryid">>, QueryID} || is_binary(QueryID), QueryID =/= undefined],
+        ++ [{<<"complete">>, <<"true">>} || IsComplete]
+        ++ [{<<"stable">>, <<"false">>} || not IsStable]
+        ++ [{<<"queryid">>, QueryID} || is_binary(QueryID), QueryID =/= undefined],
        children = [ResultSetEl]}.
 
 %% MAM v0.4.1 and above
@@ -481,8 +484,8 @@ make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
     #xmlel{
        name = <<"fin">>,
        attrs = [{<<"xmlns">>, MamNs}]
-       ++ [{<<"complete">>, <<"true">>} || IsComplete]
-       ++ [{<<"stable">>, <<"false">>} || not IsStable],
+        ++ [{<<"complete">>, <<"true">>} || IsComplete]
+        ++ [{<<"stable">>, <<"false">>} || not IsStable],
        children = [ResultSetEl]}.
 
 
@@ -658,14 +661,14 @@ message_form(Module, Host, MamNs) ->
 
 message_form_fields(Mod, Host, MamNs) ->
     TextSearch =
-        case Mod:has_full_text_search(Host) of
+        case has_full_text_search(Mod, Host) of
             true -> [form_field(<<"text-single">>, <<"full-text-search">>)];
             false -> []
         end,
     [form_type_field(MamNs),
      form_field(<<"jid-single">>, <<"with">>),
      form_field(<<"text-single">>, <<"start">>),
-     form_field(<<"text-single">>, <<"end">>)] ++ TextSearch.
+     form_field(<<"text-single">>, <<"end">>) | TextSearch].
 
 form_type_field(MamNs) when is_binary(MamNs) ->
     #xmlel{name = <<"field">>,
@@ -679,10 +682,14 @@ form_field(Type, VarName) ->
            attrs = [{<<"type">>, Type},
                     {<<"var">>, VarName}]}.
 
-%% -----------------------------------------------------------------------
-%% Text search tokenization
+-spec form_to_text(_) -> 'undefined' | binary().
+form_to_text(El) ->
+    form_field_value(El, <<"full-text-search">>).
 
 %% -----------------------------------------------------------------------
+%% Text search tokenization
+%% -----------------------------------------------------------------------
+
 %% @doc
 %% Normalize given text to improve text search in some MAM backends.
 %% This normalization involves making text all lowercase, replacing some word separators
@@ -704,8 +711,22 @@ normalize_search_text(Text, WordSeparator) ->
     LowerBody = string:to_lower(BodyString),
     ReOpts = [{return, list}, global, unicode, ucp],
     Re0 = re:replace(LowerBody, "[, .:;-?!]+", " ", ReOpts),
-    Re1 = re:replace(Re0, "([^\\w\\d ]+)|(^\\s+)|(\\s+$)", "", ReOpts),
+    Re1 = re:replace(Re0, "([^\\w ]+)|(^\\s+)|(\\s+$)", "", ReOpts),
     re:replace(Re1, "\s+", WordSeparator, ReOpts).
+
+-spec packet_to_search_body(Module :: mod_mam | mod_mam_muc, Host :: ejabberd:server(),
+                            Packet :: xmlel()) -> string().
+packet_to_search_body(Module, Host, Packet) ->
+    case has_full_text_search(Module, Host) of
+        true ->
+            BodyValue = xml:get_tag_cdata(xml:get_subtag(Packet, <<"body">>)),
+            mod_mam_utils:normalize_search_text(BodyValue, " ");
+        false -> ""
+    end.
+
+-spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: ejabberd:server()) -> boolean().
+has_full_text_search(Module, Host) ->
+    gen_mod:get_module_opt(Host, Module, full_text_search, true).
 
 %% -----------------------------------------------------------------------
 %% JID serialization

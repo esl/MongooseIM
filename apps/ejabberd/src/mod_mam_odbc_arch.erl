@@ -43,13 +43,6 @@
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
 
-%% Text search
--import(mod_mam_utils, [
-    normalize_search_text/1,
-    normalize_search_text/2
-]).
--import(mod_mam, [packet_to_search_body/2]).
-
 %% Other
 -import(mod_mam_utils,
         [apply_start_border/2,
@@ -239,7 +232,7 @@ do_archive_message(_Result, Host, MessID, UserID,
     SDir = encode_direction(Dir),
     SRemLResource = mongoose_rdbms:escape(RemLResource),
     Data = packet_to_stored_binary(Packet),
-    TextBody = packet_to_search_body(Packet),
+    TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
     STextBody = mongoose_rdbms:escape(TextBody),
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
@@ -278,7 +271,7 @@ prepare_message(Host, MessID, UserID,
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    TextBody = packet_to_search_body(Packet),
+    TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
     STextBody = mongoose_rdbms:escape(TextBody),
     [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData, STextBody].
 
@@ -328,7 +321,8 @@ lookup_messages(_Result, Host,
     try
         do_lookup_messages(Host,
                            UserID, UserJID, RSM, Borders,
-                           Start, End, Now, WithJID, normalize_search_text(SearchText),
+                           Start, End, Now, WithJID,
+                           mod_mam_utils:normalize_search_text(SearchText),
                            PageSize, LimitPassed, MaxResultLimit,
                            IsSimple, is_opt_count_supported_for(RSM))
     catch _Type:Reason ->

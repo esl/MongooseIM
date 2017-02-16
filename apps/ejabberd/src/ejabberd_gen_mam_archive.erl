@@ -2,7 +2,7 @@
 
 -callback archive_size(Size :: integer(), Host :: ejabberd:server(),
                        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid())
--> integer().
+                      -> integer().
 
 -callback archive_message(_Result, ejabberd:server(),
                           MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
@@ -29,7 +29,7 @@
 -callback purge_single_message(Result :: purge_single_message_result(), Host :: ejabberd:server(),
                                MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
                                ArchiveJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
--> purge_single_message_result().
+                              -> purge_single_message_result().
 
 -callback purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
                                   ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),

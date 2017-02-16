@@ -43,7 +43,6 @@
     normalize_search_text/1,
     normalize_search_text/2
 ]).
--import(mod_mam_muc, [packet_to_search_body/2]).
 
 %% Other
 -import(mod_mam_utils,
@@ -153,8 +152,8 @@ archive_message1(Host, MessID, RoomID, FromNick, Packet) ->
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    TextBody = packet_to_search_body(Host, Packet),
-    STextBody = ejabberd_odbc:escape(TextBody),
+    TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
+    STextBody = mongoose_rdbms:escape(TextBody),
     write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData, STextBody).
 
 
@@ -189,8 +188,8 @@ prepare_message1(Host, MessID, RoomID, FromNick, Packet) ->
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    TextBody = packet_to_search_body(Host, Packet),
-    STextBody = ejabberd_odbc:escape(TextBody),
+    TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
+    STextBody = mongoose_rdbms:escape(TextBody),
     [SMessID, SRoomID, SFromNick, SData, STextBody].
 
 

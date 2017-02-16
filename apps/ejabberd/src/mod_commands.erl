@@ -186,7 +186,7 @@ send_message(From, To, Body) ->
     ejabberd_hooks:run(user_send_packet,
                        F#jid.lserver,
                        [F, T, Packet]),
-                                                % privacy check is missing, but is it needed?
+    %% privacy check is missing, but is it needed?
     ejabberd_router:route(F, T, Packet),
     ok.
 
