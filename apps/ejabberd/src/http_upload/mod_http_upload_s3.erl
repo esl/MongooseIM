@@ -27,7 +27,8 @@
 -spec create_slot(UTCDateTime :: calendar:datetime(), Token :: binary(),
                   Filename :: unicode:unicode_binary(), ContentType :: binary(),
                   Size :: pos_integer(), Opts :: proplists:proplist()) ->
-                         {PUTURL :: binary(), GETURL :: binary()}.
+                         {PUTURL :: binary(), GETURL :: binary(),
+                          Headers :: #{binary() => binary()}}.
 create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
     S3Opts = gen_mod:get_opt(s3, Opts),
     ExpirationTime = gen_mod:get_opt(expiration_time, Opts, 60),
@@ -49,7 +50,8 @@ create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
 
     {
       compose_url(Scheme, Host, Port, Path, Queries),
-      compose_url(Scheme, Host, Port, Path, #{})
+      compose_url(Scheme, Host, Port, Path, #{}),
+      #{}
     }.
 
 %%--------------------------------------------------------------------
