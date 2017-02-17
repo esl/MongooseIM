@@ -240,7 +240,7 @@ user_ping_timeout(Acc, _JID) ->
                           term(), term(), term()) -> mongoose_acc:t().
 privacy_check_packet(Acc, _, Server, _, _, _) ->
     mongoose_metrics:update(Server, modPrivacyStanzaAll, 1),
-    case mongoose_acc:get(privacy_check, Acc) of
+    case mongoose_acc:get(privacy_check, Acc, allow) of
         deny ->
             mongoose_metrics:update(Server, modPrivacyStanzaDenied, 1);
         block ->

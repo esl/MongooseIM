@@ -254,7 +254,8 @@ run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
 hook_apply_function(_Module, Function, _Hook, Val, Args) when is_function(Function) ->
     safely:apply(Function, [Val | Args]);
 hook_apply_function(Module, Function, Hook, Val, Args) ->
-    record(Hook, Module, Function, safely:apply(Module, Function, [Val | Args])).
+    Result = safely:apply(Module, Function, [Val | Args]),
+    record(Hook, Module, Function, Result).
 
 
 record(Hook, Module, Function, Acc) ->

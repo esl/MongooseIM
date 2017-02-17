@@ -877,7 +877,7 @@ session_established({xmlstreamelement, El}, StateData) ->
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
     % this is where we probably should initialise accumulator, or even earlier
     % but it would require hacking mod_amp at the very beginning
-    % so to make it simpler we do it a bit later
+    % so to make it simpler we do it a bit later (in process_outgoing_stanza/2)
     case check_from(El, FromJID) of
         'invalid-from' ->
             send_element(StateData, ?INVALID_FROM),
@@ -953,24 +953,13 @@ process_outgoing_stanza(El, StateData) ->
             end,
     Acc2 = mongoose_acc:put(element, NewEl, Acc1),
     Name = mongoose_acc:get(name, Acc2),
-    NState = case Name of
-        <<"presence">> ->
-            % new-style
-            % I think it still makes sense to pass all those arguments, for performance reasons
-            process_outgoing_stanza(ToJID, Name, {Attrs, Acc, FromJID, StateData, Server, User});
-        _ ->
-            % unpack and proceed as before
-            NewElement = mongoose_acc:terminate(Acc2, ?FILE, ?LINE),
-            process_outgoing_stanza(ToJID,
-                                    Name,
-                                    {Attrs, NewElement, FromJID, StateData, Server, User})
-    end,
+    NState = process_outgoing_stanza(ToJID, Name, Acc2, StateData),
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
     fsm_next_state(session_established, NState).
 
-
-process_outgoing_stanza(error, _Name, Args) ->
-    {Attrs, NewEl, _FromJID, StateData, _Server, _User} = Args,
+process_outgoing_stanza(error, _Name, Acc, StateData) ->
+    Attrs = mongoose_acc:get(attrs, Acc),
+    NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"error">> -> StateData;
         <<"result">> -> StateData;
@@ -979,8 +968,10 @@ process_outgoing_stanza(error, _Name, Args) ->
             send_element(StateData, Err),
             StateData
     end;
-process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
-    {_Attrs, Acc, FromJID, StateData, Server, User} = Args,
+process_outgoing_stanza(ToJID, <<"presence">>, Acc, StateData) ->
+    FromJID = mongoose_acc:get(from_jid, Acc),
+    Server = mongoose_acc:get(server, Acc),
+    User = mongoose_acc:get(user, Acc),
     Res = ejabberd_hooks:run_fold(c2s_update_presence,
                                          Server,
                                          Acc,
@@ -1001,8 +992,10 @@ process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
              presence_track(FromJID, ToJID, PresenceEl,
                             StateData)
     end;
-process_outgoing_stanza(ToJID, <<"iq">>, Args) ->
-    {_Attrs, NewEl, FromJID, StateData, Server, _User} = Args,
+process_outgoing_stanza(ToJID, <<"iq">>, Acc, StateData) ->
+    FromJID = mongoose_acc:get(from_jid, Acc),
+    Server = mongoose_acc:get(server, Acc),
+    NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
     case jlib:iq_query_info(NewEl) of
         #iq{xmlns = Xmlns} = IQ
             when Xmlns == ?NS_PRIVACY;
@@ -1015,16 +1008,17 @@ process_outgoing_stanza(ToJID, <<"iq">>, Args) ->
             check_privacy_and_route(FromJID, StateData, FromJID, ToJID, NewEl),
             StateData
     end;
-process_outgoing_stanza(ToJID, <<"message">>, Args) ->
-    {_Attrs, NewEl, FromJID, StateData, Server, _User} = Args,
+process_outgoing_stanza(ToJID, <<"message">>, Acc, StateData) ->
+    FromJID = mongoose_acc:get(from_jid, Acc),
+    Server = mongoose_acc:get(server, Acc),
+    NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
     ejabberd_hooks:run(user_send_packet,
                        Server,
                        [FromJID, ToJID, NewEl]),
     check_privacy_and_route(FromJID, StateData, FromJID,
                             ToJID, NewEl),
     StateData;
-process_outgoing_stanza(_ToJID, _Name, Args) ->
-    {_Attrs, _NewEl, _FromJID, StateData, _Server, _User} = Args,
+process_outgoing_stanza(_ToJID, _Name, _Acc, StateData) ->
     StateData.
 
 %%-------------------------------------------------------------------------
