@@ -21,6 +21,8 @@
     * Persistent:
         * RDBMS: MySQL, PostgreSQL, generic ODBC
         * NOSQL: Riak KV
+* Integration with third-party services
+    * [Amazon Simple Notification Service](../modules/mod_aws_sns.md)
 
 ## Supported XEPs
 
