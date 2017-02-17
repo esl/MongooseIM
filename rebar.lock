@@ -13,7 +13,7 @@
   3},
  {<<"cache_tab">>,
   {git,"git://github.com/processone/cache_tab",
-       {ref,"dfad9d6079e62f99c6752fbd910e1da72e907a2b"}},
+       {ref,"adb04d71955ef4790498ca2f005babae2aced3df"}},
   0},
  {<<"cowboy">>,
   {git,"git://github.com/ninenines/cowboy.git",
@@ -49,7 +49,7 @@
   1},
  {<<"fast_tls">>,
   {git,"git://github.com/processone/fast_tls.git",
-       {ref,"eade607d59fc14cad436a56971b19fcfc6913e3a"}},
+       {ref,"ff634a5dabd64a5e2d5e606cb3e6b7c5cf8aa7d9"}},
   0},
  {<<"folsom">>,
   {git,"git://github.com/boundary/folsom",
@@ -103,7 +103,7 @@
   {git,"git://github.com/kzemek/erlang-mysql-driver.git",
        {ref,"c20cf4953892148825ca0f48d89770f5e4e7ffad"}},
   0},
- {<<"p1_utils">>,{pkg,<<"p1_utils">>,<<"1.0.5">>},1},
+ {<<"p1_utils">>,{pkg,<<"p1_utils">>,<<"1.0.6">>},1},
  {<<"pa">>,
   {git,"git://github.com/erszcz/pa.git",
        {ref,"e53c540005f4114a854cfa414b00cbc7e9e65ecb"}},
@@ -194,5 +194,5 @@
   0}]}.
 [
 {pkg_hash,[
- {<<"p1_utils">>, <<"3E698354FDC1FEA5491D991457B0CB986C0A00A47D224FEB841DC3EC82B9F721">>}]}
+ {<<"p1_utils">>, <<"EF0951DDF38E92B7E479AF4B8DC950DF76AF8C1030432EF68B7FD7AD17C436FE">>}]}
 ].
