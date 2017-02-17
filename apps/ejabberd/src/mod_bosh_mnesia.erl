@@ -1,6 +1,6 @@
 -module(mod_bosh_mnesia).
 
--behaviour(mod_bosh_backend).
+-behaviour(mod_bosh).
 
 %% mod_bosh_backend callbacks
 -export([start/1,

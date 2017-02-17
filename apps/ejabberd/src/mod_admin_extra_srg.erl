@@ -79,7 +79,9 @@ commands() ->
                            desc = "Get info of a Shared Roster Group",
                            module = ?MODULE, function = srg_get_info,
                            args = [{group, binary}, {host, binary}],
-                           result = {informations, {list, {information, {tuple, [{key, string}, {value, string}]}}}}},
+                           result = {informations,
+                                     {list,
+                                      {information, {tuple, [{key, string}, {value, string}]}}}}},
         #ejabberd_commands{name = srg_get_members, tags = [shared_roster_group],
                            desc = "Get members of a Shared Roster Group",
                            module = ?MODULE, function = srg_get_members,
@@ -88,12 +90,14 @@ commands() ->
         #ejabberd_commands{name = srg_user_add, tags = [shared_roster_group],
                            desc = "Add the JID user@host to the Shared Roster Group",
                            module = ?MODULE, function = srg_user_add,
-                           args = [{user, binary}, {host, binary}, {group, binary}, {grouphost, binary}],
+                           args = [{user, binary}, {host, binary},
+                                   {group, binary}, {grouphost, binary}],
                            result = {res, rescode}},
         #ejabberd_commands{name = srg_user_del, tags = [shared_roster_group],
                            desc = "Delete this JID user@host from the Shared Roster Group",
                            module = ?MODULE, function = srg_user_del,
-                           args = [{user, binary}, {host, binary}, {group, binary}, {grouphost, binary}],
+                           args = [{user, binary}, {host, binary},
+                                   {group, binary}, {grouphost, binary}],
                            result = {res, rescode}}
         ].
 

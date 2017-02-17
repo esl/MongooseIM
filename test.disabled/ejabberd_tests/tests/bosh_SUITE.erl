@@ -746,8 +746,7 @@ force_cache_trimming(Config) ->
 %%--------------------------------------------------------------------
 
 get_bosh_sessions() ->
-    Backend = escalus_ejabberd:rpc(mod_bosh_dynamic, backend, []),
-    escalus_ejabberd:rpc(Backend, get_sessions, []).
+    escalus_ejabberd:rpc(mod_bosh_backend, get_sessions, []).
 
 get_bosh_session(Sid) ->
     BoshSessions = get_bosh_sessions(),

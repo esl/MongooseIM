@@ -45,12 +45,14 @@
 commands() ->
     [
         #ejabberd_commands{name = stats, tags = [stats],
-                           desc = "Get statistical value: registeredusers onlineusers onlineusersnode uptimeseconds",
+                           desc = "Get statistical value:"
+                                  " registeredusers onlineusers onlineusersnode uptimeseconds",
                            module = ?MODULE, function = stats,
                            args = [{name, binary}],
                            result = {stat, integer}},
         #ejabberd_commands{name = stats_host, tags = [stats],
-                           desc = "Get statistical value for this host: registeredusers onlineusers",
+                           desc = "Get statistical value for this host:"
+                                  " registeredusers onlineusers",
                            module = ?MODULE, function = stats,
                            args = [{name, binary}, {host, binary}],
                            result = {stat, integer}}
