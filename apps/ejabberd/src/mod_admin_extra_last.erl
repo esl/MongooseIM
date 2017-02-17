@@ -28,11 +28,9 @@
 -author('badlop@process-one.net').
 
 -export([
-      commands/0,
-
-      set_last/4,
-      get_lastactivity_fun/1,
-      get_lastactivity_module/1]).
+         commands/0,
+         set_last/4
+        ]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -52,7 +50,8 @@ commands() ->
                         longdesc = "Timestamp is the seconds since"
                         "1970-01-01 00:00:00 UTC, for example: date +%s",
                         module = ?MODULE, function = set_last,
-                        args = [{user, binary}, {host, binary}, {timestamp, integer}, {status, binary}],
+                        args = [{user, binary}, {host, binary},
+                                {timestamp, integer}, {status, binary}],
                         result = {res, restuple}}
     ].
 
@@ -65,27 +64,11 @@ commands() ->
 set_last(User, Server, Timestamp, Status) ->
     case ejabberd_auth:is_user_exists(User, Server) of
         true ->
-            Fun = get_lastactivity_fun(Server),
-            Module = get_lastactivity_module(Server),
-            Module:Fun(jid:nodeprep(User), jid:nameprep(Server), Timestamp, Status),
-            {ok, io_lib:format("Last activity for user ~s@~s is set as ~B with status ~s", [User, Server, Timestamp, Status])};
+            mod_last:store_last_info(jid:nodeprep(User), jid:nameprep(Server), Timestamp, Status),
+            {ok, io_lib:format("Last activity for user ~s@~s is set as ~B with status ~s",
+                               [User, Server, Timestamp, Status])};
         false ->
             String = io_lib:format("User ~s@~s does not exist", [User, Server]),
             {user_does_not_exist, String}
     end.
 
-
-%% Could just return fun mod_last:store_last_info/4 but its easier when called through rpc in tests
--spec get_lastactivity_fun(ejabberd:server()) -> 'store_last_info' | 'set_last_info'.
-get_lastactivity_fun(Server) ->
-    case lists:member(mod_last, gen_mod:loaded_modules(Server)) of
-        true -> store_last_info;
-        _ -> set_last_info
-    end.
-
--spec get_lastactivity_module(ejabberd:server()) -> 'mod_last' | 'mod_last_odbc'.
-get_lastactivity_module(Server) ->
-    case lists:member(mod_last, gen_mod:loaded_modules(Server)) of
-        true -> mod_last;
-        _ -> mod_last_odbc
-    end.

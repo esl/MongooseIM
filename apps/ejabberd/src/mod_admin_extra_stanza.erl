@@ -61,7 +61,8 @@ commands() ->
         #ejabberd_commands{name = send_stanza_c2s, tags = [stanza],
                            desc = "Send a stanza as if sent from a c2s session",
                            module = ?MODULE, function = send_stanza_c2s,
-                           args = [{user, binary}, {host, binary}, {resource, binary}, {stanza, binary}],
+                           args = [{user, binary}, {host, binary},
+                                   {resource, binary}, {stanza, binary}],
                            result = {res, restuple}}
         ].
 
@@ -144,7 +145,7 @@ send_packet_all_resources(FromJID, ToU, ToS, ToR, Packet) ->
 
 
 -spec build_packet('message_chat' | 'message_headline',
-                  Subject_Body :: [binary() | string(), ...]) -> jlib:xmlel().
+                  SubjectBody :: [binary() | string(), ...]) -> jlib:xmlel().
 build_packet(message_chat, [Body]) ->
     #xmlel{ name = <<"message">>,
            attrs = [{<<"type">>, <<"chat">>}, {<<"id">>, list_to_binary(randoms:get_string())}],
@@ -166,7 +167,8 @@ send_stanza_c2s(Username, Host, Resource, Stanza) ->
     C2sPid = ejabberd_sm:get_session_pid(Username, Host, Resource),
     case C2sPid of
         none ->
-            {user_does_not_exist, io_lib:format("User ~s@~s/~s does not exist", [Username, Host, Resource])};
+            {user_does_not_exist,
+             io_lib:format("User ~s@~s/~s does not exist", [Username, Host, Resource])};
         _ ->
             case exml:parse(Stanza) of
                 {ok, XmlEl} ->

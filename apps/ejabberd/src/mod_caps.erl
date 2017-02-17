@@ -151,13 +151,14 @@ user_send_packet(Acc,
                  #xmlel{name = <<"presence">>, attrs = Attrs,
                         children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    if Type == <<"">>; Type == <<"available">> ->
+    case Type == <<"">> orelse Type == <<"available">> of
+        true ->
             case read_caps(Els) of
                 nothing -> ok;
                 #caps{version = Version, exts = Exts} = Caps ->
                     feature_request(Server, From, Caps, [Version | Exts])
             end;
-       true -> ok
+        false -> ok
     end,
     Acc;
 user_send_packet(Acc, _From, _To, _Pkt) ->
@@ -167,15 +168,15 @@ user_receive_packet(Acc, #jid{lserver = Server}, From, _To,
                     #xmlel{name = <<"presence">>, attrs = Attrs,
                            children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    IsRemote = not lists:member(From#jid.lserver, ?MYHOSTS),
-    if IsRemote and
-       ((Type == <<"">>) or (Type == <<"available">>)) ->
+    case (not lists:member(From#jid.lserver, ?MYHOSTS))
+         andalso ((Type == <<"">>) or (Type == <<"available">>)) of
+        true ->
             case read_caps(Els) of
                 nothing -> ok;
                 #caps{version = Version, exts = Exts} = Caps ->
                     feature_request(Server, From, Caps, [Version | Exts])
             end;
-       true -> ok
+        false -> ok
     end,
     Acc;
 user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
@@ -235,7 +236,8 @@ c2s_presence_in(C2SState,
         and ((Subscription == both) or (Subscription == to)),
     Delete = (Type == <<"unavailable">>) or
                                            (Type == <<"error">>),
-    if Insert or Delete ->
+    case Insert or Delete of
+        true ->
             LFrom = jid:to_lower(From),
             Rs = case ejabberd_c2s:get_aux_field(caps_resources,
                                                  C2SState)
@@ -248,24 +250,27 @@ c2s_presence_in(C2SState,
                         nothing when Insert == true -> Rs;
                         _ when Insert == true ->
                             ?DEBUG("Set CAPS to ~p for ~p in ~p", [Caps, LFrom, To]),
-                            case gb_trees:lookup(LFrom, Rs) of
-                                {value, Caps} -> Rs;
-                                none ->
-                                    ejabberd_hooks:run(caps_add, To#jid.lserver,
-                                                       [From, To, self(),
-                                                        get_features(To#jid.lserver, Caps)]),
-                                    gb_trees:insert(LFrom, Caps, Rs);
-                                _ ->
-                                    ejabberd_hooks:run(caps_update, To#jid.lserver,
-                                                       [From, To, self(),
-                                                        get_features(To#jid.lserver, Caps)]),
-                                    gb_trees:update(LFrom, Caps, Rs)
-                            end;
+                            upsert_caps(LFrom, From, To, Caps, Rs);
                         _ -> gb_trees:delete_any(LFrom, Rs)
                     end,
             ejabberd_c2s:set_aux_field(caps_resources, NewRs,
                                        C2SState);
-       true -> C2SState
+       false -> C2SState
+    end.
+
+upsert_caps(LFrom, From, To, Caps, Rs) ->
+    case gb_trees:lookup(LFrom, Rs) of
+        {value, Caps} -> Rs;
+        none ->
+            ejabberd_hooks:run(caps_add, To#jid.lserver,
+                               [From, To, self(),
+                                get_features(To#jid.lserver, Caps)]),
+            gb_trees:insert(LFrom, Caps, Rs);
+        _ ->
+            ejabberd_hooks:run(caps_update, To#jid.lserver,
+                               [From, To, self(),
+                                get_features(To#jid.lserver, Caps)]),
+            gb_trees:update(LFrom, Caps, Rs)
     end.
 
 c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
@@ -286,22 +291,21 @@ c2s_filter_packet(Acc, _, _, _, _, _) -> Acc.
 
 c2s_broadcast_recipients(InAcc, Host, C2SState,
                          {pep_message, Feature}, _From, _Packet) ->
-    case ejabberd_c2s:get_aux_field(caps_resources,
-                                    C2SState)
-    of
+    case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
-            gb_trees_fold(fun (USR, Caps, Acc) ->
-                                  case lists:member(Feature,
-                                                    get_features(Host, Caps))
-                                  of
-                                      true -> [USR | Acc];
-                                      false -> Acc
-                                  end
-                          end,
-                          InAcc, Rs);
+            filter_recipients_by_caps(InAcc, Feature, Host, Rs);
         _ -> InAcc
     end;
 c2s_broadcast_recipients(Acc, _, _, _, _, _) -> Acc.
+
+filter_recipients_by_caps(InAcc, Feature, Host, Rs) ->
+    gb_trees_fold(fun(USR, Caps, Acc) ->
+                          case lists:member(Feature, get_features(Host, Caps)) of
+                              true -> [USR | Acc];
+                              false -> Acc
+                          end
+                  end,
+                  InAcc, Rs).
 
 init_db(mnesia, _Host) ->
     case catch mnesia:table_info(caps_features, storage_type) of
@@ -402,7 +406,12 @@ feature_request(Host, From, Caps,
                               {ok, TS} -> now_ts() >= TS + (?BAD_HASH_LIFETIME);
                               _ -> true
                           end,
-            if NeedRequest ->
+            F = fun (IQReply) ->
+                        feature_response(IQReply, Host, From, Caps,
+                                         SubNodes)
+                end,
+            case NeedRequest of
+                true ->
                     IQ = #iq{type = get, xmlns = ?NS_DISCO_INFO,
                              sub_el =
                                  [#xmlel{name = <<"query">>,
@@ -414,14 +423,8 @@ feature_request(Host, From, Caps,
                                          children = []}]},
                     cache_tab:insert(caps_features, NodePair, now_ts(),
                                      caps_write_fun(Host, NodePair, now_ts())),
-                    F = fun (IQReply) ->
-                                feature_response(IQReply, Host, From, Caps,
-                                                 SubNodes)
-                        end,
-                    ejabberd_local:route_iq(jid:make(<<"">>, Host,
-                                                     <<"">>),
-                                            From, IQ, F);
-               true -> feature_request(Host, From, Caps, Tail)
+                    ejabberd_local:route_iq(jid:make(<<"">>, Host, <<"">>), From, IQ, F);
+               false -> feature_request(Host, From, Caps, Tail)
             end
     end;
 feature_request(_Host, _From, _Caps, []) -> ok.
@@ -572,37 +575,31 @@ concat_info(Els) ->
                              Els)).
 
 concat_xdata_fields(Fields) ->
-    [Form, Res] = lists:foldl(fun (#xmlel{name =
-                                              <<"field">>,
-                                          attrs = Attrs, children = Els},
-                                   [FormType, VarFields] = Acc) ->
+    [Form, Res] = lists:foldl(fun(#xmlel{name = <<"field">>, attrs = Attrs, children = Els},
+                                  [FormType, VarFields] = Acc) ->
                                       case xml:get_attr_s(<<"var">>, Attrs) of
                                           <<"">> -> Acc;
                                           <<"FORM_TYPE">> ->
-                                              [xml:get_cdata([xml:get_subtag(VarFields, <<"value">>)]),
+                                              [xml:get_cdata([xml:get_subtag(VarFields,
+                                                                             <<"value">>)]),
                                                VarFields];
                                           Var ->
                                               [FormType,
-                                               [[[Var, $<],
-                                                 lists:sort(lists:flatmap(fun
-                                                                              (#xmlel{name
-                                                                                      =
-                                                                                          <<"value">>,
-                                                                                      children
-                                                                                      =
-                                                                                          VEls}) ->
-                                                                                 [[xml:get_cdata(VEls),
-                                                                                   $<]];
-                                                                              (_) ->
-                                                                                 []
-                                                                         end,
-                                                                          Els))]
+                                               [[[Var, $<], extract_values_sorted_cdatas(Els)]
                                                 | VarFields]]
                                       end;
-                                  (_, Acc) -> Acc
+                                 (_, Acc) -> Acc
                               end,
                               [<<"">>, []], Fields),
     [Form, $<, lists:sort(Res)].
+
+extract_values_sorted_cdatas(Els) ->
+    lists:sort(lists:flatmap(fun extract_value_cdata/1, Els)).
+
+extract_value_cdata(#xmlel{name = <<"value">>, children = VEls}) ->
+    [[xml:get_cdata(VEls), $<]];
+extract_value_cdata(_) ->
+    [].
 
 gb_trees_fold(F, Acc, Tree) ->
     Iter = gb_trees:iterator(Tree),
