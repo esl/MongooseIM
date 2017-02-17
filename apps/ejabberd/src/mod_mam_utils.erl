@@ -70,7 +70,6 @@
 -export([maybe_integer/2,
          maybe_min/2,
          maybe_max/2,
-         is_function_exist/3,
          apply_start_border/2,
          apply_end_border/2,
          is_last_page/4]).
@@ -466,10 +465,10 @@ encode_jids(JIDs) ->
 make_fin_message(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
     #xmlel{
        name = <<"message">>,
-       children = [make_fin_element03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID)]}.
+       children = [make_fin_element_v03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID)]}.
 
 %% MAM v0.3
-make_fin_element03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
+make_fin_element_v03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
     #xmlel{
        name = <<"fin">>,
        attrs = [{<<"xmlns">>, MamNs}]
@@ -757,20 +756,20 @@ jid_to_opt_binary(_,
 
 
 -spec expand_minified_jid(UserJID :: ejabberd:jid(),
-                    OptJID :: ejabberd:literal_jid()) -> ejabberd:literal_jid().
+                          OptJID :: ejabberd:literal_jid()) -> ejabberd:literal_jid().
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<>>) ->
     <<LUser/binary, $@, LServer/binary>>;
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<$/, LResource/binary>>) ->
     <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;
 expand_minified_jid(UserJID, Encoded) ->
     Part = binary:match(Encoded, [<<$@>>, <<$/>>, <<$:>>]),
-    expand_minified_jid_2(Part, UserJID, Encoded).
+    expand_minified_jid(Part, UserJID, Encoded).
 
--spec expand_minified_jid_2('nomatch' | {non_neg_integer(), 1},
+-spec expand_minified_jid('nomatch' | {non_neg_integer(), 1},
             ejabberd:jid(), Encoded :: ejabberd:luser() | binary()) -> binary().
-expand_minified_jid_2(nomatch,  #jid{lserver=ThisServer}, LUser) ->
+expand_minified_jid(nomatch,  #jid{lserver=ThisServer}, LUser) ->
     <<LUser/binary, $@, ThisServer/binary>>;
-expand_minified_jid_2({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
+expand_minified_jid({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
     case Encoded of
         <<LServer:Pos/binary, $:, LUser/binary>> ->
             <<LUser/binary, $@, LServer/binary>>;
@@ -820,16 +819,6 @@ is_loaded_application(AppName) when is_atom(AppName) ->
 maybe_integer(<<>>, Def) -> Def;
 maybe_integer(Bin, _Def) when is_binary(Bin) ->
     binary_to_integer(Bin).
-
-
--spec is_function_exist(atom() | {module(), _}, F :: atom(), A :: integer()
-                       ) -> boolean().
-is_function_exist({M, _}, F, A) ->
-    %% M is a tuple module
-    is_function_exist(M, F, A+1);
-is_function_exist(M, F, A) ->
-    lists:member({F, A}, M:module_info(exports)).
-
 
 -spec apply_start_border('undefined' | mod_mam:borders(), undefined | integer()) ->
                                 undefined | integer().
@@ -892,7 +881,6 @@ is_last_page(PageSize, TotalCount, Offset, MessageRows)
     %% Number of messages on skipped pages from the beginning plus the current page
     PagedCount = Offset + PageSize,
     TotalCount =:= PagedCount; %% false means full page but not the last one in the result set
-
 is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
     %% When is_integer(TotalCount), is_integer(Offset)
     %%     it's not possible case: the page is bigger then page size.

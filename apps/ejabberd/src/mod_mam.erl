@@ -98,7 +98,6 @@
 %% Other
 -import(mod_mam_utils,
         [maybe_integer/2,
-         is_function_exist/3,
          mess_id_to_external_binary/1,
          is_last_page/4]).
 
@@ -398,14 +397,14 @@ handle_mam_iq(Action, From, To, IQ) ->
 
 
 -spec iq_action(ejabberd:iq()) -> action().
-iq_action(IQ=#iq{xmlns = ?NS_MAM}) ->
-    iq_action02(IQ);
-iq_action(IQ=#iq{xmlns = ?NS_MAM_03}) ->
-    iq_action03(IQ);
-iq_action(IQ=#iq{xmlns = ?NS_MAM_04}) ->
-    iq_action03(IQ).
+iq_action(IQ = #iq{xmlns = ?NS_MAM}) ->
+    iq_action_v02(IQ);
+iq_action(IQ = #iq{xmlns = ?NS_MAM_03}) ->
+    iq_action_v03(IQ);
+iq_action(IQ = #iq{xmlns = ?NS_MAM_04}) ->
+    iq_action_v03(IQ).
 
-iq_action02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
+iq_action_v02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
     case {Action, Category} of
         {set, <<"prefs">>} -> mam_set_prefs;
         {get, <<"prefs">>} -> mam_get_prefs;
@@ -417,7 +416,7 @@ iq_action02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
             end
     end.
 
-iq_action03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
+iq_action_v03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
     case {Action, Category} of
         {set, <<"prefs">>} -> mam_set_prefs;
         {get, <<"prefs">>} -> mam_get_prefs;
@@ -677,16 +676,19 @@ handle_package(Dir, ReturnMessID,
                     MessID = generate_message_id(),
                     Result = archive_message(Host, MessID, ArcID,
                                              LocJID, RemJID, SrcJID, Dir, Packet),
-                    case {ReturnMessID, Result} of
-                        {true, ok} -> mess_id_to_external_binary(MessID);
-                        _ -> undefined
-                    end;
+                    return_external_message_id_if_ok(ReturnMessID, Result, MessID);
                 false ->
                     undefined
             end;
         false ->
             undefined
     end.
+
+-spec return_external_message_id_if_ok(ReturnMessID :: boolean(),
+                                       ArchivingResult :: ok | any(),
+                                       MessID :: integer()) -> binary() | undefined.
+return_external_message_id_if_ok(true, ok, MessID) -> mess_id_to_external_binary(MessID);
+return_external_message_id_if_ok(false, _, _MessID) -> undefined.
 
 is_interesting(LocJID, RemJID) ->
     Host = server_host(LocJID),

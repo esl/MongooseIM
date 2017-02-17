@@ -69,10 +69,12 @@ produces_valid_configurations(_Config) ->
                        ]}
                 ]),
 
+    ExpandedSimpleOpts = [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}],
+
     check_has_args(mod_mam, [{add_archived_element, true}], Deps),
     check_has_args(mod_mam_muc, [{host, <<"host">>}], Deps),
     check_has_args(mod_mam_odbc_arch, [pm], Deps),
-    check_has_args(mod_mam_muc_odbc_arch, [no_writer, simple], Deps),
+    check_has_args(mod_mam_muc_odbc_arch, [no_writer | ExpandedSimpleOpts], Deps),
     check_has_args(mod_mam_odbc_user, [pm, muc], Deps),
     check_has_args(mod_mam_cache_user, [pm, muc], Deps),
     check_has_args(mod_mam_mnesia_prefs, [muc], Deps),

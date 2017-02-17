@@ -10,7 +10,7 @@
 %%% The differencies from `mod_mam_odbc_user' are:
 %%%
 %%% - This module deletes cached data after room deletion.
-%%% 
+%%%
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc_cache_user).

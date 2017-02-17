@@ -7,7 +7,11 @@
 
 -module(mod_http_notification).
 -author("baibossynov.valery@gmail.com").
+
 -behaviour(gen_mod).
+-behaviour(mod_http_notification).
+
+-callback should_make_req(Packet :: exml:element(), From :: jid(), To :: jid()) -> boolean().
 
 %% API
 -export([start/2, stop/1, on_user_send_packet/4, should_make_req/3]).
@@ -67,8 +71,8 @@ make_req(Host, Sender, Receiver, Message) ->
     Path = fix_path(list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH))),
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, ?DEFAULT_POOL_NAME),
     Pool = mongoose_http_client:get_pool(PoolName),
-    Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
-        Message/binary>>,
+    Query = <<"author=", Sender/binary, "&server=", Host/binary,
+              "&receiver=", Receiver/binary, "&message=", Message/binary>>,
     ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
     Headers = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
     T0 = os:timestamp(),
