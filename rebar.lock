@@ -69,7 +69,7 @@
   2},
  {<<"idna">>,
   {git,"git://github.com/benoitc/erlang-idna.git",
-       {ref,"2cef174cccd09f877fa54d1af722e8fda49026da"}},
+       {ref,"40c682fef283b7c3871c4b59aa0469304c6613ef"}},
   0},
  {<<"jiffy">>,
   {git,"git://github.com/davisp/jiffy.git",
