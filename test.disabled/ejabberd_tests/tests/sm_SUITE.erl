@@ -49,7 +49,8 @@ parallel_test_cases() ->
      resume_session,
      resume_session_with_wrong_h_does_not_leak_sessions,
      resume_session_with_wrong_sid_returns_item_not_found,
-     resume_session_with_wrong_namespace_is_a_noop
+     resume_session_with_wrong_namespace_is_a_noop,
+     resume_dead_session_results_in_item_not_found
     ].
 
 parallel_manual_ack_test_cases() ->
@@ -616,14 +617,7 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
     end).
 
 resume_session_with_wrong_sid_returns_item_not_found(Config) ->
-    AliceSpec = given_fresh_spec(Config, alice),
-    Steps = connection_steps_to_authenticate(),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
-    Resumed = try_to_resume_stream(Alice, <<"wrong-sid">>, 2),
-    escalus:assert(is_sm_failed, [<<"item-not-found">>], Resumed),
-    [] = get_user_resources(AliceSpec),
-    true = escalus_connection:is_connected(Alice),
-    escalus_connection:stop(Alice).
+    session_resumption_expects_item_not_found(Config, <<"wrong-sid">>).
 
 resume_session_with_wrong_namespace_is_a_noop(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
@@ -636,6 +630,23 @@ resume_session_with_wrong_namespace_is_a_noop(Config) ->
     [] = get_user_resources(AliceSpec),
     true = escalus_connection:is_connected(Alice),
     escalus_connection:stop(Alice).
+
+resume_dead_session_results_in_item_not_found(Config) ->
+    SMID = base64:encode(crypto:strong_rand_bytes(21)),
+    SID = {os:timestamp(), undefined},
+    escalus_ejabberd:rpc(mod_stream_management, register_smid, [SMID, SID]),
+    session_resumption_expects_item_not_found(Config, SMID).
+
+session_resumption_expects_item_not_found(Config, SMID) ->
+    AliceSpec = given_fresh_spec(Config, alice),
+    Steps = connection_steps_to_authenticate(),
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    Resumed = try_to_resume_stream(Alice, SMID, 2),
+    escalus:assert(is_sm_failed, [<<"item-not-found">>], Resumed),
+    [] = get_user_resources(AliceSpec),
+    true = escalus_connection:is_connected(Alice),
+    escalus_connection:stop(Alice).
+
 
 connection_steps_to_authenticate() ->
     [start_stream,
