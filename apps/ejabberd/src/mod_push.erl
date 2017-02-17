@@ -173,7 +173,7 @@ publish_message(From, To = #jid{lserver = Host}, Packet) ->
     {ok, Services} = mod_push_backend:get_publish_services(BareRecipient),
     lists:foreach(
       fun({PubsubJID, Node, Form}) ->
-              Stanza = push_notification_iq(From, Packet, Node, Form),
+              Stanza = push_notification_iq(Host, From, Packet, Node, Form),
               ResponseHandler =
                   fun(Response) ->
                           cast(Host, handle_publish_response,
@@ -244,14 +244,14 @@ parse_form(Form) ->
             invalid_form
     end.
 
--spec push_notification_iq(From :: ejabberd:jid(), Packet :: jlib:xmlel(),
-                           Node :: pubsub_node(), Form :: form()) -> iq().
-push_notification_iq(From, Packet, Node, Form) ->
+-spec push_notification_iq(Host :: ejabberd:server(), From :: ejabberd:jid(),
+                           Packet :: jlib:xmlel(), Node :: pubsub_node(), Form :: form()) -> iq().
+push_notification_iq(Host, From, Packet, Node, Form) ->
     ContentFields =
         [
          {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
          {<<"message-count">>, <<"1">>},
-         {<<"last-message-sender">>, mod_push_plugin:sender_id(From, Packet)},
+         {<<"last-message-sender">>, mod_push_plugin:sender_id(Host, From, Packet)},
          {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
         ],
 

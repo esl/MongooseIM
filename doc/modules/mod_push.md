@@ -12,9 +12,9 @@ This module implements [XEP-0357: Push Notifications](https://xmpp.org/extension
 
 * **backend** (atom, default: `mnesia`) - Backend to use for storing registrations. Currently 
 only `mnesia` may be used.
-* **wpool** (list, default: []) - List of options that will be passed to `worker_pool` library 
+* **wpool** (list, default: `[]`) - List of options that will be passed to `worker_pool` library
 that handles all the requests. Please refer to [Project Site](https://github.com/inaka/worker_pool) for more details.
-* **plugin_module** (atom, default: mod_push_plugin) - Plugin module that implements some dynamic
+* **plugin_module** (atom, default: `mod_push_plugin_default`) - Plugin module that implements some dynamic
  configurations. Currently this module allow configuration of parsing message `sender id` and can
   filter messages that shall not be published to `PubSub` node.
 
@@ -25,6 +25,6 @@ that handles all the requests. Please refer to [Project Site](https://github.com
 {mod_push, [
     {backend, mnesia},
     {wpool, [{workers, 200}]},
-    {plugin_module, mod_push_plugin}
+    {plugin_module, mod_push_plugin_default}
 ]}.
 ```
