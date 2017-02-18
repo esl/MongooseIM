@@ -74,7 +74,8 @@
          gc_message_verify_fun/3,
          stanza_aff_set/2,
          bin_aff_users/1,
-         verify_aff_users/2
+         verify_aff_users/2,
+         create_room/6
         ]).
 
 -export([all/0, groups/0, suite/0,

@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mongoose_cassandra).
--author("Rafal Slota").
+-author('rafal.slota@erlang-solutions.com').
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
@@ -186,7 +186,7 @@ cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn)  ->
 -spec cql_foldl(PoolName :: pool_name(), UserJID :: jid() | undefined, Module :: atom(),
                 QueryName :: query_name(), Params :: parameters(),
                 row_fold_fun(), AccIn :: term(), TryCount :: non_neg_integer()) ->
-                   {ok, AccOut :: term()} | {error, Reason :: any()}.
+                       {ok, AccOut :: term()} | {error, Reason :: any()}.
 cql_foldl(_PoolName, _UserJID, _Module, QueryName, Params, _Fun, _AccIn, 0)  ->
     {error, {query_timeout, QueryName, Params}};
 cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, TryCount)  ->
@@ -299,7 +299,7 @@ test_query(PoolName, UserJID) ->
     end.
 
 -spec total_count_query(pool_name(), Table :: atom()) ->
-    non_neg_integer().
+                               non_neg_integer().
 total_count_query(PoolName, Table) ->
     UserJID = undefined,
     Res = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, {total_count_query, Table}, []),
