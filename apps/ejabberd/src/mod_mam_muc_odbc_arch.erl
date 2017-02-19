@@ -101,7 +101,8 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host,
+                          ?MODULE, purge_multiple_messages, 50),
     ok.
 
 
@@ -127,14 +128,14 @@ archive_message(_Result, Host, MessID, RoomID,
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
     try
-        archive_message_1(Host, MessID, RoomID, FromNick, Packet)
+        archive_message1(Host, MessID, RoomID, FromNick, Packet)
     catch _Type:Reason ->
         {error, Reason}
     end.
 
--spec archive_message_1(ejabberd:server(), mod_mam:message_id(), mod_mam:archive_id(),
+-spec archive_message1(ejabberd:server(), mod_mam:message_id(), mod_mam:archive_id(),
         FromNick :: ejabberd:user(), packet()) -> ok.
-archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
+archive_message1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
     SFromNick = mongoose_rdbms:escape(FromNick),
     Data = packet_to_stored_binary(Packet),
@@ -164,10 +165,10 @@ prepare_message(Host, MessID, RoomID,
                 _LocJID=#jid{luser=_RoomName},
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
-    prepare_message_1(Host, MessID, RoomID, FromNick, Packet).
+    prepare_message1(Host, MessID, RoomID, FromNick, Packet).
 
 
-prepare_message_1(Host, MessID, RoomID, FromNick, Packet) ->
+prepare_message1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
     SFromNick = mongoose_rdbms:escape(FromNick),
     Data = packet_to_stored_binary(Packet),
@@ -179,7 +180,7 @@ prepare_message_1(Host, MessID, RoomID, FromNick, Packet) ->
 
 -spec archive_messages(atom() | ejabberd:lserver(), Acc :: [[any(), ...]]) -> any().
 archive_messages(LServer, Acc) ->
-    mod_mam_utils:success_sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       ["INSERT INTO mam_muc_message(id, room_id, nick_name, message) "
        "VALUES ", tuples(Acc)]).
@@ -188,7 +189,7 @@ archive_messages(LServer, Acc) ->
 -spec archive_messages(atom() | ejabberd:lserver(), Acc :: [[any(), ...]],
                        N :: any()) -> any().
 archive_messages(LServer, Acc, N) ->
-    mod_mam_utils:success_sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       ["INSERT INTO ", select_table(N), " ",
            "(id, room_id, nick_name, message) "
@@ -544,23 +545,23 @@ calc_count(Host, RoomID, Filter) ->
 
 
 %% @doc prepare_filter/5
--spec prepare_filter(RoomID :: mod_mam:archive_id(), Borders :: #mam_borders{} | undefined,
+-spec prepare_filter(RoomID :: mod_mam:archive_id(), Borders :: mam_borders() | undefined,
         Start :: unix_timestamp() | undefined, End :: unix_timestamp() | undefined,
-        WithJID :: #jid{} | undefined) -> filter().
+        WithJID :: jid() | undefined) -> filter().
 prepare_filter(RoomID, Borders, Start, End, WithJID) ->
     SWithNick = maybe_jid_to_escaped_resource(WithJID),
     StartID = maybe_encode_compact_uuid(Start, 0),
     EndID   = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
     EndID2   = apply_end_border(Borders, EndID),
-    prepare_filter_1(RoomID, StartID2, EndID2, SWithNick).
+    prepare_filter1(RoomID, StartID2, EndID2, SWithNick).
 
 
--spec prepare_filter_1(RoomID  :: non_neg_integer(),
+-spec prepare_filter1(RoomID  :: non_neg_integer(),
         StartID :: mod_mam:message_id() | undefined,
         EndID :: mod_mam:message_id() | undefined,
         SWithNick :: escaped_jid() | undefined) -> filter().
-prepare_filter_1(RoomID, StartID, EndID, SWithNick) ->
+prepare_filter1(RoomID, StartID, EndID, SWithNick) ->
    ["WHERE room_id='", escape_room_id(RoomID), "'",
      case StartID of
         undefined -> "";

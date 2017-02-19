@@ -161,7 +161,8 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host,
+                          ?MODULE, purge_multiple_messages, 50),
     ok.
 
 
@@ -268,7 +269,7 @@ prepare_message(Host, MessID, UserID,
     [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData].
 
 archive_messages(LServer, Acc) ->
-    mod_mam_utils:success_sql_query(
+    mongoose_rdbms:sql_query(
       LServer,
       ["INSERT INTO mam_message(id, user_id, remote_bare_jid, "
                                 "remote_resource, direction, "
