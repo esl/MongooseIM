@@ -50,7 +50,7 @@ maybe_to_json_with_jid(error, _, Req, State) ->
     Req2 = cowboy_req:reply(404, Req),
     {halt, Req2, State};
 maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
-    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
+    Now = p1_time_compat:os_system_time(micro_seconds),
     ArchiveID = mod_mam:archive_id_int(Server, JID),
     {PageSize, Req2} = maybe_integer_qs_val(cowboy_req:qs_val(<<"limit">>, Req, <<"50">>)),
     {Before, Req3} = maybe_integer_qs_val(cowboy_req:qs_val(<<"before">>, Req2)),
@@ -65,6 +65,7 @@ maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
                                 End,
                                 Now,
                                 WithJID,
+                                _SearchText = undefined,
                                 PageSize,
                                 _LimitPassed = true,
                                 _MaxResultLimit = 50,

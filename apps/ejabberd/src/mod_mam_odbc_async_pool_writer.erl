@@ -16,7 +16,7 @@
 -behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/14,
+         lookup_messages/15,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -155,7 +155,8 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 30),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
+    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE,
+                          purge_multiple_messages, 30),
     ok.
 
 
@@ -190,24 +191,24 @@ start_link(ProcName, N, Host, Pool) ->
 
 
 -spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
-        ArchiveID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
-        RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(), Dir :: atom(),
-        Packet :: any()) -> ok.
+                      ArchiveID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
+                      RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(), Dir :: atom(),
+                      Packet :: any()) -> ok.
 archive_message(_Result, Host,
-        MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Row = mod_mam_odbc_arch:prepare_message(Host,
-        MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
+                                            MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
     Worker = select_worker(Host, ArcID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
     case is_overloaded(WorkerPid) of
-       false ->
-           gen_server:cast(Worker, {archive_message, Row});
-       true ->
+        false ->
+            gen_server:cast(Worker, {archive_message, Row});
+        true ->
             {Pid, MonRef} = spawn_monitor(fun() ->
-               gen_server:call(Worker, wait_flushing),
-               gen_server:cast(Worker, {archive_message, Row})
-                end),
+                                                  gen_server:call(Worker, wait_flushing),
+                                                  gen_server:cast(Worker, {archive_message, Row})
+                                          end),
             receive
                 {'DOWN', MonRef, process, Pid, normal} -> ok;
                 {'DOWN', MonRef, process, Pid, _} ->
@@ -230,33 +231,34 @@ queue_lengths(Host) ->
 
 worker_queue_length(SrvName) ->
     case whereis(SrvName) of
-    undefined ->
-        0;
-    Pid ->
-        {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
-        Len
+        undefined ->
+            0;
+        Pid ->
+            {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
+            Len
     end.
 
 
 -spec archive_size(Size :: integer(), Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
+                   ArchiveID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
 archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
     wait_flushing(Host, ArcID),
     Size.
 
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
-        RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
-        Start :: mod_mam:unix_timestamp() | undefined,
-        End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
-        WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
-        LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
-        IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
-                                | {error, 'policy-violation'}.
+                      ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
+                      RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
+                      Start :: mod_mam:unix_timestamp() | undefined,
+                      End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
+                      WithJID :: ejabberd:jid() | undefined,
+                      SearchText :: binary() | undefined, PageSize :: integer(),
+                      LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
+                      IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
+                                                    | {error, 'policy-violation'}.
 lookup_messages(Result, Host, ArcID, _ArcJID,
                 _RSM, _Borders,
-                _Start, End, Now, _WithJID,
+                _Start, End, Now, _WithJID, _SearchText,
                 _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
@@ -271,9 +273,9 @@ remove_archive(Acc, Host, ArcID, _ArcJID) ->
     Acc.
 
 -spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
-        MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
-        RoomJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
-            -> ok | {error, 'not-allowed' | 'not-found'}.
+                           MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
+                           RoomJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
+                          -> ok | {error, 'not-allowed' | 'not-found'}.
 purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
     wait_flushing_before(Host, ArcID, Microseconds, Now),
@@ -281,12 +283,12 @@ purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
 
 
 -spec purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
-        RoomID :: mod_mam:archive_id(), ArchiveID :: ejabberd:jid(),
-        Borders :: mod_mam:borders() | undefined,
-        Start :: mod_mam:unix_timestamp() | undefined,
-        End :: mod_mam:unix_timestamp() | undefined,
-        Now :: mod_mam:unix_timestamp(),
-        WithJID :: ejabberd:jid() | undefined) -> ok | {error, 'not-allowed'}.
+                              RoomID :: mod_mam:archive_id(), ArchiveID :: ejabberd:jid(),
+                              Borders :: mod_mam:borders() | undefined,
+                              Start :: mod_mam:unix_timestamp() | undefined,
+                              End :: mod_mam:unix_timestamp() | undefined,
+                              Now :: mod_mam:unix_timestamp(),
+                              WithJID :: ejabberd:jid() | undefined) -> ok | {error, 'not-allowed'}.
 purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
                         _Start, End, Now, _WithJID) ->
     wait_flushing_before(Host, ArcID, End, Now),
@@ -329,9 +331,9 @@ run_flush(State=#state{host=Host, connection_pool=Pool, number=N,
             ok
     end,
     spawn_link(fun() ->
-            [gen_server:reply(Sub, ok) || Sub <- Subs],
-            ejabberd_hooks:run(mam_flush_messages, Host, [Host, MessageCount])
-        end),
+                       [gen_server:reply(Sub, ok) || Sub <- Subs],
+                       ejabberd_hooks:run(mam_flush_messages, Host, [Host, MessageCount])
+               end),
     erlang:garbage_collect(),
     State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
 
@@ -400,8 +402,8 @@ handle_cast({archive_message, Row},
             State=#state{acc=Acc, flush_interval_tref=TRef, flush_interval=Int,
                          max_packet_size=Max}) ->
     TRef2 = case {Acc, TRef} of
-            {[], undefined} -> erlang:send_after(Int, self(), flush);
-            {_, _} -> TRef
+                {[], undefined} -> erlang:send_after(Int, self(), flush);
+                {_, _} -> TRef
             end,
     State2 = State#state{acc=[Row|Acc], flush_interval_tref=TRef2},
     case length(Acc) + 1 >= Max of

@@ -18,6 +18,10 @@
 -behaviour(ejabberd_gen_mam_archive).
 -behaviour(gen_mod).
 
+-callback encode(term()) -> binary().
+-callback decode(binary()) -> term().
+
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
@@ -25,20 +29,20 @@
 -export([start/2,
          stop/1,
          archive_size/4,
-         lookup_messages/10,
+         lookup_messages/11,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
 -export([archive_message/9,
          archive_message_muc/9,
-         lookup_messages/14,
-         lookup_messages_muc/14]).
+         lookup_messages/15,
+         lookup_messages_muc/15]).
 
 -export([key/3]).
 
 %% For tests only
--export([create_obj/3, read_archive/6, bucket/1,
+-export([create_obj/5, read_archive/7, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
@@ -113,29 +117,30 @@ stop_muc_archive(Host) ->
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE,
+                          purge_multiple_messages, 50),
     ok.
 
-archive_message(_Result, Host, MessID, _UserID,
-                LocJID, RemJID, SrcJID, _Dir, Packet) ->
+archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     try
-        R = archive_message(MessID, LocJID, RemJID, SrcJID, Packet),
-        case R of
-            ok ->
-                ok;
-            Other ->
-                throw(Other)
-        end,
-        R
+        archive_message(Host, MessId, LocJID, RemJID, SrcJID, Packet, pm)
     catch _Type:Reason ->
-        ?WARNING_MSG("Could not write message to archive, reason: ~p", [Reason]),
-        ejabberd_hooks:run(mam_drop_message, Host, [Host]),
-        {error, Reason}
+            ?WARNING_MSG("Could not write message to archive, reason: ~p",
+                         [{Reason, erlang:get_stacktrace()}]),
+            ejabberd_hooks:run(mam_drop_message, Host, [Host]),
+            {error, Reason}
     end.
 
-archive_message_muc(Result, Host, MessId, UserID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+archive_message_muc(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     RemJIDMuc = maybe_muc_jid(RemJID),
-    archive_message(Result, Host, MessId, UserID, LocJID, RemJIDMuc, SrcJID, Dir, Packet).
+    try
+        archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, Packet, muc)
+    catch _Type:Reason ->
+        ?WARNING_MSG("Could not write MUC message to archive, reason: ~p",
+                     [{Reason, erlang:get_stacktrace()}]),
+        ejabberd_hooks:run(mam_muc_drop_message, Host, [Host]),
+        {error, Reason}
+    end.
 
 maybe_muc_jid(#jid{lresource = RemRes}) ->
     {<<>>, RemRes, <<>>};
@@ -144,19 +149,19 @@ maybe_muc_jid(Other) ->
 
 
 lookup_messages({error, _Reason} = Result, _Host,
-                     _UserID, _UserJID, _RSM, _Borders,
-                     _Start, _End, _Now, _WithJID,
-                     _PageSize, _LimitPassed, _MaxResultLimit,
-                     _IsSimple) ->
-                     Result;
+                _UserID, _UserJID, _RSM, _Borders,
+                _Start, _End, _Now, _WithJID, _SearchText,
+                _PageSize, _LimitPassed, _MaxResultLimit,
+                _IsSimple) ->
+    Result;
 lookup_messages(_Result, _Host,
-                     _UserID, UserJID, RSM, Borders,
-                     Start, End, _Now, WithJID,
-                     PageSize, LimitPassed, MaxResultLimit,
-                     IsSimple) ->
+                _UserID, UserJID, RSM, Borders,
+                Start, End, _Now, WithJID, SearchText,
+                PageSize, LimitPassed, MaxResultLimit,
+                IsSimple) ->
     try
         lookup_messages(UserJID, RSM, Borders,
-                        Start, End, WithJID,
+                        Start, End, WithJID, SearchText,
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
@@ -164,15 +169,16 @@ lookup_messages(_Result, _Host,
         {error, {Reason, {stacktrace, S}}}
     end.
 
+
 lookup_messages_muc(Result, Host,
                     UserID, UserJID, RSM, Borders,
-                    Start, End, _Now, WithJID,
+                    Start, End, Now, WithJID, SearchText,
                     PageSize, LimitPassed, MaxResultLimit,
                     IsSimple) ->
     WithJIDMuc = maybe_muc_jid(WithJID),
     lookup_messages(Result, Host,
                     UserID, UserJID, RSM, Borders,
-                    Start, End, _Now, WithJIDMuc,
+                    Start, End, Now, WithJIDMuc, SearchText,
                     PageSize, LimitPassed, MaxResultLimit,
                     IsSimple).
 
@@ -184,14 +190,14 @@ archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
         calculate_msg_id_borders(undefined, undefined, undefined, undefined),
     F = fun get_msg_id_key/3,
     {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
-                                   MsgIdStartNoRSM, MsgIdEndNoRSM,
+                                   MsgIdStartNoRSM, MsgIdEndNoRSM, undefined,
                                    [{rows, 1}], F),
     TotalCount.
 
 %% use correct bucket for given date
 
 -spec bucket(calendar:date() | yearweeknum() | integer()) ->
-    {binary(), binary()} | undefined.
+                    {binary(), binary()} | undefined.
 bucket(MsgId) when is_integer(MsgId) ->
     {MicroSec, _} = mod_mam_utils:decode_compact_uuid(MsgId),
     MsgNow = mod_mam_utils:microseconds_to_now(MicroSec),
@@ -215,7 +221,7 @@ remove_bucket(Bucket) ->
     {ok, Keys} = mongoose_riak:list_keys(Bucket),
     [mongoose_riak:delete(Bucket, Key) || Key <- Keys].
 
-archive_message(MessID, LocJID, RemJID, SrcJID, Packet) ->
+archive_message(Host, MessID, LocJID, RemJID, SrcJID, Packet, Type) ->
     LocalJID = bare_jid(LocJID),
     RemoteJID = bare_jid(RemJID),
     SourceJID = full_jid(SrcJID),
@@ -224,22 +230,34 @@ archive_message(MessID, LocJID, RemJID, SrcJID, Packet) ->
 
     Bucket = bucket(MessID),
 
-    RiakMap = create_obj(MsgId, SourceJID, Packet),
-    mongoose_riak:update_type(Bucket, Key, riakc_map:to_op(RiakMap)).
+    RiakMap = create_obj(Host, MsgId, SourceJID, Packet, Type),
+    case mongoose_riak:update_type(Bucket, Key, riakc_map:to_op(RiakMap)) of
+        ok -> ok;
+        Other -> throw(Other)
+    end.
 
-create_obj(MsgId, SourceJID, Packet) ->
-
-    Ops = [{{<<"msg_id">>, register},
+create_obj(Host, MsgId, SourceJID, Packet, Type) ->
+    ModMAM =
+        case Type of
+            pm -> mod_mam;
+            muc -> mod_mam_muc
+        end,
+    BodyValue = list_to_binary(mod_mam_utils:packet_to_search_body(ModMAM, Host, Packet)),
+    Ops = [
+           {{<<"msg_id">>, register},
             fun(R) -> riakc_register:set(MsgId, R) end},
            {{<<"source_jid">>, register},
             fun(R) -> riakc_register:set(SourceJID, R) end},
            {{<<"packet">>, register},
-            fun(R) -> riakc_register:set(packet_to_stored_binary(Packet), R) end}],
+            fun(R) -> riakc_register:set(packet_to_stored_binary(Packet), R) end},
+           {{<<"search_text">>, register},
+            fun(R) -> riakc_register:set(BodyValue, R) end}
+          ],
 
     mongoose_riak:create_new_map(Ops).
 
 lookup_messages(ArchiveJID, RSM, Borders, Start, End,
-                WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
+                WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
 
     OwnerJID = bare_jid(ArchiveJID),
     RemoteJID = bare_jid(WithJID),
@@ -251,7 +269,7 @@ lookup_messages(ArchiveJID, RSM, Borders, Start, End,
 
     {MsgIdStart, MsgIdEnd} = calculate_msg_id_borders(RSM, Borders, Start, End),
     {TotalCountFullQuery, Result} = read_archive(OwnerJID, RemoteJID,
-                                                 MsgIdStart, MsgIdEnd,
+                                                 MsgIdStart, MsgIdEnd, SearchText,
                                                  SearchOpts, F),
 
     SortedKeys = sort_messages(Result),
@@ -259,12 +277,13 @@ lookup_messages(ArchiveJID, RSM, Borders, Start, End,
         true ->
             {ok, {undefined, undefined, get_messages(SortedKeys)}};
         _ ->
-            {MsgIdStartNoRSM, MsgIdEndNoRSM} = calculate_msg_id_borders(undefined, Borders, Start, End),
+            {MsgIdStartNoRSM, MsgIdEndNoRSM} =
+                calculate_msg_id_borders(undefined, Borders, Start, End),
             {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
-                                           MsgIdStartNoRSM, MsgIdEndNoRSM,
+                                           MsgIdStartNoRSM, MsgIdEndNoRSM, SearchText,
                                            [{rows, 1}], F),
             Offset = calculate_offset(RSM, TotalCountFullQuery, length(SortedKeys),
-                                      {OwnerJID, RemoteJID, MsgIdStartNoRSM}),
+                                      {OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText}),
             case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
                 true ->
                     {error, 'policy-violation'};
@@ -286,8 +305,9 @@ add_offset(_, Opts) ->
 
 calculate_offset(#rsm_in{direction = before}, TotalCount, PageSize, _) ->
     TotalCount - PageSize;
-calculate_offset(#rsm_in{direction = aft, id = Id}, _, _, {Owner, Remote, MsgIdStart}) when Id /= undefined ->
-    {Count, _} = read_archive(Owner, Remote, MsgIdStart, Id,
+calculate_offset(#rsm_in{direction = aft, id = Id}, _, _, {Owner, Remote, MsgIdStart, SearchText})
+  when Id /= undefined ->
+    {Count, _} = read_archive(Owner, Remote, MsgIdStart, Id, SearchText,
                               [{rows, 1}], fun get_msg_id_key/3),
     Count;
 calculate_offset(#rsm_in{direction = undefined, index = Index}, _, _, _) when is_integer(Index) ->
@@ -323,8 +343,8 @@ remove_archive(Host, _ArchiveID, ArchiveJID) ->
     Result = do_remove_archive(100, R, Host, ArchiveJID),
     case Result of
         {stopped, N} ->
-            lager:warning("archive removal stopped for jid after processing ~p items out of ~p total",
-                          [ArchiveJID, N, TotalCount]),
+            lager:warning("archive removal stopped for jid after processing ~p "
+                          "items out of ~p total", [ArchiveJID, N, TotalCount]),
             ok;
         {ok, _} ->
             ok
@@ -334,7 +354,7 @@ remove_chunk(_Host, ArchiveJID, Acc) ->
     KeyFiletrs = key_filters(bare_jid(ArchiveJID)),
     fold_archive(fun delete_key_fun/3,
                  KeyFiletrs,
-                  [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
+                 [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
 
 do_remove_archive(0, {ok, _, _, Acc}, _, _) ->
     {stopped, Acc};
@@ -351,12 +371,14 @@ purge_single_message(_Result, _Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
     {ok, 1, 1, 1} = fold_archive(fun delete_key_fun/3, KeyFilters, [], 0),
     ok.
 
-purge_multiple_messages(_Result, _Host, _ArchiveID, ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
+purge_multiple_messages(_Result, _Host, _ArchiveID,
+                        ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
     ArchiveJIDBin = bare_jid(ArchiveJID),
     KeyFilters = key_filters(ArchiveJIDBin, WithJID, Start, End),
-    {ok, Total, _Iterated, Deleted} = fold_archive(fun delete_key_fun/3,
-                                                   KeyFilters,
-                                                   [{rows, 50}, {sort, <<"msg_id_register asc">>}], 0),
+    {ok, Total, _Iterated, Deleted} =
+        fold_archive(fun delete_key_fun/3,
+                     KeyFilters,
+                     [{rows, 50}, {sort, <<"msg_id_register asc">>}], 0),
     case Total == Deleted of
         true ->
             ok;
@@ -380,19 +402,20 @@ decode_key(KeyBinary) ->
                    binary() | undefined,
                    term(),
                    term(),
+                   binary() | undefined,
                    [term()],
                    fun()) ->
-    {integer(), list()} | {error, term()}.
-read_archive(OwnerJID, WithJID, Start, End, SearchOpts, Fun) ->
-    KeyFilters = key_filters(OwnerJID, WithJID, Start, End),
+                          {integer(), list()} | {error, term()}.
+read_archive(OwnerJID, WithJID, Start, End, SearchText, SearchOpts, Fun) ->
+    KeyFilters = key_filters(OwnerJID, WithJID, Start, End, SearchText),
     {ok, Cnt, _, NewAcc} = fold_archive(Fun, KeyFilters, SearchOpts, []),
     {Cnt, NewAcc}.
 
 
 sort_messages(Msgs) ->
     SortFun = fun({MsgId1, _, _}, {MsgId2, _, _}) ->
-        MsgId1 =< MsgId2
-    end,
+                      MsgId1 =< MsgId2
+              end,
     lists:sort(SortFun, Msgs).
 
 fold_archive(Fun, Query, SearchOpts, InitialAcc) ->
@@ -415,25 +438,48 @@ do_fold_archive(Fun, BucketKeys, InitialAcc) ->
         Fun({Type, Bucket}, Key, Acc)
     end, InitialAcc, BucketKeys).
 
-key_filters(Jid) ->
-    <<"_yz_rk:", Jid/binary, "*">>.
+%% Filter API
+key_filters(LocalJid) ->
+    key_filters(LocalJid, undefined, undefined, undefined, undefined).
 
-key_filters(LocalJid, undefined) ->
-    key_filters(LocalJid);
-key_filters(LocalJid, MsgId) when is_integer(MsgId) ->
-    StartsWith = key_filters(LocalJid),
-    MsgIdBin = integer_to_binary(MsgId),
-    <<StartsWith/binary, " AND msg_id_register:", MsgIdBin/binary>>;
-key_filters(LocalJid, RemoteJid) ->
+key_filters(LocalJid, MsgId) ->
+    key_filters(LocalJid, undefined, MsgId, MsgId, undefined).
+
+key_filters(LocalJid, RemoteJid, Start, End) ->
+    key_filters(LocalJid, RemoteJid, Start, End, undefined).
+
+
+key_filters(LocalJid, RemoteJid, Start, End, SearchText) ->
+    JidFilter = jid_filters(LocalJid, RemoteJid),
+    IdFilter = id_filters(Start, End),
+    TextFilter = search_text_filter(SearchText),
+
+    Separator = <<" AND ">>,
+    Filters0 = [JidFilter, IdFilter, TextFilter],
+    Filters1 = [[Filter, Separator] || Filter <- Filters0, is_binary(Filter)],
+    FiltersBin = list_to_binary(Filters1),
+    binary:part(FiltersBin, 0, byte_size(FiltersBin) - byte_size(Separator)).
+
+%% Filter helpers
+-spec search_text_filter(binary() | undefined) -> binary().
+search_text_filter(undefined) ->
+    undefined;
+search_text_filter(SearchText) ->
+    Separator = "~1 AND search_text_register:",
+    NormText = mod_mam_utils:normalize_search_text(SearchText, Separator) ++ "~1",
+    %% Fuzzy search on tokens from search phrase
+    <<"search_text_register:", (list_to_binary(NormText))/binary>>.
+
+jid_filters(LocalJid, undefined) ->
+    <<"_yz_rk:", LocalJid/binary, "*">>;
+jid_filters(LocalJid, RemoteJid) ->
     <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "*">>.
 
-key_filters(LocalJid, RemoteJid, undefined, undefined) ->
-    key_filters(LocalJid, RemoteJid);
-key_filters(LocalJid, RemoteJid, Start, End) ->
-    JidFilter = key_filters(LocalJid, RemoteJid),
-    IdFilter = id_filters(Start, End),
-    <<JidFilter/binary, " AND ", IdFilter/binary>>.
-
+id_filters(undefined, undefined) ->
+    undefined;
+id_filters(MsgId, MsgId) ->
+    MsgIdBin = integer_to_binary(MsgId),
+    <<"msg_id_register:", MsgIdBin/binary>>;
 id_filters(StartInt, undefined) ->
     solr_id_filters(integer_to_binary(StartInt), <<"*">>);
 id_filters(undefined, EndInt) ->
@@ -443,6 +489,7 @@ id_filters(StartInt, EndInt) ->
 
 solr_id_filters(Start, End) ->
     <<"msg_id_register:[", Start/binary, " TO ", End/binary, " ]">>.
+
 
 calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
     calculate_msg_id_borders(undefined, Borders, Start, End);
@@ -500,11 +547,13 @@ compile_params_module(Params) ->
     code:load_binary(Mod, "mod_mam_riak_timed_arch_yz_params.erl", Code).
 
 params_helper(Params) ->
-    binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_riak_timed_arch_yz_params).~n"
-        "-compile(export_all).~n"
-        "db_message_format() -> ~p.~n",
-        [proplists:get_value(db_message_format, Params, mam_message_xml)]))).
+    Format =
+        io_lib:format(
+          "-module(mod_mam_riak_timed_arch_yz_params).~n"
+          "-compile(export_all).~n"
+          "db_message_format() -> ~p.~n",
+          [proplists:get_value(db_message_format, Params, mam_message_xml)]),
+    binary_to_list(iolist_to_binary(Format)).
 
 -spec db_message_format() -> module().
 db_message_format() ->
