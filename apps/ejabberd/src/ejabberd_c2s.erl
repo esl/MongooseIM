@@ -2876,20 +2876,20 @@ do_resume_session(SMID, El, [{_, Pid}], StateData) ->
         Conn = get_conn_type(StateData),
         MergedState = merge_state(OldState,
                                   StateData#state{sid = SID, conn = Conn}),
-        Priority = get_priority_from_presence(MergedState#state.pres_last),
-        Info = [{ip, MergedState#state.ip},
-                {conn, MergedState#state.conn},
-                {auth_module, MergedState#state.auth_module}],
-        ejabberd_sm:open_session(SID,
-                                 MergedState#state.user,
-                                 MergedState#state.server,
-                                 MergedState#state.resource,
-                                 Priority, Info),
-        ok = mod_stream_management:register_smid(SMID, SID),
         case stream_mgmt_handle_ack(session_established, El, MergedState) of
             {stop, _, _} = Stop ->
                 Stop;
             {next_state, session_established, NSD, _} ->
+                Priority = get_priority_from_presence(NSD#state.pres_last),
+                Info = [{ip, NSD#state.ip},
+                        {conn, NSD#state.conn},
+                        {auth_module, NSD#state.auth_module}],
+                ejabberd_sm:open_session(SID,
+                                         NSD#state.user,
+                                         NSD#state.server,
+                                         NSD#state.resource,
+                                         Priority, Info),
+                ok = mod_stream_management:register_smid(SMID, SID),
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
                                                   NSD#state.stream_mgmt_in),
