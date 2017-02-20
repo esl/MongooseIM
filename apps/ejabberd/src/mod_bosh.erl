@@ -183,12 +183,12 @@ init(_Transport, Req, _Opts) ->
 
 -spec info(info(), req(), rstate()) -> {'ok', req(), _}.
 info(accept_options, Req, State) ->
-    {Origin, Req2} = cowboy_req:header(<<"origin">>, Req),
-    Headers = ac_all(Origin),
+    Headers = ac_all(?DEFAULT_ALLOW_ORIGIN),
     ?DEBUG("OPTIONS response: ~p~n", [Headers]),
-    {ok, strip_ok(cowboy_req:reply(200, Headers, <<>>, Req2)), State};
+    {ok, strip_ok(cowboy_req:reply(200, Headers, <<>>, Req)), State};
 info(accept_get, Req, State) ->
     Headers = [content_type(),
+               ac_allow_origin(?DEFAULT_ALLOW_ORIGIN),
                ac_allow_methods(),
                ac_allow_headers(),
                ac_max_age()],
@@ -434,4 +434,3 @@ maybe_set_max_hold(ClientHold, #xmlel{attrs = Attrs} = Body) when ClientHold > 1
     {ok, Body#xmlel{attrs = NewAttrs}};
 maybe_set_max_hold(_, _) ->
     {error, invalid_hold}.
-
