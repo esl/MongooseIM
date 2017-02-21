@@ -14,6 +14,7 @@
 {suites, "tests", adhoc_SUITE}.
 {suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.
+{suites, "tests", bind2_SUITE}.
 {suites, "tests", bosh_SUITE}.
 {suites, "tests", carboncopy_SUITE}.
 {suites, "tests", cluster_commands_SUITE}.
