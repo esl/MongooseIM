@@ -134,7 +134,7 @@ get_node_uptime() ->
     case ejabberd_config:get_local_option(node_start) of
         {_, _, _} = StartNow ->
             now_to_seconds(now()) - now_to_seconds(StartNow);
-        _undefined ->
+        _Undefined ->
             trunc(element(1, erlang:statistics(wall_clock))/1000)
     end.
 
@@ -158,33 +158,35 @@ process_sm_iq(From, To,
             {Subscription, _Groups} =
                 ejabberd_hooks:run_fold(roster_get_jid_info, Server,
                     {none, []}, [User, Server, From]),
-            if (Subscription == both) or (Subscription == from) or
-                (From#jid.luser == To#jid.luser) and
-                    (From#jid.lserver == To#jid.lserver) ->
-                UserListRecord =
-                    ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                        #userlist{}, [User, Server]),
-                case ejabberd_hooks:run_fold(privacy_check_packet,
-                    Server, allow,
-                    [User, Server, UserListRecord,
-                        {To, From,
-                            #xmlel{name = <<"presence">>,
-                                attrs = [],
-                                children = []}},
-                        out])
-                of
-                    allow -> get_last_iq(IQ, SubEl, User, Server);
-                    deny ->
+                case (Subscription == both) or (Subscription == from) or
+                     (From#jid.luser == To#jid.luser) and
+                     (From#jid.lserver == To#jid.lserver) of
+                    true ->
+                        UserListRecord =
+                        ejabberd_hooks:run_fold(privacy_get_user_list, Server,
+                                                #userlist{}, [User, Server]),
+                        ?TEMPORARY,
+                        Acc = mongoose_acc:new(),
+                        Res = ejabberd_hooks:run_fold(privacy_check_packet,
+                                                      Server, Acc,
+                                                      [User, Server, UserListRecord,
+                                                       {To, From,
+                                                        #xmlel{name = <<"presence">>,
+                                                               attrs = [],
+                                                               children = []}},
+                                                       out]),
+                        make_response(IQ, SubEl, User, Server,
+                                      mongoose_acc:get(privacy_check, Res, allow));
+                    false ->
                         IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
-                end;
-                true ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
-            end
+                end
     end.
 
--spec get_last_iq(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],
-                  ejabberd:luser(), ejabberd:lserver()) -> ejabberd:iq().
-get_last_iq(IQ, SubEl, LUser, LServer) ->
+-spec make_response(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],
+                    ejabberd:luser(), ejabberd:lserver(), allow | deny) -> ejabberd:iq().
+make_response(IQ, SubEl, _, _, deny) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]};
+make_response(IQ, SubEl, LUser, LServer, allow) ->
     case ejabberd_sm:get_user_resources(LUser, LServer) of
         [] ->
             case get_last(LUser, LServer) of

@@ -38,8 +38,8 @@
          bounce_offline_message/4,
          disconnect_removed_user/3,
          get_user_resources/2,
-         set_presence/7,
-         unset_presence/6,
+         set_presence/8,
+         unset_presence/7,
          close_session_unset_presence/6,
          get_unique_sessions_number/0,
          get_total_sessions_number/0,
@@ -295,7 +295,9 @@ get_raw_sessions(User, Server) ->
     clean_session_list(
       ?SM_BACKEND:get_sessions(jid:nodeprep(User), jid:nameprep(Server))).
 
--spec set_presence(SID, User, Server, Resource, Prio, Presence, Info) -> ok when
+-spec set_presence(Acc, SID, User, Server, Resource, Prio, Presence, Info) -> Acc1 when
+      Acc :: mongoose_acc:t(),
+      Acc1 :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
       User :: ejabberd:user(),
       Server :: ejabberd:server(),
@@ -303,23 +305,25 @@ get_raw_sessions(User, Server) ->
       Prio :: 'undefined' | integer(),
       Presence :: any(),
       Info :: 'undefined' | [any()].
-set_presence(SID, User, Server, Resource, Priority, Presence, Info) ->
+set_presence(Acc, SID, User, Server, Resource, Priority, Presence, Info) ->
     set_session(SID, User, Server, Resource, Priority, Info),
-    ejabberd_hooks:run(set_presence_hook, jid:nameprep(Server),
+    ejabberd_hooks:run_fold(set_presence_hook, jid:nameprep(Server), Acc,
                        [User, Server, Resource, Presence]).
 
 
--spec unset_presence(SID, User, Server, Resource, Status, Info) -> ok when
+-spec unset_presence(Acc, SID, User, Server, Resource, Status, Info) -> Acc1 when
+      Acc :: mongoose_acc:t(),
+      Acc1 :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
       User :: ejabberd:user(),
       Server :: ejabberd:server(),
       Resource :: ejabberd:resource(),
       Status :: any(),
       Info :: 'undefined' | [any()].
-unset_presence(SID, User, Server, Resource, Status, Info) ->
+unset_presence(Acc, SID, User, Server, Resource, Status, Info) ->
     set_session(SID, User, Server, Resource, undefined, Info),
     LServer = jid:nameprep(Server),
-    ejabberd_hooks:run(unset_presence_hook, LServer,
+    ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc,
                        [jid:nodeprep(User), LServer,
                         jid:resourceprep(Resource), Status]).
 
@@ -725,11 +729,14 @@ is_privacy_allow(From, To, Packet) ->
 is_privacy_allow(From, To, Packet, PrivacyList) ->
     User = To#jid.user,
     Server = To#jid.server,
-    allow == ejabberd_hooks:run_fold(
-               privacy_check_packet, Server,
-               allow,
-               [User, Server, PrivacyList,
-                {From, To, Packet}, in]).
+    ?TEMPORARY,
+    Acc = mongoose_acc:new(),
+    Res = ejabberd_hooks:run_fold(privacy_check_packet,
+                                  Server,
+                                  Acc,
+                                  [User, Server, PrivacyList,
+                                   {From, To, Packet}, in]),
+    allow == mongoose_acc:get(privacy_check, Res, allow).
 
 
 -spec route_message(From, To, Packet) -> ok | stop when
