@@ -47,24 +47,24 @@
 %%% Register commands
 %%%
 
--spec commands() -> [ejabberd_commands:cmd(),...].
+-spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     Vcard1FieldsString = "Some vcard field names in get/set_vcard are:\n"
-                         " FN		- Full Name\n"
-                         " NICKNAME	- Nickname\n"
-                         " BDAY		- Birthday\n"
-                         " TITLE		- Work: Position\n"
-                         " ROLE		- Work: Role",
+                         " FN\t\t- Full Name\n"
+                         " NICKNAME\t- Nickname\n"
+                         " BDAY\t\t- Birthday\n"
+                         " TITLE\t\t- Work: Position\n"
+                         " ROLE\t\t- Work: Role",
 
     Vcard2FieldsString = "Some vcard field names and subnames in get/set_vcard2 are:\n"
-                         " N FAMILY	- Family name\n"
-                         " N GIVEN	- Given name\n"
-                         " N MIDDLE	- Middle name\n"
-                         " ADR CTRY	- Address: Country\n"
-                         " ADR LOCALITY	- Address: City\n"
-                         " EMAIL USERID	- E-Mail Address\n"
-                         " ORG ORGNAME	- Work: Company\n"
-                         " ORG ORGUNIT	- Work: Department",
+                         " N FAMILY\t- Family name\n"
+                         " N GIVEN\t- Given name\n"
+                         " N MIDDLE\t- Middle name\n"
+                         " ADR CTRY\t- Address: Country\n"
+                         " ADR LOCALITY\t- Address: City\n"
+                         " EMAIL USERID\t- E-Mail Address\n"
+                         " ORG ORGNAME\t- Work: Company\n"
+                         " ORG ORGUNIT\t- Work: Department",
 
     VcardXEP = "For a full list of vCard fields check XEP-0054: vcard-temp at "
                "http://www.xmpp.org/extensions/xep-0054.html",
@@ -178,7 +178,7 @@ get_module_resource(Server) ->
 get_vcard_content(User, Server, Data) ->
     [{_, Module, Function, _Opts}] = ets:lookup(sm_iqtable, {?NS_VCARD, Server}),
     JID = jid:make(User, Server, list_to_binary(get_module_resource(Server))),
-    IQ = #iq{type = get, xmlns = ?NS_VCARD},
+    IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
     %% TODO: This may benefit from better type control
     IQr = Module:Function(JID, JID, IQ),
     case IQr#iq.sub_el of
@@ -208,7 +208,7 @@ set_vcard_content(U, S, D, SomeContent) when is_binary(SomeContent) ->
 set_vcard_content(User, Server, Data, ContentList) ->
     [{_, Module, Function, _Opts}] = ets:lookup(sm_iqtable, {?NS_VCARD, Server}),
     JID = jid:make(User, Server, <<>>),
-    IQ = #iq{type = get, xmlns = ?NS_VCARD},
+    IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
     IQr = Module:Function(JID, JID, IQ),
 
     %% Get old vcard
@@ -226,7 +226,7 @@ set_vcard_content(User, Server, Data, ContentList) ->
     Module:Function(JID, JID, IQ2),
     {ok, ""}.
 
--spec update_vcard_els(Data :: [binary(),...],
+-spec update_vcard_els(Data :: [binary(), ...],
                        ContentList :: [binary() | string()],
                        Els :: [jlib:xmlcdata() | jlib:xmlel()]
                       ) -> [jlib:xmlcdata() | jlib:xmlel()].

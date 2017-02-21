@@ -35,7 +35,7 @@
 -export([select_blocking/2, select_blocking_cnt/3, insert_blocking/4,
          delete_blocking/4, delete_blocking/2]).
 
--define(ESC(T), ejabberd_odbc:escape(T)).
+-define(ESC(T), mongoose_rdbms:escape(T)).
 
 %%====================================================================
 %% General room queries
@@ -95,32 +95,33 @@ select_affs(RoomU, RoomS) ->
      " FROM muc_light_rooms AS r LEFT OUTER JOIN muc_light_occupants AS o ON r.id = o.room_id"
      " WHERE r.luser = '", ?ESC(RoomU), "' AND r.lserver = '", ?ESC(RoomS), "'"].
 
--spec select_affs(RoomID :: binary()) -> iolist().
+-spec select_affs(RoomID :: integer() | binary()) -> iolist().
 select_affs(RoomID) ->
-    ["SELECT luser, lserver, aff FROM muc_light_occupants WHERE room_id = ", RoomID].
+    ["SELECT luser, lserver, aff FROM muc_light_occupants WHERE room_id = ", bin(RoomID)].
 
--spec insert_aff(RoomID :: binary(), UserU :: ejabberd:luser(),
+-spec insert_aff(RoomID :: integer() | binary(), UserU :: ejabberd:luser(),
                  UserS :: ejabberd:lserver(), Aff :: aff()) -> iolist().
 insert_aff(RoomID, UserU, UserS, Aff) ->
     ["INSERT INTO muc_light_occupants (room_id, luser, lserver, aff)"
-     " VALUES(", RoomID, ", '", ?ESC(UserU), "', '", ?ESC(UserS), "', ",
+     " VALUES(", bin(RoomID), ", '", ?ESC(UserU), "', '", ?ESC(UserS), "', ",
               mod_muc_light_db_odbc:aff_atom2db(Aff), ")"].
 
--spec update_aff(RoomID :: binary(), UserU :: ejabberd:luser(), UserS :: ejabberd:lserver(),
-                 Aff :: aff()) -> iolist().
+-spec update_aff(RoomID :: integer() | binary(), UserU :: ejabberd:luser(),
+                 UserS :: ejabberd:lserver(), Aff :: aff()) -> iolist().
 update_aff(RoomID, UserU, UserS, Aff) ->
     ["UPDATE muc_light_occupants SET aff = ", mod_muc_light_db_odbc:aff_atom2db(Aff),
-     " WHERE room_id = ", RoomID, " AND luser = '", ?ESC(UserU), "'"
+     " WHERE room_id = ", bin(RoomID), " AND luser = '", ?ESC(UserU), "'"
        " AND lserver = '", ?ESC(UserS), "'"].
 
--spec delete_affs(RoomID :: binary()) -> iolist().
+-spec delete_affs(RoomID :: integer() | binary()) -> iolist().
 delete_affs(RoomID) ->
-    ["DELETE FROM muc_light_occupants WHERE room_id = ", RoomID].
+    ["DELETE FROM muc_light_occupants WHERE room_id = ", bin(RoomID)].
 
--spec delete_aff(RoomID :: binary(), UserU :: ejabberd:luser(), UserS :: ejabberd:lserver()) ->
+-spec delete_aff(RoomID :: integer() | binary(), UserU :: ejabberd:luser(),
+                 UserS :: ejabberd:lserver()) ->
     iolist().
 delete_aff(RoomID, UserU, UserS) ->
-    ["DELETE FROM muc_light_occupants WHERE room_id = ", RoomID,
+    ["DELETE FROM muc_light_occupants WHERE room_id = ", bin(RoomID),
                                       " AND luser = '", ?ESC(UserU), "'"
                                       " AND lserver = '", ?ESC(UserS), "'"].
 
@@ -128,9 +129,9 @@ delete_aff(RoomID, UserU, UserS) ->
 %% Config
 %%====================================================================
 
--spec select_config(RoomID :: binary()) -> iolist().
+-spec select_config(RoomID :: integer() | binary()) -> iolist().
 select_config(RoomID) ->
-    ["SELECT opt, val FROM muc_light_config WHERE room_id = ", RoomID].
+    ["SELECT opt, val FROM muc_light_config WHERE room_id = ", bin(RoomID)].
 
 -spec select_config(RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver()) -> iolist().
 select_config(RoomU, RoomS) ->
@@ -143,19 +144,19 @@ select_config(RoomU, RoomS) ->
 select_config(RoomU, RoomS, Key) ->
     [ select_config(RoomU, RoomS), " AND key = '", Key, "'" ].
 
--spec insert_config(RoomID :: binary(), Key :: binary(), Val :: binary()) -> iolist().
+-spec insert_config(RoomID :: integer() | binary(), Key :: binary(), Val :: binary()) -> iolist().
 insert_config(RoomID, Key, Val) ->
     ["INSERT INTO muc_light_config (room_id, opt, val)"
-     " VALUES(", RoomID, ", '", ?ESC(Key), "', '", ?ESC(Val), "')"].
+     " VALUES(", bin(RoomID), ", '", ?ESC(Key), "', '", ?ESC(Val), "')"].
 
--spec update_config(RoomID :: binary(), Key :: binary(), Val :: binary()) -> iolist().
+-spec update_config(RoomID :: integer() | binary(), Key :: binary(), Val :: binary()) -> iolist().
 update_config(RoomID, Key, Val) ->
     ["UPDATE muc_light_config SET val = '", ?ESC(Val), "'"
-     " WHERE room_id = ", RoomID, " AND opt = '", ?ESC(Key), "'"].
+     " WHERE room_id = ", bin(RoomID), " AND opt = '", ?ESC(Key), "'"].
 
--spec delete_config(RoomID :: binary()) -> iolist().
+-spec delete_config(RoomID :: integer() | binary()) -> iolist().
 delete_config(RoomID) ->
-    ["DELETE FROM muc_light_config WHERE room_id = ", RoomID].
+    ["DELETE FROM muc_light_config WHERE room_id = ", bin(RoomID)].
 
 %%====================================================================
 %% Blocking
@@ -198,3 +199,10 @@ delete_blocking(UserU, UserS) ->
     ["DELETE FROM muc_light_blocking"
      " WHERE luser = '", ?ESC(UserU), "' AND lserver = '", ?ESC(UserS), "'"].
 
+%%====================================================================
+%% Helpers
+%%====================================================================
+
+-spec bin(integer() | binary()) -> binary().
+bin(Int) when is_integer(Int) -> integer_to_binary(Int);
+bin(Bin) when is_binary(Bin) -> Bin.

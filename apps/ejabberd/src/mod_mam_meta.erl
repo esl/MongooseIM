@@ -77,7 +77,7 @@ parse_opts(Type, Opts, Deps) ->
                       Opt -> {true, Opt}
                   end
           end,
-          [add_archived_element, is_archivable_message, host]),
+          [add_archived_element, is_archivable_message, host, full_text_search]),
 
     WithCoreDeps = add_dep(CoreMod, CoreModOpts, Deps),
     Backend = proplists:get_value(backend, Opts, odbc),

@@ -37,6 +37,7 @@
          get_user_list/3,
          check_packet/6,
          remove_user/2,
+         remove_user/3,
          updated_list/3]).
 
 -include("ejabberd.hrl").
@@ -117,12 +118,11 @@
 %% ------------------------------------------------------------------
 
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list,get_list_names,
+    gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list, get_list_names,
                                                  set_default_list, forget_default_list,
                                                  remove_privacy_list, replace_privacy_list,
                                                  get_default_list]),
     ?BACKEND:init(Host, Opts),
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(privacy_iq_get, Host,
                ?MODULE, process_iq_get, 50),
     ejabberd_hooks:add(privacy_iq_set, Host,
@@ -312,11 +312,11 @@ get_user_list(_, User, Server) ->
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).
 %% If Dir = in, User@Server is the destination account (To).
-check_packet(_, User, Server,
+check_packet(Acc, User, Server,
          #userlist{list = List, needdb = NeedDb},
          {From, To, Packet},
          Dir) ->
-    case List of
+    CheckResult = case List of
         [] ->
             allow;
         _ ->
@@ -335,7 +335,8 @@ check_packet(_, User, Server,
             end,
             Type = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
-    end.
+    end,
+    mongoose_acc:put(privacy_check, CheckResult, Acc).
 
 %% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->
@@ -423,6 +424,12 @@ is_type_match(Type, Value, JID, Subscription, Groups) ->
             lists:member(Value, Groups)
     end.
 
+%% #rh
+remove_user(Acc, User, Server) ->
+    case remove_user(User, Server) of
+        ok -> Acc;
+        E -> E
+    end.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

@@ -48,9 +48,10 @@
          get_subscription_lists/3,
          get_roster/2,
          in_subscription/6,
-         out_subscription/4,
+         out_subscription/5,
          set_items/3,
          remove_user/2,
+         remove_user/3,
          get_jid_info/4,
          item_to_xml/1,
          get_versioning_feature/2,
@@ -570,10 +571,11 @@ transaction(LServer, F) ->
 
 in_subscription(_, User, Server, JID, Type, Reason) ->
     process_subscription(in, User, Server, JID, Type,
-                         Reason).
+        Reason).
 
-out_subscription(User, Server, JID, Type) ->
-    process_subscription(out, User, Server, JID, Type, <<"">>).
+out_subscription(Acc, User, Server, JID, Type) ->
+    process_subscription(out, User, Server, JID, Type, <<"">>),
+    Acc.
 
 get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
     ?BACKEND:get_roster_by_jid_with_groups_t(LUser, LServer, LJID).
@@ -754,6 +756,11 @@ in_auto_reply(from, none, unsubscribe) -> unsubscribed;
 in_auto_reply(from, out, unsubscribe) -> unsubscribed;
 in_auto_reply(both, none, unsubscribe) -> unsubscribed;
 in_auto_reply(_, _, _) -> none.
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

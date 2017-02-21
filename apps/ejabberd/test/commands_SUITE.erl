@@ -62,6 +62,7 @@ init_per_suite(C) ->
 
 end_per_suite(_) ->
     mnesia:stop(),
+    mnesia:delete_schema([node()]),
     ok.
 
 init_per_group(old_commands, C) ->
@@ -558,9 +559,9 @@ the_same_types(_, _) ->
     <<"wrong response">>.
 
 different_types(10, <<"binary">>) ->
-	<<"response2">>;
+    <<"response2">>;
 different_types(_, _) ->
-	<<"wrong content">>.
+    <<"wrong content">>.
 
 cmd_concat(A, B) ->
     <<A/binary, B/binary>>.

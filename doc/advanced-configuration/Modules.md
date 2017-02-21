@@ -21,6 +21,9 @@ Implements [XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/xep-0050.html)
 ### [mod_amp](../modules/mod_amp.md)
 Implements a subset of [XEP-0079: Advanced Message Processing](http://xmpp.org/extensions/xep-0079.html) functionality, that enables entities to request, and servers to perform, advanced processing of XMPP message stanzas, including reliable data transport, time-sensitive delivery, and expiration of transient messages.
 
+### [mod_aws_sns](../modules/mod_aws_sns.md)
+Allows sending online/offline notifications, chat and groupchat messages as events to [Amazon Simple Notification Service](https://aws.amazon.com/sns/).
+
 ### [mod_blocking](../modules/mod_blocking.md)
 Implements [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html), a simplified interface to privacy lists.
 
@@ -35,6 +38,9 @@ Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.htm
 
 ### [mod_http_notification](../modules/mod_http_notification.md)
 Enables forwarding events to an external HTTP service, such as messages or presences to mobile/SMS/email push service, big data, or analytics service.
+
+### [mod_http_upload](../modules/mod_http_upload.md)
+Implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html) for coordinating with XMPP server to upload files via HTTP and receive URLs that can be shared in messages.
 
 ### [mod_last](../modules/mod_last.md)
 Implements [XEP-0012: Last Activity)](http://xmpp.org/extensions/xep-0012.html) for communicating information about the last activity associated with an XMPP entity (most recent presence information from an offline contact).
@@ -80,4 +86,3 @@ Provides support for vCards, as specified in [XEP-0054: vcard-temp](http://xmpp.
 
 ### [mod_websockets](../modules/mod_websockets.md)
 Allows users to connect to MongooseIM using Websockets.
-

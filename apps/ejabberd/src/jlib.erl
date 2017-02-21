@@ -93,7 +93,7 @@
                       'false' | integer()
                       }.
 %% Timezone format where all or some elements may be 'false' or integer()
--type maybe_tz() :: {'false' | non_neg_integer(),'false' | non_neg_integer()}.
+-type maybe_tz() :: {'false' | non_neg_integer(), 'false' | non_neg_integer()}.
 
 %% Time format where all or some elements may be 'false' or integer()
 -type maybe_time() :: {'false' | non_neg_integer(),
@@ -107,7 +107,7 @@ make_result_iq_reply(XE = #xmlel{attrs = Attrs}) ->
     XE#xmlel{attrs = NewAttrs}.
 
 
--spec make_result_iq_reply_attrs([binary_pair()]) -> [binary_pair(),...].
+-spec make_result_iq_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
 make_result_iq_reply_attrs(Attrs) ->
     To = xml:get_attr(<<"to">>, Attrs),
     From = xml:get_attr(<<"from">>, Attrs),
@@ -136,7 +136,7 @@ make_error_reply(#xmlel{name = Name, attrs = Attrs,
     #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]}.
 
 
--spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(),...].
+-spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
 make_error_reply_attrs(Attrs) ->
     To = xml:get_attr(<<"to">>, Attrs),
     From = xml:get_attr(<<"from">>, Attrs),
@@ -191,17 +191,18 @@ make_invitation(From, Password, Reason) ->
 
 
 -spec form_field({binary(), binary(), binary()}
+               | {binary(), binary()}
                | {binary(), binary(), binary(), binary()}) -> xmlel().
 form_field({Var, Type, Value, Label}) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Var}, {<<"type">>, Type}, {<<"label">>, Label}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = Value}]}]};
+    Field = form_field({Var, Type, Value}),
+    Field#xmlel{attrs = [{<<"label">>, Label} | Field#xmlel.attrs]};
 form_field({Var, Type, Value}) ->
+    Field = form_field({Var, Value}),
+    Field#xmlel{attrs = [{<<"type">>, Type} | Field#xmlel.attrs]};
+form_field({Var, Value}) ->
     #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Var}, {<<"type">>, Type}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = Value}]}]}.
+           attrs = [{<<"var">>, Var}],
+           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
 
 -spec make_voice_approval_form(From :: ejabberd:simple_jid() | ejabberd:jid(),
@@ -409,7 +410,7 @@ parse_xdata_values([_ | Els], Res) ->
 rsm_decode(#iq{sub_el=SubEl})->
     rsm_decode(SubEl);
 rsm_decode(#xmlel{}=SubEl) ->
-    case xml:get_subtag(SubEl,<<"set">>) of
+    case xml:get_subtag(SubEl, <<"set">>) of
         false ->
             none;
         #xmlel{name = <<"set">>, children = SubEls} ->
@@ -448,7 +449,7 @@ rsm_encode(RsmOut)->
 -spec rsm_encode_out(rsm_out()) -> [xmlel()].
 rsm_encode_out(#rsm_out{count=Count, index=Index, first=First, last=Last})->
     El = rsm_encode_first(First, Index, []),
-    El2 = rsm_encode_last(Last,El),
+    El2 = rsm_encode_last(Last, El),
     rsm_encode_count(Count, El2).
 
 
@@ -506,7 +507,7 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second, Micro}}, Timezone) 
                            true -> "+";
                            false -> "-"
                        end,
-                io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh),TZm])
+                io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh), TZm])
         end,
     {Timestamp_string, Timezone_string};
 timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
@@ -524,7 +525,7 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
                            true -> "+";
                            false -> "-"
                        end,
-                io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh),TZm])
+                io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh), TZm])
         end,
     {Timestamp_string, Timezone_string}.
 
@@ -630,7 +631,7 @@ parse_time_with_timezone(Time) ->
 
 
 -spec parse_time_with_timezone(nonempty_string(),
-                               Delim :: [43 | 45,...]) -> maybe_datetime().
+                               Delim :: [43 | 45, ...]) -> maybe_datetime().
 parse_time_with_timezone(Time, Delim) ->
     [T, TZ] = string:tokens(Time, Delim),
     {TZH, TZM} = parse_timezone(TZ),
@@ -664,8 +665,8 @@ parse_time1(Time) ->
     {{H1, M1, S1}, MS}.
 
 
--spec check_list([{nonempty_string(), 12 | 24 | 60},...]) ->
-                                  {['false' | non_neg_integer(),...],_}.
+-spec check_list([{nonempty_string(), 12 | 24 | 60}, ...]) ->
+                                  {['false' | non_neg_integer(), ...], _}.
 check_list(List) ->
     lists:mapfoldl(
       fun({L, N}, B)->
@@ -698,21 +699,21 @@ decode_base64(S) ->
 -spec decode1_base64(string()) -> string().
 decode1_base64([]) ->
     [];
-decode1_base64([Sextet1,Sextet2,$=,$=|Rest]) ->
+decode1_base64([Sextet1, Sextet2, $=, $=|Rest]) ->
     Bits2x6=
         (d(Sextet1) bsl 18) bor
         (d(Sextet2) bsl 12),
     Octet1=Bits2x6 bsr 16,
     [Octet1|decode1_base64(Rest)];
-decode1_base64([Sextet1,Sextet2,Sextet3,$=|Rest]) ->
+decode1_base64([Sextet1, Sextet2, Sextet3, $=|Rest]) ->
     Bits3x6=
         (d(Sextet1) bsl 18) bor
         (d(Sextet2) bsl 12) bor
         (d(Sextet3) bsl 6),
     Octet1=Bits3x6 bsr 16,
     Octet2=(Bits3x6 bsr 8) band 16#ff,
-    [Octet1,Octet2|decode1_base64(Rest)];
-decode1_base64([Sextet1,Sextet2,Sextet3,Sextet4|Rest]) ->
+    [Octet1, Octet2|decode1_base64(Rest)];
+decode1_base64([Sextet1, Sextet2, Sextet3, Sextet4|Rest]) ->
     Bits4x6=
         (d(Sextet1) bsl 18) bor
         (d(Sextet2) bsl 12) bor
@@ -721,7 +722,7 @@ decode1_base64([Sextet1,Sextet2,Sextet3,Sextet4|Rest]) ->
     Octet1=Bits4x6 bsr 16,
     Octet2=(Bits4x6 bsr 8) band 16#ff,
     Octet3=Bits4x6 band 16#ff,
-    [Octet1,Octet2,Octet3|decode1_base64(Rest)];
+    [Octet1, Octet2, Octet3|decode1_base64(Rest)];
 decode1_base64(_CatchAll) ->
     "".
 
@@ -746,11 +747,11 @@ encode_base64([]) ->
     [];
 encode_base64([A]) ->
     [e(A bsr 2), e((A band 3) bsl 4), $=, $=];
-encode_base64([A,B]) ->
+encode_base64([A, B]) ->
     [e(A bsr 2), e(((A band 3) bsl 4) bor (B bsr 4)), e((B band 15) bsl 2), $=];
-encode_base64([A,B,C|Ls]) ->
-    encode_base64_do(A,B,C, Ls).
-encode_base64_do(A,B,C, Rest) ->
+encode_base64([A, B, C|Ls]) ->
+    encode_base64_do(A, B, C, Ls).
+encode_base64_do(A, B, C, Rest) ->
     BB = (A bsl 16) bor (B bsl 8) bor C,
     [e(BB bsr 18), e((BB bsr 12) band 63),
      e((BB bsr 6) band 63), e(BB band 63)|encode_base64(Rest)].
@@ -770,20 +771,20 @@ e(X) ->                     exit({bad_encode_base64_token, X}).
                 ) -> string().
 ip_to_list({IP, _Port}) ->
     ip_to_list(IP);
-ip_to_list({_,_,_,_,_,_,_,_} = Ipv6Address) ->
+ip_to_list({_, _, _, _, _, _, _, _} = Ipv6Address) ->
     inet_parse:ntoa(Ipv6Address);
 %% This function clause could use inet_parse too:
-ip_to_list({A,B,C,D}) ->
-    lists:flatten(io_lib:format("~w.~w.~w.~w",[A,B,C,D]));
+ip_to_list({A, B, C, D}) ->
+    lists:flatten(io_lib:format("~w.~w.~w.~w", [A, B, C, D]));
 ip_to_list(IP) ->
     lists:flatten(io_lib:format("~w", [IP])).
 
 
 -spec stanza_error( Code :: binary()
-    , Type :: binary()
-    , Condition :: binary()
-    , SpecTag :: binary()
-    , SpecNs :: binary() | undefined) -> #xmlel{}.
+   , Type :: binary()
+   , Condition :: binary()
+   , SpecTag :: binary()
+   , SpecNs :: binary() | undefined) -> #xmlel{}.
 stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
     Er = stanza_error(Code, Type, Condition),
     Spec = #xmlel{ name = SpecTag, attrs = [{<<"xmlns">>, SpecNs}]},
@@ -792,68 +793,68 @@ stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
 
 %% TODO: remove<<"code" attribute (currently it used for backward-compatibility)
 -spec stanza_error( Code :: binary()
-                  , Type :: binary()
-                  , Condition :: binary() | undefined) -> #xmlel{}.
+                 , Type :: binary()
+                 , Condition :: binary() | undefined) -> #xmlel{}.
 stanza_error(Code, Type, Condition) ->
   #xmlel{ name = <<"error">>
-        , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
-        , children = [ #xmlel{ name = Condition
-                             , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
+       , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
+       , children = [ #xmlel{ name = Condition
+                            , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
                              }]
         }.
 
 -spec stanza_errort( Code :: binary()
-                   , Type :: binary()
-                   , Condition :: binary()
-                   , Lang :: ejabberd:lang()
-                   , Text :: binary()) -> #xmlel{}.
+                  , Type :: binary()
+                  , Condition :: binary()
+                  , Lang :: ejabberd:lang()
+                  , Text :: binary()) -> #xmlel{}.
 stanza_errort(Code, Type, Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"error">>
-        , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
-        , children = [ #xmlel{ name = Condition
-                             , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
+       , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
+       , children = [ #xmlel{ name = Condition
+                            , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
                              }
-                     , #xmlel{ name = <<"text">>
-                             , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
-                             , children = [#xmlcdata{ content = Txt }]
+                    , #xmlel{ name = <<"text">>
+                            , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
+                            , children = [#xmlcdata{ content = Txt }]
                              }]
         }.
 
 -spec stream_error(Condition :: binary()) -> #xmlel{}.
 stream_error(Condition) ->
   #xmlel{ name = <<"stream:error">>
-        , children = [ #xmlel{ name = Condition
-                             , attrs = [{<<"xmlns">>, ?NS_STREAMS}]
+       , children = [ #xmlel{ name = Condition
+                            , attrs = [{<<"xmlns">>, ?NS_STREAMS}]
                              }
                      ]
         }.
 
 -spec stream_errort( Condition :: binary()
-                   , Lang :: ejabberd:lang()
-                   , Text :: binary()) -> #xmlel{}.
+                  , Lang :: ejabberd:lang()
+                  , Text :: binary()) -> #xmlel{}.
 stream_errort(Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"stream:error">>
-        , children = [ #xmlel{ name = Condition
-                             , attrs = [{<<"xmlns">>, ?NS_STREAMS}] }
-                     , #xmlel{ name = <<"text">>
-                             , attrs = [ {<<"xml:lang">>, Lang}
-                                       , {<<"xmlns">>, ?NS_STREAMS}]
-                             , children = [ #xmlcdata{ content = Txt} ]}
+       , children = [ #xmlel{ name = Condition
+                            , attrs = [{<<"xmlns">>, ?NS_STREAMS}] }
+                    , #xmlel{ name = <<"text">>
+                            , attrs = [ {<<"xml:lang">>, Lang}
+                                      , {<<"xmlns">>, ?NS_STREAMS}]
+                            , children = [ #xmlcdata{ content = Txt} ]}
                      ]
         }.
 
 remove_delay_tags(#xmlel{children = Els} = Packet) ->
     NEl = lists:foldl(
              fun(#xmlel{name= <<"delay">>, attrs = Attrs} = R, El)->
-			      case xml:get_attr_s(<<"xmlns">>, Attrs) of
+                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
                                   ?NS_DELAY ->
                                       El;
                                   _ ->
                                     El ++ [R]
                               end;
-                (#xmlel{name= <<"x">> , attrs = Attrs } = R, El) ->
+                (#xmlel{name= <<"x">>, attrs = Attrs } = R, El) ->
                               case xml:get_attr_s(<<"xmlns">>, Attrs) of
                                   ?NS_DELAY91 ->
                                       El;
@@ -862,5 +863,5 @@ remove_delay_tags(#xmlel{children = Els} = Packet) ->
                               end;
                 (R, El) ->
                               El ++ [R]
-                end, [],Els),
+                end, [], Els),
     Packet#xmlel{children=NEl}.

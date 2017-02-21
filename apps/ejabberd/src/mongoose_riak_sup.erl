@@ -60,7 +60,7 @@ stop() ->
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Whenever a supervisor is started using supervisor:start_link/[2,3],
+%% Whenever a supervisor is started using supervisor:start_link/[2, 3],
 %% this function is called by the new process to find out about
 %% restart strategy, maximum restart frequency and child
 %% specifications.
@@ -88,9 +88,8 @@ child_spec(Workers, RiakOpts) ->
     ChildMF = {mongoose_riak, start_worker},
     RiakPoolName = mongoose_riak:pool_name(),
     ChildArgs = {for_all, RiakOpts},
-    AChild = {RiakPoolName, {cuesport, start_link, [RiakPoolName, Workers, ChildMods, ChildMF, ChildArgs]},
-        Restart, Shutdown, Type, ChildMods},
-    AChild.
+    PoolMFA = {cuesport, start_link, [RiakPoolName, Workers, ChildMods, ChildMF, ChildArgs]},
+    {RiakPoolName, PoolMFA, Restart, Shutdown, Type, ChildMods}.
 
 %%%===================================================================
 %%% Internal functions

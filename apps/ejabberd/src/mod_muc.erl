@@ -29,6 +29,7 @@
 -xep([{xep, 45}, {version, "1.25"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
+-behaviour(mongoose_packet_handler).
 
 %% API
 -export([start_link/2,
@@ -49,8 +50,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
-%% Internal exports
--export([route/2]).
+%% packet handler callback
+-export([process_packet/4]).
 
 %% Hooks handlers
 -export([is_room_owner/3,
@@ -134,11 +135,11 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
+%% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 -spec start_link(ejabberd:server(), list())
-            -> 'ignore' | {'error',_} | {'ok',pid()}.
+            -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
@@ -161,7 +162,7 @@ start(Host, Opts) ->
 
 
 -spec stop(ejabberd:server()) -> 'ok'
-    | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
+    | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop(Host) ->
     stop_supervisor(Host),
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
@@ -194,7 +195,7 @@ create_instant_room(Host, Name, From, Nick, Opts) ->
 
 
 -spec store_room(ejabberd:server(), room(), list())
-            -> {'aborted',_} | {'atomic',_}.
+            -> {'aborted', _} | {'atomic', _}.
 store_room(Host, Name, Opts) ->
     F = fun() ->
                 mnesia:write(#muc_room{name_host = {Name, Host},
@@ -269,7 +270,7 @@ can_use_nick(Host, JID, Nick) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
--spec init([ejabberd:server() | list(),...]) -> {'ok',state()}.
+-spec init([ejabberd:server() | list(), ...]) -> {'ok', state()}.
 init([Host, Opts]) ->
     mnesia:create_table(muc_room,
                         [{disc_copies, [node()]},
@@ -316,10 +317,7 @@ init([Host, Opts]) ->
     ejabberd_hooks:add(muc_room_pid, MyHost, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:add(can_access_room, MyHost, ?MODULE, can_access_room, 50),
 
-    F = fun(From, To, Packet) ->
-            mod_muc:route({From, To, Packet}, State)
-        end,
-    ejabberd_router:register_route(MyHost, {apply_fun, F}),
+    ejabberd_router:register_route(MyHost, mongoose_packet_handler:new(?MODULE, State)),
     mongoose_subhosts:register(Host, MyHost),
 
     load_permanent_rooms(MyHost, Host,
@@ -388,7 +386,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 
 handle_info({route, From, To, Packet}, State) ->
-    case catch route({From, To, Packet}, State) of
+    case catch process_packet(From, To, Packet, State) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);
         _ ->
@@ -463,9 +461,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
--spec start_supervisor(ejabberd:server()) -> {'error',_}
-                                           | {'ok','undefined' | pid()}
-                                           | {'ok','undefined' | pid(),_}.
+-spec start_supervisor(ejabberd:server()) -> {'error', _}
+                                           | {'ok', 'undefined' | pid()}
+                                           | {'ok', 'undefined' | pid(), _}.
 start_supervisor(Host) ->
     Proc = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
     ChildSpec =
@@ -480,30 +478,24 @@ start_supervisor(Host) ->
 
 
 -spec stop_supervisor(ejabberd:server()) -> 'ok'
-    | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
+    | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_supervisor(Host) ->
     Proc = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
     supervisor:terminate_child(ejabberd_sup, Proc),
     supervisor:delete_child(ejabberd_sup, Proc).
 
 
--spec route({From :: ejabberd:jid(),
-    To :: ejabberd:simple_jid() | ejabberd:jid(), Packet :: any()}, state())
-            -> 'ok' | pid().
-route(Routed, State) ->
-    route_by_privilege(Routed, State).
-
-
--spec route_by_privilege({From :: ejabberd:jid(),
-    To :: ejabberd:simple_jid() | ejabberd:jid(), Packet :: any()},
-        state()) -> 'ok' | pid().
-route_by_privilege({From, To, Packet} = Routed,
-                   #state{access={AccessRoute,_,_,_},
-                          server_host=ServerHost} = State) ->
+-spec process_packet(From :: jid(),
+                     To :: ejabberd:simple_jid() | ejabberd:jid(),
+                     Packet :: any(),
+                     State :: state()) -> ok | pid().
+process_packet(From, To, Packet, #state{
+                                    access = {AccessRoute, _, _, _},
+                                    server_host = ServerHost} = State) ->
     case acl:match_rule(ServerHost, AccessRoute, From) of
         allow ->
             {Room, _, _} = jid:to_lower(To),
-            route_to_room(Room, Routed, State);
+            route_to_room(Room, {From, To, Packet}, State);
         _ ->
             #xmlel{attrs = Attrs} = Packet,
             Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
@@ -515,10 +507,10 @@ route_by_privilege({From, To, Packet} = Routed,
 
 
 -spec route_to_room(room(), from_to_packet(), state()) -> 'ok' | pid().
-route_to_room(<<>>, {_,To,_} = Routed, State) ->
+route_to_room(<<>>, {_, To, _} = Routed, State) ->
     {_, _, Nick} = jid:to_lower(To),
     route_by_nick(Nick, Routed, State);
-route_to_room(Room, {From,To,Packet} = Routed, #state{host=Host} = State) ->
+route_to_room(Room, {From, To, Packet} = Routed, #state{host=Host} = State) ->
     case mnesia:dirty_read(muc_online_room, {Room, Host}) of
         [] ->
             route_to_nonexistent_room(Room, Routed, State);
@@ -666,7 +658,7 @@ route_by_type(<<"iq">>, {From, To, Packet}, #state{host = Host} = State) ->
     end;
 route_by_type(<<"message">>, {From, To, Packet},
               #state{host = Host, server_host = ServerHost,
-                     access = {_,_,AccessAdmin,_}}) ->
+                     access = {_, _, AccessAdmin, _}}) ->
     #xmlel{attrs = Attrs} = Packet,
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"error">> ->
@@ -739,9 +731,9 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
         HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
         HttpAuthPool :: none | mongoose_http_client:pool(), From :: ejabberd:jid(), nick(),
         DefRoomOpts :: 'undefined' | [any()])
-            -> {'error',_}
-             | {'ok','undefined' | pid()}
-             | {'ok','undefined' | pid(),_}.
+            -> {'error', _}
+             | {'ok', 'undefined' | pid()}
+             | {'ok', 'undefined' | pid(), _}.
 start_new_room(Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts) ->
@@ -761,7 +753,7 @@ start_new_room(Host, ServerHost, Access, Room,
 
 
 -spec register_room('undefined' | ejabberd:server(), room(),
-                    'undefined' | pid()) -> {'aborted',_} | {'atomic',_}.
+                    'undefined' | pid()) -> {'aborted', _} | {'atomic', _}.
 register_room(Host, Room, Pid) ->
     F = fun() ->
                 mnesia:write(#muc_online_room{name_host = {Room, Host},
@@ -922,7 +914,7 @@ iq_get_unique(From) ->
 
 -spec iq_get_register_info('undefined' | ejabberd:server(),
         ejabberd:simple_jid() | ejabberd:jid(), ejabberd:lang())
-            -> [jlib:xmlel(),...].
+            -> [jlib:xmlel(), ...].
 iq_get_register_info(Host, From, Lang) ->
     {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
@@ -951,7 +943,7 @@ iq_get_register_info(Host, From, Lang) ->
 
 -spec iq_set_register_info(ejabberd:server(),
         ejabberd:simple_jid() | ejabberd:jid(), nick(), ejabberd:lang())
-            -> {'error',jlib:xmlel()} | {'result',[]}.
+            -> {'error', jlib:xmlel()} | {'result', []}.
 iq_set_register_info(Host, From, Nick, Lang) ->
     {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
@@ -998,7 +990,7 @@ iq_set_register_info(Host, From, Nick, Lang) ->
 
 -spec process_iq_register_set(ejabberd:server(), ejabberd:jid(),
         jlib:xmlel(), ejabberd:lang())
-            -> {'error', jlib:xmlel()} | {'result',[]}.
+            -> {'error', jlib:xmlel()} | {'result', []}.
 process_iq_register_set(Host, From, SubEl, Lang) ->
     #xmlel{children = Els} = SubEl,
     case xml:get_subtag(SubEl, <<"remove">>) of
@@ -1034,7 +1026,7 @@ process_iq_register_set(Host, From, SubEl, Lang) ->
     end.
 
 
--spec iq_get_vcard(ejabberd:lang()) -> [jlib:xmlel(),...].
+-spec iq_get_vcard(ejabberd:lang()) -> [jlib:xmlel(), ...].
 iq_get_vcard(Lang) ->
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_muc">>}]},

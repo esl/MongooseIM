@@ -58,17 +58,17 @@ get_vcard(LUser, LServer) ->
 set_vcard(User, VHost, VCard, VCardSearch) ->
     LUser = jid:nodeprep(User),
     F = fun() ->
-                mnesia:write(#vcard{us ={LUser,VHost}, vcard = VCard}),
+                mnesia:write(#vcard{us ={LUser, VHost}, vcard = VCard}),
                 mnesia:write(VCardSearch)
         end,
     {atomic, _} = mnesia:transaction(F),
-    ejabberd_hooks:run(vcard_set, VHost,[LUser,VHost, VCard]),
+    ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
     ok.
 
 search(VHost, Data) ->
     MatchHead = make_matchhead(VHost, Data),
     R = do_search(VHost, MatchHead),
-    lists:map(fun record_to_item/1,R).
+    lists:map(fun record_to_item/1, R).
 
 do_search(_, #vcard_search{_ = '_'}) ->
     [];
@@ -187,10 +187,10 @@ update_vcard_search_table() ->
          given,    lgiven,
          middle,   lmiddle,
          nickname, lnickname,
-         bday,	   lbday,
-         ctry,	   lctry,
+         bday,     lbday,
+         ctry,     lctry,
          locality, llocality,
-         email,	   lemail,
+         email,    lemail,
          orgname,  lorgname,
          orgunit,  lorgunit] ->
             ?INFO_MSG("Converting vcard_search table from "
@@ -234,44 +234,44 @@ update_vcard_search_table() ->
                                         bday      = BDay,     lbday      = LBDay,
                                         ctry      = CTRY,     lctry      = LCTRY,
                                         locality  = Locality, llocality  = LLocality,
-				       email     = EMail,    lemail     = LEMail,
-				       orgname   = OrgName,  lorgname   = LOrgName,
-				       orgunit   = OrgUnit,  lorgunit   = LOrgUnit
-				      })
-			   end, ok, vcard_search)
-		 end,
-	    mnesia:transaction(F1),
-	    lists:foreach(fun(I) ->
-				  mnesia:del_table_index(
-				    vcard_search,
-				    element(I, {vcard_search,
-						user,     luser,
-						fn,       lfn,
-						family,   lfamily,
-						given,    lgiven,
-						middle,   lmiddle,
-						nickname, lnickname,
-						bday,	   lbday,
-						ctry,	   lctry,
-						locality, llocality,
-						email,	   lemail,
-						orgname,  lorgname,
-						orgunit,  lorgunit}))
-			  end, mnesia:table_info(vcard_search, index)),
-	    mnesia:clear_table(vcard_search),
-	    mnesia:transform_table(vcard_search, ignore, Fields),
-	    F2 = fun() ->
-	        	 mnesia:write_lock_table(vcard_search),
-	        	 mnesia:foldl(
-	        	   fun(R, _) ->
-	        		   mnesia:dirty_write(R)
-	        	   end, ok, mod_vcard_tmp_table)
-	         end,
-	    mnesia:transaction(F2),
-	    mnesia:delete_table(mod_vcard_tmp_table);
-	_ ->
-	    ?INFO_MSG("Recreating vcard_search table", []),
-	    mnesia:transform_table(vcard_search, ignore, Fields)
+                                       email     = EMail,    lemail     = LEMail,
+                                       orgname   = OrgName,  lorgname   = LOrgName,
+                                       orgunit   = OrgUnit,  lorgunit   = LOrgUnit
+                                      })
+                           end, ok, vcard_search)
+                 end,
+            mnesia:transaction(F1),
+            lists:foreach(fun(I) ->
+                                  mnesia:del_table_index(
+                                    vcard_search,
+                                    element(I, {vcard_search,
+                                                user,     luser,
+                                                fn,       lfn,
+                                                family,   lfamily,
+                                                given,    lgiven,
+                                                middle,   lmiddle,
+                                                nickname, lnickname,
+                                                bday,     lbday,
+                                                ctry,     lctry,
+                                                locality, llocality,
+                                                email,    lemail,
+                                                orgname,  lorgname,
+                                                orgunit,  lorgunit}))
+                          end, mnesia:table_info(vcard_search, index)),
+            mnesia:clear_table(vcard_search),
+            mnesia:transform_table(vcard_search, ignore, Fields),
+            F2 = fun() ->
+                         mnesia:write_lock_table(vcard_search),
+                         mnesia:foldl(
+                           fun(R, _) ->
+                                   mnesia:dirty_write(R)
+                           end, ok, mod_vcard_tmp_table)
+                 end,
+            mnesia:transaction(F2),
+            mnesia:delete_table(mod_vcard_tmp_table);
+        _ ->
+            ?INFO_MSG("Recreating vcard_search table", []),
+            mnesia:transform_table(vcard_search, ignore, Fields)
     end.
 
 make_matchhead(VHost, Data) ->
@@ -332,4 +332,3 @@ record_to_item(R) ->
                        ?FIELD(<<"orgname">>, (R#vcard_search.orgname)),
                        ?FIELD(<<"orgunit">>, (R#vcard_search.orgunit))
                       ]}.
-

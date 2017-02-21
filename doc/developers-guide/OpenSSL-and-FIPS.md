@@ -24,7 +24,7 @@ KERL_CONFIGURE_OPTIONS="--enable-fips --with-ssl=/home/vagrant/openssl" \
 
 ### Building MongooseIM with custom OpenSSL
 
-Before running any `make compile` or `make rel` please export CFLAGS and LDFLAGS env vars
+Before running any `./rebar3 compile` or `make rel` please export CFLAGS and LDFLAGS env vars
 pointing to FIPS compliant OpenSSL, f.e.
 
 ```

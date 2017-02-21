@@ -38,7 +38,7 @@
 
 -record(state, {step :: integer(),
                 nonce,
-                username :: ejabberd:user(),
+                username :: ejabberd:user() | undefined,
                 authzid,
                 auth_module :: ejabberd_auth:authmodule(),
                 host :: ejabberd:server(),
@@ -124,11 +124,11 @@ mech_step(#state{step = 5,
                                              {authzid, AuthzId},
                                              {auth_module, AuthModule}])};
 mech_step(A, B) ->
-    ?DEBUG("SASL DIGEST: A ~p B ~p", [A,B]),
+    ?DEBUG("SASL DIGEST: A ~p B ~p", [A, B]),
     {error, <<"bad-protocol">>}.
 
 
--spec parse(binary()) -> 'bad' | [{binary(),binary()}].
+-spec parse(binary()) -> 'bad' | [{binary(), binary()}].
 parse(S) ->
     parse1(S, <<>>, []).
 
@@ -164,8 +164,8 @@ parse3(<<>>, _, _, _) ->
 -spec parse4(binary(),
     Key :: binary(),
     Val :: binary(),
-    Ts :: [{binary(),binary()}]) -> 'bad' | [{K :: binary(), V :: binary()}].
-parse4(<<$, , Cs/binary>>, Key, Val, Ts) ->
+    Ts :: [{binary(), binary()}]) -> 'bad' | [{K :: binary(), V :: binary()}].
+parse4(<<$,, Cs/binary>>, Key, Val, Ts) ->
     parse1(Cs, <<>>, [{Key, binary_reverse(Val)} | Ts]);
 parse4(<<$\s, Cs/binary>>, Key, Val, Ts) ->
     parse4(Cs, Key, Val, Ts);
@@ -176,8 +176,8 @@ parse4(<<>>, Key, Val, Ts) ->
 
 binary_reverse(<<>>) ->
     <<>>;
-binary_reverse(<<H,T/binary>>) ->
-    <<(binary_reverse(T))/binary,H>>.
+binary_reverse(<<H, T/binary>>) ->
+    <<(binary_reverse(T))/binary, H>>.
 
 %% @doc Check if the digest-uri is valid.
 %% RFC-2831 allows to provide the IP address in Host,
@@ -210,7 +210,7 @@ digit_to_xchar(D) ->
 hex(S) ->
     hex(S, <<>>).
 
--spec hex(binary(),binary()) -> binary().
+-spec hex(binary(), binary()) -> binary().
 hex(<<>>, Res) ->
     binary_reverse(Res);
 hex(<<N, Ns/binary>>, Res) ->
@@ -219,7 +219,7 @@ hex(<<N, Ns/binary>>, Res) ->
     hex(Ns, <<D1, D2, Res/binary>>).
 
 
--spec response(KeyVals :: [{binary(),binary()}],
+-spec response(KeyVals :: [{binary(), binary()}],
                User :: ejabberd:user(),
                Passwd :: binary(),
                Nonce :: binary(),
@@ -232,26 +232,23 @@ response(KeyVals, User, Passwd, Nonce, AuthzId, A2Prefix) ->
     NC = xml:get_attr_s(<<"nc">>, KeyVals),
     QOP = xml:get_attr_s(<<"qop">>, KeyVals),
     A1 = case AuthzId of
-	     <<>> ->
-		 list_to_binary(
-		   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
-		     <<":">>, Nonce, <<":">>, CNonce]);
-	     _ ->
-		 list_to_binary(
-		   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
-		     <<":">>, Nonce, <<":">>, CNonce, <<":">>, AuthzId])
-	 end,
+             <<>> ->
+                 list_to_binary(
+                   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
+                     <<":">>, Nonce, <<":">>, CNonce]);
+             _ ->
+                 list_to_binary(
+                   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
+                     <<":">>, Nonce, <<":">>, CNonce, <<":">>, AuthzId])
+         end,
     A2 = case QOP of
-	     <<"auth">> ->
-		 [A2Prefix, <<":">>, DigestURI];
-	     _ ->
-		 [A2Prefix, <<":">>, DigestURI,
-		     <<":00000000000000000000000000000000">>]
-	 end,
+             <<"auth">> ->
+                 [A2Prefix, <<":">>, DigestURI];
+             _ ->
+                 [A2Prefix, <<":">>, DigestURI,
+                     <<":00000000000000000000000000000000">>]
+         end,
     T = [hex(crypto:hash(md5, A1)), <<":">>, Nonce, <<":">>,
-	NC, <<":">>, CNonce, <<":">>, QOP, <<":">>,
-	hex(crypto:hash(md5, A2))],
+        NC, <<":">>, CNonce, <<":">>, QOP, <<":">>,
+        hex(crypto:hash(md5, A2))],
     hex(crypto:hash(md5, T)).
-
-
-

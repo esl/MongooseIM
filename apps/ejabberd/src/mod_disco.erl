@@ -46,7 +46,9 @@
          register_feature/2,
          unregister_feature/2,
          register_extra_domain/2,
-         unregister_extra_domain/2]).
+         unregister_extra_domain/2,
+         register_subhost/2,
+         unregister_subhost/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -55,6 +57,32 @@
 
 -spec start(ejabberd:server(), list()) -> 'ok'.
 start(Host, Opts) ->
+    [catch ets:new(Name, [named_table, ordered_set, public]) || Name <-
+        [disco_features, disco_extra_domains, disco_sm_features, disco_sm_nodes, disco_subhosts]],
+
+    register_host(Host, Opts),
+    register_feature(Host, <<"iq">>),
+    register_feature(Host, <<"presence">>),
+    register_feature(Host, <<"presence-invisible">>),
+    ejabberd_hooks:add(disco_local_identity, Host, ?MODULE, get_local_identity, 100),
+    ExtraDomains = gen_mod:get_opt(extra_domains, Opts, []),
+    lists:foreach(fun(Domain) -> register_extra_domain(Host, Domain) end, ExtraDomains).
+
+
+-spec stop(ejabberd:server()) -> ok.
+stop(Host) ->
+    unregister_host(Host),
+    ejabberd_hooks:delete(disco_local_identity, Host, ?MODULE, get_local_identity, 100).
+
+
+register_subhost(Host, Subhost) ->
+    case gen_mod:is_loaded(Host, ?MODULE) of
+        false -> ok;
+        true ->
+            register_host(Subhost, gen_mod:get_module_opts(Host, ?MODULE)),
+            ets:insert(disco_subhosts, {{Subhost, Host}})
+    end.
+register_host(Host, Opts) ->
     ejabberd_local:refresh_iq_handlers(),
 
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -67,29 +95,22 @@ start(Host, Opts) ->
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_DISCO_INFO,
                                   ?MODULE, process_sm_iq_info, IQDisc),
 
-    catch ets:new(disco_features, [named_table, ordered_set, public]),
-    register_feature(Host, <<"iq">>),
-    register_feature(Host, <<"presence">>),
-    register_feature(Host, <<"presence-invisible">>),
-
-    catch ets:new(disco_extra_domains, [named_table, ordered_set, public]),
-    ExtraDomains = gen_mod:get_opt(extra_domains, Opts, []),
-    lists:foreach(fun(Domain) -> register_extra_domain(Host, Domain) end,
-                  ExtraDomains),
-    catch ets:new(disco_sm_features, [named_table, ordered_set, public]),
-    catch ets:new(disco_sm_nodes, [named_table, ordered_set, public]),
     ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_local_services, 100),
     ejabberd_hooks:add(disco_local_features, Host, ?MODULE, get_local_features, 100),
-    ejabberd_hooks:add(disco_local_identity, Host, ?MODULE, get_local_identity, 100),
     ejabberd_hooks:add(disco_sm_items, Host, ?MODULE, get_sm_items, 100),
     ejabberd_hooks:add(disco_sm_features, Host, ?MODULE, get_sm_features, 100),
     ejabberd_hooks:add(disco_sm_identity, Host, ?MODULE, get_sm_identity, 100),
     ejabberd_hooks:add(disco_info, Host, ?MODULE, get_info, 100),
     ok.
 
-
--spec stop(ejabberd:server()) -> ok.
-stop(Host) ->
+unregister_subhost(Host, Subhost) ->
+    case gen_mod:is_loaded(Host, ?MODULE) of
+        false -> ok;
+        true ->
+            unregister_host(Subhost),
+            ets:delete(disco_subhosts, {Subhost, Host})
+    end.
+unregister_host(Host) ->
     ejabberd_hooks:delete(disco_sm_identity, Host, ?MODULE, get_sm_identity, 100),
     ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 100),
     ejabberd_hooks:delete(disco_sm_items, Host, ?MODULE, get_sm_items, 100),
@@ -103,8 +124,9 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_DISCO_INFO),
     catch ets:match_delete(disco_features, {{'_', Host}}),
     catch ets:match_delete(disco_extra_domains, {{'_', Host}}),
+    lists:foreach(fun([{Subhost, _}]) -> unregister_subhost(Host, Subhost) end,
+                  ets:match(disco_subhosts, {{'_', Host}})),
     ok.
-
 
 -spec register_feature(ejabberd:server(), feature()) -> 'true'.
 register_feature(Host, Feature) ->
@@ -210,11 +232,11 @@ get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
 
--spec get_local_features(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_local_features(Acc :: 'empty' | {'error', _} | {'result', _},
                         From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
                         Node :: binary(),
-                        Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
+                        Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_local_features({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_features(Acc, _From, To, <<>>, _Lang) ->
@@ -255,11 +277,11 @@ domain_to_xml(Domain) ->
     #xmlel{name = <<"item">>, attrs = [{<<"jid">>, Domain}]}.
 
 
--spec get_local_services(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_local_services(Acc :: 'empty' | {'error', _} | {'result', _},
                          From :: ejabberd:jid(),
                          To :: ejabberd:jid(),
                          Node :: binary(),
-                         Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
+                         Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_local_services({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_services(Acc, _From, To, <<>>, _Lang) ->
@@ -333,11 +355,11 @@ process_sm_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ
     end.
 
 
--spec get_sm_items(Acc :: 'empty' | {'error',_} | {'result',_},
+-spec get_sm_items(Acc :: 'empty' | {'error', _} | {'result', _},
                    From :: ejabberd:jid(),
                    To :: ejabberd:jid(),
                    Node :: binary(),
-                   Lang :: ejabberd:lang()) -> {'error',_} | {'result',_}.
+                   Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_sm_items(Acc, From,

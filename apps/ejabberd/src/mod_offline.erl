@@ -37,12 +37,13 @@
 -export([start/2, stop/1]).
 
 %% Hook handlers
--export([inspect_packet/3,
+-export([inspect_packet/4,
          pop_offline_messages/3,
          get_sm_features/5,
          remove_expired_messages/1,
          remove_old_messages/2,
          remove_user/2,
+         remove_user/3,
          determine_amp_strategy/5,
          amp_failed_event/2]).
 
@@ -122,17 +123,17 @@ start(Host, Opts) ->
     ?BACKEND:init(Host, Opts),
     start_worker(Host, AccessMaxOfflineMsgs),
     ejabberd_hooks:add(offline_message_hook, Host,
-		       ?MODULE, inspect_packet, 50),
+                       ?MODULE, inspect_packet, 50),
     ejabberd_hooks:add(resend_offline_messages_hook, Host,
-		       ?MODULE, pop_offline_messages, 50),
+                       ?MODULE, pop_offline_messages, 50),
     ejabberd_hooks:add(remove_user, Host,
-		       ?MODULE, remove_user, 50),
+                       ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host,
-		       ?MODULE, remove_user, 50),
+                       ?MODULE, remove_user, 50),
     ejabberd_hooks:add(disco_sm_features, Host,
-		       ?MODULE, get_sm_features, 50),
+                       ?MODULE, get_sm_features, 50),
     ejabberd_hooks:add(disco_local_features, Host,
-		       ?MODULE, get_sm_features, 50),
+                       ?MODULE, get_sm_features, 50),
     ejabberd_hooks:add(amp_determine_strategy, Host,
                        ?MODULE, determine_amp_strategy, 30),
     ejabberd_hooks:add(failed_to_store_message, Host,
@@ -141,13 +142,13 @@ start(Host, Opts) ->
 
 stop(Host) ->
     ejabberd_hooks:delete(offline_message_hook, Host,
-			  ?MODULE, inspect_packet, 50),
+                          ?MODULE, inspect_packet, 50),
     ejabberd_hooks:delete(resend_offline_messages_hook, Host,
-			  ?MODULE, pop_offline_messages, 50),
+                          ?MODULE, pop_offline_messages, 50),
     ejabberd_hooks:delete(remove_user, Host,
-			  ?MODULE, remove_user, 50),
+                          ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host,
-			  ?MODULE, remove_user, 50),
+                          ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 50),
     ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_sm_features, 50),
     ejabberd_hooks:delete(amp_determine_strategy, Host,
@@ -349,13 +350,14 @@ add_feature(_, Feature) ->
 %% This function should be called only from hook
 %% Calling it directly is dangerous and my store unwanted message
 %% in the offline storage (f.e. messages of type error or groupchat)
-inspect_packet(From, To, Packet) ->
+%% #rh
+inspect_packet(Acc, From, To, Packet) ->
     case check_event_chatstates(From, To, Packet) of
         true ->
             store_packet(From, To, Packet),
-            stop;
+            {stop, Acc};
         false ->
-            ok
+            Acc
     end.
 
 store_packet(
@@ -391,30 +393,30 @@ store_packet(
 check_event_chatstates(From, To, Packet) ->
     #xmlel{children = Els} = Packet,
     case find_x_event_chatstates(Els, {false, false, false}) of
-	%% There wasn't any x:event or chatstates subelements
-	{false, false, _} ->
-	    true;
-	%% There a chatstates subelement and other stuff, but no x:event
-	{false, CEl, true} when CEl /= false ->
-	    true;
-	%% There was only a subelement: a chatstates
-	{false, CEl, false} when CEl /= false ->
-	    %% Don't allow offline storage
-	    false;
-	%% There was an x:event element, and maybe also other stuff
-	{El, _, _} when El /= false ->
-	    case xml:get_subtag(El, <<"id">>) of
-		false ->
-		    case xml:get_subtag(El, <<"offline">>) of
-			false ->
-			    true;
-			_ ->
+        %% There wasn't any x:event or chatstates subelements
+        {false, false, _} ->
+            true;
+        %% There a chatstates subelement and other stuff, but no x:event
+        {false, CEl, true} when CEl /= false ->
+            true;
+        %% There was only a subelement: a chatstates
+        {false, CEl, false} when CEl /= false ->
+            %% Don't allow offline storage
+            false;
+        %% There was an x:event element, and maybe also other stuff
+        {El, _, _} when El /= false ->
+            case xml:get_subtag(El, <<"id">>) of
+                false ->
+                    case xml:get_subtag(El, <<"offline">>) of
+                        false ->
+                            true;
+                        _ ->
                 ejabberd_router:route(To, From, patch_offline_message(Packet)),
-			    true
-		    end;
-		_ ->
-		    false
-	    end
+                            true
+                    end;
+                _ ->
+                    false
+            end
     end.
 
 patch_offline_message(Packet) ->
@@ -440,12 +442,12 @@ find_x_event_chatstates([#xmlcdata{} | Els], Res) ->
     find_x_event_chatstates(Els, Res);
 find_x_event_chatstates([El | Els], {A, B, C}) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
-	?NS_EVENT ->
-	    find_x_event_chatstates(Els, {El, B, C});
-	?NS_CHATSTATES ->
-	    find_x_event_chatstates(Els, {A, El, C});
-	_ ->
-	    find_x_event_chatstates(Els, {A, B, true})
+        ?NS_EVENT ->
+            find_x_event_chatstates(Els, {El, B, C});
+        ?NS_CHATSTATES ->
+            find_x_event_chatstates(Els, {A, El, C});
+        _ ->
+            find_x_event_chatstates(Els, {A, B, true})
     end.
 
 find_x_expire(_, []) ->
@@ -454,22 +456,22 @@ find_x_expire(TimeStamp, [#xmlcdata{} | Els]) ->
     find_x_expire(TimeStamp, Els);
 find_x_expire(TimeStamp, [El | Els]) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
-	?NS_EXPIRE ->
-	    Val = xml:get_tag_attr_s(<<"seconds">>, El),
-	    case catch list_to_integer(binary_to_list(Val)) of
-		{'EXIT', _} ->
-		    never;
-		Int when Int > 0 ->
-		    {MegaSecs, Secs, MicroSecs} = TimeStamp,
-		    S = MegaSecs * 1000000 + Secs + Int,
-		    MegaSecs1 = S div 1000000,
-		    Secs1 = S rem 1000000,
-		    {MegaSecs1, Secs1, MicroSecs};
-		_ ->
-		    never
-	    end;
-	_ ->
-	    find_x_expire(TimeStamp, Els)
+        ?NS_EXPIRE ->
+            Val = xml:get_tag_attr_s(<<"seconds">>, El),
+            case catch list_to_integer(binary_to_list(Val)) of
+                {'EXIT', _} ->
+                    never;
+                Int when Int > 0 ->
+                    {MegaSecs, Secs, MicroSecs} = TimeStamp,
+                    S = MegaSecs * 1000000 + Secs + Int,
+                    MegaSecs1 = S div 1000000,
+                    Secs1 = S rem 1000000,
+                    {MegaSecs1, Secs1, MicroSecs};
+                _ ->
+                    never
+            end;
+        _ ->
+            find_x_expire(TimeStamp, Els)
     end.
 
 pop_offline_messages(Ls, User, Server) ->
@@ -516,9 +518,9 @@ resend_offline_message_packet(Server,
 
 add_timestamp(undefined, _Server, Packet) ->
     Packet;
-add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
-    {D,{H,M,S}} = calendar:now_to_universal_time(TimeStamp),
-    Time = {D,{H,M,S, Micro}},
+add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
+    {D, {H, M, S}} = calendar:now_to_universal_time(TimeStamp),
+    Time = {D, {H, M, S, Micro}},
     TimeStampXML = timestamp_xml(Server, Time),
     xml:append_subtags(Packet, [TimeStampXML]).
 
@@ -532,6 +534,11 @@ remove_expired_messages(Host) ->
 remove_old_messages(Host, Days) ->
     Timestamp = fallback_timestamp(Days, os:timestamp()),
     ?BACKEND:remove_old_messages(Host, Timestamp).
+
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     ?BACKEND:remove_user(User, Server).
@@ -553,4 +560,3 @@ fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
     MegaSecs1 = S div 1000000,
     Secs1 = S rem 1000000,
     {MegaSecs1, Secs1, 0}.
-

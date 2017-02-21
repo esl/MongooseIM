@@ -1,4 +1,0 @@
-This directory contains variables used for generating multiple development releases
-of the project. These releases are required for testing purposes.
-
-Details of usage are avaliable in the project's Makefile (../../Makefile), see target devrel.

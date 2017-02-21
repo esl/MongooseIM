@@ -45,19 +45,19 @@
 
 init(_Host, _Opts) ->
     mnesia:create_table(offline_msg,
-			[{disc_only_copies, [node()]},
-			 {type, bag},
-			 {attributes, record_info(fields, offline_msg)}]),
+                        [{disc_only_copies, [node()]},
+                         {type, bag},
+                         {attributes, record_info(fields, offline_msg)}]),
     mnesia:add_table_copy(offline_msg, node(), disc_only_copies),
     ok.
 
 pop_messages(LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() ->
-		Rs = mnesia:wread({offline_msg, US}),
-		mnesia:delete({offline_msg, US}),
-		Rs
-	end,
+                Rs = mnesia:wread({offline_msg, US}),
+                mnesia:delete({offline_msg, US}),
+                Rs
+        end,
     case mnesia:transaction(F) of
         {atomic, Rs} ->
             {ok, Rs};
@@ -104,8 +104,8 @@ remove_user(User, Server) ->
     LServer = jid:nameprep(Server),
     US = {LUser, LServer},
     F = fun() ->
-		mnesia:delete({offline_msg, US})
-	end,
+                mnesia:delete({offline_msg, US})
+        end,
     mnesia:transaction(F).
 
 -spec remove_expired_messages(ejabberd:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
@@ -113,12 +113,12 @@ remove_user(User, Server) ->
 remove_expired_messages(_Host) ->
     TimeStamp = now(),
     F = fun() ->
-		mnesia:write_lock_table(offline_msg),
-		mnesia:foldl(
-		  fun(Rec, Acc) ->
+                mnesia:write_lock_table(offline_msg),
+                mnesia:foldl(
+                  fun(Rec, Acc) ->
               Acc + remove_expired_message(TimeStamp, Rec)
-		  end, 0, offline_msg)
-	end,
+                  end, 0, offline_msg)
+        end,
     case mnesia:transaction(F) of
         {aborted, Reason} ->
             {error, Reason};
@@ -172,4 +172,3 @@ remove_old_message(TimeStamp, Rec) ->
 
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.
-

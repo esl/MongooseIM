@@ -46,6 +46,7 @@
 -type(accessModel() :: mod_pubsub:accessModel()).
 -type(publishModel() :: mod_pubsub:publishModel()).
 -type(payload() :: mod_pubsub:payload()).
+-type(publishOptions() :: mod_pubsub:publishOptions()).
 
 -callback init(Host :: binary(),
         ServerHost :: binary(),
@@ -69,18 +70,18 @@
         Owner   :: jid()) ->
     {result, {default, broadcast}}.
 
--callback delete_node(Nodes :: [pubsubNode(),...]) ->
+-callback delete_node(Nodes :: [pubsubNode(), ...]) ->
     {result,
         {default, broadcast,
             [{pubsubNode(),
-                    [{ljid(), [{subscription(), subId()}]},...]},...]
+                    [{ljid(), [{subscription(), subId()}]}, ...]}, ...]
             }
         }
     |
     {result,
         {[],
             [{pubsubNode(),
-                    [{ljid(), [{subscription(), subId()}]},...]},...]
+                    [{ljid(), [{subscription(), subId()}]}, ...]}, ...]
             }
         }.
 
@@ -115,7 +116,8 @@
         Max_Items :: non_neg_integer(),
         ItemId :: <<>> | itemId(),
         ItemPublisher :: boolean(),
-        Payload :: payload()) ->
+        Payload :: payload(),
+        PublishOptions :: publishOptions()) ->
     {result, {default, broadcast, [itemId()]}} |
     {error, xmlel()}.
 
@@ -152,7 +154,7 @@
 -callback get_node_subscriptions(NodeIdx :: nodeIdx()) ->
     {result,
         [{ljid(), subscription(), subId()}] |
-        [{ljid(), none},...]
+        [{ljid(), none}, ...]
         }.
 
 -callback get_entity_subscriptions(Host :: host(),

@@ -26,9 +26,10 @@
 
 -module(ejabberd_service).
 -author('alexey@process-one.net').
--define(GEN_FSM, p1_fsm).
 -xep([{xep, 114}, {version, "1.6"}]).
--behaviour(?GEN_FSM).
+
+-behaviour(p1_fsm).
+-behaviour(mongoose_packet_handler).
 
 %% External exports
 -export([start/2,
@@ -47,7 +48,10 @@
          code_change/4,
          handle_info/3,
          terminate/3,
-     print_state/1]).
+         print_state/1]).
+
+%% packet handler callback
+-export([process_packet/4]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -57,7 +61,7 @@
                 socket_monitor,
                 streamid,
                 password     :: binary(),
-                host         :: binary(),
+                host         :: binary() | undefined,
                 is_subdomain :: boolean(),
                 access,
                 check_from
@@ -115,19 +119,27 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(_,_) -> {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
+-spec start(_, _) -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(SockData, Opts) ->
     supervisor:start_child(ejabberd_service_sup, [SockData, Opts]).
 
 
--spec start_link(_, list()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(_, list()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(SockData, Opts) ->
-    ?GEN_FSM:start_link(ejabberd_service, [SockData, Opts],
+    p1_fsm:start_link(ejabberd_service, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
 
 
 socket_type() ->
     xml_stream.
+
+%%%----------------------------------------------------------------------
+%%% mongoose_packet_handler callback
+%%%----------------------------------------------------------------------
+
+-spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
+process_packet(From, To, Packet, Pid) ->
+    Pid ! {route, From, To, Packet}.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -140,7 +152,7 @@ socket_type() ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([list() | {atom() | tuple(),_},...]) -> {'ok','wait_for_stream',state()}.
+-spec init([list() | {atom() | tuple(), _}, ...]) -> {'ok', 'wait_for_stream', state()}.
 init([{SockMod, Socket}, Opts]) ->
     ?INFO_MSG("(~w) External service connected", [Socket]),
     Access = case lists:keysearch(access, 1, Opts) of
@@ -164,7 +176,8 @@ init([{SockMod, Socket}, Opts]) ->
                                  streamid = new_id(),
                                  password = Password,
                                  access = Access,
-                                 check_from = CheckFrom
+                                 check_from = CheckFrom,
+                                 is_subdomain = false
                                  }}.
 
 %%----------------------------------------------------------------------
@@ -199,8 +212,8 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
-    send_text(StateData,<<(iolist_to_binary(Header))/binary,
-                           (?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(iolist_to_binary(Header))/binary,
+                           (?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
@@ -233,7 +246,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
 wait_for_handshake({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,<<(?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_handshake(closed, StateData) ->
     {stop, normal, StateData}.
@@ -282,7 +295,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     % TODO ??
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 stream_established(closed, StateData) ->
     % TODO ??
@@ -343,7 +356,7 @@ handle_info({send_element, El}, StateName, StateData) ->
 handle_info({route, From, To, Packet}, StateName, StateData) ->
     case acl:match_rule(global, StateData#state.access, From) of
         allow ->
-           #xmlel{name =Name, attrs = Attrs,children = Els} = Packet,
+           #xmlel{name =Name, attrs = Attrs, children = Els} = Packet,
            Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
                                                jid:to_binary(To),
                                                Attrs),
@@ -405,7 +418,7 @@ new_id() ->
     randoms:get_string().
 
 
--spec fsm_limit_opts(maybe_improper_list()) -> [{'max_queue',integer()}].
+-spec fsm_limit_opts(maybe_improper_list()) -> [{'max_queue', integer()}].
 fsm_limit_opts(Opts) ->
     case lists:keysearch(max_fsm_queue, 1, Opts) of
         {value, {_, N}} when is_integer(N) ->
@@ -423,9 +436,9 @@ fsm_limit_opts(Opts) ->
 register_routes(#state{host=Subdomain, is_subdomain=true}) ->
     Hosts = ejabberd_config:get_global_option(hosts),
     Routes = component_routes(Subdomain, Hosts),
-    ejabberd_router:register_components(Routes);
+    ejabberd_router:register_components(Routes, mongoose_packet_handler:new(?MODULE, self()));
 register_routes(#state{host=Host}) ->
-    ejabberd_router:register_component(Host).
+    ejabberd_router:register_component(Host, mongoose_packet_handler:new(?MODULE, self())).
 
 -spec unregister_routes(state()) -> any().
 unregister_routes(#state{host=Subdomain, is_subdomain=true}) ->

@@ -42,7 +42,7 @@
 %%% Register commands
 %%%
 
--spec commands() -> [ejabberd_commands:cmd(),...].
+-spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     [
         #ejabberd_commands{name = load_config, tags = [server],

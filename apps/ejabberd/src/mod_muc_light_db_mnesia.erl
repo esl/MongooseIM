@@ -337,7 +337,7 @@ remove_user_transaction(UserUS, Version) ->
     lists:map(
       fun(#?USER_ROOM_TAB{ room = RoomUS }) ->
               {RoomUS, modify_aff_users_transaction(
-                         RoomUS, [{UserUS, none}], fun(_,_) -> ok end, Version)}
+                         RoomUS, [{UserUS, none}], fun(_, _) -> ok end, Version)}
       end, mnesia:read(?USER_ROOM_TAB, UserUS)).
 
 %% ------------------------ Configuration manipulation ------------------------

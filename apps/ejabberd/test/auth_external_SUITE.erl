@@ -24,7 +24,7 @@ all_tests() ->
     ].
 
 init_per_suite(C) ->
-    ok = application:ensure_started(stringprep),
+    ok = stringprep:start(),
     C.
 
 end_per_suite(C) ->

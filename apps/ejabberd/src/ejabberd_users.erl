@@ -7,7 +7,7 @@
          does_user_exist/2]).
 
 %% Hooks.
--export([remove_user/2]).
+-export([remove_user/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -63,7 +63,7 @@ stop(Host) ->
 
 -spec start_link(ProcName :: atom(),
                  Host :: ejabberd:server())
-      -> 'ignore' | {'error',_} | {'ok',pid()}.
+      -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(ProcName, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host], []).
 
@@ -87,11 +87,12 @@ does_user_exist(LUser, LServer) ->
 %% Hooks
 %%====================================================================
 
--spec remove_user(LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver() | string()) -> ok.
-remove_user(LUser, LServer) ->
+-spec remove_user(Acc :: map(),
+                  LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver() | string()) -> map().
+remove_user(Acc, LUser, LServer) ->
     delete_user(LUser, LServer),
-    ok.
+    Acc.
 
 %%====================================================================
 %% gen_server callbacks
@@ -104,7 +105,7 @@ remove_user(LUser, LServer) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
--spec init([ejabberd:server() | string(),...]) -> {'ok',#state{}}.
+-spec init([ejabberd:server() | string(), ...]) -> {'ok', #state{}}.
 init([Host]) ->
     Tab = tbl_name(Host),
     TabOpts = [named_table, public, set,

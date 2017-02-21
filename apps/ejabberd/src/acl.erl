@@ -198,7 +198,7 @@ match(all, _LJID, _Host) ->
     true;
 match({user, U}, {User, Server, _Resource}, Host) ->
     U == User andalso is_server_valid(Host, Server);
-match({user, U, S}, {User, Server ,_Resource}, _Host) ->
+match({user, U, S}, {User, Server, _Resource}, _Host) ->
     U == User andalso S == Server;
 match({server, S}, {_User, Server, _Resource}, _Host) ->
     S == Server;

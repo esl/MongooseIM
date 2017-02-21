@@ -173,7 +173,7 @@ check_password(User, Server, Password, Digest, DigestGen) ->
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-do_check_password(LUser, LServer, _,_,_)
+do_check_password(LUser, LServer, _, _, _)
     when LUser =:= error; LServer =:= error ->
     false;
 do_check_password(LUser, LServer, Password, Digest, DigestGen) ->
@@ -229,7 +229,7 @@ do_check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen) -
                                                Digest, DigestGen]).
 
 -spec check_password_loop(AuthModules :: [authmodule()],
-                          Args :: [any(),...]
+                          Args :: [any(), ...]
                           ) -> 'false' | {'true', authmodule()}.
 check_password_loop([], _Args) ->
     false;
@@ -256,7 +256,7 @@ check_digest(Digest, DigestGen, _Password, Passwd) ->
                    Server :: ejabberd:server(),
                    Password :: binary()
                   ) -> ok | {error, empty_password | not_allowed | invalid_jid}.
-set_password(_,_, <<"">>) ->
+set_password(_, _, <<"">>) ->
     {error, empty_password};
 set_password(User, Server, Password) ->
     LUser = jid:nodeprep(User),
@@ -278,19 +278,19 @@ do_set_password(LUser, LServer, Password) ->
                    Server :: ejabberd:server(),
                    Password :: binary()
                    ) -> ok | {error, exists | not_allowed | invalid_jid | null_password}.
-try_register(_,_,<<"">>) ->
+try_register(_, _, <<"">>) ->
     {error, null_password};
 try_register(User, Server, Password) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
     do_try_register(LUser, LServer, Password).
 
--spec do_try_register(ejabberd:luser(), ejabberd:lserver(),binary())
+-spec do_try_register(ejabberd:luser(), ejabberd:lserver(), binary())
         -> ok | {error, exists | not_allowed | invalid_jid}.
 do_try_register(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
     {error, invalid_jid};
 do_try_register(LUser, LServer, Password) ->
-    Exists = is_user_exists(LUser,LServer),
+    Exists = is_user_exists(LUser, LServer),
     do_try_register_if_does_not_exist(Exists, LUser, LServer, Password).
 
 do_try_register_if_does_not_exist(true, _, _, _) ->

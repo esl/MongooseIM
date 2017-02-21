@@ -102,19 +102,13 @@ delete(Hook, Host, Module, Function, Seq) ->
 -spec run(Hook :: atom(),
           Args :: [any()]) -> ok.
 run(Hook, Args) ->
-    run(Hook, global, Args).
+    run_fold(Hook, global, #{}, Args).
 
 -spec run(Hook :: atom(),
           Host :: ejabberd:server() | global,
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
-    case ets:lookup(hooks, {Hook, Host}) of
-        [{_, Ls}] ->
-            mongoose_metrics:increment_generic_hook_metric(Host, Hook),
-            run1(Ls, Hook, Args);
-        [] ->
-            ok
-    end.
+    run_fold(Hook, Host, #{}, Args).
 
 %% @spec (Hook::atom(), Val, Args) -> Val | stopped | NewVal
 %% @doc Run the calls of this hook in order.
@@ -126,12 +120,24 @@ run_fold(Hook, Val, Args) ->
     run_fold(Hook, global, Val, Args).
 
 run_fold(Hook, Host, Val, Args) ->
-    case ets:lookup(hooks, {Hook, Host}) of
+    Res = case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Host, Hook),
             run_fold1(Ls, Hook, Val, Args);
         [] ->
             Val
+    end,
+    record(Hook, Res).
+
+record(Hook, Acc) ->
+    % just to show some nice things we can do now
+    % this should probably be protected by a compilation flag
+    % unless load tests show that the impact on performance is negligible
+    case mongoose_acc:is_acc(Acc) of % this check will go away some day
+        true ->
+            mongoose_acc:append(hooks_run, Hook, Acc);
+        false ->
+            Acc
     end.
 
 %%%----------------------------------------------------------------------
@@ -146,7 +152,7 @@ run_fold(Hook, Host, Val, Args) ->
 %%          {stop, Reason}
 %%----------------------------------------------------------------------
 init([]) ->
-    ets:new(hooks, [named_table, {read_concurrency,true}]),
+    ets:new(hooks, [named_table, {read_concurrency, true}]),
     {ok, #state{}}.
 
 %%----------------------------------------------------------------------
@@ -228,33 +234,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
-run1([], _Hook, _Args) ->
-    ok;
-run1([{_Seq, Module, Function} | Ls], Hook, Args) ->
-    Res = if is_function(Function) ->
-                  safely:apply(Function, Args);
-             true ->
-                  safely:apply(Module, Function, Args)
-          end,
-    case Res of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p",
-                       [Reason, {Hook, Args}, Module, Function]),
-            run1(Ls, Hook, Args);
-        stop ->
-            ok;
-        _ ->
-            run1(Ls, Hook, Args)
-    end.
-
 run_fold1([], _Hook, Val, _Args) ->
     Val;
 run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
-    Res = if is_function(Function) ->
-                  safely:apply(Function, [Val | Args]);
-             true ->
-                  safely:apply(Module, Function, [Val | Args])
-          end,
+    Res = hook_apply_function(Module, Function, Hook, Val, Args),
     case Res of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p~nrunning hook: ~p",
@@ -266,4 +249,22 @@ run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
             NewVal;
         NewVal ->
             run_fold1(Ls, Hook, NewVal, Args)
+    end.
+
+hook_apply_function(_Module, Function, _Hook, Val, Args) when is_function(Function) ->
+    safely:apply(Function, [Val | Args]);
+hook_apply_function(Module, Function, Hook, Val, Args) ->
+    Result = safely:apply(Module, Function, [Val | Args]),
+    record(Hook, Module, Function, Result).
+
+
+record(Hook, Module, Function, Acc) ->
+    % just to show some nice things we can do now
+    % this should probably be protected by a compilation flag
+    % unless load tests show that the impact on performance is negligible
+    case mongoose_acc:is_acc(Acc) of % this check will go away some day
+        true ->
+            mongoose_acc:append(handlers_run, {Hook, Module, Function}, Acc);
+        false ->
+            Acc
     end.

@@ -1,4 +1,5 @@
 language: erlang
+dist: trusty
 sudo: required
 addons:
     apt:
@@ -10,8 +11,10 @@ addons:
         - ldap-utils
 before_install:
         - tools/travis-generate-pass.sh
+        - tools/configure $REL_CONFIG
 install:
-        - tools/travis-build.sh
+        - ./rebar3 compile
+        - make dev
         - tools/travis-build-tests.sh
 before_script:
         - tools/travis-setup-db.sh
@@ -27,7 +30,7 @@ after_failure:
         - tail -100 dev/mongooseim_node2/log/ejabberd.log
 
 after_success:
-        - make cover_report
+        - ./rebar3 coveralls send
         - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "18.3" ]; then tools/travis-build-and-push-docker.sh; fi
 
 after_script:
@@ -54,11 +57,12 @@ env:
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
         - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.9
-        - PRESET=dialyzer_only
 
 matrix:
     include:
-        - otp_release: 19.0
+        - otp_release: 19.2
+          env: PRESET=dialyzer_only
+        - otp_release: 19.2
           env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
         - otp_release: 17.5
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
@@ -70,10 +74,7 @@ notifications:
 
 cache:
         directories:
-                - dialyzer
-
-before_cache:
-        - rm -f dialyzer/apps.*
+                - $HOME/.cache/rebar3
 
 deploy:
   provider: releases

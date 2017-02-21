@@ -163,8 +163,6 @@ registered_users(Host) ->
 
 register(Host, User, Password) ->
     case ejabberd_auth:try_register(User, Host, Password) of
-        ok ->
-            list_to_binary(io_lib:format("User ~s@~s successfully registered", [User, Host]));
         {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
                                    [User, Host, node()]),
@@ -172,7 +170,9 @@ register(Host, User, Password) ->
         {error, Reason} ->
             String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
                                    [User, Host, node(), Reason]),
-            throw({error, String})
+            throw({error, String});
+        _ ->
+            list_to_binary(io_lib:format("User ~s@~s successfully registered", [User, Host]))
     end.
 
 unregister(Host, User) ->
@@ -186,7 +186,7 @@ send_message(From, To, Body) ->
     ejabberd_hooks:run(user_send_packet,
                        F#jid.lserver,
                        [F, T, Packet]),
-    % privacy check is missing, but is it needed?
+    %% privacy check is missing, but is it needed?
     ejabberd_router:route(F, T, Packet),
     ok.
 
@@ -242,15 +242,16 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     RSM = #rsm_in{direction = before, id = undefined}, % last msgs
     Start = undefined,
     End = Before * 1000000,
-    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
+    Now = p1_time_compat:os_system_time(micro_seconds),
     WithJID = WithJID,
+    SearchText = undefined,
     PageSize = Limit,
     LimitPassed = false,
     MaxResultLimit = 1,
     IsSimple = true,
     R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
                                 [Host, ArcID, ArcJID, RSM, Borders,
-                                 Start, End, Now, WithJID,
+                                 Start, End, Now, WithJID, SearchText,
                                  PageSize, LimitPassed, MaxResultLimit, IsSimple]),
     {ok, {_, _, L}} = R,
     L.

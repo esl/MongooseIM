@@ -72,7 +72,7 @@
 %%% Register commands
 %%%
 
--spec commands() -> [ejabberd_commands:cmd(),...].
+-spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     SessionDisplay = {list,
                       {sessions, {tuple,

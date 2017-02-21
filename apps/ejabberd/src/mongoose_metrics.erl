@@ -90,7 +90,7 @@ update(Host, Name, Change) when is_list(Name) ->
 update(Host, Name, Change) ->
     update(Host, [Name], Change).
 
--spec ensure_metric(ejabberd:lserver() | global, list(), term()) -> ok | {error, term()}.
+-spec ensure_metric(ejabberd:lserver() | global, atom() | list(), term()) -> ok | {error, term()}.
 ensure_metric(Host, Metric, Type) when is_tuple(Type) ->
     ensure_metric(Host, Metric, Type, element(1, Type));
 ensure_metric(Host, Metric, Type) ->
@@ -116,7 +116,7 @@ get_global_metric_names() ->
     get_host_metric_names(global).
 
 get_aggregated_values(Metric) ->
-    exometer:aggregate([{{['_',Metric],'_','_'},[],[true]}], [one, count, value]).
+    exometer:aggregate([{{['_', Metric], '_', '_'}, [], [true]}], [one, count, value]).
 
 -spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {error, any()}.
 increment_generic_hook_metric(Host, Hook) ->
@@ -124,17 +124,22 @@ increment_generic_hook_metric(Host, Hook) ->
     do_increment_generic_hook_metric(Host, FilteredHook).
 
 get_odbc_data_stats() ->
-    RegularODBCWorkers = [catch ejabberd_odbc_sup:get_pids(Host) || Host <- ?MYHOSTS],
+    RegularODBCWorkers = [catch mongoose_rdbms_sup:get_pids(Host) || Host <- ?MYHOSTS],
     get_odbc_stats(lists:flatten(RegularODBCWorkers)).
 
 get_odbc_mam_async_stats() ->
     %% MAM async ODBC workers are organized differently...
-    MamChildren = case catch supervisor:which_children(mod_mam_sup) of
-                      [_ | _] = Children -> Children;
-                      _ -> []
+    GetChildren = fun(Host, Pool) ->
+                        Name = gen_mod:get_module_proc(Host, Pool),
+                        case catch mongoose_rdbms_sup:get_pids(Name) of
+                            [_ | _] = Children -> Children;
+                            _ -> []
+                        end
                   end,
-    MamAsynODBCWorkers = [catch element(2, gen_server:call(Pid, get_connection, 1000)) || {_, Pid, worker, _} <- MamChildren],
-    get_odbc_stats(MamAsynODBCWorkers).
+
+    MamPools = [mod_mam_odbc_async_pool_writer, mod_mam_muc_odbc_async_pool_writer],
+    MamChildren = lists:flatten([GetChildren(Host, Pool) || Host <- ?MYHOSTS, Pool <- MamPools]),
+    get_odbc_stats(MamChildren).
 
 get_dist_data_stats() ->
     DistStats = [inet_stats(Port) || {_, Port} <- erlang:system_info(dist_ctrl)],
@@ -188,19 +193,21 @@ do_increment_generic_hook_metric(Host, Name) ->
     update(Host, Name, 1).
 
 get_odbc_stats(ODBCWorkers) ->
-    ODBCConnections = [catch ejabberd_odbc:get_db_info(Pid) || Pid <- ODBCWorkers],
+    ODBCConnections = [{catch mongoose_rdbms:get_db_info(Pid), Pid} || Pid <- ODBCWorkers],
     Ports = [get_port_from_odbc_connection(Conn) || Conn <- ODBCConnections],
     PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
     [{workers, length(ODBCConnections)} | merge_stats(PortStats)].
 
-get_port_from_odbc_connection({ok, DbType, Pid}) when DbType =:= mysql; DbType =:= pgsql ->
-    %% Pid of p1_mysql_conn process
-    {links, [MySQLRecv]} = erlang:process_info(Pid, links),
-    %% Port is hold by p1_mysql_recv process which is linked to the p1_mysql_conn
+get_port_from_odbc_connection({{ok, pgsql, Pid}, WorkerPid}) ->
+    element(2, erlang:process_info(Pid, links)) -- [WorkerPid];
+get_port_from_odbc_connection({{ok, mysql, Pid}, WorkerPid}) ->
+    %% Pid of mysql_conn process
+    [MySQLRecv] = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
+    %% Port is hold by mysql_recv process which is linked to the mysql_conn
     {links, Links} = erlang:process_info(MySQLRecv, links),
     [Port || Port <- Links, is_port(Port)];
-get_port_from_odbc_connection({ok, odbc, Pid}) ->
-    {links, Links} = erlang:process_info(Pid, links),
+get_port_from_odbc_connection({{ok, odbc, Pid}, WorkerPid}) ->
+    Links = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
     [Port || Port <- Links, is_port(Port), {name, "tcp_inet"} == erlang:port_info(Port, name)];
 get_port_from_odbc_connection(_) ->
     undefined.

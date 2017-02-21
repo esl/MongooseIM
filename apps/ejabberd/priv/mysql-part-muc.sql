@@ -6,7 +6,8 @@ CREATE TABLE mam_muc_message_00(
   -- A nick of the message's originator
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
-  message blob NOT NULL
+  message blob NOT NULL,
+  search_body text
 )  ENGINE=InnoDB;
 CREATE INDEX i_mam_muc_message_room_name_added_at USING BTREE ON mam_muc_message_00(room_id, id);
 

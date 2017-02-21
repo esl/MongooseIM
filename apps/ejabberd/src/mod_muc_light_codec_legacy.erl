@@ -62,9 +62,9 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
                  {affiliation, Aff},
                  {role, Aff}
     ],
-    #xmlel{ children = Children }
-    = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch,
-                              [EventData]),
+    FilteredPacket = #xmlel{ children = Children }
+        = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch, [EventData]),
+    ejabberd_hooks:run(room_send_packet, RoomS, [FilteredPacket, EventData]),
     lists:foreach(
       fun({{U, S}, _}) ->
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)

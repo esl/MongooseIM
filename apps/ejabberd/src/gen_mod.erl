@@ -52,7 +52,9 @@
          set_opt/3,
          get_module_opt/4,
          set_module_opt/4,
+         get_module_opts/2,
          get_opt_subhost/3,
+         get_opt_subhost/4,
          get_module_opt_subhost/3,
          % Get/set opts by subhost
          get_module_opt_by_subhost/4,
@@ -61,7 +63,6 @@
          loaded_modules/1,
          loaded_modules_with_opts/1,
          get_module_proc/2,
-         backend_code/3,
          is_loaded/2,
          get_deps/3]).
 
@@ -138,66 +139,7 @@ start_backend_module(Module, Opts) ->
 
 start_backend_module(Module, Opts, TrackedFuncs) ->
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
-    {BackendModuleStr, CodeString} = backend_code(Module, Backend, TrackedFuncs),
-    {Mod, Code} = dynamic_compile:from_string(CodeString),
-    code:load_binary(Mod, BackendModuleStr ++ ".erl", Code),
-    ensure_backend_metrics(Module, TrackedFuncs).
-
--spec backend_code(module(), atom(), list()) -> {nonempty_string(), list()}.
-backend_code(Module, Backend, TrackedFuncs) when is_atom(Backend) ->
-    Callbacks = Module:behaviour_info(callbacks),
-    ModuleStr = atom_to_list(Module),
-    BackendModuleName = ModuleStr ++ "_backend",
-    RealBackendModule = ModuleStr ++ "_" ++ atom_to_list(Backend),
-    BehaviourExports = [generate_export(F, A) || {F, A} <- Callbacks],
-
-    BehaviourImpl = [generate_fun(Module, RealBackendModule, F, A, TrackedFuncs) ||
-                        {F, A} <- Callbacks],
-    Code = lists:flatten(
-        ["-module(", BackendModuleName, ").\n",
-        "-export([backend/0]).\n",
-        BehaviourExports,
-
-
-        "-spec backend() -> atom().\n",
-        "backend() ->", RealBackendModule, ".\n",
-        BehaviourImpl
-        ]),
-    {BackendModuleName, Code}.
-
-generate_export(F, A) ->
-    "-export([" ++ atom_to_list(F) ++ "/" ++ integer_to_list(A) ++ "]).\n".
-
-generate_fun(BaseModule, RealBackendModule, F, A, TrackedFuncs) ->
-    Args = string:join(["A" ++ integer_to_list(I) || I <- lists:seq(1, A)], ", "),
-    IsTracked = lists:member(F, TrackedFuncs),
-    [fun_header(F, Args), " ->\n",
-     generate_fun_body(IsTracked, BaseModule, RealBackendModule, F, Args)].
-
-fun_header(F, Args) ->
-    [atom_to_list(F), "(", Args, ")"].
-
--define(METRIC(Module, Op), [backends, Module, Op]).
-
-generate_fun_body(false, _, RealBackendModule, F, Args) ->
-    ["    ", RealBackendModule, ":", fun_header(F, Args), ".\n"];
-generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
-    FS = atom_to_list(F),
-%%     returned is the following
-%%     {Time, Result} = timer:tc(Backend, F, Args),
-%%     mongoose_metrics:update(global, ?METRIC(Backend, F), Time),
-%%     Result.
-    ["    {Time, Result} = timer:tc(", RealBackendModule, ", ", FS, ", [", Args, "]),\n",
-     "    mongoose_metrics:update(global, ",
-          io_lib:format("~p", [?METRIC(BaseModule, F)]),
-          ", Time),\n",
-     "    Result.\n"].
-
-ensure_backend_metrics(Module, Ops) ->
-    EnsureFun = fun(Op) ->
-                        mongoose_metrics:ensure_metric(global, ?METRIC(Module, Op), histogram)
-                end,
-    lists:foreach(EnsureFun, Ops).
+    backend_module:create(Module, Backend, TrackedFuncs).
 
 -spec is_app_running(_) -> boolean().
 is_app_running(AppName) ->
@@ -312,13 +254,17 @@ get_module_opt(global, Module, Opt, Default) ->
             Default
     end;
 get_module_opt(Host, Module, Opt, Default) ->
+    ModuleOpts = get_module_opts(Host, Module),
+    get_opt(Opt, ModuleOpts, Default).
+
+
+get_module_opts(Host, Module) ->
     OptsList = ets:lookup(ejabberd_modules, {Module, Host}),
     case OptsList of
-        [] ->
-            Default;
-        [#ejabberd_module{opts = Opts} | _] ->
-            get_opt(Opt, Opts, Default)
+        [] -> [];
+        [#ejabberd_module{opts = Opts} | _] -> Opts
     end.
+
 
 -spec get_module_opt_by_subhost(
         SubHost :: ejabberd:server(),
@@ -355,7 +301,11 @@ set_module_opt_by_subhost(SubHost, Module, Opt, Value) ->
 
 -spec get_opt_subhost(ejabberd:server(), list(), list() | binary()) -> ejabberd:server().
 get_opt_subhost(Host, Opts, Default) ->
-    Val = get_opt(host, Opts, Default),
+    get_opt_subhost(Host, host, Opts, Default).
+
+-spec get_opt_subhost(ejabberd:server(), atom(), list(), list() | binary()) -> ejabberd:server().
+    get_opt_subhost(Host, OptName, Opts, Default) ->
+    Val = get_opt(OptName, Opts, Default),
     re:replace(Val, "@HOST@", Host, [global, {return, binary}]).
 
 -spec get_module_opt_subhost(ejabberd:server(), module(), list() | binary()) -> ejabberd:server().

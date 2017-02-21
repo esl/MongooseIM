@@ -14,34 +14,29 @@
       JID :: ejabberd:jid().
 get_valid_sequence_number(#jid{lserver = LServer} = JID) ->
     BBareJID = jid:to_binary(jid:to_bare(JID)),
-    EBareJID = ejabberd_odbc:escape(BBareJID),
+    EBareJID = mongoose_rdbms:escape(BBareJID),
     Q = valid_sequence_number_query(EBareJID),
-    [{updated, _},
-     {updated, _},
-     {selected, _, [{BSeqNo}]},
-     {updated, _}] = ejabberd_odbc:sql_query(LServer, Q),
-    binary_to_integer(BSeqNo).
+    {atomic, [{updated, _}, {selected, [{BSeqNo}]}]} = mongoose_rdbms:sql_transaction(LServer, Q),
+    mongoose_rdbms:result_to_integer(BSeqNo).
 
 valid_sequence_number_query(EOwner) when is_binary(EOwner) ->
-    [<<"BEGIN; "
-       "WITH existing AS (SELECT at.seq_no "
+    [<<"WITH existing AS (SELECT at.seq_no "
        "                  FROM auth_token at "
        "                  WHERE at.owner = '", EOwner/bytes, "') "
        "INSERT INTO auth_token "
          "SELECT '", EOwner/bytes, "', 1 "
-       "WHERE NOT EXISTS (SELECT * FROM existing); "
-       "SELECT seq_no "
+       "WHERE NOT EXISTS (SELECT * FROM existing); ">>,
+     <<"SELECT seq_no "
        "FROM auth_token "
-       "WHERE owner = '", EOwner/bytes, "'; "
-       "COMMIT;">>].
+       "WHERE owner = '", EOwner/bytes, "'; ">>].
 
 -spec revoke(JID) -> ok | not_found when
       JID :: ejabberd:jid().
 revoke(#jid{lserver = LServer} = JID) ->
     BBareJID = jid:to_binary(jid:to_bare(JID)),
-    EBareJID = ejabberd_odbc:escape(BBareJID),
+    EBareJID = mongoose_rdbms:escape(BBareJID),
     RevokeQuery = revoke_query(EBareJID),
-    QueryResult = ejabberd_odbc:sql_query(LServer, RevokeQuery),
+    QueryResult = mongoose_rdbms:sql_query(LServer, RevokeQuery),
     ?DEBUG("result ~p", [QueryResult]),
     case QueryResult of
         {updated, 1} -> ok;
@@ -55,9 +50,9 @@ revoke_query(EOwner) when is_binary(EOwner) ->
       Owner :: ejabberd:jid().
 clean_tokens(#jid{lserver = LServer} = Owner) ->
     BBareJID = jid:to_binary(jid:to_bare(Owner)),
-    EBareJID = ejabberd_odbc:escape(BBareJID),
+    EBareJID = mongoose_rdbms:escape(BBareJID),
     Q = clean_tokens_query(EBareJID),
-    {updated, _} = ejabberd_odbc:sql_query(LServer, Q),
+    {updated, _} = mongoose_rdbms:sql_query(LServer, Q),
     ok.
 
 clean_tokens_query(EOwner) when is_binary(EOwner) ->

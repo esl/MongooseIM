@@ -86,8 +86,8 @@ client_signature(StoredKey, AuthMessage) ->
 -spec client_key(binary(), binary()) -> binary().
 client_key(ClientProof, ClientSignature) ->
     list_to_binary(lists:zipwith(fun (X, Y) -> X bxor Y end,
-				 binary_to_list(ClientProof),
-				 binary_to_list(ClientSignature))).
+                                 binary_to_list(ClientProof),
+                                 binary_to_list(ClientSignature))).
 
 -spec server_signature(binary(), binary()) -> binary().
 server_signature(ServerKey, AuthMessage) ->
@@ -96,18 +96,18 @@ server_signature(ServerKey, AuthMessage) ->
 hi(Password, Salt, IterationCount) ->
     U1 = crypto:hmac(sha, Password, <<Salt/binary, 0, 0, 0, 1>>),
     list_to_binary(lists:zipwith(fun (X, Y) -> X bxor Y end,
-				 binary_to_list(U1),
-				 binary_to_list(hi_round(Password, U1,
-							 IterationCount - 1)))).
+                                 binary_to_list(U1),
+                                 binary_to_list(hi_round(Password, U1,
+                                                         IterationCount - 1)))).
 
 hi_round(Password, UPrev, 1) ->
     crypto:hmac(sha, Password, UPrev);
 hi_round(Password, UPrev, IterationCount) ->
     U = crypto:hmac(sha, Password, UPrev),
     list_to_binary(lists:zipwith(fun (X, Y) -> X bxor Y end,
-				 binary_to_list(U),
-				 binary_to_list(hi_round(Password, U,
-							 IterationCount - 1)))).
+                                 binary_to_list(U),
+                                 binary_to_list(hi_round(Password, U,
+                                                         IterationCount - 1)))).
 
 
 enabled(Host) ->
@@ -157,12 +157,12 @@ serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
                      salt = Salt, iterationcount = IterationCount})->
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
-       StoredKey/binary,$,,ServerKey/binary,
-       $,,Salt/binary,$,,IterationCountBin/binary>>.
+       StoredKey/binary, $,,ServerKey/binary,
+       $,,Salt/binary, $,,IterationCountBin/binary>>.
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     case catch binary:split(Serialized, <<",">>, [global]) of
-        [StoredKey, ServerKey,Salt,IterationCount] ->
+        [StoredKey, ServerKey, Salt, IterationCount] ->
             {ok, #scram{storedkey = StoredKey,
                         serverkey = ServerKey,
                         salt = Salt,
@@ -172,7 +172,7 @@ deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
             {error, incorrect_scram}
     end;
 deserialize(Bin) ->
-    ?WARNING_MSG("Corrupted serialized SCRAM: ~p, ~p", [Bin]),
+    ?WARNING_MSG("Corrupted serialized SCRAM: ~p", [Bin]),
     {error, corrupted_scram}.
 
 -spec scram_to_tuple(scram()) -> scram_tuple().
@@ -186,4 +186,3 @@ scram_to_tuple(Scram) ->
 check_digest(#scram{storedkey = StoredKey}, Digest, DigestGen, Password) ->
     Passwd = base64:decode(StoredKey),
     ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd).
-

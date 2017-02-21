@@ -30,10 +30,10 @@
 -behaviour(gen_mod).
 
 -export([start/2,
-	 stop/1,
-	 process_local_iq/3,
-	 process_sm_iq/3
-	]).
+         stop/1,
+         process_local_iq/3,
+         process_sm_iq/3
+        ]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -43,9 +43,9 @@
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,
-				  ?NS_SIC, ?MODULE, process_local_iq, IQDisc),
+                                  ?NS_SIC, ?MODULE, process_local_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host,
-				  ?NS_SIC, ?MODULE, process_sm_iq, IQDisc).
+                                  ?NS_SIC, ?MODULE, process_sm_iq, IQDisc).
 
 stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_SIC),
@@ -53,7 +53,7 @@ stop(Host) ->
 
 
 process_local_iq(#jid{user = User, server = Server, resource = Resource}, _To,
-		 #iq{type = 'get', sub_el = _SubEl} = IQ) ->
+                 #iq{type = 'get', sub_el = _SubEl} = IQ) ->
     get_ip({User, Server, Resource}, IQ);
 
 process_local_iq(_From, _To, #iq{type = 'set', sub_el = SubEl} = IQ) ->
@@ -61,8 +61,8 @@ process_local_iq(_From, _To, #iq{type = 'set', sub_el = SubEl} = IQ) ->
 
 
 process_sm_iq(#jid{user = User, server = Server, resource = Resource},
-	      #jid{user = User, server = Server},
-	      #iq{type = 'get', sub_el = _SubEl} = IQ) ->
+              #jid{user = User, server = Server},
+              #iq{type = 'get', sub_el = _SubEl} = IQ) ->
     get_ip({User, Server, Resource}, IQ);
 
 process_sm_iq(_From, _To, #iq{type = 'get', sub_el = SubEl} = IQ) ->
@@ -74,21 +74,21 @@ process_sm_iq(_From, _To, #iq{type = 'set', sub_el = SubEl} = IQ) ->
 get_ip({User, Server, Resource},
        #iq{sub_el = #xmlel{} = SubEl} = IQ) ->
     case ejabberd_sm:get_session_ip(User, Server, Resource) of
-	{IP, Port} when is_tuple(IP) ->
-	    IQ#iq{
-	      type = 'result',
-	      sub_el = [
-			SubEl#xmlel{
+        {IP, Port} when is_tuple(IP) ->
+            IQ#iq{
+              type = 'result',
+              sub_el = [
+                SubEl#xmlel{
                 children = [
                     #xmlel{name = <<"ip">>,
                         children = [#xmlcdata{content = list_to_binary(inet_parse:ntoa(IP))}]},
                     #xmlel{name = <<"port">>,
                         children = [#xmlcdata{content = integer_to_binary(Port)}]}
-		       ]
-	        }]};
-	_ ->
-	    IQ#iq{
-	      type = 'error',
-	      sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]
-	     }
+                ]
+                }]};
+        _ ->
+            IQ#iq{
+              type = 'error',
+              sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]
+             }
     end.

@@ -43,8 +43,8 @@
 
 init(_Host, _Opts) ->
     mnesia:create_table(private_storage,
-			[{disc_only_copies, [node()]},
-			 {attributes, record_info(fields, private_storage)}]),
+                        [{disc_only_copies, [node()]},
+                         {attributes, record_info(fields, private_storage)}]),
 
     mnesia:add_table_copy(private_storage, node(), disc_only_copies),
     ok.
@@ -75,7 +75,7 @@ get_data(LUser, LServer, NS, Default) ->
 
 remove_user(LUser, LServer) ->
     F = fun() ->
-		NSs = select_namespaces_t(LUser, LServer),
+                NSs = select_namespaces_t(LUser, LServer),
         [delete_record_t(LUser, LServer, NS) || NS <- NSs]
         end,
     mnesia:transaction(F).
@@ -90,4 +90,3 @@ select_namespaces_t(LUser, LServer) ->
 
 delete_record_t(LUser, LServer, NS) ->
     mnesia:delete({private_storage, {LUser, LServer, NS}}).
-

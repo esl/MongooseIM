@@ -70,6 +70,25 @@
 
 -type scram() :: #scram{}.
 
--record(route, {domain, handler}).
+-record(route, {
+          domain :: binary(),
+          handler :: mongoose_packet_handler:t()
+         }).
 
 -record(external_component, {domain, handler, node}).
+
+-define(DEPRECATED,
+    ok).
+%%    lager:error("Deprecated call", [])).
+%% Not to break things, we often change a function arity or pattern but keep the old one
+%% so that parts of the code not yet rewritten still work. Eventually all those things
+%% will go away. This macro denotes a function called in a deprecated way.
+
+-define(TEMPORARY, ok).
+%% just a marker - oftentimes we create a mongoose_acc just because we call a hook
+%% while the 'real' accumulator doesn't yet reach this point, so for compatibility
+%% we have to mock it. This macro is to mark such places in the code.
+
+
+-define(DUMP(Acc),
+    mongoose_acc:dump(Acc)).

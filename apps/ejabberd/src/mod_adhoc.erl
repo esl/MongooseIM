@@ -274,16 +274,18 @@ ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
                    adhoc:request()) -> {error, _} | adhoc:response().
 ping_command(_Acc, _From, _To,
              #adhoc_request{lang = Lang,
-                            node = <<"ping">>,
-                            session_id = _Sessionid,
-                            action = Action} = Request) ->
-    if
-        Action == <<"">>; Action == <<"execute">> ->
-            adhoc:produce_response(
-              Request,
-              #adhoc_response{status = completed,
-                              notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
+                            node = <<"ping">> = Node,
+                            session_id = SessionID,
+                            action = Action}) ->
+    case Action == <<"">> orelse Action == <<"execute">> of
         true ->
+            adhoc:produce_response(
+              #adhoc_response{lang = Lang,
+                              node = Node,
+                              session_id = SessionID,
+                              status = completed,
+                              notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
+        _ ->
             {error, ?ERR_BAD_REQUEST}
     end;
 ping_command(Acc, _From, _To, _Request) ->

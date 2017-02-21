@@ -43,7 +43,7 @@
 -include("mod_vcard.hrl").
 
 %% gen_mod handlers
--export([start/2,stop/1]).
+-export([start/2, stop/1]).
 
 %% gen_server handlers
 -export([init/1,
@@ -53,11 +53,15 @@
          terminate/2,
          code_change/3]).
 
+%% mongoose_packet_handler export
+-export([process_packet/4]).
+
 %% Hook handlers
 -export([process_local_iq/3,
          process_sm_iq/3,
          get_local_features/5,
          remove_user/2,
+         remove_user/3,
          set_vcard/3]).
 
 -export([start_link/2]).
@@ -71,7 +75,7 @@
 -define(PROCNAME, ejabberd_mod_vcard).
 -define(BACKEND, mod_vcard_backend).
 
--record(state,{search           :: boolean(),
+-record(state, {search           :: boolean(),
                host             :: binary(),
                directory_host   :: binary()
               }).
@@ -153,22 +157,30 @@ default_host() ->
 %%--------------------------------------------------------------------
 start(VHost, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
-    Proc = gen_mod:get_module_proc(VHost,?PROCNAME),
+    Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [VHost, Opts]},
                  transient, 1000, worker, [?MODULE]},
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
 stop(VHost) ->
-    Proc = gen_mod:get_module_proc(VHost,?PROCNAME),
-    supervisor:terminate_child(ejabberd_sup,Proc),
-    supervisor:delete_child(ejabberd_sup,Proc).
+    Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
+    supervisor:terminate_child(ejabberd_sup, Proc),
+    supervisor:delete_child(ejabberd_sup, Proc).
+
+%%--------------------------------------------------------------------
+%% mongoose_packet_handler callbacks
+%%--------------------------------------------------------------------
+
+-spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
+process_packet(From, To, Packet, Pid) ->
+    Pid ! {route, From, To, Packet}.
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 start_link(VHost, Opts) ->
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE, [VHost, Opts],[]).
+    gen_server:start_link({local, Proc}, ?MODULE, [VHost, Opts], []).
 
 init([VHost, Opts]) ->
     process_flag(trap_exit, true),
@@ -184,7 +196,8 @@ init([VHost, Opts]) ->
     Search = gen_mod:get_opt(search, Opts, true),
     case Search of
         true ->
-            ejabberd_router:register_route(DirectoryHost);
+            ejabberd_router:register_route(
+              DirectoryHost, mongoose_packet_handler:new(?MODULE, self()));
         _ ->
             ok
     end,
@@ -213,12 +226,12 @@ hook_handlers() ->
 
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
-handle_call(stop,_From,State) ->
+handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
-handle_call(_Request, _From,State) ->
+handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
-handle_info({route, From, To, Packet},State) ->
+handle_info({route, From, To, Packet}, State) ->
     IQ = jlib:iq_query_info(Packet),
     case catch do_route(State#state.host, From, To, Packet, IQ) of
         {'EXIT', Reason} ->
@@ -227,7 +240,7 @@ handle_info({route, From, To, Packet},State) ->
             ok
     end,
     {noreply, State};
-handle_info(_,State) ->
+handle_info(_, State) ->
     {noreply, State}.
 
 handle_cast(_Request, State) ->
@@ -239,9 +252,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% Hook handlers
 %%--------------------------------------------------------------------
-process_local_iq(_From,_To,#iq{type = set, sub_el = SubEl} = IQ) ->
+process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_local_iq(_From,_To,#iq{type = get, lang = Lang} = IQ) ->
+process_local_iq(_From,_To,#iq{type = get} = IQ) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, ?NS_VCARD}],
                            children = [#xmlel{name = <<"FN">>,
@@ -271,7 +284,7 @@ process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
                           sub_el = [VCARD, Reason]}
             catch
                 E:R ->
-                    ?ERROR_MSG("~p", [{E,R}]),
+                    ?ERROR_MSG("~p", [{E, R}]),
                     IQ#iq{type = error,
                           sub_el = [VCARD, ?ERR_INTERNAL_SERVER_ERROR]}
             end;
@@ -285,7 +298,7 @@ process_sm_iq(_From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
         {ok, VCARD} ->
             IQ#iq{type = result, sub_el = VCARD};
         {error, Reason} ->
-            IQ#iq{type = error, sub_el = [SubEl,Reason]};
+            IQ#iq{type = error, sub_el = [SubEl, Reason]};
         Else ->
             ?ERROR_MSG("~p", [Else]),
             IQ#iq{type = error,
@@ -332,10 +345,15 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
             Acc
     end.
 
+%% #rh
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
+
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    ?BACKEND:remove_user(LUser,LServer).
+    ?BACKEND:remove_user(LUser, LServer).
 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->
@@ -348,7 +366,7 @@ config_change(Acc, Host, ldap, _NewConfig) ->
         _ ->
             ok
     end,
-    %ok = gen_server:call(Proc,{new_config, Host, Opts}),
+    %ok = gen_server:call(Proc, {new_config, Host, Opts}),
     Acc;
 config_change(Acc, _, _, _) ->
     Acc.
@@ -385,7 +403,7 @@ do_route(VHost, From, To, Packet, #iq{type = set,
                                                children = [#xmlel{name = <<"x">>,
                                                                attrs = [{<<"xmlns">>, ?NS_XDATA},
                                                                         {<<"type">>, <<"result">>}],
-                                                               children = search_result(Lang,To, VHost, XData)}]}]},
+                                                               children = search_result(Lang, To, VHost, XData)}]}]},
                     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
             end
     end;
@@ -395,7 +413,7 @@ do_route(VHost, From, To, _Packet, #iq{type = get,
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_SEARCH}],
-                                   children = ?FORM(To,?BACKEND:search_fields(VHost),Lang)
+                                   children = ?FORM(To, ?BACKEND:search_fields(VHost), Lang)
                                   }]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Packet, #iq{type = set,
@@ -414,7 +432,7 @@ do_route(VHost, From, To, _Packet, #iq{type = get,
                                                       attrs = [{<<"category">>, <<"directory">>},
                                                                {<<"type">>, <<"user">>},
                                                                {<<"name">>,
-                                                                translate:translate(Lang,<<"vCard User Search">>)}]},
+                                                                translate:translate(Lang, <<"vCard User Search">>)}]},
                                                #xmlel{name = <<"feature">>,
                                                       attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
                                                #xmlel{name = <<"feature">>,
@@ -461,10 +479,10 @@ find_xdata_el1([]) ->
     false;
 find_xdata_el1([XE = #xmlel{attrs = Attrs} | Els]) ->
     case xml:get_attr_s(<<"xmlns">>, Attrs) of
-	?NS_XDATA ->
-	    XE;
-	_ ->
-	    find_xdata_el1(Els)
+        ?NS_XDATA ->
+            XE;
+        _ ->
+            find_xdata_el1(Els)
     end;
 find_xdata_el1([_ | Els]) ->
     find_xdata_el1(Els).

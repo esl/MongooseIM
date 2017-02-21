@@ -36,12 +36,12 @@
          stop/1,
          process_local_iq/3,
          process_sm_iq/3,
-         on_presence_update/4,
+         on_presence_update/5,
          store_last_info/4,
          get_last_info/2,
          count_active_users/2,
-         remove_user/2,
-         session_cleanup/4
+         remove_user/3,
+         session_cleanup/5
         ]).
 
 -include("ejabberd.hrl").
@@ -134,7 +134,7 @@ get_node_uptime() ->
     case ejabberd_config:get_local_option(node_start) of
         {_, _, _} = StartNow ->
             now_to_seconds(now()) - now_to_seconds(StartNow);
-        _undefined ->
+        _Undefined ->
             trunc(element(1, erlang:statistics(wall_clock))/1000)
     end.
 
@@ -158,33 +158,35 @@ process_sm_iq(From, To,
             {Subscription, _Groups} =
                 ejabberd_hooks:run_fold(roster_get_jid_info, Server,
                     {none, []}, [User, Server, From]),
-            if (Subscription == both) or (Subscription == from) or
-                (From#jid.luser == To#jid.luser) and
-                    (From#jid.lserver == To#jid.lserver) ->
-                UserListRecord =
-                    ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                        #userlist{}, [User, Server]),
-                case ejabberd_hooks:run_fold(privacy_check_packet,
-                    Server, allow,
-                    [User, Server, UserListRecord,
-                        {To, From,
-                            #xmlel{name = <<"presence">>,
-                                attrs = [],
-                                children = []}},
-                        out])
-                of
-                    allow -> get_last_iq(IQ, SubEl, User, Server);
-                    deny ->
+                case (Subscription == both) or (Subscription == from) or
+                     (From#jid.luser == To#jid.luser) and
+                     (From#jid.lserver == To#jid.lserver) of
+                    true ->
+                        UserListRecord =
+                        ejabberd_hooks:run_fold(privacy_get_user_list, Server,
+                                                #userlist{}, [User, Server]),
+                        ?TEMPORARY,
+                        Acc = mongoose_acc:new(),
+                        Res = ejabberd_hooks:run_fold(privacy_check_packet,
+                                                      Server, Acc,
+                                                      [User, Server, UserListRecord,
+                                                       {To, From,
+                                                        #xmlel{name = <<"presence">>,
+                                                               attrs = [],
+                                                               children = []}},
+                                                       out]),
+                        make_response(IQ, SubEl, User, Server,
+                                      mongoose_acc:get(privacy_check, Res, allow));
+                    false ->
                         IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
-                end;
-                true ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
-            end
+                end
     end.
 
--spec get_last_iq(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],
-                  ejabberd:luser(), ejabberd:lserver()) -> ejabberd:iq().
-get_last_iq(IQ, SubEl, LUser, LServer) ->
+-spec make_response(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],
+                    ejabberd:luser(), ejabberd:lserver(), allow | deny) -> ejabberd:iq().
+make_response(IQ, SubEl, _, _, deny) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]};
+make_response(IQ, SubEl, LUser, LServer, allow) ->
     case ejabberd_sm:get_user_resources(LUser, LServer) of
         [] ->
             case get_last(LUser, LServer) of
@@ -223,11 +225,14 @@ get_last(LUser, LServer) ->
 count_active_users(LServer, Timestamp) ->
     ?BACKEND:count_active_users(LServer, Timestamp).
 
--spec on_presence_update(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
-                         Status :: binary()) -> ok | {error, term()}.
-on_presence_update(LUser, LServer, _Resource, Status) ->
+-spec on_presence_update(map(), ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+                         Status :: binary()) -> map() | {error, term()}.
+on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
     TimeStamp = now_to_seconds(os:timestamp()),
-    store_last_info(LUser, LServer, TimeStamp, Status).
+    case store_last_info(LUser, LServer, TimeStamp, Status) of
+        ok -> Acc;
+        E -> E
+    end.
 
 -spec store_last_info(ejabberd:user(), ejabberd:server(), non_neg_integer(),
                       Status :: binary()) -> ok | {error, term()}.
@@ -235,21 +240,25 @@ store_last_info(LUser, LServer, TimeStamp, Status) ->
     ?BACKEND:set_last_info(LUser, LServer, TimeStamp, Status).
 
 -spec get_last_info(ejabberd:luser(), ejabberd:lserver())
-        -> 'not_found' | {'ok',integer(),string()}.
+        -> 'not_found' | {'ok', integer(), string()}.
 get_last_info(LUser, LServer) ->
     case get_last(LUser, LServer) of
         {error, _Reason} -> not_found;
         Res -> Res
     end.
 
--spec remove_user(ejabberd:user(), ejabberd:server()) -> ok | {error, term()}.
-remove_user(User, Server) ->
+%% #rh
+-spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map() | {error, term()}.
+remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    ?BACKEND:remove_user(LUser, LServer).
+    case ?BACKEND:remove_user(LUser, LServer) of
+        ok -> Acc;
+        E -> E
+    end.
 
--spec session_cleanup(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+-spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
                       LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
-session_cleanup(LUser, LServer, LResource, _SID) ->
-    on_presence_update(LUser, LServer, LResource, <<>>).
+session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
+    on_presence_update(Acc, LUser, LServer, LResource, <<>>).
 
