@@ -34,6 +34,7 @@
          set_password/3,
          authorize/1,
          check_password/3,
+         check_password/5,
          try_register/3,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
@@ -56,14 +57,14 @@
 %%%----------------------------------------------------------------------
 
 -spec start(Host :: ejabberd:server()) -> ok.
-start(Host) ->
+start(_Host) ->
     ok.
 
 -spec stop(Host :: ejabberd:server()) -> ok.
 stop(_Host) ->
     ok.
 
-store_type(Server) ->
+store_type(_Server) ->
     external.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
