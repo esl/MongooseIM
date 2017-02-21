@@ -78,9 +78,9 @@ is_vcard_activated(VCard) ->
             false;
         Desc ->
             case (catch
-                      lists:keyfind(<<"discoveryEnabled">>, 1,
+                      lists:keyfind(<<"chatEnabled">>, 1,
                                     jsx:decode(Desc))) of
-                {<<"discoveryEnabled">>, true} ->
+                {<<"chatEnabled">>, true} ->
                     true;
                 Other ->
                     ?WARNING_MSG("VCard \"DESC\" JSON decoded to: ~p~n", [Other]),
