@@ -367,7 +367,7 @@ stream_features_test(Config) ->
     ok.
 
 given_fresh_spec(Config, User) ->
-    Config1 = escalus_fresh:create_users(Config, [{User, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [User]),
     escalus_users:get_userspec(Config1, User).
 
 verify_features(Conn, Props, Features) ->

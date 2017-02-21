@@ -57,7 +57,7 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 server_announces_csi(Config) ->
-    NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    NewConfig = escalus_fresh:create_users(Config, [alice]),
     Spec = escalus_users:get_userspec(NewConfig, alice),
     Steps = [start_stream,
              stream_features,
@@ -93,7 +93,7 @@ alice_gets_msgs_after_activate(Config, N) ->
     end).
 
 alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
-    NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    NewConfig = escalus_fresh:create_users(Config, [alice, bob]),
     AliceSpec = escalus_users:get_userspec(NewConfig, alice),
     BobSpec = escalus_users:get_userspec(NewConfig, bob),
     {ok, Alice0, AliceProps, _} = escalus_connection:start(AliceSpec),
@@ -124,7 +124,7 @@ alice_gets_buffered_messages_after_stream_resumption(Config) ->
                  bind,
                  session,
                  stream_resumption],
-    NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    NewConfig = escalus_fresh:create_users(Config, [alice, bob]),
     AliceSpec = escalus_users:get_userspec(NewConfig, alice),
     BobSpec = escalus_users:get_userspec(NewConfig, bob),
     {ok, Alice0, AliceProps, _} = escalus_connection:start(AliceSpec,

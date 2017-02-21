@@ -129,7 +129,7 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(CaseName, Config0) ->
-    Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}, {kate, 1}]),
+    Config1 = escalus_fresh:create_users(Config0, [bob, alice, kate]),
     Config = [{case_name, CaseName} | Config1],
     escalus:init_per_testcase(CaseName, Config).
 
@@ -317,18 +317,18 @@ get_push_logs(Service, DeviceToken, _Config) ->
         PushMock = connect_to(Service),
         {ok, 200, Body} = h2_req(PushMock, get, <<"/activity">>),
         #{<<"logs">> := Logs} = jiffy:decode(Body, [return_maps]),
-                                    
+
         DeviceLogs = lists:filter(
             fun(#{<<"device_token">> := Token}) ->
                 DeviceToken =:= Token
             end, Logs),
 
-        case length(DeviceLogs) > 0 of 
-            true -> 
+        case length(DeviceLogs) > 0 of
+            true ->
                 DeviceLogs;
             false ->
                 throw({no_push_messages, DeviceToken})
-        end             
+        end
      end).
 
 %% ----------------------------------

@@ -123,7 +123,7 @@ init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_availa
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config0) ->
     start_publish_listener(CaseName, Config0),
-    Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}, {kate, 1}]),
+    Config1 = escalus_fresh:create_users(Config0, [alice, bob, kate]),
     Config = [{case_name, CaseName} | Config1],
     escalus:init_per_testcase(CaseName, Config).
 

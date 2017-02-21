@@ -4900,7 +4900,7 @@ connect_fresh_user(Spec) ->
     User#client{jid = JID}.
 
 given_fresh_spec(Config, User) ->
-    NewConfig = escalus_fresh:create_users(Config, [{User, 1}]),
+    NewConfig = escalus_fresh:create_users(Config, [User]),
     escalus_users:get_userspec(NewConfig, User).
 
 given_fresh_room(Config, UserSpec, RoomOpts) ->

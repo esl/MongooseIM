@@ -75,7 +75,7 @@ msg_is_sent_and_delivered_over_xmpp(Config) ->
     end).
 
 msg_is_sent_and_delivered_over_sse(ConfigIn) ->
-    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
+    Config = escalus_fresh:create_users(ConfigIn, [alice, bob]),
     Bob = escalus_users:get_userspec(Config, bob),
     Alice = escalus_users:get_userspec(Config, alice),
 
@@ -90,7 +90,7 @@ msg_is_sent_and_delivered_over_sse(ConfigIn) ->
     stop_sse(Conn).
 
 room_msg_is_sent_and_delivered_over_sse(ConfigIn) ->
-    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
+    Config = escalus_fresh:create_users(ConfigIn, [alice, bob]),
     Bob = escalus_users:get_userspec(Config, bob),
     Alice = escalus_users:get_userspec(Config, alice),
     RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
@@ -105,7 +105,7 @@ room_msg_is_sent_and_delivered_over_sse(ConfigIn) ->
     stop_sse(Conn).
 
 aff_change_msg_is_delivered_over_sse(ConfigIn) ->
-    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
+    Config = escalus_fresh:create_users(ConfigIn, [alice, bob]),
     Bob = escalus_users:get_userspec(Config, bob),
     Alice = escalus_users:get_userspec(Config, alice),
     RoomID = given_new_room({alice, Alice}),

@@ -466,7 +466,7 @@ init_per_group(mam04, Config) ->
 
 
 init_per_group(rsm_all, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),
+    Config1 = escalus_fresh:create_users(Config, [N || N <- user_names()]),
     send_rsm_messages(Config1);
 init_per_group(rsm02, Config) ->
     Config;
@@ -497,7 +497,7 @@ init_per_group(muc04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
 
 init_per_group(muc_rsm_all, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),
+    Config1 = escalus_fresh:create_users(Config, [N || N <- user_names()]),
     Config2 = start_alice_room(Config1),
     Config3 = send_muc_rsm_messages(Config2),
     [{muc_rsm, true} | Config3];
@@ -750,59 +750,59 @@ init_per_testcase(C=strip_archived, Config) ->
 init_per_testcase(C=filter_forwarded, Config) ->
     escalus:init_per_testcase(C, Config);
 init_per_testcase(C=purge_old_single_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob, carol]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob, carol]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=archived, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, Config1);
 init_per_testcase(C=offline_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob, carol]),
     escalus:init_per_testcase(C, Config1);
 init_per_testcase(C=nostore_hint, Config) ->
     escalus:init_per_testcase(C, Config);
 init_per_testcase(C=muc_querying_for_all_messages, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C,
         muc_bootstrap_archive(start_alice_room(Config1)));
 init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C,
         muc_bootstrap_archive(start_alice_room(Config1)));
 init_per_testcase(C=muc_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_archive_purge, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_multiple_devices, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_protected_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_deny_protected_room_access, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, start_alice_protected_room(Config1));
 init_per_testcase(C=muc_allow_access_to_owner, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, start_alice_protected_room(Config1));
 init_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
 init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
 init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob, carol]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=limit_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
+    Config1 = escalus_fresh:create_users(Config, [alice, bob, carol]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=prefs_set_request, Config) ->
     skip_if_riak(C, Config);
@@ -815,7 +815,7 @@ init_per_testcase(C=long_text_search_request, Config) ->
 init_per_testcase(C=muc_text_search_request, Config) ->
     Init =
         fun() ->
-            Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+            Config1 = escalus_fresh:create_users(Config, [alice, bob]),
             escalus:init_per_testcase(C, start_alice_room(Config1))
         end,
 

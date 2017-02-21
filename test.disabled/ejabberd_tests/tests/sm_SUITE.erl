@@ -854,7 +854,7 @@ get_bjid(UserSpec) ->
     <<User/binary,"@",Server/binary>>.
 
 given_fresh_spec(Config, User) ->
-    NewConfig = escalus_fresh:create_users(Config, [{User, 1}]),
+    NewConfig = escalus_fresh:create_users(Config, [User]),
     escalus_users:get_userspec(NewConfig, User).
 
 given_fresh_user(Config, UserName) ->

@@ -37,7 +37,7 @@ caps_feature_is_advertised(Config) ->
     escalus_connection:stop(Connection).
 
 user_can_query_server_caps_via_disco(Config) ->
-    NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    NewConfig = escalus_fresh:create_users(Config, [alice]),
     Spec = escalus_users:get_userspec(NewConfig, alice),
     {ok, Alice, _, Features} = escalus_connection:start(Spec),
     #{<<"node">> := Node,

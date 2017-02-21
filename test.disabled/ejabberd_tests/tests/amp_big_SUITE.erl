@@ -280,7 +280,7 @@ notify_deliver_to_online_user_recipient_privacy_test(Config) ->
       end).
 
 notify_deliver_to_offline_user_test(Config) ->
-    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    FreshConfig = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
@@ -322,7 +322,7 @@ notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
     end.
 
 do_notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
-    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    FreshConfig = escalus_fresh:create_users(Config, [alice, bob]),
     escalus:story(
       FreshConfig, [{bob, 1}],
       fun(Bob) ->
@@ -488,7 +488,7 @@ error_deliver_to_online_user_test(Config) ->
       end).
 
 error_deliver_to_offline_user_test(Config) ->
-    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    FreshConfig = escalus_fresh:create_users(Config, [alice, bob]),
     Rule = {deliver, case ?config(offline_storage, Config) of
                          none -> none;
                          _ -> stored
@@ -569,7 +569,7 @@ drop_deliver_to_online_user_test(Config) ->
       end).
 
 drop_deliver_to_offline_user_test(Config) ->
-    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    FreshConfig = escalus_fresh:create_users(Config, [alice, bob]),
     Rule = {deliver, case ?config(offline_storage, Config) of
                          none -> none;
                          _ -> stored

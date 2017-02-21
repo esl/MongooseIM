@@ -123,7 +123,7 @@ connect_geralt(Pid) ->
     connect_user(Spec).
 
 given_fresh_spec(Config, User) ->
-    NewConfig = escalus_fresh:create_users(Config, [{User, 1}]),
+    NewConfig = escalus_fresh:create_users(Config, [User]),
     escalus_users:get_userspec(NewConfig, User).
 
 connect_user(Spec) ->

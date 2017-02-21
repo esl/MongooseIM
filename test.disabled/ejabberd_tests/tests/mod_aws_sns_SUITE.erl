@@ -115,7 +115,7 @@ end_per_group(_, Config) ->
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(muc_messages = C, Config0) ->
-    Config = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}]),
+    Config = escalus_fresh:create_users(Config0, [alice, bob]),
     start_publish_listener(Config),
     [User | _] = ?config(escalus_users, Config),
     Config2 = muc_helper:start_room(Config, User, <<"muc_publish">>, <<"user_nick">>,
@@ -123,7 +123,7 @@ init_per_testcase(muc_messages = C, Config0) ->
                                      {anonymous, false}]),
     escalus:init_per_testcase(C, Config2);
 init_per_testcase(CaseName, Config0) ->
-    Config = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}]),
+    Config = escalus_fresh:create_users(Config0, [alice, bob]),
     start_publish_listener(Config),
     escalus:init_per_testcase(CaseName, Config).
 

@@ -466,7 +466,7 @@ legacy_successful_plain(Config) ->
     legacy_auth(Config, legacy_auth_plain).
 
 legacy_unsuccessful_plain(ConfigIn) ->
-    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}]),
+    Config = escalus_fresh:create_users(ConfigIn, [alice]),
     Spec = escalus_users:get_userspec(Config, alice),
     NewSpec = lists:keyreplace(password, 1, Spec, {password, <<"wrong_pass">>}),
     try
@@ -479,7 +479,7 @@ legacy_unsuccessful_plain(ConfigIn) ->
 
 legacy_auth(ConfigIn, Function) ->
     %% given
-    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}]),
+    Config = escalus_fresh:create_users(ConfigIn, [alice]),
     Spec = escalus_users:get_userspec(Config, alice),
     do_legacy_auth(Spec, Function).
 
@@ -495,7 +495,7 @@ do_legacy_auth(Spec, Function) ->
 
 
 legacy_blocked_user(ConfigIn) ->
-    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}]),
+    Config = escalus_fresh:create_users(ConfigIn, [alice]),
     Spec = escalus_users:get_userspec(Config, alice),
     set_acl_for_blocking(Spec),
     try
