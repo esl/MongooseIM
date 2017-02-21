@@ -953,11 +953,11 @@ process_outgoing_stanza(El, StateData) ->
             end,
     Acc2 = mongoose_acc:put(element, NewEl, Acc1),
     Name = mongoose_acc:get(name, Acc2),
-    NState = process_outgoing_stanza(ToJID, Name, Acc2, StateData),
+    NState = process_outgoing_stanza(Acc2, ToJID, Name, StateData),
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
     fsm_next_state(session_established, NState).
 
-process_outgoing_stanza(error, _Name, Acc, StateData) ->
+process_outgoing_stanza(Acc, error, _Name, StateData) ->
     Attrs = mongoose_acc:get(attrs, Acc),
     NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
     case xml:get_attr_s(<<"type">>, Attrs) of
@@ -968,7 +968,7 @@ process_outgoing_stanza(error, _Name, Acc, StateData) ->
             send_element(StateData, Err),
             StateData
     end;
-process_outgoing_stanza(ToJID, <<"presence">>, Acc, StateData) ->
+process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
     User = mongoose_acc:get(user, Acc),
@@ -985,12 +985,12 @@ process_outgoing_stanza(ToJID, <<"presence">>, Acc, StateData) ->
         #jid{user = User,
              server = Server,
              resource = <<>>} ->
-             presence_update(FromJID, Res1,
+             presence_update(Res1, FromJID,
                              StateData);
         _ ->
              presence_track(Res1, StateData)
     end;
-process_outgoing_stanza(ToJID, <<"iq">>, Acc, StateData) ->
+process_outgoing_stanza(Acc, ToJID, <<"iq">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
     NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
@@ -1003,20 +1003,20 @@ process_outgoing_stanza(ToJID, <<"iq">>, Acc, StateData) ->
             ejabberd_hooks:run(user_send_packet,
                                Server,
                                [FromJID, ToJID, NewEl]),
-            check_privacy_and_route(old, FromJID, StateData, FromJID, ToJID, NewEl),
+            check_privacy_and_route(FromJID, StateData, FromJID, ToJID, NewEl),
             StateData
     end;
-process_outgoing_stanza(ToJID, <<"message">>, Acc, StateData) ->
+process_outgoing_stanza(Acc, ToJID, <<"message">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
     NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
     ejabberd_hooks:run(user_send_packet,
                        Server,
                        [FromJID, ToJID, NewEl]),
-    check_privacy_and_route(old, FromJID, StateData, FromJID,
+    check_privacy_and_route(FromJID, StateData, FromJID,
                             ToJID, NewEl),
     StateData;
-process_outgoing_stanza(_ToJID, _Name, _Acc, StateData) ->
+process_outgoing_stanza(_Acc, _ToJID, _Name, StateData) ->
     StateData.
 
 %%-------------------------------------------------------------------------
@@ -1161,9 +1161,7 @@ handle_info({force_update_presence, LUser}, StateName,
                            [LUser, LServer]),
             StateData2 = StateData#state{pres_last = PresenceEl},
             Acc = mongoose_acc:initialise(PresenceEl, ?FILE, ?LINE),
-            presence_update(StateData2#state.jid,
-                            Acc,
-                            StateData2),
+            presence_update(Acc, StateData2#state.jid, StateData2),
             StateData2;
         _ ->
             StateData
@@ -1488,8 +1486,8 @@ terminate(_Reason, StateName, StateData) ->
               StateData#state.resource,
               <<"Replaced by new connection">>,
               replaced),
-            presence_broadcast(StateData, StateData#state.pres_a, Acc),
-            presence_broadcast(StateData, StateData#state.pres_i, Acc),
+            Acc1 = presence_broadcast(Acc, StateData#state.pres_a, StateData),
+            presence_broadcast(Acc1, StateData#state.pres_i, StateData),
             reroute_unacked_messages(StateData);
         {_, resumed} ->
             ?INFO_MSG("(~w) Stream ~p resumed for ~s",
@@ -1525,8 +1523,8 @@ terminate(_Reason, StateName, StateData) ->
                       StateData#state.resource,
                       <<"">>,
                       normal),
-                    presence_broadcast(StateData, StateData#state.pres_a, Acc),
-                    presence_broadcast(StateData, StateData#state.pres_i, Acc)
+                    Acc1 = presence_broadcast(Acc, StateData#state.pres_a, StateData),
+                    presence_broadcast(Acc1, StateData#state.pres_i, StateData)
             end,
             reroute_unacked_messages(StateData)
     end,
@@ -1805,10 +1803,10 @@ specifically_visible_to(LFrom, #state{pres_invis = Invisible} = S) ->
     andalso gb_sets:is_element(LFrom, S#state.pres_a).
 
 %% @doc User updates his presence (non-directed presence packet)
--spec presence_update(From :: 'undefined' | ejabberd:jid(),
-                      Acc :: mongoose_acc:t(),
+-spec presence_update(Acc :: mongoose_acc:t(),
+                      From :: 'undefined' | ejabberd:jid(),
                       State :: state()) -> state().
-presence_update(From, Acc, StateData) ->
+presence_update(Acc, From, StateData) ->
     Packet = mongoose_acc:get(element, Acc),
     case mongoose_acc:get(type, Acc) of
         <<"unavailable">> ->
@@ -1826,8 +1824,8 @@ presence_update(From, Acc, StateData) ->
                                               StateData#state.resource,
                                               Status,
                                               Info),
-            Acc2 = presence_broadcast(StateData, StateData#state.pres_a, Acc1),
-            presence_broadcast(StateData, StateData#state.pres_i, Acc2),
+            Acc2 = presence_broadcast(Acc1, StateData#state.pres_a, StateData),
+            presence_broadcast(Acc2, StateData#state.pres_i, StateData),
             % and here we reach the end
             StateData#state{pres_last = undefined,
                             pres_timestamp = undefined,
@@ -1840,12 +1838,12 @@ presence_update(From, Acc, StateData) ->
             NewState =
             case StateData#state.pres_invis of
                 false ->
-                    Acc1 = presence_broadcast(StateData,
+                    Acc1 = presence_broadcast(Acc0,
                                               StateData#state.pres_a,
-                                              Acc0),
-                    Acc2 = presence_broadcast(StateData,
+                                              StateData),
+                    Acc2 = presence_broadcast(Acc1,
                                               StateData#state.pres_i,
-                                              Acc1),
+                                              StateData),
                     S1 = StateData#state{pres_last = undefined,
                                          pres_timestamp = undefined,
                                          pres_a = gb_sets:new(),
@@ -1911,6 +1909,8 @@ presence_update_to_available(Acc, StateData, From, Packet) ->
                                           [StateData#state.user, NewStateData#state.server]),
                       % is this processing of the same stanza, or a new chain? Means: should
                       % we pass on the same acc or create a new one there?
+                      % I think it is the same, since this is the one that started the whole
+                      % process, so it should always be the same
                       resend_offline_messages(NewStateData),
                       resend_subscription_requests(NewStateData#state{
                                                      pending_invitations = Pending});
@@ -2000,7 +2000,7 @@ presence_track(Acc, StateData) ->
                             pres_a = A}
     end.
 
-check_privacy_and_route(old, From, StateData, FromRoute, To, Packet) ->
+check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
     ?DEPRECATED,
     Acc0 = mongoose_acc:from_element(Packet),
     Acc1 = mongoose_acc:put(from_jid, From, Acc0),
@@ -2018,7 +2018,7 @@ check_privacy_and_route(Acc, StateData) ->
 check_privacy_and_route(Acc, FromRoute, StateData) ->
     From = mongoose_acc:get(from_jid, Acc),
     To = mongoose_acc:get(to_jid, Acc),
-    {Acc1, Res} = privacy_check_packet(StateData, To, Acc, out),
+    {Acc1, Res} = privacy_check_packet(Acc, To, out, StateData),
     Packet = mongoose_acc:terminate(Acc1, ?FILE, ?LINE),
     case Res of
         deny ->
@@ -2038,19 +2038,19 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
                            From :: ejabberd:jid(),
                            To :: ejabberd:jid(),
                            Packet :: jlib:xmlel(),
-                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
+                           Dir :: 'in' | 'out') -> allow|deny|block.
 privacy_check_packet(StateData, From, To, #xmlel{} = Packet, Dir) ->
     ?DEPRECATED,
     Acc = mongoose_acc:from_element(Packet),
     Acc1 = mongoose_acc:put(from_jid, From, Acc),
-    {_, Res} = privacy_check_packet(StateData, To, Acc1, Dir),
+    {_, Res} = privacy_check_packet(Acc1, To, Dir, StateData),
     Res.
 
--spec privacy_check_packet(StateData :: state(),
+-spec privacy_check_packet(Acc :: mongoose_acc:t(),
                            To :: ejabberd:jid(),
-                           Packet :: mongoose_acc:t(),
-                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
-privacy_check_packet(StateData, To, Acc, Dir) ->
+                           Dir :: 'in' | 'out',
+                           StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
+privacy_check_packet(Acc, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet(Acc,
                                           StateData#state.server,
                                           StateData#state.user,
@@ -2073,15 +2073,15 @@ is_privacy_allow(StateData, From, To, Packet, Dir) ->
     end.
 
 
--spec presence_broadcast(State :: state(),
+-spec presence_broadcast(Acc :: mongoose_acc:t(),
                          JIDSet :: jid_set(),
-                         Acc :: mongoose_acc:t()) -> mongoose_acc:t().
-presence_broadcast(StateData, JIDSet, Acc) ->
+                         State :: state()) -> mongoose_acc:t().
+presence_broadcast(Acc, JIDSet, StateData) ->
     Packet = mongoose_acc:get(element, Acc),
     From = mongoose_acc:get(from_jid, Acc),
     lists:foldl(fun(JID, A) ->
                           FJID = jid:make(JID),
-                          {A1, Res} = privacy_check_packet(StateData, FJID, A, out),
+                          {A1, Res} = privacy_check_packet(A, FJID, out, StateData),
                           case Res of
                               allow ->
                                   % here we sort of mongoose_acc:terminate
@@ -2304,7 +2304,7 @@ check_privacy_and_route_or_ignore(StateData, From, To, Packet, Dir) ->
                                         Packet :: exml:element(),
                                         Dir :: in | out) -> any().
 check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
-    {Acc1, Res} = privacy_check_packet(StateData, To, Acc, Dir),
+    {Acc1, Res} = privacy_check_packet(Acc, To, Dir, StateData),
     case Res of
         allow -> ejabberd_router:route(From, To, Packet);
         _ -> ok
