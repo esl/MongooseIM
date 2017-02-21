@@ -123,7 +123,7 @@ commands() ->
                            args = [{action, string}, {subs, string},
                                    {asks, string}, {users, string},
                                    {contacts, string}],
-                           result = {res, rescode}},
+                           result = {res, binary}},
         #ejabberd_commands{name = get_roster, tags = [roster],
                            desc = "Get roster of a local user",
                            module = ?MODULE, function = get_roster,
@@ -401,7 +401,7 @@ build_broadcast(U, S, SubsAtom) when is_atom(SubsAtom) ->
 %%-----------------------------
 
 -spec process_rosteritems(Act :: string(), SubsS :: string(), AsksS :: string(),
-        UsersS :: string(), ContactsS :: string()) -> 'ok'.
+        UsersS :: string(), ContactsS :: string()) -> binary().
 process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
     Action = case ActionS of
         "list" -> list;
@@ -440,60 +440,58 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
             [ejabberd_binary:string_to_binary(S) || S <- string:tokens(ContactsS, ":")]
             ),
 
-    rosteritem_purge({Action, Subs, Asks, Users, Contacts}),
-    ok.
+    case validate_regexps(Users ++ Contacts) of
+        <<>> ->
+            Options = {Action, Subs, Asks, Users, Contacts},
 
--spec rosteritem_purge(delete_action() | list_action()) -> {'atomic', 'ok'}.
-rosteritem_purge(Options) ->
-    NumRosteritems = mnesia:table_info(roster, size),
-    case NumRosteritems of
-        0 ->
-            ?DEBUG("Roster table is empty.~n", []);
-        _ ->
-            ?DEBUG("There are ~p roster items in total.~n", [NumRosteritems]),
-            Key = mnesia:dirty_first(roster),
-            ok = rip(Key, Options, {0, NumRosteritems, 0, 0})
-    end,
-    {atomic, ok}.
+            case mnesia:table_info(roster, size) of
+                0 ->
+                    <<"Roster table is empty.\n">>;
+                NumRosteritems ->
+                    Msg1 = <<"There are ", (integer_to_binary(NumRosteritems))/binary,
+                             " roster items in total.\n">>,
+                    Key = mnesia:dirty_first(roster),
+                    Msg2 = rip(Key, Options, <<>>),
+                    <<Msg1/binary, Msg2/binary>>
+            end;
+        ErrorMsg ->
+            ErrorMsg
+    end.
 
+validate_regexps(ListOfRegexps) ->
+    lists:foldl(
+      fun(RegExp, MsgAcc) ->
+              case re:compile(RegExp) of
+                  {ok, _} -> MsgAcc;
+                  {error, Error} ->
+                      NewErr = iolist_to_binary(io_lib:format("Wrong regexp ~p: ~p~n",
+                                                              [RegExp, Error])),
+                      <<MsgAcc/binary, NewErr/binary>>
+              end
+      end, <<>>, ListOfRegexps).
 
--spec rip('$end_of_table'  | any(), delete_action()  | list_action(),
-          {integer(), integer(), non_neg_integer(), non_neg_integer()}) ->
-             ok.
-rip('$end_of_table', _Options, Counters) ->
-    print_progress_line(Counters),
-    ok;
-rip(Key, Options, {Pr, NT, NV, ND}) ->
+-spec rip('$end_of_table'  | any(), delete_action()  | list_action(), binary()) -> binary().
+rip('$end_of_table', _Options, Acc) ->
+    Acc;
+rip(Key, Options, Acc) ->
     KeyNext = mnesia:dirty_next(roster, Key),
     {Action, _, _, _, _} = Options,
-    ND2 = case decide_rip(Key, Options) of
-        true ->
-            apply_action(Action, Key),
-            ND+1;
-        false ->
-            ND
-    end,
-    NV2 = NV+1,
-    Pr2 = print_progress_line({Pr, NT, NV2, ND2}),
-    rip(KeyNext, Options, {Pr2, NT, NV2, ND2}).
+    Msg = case decide_rip(Key, Options) of
+              true ->
+                  apply_action(Action, Key);
+              false ->
+                  <<>>
+          end,
+    rip(KeyNext, Options, <<Acc/binary, Msg/binary>>).
 
 apply_action(list, Key) ->
     {User, Server, JID} = Key,
     {RUser, RServer, _} = JID,
-    ?DEBUG("Matches: ~s@~s ~s@~s~n", [User, Server, RUser, RServer]);
+    <<"Matches: ", User/binary, "@", Server/binary, " ", RUser/binary, "@", RServer/binary, "\n">>;
 apply_action(delete, Key) ->
-    apply_action(list, Key),
-    mnesia:dirty_delete(roster, Key).
-
-print_progress_line({Pr, NT, NV, ND}) ->
-    Pr2 = NV * 100 div NT,
-    case Pr == Pr2 of
-        true ->
-            ok;
-        false ->
-            ?DEBUG("Progress ~p% - visited ~p - deleted ~p~n", [Pr2, NV, ND])
-    end,
-    Pr2.
+    Msg = apply_action(list, Key),
+    mnesia:dirty_delete(roster, Key),
+    Msg.
 
 decide_rip(Key, {_Action, Subs, Asks, User, Contact}) ->
     case catch mnesia:dirty_read(roster, Key) of
@@ -537,9 +535,10 @@ is_regexp_match(String, RegExp) ->
                     false
             end;
         Error ->
-            ?DEBUG("Wrong regexp ~p: ~p", [RegExp, Error]),
+            ?ERROR_MSG("Wrong regexp ~p: ~p", [RegExp, Error]),
             false
     end.
 
 possible_subs_binary() ->
     [<<"none">>, <<"from">>, <<"to">>, <<"both">>].
+
