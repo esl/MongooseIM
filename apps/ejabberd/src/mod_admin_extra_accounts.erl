@@ -59,7 +59,8 @@ commands() ->
                            desc = "Check if the password hash is correct",
                            longdesc = "Allowed hash methods: md5, sha.",
                            module = ?MODULE, function = check_password_hash,
-                           args = [{user, binary}, {host, binary}, {passwordhash, string}, {hashmethod, string}],
+                           args = [{user, binary}, {host, binary}, {passwordhash, string},
+                                   {hashmethod, string}],
                            result = {res, restuple}},
         #ejabberd_commands{name = delete_old_users, tags = [accounts, purge],
                            desc = "Delete users that didn't log in last days, or that never logged",
@@ -67,7 +68,8 @@ commands() ->
                            args = [{days, integer}],
                            result = {res, restuple}},
         #ejabberd_commands{name = delete_old_users_vhost, tags = [accounts, purge],
-                           desc = "Delete users that didn't log in last days in vhost, or that never logged",
+                           desc = "Delete users that didn't log in last days in vhost,"
+                                  " or that never logged",
                            module = ?MODULE, function = delete_old_users_vhost,
                            args = [{host, binary}, {days, integer}],
                            result = {res, restuple}},
@@ -97,7 +99,8 @@ commands() ->
 %%% Accounts
 %%%
 
--spec set_password(ejabberd:user(), ejabberd:server(), binary()) -> {'error', string()} | {'ok', string()}.
+-spec set_password(ejabberd:user(), ejabberd:server(), binary()) ->
+    {error, string()} | {ok, string()}.
 set_password(User, Host, Password) ->
     case ejabberd_auth:set_password(User, Host, Password) of
         ok ->
@@ -113,13 +116,16 @@ check_password(User, Host, Password) ->
         true ->
             case ejabberd_auth:check_password(User, Host, Password) of
                 true ->
-                    {ok, io_lib:format("Password '~s' for user ~s@~s is correct", [Password, User, Host])};
+                    {ok, io_lib:format("Password '~s' for user ~s@~s is correct",
+                                       [Password, User, Host])};
                 false ->
-                    {incorrect, io_lib:format("Password '~s' for user ~s@~s is incorrect", [Password, User, Host])}
+                    {incorrect, io_lib:format("Password '~s' for user ~s@~s is incorrect",
+                                              [Password, User, Host])}
             end;
         false ->
-            {user_does_not_exist, io_lib:format("Password '~s' for user ~s@~s is incorrect because this user does not
-            exist", [Password, User, Host])}
+            {user_does_not_exist,
+            io_lib:format("Password '~s' for user ~s@~s is incorrect because this user does not"
+                          " exist", [Password, User, Host])}
     end.
 
 -spec check_account(ejabberd:user(), ejabberd:server()) -> {Res, string()} when
@@ -133,8 +139,9 @@ check_account(User, Host) ->
     end.
 
 
--spec check_password_hash(ejabberd:user(), ejabberd:server(), Hash :: binary(),
-                         Method :: string()) -> {'error', string()} | {'ok', string()} | {'incorrect', string()}.
+-spec check_password_hash(ejabberd:user(), ejabberd:server(),
+                          Hash :: binary(), Method :: string()) ->
+    {error, string()} | {ok, string()} | {incorrect, string()}.
 check_password_hash(User, Host, PasswordHash, HashMethod) ->
     AccountPass = ejabberd_auth:get_password_s(User, Host),
     AccountPassHash = case HashMethod of
@@ -192,73 +199,66 @@ delete_old_users_vhost(Host, Days) ->
     {ok, io_lib:format("Deleted ~p users: ~p", [N, UR])}.
 
 
--spec delete_old_users(Days :: integer(), Users :: [ejabberd:simple_jid()])
-            -> {'removed', non_neg_integer(), [ejabberd:simple_jid()]}.
+-spec delete_old_users(Days :: integer(), Users :: [ejabberd:simple_bare_jid()]) ->
+    {removed, non_neg_integer(), [ejabberd:simple_bare_jid()]}.
 delete_old_users(Days, Users) ->
     %% Convert older time
     SecOlder = Days*24*60*60,
 
     %% Get current time
     {MegaSecs, Secs, _MicroSecs} = now(),
-    TimeStamp_now = MegaSecs * 1000000 + Secs,
+    TimeStampNow = MegaSecs * 1000000 + Secs,
 
-    %% For a user, remove if required and answer true
-    F = fun({LUser, LServer}) ->
-            %% Check if the user is logged
-            case ejabberd_sm:get_user_resources(LUser, LServer) of
-                %% If it isnt
-                [] ->
-                    %% Look for his last_activity
-                    case (get_lastactivity_module(LServer)):get_last_info(LUser, LServer) of
-                        %% If it is
-                        %% existent:
-                        {ok, TimeStamp, _Status} ->
-                            %% get his age
-                            Sec = TimeStamp_now - TimeStamp,
-                            %% If he is
-                            if
-                                %% younger than SecOlder:
-                                Sec < SecOlder ->
-                                    %% do nothing
-                                    false;
-                                %% older:
-                                true ->
-                                    %% remove the user
-                                    ejabberd_auth:remove_user(LUser, LServer),
-                                    true
-                            end;
-                        %% nonexistent:
-                        not_found ->
-                            %% remove the user
-                            ejabberd_auth:remove_user(LUser, LServer),
-                            true
-                    end;
-                %% Else
-                _ ->
-                    %% do nothing
-                    false
-            end
-    end,
-    %% Apply the function to every user in the list
-    Users_removed = lists:filter(F, Users),
-    {removed, length(Users_removed), Users_removed}.
+    %% Apply the remove function to every user in the list
+    UsersRemoved = lists:filter(fun(User) ->
+                                        delete_old_user(User, TimeStampNow, SecOlder)
+                                end, Users),
+    {removed, length(UsersRemoved), UsersRemoved}.
 
-
--spec get_lastactivity_module(ejabberd:server()) -> 'mod_last' | 'mod_last_odbc'.
-get_lastactivity_module(Server) ->
-    case lists:member(mod_last, gen_mod:loaded_modules(Server)) of
-        true -> mod_last;
-        _ -> mod_last_odbc
+-spec delete_old_user(User :: ejabberd:simple_bare_jid(),
+                      TimeStampNow :: non_neg_integer(),
+                      SecOlder :: non_neg_integer()) -> boolean().
+delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
+    %% Check if the user is logged
+    case ejabberd_sm:get_user_resources(LUser, LServer) of
+        [] -> delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder);
+        _ -> false
     end.
 
+-spec delete_old_user_if_nonactive_long_enough(LUser :: ejabberd:luser(),
+                                               LServer :: ejabberd:lserver(),
+                                               TimeStampNow :: non_neg_integer(),
+                                               SecOlder :: non_neg_integer()) -> boolean().
+delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder) ->
+    case mod_last:get_last_info(LUser, LServer) of
+        {ok, TimeStamp, _Status} ->
+            %% get his age
+            Sec = TimeStampNow - TimeStamp,
+            %% If he is younger than SecOlder:
+            case Sec < SecOlder of
+                true ->
+                    %% do nothing
+                    false;
+                %% older:
+                false ->
+                    %% remove the user
+                    ejabberd_auth:remove_user(LUser, LServer),
+                    true
+            end;
+        not_found ->
+            ejabberd_auth:remove_user(LUser, LServer),
+            true
+    end.
 
--spec ban_account(ejabberd:user(), ejabberd:server(), binary() | string()) -> {'ok', string()} | {'error', string()}.
+-spec ban_account(ejabberd:user(), ejabberd:server(), binary() | string()) ->
+    {ok, string()} | {error, string()}.
 ban_account(User, Host, ReasonText) ->
     Reason = mod_admin_extra_sessions:prepare_reason(ReasonText),
     kick_sessions(User, Host, Reason),
     case set_random_password(User, Host, Reason) of
         ok ->
-            {ok, io_lib:format("User ~s@~s successfully banned with reason: ~s", [User, Host, ReasonText])};
+            {ok, io_lib:format("User ~s@~s successfully banned with reason: ~s",
+                               [User, Host, ReasonText])};
         {error, ErrorReason} ->
             {error, ErrorReason}
     end.
