@@ -731,8 +731,9 @@ is_privacy_allow(From, To, Packet, PrivacyList) ->
     Server = To#jid.server,
     ?TEMPORARY,
     Acc = mongoose_acc:from_element(Packet),
-    {_, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User, PrivacyList,
-                                                     From, To, Packet, in),
+    Acc1 = mongoose_acc:put(from_jid, From, Acc),
+    {_, Res} = mongoose_privacy:privacy_check_packet(Acc1, Server, User, PrivacyList,
+                                                     To, in),
     allow == Res.
 
 

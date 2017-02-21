@@ -172,12 +172,8 @@ process_sm_iq(From, To,
                                                       element => Packet}),
                         {_, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
                                                                          UserListRecord, To, From,
-                                                                         Packet, out),
-                        Decision = mongoose_acc:retrieve(privacy_check,
-                                                         jid:to_lower(From),
-                                                         Res,
-                                                         allow),
-                        make_response(IQ, SubEl, User, Server, Decision);
+                                                                         out),
+                        make_response(IQ, SubEl, User, Server, Res);
                     false ->
                         IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
                 end
