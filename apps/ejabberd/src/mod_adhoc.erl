@@ -285,7 +285,7 @@ ping_command(_Acc, _From, _To,
                               session_id = SessionID,
                               status = completed,
                               notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
-        _ ->
+        false ->
             {error, ?ERR_BAD_REQUEST}
     end;
 ping_command(Acc, _From, _To, _Request) ->

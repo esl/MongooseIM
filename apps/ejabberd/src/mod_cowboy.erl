@@ -122,7 +122,7 @@ handle_ws_init(Transport, Req, Opts) ->
         _ ->
             {ok, Req2} = cowboy_req:reply(404, Req1),
             {shutdown, Req2}
-    end. 
+    end.
 
 init_http_handler(Handler, Transport, Req, Opts) ->
     case Handler:init(Transport, Req, Opts) of

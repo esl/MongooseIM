@@ -61,16 +61,11 @@
 -callback clean_tokens(Owner) -> ok when
       Owner :: ejabberd:jid().
 
--define(a2b(A), atom_to_binary(A, utf8)).
--define(b2a(B), binary_to_atom(B, utf8)).
+-define(A2B(A), atom_to_binary(A, utf8)).
+-define(B2A(B), binary_to_atom(B, utf8)).
 
--define(i2b(I), integer_to_binary(I)).
--define(b2i(B), binary_to_integer(B)).
-
--define(l2b(L), list_to_binary(L)).
--define(b2l(B), binary_to_list(B)).
-
--define(BACKEND, mod_auth_token_backend).
+-define(I2B(I), integer_to_binary(I)).
+-define(B2I(B), binary_to_integer(B)).
 
 %%
 %% gen_mod callbacks
@@ -142,18 +137,18 @@ join_fields(T) ->
            sequence_no = SeqNo, vcard = VCard} = T,
     case {Type, SeqNo} of
         {access, undefined} ->
-            <<(?a2b(Type))/bytes, Sep,
+            <<(?A2B(Type))/bytes, Sep,
               (jid:to_binary(JID))/bytes, Sep,
-              (?i2b(datetime_to_seconds(Expiry)))/bytes>>;
+              (?I2B(datetime_to_seconds(Expiry)))/bytes>>;
         {refresh, _} ->
-            <<(?a2b(Type))/bytes, Sep,
+            <<(?A2B(Type))/bytes, Sep,
               (jid:to_binary(JID))/bytes, Sep,
-              (?i2b(datetime_to_seconds(Expiry)))/bytes, Sep,
-              (?i2b(SeqNo))/bytes>>;
+              (?I2B(datetime_to_seconds(Expiry)))/bytes, Sep,
+              (?I2B(SeqNo))/bytes>>;
         {provision, undefined} ->
-            <<(?a2b(Type))/bytes, Sep,
+            <<(?A2B(Type))/bytes, Sep,
               (jid:to_binary(JID))/bytes, Sep,
-              (?i2b(datetime_to_seconds(Expiry)))/bytes, Sep,
+              (?I2B(datetime_to_seconds(Expiry)))/bytes, Sep,
               (exml:to_binary(VCard))/bytes>>
     end.
 
@@ -173,7 +168,7 @@ deserialize(Serialized) when is_binary(Serialized) ->
       Owner :: ejabberd:jid().
 revoke(Owner) ->
     try
-        ?BACKEND:revoke(Owner)
+        mod_auth_token_backend:revoke(Owner)
     catch
         E:R -> ?ERROR_MSG("backend error! ~p", [{E, R}]),
                error
@@ -241,7 +236,7 @@ is_revoked(#token{type = T}) when T =:= access;
     false;
 is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
     try
-        ValidSeqNo = ?BACKEND:get_valid_sequence_number(T#token.user_jid),
+        ValidSeqNo = mod_auth_token_backend:get_valid_sequence_number(T#token.user_jid),
         TokenSeqNo < ValidSeqNo
     catch
         E:R -> ?ERROR_MSG("error checking revocation status: ~p", [{E, R}]),
@@ -299,7 +294,7 @@ token(Type, User) ->
         token_with_mac(case Type of
                            access -> T;
                            refresh ->
-                               ValidSeqNo = ?BACKEND:get_valid_sequence_number(User),
+                               ValidSeqNo = mod_auth_token_backend:get_valid_sequence_number(User),
                                T#token{sequence_no = ValidSeqNo}
                        end)
     catch
@@ -352,14 +347,14 @@ default_validity_period(refresh) -> {25, days}.
       Token :: token().
 get_token_as_record(BToken) ->
     [BType, User, Expiry | Rest] = binary:split(BToken, <<(field_separator())>>, [global]),
-    T = #token{type = ?b2a(BType),
+    T = #token{type = ?B2A(BType),
                expiry_datetime = seconds_to_datetime(binary_to_integer(Expiry)),
                user_jid = jid:from_binary(User)},
     T1 = case {BType, Rest} of
              {<<"access">>, [BMAC]} ->
                  T#token{mac_signature = base16:decode(BMAC)};
              {<<"refresh">>, [BSeqNo, BMAC]} ->
-                 T#token{sequence_no = ?b2i(BSeqNo),
+                 T#token{sequence_no = ?B2I(BSeqNo),
                          mac_signature = base16:decode(BMAC)};
              {<<"provision">>, [BVCard, BMAC]} ->
                  {ok, VCard} = exml:parse(BVCard),
@@ -402,7 +397,7 @@ revoke_token_command(Owner) ->
 clean_tokens(User, Server) ->
     try
         Owner = jid:make(User, Server, <<>>),
-        ?BACKEND:clean_tokens(Owner)
+        mod_auth_token_backend:clean_tokens(Owner)
     catch
         E:R -> ?ERROR_MSG("clean_tokens backend error: ~p", [{E, R}]),
                ok
