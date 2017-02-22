@@ -18,9 +18,11 @@
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
+-include_lib("epgsql/include/epgsql.hrl").
+
 -define(PGSQL_PORT, 5432).
 
--export([escape_format/1, connect/1, disconnect/1, query/3, is_error_duplicate/1]).
+-export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4]).
 
 %% API
 
@@ -28,14 +30,13 @@
 escape_format(_Host) ->
     hex.
 
--spec connect(Args :: any()) ->
-                     {ok, Connection :: epgsql:connection()} | {error, Reason :: any()}.
-connect(Settings) ->
-    [Server, Port, DB, Username, Password] = db_opts(Settings),
-    case pgsql_connection:start_link([{host, Server}, {port, Port}, {database, DB},
-                                      {user, Username}, {password, Password}]) of
+-spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
+                     {ok, Connection :: term()} | {error, Reason :: any()}.
+connect(Settings, QueryTimeout) ->
+    case epgsql:connect(db_opts(Settings)) of
         {ok, Pid} ->
-            query(Pid, <<"SET standard_conforming_strings=off;">>, 5000),
+            epgsql:squery(Pid, [<<"SET statement_timeout=">>, integer_to_binary(QueryTimeout)]),
+            epgsql:squery(Pid, <<"SET standard_conforming_strings=off">>),
             {ok, Pid};
         Error ->
             Error
@@ -43,17 +44,28 @@ connect(Settings) ->
 
 -spec disconnect(Connection :: epgsql:connection()) -> ok.
 disconnect(Connection) ->
-    pgsql_connection:close({pgsql_connection, Connection}).
+    epgsql:close(Connection).
 
 -spec query(Connection :: term(), Query :: any(),
-            Timeout :: infinity | non_neg_integer()) -> term().
-query(Connection, Query, Timeout) ->
-    pgsql_to_odbc(pgsql_connection:simple_query(Query, [], Timeout,
-                                                {pgsql_connection, Connection})).
+            Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
+query(Connection, Query, _Timeout) ->
+    pgsql_to_odbc(epgsql:squery(Connection, Query)).
 
--spec is_error_duplicate(Reason :: string()) -> boolean().
-is_error_duplicate("Duplicate" ++ _) -> true;
-is_error_duplicate(_Reason) -> false.
+-spec prepare(Host :: ejabberd:server(), Connection :: term(), Name :: atom(), Table :: binary(),
+              Fields :: [binary()], Statement :: iodata()) ->
+                     {ok, term()} | {error, any()}.
+prepare(_Host, Connection, Name, _Table, _Fields, Statement) ->
+    BinName = atom_to_binary(Name, latin1),
+    ReplacedStatement = replace_question_marks(Statement),
+    case epgsql:parse(Connection, BinName, ReplacedStatement, []) of
+        {ok, _} -> {ok, BinName};
+        Error   -> Error
+    end.
+
+-spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],
+              Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
+execute(Connection, StatementRef, Params, _Timeout) ->
+    pgsql_to_odbc(epgsql:prepared_query(Connection, StatementRef, Params)).
 
 %% Helpers
 
@@ -61,28 +73,31 @@ is_error_duplicate(_Reason) -> false.
 db_opts({pgsql, Server, DB, User, Pass}) ->
     db_opts({pgsql, Server, ?PGSQL_PORT, DB, User, Pass});
 db_opts({pgsql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
-    [Server, Port, DB, User, Pass].
+    [
+     {host, Server},
+     {port, Port},
+     {database, DB},
+     {username, User},
+     {password, Pass}
+    ].
 
--spec pgsql_to_odbc(pgsql_connection:result_tuple() | {error, any()}) ->
-                           {error, any()} | {selected, [tuple()]} |
-                           {updated, undefined | non_neg_integer()}.
+-spec pgsql_to_odbc(epgsql:reply(term())) -> mongoose_rdbms:query_result().
 pgsql_to_odbc(Items) when is_list(Items) ->
     lists:reverse([pgsql_to_odbc(Item) || Item <- Items]);
-pgsql_to_odbc({error, Reason}) ->
-    {pgsql_error, Details} = Reason,
-    Message = proplists:get_value(message, Details, <<"unknown error">>),
+pgsql_to_odbc({error, #error{codename = unique_violation}}) ->
+    {error, duplicate_key};
+pgsql_to_odbc({error, #error{message = Message}}) ->
     {error, unicode:characters_to_list(Message)};
-pgsql_to_odbc({{select, _Count}, Rows}) ->
-    {selected, [parse_row(Row) || Row <- Rows]};
-pgsql_to_odbc({{insert, _TableOID, Count}, _Rows}) ->
+pgsql_to_odbc({ok, Count}) ->
     {updated, Count};
-pgsql_to_odbc({{_, Count}, _}) when is_integer(Count) ->
-    {updated, Count};
-pgsql_to_odbc(_) ->
-    {updated, undefined}.
+pgsql_to_odbc({ok, _Columns, Rows}) ->
+    {selected, Rows}.
 
--spec parse_row(Row :: tuple()) -> tuple().
-parse_row(Row) ->
-    RowList = tuple_to_list(Row),
-    Translated = lists:map(fun({_EnumName, Value}) -> Value; (Col) -> Col end, RowList),
-    list_to_tuple(Translated).
+-spec replace_question_marks(Statement :: iodata()) -> iodata().
+replace_question_marks(Statement) when is_list(Statement) ->
+    replace_question_marks(iolist_to_binary(Statement));
+replace_question_marks(Statement) when is_binary(Statement) ->
+    [Head | Parts] = binary:split(Statement, <<"?">>, [global]),
+    Placeholders = [<<"$", (integer_to_binary(I))/binary>> || I <- lists:seq(1, length(Parts))],
+PartsWithPlaceholders = lists:zipwith(fun(A, B) -> [A, B] end, Placeholders, Parts),
+                      [Head | PartsWithPlaceholders].

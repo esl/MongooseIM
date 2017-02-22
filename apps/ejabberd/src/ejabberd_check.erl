@@ -55,10 +55,11 @@ check_database_module(odbc) ->
     check_modules(odbc, [odbc, odbc_app, odbc_sup, mongoose_rdbms, mongoose_rdbms_sup,
                          rdbms_queries]);
 check_database_module(mysql) ->
-    check_modules(mysql, [mysql, mysql_auth, mysql_conn, mysql_recv]);
+    check_modules(mysql, [mysql, mysql_cache, mysql_encode, mysql_protocol]);
 check_database_module(pgsql) ->
-    check_modules(pgsql, [pgsql_app, pgsql_connection, pgsql_connection_sup, pgsql_error,
-                          pgsql_protocol, pgsql_sup]).
+    check_modules(pgsql, [epgsql, epgsql_binary, epgsql_errcodes, epgsql_fdatetime,
+                          epgsql_idatetime, epgsql_sock, epgsql_types, epgsql_wire, epgsqla,
+                          epgsqli]).
 
 
 %% @doc Issue a critical error and throw an exit if needing module is
@@ -69,7 +70,8 @@ check_modules(DB, Modules) ->
         [] ->
             ok;
         MissingModules ->
-            ?CRITICAL_MSG("ejabberd is configured to use '~p', but the following Erlang modules are not installed: '~p'", [DB, MissingModules]),
+            ?CRITICAL_MSG("MongooseIM is configured to use '~p', but the following Erlang modules "
+                          "are not installed: '~p'", [DB, MissingModules]),
             exit(database_module_missing)
     end.
 
@@ -77,13 +79,8 @@ check_modules(DB, Modules) ->
 %% @doc Return the list of undefined modules
 -spec get_missing_modules([module()]) -> [module()].
 get_missing_modules(Modules) ->
-    lists:filter(fun(Module) ->
-                         case catch Module:module_info() of
-                             {'EXIT', {undef, _}} ->
-                                 true;
-                             _ -> false
-                         end
-                 end, Modules).
+    ModulesLoadResult = [{Module, code:ensure_loaded(Module)} || Module <- Modules],
+    [Module || {Module, {error, _}} <- ModulesLoadResult].
 
 
 %% @doc Return the list of databases used

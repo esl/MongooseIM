@@ -22,7 +22,7 @@
 
 -define(MYSQL_PORT, 3306).
 
--export([escape_format/1, connect/1, disconnect/1, query/3, is_error_duplicate/1]).
+-export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4]).
 
 %% API
 
@@ -30,13 +30,13 @@
 escape_format(_Host) ->
     simple_escape.
 
--spec connect(Args :: any()) -> {ok, Connection :: term()} | {error, Reason :: any()}.
-connect(Settings) ->
-    [Server, Port, Database, User, Password] = db_opts(Settings),
-    case mysql_conn:start_link(Server, Port, User, Password, Database,
-                               fun log/4, utf8, undefined, true) of
+-spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
+                     {ok, Connection :: term()} | {error, Reason :: any()}.
+connect(Settings, QueryTimeout) ->
+    case mysql:start_link([{query_timeout, QueryTimeout} | db_opts(Settings)]) of
         {ok, Ref} ->
-            query(Ref, <<"SET SESSION query_cache_type=1;">>, 5000),
+            mysql:query(Ref, <<"set names 'utf8';">>),
+            mysql:query(Ref, <<"SET SESSION query_cache_type=1;">>),
             {ok, Ref};
         Error ->
             Error
@@ -44,16 +44,23 @@ connect(Settings) ->
 
 -spec disconnect(Connection :: term()) -> any().
 disconnect(Connection) ->
-    Connection ! stop.
+    gen_server:stop(Connection).
 
 -spec query(Connection :: term(), Query :: any(),
-            Timeout :: infinity | non_neg_integer()) -> term().
-query(Connection, Query, Timeout) ->
-    mysql_to_odbc(mysql_conn:fetch(Connection, iolist_to_binary(Query), self(), Timeout)).
+            Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
+query(Connection, Query, _Timeout) ->
+    mysql_to_odbc(mysql:query(Connection, Query), Connection).
 
--spec is_error_duplicate(Reason :: string()) -> boolean().
-is_error_duplicate("duplicate" ++ _) -> true;
-is_error_duplicate(_Reason) -> false.
+-spec prepare(Host :: ejabberd:server(), Connection :: term(), Name :: atom(), Table :: binary(),
+              Fields :: [binary()], Statement :: iodata()) ->
+                     {ok, term()} | {error, any()}.
+prepare(_Host, Connection, Name, _Table, _Fields, Statement) ->
+    mysql:prepare(Connection, Name, Statement).
+
+-spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],
+              Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
+execute(Connection, StatementRef, Params, _Timeout) ->
+    mysql_to_odbc(mysql:execute(Connection, StatementRef, Params), Connection).
 
 %% Helpers
 
@@ -61,31 +68,24 @@ is_error_duplicate(_Reason) -> false.
 db_opts({mysql, Server, DB, User, Pass}) ->
     db_opts({mysql, Server, ?MYSQL_PORT, DB, User, Pass});
 db_opts({mysql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
-    [Server, Port, DB, User, Pass].
+    [
+     {host, Server},
+     {port, Port},
+     {user, User},
+     {password, Pass},
+     {database, DB},
+     {found_rows, true}
+    ].
 
 %% @doc Convert MySQL query result to Erlang ODBC result formalism
--spec mysql_to_odbc({data, _} | {updated, _} | {error, _}) ->
-    {error, string()} | {updated, non_neg_integer()} | {selected, [tuple()]}.
-mysql_to_odbc({updated, MySQLRes}) ->
-    {updated, mysql:get_result_affected_rows(MySQLRes)};
-mysql_to_odbc({data, MySQLRes}) ->
-    {selected, [parse_row(Row) || Row <- mysql:get_result_rows(MySQLRes)]};
-mysql_to_odbc({error, MySQLRes}) when is_list(MySQLRes) ->
-    {error, MySQLRes};
-mysql_to_odbc({error, MySQLRes}) ->
-    {error, mysql:get_result_reason(MySQLRes)}.
-
--spec parse_row(Row :: [term()]) -> tuple().
-parse_row(Row) ->
-    Translated = lists:map(fun(undefined) -> null; (Col) -> Col end, Row),
-    list_to_tuple(Translated).
-
--spec log(module(), Line :: pos_integer(), debug | normal | error,
-          fun(() -> {Format :: string(), Args :: [term()]})) -> any().
-log(_Module, _Line, Level, FormatFun) ->
-    {Format, Args} = FormatFun(),
-    case Level of
-        debug -> ?DEBUG(Format, Args);
-        normal -> ?INFO_MSG(Format, Args);
-        error -> ?ERROR_MSG(Format, Args)
-    end.
+-spec mysql_to_odbc(mysql:query_result(), Conn :: term()) -> mongoose_rdbms:query_result().
+mysql_to_odbc(ok, Conn) ->
+    {updated, mysql:affected_rows(Conn)};
+mysql_to_odbc({ok, _ColumnNames, Rows}, _Conn) ->
+    {selected, [list_to_tuple(Row) || Row <- Rows]};
+mysql_to_odbc({ok, Results}, Conn) ->
+    [mysql_to_odbc({ok, Cols, Rows}, Conn) || {Cols, Rows} <- Results];
+mysql_to_odbc({error, {1062, _SQLState, _Message}}, _Conn) ->
+    {error, duplicate_key};
+mysql_to_odbc({error, {_Code, _SQLState, Message}}, _Conn) ->
+    {error, unicode:characters_to_list(Message)}.
