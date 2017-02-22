@@ -213,13 +213,13 @@ paths:
         WARNING: Do not try to use this endpoint from this page. Swagger doesn't understand SSE.
       description: |
         Opens an SSE (https://www.html5rocks.com/en/tutorials/eventsource/basics/) connection to retrieve updates from the server.
-        The simplest way to test this endpoint is `curl` command.
+        The simplest way to test this endpoint is a `curl` command.
 
-        We recommend following libraries to consume the events:
+        We recommend the following libraries to consume the events:
         * iOS - https://github.com/inaka/EventSource
         * Erlang/Elixir - https://github.com/inaka/shotgun
 
-        Currently there are two different type of events the server can send to the client:
+        Currently there are two different types of events the server can send to the client:
         * message - regular one-to-one message
             ```JSON
             {"to":"alice@wonderland.lit",
@@ -248,7 +248,7 @@ paths:
               "from":"1483-609513-295321@muclight.wonderland.lit",
               "affiliation":"member"}
              ```
-        For more details please refer to [rooms API specifications](#/Rooms)
+        For more details please refer to the [rooms API specifications](#/Rooms)
       tags:
         - "Server Sent Events"
       produces:
@@ -258,7 +258,7 @@ paths:
           description: "Stream of events sent by the server"
         403:
           description: |
-            When authenticated user is not allowed to read room's deatails.
+            When the authenticated user is not allowed to receive events from the server.
 
 security:
   - mongoose_basic_auth: []
