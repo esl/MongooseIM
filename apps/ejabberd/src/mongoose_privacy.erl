@@ -10,17 +10,19 @@
 -author("bartek").
 
 -include("ejabberd.hrl").
+-include("mod_privacy.hrl").
+
 %% API
 -export([privacy_check_packet/6, privacy_check_packet/7]).
 
 %%% API %%%
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
-    Server :: binary(),
-    User :: binary(),
-    PrivacyList :: list(),
-    To :: ejabberd:jid(),
-    Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
+                           Server :: binary(),
+                           User :: binary(),
+                           PrivacyList :: #userlist{},
+                           To :: ejabberd:jid(),
+                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
 %% @doc abbreviated version - in most cases we have 'from' in Acc, but sometimes
 %% the caller wants something different (e.g. mod_last which swaps addresses)
 privacy_check_packet(Acc, Server, User, PrivacyList, To, Dir) ->
@@ -28,12 +30,12 @@ privacy_check_packet(Acc, Server, User, PrivacyList, To, Dir) ->
     privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir).
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
-    Server :: binary(),
-    User :: binary(),
-    PrivacyList :: list(),
-    From :: ejabberd:jid(),
-    To :: ejabberd:jid(),
-    Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
+                           Server :: binary(),
+                           User :: binary(),
+                           PrivacyList :: #userlist{},
+                           From :: ejabberd:jid(),
+                           To :: ejabberd:jid(),
+                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
 %% @doc check packet, store result in accumulator, return acc and result for quick check
 %% result may vary by recipient, because it may be broadcast to multiple jids
 %% so many arguments because that's how hook handlers are implemented:

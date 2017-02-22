@@ -1874,8 +1874,7 @@ presence_update(Acc, From, StateData) ->
 -spec presence_update_to_available(Acc :: mongoose_acc:t(),
                                    StateData :: state(),
                                    From :: ejabberd:jid(),
-                                   Packet :: exml:element()) ->
-            {mongoose_acc:t(), state()}.
+                                   Packet :: exml:element()) -> state().
 presence_update_to_available(Acc, StateData, From, Packet) ->
     OldPriority = case StateData#state.pres_last of
                       undefined ->

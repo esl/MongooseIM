@@ -725,7 +725,7 @@ is_privacy_allow(From, To, Packet) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel(),
-      PrivacyList :: list().
+      PrivacyList :: #userlist{}.
 is_privacy_allow(From, To, Packet, PrivacyList) ->
     User = To#jid.user,
     Server = To#jid.server,
