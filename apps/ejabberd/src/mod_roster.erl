@@ -514,7 +514,8 @@ get_subscription_lists(Acc, User, Server) ->
     LServer = jid:nameprep(Server),
     Items = ?BACKEND:get_subscription_lists(Acc, LUser, LServer),
     JID = jid:make(User, Server, <<>>),
-    fill_subscription_lists(JID, LServer, Items, [], [], []).
+    SubLists = fill_subscription_lists(JID, LServer, Items, [], [], []),
+    mongoose_acc:put(subscription_lists, SubLists, Acc).
 
 
 fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
