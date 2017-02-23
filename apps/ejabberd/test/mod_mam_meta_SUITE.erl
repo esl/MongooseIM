@@ -81,7 +81,7 @@ produces_valid_configurations(_Config) ->
     check_has_args(mod_mam_odbc_prefs, [pm], Deps),
     check_has_args(mod_mam_muc_odbc_async_pool_writer, [], Deps),
 
-    check_has_no_args(mod_mam_odbc_arch, [muc, simple, no_writer], Deps),
+    check_has_no_args(mod_mam_odbc_arch, [muc, no_writer | ExpandedSimpleOpts], Deps),
     check_has_no_args(mod_mam_mnesia_prefs, [pm], Deps),
     check_has_no_args(mod_mam_odbc_prefs, [muc], Deps),
     ?assertNot(lists:keymember(mod_mam_odbc_async_pool_writer, 1, Deps)).
