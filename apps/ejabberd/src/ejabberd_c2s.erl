@@ -1005,12 +1005,12 @@ process_outgoing_stanza(Acc, ToJID, <<"iq">>, StateData) ->
 process_outgoing_stanza(Acc, ToJID, <<"message">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
-    NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
-    ejabberd_hooks:run(user_send_packet,
-                       Server,
-                       [FromJID, ToJID, NewEl]),
-    check_privacy_and_route(FromJID, StateData, FromJID,
-                            ToJID, NewEl),
+    El = mongoose_acc:get(element, Acc),
+    Acc1 = ejabberd_hooks:run_fold(user_send_packet,
+                                   Server,
+                                   Acc,
+                                   [FromJID, ToJID, El]),
+    _Acc2 = check_privacy_and_route(Acc1, StateData),
     StateData;
 process_outgoing_stanza(_Acc, _ToJID, _Name, StateData) ->
     StateData.
