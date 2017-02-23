@@ -982,14 +982,14 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
                                    Res,
                                    [FromJID, ToJID, El]),
     {_Acc1, NState} = case ToJID of
-        #jid{user = User,
-             server = Server,
-             resource = <<>>} ->
-             presence_update(Res1, FromJID,
-                             StateData);
-        _ ->
-             presence_track(Res1, StateData)
-    end,
+                          #jid{user = User,
+                               server = Server,
+                               resource = <<>>} ->
+                               presence_update(Res1, FromJID,
+                                               StateData);
+                          _ ->
+                               presence_track(Res1, StateData)
+                      end,
     NState;
 process_outgoing_stanza(Acc, ToJID, <<"iq">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
@@ -1904,10 +1904,7 @@ presence_update_to_available(Acc, StateData, From, Packet) ->
                                           NewStateData#state.server,
                                           {[], [], []},
                                           [StateData#state.user, NewStateData#state.server]),
-                      % is this processing of the same stanza, or a new chain? Means: should
-                      % we pass on the same acc or create a new one there? or just don't care?
-                      % I think it is the same, since this is the one that started the whole
-                      % process, so it should always be the same
+                      % TERMINATE - those two functions will be rewritten in the next stage
                       resend_offline_messages(NewStateData),
                       resend_subscription_requests(NewStateData#state{
                                                      pending_invitations = Pending});
@@ -1924,7 +1921,7 @@ presence_update_to_available(Acc, StateData, From, Packet) ->
                                                  Packet),
             case OldPriority < 0 andalso NewPriority >= 0 of
                 true ->
-                    % same question as above
+                    % TERMINATE - those two functions will be rewritten in the next stage
                     resend_offline_messages(NewStateData);
                 false ->
                     ok

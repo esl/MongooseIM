@@ -110,21 +110,21 @@ append(Key, Val, P) ->
     maps:put(Key, append(Val, L), P).
 
 %% @doc Store a value in a key-value store
--spec store(K :: atom(), Idx :: any(), Val :: any(), Acc :: t()) -> t().
-store(K, Idx, Val, Acc) ->
-    St = maps:get(K, Acc, #{}),
-    NSt = maps:put(Idx, Val, St),
-    maps:put(K, NSt, Acc).
+-spec store(Key :: atom(), Index :: any(), Value :: any(), Accumulator :: t()) -> t().
+store(Key, Index, Value, Accumulator) ->
+    Store = maps:get(Key, Accumulator, #{}),
+    NStore = maps:put(Index, Value, Store),
+    maps:put(Key, NStore, Accumulator).
 
--spec retrieve(K :: atom(), Idx :: any(), Acc :: t()) -> any() | undefined.
-retrieve(K, Idx, Acc) ->
-    retrieve(K, Idx, Acc, undefined).
+-spec retrieve(Key :: atom(), Index :: any(), Accumulator :: t()) -> any() | undefined.
+retrieve(Key, Index, Accumulator) ->
+    retrieve(Key, Index, Accumulator, undefined).
 
--spec retrieve(K :: atom(), Idx :: any(), Acc :: t(), Default :: any()) -> any().
-retrieve(K, Idx, Acc, Default) ->
-    case maps:get(K, Acc, undefined) of
+-spec retrieve(Key :: atom(), Index :: any(), Accumulator :: t(), Default :: any()) -> any().
+retrieve(Key, Index, Accumulator, Default) ->
+    case maps:get(Key, Accumulator, undefined) of
         undefined -> Default;
-        M -> maps:get(Idx, M, Default)
+        M -> maps:get(Index, M, Default)
     end.
 
 %%%%% internal %%%%%

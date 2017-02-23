@@ -1,5 +1,4 @@
-%% @doc This suite tests both old ejabberd_commands module, which is slowly getting deprecated,
-%% and the new mongoose_commands implementation.
+%% @doc This suite tests API of accumulator encapsulated in mongoose_acc module
 -module(acc_SUITE).
 -compile([export_all]).
 
