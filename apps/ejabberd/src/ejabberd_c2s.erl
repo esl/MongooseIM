@@ -989,19 +989,21 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
 process_outgoing_stanza(Acc, ToJID, <<"iq">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
-    NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
-    case jlib:iq_query_info(NewEl) of
-        #iq{xmlns = Xmlns} = IQ
-            when Xmlns == ?NS_PRIVACY;
-            Xmlns == ?NS_BLOCKING ->
-            process_privacy_iq(FromJID, ToJID, IQ, StateData);
-        _ ->
-            ejabberd_hooks:run(user_send_packet,
-                               Server,
-                               [FromJID, ToJID, NewEl]),
-            check_privacy_and_route(FromJID, StateData, FromJID, ToJID, NewEl),
-            StateData
-    end;
+    El = mongoose_acc:get(element, Acc),
+    {_Acc, NState} = case mongoose_acc:get(xmlns, Acc) of
+                         ?NS_PRIVACY ->
+                             process_privacy_iq(Acc, ToJID, StateData);
+                         ?NS_BLOCKING ->
+                             process_privacy_iq(Acc, ToJID, StateData);
+                         _ ->
+                             Acc2 = ejabberd_hooks:run_fold(user_send_packet,
+                                                            Server,
+                                                            Acc,
+                                                            [FromJID, ToJID, El]),
+                             Acc3 = check_privacy_and_route(Acc2, StateData),
+                             {Acc3, StateData}
+    end,
+    NState;
 process_outgoing_stanza(Acc, ToJID, <<"message">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
@@ -1997,13 +1999,6 @@ presence_track(Acc, StateData) ->
                                    pres_a = A}}
     end.
 
-check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
-    ?DEPRECATED,
-    Acc0 = mongoose_acc:from_element(Packet),
-    Acc1 = mongoose_acc:put(from_jid, From, Acc0),
-    Acc2 = mongoose_acc:put(to_jid, To, Acc1),
-    check_privacy_and_route(Acc2, FromRoute, StateData).
-
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),
                               StateData :: state()) -> mongoose_acc:t().
 check_privacy_and_route(Acc, StateData) ->
@@ -2233,42 +2228,54 @@ get_priority_from_presence(PresencePacket) ->
             end
     end.
 
-
--spec process_privacy_iq(From :: ejabberd:jid(),
+-spec process_privacy_iq(Acc :: mongoose_acc:t(),
                          To :: ejabberd:jid(),
-                         IQ :: ejabberd:iq(),
-                         State :: state()) -> state().
-process_privacy_iq(From, To,
-                   #iq{type = Type, sub_el = SubEl} = IQ,
-                   StateData) ->
-    {Res, NewStateData} =
-    case Type of
-        get ->
-            R = ejabberd_hooks:run_fold(
-                  privacy_iq_get, StateData#state.server,
-                  {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
-                  [From, To, IQ, StateData#state.privacy_list]),
-            {R, StateData};
-        set ->
-            case ejabberd_hooks:run_fold(
-                   privacy_iq_set, StateData#state.server,
-                   {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
-                   [From, To, IQ]) of
-                {result, R, NewPrivList} ->
-                    maybe_update_presence(StateData, NewPrivList),
-                    {{result, R},
-                     StateData#state{privacy_list = NewPrivList}};
-                R -> {R, StateData}
-            end
-    end,
+                         StateData :: state()) -> {mongoose_acc:t(), state()}.
+process_privacy_iq(Acc, To, StateData) ->
+    El = mongoose_acc:get(element, Acc),
+    IQ = jlib:iq_query_info(El),
+    Acc1 = mongoose_acc:put(iq, IQ, Acc),
+    From = mongoose_acc:get(from_jid, Acc1),
+    #iq{type = Type, sub_el = SubEl} = IQ,
+    {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
+    Res = mongoose_acc:get(iq_result, Acc2, {error, ?ERR_FEATURE_NOT_IMPLEMENTED}),
     IQRes = case Res of
                 {result, Result} ->
+                    IQ#iq{type = result, sub_el = Result};
+                {result, Result, _} ->
                     IQ#iq{type = result, sub_el = Result};
                 {error, Error} ->
                     IQ#iq{type = error, sub_el = [SubEl, Error]}
             end,
     ejabberd_router:route(To, From, jlib:iq_to_xml(IQRes)),
-    NewStateData.
+    {Acc2, NewStateData}.
+
+-spec process_privacy_iq(Acc :: mongoose_acc:t(),
+                         Type :: get | set,
+                         To :: ejabberd:jid(),
+                         StateData :: state()) -> {mongoose_acc:t(), state()}.
+process_privacy_iq(Acc, get, To, StateData) ->
+    From = mongoose_acc:get(from_jid, Acc),
+    IQ = mongoose_acc:get(iq, Acc),
+    Acc1 = ejabberd_hooks:run_fold(privacy_iq_get,
+                                   StateData#state.server,
+                                   Acc,
+                                   [From, To, IQ, StateData#state.privacy_list]),
+    {Acc1, StateData};
+process_privacy_iq(Acc, set, To, StateData) ->
+    From = mongoose_acc:get(from_jid, Acc),
+    IQ = mongoose_acc:get(iq, Acc),
+    Acc1 = ejabberd_hooks:run_fold(privacy_iq_set,
+                                   StateData#state.server,
+                                   Acc,
+                                   [From, To, IQ]),
+    case mongoose_acc:get(iq_result, Acc1, undefined) of
+        {result, _, NewPrivList} ->
+            maybe_update_presence(StateData, NewPrivList),
+            NState = StateData#state{privacy_list = NewPrivList},
+            {Acc1, NState};
+        _ -> {Acc1, StateData}
+    end.
 
 
 -spec resend_offline_messages(mongoose_acc:t(), state()) -> mongoose_acc:t().

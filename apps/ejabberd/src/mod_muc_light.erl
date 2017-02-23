@@ -296,10 +296,10 @@ add_rooms_to_roster(Acc, UserUS) ->
       end, Acc, get_rooms_info(lists:sort(
                                  mod_muc_light_db_backend:get_user_rooms(UserUS, undefined)))).
 
--spec process_iq_get(Acc :: any(), From :: ejabberd:jid(), To :: ejabberd:jid(),
+-spec process_iq_get(Acc :: mongoose_acc:t(), From :: ejabberd:jid(), To :: ejabberd:jid(),
                      IQ :: ejabberd:iq(), ActiveList :: binary()) ->
-    {stop, {result, [jlib:xmlel()]}} | {error, jlib:xmlel()}.
-process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
+    {stop, mongoose_acc:t()} | mongoose_acc:t().
+process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
     MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
     case {mod_muc_light_codec_backend:decode(From, To, IQ),
           gen_mod:get_module_opt_by_subhost(MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
@@ -309,17 +309,20 @@ process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList
               {get, Blocking#blocking{ items = Items }}, From, jid:to_lus(To),
               fun(_, _, Packet) -> put(encode_res, Packet) end),
             #xmlel{ children = ResponseChildren } = erase(encode_res),
-            {stop, {result, ResponseChildren}};
+            Result = {result, ResponseChildren},
+            {stop, mongoose_acc:put(iq_result, Result, Acc)};
         {{ok, {get, #blocking{}}}, false} ->
-            {stop, {error, ?ERR_BAD_REQUEST}};
+            Result = {error, ?ERR_BAD_REQUEST},
+            {stop, mongoose_acc:put(iq_result, Result, Acc)};
         _ ->
-            {error, ?ERR_BAD_REQUEST}
+            Result = {error, ?ERR_BAD_REQUEST},
+            mongoose_acc:put(iq_result, Result, Acc)
     end.
 
--spec process_iq_set(Acc :: any(), From :: ejabberd:jid(),
+-spec process_iq_set(Acc :: mongoose_acc:t(), From :: ejabberd:jid(),
                      To :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
-    {stop, {result, [jlib:xmlel()]}} | {error, jlib:xmlel()}.
-process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
+    {stop, mongoose_acc:t()} | mongoose_acc:t().
+process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
     MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
     case {mod_muc_light_codec_backend:decode(From, To, IQ),
           gen_mod:get_module_opt_by_subhost(MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
@@ -328,17 +331,17 @@ process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
             ConditionFun = fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end,
             case lists:any(ConditionFun, Items) of
                 true ->
-                    {stop, {error, ?ERR_BAD_REQUEST}};
+                    {stop, mongoose_acc:put(iq_result, {error, ?ERR_BAD_REQUEST}, Acc)};
                 false ->
                     ok = mod_muc_light_db_backend:set_blocking(jid:to_lus(From), MUCHost, Items),
                     mod_muc_light_codec_backend:encode(Blocking, From, jid:to_lus(To), RouteFun),
                     #xmlel{ children = ResponseChildren } = erase(encode_res),
-                    {stop, {result, ResponseChildren}}
+                    {stop, mongoose_acc:put(iq_result, {result, ResponseChildren}, Acc)}
             end;
         {{ok, {set, #blocking{}}}, false} ->
-            {stop, {error, ?ERR_BAD_REQUEST}};
+            {stop, mongoose_acc:put(iq_result, {error, ?ERR_BAD_REQUEST}, Acc)};
         _ ->
-            {error, ?ERR_BAD_REQUEST}
+            mongoose_acc:put(iq_result, {error, ?ERR_BAD_REQUEST}, Acc)
     end.
 
 -spec is_room_owner(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) -> boolean().

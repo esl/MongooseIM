@@ -63,9 +63,11 @@ from_kv(K, V) ->
 
 -spec from_element(xmlel()) -> t().
 from_element(El) ->
-    #xmlel{name = Name, attrs = Attrs} = El,
+    #xmlel{name = Name, attrs = Attrs, children = Children} = El,
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type}.
+    {Xmlns, Cmd} = read_child(Children),
+    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
+      xmlns => Xmlns, command => Cmd}.
 
 -spec from_map(map()) -> t().
 from_map(M) ->
@@ -124,3 +126,13 @@ dump(_, []) ->
 dump(Acc, [K|Tail]) ->
     ?ERROR_MSG("~p = ~p", [K, maps:get(K, Acc)]),
     dump(Acc, Tail).
+
+read_child([]) ->
+    {undefined, undefined};
+read_child([Chld]) ->
+    #xmlel{name = Name, attrs = Attrs} = Chld,
+    {xml:get_attr_s(<<"xmlns">>, Attrs), Name};
+read_child(_) ->
+    % children are sometimes longer then 1 but only when it is an error, not sure yet how
+    % to handle it
+    {undefined, undefined}.
