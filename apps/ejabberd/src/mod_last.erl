@@ -152,9 +152,11 @@ process_sm_iq(From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
     {Subscription, _Groups} =
     ejabberd_hooks:run_fold(roster_get_jid_info, Server,
                             {none, []}, [User, Server, From]),
-    case (Subscription == both) or (Subscription == from) or
-         (From#jid.luser == To#jid.luser) and
-         (From#jid.lserver == To#jid.lserver) of
+    MutualSubscription = Subscription == both,
+    RequesterSubscribedToTarget = Subscription == from,
+    QueryingSameUsersLast = (From#jid.luser == To#jid.luser) and
+                            (From#jid.lserver == To#jid.lserver),
+    case MutualSubscription or RequesterSubscribedToTarget or QueryingSameUsersLast of
         true ->
             UserListRecord = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
                                                      #userlist{}, [User, Server]),
