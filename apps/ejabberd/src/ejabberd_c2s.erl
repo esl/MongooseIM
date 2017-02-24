@@ -893,9 +893,27 @@ session_established({xmlstreamelement, El}, StateData) ->
         _NewEl ->
             NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
                                                    StateData),
-            case mod_amp:check_packet(El, FromJID, initial_check) of
+            % initialise accumulator, fill with data
+            Acc0 = mongoose_acc:initialise(El, ?FILE, ?LINE),
+            User = NewState#state.user,
+            Server = NewState#state.server,
+            Attrs = mongoose_acc:get(attrs, Acc0),
+            To = xml:get_attr_s(<<"to">>, Attrs),
+            ToJID = case To of
+                        <<>> ->
+                            jid:make(User, Server, <<>>);
+                        _ ->
+                            jid:from_binary(To)
+                    end,
+            Acc = mongoose_acc:update(Acc0, #{user => User,
+                                              server => Server,
+                                              from_jid => FromJID,
+                                              to_jid => ToJID,
+                                              to => To}),
+            Acc1 = mod_amp:check_packet(Acc, initial_check),
+            case mongoose_acc:get(amp_check_result, Acc1, ok) of
                 drop -> fsm_next_state(session_established, NewState);
-                NewEl -> process_outgoing_stanza(NewEl, NewState)
+                _ -> process_outgoing_stanza(Acc1, NewState)
             end
     end;
 
@@ -925,28 +943,14 @@ session_established(closed, StateData) ->
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
 %% connection)
--spec process_outgoing_stanza(El :: jlib:xmlel(), state()) -> fsm_return().
-process_outgoing_stanza(El, StateData) ->
-    % initialise accumulator, fill with data
-    Acc = mongoose_acc:initialise(El, ?FILE, ?LINE),
-    User = StateData#state.user,
-    Server = StateData#state.server,
-    FromJID = StateData#state.jid,
+%% eventually it should return {mongoose_acc:t(), fsm_return()} so that the accumulator
+%% comes back whence it originated
+-spec process_outgoing_stanza(mongoose_acc:t(), state()) -> fsm_return().
+process_outgoing_stanza(Acc, StateData) ->
+    El0 = mongoose_acc:get(element, Acc),
     Attrs = mongoose_acc:get(attrs, Acc),
-    To = xml:get_attr_s(<<"to">>, Attrs),
-    ToJID = case To of
-                <<>> ->
-                    jid:make(User, Server, <<>>);
-                _ ->
-                    jid:from_binary(To)
-            end,
-    Acc1 = mongoose_acc:update(Acc, #{user => User,
-                                      server => Server,
-                                      from_jid => FromJID,
-                                      to_jid => ToJID,
-                                      to => To}),
+    ToJID = mongoose_acc:get(to_jid, Acc),
     % do some cryptic preparation on xmlel
-    El0 = mongoose_acc:get(element, Acc1),
     NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El0)),
     NewEl = case xml:get_attr_s(<<"xml:lang">>, Attrs) of
                 <<>> ->
@@ -958,10 +962,10 @@ process_outgoing_stanza(El, StateData) ->
                 _ ->
                     NewEl1
             end,
-    Acc2 = mongoose_acc:put(element, NewEl, Acc1),
+    Acc2 = mongoose_acc:put(element, NewEl, Acc),
     Name = mongoose_acc:get(name, Acc2),
     NState = process_outgoing_stanza(Acc2, ToJID, Name, StateData),
-    ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
+    ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, NewEl}]),
     fsm_next_state(session_established, NState).
 
 process_outgoing_stanza(Acc, error, _Name, StateData) ->
