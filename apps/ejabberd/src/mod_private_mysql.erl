@@ -22,8 +22,7 @@ multi_set_data(LUser, LServer, NS2XML) ->
         rdbms_queries:multi_set_private_data(LServer, SLUser, Rows)).
 
 replace_like_insert_result({updated, _})        -> ok;
-replace_like_insert_result({error, Reason})     -> {error, Reason};
-replace_like_insert_result({aborted, Reason})   -> {aborted, Reason}.
+replace_like_insert_result({error, Reason})     -> {error, Reason}.
 
 sql_row(NS, XML) ->
     SNS = mongoose_rdbms:escape(NS),

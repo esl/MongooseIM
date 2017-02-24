@@ -198,14 +198,8 @@ get_odbc_stats(ODBCWorkers) ->
     PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
     [{workers, length(ODBCConnections)} | merge_stats(PortStats)].
 
-get_port_from_odbc_connection({{ok, pgsql, Pid}, WorkerPid}) ->
+get_port_from_odbc_connection({{ok, DB, Pid}, WorkerPid}) when DB =:= mysql; DB =:= pgsql ->
     element(2, erlang:process_info(Pid, links)) -- [WorkerPid];
-get_port_from_odbc_connection({{ok, mysql, Pid}, WorkerPid}) ->
-    %% Pid of mysql_conn process
-    [MySQLRecv] = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
-    %% Port is hold by mysql_recv process which is linked to the mysql_conn
-    {links, Links} = erlang:process_info(MySQLRecv, links),
-    [Port || Port <- Links, is_port(Port)];
 get_port_from_odbc_connection({{ok, odbc, Pid}, WorkerPid}) ->
     Links = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
     [Port || Port <- Links, is_port(Port), {name, "tcp_inet"} == erlang:port_info(Port, name)];

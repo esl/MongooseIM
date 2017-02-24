@@ -98,7 +98,8 @@
          count_offline_messages/4,
          remove_old_offline_messages/2,
          remove_expired_offline_messages/2,
-         remove_offline_messages/3]).
+         remove_offline_messages/3,
+         create_bulk_insert_query/3]).
 
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
@@ -833,6 +834,22 @@ count_offline_messages(_, LServer, SUser, SServer, Limit) ->
             "where server = '">>, SServer, <<"' and "
                   "username = '">>, SUser, <<"' "
             "limit ">>, integer_to_list(Limit)]).
+
+-spec create_bulk_insert_query(Table :: iodata() | atom(), Fields :: [iodata() | atom()],
+                               RowsNum :: pos_integer()) ->
+    iodata().
+create_bulk_insert_query(Table, Fields, RowsNum) when is_atom(Table) ->
+    create_bulk_insert_query(atom_to_binary(Table, utf8), Fields, RowsNum);
+create_bulk_insert_query(Table, [Field | _] = Fields, RowsNum) when is_atom(Field) ->
+    create_bulk_insert_query(Table, [atom_to_binary(F, utf8) || F <- Fields], RowsNum);
+create_bulk_insert_query(Table, Fields, RowsNum) when RowsNum > 0 ->
+    JoinedFields = join(Fields, <<", ">>),
+    Placeholders = lists:duplicate(length(Fields), <<"?">>),
+    PlaceholderSet = [<<"(">>, join(Placeholders, <<", ">>), <<")">>],
+    PlaceholderSets = lists:duplicate(RowsNum, PlaceholderSet),
+    JoinedPlaceholderSets = join(PlaceholderSets, <<", ">>),
+    [<<"INSERT INTO ">>, Table, <<" (">>, JoinedFields, <<") "
+       "VALUES ">>, JoinedPlaceholderSets, <<";">>].
 
 -spec get_db_specific_limits(integer())
         -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.

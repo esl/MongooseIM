@@ -35,7 +35,8 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, accounts},
+    [
+     {group, accounts},
      {group, sessions},
      {group, vcard},
      {group, roster},
@@ -44,7 +45,8 @@ all() ->
      {group, private},
      {group, stanza},
      {group, stats},
-     {group, basic}].
+     {group, basic}
+    ].
 
 groups() ->
      [{accounts, [sequence], accounts()},
@@ -266,6 +268,7 @@ delete_old_users(Config) ->
     set_last(AliceName, Domain, Now),
     set_last(BobName, Domain, Now),
     set_last(MikeName, Domain, Now),
+    set_last(KateName, Domain, 0),
 
     {_, 0} = ejabberdctl("delete_old_users", ["10"], Config),
     {_, 0} = ejabberdctl("check_account", [AliceName, Domain], Config),
@@ -490,12 +493,12 @@ process_rosteritems_list_simple(Config) ->
         Subs = "any",
         Asks = "any",
         User = escalus_client:short_jid(Alice),
-        Contact =string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
+        Contact = string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
         {AliceName, Domain, _} = get_user_data(alice, Config),
         {BobName, Domain, _} = get_user_data(bob, Config),
         %% when
         {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
-        S = escalus:wait_for_stanzas(Alice, 2),
+        _S = escalus:wait_for_stanzas(Alice, 2),
         {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
         %% then
         {match, _} = re:run(R, ".*Matches:.*" ++ Contact ++ ".*"),
@@ -1081,9 +1084,8 @@ get_sha(AccountPass) ->
                    || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
 
 set_last(User, Domain, TStamp) ->
-    Mod = escalus_ejabberd:rpc(mod_admin_extra_last, get_lastactivity_module, [Domain]),
-    Fun = escalus_ejabberd:rpc(mod_admin_extra_last, get_lastactivity_fun, [Domain]),
-    escalus_ejabberd:rpc(Mod, Fun, [escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
+    escalus_ejabberd:rpc(mod_last, store_last_info,
+                         [escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
 
 delete_users(Config) ->
     Users = escalus_users:get_users([alice, bob, kate, mike]),

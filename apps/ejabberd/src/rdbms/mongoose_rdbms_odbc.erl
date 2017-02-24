@@ -18,7 +18,7 @@
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
--export([escape_format/1, connect/1, disconnect/1, query/3, is_error_duplicate/1]).
+-export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4]).
 
 %% API
 
@@ -34,37 +34,92 @@ escape_format(Host) ->
             simple_escape
     end.
 
--spec connect(Args :: any()) -> {ok, Connection :: term()} | {error, Reason :: any()}.
-connect(Settings) when is_list(Settings) ->
+-spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
+                     {ok, Connection :: term()} | {error, Reason :: any()}.
+connect(Settings, _QueryTimeout) when is_list(Settings) ->
     ok = application:ensure_started(odbc),
-    Opts = [{scrollable_cursors, off},
-            {binary_strings, on},
-            {timeout, 5000}],
-    odbc:connect(Settings, Opts).
+    case odbc:connect(Settings, [{scrollable_cursors, off}, {binary_strings, on}]) of
+        {ok, Pid} ->
+            link(Pid),
+            {ok, Pid};
+        Error ->
+            Error
+    end.
 
 -spec disconnect(Connection :: term()) -> any().
 disconnect(Connection) ->
     odbc:disconnect(Connection).
 
 -spec query(Connection :: term(), Query :: any(),
-            Timeout :: infinity | non_neg_integer()) -> term().
+            Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 query(Connection, Query, Timeout) when is_binary(Query) ->
     query(Connection, [Query], Timeout);
 query(Connection, Query, Timeout) ->
     parse(odbc:sql_query(Connection, Query, Timeout)).
 
--spec is_error_duplicate(Reason :: string()) -> boolean().
-is_error_duplicate("ERROR: duplicate" ++ _) -> true;
-is_error_duplicate(_Reason) -> false.
+-spec prepare(Host :: ejabberd:server(), Connection :: term(), Name :: atom(), Table :: binary(),
+              Fields :: [binary()], Statement :: iodata()) ->
+                     {ok, {[binary()], [fun((term()) -> tuple())]}}.
+prepare(Host, Connection, _Name, Table, Fields, Statement) ->
+    BinEscapeFormat = escape_format(Host),
+    {ok, TableDesc} = odbc:describe_table(Connection, unicode:characters_to_list(Table)),
+    SplitQuery = binary:split(iolist_to_binary(Statement), <<"?">>, [global]),
+    ParamMappers = [field_name_to_mapper(BinEscapeFormat, TableDesc, Field) || Field <- Fields],
+    {ok, {SplitQuery, ParamMappers}}.
+
+-spec execute(Connection :: term(), Statement :: {[binary()], [fun((term()) -> tuple())]},
+              Params :: [term()], Timeout :: infinity | non_neg_integer()) ->
+                     mongoose_rdbms:query_result().
+execute(Connection, {SplitQuery, ParamMapper}, Params, Timeout) ->
+    {Query, ODBCParams} = unsplit_query(SplitQuery, ParamMapper, Params),
+    parse(odbc:param_query(Connection, Query, ODBCParams, Timeout)).
 
 %% Helpers
 
 -spec parse(odbc:result_tuple() | [odbc:result_tuple()] | {error, string()}) ->
-        [{updated, non_neg_integer()} | {selected, [tuple()]}] |
-        {updated, non_neg_integer()} | {selected, [tuple()]} | {error, string()}.
+                   mongoose_rdbms:query_result().
 parse(Items) when is_list(Items) ->
     [parse(Item) || Item <- Items];
 parse({selected, _FieldNames, Rows}) ->
     {selected, Rows};
+parse({error, "ERROR: duplicate key" ++ _}) ->
+    {error, duplicate_key};
+parse({error, Reason}) ->
+    {error, unicode:characters_to_list(list_to_binary(Reason))};
 parse(Other) ->
     Other.
+
+-spec field_name_to_mapper(BinEscFormat :: atom(), TableDesc :: proplists:proplist(),
+                           FieldName :: binary()) -> fun((term()) -> tuple()).
+field_name_to_mapper(BinEscFormat, TableDesc, FieldName) ->
+    {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
+    case ODBCType of
+        T when T =:= 'SQL_BINARY'; T =:= 'SQL_VARBINARY'; T =:= 'SQL_LONGVARBINARY' ->
+            fun(P) -> {[<<"'">>, mongoose_rdbms:escape_binary(BinEscFormat, P), <<"'">>], []} end;
+        'SQL_LONGVARCHAR' ->
+            fun(P) -> {[<<"'">>, mongoose_rdbms:escape(P), <<"'">>], []} end;
+        'SQL_BIGINT' ->
+            fun(P) -> {[<<"'">>, integer_to_binary(P), <<"'">>], []} end;
+        _ ->
+            fun(P) -> {<<"?">>, [{ODBCType, [P]}]} end
+    end.
+
+-spec unsplit_query(SplitQuery :: [binary()], ParamMappers :: [fun((term()) -> tuple())],
+                    Params :: [term()]) -> {Query :: string(), ODBCParams :: [tuple()]}.
+unsplit_query(SplitQuery, ParamMappers, Params) ->
+    unsplit_query(SplitQuery, queue:from_list(ParamMappers), Params, [], []).
+
+-spec unsplit_query(SplitQuery :: [binary()], ParamMappers :: queue:queue(fun((term()) -> tuple())),
+                    Params :: [term()], QueryAcc :: [binary()], ParamsAcc :: [tuple()]) ->
+                           {Query :: string(), ODBCParams :: [tuple()]}.
+unsplit_query([QueryHead], _ParamMappers, [], QueryAcc, ParamsAcc) ->
+    Query = unicode:characters_to_list(lists:reverse([QueryHead | QueryAcc])),
+    Params = lists:reverse(ParamsAcc),
+    {Query, Params};
+unsplit_query([QueryHead | QueryRest], ParamMappers, [Param | Params], QueryAcc, ParamsAcc) ->
+    {{value, Mapper}, ParamMappersTail} = queue:out(ParamMappers),
+    NextParamMappers = queue:in(Mapper, ParamMappersTail),
+    {InlineQuery, ODBCParam} = Mapper(Param),
+    NewQueryAcc = [InlineQuery, QueryHead | QueryAcc],
+    NewParamsAcc = ODBCParam ++ ParamsAcc,
+    unsplit_query(QueryRest, NextParamMappers, Params, NewQueryAcc, NewParamsAcc).

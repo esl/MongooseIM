@@ -32,7 +32,6 @@
 
     get_vcard/3,
     get_vcard/4,
-    get_vcard_multi/4,
     set_vcard/4,
     set_vcard/5
 ]).
@@ -50,21 +49,21 @@
 -spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     Vcard1FieldsString = "Some vcard field names in get/set_vcard are:\n"
-                         " FN\t\t- Full Name\n"
-                         " NICKNAME\t- Nickname\n"
-                         " BDAY\t\t- Birthday\n"
-                         " TITLE\t\t- Work: Position\n"
-                         " ROLE\t\t- Work: Role",
+                         " FN - Full Name\n"
+                         " NICKNAME - Nickname\n"
+                         " BDAY - Birthday\n"
+                         " TITLE - Work: Position\n"
+                         " ROLE - Work: Role",
 
     Vcard2FieldsString = "Some vcard field names and subnames in get/set_vcard2 are:\n"
-                         " N FAMILY\t- Family name\n"
-                         " N GIVEN\t- Given name\n"
-                         " N MIDDLE\t- Middle name\n"
-                         " ADR CTRY\t- Address: Country\n"
-                         " ADR LOCALITY\t- Address: City\n"
-                         " EMAIL USERID\t- E-Mail Address\n"
-                         " ORG ORGNAME\t- Work: Company\n"
-                         " ORG ORGUNIT\t- Work: Department",
+                         " N FAMILY - Family name\n"
+                         " N GIVEN - Given name\n"
+                         " N MIDDLE - Middle name\n"
+                         " ADR CTRY - Address: Country\n"
+                         " ADR LOCALITY - Address: City\n"
+                         " EMAIL USERID - E-Mail Address\n"
+                         " ORG ORGNAME - Work: Company\n"
+                         " ORG ORGUNIT - Work: Department",
 
     VcardXEP = "For a full list of vCard fields check XEP-0054: vcard-temp at "
                "http://www.xmpp.org/extensions/xep-0054.html",
@@ -72,39 +71,50 @@ commands() ->
     [
         #ejabberd_commands{name = get_vcard, tags = [vcard],
                            desc = "Get content from a vCard field",
-                           longdesc = Vcard1FieldsString ++ "\n" ++ Vcard2FieldsString ++ "\n\n" ++ VcardXEP,
+                           longdesc = Vcard1FieldsString ++ "\n" ++ Vcard2FieldsString ++ "\n\n"
+                                      ++ VcardXEP,
                            module = ?MODULE, function = get_vcard,
                            args = [{user, binary}, {host, binary}, {name, binary}],
                            result = {content, binary}},
         #ejabberd_commands{name = get_vcard2, tags = [vcard],
                            desc = "Get content from a vCard field",
-                           longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n" ++ VcardXEP,
+                           longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n"
+                                      ++ VcardXEP,
                            module = ?MODULE, function = get_vcard,
-                           args = [{user, binary}, {host, binary}, {name, binary}, {subname, binary}],
+                           args = [{user, binary}, {host, binary},
+                                   {name, binary}, {subname, binary}],
                            result = {content, binary}},
         #ejabberd_commands{name = get_vcard2_multi, tags = [vcard],
                            desc = "Get multiple contents from a vCard field",
-                           longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n" ++ VcardXEP,
-                           module = ?MODULE, function = get_vcard_multi,
-                           args = [{user, binary}, {host, binary}, {name, binary}, {subname, binary}],
+                           longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n"
+                                      ++ VcardXEP,
+                           module = ?MODULE, function = get_vcard,
+                           args = [{user, binary}, {host, binary},
+                                   {name, binary}, {subname, binary}],
                            result = {contents, {list, {value, binary}}}},
         #ejabberd_commands{name = set_vcard, tags = [vcard],
                            desc = "Set content in a vCard field",
-                           longdesc = Vcard1FieldsString ++ "\n" ++ Vcard2FieldsString ++ "\n\n" ++ VcardXEP,
+                           longdesc = Vcard1FieldsString ++ "\n" ++ Vcard2FieldsString ++ "\n\n"
+                                      ++ VcardXEP,
                            module = ?MODULE, function = set_vcard,
-                           args = [{user, binary}, {host, binary}, {name, binary}, {content, binary}],
+                           args = [{user, binary}, {host, binary},
+                                   {name, binary}, {content, binary}],
                            result = {res, restuple}},
         #ejabberd_commands{name = set_vcard2, tags = [vcard],
                            desc = "Set content in a vCard subfield",
-                           longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n" ++ VcardXEP,
+                           longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n"
+                                      ++ VcardXEP,
                            module = ?MODULE, function = set_vcard,
-                           args = [{user, binary}, {host, binary}, {name, binary}, {subname, binary}, {content, binary}],
+                           args = [{user, binary}, {host, binary}, {name, binary},
+                                   {subname, binary}, {content, binary}],
                            result = {res, restuple}},
         #ejabberd_commands{name = set_vcard2_multi, tags = [vcard],
                            desc = "Set multiple contents in a vCard subfield",
-                           longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n" ++ VcardXEP,
+                           longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n"
+                                      ++ VcardXEP,
                            module = ?MODULE, function = set_vcard,
-                           args = [{user, binary}, {host, binary}, {name, binary}, {subname, binary}, {contents, {list, binary}}],
+                           args = [{user, binary}, {host, binary}, {name, binary},
+                                   {subname, binary}, {contents, {list, binary}}],
                            result = {res, restuple}}
     ].
 
@@ -124,16 +134,6 @@ get_vcard(User, Host, Name) ->
 -spec get_vcard(ejabberd:user(), ejabberd:server(), any(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name, Subname) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
-        true ->
-            get_vcard_content(User, Host, [Name, Subname]);
-        false ->
-            {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
-    end.
-
--spec get_vcard_multi(ejabberd:user(), ejabberd:server(), any(), any())
-                     -> {error, string()} | list(binary()).
-get_vcard_multi(User, Host, Name, Subname) ->
     case ejabberd_auth:is_user_exists(User, Host) of
         true ->
             get_vcard_content(User, Host, [Name, Subname]);
@@ -176,11 +176,9 @@ get_module_resource(Server) ->
 -spec get_vcard_content(ejabberd:user(), ejabberd:server(), any())
                        -> {error, string()} | list(binary()).
 get_vcard_content(User, Server, Data) ->
-    [{_, Module, Function, _Opts}] = ets:lookup(sm_iqtable, {?NS_VCARD, Server}),
     JID = jid:make(User, Server, list_to_binary(get_module_resource(Server))),
     IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
-    %% TODO: This may benefit from better type control
-    IQr = Module:Function(JID, JID, IQ),
+    IQr = mod_vcard:process_sm_iq(JID, JID, IQ),
     case IQr#iq.sub_el of
         [#xmlel{} = A1] ->
             case get_vcard(Data, A1) of
@@ -206,10 +204,9 @@ get_vcard([Data], A1) ->
 set_vcard_content(U, S, D, SomeContent) when is_binary(SomeContent) ->
     set_vcard_content(U, S, D, [SomeContent]);
 set_vcard_content(User, Server, Data, ContentList) ->
-    [{_, Module, Function, _Opts}] = ets:lookup(sm_iqtable, {?NS_VCARD, Server}),
     JID = jid:make(User, Server, <<>>),
     IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
-    IQr = Module:Function(JID, JID, IQ),
+    IQr = mod_vcard:process_sm_iq(JID, JID, IQ),
 
     %% Get old vcard
     A4 = case IQr#iq.sub_el of
@@ -223,7 +220,7 @@ set_vcard_content(User, Server, Data, ContentList) ->
     %% Build new vcard
     SubEl = #xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, <<"vcard-temp">>}], children = A4},
     IQ2 = #iq{type = set, sub_el = SubEl},
-    Module:Function(JID, JID, IQ2),
+    mod_vcard:process_sm_iq(JID, JID, IQ2),
     {ok, ""}.
 
 -spec update_vcard_els(Data :: [binary(), ...],
@@ -235,14 +232,16 @@ update_vcard_els(Data, ContentList, Els1) ->
     [Data1 | Data2] = Data,
     NewEls = case Data2 of
                  [] ->
-                     [#xmlel{ name = Data1, children = [#xmlcdata{content = Content}] } || Content <- ContentList];
+                     [#xmlel{ name = Data1, children = [#xmlcdata{content = Content}] }
+                      || Content <- ContentList];
                  [D2] ->
                      OldEl = case lists:keysearch(Data1, 2, Els2) of
                                  {value, A} -> A;
                                  false -> #xmlel{ name = Data1 }
                              end,
                      ContentOld1 = OldEl#xmlel.children,
-                     Content2 = [#xmlel{ name = D2, children = [#xmlcdata{content=Content}]} || Content <- ContentList],
+                     Content2 = [#xmlel{ name = D2, children = [#xmlcdata{content=Content}]}
+                                 || Content <- ContentList],
                      ContentOld2 = [A || {_, X, _, _} = A <- ContentOld1, X/=D2],
                      ContentOld3 = lists:keysort(2, ContentOld2),
                      ContentNew = lists:keymerge(2, Content2, ContentOld3),

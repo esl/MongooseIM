@@ -75,6 +75,15 @@
               | {'close', _}
               | {'wrong_method', _}.
 
+%% Behaviour callbacks
+
+-callback start(list()) -> any().
+-callback create_session(mod_bosh:session()) -> any().
+-callback delete_session(mod_bosh:sid()) -> any().
+-callback get_session(mod_bosh:sid()) -> [mod_bosh:session()].
+-callback get_sessions() -> [mod_bosh:session()].
+-callback node_cleanup(Node :: atom()) -> any().
+
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -121,7 +130,7 @@ set_server_acks(EnableServerAcks) ->
 -spec start(ejabberd:server(), [option()]) -> any().
 start(_Host, Opts) ->
     try
-        ok = start_backend(Opts),
+        start_backend(Opts),
         {ok, _Pid} = mod_bosh_socket:start_supervisor(),
         ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50)
     catch
@@ -136,7 +145,7 @@ stop(_Host) ->
 %%--------------------------------------------------------------------
 
 node_cleanup(Acc, Node) ->
-    Res = ?BOSH_BACKEND:node_cleanup(Node),
+    Res = mod_bosh_backend:node_cleanup(Node),
     maps:put(cleanup_result, Res, Acc).
 
 %%--------------------------------------------------------------------
@@ -225,14 +234,10 @@ terminate(_Reason, _Req, _State) ->
 %% Callbacks implementation
 %%--------------------------------------------------------------------
 
--spec start_backend([option()]) -> 'ok'.
+-spec start_backend([option()]) -> any().
 start_backend(Opts) ->
-    Backend = proplists:get_value(backend, Opts, ?DEFAULT_BACKEND),
-    {Mod, Code} = dynamic_compile:from_string(mod_bosh_dynamic_src(Backend)),
-    code:load_binary(Mod, "mod_bosh_dynamic.erl", Code),
-    ?BOSH_BACKEND:start(Opts),
-    ok.
-
+    gen_mod:start_backend_module(mod_bosh, Opts, []),
+    mod_bosh_backend:start(Opts).
 
 -spec event_type(jlib:xmlel()) -> event_type().
 event_type(Body) ->
@@ -298,7 +303,7 @@ handle_request(Socket, {EventType, Body}) ->
 
 -spec get_session_socket(mod_bosh:sid()) -> 'undefined' | pid().
 get_session_socket(Sid) ->
-    case ?BOSH_BACKEND:get_session(Sid) of
+    case mod_bosh_backend:get_session(Sid) of
         [BS] ->
             BS#bosh_session.socket;
         [] ->
@@ -338,7 +343,7 @@ start_session(Peer, Body) ->
 
 -spec store_session(Sid :: sid(), Socket :: pid()) -> any().
 store_session(Sid, Socket) ->
-    ?BOSH_BACKEND:create_session(#bosh_session{sid = Sid, socket = Socket}).
+    mod_bosh_backend:create_session(#bosh_session{sid = Sid, socket = Socket}).
 
 -spec make_sid() -> binary().
 make_sid() ->
@@ -388,20 +393,6 @@ terminal_condition_body(Condition, Children) ->
                                    {<<"condition">>, Condition},
                                    {<<"xmlns">>, ?NS_HTTPBIND}],
                           children = Children}).
-
-%%--------------------------------------------------------------------
-%% Backend configuration
-%%--------------------------------------------------------------------
-
--spec mod_bosh_dynamic_src(atom()) -> string().
-mod_bosh_dynamic_src(Backend) ->
-    lists:flatten(
-      ["-module(mod_bosh_dynamic).
-        -export([backend/0]).
-
-        -spec backend() -> atom().
-        backend() ->
-            mod_bosh_", atom_to_list(Backend), ".\n"]).
 
 %%--------------------------------------------------------------------
 %% Helpers

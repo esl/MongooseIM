@@ -397,7 +397,7 @@ handle_info(Info, SName, State) ->
 
 terminate(_Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->
     [Pid ! {close, Sid} || {_, _, Pid} <- lists:sort(Handlers)],
-    ?BOSH_BACKEND:delete_session(Sid),
+    mod_bosh_backend:delete_session(Sid),
     catch ejabberd_c2s:stop(S#state.c2s_pid),
     ?DEBUG("Closing session ~p in '~s' state. Handlers: ~p Pending: ~p~n",
            [Sid, StateName, Handlers, S#state.pending]).
@@ -510,10 +510,10 @@ rid(#state{} = S, Rid) when is_integer(Rid), Rid > 0 ->
 determine_report_action(undefined, false, _, _) ->
     {noreport, undefined};
 determine_report_action(undefined, true, Rid, LastProcessed) ->
-    if
-        Rid+1 == LastProcessed ->
+    case Rid+1 == LastProcessed of
+        true ->
             {noreport, undefined};
-        Rid+1 /= LastProcessed ->
+        false ->
             ?WARNING_MSG("expected 'ack' attribute on ~p~n", [Rid]),
             {noreport, undefined}
     end;
@@ -692,10 +692,10 @@ send_wrapped_to_handler(Pid, Wrapped, State) ->
 
 -spec maybe_ack(rid(), state()) -> [{binary(), _}].
 maybe_ack(HandlerRid, #state{rid = Rid} = S) ->
-    if
-        Rid > HandlerRid ->
+    case Rid > HandlerRid of
+        true ->
             server_ack(S#state.server_acks, Rid);
-        Rid =< HandlerRid ->
+        false ->
             []
     end.
 

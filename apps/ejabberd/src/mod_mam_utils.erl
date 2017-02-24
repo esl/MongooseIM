@@ -64,7 +64,7 @@
          expand_minified_jid/2]).
 
 %% SQL
--export([success_sql_query/2]).
+-export([success_sql_query/2, success_sql_execute/3]).
 
 %% Other
 -export([maybe_integer/2,
@@ -934,11 +934,16 @@ is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
 
 -spec success_sql_query(atom() | ejabberd:server(), _) -> any().
 success_sql_query(HostOrConn, Query) ->
-    case mongoose_rdbms:sql_query(HostOrConn, Query) of
-        {error, Reason} ->
-            ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p~n",
-                       [HostOrConn, Query, Reason]),
-            error({sql_error, Reason});
-        Result ->
-            Result
-    end.
+    Result = mongoose_rdbms:sql_query(HostOrConn, Query),
+    error_on_sql_error(HostOrConn, Query, Result).
+
+-spec success_sql_execute(atom() | ejabberd:server(), atom(), [term()]) -> any().
+success_sql_execute(HostOrConn, Name, Params) ->
+    Result = mongoose_rdbms:execute(HostOrConn, Name, Params),
+    error_on_sql_error(HostOrConn, Name, Result).
+
+error_on_sql_error(HostOrConn, Query, {error, Reason}) ->
+    ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p", [HostOrConn, Query, Reason]),
+    error({sql_error, Reason});
+error_on_sql_error(_HostOrConn, _Query, Result) ->
+    Result.

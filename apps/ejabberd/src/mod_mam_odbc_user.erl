@@ -170,8 +170,8 @@ create_user_archive(Host, Server, UserName) ->
         {updated, 1} ->
             ok;
         %% Ignore the race condition Duplicate entry ... for key 'uc_mam_server_user_name'
-        {error, Reason} ->
-            true = mongoose_rdbms:is_error_duplicate(Reason)
+        {error, duplicate_key} ->
+            ok
     end.
 
 do_query_archive_id(mssql, Host, SServer, SUserName) ->

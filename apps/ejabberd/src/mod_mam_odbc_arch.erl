@@ -7,10 +7,6 @@
 -module(mod_mam_odbc_arch).
 %% Use few separate tables.
 %% Check `apps/ejabberd/priv/mysql-part.sql' for schema.
-%%
-%% Hand made partitions do not work with `mod_mam_odbc_async_writer',
-%% but work with `mod_mam_odbc_async_pool_writer'.
-%% Use `{hand_made_partitions, true}' option.
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -32,9 +28,7 @@
          purge_multiple_messages/9]).
 
 %% Called from mod_mam_odbc_async_writer
--export([prepare_message/8,
-         archive_messages/2,
-         archive_messages/3]).
+-export([prepare_message/8, prepare_insert/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -67,6 +61,14 @@
 
 -spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
+    case lists:keyfind(hand_made_partitions, 1, Opts) of
+        false -> ok;
+        _ ->
+            ?ERROR_MSG("hand_made_partitions option for mod_mam_odbc_arch is "
+                       "no longer supported", []),
+            error(hand_made_partitions_not_supported)
+    end,
+
     compile_params_module(Opts),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -79,7 +81,14 @@ start(Host, Opts) ->
             start_muc(Host, Opts);
         false ->
             ok
-    end.
+    end,
+
+    mongoose_rdbms:prepare(mam_archive_size, mam_message, [user_id],
+                           [<<"SELECT COUNT(*) FROM mam_message ">>,
+                            index_hint_sql(Host),
+                            <<"WHERE user_id = ?">>]),
+
+    ok.
 
 
 -spec stop(ejabberd:server()) -> ok.
@@ -172,21 +181,14 @@ stop_muc(Host) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
-encode_direction(incoming) -> "I";
-encode_direction(outgoing) -> "O".
+encode_direction(incoming) -> <<"I">>;
+encode_direction(outgoing) -> <<"O">>.
 
 
 -spec archive_size(Size :: integer(), Host :: ejabberd:server(),
                    ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
 archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
-    IndexHintSQL = index_hint_sql(Host),
-    {selected, [{BSize}]} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT COUNT(*) "
-       "FROM ", select_table(UserID), " ",
-       IndexHintSQL,
-       "WHERE user_id = '", escape_user_id(UserID), "'"]),
+    {selected, [{BSize}]} = mod_mam_utils:success_sql_execute(Host, mam_archive_size, [UserID]),
     mongoose_rdbms:result_to_integer(BSize).
 
 
@@ -199,15 +201,6 @@ index_hint_sql(Host) ->
             ""
     end.
 
-
--spec insert_ignore(atom() | ejabberd:server()) -> string().
-insert_ignore(Host) ->
-    case mongoose_rdbms:db_engine(Host) of
-        mysql ->
-            "IGNORE ";
-        _ ->
-            ""
-    end.
 
 -spec archive_message(_Result, Host :: ejabberd:server(),
                       MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
@@ -229,7 +222,7 @@ do_archive_message(_Result, Host, MessID, UserID,
     SUserID = integer_to_list(UserID),
     SBareRemJID = minify_and_escape_bare_jid(LocJID, RemJID),
     SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
-    SDir = encode_direction(Dir),
+    SDir = binary_to_list(encode_direction(Dir)),
     SRemLResource = mongoose_rdbms:escape(RemLResource),
     Data = packet_to_stored_binary(Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
@@ -237,7 +230,7 @@ do_archive_message(_Result, Host, MessID, UserID,
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    Table = select_table(UserID),
+    Table = "mam_message",
     write_message(Host, Table, SMessID, SUserID, SBareRemJID,
                   SRemLResource, SDir, SSrcJID, SData, STextBody).
 
@@ -259,39 +252,23 @@ write_message(Host, Table, SMessID, SUserID, SBareRemJID,
            "'", SSrcJID, "', '", SData, "', '", STextBody, "');"]),
     ok.
 
-prepare_message(Host, MessID, UserID,
-                LocJID=#jid{},
-                RemJID=#jid{lresource=RemLResource}, SrcJID, Dir, Packet) ->
-    SUserID = integer_to_list(UserID),
-    SBareRemJID = minify_and_escape_bare_jid(LocJID, RemJID),
-    SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
+prepare_message(Host, MessID, UserID, LocJID = #jid{}, RemJID = #jid{lresource = RemLResource},
+                SrcJID, Dir, Packet) ->
+    SBareRemJID = jid_to_stored_binary(LocJID, jid:to_bare(RemJID)),
+    SSrcJID = jid_to_stored_binary(LocJID, SrcJID),
     SDir = encode_direction(Dir),
-    SRemLResource = mongoose_rdbms:escape(RemLResource),
     Data = packet_to_stored_binary(Packet),
-    EscFormat = mongoose_rdbms:escape_format(Host),
-    SData = mongoose_rdbms:escape_binary(EscFormat, Data),
-    SMessID = integer_to_list(MessID),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
-    STextBody = mongoose_rdbms:escape(TextBody),
-    [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData, STextBody].
+    [MessID, UserID, SBareRemJID, RemLResource, SDir, SSrcJID, Data, TextBody].
 
-archive_messages(LServer, Acc) ->
-    mod_mam_utils:success_sql_query(
-      LServer,
-      ["INSERT INTO mam_message(id, user_id, remote_bare_jid, "
-       "remote_resource, direction, "
-       "from_jid, message, search_body) "
-       "VALUES ", tuples(Acc)]).
-
-%% @doc N is a group id (partition number).
-archive_messages(LServer, Acc, N) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      ["INSERT ", insert_ignore(LServer), "INTO ", select_table(N),
-       " (id, user_id, remote_bare_jid, "
-       "remote_resource, direction, "
-       "from_jid, message, search_body) "
-       "VALUES ", tuples(Acc)]).
+-spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
+prepare_insert(Name, NumRows) ->
+    Table = mam_message,
+    Fields = [id, user_id, remote_bare_jid, remote_resource,
+              direction, from_jid, message, search_body],
+    Query = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
+    mongoose_rdbms:prepare(Name, Table, Fields, Query),
+    ok.
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
                       ArchiveID :: mod_mam:archive_id(),
@@ -353,7 +330,7 @@ do_lookup_messages(Host, UserID, UserJID,
                    PageSize, _LimitPassed, _MaxResultLimit, true, _) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText),
-    lookup_messages_simple(Host, UserID, UserJID, RSM, PageSize, Filter);
+    lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter);
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
                    Start, End, _Now, WithJID, SearchText,
@@ -361,7 +338,7 @@ do_lookup_messages(Host, UserID, UserJID,
     %% Extract messages first than calculate offset and total count
     %% Useful for small result sets (less than one page, than one query is enough)
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText),
-    lookup_messages_opt_count(Host, UserID, UserJID, RSM, PageSize, Filter);
+    lookup_messages_opt_count(Host, UserJID, RSM, PageSize, Filter);
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
                    Start, End, _Now, WithJID, SearchText,
@@ -369,40 +346,38 @@ do_lookup_messages(Host, UserID, UserJID,
     %% Unsupported opt_count or just a regular query
     %% Calculate offset and total count first than extract messages
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText),
-    lookup_messages_regular(Host, UserID, UserJID, RSM, PageSize, Filter,
+    lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter,
                             LimitPassed, MaxResultLimit).
 
-lookup_messages_simple(Host, UserID, UserJID,
+lookup_messages_simple(Host, UserJID,
                        #rsm_in{direction = aft, id = ID},
                        PageSize, Filter) ->
     %% Get last rows from result set
-    MessageRows = extract_messages(Host, UserID, after_id(ID, Filter), 0, PageSize, false),
+    MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-lookup_messages_simple(Host, UserID, UserJID,
+lookup_messages_simple(Host, UserJID,
                        #rsm_in{direction = before, id = ID},
                        PageSize, Filter) ->
-    MessageRows = extract_messages(Host, UserID, before_id(ID, Filter), 0, PageSize, true),
+    MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-lookup_messages_simple(Host, UserID, UserJID,
+lookup_messages_simple(Host, UserJID,
                        #rsm_in{direction = undefined, index = Offset},
                        PageSize, Filter) ->
     %% Apply offset
-    MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
+    MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-lookup_messages_simple(Host, UserID, UserJID,
-                       undefined,
-                       PageSize, Filter) ->
-    MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, false),
+lookup_messages_simple(Host, UserJID, undefined, PageSize, Filter) ->
+    MessageRows = extract_messages(Host, Filter, 0, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
 
 %% Cases that cannot be optimized and used with this function:
 %% - #rsm_in{direction = aft, id = ID}
 %% - #rsm_in{direction = before, id = ID}
-lookup_messages_opt_count(Host, UserID, UserJID,
+lookup_messages_opt_count(Host, UserJID,
                           #rsm_in{direction = before, id = undefined},
                           PageSize, Filter) ->
     %% Last page
-    MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, true),
+    MessageRows = extract_messages(Host, Filter, 0, PageSize, true),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -411,15 +386,15 @@ lookup_messages_opt_count(Host, UserID, UserJID,
         false ->
             IndexHintSQL = index_hint_sql(Host),
             FirstID = row_to_message_id(hd(MessageRows)),
-            Offset = calc_count(Host, UserID, before_id(FirstID, Filter), IndexHintSQL),
+            Offset = calc_count(Host, before_id(FirstID, Filter), IndexHintSQL),
             {ok, {Offset + MessageRowsCount, Offset,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-lookup_messages_opt_count(Host, UserID, UserJID,
+lookup_messages_opt_count(Host, UserJID,
                           #rsm_in{direction = undefined, index = Offset},
                           PageSize, Filter) ->
     %% By offset
-    MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
+    MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -428,15 +403,15 @@ lookup_messages_opt_count(Host, UserID, UserJID,
         false ->
             IndexHintSQL = index_hint_sql(Host),
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Host, UserID, after_id(LastID, Filter), IndexHintSQL),
+            CountAfterLastID = calc_count(Host, after_id(LastID, Filter), IndexHintSQL),
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-lookup_messages_opt_count(Host, UserID, UserJID,
+lookup_messages_opt_count(Host, UserJID,
                           undefined,
                           PageSize, Filter) ->
     %% First page
-    MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, false),
+    MessageRows = extract_messages(Host, Filter, 0, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -445,17 +420,17 @@ lookup_messages_opt_count(Host, UserID, UserJID,
         false ->
             IndexHintSQL = index_hint_sql(Host),
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Host, UserID, after_id(LastID, Filter), IndexHintSQL),
+            CountAfterLastID = calc_count(Host, after_id(LastID, Filter), IndexHintSQL),
             {ok, {MessageRowsCount + CountAfterLastID, 0,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end.
 
-lookup_messages_regular(Host, UserID, UserJID,
+lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = aft, id = ID},
                         PageSize, Filter, LimitPassed, MaxResultLimit) ->
     IndexHintSQL = index_hint_sql(Host),
-    TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
-    Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, Filter, IndexHintSQL),
+    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client.
@@ -464,15 +439,15 @@ lookup_messages_regular(Host, UserID, UserJID,
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, UserID, after_id(ID, Filter), 0, PageSize, false),
+            MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-lookup_messages_regular(Host, UserID, UserJID,
+lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = before, id = ID},
                         PageSize, Filter, LimitPassed, MaxResultLimit) ->
     IndexHintSQL = index_hint_sql(Host),
-    TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
-    Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, Filter, IndexHintSQL),
+    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client.
@@ -481,14 +456,14 @@ lookup_messages_regular(Host, UserID, UserJID,
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, UserID, before_id(ID, Filter), 0, PageSize, true),
+            MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-lookup_messages_regular(Host, UserID, UserJID, RSM,
+lookup_messages_regular(Host, UserJID, RSM,
                         PageSize, Filter, LimitPassed, MaxResultLimit) ->
     IndexHintSQL = index_hint_sql(Host),
-    TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
-    Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, Filter, IndexHintSQL),
+    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client.
@@ -497,7 +472,7 @@ lookup_messages_regular(Host, UserID, UserJID, RSM,
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
+            MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end.
 
@@ -539,7 +514,7 @@ remove_archive(Acc, Host, UserID, _UserJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["DELETE FROM ", select_table(UserID), " "
+      ["DELETE FROM ", "mam_message", " "
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     Acc.
 
@@ -553,7 +528,7 @@ purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
     Result =
         mod_mam_utils:success_sql_query(
           Host,
-          ["DELETE FROM ", select_table(UserID), " "
+          ["DELETE FROM mam_message "
            "WHERE user_id = '", escape_user_id(UserID), "' "
            "AND id = '", escape_message_id(MessID), "'"]),
     case Result of
@@ -577,7 +552,7 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
     {updated, _} =
         mod_mam_utils:success_sql_query(
           Host,
-          ["DELETE FROM ", select_table(UserID), " ", Filter]),
+          ["DELETE FROM mam_message ", Filter]),
     ok.
 
 
@@ -586,38 +561,38 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
 %% Columns are `["id", "from_jid", "message"]'.
 -type msg() :: {binary(), ejabberd:literal_jid(), binary()}.
--spec extract_messages(Host :: ejabberd:server(), _UserID :: mod_mam:archive_id(),
+-spec extract_messages(Host :: ejabberd:server(),
                        Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
                        ReverseLimit :: boolean()) -> [msg()].
-extract_messages(_Host, _UserID, _Filter, _IOffset, 0, _) ->
+extract_messages(_Host, _Filter, _IOffset, 0, _) ->
     [];
-extract_messages(Host, UserID, Filter, IOffset, IMax, false) ->
+extract_messages(Host, Filter, IOffset, IMax, false) ->
     {selected, MessageRows} =
-        do_extract_messages(Host, UserID, Filter, IOffset, IMax, " ORDER BY id "),
+        do_extract_messages(Host, Filter, IOffset, IMax, " ORDER BY id "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     MessageRows;
-extract_messages(Host, UserID, Filter, IOffset, IMax, true) ->
+extract_messages(Host, Filter, IOffset, IMax, true) ->
     {selected, MessageRows} =
-        do_extract_messages(Host, UserID, Filter, IOffset, IMax, " ORDER BY id DESC "),
+        do_extract_messages(Host, Filter, IOffset, IMax, " ORDER BY id DESC "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     lists:reverse(MessageRows).
 
-do_extract_messages(Host, UserID, Filter, 0, IMax, Order) ->
+do_extract_messages(Host, Filter, 0, IMax, Order) ->
     {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits(IMax),
     mod_mam_utils:success_sql_query(
         Host,
         ["SELECT ", LimitMSSQL, " id, from_jid, message "
-        "FROM ", select_table(UserID), " ",
+        "FROM ", "mam_message", " ",
             Filter,
             Order,
             " ", LimitSQL]);
-do_extract_messages(Host, UserID, Filter, IOffset, IMax, Order) ->
+do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
     {LimitSQL, _LimitMSSQL} = rdbms_queries:get_db_specific_limits(IMax),
     Offset = rdbms_queries:get_db_specific_offset(IOffset, IMax),
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT id, from_jid, message "
-       "FROM ", select_table(UserID), " ",
+       "FROM mam_message ",
        Filter, Order, LimitSQL, Offset]).
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
@@ -626,15 +601,15 @@ do_extract_messages(Host, UserID, Filter, IOffset, IMax, Order) ->
 %% be returned instead.
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
+-spec calc_index(Host :: ejabberd:server(),
                  Filter :: filter(), IndexHintSQL :: string(),
                  SUID :: escaped_message_id()) -> non_neg_integer().
-calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
+calc_index(Host, Filter, IndexHintSQL, SUID) ->
     {selected, [{BIndex}]} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
-       IndexHintSQL, Filter, " AND id <= '", SUID, "'"]),
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["SELECT COUNT(*) FROM mam_message ",
+           IndexHintSQL, Filter, " AND id <= '", SUID, "'"]),
     mongoose_rdbms:result_to_integer(BIndex).
 
 %% @doc Count of elements in RSet before the passed element.
@@ -642,28 +617,28 @@ calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
 %% The element with the passed UID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
-                  Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()
-                 ) -> non_neg_integer().
-calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
+-spec calc_before(Host :: ejabberd:server(),
+                  Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()) ->
+                      non_neg_integer().
+calc_before(Host, Filter, IndexHintSQL, SUID) ->
     {selected, [{BIndex}]} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
-       IndexHintSQL, Filter, " AND id < '", SUID, "'"]),
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["SELECT COUNT(*) FROM mam_message ",
+           IndexHintSQL, Filter, " AND id < '", SUID, "'"]),
     mongoose_rdbms:result_to_integer(BIndex).
 
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
+-spec calc_count(Host :: ejabberd:server(),
                  Filter :: filter(), IndexHintSQL :: string()) -> non_neg_integer().
-calc_count(Host, UserID, Filter, IndexHintSQL) ->
+calc_count(Host, Filter, IndexHintSQL) ->
     {selected, [{BCount}]} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
-       IndexHintSQL, Filter]),
+        mod_mam_utils:success_sql_query(
+          Host,
+          ["SELECT COUNT(*) FROM mam_message ",
+           IndexHintSQL, Filter]),
     mongoose_rdbms:result_to_integer(BCount).
 
 
@@ -725,24 +700,24 @@ prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) 
 %%    direction = before | aft | undefined,
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
--spec calc_offset(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
+-spec calc_offset(Host :: ejabberd:server(),
                   Filter :: filter(), IndexHintSQL :: string(), PageSize :: non_neg_integer(),
                   TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
-calc_offset(_LS, _UserID, _F, _IH, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+calc_offset(_LS, _F, _IH, _PS, _TC, #rsm_in{direction = undefined, index = Index})
   when is_integer(Index) ->
     Index;
 %% Requesting the Last Page in a Result Set
-calc_offset(_LS, _UserID, _F, _IH, PS, TC, #rsm_in{direction = before, id = undefined}) ->
+calc_offset(_LS, _F, _IH, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
-calc_offset(Host, UserID, F, IH, PS, _TC, #rsm_in{direction = before, id = ID})
+calc_offset(Host, F, IH, PS, _TC, #rsm_in{direction = before, id = ID})
   when is_integer(ID) ->
     SID = escape_message_id(ID),
-    max(0, calc_before(Host, UserID, F, IH, SID) - PS);
-calc_offset(Host, UserID, F, IH, _PS, _TC, #rsm_in{direction = aft, id = ID})
+    max(0, calc_before(Host, F, IH, SID) - PS);
+calc_offset(Host, F, IH, _PS, _TC, #rsm_in{direction = aft, id = ID})
   when is_integer(ID) ->
     SID = escape_message_id(ID),
-    calc_index(Host, UserID, F, IH, SID);
-calc_offset(_LS, _UserID, _F, _IH, _PS, _TC, _RSM) ->
+    calc_index(Host, F, IH, SID);
+calc_offset(_LS, _F, _IH, _PS, _TC, _RSM) ->
     0.
 
 escape_message_id(MessID) when is_integer(MessID) ->
@@ -757,15 +732,6 @@ minify_and_escape_bare_jid(LocJID, JID) ->
 
 minify_and_escape_jid(LocJID, JID) ->
     mongoose_rdbms:escape(jid_to_stored_binary(LocJID, JID)).
-
-join([H|T]) ->
-    [H, [", " ++ X || X <- T]].
-
-tuples(Rows) ->
-    join([tuple(Row) || Row <- Rows]).
-
-tuple([H|T]) ->
-    ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
 
 maybe_encode_compact_uuid(undefined, _) ->
     undefined;
@@ -796,24 +762,12 @@ stored_binary_to_packet(Bin) ->
     Module = db_message_format(),
     Module:decode(Bin).
 
-select_table(N) ->
-    case hand_made_partitions() of
-        true ->
-            io_lib:format("mam_message_~2..0B", [N rem partition_count()]);
-        false ->
-            "mam_message"
-    end.
-
-partition_count() ->
-    16.
-
 %% ----------------------------------------------------------------------
 %% Dynamic params module
 
 %% compile_params_module([
 %%      {db_jid_format, module()},
 %%      {db_message_format, module()},
-%%      {hand_made_partitions, boolean()},
 %%      ])
 compile_params_module(Params) ->
     CodeStr = params_helper(expand_simple_param(Params)),
@@ -835,11 +789,9 @@ params_helper(Params) ->
           "-module(mod_mam_odbc_arch_params).~n"
           "-compile(export_all).~n"
           "db_jid_format() -> ~p.~n"
-          "db_message_format() -> ~p.~n"
-          "hand_made_partitions() -> ~p.~n",
+          "db_message_format() -> ~p.~n",
           [proplists:get_value(db_jid_format, Params, mam_jid_mini),
-           proplists:get_value(db_message_format, Params, mam_message_compressed_eterm),
-           proplists:get_bool(hand_made_partitions, Params)]),
+           proplists:get_value(db_message_format, Params, mam_message_compressed_eterm)]),
     binary_to_list(iolist_to_binary(Format)).
 
 -spec db_jid_format() -> module().
@@ -849,7 +801,3 @@ db_jid_format() ->
 -spec db_message_format() -> module().
 db_message_format() ->
     mod_mam_odbc_arch_params:db_message_format().
-
--spec hand_made_partitions() -> boolean().
-hand_made_partitions() ->
-    mod_mam_odbc_arch_params:hand_made_partitions().
