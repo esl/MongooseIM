@@ -688,7 +688,7 @@ handle_package(Dir, ReturnMessID,
                                        ArchivingResult :: ok | any(),
                                        MessID :: integer()) -> binary() | undefined.
 return_external_message_id_if_ok(true, ok, MessID) -> mess_id_to_external_binary(MessID);
-return_external_message_id_if_ok(false, _, _MessID) -> undefined.
+return_external_message_id_if_ok(_, _, _MessID) -> undefined.
 
 is_interesting(LocJID, RemJID) ->
     Host = server_host(LocJID),
