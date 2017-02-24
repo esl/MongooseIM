@@ -10,6 +10,9 @@ addons:
         - slapd
         - ldap-utils
 before_install:
+        - curl -L https://github.com/docker/compose/releases/download/1.11.2/docker-compose-`uname -s`-`uname -m` > docker-compose
+        - chmod +x docker-compose
+        - sudo mv docker-compose /usr/local/bin
         - tools/travis-generate-pass.sh
         - tools/configure $REL_CONFIG
 install:
