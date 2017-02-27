@@ -27,7 +27,7 @@
 
 all() ->
     case list_to_integer(erlang:system_info(otp_release)) of
-        Release | Release < 18 ->
+        Release when Release < 18 ->
             %% jwerl needs recent crypto features
             [];
         _ ->
