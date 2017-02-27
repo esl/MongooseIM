@@ -969,14 +969,14 @@ process_outgoing_stanza(Acc, StateData) ->
     fsm_next_state(session_established, NState).
 
 process_outgoing_stanza(Acc, error, _Name, StateData) ->
-    Attrs = mongoose_acc:get(attrs, Acc),
     NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
-    case xml:get_attr_s(<<"type">>, Attrs) of
+    case mongoose_acc:get(type, Acc) of
         <<"error">> -> StateData;
         <<"result">> -> StateData;
         _ ->
             Err = jlib:make_error_reply(NewEl, ?ERR_JID_MALFORMED),
-            send_element(StateData, Err),
+            NAcc = mongoose_acc:put(to_send, Err, Acc),
+            send_element(NAcc, StateData),
             StateData
     end;
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
@@ -1589,12 +1589,26 @@ maybe_send_element_safe(State, El) ->
         _ -> error
     end.
 
-send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
-  when StateData#state.xml_socket ->
-    ejabberd_hooks:run(xmpp_send_element, Server, [Server, El]),
+%% @doc This is the termination point - from here stanza is sent to the user
+%% We sent the original stanza ('element') unless there is a different thing
+%% keyed 'to_send'
+send_element(StateData, #xmlel{} = El) ->
+    ?DEPRECATED,
+    send_element(mongoose_acc:from_element(El), StateData),
+    ok;
+send_element(Acc, #state{server = Server} = StateData) ->
+    Acc1 = ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [Server]),
+    El = case mongoose_acc:get(to_send, Acc1, undefined) of
+             undefined -> mongoose_acc:get(element, Acc1);
+             OutStanza -> OutStanza
+         end,
+    % we might put send result into accumulator
+    do_send_element(El, StateData),
+    Acc1.
+
+do_send_element(El, #state{sockmod = SockMod} = StateData) when StateData#state.xml_socket ->
     mongoose_transport:send_xml(SockMod, StateData#state.socket, {xmlstreamelement, El});
-send_element(#state{server = Server} = StateData, El) ->
-    ejabberd_hooks:run(xmpp_send_element, Server, [Server, El]),
+do_send_element(El, StateData) ->
     send_text(StateData, exml:to_binary(El)).
 
 
@@ -1651,6 +1665,7 @@ send_trailer(StateData) ->
 
 
 send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
+    % this is coming in, no rewrite yet
     {SendResult, BufferedStateData} =
         send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State),
     mod_amp:check_packet(El, send_result_to_amp_event(SendResult)),
@@ -2336,18 +2351,18 @@ check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
 
 -spec resend_subscription_requests(mongoose_acc:t(), state()) -> {mongoose_acc:t(), state()}.
 resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateData) ->
-    % this seems to be one of the final function calls - or nearly final, depending on where
-    % do we want to terminate accumulator - on send_element or earlier
-    NewState = lists:foldl(
-                 fun(XMLPacket, #state{} = State) ->
-                         send_element(State, XMLPacket),
+    {NewAcc, NewState} = lists:foldl(
+                 fun(XMLPacket, {A, #state{} = State}) ->
+                         A1 = mongoose_acc:put(to_send, XMLPacket, A),
+                         A2 = send_element(A1, State),
                          {value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
                          {value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
                          BufferedStateData = buffer_out_stanza({From, To, XMLPacket}, State),
+                         % this one will be next to tackle
                          maybe_send_ack_request(BufferedStateData),
-                         BufferedStateData
-                 end, StateData, Pending),
-    {Acc, NewState#state{pending_invitations = []}}.
+                         {A2, BufferedStateData}
+                 end, {Acc, StateData}, Pending),
+    {NewAcc, NewState#state{pending_invitations = []}}.
 
 
 get_showtag(undefined) ->
@@ -2680,6 +2695,7 @@ resend_csi_buffer(State) ->
     fsm_next_state(session_established, NewState#state{csi_state=active}).
 
 ship_to_local_user(Packet, State, StateName) ->
+    % this is coming in, no rewrite yet
     maybe_csi_inactive_optimisation(Packet, State, StateName).
 
 maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,

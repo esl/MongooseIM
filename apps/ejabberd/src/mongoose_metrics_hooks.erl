@@ -23,7 +23,7 @@
          user_receive_packet/5,
          xmpp_bounce_message/3,
          xmpp_stanza_dropped/4,
-         xmpp_send_element/3,
+         xmpp_send_element/2,
          roster_get/2,
          roster_set/4,
          roster_push/3,
@@ -135,14 +135,13 @@ xmpp_stanza_dropped(Acc, #jid{server = Server} , _, _) ->
     mongoose_metrics:update(Server, xmppStanzaDropped, 1),
     Acc.
 
--spec xmpp_send_element(Acc :: map(), Server :: ejabberd:server(),
-                        Packet :: jlib:xmlel()) -> ok | metrics_notify_return().
-xmpp_send_element(Acc, Server, #xmlel{name = Name, attrs = Attrs}) ->
+-spec xmpp_send_element(Acc :: map(), Server :: ejabberd:server()) -> ok | metrics_notify_return().
+xmpp_send_element(Acc, Server) ->
     mongoose_metrics:update(Server, xmppStanzaCount, 1),
-    case lists:keyfind(<<"type">>, 1, Attrs) of
-        {<<"type">>, <<"error">>} ->
+    case mongoose_acc:get(type, Acc) of
+        <<"error">> ->
             mongoose_metrics:update(Server, xmppErrorTotal, 1),
-            case Name of
+            case mongoose_acc:get(name, Acc) of
                 <<"iq">> ->
                     mongoose_metrics:update(Server, xmppErrorIq, 1);
                 <<"message">> ->
@@ -152,8 +151,6 @@ xmpp_send_element(Acc, Server, #xmlel{name = Name, attrs = Attrs}) ->
             end;
         _ -> ok
     end,
-    Acc;
-xmpp_send_element(Acc, _, _) ->
     Acc.
 
 
