@@ -13,7 +13,6 @@
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1]).
--export([store/4, retrieve/3, retrieve/4]).
 -export([from_element/1, from_map/1, update/2, is_acc/1]).
 -export([initialise/3, terminate/3, dump/1]).
 -export_type([t/0]).
@@ -108,24 +107,6 @@ get(Key, P, Default) ->
 append(Key, Val, P) ->
     L = get(Key, P, []),
     maps:put(Key, append(Val, L), P).
-
-%% @doc Store a value in a key-value store
--spec store(Key :: atom(), Index :: any(), Value :: any(), Accumulator :: t()) -> t().
-store(Key, Index, Value, Accumulator) ->
-    Store = maps:get(Key, Accumulator, #{}),
-    NStore = maps:put(Index, Value, Store),
-    maps:put(Key, NStore, Accumulator).
-
--spec retrieve(Key :: atom(), Index :: any(), Accumulator :: t()) -> any() | undefined.
-retrieve(Key, Index, Accumulator) ->
-    retrieve(Key, Index, Accumulator, undefined).
-
--spec retrieve(Key :: atom(), Index :: any(), Accumulator :: t(), Default :: any()) -> any().
-retrieve(Key, Index, Accumulator, Default) ->
-    case maps:get(Key, Accumulator, undefined) of
-        undefined -> Default;
-        M -> maps:get(Index, M, Default)
-    end.
 
 %%%%% internal %%%%%
 
