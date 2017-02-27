@@ -16,6 +16,9 @@
 %% API
 -export([privacy_check_packet/6, privacy_check_packet/7]).
 
+-type userlist() :: #userlist{}.
+-export_type([userlist/0]).
+
 %%% API %%%
 
 %% @doc abbreviated version - in most cases we have 'from' in Acc, but sometimes
@@ -31,8 +34,6 @@ privacy_check_packet(Acc, Server, User, PrivacyList, To, Dir) ->
     privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir).
 
 %% @doc check packet, store result in accumulator, return acc and result for quick check
-%% result may vary by recipient, because it may be broadcast to multiple jids
-%% so many arguments because that's how hook handlers are implemented:
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
                            Server :: binary(),
                            User :: binary(),
@@ -41,26 +42,19 @@ privacy_check_packet(Acc, Server, User, PrivacyList, To, Dir) ->
                            To :: ejabberd:jid(),
                            Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir) ->
-    LJid = jid:to_lower(To),
-    % check if it is there, if not run a hook and check again if it returned anything,
-    % if not then store default value of 'allow'
-    case mongoose_acc:retrieve(privacy_check, LJid, Acc) of
+    % check if it is there, if not then set default and run a hook
+    case mongoose_acc:get(privacy_check, Acc, undefined) of
         undefined ->
             Packet = mongoose_acc:get(element, Acc),
             Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,
-                Server,
-                Acc,
-                [User,
-                 Server,
-                 PrivacyList,
-                 {From, To, Packet},
-                 Dir]),
-            case mongoose_acc:retrieve(privacy_check, LJid, Acc1) of
-                undefined ->
-                    {mongoose_acc:store(privacy_check, LJid, allow, Acc1), allow};
-                Res ->
-                    {Acc1, Res}
-            end;
+                                           Server,
+                                           mongoose_acc:put(privacy_check, allow, Acc),
+                                           [User,
+                                            Server,
+                                            PrivacyList,
+                                            {From, To, Packet},
+                                            Dir]),
+            {Acc1, mongoose_acc:get(privacy_check, Acc1)};
         Res ->
             {Acc, Res}
     end.

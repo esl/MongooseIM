@@ -46,8 +46,6 @@
 
 -define(BACKEND, mod_privacy_backend).
 
--export_type([userlist/0]).
--export_type([list_name/0]).
 -export_type([list_item/0]).
 
 -type list_name() :: binary().
@@ -335,7 +333,7 @@ check_packet(Acc, User, Server,
             Type = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
     end,
-    mongoose_acc:store(privacy_check, jid:to_lower(To), CheckResult, Acc).
+    mongoose_acc:put(privacy_check, CheckResult, Acc).
 
 %% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->
