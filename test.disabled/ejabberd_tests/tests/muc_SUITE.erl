@@ -356,6 +356,7 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
         _ -> ok
     end,
     ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [muc_http_auth_test]),
+    ejabberd_node_utils:call_fun(mongoose_http_client, stop, []),
     dynamic_modules:restore_modules(domain(), Config);
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of
