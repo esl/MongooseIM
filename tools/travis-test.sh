@@ -73,9 +73,9 @@ stop_node() {
 
 summaries_dir() {
 	if [ `uname` = "Darwin" ]; then
-		echo `ls -dt ${1} | head -n ${2}`
+		echo `ls -dt ${1} | head -n 1`
 	else
-		echo `eval ls -d ${1} --sort time | head -n ${2}`
+		echo `eval ls -d ${1} --sort time | head -n 1`
 	fi
 }
 
@@ -134,7 +134,7 @@ run_tests() {
 	done
 
 	SUMMARIES_DIRS=${BASE}'/test.disabled/ejabberd_tests/ct_report/ct_run*'
-	SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS} ${RAN_TESTS})
+	SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS})
 	${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
 	BIG_STATUS=$?
 
