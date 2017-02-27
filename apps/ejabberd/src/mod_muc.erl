@@ -226,7 +226,7 @@ forget_room(Host, Name) ->
 
 
 -spec process_iq_disco_items(Host :: ejabberd:server(), From :: ejabberd:jid(),
-        To :: ejabberd:jid(), ejabberd:iq()) -> ok | {error, lager_not_started}.
+        To :: ejabberd:jid(), ejabberd:iq()) -> mongoose_acc:t().
 process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
     Rsm = jlib:rsm_decode(IQ),
     Res = IQ#iq{type = result,

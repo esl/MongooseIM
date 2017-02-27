@@ -27,8 +27,8 @@
 %% Callback declarations
 %%----------------------------------------------------------------------
 
--callback process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Extra :: any()) ->
-    any().
+-callback process_packet(From :: jid(), To :: jid(), Packet :: exml:element() | mongoose_acc:t(),
+    Extra :: any()) -> any().
 
 %%----------------------------------------------------------------------
 %% API
@@ -44,7 +44,8 @@ new(Module) ->
 new(Module, Extra) when is_atom(Module) ->
     #packet_handler{ module = Module, extra = Extra }.
 
--spec process(Handler :: t(), From :: jid(), To :: jid(), Packet :: exml:element()) -> any().
+-spec process(Handler :: t(), From :: jid(), To :: jid(),
+    Packet :: exml:element() | mongoose_acc:t()) -> any().
 process(#packet_handler{ module = Module, extra = Extra }, From, To, Packet) ->
     Module:process_packet(From, To, Packet, Extra).
 
