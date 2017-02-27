@@ -864,8 +864,9 @@ handle_cast(_Msg, State) -> {noreply, State}.
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({route, From, To, Packet},
+handle_info({route, From, To, Acc},
             #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
+    Packet = mongoose_acc:to_element(Acc),
     case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
         {'EXIT', Reason} -> ?ERROR_MSG("~p", [Reason]);
         _ -> ok

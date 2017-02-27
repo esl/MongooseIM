@@ -188,14 +188,14 @@ resource_num(User, Host, Num) ->
 
 
 -spec kick_session(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
-        ReasonText :: binary()) -> ok.
+        ReasonText :: binary()) -> 'ok'.
 kick_session(User, Server, Resource, ReasonText) ->
     kick_this_session(User, Server, Resource, prepare_reason(ReasonText)),
     ok.
 
 
 -spec kick_this_session(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
-        Reason :: binary()) -> ok | {error, lager_not_started}.
+        Reason :: binary()) -> mongoose_acc:t().
 kick_this_session(User, Server, Resource, Reason) ->
     ejabberd_sm:route(
         jid:make(<<"">>, <<"">>, <<"">>),

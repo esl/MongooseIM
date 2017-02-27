@@ -258,33 +258,34 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
-               Packet :: jlib:xmlel()) ->
-        drop | done | {ejabberd:jid(), ejabberd:jid(), jlib:xmlel()}.
-do_route(From, To, Packet) ->
+               Packet :: mongoose_acc:t()) ->
+        done. % this is the 'last resort' router, it always returns 'done'.
+do_route(From, To, Acc) ->
+    Packet = mongoose_acc:get(element, Acc),
     ?DEBUG("s2s manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
-           [From, To, Packet, 8]),
+        [From, To, Packet, 8]),
     case find_connection(From, To) of
         {atomic, Pid} when is_pid(Pid) ->
             ?DEBUG("sending to process ~p~n", [Pid]),
-            #xmlel{attrs = Attrs} = Packet,
+            Attrs = mongoose_acc:get(attrs, Acc),
             NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(From),
                                                   jid:to_binary(To),
                                                   Attrs),
             #jid{lserver = MyServer} = From,
-            ejabberd_hooks:run(
-              s2s_send_packet,
-              MyServer,
-              [From, To, Packet]),
-            send_element(Pid, Packet#xmlel{attrs = NewAttrs}),
+            Acc1 = ejabberd_hooks:run_fold(s2s_send_packet,
+                                           MyServer,
+                                           Acc,
+                                           [From, To, Packet]),
+            send_element(Pid, mongoose_acc:put(attrs, NewAttrs, Acc1)),
             done;
         {aborted, _Reason} ->
-            case xml:get_tag_attr_s(<<"type">>, Packet) of
+            case mongoose_acc:get(type, Acc) of
                 <<"error">> -> done;
                 <<"result">> -> done;
                 _ ->
                     Err = jlib:make_error_reply(
                             Packet, ?ERR_SERVICE_UNAVAILABLE),
-                    ejabberd_router:route(To, From, Err)
+                    ejabberd_router:route(To, From, mongoose_acc:put(to_send, Err, Acc))
             end,
             done
     end.
@@ -473,7 +474,7 @@ parent_domains(<<$., Rest/binary>>, Acc) ->
 parent_domains(<<_, Rest/binary>>, Acc) ->
     parent_domains(Rest, Acc).
 
--spec send_element(pid(), jlib:xmlel()) -> {'send_element', jlib:xmlel()}.
+-spec send_element(pid(), mongoose_acc:t()) -> {'send_element', mongoose_acc:t()}.
 send_element(Pid, El) ->
     Pid ! {send_element, El}.
 

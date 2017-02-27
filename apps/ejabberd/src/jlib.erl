@@ -129,11 +129,15 @@ make_result_iq_reply_attrs(Attrs) ->
     [{<<"type">>, <<"result">>} | Attrs5].
 
 
--spec make_error_reply(xmlel(), xmlcdata() | xmlel()) -> xmlel().
+-spec make_error_reply(xmlel() | mongoose_acc:t(),
+                       xmlcdata() | xmlel()) ->
+    xmlel() | mongoose_acc:t().
 make_error_reply(#xmlel{name = Name, attrs = Attrs,
                         children = SubTags}, Error) ->
     NewAttrs = make_error_reply_attrs(Attrs),
-    #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]}.
+    #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]};
+make_error_reply(Acc, Error) ->
+    make_error_reply(mongoose_acc:get(to_send, Acc), Error).
 
 
 -spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(), ...].

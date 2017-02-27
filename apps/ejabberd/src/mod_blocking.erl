@@ -72,10 +72,10 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
                       {error, Reason}
               end,
     %% process
-    Res = process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs),
+    {Acc1, Res} = process_blocking_iq_set(Type, Acc, LUser, LServer, CurrList, Usrs),
     %% respond / notify
-    Res1 = complete_iq_set(blocking_command, LUser, LServer, Res),
-    mongoose_acc:put(iq_result, Res1, Acc);
+    {Acc2, Res1} = complete_iq_set(blocking_command, Acc1, LUser, LServer, Res),
+    mongoose_acc:put(iq_result, Res1, Acc2);
 process_iq_set(Val, _, _, _) ->
     Val.
 
@@ -87,17 +87,18 @@ process_iq_set(Val, _, _, _) ->
 %% * broadcast (push) message to all the user's resources
 %% * sent 'unavailable' msg to blocked contacts, or 'available' to unblocked
 %%
--spec process_blocking_iq_set(Type :: block | unblock, LUser:: binary(), LServer:: binary(),
+-spec process_blocking_iq_set(Type :: block | unblock, Acc :: mongoose_acc:t(),
+                              LUser:: binary(), LServer:: binary(),
                               CurrList :: [listitem()], Users :: [binary()]) ->
     {ok, [binary()], [listitem()], block | unblock | unblock_all}
     | {error, jlib:xmlel()}.
 %% fail if current default list could not be retrieved
-process_blocking_iq_set(_, _, _, {error, _}, _) ->
-    {error, ?ERR_INTERNAL_SERVER_ERROR};
+process_blocking_iq_set(_, Acc, _, _, {error, _}, _) ->
+    {Acc, {error, ?ERR_INTERNAL_SERVER_ERROR}};
 %% reject block request with empty jid list
-process_blocking_iq_set(block, _, _, _, []) ->
-    {error, ?ERR_BAD_REQUEST};
-process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs) ->
+process_blocking_iq_set(block, Acc, _, _, _, []) ->
+    {Acc, {error, ?ERR_BAD_REQUEST}};
+process_blocking_iq_set(Type, Acc, LUser, LServer, CurrList, Usrs) ->
     %% check who is being added / removed
     {NType, Changed, NewList} = blocking_list_modify(Type, Usrs, CurrList),
     case mod_privacy_backend:replace_privacy_list(LUser, LServer, <<"blocking">>, NewList) of
@@ -106,24 +107,24 @@ process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs) ->
         ok ->
             case mod_privacy_backend:set_default_list(LUser, LServer, <<"blocking">>) of
                 ok ->
-                    {ok, Changed, NewList, NType};
+                    {Acc, {ok, Changed, NewList, NType}};
                 {error, not_found} ->
-                    {error, ?ERR_ITEM_NOT_FOUND};
+                    {Acc, {error, ?ERR_ITEM_NOT_FOUND}};
                 {error, _Reason} ->
-                    {error, ?ERR_INTERNAL_SERVER_ERROR}
+                {Acc, {error, ?ERR_INTERNAL_SERVER_ERROR}}
             end
     end.
 
--spec complete_iq_set(atom(), term(), term(), term()) ->
-    {error, term()} | {result, list() | {result, list(), term()}}.
-complete_iq_set(blocking_command, _, _, {error, Reason}) ->
-    {error, Reason};
-complete_iq_set(blocking_command, LUser, LServer, {ok, Changed, List, Type}) ->
+-spec complete_iq_set(atom(), mongoose_acc:t(), term(), term(), term()) ->
+    {mongoose_acc:t(), {error, term()} | {result, list() | {result, list(), term()}}}.
+complete_iq_set(blocking_command, Acc, _, _, {error, Reason}) ->
+    {Acc, {error, Reason}};
+complete_iq_set(blocking_command, Acc, LUser, LServer, {ok, Changed, List, Type}) ->
     UserList = #userlist{name = <<"blocking">>, list = List, needdb = false},
     % send the list to all users c2s processes (resources) to make it effective immediately
-    broadcast_blocking_command(LUser, LServer, UserList, Changed, Type),
+    Acc1 = broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type),
     % return a response here so that c2s sets the list in its state
-    {result, [], UserList}.
+    {Acc1, {result, [], UserList}}.
 %%complete_iq_set(blocking_command, _, _, _) ->
 %%    {result, []}.
 
@@ -194,14 +195,16 @@ make_blocking_list_entry(J) ->
 
 %% @doc send iq confirmation to all of the user's resources
 %% if we unblock all contacts then we don't list who's been unblocked
-broadcast_blocking_command(LUser, LServer, UserList, _Changed, unblock_all) ->
-    broadcast_blocking_command(LUser, LServer, UserList, [], unblock);
-broadcast_blocking_command(LUser, LServer, UserList, Changed, Type) ->
+broadcast_blocking_command(Acc, LUser, LServer, UserList, _Changed, unblock_all) ->
+    broadcast_blocking_command(Acc, LUser, LServer, UserList, [], unblock);
+broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type) ->
     case jid:make(LUser, LServer, <<>>) of
         error ->
-            ok;
+            Acc;
         UserJID ->
-            ejabberd_sm:route(UserJID, UserJID, {broadcast, {blocking, UserList, Type, Changed}})
+            Bcast = {blocking, UserList, Type, Changed},
+            Acc1 = mongoose_acc:put(to_send, Bcast, Acc),
+            ejabberd_sm:route(UserJID, UserJID, {broadcast, Acc1})
     end.
 
 blocking_query_response(Lst) ->

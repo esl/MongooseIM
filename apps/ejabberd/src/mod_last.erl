@@ -239,16 +239,18 @@ get_last_info(LUser, LServer) ->
         Res -> Res
     end.
 
-%% #rh
--spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map() | {error, term()}.
+-spec remove_user(mongoose_acc:t(), ejabberd:user(), ejabberd:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    case mod_last_backend:remove_user(LUser, LServer) of
-        ok -> Acc;
-        E -> E
-    end.
+    % XXX we should handle errors somehow - previously the code returned something else
+    % but it is ignored anyway because the hook is run (not folded) so errors were not
+    % handled anyway
+    % same for many other handlers of 'remove_user' hook
+    mod_last_backend:remove_user(LUser, LServer),
+    Acc.
 
+%% TODO fix
 -spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
                       LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->

@@ -108,7 +108,7 @@ run(Hook, Args) ->
           Host :: ejabberd:server() | global,
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
-    run_fold(Hook, Host, #{}, Args).
+    run_fold(Hook, Host, mongoose_acc:new(), Args).
 
 %% @spec (Hook::atom(), Val, Args) -> Val | stopped | NewVal
 %% @doc Run the calls of this hook in order.

@@ -87,9 +87,9 @@ does_user_exist(LUser, LServer) ->
 %% Hooks
 %%====================================================================
 
--spec remove_user(Acc :: map(),
+-spec remove_user(Acc :: mongoose_acc:t(),
                   LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver() | string()) -> map().
+                  LServer :: ejabberd:lserver() | string()) -> mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
     delete_user(LUser, LServer),
     Acc.

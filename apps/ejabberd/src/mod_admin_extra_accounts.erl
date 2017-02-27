@@ -263,7 +263,7 @@ ban_account(User, Host, ReasonText) ->
             {error, ErrorReason}
     end.
 
--spec kick_sessions(ejabberd:user(), ejabberd:server(), binary()) -> [ok].
+-spec kick_sessions(ejabberd:user(), ejabberd:server(), binary()) -> [mongoose_acc:t()].
 kick_sessions(User, Server, Reason) ->
     lists:map(
         fun(Resource) ->

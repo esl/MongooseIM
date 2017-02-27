@@ -98,7 +98,8 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 %% Hook 'remove_user'
--spec remove_user(Acc :: map(), LUser :: binary(), LServer :: binary()) -> ok.
+-spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
+    mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
     mod_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined, undefined),
     Acc.

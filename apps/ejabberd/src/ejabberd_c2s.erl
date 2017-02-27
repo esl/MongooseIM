@@ -908,6 +908,7 @@ session_established({xmlstreamelement, El}, StateData) ->
             Acc = mongoose_acc:update(Acc0, #{user => User,
                                               server => Server,
                                               from_jid => FromJID,
+                                              from => jid:to_binary(FromJID),
                                               to_jid => ToJID,
                                               to => To}),
             Acc1 = mod_amp:check_packet(Acc, initial_check),
@@ -1123,10 +1124,9 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
-handle_info({send_text, Text}, StateName, StateData) ->
-    send_text(StateData, Text),
-    ejabberd_hooks:run(c2s_loop_debug, [Text]),
-    fsm_next_state(StateName, StateData);
+
+
+%%% system events
 handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
     maybe_send_element_safe(StateData,
@@ -1182,34 +1182,6 @@ handle_info({force_update_presence, LUser}, StateName,
             StateData
     end,
     {next_state, StateName, NewStateData};
-handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
-    Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
-                                   true, [StateData#state.server, StateData,
-                                          Feature, To, Packet]),
-    case {Drop, StateData#state.jid} of
-        {true, _} ->
-            ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]),
-            fsm_next_state(StateName, StateData);
-        {_, To} ->
-            FinalPacket = jlib:replace_from_to(From, To, Packet),
-            case privacy_check_packet(StateData, From, To, FinalPacket, in) of
-                allow ->
-                    send_and_maybe_buffer_stanza({From, To, FinalPacket}, StateData, StateName);
-                _ ->
-                    fsm_next_state(StateName, StateData)
-            end;
-        _ ->
-            FinalPacket = jlib:replace_from_to(From, To, Packet),
-            ejabberd_router:route(From, To, FinalPacket),
-            fsm_next_state(StateName, StateData)
-    end;
-handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
-    Recipients = ejabberd_hooks:run_fold(
-                   c2s_broadcast_recipients, StateData#state.server,
-                   [], [StateData#state.server, StateData, Type, From, Packet]),
-    lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
-                  lists:usort(Recipients)),
-    fsm_next_state(StateName, StateData);
 handle_info(resume_timeout, resume_session, StateData) ->
     {stop, normal, StateData};
 handle_info(check_buffer_full, StateName, StateData) ->
@@ -1229,6 +1201,65 @@ handle_info({store_session_info, User, Server, Resource, KV, _FromPid}, StateNam
     ejabberd_sm:store_info(User, Server, Resource, KV),
     fsm_next_state(StateName, StateData);
 handle_info(Info, StateName, StateData) ->
+    handle_incoming_message(Info, StateName, StateData).
+
+maybe_terminate(Acc) ->
+    % instead of this, we will pass on the accumulator, only replacing
+    % 'element' with 'to_send', if present
+    case mongoose_acc:is_acc(Acc) of
+        true -> 
+            mongoose_acc:terminate(Acc, received, ?FILE, ?LINE);
+        false ->
+            ?ERROR_MSG("Hey, it should be accumulator here! ~p", [Acc]),
+            Acc
+    end.
+
+%%% incoming messages
+handle_incoming_message({send_text, Text}, StateName, StateData) ->
+    send_text(StateData, Text),
+    ejabberd_hooks:run(c2s_loop_debug, [Text]),
+    fsm_next_state(StateName, StateData);
+handle_incoming_message({broadcast, Acc}, StateName, StateData) ->
+    Broadcast = maybe_terminate(Acc),
+    ejabberd_hooks:run(c2s_loop_debug, [{broadcast, Broadcast}]),
+    ?DEBUG("broadcast=~p", [Broadcast]),
+    Res = handle_routed_broadcast(Broadcast, StateData),
+    handle_broadcast_result(Res, StateName, StateData);
+handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
+    Packet = maybe_terminate(Acc),
+    ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
+    Name = Packet#xmlel.name,
+    process_incoming_stanza(Name, From, To, Packet, StateName, StateData);
+handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
+    Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
+        true, [StateData#state.server, StateData,
+            Feature, To, Packet]),
+    case {Drop, StateData#state.jid} of
+        {true, _} ->
+            ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]),
+            fsm_next_state(StateName, StateData);
+        {_, To} ->
+            FinalPacket = jlib:replace_from_to(From, To, Packet),
+            case privacy_check_packet(StateData, From, To, FinalPacket, in) of
+                allow ->
+                    send_and_maybe_buffer_stanza({From, To, FinalPacket}, StateData, StateName);
+                _ ->
+                    fsm_next_state(StateName, StateData)
+            end;
+        _ ->
+            FinalPacket = jlib:replace_from_to(From, To, Packet),
+            ejabberd_router:route(From, To, FinalPacket),
+            fsm_next_state(StateName, StateData)
+    end;
+handle_incoming_message({broadcast, Type, From, Acc}, StateName, StateData) ->
+    Packet = maybe_terminate(Acc),
+    Recipients = ejabberd_hooks:run_fold(
+        c2s_broadcast_recipients, StateData#state.server,
+        [], [StateData#state.server, StateData, Type, From, Packet]),
+    lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
+        lists:usort(Recipients)),
+    fsm_next_state(StateName, StateData);
+handle_incoming_message(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
 
@@ -1591,17 +1622,15 @@ maybe_send_element_safe(State, El) ->
 
 %% @doc This is the termination point - from here stanza is sent to the user
 %% We sent the original stanza ('element') unless there is a different thing
-%% keyed 'to_send'
-send_element(StateData, #xmlel{} = El) ->
+% keyed 'to_send'
+-spec send_element(mongoose_acc:t() | state(), state() | xmlel()) -> mongoose_acc:t() | ok.
+send_element(#state{} = StateData, #xmlel{} = El) ->
     ?DEPRECATED,
     send_element(mongoose_acc:from_element(El), StateData),
     ok;
 send_element(Acc, #state{server = Server} = StateData) ->
     Acc1 = ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [Server]),
-    El = case mongoose_acc:get(to_send, Acc1, undefined) of
-             undefined -> mongoose_acc:get(element, Acc1);
-             OutStanza -> OutStanza
-         end,
+    El = mongoose_acc:get(to_send, Acc1),
     % we might put send result into accumulator
     do_send_element(El, StateData),
     Acc1.
@@ -2043,20 +2072,18 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
     From = mongoose_acc:get(from_jid, Acc),
     To = mongoose_acc:get(to_jid, Acc),
     {Acc1, Res} = privacy_check_packet(Acc, To, out, StateData),
-    Packet = mongoose_acc:terminate(Acc1, ?FILE, ?LINE),
-    case Res of
-        deny ->
-            Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_CANCEL),
-            ejabberd_router:route(To, From, Err),
-            ok;
-        block ->
-            Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_BLOCKED),
-            ejabberd_router:route(To, From, Err),
-            ok;
-        allow ->
-            ejabberd_router:route(FromRoute, To, Packet)
-    end,
-    Acc1.
+    Packet = mongoose_acc:get(element, Acc1),
+    NAcc = case Res of
+               deny ->
+                   Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_CANCEL),
+                   ejabberd_router:route(To, From, mongoose_acc:put(to_send, Err, Acc1));
+               block ->
+                   Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_BLOCKED),
+                   ejabberd_router:route(To, From, mongoose_acc:put(to_send, Err, Acc1));
+               allow ->
+                   ejabberd_router:route(FromRoute, To, Acc1)
+           end,
+    NAcc.
 
 
 -spec privacy_check_packet(StateData :: state(),
@@ -2102,7 +2129,6 @@ is_privacy_allow(StateData, From, To, Packet, Dir) ->
                          JIDSet :: jid_set(),
                          State :: state()) -> mongoose_acc:t().
 presence_broadcast(Acc, JIDSet, StateData) ->
-    Packet = mongoose_acc:get(element, Acc),
     From = mongoose_acc:get(from_jid, Acc),
     lists:foldl(fun(JID, A) ->
                           FJID = jid:make(JID),
@@ -2110,8 +2136,7 @@ presence_broadcast(Acc, JIDSet, StateData) ->
                           case Res of
                               allow ->
                                   % here we sort of mongoose_acc:terminate
-                                  ejabberd_router:route(From, FJID, Packet),
-                                  A1;
+                                  ejabberd_router:route(From, FJID, A1);
                               _ ->
                                   A1
                           end
@@ -2139,17 +2164,14 @@ presence_broadcast_to_trusted(Acc, StateData, From, T, A, Packet) ->
                                From :: 'undefined' | ejabberd:jid(),
                                State :: state(),
                                Packet :: jlib:xmlel()) -> {mongoose_acc:t(), state()}.
-presence_broadcast_first(Acc, From, StateData, Packet) ->
-    gb_sets:fold(fun(JID, X) -> % X is just a placeholder, we don't accumulate anything
-                                % so it works like map
-                       ejabberd_router:route(
-                         From,
-                         jid:make(JID),
-                         #xmlel{name = <<"presence">>,
-                                attrs = [{<<"type">>, <<"probe">>}]}),
-                       X
-               end,
-               [],
+presence_broadcast_first(Acc0, From, StateData, Packet) ->
+    Acc = gb_sets:fold(fun(JID, A) ->
+                           Stanza = #xmlel{name = <<"presence">>,
+                                           attrs = [{<<"type">>, <<"probe">>}]},
+                           A1 = mongoose_acc:put(to_send, Stanza, A),
+                           ejabberd_router:route(From, jid:make(JID), A1)
+                       end,
+               Acc0,
                StateData#state.pres_t),
     case StateData#state.pres_invis of
         true ->
@@ -2279,8 +2301,8 @@ process_privacy_iq(Acc, To, StateData) ->
                 {error, Error} ->
                     IQ#iq{type = error, sub_el = [SubEl, Error]}
             end,
-    ejabberd_router:route(To, From, jlib:iq_to_xml(IQRes)),
-    {Acc2, NewStateData}.
+    Acc3 = ejabberd_router:route(To, From, mongoose_acc:put(to_send, jlib:iq_to_xml(IQRes), Acc2)),
+    {Acc3, NewStateData}.
 
 -spec process_privacy_iq(Acc :: mongoose_acc:t(),
                          Type :: get | set,
@@ -2342,12 +2364,12 @@ check_privacy_and_route_or_ignore(StateData, From, To, Packet, Dir) ->
                                         Packet :: exml:element(),
                                         Dir :: in | out) -> any().
 check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
-    {Acc1, Res} = privacy_check_packet(Acc, To, Dir, StateData),
+    Acc1 = mongoose_acc:put(to_send, Packet, Acc),
+    {Acc2, Res} = privacy_check_packet(Acc1, To, Dir, StateData),
     case Res of
-        allow -> ejabberd_router:route(From, To, Packet);
-        _ -> ok
-    end,
-    Acc1.
+        allow -> ejabberd_router:route(From, To, Acc2);
+        _ -> Acc2
+    end.
 
 -spec resend_subscription_requests(mongoose_acc:t(), state()) -> {mongoose_acc:t(), state()}.
 resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateData) ->
@@ -3122,6 +3144,7 @@ defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undef
 defer_resource_constraint_check(State)->
     State.
 
+-spec sasl_success_stanza(any()) -> xmlel().
 sasl_success_stanza(ServerOut) ->
     C = case ServerOut of
             undefined -> [];
@@ -3131,6 +3154,7 @@ sasl_success_stanza(ServerOut) ->
            attrs = [{<<"xmlns">>, ?NS_SASL}],
            children = C}.
 
+-spec sasl_failure_stanza(any()) -> xmlel().
 sasl_failure_stanza(Error) when is_binary(Error) ->
     sasl_failure_stanza({Error, undefined});
 sasl_failure_stanza({Error, Text}) ->
@@ -3143,6 +3167,7 @@ maybe_text_tag(Text) ->
     [#xmlel{name = <<"text">>,
             children = [#xmlcdata{content = Text}]}].
 
+-spec sasl_challenge_stanza(any()) -> xmlel().
 sasl_challenge_stanza(Challenge) ->
     #xmlel{name = <<"challenge">>,
            attrs = [{<<"xmlns">>, ?NS_SASL}],

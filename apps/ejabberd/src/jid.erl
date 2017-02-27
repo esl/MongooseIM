@@ -144,6 +144,9 @@ binary_to_jid3(<<>>, N, S, R) ->
 
 
 -spec to_binary(ejabberd:simple_jid() | ejabberd:simple_bare_jid() | ejabberd:jid()) ->  binary().
+to_binary(Jid) when is_binary(Jid) ->
+    % sometimes it is used to format error messages
+    Jid;
 to_binary(#jid{user = User, server = Server, resource = Resource}) ->
     to_binary({User, Server, Resource});
 to_binary({User, Server}) ->

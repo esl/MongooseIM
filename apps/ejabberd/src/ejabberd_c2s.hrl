@@ -103,7 +103,7 @@
                                      [binary()]}
                         | unknown.
 
--type broadcast() :: {broadcast, broadcast_type()}.
+-type broadcast() :: {broadcast, broadcast_type() | mongoose_acc:t()}.
 
 -type broadcast_result() :: {new_state, NewState :: state()}
                           | {exit, Reason :: binary()}

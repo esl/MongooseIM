@@ -14,7 +14,8 @@
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
--export([initialise/3, terminate/3, dump/1]).
+-export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
+-export([to_element/1]).
 -export_type([t/0]).
 
 %% if it is defined as -opaque then dialyzer fails
@@ -40,8 +41,26 @@ terminate(M, _F, _L) ->
 %%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
     get(element, M).
 
+terminate(M, received, _F, _L) ->
+%%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
+    get(to_send, M, get(element, M, undefined)).
+
 dump(Acc) ->
     dump(Acc, lists:sort(maps:keys(Acc))).
+
+to_binary(#xmlel{} = Packet) ->
+    ?DEPRECATED,
+    exml:to_binary(Packet);
+to_binary({broadcast, Payload}) ->
+    case mongoose_acc:is_acc(Payload) of
+        true ->
+            to_binary(Payload);
+        false ->
+            list_to_binary(io_lib:format("~p", [Payload]))
+    end;
+to_binary(Acc) ->
+    % replacement to exml:to_binary, for error logging
+    exml:to_binary(mongoose_acc:get(element, Acc)).
 
 %% This function is for transitional period, eventually all hooks will use accumulator
 %% and we will not have to check
@@ -49,6 +68,16 @@ is_acc(A) when is_map(A) ->
     maps:get(mongoose_acc, A, false);
 is_acc(_) ->
     false.
+
+%% this is a temporary hack - right now processes receive accumulators and stanzas, it is all
+%% mixed up so we have to cater for this
+-spec to_element(xmlel() | t()) -> xmlel().
+to_element(A) ->
+    case is_acc(A) of
+        true -> get(to_send, A, get(element, A, undefined));
+        false -> A
+    end.
+
 
 %%%%% API %%%%%
 
@@ -87,6 +116,8 @@ put(Key, Val, P) ->
     maps:put(Key, Val, P).
 
 -spec get(atom()|[atom()], t()) -> any().
+get(to_send, Acc) ->
+    get(to_send, Acc, get(element, Acc));
 get([], _) ->
     undefined;
 get([Key|Keys], P) ->

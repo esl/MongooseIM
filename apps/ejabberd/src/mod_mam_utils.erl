@@ -899,7 +899,7 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
 %% Ejabberd
 
 -spec send_message(ejabberd:jid(), ejabberd:jid(), jlib:xmlel()
-                  ) -> 'ok' | {'error', 'lager_not_running'}.
+                  ) -> mongoose_acc:t().
 
 -ifdef(MAM_COMPACT_FORWARDED).
 
