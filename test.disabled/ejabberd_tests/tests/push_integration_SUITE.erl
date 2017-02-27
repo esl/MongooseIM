@@ -12,17 +12,17 @@
 -define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).
 -define(MUCHOST,                <<"muclight.@HOST@">>).
 
--define(PUSH_OPTS,
-    [
-        {backend, mnesia}
-    ]).
-
 -import(muc_light_SUITE,
     [
         room_bin_jid/1,
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
+-import(push_SUITE, [
+    enable_stanza/2, enable_stanza/3, enable_stanza/4,
+    disable_stanza/1, disable_stanza/2,
+    make_form/1, maybe_form/2
+]).
 
 -record(route, {from, to, packet}).
 
@@ -32,25 +32,23 @@
 
 all() ->
     [
-        {group, pm_msg_notifications}
-%%        {group, muclight_msg_notifications}
+        {group, pm_msg_notifications},
+        {group, muclight_msg_notifications}
     ].
 
 groups() ->
     [
-        {pm_msg_notifications, [parallel], [
-%%            pm_no_msg_notifications_if_not_enabled,
-%%            pm_no_msg_notifications_if_user_online,
-%%            pm_msg_notify_if_user_offline,
-            pm_msg_notify_if_user_offline_with_publish_options
-%%            pm_msg_notify_stops_after_disabling
+        {pm_msg_notifications, [], [
+            pm_msg_notify_on_apns_no_click_action,
+            pm_msg_notify_on_fcm_no_click_action,
+            pm_msg_notify_on_apns_w_click_action,
+            pm_msg_notify_on_fcm_w_click_action
         ]},
-        {muclight_msg_notifications, [parallel], [
-%%            muclight_no_msg_notifications_if_not_enabled,
-%%            muclight_no_msg_notifications_if_user_online,
-%%            muclight_msg_notify_if_user_offline,
-%%            muclight_msg_notify_if_user_offline_with_publish_options,
-            muclight_msg_notify_stops_after_disabling
+        {muclight_msg_notifications, [], [
+            muclight_msg_notify_on_apns_no_click_action,
+            muclight_msg_notify_on_fcm_no_click_action,
+            muclight_msg_notify_on_apns_w_click_action,
+            muclight_msg_notify_on_fcm_w_click_action
         ]}
     ].
 
@@ -81,7 +79,7 @@ init_per_suite(Config0) ->
 
     try
         {FCM, APNS, Push} = connect_to_mongoose_push(Config),
-        escalus:init_per_suite([{fcm, FCM}, {apns, APNS} | Config])
+        escalus:init_per_suite([{fcm, FCM}, {apns, APNS}, {push, Push} | Config])
     catch
         _:_ ->
             {skip, "MongoosePush is not available"}
@@ -89,6 +87,10 @@ init_per_suite(Config0) ->
 
 
 end_per_suite(Config) ->
+    shotgun:close(proplists:get_value(apns, Config)),
+    shotgun:close(proplists:get_value(fcm, Config)),
+    shotgun:close(proplists:get_value(push, Config)),
+
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
@@ -100,10 +102,12 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(CaseName, Config0) ->
+    %% Some cleaning up
     FCM = proplists:get_value(fcm, Config0),
-    APNS = proplists:get_value(fcm, Config0),
+    APNS = proplists:get_value(apns, Config0),
     {ok, #{status_code := 200}} = shotgun:post(FCM, <<"/reset">>, #{}, <<>>, #{}),
     {ok, #{status_code := 200}} = shotgun:post(APNS, <<"/reset">>, #{}, <<>>, #{}),
+    rpc(mod_muc_light_db_backend, force_clear, []),
 
     Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}, {kate, 1}]),
     Config = [{case_name, CaseName} | Config1],
@@ -121,69 +125,13 @@ end_per_testcase(CaseName, Config) ->
 %% GROUP pm_msg_notifications
 %%--------------------------------------------------------------------
 
-pm_no_msg_notifications_if_not_enabled(Config) ->
-    escalus:story(
-        Config, [{bob, 1}, {alice, 1}],
-        fun(Bob, Alice) ->
-            become_unavailable(Bob),
-            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-
-            ?assert(not truly(received_route())),
-            ok
-        end).
-
-pm_no_msg_notifications_if_user_online(Config) ->
-    escalus:story(
-        Config, [{bob, 1}, {alice, 1}],
-        fun(Bob, Alice) ->
-            PubsubJID = pubsub_jid(Config),
-
-            escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
-
-            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-
-            ?assert(not truly(received_route())),
-            ok
-        end).
-
-pm_msg_notify_if_user_offline(Config) ->
-    escalus:story(
-        Config, [{bob, 1}, {alice, 1}],
-        fun(Bob, Alice) ->
-            PubsubJID = pubsub_jid(Config),
-
-            AliceJID = bare_jid(Alice),
-            escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
-            become_unavailable(Bob),
-
-            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                             {element, <<"publish">>},
-                                             {element, <<"item">>},
-                                             {element, <<"notification">>},
-                                             {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            ?assertMatch(?PUSH_FORM_TYPE, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(<<"OH, HAI!">>, proplists:get_value(<<"last-message-body">>, Fields)),
-            ?assertMatch(AliceJID,
-                         proplists:get_value(<<"last-message-sender">>, Fields)),
-
-            ok
-        end).
-
-pm_msg_notify_if_user_offline_with_publish_options(Config) ->
+pm_msg_notify_on_apns_no_click_action(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             PubsubJID = <<"pubsub.localhost">>,
             Node = {_, NodeName} = pubsub_node(),
+            AliceJID = bare_jid(Alice),
             pubsub_tools:create_node(Bob, Node, [{type, <<"push">>}]),
 
             escalus:send(Bob, enable_stanza(PubsubJID, NodeName,
@@ -194,39 +142,105 @@ pm_msg_notify_if_user_offline_with_publish_options(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            timer:sleep(10000),
-            APNS = proplists:get_value(apns, Config),
-            wait_for(timer:seconds(5), fun() ->
-                {ok, #{body := Body}} = shotgun:get(APNS, <<"/activity">>),
-                #{<<"logs">> := Logs} = jiffy:decode(Body, [return_maps]),
-                1 = length(Logs)
-            end),
+            [Notification = #{}] = get_push_logs(apns, Config),
 
-
+            APNSData = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification)),
+            APNSAlert = maps:get(<<"alert">>, APNSData),
+            ?assertMatch(#{<<"device_token">> := <<"mydevicetoken">>}, Notification),
+            ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, APNSAlert),
+            ?assertMatch(#{<<"title">> := AliceJID}, APNSAlert),
+            ?assertMatch(#{<<"badge">> := 1}, APNSData),
+            ?assertMatch(#{<<"category">> := null}, APNSData),
 
             ok
         end).
 
-
-
-pm_msg_notify_stops_after_disabling(Config) ->
+pm_msg_notify_on_fcm_no_click_action(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            PubsubJID = pubsub_jid(Config),
+            PubsubJID = <<"pubsub.localhost">>,
+            Node = {_, NodeName} = pubsub_node(),
+            AliceJID = bare_jid(Alice),
+            pubsub_tools:create_node(Bob, Node, [{type, <<"push">>}]),
 
-            %% Enable
-            escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>, [])),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
-
-            %% Disable
-            escalus:send(Bob, disable_stanza(PubsubJID, <<"NodeId">>)),
+            escalus:send(Bob, enable_stanza(PubsubJID, NodeName,
+                                            [{<<"service">>, <<"fcm">>},
+                                             {<<"device_id">>, <<"mydevicetoken">>}])),
             escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
             become_unavailable(Bob),
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            ?assert(not received_route()),
+            [Notification = #{}] = get_push_logs(fcm, Config),
+
+            FCMData = maps:get(<<"notification">>, maps:get(<<"request_data">>, Notification)),
+            ?assertMatch(#{<<"device_token">> := <<"mydevicetoken">>}, Notification),
+            ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, FCMData),
+            ?assertMatch(#{<<"title">> := AliceJID}, FCMData),
+            ?assertMatch(#{<<"tag">> := AliceJID}, FCMData),
+            ?assertMatch(#{<<"click_action">> :=  null}, FCMData),
+
+            ok
+        end).
+
+pm_msg_notify_on_apns_w_click_action(Config) ->
+    escalus:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            PubsubJID = <<"pubsub.localhost">>,
+            Node = {_, NodeName} = pubsub_node(),
+            AliceJID = bare_jid(Alice),
+            pubsub_tools:create_node(Bob, Node, [{type, <<"push">>}]),
+
+            escalus:send(Bob, enable_stanza(PubsubJID, NodeName,
+                                            [{<<"service">>, <<"apns">>},
+                                             {<<"device_id">>, <<"mydevicetoken">>},
+                                             {<<"click_action">>, <<"myactivity">>}])),
+            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            become_unavailable(Bob),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+            [Notification = #{}] = get_push_logs(apns, Config),
+
+            APNSData = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification)),
+            APNSAlert = maps:get(<<"alert">>, APNSData),
+            ?assertMatch(#{<<"device_token">> := <<"mydevicetoken">>}, Notification),
+            ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, APNSAlert),
+            ?assertMatch(#{<<"title">> := AliceJID}, APNSAlert),
+            ?assertMatch(#{<<"badge">> := 1}, APNSData),
+            ?assertMatch(#{<<"category">> := <<"myactivity">>}, APNSData),
+
+            ok
+        end).
+
+pm_msg_notify_on_fcm_w_click_action(Config) ->
+    escalus:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            PubsubJID = <<"pubsub.localhost">>,
+            Node = {_, NodeName} = pubsub_node(),
+            AliceJID = bare_jid(Alice),
+            pubsub_tools:create_node(Bob, Node, [{type, <<"push">>}]),
+
+            escalus:send(Bob, enable_stanza(PubsubJID, NodeName,
+                                            [{<<"service">>, <<"fcm">>},
+                                             {<<"device_id">>, <<"mydevicetoken">>},
+                                             {<<"click_action">>, <<"myactivity">>}])),
+            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            become_unavailable(Bob),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+            [Notification = #{}] = get_push_logs(fcm, Config),
+
+            FCMData = maps:get(<<"notification">>, maps:get(<<"request_data">>, Notification)),
+            ?assertMatch(#{<<"device_token">> := <<"mydevicetoken">>}, Notification),
+            ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, FCMData),
+            ?assertMatch(#{<<"title">> := AliceJID}, FCMData),
+            ?assertMatch(#{<<"tag">> := AliceJID}, FCMData),
+            ?assertMatch(#{<<"click_action">> :=  <<"myactivity">>}, FCMData),
 
             ok
         end).
@@ -235,55 +249,23 @@ pm_msg_notify_stops_after_disabling(Config) ->
 %% GROUP muclight_msg_notifications
 %%--------------------------------------------------------------------
 
-muclight_no_msg_notifications_if_not_enabled(Config) ->
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
-        fun(Alice, Bob, Kate) ->
-            Room = room_name(Config),
-            create_room(Room, [bob, alice, kate], Config),
-            become_unavailable(Alice),
-            become_unavailable(Kate),
 
-            Msg = <<"Heyah!">>,
-            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
-
-            escalus:send(Bob, Stanza),
-
-            ?assert(not truly(received_route())),
-
-            ok
-        end).
-
-muclight_no_msg_notifications_if_user_online(Config) ->
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
-        fun(Alice, Bob, Kate) ->
-            Room = room_name(Config),
-            PubsubJID = pubsub_jid(Config),
-
-            create_room(Room, [bob, alice, kate], Config),
-            escalus:send(Alice, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
-            become_unavailable(Kate),
-
-            Msg = <<"Heyah!">>,
-            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
-            escalus:send(Bob, Stanza),
-
-            ?assert(not truly(received_route())),
-            ok
-        end).
-
-muclight_msg_notify_if_user_offline(Config) ->
+muclight_msg_notify_on_apns_no_click_action(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            PubsubJID = pubsub_jid(Config),
+            PubsubJID = <<"pubsub.localhost">>,
             Room = room_name(Config),
             BobJID = bare_jid(Bob),
+            RoomJID = room_bin_jid(Room),
+            SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
+            Node = {_, NodeName} = pubsub_node(),
 
+            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
             create_room(Room, [bob, alice, kate], Config),
-            escalus:send(Alice, enable_stanza(PubsubJID, <<"NodeId">>)),
+            escalus:send(Alice, enable_stanza(PubsubJID, NodeName,
+                                              [{<<"device_id">>, <<"mydevicetoken">>},
+                                               {<<"service">>, <<"apns">>}])),
             escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
             become_unavailable(Alice),
 
@@ -291,35 +273,35 @@ muclight_msg_notify_if_user_offline(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                            {element, <<"publish">>},
-                                            {element, <<"item">>},
-                                            {element, <<"notification">>},
-                                            {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            ?assertMatch(?PUSH_FORM_TYPE, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(Msg, proplists:get_value(<<"last-message-body">>, Fields)),
-            SenderId = <<(room_bin_jid(Room))/binary, "/" ,BobJID/binary>>,
-            ?assertMatch(SenderId,
-                         proplists:get_value(<<"last-message-sender">>, Fields)),
+            [Notification = #{}] = get_push_logs(apns, Config),
+
+            APNSData = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification)),
+            APNSAlert = maps:get(<<"alert">>, APNSData),
+            ?assertMatch(#{<<"device_token">> := <<"mydevicetoken">>}, Notification),
+            ?assertMatch(#{<<"body">> := <<"Heyah!">>}, APNSAlert),
+            ?assertMatch(#{<<"title">> := SenderJID}, APNSAlert),
+            ?assertMatch(#{<<"badge">> := 1}, APNSData),
+            ?assertMatch(#{<<"category">> := null}, APNSData),
+
             ok
         end).
 
-muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
+muclight_msg_notify_on_fcm_no_click_action(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            PubsubJID = pubsub_jid(Config),
+            PubsubJID = <<"pubsub.localhost">>,
             Room = room_name(Config),
+            BobJID = bare_jid(Bob),
+            RoomJID = room_bin_jid(Room),
+            SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
+            Node = {_, NodeName} = pubsub_node(),
 
+            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
             create_room(Room, [bob, alice, kate], Config),
-            escalus:send(Alice, enable_stanza(PubsubJID, <<"NodeId">>,
-                                            [{<<"field1">>, <<"value1">>},
-                                             {<<"field2">>, <<"value2">>}])),
+            escalus:send(Alice, enable_stanza(PubsubJID, NodeName,
+                                              [{<<"device_id">>, <<"mydevicetoken">>},
+                                               {<<"service">>, <<"fcm">>}])),
             escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
             become_unavailable(Alice),
 
@@ -327,34 +309,35 @@ muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                            {element, <<"publish-options">>},
-                                            {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            ?assertMatch(?NS_PUBSUB_PUB_OPTIONS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, Fields)),
-            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, Fields)),
+            [Notification = #{}] = get_push_logs(fcm, Config),
+
+            FCMData = maps:get(<<"notification">>, maps:get(<<"request_data">>, Notification)),
+            ?assertMatch(#{<<"device_token">> := <<"mydevicetoken">>}, Notification),
+            ?assertMatch(#{<<"body">> := <<"Heyah!">>}, FCMData),
+            ?assertMatch(#{<<"title">> := SenderJID}, FCMData),
+            ?assertMatch(#{<<"tag">> := SenderJID}, FCMData),
+            ?assertMatch(#{<<"click_action">> :=  null}, FCMData),
+
             ok
         end).
 
-muclight_msg_notify_stops_after_disabling(Config) ->
+muclight_msg_notify_on_apns_w_click_action(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
+            PubsubJID = <<"pubsub.localhost">>,
             Room = room_name(Config),
-            PubsubJID = pubsub_jid(Config),
+            BobJID = bare_jid(Bob),
+            RoomJID = room_bin_jid(Room),
+            SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
+            Node = {_, NodeName} = pubsub_node(),
+
+            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
             create_room(Room, [bob, alice, kate], Config),
-
-            %% Enable
-            escalus:send(Alice, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
-
-            %% Disable
-            escalus:send(Alice, disable_stanza(PubsubJID, <<"NodeId">>)),
+            escalus:send(Alice, enable_stanza(PubsubJID, NodeName,
+                                              [{<<"device_id">>, <<"mydevicetoken">>},
+                                               {<<"service">>, <<"apns">>},
+                                               {<<"click_action">>, <<"myactivity">>}])),
             escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
             become_unavailable(Alice),
 
@@ -362,7 +345,52 @@ muclight_msg_notify_stops_after_disabling(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            ?assert(not truly(received_route())),
+            [Notification = #{}] = get_push_logs(apns, Config),
+
+            APNSData = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification)),
+            APNSAlert = maps:get(<<"alert">>, APNSData),
+            ?assertMatch(#{<<"device_token">> := <<"mydevicetoken">>}, Notification),
+            ?assertMatch(#{<<"body">> := <<"Heyah!">>}, APNSAlert),
+            ?assertMatch(#{<<"title">> := SenderJID}, APNSAlert),
+            ?assertMatch(#{<<"badge">> := 1}, APNSData),
+            ?assertMatch(#{<<"category">> := <<"myactivity">>}, APNSData),
+
+            ok
+        end).
+
+muclight_msg_notify_on_fcm_w_click_action(Config) ->
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+        fun(Alice, Bob, _Kate) ->
+            PubsubJID = <<"pubsub.localhost">>,
+            Room = room_name(Config),
+            BobJID = bare_jid(Bob),
+            RoomJID = room_bin_jid(Room),
+            SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
+            Node = {_, NodeName} = pubsub_node(),
+
+            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
+            create_room(Room, [bob, alice, kate], Config),
+            escalus:send(Alice, enable_stanza(PubsubJID, NodeName,
+                                            [{<<"device_id">>, <<"mydevicetoken">>},
+                                             {<<"service">>, <<"fcm">>},
+                                             {<<"click_action">>, <<"myactivity">>}])),
+            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            become_unavailable(Alice),
+
+            Msg = <<"Heyah!">>,
+            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
+            escalus:send(Bob, Stanza),
+
+            [Notification = #{}] = get_push_logs(fcm, Config),
+
+            FCMData = maps:get(<<"notification">>, maps:get(<<"request_data">>, Notification)),
+            ?assertMatch(#{<<"device_token">> := <<"mydevicetoken">>}, Notification),
+            ?assertMatch(#{<<"body">> := <<"Heyah!">>}, FCMData),
+            ?assertMatch(#{<<"title">> := SenderJID}, FCMData),
+            ?assertMatch(#{<<"tag">> := SenderJID}, FCMData),
+            ?assertMatch(#{<<"click_action">> :=  <<"myactivity">>}, FCMData),
+
             ok
         end).
 
@@ -371,65 +399,18 @@ muclight_msg_notify_stops_after_disabling(Config) ->
 %% Test helpers
 %%--------------------------------------------------------------------
 
-%% ----------------------------------
-%% Stanzas
-%% ----------------------------------
-
-disable_stanza(JID, undefined) ->
-    disable_stanza([
-        {<<"xmlns">>, <<"urn:xmpp:push:0">>},
-        {<<"jid">>, JID}
-    ]);
-disable_stanza(JID, Node) ->
-    disable_stanza([
-        {<<"xmlns">>, <<"urn:xmpp:push:0">>},
-        {<<"jid">>, JID},
-        {<<"node">>, Node}
-    ]).
-disable_stanza(JID) when is_binary(JID) ->
-    disable_stanza(JID, undefined);
-disable_stanza(Attrs) when is_list(Attrs) ->
-    escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"disable">>, attrs = Attrs}]).
-
-enable_stanza(JID, Node) ->
-    enable_stanza(JID, Node, undefined).
-enable_stanza(JID, Node, FormFields) ->
-    enable_stanza(JID, Node, FormFields, ?NS_PUBSUB_PUB_OPTIONS).
-enable_stanza(JID, Node, FormFields, FormType) ->
-    escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"enable">>, attrs = [
-        {<<"xmlns">>, <<"urn:xmpp:push:0">>},
-        {<<"jid">>, JID},
-        {<<"node">>, Node}
-    ], children = maybe_form(FormFields, FormType)}]).
-
-maybe_form(undefined, _FormType) ->
-    [];
-maybe_form(FormFields, FormType) ->
-    [make_form([{<<"FORM_TYPE">>, FormType} | FormFields])].
-
-make_form(Fields) ->
-    #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
-           children = [make_form_field(Name, Value) || {Name, Value} <- Fields]}.
-
-make_form_field(Name, Value) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Name}],
-           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
-
-
+get_push_logs(Service, Config) ->
+    PushMock = proplists:get_value(Service, Config),
+    wait_for(timer:seconds(5), fun() ->
+        {ok, #{body := Body}} = shotgun:get(PushMock, <<"/activity">>),
+        #{<<"logs">> := Logs} = jiffy:decode(Body, [return_maps]),
+        1 = length(Logs),
+        Logs
+     end).
 
 %% ----------------------------------
 %% Other helpers
 %% ----------------------------------
-
-parse_form(#xmlel{name = <<"x">>} = Form) ->
-    parse_form(exml_query:subelements(Form, <<"field">>));
-parse_form(Fields) when is_list(Fields) ->
-    lists:map(
-        fun(Field) ->
-            {exml_query:attr(Field, <<"var">>),
-             exml_query:path(Field, [{element, <<"value">>}, cdata])}
-        end, Fields).
 
 process_packet(From, To, Packet, TestCasePid) ->
     TestCasePid ! #route{from = From, to = To, packet = Packet}.
@@ -476,18 +457,18 @@ is_offline(LUser, LServer) ->
 
 become_unavailable(Client) ->
     escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
-    ok = wait_for(timer:seconds(20), fun() ->
+    true = wait_for(timer:seconds(20), fun() ->
         is_offline(lower(escalus_client:username(Client)), lower(escalus_client:server(Client)))
     end). %% There is no ACK for unavailable status
 
-wait_for(TimeLeft, _Fun) when TimeLeft < 0 ->
-    timeout;
+wait_for(TimeLeft, Fun) when TimeLeft < 0 ->
+    Fun();
 wait_for(TimeLeft, Fun) ->
     Step = 500,
     try
         case Fun() of
             ok -> ok;
-            true -> ok;
+            true -> true;
             {ok, _} = R -> R
         end
     catch
@@ -529,5 +510,10 @@ required_modules() ->
         ]},
         {mod_push, [
             {backend, mnesia}
+        ]},
+        {mod_muc_light, [
+            {host, binary_to_list(?MUCHOST)},
+            {backend, mnesia},
+            {rooms_in_rosters, true}
         ]}
     ].
