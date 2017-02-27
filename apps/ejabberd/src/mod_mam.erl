@@ -324,8 +324,7 @@ process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
 %% @doc A ejabberd's callback with diferent order of arguments.
-%% #rh
--spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map().
+-spec remove_user(mongoose_acc:t(), ejabberd:user(), ejabberd:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.

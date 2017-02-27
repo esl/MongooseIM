@@ -189,7 +189,7 @@ take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule) ->
 take_action_for_matched_rule(Packet, From, #amp_rule{action = drop}) ->
     update_metric_and_drop(Packet, From).
 
--spec reply_to_sender(amp_rule(), jid(), jid(), exml:element()) -> ok.
+-spec reply_to_sender(amp_rule(), jid(), jid(), exml:element()) -> mongoose_acc:t().
 reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
     Response = amp:make_response(MatchedRule, OriginalSender, OriginalPacket),
     ejabberd_router:route(ServerJid, OriginalSender, Response).

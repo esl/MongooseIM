@@ -45,7 +45,7 @@ privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir) ->
     % check if it is there, if not then set default and run a hook
     case mongoose_acc:get(privacy_check, Acc, undefined) of
         undefined ->
-            Packet = mongoose_acc:get(element, Acc),
+            Packet = mongoose_acc:get(to_send, Acc),
             Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,
                                            Server,
                                            mongoose_acc:put(privacy_check, allow, Acc),

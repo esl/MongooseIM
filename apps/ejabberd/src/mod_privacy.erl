@@ -416,12 +416,9 @@ is_type_match(subscription, Value, _JID, Subscription, _Groups) ->
 is_type_match(group, Value, _JID, _Subscription, Groups) ->
     lists:member(Value, Groups).
 
-%% #rh
 remove_user(Acc, User, Server) ->
-    case remove_user(User, Server) of
-        ok -> Acc;
-        E -> E
-    end.
+    remove_user(User, Server),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

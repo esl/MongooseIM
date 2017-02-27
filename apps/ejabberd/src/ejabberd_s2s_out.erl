@@ -965,8 +965,12 @@ send_text(StateData, Text) ->
     ejabberd_socket:send(StateData#state.socket, Text).
 
 
--spec send_element(state(), jlib:xmlel()) -> 'ok'.
-send_element(StateData, El) ->
+-spec send_element(state(), jlib:xmlel()|mongoose_acc:t()) -> 'ok'.
+send_element(StateData, #xmlel{} = El) ->
+    ?DEPRECATED,
+    send_text(StateData, exml:to_binary(El));
+send_element(StateData, Acc) ->
+    El = mongoose_acc:get(to_send, Acc, undefined),
     send_text(StateData, exml:to_binary(El)).
 
 
@@ -982,17 +986,18 @@ send_queue(StateData, Q) ->
 
 
 %% @doc Bounce a single message (xmlel)
--spec bounce_element(El :: jlib:xmlel(), Error :: jlib:xmlel()) -> 'ok'.
-bounce_element(El, Error) ->
-    #xmlel{attrs = Attrs} = El,
-    case xml:get_attr_s(<<"type">>, Attrs) of
+-spec bounce_element(Acc :: mongoose_acc:t(), Error :: jlib:xmlel()) -> 'ok'.
+bounce_element(Acc, Error) ->
+    case mongoose_acc:get(type, Acc) of
         <<"error">> -> ok;
         <<"result">> -> ok;
         _ ->
+            From = mongoose_acc:get(from_jid, Acc),
+            To = mongoose_acc:get(to_jid, Acc),
+            El = mongoose_acc:get(element, Acc),
             Err = jlib:make_error_reply(El, Error),
-            From = jid:from_binary(xml:get_tag_attr_s(<<"from">>, El)),
-            To = jid:from_binary(xml:get_tag_attr_s(<<"to">>, El)),
-            ejabberd_router:route(To, From, Err)
+            Acc1 = mongoose_acc:put(to_send, Err, Acc),
+            ejabberd_router:route(To, From, Acc1)
     end.
 
 

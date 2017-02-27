@@ -2365,10 +2365,10 @@ send_config_update(Type, StateData) ->
         end, dict:to_list(StateData#state.users)).
 
 
--spec send_invitation(ejabberd:jid(), ejabberd:jid(), binary(), state()) -> 'ok'.
-send_invitation(From, To, Reason, StateData = #state{host = Host,
-                                                     server_host = ServerHost,
-                                                     jid = RoomJID}) ->
+-spec send_invitation(ejabberd:jid(), ejabberd:jid(), binary(), state()) -> mongoose_acc:t().
+send_invitation(From, To, Reason, StateData=#state{host=Host,
+                                                   server_host=ServerHost,
+                                                   jid=RoomJID}) ->
     ejabberd_hooks:run(invitation_sent, Host, [Host, ServerHost, RoomJID, From, To, Reason]),
     Config = StateData#state.config,
     Password = case Config#config.password_protected of
@@ -2589,7 +2589,7 @@ send_history(JID, Shift, StateData) ->
       end, false, lists:nthtail(Shift, lqueue_to_list(StateData#state.history))).
 
 
--spec send_subject(ejabberd:jid(), ejabberd:lang(), state()) -> 'ok'.
+-spec send_subject(ejabberd:jid(), ejabberd:lang(), state()) -> mongoose_acc:t().
 send_subject(JID, _Lang, StateData = #state{subject = <<>>, subject_author = <<>>}) ->
     Packet = #xmlel{name = <<"message">>,
                     attrs = [{<<"type">>, <<"groupchat">>}],
@@ -4226,7 +4226,7 @@ create_invite_message_elem(InviteEl, BodyEl, PasswdEl, Reason)
 %% If it is a decline, send to the inviter.
 %% Otherwise, an error message is sent to the sender.
 -spec handle_roommessage_from_nonparticipant(jlib:xmlel(), ejabberd:lang(),
-                    state(), ejabberd:simple_jid() | ejabberd:jid()) -> 'ok'.
+                    state(), ejabberd:simple_jid() | ejabberd:jid()) -> mongoose_acc:t().
 handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From) ->
     case catch check_decline_invitation(Packet) of
         {true, DeclineData} ->
@@ -4254,7 +4254,7 @@ check_decline_invitation(Packet) ->
 %% @doc Send the decline to the inviter user.
 %% The original stanza must be slightly modified.
 -spec send_decline_invitation({jlib:xmlel(), jlib:xmlel(), jlib:xmlel(), ejabberd:jid()},
-        ejabberd:jid(), ejabberd:simple_jid() | ejabberd:jid()) -> 'ok'.
+        ejabberd:jid(), ejabberd:simple_jid() | ejabberd:jid()) -> mongoose_acc:t().
 send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
     FromString = jid:to_binary(FromJID),
     #xmlel{name = <<"decline">>, attrs = DAttrs, children = DEls} = DEl,
@@ -4275,7 +4275,7 @@ replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
 
 -spec send_error_only_occupants(binary(), jlib:xmlel(),
                                 binary() | nonempty_string(),
-                                ejabberd:jid(), ejabberd:jid()) -> 'ok'.
+                                ejabberd:jid(), ejabberd:jid()) -> mongoose_acc:t().
 send_error_only_occupants(What, Packet, Lang, RoomJID, From)
   when is_binary(What) ->
     ErrText = <<"Only occupants are allowed to send ",
