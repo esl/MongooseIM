@@ -360,8 +360,6 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                         end,
                     if
                         AuthRes ->
-                            (StateData#state.sockmod):reset_stream(
-                              StateData#state.socket),
                             send_element(StateData,
                                           #xmlel{name = <<"success">>,
                                                  attrs = [{<<"xmlns">>, ?NS_SASL}]}),

@@ -36,7 +36,6 @@
          starttls/2,
          starttls/3,
          compress/3,
-         reset_stream/1,
          send/2,
          send_xml/2,
          change_shaper/2,
@@ -193,15 +192,6 @@ compress(SocketData, InflateSizeLimit, Data) ->
     ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
     send(SocketData, Data),
     SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.
-
-
--spec reset_stream(socket_state()) -> socket_state().
-reset_stream(SocketData) when is_pid(SocketData#socket_state.receiver) ->
-    ejabberd_receiver:reset_stream(SocketData#socket_state.receiver);
-reset_stream(SocketData) when is_atom(SocketData#socket_state.receiver) ->
-    (SocketData#socket_state.receiver):reset_stream(
-      SocketData#socket_state.socket).
-
 
 %% @doc sockmod=gen_tcp|fast_tls|ejabberd_zlib (ejabberd:sockmod())
 send(SocketData, Data) ->

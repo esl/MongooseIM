@@ -20,7 +20,6 @@
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
          compress/1, compress/3,
-         reset_stream/1,
          send/2,
          send_xml/2,
          change_shaper/2,
@@ -367,10 +366,6 @@ handle_info({send, Data}, accumulate = SName, #state{} = S) ->
 handle_info({send, Data}, normal = SName, #state{} = S) ->
     NS = send_or_store(Data, S),
     {next_state, SName, NS};
-handle_info(reset_stream, SName, #state{} = S) ->
-    %% TODO: actually reset the stream once it's stored per bosh session
-    ?DEBUG("Stream reset by c2s~n", []),
-    {next_state, SName, S};
 handle_info(close, _SName, #state{pending = []} = State) ->
     {stop, normal, State};
 handle_info(close, _SName, State) ->
@@ -1004,13 +999,6 @@ compress(SocketData) ->
 -spec compress(mod_bosh:socket(), _, integer()) -> no_return().
 compress(_SocketData, _Data, _InflateSizeLimit) ->
     throw({error, negotiate_compression_on_http_level}).
-
-
-%% @doc TODO: adjust for BOSH
--spec reset_stream(mod_bosh:socket()) -> mod_bosh:socket().
-reset_stream(#bosh_socket{pid = Pid} = SocketData) ->
-    Pid ! reset_stream,
-    SocketData.
 
 
 -spec send_xml(mod_bosh:socket(), mongoose_transport:send_xml_input()) -> ok.

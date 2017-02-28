@@ -588,7 +588,6 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                 ?NS_SASL ->
                     ?DEBUG("auth: ~p", [{StateData#state.myname,
                                          StateData#state.server}]),
-                    ejabberd_socket:reset_stream(StateData#state.socket),
                     send_text(StateData,
                               list_to_binary(
                                 io_lib:format(?STREAM_HEADER,

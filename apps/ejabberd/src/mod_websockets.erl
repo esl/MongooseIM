@@ -23,7 +23,6 @@
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
          compress/1, compress/3,
-         reset_stream/1,
          send/2,
          send_xml/2,
          change_shaper/2,
@@ -112,11 +111,6 @@ websocket_info({send_xml, XML}, Req, State) ->
     XML1 = process_server_stream_root(replace_stream_ns(XML, State), State),
     Text = exml:to_iolist(XML1),
     {reply, {text, Text}, Req, State};
-websocket_info(reset_stream, Req, #ws_state{parser = undefined} = State) ->
-    {ok, Req, State};
-websocket_info(reset_stream, Req, #ws_state{parser = Parser} = State) ->
-    {ok, NewParser} = exml_stream:reset_parser(Parser),
-    {ok, Req, State#ws_state{ parser = NewParser, open_tag = undefined }};
 websocket_info({set_ping, Value}, Req, State = #ws_state{ping_rate = none}) when is_integer(Value) and (Value > 0)->
     send_ping_request(Value),
     {ok, Req, State#ws_state{ping_rate = Value}};
@@ -222,10 +216,6 @@ compress(SocketData) ->
 compress(_SocketData, _Data, _InflateSizeLimit) ->
     throw({error, compression_not_allowed_on_websockets}).
 
-reset_stream(#websocket{pid = Pid} = SocketData) ->
-    Pid ! reset_stream,
-    SocketData.
-
 -spec send_xml(socket(), mongoose_transport:send_xml_input()) -> ok.
 send_xml(SocketData, {xmlstreamraw, Text}) ->
     send(SocketData, Text);
@@ -269,9 +259,6 @@ disable_ping(#websocket{pid = Pid}) ->
 %% http://tools.ietf.org/id/draft-moffitt-xmpp-over-websocket
 %%--------------------------------------------------------------------
 
-process_client_stream_start(Elements, #ws_state{ open_tag = OpenTag } = State)
-  when OpenTag =/= undefined ->
-    {Elements, State};
 process_client_stream_start([#xmlstreamstart{ name = <<"stream", _/binary>>}
                              | _] = Elements, State) ->
     {Elements, State#ws_state{ open_tag = stream }};
@@ -280,9 +267,8 @@ process_client_stream_start([#xmlel{ name = <<"open">>, attrs = Attrs }], State)
     Attrs2 = [{<<"xmlns:stream">>, ?NS_STREAM} | Attrs1],
     NewStart = #xmlstreamstart{ name = <<"stream:stream">>, attrs = Attrs2 },
     {[NewStart], State#ws_state{ open_tag = open }};
-process_client_stream_start(_, #ws_state{ fsm_pid = FSMPid } = State) ->
-    send_to_fsm(FSMPid, {xmlstreamerror, <<"Unknown opening tag">>}),
-    {[], State}.
+process_client_stream_start(Elements, State) ->
+    {Elements, State}.
 
 process_client_stream_end(#xmlel{ name = <<"close">> }, #ws_state{ open_tag = open }) ->
     #xmlstreamend{ name = <<"stream:stream">> };
@@ -317,7 +303,7 @@ replace_stream_ns(Element, _State) ->
     Element.
 
 get_parser_opts(<<"<open", _/binary>>) -> [{infinite_stream, true}, {autoreset, true}]; % new-type WS
-get_parser_opts(_) -> []. % old-type WS
+get_parser_opts(_) -> [{start_tag, <<"stream:stream">>}]. % old-type WS
 
 %%--------------------------------------------------------------------
 %% Helpers
