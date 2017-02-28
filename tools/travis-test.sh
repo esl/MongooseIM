@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
 
 PRESET="internal_mnesia"
 SMALL_TESTS="true"
@@ -29,7 +31,9 @@ done
 source tools/travis-common-vars.sh
 source tools/travis-helpers.sh
 
-if [ "$TRAVIS_SECURE_ENV_VARS" == 'true' ]; then
+CAN_PRINT_S3_URL=${TRAVIS_SECURE_ENV_VARS:-false}
+
+if [ "$CAN_PRINT_S3_URL" == 'true' ]; then
   CT_REPORTS=$(ct_reports_dir)
 
   echo "Test results will be uploaded to:"
@@ -113,8 +117,10 @@ run_test_preset() {
 }
 
 run_tests() {
+  set +e
   maybe_run_small_tests
   SMALL_STATUS=$?
+  set -e
   echo "SMALL_STATUS=$SMALL_STATUS"
   echo ""
   echo "############################"
@@ -125,7 +131,10 @@ run_tests() {
     start_node $node;
   done
 
+  set +e
   run_test_preset
+  BIG_STATUS=$?
+  set -e
 
 	RAN_TESTS=`cat /tmp/ct_count`
 
@@ -157,8 +166,10 @@ run_tests() {
 
 if [ $PRESET == "dialyzer_only" ]; then
   tools/print-dots.sh start
+  set +e
   ./rebar3 dialyzer
   RESULT=$?
+  set -e
   tools/print-dots.sh stop
   exit ${RESULT}
 else
