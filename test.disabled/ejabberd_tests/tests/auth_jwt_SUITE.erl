@@ -90,11 +90,7 @@ auth_ok(_Config) ->
     ok.
 
 auth_fail(_Config) ->
-    ClientProps0 = [{username, ?USERNAME},
-                    {server, <<"localhost">>},
-                    {password, Password},
-                    {ssl, false}
-                   ],
+    ClientProps0 = auth_client_props(),
     {error, _} = escalus_connection:start(auth_client_props(),
                                           [start_stream,
                                            stream_features,
