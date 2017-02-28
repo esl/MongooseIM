@@ -82,7 +82,6 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 auth_ok(_Config) ->
-    Password = generate_token(0),
     {ok, _Conn, _ClientProps, _} = escalus_connection:start(auth_client_props(),
                                                             [start_stream,
                                                              stream_features,
@@ -91,7 +90,6 @@ auth_ok(_Config) ->
     ok.
 
 auth_fail(_Config) ->
-    Password = generate_token(60),
     ClientProps0 = [{username, ?USERNAME},
                     {server, <<"localhost">>},
                     {password, Password},
@@ -105,6 +103,7 @@ auth_fail(_Config) ->
     ok.
 
 auth_client_props() ->
+    Password = generate_token(60),
     [{username, ?USERNAME},
      {server, <<"localhost">>},
      {password, Password},
