@@ -116,5 +116,4 @@ generate_token(NbfDelta) ->
              exp => Now + 60,
              nbf => Now + NbfDelta,
              iat => Now},
-    Token = jwerl:sign(Data, #{alg => <<"HS256">>, key => ?JWT_KEY}),
-    Token.
+    jwerl:sign(Data, #{alg => <<"HS256">>, key => ?JWT_KEY}).
