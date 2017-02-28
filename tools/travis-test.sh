@@ -57,111 +57,111 @@ FED1CTL=${FED1}/bin/mongooseimctl
 NODES=(${MIM1CTL} ${MIM2CTL} ${MIM3CTL} ${FED1CTL})
 
 start_node() {
-	echo -n "${1} start: "
-	${1} start && echo ok || echo failed
-	${1} started
-	${1} status
-	echo
+  echo -n "${1} start: "
+  ${1} start && echo ok || echo failed
+  ${1} started
+  ${1} status
+  echo
 }
 
 stop_node() {
-	echo -n "${1} stop: "
-	${1} stop
-	${1} stopped
-	echo
+  echo -n "${1} stop: "
+  ${1} stop
+  ${1} stopped
+  echo
 }
 
 summaries_dir() {
-	if [ `uname` = "Darwin" ]; then
-		echo `ls -dt ${1} | head -n 1`
-	else
-		echo `eval ls -d ${1} --sort time | head -n 1`
-	fi
+  if [ `uname` = "Darwin" ]; then
+    echo `ls -dt ${1} | head -n 1`
+  else
+    echo `eval ls -d ${1} --sort time | head -n 1`
+  fi
 }
 
 run_small_tests() {
-	echo "############################"
-	echo "Running small tests (apps/ejabberd/tests)"
-	echo "############################"
-	echo "Add option -s false to skip embeded common tests"
-	make ct
-	SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
-	SMALL_SUMMARIES_DIR=$(summaries_dir ${SMALL_SUMMARIES_DIRS} 1)
-	${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
+  echo "############################"
+  echo "Running small tests (apps/ejabberd/tests)"
+  echo "############################"
+  echo "Add option -s false to skip embeded common tests"
+  make ct
+  SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
+  SMALL_SUMMARIES_DIR=$(summaries_dir ${SMALL_SUMMARIES_DIRS} 1)
+  ${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
 }
 
 maybe_run_small_tests() {
-	if [ "$SMALL_TESTS" = "true" ]; then
-		run_small_tests
-	else
-		echo "############################"
-		echo "Small tests skipped"
-		echo "############################"
-	fi
+  if [ "$SMALL_TESTS" = "true" ]; then
+    run_small_tests
+  else
+    echo "############################"
+    echo "Small tests skipped"
+    echo "############################"
+  fi
 }
 
 run_test_preset() {
-	tools/print-dots.sh start
-    cd ${BASE}/test.disabled/ejabberd_tests
-	if [ "$COVER_ENABLED" = "true" ]; then
-		make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
-	else
-		make test_preset TESTSPEC=default.spec PRESET=$PRESET
-    fi
-    cd -
-	tools/print-dots.sh stop
+  tools/print-dots.sh start
+  cd ${BASE}/test.disabled/ejabberd_tests
+  if [ "$COVER_ENABLED" = "true" ]; then
+    make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
+  else
+    make test_preset TESTSPEC=default.spec PRESET=$PRESET
+  fi
+  cd -
+  tools/print-dots.sh stop
 }
 
 run_tests() {
-	maybe_run_small_tests
-	SMALL_STATUS=$?
-	echo "SMALL_STATUS=$SMALL_STATUS"
-	echo ""
-	echo "############################"
-	echo "Running big tests (tests/ejabberd_tests)"
-	echo "############################"
+  maybe_run_small_tests
+  SMALL_STATUS=$?
+  echo "SMALL_STATUS=$SMALL_STATUS"
+  echo ""
+  echo "############################"
+  echo "Running big tests (tests/ejabberd_tests)"
+  echo "############################"
 
-	for node in ${NODES[@]}; do
-		start_node $node;
-	done
+  for node in ${NODES[@]}; do
+    start_node $node;
+  done
 
-	run_test_preset
+  run_test_preset
 
 	RAN_TESTS=`cat /tmp/ct_count`
 
-	for node in ${NODES[@]}; do
-		stop_node $node;
-	done
+  for node in ${NODES[@]}; do
+    stop_node $node;
+  done
 
-	SUMMARIES_DIRS=${BASE}'/test.disabled/ejabberd_tests/ct_report/ct_run*'
-	SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS})
-	${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
+  SUMMARIES_DIRS=${BASE}'/test.disabled/ejabberd_tests/ct_report/ct_run*'
+  SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS})
+  ${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
 	BIG_STATUS=$?
 
-	echo
-	echo "All tests done."
+  echo
+  echo "All tests done."
 
 	if [ $SMALL_STATUS -eq 0 -a $BIG_STATUS -eq 0 ]
-	then
-		RESULT=0
-		echo "Build succeeded"
-	else
-		RESULT=1
-		echo "Build failed:"
-		[ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
+  then
+    RESULT=0
+    echo "Build succeeded"
+  else
+    RESULT=1
+    echo "Build failed:"
+    [ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
 		[ $BIG_STATUS -ne 0 ]   && echo "    big tests failed"
-	fi
+  fi
 
-	exit ${RESULT}
+  exit ${RESULT}
 }
 
 if [ $PRESET == "dialyzer_only" ]; then
-	tools/print-dots.sh start
-	./rebar3 dialyzer
-	RESULT=$?
-	tools/print-dots.sh stop
-	exit ${RESULT}
+  tools/print-dots.sh start
+  ./rebar3 dialyzer
+  RESULT=$?
+  tools/print-dots.sh stop
+  exit ${RESULT}
 else
-	run_tests
+  run_tests
 fi
 
