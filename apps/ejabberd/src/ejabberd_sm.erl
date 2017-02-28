@@ -725,18 +725,16 @@ is_privacy_allow(From, To, Packet) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel(),
-      PrivacyList :: list().
+      PrivacyList :: #userlist{}.
 is_privacy_allow(From, To, Packet, PrivacyList) ->
     User = To#jid.user,
     Server = To#jid.server,
     ?TEMPORARY,
-    Acc = mongoose_acc:new(),
-    Res = ejabberd_hooks:run_fold(privacy_check_packet,
-                                  Server,
-                                  Acc,
-                                  [User, Server, PrivacyList,
-                                   {From, To, Packet}, in]),
-    allow == mongoose_acc:get(privacy_check, Res, allow).
+    Acc = mongoose_acc:from_element(Packet),
+    Acc1 = mongoose_acc:put(from_jid, From, Acc),
+    {_, Res} = mongoose_privacy:privacy_check_packet(Acc1, Server, User, PrivacyList,
+                                                     To, in),
+    allow == Res.
 
 
 -spec route_message(From, To, Packet) -> ok | stop when

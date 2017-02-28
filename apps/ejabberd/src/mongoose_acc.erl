@@ -108,7 +108,6 @@ append(Key, Val, P) ->
     L = get(Key, P, []),
     maps:put(Key, append(Val, L), P).
 
-
 %%%%% internal %%%%%
 
 append(Val, L) when is_list(L), is_list(Val) ->

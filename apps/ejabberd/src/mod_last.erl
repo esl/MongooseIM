@@ -157,26 +157,23 @@ process_sm_iq(From, To,
             Server = To#jid.lserver,
             {Subscription, _Groups} =
                 ejabberd_hooks:run_fold(roster_get_jid_info, Server,
-                    {none, []}, [User, Server, From]),
+                                        {none, []}, [User, Server, From]),
                 case (Subscription == both) or (Subscription == from) or
                      (From#jid.luser == To#jid.luser) and
                      (From#jid.lserver == To#jid.lserver) of
                     true ->
-                        UserListRecord =
-                        ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                                                #userlist{}, [User, Server]),
+                        UserListRecord = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
+                                                                 #userlist{}, [User, Server]),
                         ?TEMPORARY,
-                        Acc = mongoose_acc:new(),
-                        Res = ejabberd_hooks:run_fold(privacy_check_packet,
-                                                      Server, Acc,
-                                                      [User, Server, UserListRecord,
-                                                       {To, From,
-                                                        #xmlel{name = <<"presence">>,
-                                                               attrs = [],
-                                                               children = []}},
-                                                       out]),
-                        make_response(IQ, SubEl, User, Server,
-                                      mongoose_acc:get(privacy_check, Res, allow));
+                        Packet = #xmlel{name = <<"presence">>,
+                                        attrs = [],
+                                        children = []},
+                        Acc = mongoose_acc:from_map(#{name => <<"iq">>, type => Type, attrs => [],
+                                                      element => Packet}),
+                        {_, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
+                                                                         UserListRecord, To, From,
+                                                                         out),
+                        make_response(IQ, SubEl, User, Server, Res);
                     false ->
                         IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
                 end

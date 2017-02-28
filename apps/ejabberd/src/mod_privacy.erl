@@ -46,11 +46,8 @@
 
 -define(BACKEND, mod_privacy_backend).
 
--export_type([userlist/0]).
--export_type([list_name/0]).
 -export_type([list_item/0]).
 
--type userlist() :: #userlist{}.
 -type list_name() :: binary().
 -type list_item() :: #listitem{}.
 
@@ -450,6 +447,7 @@ updated_list(_,
 
 %% Deserialization
 %% ------------------------------------------------------------------
+
 
 packet_directed_type(Dir, Type) ->
     case {Type, Dir} of
