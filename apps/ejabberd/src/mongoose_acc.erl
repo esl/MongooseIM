@@ -64,10 +64,9 @@ from_kv(K, V) ->
 -spec from_element(xmlel()) -> t().
 from_element(El) ->
     #xmlel{name = Name, attrs = Attrs, children = Children} = El,
-    Type = xml:get_attr_s(<<"type">>, Attrs),
-    {Xmlns, Cmd} = read_child(Children),
-    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
-      xmlns => Xmlns, command => Cmd}.
+    Type = exml_query:attr(El, <<"type">>, undefined),
+    Acc = #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type},
+    read_children(Acc, Children).
 
 -spec from_map(map()) -> t().
 from_map(M) ->
@@ -127,12 +126,15 @@ dump(Acc, [K|Tail]) ->
     ?ERROR_MSG("~p = ~p", [K, maps:get(K, Acc)]),
     dump(Acc, Tail).
 
-read_child([]) ->
-    {undefined, undefined};
-read_child([Chld]) ->
-    #xmlel{name = Name, attrs = Attrs} = Chld,
-    {xml:get_attr_s(<<"xmlns">>, Attrs), Name};
-read_child(_) ->
-    % children are sometimes longer then 1 but only when it is an error, not sure yet how
-    % to handle it
-    {undefined, undefined}.
+read_children(Acc, []) ->
+    Acc;
+read_children(Acc, [Chld|Tail]) ->
+    Acc1 = case exml_query:attr(Chld, <<"xmlns">>, undefined) of
+               undefined ->
+                   Acc;
+               X ->
+                   #xmlel{name = Name} = Chld,
+                   mongoose_acc:put(command, Name, mongoose_acc:put(xmlns, X, Acc))
+           end,
+    read_children(Acc1, Tail).
+

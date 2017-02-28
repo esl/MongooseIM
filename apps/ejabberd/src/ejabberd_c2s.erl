@@ -872,11 +872,6 @@ session_established({xmlstreamelement,
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
-    % this is where we probably should initialise accumulator, or even earlier
-    % (there is an argument in favour of doing it earlier - in wait_for_session_or_sm we
-    % already retrieve subscriptions (from, to and pending), which could be stored in acc)
-    % but it would require hacking mod_amp at the very beginning
-    % so to make it simpler we do it a bit later (in process_outgoing_stanza/2)
     case check_from(El, FromJID) of
         'invalid-from' ->
             send_element(StateData, ?INVALID_FROM),
@@ -1888,18 +1883,18 @@ presence_update_to_available(Acc, From, Packet, StateData) ->
 
     FromUnavail = (StateData#state.pres_last == undefined) or StateData#state.pres_invis,
     ?DEBUG("from unavail = ~p~n", [FromUnavail]),
-    presence_update_to_available(Acc1, FromUnavail, OldPriority, NewPriority, From,
+    presence_update_to_available(FromUnavail, Acc1, OldPriority, NewPriority, From,
                                  Packet, NewStateData).
 
 %% @doc the first one is run when presence changes from unavailable to anything else
--spec presence_update_to_available(Acc :: mongoose_acc:t(),
-                                   FromUnavailable :: boolean(),
+-spec presence_update_to_available(FromUnavailable :: boolean(),
+                                   Acc :: mongoose_acc:t(),
                                    OldPriority :: integer(),
                                    NewPriority :: integer(),
                                    From :: ejabberd:jid(),
                                    Packet :: exml:element(),
                                    StateData :: state()) -> {mongoose_acc:t(), state()}.
-presence_update_to_available(Acc, true, _, NewPriority, From, Packet, StateData) ->
+presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData) ->
     Acc2 = ejabberd_hooks:run_fold(user_available_hook,
                                    StateData#state.server,
                                    Acc,
@@ -1920,7 +1915,7 @@ presence_update_to_available(Acc, true, _, NewPriority, From, Packet, StateData)
               end,
     {Accum, NewStateData1} = Res,
     presence_broadcast_first(Accum, From, NewStateData1, Packet);
-presence_update_to_available(Acc, false, OldPriority, NewPriority, From, Packet, StateData) ->
+presence_update_to_available(false, Acc, OldPriority, NewPriority, From, Packet, StateData) ->
     Acc2 = presence_broadcast_to_trusted(Acc,
                                          StateData,
                                          From,
@@ -2291,7 +2286,7 @@ resend_offline_messages(Acc, StateData) ->
                        end,
                        Acc1, Rs),
     mongoose_acc:remove(offline_messages, Acc2). % they are gone from db backend and sent
-    
+
 
 -spec check_privacy_and_route_or_ignore(StateData :: state(),
                                         From :: ejabberd:jid(),

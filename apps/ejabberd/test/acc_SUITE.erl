@@ -21,7 +21,7 @@ all() ->
 groups() ->
     [
      {basic, [sequence],
-      [store_and_retrieve ]
+      [store_and_retrieve, init_from_element ]
      }
     ].
 
@@ -38,3 +38,19 @@ store_and_retrieve(_C) ->
     ok.
 
 
+init_from_element(_C) ->
+    Elem = {xmlel, <<"iq">>,
+        [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"set">>}],
+        [{xmlel, <<"block">>,
+            [{<<"xmlns">>, <<"urn:xmpp:blocking">>}],
+            [{xmlel, <<"item">>,
+                [{<<"jid">>, <<"bob37.814302@localhost">>}],
+                []}]}]},
+    Acc = mongoose_acc:from_element(Elem),
+    mongoose_acc:dump(Acc),
+    ?PRT("Acc", Acc),
+    ?assertEqual(mongoose_acc:get(name, Acc), <<"iq">>),
+    ?assertEqual(mongoose_acc:get(type, Acc), <<"set">>),
+    ?assertEqual(mongoose_acc:get(command, Acc), <<"block">>),
+    ?assertEqual(mongoose_acc:get(xmlns, Acc), <<"urn:xmpp:blocking">>),
+    ok.
