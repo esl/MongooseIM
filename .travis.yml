@@ -23,11 +23,10 @@ script: tools/travis-test.sh -p $PRESET
 
 after_failure:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
-        - cat dev/mongooseim_node1/etc/ejabberd.cfg
-        - if [ -s dev/mongooseim_node1/log/crash.log ]; then cat dev/mongooseim_node1/log/crash.log; fi
-        - if [ -s dev/mongooseim_node2/log/crash.log ]; then cat dev/mongooseim_node2/log/crash.log; fi
-        - tail -100 dev/mongooseim_node1/log/ejabberd.log
-        - tail -100 dev/mongooseim_node2/log/ejabberd.log
+        - if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
+        - if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
+        - tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
+        - tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
 
 after_success:
         - ./rebar3 coveralls send
