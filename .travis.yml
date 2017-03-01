@@ -23,7 +23,6 @@ script: tools/travis-test.sh -p $PRESET
 
 after_failure:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
-        - cat _build/mim1/rel/mongooseim/etc/ejabberd.cfg
         - if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
         - if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
         - tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
