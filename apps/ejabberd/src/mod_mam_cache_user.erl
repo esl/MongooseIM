@@ -8,7 +8,7 @@
 %%% `cached_archive_id/3' and `store_archive_id/3'.
 %%%
 %%% This module supports several hosts.
-%%% 
+%%%
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_cache_user).

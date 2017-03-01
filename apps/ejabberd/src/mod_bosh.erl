@@ -36,7 +36,6 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").
 
--define(DEFAULT_BACKEND, mnesia).
 -define(DEFAULT_MAX_AGE, 1728000).  %% 20 days in seconds
 -define(DEFAULT_INACTIVITY, 30).  %% seconds
 -define(DEFAULT_MAX_WAIT, infinity).  %% seconds

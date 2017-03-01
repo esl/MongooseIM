@@ -152,71 +152,54 @@ unregister_extra_domain(Host, Domain) ->
     ets:delete(disco_extra_domains, {Domain, Host}).
 
 
--spec process_local_iq_items(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
-            -> ejabberd:iq().
-process_local_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ) ->
-    case Type of
-        set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-        get ->
-            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Host = To#jid.lserver,
+-spec process_local_iq_items(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+process_local_iq_items(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_local_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+    Host = To#jid.lserver,
 
-            case ejabberd_hooks:run_fold(disco_local_items,
-                                         Host,
-                                         empty,
-                                         [From, To, Node, Lang]) of
-                {result, Items} ->
-                    ANode = case Node of
-                                <<>> -> [];
-                                _ -> [{<<"node">>, Node}]
-                    end,
-                    IQ#iq{type = result,
-                          sub_el = [#xmlel{name = <<"query">>,
-                                           attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                           children = Items}]};
-                {error, Error} ->
-                    IQ#iq{type = error, sub_el = [SubEl, Error]}
-            end
+    case ejabberd_hooks:run_fold(disco_local_items,
+                                 Host,
+                                 empty,
+                                 [From, To, Node, Lang]) of
+        {result, Items} ->
+            ANode = make_node_attr(Node),
+            IQ#iq{type = result,
+                  sub_el = [#xmlel{name = <<"query">>,
+                                   attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
+                                   children = Items}]};
+        {error, Error} ->
+            IQ#iq{type = error, sub_el = [SubEl, Error]}
     end.
 
-
--spec process_local_iq_info(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
-            -> ejabberd:iq().
-process_local_iq_info(From, To, #iq{type = Type, lang = Lang,
-                                     sub_el = SubEl} = IQ) ->
-    case Type of
-        set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-        get ->
-            Host = To#jid.lserver,
-            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Identity = ejabberd_hooks:run_fold(disco_local_identity,
-                                               Host,
-                                               [],
-                                               [From, To, Node, Lang]),
-            Info = ejabberd_hooks:run_fold(disco_info, Host, [],
-                                           [Host, ?MODULE, Node, Lang]),
-            case ejabberd_hooks:run_fold(disco_local_features,
-                                         Host,
-                                         empty,
-                                         [From, To, Node, Lang]) of
-                {result, Features} ->
-                    ANode = case Node of
-                                <<>> -> [];
-                                _ -> [{<<"node">>, Node}]
-                            end,
-                    IQ#iq{type = result,
-                          sub_el = [#xmlel{name = <<"query">>,
-                                           attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                           children = Identity ++
-                                                      Info ++
-                                                      features_to_xml(Features)}]};
-                {error, Error} ->
-                    IQ#iq{type = error, sub_el = [SubEl, Error]}
-            end
+-spec process_local_iq_info(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+process_local_iq_info(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_local_iq_info(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    Host = To#jid.lserver,
+    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+    Identity = ejabberd_hooks:run_fold(disco_local_identity,
+                                       Host,
+                                       [],
+                                       [From, To, Node, Lang]),
+    Info = ejabberd_hooks:run_fold(disco_info, Host, [],
+                                   [Host, ?MODULE, Node, Lang]),
+    case ejabberd_hooks:run_fold(disco_local_features,
+                                 Host,
+                                 empty,
+                                 [From, To, Node, Lang]) of
+        {result, Features} ->
+            ANode = make_node_attr(Node),
+            IQ#iq{type = result,
+                  sub_el = [#xmlel{name = <<"query">>,
+                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
+                                   children = Identity ++
+                                   Info ++
+                                   features_to_xml(Features)}]};
+        {error, Error} ->
+            IQ#iq{type = error, sub_el = [SubEl, Error]}
     end.
-
 
 -spec get_local_identity(Acc :: [jlib:xmlel()],
                         From :: ejabberd:jid(),
@@ -303,55 +286,54 @@ get_local_services(empty, _From, _To, _Node, _Lang) ->
     {error, ?ERR_ITEM_NOT_FOUND}.
 
 
--type route() :: any().
+-type route() :: binary().
 -spec get_vh_services(ejabberd:server()) -> [route()].
 get_vh_services(Host) ->
-    Hosts = lists:sort(fun(H1, H2) -> size(H1) >= size(H2) end, ?MYHOSTS),
-    lists:filter(fun(H) ->
-                         case lists:dropwhile(
-                                fun(VH) ->
-                                        not lists:suffix("." ++ binary_to_list(VH),
-                                            binary_to_list(H))
-                                end, Hosts) of
-                             [] ->
-                                 false;
-                             [VH | _] ->
-                                 VH == Host
-                         end
+    VHosts = lists:sort(fun(H1, H2) -> size(H1) >= size(H2) end, ?MYHOSTS),
+    lists:filter(fun(Route) ->
+                         check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts)
                  end, ejabberd_router:dirty_get_all_routes()).
+
+-spec check_if_host_is_the_shortest_suffix_for_route(
+        Route :: route(), Host :: binary(), VHosts :: [binary()]) -> boolean().
+check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
+    RouteS = binary_to_list(Route),
+    case lists:dropwhile(
+           fun(VH) ->
+                   not lists:suffix("." ++ binary_to_list(VH), RouteS)
+           end, VHosts) of
+        [] ->
+            false;
+        [VH | _] ->
+            VH == Host
+    end.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec process_sm_iq_items(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
-            -> ejabberd:iq().
-process_sm_iq_items(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ) ->
-    case Type of
-        set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-        get ->
-            case is_presence_subscribed(From, To) of
-                true ->
-                    Host = To#jid.lserver,
-                    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-                    case ejabberd_hooks:run_fold(disco_sm_items,
-                                                 Host,
-                                                 empty,
-                                                 [From, To, Node, Lang]) of
-                        {result, Items} ->
-                            ANode = case Node of
-                                        <<>> -> [];
-                                        _ -> [{<<"node">>, Node}]
-                                    end,
-                            IQ#iq{type = result,
-                                  sub_el = [#xmlel{name = <<"query">>,
-                                                   attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                                   children = Items}]};
-                        {error, Error} ->
-                            IQ#iq{type = error, sub_el = [SubEl, Error]}
-                    end;
-                false ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
-            end
+-spec process_sm_iq_items(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+process_sm_iq_items(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_sm_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    case is_presence_subscribed(From, To) of
+        true ->
+            Host = To#jid.lserver,
+            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+            case ejabberd_hooks:run_fold(disco_sm_items,
+                                         Host,
+                                         empty,
+                                         [From, To, Node, Lang]) of
+                {result, Items} ->
+                    ANode = make_node_attr(Node),
+                    IQ#iq{type = result,
+                          sub_el = [#xmlel{name = <<"query">>,
+                                           attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
+                                           children = Items}]};
+                {error, Error} ->
+                    IQ#iq{type = error, sub_el = [SubEl, Error]}
+            end;
+        false ->
+            IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
     end.
 
 
@@ -392,52 +374,40 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
 -spec is_presence_subscribed(ejabberd:jid(), ejabberd:jid()) -> boolean().
 is_presence_subscribed(#jid{luser=User, lserver=Server}, #jid{luser=LUser, lserver=LServer}) ->
     lists:any(fun({roster, _, _, {TUser, TServer, _}, _, S, _, _, _, _}) ->
-                            if
-                                LUser == TUser, LServer == TServer, S/=none ->
-                                    true;
-                                true ->
-                                    false
-                            end
-                    end,
-                    ejabberd_hooks:run_fold(roster_get, Server, [], [{User, Server}]))
-                orelse User == LUser andalso Server == LServer.
+                      LUser == TUser andalso LServer == TServer andalso S /= none
+              end,
+              ejabberd_hooks:run_fold(roster_get, Server, [], [{User, Server}]))
+    orelse User == LUser andalso Server == LServer.
 
 
--spec process_sm_iq_info(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
-            -> ejabberd:iq().
-process_sm_iq_info(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl} = IQ) ->
-    case Type of
-        set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-        get ->
-            case is_presence_subscribed(From, To) of
-                true ->
-                    Host = To#jid.lserver,
-                    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-                    Identity = ejabberd_hooks:run_fold(disco_sm_identity,
-                                                       Host,
-                                                       [],
-                                                       [From, To, Node, Lang]),
-                    case ejabberd_hooks:run_fold(disco_sm_features,
-                                                 Host,
-                                                 empty,
-                                                 [From, To, Node, Lang]) of
-                        {result, Features} ->
-                            ANode = case Node of
-                                        <<>> -> [];
-                                        _ -> [{<<"node">>, Node}]
-                                    end,
-                            IQ#iq{type = result,
-                                  sub_el = [#xmlel{name = <<"query">>,
-                                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                                   children = Identity ++
-                                                              features_to_xml(Features)}]};
-                        {error, Error} ->
-                            IQ#iq{type = error, sub_el = [SubEl, Error]}
-                    end;
-                false ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
-            end
+-spec process_sm_iq_info(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+process_sm_iq_info(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_sm_iq_info(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    case is_presence_subscribed(From, To) of
+        true ->
+            Host = To#jid.lserver,
+            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+            Identity = ejabberd_hooks:run_fold(disco_sm_identity,
+                                               Host,
+                                               [],
+                                               [From, To, Node, Lang]),
+            case ejabberd_hooks:run_fold(disco_sm_features,
+                                         Host,
+                                         empty,
+                                         [From, To, Node, Lang]) of
+                {result, Features} ->
+                    ANode = make_node_attr(Node),
+                    IQ#iq{type = result,
+                          sub_el = [#xmlel{name = <<"query">>,
+                                           attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
+                                           children = Identity ++
+                                           features_to_xml(Features)}]};
+                {error, Error} ->
+                    IQ#iq{type = error, sub_el = [SubEl, Error]}
+            end;
+        false ->
+            IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
     end.
 
 
@@ -486,6 +456,10 @@ get_user_resources(User, Server) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+-spec make_node_attr(Node :: binary()) -> [{binary(), binary()}].
+make_node_attr(<<>>) -> [];
+make_node_attr(Node) -> [{<<"node">>, Node}].
+
 %%% Support for: XEP-0157 Contact Addresses for XMPP Services
 
 -spec get_info(A :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
@@ -497,14 +471,14 @@ get_info(_A, Host, Mod, Node, _Lang) when Node == [] ->
                  _ ->
                      Mod
              end,
-    Serverinfo_fields = get_fields_xml(Host, Module),
+    ServerInfoFields = get_fields_xml(Host, Module),
+    FormTypeField = #xmlel{name = <<"field">>,
+                           attrs = [{<<"var">>, <<"FORM_TYPE">>}, {<<"type">>, <<"hidden">>}],
+                           children = [#xmlel{name = <<"value">>,
+                                              children = [#xmlcdata{content = ?NS_SERVERINFO}]}]},
     [#xmlel{name = <<"x">>,
             attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-            children = [#xmlel{name = <<"field">>,
-                               attrs = [{<<"var">>, <<"FORM_TYPE">>}, {<<"type">>, <<"hidden">>}],
-                               children = [#xmlel{name = <<"value">>,
-                                                  children = [#xmlcdata{content = ?NS_SERVERINFO}]}]}]
-                     ++ Serverinfo_fields}];
+            children = [FormTypeField | ServerInfoFields]}];
 get_info(Acc, _, _, _Node, _) ->
     Acc.
 
@@ -514,16 +488,16 @@ get_fields_xml(Host, Module) ->
     Fields = gen_mod:get_module_opt(Host, ?MODULE, server_info, []),
 
     %% filter, and get only the ones allowed for this module
-    Fields_good = lists:filter(
-                    fun({Modules, _, _}) ->
-                            case Modules of
-                                all -> true;
-                                Modules -> lists:member(Module, Modules)
-                            end
-                    end,
-                    Fields),
+    FilteredFields = lists:filter(
+                       fun({Modules, _, _}) ->
+                               case Modules of
+                                   all -> true;
+                                   Modules -> lists:member(Module, Modules)
+                               end
+                       end,
+                       Fields),
 
-    fields_to_xml(Fields_good).
+    fields_to_xml(FilteredFields).
 
 
 -spec fields_to_xml([{_, Var :: binary(), Values :: [binary()]}]) -> [jlib:xmlel()].
@@ -533,9 +507,9 @@ fields_to_xml(Fields) ->
 
 -spec field_to_xml({_, Var :: binary(), Values :: [binary()]}) -> jlib:xmlel().
 field_to_xml({_, Var, Values}) ->
-    Values_xml = values_to_xml(Values),
+    XMLValues = values_to_xml(Values),
     #xmlel{name = <<"field">>, attrs = [{<<"var">>, Var}],
-           children = Values_xml}.
+           children = XMLValues}.
 
 
 -spec values_to_xml([binary()]) -> [jlib:xmlel()].

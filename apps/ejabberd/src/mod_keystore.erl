@@ -22,9 +22,8 @@
 -include("ejabberd.hrl").
 -include("mod_keystore.hrl").
 
--define(BACKEND, mod_keystore_backend).
 -define(DEFAULT_RAM_KEY_SIZE, 2048).
--define(iol2b(L), iolist_to_binary(L)).
+-define(IOL2B(L), iolist_to_binary(L)).
 
 %% A key name is used in the config file to name a key (a class of keys).
 %% The name doesn't differentiate between virtual hosts
@@ -64,7 +63,7 @@ start(Domain, Opts) ->
     validate_opts(Opts),
     create_keystore_ets(),
     gen_mod:start_backend_module(?MODULE, Opts),
-    ?BACKEND:init(Domain, Opts),
+    mod_keystore_backend:init(Domain, Opts),
     init_keys(Domain, Opts),
     [ ejabberd_hooks:add(Hook, Domain, ?MODULE, Handler, Priority)
       || {Hook, Handler, Priority} <- hook_handlers() ],
@@ -93,7 +92,7 @@ get_key(HandlerAcc, KeyID) ->
         %% with types of both stores returning
         %% AT MOST ONE value per key.
         (ets_get_key(KeyID) ++
-         ?BACKEND:get_key(KeyID) ++
+         mod_keystore_backend:get_key(KeyID) ++
          HandlerAcc)
     catch
         E:R ->
@@ -150,7 +149,7 @@ init_key({KeyName, ram}, Domain, Opts) ->
     ProposedKey = crypto:strong_rand_bytes(get_key_size(Opts)),
     KeyRecord = #key{id = {KeyName, Domain},
                      key = ProposedKey},
-    {ok, _ActualKey} = ?BACKEND:init_ram_key(KeyRecord),
+    {ok, _ActualKey} = mod_keystore_backend:init_ram_key(KeyRecord),
     ok.
 
 %% It's easier to trace these than ets:{insert, lookup} - much less noise.

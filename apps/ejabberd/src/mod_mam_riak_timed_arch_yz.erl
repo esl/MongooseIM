@@ -29,7 +29,7 @@
 -export([start/2,
          stop/1,
          archive_size/4,
-         lookup_messages/11,
+         lookup_messages/12,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -58,7 +58,6 @@
 %%
 %% Use both options `pm, muc' to archive both MUC and private messages
 start(Host, Opts) ->
-    compile_params_module(Opts),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_chat_archive(Host, Opts);
@@ -154,19 +153,19 @@ lookup_messages({error, _Reason} = Result, _Host,
                 _PageSize, _LimitPassed, _MaxResultLimit,
                 _IsSimple) ->
     Result;
-lookup_messages(_Result, _Host,
+lookup_messages(_Result, Host,
                 _UserID, UserJID, RSM, Borders,
                 Start, End, _Now, WithJID, SearchText,
                 PageSize, LimitPassed, MaxResultLimit,
                 IsSimple) ->
     try
-        lookup_messages(UserJID, RSM, Borders,
+        lookup_messages(Host, UserJID, RSM, Borders,
                         Start, End, WithJID, SearchText,
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
-        S = erlang:get_stacktrace(),
-        {error, {Reason, {stacktrace, S}}}
+              S = erlang:get_stacktrace(),
+              {error, {Reason, {stacktrace, S}}}
     end.
 
 
@@ -249,16 +248,15 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
            {{<<"source_jid">>, register},
             fun(R) -> riakc_register:set(SourceJID, R) end},
            {{<<"packet">>, register},
-            fun(R) -> riakc_register:set(packet_to_stored_binary(Packet), R) end},
+            fun(R) -> riakc_register:set(packet_to_stored_binary(Host, Packet), R) end},
            {{<<"search_text">>, register},
             fun(R) -> riakc_register:set(BodyValue, R) end}
           ],
 
     mongoose_riak:create_new_map(Ops).
 
-lookup_messages(ArchiveJID, RSM, Borders, Start, End,
+lookup_messages(Host, ArchiveJID, RSM, Borders, Start, End,
                 WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-
     OwnerJID = bare_jid(ArchiveJID),
     RemoteJID = bare_jid(WithJID),
 
@@ -275,7 +273,7 @@ lookup_messages(ArchiveJID, RSM, Borders, Start, End,
     SortedKeys = sort_messages(Result),
     case IsSimple of
         true ->
-            {ok, {undefined, undefined, get_messages(SortedKeys)}};
+            {ok, {undefined, undefined, get_messages(Host, SortedKeys)}};
         _ ->
             {MsgIdStartNoRSM, MsgIdEndNoRSM} =
                 calculate_msg_id_borders(undefined, Borders, Start, End),
@@ -288,7 +286,7 @@ lookup_messages(ArchiveJID, RSM, Borders, Start, End,
                 true ->
                     {error, 'policy-violation'};
                 _ ->
-                    {ok, {TotalCount, Offset, get_messages(SortedKeys)}}
+                    {ok, {TotalCount, Offset, get_messages(Host, SortedKeys)}}
             end
     end.
 
@@ -320,15 +318,15 @@ get_msg_id_key(Bucket, Key, Msgs) ->
     Item = {binary_to_integer(MsgId), Bucket, Key},
     [Item | Msgs].
 
-get_messages(BucketKeys) ->
-    lists:flatten([get_message2(MsgId, Bucket, Key) || {MsgId, Bucket, Key} <- BucketKeys]).
+get_messages(Host, BucketKeys) ->
+    lists:flatten([get_message2(Host, MsgId, Bucket, Key) || {MsgId, Bucket, Key} <- BucketKeys]).
 
-get_message2(MsgId, Bucket, Key) ->
+get_message2(Host, MsgId, Bucket, Key) ->
     case mongoose_riak:fetch_type(Bucket, Key) of
         {ok, RiakMap} ->
             SourceJID = riakc_map:fetch({<<"source_jid">>, register}, RiakMap),
             PacketBin = riakc_map:fetch({<<"packet">>, register}, RiakMap),
-            Packet = stored_binary_to_packet(PacketBin),
+            Packet = stored_binary_to_packet(Host, PacketBin),
             {MsgId, jid:from_binary(SourceJID), Packet};
         _ ->
             []
@@ -525,36 +523,15 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
 %% ----------------------------------------------------------------------
 %% Optimizations
 
-packet_to_stored_binary(Packet) ->
-    %% Module implementing mam_message behaviour
-    Module = db_message_format(),
-    Module:encode(Packet).
+packet_to_stored_binary(Host, Packet) ->
+    Module = db_message_codec(Host),
+    mam_message:encode(Module, Packet).
 
-stored_binary_to_packet(Bin) ->
-    %% Module implementing mam_message behaviour
-    Module = db_message_format(),
-    Module:decode(Bin).
+stored_binary_to_packet(Host, Bin) ->
+    Module = db_message_codec(Host),
+    mam_message:decode(Module, Bin).
 
-%% ----------------------------------------------------------------------
-%% Dynamic params module
+-spec db_message_codec(Host :: ejabberd:server()) -> module().
+db_message_codec(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_xml).
 
-%% compile_params_module([
-%%      {db_message_format, module()}
-%%      ])
-compile_params_module(Params) ->
-    CodeStr = params_helper(Params),
-    {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_riak_timed_arch_yz_params.erl", Code).
-
-params_helper(Params) ->
-    Format =
-        io_lib:format(
-          "-module(mod_mam_riak_timed_arch_yz_params).~n"
-          "-compile(export_all).~n"
-          "db_message_format() -> ~p.~n",
-          [proplists:get_value(db_message_format, Params, mam_message_xml)]),
-    binary_to_list(iolist_to_binary(Format)).
-
--spec db_message_format() -> module().
-db_message_format() ->
-    mod_mam_riak_timed_arch_yz_params:db_message_format().

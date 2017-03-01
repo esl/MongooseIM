@@ -69,7 +69,6 @@ start(Host, Opts) ->
             error(hand_made_partitions_not_supported)
     end,
 
-    compile_params_module(Opts),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -216,15 +215,15 @@ archive_message(Result, Host, MessID, UserID,
     end.
 
 do_archive_message(_Result, Host, MessID, UserID,
-                   LocJID=#jid{},
-                   RemJID=#jid{lresource=RemLResource},
+                   LocJID = #jid{},
+                   RemJID = #jid{lresource = RemLResource},
                    SrcJID, Dir, Packet) ->
     SUserID = integer_to_list(UserID),
-    SBareRemJID = minify_and_escape_bare_jid(LocJID, RemJID),
-    SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
+    SBareRemJID = minify_and_escape_bare_jid(Host, LocJID, RemJID),
+    SSrcJID = minify_and_escape_jid(Host, LocJID, SrcJID),
     SDir = binary_to_list(encode_direction(Dir)),
     SRemLResource = mongoose_rdbms:escape(RemLResource),
-    Data = packet_to_stored_binary(Packet),
+    Data = packet_to_stored_binary(Host, Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
     STextBody = mongoose_rdbms:escape(TextBody),
     EscFormat = mongoose_rdbms:escape_format(Host),
@@ -254,10 +253,10 @@ write_message(Host, Table, SMessID, SUserID, SBareRemJID,
 
 prepare_message(Host, MessID, UserID, LocJID = #jid{}, RemJID = #jid{lresource = RemLResource},
                 SrcJID, Dir, Packet) ->
-    SBareRemJID = jid_to_stored_binary(LocJID, jid:to_bare(RemJID)),
-    SSrcJID = jid_to_stored_binary(LocJID, SrcJID),
+    SBareRemJID = jid_to_stored_binary(Host, LocJID, jid:to_bare(RemJID)),
+    SSrcJID = jid_to_stored_binary(Host, LocJID, SrcJID),
     SDir = encode_direction(Dir),
-    Data = packet_to_stored_binary(Packet),
+    Data = packet_to_stored_binary(Host, Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
     [MessID, UserID, SBareRemJID, RemLResource, SDir, SSrcJID, Data, TextBody].
 
@@ -329,7 +328,7 @@ do_lookup_messages(Host, UserID, UserJID,
                    Start, End, _Now, WithJID, SearchText,
                    PageSize, _LimitPassed, _MaxResultLimit, true, _) ->
     %% Simple query without calculating offset and total count
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText),
+    Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText),
     lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter);
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
@@ -337,7 +336,7 @@ do_lookup_messages(Host, UserID, UserJID,
                    PageSize, _LimitPassed, _MaxResultLimit, opt_count, true) ->
     %% Extract messages first than calculate offset and total count
     %% Useful for small result sets (less than one page, than one query is enough)
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText),
+    Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText),
     lookup_messages_opt_count(Host, UserJID, RSM, PageSize, Filter);
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
@@ -345,9 +344,8 @@ do_lookup_messages(Host, UserID, UserJID,
                    PageSize, LimitPassed, MaxResultLimit, _, _) ->
     %% Unsupported opt_count or just a regular query
     %% Calculate offset and total count first than extract messages
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText),
-    lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter,
-                            LimitPassed, MaxResultLimit).
+    Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText),
+    lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter, LimitPassed, MaxResultLimit).
 
 lookup_messages_simple(Host, UserJID,
                        #rsm_in{direction = aft, id = ID},
@@ -492,14 +490,14 @@ before_id(ID, Filter) ->
 rows_to_uniform_format(Host, UserJID, MessageRows) ->
     EscFormat = mongoose_rdbms:escape_format(Host),
     DbEngine = mongoose_rdbms:db_engine(Host),
-    [row_to_uniform_format(DbEngine, UserJID, EscFormat, Row) || Row <- MessageRows].
+    [row_to_uniform_format(Host, DbEngine, UserJID, EscFormat, Row) || Row <- MessageRows].
 
-row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID, BSrcJID, SDataRaw}) ->
+row_to_uniform_format(Host, DbEngine, UserJID, EscFormat, {BMessID, BSrcJID, SDataRaw}) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
-    SrcJID = stored_binary_to_jid(UserJID, BSrcJID),
+    SrcJID = stored_binary_to_jid(Host, UserJID, BSrcJID),
     SData = mongoose_rdbms:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = mongoose_rdbms:unescape_binary(EscFormat, SData),
-    Packet = stored_binary_to_packet(Data),
+    Packet = stored_binary_to_packet(Host, Data),
     {MessID, SrcJID, Packet}.
 
 row_to_message_id({BMessID, _, _}) ->
@@ -548,7 +546,7 @@ purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
                                      ok  | {error, 'not-allowed'}.
 purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, undefined),
+    Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, undefined),
     {updated, _} =
         mod_mam_utils:success_sql_query(
           Host,
@@ -642,19 +640,20 @@ calc_count(Host, Filter, IndexHintSQL) ->
     mongoose_rdbms:result_to_integer(BCount).
 
 
--spec prepare_filter(UserID :: mod_mam:archive_id(), UserJID :: ejabberd:jid(),
-                     Borders :: mod_mam:borders(), Start :: mod_mam:unix_timestamp() | undefined,
+-spec prepare_filter(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
+                     UserJID :: ejabberd:jid(), Borders :: mod_mam:borders(),
+                     Start :: mod_mam:unix_timestamp() | undefined,
                      End :: mod_mam:unix_timestamp() | undefined, WithJID :: ejabberd:jid(),
                      SearchText :: string() | undefined)
                     -> filter().
-prepare_filter(UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
+prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
     {SWithJID, SWithResource} =
         case WithJID of
             undefined -> {undefined, undefined};
             #jid{lresource = <<>>} ->
-                {minify_and_escape_bare_jid(UserJID, WithJID), undefined};
+                {minify_and_escape_bare_jid(Host, UserJID, WithJID), undefined};
             #jid{lresource = WithLResource} ->
-                {minify_and_escape_bare_jid(UserJID, WithJID),
+                {minify_and_escape_bare_jid(Host, UserJID, WithJID),
                  mongoose_rdbms:escape(WithLResource)}
         end,
     StartID = maybe_encode_compact_uuid(Start, 0),
@@ -727,11 +726,11 @@ escape_user_id(UserID) when is_integer(UserID) ->
     integer_to_list(UserID).
 
 %% @doc Strip resource, minify and escape JID.
-minify_and_escape_bare_jid(LocJID, JID) ->
-    mongoose_rdbms:escape(jid_to_stored_binary(LocJID, jid:to_bare(JID))).
+minify_and_escape_bare_jid(Host, LocJID, JID) ->
+    mongoose_rdbms:escape(jid_to_stored_binary(Host, LocJID, jid:to_bare(JID))).
 
-minify_and_escape_jid(LocJID, JID) ->
-    mongoose_rdbms:escape(jid_to_stored_binary(LocJID, JID)).
+minify_and_escape_jid(Host, LocJID, JID) ->
+    mongoose_rdbms:escape(jid_to_stored_binary(Host, LocJID, JID)).
 
 maybe_encode_compact_uuid(undefined, _) ->
     undefined;
@@ -741,63 +740,27 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
 %% ----------------------------------------------------------------------
 %% Optimizations
 
-%% @doc Returns encoded JID
-jid_to_stored_binary(UserJID, JID) ->
-    %% Module implementing mam_jid behaviour
-    Module = db_jid_format(),
-    Module:encode(UserJID, JID).
+jid_to_stored_binary(Host, UserJID, JID) ->
+    Module = db_jid_codec(Host),
+    mam_jid:encode(Module, UserJID, JID).
 
-stored_binary_to_jid(UserJID, BSrcJID) ->
-    %% Module implementing mam_jid behaviour
-    Module = db_jid_format(),
-    Module:decode(UserJID, BSrcJID).
+stored_binary_to_jid(Host, UserJID, BSrcJID) ->
+    Module = db_jid_codec(Host),
+    mam_jid:decode(Module, UserJID, BSrcJID).
 
-packet_to_stored_binary(Packet) ->
-    %% Module implementing mam_message behaviour
-    Module = db_message_format(),
-    Module:encode(Packet).
+packet_to_stored_binary(Host, Packet) ->
+    Module = db_message_codec(Host),
+    mam_message:encode(Module, Packet).
 
-stored_binary_to_packet(Bin) ->
-    %% Module implementing mam_message behaviour
-    Module = db_message_format(),
-    Module:decode(Bin).
+stored_binary_to_packet(Host, Bin) ->
+    Module = db_message_codec(Host),
+    mam_message:decode(Module, Bin).
 
-%% ----------------------------------------------------------------------
-%% Dynamic params module
+-spec db_jid_codec(ejabberd:server()) -> module().
+db_jid_codec(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini).
 
-%% compile_params_module([
-%%      {db_jid_format, module()},
-%%      {db_message_format, module()},
-%%      ])
-compile_params_module(Params) ->
-    CodeStr = params_helper(expand_simple_param(Params)),
-    {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_odbc_arch_params.erl", Code).
+-spec db_message_codec(ejabberd:server()) -> module().
+db_message_codec(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
 
-expand_simple_param(Params) ->
-    lists:flatmap(fun(simple) -> simple_params();
-                     ({simple, true}) -> simple_params();
-                     (Param) -> [Param]
-                  end, Params).
-
-simple_params() ->
-    [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
-
-params_helper(Params) ->
-    Format =
-        io_lib:format(
-          "-module(mod_mam_odbc_arch_params).~n"
-          "-compile(export_all).~n"
-          "db_jid_format() -> ~p.~n"
-          "db_message_format() -> ~p.~n",
-          [proplists:get_value(db_jid_format, Params, mam_jid_mini),
-           proplists:get_value(db_message_format, Params, mam_message_compressed_eterm)]),
-    binary_to_list(iolist_to_binary(Format)).
-
--spec db_jid_format() -> module().
-db_jid_format() ->
-    mod_mam_odbc_arch_params:db_jid_format().
-
--spec db_message_format() -> module().
-db_message_format() ->
-    mod_mam_odbc_arch_params:db_message_format().

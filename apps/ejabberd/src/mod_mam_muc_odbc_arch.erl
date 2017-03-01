@@ -36,12 +36,6 @@
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
 
-%% Text search
--import(mod_mam_utils, [
-    normalize_search_text/1,
-    normalize_search_text/2
-]).
-
 %% Other
 -import(mod_mam_utils,
         [apply_start_border/2,
@@ -76,14 +70,11 @@ start(Host, Opts) ->
             error(hand_made_partitions_not_supported)
     end,
 
-    compile_params_module(Opts),
     start_muc(Host, Opts).
-
 
 -spec stop(ejabberd:server()) -> 'ok'.
 stop(Host) ->
     stop_muc(Host).
-
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
@@ -144,17 +135,17 @@ archive_message(_Result, Host, MessID, RoomID,
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
     try
-        archive_message1(Host, MessID, RoomID, FromNick, Packet)
+        archive_message_unsafe(Host, MessID, RoomID, FromNick, Packet)
     catch _Type:Reason ->
             {error, Reason}
     end.
 
--spec archive_message1(ejabberd:server(), mod_mam:message_id(), mod_mam:archive_id(),
-                       FromNick :: ejabberd:user(), packet()) -> ok.
-archive_message1(Host, MessID, RoomID, FromNick, Packet) ->
+-spec archive_message_unsafe(ejabberd:server(), mod_mam:message_id(), mod_mam:archive_id(),
+                             FromNick :: ejabberd:user(), packet()) -> ok.
+archive_message_unsafe(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
     SFromNick = mongoose_rdbms:escape(FromNick),
-    Data = packet_to_stored_binary(Packet),
+    Data = packet_to_stored_binary(Host, Packet),
     EscFormat = mongoose_rdbms:escape_format(Host),
     SData = mongoose_rdbms:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
@@ -181,10 +172,10 @@ write_message(Host, SMessID, SRoomID, SFromNick, SData, STextBody) ->
                       _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
                       _SrcJID :: ejabberd:jid(), incoming, packet()) -> list().
 prepare_message(Host, MessID, RoomID,
-                _LocJID=#jid{luser=_RoomName},
+                _LocJID=#jid{},
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
-    Data = packet_to_stored_binary(Packet),
+    Data = packet_to_stored_binary(Host, Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
     [MessID, RoomID, FromNick, Data, TextBody].
 
@@ -213,7 +204,7 @@ lookup_messages(_Result, Host,
         lookup_messages(Host,
                         UserID, UserJID, RSM, Borders,
                         Start, End, Now, WithJID,
-                        normalize_search_text(SearchText),
+                        mod_mam_utils:normalize_search_text(SearchText),
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
@@ -403,16 +394,17 @@ before_id(ID, Filter) ->
 rows_to_uniform_format(MessageRows, Host, RoomJID) ->
     EscFormat = mongoose_rdbms:escape_format(Host),
     DbEngine = mongoose_rdbms:db_engine(Host),
-    [row_to_uniform_format(DbEngine, EscFormat, Row, RoomJID) || Row <- MessageRows].
+    [row_to_uniform_format(Host, DbEngine, EscFormat, Row, RoomJID) || Row <- MessageRows].
 
 
--spec row_to_uniform_format(atom(), atom(), raw_row(), ejabberd:jid()) -> mod_mam_muc:row().
-row_to_uniform_format(DbEngine, EscFormat, {BMessID, BNick, SDataRaw}, RoomJID) ->
+-spec row_to_uniform_format(ejabberd:server(), atom(), atom(),
+                            raw_row(), ejabberd:jid()) -> mod_mam_muc:row().
+row_to_uniform_format(Host, DbEngine, EscFormat, {BMessID, BNick, SDataRaw}, RoomJID) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
     SrcJID = jid:replace_resource(RoomJID, BNick),
     SData = mongoose_rdbms:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = mongoose_rdbms:unescape_binary(EscFormat, SData),
-    Packet = stored_binary_to_packet(Data),
+    Packet = stored_binary_to_packet(Host, Data),
     {MessID, SrcJID, Packet}.
 
 
@@ -558,16 +550,16 @@ prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText) ->
     EndID   = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
     EndID2   = apply_end_border(Borders, EndID),
-    prepare_filter1(RoomID, StartID2, EndID2, SWithNick, SearchText).
+    make_filter(RoomID, StartID2, EndID2, SWithNick, SearchText).
 
 
--spec prepare_filter1(RoomID  :: non_neg_integer(),
-                      StartID :: mod_mam:message_id() | undefined,
-                      EndID :: mod_mam:message_id() | undefined,
-                      SWithNick :: escaped_jid() | undefined,
-                      SearchText :: binary() | undefined) -> filter().
-prepare_filter1(RoomID, StartID, EndID, SWithNick, SearchText) ->
-    ["WHERE room_id='", escape_room_id(RoomID), "'",
+-spec make_filter(RoomID  :: non_neg_integer(),
+                  StartID :: mod_mam:message_id() | undefined,
+                  EndID :: mod_mam:message_id() | undefined,
+                  SWithNick :: escaped_jid() | undefined,
+                  SearchText :: binary() | undefined) -> filter().
+make_filter(RoomID, StartID, EndID, SWithNick, SearchText) ->
+   ["WHERE room_id='", escape_room_id(RoomID), "'",
      case StartID of
          undefined -> "";
          _         -> [" AND id >= ", integer_to_list(StartID)]
@@ -645,45 +637,15 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
 %% ----------------------------------------------------------------------
 %% Optimizations
 
-packet_to_stored_binary(Packet) ->
-    %% Module implementing mam_message behaviour
-    Module = db_message_format(),
-    Module:encode(Packet).
+packet_to_stored_binary(Host, Packet) ->
+    Module = db_message_codec(Host),
+    mam_message:encode(Module, Packet).
 
-stored_binary_to_packet(Bin) ->
-    %% Module implementing mam_message behaviour
-    Module = db_message_format(),
-    Module:decode(Bin).
+stored_binary_to_packet(Host, Bin) ->
+    Module = db_message_codec(Host),
+    mam_message:decode(Module, Bin).
 
-%% ----------------------------------------------------------------------
-%% Dynamic params module
+-spec db_message_codec(Host :: ejabberd:server()) -> module().
+db_message_codec(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
 
-%% compile([
-%%      {db_message_format, module()},
-%%      ])
-compile_params_module(Params) ->
-    CodeStr = params_helper(expand_simple_param(Params)),
-    {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_muc_odbc_arch_params.erl", Code).
-
-expand_simple_param(Params) ->
-    lists:flatmap(fun(simple) -> simple_params();
-                     ({simple, true}) -> simple_params();
-                     (Param) -> [Param]
-                  end, Params).
-
-simple_params() ->
-    [{db_message_format, mam_message_xml}].
-
-params_helper(Params) ->
-    Format =
-        io_lib:format(
-          "-module(mod_mam_muc_odbc_arch_params).~n"
-          "-compile(export_all).~n"
-          "db_message_format() -> ~p.~n",
-          [proplists:get_value(db_message_format, Params, mam_message_compressed_eterm)]),
-    binary_to_list(iolist_to_binary(Format)).
-
--spec db_message_format() -> compressed_term|term|xml.
-db_message_format() ->
-    mod_mam_muc_odbc_arch_params:db_message_format().

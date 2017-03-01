@@ -172,9 +172,13 @@ parse_backend_opt(Type, ModODBCArch, ModAsyncWriter, Option, Deps) ->
         {user_prefs_store, mnesia_dirty} ->
             add_dep(mod_mam_mnesia_dirty_prefs, [Type], Deps);
         {odbc_message_format, simple} ->
-            add_dep(ModODBCArch, [simple], Deps);
+            add_dep(ModODBCArch, odbc_simple_opts(), Deps);
         {async_writer, true} ->
             DepsWithNoWriter = add_dep(ModODBCArch, [no_writer], Deps),
             add_dep(ModAsyncWriter, [Type], DepsWithNoWriter);
         _ -> Deps
     end.
+
+-spec odbc_simple_opts() -> list().
+odbc_simple_opts() -> [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
+
