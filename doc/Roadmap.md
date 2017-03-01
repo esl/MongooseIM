@@ -5,8 +5,8 @@ Please feel free to comment!
 ## 2.1.x
 
 * Push notifications:
- * [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html)
- * Amazon AWS SNS (Simple Notification Service)
+    * [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html)
+    * Amazon AWS SNS (Simple Notification Service)
 * Instant Stream Resumption
 * Full text search in archive
 * Bind 2.0 (experimental)
@@ -30,7 +30,8 @@ Please feel free to comment!
 * Rich content
 * Contributions?
 
-Not MongooseIM server, but part of the MongooseIM platform:
+## Not MongooseIM server, but part of the MongooseIM platform
+
 * Mangosta Android
 * Mangosta iOS
 * ICE/STUN/TURN server in Elixir
