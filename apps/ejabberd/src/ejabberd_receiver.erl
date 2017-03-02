@@ -34,7 +34,6 @@
          start/3,
          start/4,
          change_shaper/2,
-         reset_stream/1,
          starttls/2,
          compress/2,
          become_controller/2,
@@ -86,9 +85,6 @@ start(Socket, SockMod, Shaper, MaxStanzaSize) ->
 -spec change_shaper(atom() | pid() | {atom(), _} | {'via', _, _}, _) -> 'ok'.
 change_shaper(Pid, Shaper) ->
     gen_server:cast(Pid, {change_shaper, Shaper}).
-
-reset_stream(Pid) ->
-    gen_server_call_or_noproc(Pid, reset_stream).
 
 starttls(Pid, TLSSocket) ->
     gen_server_call_or_noproc(Pid, {starttls, TLSSocket}).
@@ -165,9 +161,6 @@ handle_call({compress, ZlibSocket}, _From,
         {error, inflate_error} ->
             {stop, normal, ok, NewState}
     end;
-handle_call(reset_stream, _From, #state{ parser = Parser } = State) ->
-    NewParser = reset_parser(Parser),
-    {reply, ok, State#state{parser = NewParser}, ?HIBERNATE_TIMEOUT};
 handle_call({become_controller, C2SPid}, _From, State) ->
     Parser = reset_parser(State#state.parser),
     NewState = State#state{c2s_pid = C2SPid, parser = Parser},
@@ -381,7 +374,7 @@ element_wrapper(Element) ->
     Element.
 
 reset_parser(undefined) ->
-    {ok, NewParser} = exml_stream:new_parser(),
+    {ok, NewParser} = exml_stream:new_parser([{start_tag, <<"stream:stream">>}]),
     NewParser;
 reset_parser(Parser) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),

@@ -50,7 +50,8 @@ parallel_test_cases() ->
      resume_session_with_wrong_h_does_not_leak_sessions,
      resume_session_with_wrong_sid_returns_item_not_found,
      resume_session_with_wrong_namespace_is_a_noop,
-     resume_dead_session_results_in_item_not_found
+     resume_dead_session_results_in_item_not_found,
+     aggressively_pipelined_resume
     ].
 
 parallel_manual_ack_test_cases() ->
@@ -707,6 +708,32 @@ buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
     %% Alice's connection is violently terminated.
     kill_connection(Alice),
     {C2SPid, proplists:get_value(smid, Props)}.
+
+aggressively_pipelined_resume(Config) ->
+    AliceSpec = [{manual_ack, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]}
+                 | given_fresh_spec(Config, alice)],
+    UnackedMessages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, UnackedMessages),
+        %% Resume the session.
+        {ok, Alice, _} = escalus_connection:connect(AliceSpec),
+
+        Username = proplists:get_value(username, AliceSpec),
+        Password = proplists:get_value(password, AliceSpec),
+        Payload = <<0:8,Username/binary,0:8,Password/binary>>,
+        Server = proplists:get_value(server, AliceSpec),
+
+        Stream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
+        Auth = escalus_stanza:auth(<<"PLAIN">>, [#xmlcdata{content = base64:encode(Payload)}]),
+        AuthStream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
+        Resume = escalus_stanza:resume(SMID, 2),
+
+        escalus_client:send(Alice, [Stream, Auth, AuthStream, Resume]),
+        Messages = [escalus_connection:get_stanza(Alice, {get_resumed, I}) || I <- lists:seq(1, 6)],
+        escalus:assert(is_sm_resumed, [SMID], lists:last(Messages)),
+
+        escalus_connection:stop(Alice)
+    end).
 
 %%--------------------------------------------------------------------
 %% Helpers
