@@ -70,7 +70,7 @@
          on_user_offline/5, remove_user/2, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_local_items/5, disco_sm_identity/5,
-         disco_sm_features/5, disco_sm_items/5]).
+         disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1]).
 
 %% exported iq handlers
 -export([iq_sm/3]).
@@ -286,7 +286,7 @@ init([ServerHost, Opts]) ->
     ItemPublisher = gen_mod:get_opt(item_publisher, Opts,
                                     fun(A) when is_boolean(A) -> A end, false),
     pubsub_index:init(Host, ServerHost, Opts),
-    ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table]),
+    ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
     {Plugins, NodeTree, PepMapping} = init_plugins(Host, ServerHost, Opts),
     mnesia:create_table(pubsub_last_item,
                         [{ram_copies, [node()]},
@@ -334,6 +334,8 @@ init([ServerHost, Opts]) ->
                                ?MODULE, disco_sm_features, 75),
             ejabberd_hooks:add(disco_sm_items, ServerHost,
                                ?MODULE, disco_sm_items, 75),
+            ejabberd_hooks:add(filter_local_packet, ServerHost, ?MODULE,
+                               handle_pep_authorization_response, 1),
             gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost,
                                           ?NS_PUBSUB, ?MODULE, iq_sm, IQDisc),
             gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost,
@@ -569,6 +571,8 @@ disco_sm_identity(Acc, From, To, Node, _Lang) ->
     disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
         ++ Acc.
 
+disco_identity(error, _Node, _From) ->
+    [];
 disco_identity(_Host, <<>>, _From) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"pubsub">>},
@@ -612,6 +616,8 @@ disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
          disco_features(jid:to_lower(jid:to_bare(To)), Node, From)};
 disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
 
+disco_features(error, _Node, _From) ->
+    [];
 disco_features(Host, <<>>, _From) ->
     [?NS_PUBSUB | [feature(F) || F <- plugin_features(Host, <<"pep">>)]];
 disco_features(Host, Node, From) ->
@@ -694,6 +700,27 @@ disco_items(Host, Node, From) ->
         {result, {_, Result}} -> Result;
         _ -> []
     end.
+
+%% -------
+%% callback that prevents routing subscribe authorizations back to the sender
+%%
+
+handle_pep_authorization_response({From, To, #xmlel{ name = <<"message">> } = Packet} = Acc)
+  when From#jid.luser == To#jid.luser, From#jid.lserver == To#jid.lserver ->
+    case exml_query:attr(Packet, <<"type">>) of
+        <<"error">> ->
+            Acc;
+        _ ->
+            case find_authorization_response(Packet) of
+                none -> Acc;
+                invalid -> Acc;
+                XFields ->
+                    handle_authorization_response(jid:to_lower(To), From, To, Packet, XFields),
+                    drop
+            end
+    end;
+handle_pep_authorization_response(Acc) ->
+    Acc.
 
 %% -------
 %% presence hooks handling functions
@@ -897,6 +924,8 @@ terminate(_Reason,
                                   ?MODULE, disco_sm_features, 75),
             ejabberd_hooks:delete(disco_sm_items, ServerHost,
                                   ?MODULE, disco_sm_items, 75),
+            ejabberd_hooks:delete(filter_local_packet, ServerHost, ?MODULE,
+                                  handle_pep_authorization_response, 1),
             gen_iq_handler:remove_iq_handler(ejabberd_sm,
                                              ServerHost, ?NS_PUBSUB),
             gen_iq_handler:remove_iq_handler(ejabberd_sm,
@@ -1005,6 +1034,8 @@ do_route(ServerHost, Access, Plugins, Host, From, To, Packet) ->
                                   of
                                       {result, IQRes} ->
                                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
+                                      {error, {Error, NewPayload}} ->
+                                          jlib:make_error_reply(Packet#xmlel{ children = NewPayload }, Error);
                                       {error, Error} ->
                                           jlib:make_error_reply(Packet, Error)
                                   end,
@@ -1143,7 +1174,7 @@ iq_disco_items(Host, <<>>, From, _RSM) ->
                                    false ->
                                        [{<<"jid">>, Host}
                                         | nodeAttr(SubNode)];
-                                   Title ->
+                                   [Title] ->
                                        [{<<"jid">>, Host},
                                         {<<"name">>, Title}
                                         | nodeAttr(SubNode)]
@@ -1176,7 +1207,7 @@ iq_disco_items(Host, Item, From, RSM) ->
                                                                    false ->
                                                                        [{<<"jid">>, Host}
                                                                         | nodeAttr(SubNode)];
-                                                                   Title ->
+                                                                   [Title] ->
                                                                        [{<<"jid">>, Host},
                                                                         {<<"name">>, Title}
                                                                         | nodeAttr(SubNode)]
@@ -1361,8 +1392,7 @@ iq_pubsub(Host, ServerHost, From, IQType, SubEl, Lang, Access, Plugins) ->
           SubEl      :: xmlel(),
           Lang       :: binary())
         -> {result, [xmlel()]}
-%%%
-               | {error, xmlel()}.
+           | {error, exml:element() | [exml:element()] | {exml:element(), [exml:element()]}}.
 iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
     #xmlel{children = SubEls} = SubEl,
     Action = xml:remove_cdata(SubEls),
@@ -1526,7 +1556,7 @@ send_pending_auth_events(Request, Host, Node, Owner) ->
 send_authorization_request(#pubsub_node{nodeid = {Host, Node}, type = Type, id = Nidx, owners = O},
                            Subscriber) ->
     Lang = <<"en">>,
-    Stanza = #xmlel{name = <<"message">>, attrs = [],
+    Stanza = #xmlel{name = <<"message">>, attrs = [{<<"id">>, list_to_binary(randoms:get_string())}],
                     children =
                         [#xmlel{name = <<"x">>,
                                 attrs =
@@ -2637,7 +2667,7 @@ get_affiliations(Host, Node, JID) ->
           Node        :: mod_pubsub:nodeId(),
           From        :: jid(),
           EntitiesEls :: [xmlel()])
-        -> {result, []}
+        -> {result, []} | {error, exml:element() | {exml:element(), [exml:element()]}}
 %%%
                | {error, xmlel()}.
 set_affiliations(Host, Node, From, EntitiesEls) ->
@@ -2660,41 +2690,56 @@ set_affiliations(Host, Node, From, EntitiesEls) ->
         error ->
             {error, ?ERR_BAD_REQUEST};
         _ ->
-            Action = fun (#pubsub_node{type = Type, id = Nidx, owners = O} = N) ->
+            Action = fun (#pubsub_node{type = Type, id = Nidx, owners = O, nodeid = {_, NodeId}} = N) ->
                              Owners = node_owners_call(Host, Type, Nidx, O),
                              case lists:member(Owner, Owners) of
                                  true ->
-                                     OwnerJID = jid:make(Owner),
-                                     FilteredEntities = case Owners of
-                                                            [Owner] -> [E || E <- Entities, element(1, E) =/= OwnerJID];
-                                                            _ -> Entities
-                                                        end,
-                                     lists:foreach(fun ({JID, Affiliation}) ->
-                                                           node_call(Host, Type, set_affiliation, [Nidx, JID, Affiliation]),
-                                                           case Affiliation of
-                                                               owner ->
-                                                                   NewOwner = jid:to_lower(jid:to_bare(JID)),
-                                                                   NewOwners = [NewOwner | Owners],
-                                                                   tree_call(Host,
-                                                                             set_node,
-                                                                             [N#pubsub_node{owners = NewOwners}]);
-                                                               none ->
-                                                                   OldOwner = jid:to_lower(jid:to_bare(JID)),
-                                                                   case lists:member(OldOwner, Owners) of
-                                                                       true ->
-                                                                           NewOwners = Owners -- [OldOwner],
+                                     % It is a very simple check, as XEP doesn't state any
+                                     % other invalid affiliation transitions
+                                     OwnersDryRun = lists:foldl(
+                                                      fun({JID, owner}, Acc) ->
+                                                              sets:add_element(jid:to_bare(JID), Acc);
+                                                         ({JID, _}, Acc) ->
+                                                              sets:del_element(jid:to_bare(JID), Acc)
+                                                      end, sets:from_list(Owners), Entities),
+                                     case sets:size(OwnersDryRun) of
+                                         0 ->
+                                             OwnersPayload = [ #xmlel{ name = <<"affiliation">>,
+                                                                       attrs = [{<<"jid">>, jid:to_binary(Unchanged)}, {<<"affiliation">>, <<"owner">>}] }
+                                                               || Unchanged <- Owners ],
+                                             AffiliationsPayload = #xmlel{ name = <<"affiliations">>, attrs = [{<<"node">>, NodeId}],
+                                                                           children = OwnersPayload },
+                                             NewPubSubPayload = #xmlel{ name = <<"pubsub">>, attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
+                                                                        children = [AffiliationsPayload] },
+                                             {error, {?ERR_NOT_ACCEPTABLE, [NewPubSubPayload]}};
+                                         _ ->
+                                             lists:foreach(fun ({JID, Affiliation}) ->
+                                                                   node_call(Host, Type, set_affiliation, [Nidx, JID, Affiliation]),
+                                                                   case Affiliation of
+                                                                       owner ->
+                                                                           NewOwner = jid:to_bare(JID),
+                                                                           NewOwners = [NewOwner | Owners],
                                                                            tree_call(Host,
                                                                                      set_node,
                                                                                      [N#pubsub_node{owners = NewOwners}]);
+                                                                       none ->
+                                                                           OldOwner = jid:to_bare(JID),
+                                                                           case lists:member(OldOwner, Owners) of
+                                                                               true ->
+                                                                                   NewOwners = Owners -- [OldOwner],
+                                                                                   tree_call(Host,
+                                                                                             set_node,
+                                                                                             [N#pubsub_node{owners = NewOwners}]);
+                                                                               _ ->
+                                                                                   ok
+                                                                           end;
                                                                        _ ->
                                                                            ok
-                                                                   end;
-                                                               _ ->
-                                                                   ok
-                                                           end
-                                                   end,
-                                                   FilteredEntities),
-                                     {result, []};
+                                                                   end
+                                                           end,
+                                                           Entities),
+                                             {result, []}
+                                     end;
                                  _ ->
                                      {error, ?ERR_FORBIDDEN}
                              end
@@ -2840,6 +2885,7 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
     case Result of
         {ok, Subs} ->
             Entities = lists:flatmap(fun
+                                         %% 2-element tuples are not used by any node type probably
                                          ({_, none}) ->
                                             [];
                                          ({#pubsub_node{nodeid = {_, SubsNode}}, Sub}) ->
@@ -2856,8 +2902,10 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
                                                 _ ->
                                                     []
                                             end;
+                                         %% no idea how to trigger this one
                                          ({_, none, _}) ->
                                             [];
+                                         %% sometimes used by node_pep
                                          ({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubId, SubJID}) ->
                                             case Node of
                                                 <<>> ->
@@ -2876,6 +2924,7 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
                                                 _ ->
                                                     []
                                             end;
+                                         %% used by node_flat (therefore by dag, hometree and push as well)
                                          ({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubJID}) ->
                                             case Node of
                                                 <<>> ->
@@ -3711,6 +3760,8 @@ get_configure_xfields(_Type, Options, Lang, Groups) ->
                          send_last_published_item, [never, on_sub, on_sub_and_presence]),
      ?BOOL_CONFIG_FIELD(<<"Only deliver notifications to available users">>,
                         presence_based_delivery),
+     ?STRING_CONFIG_FIELD(<<"Specify the type of payload data to be provided at this node">>,
+                          type),
      ?NLIST_CONFIG_FIELD(<<"The collections with which a node is affiliated">>,
                          collection)].
 
@@ -3742,11 +3793,12 @@ set_configure(Host, Node, From, Els, Lang) ->
                                                                end,
                                                      case set_xoption(Host, XData, OldOpts) of
                                                          NewOpts when is_list(NewOpts) ->
+                                                             NewNode = N#pubsub_node{options = NewOpts},
                                                              case tree_call(Host,
                                                                             set_node,
-                                                                            [N#pubsub_node{options = NewOpts}])
+                                                                            [NewNode])
                                                              of
-                                                                 ok -> {result, ok};
+                                                                 ok -> {result, NewNode};
                                                                  Err -> Err
                                                              end;
                                                          Error ->
@@ -3758,7 +3810,7 @@ set_configure(Host, Node, From, Els, Lang) ->
                                      end
                              end,
                     case transaction(Host, Node, Action, transaction) of
-                        {result, {TNode, ok}} ->
+                        {result, {_OldNode, TNode}} ->
                             Nidx = TNode#pubsub_node.id,
                             Type = TNode#pubsub_node.type,
                             Options = TNode#pubsub_node.options,
@@ -4098,6 +4150,14 @@ transaction(Host, Fun, Trans) ->
     Retry = 1,
     transaction_retry(Host, ServerHost, Fun, Trans, DBType, Retry).
 
+-spec transaction_retry(Host :: binary() | ejabberd:simple_jid(),
+                        ServerHost :: binary(),
+                        Fun :: fun(() -> tuple()),
+                        Trans :: atom(),
+                        DBType :: any(),
+                        Count :: non_neg_integer()) ->
+    {result, any()}
+    | {error, exml:element() | [exml:element()] | {exml:element(), [exml:element()]}}.
 transaction_retry(_Host, _ServerHost, _Fun, _Trans, _DBType, 0) ->
     {error, ?ERR_INTERNAL_SERVER_ERROR};
 transaction_retry(Host, ServerHost, Fun, Trans, DBType, Count) ->

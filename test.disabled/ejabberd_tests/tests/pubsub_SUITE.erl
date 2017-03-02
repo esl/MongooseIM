@@ -15,19 +15,28 @@
 
 -import(pubsub_tools,
         [create_node/3,
-         configure_node/4,
          delete_node/3,
+         request_configuration/3,
+         configure_node/4,
+         get_affiliations/3,
+         set_affiliations/4,
          subscribe/3,
          unsubscribe/3,
          publish/4,
+         retract_item/3,
          request_all_items/3,
          purge_all_items/3,
          retrieve_user_subscriptions/3,
          retrieve_node_subscriptions/3,
+         submit_subscription_response/5,
+         request_pending_subscriptions/3,
+         request_pending_subscriptions/4,
          modify_node_subscriptions/4,
          discover_nodes/3,
          receive_item_notification/4,
          receive_subscription_notification/4,
+         receive_subscription_request/4,
+         receive_subscription_requests/4,
          receive_node_creation_notification/3,
          receive_subscribe_response/3]).
 
@@ -38,9 +47,12 @@
 all() -> [
           {group, pubsub_tests},
           {group, node_config_tests},
+          {group, service_config_tests},
+          {group, node_affiliations_tests},
           {group, manage_subscriptions_tests},
           {group, collection_tests},
-          {group, collection_config_tests}
+          {group, collection_config_tests},
+          {group, debug_calls_tests}
          ].
 
 groups() -> [{pubsub_tests, [parallel],
@@ -49,14 +61,20 @@ groups() -> [{pubsub_tests, [parallel],
                discover_nodes_test,
                subscribe_unsubscribe_test,
                publish_test,
+               publish_with_max_items_test,
                notify_test,
                request_all_items_test,
+               retract_test,
+               retract_when_user_goes_offline_test,
                purge_all_items_test,
                retrieve_subscriptions_test
               ]
              },
              {node_config_tests, [parallel],
               [
+               retrieve_configuration_test,
+               set_configuration_test,
+               notify_config_test,
                disable_notifications_test,
                disable_payload_test,
                disable_persist_items_test,
@@ -65,10 +83,25 @@ groups() -> [{pubsub_tests, [parallel],
                send_last_published_item_test
               ]
              },
+             {service_config_tests, [parallel],
+              [
+               max_subscriptions_test
+              ]
+             },
+             {node_affiliations_tests, [parallel],
+              [
+               get_affiliations_test,
+               add_publisher_and_member_test,
+               swap_owners_test,
+               deny_no_owner_test
+              ]
+             },
              {manage_subscriptions_tests, [parallel],
               [
                retrieve_node_subscriptions_test,
-               modify_node_subscriptions_test
+               modify_node_subscriptions_test,
+               process_subscription_requests_test,
+               retrieve_pending_subscription_requests_test
               ]
              },
              {collection_tests, [parallel],
@@ -93,6 +126,11 @@ groups() -> [{pubsub_tests, [parallel],
                disable_payload_leaf_test,
                disable_persist_items_leaf_test
               ]
+             },
+             {debug_calls_tests, [parallel],
+              [
+               debug_get_items_test
+              ]
              }
             ].
 
@@ -107,7 +145,7 @@ node_addr() ->
     <<"pubsub.", Domain/binary>>.
 
 rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:rand_bytes(5)),
+    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
     <<Prefix/binary, "_", Suffix/binary>>.
 
 pubsub_node_name() ->
@@ -138,15 +176,27 @@ end_per_group(_GroupName, _Config) ->
 
 init_per_testcase(notify_unavailable_user_test, _Config) ->
     {skip, "mod_offline does not store events"};
+init_per_testcase(max_subscriptions_test, Config) ->
+    MaxSubs = lookup_service_option(domain(), max_subscriptions_node),
+    set_service_option(domain(), max_subscriptions_node, 1),
+    init_per_testcase(generic, [{max_subscriptions_node, MaxSubs} | Config]);
 init_per_testcase(_TestName, Config) ->
     escalus:init_per_testcase(_TestName, Config).
 
-end_per_testcase(_TestName, Config) ->
-    escalus:end_per_testcase(_TestName, Config).
+end_per_testcase(max_subscriptions_test, Config1) ->
+    {value, {_, OldMaxSubs}, Config2} = lists:keytake(max_subscriptions_node, 1, Config1),
+    set_service_option(domain(), max_subscriptions_node, OldMaxSubs),
+    end_per_testcase(generic, Config2);
+end_per_testcase(TestName, Config) ->
+    escalus:end_per_testcase(TestName, Config).
 
 %%--------------------------------------------------------------------
 %% Test cases for XEP-0060
 %% Comments in test cases refer to sections is the XEP
+%%--------------------------------------------------------------------
+
+%%--------------------------------------------------------------------
+%% Main PubSub cases
 %%--------------------------------------------------------------------
 
 create_delete_node_test(Config) ->
@@ -225,13 +275,39 @@ publish_test(Config) ->
               delete_node(Alice, Node, [])
       end).
 
+publish_with_max_items_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              NodeConfig = [{<<"pubsub#max_items">>, <<"1">>},
+                            {<<"pubsub#notify_retract">>, <<"1">>}],
+              create_node(Alice, Node, [{config, NodeConfig}]),
+              
+              publish(Alice, <<"item1">>, Node, []),
+              
+              subscribe(Bob, Node, []),
+
+              publish(Alice, <<"item2">>, Node, []),
+              receive_item_notification(Bob, <<"item2">>, Node, []),
+              verify_item_retract(Node, <<"item1">>, escalus:wait_for_stanza(Bob)),
+
+              delete_node(Alice, Node, [])
+      end).
+
 notify_test(Config) ->
     escalus:fresh_story(
       Config,
       [{alice, 1}, {bob, 2}, {geralt, 2}],
       fun(Alice, Bob1, Bob2, Geralt1, Geralt2) ->
               Node = pubsub_node(),
-              create_node(Alice, Node, []),
+
+              % It's a quick win for confirming happy path for this option
+              % TODO: Extract into separate test case
+              NodeConfig = [{<<"pubsub#presence_based_delivery">>, <<"1">>}],
+
+              create_node(Alice, Node, [{config, NodeConfig}]),
               subscribe(Bob1, Node, []),
               subscribe(Geralt1, Node, [{jid_type, bare}]),
               publish(Alice, <<"item1">>, Node, []),
@@ -264,6 +340,53 @@ request_all_items_test(Config) ->
               %% Response: 6.5.3 Ex.79 service returns all items
               request_all_items(Bob, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
               %% TODO check ordering (although XEP does not specify this)
+
+              delete_node(Alice, Node, [])
+      end).
+
+retract_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              create_node(Alice, Node, []),
+              publish(Alice, <<"item1">>, Node, []),
+              publish(Alice, <<"item2">>, Node, []),
+
+              %% Request:  7.2.1 Ex.115 Entity deletes an item from a node
+              %% Response: 7.2.2 Ex.116 Service replies with success
+              retract_item(Alice, Node, <<"item1">>),
+              request_all_items(Bob, Node, [{expected_result, [<<"item2">>]}]),
+
+              %% Request:  7.2.1 Ex.115 Entity deletes an item from a node
+              %% Response: 7.2.2 Ex.116 Service replies with success
+              %% Notification: 7.2.2.1 Ex.117 Subscribers are notified of deletion
+              configure_node(Alice, Node, [{<<"pubsub#notify_retract">>, <<"1">>}], []),
+              subscribe(Bob, Node, []),
+              retract_item(Alice, Node, <<"item2">>),
+              verify_item_retract(Node, <<"item2">>, escalus:wait_for_stanza(Bob)),
+              request_all_items(Bob, Node, [{expected_result, []}]),
+
+              delete_node(Alice, Node, [])
+      end).
+
+retract_when_user_goes_offline_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              NodeConfig = [{<<"pubsub#purge_offline">>, <<"1">>},
+                            {<<"pubsub#publish_model">>, <<"open">>}],
+              create_node(Alice, Node, [{config, NodeConfig}]),
+              
+              publish(Alice, <<"item1">>, Node, []),
+              publish(Bob, <<"item2">>, Node, []),
+              request_all_items(Alice, Node, [{expected_result, [<<"item2">>, <<"item1">>]}]),
+
+              escalus_client:stop(Bob),
+              request_all_items(Alice, Node, [{expected_result, [<<"item1">>]}]),
 
               delete_node(Alice, Node, [])
       end).
@@ -301,7 +424,7 @@ retrieve_subscriptions_test(Config) ->
               %% Response:     Ex.22 No Subscriptions
               retrieve_user_subscriptions(Bob, node_addr(), [{expected_result, []}]),
 
-              {_, NodeName} = {_, NodeName} = Node = pubsub_node(),
+              {_, NodeName} = Node = pubsub_node(),
               create_node(Alice, Node, []),
               subscribe(Bob, Node, []),
 
@@ -322,6 +445,58 @@ retrieve_subscriptions_test(Config) ->
 
               delete_node(Alice, Node, []),
               delete_node(Alice, Node2, [])
+      end).
+
+%%--------------------------------------------------------------------
+%% Node configuration
+%%--------------------------------------------------------------------
+
+retrieve_configuration_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              Node = pubsub_node(),
+              create_node(Alice, Node, []),
+
+              NodeConfig = request_configuration(Alice, Node, []),
+              verify_config_fields(NodeConfig),
+
+              delete_node(Alice, Node, [])
+      end).
+
+set_configuration_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              Node = pubsub_node(),
+              create_node(Alice, Node, []),
+
+              ValidNodeConfig = node_config_for_test(),
+              %% TODO: Investigate why this request may take more than 1s
+              pubsub_tools:configure_node(Alice, Node, ValidNodeConfig,
+                                          [{response_timeout, 10000}]),
+              NodeConfig = request_configuration(Alice, Node, []),
+              verify_config_values(NodeConfig, ValidNodeConfig),
+
+              delete_node(Alice, Node, [])
+      end).
+
+notify_config_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              create_node(Alice, Node, [{config, [{<<"pubsub#notify_config">>, <<"1">>}]}]),
+              subscribe(Bob, Node, []),
+
+              ConfigChange = [{<<"pubsub#title">>, <<"newtitle">>}],
+              configure_node(Alice, Node, ConfigChange, []),
+              verify_config_event(Node, ConfigChange, escalus:wait_for_stanza(Bob)),
+
+              delete_node(Alice, Node, [])
       end).
 
 disable_notifications_test(Config) ->
@@ -450,6 +625,106 @@ send_last_published_item_test(Config) ->
               delete_node(Alice, Node, [])
       end).
 
+%%--------------------------------------------------------------------
+%% Service config
+%%--------------------------------------------------------------------
+
+max_subscriptions_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              create_node(Alice, Node, []),
+
+              subscribe(Alice, Node, []),
+              IQError = subscribe(Bob, Node, [{expected_error_type, <<"cancel">>}]),
+              is_not_allowed_and_closed(IQError),
+
+              delete_node(Alice, Node, [])
+      end).
+
+%%--------------------------------------------------------------------
+%% Node affiliations management
+%%--------------------------------------------------------------------
+
+get_affiliations_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              Node = pubsub_node(),
+              create_node(Alice, Node, []),
+
+              verify_affiliations(get_affiliations(Alice, Node, []), [{Alice, <<"owner">>}]),
+
+              delete_node(Alice, Node, [])
+      end).
+
+add_publisher_and_member_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {kate, 1}],
+      fun(Alice, Bob, Kate) ->
+              Node = pubsub_node(),
+              NodeConfig = [{<<"pubsub#access_model">>, <<"whitelist">>},
+                            {<<"pubsub#publish_model">>, <<"publishers">>}],
+              create_node(Alice, Node, [{config, NodeConfig}]),
+
+              publish(Bob, <<"item1">>, Node, [{expected_error_type, <<"auth">>}]),
+              IQError = subscribe(Kate, Node, [{expected_error_type, <<"cancel">>}]),
+              is_not_allowed_and_closed(IQError),
+
+              AffChange = [{Bob, <<"publisher">>}, {Kate, <<"member">>}],
+              set_affiliations(Alice, Node, AffChange, []),
+
+              publish(Kate, <<"nope">>, Node, [{expected_error_type, <<"auth">>}]),
+              subscribe(Kate, Node, []),
+              publish(Bob, <<"item1">>, Node, []),
+              receive_item_notification(Kate, <<"item1">>, Node, []),
+
+              delete_node(Alice, Node, [])
+      end).
+
+swap_owners_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              create_node(Alice, Node, []),
+
+              AffChange = [{Bob, <<"owner">>}, {Alice, <<"none">>}],
+              set_affiliations(Alice, Node, AffChange, []),
+
+              get_affiliations(Alice, Node, [{expected_error_type, <<"auth">>}]),
+              verify_affiliations(get_affiliations(Bob, Node, []), [{Bob, <<"owner">>}]),
+
+              delete_node(Bob, Node, [])
+      end).
+
+deny_no_owner_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              Node = pubsub_node(),
+              create_node(Alice, Node, []),
+
+              AffChange = [{Alice, <<"member">>}],
+              IQError = set_affiliations(Alice, Node, AffChange,
+                                         [{expected_error_type, <<"modify">>}]),
+              verify_returned_affiliation(IQError, Alice, <<"owner">>),
+
+              verify_affiliations(get_affiliations(Alice, Node, []), [{Alice, <<"owner">>}]),
+
+              delete_node(Alice, Node, [])
+      end).
+
+%%--------------------------------------------------------------------
+%% Subscriptions management
+%%--------------------------------------------------------------------
+
 retrieve_node_subscriptions_test(Config) ->
     escalus:fresh_story(
       Config,
@@ -507,6 +782,57 @@ modify_node_subscriptions_test(Config) ->
 
               ModSubs = [{Geralt, bare, <<"subscribed">>}, {Geralt, full, <<"subscribed">>}],
               retrieve_node_subscriptions(Alice, Node, [{expected_result, ModSubs}]),
+
+              delete_node(Alice, Node, [])
+      end).
+
+process_subscription_requests_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {kate, 1}],
+      fun(Alice, Bob, Kate) ->
+              Node = pubsub_node(),
+              NodeConfig = [{<<"pubsub#access_model">>, <<"authorize">>}],
+              create_node(Alice, Node, [{config, NodeConfig}]),
+
+              subscribe(Bob, Node, [{subscription, <<"pending">>}]),
+              BobsRequest = receive_subscription_request(Alice, Bob, Node, []),
+              subscribe(Kate, Node, [{subscription, <<"pending">>}]),
+              KatesRequest = receive_subscription_request(Alice, Kate, Node, []),
+
+              submit_subscription_response(Alice, BobsRequest, Node, true, []),
+              receive_subscription_notification(Bob, <<"subscribed">>, Node, []),
+              submit_subscription_response(Alice, KatesRequest, Node, false, []),
+              receive_subscription_notification(Kate, <<"none">>, Node, []),
+
+              publish(Alice, <<"item1">>, Node, []),
+              receive_item_notification(Bob, <<"item1">>, Node, []),
+              [] = escalus:peek_stanzas(Kate),
+
+              delete_node(Alice, Node, [])
+      end).
+
+retrieve_pending_subscription_requests_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {kate, 1}],
+      fun(Alice, Bob, Kate) ->
+              {NodeAddr, NodeName} = Node = pubsub_node(),
+              NodeConfig = [{<<"pubsub#access_model">>, <<"authorize">>}],
+              create_node(Alice, Node, [{config, NodeConfig}]),
+
+              subscribe(Bob, Node, [{subscription, <<"pending">>}]),
+              receive_subscription_request(Alice, Bob, Node, []),
+              subscribe(Kate, Node, [{subscription, <<"pending">>}]),
+              receive_subscription_request(Alice, Kate, Node, []),
+
+              request_pending_subscriptions(Alice, NodeAddr, [NodeName], []),
+
+              %% TODO: XEP requires IQ result to come before the requests
+              Request = request_pending_subscriptions(Alice, Node, [{receive_response, false}]),
+              receive_subscription_requests(Alice, [Bob, Kate], Node, []),
+              IQRes = escalus:wait_for_stanza(Alice),
+              escalus:assert(is_iq_result, [Request], IQRes),
 
               delete_node(Alice, Node, [])
       end).
@@ -811,6 +1137,10 @@ request_all_items_leaf_test(Config) ->
               delete_node(Alice, Node, [])
       end).
 
+%%--------------------------------------------------------------------
+%% Collections config
+%%--------------------------------------------------------------------
+
 disable_notifications_leaf_test(Config) ->
     escalus:fresh_story(
       Config,
@@ -887,6 +1217,27 @@ disable_persist_items_leaf_test(Config) ->
       end).
 
 %%--------------------------------------------------------------------
+%% Debug calls tests
+%%--------------------------------------------------------------------
+
+debug_get_items_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              {NodeAddr, NodeName} = Node = pubsub_node(),
+              create_node(Alice, Node, []),
+              publish(Alice, <<"item1">>, Node, []),
+              publish(Alice, <<"item2">>, Node, []),
+
+              Items = escalus_ejabberd:rpc(mod_pubsub, get_items, [NodeAddr, NodeName]),
+              % We won't bother with importing records etc...
+              2 = length(Items),
+
+              delete_node(Alice, Node, [])
+      end).
+
+%%--------------------------------------------------------------------
 %% Tests for unsupported features  - excluded from suite
 %%--------------------------------------------------------------------
 
@@ -953,3 +1304,139 @@ required_modules() ->
                    {nodetree, <<"dag">>},
                    {host, "pubsub.@HOST@"}
                   ]}].
+
+verify_config_fields(NodeConfig) ->
+    ValidFields = [
+                   {<<"FORM_TYPE">>, <<"hidden">>},
+                   {<<"pubsub#title">>, <<"text-single">>}, 
+                   {<<"pubsub#deliver_notifications">>, <<"boolean">>},
+                   {<<"pubsub#deliver_payloads">>, <<"boolean">>},
+                   {<<"pubsub#notify_config">>, <<"boolean">>},
+                   {<<"pubsub#notify_delete">>, <<"boolean">>},
+                   {<<"pubsub#notify_retract">>, <<"boolean">>},
+% not supported yet                   {<<"pubsub#notify_sub">>, <<"boolean">>},
+                   {<<"pubsub#persist_items">>, <<"boolean">>},
+                   {<<"pubsub#max_items">>, <<"text-single">>},
+% not supported yet                   {<<"pubsub#item_expire">>, <<"text-single">>},
+                   {<<"pubsub#subscribe">>, <<"boolean">>},
+                   {<<"pubsub#access_model">>, <<"list-single">>},
+                   {<<"pubsub#roster_groups_allowed">>, <<"list-multi">>},
+                   {<<"pubsub#publish_model">>, <<"list-single">>},
+                   {<<"pubsub#purge_offline">>, <<"boolean">>},
+                   {<<"pubsub#max_payload_size">>, <<"text-single">>},
+                   {<<"pubsub#send_last_published_item">>, <<"list-single">>},
+                   {<<"pubsub#presence_based_delivery">>, <<"boolean">>},
+                   {<<"pubsub#notification_type">>, <<"list-single">>},
+                   {<<"pubsub#type">>, <<"text-single">>},
+% not supported yet                   {<<"pubsub#dataform_xslt">>, <<"text-single">>}
+% not supported yet                   {<<"pubsub#node_type">>, undef},
+% not supported yet                   {<<"pubsub#children">>, undef},
+                   {<<"pubsub#collection">>, <<"text-multi">>}
+                  ],
+    [] =
+    lists:foldl(fun({Var, Type}, Fields) ->
+                        {{value, {_, Type, _}, NewFields}, _}
+                        = {lists:keytake(Var, 1, Fields), Var},
+                        NewFields
+                end, NodeConfig, ValidFields).
+
+node_config_for_test() ->
+    [
+     {<<"pubsub#title">>, <<"TARDIS">>}, 
+     {<<"pubsub#deliver_notifications">>, <<"1">>},
+     {<<"pubsub#deliver_payloads">>, <<"1">>},
+     {<<"pubsub#notify_config">>, <<"0">>},
+     {<<"pubsub#notify_delete">>, <<"1">>},
+     {<<"pubsub#notify_retract">>, <<"1">>},
+     % Not supported yet                   {<<"pubsub#notify_sub">>, <<"boolean">>},
+     {<<"pubsub#persist_items">>, <<"0">>},
+     {<<"pubsub#max_items">>, <<"10">>},
+     % Not supported yet: {<<"pubsub#item_expire">>, <<"text-single">>},
+     {<<"pubsub#subscribe">>, <<"0">>},
+     {<<"pubsub#access_model">>, <<"presence">>},
+     % TODO: Verify with test case: {<<"pubsub#roster_groups_allowed">>, <<"list-multi">>},
+     {<<"pubsub#publish_model">>, <<"publishers">>},
+     {<<"pubsub#purge_offline">>, <<"1">>},
+     {<<"pubsub#max_payload_size">>, <<"24601">>},
+     {<<"pubsub#send_last_published_item">>, <<"on_sub">>},
+     {<<"pubsub#presence_based_delivery">>, <<"1">>},
+     {<<"pubsub#notification_type">>, <<"normal">>},
+     {<<"pubsub#type">>, <<"urn:mim">>}
+     % Not supported yet: {<<"pubsub#dataform_xslt">>, <<"text-single">>}
+     % Not supported yet: {<<"pubsub#node_type">>, undef},
+     % Not supported yet: {<<"pubsub#children">>, undef},
+     % Covered by collection tests: {<<"pubsub#collection">>, <<"text-multi">>}
+    ].
+
+verify_item_retract({NodeAddr, NodeName}, ItemId, Stanza) ->
+    escalus:assert(is_message, Stanza),
+    NodeAddr == exml_query:attr(Stanza, <<"from">>),
+
+    [#xmlel{ attrs = [{<<"xmlns">>, ?NS_PUBSUB_EVENT}] } = Event]
+    = exml_query:subelements(Stanza, <<"event">>),
+
+    [#xmlel{ attrs = [{<<"node">>, NodeName}] } = Items]
+    = exml_query:subelements(Event, <<"items">>),
+
+    [#xmlel{ attrs = [{<<"id">>, ItemId}] }] = exml_query:subelements(Items, <<"retract">>).
+
+verify_config_event({NodeAddr, NodeName}, ConfigChange, Stanza) ->
+    escalus:assert(is_message, Stanza),
+    NodeAddr == exml_query:attr(Stanza, <<"from">>),
+
+    [#xmlel{ attrs = [{<<"xmlns">>, ?NS_PUBSUB_EVENT}] } = Event]
+    = exml_query:subelements(Stanza, <<"event">>),
+
+    [#xmlel{ attrs = [{<<"node">>, NodeName}] } = ConfigEl]
+    = exml_query:subelements(Event, <<"configuration">>),
+
+    Fields = exml_query:paths(ConfigEl, [{element, <<"x">>},
+                                         {element, <<"field">>}]),
+
+    Opts = [ {exml_query:attr(F, <<"var">>),
+              exml_query:path(F, [{element, <<"value">>}, cdata])} || F <- Fields ],
+
+    true = lists:all(fun({K, V}) ->
+                             {K, V} =:= lists:keyfind(K, 1, Opts)
+                     end, ConfigChange).
+
+verify_config_values(NodeConfig, ValidConfig) ->
+    lists:foreach(fun({Var, Val}) ->
+                          {{_, _, Val}, _} = {lists:keyfind(Var, 1, NodeConfig), Var}
+                  end, ValidConfig).
+
+verify_affiliations(Affiliations, ValidAffiliations) ->
+    NormalisedValidAffiliations
+    = lists:sort([ {escalus_utils:jid_to_lower(escalus_client:short_jid(Client)), Aff}
+                   || {Client, Aff} <- ValidAffiliations ]),
+    NormalisedValidAffiliations = lists:sort(Affiliations).
+
+verify_returned_affiliation(IQError, User, Aff) ->
+    UserJid = escalus_utils:jid_to_lower(escalus_utils:get_short_jid(User)),
+    QPath = [{element, <<"pubsub">>},
+             {element, <<"affiliations">>},
+             {element, <<"affiliation">>}],
+    [AffEl] = exml_query:paths(IQError, QPath),
+    UserJid = exml_query:attr(AffEl, <<"jid">>),
+    Aff = exml_query:attr(AffEl, <<"affiliation">>).
+
+is_not_allowed_and_closed(IQError) ->
+    ?NS_STANZA_ERRORS = exml_query:path(IQError, [{element, <<"error">>},
+                                                  {element, <<"not-allowed">>},
+                                                  {attr, <<"xmlns">>}]),
+    ?NS_PUBSUB_ERRORS = exml_query:path(IQError, [{element, <<"error">>},
+                                                  {element, <<"closed-node">>},
+                                                  {attr, <<"xmlns">>}]).
+
+%% TODO: Functions below will most probably fail when mod_pubsub gets some nice refactoring!
+
+set_service_option(Host, Key, Val) ->
+    true = escalus_ejabberd:rpc(ets, insert, [service_tab_name(Host), {Key, Val}]).
+
+lookup_service_option(Host, Key) ->
+    [{_, Val}] = escalus_ejabberd:rpc(ets, lookup, [service_tab_name(Host), Key]),
+    Val.
+
+service_tab_name(Host) ->
+    escalus_ejabberd:rpc(gen_mod, get_module_proc, [Host, config]).
+
