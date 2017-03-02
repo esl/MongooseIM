@@ -38,13 +38,13 @@ all() ->
 
 groups() ->
     [
-        {pm_msg_notifications, [], [
+        {pm_msg_notifications, [parallel], [
             pm_msg_notify_on_apns_no_click_action,
             pm_msg_notify_on_fcm_no_click_action,
             pm_msg_notify_on_apns_w_click_action,
             pm_msg_notify_on_fcm_w_click_action
         ]},
-        {muclight_msg_notifications, [], [
+        {muclight_msg_notifications, [parallel], [
             muclight_msg_notify_on_apns_no_click_action,
             muclight_msg_notify_on_fcm_no_click_action,
             muclight_msg_notify_on_apns_w_click_action,
@@ -60,24 +60,25 @@ suite() ->
 %%--------------------------------------------------------------------
 
 connect_to(fcm) ->
-    FCMPort = os:getenv("FCM_MOCK_PORT", ?DEFAULT_FCM_MOCK_PORT),
-    {ok, FCM} = shotgun:open("localhost", list_to_integer(FCMPort), https),
+    FCMPort = list_to_integer(getenv("FCM_MOCK_PORT", ?DEFAULT_FCM_MOCK_PORT)),
+    {ok, FCM} = h2_client:start_link(https, "localhost", FCMPort),
     FCM;
 connect_to(apns) ->
-    APNSPort = os:getenv("APNS_MOCK_PORT", ?DEFAULT_APNS_MOCK_PORT),
-    {ok, APNS} = shotgun:open("localhost", list_to_integer(APNSPort), https),
+    APNSPort = list_to_integer(getenv("APNS_MOCK_PORT", ?DEFAULT_APNS_MOCK_PORT)),
+    {ok, APNS} = h2_client:start_link(https, "localhost", APNSPort),
     APNS;
 connect_to(mongoose_push) ->
-    PushPort = os:getenv("MONGOOSE_PUSH_PORT", ?DEFAULT_MONGOOSE_PUSH_PORT),
-    {ok, Push} = shotgun:open("localhost", list_to_integer(PushPort), https),
+    PushPort = list_to_integer(getenv("MONGOOSE_PUSH_PORT", ?DEFAULT_MONGOOSE_PUSH_PORT)),
+    {ok, Push} = h2_client:start_link(https, "localhost", PushPort),
     Push.
 
 init_per_suite(Config0) ->
     %% For mocking with unnamed functions
-    shotgun:start(),
-
     {_Module, Binary, Filename} = code:get_object_code(?MODULE),
     rpc(code, load_binary, [?MODULE, Filename, Binary]),
+
+    application:set_env(chatterbox, ssl_options, []),
+    application:ensure_all_started(chatterbox),
 
     %% Start modules
     Config = dynamic_modules:save_modules(domain(), Config0),
@@ -85,16 +86,27 @@ init_per_suite(Config0) ->
 
     rpc(mongoose_http_client, start, [[]]),
     rpc(mongoose_http_client, start_pool, [mongoose_push_http, [
-        {server, "https://localhost:" ++ os:getenv("MONGOOSE_PUSH_PORT",
+        {server, "https://localhost:" ++ getenv("MONGOOSE_PUSH_PORT",
                                                    ?DEFAULT_MONGOOSE_PUSH_PORT)}
     ]]),
 
-    try
-        connect_to(mongoose_push), %% Connect only to test if MongoosePush is available
-        escalus:init_per_suite(Config)
-    catch
-        _:_ ->
-            {skip, "MongoosePush is not available"}
+    SSLAppVersion = proplists:get_value(ssl_app, ssl:versions()),
+    [SSLMajorVersion | _] = string:tokens(SSLAppVersion, "."),
+    ct:pal("SSL Version ~p", [{SSLAppVersion, SSLMajorVersion}]),
+    case list_to_integer(SSLMajorVersion) >= 7 of
+        true ->
+            try
+                %% Connect only to test if MongoosePush is available
+                PushPortStr = getenv("MONGOOSE_PUSH_PORT", ?DEFAULT_MONGOOSE_PUSH_PORT),
+                {ok, _} = gen_tcp:connect("localhost", list_to_integer(PushPortStr), []),
+                escalus:init_per_suite(Config)
+            catch
+                _:_ ->
+                    {skip,  "MongoosePush is not available"}
+            end;
+        false ->
+            {skip,  "This test suite requires Erlang's SSL 7.0+ that is available in"
+                    "Erlang/OTP 18.0+"}
     end.
 
 
@@ -109,8 +121,8 @@ init_per_group(_, Config) ->
     %% Some cleaning up
     FCM = connect_to(fcm),
     APNS = connect_to(apns),
-    {ok, #{status_code := 200}} = shotgun:post(FCM, <<"/reset">>, #{}, <<>>, #{}),
-    {ok, #{status_code := 200}} = shotgun:post(APNS, <<"/reset">>, #{}, <<>>, #{}),
+    {ok, 200, _} = h2_req(FCM, post, <<"/reset">>),
+    {ok, 200, _} = h2_req(APNS, post, <<"/reset">>),
     rpc(mod_muc_light_db_backend, force_clear, []),
 
     Config.
@@ -407,7 +419,7 @@ muclight_msg_notify_on_fcm_w_click_action(Config) ->
 get_push_logs(Service, DeviceToken, Config) ->
     PushMock = connect_to(Service),
     wait_for(timer:seconds(10), fun() ->
-        {ok, #{body := Body}} = shotgun:get(PushMock, <<"/activity">>),
+        {ok, 200, Body} = h2_req(PushMock, get, <<"/activity">>),
         #{<<"logs">> := Logs} = jiffy:decode(Body, [return_maps]),
                                     
         DeviceLogs = lists:filter(
@@ -419,7 +431,6 @@ get_push_logs(Service, DeviceToken, Config) ->
             true -> 
                 DeviceLogs;
             false ->
-                ct:pal("get_push_logs ~p", [{Service, DeviceToken, Logs}]),
                 throw({no_push_messages, DeviceToken})
         end             
      end).
@@ -493,6 +504,32 @@ pubsub_node_name() ->
 
 pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
+
+getenv(VarName, Default) ->
+    case os:getenv(VarName) of
+        false ->
+            Default;
+        Value ->
+            Value
+    end.
+
+h2_req(Conn, Method, Path) ->
+    h2_req(Conn, Method, Path, <<>>).
+h2_req(Conn, Method, Path, Body) ->
+    BinMethod = list_to_binary(string:to_upper(atom_to_list(Method))),
+    Headers = [
+        {<<":method">>, BinMethod},
+        {<<":path">>, Path},
+        {<<":authority">>, <<"localhost">>},
+        {<<":scheme">>, <<"https">>}
+    ],
+    case h2_client:sync_request(Conn, Headers, Body) of
+        {ok, {RespHeaders, RespBody}} ->
+            Status = proplists:get_value(<<":status">>, RespHeaders),
+            {ok, binary_to_integer(Status), iolist_to_binary(RespBody)};
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 required_modules() ->
     [
