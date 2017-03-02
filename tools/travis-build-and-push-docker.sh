@@ -30,9 +30,8 @@ fi
 
 IMAGE_TAG=${DOCKERHUB_USER}/mongooseim:${DOCKERHUB_TAG}
 
-git clone https://github.com/esl/mongooseim-docker.git
+git clone -b 843558f https://github.com/esl/mongooseim-docker.git
 cd mongooseim-docker
-git checkout 843558f
 
 cp ../${MONGOOSE_TGZ} member
 
@@ -44,6 +43,6 @@ docker build -f Dockerfile.member -t ${IMAGE_TAG} \
 
 docker login -u ${DOCKERHUB_USER} -p ${DOCKERHUB_PASS}
 
-docker push ${DOCKERHUB_USER}/mongooseim:${DOCKERHUB_TAG}
+docker push ${IMAGE_TAG}
 
 fi
