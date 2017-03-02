@@ -16,11 +16,13 @@
 
 %% Send request, receive (optional) response
 -export([create_node/3,
+         request_configuration/3,
          configure_node/4,
          delete_node/3,
          subscribe/3,
          unsubscribe/3,
          publish/4,
+         retract_item/3,
          request_all_items/3,
          purge_all_items/3,
          retrieve_user_subscriptions/3,
@@ -61,6 +63,11 @@ create_node(User, Node, Options) ->
 
     send_request_and_receive_response(User, Request, Id, Options).
 
+request_configuration(User, Node, Options) ->
+    Id = id(User, Node, <<"get_config">>),
+    Request = escalus_pubsub_stanza:request_configuration(User, Id, Node),
+    decode_config_form(send_request_and_receive_response(User, Request, Id, Options)).
+
 configure_node(User, Node, Config, Options) ->
     Id = id(User, Node, <<"configure_node">>),
     Request = escalus_pubsub_stanza:configure_node(User, Id, Node, Config),
@@ -95,6 +102,11 @@ publish(User, ItemId, Node, Options) ->
                   false -> escalus_pubsub_stanza:publish(User, Id, Node)
               end,
     send_request_and_receive_response(User, Request, Id, Options).
+
+retract_item(User, Node, ItemId) ->
+    Id = id(User, Node, <<"retract">>),
+    Request = escalus_pubsub_stanza:retract(User, Id, Node, ItemId),
+    send_request_and_receive_response(User, Request, Id, []).
 
 request_all_items(User, {_, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"items">>),
@@ -355,3 +367,20 @@ id(User, {NodeAddr, NodeName}, Suffix) ->
 item_content() ->
     #xmlel{name = <<"entry">>,
            attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}]}.
+
+decode_config_form(IQResult) ->
+    PubSubNode = exml_query:subelement(IQResult, <<"pubsub">>),
+    ?NS_PUBSUB_OWNER = exml_query:attr(PubSubNode, <<"xmlns">>),
+
+    QPath = [{element, <<"configure">>}, {element, <<"x">>}, {element, <<"field">>}],
+    Fields = exml_query:paths(PubSubNode, QPath),
+    lists:map(fun decode_config_field/1, Fields).
+
+decode_config_field(F) ->
+    Var = exml_query:attr(F, <<"var">>),
+    Type = exml_query:attr(F, <<"type">>),
+    case exml_query:paths(F, [{element, <<"value">>}, cdata]) of
+        [Value] -> {Var, Type, Value};
+        Values -> {Var, Type, Values}
+    end.
+

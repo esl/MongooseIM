@@ -3711,6 +3711,8 @@ get_configure_xfields(_Type, Options, Lang, Groups) ->
                          send_last_published_item, [never, on_sub, on_sub_and_presence]),
      ?BOOL_CONFIG_FIELD(<<"Only deliver notifications to available users">>,
                         presence_based_delivery),
+     ?STRING_CONFIG_FIELD(<<"Specify the type of payload data to be provided at this node">>,
+                          type),
      ?NLIST_CONFIG_FIELD(<<"The collections with which a node is affiliated">>,
                          collection)].
 
@@ -3742,11 +3744,12 @@ set_configure(Host, Node, From, Els, Lang) ->
                                                                end,
                                                      case set_xoption(Host, XData, OldOpts) of
                                                          NewOpts when is_list(NewOpts) ->
+                                                             NewNode = N#pubsub_node{options = NewOpts},
                                                              case tree_call(Host,
                                                                             set_node,
-                                                                            [N#pubsub_node{options = NewOpts}])
+                                                                            [NewNode])
                                                              of
-                                                                 ok -> {result, ok};
+                                                                 ok -> {result, NewNode};
                                                                  Err -> Err
                                                              end;
                                                          Error ->
@@ -3758,7 +3761,7 @@ set_configure(Host, Node, From, Els, Lang) ->
                                      end
                              end,
                     case transaction(Host, Node, Action, transaction) of
-                        {result, {TNode, ok}} ->
+                        {result, {_OldNode, TNode}} ->
                             Nidx = TNode#pubsub_node.id,
                             Type = TNode#pubsub_node.type,
                             Options = TNode#pubsub_node.options,
