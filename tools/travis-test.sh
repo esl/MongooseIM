@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 IFS=$'\n\t'
 
 PRESET="internal_mnesia"
@@ -121,10 +121,8 @@ run_test_preset() {
 }
 
 run_tests() {
-  set +e
   maybe_run_small_tests
   SMALL_STATUS=$?
-  set -e
   echo "SMALL_STATUS=$SMALL_STATUS"
   echo ""
   echo "############################"
@@ -135,10 +133,8 @@ run_tests() {
     start_node $node;
   done
 
-  set +e
   run_test_preset
   BIG_STATUS=$?
-  set -e
 
   for node in ${NODES[@]}; do
     stop_node $node;
@@ -169,10 +165,8 @@ run_tests() {
 
 if [ $PRESET == "dialyzer_only" ]; then
   tools/print-dots.sh start
-  set +e
   ./rebar3 dialyzer
   RESULT=$?
-  set -e
   tools/print-dots.sh stop
   exit ${RESULT}
 else
