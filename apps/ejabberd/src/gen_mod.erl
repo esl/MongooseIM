@@ -104,11 +104,23 @@ start() ->
                    Module :: module(),
                    Opts :: [any()]) -> any().
 start_module(Host, Module, Opts0) ->
+    {links, LinksBefore} = erlang:process_info(self(), links),
     Opts = clear_opts(Module, Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host = {Module, Host}, opts = Opts}),
     try
         Res = Module:start(Host, Opts),
+        {links, LinksAfter} = erlang:process_info(self(), links),
+        case lists:sort(LinksBefore) =:= lists:sort(LinksAfter) of
+            true -> ok;
+            false ->
+                %% Note for programmers:
+                %% Never call start_link directory in module:start function!
+                %% The process will be killed if we start modules remotely or in shell
+                ?ERROR_MSG("issue=unexpected_links, cause_travis_build_failure=true,"
+                            " links_before=~p, links_after=~p",
+                           [LinksBefore, LinksAfter])
+        end,
         ?DEBUG("Module ~p started for ~p.", [Module, Host]),
         Res
     catch
