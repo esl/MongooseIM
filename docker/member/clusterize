@@ -1,0 +1,57 @@
+#!/usr/bin/env escript
+%%!
+%% -*- erlang -*-
+%% vim: ft=erlang
+
+main(Args) ->
+    {[Node | _] = NodeNameType, Cookie, ClusterNode, Dir} = parse_args(Args),
+    start_networking(NodeNameType, Cookie, ClusterNode),
+    start_mnesia(Dir),
+    cluster_mongooseim(Node, ClusterNode),
+    ok.
+
+parse_args([SNodeNameType, SCookie, SClusterNode, SDir]) ->
+    NodeNameType = case SNodeNameType of
+                       "sname:" ++ SNode -> [list_to_atom(SNode), shortnames];
+                       "name:" ++ SNode -> [list_to_atom(SNode)]
+                   end,
+    Cookie = list_to_atom(SCookie),
+    ClusterNode = list_to_atom(SClusterNode),
+    Dir = SDir,
+    {NodeNameType, Cookie, ClusterNode, Dir}.
+
+start_networking(NodeNameType, Cookie, ClusterNode) ->
+    {ok, _} = net_kernel:start(NodeNameType),
+    true = erlang:set_cookie(node(), Cookie),
+    ok = wait_for_pong(ClusterNode).
+
+wait_for_pong(Node) ->
+    wait_for_pong(net_adm:ping(Node), Node, 20, 100).
+
+wait_for_pong(pong, _Node, _Retries, _Interval) ->
+    io:format("~n", []),
+    ok;
+wait_for_pong(pang, _Node, 0, _Interval) ->
+    io:format("~n", []),
+    timeout;
+wait_for_pong(pang, Node, Retries, Interval) ->
+    io:format(".", []),
+    timer:sleep(Interval),
+    wait_for_pong(net_adm:ping(Node), Node, Retries - 1, Interval).
+
+start_mnesia(Dir) ->
+    ok = application:set_env(mnesia, dir, Dir),
+    Dir = mnesia:system_info(directory),
+    ok = mnesia:start().
+
+cluster_mongooseim(Node, ClusterNode) ->
+    {ok, [ClusterNode]} = mnesia:change_config(extra_db_nodes, [ClusterNode]),
+    true = lists:member(ClusterNode, mnesia:system_info(running_db_nodes)),
+    {atomic, ok} = mnesia:change_table_copy_type(schema, Node, disc_copies),
+    Tables = mnesia:system_info(tables) -- [schema],
+    true = repeat(length(Tables), {atomic, ok}) == [ mnesia:add_table_copy(T, Node, ram_copies)
+                                                     || T <- Tables ],
+    ok.
+
+repeat(N, El) ->
+    [ El || _ <- lists:seq(1, N) ].
