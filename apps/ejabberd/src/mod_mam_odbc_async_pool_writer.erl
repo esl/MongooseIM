@@ -19,7 +19,7 @@
          lookup_messages/15,
          remove_archive/4,
          purge_single_message/6,
-         purge_multiple_messages/9]).
+         purge_multiple_messages/9, run_flush/1, do_run_flush/2]).
 
 %% Helpers for debugging
 -export([queue_length/1,
@@ -326,7 +326,7 @@ run_flush(State = #state{acc = []}) ->
     State;
 run_flush(State = #state{host = Host, acc = Acc}) ->
     MessageCount = length(Acc),
-    {FlushTime, NewState} = timer:tc(fun do_run_flush/2, [MessageCount, State]),
+    {FlushTime, NewState} = timer:tc(?MODULE, do_run_flush, [MessageCount, State]),
     mongoose_metrics:update(Host, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
     mongoose_metrics:update(Host, ?MESSAGES_FLUSHED, MessageCount),
     NewState.
@@ -412,7 +412,7 @@ handle_call(wait_flushing, From,
     %% Run flusging earlier, if there are too much IQ requests waiting.
     %% Write only full packets of messages in overloaded state.
     case length(Subs) + 1 >= MaxSubs andalso not is_overloaded(self()) of
-        true -> {noreply, run_flush(State2)};
+        true -> {noreply, ?MODULE:run_flush(State2)};
         false -> {noreply, State2}
     end.
 
@@ -432,7 +432,7 @@ handle_cast({archive_message, Row},
             end,
     State2 = State#state{acc=[Row|Acc], flush_interval_tref=TRef2},
     case length(Acc) + 1 >= Max of
-        true -> {noreply, run_flush(State2)};
+        true -> {noreply, ?MODULE:run_flush(State2)};
         false -> {noreply, State2}
     end;
 handle_cast(Msg, State) ->
@@ -448,7 +448,7 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 handle_info(flush, State) ->
-    {noreply, run_flush(State#state{flush_interval_tref=undefined})}.
+    {noreply, ?MODULE:run_flush(State#state{flush_interval_tref=undefined})}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
