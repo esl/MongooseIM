@@ -199,7 +199,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version|join_cluster|leave_cluster}"
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version}"
         exit 1
         ;;
 esac
