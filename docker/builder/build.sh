@@ -14,16 +14,9 @@ log () {
 
 build () {
     local name=${1:-MongooseIM}
-    local commit=${2:-master}
-    local repo=${3:-https://github.com/esl/MongooseIM}
+    local repo=${2:-https://github.com/esl/MongooseIM}
+    local commit=${3:-master}
     log do_build: $name $commit $repo | tee -a $LOGFILE
-    do_build $name $commit $repo | tee -a ${LOGFILE}
-}
-
-do_build () {
-    local name=$1
-    local commit=$2
-    local repo=$3
     local workdir=/tmp/mongooseim
     local version_file=_build/prod/rel/mongooseim/version
     [ -d $workdir ] && rm -rf $workdir

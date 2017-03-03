@@ -1,8 +1,12 @@
 #!/bin/bash
 
-echo `pwd`
-echo `git remote -v | grep origin | grep fetch`
-
+REPO_FETCH_URL=`git remote -v | grep origin | grep fetch | awk '{print $2}'`
+if [[ ! "${REPO_FETCH_URL}" =~ ^http.* ]]; then
+       #REPO URL doesn't start with http, try to rewrite it
+       REPO_FETCH_URL=https://`echo ${REPO_FETCH_URL} | awk '{split($0,a,":"); split(a[1],b,"@"); print b[2]"/"a[2]}'`
+fi
+REPO_GIT_COMMIT=`git rev-parse --short HEAD`
+GIT_COMMIT=${SOURCE_COMMIT:-$REPO_GIT_COMMIT}
 BUILDER=mongooseim-builder
 VOLUMES=`pwd`
 
@@ -10,7 +14,7 @@ docker build -f Dockerfile.builder -t ${BUILDER} .
 docker create --name ${BUILDER} -h ${BUILDER} \
        -v ${VOLUMES}/builds:/builds ${BUILDER}
 docker start ${BUILDER}
-docker exec -i ${BUILDER} /build.sh
+docker exec -i ${BUILDER} /build.sh MongooseIM ${REPO_FETCH_URL} ${GIT_COMMIT}
 
 cp builds/mongooseim*.tar.gz member/mongooseim.tar.gz
 
