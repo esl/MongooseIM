@@ -100,6 +100,20 @@ maybe_run_small_tests() {
 	fi
 }
 
+start_services() {
+    for env in ${BASE}/test.disabled/ejabberd_tests/services/*-compose.yml; do
+        echo "Stating service" $(basename "${env}") "..."
+        docker-compose -f "${env}" up -d
+    done
+}
+
+stop_services() {
+    for env in ${BASE}/test.disabled/ejabberd_tests/services/*-compose.yml; do
+        echo "Stopping service" $(basename "${env}") "..."
+        docker-compose -f "${env}" down
+    done
+}
+
 run_test_preset() {
 	tools/print-dots.sh start
     cd ${BASE}/test.disabled/ejabberd_tests
@@ -125,7 +139,13 @@ run_tests() {
 		start_node $node;
 	done
 
+    # Start all additional services
+    start_services
+
 	run_test_preset
+
+    # Stop all additional
+	stop_services
 
 	RAN_TESTS=`cat /tmp/ct_count`
 

@@ -218,12 +218,12 @@ rest_service_called_with_correct_path(Config) ->
             escalus:send(Alice, PublishIQ),
             escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
 
-            Req = next_rest_req(),
-            ?assertMatch({<<"POST">>, _}, cowboy_req:method(Req)),
-            ?assertMatch({<<"v15">>, _}, cowboy_req:binding(level1, Req)),
-            ?assertMatch({<<"notification">>, _}, cowboy_req:binding(level2, Req)),
-            ?assertMatch({<<"sometoken_34320482">>, _}, cowboy_req:binding(level3, Req)),
-            ?assertMatch({undefined, _}, cowboy_req:binding(level4, Req))
+            {Req, _} = next_rest_req(),
+            ?assertMatch(<<"POST">>, cowboy_req:method(Req)),
+            ?assertMatch(<<"v15">>, cowboy_req:binding(level1, Req)),
+            ?assertMatch(<<"notification">>, cowboy_req:binding(level2, Req)),
+            ?assertMatch(<<"sometoken_34320482">>, cowboy_req:binding(level3, Req)),
+            ?assertMatch(undefined, cowboy_req:binding(level4, Req))
         end).
 
 rest_service_gets_correct_payload(Config) ->
@@ -249,8 +249,7 @@ rest_service_gets_correct_payload(Config) ->
             escalus:send(Alice, PublishIQ),
             escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
 
-            Req = next_rest_req(),
-            {ok, BodyRaw, _} = cowboy_req:body(Req),
+            {Req, BodyRaw} = next_rest_req(),
             Body = jsx:decode(BodyRaw, [return_maps]),
 
             ?assertMatch(#{<<"service">> := <<"some_awesome_service">>}, Body),
@@ -371,33 +370,22 @@ bare_jid(JIDOrClient) ->
 %% ----------------------------------------------
 %% REST mock handler
 setup_mock_rest(Port) ->
-    Dispatch = cowboy_router:compile([
-		{'_', [
-			{"/[:level1/[:level2/[:level3/[:level4]]]]", ?MODULE, [{pid, self()}]}
-		]}
-	]),
-	{ok, _} = cowboy:start_http(http, 100, [{port, Port}], [
-		{env, [{dispatch, Dispatch}]}
-	]).
+    TestPid = self(),
+    HandleFun = fun(Req) -> handle(Req, TestPid) end,
+    http_helper:start(Port, "/[:level1/[:level2/[:level3/[:level4]]]]", HandleFun).
 
-init(_Transport, Req, Opts) ->
-	{ok, Req, Opts}.
-
-handle(Req, State) ->
-    Master = proplists:get_value(pid, State),
-    Master ! {rest_req, Req},
-	{ok, cowboy_req:reply(204, [], <<>>, Req), State}.
-
-terminate(_Reason, _Req, _State) ->
-	ok.
+handle(Req, Master) ->
+    {ok, Body, Req2} = cowboy_req:read_body(Req),
+    Master ! {rest_req, Req2, Body},
+	cowboy_req:reply(204, #{}, <<>>, Req).
 
 teardown_mock_rest() ->
-    cowboy:stop_listener(http).
+    http_helper:stop().
 
 next_rest_req() ->
     receive
-        {rest_req, Req} ->
-            Req
+        {rest_req, Req, Body} ->
+            {Req, Body}
     after timer:seconds(5) ->
         throw(rest_mock_timeout)
     end.
