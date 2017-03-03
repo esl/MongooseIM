@@ -1,3 +1,16 @@
 #!/bin/bash
 
 echo `pwd`
+echo `git remote -v | grep origin | grep fetch`
+
+BUILDER=mongooseim-builder
+VOLUMES=`pwd`
+
+docker build -f Dockerfile.builder -t ${BUILDER} .
+docker create --name ${BUILDER} -h ${BUILDER} \
+       -v ${VOLUMES}/builds:/builds ${BUILDER}
+docker start ${BUILDER}
+docker exec -i ${BUILDER} /build.sh
+
+
+
