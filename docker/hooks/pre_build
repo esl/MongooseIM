@@ -12,5 +12,5 @@ docker create --name ${BUILDER} -h ${BUILDER} \
 docker start ${BUILDER}
 docker exec -i ${BUILDER} /build.sh
 
-
+cp builds/mongooseim*.tar.gz member/mongooseim.tar.gz
 
