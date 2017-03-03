@@ -326,7 +326,7 @@ run_flush(State = #state{acc = []}) ->
     State;
 run_flush(State = #state{host = Host, acc = Acc}) ->
     MessageCount = length(Acc),
-    {NewState, FlushTime} = timer:tc(fun do_run_flush/2, [MessageCount, State]),
+    {FlushTime, NewState} = timer:tc(fun do_run_flush/2, [MessageCount, State]),
     mongoose_metrics:update(Host, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
     mongoose_metrics:update(Host, ?MESSAGES_FLUSHED, MessageCount),
     NewState.
