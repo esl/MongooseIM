@@ -985,7 +985,7 @@ process_outgoing_stanza(Acc, ToJID, <<"iq">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
     El = mongoose_acc:get(element, Acc),
-    {_Acc, NState} = case mongoose_acc:get(xmlns, Acc) of
+    {_Acc, NState} = case mongoose_acc:get(xmlns, Acc, undefined) of
                          ?NS_PRIVACY ->
                              process_privacy_iq(Acc, ToJID, StateData);
                          ?NS_BLOCKING ->
