@@ -208,6 +208,7 @@ ctlexec ()
       -noinput \
       -hidden \
       $COOKIE_ARG \
+      -args_file $RUNNER_ETC_DIR/vm.dist.args \
       -pa "$EJABBERD_EBIN_PATH" \
       -s ejabberd_ctl -extra $NODENAME $COMMAND
 }
