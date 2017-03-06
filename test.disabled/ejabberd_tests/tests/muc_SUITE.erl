@@ -328,15 +328,14 @@ required_modules(http_auth) ->
     ].
 
 handle_http_auth(Req) ->
-    {Pass, Req1} = cowboy_req:qs_val(<<"pass">>, Req),
-    {Code, Msg} = case Pass of
+    Qs = cowboy_req:parse_qs(Req),
+    {Code, Msg} = case proplists:get_value(<<"pass">>, Qs, undefined) of
                       ?PASSWORD -> {0, <<"OK">>};
                       _ -> {121, <<"Password expired">>}
                   end,
     Resp = jiffy:encode(#{code => Code, msg => Msg}),
-    Headers = [{<<"content-type">>, <<"application/json">>}],
-    {ok, Req2} = cowboy_req:reply(200, Headers, Resp, Req1),
-    Req2.
+    Headers = #{<<"content-type">> => <<"application/json">>},
+    cowboy_req:reply(200, Headers, Resp, Req).
 
 end_per_group(admin_membersonly, Config) ->
     destroy_room(Config),
@@ -357,6 +356,7 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
         _ -> ok
     end,
     ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [muc_http_auth_test]),
+    ejabberd_node_utils:call_fun(mongoose_http_client, stop, []),
     dynamic_modules:restore_modules(domain(), Config);
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of

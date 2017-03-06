@@ -95,8 +95,8 @@ start_http_listener(simple_message_failing_listener, Prefix) ->
     http_helper:start(8000, Prefix, fun(Req) -> Req end).
 
 process_notification(Req, Pid) ->
-    {ok, Body, Req1} = cowboy_req:body(Req),
-    {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], <<"OK">>, Req1),
+    {ok, Body, Req1} = cowboy_req:read_body(Req),
+    Req2 = cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, <<"OK">>, Req1),
     Pid ! {got_http_request, Body},
     Req2.
 
