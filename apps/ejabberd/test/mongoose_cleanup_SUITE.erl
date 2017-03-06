@@ -62,7 +62,7 @@ meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, ejabberd_config].
 cleaner_runs_hook_on_nodedown(_Config) ->
     {ok, Cleaner} = mongoose_cleaner:start_link(),
     Self = self(),
-    NotifySelf = fun (_Acc, Node) -> Self ! {got_nodedown, Node} end,
+    NotifySelf = fun (Acc, Node) -> Self ! {got_nodedown, Node}, Acc end,
     ejabberd_hooks:add(node_cleanup, global, undefined, NotifySelf, 50),
 
     FakeNode = fakename@fakehost,
