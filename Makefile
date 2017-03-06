@@ -55,21 +55,14 @@ $(DEVNODES): certs configure.out rel/vars.config
 	(. ./configure.out && \
 	DEVNODE=true ./rebar3 as $@ release) > $(LOG_SILENCE_COVER)
 
-certs: priv/ssl/fake_cert.pem priv/ssl/fake_server.pem priv/ssl/fake_dh_server.pem
+certs: tools/ssl/ca/cacert.pem tools/ssl/fake_cert.pem \
+       tools/ssl/fake_key.pem tools/ssl/fake_server.pem \
+	   tools/ssl/fake_dh_server.pem
 
-priv/ssl/fake_cert.pem:
-	@mkdir -p $(@D)
-	openssl req \
-	-x509 -nodes -days 365 \
-	-subj '/C=PL/ST=ML/L=Krakow/CN=mongoose-im' \
-	-newkey rsa:2048 -keyout priv/ssl/fake_key.pem -out priv/ssl/fake_cert.pem
-
-priv/ssl/fake_server.pem: priv/ssl/fake_cert.pem
-	cat priv/ssl/fake_cert.pem priv/ssl/fake_key.pem > priv/ssl/fake_server.pem
-
-priv/ssl/fake_dh_server.pem:
-	@mkdir -p $(@D)
-	openssl dhparam -outform PEM -out priv/ssl/fake_dh_server.pem 1024
+tools/ssl/ca/cacert.pem tools/ssl/fake_cert.pem \
+tools/ssl/fake_key.pem tools/ssl/fake_server.pem \
+tools/ssl/fake_dh_server.pem:
+	cd tools/ssl && make
 
 xeplist: escript
 	escript $(XEP_TOOL)/xep_tool.escript markdown $(EJD_EBIN)
