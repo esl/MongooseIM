@@ -9,11 +9,9 @@ REPO_GIT_COMMIT=`git rev-parse --short HEAD`
 GIT_COMMIT=${SOURCE_COMMIT:-$REPO_GIT_COMMIT}
 BUILDER=mongooseim-builder
 VOLUMES=`pwd`
+mkdir builds
 
-docker build -f Dockerfile.builder -t ${BUILDER} .
-docker create --name ${BUILDER} -h ${BUILDER} \
-       -v ${VOLUMES}/builds:/builds ${BUILDER}
-docker start ${BUILDER}
+docker run -d --name ${BUILDER} -v ${VOLUMES}/builds:/builds mongooseim/mongooseim-builder:latest
 docker exec -i ${BUILDER} /build.sh MongooseIM ${REPO_FETCH_URL} ${GIT_COMMIT}
 
 cp builds/mongooseim*.tar.gz member/mongooseim.tar.gz
