@@ -80,6 +80,9 @@ worker_number(Host, ArcID) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+insert_statement_name(Size) ->
+    binary_to_atom(<<"insert_mam_messages_", (integer_to_binary(Size))/binary>>, latin1).
+
 start(Host, Opts) ->
     mongoose_metrics:ensure_metric(Host, ?MESSAGE_PROCESSING_TIME, histogram),
     mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
@@ -89,8 +92,7 @@ start(Host, Opts) ->
     {ok, _} = mongoose_rdbms_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
 
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
-    mod_mam_odbc_arch:prepare_insert(insert_mam_message, 1),
-    mod_mam_odbc_arch:prepare_insert(insert_mam_messages, MaxSize),
+    [mod_mam_odbc_arch:prepare_insert(insert_statement_name(Size), Size) || Size <- lists:seq(1, MaxSize)],
 
     start_workers(Host, PoolName, MaxSize),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -337,19 +339,7 @@ do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
 
-    InsertResult =
-        case MessageCount of
-            MaxSize ->
-                mongoose_rdbms:execute(Pool, insert_mam_messages, lists:append(Acc));
-            OtherSize ->
-                Results = [mongoose_rdbms:execute(Pool, insert_mam_message, Row) || Row <- Acc],
-                case lists:keyfind(error, 1, Results) of
-                    false -> {updated, OtherSize};
-                    Error -> Error
-                end
-        end,
-
-    case InsertResult of
+    case mongoose_rdbms:execute(Pool, insert_statement_name(MessageCount), lists:append(Acc)) of
         {updated, _Count} -> ok;
         {error, Reason} ->
             ejabberd_hooks:run(mam_drop_messages, Host, [Host, MessageCount]),
@@ -388,7 +378,7 @@ cancel_and_flush_timer(TRef) ->
 %%--------------------------------------------------------------------
 init([Host, N, Pool, MaxSize]) ->
     %% Use a private ODBC-connection.
-    Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
+    Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 500),
     MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
     {ok, #state{host=Host, connection_pool=Pool, number=N,
                 flush_interval = Int,
