@@ -39,14 +39,7 @@ store_and_retrieve(_C) ->
 
 
 init_from_element(_C) ->
-    Elem = {xmlel, <<"iq">>,
-        [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"set">>}],
-        [{xmlel, <<"block">>,
-            [{<<"xmlns">>, <<"urn:xmpp:blocking">>}],
-            [{xmlel, <<"item">>,
-                [{<<"jid">>, <<"bob37.814302@localhost">>}],
-                []}]}]},
-    Acc = mongoose_acc:from_element(Elem),
+    Acc = mongoose_acc:from_element(sample_stanza()),
     mongoose_acc:dump(Acc),
     ?PRT("Acc", Acc),
     ?assertEqual(mongoose_acc:get(name, Acc), <<"iq">>),
@@ -55,14 +48,7 @@ init_from_element(_C) ->
 
 
 get_and_require(_C) ->
-    Elem = {xmlel, <<"iq">>,
-        [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"set">>}],
-        [{xmlel, <<"block">>,
-            [{<<"xmlns">>, <<"urn:xmpp:blocking">>}],
-            [{xmlel, <<"item">>,
-                [{<<"jid">>, <<"bob37.814302@localhost">>}],
-                []}]}]},
-    Acc = mongoose_acc:from_element(Elem),
+    Acc = mongoose_acc:from_element(sample_stanza()),
     ?assertEqual(mongoose_acc:get(command, Acc, nope), nope),
     ?assertEqual(mongoose_acc:get(xmlns, Acc, nope), nope),
     Acc1 = mongoose_acc:require(command, Acc),
@@ -71,3 +57,15 @@ get_and_require(_C) ->
     Acc2 = mongoose_acc:require([command, xmlns], Acc),
     ?assertEqual(mongoose_acc:get(xmlns, Acc2), <<"urn:xmpp:blocking">>),
     ok.
+
+
+sample_stanza() ->
+    {xmlel, <<"iq">>,
+        [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"set">>}],
+        [{xmlel, <<"block">>,
+            [{<<"xmlns">>, <<"urn:xmpp:blocking">>}],
+            [{xmlel, <<"item">>,
+                [{<<"jid">>, <<"bob37.814302@localhost">>}],
+                []}]}]}.
+
+
