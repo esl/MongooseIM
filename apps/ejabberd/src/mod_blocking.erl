@@ -37,7 +37,7 @@ stop(Host) ->
         ?MODULE, process_iq_set, 50),
     ok.
 
-process_iq_get(_, _From = #jid{luser = LUser, lserver = LServer},
+process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
                _, #iq{xmlns = ?NS_BLOCKING}, _) ->
     Res = case mod_privacy_backend:get_privacy_list(LUser, LServer, <<"blocking">>) of
               {error, not_found} ->
@@ -47,16 +47,17 @@ process_iq_get(_, _From = #jid{luser = LUser, lserver = LServer},
               E ->
                   {error, E}
           end,
-    case Res of
-        {ok, Lst} ->
-            {result, blocking_query_response(Lst)};
-        {error, _} ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
-    end;
+    IqRes = case Res of
+                {ok, Lst} ->
+                    {result, blocking_query_response(Lst)};
+                {error, _} ->
+                    {error, ?ERR_INTERNAL_SERVER_ERROR}
+            end,
+    mongoose_acc:put(iq_result, IqRes, Acc);
 process_iq_get(Val, _, _, _, _) ->
     Val.
 
-process_iq_set(_, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
+process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     %% collect needed data
     #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{name = BType} = SubEl,
@@ -73,7 +74,8 @@ process_iq_set(_, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     %% process
     Res = process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs),
     %% respond / notify
-    complete_iq_set(blocking_command, LUser, LServer, Res);
+    Res1 = complete_iq_set(blocking_command, LUser, LServer, Res),
+    mongoose_acc:put(iq_result, Res1, Acc);
 process_iq_set(Val, _, _, _) ->
     Val.
 

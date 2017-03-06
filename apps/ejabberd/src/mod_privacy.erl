@@ -154,25 +154,26 @@ stop(Host) ->
 %% Handlers
 %% ------------------------------------------------------------------
 
-process_iq_get(_,
-        _From = #jid{luser = LUser, lserver = LServer},
-        _To,
-        #iq{xmlns = ?NS_PRIVACY, sub_el = #xmlel{children = Els}},
-        #userlist{name = Active}) ->
-    case xml:remove_cdata(Els) of
-        [] ->
-            process_lists_get(LUser, LServer, Active);
-        [#xmlel{name = Name, attrs = Attrs}] ->
-            case Name of
-                <<"list">> ->
-                    ListName = xml:get_attr(<<"name">>, Attrs),
-                    process_list_get(LUser, LServer, ListName);
-                _ ->
-                    {error, ?ERR_BAD_REQUEST}
-            end;
-        _ ->
-            {error, ?ERR_BAD_REQUEST}
-    end;
+process_iq_get(Acc,
+               _From = #jid{luser = LUser, lserver = LServer},
+               _To,
+               #iq{xmlns = ?NS_PRIVACY, sub_el = #xmlel{children = Els}},
+               #userlist{name = Active}) ->
+    Res = case xml:remove_cdata(Els) of
+              [] ->
+                  process_lists_get(LUser, LServer, Active);
+              [#xmlel{name = Name, attrs = Attrs}] ->
+                  case Name of
+                      <<"list">> ->
+                          ListName = xml:get_attr(<<"name">>, Attrs),
+                          process_list_get(LUser, LServer, ListName);
+                      _ ->
+                          {error, ?ERR_BAD_REQUEST}
+                  end;
+              _ ->
+                  {error, ?ERR_BAD_REQUEST}
+          end,
+    mongoose_acc:put(iq_result, Res, Acc);
 process_iq_get(Val, _, _, _, _) ->
     Val.
 
@@ -199,26 +200,27 @@ process_list_get(LUser, LServer, {value, Name}) ->
 process_list_get(_LUser, _LServer, false) ->
     {error, ?ERR_BAD_REQUEST}.
 
-process_iq_set(_, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
+process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
     #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{children = Els} = SubEl,
-    case xml:remove_cdata(Els) of
-        [#xmlel{name = Name, attrs = Attrs, children = SubEls}] ->
-            ListName = xml:get_attr(<<"name">>, Attrs),
-            case Name of
-                <<"list">> ->
-                    process_list_set(LUser, LServer, ListName,
-                             xml:remove_cdata(SubEls));
-                <<"active">> ->
-                    process_active_set(LUser, LServer, ListName);
-                <<"default">> ->
-                    process_default_set(LUser, LServer, ListName);
-                _ ->
-                    {error, ?ERR_BAD_REQUEST}
-            end;
-        _ ->
-            {error, ?ERR_BAD_REQUEST}
-    end;
+    Res = case xml:remove_cdata(Els) of
+              [#xmlel{name = Name, attrs = Attrs, children = SubEls}] ->
+                  ListName = xml:get_attr(<<"name">>, Attrs),
+                  case Name of
+                      <<"list">> ->
+                          process_list_set(LUser, LServer, ListName,
+                                   xml:remove_cdata(SubEls));
+                      <<"active">> ->
+                          process_active_set(LUser, LServer, ListName);
+                      <<"default">> ->
+                          process_default_set(LUser, LServer, ListName);
+                      _ ->
+                          {error, ?ERR_BAD_REQUEST}
+                  end;
+              _ ->
+                  {error, ?ERR_BAD_REQUEST}
+          end,
+    mongoose_acc:put(iq_result, Res, Acc);
 process_iq_set(Val, _, _, _) ->
     Val.
 

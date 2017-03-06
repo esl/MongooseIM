@@ -813,36 +813,33 @@ do_open_session(El, JID, StateData) ->
     do_open_session_common(JID, NStateData).
 
 do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
-                    change_shaper(NewStateData0, JID),
-                    {Fs, Ts, Pending} = ejabberd_hooks:run_fold(
-                                          roster_get_subscription_lists,
-                                          NewStateData0#state.server,
-                                          {[], [], []},
-                                          [U, NewStateData0#state.server]),
-                    LJID = jid:to_lower(jid:to_bare(JID)),
-                    Fs1 = [LJID | Fs],
-                    Ts1 = [LJID | Ts],
-                    PrivList =
-                    ejabberd_hooks:run_fold(
-                      privacy_get_user_list, NewStateData0#state.server,
-                      #userlist{},
-                      [U, NewStateData0#state.server]),
-                    SID = {p1_time_compat:timestamp(), self()},
-                    Conn = get_conn_type(NewStateData0),
-                    Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
-                            {auth_module, NewStateData0#state.auth_module}],
-                    ejabberd_sm:open_session(
-                      SID, U, NewStateData0#state.server, R, Info),
-                    NewStateData =
-                    NewStateData0#state{
-                      sid = SID,
-                      conn = Conn,
-                      pres_f = gb_sets:from_list(Fs1),
-                      pres_t = gb_sets:from_list(Ts1),
-                      pending_invitations = Pending,
-                      privacy_list = PrivList},
-                    fsm_next_state_pack(session_established,
-                        NewStateData).
+    change_shaper(NewStateData0, JID),
+    ?TEMPORARY,
+    Acc = ejabberd_hooks:run_fold(roster_get_subscription_lists,
+                                  NewStateData0#state.server,
+                                  mongoose_acc:new(),
+                                  [U, NewStateData0#state.server]),
+    {Fs, Ts, Pending} = mongoose_acc:get(subscription_lists, Acc, {[], [], []}),
+    LJID = jid:to_lower(jid:to_bare(JID)),
+    Fs1 = [LJID | Fs],
+    Ts1 = [LJID | Ts],
+    PrivList = ejabberd_hooks:run_fold(privacy_get_user_list,
+                                       NewStateData0#state.server,
+                                       #userlist{},
+                                       [U, NewStateData0#state.server]),
+    SID = {p1_time_compat:timestamp(), self()},
+    Conn = get_conn_type(NewStateData0),
+    Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
+            {auth_module, NewStateData0#state.auth_module}],
+    ejabberd_sm:open_session(SID, U, NewStateData0#state.server, R, Info),
+    NewStateData =
+    NewStateData0#state{sid = SID,
+                        conn = Conn,
+                        pres_f = gb_sets:from_list(Fs1),
+                        pres_t = gb_sets:from_list(Ts1),
+                        pending_invitations = Pending,
+                        privacy_list = PrivList},
+    fsm_next_state_pack(session_established, NewStateData).
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().
@@ -875,9 +872,6 @@ session_established({xmlstreamelement,
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
-    % this is where we probably should initialise accumulator, or even earlier
-    % but it would require hacking mod_amp at the very beginning
-    % so to make it simpler we do it a bit later (in process_outgoing_stanza/2)
     case check_from(El, FromJID) of
         'invalid-from' ->
             send_element(StateData, ?INVALID_FROM),
@@ -972,10 +966,7 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
     User = mongoose_acc:get(user, Acc),
-    Res = ejabberd_hooks:run_fold(c2s_update_presence,
-                                         Server,
-                                         Acc,
-                                         []),
+    Res = ejabberd_hooks:run_fold(c2s_update_presence, Server, Acc, []),
     El = mongoose_acc:get(element, Res),
     Res1 = ejabberd_hooks:run_fold(user_send_packet,
                                    Server,
@@ -985,37 +976,39 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
                           #jid{user = User,
                                server = Server,
                                resource = <<>>} ->
-                               presence_update(Res1, FromJID,
-                                               StateData);
+                               presence_update(Res1, FromJID, StateData);
                           _ ->
                                presence_track(Res1, StateData)
                       end,
     NState;
-process_outgoing_stanza(Acc, ToJID, <<"iq">>, StateData) ->
+process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
+    Acc = mongoose_acc:require(xmlns, Acc0),
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
-    NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
-    case jlib:iq_query_info(NewEl) of
-        #iq{xmlns = Xmlns} = IQ
-            when Xmlns == ?NS_PRIVACY;
-            Xmlns == ?NS_BLOCKING ->
-            process_privacy_iq(FromJID, ToJID, IQ, StateData);
-        _ ->
-            ejabberd_hooks:run(user_send_packet,
-                               Server,
-                               [FromJID, ToJID, NewEl]),
-            check_privacy_and_route(FromJID, StateData, FromJID, ToJID, NewEl),
-            StateData
-    end;
+    El = mongoose_acc:get(element, Acc),
+    {_Acc, NState} = case mongoose_acc:get(xmlns, Acc, undefined) of
+                         ?NS_PRIVACY ->
+                             process_privacy_iq(Acc, ToJID, StateData);
+                         ?NS_BLOCKING ->
+                             process_privacy_iq(Acc, ToJID, StateData);
+                         _ ->
+                             Acc2 = ejabberd_hooks:run_fold(user_send_packet,
+                                                            Server,
+                                                            Acc,
+                                                            [FromJID, ToJID, El]),
+                             Acc3 = check_privacy_and_route(Acc2, StateData),
+                             {Acc3, StateData}
+    end,
+    NState;
 process_outgoing_stanza(Acc, ToJID, <<"message">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
-    NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
-    ejabberd_hooks:run(user_send_packet,
-                       Server,
-                       [FromJID, ToJID, NewEl]),
-    check_privacy_and_route(FromJID, StateData, FromJID,
-                            ToJID, NewEl),
+    El = mongoose_acc:get(element, Acc),
+    Acc1 = ejabberd_hooks:run_fold(user_send_packet,
+                                   Server,
+                                   Acc,
+                                   [FromJID, ToJID, El]),
+    _Acc2 = check_privacy_and_route(Acc1, StateData),
     StateData;
 process_outgoing_stanza(_Acc, _ToJID, _Name, StateData) ->
     StateData.
@@ -1819,7 +1812,8 @@ presence_update(Acc, From, StateData) ->
                      end,
             Info = [{ip, StateData#state.ip}, {conn, StateData#state.conn},
                     {auth_module, StateData#state.auth_module}],
-            Acc1 = ejabberd_sm:unset_presence(Acc, StateData#state.sid,
+            Acc1 = ejabberd_sm:unset_presence(Acc,
+                                              StateData#state.sid,
                                               StateData#state.user,
                                               StateData#state.server,
                                               StateData#state.resource,
@@ -1866,14 +1860,14 @@ presence_update(Acc, From, StateData) ->
         <<"unsubscribed">> ->
             {Acc, StateData};
         _ ->
-            presence_update_to_available(Acc, StateData, From, Packet)
+            presence_update_to_available(Acc, From, Packet, StateData)
     end.
 
 -spec presence_update_to_available(Acc :: mongoose_acc:t(),
-                                   StateData :: state(),
                                    From :: ejabberd:jid(),
-                                   Packet :: exml:element()) -> {mongoose_acc:t(), state()}.
-presence_update_to_available(Acc, StateData, From, Packet) ->
+                                   Packet :: exml:element(),
+                                   StateData :: state()) -> {mongoose_acc:t(), state()}.
+presence_update_to_available(Acc, From, Packet, StateData) ->
     OldPriority = case StateData#state.pres_last of
                       undefined ->
                           0;
@@ -1890,44 +1884,52 @@ presence_update_to_available(Acc, StateData, From, Packet) ->
 
     FromUnavail = (StateData#state.pres_last == undefined) or StateData#state.pres_invis,
     ?DEBUG("from unavail = ~p~n", [FromUnavail]),
-    case FromUnavail of
-        true ->
-            Acc2 = ejabberd_hooks:run_fold(user_available_hook,
-                                           NewStateData#state.server,
-                                           Acc1,
-                                           [NewStateData#state.jid]),
-            NewStateData1
-            = case NewPriority >= 0 of
-                  true ->
-                      {_, _, Pending} = ejabberd_hooks:run_fold(
-                                          roster_get_subscription_lists,
-                                          NewStateData#state.server,
-                                          {[], [], []},
-                                          [StateData#state.user, NewStateData#state.server]),
-                      % TERMINATE - those two functions will be rewritten in the next stage
-                      resend_offline_messages(NewStateData),
-                      resend_subscription_requests(NewStateData#state{
-                                                     pending_invitations = Pending});
-                  false ->
-                      NewStateData
+    presence_update_to_available(FromUnavail, Acc1, OldPriority, NewPriority, From,
+                                 Packet, NewStateData).
+
+%% @doc the first one is run when presence changes from unavailable to anything else
+-spec presence_update_to_available(FromUnavailable :: boolean(),
+                                   Acc :: mongoose_acc:t(),
+                                   OldPriority :: integer(),
+                                   NewPriority :: integer(),
+                                   From :: ejabberd:jid(),
+                                   Packet :: exml:element(),
+                                   StateData :: state()) -> {mongoose_acc:t(), state()}.
+presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData) ->
+    Acc2 = ejabberd_hooks:run_fold(user_available_hook,
+                                   StateData#state.server,
+                                   Acc,
+                                   [StateData#state.jid]),
+    Res = case NewPriority >= 0 of
+              true ->
+                  Acc3 = ejabberd_hooks:run_fold(roster_get_subscription_lists,
+                                                 StateData#state.server,
+                                                 Acc2,
+                                                 [StateData#state.user,
+                                                 StateData#state.server]),
+                  {_, _, Pending} = mongoose_acc:get(subscription_lists, Acc3, {[], [], []}),
+                  Acc4 = resend_offline_messages(Acc3, StateData),
+                  resend_subscription_requests(Acc4,
+                                               StateData#state{pending_invitations = Pending});
+              false ->
+                  {Acc2, StateData}
               end,
-            presence_broadcast_first(Acc2, From, NewStateData1, Packet);
-        false ->
-            Acc2 = presence_broadcast_to_trusted(Acc1,
-                                                 NewStateData,
-                                                 From,
-                                                 NewStateData#state.pres_f,
-                                                 NewStateData#state.pres_a,
-                                                 Packet),
-            case OldPriority < 0 andalso NewPriority >= 0 of
-                true ->
-                    % TERMINATE - those two functions will be rewritten in the next stage
-                    resend_offline_messages(NewStateData);
-                false ->
-                    ok
-            end,
-            {Acc2, NewStateData}
-    end.
+    {Accum, NewStateData1} = Res,
+    presence_broadcast_first(Accum, From, NewStateData1, Packet);
+presence_update_to_available(false, Acc, OldPriority, NewPriority, From, Packet, StateData) ->
+    Acc2 = presence_broadcast_to_trusted(Acc,
+                                         StateData,
+                                         From,
+                                         StateData#state.pres_f,
+                                         StateData#state.pres_a,
+                                         Packet),
+    Acc3 = case OldPriority < 0 andalso NewPriority >= 0 of
+               true ->
+                   resend_offline_messages(Acc2, StateData);
+               false ->
+                   Acc2
+           end,
+    {Acc3, StateData}.
 
 %% @doc User sends a directed presence packet
 -spec presence_track(Acc :: mongoose_acc:t(),
@@ -1992,13 +1994,6 @@ presence_track(Acc, StateData) ->
             {Acc1, StateData#state{pres_i = I,
                                    pres_a = A}}
     end.
-
-check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
-    ?DEPRECATED,
-    Acc0 = mongoose_acc:from_element(Packet),
-    Acc1 = mongoose_acc:put(from_jid, From, Acc0),
-    Acc2 = mongoose_acc:put(to_jid, To, Acc1),
-    check_privacy_and_route(Acc2, FromRoute, StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),
                               StateData :: state()) -> mongoose_acc:t().
@@ -2229,56 +2224,70 @@ get_priority_from_presence(PresencePacket) ->
             end
     end.
 
-
--spec process_privacy_iq(From :: ejabberd:jid(),
+-spec process_privacy_iq(Acc :: mongoose_acc:t(),
                          To :: ejabberd:jid(),
-                         IQ :: ejabberd:iq(),
-                         State :: state()) -> state().
-process_privacy_iq(From, To,
-                   #iq{type = Type, sub_el = SubEl} = IQ,
-                   StateData) ->
-    {Res, NewStateData} =
-    case Type of
-        get ->
-            R = ejabberd_hooks:run_fold(
-                  privacy_iq_get, StateData#state.server,
-                  {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
-                  [From, To, IQ, StateData#state.privacy_list]),
-            {R, StateData};
-        set ->
-            case ejabberd_hooks:run_fold(
-                   privacy_iq_set, StateData#state.server,
-                   {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
-                   [From, To, IQ]) of
-                {result, R, NewPrivList} ->
-                    maybe_update_presence(StateData, NewPrivList),
-                    {{result, R},
-                     StateData#state{privacy_list = NewPrivList}};
-                R -> {R, StateData}
-            end
-    end,
+                         StateData :: state()) -> {mongoose_acc:t(), state()}.
+process_privacy_iq(Acc, To, StateData) ->
+    El = mongoose_acc:get(element, Acc),
+    IQ = jlib:iq_query_info(El),
+    Acc1 = mongoose_acc:put(iq, IQ, Acc),
+    From = mongoose_acc:get(from_jid, Acc1),
+    #iq{type = Type, sub_el = SubEl} = IQ,
+    {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
+    Res = mongoose_acc:get(iq_result, Acc2, {error, ?ERR_FEATURE_NOT_IMPLEMENTED}),
     IQRes = case Res of
                 {result, Result} ->
+                    IQ#iq{type = result, sub_el = Result};
+                {result, Result, _} ->
                     IQ#iq{type = result, sub_el = Result};
                 {error, Error} ->
                     IQ#iq{type = error, sub_el = [SubEl, Error]}
             end,
     ejabberd_router:route(To, From, jlib:iq_to_xml(IQRes)),
-    NewStateData.
+    {Acc2, NewStateData}.
 
-
--spec resend_offline_messages(state()) -> ok.
-resend_offline_messages(StateData) ->
-    ?DEBUG("resend offline messages~n", []),
-    case ejabberd_hooks:run_fold(
-           resend_offline_messages_hook, StateData#state.server,
-           [], [StateData#state.user, StateData#state.server]) of
-        Rs when is_list(Rs) ->
-            lists:foreach(
-              fun({route, From, To, #xmlel{} = Packet}) ->
-                      check_privacy_and_route_or_ignore(StateData, From, To, Packet, in)
-              end, Rs)
+-spec process_privacy_iq(Acc :: mongoose_acc:t(),
+                         Type :: get | set,
+                         To :: ejabberd:jid(),
+                         StateData :: state()) -> {mongoose_acc:t(), state()}.
+process_privacy_iq(Acc, get, To, StateData) ->
+    From = mongoose_acc:get(from_jid, Acc),
+    IQ = mongoose_acc:get(iq, Acc),
+    Acc1 = ejabberd_hooks:run_fold(privacy_iq_get,
+                                   StateData#state.server,
+                                   Acc,
+                                   [From, To, IQ, StateData#state.privacy_list]),
+    {Acc1, StateData};
+process_privacy_iq(Acc, set, To, StateData) ->
+    From = mongoose_acc:get(from_jid, Acc),
+    IQ = mongoose_acc:get(iq, Acc),
+    Acc1 = ejabberd_hooks:run_fold(privacy_iq_set,
+                                   StateData#state.server,
+                                   Acc,
+                                   [From, To, IQ]),
+    case mongoose_acc:get(iq_result, Acc1, undefined) of
+        {result, _, NewPrivList} ->
+            maybe_update_presence(StateData, NewPrivList),
+            NState = StateData#state{privacy_list = NewPrivList},
+            {Acc1, NState};
+        _ -> {Acc1, StateData}
     end.
+
+
+-spec resend_offline_messages(mongoose_acc:t(), state()) -> mongoose_acc:t().
+resend_offline_messages(Acc, StateData) ->
+    ?DEBUG("resend offline messages~n", []),
+    Acc1 = ejabberd_hooks:run_fold(resend_offline_messages_hook,
+                                   StateData#state.server,
+                                   Acc,
+                                   [StateData#state.user, StateData#state.server]),
+    Rs = mongoose_acc:get(offline_messages, Acc1, []),
+    Acc2 = lists:foldl(fun({route, From, To, #xmlel{} = Packet}, A) ->
+                           check_privacy_and_route_or_ignore(A, StateData, From, To, Packet, in)
+                       end,
+                       Acc1, Rs),
+    mongoose_acc:remove(offline_messages, Acc2). % they are gone from db backend and sent
+
 
 -spec check_privacy_and_route_or_ignore(StateData :: state(),
                                         From :: ejabberd:jid(),
@@ -2306,8 +2315,10 @@ check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
     end,
     Acc1.
 
--spec resend_subscription_requests(state()) -> state().
-resend_subscription_requests(#state{pending_invitations = Pending} = StateData) ->
+-spec resend_subscription_requests(mongoose_acc:t(), state()) -> {mongoose_acc:t(), state()}.
+resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateData) ->
+    % this seems to be one of the final function calls - or nearly final, depending on where
+    % do we want to terminate accumulator - on send_element or earlier
     NewState = lists:foldl(
                  fun(XMLPacket, #state{} = State) ->
                          send_element(State, XMLPacket),
@@ -2317,7 +2328,7 @@ resend_subscription_requests(#state{pending_invitations = Pending} = StateData) 
                          maybe_send_ack_request(BufferedStateData),
                          BufferedStateData
                  end, StateData, Pending),
-    NewState#state{pending_invitations = []}.
+    {Acc, NewState#state{pending_invitations = []}}.
 
 
 get_showtag(undefined) ->

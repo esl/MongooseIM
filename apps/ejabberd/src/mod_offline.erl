@@ -474,8 +474,8 @@ find_x_expire(TimeStamp, [El | Els]) ->
             find_x_expire(TimeStamp, Els)
     end.
 
-pop_offline_messages(Ls, User, Server) ->
-    Ls ++ pop_offline_messages(User, Server).
+pop_offline_messages(Acc, User, Server) ->
+    mongoose_acc:append(offline_messages, pop_offline_messages(User, Server), Acc).
 
 pop_offline_messages(User, Server) ->
     LUser = jid:nodeprep(User),
