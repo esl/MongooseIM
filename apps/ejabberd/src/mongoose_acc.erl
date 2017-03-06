@@ -13,7 +13,7 @@
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
--export([from_element/1, from_map/1, update/2, is_acc/1]).
+-export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
 -export([initialise/3, terminate/3, dump/1]).
 -export_type([t/0]).
 
@@ -63,10 +63,9 @@ from_kv(K, V) ->
 
 -spec from_element(xmlel()) -> t().
 from_element(El) ->
-    #xmlel{name = Name, attrs = Attrs, children = Children} = El,
+    #xmlel{name = Name, attrs = Attrs} = El,
     Type = exml_query:attr(El, <<"type">>, undefined),
-    Acc = #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type},
-    read_children(Acc, Children).
+    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type}.
 
 -spec from_map(map()) -> t().
 from_map(M) ->
@@ -113,6 +112,21 @@ append(Key, Val, P) ->
 remove(Key, Accumulator) ->
     maps:remove(Key, Accumulator).
 
+%% @doc Make sure the acc has certain keys - some of them require expensive computations and
+%% are therefore not calculated upon instantiation, this func is saying "I will need these,
+%% please prepare them for me"
+-spec require(atom() | [atom()], t()) -> t().
+require([], Acc) ->
+    Acc;
+require([Key|Tail], Acc) ->
+    Acc1 = case maps:is_key(Key, Acc) of
+               true -> Acc;
+               false -> produce(Key, Acc)
+           end,
+    require(Tail, Acc1);
+require(Key, Acc) ->
+    require([Key], Acc).
+
 %%%%% internal %%%%%
 
 append(Val, L) when is_list(L), is_list(Val) ->
@@ -126,15 +140,30 @@ dump(Acc, [K|Tail]) ->
     ?ERROR_MSG("~p = ~p", [K, maps:get(K, Acc)]),
     dump(Acc, Tail).
 
+
+%% @doc pattern-match to figure out (a) which attrs can be 'required' (b) how to cook them
+produce(xmlns, Acc) ->
+    read_children(Acc);
+produce(command, Acc) ->
+    read_children(Acc).
+
+
+%% @doc scan xml children to look for namespace; the name of xml element containing namespace
+%% defines the purpose of a stanza, we store it as 'command'; if absent, we store 'undefined'.
+read_children(Acc) ->
+    #xmlel{children = Children} = mongoose_acc:get(element, Acc),
+    read_children(Acc, Children).
+
 read_children(Acc, []) ->
     Acc;
 read_children(Acc, [Chld|Tail]) ->
-    Acc1 = case exml_query:attr(Chld, <<"xmlns">>, undefined) of
-               undefined ->
-                   Acc;
-               X ->
-                   #xmlel{name = Name} = Chld,
-                   mongoose_acc:put(command, Name, mongoose_acc:put(xmlns, X, Acc))
-           end,
+    {Xmlns, Command} = case exml_query:attr(Chld, <<"xmlns">>, undefined) of
+                           undefined ->
+                               {undefined, undefined};
+                           X ->
+                               #xmlel{name = Name} = Chld,
+                               {X, Name}
+                       end,
+    Acc1 = mongoose_acc:put(command, Command, mongoose_acc:put(xmlns, Xmlns, Acc)),
     read_children(Acc1, Tail).
 

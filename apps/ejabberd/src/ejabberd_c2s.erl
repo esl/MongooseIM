@@ -981,7 +981,8 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
                                presence_track(Res1, StateData)
                       end,
     NState;
-process_outgoing_stanza(Acc, ToJID, <<"iq">>, StateData) ->
+process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
+    Acc = mongoose_acc:require(xmlns, Acc0),
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get(server, Acc),
     El = mongoose_acc:get(element, Acc),

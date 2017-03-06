@@ -21,7 +21,7 @@ all() ->
 groups() ->
     [
      {basic, [sequence],
-      [store_and_retrieve, init_from_element ]
+      [store_and_retrieve, init_from_element, get_and_require ]
      }
     ].
 
@@ -51,6 +51,23 @@ init_from_element(_C) ->
     ?PRT("Acc", Acc),
     ?assertEqual(mongoose_acc:get(name, Acc), <<"iq">>),
     ?assertEqual(mongoose_acc:get(type, Acc), <<"set">>),
-    ?assertEqual(mongoose_acc:get(command, Acc), <<"block">>),
-    ?assertEqual(mongoose_acc:get(xmlns, Acc), <<"urn:xmpp:blocking">>),
+    ok.
+
+
+get_and_require(_C) ->
+    Elem = {xmlel, <<"iq">>,
+        [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"set">>}],
+        [{xmlel, <<"block">>,
+            [{<<"xmlns">>, <<"urn:xmpp:blocking">>}],
+            [{xmlel, <<"item">>,
+                [{<<"jid">>, <<"bob37.814302@localhost">>}],
+                []}]}]},
+    Acc = mongoose_acc:from_element(Elem),
+    ?assertEqual(mongoose_acc:get(command, Acc, nope), nope),
+    ?assertEqual(mongoose_acc:get(xmlns, Acc, nope), nope),
+    Acc1 = mongoose_acc:require(command, Acc),
+    ?assertEqual(mongoose_acc:get(command, Acc1), <<"block">>),
+    ?assertEqual(mongoose_acc:get(xmlns, Acc, nope), nope),
+    Acc2 = mongoose_acc:require([command, xmlns], Acc),
+    ?assertEqual(mongoose_acc:get(xmlns, Acc2), <<"urn:xmpp:blocking">>),
     ok.
