@@ -76,12 +76,20 @@ worker_number(Host, ArcID) ->
     ArcID rem worker_count(Host).
 
 
+-define(PER_MESSAGE_FLUSH_TIME, [mam, pm, per_message_flush_time]).
+-define(MESSAGES_FLUSHED, [mam, pm, messages_flushed]).
+-define(MESSAGE_PROCESSING_TIME, [mam, pm, message_processing_time]).
+
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
+    mongoose_metrics:ensure_metric(Host, ?MESSAGE_PROCESSING_TIME, histogram),
+    mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
+    mongoose_metrics:ensure_metric(Host, ?MESSAGES_FLUSHED, spiral),
+
     start_workers(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -192,8 +200,9 @@ start_link(ProcName, N, Host) ->
         Packet :: any()) -> ok.
 archive_message(_Result, Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    Row = mod_mam_odbc_arch:prepare_message(Host,
-        MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
+    {ProcessingTime, Row} = timer:tc(mod_mam_odbc_arch, prepare_message,
+                                     [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]),
+    mongoose_metrics:update(Host, ?MESSAGE_PROCESSING_TIME, ProcessingTime),
     Worker = select_worker(Host, ArcID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
@@ -312,9 +321,15 @@ are_recent_entries_required(_End, _Now) ->
 
 run_flush(State=#state{acc=[]}) ->
     State;
-run_flush(State=#state{host=Host, conn=Conn, number=N,
-                       flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
+run_flush(State = #state{host = Host, acc = Acc}) ->
     MessageCount = length(Acc),
+    {FlushTime, NewState} = timer:tc(fun do_run_flush/2, [MessageCount, State]),
+    mongoose_metrics:update(Host, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
+    mongoose_metrics:update(Host, ?MESSAGES_FLUSHED, MessageCount),
+    NewState.
+
+do_run_flush(MessageCount, State=#state{host=Host, conn=Conn, number=N,
+                       flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
     Result = mod_mam_odbc_arch:archive_messages(Conn, Acc, N),
@@ -439,4 +454,3 @@ terminate(_Reason, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
