@@ -219,11 +219,6 @@ enable_should_fail_with_invalid_attributes(Config) ->
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Bob)),
 
-            %% Invalid JID
-            escalus:send(Bob, enable_stanza(<<"this_is_not_a_valid_jid">>, <<"nodeId">>)),
-            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
-                           escalus:wait_for_stanza(Bob)),
-
             %% Empty node
             escalus:send(Bob, enable_stanza(PubsubJID, <<>>)),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
@@ -307,14 +302,6 @@ disable_should_fail_with_invalid_attributes(Config) ->
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Bob)),
             escalus:send(Bob, disable_stanza(<<>>)),
-            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
-                           escalus:wait_for_stanza(Bob)),
-
-            %% Invalid JID
-            escalus:send(Bob, disable_stanza(<<"this_is_not_a_valid_jid">>, <<"nodeId">>)),
-            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
-                           escalus:wait_for_stanza(Bob)),
-            escalus:send(Bob, disable_stanza(<<"this_is_not_a_valid_jid">>)),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Bob)),
             ok
