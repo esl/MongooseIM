@@ -16,7 +16,6 @@ tar -cjh --transform="s,${BUILD_PATH},mongooseim-${TRAVIS_BRANCH},S" -f ${MIM_TA
 tar czh --transform="s,${BUILD_PATH},mongooseim,S" -f $MONGOOSE_TGZ ${BUILD_PATH}
 
 export BUILDS=`pwd`
-export MEMBER_TGZ=mongooseim.tar.gz
 
 DOCKERHUB_TAG=${TRAVIS_BRANCH}
 VERSION=`tools/generate_vsn.sh`
@@ -28,7 +27,7 @@ elif [ ${TRAVIS_BRANCH} == 'master' ]; then
     DOCKERHUB_TAG="latest";
 fi
 
-IMAGE_TAG=${DOCKERHUB_USER}/mongooseim:${DOCKERHUB_TAG}
+IMAGE_TAG=${DOCKERHUB_REPO}/mongooseim:${DOCKERHUB_TAG}
 
 git clone https://github.com/esl/mongooseim-docker.git
 cd mongooseim-docker
