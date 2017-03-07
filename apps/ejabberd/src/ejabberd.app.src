@@ -18,6 +18,7 @@
                   exometer,
                   exometer_core,
                   jiffy,
+                  jwerl,
                   fusco,
                   idna,
                   kernel,

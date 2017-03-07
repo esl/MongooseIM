@@ -82,7 +82,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 auth_ok(_Config) ->
-    {ok, _Conn, _ClientProps, _} = escalus_connection:start(auth_client_props(),
+    {ok, _Conn, _ClientProps, _} = escalus_connection:start(auth_client_props(0),
                                                             [start_stream,
                                                              stream_features,
                                                              authenticate
@@ -90,16 +90,15 @@ auth_ok(_Config) ->
     ok.
 
 auth_fail(_Config) ->
-    ClientProps0 = auth_client_props(),
-    {error, _} = escalus_connection:start(auth_client_props(),
+    {error, _} = escalus_connection:start(auth_client_props(60),
                                           [start_stream,
                                            stream_features,
                                            authenticate
                                           ]),
     ok.
 
-auth_client_props() ->
-    Password = generate_token(60),
+auth_client_props(NbfDelta) ->
+    Password = generate_token(NbfDelta),
     [{username, ?USERNAME},
      {server, <<"localhost">>},
      {password, Password},
