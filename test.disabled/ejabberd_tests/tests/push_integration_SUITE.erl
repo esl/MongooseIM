@@ -140,21 +140,14 @@ end_per_testcase(CaseName, Config) ->
 %% GROUP pm_msg_notifications
 %%--------------------------------------------------------------------
 
+
 pm_msg_notify_on_apns(Config, EnableOpts) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            PubsubJID = node_addr(),
-            Node = {_, NodeName} = pubsub_node(),
             AliceJID = bare_jid(Alice),
-            DeviceToken = gen_token(),
 
-            pubsub_tools:create_node(Bob, Node, [{type, <<"push">>}]),
-            escalus:send(Bob, enable_stanza(PubsubJID, NodeName,
-                                            [{<<"service">>, <<"apns">>},
-                                             {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
-            become_unavailable(Bob),
+            DeviceToken = enable_push_for_user(Bob, <<"apns">>, EnableOpts),
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
@@ -180,17 +173,9 @@ pm_msg_notify_on_fcm(Config, EnableOpts) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            PubsubJID = node_addr(),
-            Node = {_, NodeName} = pubsub_node(),
             AliceJID = bare_jid(Alice),
-            DeviceToken = gen_token(),
 
-            pubsub_tools:create_node(Bob, Node, [{type, <<"push">>}]),
-            escalus:send(Bob, enable_stanza(PubsubJID, NodeName,
-                                            [{<<"service">>, <<"fcm">>},
-                                             {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
-            become_unavailable(Bob),
+            DeviceToken = enable_push_for_user(Bob, <<"fcm">>, EnableOpts),
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
@@ -232,21 +217,13 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            PubsubJID = node_addr(),
             Room = room_name(Config),
             BobJID = bare_jid(Bob),
             RoomJID = room_bin_jid(Room),
             SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
-            Node = {_, NodeName} = pubsub_node(),
-            DeviceToken = gen_token(),
-
-            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
             create_room(Room, [bob, alice, kate], Config),
-            escalus:send(Alice, enable_stanza(PubsubJID, NodeName,
-                                              [{<<"device_id">>, DeviceToken},
-                                               {<<"service">>, <<"apns">>}] ++ EnableOpts)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
-            become_unavailable(Alice),
+
+            DeviceToken = enable_push_for_user(Alice, <<"apns">>, EnableOpts),
 
             Msg = <<"Heyah!">>,
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
@@ -274,21 +251,13 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            PubsubJID = node_addr(),
             Room = room_name(Config),
             BobJID = bare_jid(Bob),
             RoomJID = room_bin_jid(Room),
             SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
-            Node = {_, NodeName} = pubsub_node(),
-            DeviceToken = gen_token(),
-
-            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
             create_room(Room, [bob, alice, kate], Config),
-            escalus:send(Alice, enable_stanza(PubsubJID, NodeName,
-                                              [{<<"device_id">>, DeviceToken},
-                                               {<<"service">>, <<"fcm">>}] ++ EnableOpts)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
-            become_unavailable(Alice),
+
+            DeviceToken = enable_push_for_user(Alice, <<"fcm">>, EnableOpts),
 
             Msg = <<"Heyah!">>,
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
@@ -327,6 +296,21 @@ muclight_msg_notify_on_fcm_w_click_action(Config) ->
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
+
+enable_push_for_user(User, Service, EnableOpts) ->
+    PubsubJID = node_addr(),
+    Node = {_, NodeName} = pubsub_node(),
+
+    DeviceToken = gen_token(),
+
+    pubsub_tools:create_node(User, Node, [{type, <<"push">>}]),
+    escalus:send(User, enable_stanza(PubsubJID, NodeName,
+                                     [{<<"service">>, Service},
+                                      {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
+    escalus:assert(is_result, escalus:wait_for_stanza(User)),
+    become_unavailable(User),
+    DeviceToken.
+
 
 get_push_logs(Service, DeviceToken, Config) ->
     PushMock = connect_to(Service),
