@@ -93,21 +93,63 @@ search(VHost, Data) ->
     R = do_search(VHost, MatchHead),
     lists:map(fun record_to_item/1, R).
 
-do_search(VHost, MatchHeadIn) ->
-    MatchHead = MatchHeadIn#vcard_search{us = {'_', VHost}},
-    case catch mnesia:dirty_select(vcard_search,
-        [{MatchHead, [], ['$_']}]) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p", [Reason]),
-            [];
-        Rs ->
-            case mod_vcard:get_results_limit(VHost) of
-                infinity ->
-                    Rs;
-                Val ->
-                    lists:sublist(Rs, Val)
-            end
+do_search(VHost, MatchHeadTuple) ->
+    MatchHead = tl(tuple_to_list(MatchHeadTuple)),
+    {atomic, Rs} =
+        mnesia:transaction(
+          fun() ->
+                  mnesia:foldl(
+                    fun(RecTuple, AccIn) ->
+                            Rec = tl(tuple_to_list(RecTuple)),
+                            case match_compare(MatchHead, Rec) of
+                                true ->
+                                    [RecTuple | AccIn];
+                                false ->
+                                    AccIn
+                            end
+                    end, [], vcard_search)
+          end),
+
+    case mod_vcard:get_results_limit(VHost) of
+        infinity ->
+            Rs;
+        Val ->
+            lists:sublist(Rs, Val)
     end.
+
+match_compare([], []) ->
+    %% Everything matched
+    true;
+match_compare(['_' | MatchHead], [_ | Rec]) ->
+    %% Ignore this field, continue
+    match_compare(MatchHead, Rec);
+match_compare([Pattern | MatchHead], [Field | Rec]) ->
+    BinField = field_to_binary(Field),
+    case binary:match(BinField, Pattern) of
+        nomatch ->
+            %% Mismatch, bail out
+            false;
+        {_, _} ->
+            %% Match, continue
+            match_compare(MatchHead, Rec)
+    end.
+
+field_to_binary(Field) when is_binary(Field) ->
+    Field;
+
+field_to_binary(Field) when is_list(Field) ->
+    list_to_binary(Field);
+
+field_to_binary({User, Domain}) when is_binary(User), is_binary(Domain) ->
+    <<User/binary, "@", Domain/binary>>;
+field_to_binary({User, Domain}) when is_list(User) ->
+    field_to_binary({list_to_binary(User), Domain});
+field_to_binary({User, Domain}) when is_list(Domain) ->
+    field_to_binary({User, list_to_binary(Domain)});
+
+field_to_binary(_) ->
+    <<"">>.
+
 
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
@@ -295,6 +337,7 @@ update_vcard_search_table() ->
 	    mnesia:transform_table(vcard_search, ignore, Fields)
     end.
 
+%% Produces a Match that is no longer suitable for mnesia:dirty_select/2
 make_matchhead(VHost, Data) ->
     GlobMatch = #vcard_search{_ = '_'},
     Match = filter_fields(Data, GlobMatch, VHost),
@@ -304,37 +347,26 @@ filter_fields([], Match, _VHost) ->
     Match;
 filter_fields([{SVar, [Val]} | Ds], Match, VHost)
   when is_binary(Val) and (Val /= <<"">>) ->
-    LVal = stringprep:tolower(Val),
+    LVal = binary:compile_pattern(stringprep:tolower(Val)),
     NewMatch =
         case SVar of
-            <<"user">> -> Match#vcard_search{luser = make_val(LVal)};
-            <<"fn">>       -> Match#vcard_search{lfn       = make_val(LVal)};
-            <<"last">>     -> Match#vcard_search{lfamily   = make_val(LVal)};
-            <<"first">>    -> Match#vcard_search{lgiven    = make_val(LVal)};
-            <<"middle">>   -> Match#vcard_search{lmiddle   = make_val(LVal)};
-            <<"nick">>     -> Match#vcard_search{lnickname = make_val(LVal)};
-            <<"bday">>     -> Match#vcard_search{lbday     = make_val(LVal)};
-            <<"ctry">>     -> Match#vcard_search{lctry     = make_val(LVal)};
-            <<"locality">> -> Match#vcard_search{llocality = make_val(LVal)};
-            <<"email">>    -> Match#vcard_search{lemail    = make_val(LVal)};
-            <<"orgname">>  -> Match#vcard_search{lorgname  = make_val(LVal)};
-            <<"orgunit">>  -> Match#vcard_search{lorgunit  = make_val(LVal)};
+            <<"user">> -> Match#vcard_search{luser = LVal};
+            <<"fn">>       -> Match#vcard_search{lfn       = LVal};
+            <<"last">>     -> Match#vcard_search{lfamily   = LVal};
+            <<"first">>    -> Match#vcard_search{lgiven    = LVal};
+            <<"middle">>   -> Match#vcard_search{lmiddle   = LVal};
+            <<"nick">>     -> Match#vcard_search{lnickname = LVal};
+            <<"bday">>     -> Match#vcard_search{lbday     = LVal};
+            <<"ctry">>     -> Match#vcard_search{lctry     = LVal};
+            <<"locality">> -> Match#vcard_search{llocality = LVal};
+            <<"email">>    -> Match#vcard_search{lemail    = LVal};
+            <<"orgname">>  -> Match#vcard_search{lorgname  = LVal};
+            <<"orgunit">>  -> Match#vcard_search{lorgunit  = LVal};
             _              -> Match
         end,
     filter_fields(Ds, NewMatch, VHost);
 filter_fields([_ | Ds], Match, VHost) ->
     filter_fields(Ds, Match, VHost).
-
-%% returns value as list to match substrings using match spec.
-%% See vcard_search definition.
-make_val(ValBin) ->
-    Val = binary_to_list(ValBin),
-    case lists:suffix("*", Val) of
-    true ->
-        lists:sublist(Val, length(Val) - 1) ++ '_';
-    _ ->
-        Val
-    end.
 
 record_to_item(R) ->
     {User, Server} = R#vcard_search.user,
