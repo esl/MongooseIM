@@ -135,52 +135,51 @@ run_test_preset() {
 }
 
 run_tests() {
-	maybe_run_small_tests
-	SMALL_STATUS=$?
-	echo "SMALL_STATUS=$SMALL_STATUS"
-	echo ""
-	echo "############################"
-	echo "Running big tests (tests/ejabberd_tests)"
-	echo "############################"
+  maybe_run_small_tests
+  SMALL_STATUS=$?
+  echo "SMALL_STATUS=$SMALL_STATUS"
+  echo ""
+  echo "############################"
+  echo "Running big tests (tests/ejabberd_tests)"
+  echo "############################"
 
-	for node in ${NODES[@]}; do
-		start_node $node;
-	done
+  for node in ${NODES[@]}; do
+    start_node $node;
+  done
 
-    # Start all additional services
-    start_services
+  # Start all additional services
+  start_services
 
-	run_test_preset
+  run_test_preset
+  BIG_STATUS=$?
 
-    # Stop all additional
-	stop_services
+  stop_services
 
-	RAN_TESTS=`cat /tmp/ct_count`
+  for node in ${NODES[@]}; do
+    stop_node $node;
+  done
 
-	for node in ${NODES[@]}; do
-		stop_node $node;
-	done
+  SUMMARIES_DIRS=${BASE}'/test.disabled/ejabberd_tests/ct_report/ct_run*'
+  SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS})
+  ${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
+  BIG_STATUS_BY_SUMMARY=$?
 
-	SUMMARIES_DIRS=${BASE}'/test.disabled/ejabberd_tests/ct_report/ct_run*'
-	SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS} ${RAN_TESTS})
-	${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
-	BIG_STATUS=$?
+  echo
+  echo "All tests done."
 
-	echo
-	echo "All tests done."
+  if [ $SMALL_STATUS -eq 0 -a $BIG_STATUS -eq 0 -a $BIG_STATUS_BY_SUMMARY -eq 0 ]
+  then
+    RESULT=0
+    echo "Build succeeded"
+  else
+    RESULT=1
+    echo "Build failed:"
+    [ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
+    [ $BIG_STATUS_BY_SUMMARY -ne 0 ]   && echo "    big tests failed"
+    [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites"
+  fi
 
-	if [ $SMALL_STATUS -eq 0 -a $BIG_STATUS -eq 0 ]
-	then
-		RESULT=0
-		echo "Build succeeded"
-	else
-		RESULT=1
-		echo "Build failed:"
-		[ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
-		[ $BIG_STATUS -ne 0 ]   && echo "    big tests failed"
-	fi
-
-	exit ${RESULT}
+  exit ${RESULT}
 }
 
 if [ $PRESET == "dialyzer_only" ]; then
