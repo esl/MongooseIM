@@ -146,7 +146,7 @@ pm_msg_notify_on_apns_no_click_action(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            PubsubJID = <<"pubsub.localhost">>,
+            PubsubJID = node_addr(),
             Node = {_, NodeName} = pubsub_node(),
             AliceJID = bare_jid(Alice),
             DeviceToken = gen_token(),
@@ -176,7 +176,7 @@ pm_msg_notify_on_fcm_no_click_action(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            PubsubJID = <<"pubsub.localhost">>,
+            PubsubJID = node_addr(),
             Node = {_, NodeName} = pubsub_node(),
             AliceJID = bare_jid(Alice),
             DeviceToken = gen_token(),
@@ -205,7 +205,7 @@ pm_msg_notify_on_apns_w_click_action(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            PubsubJID = <<"pubsub.localhost">>,
+            PubsubJID = node_addr(),
             Node = {_, NodeName} = pubsub_node(),
             AliceJID = bare_jid(Alice),
             DeviceToken = gen_token(),
@@ -236,7 +236,7 @@ pm_msg_notify_on_fcm_w_click_action(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            PubsubJID = <<"pubsub.localhost">>,
+            PubsubJID = node_addr(),
             Node = {_, NodeName} = pubsub_node(),
             AliceJID = bare_jid(Alice),
             DeviceToken = gen_token(),
@@ -271,7 +271,7 @@ muclight_msg_notify_on_apns_no_click_action(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            PubsubJID = <<"pubsub.localhost">>,
+            PubsubJID = node_addr(),
             Room = room_name(Config),
             BobJID = bare_jid(Bob),
             RoomJID = room_bin_jid(Room),
@@ -307,7 +307,7 @@ muclight_msg_notify_on_fcm_no_click_action(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            PubsubJID = <<"pubsub.localhost">>,
+            PubsubJID = node_addr(),
             Room = room_name(Config),
             BobJID = bare_jid(Bob),
             RoomJID = room_bin_jid(Room),
@@ -342,7 +342,7 @@ muclight_msg_notify_on_apns_w_click_action(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            PubsubJID = <<"pubsub.localhost">>,
+            PubsubJID = node_addr(),
             Room = room_name(Config),
             BobJID = bare_jid(Bob),
             RoomJID = room_bin_jid(Room),
@@ -379,7 +379,7 @@ muclight_msg_notify_on_fcm_w_click_action(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            PubsubJID = <<"pubsub.localhost">>,
+            PubsubJID = node_addr(),
             Room = room_name(Config),
             BobJID = bare_jid(Bob),
             RoomJID = room_bin_jid(Room),
@@ -446,7 +446,7 @@ create_room(Room, [Owner | Members], Config) ->
 
 bare_jid(JIDOrClient) ->
     ShortJID = escalus_client:short_jid(JIDOrClient),
-    list_to_binary(string:to_lower(binary_to_list(ShortJID))).
+    escalus_utils:jid_to_lower(ShortJID).
 
 room_name(Config) ->
     CaseName = proplists:get_value(case_name, Config),
