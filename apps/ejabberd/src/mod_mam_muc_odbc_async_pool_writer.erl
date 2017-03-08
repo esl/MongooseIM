@@ -29,8 +29,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-define(PER_MESSAGE_FLUSH_TIME, [?MODULE, per_message_flush_time]).
 -define(DEFAULT_POOL_SIZE, 32).
-
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -311,11 +311,17 @@ are_recent_entries_required(_End, _Now) ->
 %%====================================================================
 
 -spec run_flush(state()) -> state().
-run_flush(State=#state{acc=[]}) ->
+run_flush(State = #state{acc=[]}) ->
     State;
-run_flush(State=#state{host=Host, connection_pool=Pool, max_packet_size = MaxSize,
-                       flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
+run_flush(State = #state{host = Host, acc = Acc}) ->
     MessageCount = length(Acc),
+    {FlushTime, NewState} = timer:tc(fun do_run_flush/2, [MessageCount, State]),
+    mongoose_metrics:update(Host, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
+    NewState.
+
+do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
+                                          max_packet_size = MaxSize, flush_interval_tref = TRef,
+                                          acc = Acc, subscribers = Subs}) ->
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
 

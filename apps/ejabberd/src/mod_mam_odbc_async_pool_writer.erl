@@ -29,7 +29,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
-
+-define(PER_MESSAGE_FLUSH_TIME, [?MODULE, per_message_flush_time]).
 -define(DEFAULT_POOL_SIZE, 32).
 
 -include("ejabberd.hrl").
@@ -73,12 +73,13 @@ worker_number(Host, ArcID) ->
     ArcID rem worker_count(Host).
 
 
-
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
+    mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
+
     PoolName = gen_mod:get_module_proc(Host, ?MODULE),
     {ok, _} = mongoose_rdbms_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
 
@@ -193,8 +194,9 @@ stop_worker(Proc) ->
                       Packet :: any()) -> ok.
 archive_message(_Result, Host,
                 MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    Row = mod_mam_odbc_arch:prepare_message(Host,
-                                            MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
+    Row = mod_mam_odbc_arch:prepare_message(Host, MessID, ArcID, LocJID,
+                                            RemJID, SrcJID, Dir, Packet),
+
     Worker = select_worker(Host, ArcID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
@@ -313,11 +315,17 @@ are_recent_entries_required(_End, _Now) ->
 %% Internal functions
 %%====================================================================
 
-run_flush(State=#state{acc=[]}) ->
+run_flush(State = #state{acc = []}) ->
     State;
-run_flush(State=#state{host=Host, connection_pool=Pool, max_packet_size = MaxSize,
-                       flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
+run_flush(State = #state{host = Host, acc = Acc}) ->
     MessageCount = length(Acc),
+    {FlushTime, NewState} = timer:tc(fun do_run_flush/2, [MessageCount, State]),
+    mongoose_metrics:update(Host, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
+    NewState.
+
+do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
+                                          max_packet_size = MaxSize, flush_interval_tref = TRef,
+                                          acc = Acc, subscribers = Subs}) ->
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
 
