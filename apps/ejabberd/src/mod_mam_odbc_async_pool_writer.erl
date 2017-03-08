@@ -175,7 +175,7 @@ stop_workers(Host) ->
 start_worker(WriterProc, N, Host, Pool, MaxSize) ->
     WriterChildSpec =
     {WriterProc,
-     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [N, Host, Pool, MaxSize], []]},
+     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [Host, N, Pool, MaxSize], []]},
      permanent,
      5000,
      worker,
