@@ -50,6 +50,14 @@ If such an attribute is not specified, the default plugin will be the first on t
     Requires module `mod_caps` to be enabled.
     * `<<"dag">>` - implementation of [XEP-0248 (PubSub Collection Nodes)](https://xmpp.org/extensions/xep-0248.html).
     Every node takes a place in a tree and is either a collection node (and have only sub-nodes) or a leaf node (contains only items).
+    * `<<"push"">>` - special node type that may be used as target node for [XEP-0357 (Push 
+    Notifications)](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_push`). 
+    For each 
+    published notification, hook `push_notification` is run. You may enable as many modules that 
+    support this hook (all module with `mod_push_service_*` name prefix) as you like (see for 
+    example 
+    `mod_push_service_mongoosepush`). This node type **requires** `publish-options` with at
+    least `device_id` and `service` fields supplied.
 * `pep_mapping` ([{Key, Value}, ...]): This permits the definistion of a Key-Value list to define a custom node plugin on a given PEP namespace.
 E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of `node_pep` when the specified namespace is used.
 * `default_node_config` ([{Key, Value}, ...]): Overrides default node configuration, regradless of node plugin.

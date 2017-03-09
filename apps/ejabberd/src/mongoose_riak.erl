@@ -163,9 +163,12 @@ search(Index, Query, Opts) ->
 get_index(BucketType, Index, Value, Opts) ->
     ?CALL(get_index_eq, [BucketType, Index, Value, Opts]).
 
--spec get_index_range(riakc_obj:bucket(), binary() | secondary_index_id(), key() | integer() | list(),
-                key() | integer() | list(), [term()]) ->
-                       {ok, index_results()} | {error, term()}.
+-spec get_index_range(Bucket :: riakc_obj:bucket(),
+                      Index :: binary() | secondary_index_id(),
+                      StartKey :: key() | integer() | list(),
+                      EndKey :: key() | integer() | list(),
+                      Opts :: [term()]) ->
+    {ok, index_results()} | {error, term()}.
 get_index_range(Bucket, Index, StartKey, EndKey, Opts) ->
     ?CALL(get_index_range, [Bucket, Index, StartKey, EndKey, Opts]).
 

@@ -44,7 +44,21 @@
 create_node(User, Node, Options) ->
     Id = id(User, Node, <<"create_node">>),
     Config = proplists:get_value(config, Options, []),
-    Request = escalus_pubsub_stanza:create_node(User, Id, Node, Config),
+    Request0 = escalus_pubsub_stanza:create_node(User, Id, Node, Config),
+
+    Request =
+        case proplists:get_value(type, Options, undefined) of
+            undefined ->
+                Request0;
+            Type ->
+                #xmlel{children = [
+                    #xmlel{children = [CreateEl | OtherEls]} = PubsubEl
+                ]} = IQ = Request0,
+                NewCreateEl = CreateEl#xmlel{attrs = [{<<"type">>, Type} | CreateEl#xmlel.attrs]},
+                NewPubsubEl = PubsubEl#xmlel{children = [NewCreateEl | OtherEls]},
+                IQ#xmlel{children = [NewPubsubEl]}
+        end,
+
     send_request_and_receive_response(User, Request, Id, Options).
 
 configure_node(User, Node, Config, Options) ->

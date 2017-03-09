@@ -71,6 +71,7 @@
 -define(NS_PUBSUB_ERRORS, <<"http://jabber.org/protocol/pubsub#errors">>).
 -define(NS_PUBSUB_NODE_CONFIG,<<"http://jabber.org/protocol/pubsub#node_config">>).
 -define(NS_PUBSUB_SUB_OPTIONS,<<"http://jabber.org/protocol/pubsub#subscribe_options">>).
+-define(NS_PUBSUB_PUB_OPTIONS, <<"http://jabber.org/protocol/pubsub#publish-options">>).
 -define(NS_PUBSUB_SUB_AUTH,<<"http://jabber.org/protocol/pubsub#subscribe_authorization">>).
 -define(NS_PUBSUB_GET_PENDING, <<"http://jabber.org/protocol/pubsub#get-pending">>).
 -define(NS_COMMANDS,    <<"http://jabber.org/protocol/commands">>).
@@ -80,7 +81,9 @@
 -define(NS_MAM,         <<"urn:xmpp:mam:tmp">>).
 -define(NS_MAM_03,      <<"urn:xmpp:mam:0">>). % MAM 0.3
 -define(NS_MAM_04,      <<"urn:xmpp:mam:1">>). % MAM 0.4.1 or 0.5
--define(NS_HTTP_UPLOAD, <<"urn:xmpp:http:upload">>).
+-define(NS_HTTP_UPLOAD_025, <<"urn:xmpp:http:upload">>).
+-define(NS_HTTP_UPLOAD_030, <<"urn:xmpp:http:upload:0">>).
+-define(NS_PUSH,        <<"urn:xmpp:push:0">>). % Push Notifications v0.2.1
 
 -define(NS_RSM,         <<"http://jabber.org/protocol/rsm">>).
 -define(NS_EJABBERD_CONFIG,<<"ejabberd:config">>).

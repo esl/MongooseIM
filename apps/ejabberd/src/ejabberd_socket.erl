@@ -158,16 +158,28 @@ connect(Addr, Port, Opts, Timeout) ->
     end.
 
 
+-spec tcp_to_tls(inet:socket(), list()) -> fast_tls:tls_socket().
+tcp_to_tls(InetSock, TLSOpts) ->
+    SanitizedTLSOpts = case lists:keyfind(protocol_options, 1, TLSOpts) of
+        false -> TLSOpts;
+        {_, ProtoOpts} ->
+            NewProtoOpts = {protocol_options, string:join(ProtoOpts, "|")},
+            lists:keyreplace(protocol_options, 1, TLSOpts, NewProtoOpts)
+    end,
+    {ok, TLSSocket} = fast_tls:tcp_to_tls(InetSock, SanitizedTLSOpts),
+    TLSSocket.
+
+
 -spec starttls(socket_state(), list()) -> socket_state().
 starttls(SocketData, TLSOpts) ->
-    {ok, TLSSocket} = fast_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
+    TLSSocket = tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
     SocketData#socket_state{socket = TLSSocket, sockmod = fast_tls}.
 
 
 -spec starttls(socket_state(), _, _) -> socket_state().
 starttls(SocketData, TLSOpts, Data) ->
-    {ok, TLSSocket} = fast_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
+    TLSSocket = tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
     send(SocketData, Data),
     SocketData#socket_state{socket = TLSSocket, sockmod = fast_tls}.
@@ -175,9 +187,9 @@ starttls(SocketData, TLSOpts, Data) ->
 -spec compress(socket_state(), integer(), _) -> socket_state().
 compress(SocketData, InflateSizeLimit, Data) ->
     {ok, ZlibSocket} = ejabberd_zlib:enable_zlib(
-			 SocketData#socket_state.sockmod,
-			 SocketData#socket_state.socket,
-			 InflateSizeLimit),
+                         SocketData#socket_state.sockmod,
+                         SocketData#socket_state.socket,
+                         InflateSizeLimit),
     ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
     send(SocketData, Data),
     SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.

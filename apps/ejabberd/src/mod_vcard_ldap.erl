@@ -35,7 +35,7 @@
 
 %% gen_server callbacks.
 -export([init/1, handle_info/2, handle_call/3,
-	 handle_cast/2,  code_change/3, terminate/2]).
+         handle_cast/2,  code_change/3, terminate/2]).
 
 -export([start_link/2,  transform_module_options/1]).
 
@@ -81,52 +81,52 @@
          matches = 0                :: non_neg_integer()}).
 
 -define(VCARD_MAP,
-	[{<<"NICKNAME">>, <<"%u">>, []},
-	 {<<"FN">>, <<"%s">>, [<<"displayName">>]},
-	 {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
-	 {<<"GIVEN">>, <<"%s">>, [<<"givenName">>]},
-	 {<<"MIDDLE">>, <<"%s">>, [<<"initials">>]},
-	 {<<"ORGNAME">>, <<"%s">>, [<<"o">>]},
-	 {<<"ORGUNIT">>, <<"%s">>, [<<"ou">>]},
-	 {<<"CTRY">>, <<"%s">>, [<<"c">>]},
-	 {<<"LOCALITY">>, <<"%s">>, [<<"l">>]},
-	 {<<"STREET">>, <<"%s">>, [<<"street">>]},
-	 {<<"REGION">>, <<"%s">>, [<<"st">>]},
-	 {<<"PCODE">>, <<"%s">>, [<<"postalCode">>]},
-	 {<<"TITLE">>, <<"%s">>, [<<"title">>]},
-	 {<<"URL">>, <<"%s">>, [<<"labeleduri">>]},
-	 {<<"DESC">>, <<"%s">>, [<<"description">>]},
-	 {<<"TEL">>, <<"%s">>, [<<"telephoneNumber">>]},
-	 {<<"EMAIL">>, <<"%s">>, [<<"mail">>]},
-	 {<<"BDAY">>, <<"%s">>, [<<"birthDay">>]},
-	 {<<"ROLE">>, <<"%s">>, [<<"employeeType">>]},
-	 {<<"PHOTO">>, <<"%s">>, [<<"jpegPhoto">>]}]).
+        [{<<"NICKNAME">>, <<"%u">>, []},
+         {<<"FN">>, <<"%s">>, [<<"displayName">>]},
+         {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+         {<<"GIVEN">>, <<"%s">>, [<<"givenName">>]},
+         {<<"MIDDLE">>, <<"%s">>, [<<"initials">>]},
+         {<<"ORGNAME">>, <<"%s">>, [<<"o">>]},
+         {<<"ORGUNIT">>, <<"%s">>, [<<"ou">>]},
+         {<<"CTRY">>, <<"%s">>, [<<"c">>]},
+         {<<"LOCALITY">>, <<"%s">>, [<<"l">>]},
+         {<<"STREET">>, <<"%s">>, [<<"street">>]},
+         {<<"REGION">>, <<"%s">>, [<<"st">>]},
+         {<<"PCODE">>, <<"%s">>, [<<"postalCode">>]},
+         {<<"TITLE">>, <<"%s">>, [<<"title">>]},
+         {<<"URL">>, <<"%s">>, [<<"labeleduri">>]},
+         {<<"DESC">>, <<"%s">>, [<<"description">>]},
+         {<<"TEL">>, <<"%s">>, [<<"telephoneNumber">>]},
+         {<<"EMAIL">>, <<"%s">>, [<<"mail">>]},
+         {<<"BDAY">>, <<"%s">>, [<<"birthDay">>]},
+         {<<"ROLE">>, <<"%s">>, [<<"employeeType">>]},
+         {<<"PHOTO">>, <<"%s">>, [<<"jpegPhoto">>]}]).
 
 -define(SEARCH_FIELDS,
-	[{<<"User">>, <<"%u">>},
-	 {<<"Full Name">>, <<"displayName">>},
-	 {<<"Given Name">>, <<"givenName">>},
-	 {<<"Middle Name">>, <<"initials">>},
-	 {<<"Family Name">>, <<"sn">>},
-	 {<<"Nickname">>, <<"%u">>},
-	 {<<"Birthday">>, <<"birthDay">>},
-	 {<<"Country">>, <<"c">>}, {<<"City">>, <<"l">>},
-	 {<<"Email">>, <<"mail">>},
-	 {<<"Organization Name">>, <<"o">>},
-	 {<<"Organization Unit">>, <<"ou">>}]).
+        [{<<"User">>, <<"%u">>},
+         {<<"Full Name">>, <<"displayName">>},
+         {<<"Given Name">>, <<"givenName">>},
+         {<<"Middle Name">>, <<"initials">>},
+         {<<"Family Name">>, <<"sn">>},
+         {<<"Nickname">>, <<"%u">>},
+         {<<"Birthday">>, <<"birthDay">>},
+         {<<"Country">>, <<"c">>}, {<<"City">>, <<"l">>},
+         {<<"Email">>, <<"mail">>},
+         {<<"Organization Name">>, <<"o">>},
+         {<<"Organization Unit">>, <<"ou">>}]).
 
 -define(SEARCH_REPORTED,
-	[{<<"Full Name">>, <<"FN">>},
-	 {<<"Given Name">>, <<"FIRST">>},
-	 {<<"Middle Name">>, <<"MIDDLE">>},
-	 {<<"Family Name">>, <<"LAST">>},
-	 {<<"Nickname">>, <<"NICK">>},
-	 {<<"Birthday">>, <<"BDAY">>},
-	 {<<"Country">>, <<"CTRY">>},
-	 {<<"City">>, <<"LOCALITY">>},
-	 {<<"Email">>, <<"EMAIL">>},
-	 {<<"Organization Name">>, <<"ORGNAME">>},
-	 {<<"Organization Unit">>, <<"ORGUNIT">>}]).
+        [{<<"Full Name">>, <<"FN">>},
+         {<<"Given Name">>, <<"FIRST">>},
+         {<<"Middle Name">>, <<"MIDDLE">>},
+         {<<"Family Name">>, <<"LAST">>},
+         {<<"Nickname">>, <<"NICK">>},
+         {<<"Birthday">>, <<"BDAY">>},
+         {<<"Country">>, <<"CTRY">>},
+         {<<"City">>, <<"LOCALITY">>},
+         {<<"Email">>, <<"EMAIL">>},
+         {<<"Organization Name">>, <<"ORGNAME">>},
+         {<<"Organization Unit">>, <<"ORGUNIT">>}]).
 
 
 
@@ -197,15 +197,15 @@ search_reported_fields(Host, Lang) ->
 start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE,
-			  [Host, Opts], []).
+                          [Host, Opts], []).
 
 init([Host, Opts]) ->
     process_flag(trap_exit, true),
     State = parse_options(Host, Opts),
     eldap_pool:start_link(State#state.eldap_id,
-			  State#state.servers, State#state.backups,
-			  State#state.port, State#state.dn,
-			  State#state.password, State#state.tls_options),
+                          State#state.servers, State#state.backups,
+                          State#state.port, State#state.dn,
+                          State#state.password, State#state.tls_options),
     {ok, State}.
 
 handle_info(_Info, State) ->
@@ -234,128 +234,128 @@ find_ldap_user(User, State) ->
     Eldap_ID = State#state.eldap_id,
     VCardAttrs = State#state.vcard_map_attrs,
     case eldap_filter:parse(RFC2254_Filter,
-			    [{<<"%u">>, User}])
-	of
+                            [{<<"%u">>, User}])
+        of
       {ok, EldapFilter} ->
-	  case eldap_pool:search(Eldap_ID,
-				 [{base, Base}, {filter, EldapFilter},
-				  {deref_aliases, State#state.deref_aliases},
-				  {attributes, VCardAttrs}])
-	      of
-	    #eldap_search_result{entries = [E | _]} -> E;
-	    _ -> false
-	  end;
+          case eldap_pool:search(Eldap_ID,
+                                 [{base, Base}, {filter, EldapFilter},
+                                  {deref_aliases, State#state.deref_aliases},
+                                  {attributes, VCardAttrs}])
+              of
+            #eldap_search_result{entries = [E | _]} -> E;
+            _ -> false
+          end;
       _ -> false
     end.
 
 ldap_attributes_to_vcard(Attributes, VCardMap, UD) ->
     Attrs = lists:map(fun ({VCardName, _, _}) ->
-			      {stringprep:tolower(VCardName),
-			       map_vcard_attr(VCardName, Attributes, VCardMap,
-					      UD)}
-		      end,
-		      VCardMap),
+                              {stringprep:tolower(VCardName),
+                               map_vcard_attr(VCardName, Attributes, VCardMap,
+                                              UD)}
+                      end,
+                      VCardMap),
     Elts = [ldap_attribute_to_vcard(vCard, Attr)
-	    || Attr <- Attrs],
+            || Attr <- Attrs],
     NElts = [ldap_attribute_to_vcard(vCardN, Attr)
-	     || Attr <- Attrs],
+             || Attr <- Attrs],
     OElts = [ldap_attribute_to_vcard(vCardO, Attr)
-	     || Attr <- Attrs],
+             || Attr <- Attrs],
     AElts = [ldap_attribute_to_vcard(vCardA, Attr)
-	     || Attr <- Attrs],
+             || Attr <- Attrs],
     [#xmlel{name = <<"vCard">>,
-	    attrs = [{<<"xmlns">>, ?NS_VCARD}],
-	    children =
-		lists:append([X || X <- Elts, X /= none],
-			     [#xmlel{name = <<"N">>, attrs = [],
-				     children = [X || X <- NElts, X /= none]},
-			      #xmlel{name = <<"ORG">>, attrs = [],
-				     children = [X || X <- OElts, X /= none]},
-			      #xmlel{name = <<"ADR">>, attrs = [],
-				     children =
-					 [X || X <- AElts, X /= none]}])}].
+            attrs = [{<<"xmlns">>, ?NS_VCARD}],
+            children =
+                lists:append([X || X <- Elts, X /= none],
+                             [#xmlel{name = <<"N">>, attrs = [],
+                                     children = [X || X <- NElts, X /= none]},
+                              #xmlel{name = <<"ORG">>, attrs = [],
+                                     children = [X || X <- OElts, X /= none]},
+                              #xmlel{name = <<"ADR">>, attrs = [],
+                                     children =
+                                         [X || X <- AElts, X /= none]}])}].
 
 ldap_attribute_to_vcard(vCard, {<<"fn">>, Value}) ->
     #xmlel{name = <<"FN">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCard,
-			{<<"nickname">>, Value}) ->
+                        {<<"nickname">>, Value}) ->
     #xmlel{name = <<"NICKNAME">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCard, {<<"title">>, Value}) ->
     #xmlel{name = <<"TITLE">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCard, {<<"bday">>, Value}) ->
     #xmlel{name = <<"BDAY">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCard, {<<"url">>, Value}) ->
     #xmlel{name = <<"URL">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCard, {<<"desc">>, Value}) ->
     #xmlel{name = <<"DESC">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCard, {<<"role">>, Value}) ->
     #xmlel{name = <<"ROLE">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCard, {<<"tel">>, Value}) ->
     #xmlel{name = <<"TEL">>, attrs = [],
-	   children =
-	       [#xmlel{name = <<"VOICE">>, attrs = [], children = []},
-		#xmlel{name = <<"WORK">>, attrs = [], children = []},
-		#xmlel{name = <<"NUMBER">>, attrs = [],
-		       children = [{xmlcdata, Value}]}]};
+           children =
+               [#xmlel{name = <<"VOICE">>, attrs = [], children = []},
+                #xmlel{name = <<"WORK">>, attrs = [], children = []},
+                #xmlel{name = <<"NUMBER">>, attrs = [],
+                       children = [{xmlcdata, Value}]}]};
 ldap_attribute_to_vcard(vCard, {<<"email">>, Value}) ->
     #xmlel{name = <<"EMAIL">>, attrs = [],
-	   children =
-	       [#xmlel{name = <<"INTERNET">>, attrs = [],
-		       children = []},
-		#xmlel{name = <<"PREF">>, attrs = [], children = []},
-		#xmlel{name = <<"USERID">>, attrs = [],
-		       children = [{xmlcdata, Value}]}]};
+           children =
+               [#xmlel{name = <<"INTERNET">>, attrs = [],
+                       children = []},
+                #xmlel{name = <<"PREF">>, attrs = [], children = []},
+                #xmlel{name = <<"USERID">>, attrs = [],
+                       children = [{xmlcdata, Value}]}]};
 ldap_attribute_to_vcard(vCard, {<<"photo">>, Value}) ->
     #xmlel{name = <<"PHOTO">>, attrs = [],
-	   children =
-	       [#xmlel{name = <<"TYPE">>, attrs = [],
-		       children = [{xmlcdata, <<"image/jpeg">>}]},
-		#xmlel{name = <<"BINVAL">>, attrs = [],
-		       children = [{xmlcdata, jlib:encode_base64(Value)}]}]};
+           children =
+               [#xmlel{name = <<"TYPE">>, attrs = [],
+                       children = [{xmlcdata, <<"image/jpeg">>}]},
+                #xmlel{name = <<"BINVAL">>, attrs = [],
+                       children = [{xmlcdata, jlib:encode_base64(Value)}]}]};
 ldap_attribute_to_vcard(vCardN,
-			{<<"family">>, Value}) ->
+                        {<<"family">>, Value}) ->
     #xmlel{name = <<"FAMILY">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCardN, {<<"given">>, Value}) ->
     #xmlel{name = <<"GIVEN">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCardN,
-			{<<"middle">>, Value}) ->
+                        {<<"middle">>, Value}) ->
     #xmlel{name = <<"MIDDLE">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCardO,
-			{<<"orgname">>, Value}) ->
+                        {<<"orgname">>, Value}) ->
     #xmlel{name = <<"ORGNAME">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCardO,
-			{<<"orgunit">>, Value}) ->
+                        {<<"orgunit">>, Value}) ->
     #xmlel{name = <<"ORGUNIT">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCardA,
-			{<<"locality">>, Value}) ->
+                        {<<"locality">>, Value}) ->
     #xmlel{name = <<"LOCALITY">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCardA,
-			{<<"street">>, Value}) ->
+                        {<<"street">>, Value}) ->
     #xmlel{name = <<"STREET">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCardA, {<<"ctry">>, Value}) ->
     #xmlel{name = <<"CTRY">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCardA,
-			{<<"region">>, Value}) ->
+                        {<<"region">>, Value}) ->
     #xmlel{name = <<"REGION">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(vCardA, {<<"pcode">>, Value}) ->
     #xmlel{name = <<"PCODE">>, attrs = [],
-	   children = [{xmlcdata, Value}]};
+           children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(_, _) -> none.
 
 search_internal(_, []) ->
@@ -371,12 +371,12 @@ search_internal(State, Data) ->
     Filter = eldap:'and'([SearchFilter,
                           eldap_utils:make_filter(Data, UIDs, Op)]),
     case eldap_pool:search(Eldap_ID,
-			   [{base, Base}, {filter, Filter}, {limit, Limit},
-			    {deref_aliases, State#state.deref_aliases},
-			    {attributes, ReportedAttrs}])
-	of
+                           [{base, Base}, {filter, Filter}, {limit, Limit},
+                            {deref_aliases, State#state.deref_aliases},
+                            {attributes, ReportedAttrs}])
+        of
       #eldap_search_result{entries = E} ->
-	  search_items(E, State);
+          search_items(E, State);
       _ -> error
     end.
 
@@ -387,50 +387,50 @@ search_items(Entries, State) ->
     UIDs = State#state.uids,
     BinFields = State#state.binary_search_fields,
     Attributes = lists:map(fun (E) ->
-				   #eldap_entry{attributes = Attrs} = E, Attrs
-			   end,
-			   Entries),
+                                   #eldap_entry{attributes = Attrs} = E, Attrs
+                           end,
+                           Entries),
     lists:flatmap(fun (Attrs) ->
-			  case eldap_utils:find_ldap_attrs(UIDs, Attrs) of
-			    {U, UIDAttrFormat} ->
-				case eldap_utils:get_user_part(U, UIDAttrFormat)
-				    of
-				  {ok, Username} ->
-				      case
-					ejabberd_auth:is_user_exists(Username,
-								     LServer)
-					  of
-					true ->
-					    RFields = lists:map(fun ({_,
-								      VCardName}) ->
-									{VCardName,
-									 map_vcard_attr(VCardName,
-											Attrs,
-											VCardMap,
-											{Username,
-											 ?MYNAME})}
-								end,
-								SearchReported),
-					    Result = [?FIELD(<<"jid">>,
-							     <<Username/binary,
-							       "@",
-							       LServer/binary>>)]
-						       ++
-						       [?FIELD(Name,
+                          case eldap_utils:find_ldap_attrs(UIDs, Attrs) of
+                            {U, UIDAttrFormat} ->
+                                case eldap_utils:get_user_part(U, UIDAttrFormat)
+                                    of
+                                  {ok, Username} ->
+                                      case
+                                        ejabberd_auth:is_user_exists(Username,
+                                                                     LServer)
+                                          of
+                                        true ->
+                                            RFields = lists:map(fun ({_,
+                                                                      VCardName}) ->
+                                                                        {VCardName,
+                                                                         map_vcard_attr(VCardName,
+                                                                                        Attrs,
+                                                                                        VCardMap,
+                                                                                        {Username,
+                                                                                         ?MYNAME})}
+                                                                end,
+                                                                SearchReported),
+                                            Result = [?FIELD(<<"jid">>,
+                                                             <<Username/binary,
+                                                               "@",
+                                                               LServer/binary>>)]
+                                                       ++
+                                                       [?FIELD(Name,
                                        search_item_value(Name, Value, BinFields))
-							|| {Name, Value}
-							       <- RFields],
-					    [#xmlel{name = <<"item">>,
-						    attrs = [],
-						    children = Result}];
-					_ -> []
-				      end;
-				  _ -> []
-				end;
-			    <<"">> -> []
-			  end
-		  end,
-		  Attributes).
+                                                        || {Name, Value}
+                                                               <- RFields],
+                                            [#xmlel{name = <<"item">>,
+                                                    attrs = [],
+                                                    children = Result}];
+                                        _ -> []
+                                      end;
+                                  _ -> []
+                                end;
+                            <<"">> -> []
+                          end
+                  end,
+                  Attributes).
 
 %%%-----------------------
 %%% Auxiliary functions.
@@ -443,15 +443,15 @@ search_item_value(Name, Value, BinaryFields) ->
 
 map_vcard_attr(VCardName, Attributes, Pattern, UD) ->
     Res = lists:filter(fun ({Name, _, _}) ->
-			       eldap_utils:case_insensitive_match(Name,
-								  VCardName)
-		       end,
-		       Pattern),
+                               eldap_utils:case_insensitive_match(Name,
+                                                                  VCardName)
+                       end,
+                       Pattern),
     case Res of
       [{_, Str, Attrs}] ->
-	  process_pattern(Str, UD,
-			  [eldap_utils:get_ldap_attr(X, Attributes)
-			   || X <- Attrs]);
+          process_pattern(Str, UD,
+                          [eldap_utils:get_ldap_attr(X, Attributes)
+                           || X <- Attrs]);
       _ -> <<"">>
     end.
 
@@ -485,13 +485,13 @@ parse_options(Host, Opts) ->
                         {ldap_filter, Host}, Opts,
                         fun check_filter/1, <<"">>) of
                      <<"">> ->
-			 SubFilter;
+                         SubFilter;
                      F ->
                          <<"(&", SubFilter/binary, F/binary, ")">>
                  end,
     {ok, SearchFilter} =
-	eldap_filter:parse(eldap_filter:do_sub(UserFilter,
-					       [{<<"%u">>, <<"*">>}])),
+        eldap_filter:parse(eldap_filter:do_sub(UserFilter,
+                                               [{<<"%u">>, <<"*">>}])),
     VCardMap = eldap_utils:get_mod_opt(ldap_vcard_map, Opts,
                                fun(Ls) ->
                                        lists:map(
@@ -516,23 +516,23 @@ parse_options(Host, Opts) ->
                                      end, ?SEARCH_REPORTED),
     UIDAttrs = [UAttr || {UAttr, _} <- UIDs],
     VCardMapAttrs = lists:usort(lists:append([A
-					      || {_, _, A} <- VCardMap])
-				  ++ UIDAttrs),
+                                              || {_, _, A} <- VCardMap])
+                                  ++ UIDAttrs),
     SearchReportedAttrs = lists:usort(lists:flatmap(fun ({_,
-							  N}) ->
-							    case
-							      lists:keysearch(N,
-									      1,
-									      VCardMap)
-								of
-							      {value,
-							       {_, _, L}} ->
-								  L;
-							      _ -> []
-							    end
-						    end,
-						    SearchReported)
-					++ UIDAttrs),
+                                                          N}) ->
+                                                            case
+                                                              lists:keysearch(N,
+                                                                              1,
+                                                                              VCardMap)
+                                                                of
+                                                              {value,
+                                                               {_, _, L}} ->
+                                                                  L;
+                                                              _ -> []
+                                                            end
+                                                    end,
+                                                    SearchReported)
+                                        ++ UIDAttrs),
     SearchOperatorFun = fun
         ('or') -> 'or';
         (_)    -> 'and'

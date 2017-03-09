@@ -46,6 +46,7 @@
 -type(accessModel() :: mod_pubsub:accessModel()).
 -type(publishModel() :: mod_pubsub:publishModel()).
 -type(payload() :: mod_pubsub:payload()).
+-type(publishOptions() :: mod_pubsub:publishOptions()).
 
 -callback init(Host :: binary(),
         ServerHost :: binary(),
@@ -115,7 +116,8 @@
         Max_Items :: non_neg_integer(),
         ItemId :: <<>> | itemId(),
         ItemPublisher :: boolean(),
-        Payload :: payload()) ->
+        Payload :: payload(),
+        PublishOptions :: publishOptions()) ->
     {result, {default, broadcast, [itemId()]}} |
     {error, xmlel()}.
 

@@ -871,6 +871,7 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
         drop ->
             next_normal_state(StateData);
         FilteredPacket ->
+            ejabberd_hooks:run(room_send_packet, StateData#state.host, [FilteredPacket, EventData]),
             RouteFrom = jid:replace_resource(StateData#state.jid,
                                              FromNick),
             lists:foreach(fun({_LJID, Info}) ->

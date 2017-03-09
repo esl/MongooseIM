@@ -157,13 +157,14 @@ creates_get_url_to_the_resource(_Config) ->
 %% Helpers
 
 create_slot(Args) ->
-    mod_http_upload_s3:create_slot(
-      maps:get(timestamp, Args, ?TIMESTAMP),
-      maps:get(token, Args, ?TOKEN),
-      maps:get(filename, Args, ?FILENAME),
-      maps:get(content_type, Args, ?CONTENT_TYPE),
-      maps:get(size, Args, ?SIZE),
-      maps:get(opts, Args, ?OPTS)).
+    {PutUrl, GetUrl, #{}} = mod_http_upload_s3:create_slot(
+                              maps:get(timestamp, Args, ?TIMESTAMP),
+                              maps:get(token, Args, ?TOKEN),
+                              maps:get(filename, Args, ?FILENAME),
+                              maps:get(content_type, Args, ?CONTENT_TYPE),
+                              maps:get(size, Args, ?SIZE),
+                              maps:get(opts, Args, ?OPTS)),
+    {PutUrl, GetUrl}.
 
 with_s3_opts(Opts) ->
     [{s3, S3Opts}] = ?OPTS,

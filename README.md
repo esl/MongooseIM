@@ -43,7 +43,7 @@ Check out our test results:
 We offer a set of server-side components:
 
 * [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html) is a powerful monitoring platform that comes with specific MongooseIM plugins
-* Test suite: in order to test and validate your XMPP servers, here are useful tools:
+* Test suite: in order to test and validate your XMPP servers, here are some useful tools:
     * [escalus](https://github.com/esl/escalus): Erlang XMPP client
     * [amoc](https://github.com/esl/amoc): a load testing tools
 * More components? It is probable that we will offer:

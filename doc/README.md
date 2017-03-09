@@ -23,7 +23,7 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) an
 For a quick start just download:
 
 * The [pre-built packages](https://www.erlang-solutions.com/resources/download.html)
-that suits your platform (Ubuntu, Debian, CentOS, and macOS)
+that suit your platform (Ubuntu, Debian, CentOS, and macOS)
 * The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): [https://hub.docker.com/r/mongooseim/mongooseim/](https://hub.docker.com/r/mongooseim/mongooseim/) (source code repository: [https://github.com/esl/mongooseim-docker](https://github.com/esl/mongooseim-docker))
 
 ## Public testing
@@ -44,10 +44,10 @@ Check out our test results:
 We offer a set of server-side components:
 
 * [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html) is a powerful monitoring platform that comes with specific MongooseIM plugins
-* Test suite: in order to test and validate your XMPP servers, here are useful tools:
+* Test suite - here are useful tools to test and validate your XMPP servers:
     * [escalus](https://github.com/esl/escalus): Erlang XMPP client
     * [amoc](https://github.com/esl/amoc): a load testing tools
-* More components? It is probable that we will offer:
+* More components? There are some ideas we're working on. Tune in for updates on:
     * Icicle: ICE, STUN/TRUN server
     * Platypus: a push notification server
 
@@ -63,7 +63,7 @@ We offer a set of server-side components:
 
 ## Participate!
 
-In case of any suggestions, questions or any thoughts, please feel free to contact us:
+Suggestions, questions, thoughts? Contact us directly:
 
 * Defacto standard [GitHub issues](https://github.com/esl/MongooseIM/issues): https://github.com/esl/MongooseIM/issues
 * Email us at <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>
@@ -83,7 +83,7 @@ Up-to-date documentation for the MongooseIM master branch can be found on ReadTh
     * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
     * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
 
-When developing new features/modules, please take care to add basic documentation
+When developing new features/modules, please make sure you add basic documentation
 to the `doc/` directory, and add a link to your document in `doc/README.md`.
 
 The MongooseIM platform documentation:

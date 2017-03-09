@@ -18,12 +18,7 @@ do_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
     case ejabberd_hooks:run_fold(filter_local_packet, LDstDomain,
         {OrigFrom, OrigTo, OrigPacket}, []) of
         {From, To, Packet} ->
-            case Handler of
-                {apply_fun, Fun} ->
-                    Fun(From, To, Packet);
-                {apply, Module, Function} ->
-                    Module:Function(From, To, Packet)
-            end;
+            mongoose_packet_handler:process(Handler, From, To, Packet);
         drop ->
             ejabberd_hooks:run(xmpp_stanza_dropped,
                 OrigFrom#jid.lserver,

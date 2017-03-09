@@ -45,10 +45,10 @@
 -spec enable_zlib(ejabberd:sockmod(), zlibsock(), integer()) -> {ok, zlibsock()}.
 enable_zlib(SockMod, Socket, InflateSizeLimit) ->
     case erl_ddll:load_driver(ejabberd:get_so_path(), ejabberd_zlib_drv) of
-	ok -> ok;
-	{error, already_loaded} -> ok;
-	{error, OtherError} ->
-	    erlang:error({cannot_load_ejabberd_zlib_drv, erl_ddll:format_error(OtherError)})
+        ok -> ok;
+        {error, already_loaded} -> ok;
+        {error, OtherError} ->
+            erlang:error({cannot_load_ejabberd_zlib_drv, erl_ddll:format_error(OtherError)})
     end,
     Port = open_port({spawn_driver, "ejabberd_zlib_drv"}, [binary]),
     {ok, #zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port,
@@ -84,23 +84,23 @@ recv_data2(ZlibSock, Packet) ->
 -spec recv_data1(zlibsock(), iolist()) -> {'error', string()} | {'ok', binary()}.
 recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSock, Packet) ->
     case port_control(Port, SizeLimit bsl 2 + ?INFLATE, Packet) of
-	<<0, In/binary>> ->
-	    {ok, In};
-	<<1, Error/binary>> ->
-	    {error, erlang:binary_to_existing_atom(Error, utf8)}
+        <<0, In/binary>> ->
+            {ok, In};
+        <<1, Error/binary>> ->
+            {error, erlang:binary_to_existing_atom(Error, utf8)}
     end.
 
 -spec send(zlibsock(), iolist()) -> ok | {error, string()}.
 send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
      Packet) ->
     case port_control(Port, ?DEFLATE, Packet) of
-	<<0, Out/binary>> ->
+        <<0, Out/binary>> ->
         mongoose_metrics:update(global, [data, xmpp, sent, compressed_size], size(Out)),
-	    SockMod:send(Socket, Out);
-	<<1, Error/binary>> ->
-	    {error, erlang:binary_to_existing_atom(Error, utf8)};
-	_ ->
-	    {error, deflate_error}
+            SockMod:send(Socket, Out);
+        <<1, Error/binary>> ->
+            {error, erlang:binary_to_existing_atom(Error, utf8)};
+        _ ->
+            {error, deflate_error}
     end.
 
 
@@ -137,5 +137,3 @@ controlling_process(#zlibsock{sockmod = SockMod, socket = Socket}, Pid) ->
 close(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port}) ->
     SockMod:close(Socket),
     port_close(Port).
-
-

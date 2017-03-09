@@ -19,49 +19,49 @@ all() ->
     [{group, mod_message_carbons_proper_tests}].
 
 all_tests() ->
-    [chat_type_test, private_message_test, no_copy_type_test, 
-          received_type_test, sent_forwarded_type_test, sent_message_test, 
+    [chat_type_test, private_message_test, no_copy_type_test,
+          received_type_test, sent_forwarded_type_test, sent_message_test,
           simple_chat_message_test, simple_badarg_test].
 
 groups() ->
     [{mod_message_carbons_proper_tests, [sequence], all_tests()}].
 
 private_message_test(_) ->
-	property(private_message_test, ?FORALL(Msg, private_carbon_message(),
+    property(private_message_test, ?FORALL(Msg, private_carbon_message(),
           ignore == mod_carboncopy:classify_packet(Msg))).
 
 chat_type_test(_) ->
-	property(chat_type_test, ?FORALL(Msg, non_chat_message(),
+    property(chat_type_test, ?FORALL(Msg, non_chat_message(),
           ignore == mod_carboncopy:classify_packet(Msg))).
 
 no_copy_type_test(_) ->
-	property(no_copy_type_test, ?FORALL(Msg, no_copy_message(),
+    property(no_copy_type_test, ?FORALL(Msg, no_copy_message(),
           ignore == mod_carboncopy:classify_packet(Msg))).
 
 received_type_test(_) ->
-	property(received_type_test, ?FORALL(Msg, received_message(),
+    property(received_type_test, ?FORALL(Msg, received_message(),
           ignore == mod_carboncopy:classify_packet(Msg))).
 
 sent_forwarded_type_test(_) ->
-	property(sent_forwarded_type_test, ?FORALL(Msg, sent_forwarded_message(),
+    property(sent_forwarded_type_test, ?FORALL(Msg, sent_forwarded_message(),
           ignore == mod_carboncopy:classify_packet(Msg))).
 
 sent_message_test(_) ->
-	property(sent_message_test, ?FORALL(Msg, sent_message(),
+    property(sent_message_test, ?FORALL(Msg, sent_message(),
           forward == mod_carboncopy:classify_packet(Msg))).
 
 simple_chat_message_test(_) ->
-	property(simple_chat_message_test, ?FORALL(Msg, simple_chat_message(),
+    property(simple_chat_message_test, ?FORALL(Msg, simple_chat_message(),
           forward == mod_carboncopy:classify_packet(Msg))).
 
 simple_badarg_test(_) ->
-	property(simple_badarg_test, ?FORALL(Msg, badarg_message(),
+    property(simple_badarg_test, ?FORALL(Msg, badarg_message(),
           ignore == mod_carboncopy:classify_packet(Msg))).
 
 property(Name, Prop) ->
     Props = proper:conjunction([{Name, Prop}]),
     true = proper:quickcheck(Props, [verbose, long_result, {numtests, 50}]).
-	
+
 
 
 %%
@@ -69,35 +69,35 @@ property(Name, Prop) ->
 %%
 
 non_chat_message() ->
-	xmlel("message",[],[]).
+    xmlel("message",[],[]).
 
 private_carbon_message() ->
-	xmlel("message", 
+    xmlel("message",
           [{<<"type">>,<<"chat">>}],
           [xmlel("private",[{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}],[])]).
 
 no_copy_message() ->
-	xmlel("message", 
+    xmlel("message",
           [{<<"type">>,<<"chat">>}],
           [xmlel("no-copy",[{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}],[])]).
 
 received_message() ->
-	xmlel("message", 
+    xmlel("message",
           [{<<"type">>,<<"chat">>}],
           [xmlel("received",[{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}],[])]).
 
 sent_forwarded_message() ->
-	xmlel("message", 
+    xmlel("message",
           [{<<"type">>,<<"chat">>}],
           [xmlel("sent",[{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}],[xmlel("forwarded",[],[])])]).
 
 sent_message() ->
-	xmlel("message", 
+    xmlel("message",
           [{<<"type">>,<<"chat">>}],
           [xmlel("sent",[{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}],[])]).
 
 simple_chat_message() ->
-	xmlel("message", [{<<"type">>,<<"chat">>}],[]).
+    xmlel("message", [{<<"type">>,<<"chat">>}],[]).
 
 badarg_message() ->
-	xmlel("message", [{<<"type">>,<<"123">>}],[]).
+    xmlel("message", [{<<"type">>,<<"123">>}],[]).

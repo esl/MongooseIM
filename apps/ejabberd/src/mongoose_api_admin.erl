@@ -31,8 +31,13 @@
 -include("mongoose_api.hrl").
 -include("ejabberd.hrl").
 
--import(mongoose_api_common, [error_response/3, error_response/4, action_to_method/1, method_to_action/1, error_code/1,
-                              process_request/4, parse_request_body/1]).
+-import(mongoose_api_common, [error_response/3,
+                              error_response/4,
+                              action_to_method/1,
+                              method_to_action/1,
+                              error_code/1,
+                              process_request/4,
+                              parse_request_body/1]).
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks

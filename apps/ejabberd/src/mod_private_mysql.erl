@@ -44,8 +44,8 @@ multi_get_data(LUser, LServer, NS2Def) ->
 select_value({NS, Def}, RowsDict) ->
     case dict:find(NS, RowsDict) of
         {ok, SData} ->
-	    {ok, Elem} = exml:parse(SData),
-	    Elem;
+            {ok, Elem} = exml:parse(SData),
+            Elem;
         error ->
             Def
     end.
