@@ -14,8 +14,8 @@ services:
     ports:
       - "${APNS_MOCK_PORT:-12992}:2197"
 
-  mongoose_push:
-    image: mongooseim/mongoose_push:latest
+  mongoose-push:
+    image: mongooseim/mongoose-push:latest
     command: foreground
     depends_on:
       - apns-mock
