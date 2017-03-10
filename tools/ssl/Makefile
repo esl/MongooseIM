@@ -4,6 +4,7 @@ SRV_SUB = /C=PL/ST=Malopolska/L=Krakow/CN=MongooseIM Server
 all: ca/cacert.pem fake_cert.pem fake_server.pem fake_dh_server.pem
 
 ca/cacert.pem ca/cakey.pem: openssl-ca.cnf
+	mkdir -p ca
 	-rm ca/cacert.pem
 	-rm ca/cakey.pem
 	openssl req -x509 -config $< -newkey rsa:2048 -sha256 -nodes \
