@@ -130,7 +130,7 @@ start_link() ->
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
 %%    ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
-    route(From, To, mongoose_acc:from_element(Packet));
+    route(From, To, mongoose_acc:from_element(Packet, From, To));
 route(From, To, {broadcast, Payload} = Packet) ->
     NPayload = case mongoose_acc:is_acc(Payload) of
                    false ->
