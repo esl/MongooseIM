@@ -353,7 +353,8 @@ handle_info({send_text, Text}, StateName, StateData) ->
 handle_info({send_element, El}, StateName, StateData) ->
     send_element(StateData, El),
     {next_state, StateName, StateData};
-handle_info({route, From, To, Packet}, StateName, StateData) ->
+handle_info({route, From, To, Acc}, StateName, StateData) ->
+    Packet = mongoose_acc:get(to_send, Acc),
     case acl:match_rule(global, StateData#state.access, From) of
         allow ->
            #xmlel{name =Name, attrs = Attrs, children = Els} = Packet,
