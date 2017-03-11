@@ -480,9 +480,10 @@ stop_supervisor(Host) ->
                      To :: ejabberd:simple_jid() | ejabberd:jid(),
                      Packet :: any(),
                      State :: state()) -> ok | pid().
-process_packet(From, To, Packet, #state{
+process_packet(From, To, PacketOrAcc, #state{
                                     access = {AccessRoute, _, _, _},
                                     server_host = ServerHost} = State) ->
+    Packet = mongoose_acc:to_element(PacketOrAcc),
     case acl:match_rule(ServerHost, AccessRoute, From) of
         allow ->
             {Room, _, _} = jid:to_lower(To),

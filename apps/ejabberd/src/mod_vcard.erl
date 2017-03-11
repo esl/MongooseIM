@@ -231,7 +231,8 @@ handle_call(stop, _From, State) ->
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
-handle_info({route, From, To, Packet}, State) ->
+handle_info({route, From, To, Acc}, State) ->
+    Packet = mongoose_acc:to_element(Acc),
     IQ = jlib:iq_query_info(Packet),
     case catch do_route(State#state.host, From, To, Packet, IQ) of
         {'EXIT', Reason} ->
