@@ -873,6 +873,7 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 handle_info({send_text, Text}, StateName, StateData) ->
+    ?ERROR_MSG("{s2s_out:send_text, Text}: ~p~n", [{send_text, Text}]), % is it ever called?
     send_text(StateData, Text),
     cancel_timer(StateData#state.timer),
     Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
