@@ -17,6 +17,7 @@
 -export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
 -export([to_element/1]).
 -export_type([t/0]).
+-export([from_element/3]).
 
 %% if it is defined as -opaque then dialyzer fails
 -type t() :: map().
@@ -101,6 +102,13 @@ from_element(El) ->
     Type = exml_query:attr(El, <<"type">>, undefined),
     #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type}.
 
+-spec from_element(xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
+from_element(El, From, To) ->
+    #xmlel{name = Name, attrs = Attrs} = El,
+    Type = exml_query:attr(El, <<"type">>, undefined),
+    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
+        from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)}.
+
 -spec from_map(map()) -> t().
 from_map(M) ->
     maps:put(mongoose_acc, true, M).
@@ -117,8 +125,13 @@ to_map(_) ->
     {error, cant_convert_to_map}.
 
 -spec put(atom(), any(), t()) -> t().
-put(Key, Val, P) ->
-    maps:put(Key, Val, P).
+put(to_send, Val, Acc) ->
+    % stanza to be sent out may change a few times, and sometimes it carries its own type
+    % (e.g. presence probe), we have to clear previouse value
+    A1 = maps:remove(send_type, Acc),
+    maps:put(to_send, Val, A1);
+put(Key, Val, Acc) ->
+    maps:put(Key, Val, Acc).
 
 -spec get(atom()|[atom()], t()) -> any().
 get(to_send, Acc) ->
@@ -179,6 +192,11 @@ dump(Acc, [K|Tail]) ->
 
 
 %% @doc pattern-match to figure out (a) which attrs can be 'required' (b) how to cook them
+produce(send_type, Acc) ->
+    % 'type' is from original stanza
+    El = mongoose_acc:get(to_send, Acc),
+    SType = exml_query:attr(El, <<"type">>, undefined),
+    mongoose_acc:put(send_type, SType, Acc);
 produce(xmlns, Acc) ->
     read_children(Acc);
 produce(command, Acc) ->

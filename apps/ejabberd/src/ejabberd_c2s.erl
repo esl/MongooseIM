@@ -1216,6 +1216,7 @@ maybe_terminate(Acc) ->
 
 %%% incoming messages
 handle_incoming_message({send_text, Text}, StateName, StateData) ->
+    ?ERROR_MSG("{c2s:send_text, Text}: ~p~n", [{send_text, Text}]), % is it ever called?
     send_text(StateData, Text),
     ejabberd_hooks:run(c2s_loop_debug, [Text]),
     fsm_next_state(StateName, StateData);
@@ -1226,11 +1227,11 @@ handle_incoming_message({broadcast, Acc}, StateName, StateData) ->
     Res = handle_routed_broadcast(Broadcast, StateData),
     handle_broadcast_result(Res, StateName, StateData);
 handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
-    Packet = maybe_terminate(Acc),
-    ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-    Name = Packet#xmlel.name,
-    process_incoming_stanza(Name, From, To, Packet, StateName, StateData);
+    Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc, [{route, From, To}]),
+    Name = mongoose_acc:get(name, Acc1),
+    process_incoming_stanza(Name, From, To, Acc1, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
+    ?ERROR_MSG("{send_filtered, Packet}: ~p~n", [{send_filtered, Packet}]), % is it ever called?
     Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
         true, [StateData#state.server, StateData,
             Feature, To, Packet]),
@@ -1266,18 +1267,22 @@ handle_incoming_message(Info, StateName, StateData) ->
 process_incoming_stanza(<<"broadcast">>, _From, _To, Packet, StateName, StateData) ->
     self() ! legacy_packet_to_broadcast(Packet),
     fsm_next_state(StateName, StateData);
-process_incoming_stanza(Name, From, To, Packet, StateName, StateData) ->
-    case handle_routed(Name, From, To, Packet, StateData) of
-        {allow, NewAttrs, NewState} ->
+process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
+    Packet = mongoose_acc:get(to_send, Acc),
+    case handle_routed(Name, From, To, Acc, StateData) of
+        {allow, NewAcc, NewState} ->
+            #xmlel{attrs = Attrs} = Packet,
             Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
                 jid:to_binary(To),
-                NewAttrs),
+                Attrs),
             FixedPacket = Packet#xmlel{attrs = Attrs2},
-            ejabberd_hooks:run(user_receive_packet,
+            Acc2 = mongoose_acc:put(to_send, FixedPacket, NewAcc),
+            _Acc3 = ejabberd_hooks:run_fold(user_receive_packet,
                 StateData#state.server,
+                Acc2,
                 [StateData#state.jid, From, To, FixedPacket]),
             ship_to_local_user({From, To, FixedPacket}, NewState, StateName);
-        {Reason, _NewAttrs, NewState} ->
+        {Reason, _NewAcc, NewState} ->
             response_negative(Name, Reason, From, To, Packet),
             fsm_next_state(StateName, NewState)
     end.
@@ -1311,35 +1316,37 @@ legacy_packet_to_broadcast(InvalidBroadcast) ->
     ?WARNING_MSG("invalid_broadcast=~p", [InvalidBroadcast]),
     {broadcast, unknown}.
 
-handle_routed(<<"presence">>, From, To, Packet, StateData) ->
-    handle_routed_presence(From, To, Packet, StateData);
-handle_routed(<<"iq">>, From, To, Packet, StateData) ->
-    handle_routed_iq(From, To, Packet, StateData);
-handle_routed(<<"message">>, From, To, Packet, StateData) ->
-    case privacy_check_packet(StateData, From, To, Packet, in) of
+handle_routed(<<"presence">>, From, To, Acc, StateData) ->
+    handle_routed_presence(From, To, Acc, StateData);
+handle_routed(<<"iq">>, From, To, Acc, StateData) ->
+    handle_routed_iq(From, To, Acc, StateData);
+handle_routed(<<"message">>, _From, To, Acc, StateData) ->
+    {Acc1, Res} = privacy_check_packet(Acc, To, in, StateData),
+    case Res of
         allow ->
-            {allow, Packet#xmlel.attrs, StateData};
+            {allow, Acc1, StateData};
         deny ->
-            {deny, Packet#xmlel.attrs, StateData};
+            {deny, Acc1, StateData};
         block ->
-            {deny, Packet#xmlel.attrs, StateData}
+            {deny, Acc1, StateData}
     end;
-handle_routed(_, _From, _To, Packet, StateData) ->
-    {true, Packet#xmlel.attrs, StateData}.
+handle_routed(_, _From, _To, Acc, StateData) ->
+    {ignore, Acc, StateData}.
 
 -spec handle_routed_iq(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
                        Packet :: exml:element(),
                        StateData :: state()) -> routing_result().
-handle_routed_iq(From, To, Packet, StateData) ->
-    handle_routed_iq(From, To, Packet, jlib:iq_query_info(Packet), StateData).
+handle_routed_iq(From, To, Acc, StateData) ->
+    Qi = jlib:iq_query_info(mongoose_acc:get(to_send, Acc)),
+    handle_routed_iq(From, To, Acc, Qi, StateData).
 
 -spec handle_routed_iq(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
                        Packet :: exml:element(),
                        IQ :: invalid | not_iq | reply | ejabberd:iq(),
                        StateData :: state()) -> routing_result().
-handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, #iq{ xmlns = ?NS_LAST }, StateData) ->
+handle_routed_iq(From, To, Acc, #iq{ xmlns = ?NS_LAST }, StateData) ->
     %% TODO: Support for mod_last / XEP-0012. Can we move it to the respective module?
     %%   Thanks to add_iq_handler(ejabberd_sm, ...)?
     HasFromSub = ( is_subscribed_to_my_presence(From, StateData)
@@ -1347,29 +1354,31 @@ handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, #iq{ xmlns = ?NS_LAST
                                             #xmlel{name = <<"presence">>}, out) ),
     case HasFromSub of
         true ->
-            case privacy_check_packet(StateData, From, To, Packet, in) of
+            {Acc1, Res} = privacy_check_packet(Acc, To, in, StateData),
+            case Res of
                 allow ->
-                    {allow, Attrs, StateData};
+                    {allow, Acc1, StateData};
                 _ ->
-                    {deny, Attrs, StateData}
+                    {deny, Acc1, StateData}
             end;
         _ ->
-            {forbidden, Attrs, StateData}
+            {forbidden, Acc, StateData}
     end;
-handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, IQ, StateData)
+handle_routed_iq(_From, To, Acc, IQ, StateData)
   when (is_record(IQ, iq)) orelse (IQ == reply) ->
-    case privacy_check_packet(StateData, From, To, Packet, in) of
+    {Acc1, Res} = privacy_check_packet(Acc, To, in, StateData),
+    case Res of
         allow ->
-            {allow, Attrs, StateData};
+            {allow, Acc1, StateData};
         deny when is_record(IQ, iq) ->
-            {deny, Attrs, StateData};
+            {deny, Acc1, StateData};
         deny when IQ == reply ->
             %% ???
-            {deny, Attrs, StateData}
+            {deny, Acc1, StateData}
     end;
-handle_routed_iq(_From, _To, #xmlel{attrs = Attrs}, IQ, StateData)
+handle_routed_iq(_From, _To, Acc, IQ, StateData)
   when (IQ == invalid) or (IQ == not_iq) ->
-    {invalid, Attrs, StateData}.
+    {invalid, Acc, StateData}.
 
 -spec handle_routed_broadcast(Broadcast :: broadcast_type(), StateData :: state()) ->
     broadcast_result().
@@ -1419,10 +1428,11 @@ privacy_list_push_iq(PrivListName) ->
 
 -spec handle_routed_presence(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel(),
                             StateData :: state()) -> routing_result().
-handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
+handle_routed_presence(From, To, Acc0, State) ->
     State = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
                                     StateData, [{From, To, Packet}]),
-    case xml:get_attr_s(<<"type">>, Attrs) of
+    Acc = mongoose_acc:require(send_type, Acc0),
+    case mongoose_acc:get(send_type, Acc) of
         <<"probe">> ->
             {LFrom, LBFrom} = lowcase_and_bare(From),
             NewState = case am_i_available_to(LFrom, LBFrom, State) of
@@ -1430,43 +1440,48 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
                            false -> make_available_to(LFrom, LBFrom, State)
                        end,
             process_presence_probe(From, To, NewState),
-            {probe, Attrs, NewState};
+            {probe, Acc, NewState};
         <<"error">> ->
             NewA = gb_sets:del_element(jid:to_lower(From), State#state.pres_a),
-            {allow, Attrs, State#state{pres_a = NewA}};
+            {allow, Acc, State#state{pres_a = NewA}};
         <<"invisible">> ->
-            Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
-            {allow, [{<<"type">>, <<"unavailable">>} | Attrs1], State};
+            El = mongoose_acc:get(element, Acc),
+            #xmlel{attrs = Attrs} = El,
+            Attrs2 = [{<<"type">>, <<"unavailable">>} | Attrs],
+            NEl = El#xmlel{attrs = Attrs2},
+            Acc1 = mongoose_acc:put(to_send, NEl, Acc),
+            {allow, Acc1, State};
         <<"subscribe">> ->
-            SRes = privacy_check_packet(State, From, To, Packet, in),
-            {SRes, Attrs, State};
+            {Acc1, SRes} = privacy_check_packet(Acc, To, in, State),
+            {SRes, Acc1, State};
         <<"subscribed">> ->
-            SRes = privacy_check_packet(State, From, To, Packet, in),
-            {SRes, Attrs, State};
+            {Acc1, SRes} = privacy_check_packet(Acc, To, in, State),
+            {SRes, Acc1, State};
         <<"unsubscribe">> ->
-            SRes = privacy_check_packet(State, From, To, Packet, in),
-            {SRes, Attrs, State};
+            {Acc1, SRes} = privacy_check_packet(Acc, To, in, State),
+            {SRes, Acc1, State};
         <<"unsubscribed">> ->
-            SRes = privacy_check_packet(State, From, To, Packet, in),
-            {SRes, Attrs, State};
+            {Acc1, SRes} = privacy_check_packet(Acc, To, in, State),
+            {SRes, Acc1, State};
         _ ->
-            handle_routed_available_presence(State, From, To, Packet)
+            handle_routed_available_presence(State, From, To, Acc)
     end.
 
 -spec handle_routed_available_presence(State :: state(),
                                        From :: ejabberd:jid(),
                                        To :: ejabberd:jid(),
                                        Packet :: exml:element()) -> routing_result().
-handle_routed_available_presence(State, From, To, #xmlel{ attrs = Attrs } = Packet) ->
-    case privacy_check_packet(State, From, To, Packet, in) of
+handle_routed_available_presence(State, From, To, Acc) ->
+    {Acc1, Res} = privacy_check_packet(Acc, To, in, State),
+    case Res of
         allow ->
             {LFrom, LBFrom} = lowcase_and_bare(From),
             case am_i_available_to(LFrom, LBFrom, State) of
-                true -> {allow, Attrs, State};
-                false -> {allow, Attrs, make_available_to(LFrom, LBFrom, State)}
+                true -> {allow, Acc1, State};
+                false -> {allow, Acc1, make_available_to(LFrom, LBFrom, State)}
             end;
         _ ->
-            {deny, Attrs, State}
+            {deny, Acc1, State}
     end.
 
 am_i_available_to(LFrom, LBFrom, State) ->

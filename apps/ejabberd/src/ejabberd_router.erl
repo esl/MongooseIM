@@ -98,7 +98,7 @@ start_link() ->
     Packet :: mongoose_acc:t()|jlib:xmlel()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
 %%    ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
-    route(From, To, mongoose_acc:from_element(Packet));
+    route(From, To, mongoose_acc:from_element(Packet, From, To));
 route(From, To, Packet) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [From, To, Packet]),
