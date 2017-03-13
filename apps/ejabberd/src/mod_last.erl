@@ -247,7 +247,8 @@ remove_user(Acc, User, Server) ->
     % but it is ignored anyway because the hook is run (not folded) so errors were not
     % handled anyway
     % same for many other handlers of 'remove_user' hook
-    mod_last_backend:remove_user(LUser, LServer),
+    Res = mod_last_backend:remove_user(LUser, LServer),
+    ?OK_OR_LOG(Res),
     Acc.
 
 %% TODO fix

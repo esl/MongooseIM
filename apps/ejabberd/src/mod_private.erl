@@ -89,7 +89,8 @@ stop(Host) ->
 %% Handlers
 
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
+    R = remove_user(User, Server),
+    ?OK_OR_LOG(R),
     Acc.
 
 remove_user(User, Server) ->
