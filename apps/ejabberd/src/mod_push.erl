@@ -111,12 +111,13 @@ remove_user(Acc, LUser, LServer) ->
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From, To = #jid{lserver = Host}, Packet}) ->
+filter_packet({From, To = #jid{lserver = Host}, Acc}) ->
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
-           [From, To, Packet]),
-    PacketType = exml_query:attr(Packet, <<"type">>),
+           [From, To, Acc]),
+    PacketType = mongoose_acc:get(type, Acc),
     case lists:member(PacketType, [<<"chat">>, <<"groupchat">>]) of
         true ->
+            Packet = mongoose_acc:get(to_send, Acc),
             case mod_push_plugin:should_publish(Host, From, To, Packet) of
                 true ->
                     publish_message(From, To, Packet);
@@ -127,7 +128,7 @@ filter_packet({From, To = #jid{lserver = Host}, Packet}) ->
             skip
     end,
 
-    {From, To, Packet}.
+    {From, To, Acc}.
 
 -spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
                         ejabberd:iq() | ignore.
