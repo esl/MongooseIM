@@ -201,7 +201,6 @@ parse_request(#xmlel{name = <<"enable">>} = Request) ->
         {_, _, invalid_form}            -> bad_request;
         {_, <<>>, _}                    -> bad_request;
         {error, _, _}                   -> bad_request;
-        {#jid{luser = <<>>}, _, _}      -> bad_request;
         {#jid{lserver = <<>>}, _, _}    -> bad_request;
         {JID, Node, FormFields} ->
             {enable, jid:to_bare(JID), Node, FormFields}
@@ -213,7 +212,6 @@ parse_request(#xmlel{name = <<"disable">>} = Request) ->
     case {JID, Node} of
         {error, _}                  -> bad_request;
         {_, <<>>}                   -> bad_request; %% Node may not be set, but shouldn't be empty
-        {#jid{luser = <<>>}, _}     -> bad_request;
         {#jid{lserver = <<>>}, _}   -> bad_request;
         {JID, Node} ->
             {disable, jid:to_bare(JID), Node}

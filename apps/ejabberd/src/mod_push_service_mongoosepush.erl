@@ -86,7 +86,8 @@ push_notifications(AccIn, Host, Notifications, Options) ->
                     title => maps:get(<<"last-message-sender">>, Notification),
                     tag => maps:get(<<"last-message-sender">>, Notification),
                     badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
-                    mode => maps:get(<<"mode">>, Options, <<"prod">>)
+                    mode => maps:get(<<"mode">>, Options, <<"prod">>),
+                    click_action => maps:get(<<"click_action">>, Options, null)
                 }),
             cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
         end, Notifications),
