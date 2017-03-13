@@ -261,22 +261,23 @@ code_change(_OldVsn, State, _Extra) ->
                Packet :: mongoose_acc:t()) ->
         done. % this is the 'last resort' router, it always returns 'done'.
 do_route(From, To, Acc) ->
-    Packet = mongoose_acc:get(element, Acc),
+    Packet = mongoose_acc:get(to_send, Acc),
     ?DEBUG("s2s manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
         [From, To, Packet, 8]),
     case find_connection(From, To) of
         {atomic, Pid} when is_pid(Pid) ->
             ?DEBUG("sending to process ~p~n", [Pid]),
-            Attrs = mongoose_acc:get(attrs, Acc),
+            #xmlel{attrs = Attrs} = Packet,
             NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(From),
                                                   jid:to_binary(To),
                                                   Attrs),
+            NewPacket = Packet#xmlel{attrs = NewAttrs},
             #jid{lserver = MyServer} = From,
             Acc1 = ejabberd_hooks:run_fold(s2s_send_packet,
                                            MyServer,
                                            Acc,
                                            [From, To, Packet]),
-            send_element(Pid, mongoose_acc:put(attrs, NewAttrs, Acc1)),
+            send_element(Pid, mongoose_acc:put(to_send, NewPacket, Acc1)),
             done;
         {aborted, _Reason} ->
             case mongoose_acc:get(type, Acc) of

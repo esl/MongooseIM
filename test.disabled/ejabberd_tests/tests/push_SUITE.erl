@@ -376,7 +376,8 @@ pm_msg_notify_if_user_offline(Config) ->
 
             Published = received_route(),
             ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
+            #route{to = RealPubsubJID, packet = Acc} = Published,
+            Packet = rpc(mongoose_acc, get, [to_send, Acc]),
             ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
             Form = exml_query:path(Packet, [{element, <<"pubsub">>},
                                              {element, <<"publish">>},
@@ -408,7 +409,8 @@ pm_msg_notify_if_user_offline_with_publish_options(Config) ->
 
             Published = received_route(),
             ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
+            #route{to = RealPubsubJID, packet = Acc} = Published,
+            Packet = rpc(mongoose_acc, get, [to_send, Acc]),
             ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
             Form = exml_query:path(Packet, [{element, <<"pubsub">>},
                                             {element, <<"publish-options">>},
@@ -504,7 +506,8 @@ muclight_msg_notify_if_user_offline(Config) ->
 
             Published = received_route(),
             ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
+            #route{to = RealPubsubJID, packet = Acc} = Published,
+            Packet = rpc(mongoose_acc, get, [to_send, Acc]),
             ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
             Form = exml_query:path(Packet, [{element, <<"pubsub">>},
                                             {element, <<"publish">>},
@@ -540,7 +543,8 @@ muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
 
             Published = received_route(),
             ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
+            #route{to = RealPubsubJID, packet = Acc} = Published,
+            Packet = rpc(mongoose_acc, get, [to_send, Acc]),
             ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
             Form = exml_query:path(Packet, [{element, <<"pubsub">>},
                                             {element, <<"publish-options">>},

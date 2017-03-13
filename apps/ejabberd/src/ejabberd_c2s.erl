@@ -1207,7 +1207,7 @@ maybe_terminate(Acc) ->
     % instead of this, we will pass on the accumulator, only replacing
     % 'element' with 'to_send', if present
     case mongoose_acc:is_acc(Acc) of
-        true -> 
+        true ->
             mongoose_acc:terminate(Acc, received, ?FILE, ?LINE);
         false ->
             ?ERROR_MSG("Hey, it should be accumulator here! ~p", [Acc]),
