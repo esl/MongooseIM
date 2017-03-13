@@ -3154,7 +3154,7 @@ sasl_success_stanza(ServerOut) ->
            attrs = [{<<"xmlns">>, ?NS_SASL}],
            children = C}.
 
--spec sasl_failure_stanza(any()) -> xmlel().
+-spec sasl_failure_stanza(binary() | {binary(), iodata() | undefined}) -> xmlel().
 sasl_failure_stanza(Error) when is_binary(Error) ->
     sasl_failure_stanza({Error, undefined});
 sasl_failure_stanza({Error, Text}) ->

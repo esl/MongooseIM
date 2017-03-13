@@ -101,7 +101,8 @@ stop(Host) ->
 -spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
     mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
-    mod_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined, undefined),
+    R = mod_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined, undefined),
+    ?OK_OR_LOG(R),
     Acc.
 
 %% Hook 'filter_packet'
