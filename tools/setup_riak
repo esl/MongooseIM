@@ -9,7 +9,6 @@ RIAK_HOST="http://${RIAK_HOST}:${RIAK_PORT}"
 VCARD_SCHEMA_PATH=${VCARD_SCHEMA_PATH:-"tools/vcard_search_schema.xml"}
 MAM_SCHEMA_PATH=${MAM_SCHEMA_PATH:-"tools/mam_search_schema.xml"}
 
-export DOCKER_HOST=${DOCKER_HOST}
 RIAK_CONTAINER_NAME=${RIAK_CONTAINER_NAME:-"mongooseim-riak"}
 
 curl -v -XPUT $RIAK_HOST/search/schema/vcard \
