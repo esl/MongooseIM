@@ -970,7 +970,7 @@ send_element(StateData, #xmlel{} = El) ->
     ?DEPRECATED,
     send_text(StateData, exml:to_binary(El));
 send_element(StateData, Acc) ->
-    El = mongoose_acc:get(to_send, Acc, undefined),
+    El = mongoose_acc:get(to_send, Acc),
     send_text(StateData, exml:to_binary(El)).
 
 
