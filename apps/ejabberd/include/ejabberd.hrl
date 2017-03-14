@@ -53,7 +53,7 @@
     lager:error(Format, Args)).
 
 -define(OK_OR_LOG(E),
-    case E of ok -> ok; _ -> lager:error("Error - expected ok, got '~p'", [E]) end).
+    case E of ok -> ok; {atomic, _} -> ok; _ -> lager:error("Error - expected ok, got '~p'", [E]) end).
 
 -define(CRITICAL_MSG(Format, Args),
     lager:critical(Format, Args)).

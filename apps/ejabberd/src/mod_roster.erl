@@ -760,15 +760,16 @@ in_auto_reply(_, _, _) -> none.
 
 %% #rh
 remove_user(Acc, User, Server) ->
-    R = remove_user(User, Server),
-    ?OK_OR_LOG(R),
+    remove_user(User, Server),
     Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     send_unsubscription_to_rosteritems(LUser, LServer),
-    ?BACKEND:remove_user(LUser, LServer).
+    R = ?BACKEND:remove_user(LUser, LServer),
+    ?OK_OR_LOG(R),
+    ok.
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;

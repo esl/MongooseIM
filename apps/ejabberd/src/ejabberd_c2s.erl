@@ -1226,7 +1226,13 @@ handle_incoming_message({broadcast, Acc}, StateName, StateData) ->
     ?DEBUG("broadcast=~p", [Broadcast]),
     Res = handle_routed_broadcast(Broadcast, StateData),
     handle_broadcast_result(Res, StateName, StateData);
-handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
+handle_incoming_message({route, From, To, Acc0}, StateName, StateData) ->
+    % since we are now in the other user's session some cached data are not valid
+    % anymore (e.g. privacy_check), they have to be removed somewher between
+    % sender and recipient. One might argue, possibly rightly, that it should be
+    % stripped before sending; the reason I do it here is that when we send
+    % an acc out of c2s it returns and we might still use the cached data.
+    Acc = mongoose_acc:flush(Acc0),
     Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc, [{route, From, To}]),
     Name = mongoose_acc:get(name, Acc1),
     process_incoming_stanza(Name, From, To, Acc1, StateName, StateData);
@@ -1268,9 +1274,9 @@ process_incoming_stanza(<<"broadcast">>, _From, _To, Packet, StateName, StateDat
     self() ! legacy_packet_to_broadcast(Packet),
     fsm_next_state(StateName, StateData);
 process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
-    Packet = mongoose_acc:get(to_send, Acc),
     case handle_routed(Name, From, To, Acc, StateData) of
         {allow, NewAcc, NewState} ->
+            Packet = mongoose_acc:get(to_send, NewAcc),
             #xmlel{attrs = Attrs} = Packet,
             Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
                 jid:to_binary(To),
@@ -1282,7 +1288,8 @@ process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
                 Acc2,
                 [StateData#state.jid, From, To, FixedPacket]),
             ship_to_local_user({From, To, FixedPacket}, NewState, StateName);
-        {Reason, _NewAcc, NewState} ->
+        {Reason, NewAcc, NewState} ->
+            Packet = mongoose_acc:get(to_send, NewAcc),
             response_negative(Name, Reason, From, To, Packet),
             fsm_next_state(StateName, NewState)
     end.
@@ -1338,7 +1345,7 @@ handle_routed(_, _From, _To, Acc, StateData) ->
                        Packet :: exml:element(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc, StateData) ->
-    Qi = jlib:iq_query_info(mongoose_acc:get(to_send, Acc)),
+    Qi = jlib:iq_query_info(mongoose_acc:get(to_send, Acc)), % could be done via 'require'
     handle_routed_iq(From, To, Acc, Qi, StateData).
 
 -spec handle_routed_iq(From :: ejabberd:jid(),
@@ -1426,9 +1433,11 @@ privacy_list_push_iq(PrivListName) ->
                          children = [#xmlel{name = <<"list">>,
                                             attrs = [{<<"name">>, PrivListName}]}]}]}.
 
--spec handle_routed_presence(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel(),
-                            StateData :: state()) -> routing_result().
-handle_routed_presence(From, To, Acc0, State) ->
+-spec handle_routed_presence(From :: ejabberd:jid(), To :: ejabberd:jid(),
+                             Packet :: mongoose_acc:t(), StateData :: state()) -> routing_result().
+handle_routed_presence(From, To, Acc0, StateData) ->
+    Packet = mongoose_acc:get(to_send, Acc0),
+    % a rare exception - hook which modifies state, can we treat #state as accumulator here?
     State = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
                                     StateData, [{From, To, Packet}]),
     Acc = mongoose_acc:require(send_type, Acc0),
@@ -1447,7 +1456,8 @@ handle_routed_presence(From, To, Acc0, State) ->
         <<"invisible">> ->
             El = mongoose_acc:get(element, Acc),
             #xmlel{attrs = Attrs} = El,
-            Attrs2 = [{<<"type">>, <<"unavailable">>} | Attrs],
+            Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
+            Attrs2 = [{<<"type">>, <<"unavailable">>} | Attrs1],
             NEl = El#xmlel{attrs = Attrs2},
             Acc1 = mongoose_acc:put(to_send, NEl, Acc),
             {allow, Acc1, State};
