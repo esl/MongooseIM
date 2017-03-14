@@ -6,14 +6,14 @@ RIAK_HOST=${RIAK_HOST:-"localhost"}
 RIAK_PORT=${RIAK_PORT:-"8098"}
 RIAK_HOST="http://${RIAK_HOST}:${RIAK_PORT}"
 
-VCARD_SCHEMA_PATH=${VCARD_SCHEMA_PATH:-"tools/vcard_search_schema.xml"}
-MAM_SCHEMA_PATH=${MAM_SCHEMA_PATH:-"tools/mam_search_schema.xml"}
+RIAK_VCARD_SCHEMA_PATH=${RIAK_VCARD_SCHEMA_PATH:-"tools/vcard_search_schema.xml"}
+RIAK_MAM_SCHEMA_PATH=${RIAK_MAM_SCHEMA_PATH:-"tools/mam_search_schema.xml"}
 
 RIAK_CONTAINER_NAME=${RIAK_CONTAINER_NAME:-"mongooseim-riak"}
 
 curl -v -XPUT $RIAK_HOST/search/schema/vcard \
     -H 'Content-Type:application/xml' \
-    --data-binary @${VCARD_SCHEMA_PATH}
+    --data-binary @${RIAK_VCARD_SCHEMA_PATH}
 
 curl -v $RIAK_HOST/search/schema/vcard
 
@@ -23,7 +23,7 @@ curl -v -XPUT $RIAK_HOST/search/index/vcard \
 
 curl -v -XPUT $RIAK_HOST/search/schema/mam \
     -H 'Content-Type:application/xml' \
-    --data-binary @${MAM_SCHEMA_PATH}
+    --data-binary @${RIAK_MAM_SCHEMA_PATH}
 
 curl -v $RIAK_HOST/search/schema/mam
 
