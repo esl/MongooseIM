@@ -53,10 +53,11 @@ basic_routing(_C) ->
 setup_routing_module(Name, PacketToDrop, PacketToRoute) ->
     meck:new(Name, [non_strict]),
     meck:expect(Name, filter,
-        fun(From, To, Packet) ->
+        fun(From, To, Acc) ->
+            Packet = mongoose_acc:get(element, Acc),
             case Packet of
                 PacketToDrop -> drop;
-                _ -> {From, To, Packet}
+                _ -> {From, To, Acc}
             end
         end),
     meck:expect(Name, route,
@@ -66,30 +67,34 @@ setup_routing_module(Name, PacketToDrop, PacketToRoute) ->
 make_routing_fun(Name, all) ->
     Self = self(),
     Marker = list_to_atom([lists:last(atom_to_list(Name))]),
-    fun(_From, _To, Packet) ->
+    fun(_From, _To, Acc) ->
+        Packet = mongoose_acc:get(element, Acc),
         Self ! {Marker, Packet},
         done
     end;
 make_routing_fun(Name, PacketToRoute) ->
     Self = self(),
     Marker = list_to_atom([lists:last(atom_to_list(Name))]),
-    fun(From, To, Packet) ->
+    fun(From, To, Acc) ->
+        Packet = mongoose_acc:get(element, Acc),
         case Packet of
             PacketToRoute ->
                 Self ! {Marker, Packet},
                 done;
-            _ -> {From, To, Packet}
+            _ -> {From, To, Acc}
         end
     end.
 
 route(I) ->
-    ok = ejabberd_router:route(jid:from_binary(<<"ala@localhost">>),
+    Acc = mongoose_acc:from_kv(element, I),
+    #{} = ejabberd_router:route(jid:from_binary(<<"ala@localhost">>),
                                jid:from_binary(<<"bob@localhost">>),
-                               I).
+                               Acc).
 
 verify(L) ->
     receive
         X ->
+            ct:pal("{X, L}: ~p", [{X, L}]),
             ?assert(lists:member(X, L)),
             verify(lists:delete(X, L))
     after 1000 ->
