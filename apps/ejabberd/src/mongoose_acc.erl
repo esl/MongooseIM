@@ -60,7 +60,12 @@ to_binary({broadcast, Payload}) ->
     end;
 to_binary(Acc) ->
     % replacement to exml:to_binary, for error logging
-    exml:to_binary(mongoose_acc:get(element, Acc)).
+    case mongoose_acc:is_acc(Acc) of
+        true ->
+            exml:to_binary(mongoose_acc:get(element, Acc));
+        false ->
+            list_to_binary(io_lib:format("~p", [Acc]))
+    end.
 
 %% This function is for transitional period, eventually all hooks will use accumulator
 %% and we will not have to check

@@ -437,10 +437,10 @@ route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
                        [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
                         M, Reason, mongoose_acc:to_binary(OrigPacket),
                         erlang:get_stacktrace()]),
-            ok;
+            OrigPacket;
         drop ->
             ?DEBUG("filter dropped packet", []),
-            ok;
+            OrigPacket;
         {OrigFrom, OrigTo, OrigPacketFiltered} ->
             ?DEBUG("filter passed", []),
             case catch(M:route(OrigFrom, OrigTo, OrigPacketFiltered)) of
