@@ -151,19 +151,20 @@ produce(command, Acc) ->
 %% @doc scan xml children to look for namespace; the name of xml element containing namespace
 %% defines the purpose of a stanza, we store it as 'command'; if absent, we store 'undefined'.
 read_children(Acc) ->
-    #xmlel{children = Children} = mongoose_acc:get(element, Acc),
+    Acc1 = mongoose_acc:put(command, undefined, mongoose_acc:put(xmlns, undefined, Acc)),
+    #xmlel{children = Children} = mongoose_acc:get(element, Acc1),
     read_children(Acc, Children).
 
 read_children(Acc, []) ->
     Acc;
-read_children(Acc, [Chld|Tail]) ->
-    {Xmlns, Command} = case exml_query:attr(Chld, <<"xmlns">>, undefined) of
-                           undefined ->
-                               {undefined, undefined};
-                           X ->
-                               #xmlel{name = Name} = Chld,
-                               {X, Name}
-                       end,
-    Acc1 = mongoose_acc:put(command, Command, mongoose_acc:put(xmlns, Xmlns, Acc)),
-    read_children(Acc1, Tail).
+read_children(Acc, [#xmlel{} = Chld|Tail]) ->
+    case exml_query:attr(Chld, <<"xmlns">>, undefined) of
+        undefined ->
+            read_children(Acc, Tail);
+        Ns ->
+            #xmlel{name = Name} = Chld,
+            mongoose_acc:put(command, Name, mongoose_acc:put(xmlns, Ns, Acc))
+    end;
+read_children(Acc, [_|Tail]) ->
+    read_children(Acc, Tail).
 

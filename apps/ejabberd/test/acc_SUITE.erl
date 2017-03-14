@@ -21,7 +21,8 @@ all() ->
 groups() ->
     [
      {basic, [sequence],
-      [store_and_retrieve, init_from_element, get_and_require ]
+      [store_and_retrieve, init_from_element, get_and_require,
+          parse_with_cdata]
      }
     ].
 
@@ -58,6 +59,11 @@ get_and_require(_C) ->
     ?assertEqual(mongoose_acc:get(xmlns, Acc2), <<"urn:xmpp:blocking">>),
     ok.
 
+parse_with_cdata(_C) ->
+    Acc = mongoose_acc:from_element(stanza_with_cdata()),
+    Acc1 = mongoose_acc:require(xmlns, Acc),
+    ?assertEqual(mongoose_acc:get(xmlns, Acc1), <<"jabber:iq:roster">>).
+
 
 sample_stanza() ->
     {xmlel, <<"iq">>,
@@ -67,5 +73,10 @@ sample_stanza() ->
             [{xmlel, <<"item">>,
                 [{<<"jid">>, <<"bob37.814302@localhost">>}],
                 []}]}]}.
+
+stanza_with_cdata() ->
+    Txt = <<"<iq type=\"get\" id=\"aab9a\"><query xmlns=\"jabber:iq:roster\"/>\" </iq>\">">>,
+    {ok, X} = exml:parse(Txt),
+    X.
 
 
