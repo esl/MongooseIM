@@ -92,11 +92,7 @@
                             [data, xmpp, sent, xml_stanza_size]]).
 
 -define(DATA_FUN_METRICS,
-        [{[data, odbc, regular],
-          {function, mongoose_metrics, get_odbc_data_stats, [], proplist, [workers | ?INET_STATS]}},
-         {[data, odbc, mam_async],
-          {function, mongoose_metrics, get_odbc_mam_async_stats, [], proplist, [workers | ?INET_STATS]}},
-         {[data, dist],
+        [{[data, dist],
           {function, mongoose_metrics, get_dist_data_stats, [], proplist, [connections | ?INET_STATS]}}]).
 
 

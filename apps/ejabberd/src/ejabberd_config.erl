@@ -77,6 +77,7 @@
 
 -record(state, {opts = [] :: list(),
                 hosts = [] :: [host()],
+                odbc_pools = [] :: [atom()],
                 override_local = false :: boolean(),
                 override_global = false :: boolean(),
                 override_acls = false :: boolean()}).
@@ -177,10 +178,7 @@ get_ejabberd_config_path() ->
 %% This function will crash if finds some error in the configuration file.
 -spec load_file(File :: string()) -> ok.
 load_file(File) ->
-    Terms = get_plain_terms_file(File),
-    State = lists:foldl(fun search_hosts/2, #state{}, Terms),
-    TermsMacros = replace_macros(Terms),
-    Res = lists:foldl(fun process_term/2, State, TermsMacros),
+    Res = parse_file(File),
     set_opts(Res).
 
 
@@ -220,8 +218,10 @@ get_absolute_path(File) ->
     end.
 
 
--spec search_hosts({host|hosts, [host()] | host()}, state()) -> any().
-search_hosts(Term, State) ->
+-spec search_hosts_and_pools({host|hosts, [host()] | host()}
+                             | {pool, odbc, atom()}
+                             | {pool, odbc, atom(), list()}, state()) -> any().
+search_hosts_and_pools(Term, State) ->
     case Term of
         {host, Host} ->
             case State of
@@ -241,6 +241,10 @@ search_hosts(Term, State) ->
                                "too many hosts definitions", []),
                     exit("too many hosts definitions")
             end;
+        {pool, PoolType, PoolName, _Options} ->
+            search_hosts_and_pools({pool, PoolType, PoolName}, State);
+        {pool, odbc, PoolName} ->
+            add_odbc_pool_to_option(PoolName, State);
         _ ->
             State
     end.
@@ -252,6 +256,9 @@ add_hosts_to_option(Hosts, State) ->
     PrepHosts = normalize_hosts(Hosts),
     add_option(hosts, PrepHosts, State#state{hosts = PrepHosts}).
 
+add_odbc_pool_to_option(PoolName, State) ->
+    Pools = State#state.odbc_pools,
+    State#state{odbc_pools = [PoolName | Pools]}.
 
 -spec normalize_hosts([host()]) -> [binary() | tuple()].
 normalize_hosts(Hosts) ->
@@ -508,6 +515,13 @@ process_term(Term, State) ->
             lists:foldl(fun(T, S) ->
                             process_host_term(T, list_to_binary(Host), S) end,
                         State, Terms);
+        {pool, odbc, _PoolName} ->
+            State;
+        {pool, odbc, PoolName, Options} ->
+            lists:foldl(fun(T, S) ->
+                            process_db_pool_term(T, PoolName, S)
+                        end,
+                        State, Options);
         {listen, Listeners} ->
             Listeners2 =
                 lists:map(
@@ -576,10 +590,23 @@ process_term(Term, State) ->
         {all_metrics_are_global, Value} ->
             add_option(all_metrics_are_global, Value, State);
         {_Opt, _Val} ->
-            lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
-                        State, State#state.hosts)
+            State1 = process_term_for_hosts(Term, State),
+            process_term_for_odbc_pools(Term, State1)
     end.
 
+process_term_for_hosts(Term, State) ->
+    lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
+                State, State#state.hosts).
+
+process_term_for_odbc_pools(Term = {Key, _Val}, State) ->
+    BKey = atom_to_binary(Key, utf8),
+    case get_key_group(BKey, Key) of
+        odbc ->
+            lists:foldl(fun(Pool, S) -> process_db_pool_term(Term, Pool, S) end,
+                        State, State#state.odbc_pools);
+        _ ->
+            State
+    end.
 
 -spec process_host_term(Term :: host_term(),
                         Host :: acl:host(),
@@ -603,6 +630,8 @@ process_host_term(Term, Host, State) ->
             State;
         {odbc_server, ODBCServer} ->
             add_option({odbc_server, Host}, ODBCServer, State);
+        {odbc_pool, Pool} when is_atom(Pool) ->
+            add_option({odbc_pool, Host}, Pool, State);
         {riak_server, RiakConfig} ->
             add_option(riak_server, RiakConfig, State);
         {cassandra_servers, CassandraConfig} ->
@@ -611,6 +640,8 @@ process_host_term(Term, Host, State) ->
             add_option({Opt, Host}, Val, State)
     end.
 
+process_db_pool_term({Opt, Val}, Pool, State) when is_atom(Pool) ->
+    add_option({Opt, odbc_pool, Pool}, Val, State).
 
 -spec add_option(Opt :: key(),
                  Val :: value(),
@@ -786,9 +817,11 @@ is_file_readable(Path) ->
 -spec parse_file(file:name()) -> state().
 parse_file(ConfigFile) ->
     Terms = get_plain_terms_file(ConfigFile),
-    State = lists:foldl(fun search_hosts/2, #state{}, Terms),
+    State = lists:foldl(fun search_hosts_and_pools/2, #state{}, Terms),
     TermsWExpandedMacros = replace_macros(Terms),
-    lists:foldl(fun process_term/2, State, TermsWExpandedMacros).
+    lists:foldl(fun process_term/2,
+                add_option(odbc_pools, State#state.odbc_pools, State),
+                TermsWExpandedMacros).
 
 -spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->
@@ -1047,8 +1080,6 @@ handle_local_config_change({Key, _Old, _New} = El) ->
 
 handle_local_hosts_config_add({{auth, Host}, _}) ->
     ejabberd_auth:start(Host);
-handle_local_hosts_config_add({{odbc, Host}, _}) ->
-    ejabberd_rdbms:start(Host);
 handle_local_hosts_config_add({{ldap, _Host}, _}) ->
     %% ignore ldap section
     ok;
@@ -1072,8 +1103,6 @@ handle_local_hosts_config_del({{auth, Host}, Opts}) ->
                               M:stop(Host)
                           end, AuthModules)
     end;
-handle_local_hosts_config_del({{odbc, Host}, _}) ->
-    ejabberd_rdbms:stop_odbc(Host);
 handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
     %% ignore ldap section, only appli
     ok;
@@ -1087,15 +1116,6 @@ handle_local_hosts_config_del({{Key, _}, _} =El) ->
             ?WARNING_MSG("local hosts config delete option: ~p unhandled", [El])
     end.
 
-handle_local_hosts_config_change({{odbc, Host}, Old, _}) ->
-    %% stop rdbms
-    case lists:keyfind({odbc_server, Host}, 1, Old) of
-        false ->
-            ok;
-        #local_config{} ->
-            ejabberd_rdbms:stop_odbc(Host)
-    end,
-    ejabberd_rdbms:start(Host);
 handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
     case lists:keyfind(auth_method, 1, OldVals) of
         false ->
@@ -1149,9 +1169,10 @@ add_virtual_host(Host) ->
     ?DEBUG("Register host:~p", [Host]),
     ejabberd_local:register_host(Host).
 
--spec can_be_ignored(Key :: atom()) -> boolean().
-can_be_ignored(Key) when is_atom(Key) ->
-    L = [domain_certfile, s2s, all_metrics_are_global],
+-spec can_be_ignored(Key :: atom() | tuple()) -> boolean().
+can_be_ignored(Key) when is_atom(Key);
+                         is_tuple(Key) ->
+    L = [domain_certfile, s2s, all_metrics_are_global, odbc],
     lists:member(Key, L).
 
 -spec remove_virtual_host(ejabberd:server()) -> any().
@@ -1219,11 +1240,16 @@ get_local_config() ->
 get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
 
--spec is_not_host_specific(atom() | {atom(), ejabberd:server()}) -> boolean().
+-spec is_not_host_specific(atom()
+                           | {atom(), ejabberd:server()}
+                           | {atom(), atom(), atom()}) -> boolean().
 is_not_host_specific(Key) when is_atom(Key) ->
     true;
 is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
-    false.
+    false;
+is_not_host_specific({Key, PoolType, PoolName})
+  when is_atom(Key), is_atom(PoolType), is_atom(PoolName) ->
+    true.
 
 -spec categorize_options([term()]) -> {GlobalConfig, LocalConfig, HostsConfig} when
       GlobalConfig :: list(),

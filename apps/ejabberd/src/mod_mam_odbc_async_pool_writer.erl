@@ -79,10 +79,7 @@ worker_number(Host, ArcID) ->
 
 start(Host, Opts) ->
     mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
-
-    PoolName = gen_mod:get_module_proc(Host, ?MODULE),
-    {ok, _} = mongoose_rdbms_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
-
+    PoolName = gen_mod:get_opt(odbc_pool, Opts, mongoose_rdbms_sup:pool(Host)),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
     mod_mam_odbc_arch:prepare_insert(insert_mam_message, 1),
     mod_mam_odbc_arch:prepare_insert(insert_mam_messages, MaxSize),
@@ -114,8 +111,7 @@ stop(Host) ->
         false ->
             ok
     end,
-    stop_workers(Host),
-    mongoose_rdbms_sup:remove_pool(Host, ?MODULE).
+    stop_workers(Host).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam

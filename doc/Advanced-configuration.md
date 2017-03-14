@@ -10,7 +10,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 ## Options
 
-* All options except `hosts`, `host` and `host_config` can be used in `host_config` tuple.
+* All options except `hosts`, `host`, `host_config`, `pool` and the ODBC options can be used in `host_config` tuple.
 
 * There are two kinds of local options - those that are kept separately for each domain in config file (defined inside `host_config`) and the options local for a node in the cluster.
 
@@ -129,7 +129,23 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 ### Database setup
 
-`odbc` prefixes may be misleading. Such options apply to all kinds of DB connections, not only pure ODBC.
+#### Connection pools
+
+* **pool** (multi, local)
+    * **Description:** Declares a named pool of connections to the database. At least one pool is required to connect to an SQL database.
+    * **Syntax:** `{pool, odbc, PoolName}.` or `{pool, odbc, PoolName, Options}.`
+    * **Examples:** `{pool, odbc, default}.`
+
+* **odbc_pool** (local)
+    * **Description:** Name of the default connection pool used to connect to the database.
+    * **Syntax:** `{odbc_pool, PoolName}`
+    * **Default:** `default`
+
+#### Connection setup
+
+The following options can be used to configure a connection pool. To set the options for all connection pools, put them on the top level of the configuration file. To set them for an individual pool, put them inside the `Options` list in a pool specification. Setting `odbc_server` is mandatory.
+
+*Note*: `odbc` prefixes may be misleading. Such options apply to all kinds of DB connections, not only pure ODBC.
 
 * **odbc_server** (local)
     * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.

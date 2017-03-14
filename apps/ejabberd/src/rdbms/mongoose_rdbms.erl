@@ -31,13 +31,13 @@
 
 -behaviour(gen_server).
 
--callback escape_format(Host :: ejabberd:server()) -> atom().
+-callback escape_format(Pool :: pool()) -> atom().
 -callback connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
     {ok, Connection :: term()} | {error, Reason :: any()}.
 -callback disconnect(Connection :: term()) -> any().
 -callback query(Connection :: term(), Query :: any(), Timeout :: infinity | non_neg_integer()) ->
     query_result().
--callback prepare(Host :: ejabberd:server(), Connection :: term(), Name :: atom(),
+-callback prepare(Pool :: pool(), Connection :: term(), Name :: atom(),
                   Table :: binary(), Fields :: [binary()], Statement :: iodata()) ->
     {ok, Ref :: term()} | {error, Reason :: any()}.
 -callback execute(Connection :: term(), Ref :: term(), Parameters :: [term()],
@@ -77,9 +77,12 @@
 
 -include("ejabberd.hrl").
 
+-type pool() :: atom().
+-export_type([pool/0]).
+
 -record(state, {db_ref,
                 db_type :: atom(),
-                host :: ejabberd:server(),
+                pool :: pool(),
                 prepared = #{} :: #{binary() => term()}
                }).
 -type state() :: #state{}.
@@ -94,8 +97,7 @@
 %% the retry counter runs out. We just attempt to reduce log pollution.
 -define(CONNECT_RETRIES, 5).
 
-%% Points to ODBC server process
--type odbc_server() :: binary() | atom().
+-type server() :: binary() | pool().
 -type odbc_msg() :: {sql_query, _} | {sql_transaction, fun()} | {sql_execute, atom(), iodata()}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
@@ -123,17 +125,17 @@ prepare(Name, Table, Fields, Statement) when is_atom(Name), is_binary(Table) ->
         false -> {error, already_exists}
     end.
 
--spec execute(HostOrPool :: odbc_server(), Name :: atom(), Parameters :: [term()]) ->
+-spec execute(HostOrPool :: server(), Name :: atom(), Parameters :: [term()]) ->
                      query_result().
 execute(HostOrPool, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
     sql_call(HostOrPool, {sql_execute, Name, Parameters}).
 
--spec sql_query(HostOrPool :: odbc_server(), Query :: any()) -> query_result().
+-spec sql_query(HostOrPool :: server(), Query :: any()) -> query_result().
 sql_query(HostOrPool, Query) ->
     sql_call(HostOrPool, {sql_query, Query}).
 
 %% @doc SQL transaction based on a list of queries
--spec sql_transaction(odbc_server(), fun() | maybe_improper_list()) -> transaction_result().
+-spec sql_transaction(server(), fun() | maybe_improper_list()) -> transaction_result().
 sql_transaction(HostOrPool, Queries) when is_list(Queries) ->
     F = fun() -> lists:map(fun sql_query_t/1, Queries) end,
     sql_transaction(HostOrPool, F);
@@ -142,7 +144,7 @@ sql_transaction(HostOrPool, F) when is_function(F) ->
     sql_call(HostOrPool, {sql_transaction, F}).
 
 %% TODO: Better spec for RPC calls
--spec sql_call(HostOrPool :: odbc_server(), Msg :: odbc_msg()) -> any().
+-spec sql_call(HostOrPool :: server(), Msg :: odbc_msg()) -> any().
 sql_call(HostOrPool, Msg) ->
     case get(?STATE_KEY) of
         undefined -> sql_call0(HostOrPool, Msg);
@@ -153,31 +155,27 @@ sql_call(HostOrPool, Msg) ->
     end.
 
 
--spec sql_call0(HostOrPool :: odbc_server(), Msg :: odbc_msg()) -> any().
-sql_call0(Host, Msg) when is_binary(Host) ->
-    sql_call0(mongoose_rdbms_sup:default_pool(Host), Msg);
-sql_call0(Pool, Msg) when is_atom(Pool) ->
-    case whereis(Pool) of
-        undefined -> {error, {no_odbc_pool, Pool}};
+-spec sql_call0(HostOrPool :: server(), Msg :: odbc_msg()) -> any().
+sql_call0(HostOrPool, Msg) ->
+    PoolProc = mongoose_rdbms_sup:pool_proc(HostOrPool),
+    case whereis(PoolProc) of
+        undefined -> {error, {no_odbc_pool, PoolProc}};
         _ ->
             Timestamp = p1_time_compat:monotonic_time(milli_seconds),
-            wpool:call(Pool, {sql_cmd, Msg, Timestamp}, best_worker, ?TRANSACTION_TIMEOUT)
+            wpool:call(PoolProc, {sql_cmd, Msg, Timestamp}, best_worker, ?TRANSACTION_TIMEOUT)
     end.
 
 
--spec get_db_info(Target :: odbc_server() | pid()) ->
+-spec get_db_info(Target :: server() | pid()) ->
                          {ok, DbType :: atom(), DbRef :: term()} | {error, any()}.
-get_db_info(Host) when is_binary(Host) ->
-    get_db_info(mongoose_rdbms_sup:default_pool(Host));
-get_db_info(Pool) when is_atom(Pool) ->
-    case whereis(Pool) of
-        undefined -> {error, {no_odbc_pool, Pool}};
-        _ -> wpool:call(Pool, get_db_info)
-    end;
 get_db_info(Pid) when is_pid(Pid) ->
-    wpool_process:call(Pid, get_db_info, 5000).
-
-
+    wpool_process:call(Pid, get_db_info, 5000);
+get_db_info(HostOrPool) ->
+    PoolProc = mongoose_rdbms_sup:pool_proc(HostOrPool),
+    case whereis(PoolProc) of
+        undefined -> {error, {no_odbc_pool, PoolProc}};
+        _ -> wpool:call(PoolProc, get_db_info)
+    end.
 
 %% This function is intended to be used from inside an sql_transaction:
 sql_query_t(Query) ->
@@ -215,10 +213,10 @@ escape_like(S) ->
     rdbms_queries:escape_like_string(S).
 
 
--spec escape_format(odbc_server()) -> hex | simple_escape.
-escape_format(Host) ->
-    mongoose_rdbms_backend:escape_format(Host).
-
+-spec escape_format(server()) -> hex | simple_escape.
+escape_format(HostOrPool) ->
+    Pool = mongoose_rdbms_sup:pool(HostOrPool),
+    mongoose_rdbms_backend:escape_format(Pool).
 
 -spec escape_binary('hex' | 'simple_escape', binary()) -> binary() | string().
 escape_binary(hex, Bin) when is_binary(Bin) ->
@@ -267,16 +265,16 @@ to_bool(_) -> false.
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_server
 %%%----------------------------------------------------------------------
--spec init(ejabberd:server()) -> {ok, state()}.
-init(Host) ->
+-spec init(pool()) -> {ok, state()}.
+init(Pool) ->
     process_flag(trap_exit, true),
-    backend_module:create(?MODULE, db_engine(Host), [query]),
-    Settings = ejabberd_config:get_local_option({odbc_server, Host}),
-    MaxStartInterval = get_start_interval(Host),
+    backend_module:create(?MODULE, db_engine(Pool), [query]),
+    Settings = mongoose_rdbms_sup:get_option(Pool, odbc_server),
+    MaxStartInterval = get_start_interval(Pool),
     case connect(Settings, ?CONNECT_RETRIES, 2, MaxStartInterval) of
         {ok, DbRef} ->
-            schedule_keepalive(Host),
-            {ok, #state{db_type = db_engine(Host), host = Host, db_ref = DbRef}};
+            schedule_keepalive(Pool),
+            {ok, #state{db_type = db_engine(Pool), pool = Pool, db_ref = DbRef}};
         Error ->
             {stop, Error}
     end.
@@ -299,7 +297,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_info(keepalive, State) ->
     case sql_query_internal([?KEEPALIVE_QUERY], State) of
         {selected, _} ->
-            schedule_keepalive(State#state.host),
+            schedule_keepalive(State#state.pool),
             {noreply, State};
         {error, _} = Error ->
             {stop, {keepalive_failed, Error}, State}
@@ -426,11 +424,11 @@ sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
     {Res, NewState}.
 
 -spec prepare_statement(Name :: atom(), state()) -> {Ref :: term(), state()}.
-prepare_statement(Name, State = #state{db_ref = DBRef, prepared = Prepared, host = Host}) ->
+prepare_statement(Name, State = #state{db_ref = DBRef, prepared = Prepared, pool = Pool}) ->
     case maps:get(Name, Prepared, undefined) of
         undefined ->
             [{_, Table, Fields, Statement}] = ets:lookup(prepared_statements, Name),
-            {ok, Ref} = mongoose_rdbms_backend:prepare(Host, DBRef, Name, Table, Fields, Statement),
+            {ok, Ref} = mongoose_rdbms_backend:prepare(Pool, DBRef, Name, Table, Fields, Statement),
             {Ref, State#state{prepared = maps:put(Name, Ref, Prepared)}};
 
         Ref ->
@@ -450,13 +448,10 @@ abort_on_driver_error({{error, "Failed sending data on socket" ++ _} = Reply, St
 abort_on_driver_error({Reply, State}) ->
     {reply, Reply, State}.
 
-
--spec db_engine(Host :: odbc_server()) -> ejabberd_config:value().
-db_engine(Pool) when is_atom(Pool) ->
-    {ok, DbType, _} = wpool:call(Pool, get_db_info),
-    DbType;
-db_engine(Host) when is_binary(Host) ->
-    case ejabberd_config:get_local_option({odbc_server, Host}) of
+-spec db_engine(server()) -> ejabberd_config:value().
+db_engine(HostOrPool) ->
+    Pool = mongoose_rdbms_sup:pool(HostOrPool),
+    case mongoose_rdbms_sup:get_option(Pool, odbc_server) of
         SQLServer when is_list(SQLServer) ->
             odbc;
         Other when is_tuple(Other) ->
@@ -482,31 +477,31 @@ connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
     end.
 
 
--spec schedule_keepalive(ejabberd:server()) -> any().
-schedule_keepalive(Host) ->
-    case ejabberd_config:get_local_option({odbc_keepalive_interval, Host}) of
+-spec schedule_keepalive(pool()) -> any().
+schedule_keepalive(Pool) ->
+    case mongoose_rdbms_sup:get_option(Pool, odbc_keepalive_interval) of
         KeepaliveInterval when is_integer(KeepaliveInterval) ->
             erlang:send_after(timer:seconds(KeepaliveInterval), self(), keepalive);
         undefined ->
             ok;
         _Other ->
             ?ERROR_MSG("Wrong odbc_keepalive_interval definition '~p'"
-                       " for host ~p.~n", [_Other, Host]),
+                       " for pool ~p.~n", [_Other, Pool]),
             ok
     end.
 
 
--spec get_start_interval(ejabberd:server()) -> any().
-get_start_interval(Host) ->
+-spec get_start_interval(pool()) -> any().
+get_start_interval(Pool) ->
     DefaultInterval = 30,
-    case ejabberd_config:get_local_option({odbc_start_interval, Host}) of
+    case mongoose_rdbms_sup:get_option(Pool, odbc_start_interval) of
         StartInterval when is_integer(StartInterval) ->
             StartInterval;
         undefined ->
             DefaultInterval;
         _Other ->
             ?ERROR_MSG("Wrong odbc_start_interval definition '~p'"
-                       " for host ~p, defaulting to ~p seconds.~n",
-                       [_Other, Host, DefaultInterval]),
+                       " for pool ~p, defaulting to ~p seconds.~n",
+                       [_Other, Pool, DefaultInterval]),
             DefaultInterval
     end.

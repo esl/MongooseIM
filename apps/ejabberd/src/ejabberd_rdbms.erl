@@ -27,7 +27,7 @@
 -module(ejabberd_rdbms).
 -author('alexey@process-one.net').
 
--export([start/0, start/1, stop/1, stop_odbc/1]).
+-export([start/0, start_pool/1, stop_pool/1, pools/0]).
 -include("ejabberd.hrl").
 
 -spec start() -> 'ok' | {'error', 'lager_not_running'}.
@@ -39,63 +39,29 @@ start() ->
             ?INFO_MSG("MongooseIM has not been compiled with relational database support. "
                       "Skipping database startup.", []);
         _ ->
-            %% If compiled with ODBC, start ODBC on the needed host
-            start_hosts()
+            {ok, _Pid} = start_pool_sup(),
+            [start_pool(Pool) || Pool <- pools()],
+            ok
     end.
 
-%% @doc Start relationnal DB module on the nodes where it is needed
--spec start_hosts() -> 'ok'.
-start_hosts() ->
-    lists:foreach(fun start/1, ?MYHOSTS).
-
--spec stop(Host :: ejabberd:server()) -> 'ok'.
-stop(Host) ->
-    case needs_odbc(Host) of
-        true -> stop_odbc(Host);
-        false -> ok
-    end.
-
--spec start(Host :: ejabberd:server()) -> 'ok'.
-start(Host) ->
-    case needs_odbc(Host) of
-        true  -> start_odbc(Host);
-        false -> ok
-    end.
-
-%% @doc Start the ODBC module on the given host
--spec start_odbc(binary() | string()) -> 'ok'.
-start_odbc(Host) ->
-    Supervisor_name = gen_mod:get_module_proc(Host, mongoose_rdbms_sup),
+start_pool_sup() ->
     ChildSpec =
-        {Supervisor_name,
-         {mongoose_rdbms_sup, start_link, [Host]},
+        {mongoose_rdbms_sup,
+         {mongoose_rdbms_sup, start_link, []},
          transient,
          infinity,
          supervisor,
          [mongoose_rdbms_sup]},
-    case supervisor:start_child(ejabberd_sup, ChildSpec) of
-        {ok, _PID} ->
-            ok;
-        _Error ->
-            ?ERROR_MSG("Start of supervisor ~p failed:~n~p~nRetrying...~n",
-                      [Supervisor_name, _Error]),
-            start_odbc(Host)
-    end.
+    supervisor:start_child(ejabberd_sup, ChildSpec).
 
--spec stop_odbc(binary() | string()) -> 'ok'.
-stop_odbc(Host) ->
-    Proc = gen_mod:get_module_proc(Host, mongoose_rdbms_sup),
-    supervisor:terminate_child(ejabberd_sup, Proc).
+pools() ->
+    ejabberd_config:get_local_option_or_default(odbc_pools, []).
 
-%% @doc Returns true if we have configured odbc_server for the given host
--spec needs_odbc(_) -> boolean().
-needs_odbc(Host) ->
-    LHost = jid:nameprep(Host),
-    case ejabberd_config:get_local_option({odbc_server, LHost}) of
-        undefined ->
-            false;
-        _ -> true
-    end.
+start_pool(Pool) ->
+    mongoose_rdbms_sup:add_pool(Pool).
+
+stop_pool(Pool) ->
+    mongoose_rdbms_sup:remove_pool(Pool).
 
 compile_odbc_type_helper() ->
     Key = {odbc_server_type, ?MYNAME},

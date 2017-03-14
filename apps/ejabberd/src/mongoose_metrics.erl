@@ -24,6 +24,7 @@
          init_predefined_host_metrics/1,
          init_subscriptions/0,
          create_generic_hook_metric/2,
+         ensure_db_pool_metric/1,
          update/3,
          ensure_metric/3,
          get_metric_value/1,
@@ -34,7 +35,7 @@
          get_aggregated_values/1,
          increment_generic_hook_metric/2,
          get_odbc_data_stats/0,
-         get_odbc_mam_async_stats/0,
+         get_odbc_data_stats/1,
          get_dist_data_stats/0,
          get_up_time/0,
          remove_host_metrics/1,
@@ -83,6 +84,12 @@ create_generic_hook_metric(Host, Hook) ->
     FilteredHookName = filter_hook(Hook),
     do_create_generic_hook_metric(Host, FilteredHookName).
 
+ensure_db_pool_metric(Pool) ->
+    ensure_metric(global,
+                  [data, odbc, Pool],
+                  {function, mongoose_metrics, get_odbc_data_stats, [[Pool]], proplist,
+                   [workers | ?INET_STATS]}).
+
 -spec update(Host :: ejabberd:lserver() | global, Name :: term() | list(),
              Change :: term()) -> any().
 update(Host, Name, Change) when is_list(Name) ->
@@ -124,22 +131,11 @@ increment_generic_hook_metric(Host, Hook) ->
     do_increment_generic_hook_metric(Host, FilteredHook).
 
 get_odbc_data_stats() ->
-    RegularODBCWorkers = [catch mongoose_rdbms_sup:get_pids(Host) || Host <- ?MYHOSTS],
-    get_odbc_stats(lists:flatten(RegularODBCWorkers)).
+    get_odbc_data_stats(ejabberd_rdbms:pools()).
 
-get_odbc_mam_async_stats() ->
-    %% MAM async ODBC workers are organized differently...
-    GetChildren = fun(Host, Pool) ->
-                        Name = gen_mod:get_module_proc(Host, Pool),
-                        case catch mongoose_rdbms_sup:get_pids(Name) of
-                            [_ | _] = Children -> Children;
-                            _ -> []
-                        end
-                  end,
-
-    MamPools = [mod_mam_odbc_async_pool_writer, mod_mam_muc_odbc_async_pool_writer],
-    MamChildren = lists:flatten([GetChildren(Host, Pool) || Host <- ?MYHOSTS, Pool <- MamPools]),
-    get_odbc_stats(MamChildren).
+get_odbc_data_stats(Pools) ->
+    ODBCWorkers = [catch mongoose_rdbms_sup:get_pids(Pool) || Pool <- Pools],
+    get_odbc_stats(lists:flatten(ODBCWorkers)).
 
 get_dist_data_stats() ->
     DistStats = [inet_stats(Port) || {_, Port} <- erlang:system_info(dist_ctrl)],

@@ -159,8 +159,8 @@ add_default_odbc_opts(Opts) ->
       [{cache_users, true}, {async_writer, true}]).
 
 
--spec parse_backend_opt(Option :: {module(), term()}, Type :: pm | muc,
-                        module(), module(), deps()) -> deps().
+-spec parse_backend_opt(Type :: pm | muc, module(), module(),
+                        Option :: {module(), term()}, deps()) -> deps().
 parse_backend_opt(Type, ModODBCArch, ModAsyncWriter, Option, Deps) ->
     case Option of
         {cache_users, true} ->
@@ -176,6 +176,8 @@ parse_backend_opt(Type, ModODBCArch, ModAsyncWriter, Option, Deps) ->
         {async_writer, true} ->
             DepsWithNoWriter = add_dep(ModODBCArch, [no_writer], Deps),
             add_dep(ModAsyncWriter, [Type], DepsWithNoWriter);
+        {async_writer_odbc_pool, PoolName} ->
+            add_dep(ModAsyncWriter, [{odbc_pool, PoolName}], Deps);
         _ -> Deps
     end.
 

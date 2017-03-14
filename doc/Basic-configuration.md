@@ -23,9 +23,13 @@ There are 2 types of options: params and features. Unlike params, features can b
 
 * **host_config** - feature
     * **Description:** List of specific options for chosen XMPP domains. They will override the global ones. Allowed keys are marked on [Advanced configuration](Advanced-configuration.md) page
-
-* **Syntax:** `"{host_config, \"overridden-domain\", [{key, value}]}."`
+    * **Syntax:** `"{host_config, \"overridden-domain\", [{key, value}]}."`
     * **Example:** `"{host_config, \"localhost2\", [{auth_method, anonymous}, {allow_multiple_connections, false}]}." `
+
+* **pool** - feature
+    * **Description:** A named pool of connections to an SQL DB. To enable the connection, remove '%%' prefix from value and configure it with the `odbc_server` option (see below).
+    * **Syntax:** `"{pool, odbc, PoolName}."` or `"{pool, odbc, PoolName, Options}."`
+    * **Examples:** `"{pool, odbc, default}."`
 
 * **odbc_server** - feature
     * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`. To enable the connection, remove '%%' prefix from value.
