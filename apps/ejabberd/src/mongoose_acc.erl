@@ -14,6 +14,7 @@
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
+-export([flush/1]).
 -export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
 -export([to_element/1]).
 -export_type([t/0]).
@@ -176,6 +177,13 @@ require([Key|Tail], Acc) ->
     require(Tail, Acc1);
 require(Key, Acc) ->
     require([Key], Acc).
+
+%% @doc Remove all data we cached
+%% Personally I think we should consider a more flexible implementation of
+%% in-accumulator cache, so that attrs are not hardcoded here.
+-spec flush(t()) -> t().
+flush(Acc) ->
+    remove(privacy_check, Acc).
 
 %%%%% internal %%%%%
 
