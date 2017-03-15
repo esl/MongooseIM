@@ -590,22 +590,18 @@ process_term(Term, State) ->
         {all_metrics_are_global, Value} ->
             add_option(all_metrics_are_global, Value, State);
         {_Opt, _Val} ->
-            State1 = process_term_for_hosts(Term, State),
-            process_term_for_odbc_pools(Term, State1)
+            process_term_for_hosts_and_pools(Term, State)
     end.
 
-process_term_for_hosts(Term, State) ->
-    lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
-                State, State#state.hosts).
-
-process_term_for_odbc_pools(Term = {Key, _Val}, State) ->
+process_term_for_hosts_and_pools(Term = {Key, _Val}, State) ->
     BKey = atom_to_binary(Key, utf8),
     case get_key_group(BKey, Key) of
         odbc ->
             lists:foldl(fun(Pool, S) -> process_db_pool_term(Term, Pool, S) end,
                         State, State#state.odbc_pools);
         _ ->
-            State
+            lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
+                        State, State#state.hosts)
     end.
 
 -spec process_host_term(Term :: host_term(),
@@ -628,8 +624,6 @@ process_host_term(Term, Host, State) ->
             State;
         {hosts, _Hosts} ->
             State;
-        {odbc_server, ODBCServer} ->
-            add_option({odbc_server, Host}, ODBCServer, State);
         {odbc_pool, Pool} when is_atom(Pool) ->
             add_option({odbc_pool, Host}, Pool, State);
         {riak_server, RiakConfig} ->
