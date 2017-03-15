@@ -133,7 +133,7 @@ strip_amp_el(#xmlel{children = Children} = Elem) ->
 %%      but filter out server->client AMPed responses.
 %%      We can distinguish them by the fact that s2c messages MUST have
 %%      a 'status' attr on the <amp> element.
--spec is_amp_request(#xmlel{}) -> boolean().
+-spec is_amp_request(xmlel()) -> boolean().
 is_amp_request(Stanza) ->
     Amp = exml_query:subelement(Stanza, <<"amp">>),
     (undefined =/= Amp)
