@@ -79,8 +79,16 @@ mim_ct_rest : \
 	../../apps/ejabberd/test/mim_ct_sup.erl
 	cp $^ src/
 
-vm.dist.args: vm.dist.args.in
+vm.dist.args: vm.dist.args.in certs
 	$(SED) -e 's%__PWD__%$(PWD)%g' $< > $@
+
+certs: priv/ssl/fake_cert.pem priv/ssl/fake_key.pem priv/ssl/cacert.pem
+
+priv/ssl/fake_cert.pem priv/ssl/fake_key.pem priv/ssl/cacert.pem: \
+  ../../tools/ssl/fake_cert.pem \
+  ../../tools/ssl/fake_key.pem \
+  ../../tools/ssl/ca/cacert.pem
+	cp $^ $(@D)/
 
 console: $(PREPARE)
 	erl $(COMMON_OPTS) $(ADD_OPTS)
@@ -92,6 +100,7 @@ get-deps: rebar
 	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
 
 clean: rebar
+	-@rm priv/ssl/*
 	-@rm -rf tests/*.beam > /dev/null 2>&1
 	-@./rebar clean > /dev/null 2>&1
 
