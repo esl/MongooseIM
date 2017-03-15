@@ -64,6 +64,7 @@
 -include("ejabberd.hrl").
 -include("ejabberd_c2s.hrl").
 -include("jlib.hrl").
+-include_lib("exml/include/exml.hrl").
 -xep([{xep, 18}, {version, "0.2"}]).
 -behaviour(p1_fsm_old).
 
@@ -1270,9 +1271,10 @@ handle_incoming_message(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
 
-process_incoming_stanza(<<"broadcast">>, _From, _To, Packet, StateName, StateData) ->
-    self() ! legacy_packet_to_broadcast(Packet),
-    fsm_next_state(StateName, StateData);
+%% do we still need this?
+%%process_incoming_stanza(<<"broadcast">>, _From, _To, Packet, StateName, StateData) ->
+%%    self() ! legacy_packet_to_broadcast(Packet),
+%%    fsm_next_state(StateName, StateData);
 process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
     case handle_routed(Name, From, To, Acc, StateData) of
         {allow, NewAcc, NewState} ->
@@ -1316,12 +1318,13 @@ send_back_error(Etype, From, To, Packet) ->
     Err = jlib:make_error_reply(Packet, Etype),
     ejabberd_router:route(To, From, Err).
 
--spec legacy_packet_to_broadcast({xmlel, any(), any(), list()}) -> {broadcast, broadcast_type()}.
-legacy_packet_to_broadcast({xmlel, _, _, [Child]}) ->
-    {broadcast, Child};
-legacy_packet_to_broadcast(InvalidBroadcast) ->
-    ?WARNING_MSG("invalid_broadcast=~p", [InvalidBroadcast]),
-    {broadcast, unknown}.
+% do we still need this?
+%%-spec legacy_packet_to_broadcast(jlib:xmlel()) -> {broadcast, broadcast_type()}.
+%%legacy_packet_to_broadcast(#xmlel{children = [Child]}) ->
+%%    {broadcast, Child};
+%%legacy_packet_to_broadcast(InvalidBroadcast) ->
+%%    ?WARNING_MSG("invalid_broadcast=~p", [InvalidBroadcast]),
+%%    {broadcast, unknown}.
 
 handle_routed(<<"presence">>, From, To, Acc, StateData) ->
     handle_routed_presence(From, To, Acc, StateData);
@@ -1342,7 +1345,7 @@ handle_routed(_, _From, _To, Acc, StateData) ->
 
 -spec handle_routed_iq(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
-                       Packet :: exml:element(),
+                       Acc :: mongoose_acc:t(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc, StateData) ->
     Qi = jlib:iq_query_info(mongoose_acc:get(to_send, Acc)), % could be done via 'require'
@@ -1350,7 +1353,7 @@ handle_routed_iq(From, To, Acc, StateData) ->
 
 -spec handle_routed_iq(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
-                       Packet :: exml:element(),
+                       Acc :: mongoose_acc:t(),
                        IQ :: invalid | not_iq | reply | ejabberd:iq(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc, #iq{ xmlns = ?NS_LAST }, StateData) ->
@@ -1434,7 +1437,7 @@ privacy_list_push_iq(PrivListName) ->
                                             attrs = [{<<"name">>, PrivListName}]}]}]}.
 
 -spec handle_routed_presence(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                             Packet :: mongoose_acc:t(), StateData :: state()) -> routing_result().
+                             Acc0 :: mongoose_acc:t(), StateData :: state()) -> routing_result().
 handle_routed_presence(From, To, Acc0, StateData) ->
     Packet = mongoose_acc:get(to_send, Acc0),
     % a rare exception - hook which modifies state, can we treat #state as accumulator here?
@@ -1480,7 +1483,7 @@ handle_routed_presence(From, To, Acc0, StateData) ->
 -spec handle_routed_available_presence(State :: state(),
                                        From :: ejabberd:jid(),
                                        To :: ejabberd:jid(),
-                                       Packet :: exml:element()) -> routing_result().
+                                       Acc :: mongoose_acc:t()) -> routing_result().
 handle_routed_available_presence(State, From, To, Acc) ->
     {Acc1, Res} = privacy_check_packet(Acc, To, in, State),
     case Res of
