@@ -88,6 +88,7 @@ priv/ssl/fake_cert.pem priv/ssl/fake_key.pem priv/ssl/cacert.pem: \
   ../../tools/ssl/fake_cert.pem \
   ../../tools/ssl/fake_key.pem \
   ../../tools/ssl/ca/cacert.pem
+	mkdir -p $(@D)
 	cp $^ $(@D)/
 
 console: $(PREPARE)
