@@ -183,7 +183,7 @@ run_tests() {
 }
 
 enable_tls_dist () {
-  for node in "$MIM1" "$MIM2" "$MIM3"; do
+  for node in "$MIM1" "$MIM2" "$MIM3" "$FED1"; do
     # Reenable commented out TLS dist options,
     # i.e. remove the single leading comment character on lines
     # commented out with just a single comment character.
