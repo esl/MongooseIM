@@ -10,3 +10,4 @@ else
     SED=sed
 fi
 
+TLS_DIST=${TLS_DIST:-no}
