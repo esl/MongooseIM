@@ -90,7 +90,7 @@ start_link() ->
 
 -spec process_iq(From :: ejabberd:jid(),
                  To :: ejabberd:jid(),
-                 Packet :: mongoose_acc:t()
+                 Acc :: mongoose_acc:t()
                  ) -> 'nothing' | 'ok' | 'todo' | pid()
                     | {'error', 'lager_not_running'} | {'process_iq', _, _, _}.
 process_iq(From, To, Packet) ->
