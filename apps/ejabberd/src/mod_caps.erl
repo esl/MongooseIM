@@ -227,11 +227,6 @@ disco_info(Acc, Host, Module, Node, Lang) ->
 
 c2s_presence_in(C2SState,
                 {From, To, {_, _, Attrs, Els}}) ->
-    % XXX it is never called, it appears, the only call has a different
-    % signature:
-    % ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
-    %    StateData, [{From, To, Packet}]),
-    % where Packet is #xmlel
     ?DEBUG("Presence to ~p from ~p with Els ~p", [To, From, Els]),
     Type = xml:get_attr_s(<<"type">>, Attrs),
     Subscription = ejabberd_c2s:get_subscription(From,
