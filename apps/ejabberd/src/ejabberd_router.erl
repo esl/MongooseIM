@@ -99,11 +99,11 @@ start_link() ->
 route(From, To, #xmlel{} = Packet) ->
 %%    ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
     route(From, To, mongoose_acc:from_element(Packet, From, To));
-route(From, To, Packet) ->
+route(From, To, Acc) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-           [From, To, Packet]),
-    P2 = route(From, To, Packet, routing_modules_list()),
-    mongoose_acc:remove(to_send, P2).
+           [From, To, Acc]),
+    Acc1 = route(From, To, Acc, routing_modules_list()),
+    mongoose_acc:remove(to_send, Acc1).
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1

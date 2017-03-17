@@ -148,15 +148,15 @@ route(From, To, {broadcast, Payload} = Packet) ->
                     erlang:get_stacktrace()]);
         Acc -> Acc
     end;
-route(From, To, Packet) ->
-    case (catch do_route(From, To, Packet)) of
+route(From, To, Acc) ->
+    case (catch do_route(From, To, Acc)) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
                        "packet=~ts~n~nstack_trace=~p~n",
                        [jid:to_binary(From), jid:to_binary(To),
-                        ?MODULE, Reason, mongoose_acc:to_binary(Packet),
+                        ?MODULE, Reason, mongoose_acc:to_binary(Acc),
                         erlang:get_stacktrace()]);
-        Acc -> Acc
+        Acc1 -> Acc1
     end.
 
 -spec open_session(SID, User, Server, Resource, Info) -> ReplacedPids when
