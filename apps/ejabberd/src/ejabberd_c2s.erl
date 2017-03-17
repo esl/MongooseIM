@@ -1237,7 +1237,7 @@ handle_incoming_message({route, From, To, Acc0}, StateName, StateData) ->
     Name = mongoose_acc:get(name, Acc1),
     process_incoming_stanza(Name, From, To, Acc1, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
-    ?ERROR_MSG("{send_filtered, Packet}: ~p~n", [{send_filtered, Packet}]), % is it ever called?
+    % this is used by pubsub and should be rewritten when someone rewrites pubsub module
     Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
         true, [StateData#state.server, StateData,
             Feature, To, Packet]),
@@ -1339,8 +1339,9 @@ handle_routed(_, _From, _To, Acc, StateData) ->
                        Acc :: mongoose_acc:t(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc, StateData) ->
-    Qi = jlib:iq_query_info(mongoose_acc:get(to_send, Acc)), % could be done via 'require'
-    handle_routed_iq(From, To, Acc, Qi, StateData).
+    Acc1 = mongoose_acc:require(iq_query_info, Acc),
+    Qi = mongoose_acc:get(iq_query_info, Acc1),
+    handle_routed_iq(From, To, Acc1, Qi, StateData).
 
 -spec handle_routed_iq(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
@@ -2302,9 +2303,9 @@ get_priority_from_presence(PresencePacket) ->
 -spec process_privacy_iq(Acc :: mongoose_acc:t(),
                          To :: ejabberd:jid(),
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
-process_privacy_iq(Acc, To, StateData) ->
-    El = mongoose_acc:get(element, Acc),
-    IQ = jlib:iq_query_info(El),
+process_privacy_iq(Acc0, To, StateData) ->
+    Acc = mongoose_acc:require(iq_query_info, Acc0),
+    IQ = mongoose_acc:get(iq_query_info, Acc),
     Acc1 = mongoose_acc:put(iq, IQ, Acc),
     From = mongoose_acc:get(from_jid, Acc1),
     #iq{type = Type, sub_el = SubEl} = IQ,

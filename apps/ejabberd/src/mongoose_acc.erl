@@ -205,6 +205,9 @@ produce(send_type, Acc) ->
     El = mongoose_acc:get(to_send, Acc),
     SType = exml_query:attr(El, <<"type">>, undefined),
     mongoose_acc:put(send_type, SType, Acc);
+produce(iq_query_info, Acc) ->
+    Iq = jlib:iq_query_info(mongoose_acc:get(element, Acc)), % it doesn't change
+    mongoose_acc:put(iq_query_info, Iq, Acc);
 produce(xmlns, Acc) ->
     read_children(Acc);
 produce(command, Acc) ->

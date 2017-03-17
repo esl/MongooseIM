@@ -93,9 +93,10 @@ start_link() ->
                  Acc :: mongoose_acc:t()
                  ) -> 'nothing' | 'ok' | 'todo' | pid()
                     | {'error', 'lager_not_running'} | {'process_iq', _, _, _}.
-process_iq(From, To, Packet) ->
-    El = mongoose_acc:get(element, Packet),
-    IQ = jlib:iq_query_info(El),
+process_iq(From, To, Acc0) ->
+    Acc = mongoose_acc:require(iq_query_info, Acc0),
+    IQ = mongoose_acc:get(iq_query_info, Acc),
+    El = mongoose_acc:get(element, Acc),
     case IQ of
         #iq{xmlns = XMLNS} ->
             Host = To#jid.lserver,
@@ -114,7 +115,7 @@ process_iq(From, To, Packet) ->
                                           From, To, IQ);
                 [] ->
                     Err = jlib:make_error_reply(
-                            Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+                        Acc, ?ERR_FEATURE_NOT_IMPLEMENTED),
                     ejabberd_router:route(To, From, Err)
             end;
         reply ->
@@ -122,7 +123,7 @@ process_iq(From, To, Packet) ->
             process_iq_reply(From, To, IQReply);
         _ ->
             Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
-            ejabberd_router:route(To, From, mongoose_acc:put(to_send, Err, Packet)),
+            ejabberd_router:route(To, From, mongoose_acc:put(to_send, Err, Acc)),
             ok
     end.
 

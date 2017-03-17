@@ -57,6 +57,12 @@ get_and_require(_C) ->
     ?assertEqual(mongoose_acc:get(xmlns, Acc, nope), nope),
     Acc2 = mongoose_acc:require([command, xmlns], Acc),
     ?assertEqual(mongoose_acc:get(xmlns, Acc2), <<"urn:xmpp:blocking">>),
+    ?assertEqual(mongoose_acc:get(iq_query_info, Acc2, nope), nope),
+    Iq = mongoose_acc:from_element(iq_stanza()),
+    Iq1 = mongoose_acc:require([iq_query_info], Iq),
+    IqData = mongoose_acc:get(iq_query_info, Iq1),
+    ?assertEqual(IqData#iq.type, set),
+    ?assertEqual(IqData#iq.xmlns, <<"urn:ietf:params:xml:ns:xmpp-session">>),
     ok.
 
 parse_with_cdata(_C) ->
@@ -79,4 +85,12 @@ stanza_with_cdata() ->
     {ok, X} = exml:parse(Txt),
     X.
 
+
+iq_stanza() ->
+    {xmlel,<<"iq">>,
+        [{<<"type">>,<<"set">>},
+            {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>}],
+        [{xmlel,<<"session">>,
+            [{<<"xmlns">>,<<"urn:ietf:params:xml:ns:xmpp-session">>}],
+            []}]}.
 
