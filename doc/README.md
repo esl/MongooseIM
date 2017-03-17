@@ -36,7 +36,7 @@ Check out our test results:
 
 ## MongooseIM platform components
 
-<img src="MongooseIM_Platform_components.png" alt="MongooseIM platform schema" />
+<img src="MongooseIMPlatformcomponents.png" alt="MongooseIM platform schema" />
 
 
 ### Server-side components
@@ -48,8 +48,8 @@ We offer a set of server-side components:
     * [escalus](https://github.com/esl/escalus): Erlang XMPP client
     * [amoc](https://github.com/esl/amoc): a load testing tools
 * More components? There are some ideas we're working on. Tune in for updates on:
-    * Icicle: ICE, STUN/TRUN server
-    * Platypus: a push notification server
+    * MongooseICE: ICE, STUN/TRUN server
+    * MongoosePush: a push notification server
 
 ### Client-side components
 
