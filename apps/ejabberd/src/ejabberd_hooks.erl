@@ -130,15 +130,16 @@ run_fold(Hook, Host, Val, Args) ->
     record(Hook, Res).
 
 record(Hook, Acc) ->
+    Acc.
     % just to show some nice things we can do now
     % this should probably be protected by a compilation flag
     % unless load tests show that the impact on performance is negligible
-    case mongoose_acc:is_acc(Acc) of % this check will go away some day
-        true ->
-            mongoose_acc:append(hooks_run, Hook, Acc);
-        false ->
-            Acc
-    end.
+%%    case mongoose_acc:is_acc(Acc) of % this check will go away some day
+%%        true ->
+%%            mongoose_acc:append(hooks_run, Hook, Acc);
+%%        false ->
+%%            Acc
+%%    end.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -259,12 +260,13 @@ hook_apply_function(Module, Function, Hook, Val, Args) ->
 
 
 record(Hook, Module, Function, Acc) ->
+    Acc.
     % just to show some nice things we can do now
     % this should probably be protected by a compilation flag
     % unless load tests show that the impact on performance is negligible
-    case mongoose_acc:is_acc(Acc) of % this check will go away some day
-        true ->
-            mongoose_acc:append(handlers_run, {Hook, Module, Function}, Acc);
-        false ->
-            Acc
-    end.
+%%    case mongoose_acc:is_acc(Acc) of % this check will go away some day
+%%        true ->
+%%            mongoose_acc:append(handlers_run, {Hook, Module, Function}, Acc);
+%%        false ->
+%%            Acc
+%%    end.

@@ -14,7 +14,7 @@
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
--export([flush/1]).
+-export([strip/1]).
 -export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
 -export([to_element/1]).
 -export_type([t/0]).
@@ -101,14 +101,15 @@ from_kv(K, V) ->
 from_element(El) ->
     #xmlel{name = Name, attrs = Attrs} = El,
     Type = exml_query:attr(El, <<"type">>, undefined),
-    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type}.
+    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
+        timestamp => os:timestamp(), ref => make_ref()
+        }.
 
 -spec from_element(xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
 from_element(El, From, To) ->
-    #xmlel{name = Name, attrs = Attrs} = El,
-    Type = exml_query:attr(El, <<"type">>, undefined),
-    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
-        from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)}.
+    Acc = from_element(El),
+    M = #{from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)},
+    update(Acc, M).
 
 -spec from_map(map()) -> t().
 from_map(M) ->
@@ -131,6 +132,10 @@ put(to_send, Val, Acc) ->
     % (e.g. presence probe), we have to clear previouse value
     A1 = maps:remove(send_type, Acc),
     maps:put(to_send, Val, A1);
+put(from_jid, Val, Acc) ->
+    ?DEPRECATED,
+    A = maps:put(from_jid, Val, Acc),
+    maps:put(from, jid:to_binary(Val), A);
 put(Key, Val, Acc) ->
     maps:put(Key, Val, Acc).
 
@@ -178,12 +183,35 @@ require([Key|Tail], Acc) ->
 require(Key, Acc) ->
     require([Key], Acc).
 
-%% @doc Remove all data we cached
-%% Personally I think we should consider a more flexible implementation of
-%% in-accumulator cache, so that attrs are not hardcoded here.
--spec flush(t()) -> t().
-flush(Acc) ->
-    remove(privacy_check, Acc).
+%% @doc Convert the acc before routing it out to another c2s process - remove everything except
+%% the very bare minimum (all caches, records etc), replace element with to_send
+-spec strip(t()) -> t().
+strip(Acc) ->
+    El = get(to_send, Acc),
+    Acc1 = from_element(El),
+%%    Ats = [name, type, attrs, from, from_jid, to, to_jid, ref, timestamp],
+    Ats = [from, from_jid, ref, timestamp],
+    NAcc = lists:foldl(fun(Atr, AccIn) ->
+                           Nval = mongoose_acc:get(Atr, Acc),
+                           mongoose_acc:put(Atr, Nval, AccIn)
+                       end,
+                       Acc1, Ats),
+    OptAts = [to, to_jid],
+    lists:foldl(fun(Atr, AccIn) ->
+                    case mongoose_acc:get(Atr, Acc, undefined) of
+                        undefined -> AccIn;
+                        Nval -> mongoose_acc:put(Atr, Nval, AccIn)
+                    end
+                end,
+                NAcc, OptAts).
+%%    mongoose_acc:put(element, mongoose_acc:get(to_send, Acc), NAcc1).
+%%    case mongoose_acc:get(send_type, Acc, undefined) of
+%%        undefined ->
+%%            NAcc1;
+%%        SType ->
+%%            mongoose_acc:put(type, SType, NAcc2)
+%%    end.
+
 
 %%%%% internal %%%%%
 
