@@ -1226,13 +1226,7 @@ handle_incoming_message({broadcast, Acc}, StateName, StateData) ->
     ?DEBUG("broadcast=~p", [Broadcast]),
     Res = handle_routed_broadcast(Broadcast, StateData),
     handle_broadcast_result(Res, StateName, StateData);
-handle_incoming_message({route, From, To, Acc0}, StateName, StateData) ->
-    % since we are now in the other user's session some cached data are not valid
-    % anymore (e.g. privacy_check), they have to be removed somewher between
-    % sender and recipient. One might argue, possibly rightly, that it should be
-    % stripped before sending; the reason I do it here is that when we send
-    % an acc out of c2s it returns and we might still use the cached data.
-    Acc = mongoose_acc:flush(Acc0),
+handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
     Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc, [{route, From, To}]),
     Name = mongoose_acc:get(name, Acc1),
     process_incoming_stanza(Name, From, To, Acc1, StateName, StateData);
