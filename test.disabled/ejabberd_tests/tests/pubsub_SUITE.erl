@@ -288,8 +288,7 @@ publish_with_max_items_test(Config) ->
 
               publish(Alice, <<"item2">>, Node, []),
               receive_item_notification(Bob, <<"item2">>, Node, []),
-              escalus:assert(fun escalus_pubsub_pred:is_item_retract/3,
-                             [Node, <<"item1">>], escalus:wait_for_stanza(Bob)),
+              verify_item_retract(Node, <<"item1">>, escalus:wait_for_stanza(Bob)),
 
               delete_node(Alice, Node, [])
       end).
@@ -363,8 +362,7 @@ retract_test(Config) ->
               configure_node(Alice, Node, [{<<"pubsub#notify_retract">>, <<"1">>}], []),
               subscribe(Bob, Node, []),
               retract_item(Alice, Node, <<"item2">>),
-              escalus:assert(fun escalus_pubsub_pred:is_item_retract/3,
-                             [Node, <<"item2">>], escalus:wait_for_stanza(Bob)),
+              verify_item_retract(Node, <<"item2">>, escalus:wait_for_stanza(Bob)),
               request_all_items(Bob, Node, [{expected_result, []}]),
 
               delete_node(Alice, Node, [])
@@ -491,8 +489,7 @@ notify_config_test(Config) ->
 
               ConfigChange = [{<<"pubsub#title">>, <<"newtitle">>}],
               configure_node(Alice, Node, ConfigChange, []),
-              escalus:assert(fun escalus_pubsub_pred:is_config_event/3, [Node, ConfigChange],
-                             escalus:wait_for_stanza(Bob)),
+              verify_config_event(Node, ConfigChange, escalus:wait_for_stanza(Bob)),
 
               delete_node(Alice, Node, [])
       end).
@@ -1350,6 +1347,38 @@ node_config_for_test() ->
      % Not supported yet: {<<"pubsub#children">>, undef},
      % Covered by collection tests: {<<"pubsub#collection">>, <<"text-multi">>}
     ].
+
+verify_item_retract({NodeAddr, NodeName}, ItemId, Stanza) ->
+    escalus:assert(is_message, Stanza),
+    NodeAddr == exml_query:attr(Stanza, <<"from">>),
+
+    [#xmlel{ attrs = [{<<"xmlns">>, ?NS_PUBSUB_EVENT}] } = Event]
+    = exml_query:subelements(Stanza, <<"event">>),
+
+    [#xmlel{ attrs = [{<<"node">>, NodeName}] } = Items]
+    = exml_query:subelements(Event, <<"items">>),
+
+    [#xmlel{ attrs = [{<<"id">>, ItemId}] }] = exml_query:subelements(Items, <<"retract">>).
+
+verify_config_event({NodeAddr, NodeName}, ConfigChange, Stanza) ->
+    escalus:assert(is_message, Stanza),
+    NodeAddr == exml_query:attr(Stanza, <<"from">>),
+
+    [#xmlel{ attrs = [{<<"xmlns">>, ?NS_PUBSUB_EVENT}] } = Event]
+    = exml_query:subelements(Stanza, <<"event">>),
+
+    [#xmlel{ attrs = [{<<"node">>, NodeName}] } = ConfigEl]
+    = exml_query:subelements(Event, <<"configuration">>),
+
+    Fields = exml_query:paths(ConfigEl, [{element, <<"x">>},
+                                         {element, <<"field">>}]),
+
+    Opts = [ {exml_query:attr(F, <<"var">>),
+              exml_query:path(F, [{element, <<"value">>}, cdata])} || F <- Fields ],
+
+    true = lists:all(fun({K, V}) ->
+                             {K, V} =:= lists:keyfind(K, 1, Opts)
+                     end, ConfigChange).
 
 verify_config_values(NodeConfig, ValidConfig) ->
     lists:foreach(fun({Var, Val}) ->
