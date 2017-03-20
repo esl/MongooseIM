@@ -25,23 +25,23 @@
     last_update = p1_time_compat:monotonic_time() :: integer()
 }).
 
--type shaper() :: #shaper{}.
+-type shaper() :: #shaper{} | none.
 
 -export_type([shaper/0]).
 
 -spec new(atom()) -> shaper().
 new(Name) ->
     case ejabberd_config:get_global_option({shaper, Name, global}) of
-        undefined -> #shaper{};
-        none -> #shaper{};
+        undefined -> none;
+        none -> none;
         {maxrate, MaxRate} -> #shaper{max_rate = MaxRate, tokens = MaxRate}
     end.
 
 %% @doc Update shaper.
 %% `Delay' is how many milliseconds to wait.
 -spec update(shaper(), Size :: pos_integer()) -> {shaper(), Delay :: non_neg_integer()}.
-update(#shaper{max_rate = undefined} = Shaper, _Size) ->
-    {Shaper, 0};
+update(none, _Size) ->
+    {none, 0};
 update(Shaper, Size) ->
     Now = p1_time_compat:monotonic_time(),
     Second = p1_time_compat:convert_time_unit(1, seconds, native),
