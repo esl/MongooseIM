@@ -102,7 +102,7 @@ stop(Host) ->
     mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
     R = mod_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined, undefined),
-    ?OK_OR_LOG(R),
+    mongoose_lib:log_if_backend_error(R),
     Acc.
 
 %% Hook 'filter_packet'

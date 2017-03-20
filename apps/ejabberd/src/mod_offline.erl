@@ -543,7 +543,7 @@ remove_old_messages(Host, Days) ->
 %% #rh
 remove_user(Acc, User, Server) ->
     R = remove_user(User, Server),
-    ?OK_OR_LOG(R),
+    mongoose_lib:log_if_backend_error(R),
     Acc.
 
 remove_user(User, Server) ->
