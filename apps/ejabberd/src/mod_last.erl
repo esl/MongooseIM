@@ -243,12 +243,8 @@ get_last_info(LUser, LServer) ->
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    % XXX we should handle errors somehow - previously the code returned something else
-    % but it is ignored anyway because the hook is run (not folded) so errors were not
-    % handled anyway
-    % same for many other handlers of 'remove_user' hook
     Res = mod_last_backend:remove_user(LUser, LServer),
-    ?OK_OR_LOG(Res),
+    mongoose_lib:log_if_backend_error(Res),
     Acc.
 
 %% TODO fix
