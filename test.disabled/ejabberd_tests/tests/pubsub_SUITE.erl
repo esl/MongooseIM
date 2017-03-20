@@ -61,6 +61,7 @@ groups() -> [{pubsub_tests, [parallel],
                disable_payload_test,
                disable_persist_items_test,
                notify_only_available_users_test,
+               notify_unavailable_user_test,
                send_last_published_item_test
               ]
              },
@@ -135,6 +136,8 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, _Config) ->
     ok.
 
+init_per_testcase(notify_unavailable_user_test, _Config) ->
+    {skip, "mod_offline does not store events"};
 init_per_testcase(_TestName, Config) ->
     escalus:init_per_testcase(_TestName, Config).
 
@@ -385,25 +388,40 @@ notify_only_available_users_test(Config) ->
       Config,
       [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
-              %% Second node notifies only available users
-              Node = pubsub_node(),
-              create_node(Alice, Node, []),
+              %% Node notifies only available users
               NodeConfig = [{<<"pubsub#presence_based_delivery">>, <<"true">>}],
-              Node2 = pubsub_node(),
-              create_node(Alice, Node2, [{config, NodeConfig}]),
+              Node = pubsub_node(),
+              create_node(Alice, Node, [{config, NodeConfig}]),
 
               subscribe(Bob, Node, [{jid_type, bare}]),
-              subscribe(Bob, Node2, [{jid_type, bare}]),
+
+              escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+
+              %% Item from node 2 not received (blocked by resource-based delivery)
+              publish(Alice, <<"item2">>, Node, []),
+              escalus_assert:has_no_stanzas(Bob),
+
+              delete_node(Alice, Node, [])
+      end).
+
+notify_unavailable_user_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              create_node(Alice, Node, []),
+
+              subscribe(Bob, Node, [{jid_type, bare}]),
 
               escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
 
               %% Receive item from node 1 (also make sure the presence is processed)
               publish(Alice, <<"item1">>, Node, []),
-              receive_item_notification(Bob, <<"item1">>, Node, []),
 
-              %% Item from node 2 not received (blocked by resource-based delivery)
-              publish(Alice, <<"item2">>, Node2, []),
               escalus_assert:has_no_stanzas(Bob),
+              escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
+              receive_item_notification(Bob, <<"item1">>, Node, []),
 
               delete_node(Alice, Node, [])
       end).
