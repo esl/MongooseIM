@@ -77,7 +77,12 @@
 
 -export_type([msg/0]).
 
--record(state, {host, access_max_user_messages}).
+-record(state, {
+    host :: ejabberd:server(),
+    access_max_user_messages,
+    message_poppers = monitored_map:new() ::
+        monitored_map:t({LUser :: binary(), LServer :: binary}, pid())
+}).
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
@@ -285,6 +290,10 @@ init([Host, AccessMaxOfflineMsgs]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call({pop_offline_messages, LUser, LServer}, {Pid, _}, State) ->
+    Result = ?BACKEND:pop_messages(LUser, LServer),
+    NewPoppers = monitored_map:put({LUser, LServer}, Pid, Pid, State#state.message_poppers),
+    {reply, Result, State#state{message_poppers = NewPoppers}};
 handle_call(_, _, State) ->
     {reply, ok, State}.
 
@@ -294,7 +303,6 @@ handle_call(_, _, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-
 handle_cast(Msg, State) ->
     ?WARNING_MSG("Strange message ~p.", [Msg]),
     {noreply, State}.
@@ -305,9 +313,17 @@ handle_cast(Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(Msg=#offline_msg{},
-            State=#state{access_max_user_messages = AccessMaxOfflineMsgs}) ->
+handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info} = Msg, State) ->
+    NewPoppers = monitored_map:handle_info(Msg, State#state.message_poppers),
+    {noreply, State#state{message_poppers = NewPoppers}};
+handle_info(Msg = #offline_msg{us = US},
+            State = #state{access_max_user_messages = AccessMaxOfflineMsgs}) ->
     handle_offline_msg(Msg, AccessMaxOfflineMsgs),
+    case monitored_map:find(US, State#state.message_poppers) of
+        {ok, Pid} ->
+            Pid ! new_offline_messages;
+        error -> ok
+    end,
     {noreply, State};
 handle_info(Msg, State) ->
     ?WARNING_MSG("Strange message ~p.", [Msg]),
@@ -492,7 +508,7 @@ pop_offline_messages(User, Server) ->
     end.
 
 pop_messages(LUser, LServer) ->
-    case ?BACKEND:pop_messages(LUser, LServer) of
+    case gen_server:call(srv_name(LServer), {pop_offline_messages, LUser, LServer}) of
         {ok, RsAll} ->
             TimeStamp = os:timestamp(),
             Rs = skip_expired_messages(TimeStamp, lists:keysort(#offline_msg.timestamp, RsAll)),
