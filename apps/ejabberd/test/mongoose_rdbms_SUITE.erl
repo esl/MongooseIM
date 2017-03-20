@@ -85,11 +85,14 @@ keepalive_exit(Config) ->
 meck_config(Server, KeepaliveInterval) ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_local_option,
-                fun({odbc_keepalive_interval, odbc_pool, default}) -> KeepaliveInterval;
-                   ({odbc_start_interval, odbc_pool, default}) -> 30;
-                   ({odbc_server, odbc_pool, default}) -> server(Server);
-                   (max_fsm_queue) -> 1024;
+                fun(max_fsm_queue) -> 1024;
                    (all_metrics_are_global) -> false
+                end),
+    meck:new(mongoose_rdbms_sup, [no_link, passthrough]),
+    meck:expect(mongoose_rdbms_sup, get_option,
+                fun(default, odbc_keepalive_interval) -> KeepaliveInterval;
+                   (default, odbc_start_interval) -> 30;
+                   (default, odbc_server) -> server(Server)
                 end).
 
 meck_db(odbc) ->
@@ -125,6 +128,7 @@ meck_error(pgsql) ->
 
 meck_unload(DbType) ->
     meck:unload(ejabberd_config),
+    meck:unload(mongoose_rdbms_sup),
     do_meck_unload(DbType).
 
 do_meck_unload(odbc) ->
