@@ -45,7 +45,7 @@ all() ->
 
 no_key_test(_Config) ->
     Map = monitored_map:new(),
-    ?assertError({badkey, key}, monitored_map:get(key, Map)).
+    ?assertError(_, monitored_map:get(key, Map)).
 
 put_monitors_test(_Config) ->
     Map0 = monitored_map:new(),
@@ -62,7 +62,7 @@ remove_test(_Config) ->
     Map0 = monitored_map:new(),
     Map1 = monitored_map:put(key, value, self(), Map0),
     Map2 = monitored_map:remove(key, Map1),
-    ?assertError({badkey, key}, monitored_map:get(key, Map2)),
+    ?assertError(_, monitored_map:get(key, Map2)),
     assert_monitors([]).
 
 expire_entries_on_process_death_test(_Config) ->
@@ -80,9 +80,9 @@ expire_entries_on_process_death_test(_Config) ->
              fun(_, Map) -> receive DownMsg1 -> monitored_map:handle_info(DownMsg1, Map) end end,
              Map1, lists:seq(1, 3)),
 
-    ?assertError({badkey, key1}, monitored_map:get(key1, Map2)),
-    ?assertError({badkey, key2}, monitored_map:get(key2, Map2)),
-    ?assertError({badkey, key3}, monitored_map:get(key3, Map2)),
+    ?assertError(_, monitored_map:get(key1, Map2)),
+    ?assertError(_, monitored_map:get(key2, Map2)),
+    ?assertError(_, monitored_map:get(key3, Map2)),
     ?assertEqual(value4, monitored_map:get(key4, Map2)),
     assert_monitors([Pid3]).
 
