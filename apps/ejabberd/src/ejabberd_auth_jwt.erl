@@ -1,11 +1,11 @@
 %%%----------------------------------------------------------------------
-%%% File    : ejabberd_auth_internal.erl
+%%% File    : ejabberd_auth_jwt.erl
 %%% Author  : Astro <astro@spaceboyz.net>
 %%% Purpose : Authentification with JSON Web Tokens
 %%% Created : 02 Aug 2016 by Stephan Maka <stephan@spaceboyz.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2016   CostaDigital
+%%% MongooseIM, Copyright (C) 2016   CostaDigital
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
