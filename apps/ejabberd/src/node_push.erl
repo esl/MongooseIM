@@ -208,7 +208,7 @@ parse_form(undefined) ->
     #{};
 parse_form(Form) ->
     IsForm = ?NS_XDATA == exml_query:attr(Form, <<"xmlns">>),
-    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>),
+    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>, <<"submit">>),
 
     FieldsXML = exml_query:subelements(Form, <<"field">>),
     Fields = [{exml_query:attr(Field, <<"var">>),
