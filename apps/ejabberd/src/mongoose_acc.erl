@@ -127,11 +127,6 @@ to_map(_) ->
     {error, cant_convert_to_map}.
 
 -spec put(atom(), any(), t()) -> t().
-put(to_send, Val, Acc) ->
-    % stanza to be sent out may change a few times, and sometimes it carries its own type
-    % (e.g. presence probe), we have to clear previouse value
-    A1 = maps:remove(send_type, Acc),
-    maps:put(to_send, Val, A1);
 put(from_jid, Val, Acc) ->
     ?DEPRECATED,
     A = maps:put(from_jid, Val, Acc),
@@ -220,11 +215,6 @@ dump(Acc, [K|Tail]) ->
 
 
 %% @doc pattern-match to figure out (a) which attrs can be 'required' (b) how to cook them
-produce(send_type, Acc) ->
-    % 'type' is from original stanza
-    El = mongoose_acc:get(to_send, Acc),
-    SType = exml_query:attr(El, <<"type">>, undefined),
-    mongoose_acc:put(send_type, SType, Acc);
 produce(iq_query_info, Acc) ->
     Iq = jlib:iq_query_info(mongoose_acc:get(element, Acc)), % it doesn't change
     mongoose_acc:put(iq_query_info, Iq, Acc);

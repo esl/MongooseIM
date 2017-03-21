@@ -13,17 +13,17 @@
 -include("ejabberd.hrl").
 
 %% xmpp_router callback
--export([filter/3, route/3]).
+-export([filter/4, route/4]).
 
-filter(OrigFrom, OrigTo, OrigPacket) ->
+filter(OrigFrom, OrigTo, OrigAcc, OrigPacket) ->
     %% Filter globally
     case ejabberd_hooks:run_fold(filter_packet,
-        {OrigFrom, OrigTo, OrigPacket}, []) of
-        {From, To, Packet} ->
-            {From, To, Packet};
+        {OrigFrom, OrigTo, OrigAcc, OrigPacket}, []) of
+        {From, To, Acc, Packet} ->
+            {From, To, Acc, Packet};
         drop ->
             drop
     end.
 
-route(From, To, Packet) ->
-    {From, To, Packet}.
+route(From, To, Acc, Packet) ->
+    {From, To, Acc, Packet}.

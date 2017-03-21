@@ -34,8 +34,8 @@
 
 %% API
 -export([start_link/0,
-         filter/3,
-         route/3,
+         filter/4,
+         route/4,
          have_connection/1,
          key/2,
          get_connections_pids/1,
@@ -87,11 +87,15 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-filter(From, To, Packet) ->
-    {From, To, Packet}.
+filter(From, To, Acc, Packet) ->
+    {From, To, Acc, Packet}.
 
-route(From, To, Packet) ->
-    do_route(From, To, Packet).
+route(From, To, Sthg) ->
+    ?ERROR_MSG("Sthg: ~p~n", [Sthg]),
+    ok.
+
+route(From, To, Acc, Packet) ->
+    do_route(From, To, Acc, Packet).
 
 -spec remove_connection(_, pid()) -> 'ok' | {'aborted', _} | {'atomic', _}.
 remove_connection(FromTo, Pid) ->
@@ -258,10 +262,10 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
-               Packet :: mongoose_acc:t()) ->
+               Acc :: mongoose_acc:t(),
+               Packet :: xmlel()) ->
         done. % this is the 'last resort' router, it always returns 'done'.
-do_route(From, To, Acc) ->
-    Packet = mongoose_acc:get(to_send, Acc),
+do_route(From, To, Acc, Packet) ->
     ?DEBUG("s2s manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
         [From, To, Packet, 8]),
     case find_connection(From, To) of
@@ -277,7 +281,7 @@ do_route(From, To, Acc) ->
                                            MyServer,
                                            Acc,
                                            [From, To, Packet]),
-            send_element(Pid, mongoose_acc:put(to_send, NewPacket, Acc1)),
+            send_element(Pid, Acc1, NewPacket),
             done;
         {aborted, _Reason} ->
             case mongoose_acc:get(type, Acc) of
@@ -286,7 +290,7 @@ do_route(From, To, Acc) ->
                 _ ->
                     Err = jlib:make_error_reply(
                             Packet, ?ERR_SERVICE_UNAVAILABLE),
-                    ejabberd_router:route(To, From, mongoose_acc:put(to_send, Err, Acc))
+                    ejabberd_router:route(To, From, Acc, Err)
             end,
             done
     end.
@@ -475,9 +479,10 @@ parent_domains(<<$., Rest/binary>>, Acc) ->
 parent_domains(<<_, Rest/binary>>, Acc) ->
     parent_domains(Rest, Acc).
 
--spec send_element(pid(), mongoose_acc:t()) -> {'send_element', mongoose_acc:t()}.
-send_element(Pid, El) ->
-    Pid ! {send_element, El}.
+-spec send_element(pid(), mongoose_acc:t(), xmlel()) ->
+    {'send_element', mongoose_acc:t(), xmlel()}.
+send_element(Pid, Acc, El) ->
+    Pid ! {send_element, Acc, El}.
 
 %%--------------------------------------------------------------------
 %% Function: domain_utf8_to_ascii(Domain) -> binary() | false

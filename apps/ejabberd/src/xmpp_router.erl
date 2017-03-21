@@ -11,15 +11,16 @@
 -module(xmpp_router).
 
 -include("ejabberd.hrl").
+-include("jlib.hrl").
 
 
 -callback route(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                   Packet :: mongoose_acc:t()) ->
-    done | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t()}.
+                   Acc :: mongoose_acc:t(), Packet :: xmlel()) ->
+    done | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), xmlel()}.
 
 -callback filter(From :: ejabberd:jid(), To :: ejabberd:jid(),
-    Packet :: mongoose_acc:t()) ->
-    drop | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t()}.
+    Acc :: mongoose_acc:t(), Packet :: xmlel()) ->
+    drop | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), xmlel()}.
 
 
 -export([call_route/4, call_filter/4]).
