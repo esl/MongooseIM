@@ -110,7 +110,8 @@
     {result, default} |
     {error, xmlel()}.
 
--callback publish_item(NodeId :: nodeIdx(),
+-callback publish_item(ServerHost :: ejabberd:server(),
+        NodeId :: nodeIdx(),
         Publisher :: jid(),
         PublishModel :: publishModel(),
         Max_Items :: non_neg_integer(),

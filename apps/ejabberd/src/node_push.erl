@@ -20,7 +20,7 @@
 -export([init/3, terminate/2, options/0, features/0,
          create_node_permission/6, create_node/2, delete_node/1,
          purge_node/2, subscribe_node/8, unsubscribe_node/4,
-         publish_item/8, delete_item/4, remove_extra_items/3,
+         publish_item/9, delete_item/4, remove_extra_items/3,
          get_entity_affiliations/2, get_node_affiliations/1,
          get_affiliation/2, set_affiliation/3,
          get_entity_subscriptions/2, get_node_subscriptions/1,
@@ -85,7 +85,8 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
 unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
     node_flat:unsubscribe_node(Nidx, Sender, Subscriber, SubId).
 
-publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload, PublishOptions) ->
+publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload,
+             PublishOptions) ->
     SubKey = jid:to_lower(Publisher),
     GenKey = jid:to_bare(SubKey),
     GenState = get_state(Nidx, GenKey),
@@ -97,25 +98,25 @@ publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload, P
 
     case is_allowed_to_publish(Model, Affiliation) of
         true ->
-            do_publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher,
+            do_publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher,
                             Payload, PublishOptions);
         false ->
             {error, ?ERR_FORBIDDEN}
     end.
 
-do_publish_item(_Nidx, _Publisher, _Model, _MaxItems, _ItemId, _ItemPublisher,
+do_publish_item(ServerHost, _Nidx, _Publisher, _Model, _MaxItems, _ItemId, _ItemPublisher,
                 [#xmlel{name = <<"notification">>} | _] = Notifications, PublishOptions) ->
-    Host = ?MYNAME,
     case catch parse_form(PublishOptions) of
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
             NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
             NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
-            ejabberd_hooks:run(push_notifications, Host, [Host, NotificationForms, OptionMap]),
+            ejabberd_hooks:run(push_notifications, ServerHost,
+                               [ServerHost, NotificationForms, OptionMap]),
             {result, default};
         _ ->
             {error, mod_pubsub:extended_error(?ERR_CONFLICT, <<"precondition-not-met">>)}
     end;
-do_publish_item(_Nidx, _Publisher, _Model, _MaxItems, _ItemId, _ItemPublisher,
+do_publish_item(_ServerHost, _Nidx, _Publisher, _Model, _MaxItems, _ItemId, _ItemPublisher,
                 _Payload, _PublishOptions) ->
     {error, ?ERR_BAD_REQUEST}.
 
