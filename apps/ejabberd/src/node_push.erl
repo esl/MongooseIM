@@ -94,11 +94,12 @@ publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload, P
                    _ -> get_state(Nidx, SubKey)
                end,
     Affiliation = SubState#pubsub_state.affiliation,
+    ElPayload = [El || #xmlel{} = El <- Payload],
 
     case is_allowed_to_publish(Model, Affiliation) of
         true ->
             do_publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher,
-                            Payload, PublishOptions);
+                            ElPayload, PublishOptions);
         false ->
             {error, ?ERR_FORBIDDEN}
     end.
