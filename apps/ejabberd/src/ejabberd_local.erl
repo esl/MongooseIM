@@ -123,7 +123,7 @@ process_iq(From, To, Acc0) ->
             process_iq_reply(From, To, IQReply);
         _ ->
             Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
-            ejabberd_router:route(To, From, mongoose_acc:put(to_send, Err, Acc)),
+            ejabberd_router:route(To, From, Acc, Err),
             ok
     end.
 

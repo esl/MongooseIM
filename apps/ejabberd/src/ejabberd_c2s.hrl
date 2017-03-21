@@ -112,7 +112,9 @@
                              NewState :: state()}.
 
 -type routing_result() :: {DoRoute :: allow | atom(), NewAcc :: mongoose_acc:t(),
-                           NewState :: state()}.
+                           NewState :: state()}
+                        | {DoRoute :: allow | atom(), NewAcc :: mongoose_acc:t(),
+                           NewPacket :: jlib:xmlel(), NewState :: state()}.
 
 %-define(DBGFSM, true).
 -ifdef(DBGFSM).

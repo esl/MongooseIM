@@ -713,10 +713,10 @@ do_route_offline(<<"iq">>, <<"error">>, _From, _To, _Packet) ->
     ok;
 do_route_offline(<<"iq">>, <<"result">>, _From, _To, _Packet) ->
     ok;
-do_route_offline(<<"iq">>, _, From, To, Packet) ->
-    El = mongoose_acc:to_element(Packet), % defensive programming, to be removed
+do_route_offline(<<"iq">>, _, From, To, Acc) ->
+    El = mongoose_acc:get(element, Acc),
     Err = jlib:make_error_reply(El, ?ERR_SERVICE_UNAVAILABLE),
-    ejabberd_router:route(To, From, mongoose_acc:put(to_send, Err, Packet));
+    ejabberd_router:route(To, From, Acc, Err);
 do_route_offline(_, _, _, _, _) ->
     ?DEBUG("packet droped~n", []),
     ok.
@@ -778,7 +778,7 @@ is_privacy_allow(From, To, Packet, PrivacyList) ->
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t().
 route_message(From, To, Acc) ->
-    Packet = mongoose_acc:get(element, Acc),
+    Packet = mongoose_acc:get(to_send, Acc),
     LUser = To#jid.luser,
     LServer = To#jid.lserver,
     PrioPid = get_user_present_pids(LUser, LServer),
@@ -821,8 +821,7 @@ route_message(From, To, Acc) ->
                         _ ->
                             Err = jlib:make_error_reply(
                                     Packet, ?ERR_SERVICE_UNAVAILABLE),
-                            A = mongoose_acc:put(to_send, Err, Acc),
-                            ejabberd_router:route(To, From, A)
+                            ejabberd_router:route(To, From, Acc, Err)
                     end
             end
     end.

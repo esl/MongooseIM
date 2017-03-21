@@ -879,7 +879,7 @@ handle_info({send_text, Text}, StateName, StateData) ->
     Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
     {next_state, StateName, StateData#state{timer = Timer},
      get_timeout_interval(StateName)};
-handle_info({send_element, El}, StateName, StateData) ->
+handle_info({send_element, Acc, El}, StateName, StateData) ->
     case StateName of
         stream_established ->
             cancel_timer(StateData#state.timer),
@@ -889,7 +889,7 @@ handle_info({send_element, El}, StateName, StateData) ->
         %% In this state we bounce all message: We are waiting before
         %% trying to reconnect
         wait_before_retry ->
-            bounce_element(El, ?ERR_REMOTE_SERVER_NOT_FOUND),
+            bounce_element(Acc, El, ?ERR_REMOTE_SERVER_NOT_FOUND),
             {next_state, StateName, StateData};
         relay_to_bridge ->
             %% In this state we relay all outbound messages
@@ -899,13 +899,13 @@ handle_info({send_element, El}, StateName, StateData) ->
             case catch Mod:Fun(El) of
                 {'EXIT', Reason} ->
                     ?ERROR_MSG("Error while relaying to bridge: ~p", [Reason]),
-                    bounce_element(El, ?ERR_INTERNAL_SERVER_ERROR),
+                    bounce_element(Acc, El, ?ERR_INTERNAL_SERVER_ERROR),
                     wait_before_reconnect(StateData);
                 _ ->
                     {next_state, StateName, StateData}
             end;
         _ ->
-            Q = queue:in(El, StateData#state.queue),
+            Q = queue:in({Acc, El}, StateData#state.queue),
             {next_state, StateName, StateData#state{queue = Q},
              get_timeout_interval(StateName)}
     end;
@@ -968,18 +968,19 @@ send_text(StateData, Text) ->
 
 -spec send_element(state(), jlib:xmlel()|mongoose_acc:t()) -> 'ok'.
 send_element(StateData, #xmlel{} = El) ->
-    ?DEPRECATED,
-    send_text(StateData, exml:to_binary(El));
-send_element(StateData, Acc) ->
-    El = mongoose_acc:get(to_send, Acc),
     send_text(StateData, exml:to_binary(El)).
+
+-spec send_element(state(), mongoose_acc:t(), jlib:xmlel()) -> mongoose_acc:t().
+send_element(StateData, Acc, El) ->
+    send_text(StateData, exml:to_binary(El)),
+    Acc.
 
 
 -spec send_queue(state(), Q :: element_queue()) -> 'ok'.
 send_queue(StateData, Q) ->
     case queue:out(Q) of
-        {{value, El}, Q1} ->
-            send_element(StateData, El),
+        {{value, {Acc, El}}, Q1} ->
+            send_element(StateData, Acc, El),
             send_queue(StateData, Q1);
         {empty, _Q1} ->
             ok
@@ -987,26 +988,24 @@ send_queue(StateData, Q) ->
 
 
 %% @doc Bounce a single message (xmlel)
--spec bounce_element(Acc :: mongoose_acc:t(), Error :: jlib:xmlel()) -> 'ok'.
-bounce_element(Acc, Error) ->
+-spec bounce_element(Acc :: mongoose_acc:t(), El :: xmlel(), Error :: xmlel()) -> 'ok'.
+bounce_element(Acc, El, Error) ->
     case mongoose_acc:get(type, Acc) of
         <<"error">> -> ok;
         <<"result">> -> ok;
         _ ->
             From = mongoose_acc:get(from_jid, Acc),
             To = mongoose_acc:get(to_jid, Acc),
-            El = mongoose_acc:get(element, Acc),
             Err = jlib:make_error_reply(El, Error),
-            Acc1 = mongoose_acc:put(to_send, Err, Acc),
-            ejabberd_router:route(To, From, Acc1)
+            ejabberd_router:route(To, From, Acc, Err)
     end.
 
 
 -spec bounce_queue(Q :: element_queue(), Error :: jlib:xmlel()) -> 'ok'.
 bounce_queue(Q, Error) ->
     case queue:out(Q) of
-        {{value, El}, Q1} ->
-            bounce_element(El, Error),
+        {{value, {Acc, El}}, Q1} ->
+            bounce_element(Acc, El, Error),
             bounce_queue(Q1, Error);
         {empty, _} ->
             ok
@@ -1032,8 +1031,8 @@ cancel_timer(Timer) ->
 -spec bounce_messages(jlib:xmlel()) -> 'ok'.
 bounce_messages(Error) ->
     receive
-        {send_element, El} ->
-            bounce_element(El, Error),
+        {send_element, Acc, El} ->
+            bounce_element(Acc, El, Error),
             bounce_messages(Error)
     after 0 ->
             ok
