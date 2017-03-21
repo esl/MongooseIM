@@ -101,9 +101,9 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
 unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
     node_flat:unsubscribe_node(Nidx, Sender, Subscriber, SubId).
 
-publish_item(_ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload,
+publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload,
              PublishOptions) ->
-    node_flat:publish_item(Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher,
+    node_flat:publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher,
                            Payload, PublishOptions).
 
 remove_extra_items(Nidx, MaxItems, ItemIds) ->

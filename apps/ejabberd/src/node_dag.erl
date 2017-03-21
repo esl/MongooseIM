@@ -66,7 +66,7 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
 unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
     node_hometree:unsubscribe_node(Nidx, Sender, Subscriber, SubId).
 
-publish_item(_ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload,
+publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload,
              PublishOptions) ->
     case nodetree_dag:get_node(Nidx) of
         #pubsub_node{options = Options} ->
@@ -75,7 +75,7 @@ publish_item(_ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublishe
                     {error,
                         ?ERR_EXTENDED((?ERR_NOT_ALLOWED), <<"publish">>)};
                 _ ->
-                    node_hometree:publish_item(Nidx, Publisher, Model, MaxItems,
+                    node_hometree:publish_item(ServerHost, Nidx, Publisher, Model, MaxItems,
                                                ItemId, ItemPublisher, Payload, PublishOptions)
             end;
         Err -> Err
