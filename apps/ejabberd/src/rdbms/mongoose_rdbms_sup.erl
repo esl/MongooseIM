@@ -30,77 +30,75 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 %% API
--export([start_link/1,
+-export([start_link/0,
          init/1,
          get_pids/1,
-         default_pool/1,
-         add_pool/4,
-         remove_pool/2
+         pool_proc/1,
+         pool/1,
+         add_pool/1,
+         remove_pool/1,
+         get_option/2
         ]).
 
 -include("ejabberd.hrl").
 
--define(POOL_NAME, odbc_pool).
+-define(DEFAULT_POOL_NAME, default).
 -define(DEFAULT_POOL_SIZE, 10).
 
--spec start_link(binary() | string()) -> ignore | {error, term()} | {ok, pid()}.
-start_link(Host) ->
-    supervisor:start_link({local, gen_mod:get_module_proc(Host, ?MODULE)}, ?MODULE, Host).
+-spec start_link() -> ignore | {error, term()} | {ok, pid()}.
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-
--spec init(ejabberd:server()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
-init(Host) ->
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+init([]) ->
     ok = application:ensure_started(worker_pool),
     catch ets:new(prepared_statements, [public, named_table, {read_concurrency, true}]),
-    PoolSize = pool_size(Host),
-    PoolName = default_pool(Host),
-    ChildrenSpec = [pool_spec(Host, default_pool, PoolName, PoolSize)],
-    {ok, {{one_for_one, 5, 60}, ChildrenSpec}}.
+    {ok, {{one_for_one, 5, 60}, []}}.
 
+-spec add_pool(Pool :: mongoose_rdbms:pool()) -> supervisor:startchild_ret().
+add_pool(Pool) ->
+    Size = pool_size(Pool),
+    ChildSpec = pool_spec(Pool, Size),
+    mongoose_metrics:ensure_db_pool_metric(Pool),
+    supervisor:start_child(?MODULE, ChildSpec).
 
--spec add_pool(Host :: ejabberd:server(), Id :: supervisor:child_id(),
-               Name :: atom(), Size :: pos_integer()) -> supervisor:startchild_ret().
-add_pool(Host, Id, Name, Size) ->
-    Sup = gen_mod:get_module_proc(Host, ?MODULE),
-    ChildSpec = pool_spec(Host, Id, Name, Size),
-    supervisor:start_child(Sup, ChildSpec).
+-spec remove_pool(Pool :: mongoose_rdbms:pool()) -> ok.
+remove_pool(Pool) ->
+    ok = supervisor:terminate_child(?MODULE, Pool),
+    ok = supervisor:delete_child(?MODULE, Pool).
 
-
--spec remove_pool(Host :: ejabberd:server(), Id :: supervisor:child_id()) -> ok.
-remove_pool(Host, Id) ->
-    Sup = gen_mod:get_module_proc(Host, ?MODULE),
-    ok = supervisor:terminate_child(Sup, Id),
-    ok = supervisor:delete_child(Sup, Id).
-
-
--spec pool_spec(Host :: ejabberd:server(), Id :: supervisor:child_id(),
-                Name :: atom(), Size :: pos_integer()) -> supervisor:child_spec().
-pool_spec(Host, Id, Name, Size) ->
-    Opts = [{workers, Size}, {worker, {mongoose_rdbms, Host}}, {pool_sup_shutdown, infinity}],
-    {Id, {wpool, start_pool, [Name, Opts]}, transient, 2000, supervisor, dynamic}.
+-spec pool_spec(Pool :: mongoose_rdbms:pool(), Size :: pos_integer()) -> supervisor:child_spec().
+pool_spec(Pool, Size) ->
+    Opts = [{workers, Size}, {worker, {mongoose_rdbms, Pool}}, {pool_sup_shutdown, infinity}],
+    {Pool, {wpool, start_pool, [pool_proc(Pool), Opts]}, transient, 2000, supervisor, dynamic}.
 
 
 -spec get_pids(ejabberd:server() | atom()) -> [pid()].
-get_pids(Host) when is_binary(Host) ->
-    get_pids(default_pool(Host));
-get_pids(PoolName) ->
-    case whereis(PoolName) of
+get_pids(HostOrPool) ->
+    PoolProc = pool_proc(HostOrPool),
+    case whereis(PoolProc) of
         undefined -> [];
         _ ->
-            Stats = wpool:stats(PoolName),
+            Stats = wpool:stats(PoolProc),
             {workers, Workers} = lists:keyfind(workers, 1, Stats),
-            [whereis(wpool_pool:worker_name(PoolName, WorkerId)) || {WorkerId, _} <- Workers]
+            [whereis(wpool_pool:worker_name(PoolProc, WorkerId)) || {WorkerId, _} <- Workers]
     end.
 
+-spec pool_proc(mongoose_rdbms:server()) -> atom().
+pool_proc(Host) when is_binary(Host) ->
+    pool_proc(pool(Host));
+pool_proc(Pool) when is_atom(Pool) ->
+    gen_mod:get_module_proc(atom_to_list(Pool), mongoose_rdbms_pool).
 
--spec default_pool(Host :: ejabberd:server()) -> atom().
-default_pool(Host) ->
-    gen_mod:get_module_proc(Host, ?POOL_NAME).
+-spec pool(mongoose_rdbms:server()) -> mongoose_rdbms:pool().
+pool(Host) when is_binary(Host) ->
+    ejabberd_config:get_local_option_or_default({odbc_pool, Host}, ?DEFAULT_POOL_NAME);
+pool(Pool) when is_atom(Pool) ->
+    Pool.
 
-
--spec pool_size(ejabberd:server()) -> integer().
-pool_size(Host) ->
-    case ejabberd_config:get_local_option({odbc_pool_size, Host}) of
+-spec pool_size(mongoose_rdbms:pool()) -> integer().
+pool_size(Pool) ->
+    case get_option(Pool, odbc_pool_size) of
         undefined ->
             ?DEFAULT_POOL_SIZE;
         Size when is_integer(Size) ->
@@ -108,7 +106,14 @@ pool_size(Host) ->
         InvalidSize ->
             Size = ?DEFAULT_POOL_SIZE,
             ?ERROR_MSG("Wrong odbc_pool_size definition '~p' "
-                       "for host ~p, default to ~p~n",
-                       [InvalidSize, Host, Size]),
+                       "for pool ~p, default to ~p~n",
+                       [InvalidSize, Pool, Size]),
             Size
     end.
+
+-spec get_option(mongoose_rdbms:pool(), atom()) -> term().
+get_option(Pool, Option) ->
+    ejabberd_config:get_local_option(config_key(Pool, Option)).
+
+config_key(Pool, Option) ->
+    {Option, odbc_pool, Pool}.

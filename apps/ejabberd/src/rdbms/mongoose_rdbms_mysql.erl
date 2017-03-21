@@ -26,8 +26,8 @@
 
 %% API
 
--spec escape_format(Host :: ejabberd:server()) -> atom().
-escape_format(_Host) ->
+-spec escape_format(mongoose_rdbms:pool()) -> atom().
+escape_format(_Pool) ->
     simple_escape.
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
@@ -51,10 +51,11 @@ disconnect(Connection) ->
 query(Connection, Query, _Timeout) ->
     mysql_to_odbc(mysql:query(Connection, Query), Connection).
 
--spec prepare(Host :: ejabberd:server(), Connection :: term(), Name :: atom(), Table :: binary(),
+-spec prepare(Pool :: mongoose_rdbms:pool(),
+              Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, term()} | {error, any()}.
-prepare(_Host, Connection, Name, _Table, _Fields, Statement) ->
+prepare(_Pool, Connection, Name, _Table, _Fields, Statement) ->
     mysql:prepare(Connection, Name, Statement).
 
 -spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],

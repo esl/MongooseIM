@@ -89,8 +89,7 @@ worker_number(Host, ArcID) ->
 
 -spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
-    PoolName = gen_mod:get_module_proc(Host, ?MODULE),
-    {ok, _} = mongoose_rdbms_sup:add_pool(Host, ?MODULE, PoolName, worker_count(Host)),
+    PoolName = gen_mod:get_opt(odbc_pool, Opts, mongoose_rdbms_sup:pool(Host)),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
     mod_mam_muc_odbc_arch:prepare_insert(insert_mam_muc_message, 1),
     mod_mam_muc_odbc_arch:prepare_insert(insert_mam_muc_messages, MaxSize),
@@ -101,8 +100,7 @@ start(Host, Opts) ->
 -spec stop(ejabberd:server()) -> any().
 stop(Host) ->
     stop_muc(Host),
-    stop_workers(Host),
-    mongoose_rdbms_sup:remove_pool(Host, ?MODULE).
+    stop_workers(Host).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc

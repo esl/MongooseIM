@@ -737,7 +737,7 @@ init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
                  odbc_async_pool ->
                      MongooseMetrics = [
-                                        {[global, data, odbc, mam_async],
+                                        {[global, data, odbc, default],
                                          [{recv_oct, '>'}, {send_oct, '>'}]}
                                        ],
                      [{mongoose_metrics, MongooseMetrics} | ConfigIn];

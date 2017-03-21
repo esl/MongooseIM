@@ -9,7 +9,6 @@
 -define(eq(E, I), ?assertEqual(E, I)).
 -define(ne(E, I), ?assert(E =/= I)).
 
--define(HOST, <<"localhost">>).
 -define(KEEPALIVE_INTERVAL, 1).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 
@@ -61,7 +60,7 @@ end_per_testcase(_, Config) ->
 
 %% Test cases
 keepalive_interval(Config) ->
-    {ok, Pid} = gen_server:start_link(mongoose_rdbms, ?HOST, []),
+    {ok, Pid} = gen_server:start_link(mongoose_rdbms, default, []),
     true = erlang:unlink(Pid),
     timer:sleep(5500),
     ?eq(5, query_calls(Config)),
@@ -69,7 +68,7 @@ keepalive_interval(Config) ->
     ok.
 
 keepalive_exit(Config) ->
-    {ok, Pid} = gen_server:start_link(mongoose_rdbms, ?HOST, []),
+    {ok, Pid} = gen_server:start_link(mongoose_rdbms, default, []),
     true = erlang:unlink(Pid),
     Monitor = erlang:monitor(process, Pid),
     timer:sleep(3500),
@@ -86,11 +85,14 @@ keepalive_exit(Config) ->
 meck_config(Server, KeepaliveInterval) ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_local_option,
-                fun({odbc_keepalive_interval, _Host}) -> KeepaliveInterval;
-                   ({odbc_start_interval, _Host}) -> 30;
-                   (max_fsm_queue) -> 1024;
-                   ({odbc_server, _}) -> server(Server);
+                fun(max_fsm_queue) -> 1024;
                    (all_metrics_are_global) -> false
+                end),
+    meck:new(mongoose_rdbms_sup, [no_link, passthrough]),
+    meck:expect(mongoose_rdbms_sup, get_option,
+                fun(default, odbc_keepalive_interval) -> KeepaliveInterval;
+                   (default, odbc_start_interval) -> 30;
+                   (default, odbc_server) -> server(Server)
                 end).
 
 meck_db(odbc) ->
@@ -126,6 +128,7 @@ meck_error(pgsql) ->
 
 meck_unload(DbType) ->
     meck:unload(ejabberd_config),
+    meck:unload(mongoose_rdbms_sup),
     do_meck_unload(DbType).
 
 do_meck_unload(odbc) ->

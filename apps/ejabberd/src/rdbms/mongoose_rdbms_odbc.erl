@@ -22,10 +22,9 @@
 
 %% API
 
--spec escape_format(Host :: ejabberd:server()) -> atom().
-escape_format(Host) ->
-    Key = {odbc_server_type, Host},
-    case ejabberd_config:get_local_option_or_default(Key, odbc) of
+-spec escape_format(mongoose_rdbms:pool()) -> atom().
+escape_format(Pool) ->
+    case mongoose_rdbms_sup:get_option(Pool, odbc_server_type) of
         pgsql ->
             hex;
         mssql ->
@@ -57,11 +56,12 @@ query(Connection, Query, Timeout) when is_binary(Query) ->
 query(Connection, Query, Timeout) ->
     parse(odbc:sql_query(Connection, Query, Timeout)).
 
--spec prepare(Host :: ejabberd:server(), Connection :: term(), Name :: atom(), Table :: binary(),
+-spec prepare(Pool :: mongoose_rdbms:pool(),
+              Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, {[binary()], [fun((term()) -> tuple())]}}.
-prepare(Host, Connection, _Name, Table, Fields, Statement) ->
-    BinEscapeFormat = escape_format(Host),
+prepare(Pool, Connection, _Name, Table, Fields, Statement) ->
+    BinEscapeFormat = escape_format(Pool),
     {ok, TableDesc} = odbc:describe_table(Connection, unicode:characters_to_list(Table)),
     SplitQuery = binary:split(iolist_to_binary(Statement), <<"?">>, [global]),
     ParamMappers = [field_name_to_mapper(BinEscapeFormat, TableDesc, Field) || Field <- Fields],
