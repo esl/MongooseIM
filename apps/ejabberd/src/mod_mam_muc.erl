@@ -52,7 +52,7 @@
 
 %% private
 -export([archive_message/8]).
--export([lookup_messages/13]).
+-export([lookup_messages/14]).
 -export([archive_id_int/2]).
 %% ----------------------------------------------------------------------
 %% Imports
@@ -64,7 +64,8 @@
 %% UID
 -import(mod_mam_utils,
         [generate_message_id/0,
-         decode_compact_uuid/1]).
+         decode_compact_uuid/1,
+         normalize_search_text/2]).
 
 %% XML
 -import(mod_mam_utils,
@@ -88,7 +89,8 @@
 %% Forms
 -import(mod_mam_utils,
         [form_field_value_s/2,
-         message_form/1]).
+         form_field_value/2,
+         message_form/3]).
 
 %% Other
 -import(mod_mam_utils,
@@ -228,8 +230,8 @@ filter_room_packet(Packet, EventData) ->
 
 %% @doc Archive without validation.
 -spec archive_room_packet(Packet :: packet(), FromNick :: ejabberd:user(),
-        FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
-        Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
+                          FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
+                          Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
 archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affiliation) ->
     {ok, Host} = mongoose_subhosts:get_host(RoomJID#jid.lserver),
     ArcID = archive_id_int(Host, RoomJID),
@@ -307,7 +309,6 @@ is_action_allowed(Action, From, To = #jid{lserver = Host}) ->
         deny -> false;
         default -> is_action_allowed_by_default(Action, From, To)
     end.
-
 
 -spec is_action_allowed_by_default(Action :: action(), From :: ejabberd:jid(),
                                    To :: ejabberd:jid()) -> boolean().
@@ -434,7 +435,7 @@ handle_set_prefs_result({error, Reason},
 
 
 -spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) ->
-    ejabberd:iq() | {error, any(), ejabberd:iq()}.
+                              ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
@@ -456,7 +457,7 @@ handle_lookup_messages(
   From = #jid{},
   ArcJID = #jid{},
   IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -465,6 +466,7 @@ handle_lookup_messages(
     Start = elem_to_start_microseconds(QueryEl),
     End = elem_to_end_microseconds(QueryEl),
     %% Filtering by contact.
+    SearchText = undefined,
     With = elem_to_with_jid(QueryEl),
     RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = borders_decode(QueryEl),
@@ -474,7 +476,7 @@ handle_lookup_messages(
     LimitPassed = Limit =/= <<>>,
     IsSimple = decode_optimizations(QueryEl),
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With,
+                         Start, End, Now, With, SearchText,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
         {error, 'policy-violation'} ->
             ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
@@ -512,7 +514,7 @@ handle_set_message_form(
   From = #jid{},
   ArcJID = #jid{},
   IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -522,6 +524,9 @@ handle_set_message_form(
     End = form_to_end_microseconds(QueryEl),
     %% Filtering by contact.
     With = form_to_with_jid(QueryEl),
+    %% Filtering by text
+    Text  = mod_mam_utils:form_to_text(QueryEl),
+
     RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = form_borders_decode(QueryEl),
     Limit = elem_to_limit(QueryEl),
@@ -534,7 +539,7 @@ handle_set_message_form(
     IsSimple = form_decode_optimizations(QueryEl),
 
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With,
+                         Start, End, Now, With, Text,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
         {error, Reason} ->
             report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
@@ -591,8 +596,8 @@ handle_set_message_form(
 
 -spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
                                      ejabberd:iq().
-handle_get_message_form(_From = #jid{}, _ArcJID = #jid{}, IQ = #iq{}) ->
-    return_message_form_iq(IQ).
+handle_get_message_form(_From = #jid{lserver = Host}, _ArcJID = #jid{}, IQ = #iq{}) ->
+    return_message_form_iq(Host, IQ).
 
 
 %% @doc Purging multiple messages.
@@ -600,7 +605,7 @@ handle_get_message_form(_From = #jid{}, _ArcJID = #jid{}, IQ = #iq{}) ->
                                             ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_multiple_messages(ArcJID = #jid{},
                                IQ = #iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
@@ -620,7 +625,7 @@ handle_purge_multiple_messages(ArcJID = #jid{},
                                          ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_single_message(ArcJID = #jid{},
                             IQ = #iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
@@ -687,6 +692,7 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
                       End :: mod_mam:unix_timestamp()  | undefined,
                       Now :: mod_mam:unix_timestamp(),
                       WithJID :: ejabberd:jid()  | undefined,
+                      SearchText :: binary() | undefined,
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
@@ -694,11 +700,16 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
                                  | {error, 'policy-violation'}
                                  | {error, Reason :: term()}.%Result :: any(),
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
-                WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
-                            [Host, ArcID, ArcJID, RSM, Borders,
-                             Start, End, Now, WithJID,
-                             PageSize, LimitPassed, MaxResultLimit, IsSimple]).
+                WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
+    case SearchText /= undefined andalso not mod_mam_utils:has_full_text_search(?MODULE, Host) of
+        true -> %% Use of disabled full text search
+            {error, 'not-supported'};
+        false ->
+            ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
+                                    [Host, ArcID, ArcJID, RSM, Borders,
+                                     Start, End, Now, WithJID, SearchText,
+                                     PageSize, LimitPassed, MaxResultLimit, IsSimple])
+    end.
 
 
 -spec archive_message(ejabberd:server(), MessId :: mod_mam:message_id(),
@@ -853,7 +864,6 @@ form_to_end_microseconds(El) ->
 form_to_with_jid(El) ->
     maybe_jid(form_field_value_s(El, <<"with">>)).
 
-
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_muc_drop_iq, Host,
                        [Host, To, IQ, Action, Reason]),
@@ -920,8 +930,8 @@ return_purge_single_message_iq(IQ, {error, Reason}) ->
     return_error_iq(IQ, Reason).
 
 
-return_message_form_iq(IQ) ->
-    IQ#iq{type = result, sub_el = [message_form(IQ#iq.xmlns)]}.
+return_message_form_iq(Host, IQ) ->
+    IQ#iq{type = result, sub_el = [message_form(?MODULE, Host, IQ#iq.xmlns)]}.
 
 
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
@@ -964,13 +974,15 @@ params_helper(Params) ->
             Mod -> {Mod, is_archivable_message}
         end,
 
-    binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_muc_params).~n"
-        "-compile(export_all).~n"
-        "add_archived_element() -> ~p.~n"
-        "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
-        [proplists:get_bool(add_archived_element, Params),
-         IsArchivableModule, IsArchivableFunction]))).
+    Format =
+        io_lib:format(
+          "-module(mod_mam_muc_params).~n"
+          "-compile(export_all).~n"
+          "add_archived_element() -> ~p.~n"
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
+          [proplists:get_bool(add_archived_element, Params),
+           IsArchivableModule, IsArchivableFunction]),
+    binary_to_list(iolist_to_binary(Format)).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().

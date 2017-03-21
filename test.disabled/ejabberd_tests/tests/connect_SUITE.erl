@@ -52,8 +52,9 @@ groups() ->
                        invalid_stream_namespace,
                        pre_xmpp_1_0_stream]},
      {starttls, test_cases()},
-     {tls, [parallel], generate_tls_vsn_tests() ++
-                       cipher_test_cases()},
+     {tls, [parallel], [auth_bind_pipelined_session,
+                        auth_bind_pipelined_auth_failure |
+                        generate_tls_vsn_tests() ++ cipher_test_cases()]},
      {feature_order, [parallel], [stream_features_test,
                                   tls_authenticate,
                                   tls_compression_fail,
@@ -67,7 +68,8 @@ test_cases() ->
     generate_tls_vsn_tests() ++
     [should_fail_with_sslv3,
      should_fail_to_authenticate_without_starttls,
-     should_not_send_other_features_with_starttls_required].
+     should_not_send_other_features_with_starttls_required,
+     auth_bind_pipelined_starttls_skipped_error].
 
 cipher_test_cases() ->
     [clients_can_connect_with_advertised_ciphers,
@@ -470,6 +472,64 @@ auth_bind_compression_session(Config) ->
     Compress = Conn#client.compress,
     ?assert(false =/= Compress).
 
+auth_bind_pipelined_session(Config) ->
+    UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]}
+                | given_fresh_spec(Config, alice)],
+
+    Username = proplists:get_value(username, UserSpec),
+    Conn = pipeline_connect(UserSpec),
+
+    %% Stream start
+    StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
+    ?assertMatch(#xmlstreamstart{}, StreamResponse),
+    escalus_session:stream_features(Conn, UserSpec, []),
+
+    %% Auth response
+    escalus_auth:wait_for_success(Username, Conn),
+    AuthStreamResponse = escalus_connection:get_stanza(Conn, stream_response),
+    ?assertMatch(#xmlstreamstart{}, AuthStreamResponse),
+    escalus_session:stream_features(Conn, UserSpec, []),
+
+    %% Bind response
+    BindResponse = escalus_connection:get_stanza(Conn, bind_response),
+    escalus:assert(is_bind_result, BindResponse),
+
+    %% Session response
+    SessionResponse = escalus_connection:get_stanza(Conn, session_response),
+    escalus:assert(is_iq_result, SessionResponse).
+
+auth_bind_pipelined_auth_failure(Config) ->
+    UserSpec = [{password, <<"badpassword">>}, {ssl, true},
+                {parser_opts, [{start_tag, <<"stream:stream">>}]}
+                | given_fresh_spec(Config, alice)],
+
+    Conn = pipeline_connect(UserSpec),
+
+    %% Stream start
+    StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
+    ?assertMatch(#xmlstreamstart{}, StreamResponse),
+    escalus_session:stream_features(Conn, UserSpec, []),
+
+    %% Auth response
+    AuthResponse = escalus_connection:get_stanza(Conn, auth_response),
+    ?assertMatch(#xmlel{name = <<"failure">>, attrs = [{<<"xmlns">>, ?NS_SASL}]}, AuthResponse).
+
+auth_bind_pipelined_starttls_skipped_error(Config) ->
+    UserSpec = [{parser_opts, [{start_tag, <<"stream:stream">>}]}
+                | given_fresh_spec(Config, ?SECURE_USER)],
+
+    Conn = pipeline_connect(UserSpec),
+
+    %% Stream start
+    StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
+    ?assertMatch(#xmlstreamstart{}, StreamResponse),
+    escalus_session:stream_features(Conn, UserSpec, []),
+
+    %% Auth response
+    AuthResponse = escalus_connection:get_stanza(Conn, auth_response),
+    escalus:assert(is_stream_error, [<<"policy-violation">>, <<"Use of STARTTLS required">>],
+                   AuthResponse).
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
@@ -565,3 +625,20 @@ default_context(To) ->
 
 children_specs_to_pids(Children) ->
     [Pid || {_, Pid, _, _} <- Children].
+
+pipeline_connect(UserSpec) ->
+    Server = proplists:get_value(server, UserSpec),
+    Username = proplists:get_value(username, UserSpec),
+    Password = proplists:get_value(password, UserSpec),
+    AuthPayload = <<0:8, Username/binary, 0:8, Password/binary>>,
+
+    {ok, Conn, _} = escalus_connection:connect(UserSpec),
+
+    Stream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
+    Auth = escalus_stanza:auth(<<"PLAIN">>, [#xmlcdata{content = base64:encode(AuthPayload)}]),
+    AuthStream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
+    Bind = escalus_stanza:bind(<<?MODULE_STRING "_resource">>),
+    Session = escalus_stanza:session(),
+
+    escalus_connection:send(Conn, [Stream, Auth, AuthStream, Bind, Session]),
+    Conn.

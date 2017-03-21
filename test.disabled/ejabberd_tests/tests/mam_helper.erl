@@ -244,55 +244,63 @@ maybe_with_elem(BWithJID) ->
 stanza_archive_request(P, QueryId) ->
     stanza_lookup_messages_iq(P, QueryId,
                               undefined, undefined,
-                              undefined, undefined).
+                              undefined, undefined, undefined).
 
 stanza_date_range_archive_request(P) ->
     stanza_lookup_messages_iq(P, undefined,
                               "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
-                              undefined, undefined).
+                              undefined, undefined, undefined).
 
 stanza_date_range_archive_request_not_empty(P, Start, Stop) ->
     stanza_lookup_messages_iq(P, undefined,
                               Start, Stop,
-                              undefined, undefined).
+                              undefined, undefined, undefined).
 
 stanza_limit_archive_request(P) ->
     stanza_lookup_messages_iq(P, undefined, "2010-08-07T00:00:00Z",
-                              undefined, undefined, #rsm_in{max=10}).
+                              undefined, undefined, #rsm_in{max=10}, undefined).
 
 stanza_page_archive_request(P, QueryId, RSM) ->
-    stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined, RSM).
+    stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined, RSM, undefined).
 
 stanza_filtered_by_jid_request(P, BWithJID) ->
     stanza_lookup_messages_iq(P, undefined, undefined,
-                              undefined, BWithJID, undefined).
+                              undefined, BWithJID, undefined, undefined).
 
-stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
+stanza_text_search_archive_request(P, QueryId, TextSearch) ->
+    stanza_lookup_messages_iq(P, QueryId,
+                              undefined, undefined,
+                              undefined, undefined, TextSearch).
+
+stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
     case get_prop(data_form, P) of
         false ->
             stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM);
         true ->
-            stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM)
+            stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch)
     end.
 
-stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
+stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
        attrs = mam_ns_attr(P)
             ++ maybe_attr(<<"queryid">>, QueryId),
        children = skip_undefined([
-           form_x(BStart, BEnd, BWithJID, RSM),
+           form_x(BStart, BEnd, BWithJID, RSM, TextSearch),
            maybe_rsm_elem(RSM)])
     }]).
 
 
 form_x(BStart, BEnd, BWithJID, RSM) ->
+    form_x(BStart, BEnd, BWithJID, RSM, undefined).
+form_x(BStart, BEnd, BWithJID, RSM, TextSearch) ->
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, <<"jabber:x:data">>}],
            children = skip_undefined([
                 form_field(<<"start">>, BStart),
                 form_field(<<"end">>, BEnd),
-                form_field(<<"with">>, BWithJID)]
+                form_field(<<"with">>, BWithJID),
+                form_field(<<"full-text-search">>, TextSearch)]
                 ++ form_extra_fields(RSM)
                 ++ form_border_fields(RSM))}.
 

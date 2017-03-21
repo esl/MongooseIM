@@ -77,7 +77,7 @@ parse_opts(Type, Opts, Deps) ->
                       Opt -> {true, Opt}
                   end
           end,
-          [add_archived_element, is_archivable_message, host]),
+          [add_archived_element, is_archivable_message, host, full_text_search]),
 
     WithCoreDeps = add_dep(CoreMod, CoreModOpts, Deps),
     Backend = proplists:get_value(backend, Opts, odbc),
@@ -159,8 +159,8 @@ add_default_odbc_opts(Opts) ->
       [{cache_users, true}, {async_writer, true}]).
 
 
--spec parse_backend_opt(Option :: {module(), term()}, Type :: pm | muc,
-                        module(), module(), deps()) -> deps().
+-spec parse_backend_opt(Type :: pm | muc, module(), module(),
+                        Option :: {module(), term()}, deps()) -> deps().
 parse_backend_opt(Type, ModODBCArch, ModAsyncWriter, Option, Deps) ->
     case Option of
         {cache_users, true} ->
@@ -172,9 +172,15 @@ parse_backend_opt(Type, ModODBCArch, ModAsyncWriter, Option, Deps) ->
         {user_prefs_store, mnesia_dirty} ->
             add_dep(mod_mam_mnesia_dirty_prefs, [Type], Deps);
         {odbc_message_format, simple} ->
-            add_dep(ModODBCArch, [simple], Deps);
+            add_dep(ModODBCArch, odbc_simple_opts(), Deps);
         {async_writer, true} ->
             DepsWithNoWriter = add_dep(ModODBCArch, [no_writer], Deps),
             add_dep(ModAsyncWriter, [Type], DepsWithNoWriter);
+        {async_writer_odbc_pool, PoolName} ->
+            add_dep(ModAsyncWriter, [{odbc_pool, PoolName}], Deps);
         _ -> Deps
     end.
+
+-spec odbc_simple_opts() -> list().
+odbc_simple_opts() -> [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
+

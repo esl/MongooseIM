@@ -151,7 +151,8 @@ process_item(RosterItem, _Host) ->
         _ -> RosterItem#roster{subscription = both, ask = none}
     end.
 
-get_subscription_lists({F, T, P}, User, Server) ->
+get_subscription_lists(Acc, User, Server) ->
+    {F, T, P} = mongoose_acc:get(subscription_lists, Acc, {[], [], []}),
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     US = {LUser, LServer},
@@ -161,7 +162,8 @@ get_subscription_lists({F, T, P}, User, Server) ->
                                         end,
                                         DisplayedGroups)),
     SRJIDs = [{U1, S1, <<"">>} || {U1, S1} <- SRUsers],
-    {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P}.
+    NewLists = {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P},
+    mongoose_acc:put(subscription_lists, NewLists, Acc).
 
 get_jid_info({Subscription, Groups}, User, Server, JID) ->
     LUser = jid:nodeprep(User),

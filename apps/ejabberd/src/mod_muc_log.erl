@@ -35,7 +35,8 @@
          start/2,
          stop/1,
          check_access_log/2,
-         add_to_log/5]).
+         add_to_log/5,
+         set_room_occupants/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -74,7 +75,9 @@
                    lang         :: ejabberd:lang(),
                    timezone,
                    spam_prevention,
-                   top_link
+                   top_link,
+                   occupants = #{} :: #{RoomJID :: binary() => [jid_nick_role()]},
+                   room_monitors = #{} :: #{reference() => RoomJID :: binary()}
                 }).
 -type logstate() :: #logstate{}.
 
@@ -128,6 +131,11 @@ check_access_log(Host, From) ->
         Res ->
             Res
     end.
+
+-spec set_room_occupants(ejabberd:server(), RoomPID :: pid(), RoomJID :: ejabberd:jid(),
+                         Occupants :: [mod_muc_room:user()]) -> ok.
+set_room_occupants(Host, RoomPID, RoomJID, Occupants) ->
+    gen_server:cast(get_proc_name(Host), {set_room_occupants, RoomPID, RoomJID, Occupants}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -197,8 +205,10 @@ handle_call(stop, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
--spec handle_cast({add_to_log, any(), any(), mod_muc:room(), list()}, logstate())
-            -> {'noreply', logstate()}.
+-spec handle_cast
+    ({add_to_log, any(), any(), mod_muc:room(), list()}, logstate()) -> {'noreply', logstate()};
+    ({set_room_occupants, pid(), ejabberd:jid(), [mod_muc_room:user()]}, logstate()) ->
+        {noreply, logstate()}.
 handle_cast({add_to_log, Type, Data, Room, Opts}, State) ->
     case catch add_to_log2(Type, Data, Room, Opts, State) of
         {'EXIT', Reason} ->
@@ -207,6 +217,19 @@ handle_cast({add_to_log, Type, Data, Room, Opts}, State) ->
             ok
     end,
     {noreply, State};
+handle_cast({set_room_occupants, RoomPID, RoomJID, Users}, State) ->
+    #logstate{occupants = OldOccupantsMap, room_monitors = OldMonitors} = State,
+    RoomJIDBin = jid:to_binary(RoomJID),
+    Monitors =
+        case maps:is_key(RoomJIDBin, OldOccupantsMap) of
+            true -> OldMonitors;
+            false ->
+                MonitorRef = monitor(process, RoomPID),
+                maps:put(MonitorRef, RoomJIDBin, OldMonitors)
+        end,
+    Occupants = [{U#user.jid, U#user.nick, U#user.role} || U <- Users],
+    OccupantsMap = maps:put(RoomJIDBin, Occupants, OldOccupantsMap),
+    {noreply, State#logstate{occupants = OccupantsMap, room_monitors = Monitors}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -216,6 +239,17 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info({'DOWN', MonitorRef, process, Pid, _Info}, State) ->
+    #logstate{occupants = OldOccupantsMap, room_monitors = OldMonitors} = State,
+    case maps:find(MonitorRef, OldMonitors) of
+        error ->
+            ?WARNING_MSG("Unknown monitored process ~p is now down", [Pid]),
+            {noreply, State};
+        {ok, RoomJID} ->
+            Monitors = maps:remove(MonitorRef, OldMonitors),
+            OccupantsMap = maps:remove(RoomJID, OldOccupantsMap),
+            {noreply, State#logstate{occupants = OccupantsMap, room_monitors = Monitors}}
+    end;
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -360,7 +394,8 @@ add_message_to_log(Nick1, Message, RoomJID, Opts, State) ->
            lang = Lang,
            timezone = Timezone,
            spam_prevention = NoFollow,
-           top_link = TopLink} = State,
+           top_link = TopLink,
+           occupants = OccupantsMap} = State,
     Room = get_room_info(RoomJID, Opts),
     Nick = htmlize(Nick1, FileFormat),
     Nick2 = htmlize(<<"<", Nick1/binary, ">">>, FileFormat),
@@ -393,7 +428,7 @@ add_message_to_log(Nick1, Message, RoomJID, Opts, State) ->
 
             HourOffset = calc_hour_offset(TimeStamp),
             put_header(F, Room, Datestring, CSSFile, Lang,
-                       HourOffset, DatePrev, DateNext, TopLink, FileFormat),
+                       HourOffset, DatePrev, DateNext, TopLink, FileFormat, OccupantsMap),
 
             Images_dir = <<OutDir/binary, "images">>,
             file:make_dir(Images_dir),
@@ -711,10 +746,11 @@ fw(F, S, FileFormat) ->
 -spec put_header(file:io_device(), Room :: #room{}, Date :: binary(),
         CSSFile :: boolean(), Lang :: ejabberd:lang(), Hour_offset :: integer(),
         Date_prev :: binary(), Date_next :: binary(), Top_link :: tuple(),
-        file_format()) -> 'ok'.
-put_header(_, _, _, _, _, _, _, _, _, plaintext) ->
+        file_format(), OccupantsMap :: #{binary() => [jid_nick_role()]}) -> 'ok'.
+put_header(_, _, _, _, _, _, _, _, _, plaintext, _) ->
     ok;
-put_header(F, Room, Date, CSSFile, Lang, Hour_offset, Date_prev, Date_next, Top_link, FileFormat) ->
+put_header(F, Room, Date, CSSFile, Lang, Hour_offset, Date_prev, Date_next, Top_link, FileFormat,
+           OccupantsMap) ->
     fw(F, <<"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">">>),
     fw(F, <<"<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"", Lang/binary, "\" lang=\"", Lang/binary, "\">">>),
     fw(F, <<"<head>">>),
@@ -735,7 +771,7 @@ put_header(F, Room, Date, CSSFile, Lang, Hour_offset, Date_prev, Date_next, Top_
     end,
     RoomConfig = roomconfig_to_binary(Room#room.config, Lang, FileFormat),
     put_room_config(F, RoomConfig, Lang, FileFormat),
-    Occupants = get_room_occupants(Room#room.jid),
+    Occupants = maps:get(Room#room.jid, OccupantsMap, []),
     RoomOccupants = roomoccupants_to_binary(Occupants, FileFormat),
     put_room_occupants(F, RoomOccupants, Lang, FileFormat),
     Time_offset_bin = case Hour_offset<0 of
@@ -997,13 +1033,6 @@ role_users_to_string(RoleS, Users) ->
     UsersString = [[Nick, "<br/>"] || {_JID, Nick} <- SortedUsers],
     [RoleS, ": ", UsersString].
 
-
--spec get_room_occupants(ejabberd:literal_jid()) -> [jid_nick_role()].
-get_room_occupants(RoomJIDString) ->
-    RoomJID = jid:from_binary(RoomJIDString),
-    {ok, Users} = mod_muc_room:get_room_users(RoomJID),
-    [{U#user.jid, U#user.nick, U#user.role}
-     || U <- Users].
 
 get_proc_name(Host) -> gen_mod:get_module_proc(Host, ?PROCNAME).
 

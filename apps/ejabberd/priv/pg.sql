@@ -165,6 +165,10 @@ CREATE TABLE roster_version (
 -- UPDATE rosterusers SET askmessage = '';
 -- ALTER TABLE rosterusers ALTER COLUMN askmessage SET NOT NULL;
 
+-- To update from 2.0.0:
+-- ALTER TABLE mam_message ADD COLUMN search_body text;
+-- ALTER TABLE mam_muc_message ADD COLUMN search_body text;
+
 CREATE TYPE mam_behaviour AS ENUM('A', 'N', 'R');
 CREATE TYPE mam_direction AS ENUM('I','O');
 
@@ -186,6 +190,7 @@ CREATE TABLE mam_message(
   direction mam_direction NOT NULL,
   -- Term-encoded message packet
   message bytea NOT NULL,
+  search_body text,
   PRIMARY KEY(user_id, id)
 );
 CREATE INDEX i_mam_message_username_jid_id
@@ -224,6 +229,7 @@ CREATE TABLE mam_muc_message(
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
   message bytea NOT NULL,
+  search_body text,
   PRIMARY KEY (room_id, id)
 );
 

@@ -161,6 +161,10 @@ CREATE TABLE roster_version (
 -- UPDATE rosterusers SET askmessage = '';
 -- ALTER TABLE rosterusers ALTER COLUMN askmessage SET NOT NULL;
 --
+-- To update from 2.0.0:
+-- ALTER TABLE mam_message ADD COLUMN search_body text;
+-- ALTER TABLE mam_muc_message ADD COLUMN search_body text;
+--
 -- NOTE: A "minified" JID is an encoded form of JID storing only
 --       the difference between a user's JID and the real JID.
 --       Consult with mod_mam_utils:jid_to_opt_binary/2
@@ -205,6 +209,7 @@ CREATE TABLE mam_message(
   -- Term-encoded message packet
   -- Don't try to decode it using MySQL tools
   message blob NOT NULL,
+  search_body text,
   PRIMARY KEY (user_id, id),
   INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id)
 )  ENGINE=InnoDB
@@ -243,6 +248,7 @@ CREATE TABLE mam_muc_message(
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
   message blob NOT NULL,
+  search_body text,
   PRIMARY KEY (room_id, id)
 );
 

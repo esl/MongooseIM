@@ -36,3 +36,4 @@
 
 -record(userlist, {name = none, list = [], needdb = false }).
 
+

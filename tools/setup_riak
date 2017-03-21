@@ -2,11 +2,18 @@
 
 sleep 20
 
-RIAK_HOST="http://localhost:8098"
+RIAK_HOST=${RIAK_HOST:-"localhost"}
+RIAK_PORT=${RIAK_PORT:-"8098"}
+RIAK_HOST="http://${RIAK_HOST}:${RIAK_PORT}"
+
+RIAK_VCARD_SCHEMA_PATH=${RIAK_VCARD_SCHEMA_PATH:-"tools/vcard_search_schema.xml"}
+RIAK_MAM_SCHEMA_PATH=${RIAK_MAM_SCHEMA_PATH:-"tools/mam_search_schema.xml"}
+
+RIAK_CONTAINER_NAME=${RIAK_CONTAINER_NAME:-"mongooseim-riak"}
 
 curl -v -XPUT $RIAK_HOST/search/schema/vcard \
     -H 'Content-Type:application/xml' \
-    --data-binary @tools/vcard_search_schema.xml
+    --data-binary @${RIAK_VCARD_SCHEMA_PATH}
 
 curl -v $RIAK_HOST/search/schema/vcard
 
@@ -16,7 +23,7 @@ curl -v -XPUT $RIAK_HOST/search/index/vcard \
 
 curl -v -XPUT $RIAK_HOST/search/schema/mam \
     -H 'Content-Type:application/xml' \
-    --data-binary @tools/mam_search_schema.xml
+    --data-binary @${RIAK_MAM_SCHEMA_PATH}
 
 curl -v $RIAK_HOST/search/schema/mam
 
@@ -26,7 +33,7 @@ curl -v -XPUT $RIAK_HOST/search/index/mam \
 
 sleep 20
 
-RIAK_ADMIN="docker exec -i mongooseim-riak riak-admin"
+RIAK_ADMIN="docker exec -i ${RIAK_CONTAINER_NAME} riak-admin"
 
 $RIAK_ADMIN bucket-type create users '{"props":{"datatype":"map"}}'
 $RIAK_ADMIN bucket-type activate users

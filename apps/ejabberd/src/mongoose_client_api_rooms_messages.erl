@@ -46,7 +46,7 @@ to_json(Req, #{role_in_room := none} = State) ->
 to_json(Req, #{jid := UserJID, room := Room} = State) ->
     RoomJID = maps:get(jid, Room),
     Server = UserJID#jid.server,
-    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
+    Now = p1_time_compat:os_system_time(micro_seconds),
     ArchiveID = mod_mam_muc:archive_id_int(Server, RoomJID),
     LimitQSVal = cowboy_req:qs_val(<<"limit">>, Req, <<"50">>),
     {PageSize, Req2} = mongoose_client_api_messages:maybe_integer_qs_val(LimitQSVal),
@@ -63,6 +63,7 @@ to_json(Req, #{jid := UserJID, room := Room} = State) ->
                                     End,
                                     Now,
                                     _WithJID = undefined,
+                                    _SearchText = undefined,
                                     PageSize,
                                     _LimitPassed = true,
                                     _MaxResultLimit = 50,

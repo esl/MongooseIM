@@ -257,8 +257,11 @@ multiparty_multiprotocol(Config) ->
             [ user_sends_message_to_room(U, M, Room)
               || {U, M} <- [{Bob, <<"I'm Bob.">>}, {Kate, <<"I'm Kate.">>}] ],
             %% XMPP: Alice recieves the messages from Bob and Kate.
-            [<<"I'm Bob.">>, <<"I'm Kate.">>] =
-                user_sees_message_from(Alice, [<<"bobcat">>, <<"kitkat">>], Room)
+            BobRoomJID = muc_helper:room_address(Room, <<"bobcat">>),
+            KateRoomJID = muc_helper:room_address(Room, <<"kitkat">>),
+
+            ?assertEqual([{BobRoomJID, <<"I'm Bob.">>}, {KateRoomJID, <<"I'm Kate.">>}],
+                         user_sees_message_from(Alice, Room, 2))
         end).
 
 
@@ -323,17 +326,16 @@ user_sends_message_to_room(User, Message, Room) ->
     Stanza = escalus_stanza:setattr(Chat, <<"type">>, <<"groupchat">>),
     escalus:send(User, muc_helper:stanza_to_room(Stanza, Room)).
 
-user_sees_message_from(User, Nicks, Room) ->
-    user_sees_message_from(User, Nicks, Room, []).
+user_sees_message_from(User, Room, Times) ->
+    user_sees_message_from(User, Room, Times, []).
 
-user_sees_message_from(_, [], _, Messages) ->
-    lists:reverse(Messages);
-user_sees_message_from(User, [Nick|Rest], Room,  Messages) ->
+user_sees_message_from(_, _, 0, Messages) ->
+    lists:sort(Messages);
+user_sees_message_from(User, Room, Times, Messages) ->
     Stanza = escalus:wait_for_stanza(User),
-    UserRoomJID = muc_helper:room_address(Room, Nick),
     UserRoomJID = exml_query:path(Stanza, [{attr, <<"from">>}]),
     Body = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
-    user_sees_message_from(User, Rest, Room, [Body|Messages]).
+    user_sees_message_from(User, Room, Times - 1, [{UserRoomJID, Body} | Messages]).
 
 is_unavailable_presence_from(Stanza, RoomJID) ->
     escalus_assert:is_presence_type(<<"unavailable">>, Stanza),

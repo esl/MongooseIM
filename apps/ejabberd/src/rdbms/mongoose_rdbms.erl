@@ -31,25 +31,29 @@
 
 -behaviour(gen_server).
 
--callback escape_format(Host :: ejabberd:server()) -> atom().
--callback connect(Args :: any()) ->
+-callback escape_format(Pool :: pool()) -> atom().
+-callback connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
     {ok, Connection :: term()} | {error, Reason :: any()}.
 -callback disconnect(Connection :: term()) -> any().
 -callback query(Connection :: term(), Query :: any(), Timeout :: infinity | non_neg_integer()) ->
-    term().
--callback is_error_duplicate(Reason :: string()) -> boolean().
+    query_result().
+-callback prepare(Pool :: pool(), Connection :: term(), Name :: atom(),
+                  Table :: binary(), Fields :: [binary()], Statement :: iodata()) ->
+    {ok, Ref :: term()} | {error, Reason :: any()}.
+-callback execute(Connection :: term(), Ref :: term(), Parameters :: [term()],
+                  Timeout :: infinity | non_neg_integer()) -> query_result().
 
 %% External exports
--export([sql_query/2,
+-export([prepare/4,
+         execute/3,
+         sql_query/2,
          sql_query_t/1,
          sql_transaction/2,
-         sql_bloc/2,
          escape/1,
          escape_like/1,
          to_bool/1,
          db_engine/1,
-         print_state/1,
-         is_error_duplicate/1]).
+         print_state/1]).
 
 %% BLOB escaping
 -export([escape_format/1,
@@ -73,9 +77,13 @@
 
 -include("ejabberd.hrl").
 
+-type pool() :: atom().
+-export_type([pool/0]).
+
 -record(state, {db_ref,
                 db_type :: atom(),
-                host :: ejabberd:server()
+                pool :: pool(),
+                prepared = #{} :: #{binary() => term()}
                }).
 -type state() :: #state{}.
 
@@ -87,22 +95,47 @@
 -define(QUERY_TIMEOUT, 5000).
 %% The value is arbitrary; supervisor will restart the connection once
 %% the retry counter runs out. We just attempt to reduce log pollution.
--define(CONNECT_RETRIES, 3).
+-define(CONNECT_RETRIES, 5).
 
-%% Points to ODBC server process
--type odbc_server() :: binary() | atom().
--type odbc_msg() :: {sql_bloc, _} | {sql_query, _} | {sql_transaction, fun()}.
+-type server() :: binary() | pool().
+-type odbc_msg() :: {sql_query, _} | {sql_transaction, fun()} | {sql_execute, atom(), iodata()}.
+-type single_query_result() :: {selected, [tuple()]} |
+                               {updated, non_neg_integer() | undefined} |
+                               {error, Reason :: string() | duplicate_key}.
+-type query_result() :: single_query_result() | [single_query_result()].
+-type transaction_result() :: {aborted, _} | {atomic, _} | {error, _}.
+-export_type([query_result/0]).
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
 
--spec sql_query(HostOrPool :: odbc_server(), Query :: any()) -> any().
+-spec prepare(Name, Table :: binary() | atom(), Fields :: [binary() | atom()],
+              Statement :: iodata()) ->
+                     {ok, Name} | {error, already_exists}
+                         when Name :: atom().
+prepare(Name, Table, Fields, Statement) when is_atom(Table) ->
+    prepare(Name, atom_to_binary(Table, utf8), Fields, Statement);
+prepare(Name, Table, [Field | _] = Fields, Statement) when is_atom(Field) ->
+    prepare(Name, Table, [atom_to_binary(F, utf8) || F <- Fields], Statement);
+prepare(Name, Table, Fields, Statement) when is_atom(Name), is_binary(Table) ->
+    true = lists:all(fun is_binary/1, Fields),
+    case ets:insert_new(prepared_statements, {Name, Table, Fields, Statement}) of
+        true  -> {ok, Name};
+        false -> {error, already_exists}
+    end.
+
+-spec execute(HostOrPool :: server(), Name :: atom(), Parameters :: [term()]) ->
+                     query_result().
+execute(HostOrPool, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
+    sql_call(HostOrPool, {sql_execute, Name, Parameters}).
+
+-spec sql_query(HostOrPool :: server(), Query :: any()) -> query_result().
 sql_query(HostOrPool, Query) ->
     sql_call(HostOrPool, {sql_query, Query}).
 
 %% @doc SQL transaction based on a list of queries
--spec sql_transaction(odbc_server(), fun() | maybe_improper_list()) -> any().
+-spec sql_transaction(server(), fun() | maybe_improper_list()) -> transaction_result().
 sql_transaction(HostOrPool, Queries) when is_list(Queries) ->
     F = fun() -> lists:map(fun sql_query_t/1, Queries) end,
     sql_transaction(HostOrPool, F);
@@ -110,46 +143,39 @@ sql_transaction(HostOrPool, Queries) when is_list(Queries) ->
 sql_transaction(HostOrPool, F) when is_function(F) ->
     sql_call(HostOrPool, {sql_transaction, F}).
 
-%% @doc SQL bloc, based on a erlang anonymous function (F = fun)
--spec sql_bloc(HostOrPool :: odbc_server(), F :: any()) -> any().
-sql_bloc(HostOrPool, F) ->
-    sql_call(HostOrPool, {sql_bloc, F}).
-
-
 %% TODO: Better spec for RPC calls
--spec sql_call(HostOrPool :: binary() | atom(), Msg :: odbc_msg()) -> any().
+-spec sql_call(HostOrPool :: server(), Msg :: odbc_msg()) -> any().
 sql_call(HostOrPool, Msg) ->
     case get(?STATE_KEY) of
         undefined -> sql_call0(HostOrPool, Msg);
-        State     -> nested_op(Msg, State)
+        State     ->
+            {Res, NewState} = nested_op(Msg, State),
+            put(?STATE_KEY, NewState),
+            Res
     end.
 
 
--spec sql_call0(HostOrPool :: binary() | atom(), Msg :: odbc_msg()) -> any().
-sql_call0(Host, Msg) when is_binary(Host) ->
-    sql_call0(mongoose_rdbms_sup:default_pool(Host), Msg);
-sql_call0(Pool, Msg) when is_atom(Pool) ->
-    case whereis(Pool) of
-        undefined -> {error, {no_odbc_pool, Pool}};
+-spec sql_call0(HostOrPool :: server(), Msg :: odbc_msg()) -> any().
+sql_call0(HostOrPool, Msg) ->
+    PoolProc = mongoose_rdbms_sup:pool_proc(HostOrPool),
+    case whereis(PoolProc) of
+        undefined -> {error, {no_odbc_pool, PoolProc}};
         _ ->
             Timestamp = p1_time_compat:monotonic_time(milli_seconds),
-            wpool:call(Pool, {sql_cmd, Msg, Timestamp}, best_worker, ?TRANSACTION_TIMEOUT)
+            wpool:call(PoolProc, {sql_cmd, Msg, Timestamp}, best_worker, ?TRANSACTION_TIMEOUT)
     end.
 
 
--spec get_db_info(Target :: odbc_server() | pid()) ->
+-spec get_db_info(Target :: server() | pid()) ->
                          {ok, DbType :: atom(), DbRef :: term()} | {error, any()}.
-get_db_info(Host) when is_binary(Host) ->
-    get_db_info(mongoose_rdbms_sup:default_pool(Host));
-get_db_info(Pool) when is_atom(Pool) ->
-    case whereis(Pool) of
-        undefined -> {error, {no_odbc_pool, Pool}};
-        _ -> wpool:call(Pool, get_db_info)
-    end;
 get_db_info(Pid) when is_pid(Pid) ->
-    wpool_process:call(Pid, get_db_info, 5000).
-
-
+    wpool_process:call(Pid, get_db_info, 5000);
+get_db_info(HostOrPool) ->
+    PoolProc = mongoose_rdbms_sup:pool_proc(HostOrPool),
+    case whereis(PoolProc) of
+        undefined -> {error, {no_odbc_pool, PoolProc}};
+        _ -> wpool:call(PoolProc, get_db_info)
+    end.
 
 %% This function is intended to be used from inside an sql_transaction:
 sql_query_t(Query) ->
@@ -187,10 +213,10 @@ escape_like(S) ->
     rdbms_queries:escape_like_string(S).
 
 
--spec escape_format(odbc_server()) -> hex | simple_escape.
-escape_format(Host) ->
-    mongoose_rdbms_backend:escape_format(Host).
-
+-spec escape_format(server()) -> hex | simple_escape.
+escape_format(HostOrPool) ->
+    Pool = mongoose_rdbms_sup:pool(HostOrPool),
+    mongoose_rdbms_backend:escape_format(Pool).
 
 -spec escape_binary('hex' | 'simple_escape', binary()) -> binary() | string().
 escape_binary(hex, Bin) when is_binary(Bin) ->
@@ -236,23 +262,22 @@ to_bool(true) -> true;
 to_bool(1) -> true;
 to_bool(_) -> false.
 
--spec is_error_duplicate(Reason :: string()) -> boolean().
-is_error_duplicate(Reason) ->
-    mongoose_rdbms_backend:is_error_duplicate(Reason).
-
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_server
 %%%----------------------------------------------------------------------
--spec init(ejabberd:server()) -> {ok, state()}.
-init(Host) ->
+-spec init(pool()) -> {ok, state()}.
+init(Pool) ->
     process_flag(trap_exit, true),
-    backend_module:create(?MODULE, db_engine(Host), [query]),
-    Settings = ejabberd_config:get_local_option({odbc_server, Host}),
-    RetryAfterSeconds = get_start_interval(Host),
-    proc_lib:init_ack({ok, self()}),
-    {ok, DbRef} = connect(Settings, ?CONNECT_RETRIES, RetryAfterSeconds),
-    schedule_keepalive(Host),
-    {ok, #state{db_type = db_engine(Host), host = Host, db_ref = DbRef}}.
+    backend_module:create(?MODULE, db_engine(Pool), [query]),
+    Settings = mongoose_rdbms_sup:get_option(Pool, odbc_server),
+    MaxStartInterval = get_start_interval(Pool),
+    case connect(Settings, ?CONNECT_RETRIES, 2, MaxStartInterval) of
+        {ok, DbRef} ->
+            schedule_keepalive(Pool),
+            {ok, #state{db_type = db_engine(Pool), pool = Pool, db_ref = DbRef}};
+        Error ->
+            {stop, Error}
+    end.
 
 
 handle_call({sql_cmd, Command, Timestamp}, From, State) ->
@@ -272,7 +297,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_info(keepalive, State) ->
     case sql_query_internal([?KEEPALIVE_QUERY], State) of
         {selected, _} ->
-            schedule_keepalive(State#state.host),
+            schedule_keepalive(State#state.pool),
             {noreply, State};
         {error, _} = Error ->
             {stop, {keepalive_failed, Error}, State}
@@ -305,7 +330,7 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
     Now = p1_time_compat:monotonic_time(milli_seconds),
     case Now - Timestamp of
         Age when Age  < ?TRANSACTION_TIMEOUT ->
-            abort_on_driver_error(outer_op(Command, State), State);
+            abort_on_driver_error(outer_op(Command, State));
         Age ->
             ?ERROR_MSG("Database was not available or too slow,"
                        " discarding ~p milliseconds old request~n~p~n",
@@ -314,37 +339,30 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
     end.
 
 %% @doc Only called by handle_call, only handles top level operations.
--spec outer_op({'sql_bloc', _} | {'sql_query', _} | {'sql_transaction', fun()}, state()) ->
-                      {error | aborted | atomic, _}.
+-spec outer_op(odbc_msg(), state()) -> query_result() | transaction_result().
 outer_op({sql_query, Query}, State) ->
-    sql_query_internal(Query, State);
+    {sql_query_internal(Query, State), State};
 outer_op({sql_transaction, F}, State) ->
     outer_transaction(F, ?MAX_TRANSACTION_RESTARTS, "", State);
-outer_op({sql_bloc, F}, State) ->
-    execute_bloc(F, State).
+outer_op({sql_execute, Name, Params}, State) ->
+    sql_execute(Name, Params, State).
 
 %% @doc Called via sql_query/transaction/bloc from client code when inside a
 %% nested operation
--spec nested_op({'sql_bloc', _} | {'sql_query', _} | {'sql_transaction', fun()}, state()) -> any().
+-spec nested_op(odbc_msg(), state()) -> any().
 nested_op({sql_query, Query}, State) ->
     %% XXX - use sql_query_t here insted? Most likely would break
     %% callers who expect {error, _} tuples (sql_query_t turns
     %% these into throws)
-    sql_query_internal(Query, State);
+    {sql_query_internal(Query, State), State};
 nested_op({sql_transaction, F}, State) ->
-    case in_transaction() of
-        false ->
-            %% First transaction inside a (series of) sql_blocs
-            outer_transaction(F, ?MAX_TRANSACTION_RESTARTS, "", State);
-        true ->
-            %% Transaction inside a transaction
-            inner_transaction(F, State)
-    end;
-nested_op({sql_bloc, F}, State) ->
-    execute_bloc(F, State).
+    %% Transaction inside a transaction
+    inner_transaction(F, State);
+nested_op({sql_execute, Name, Params}, State) ->
+    sql_execute(Name, Params, State).
 
 %% @doc Never retry nested transactions - only outer transactions
--spec inner_transaction(fun(), state()) -> {'EXIT', _} | {'aborted', _} | {'atomic', _}.
+-spec inner_transaction(fun(), state()) -> transaction_result() | {'EXIT', any()}.
 inner_transaction(F, _State) ->
     case catch F() of
         {aborted, Reason} ->
@@ -359,12 +377,12 @@ inner_transaction(F, _State) ->
 
 -spec outer_transaction(F :: fun(),
                         NRestarts :: 0..10,
-                        Reason :: any(), state()) -> {'aborted', _} | {'atomic', _}.
+                        Reason :: any(), state()) -> {transaction_result(), state()}.
 outer_transaction(F, NRestarts, _Reason, State) ->
     sql_query_internal(rdbms_queries:begin_trans(), State),
     put(?STATE_KEY, State),
     Result = (catch F()),
-    erase(?STATE_KEY),
+    erase(?STATE_KEY), % Explicitly ignore state changed inside transaction
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
             %% Retry outer transaction upto NRestarts times.
@@ -380,26 +398,15 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         erlang:get_stacktrace(), State]),
             sql_query_internal([<<"rollback;">>], State),
-            {aborted, Reason};
+            {{aborted, Reason}, State};
         {'EXIT', Reason} ->
             %% Abort sql transaction on EXIT from outer txn only.
             sql_query_internal([<<"rollback;">>], State),
-            {aborted, Reason};
+            {{aborted, Reason}, State};
         Res ->
             %% Commit successful outer txn
             sql_query_internal([<<"commit;">>], State),
-            {atomic, Res}
-    end.
-
--spec execute_bloc(fun(), state()) -> {'aborted', _} | {'atomic', _}.
-execute_bloc(F, _State) ->
-    case catch F() of
-        {aborted, Reason} ->
-            {aborted, Reason};
-        {'EXIT', Reason} ->
-            {aborted, Reason};
-        Res ->
-            {atomic, Res}
+            {{atomic, Res}, State}
     end.
 
 sql_query_internal(Query, #state{db_ref = DBRef}) ->
@@ -410,26 +417,41 @@ sql_query_internal(Query, #state{db_ref = DBRef}) ->
             Result
     end.
 
+-spec sql_execute(Name :: atom(), Params :: [term()], state()) -> {query_result(), state()}.
+sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
+    {StatementRef, NewState} = prepare_statement(Name, State),
+    Res = mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, ?QUERY_TIMEOUT),
+    {Res, NewState}.
+
+-spec prepare_statement(Name :: atom(), state()) -> {Ref :: term(), state()}.
+prepare_statement(Name, State = #state{db_ref = DBRef, prepared = Prepared, pool = Pool}) ->
+    case maps:get(Name, Prepared, undefined) of
+        undefined ->
+            [{_, Table, Fields, Statement}] = ets:lookup(prepared_statements, Name),
+            {ok, Ref} = mongoose_rdbms_backend:prepare(Pool, DBRef, Name, Table, Fields, Statement),
+            {Ref, State#state{prepared = maps:put(Name, Ref, Prepared)}};
+
+        Ref ->
+            {Ref, State}
+    end.
+
 %% @doc Generate the OTP callback return tuple depending on the driver result.
--spec abort_on_driver_error(_, state()) ->
+-spec abort_on_driver_error({_, state()}) ->
                                    {reply, Reply :: term(), state()} |
                                    {stop, timeout | closed, state()}.
-abort_on_driver_error({error, "query timed out"} = Reply, State) ->
+abort_on_driver_error({{error, "query timed out"} = Reply, State}) ->
     %% mysql driver error
     {stop, timeout, Reply, State};
-abort_on_driver_error({error, "Failed sending data on socket" ++ _} = Reply, State) ->
+abort_on_driver_error({{error, "Failed sending data on socket" ++ _} = Reply, State}) ->
     %% mysql driver error
     {stop, closed, Reply, State};
-abort_on_driver_error(Reply, State) ->
+abort_on_driver_error({Reply, State}) ->
     {reply, Reply, State}.
 
-
--spec db_engine(Host :: odbc_server()) -> ejabberd_config:value().
-db_engine(Pool) when is_atom(Pool) ->
-    {ok, DbType, _} = wpool:call(Pool, get_db_info),
-    DbType;
-db_engine(Host) when is_binary(Host) ->
-    case ejabberd_config:get_local_option({odbc_server, Host}) of
+-spec db_engine(server()) -> ejabberd_config:value().
+db_engine(HostOrPool) ->
+    Pool = mongoose_rdbms_sup:pool(HostOrPool),
+    case mongoose_rdbms_sup:get_option(Pool, odbc_server) of
         SQLServer when is_list(SQLServer) ->
             odbc;
         Other when is_tuple(Other) ->
@@ -437,52 +459,49 @@ db_engine(Host) when is_binary(Host) ->
     end.
 
 
--spec connect(Settings :: term(), Retry :: non_neg_integer(),
-              RetryAfterSeconds :: non_neg_integer()) -> {ok, term()} | {error, any()}.
-connect(Settings, Retry, RetryAfterSeconds) ->
-    case mongoose_rdbms_backend:connect(Settings) of
+-spec connect(Settings :: term(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
+              MaxRetryDelay :: non_neg_integer()) -> {ok, term()} | {error, any()}.
+connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
+    case mongoose_rdbms_backend:connect(Settings, ?QUERY_TIMEOUT) of
         {ok, _} = Ok ->
             Ok;
         Error when Retry =:= 0 ->
             Error;
         Error ->
+            SleepFor = rand:uniform(RetryAfter),
             ?ERROR_MSG("Database connection attempt with ~p resulted in ~p."
-                       " Retrying in ~p seconds.", [Settings, Error, RetryAfterSeconds]),
-            timer:sleep(timer:seconds(RetryAfterSeconds)),
-            connect(Settings, Retry - 1, RetryAfterSeconds)
+                       " Retrying in ~p seconds.", [Settings, Error, SleepFor]),
+            timer:sleep(timer:seconds(SleepFor)),
+            NextRetryDelay = RetryAfter * RetryAfter,
+            connect(Settings, Retry - 1, max(MaxRetryDelay, NextRetryDelay), MaxRetryDelay)
     end.
 
 
--spec schedule_keepalive(ejabberd:server()) -> any().
-schedule_keepalive(Host) ->
-    case ejabberd_config:get_local_option({odbc_keepalive_interval, Host}) of
+-spec schedule_keepalive(pool()) -> any().
+schedule_keepalive(Pool) ->
+    case mongoose_rdbms_sup:get_option(Pool, odbc_keepalive_interval) of
         KeepaliveInterval when is_integer(KeepaliveInterval) ->
             erlang:send_after(timer:seconds(KeepaliveInterval), self(), keepalive);
         undefined ->
             ok;
         _Other ->
             ?ERROR_MSG("Wrong odbc_keepalive_interval definition '~p'"
-                       " for host ~p.~n", [_Other, Host]),
+                       " for pool ~p.~n", [_Other, Pool]),
             ok
     end.
 
 
--spec get_start_interval(ejabberd:server()) -> any().
-get_start_interval(Host) ->
+-spec get_start_interval(pool()) -> any().
+get_start_interval(Pool) ->
     DefaultInterval = 30,
-    case ejabberd_config:get_local_option({odbc_start_interval, Host}) of
+    case mongoose_rdbms_sup:get_option(Pool, odbc_start_interval) of
         StartInterval when is_integer(StartInterval) ->
             StartInterval;
         undefined ->
             DefaultInterval;
         _Other ->
             ?ERROR_MSG("Wrong odbc_start_interval definition '~p'"
-                       " for host ~p, defaulting to ~p seconds.~n",
-                       [_Other, Host, DefaultInterval]),
+                       " for pool ~p, defaulting to ~p seconds.~n",
+                       [_Other, Pool, DefaultInterval]),
             DefaultInterval
     end.
-
-
--spec in_transaction() -> boolean().
-in_transaction() ->
-    get(?STATE_KEY) =/= undefined.

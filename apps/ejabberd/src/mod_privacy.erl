@@ -46,11 +46,8 @@
 
 -define(BACKEND, mod_privacy_backend).
 
--export_type([userlist/0]).
--export_type([list_name/0]).
 -export_type([list_item/0]).
 
--type userlist() :: #userlist{}.
 -type list_name() :: binary().
 -type list_item() :: #listitem{}.
 
@@ -157,25 +154,26 @@ stop(Host) ->
 %% Handlers
 %% ------------------------------------------------------------------
 
-process_iq_get(_,
-        _From = #jid{luser = LUser, lserver = LServer},
-        _To,
-        #iq{xmlns = ?NS_PRIVACY, sub_el = #xmlel{children = Els}},
-        #userlist{name = Active}) ->
-    case xml:remove_cdata(Els) of
-        [] ->
-            process_lists_get(LUser, LServer, Active);
-        [#xmlel{name = Name, attrs = Attrs}] ->
-            case Name of
-                <<"list">> ->
-                    ListName = xml:get_attr(<<"name">>, Attrs),
-                    process_list_get(LUser, LServer, ListName);
-                _ ->
-                    {error, ?ERR_BAD_REQUEST}
-            end;
-        _ ->
-            {error, ?ERR_BAD_REQUEST}
-    end;
+process_iq_get(Acc,
+               _From = #jid{luser = LUser, lserver = LServer},
+               _To,
+               #iq{xmlns = ?NS_PRIVACY, sub_el = #xmlel{children = Els}},
+               #userlist{name = Active}) ->
+    Res = case xml:remove_cdata(Els) of
+              [] ->
+                  process_lists_get(LUser, LServer, Active);
+              [#xmlel{name = Name, attrs = Attrs}] ->
+                  case Name of
+                      <<"list">> ->
+                          ListName = xml:get_attr(<<"name">>, Attrs),
+                          process_list_get(LUser, LServer, ListName);
+                      _ ->
+                          {error, ?ERR_BAD_REQUEST}
+                  end;
+              _ ->
+                  {error, ?ERR_BAD_REQUEST}
+          end,
+    mongoose_acc:put(iq_result, Res, Acc);
 process_iq_get(Val, _, _, _, _) ->
     Val.
 
@@ -202,26 +200,27 @@ process_list_get(LUser, LServer, {value, Name}) ->
 process_list_get(_LUser, _LServer, false) ->
     {error, ?ERR_BAD_REQUEST}.
 
-process_iq_set(_, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
+process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
     #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{children = Els} = SubEl,
-    case xml:remove_cdata(Els) of
-        [#xmlel{name = Name, attrs = Attrs, children = SubEls}] ->
-            ListName = xml:get_attr(<<"name">>, Attrs),
-            case Name of
-                <<"list">> ->
-                    process_list_set(LUser, LServer, ListName,
-                             xml:remove_cdata(SubEls));
-                <<"active">> ->
-                    process_active_set(LUser, LServer, ListName);
-                <<"default">> ->
-                    process_default_set(LUser, LServer, ListName);
-                _ ->
-                    {error, ?ERR_BAD_REQUEST}
-            end;
-        _ ->
-            {error, ?ERR_BAD_REQUEST}
-    end;
+    Res = case xml:remove_cdata(Els) of
+              [#xmlel{name = Name, attrs = Attrs, children = SubEls}] ->
+                  ListName = xml:get_attr(<<"name">>, Attrs),
+                  case Name of
+                      <<"list">> ->
+                          process_list_set(LUser, LServer, ListName,
+                                   xml:remove_cdata(SubEls));
+                      <<"active">> ->
+                          process_active_set(LUser, LServer, ListName);
+                      <<"default">> ->
+                          process_default_set(LUser, LServer, ListName);
+                      _ ->
+                          {error, ?ERR_BAD_REQUEST}
+                  end;
+              _ ->
+                  {error, ?ERR_BAD_REQUEST}
+          end,
+    mongoose_acc:put(iq_result, Res, Acc);
 process_iq_set(Val, _, _, _) ->
     Val.
 
@@ -312,11 +311,11 @@ get_user_list(_, User, Server) ->
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).
 %% If Dir = in, User@Server is the destination account (To).
-check_packet(_, User, Server,
+check_packet(Acc, User, Server,
          #userlist{list = List, needdb = NeedDb},
          {From, To, Packet},
          Dir) ->
-    case List of
+    CheckResult = case List of
         [] ->
             allow;
         _ ->
@@ -335,7 +334,8 @@ check_packet(_, User, Server,
             end,
             Type = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
-    end.
+    end,
+    mongoose_acc:put(privacy_check, CheckResult, Acc).
 
 %% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->
@@ -449,6 +449,7 @@ updated_list(_,
 
 %% Deserialization
 %% ------------------------------------------------------------------
+
 
 packet_directed_type(Dir, Type) ->
     case {Type, Dir} of

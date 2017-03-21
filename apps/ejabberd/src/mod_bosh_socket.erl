@@ -20,7 +20,6 @@
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
          compress/1, compress/3,
-         reset_stream/1,
          send/2,
          send_xml/2,
          change_shaper/2,
@@ -367,10 +366,6 @@ handle_info({send, Data}, accumulate = SName, #state{} = S) ->
 handle_info({send, Data}, normal = SName, #state{} = S) ->
     NS = send_or_store(Data, S),
     {next_state, SName, NS};
-handle_info(reset_stream, SName, #state{} = S) ->
-    %% TODO: actually reset the stream once it's stored per bosh session
-    ?DEBUG("Stream reset by c2s~n", []),
-    {next_state, SName, S};
 handle_info(close, _SName, #state{pending = []} = State) ->
     {stop, normal, State};
 handle_info(close, _SName, State) ->
@@ -397,7 +392,7 @@ handle_info(Info, SName, State) ->
 
 terminate(_Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->
     [Pid ! {close, Sid} || {_, _, Pid} <- lists:sort(Handlers)],
-    ?BOSH_BACKEND:delete_session(Sid),
+    mod_bosh_backend:delete_session(Sid),
     catch ejabberd_c2s:stop(S#state.c2s_pid),
     ?DEBUG("Closing session ~p in '~s' state. Handlers: ~p Pending: ~p~n",
            [Sid, StateName, Handlers, S#state.pending]).
@@ -510,10 +505,10 @@ rid(#state{} = S, Rid) when is_integer(Rid), Rid > 0 ->
 determine_report_action(undefined, false, _, _) ->
     {noreport, undefined};
 determine_report_action(undefined, true, Rid, LastProcessed) ->
-    if
-        Rid+1 == LastProcessed ->
+    case Rid+1 == LastProcessed of
+        true ->
             {noreport, undefined};
-        Rid+1 /= LastProcessed ->
+        false ->
             ?WARNING_MSG("expected 'ack' attribute on ~p~n", [Rid]),
             {noreport, undefined}
     end;
@@ -692,10 +687,10 @@ send_wrapped_to_handler(Pid, Wrapped, State) ->
 
 -spec maybe_ack(rid(), state()) -> [{binary(), _}].
 maybe_ack(HandlerRid, #state{rid = Rid} = S) ->
-    if
-        Rid > HandlerRid ->
+    case Rid > HandlerRid of
+        true ->
             server_ack(S#state.server_acks, Rid);
-        Rid =< HandlerRid ->
+        false ->
             []
     end.
 
@@ -1004,13 +999,6 @@ compress(SocketData) ->
 -spec compress(mod_bosh:socket(), _, integer()) -> no_return().
 compress(_SocketData, _Data, _InflateSizeLimit) ->
     throw({error, negotiate_compression_on_http_level}).
-
-
-%% @doc TODO: adjust for BOSH
--spec reset_stream(mod_bosh:socket()) -> mod_bosh:socket().
-reset_stream(#bosh_socket{pid = Pid} = SocketData) ->
-    Pid ! reset_stream,
-    SocketData.
 
 
 -spec send_xml(mod_bosh:socket(), mongoose_transport:send_xml_input()) -> ok.

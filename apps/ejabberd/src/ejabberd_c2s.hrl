@@ -54,7 +54,7 @@
                 pres_timestamp :: calendar:datetime() | undefined,
                 %% Are we invisible?
                 pres_invis = false :: boolean(),
-                privacy_list = #userlist{} :: mod_privacy:userlist(),
+                privacy_list = #userlist{} :: mongoose_privacy:userlist(),
                 conn = unknown,
                 auth_module     :: ejabberd_auth:authmodule(),
                 ip              :: inet:ip_address() | undefined,
@@ -97,9 +97,9 @@
 -type broadcast_type() :: {exit, Reason :: binary()}
                         | {item, IJID :: ejabberd:simple_jid() | ejabberd:jid(),
                            ISubscription :: from | to | both | none | remove}
-                        | {privacy_list, PrivList :: mod_privacy:userlist(),
+                        | {privacy_list, PrivList :: mongoose_privacy:userlist(),
                            PrivListName :: binary()}
-                        | {blocking, UserList :: mod_privacy:userlist(), What :: blocking_type(),
+                        | {blocking, UserList :: mongoose_privacy:userlist(), What :: blocking_type(),
                                      [binary()]}
                         | unknown.
 

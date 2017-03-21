@@ -63,7 +63,7 @@ init_per_suite(Config) ->
 
     MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
                        {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {fun roster_odbc_precondition/0, [global, data, odbc, regular],
+                       {fun roster_odbc_precondition/0, [global, data, odbc, default],
                         [{recv_oct, '>'}, {send_oct, '>'}]},
                        {[global, backends, mod_roster, get_subscription_lists], changed}
                        ],

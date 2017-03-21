@@ -30,10 +30,10 @@
 -define(INVALID_RID_OFFSET, 999).
 
 all() ->
-    [{group, essential},
+    [
+     {group, essential},
 
      {group, chat},
-
      {group, time},
      {group, acks},
 
@@ -65,7 +65,8 @@ essential_test_cases() ->
      put_request].
 
 chat_test_cases() ->
-    [interleave_requests,
+    [
+     interleave_requests,
      simple_chat,
      cdata_escape_chat,
      escape_attr_chat,
@@ -746,8 +747,7 @@ force_cache_trimming(Config) ->
 %%--------------------------------------------------------------------
 
 get_bosh_sessions() ->
-    Backend = escalus_ejabberd:rpc(mod_bosh_dynamic, backend, []),
-    escalus_ejabberd:rpc(Backend, get_sessions, []).
+    escalus_ejabberd:rpc(mod_bosh_backend, get_sessions, []).
 
 get_bosh_session(Sid) ->
     BoshSessions = get_bosh_sessions(),

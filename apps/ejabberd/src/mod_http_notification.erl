@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_notify.erl
+%%% File    : mod_http_notification.erl
 %%% Author  : Baibossynv Valery <baibossynov.valery@gmail.com>
 %%% Purpose : Message passing via http
 %%% Created : 16 Dec 2015 by Baibossynv Valery <baibossynov.valery@gmail.com>
@@ -7,10 +7,13 @@
 
 -module(mod_http_notification).
 -author("baibossynov.valery@gmail.com").
+
 -behaviour(gen_mod).
 
+-callback should_make_req(Packet :: exml:element(), From :: jid(), To :: jid()) -> boolean().
+
 %% API
--export([start/2, stop/1, on_user_send_packet/4, should_make_req/3]).
+-export([start/2, stop/1, on_user_send_packet/4]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -46,29 +49,15 @@ on_user_send_packet(Acc, From, To, Packet) ->
 %%% Internal functions
 %%%===================================================================
 
-%% @doc This function determines whether to send http notification or not.
-%% Can be reconfigured by creating a custom module implementing should_make_req/3
-%% and adding it to mod_http_notification settings as {callback_module}
-%% Default behaviour is to send all chat messages with non-empty body.
-should_make_req(Packet, From, To) ->
-    Type = exml_query:attr(Packet, <<"type">>, <<>>),
-    Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
-    should_make_req(Type, Body, From, To).
-
-should_make_req(<<"chat">>, Body, _From, _To) when Body /= <<"">> ->
-    true;
-should_make_req(_, _, _, _) ->
-    false.
-
 get_callback_module() ->
-    gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, ?MODULE).
+    gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, mod_http_notification_default).
 
 make_req(Host, Sender, Receiver, Message) ->
     Path = fix_path(list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH))),
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, ?DEFAULT_POOL_NAME),
     Pool = mongoose_http_client:get_pool(PoolName),
-    Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
-        Message/binary>>,
+    Query = <<"author=", Sender/binary, "&server=", Host/binary,
+              "&receiver=", Receiver/binary, "&message=", Message/binary>>,
     ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
     Headers = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
     T0 = os:timestamp(),

@@ -19,11 +19,8 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
--type listitem() :: #listitem{}.
--define(BACKEND, mod_privacy_backend).
-%% API
--export([]).
 
+-type listitem() :: #listitem{}.
 
 start(Host, _Opts) ->
     mod_disco:register_feature(Host, ?NS_BLOCKING),
@@ -40,8 +37,9 @@ stop(Host) ->
         ?MODULE, process_iq_set, 50),
     ok.
 
-process_iq_get(_, _From = #jid{luser = LUser, lserver = LServer}, _, #iq{xmlns = ?NS_BLOCKING}, _) ->
-    Res = case ?BACKEND:get_privacy_list(LUser, LServer, <<"blocking">>) of
+process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
+               _, #iq{xmlns = ?NS_BLOCKING}, _) ->
+    Res = case mod_privacy_backend:get_privacy_list(LUser, LServer, <<"blocking">>) of
               {error, not_found} ->
                   {ok, []};
               {ok, L} ->
@@ -49,22 +47,23 @@ process_iq_get(_, _From = #jid{luser = LUser, lserver = LServer}, _, #iq{xmlns =
               E ->
                   {error, E}
           end,
-    case Res of
-        {ok, Lst} ->
-            {result, blocking_query_response(Lst)};
-        {error, _} ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
-    end;
+    IqRes = case Res of
+                {ok, Lst} ->
+                    {result, blocking_query_response(Lst)};
+                {error, _} ->
+                    {error, ?ERR_INTERNAL_SERVER_ERROR}
+            end,
+    mongoose_acc:put(iq_result, IqRes, Acc);
 process_iq_get(Val, _, _, _, _) ->
     Val.
 
-process_iq_set(_, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
+process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     %% collect needed data
     #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{name = BType} = SubEl,
     Type = binary_to_existing_atom(BType, latin1),
     Usrs = exml_query:paths(SubEl, [{element, <<"item">>}, {attr, <<"jid">>}]),
-    CurrList = case ?BACKEND:get_privacy_list(LUser, LServer, <<"blocking">>) of
+    CurrList = case mod_privacy_backend:get_privacy_list(LUser, LServer, <<"blocking">>) of
                   {ok, List} ->
                       List;
                   {error, not_found} ->
@@ -75,7 +74,8 @@ process_iq_set(_, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     %% process
     Res = process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs),
     %% respond / notify
-    complete_iq_set(blocking_command, LUser, LServer, Res);
+    Res1 = complete_iq_set(blocking_command, LUser, LServer, Res),
+    mongoose_acc:put(iq_result, Res1, Acc);
 process_iq_set(Val, _, _, _) ->
     Val.
 
@@ -100,11 +100,11 @@ process_blocking_iq_set(block, _, _, _, []) ->
 process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs) ->
     %% check who is being added / removed
     {NType, Changed, NewList} = blocking_list_modify(Type, Usrs, CurrList),
-    case ?BACKEND:replace_privacy_list(LUser, LServer, <<"blocking">>, NewList) of
+    case mod_privacy_backend:replace_privacy_list(LUser, LServer, <<"blocking">>, NewList) of
         {error, E} ->
             {error, E};
         ok ->
-            case ?BACKEND:set_default_list(LUser, LServer, <<"blocking">>) of
+            case mod_privacy_backend:set_default_list(LUser, LServer, <<"blocking">>) of
                 ok ->
                     {ok, Changed, NewList, NType};
                 {error, not_found} ->
@@ -114,7 +114,8 @@ process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs) ->
             end
     end.
 
--spec complete_iq_set(atom(), term(), term(), term()) -> {error, term()} | {result, list() | {result, list(), term()}}.
+-spec complete_iq_set(atom(), term(), term(), term()) ->
+    {error, term()} | {result, list() | {result, list(), term()}}.
 complete_iq_set(blocking_command, _, _, {error, Reason}) ->
     {error, Reason};
 complete_iq_set(blocking_command, LUser, LServer, {ok, Changed, List, Type}) ->
@@ -131,8 +132,8 @@ complete_iq_set(blocking_command, LUser, LServer, {ok, Changed, List, Type}) ->
 blocking_list_modify(block, Change, Old) ->
     N = make_blocking_list(Change),
     {_, O} = remove_from(Change, Old),
-    %% we treat all items on the "to block" list as changed becase they might have been present on the
-    %% old list with different settings
+    %% we treat all items on the "to block" list as changed becase they might have been present
+    %% on the old list with different settings
     %% and we need to set order numbers, doesn't matter how but it has to be unique
     {block, Change, set_order(N ++ O)};
 blocking_list_modify(unblock, [], Old) ->
@@ -185,7 +186,8 @@ make_blocking_list_entry(J) ->
         JID ->
             #listitem{type = jid,
                       match_all = true,
-                      %% we have to use another action because c2s has to respond differently based on why we deny
+                      %% we have to use another action
+                      %% because c2s has to respond differently based on why we deny
                       action = block,
                       value = jid:to_lower(JID)}
     end.

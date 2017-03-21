@@ -94,7 +94,8 @@ iq_handler2(From, To, IQ) ->
 iq_handler1(From, To, IQ) ->
     iq_handler(From, To, IQ, ?NS_CC_1).
 
-iq_handler(From, _To,  #iq{type = set, sub_el = #xmlel{name = Operation, children = []}} = IQ, CC) ->
+iq_handler(From, _To,  #iq{type = set, sub_el = #xmlel{name = Operation,
+                                                       children = []}} = IQ, CC) ->
     ?DEBUG("carbons IQ received: ~p", [IQ]),
     {U, S, R} = jid:to_lower(From),
     Result = case Operation of
@@ -172,9 +173,9 @@ is_received(Packet) ->
 
 -spec is_sent(_) -> classification().
 is_sent(Packet) ->
-    SubTag = xml:get_subtag(Packet, <<"sent">>),
-    if SubTag == false -> forward;
-        true -> is_forwarded(SubTag)
+    case xml:get_subtag(Packet, <<"sent">>) of
+        false -> forward;
+        SubTag -> is_forwarded(SubTag)
     end.
 
 -spec is_forwarded(_) -> classification().
@@ -208,12 +209,12 @@ is_max_prio(Res, PrioRes) ->
     lists:member({max_prio(PrioRes), Res}, PrioRes).
 
 jids_minus_max_priority_resource(U, S, _R, CCResList, PrioRes) ->
-    [ {jid:make({U, S, CCRes}), CC_Version}
-      || {CC_Version, CCRes} <- CCResList, not is_max_prio(CCRes, PrioRes) ].
+    [ {jid:make({U, S, CCRes}), CCVersion}
+      || {CCVersion, CCRes} <- CCResList, not is_max_prio(CCRes, PrioRes) ].
 
 jids_minus_specific_resource(U, S, R, CCResList, _PrioRes) ->
-    [ {jid:make({U, S, CCRes}), CC_Version}
-      || {CC_Version, CCRes} <- CCResList, CCRes =/= R ].
+    [ {jid:make({U, S, CCRes}), CCVersion}
+      || {CCVersion, CCRes} <- CCResList, CCRes =/= R ].
 
 %% If the original user is the only resource in the list of targets
 %% that means that he/she must have already received the message via

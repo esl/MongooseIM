@@ -49,17 +49,17 @@ This script is also accessible via make `configure` target.
 
 ### Example
 
-For example if only `mysql` and `redis` drivers should be included in the
-release, following command has to be run before `make rel`:
+If `mysql` and `redis` are the only drivers that should be included in the
+release, run the following command before `make rel`:
 
     $ ./tools/configure with-mysql with-redis
 
-The `./tools/configure` command has to be run only once (unless one needs to
-change the release's config and include some other dependencies).
+You only need to run the `./tools/configure` command once (unless changing the release's config is needed to 
+include some other dependencies).
 
 ### System install
 
-To manually test the installation one can run `tools/test-install.sh`.
+To manually test the installation run `tools/test-install.sh`.
 This script is intended for careful inspection by a human user, not for automation.
 Results should be similar to those described below.
 
@@ -71,7 +71,7 @@ cat configure.out rel/configure.vars.config
 RUNNER_GROUP=staff make install
 ```
 
-Overriding `RUNNER_GROUP` on a Mac is necessary, as user's by default don't
+Overriding `RUNNER_GROUP` on a Mac is necessary, as users by default don't
 have private groups of the same name as their usernames.
 
 Generated build configs:

@@ -54,7 +54,7 @@
 
 %%private
 -export([archive_message/8]).
--export([lookup_messages/13]).
+-export([lookup_messages/14]).
 -export([archive_id_int/2]).
 
 %% for feature (escalus) tests
@@ -92,12 +92,12 @@
 %% Forms
 -import(mod_mam_utils,
         [form_field_value_s/2,
-         message_form/1]).
+         form_field_value/2,
+         message_form/3]).
 
 %% Other
 -import(mod_mam_utils,
         [maybe_integer/2,
-         is_function_exist/3,
          mess_id_to_external_binary/1,
          is_last_page/4]).
 
@@ -133,7 +133,7 @@
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok', {_, _}}).
 -type rewriter_fun() :: fun((JID :: ejabberd:literal_jid())
-                                                    -> ejabberd:literal_jid()).
+                            -> ejabberd:literal_jid()).
 -type restore_option() :: {rewrite_jids, rewriter_fun() | [{binary(), binary()}]}
                         | new_message_ids.
 
@@ -148,8 +148,9 @@
               unix_timestamp/0,
               archive_id/0,
               lookup_result/0,
-              message_id/0
-            ]).
+              message_id/0,
+              restore_option/0
+             ]).
 
 %% ----------------------------------------------------------------------
 %% Constants
@@ -163,7 +164,7 @@ max_result_limit() -> mod_mam_params:max_result_limit().
 
 -spec delete_archive(ejabberd:server(), ejabberd:user()) -> 'ok'.
 delete_archive(Server, User)
-    when is_binary(Server), is_binary(User) ->
+  when is_binary(Server), is_binary(User) ->
     ?DEBUG("Remove user ~p from ~p.", [User, Server]),
     ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
@@ -174,7 +175,7 @@ delete_archive(Server, User)
 
 -spec archive_size(ejabberd:server(), ejabberd:user()) -> integer().
 archive_size(Server, User)
-    when is_binary(Server), is_binary(User) ->
+  when is_binary(Server), is_binary(User) ->
     ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
@@ -183,7 +184,7 @@ archive_size(Server, User)
 
 -spec archive_id(ejabberd:server(), ejabberd:user()) -> integer().
 archive_id(Server, User)
-    when is_binary(Server), is_binary(User) ->
+  when is_binary(Server), is_binary(User) ->
     ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     archive_id_int(Host, ArcJID).
@@ -255,17 +256,17 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
             case wait_shaper(Host, Action, From) of
                 ok ->
                     handle_error_iq(Host, To, Action,
-                        handle_mam_iq(Action, From, To, IQ));
+                                    handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
                     ?WARNING_MSG("issue=max_delay_reached, action=~p, host=~p, from=~p",
                                  [Action, Host, From]),
                     ejabberd_hooks:run(mam_drop_iq, Host,
-                        [Host, To, IQ, Action, max_delay_reached]),
+                                       [Host, To, IQ, Action, max_delay_reached]),
                     return_max_delay_reached_error_iq(IQ)
             end;
         false ->
             ejabberd_hooks:run(mam_drop_iq, Host,
-                [Host, To, IQ, Action, action_not_allowed]),
+                               [Host, To, IQ, Action, action_not_allowed]),
             return_action_not_allowed_error_iq(IQ)
     end.
 
@@ -279,7 +280,7 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
                        Packet :: jlib:xmlel()) -> map().
 user_send_packet(Acc, From, To, Packet) ->
     ?DEBUG("Send packet~n    from ~p ~n    to ~p~n    packet ~p.",
-              [From, To, Packet]),
+           [From, To, Packet]),
     handle_package(outgoing, false, From, To, From, Packet),
     Acc.
 
@@ -333,7 +334,7 @@ sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...
     is_mam_result_message(Packet);
     %% ... than drop the message
-sm_filter_offline_message(Other, _From, _To, Packet) ->
+sm_filter_offline_message(Other, _From, _To, _Packet) ->
     Other.
 
 %% ----------------------------------------------------------------------
@@ -363,7 +364,7 @@ is_action_allowed_by_default(_Action, From, To) ->
                         ejabberd:simple_jid() | ejabberd:jid()) -> boolean().
 compare_bare_jids(JID1, JID2) ->
     jid:to_bare(JID1) =:=
-    jid:to_bare(JID2).
+        jid:to_bare(JID2).
 
 
 -spec action_to_shaper_name(action()) -> atom().
@@ -378,32 +379,32 @@ action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_g
                     IQ :: ejabberd:iq()) -> ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_mam_iq(Action, From, To, IQ) ->
     case Action of
-    mam_get_prefs ->
-        handle_get_prefs(To, IQ);
-    mam_set_prefs ->
-        handle_set_prefs(To, IQ);
-    mam_lookup_messages ->
-        handle_lookup_messages(From, To, IQ);
-    mam_set_message_form ->
-        handle_set_message_form(From, To, IQ);
-    mam_get_message_form ->
-        handle_get_message_form(From, To, IQ);
-    mam_purge_single_message ->
-        handle_purge_single_message(To, IQ);
-    mam_purge_multiple_messages ->
-        handle_purge_multiple_messages(To, IQ)
+        mam_get_prefs ->
+            handle_get_prefs(To, IQ);
+        mam_set_prefs ->
+            handle_set_prefs(To, IQ);
+        mam_lookup_messages ->
+            handle_lookup_messages(From, To, IQ);
+        mam_set_message_form ->
+            handle_set_message_form(From, To, IQ);
+        mam_get_message_form ->
+            handle_get_message_form(From, To, IQ);
+        mam_purge_single_message ->
+            handle_purge_single_message(To, IQ);
+        mam_purge_multiple_messages ->
+            handle_purge_multiple_messages(To, IQ)
     end.
 
 
 -spec iq_action(ejabberd:iq()) -> action().
-iq_action(IQ=#iq{xmlns = ?NS_MAM}) ->
-    iq_action_02(IQ);
-iq_action(IQ=#iq{xmlns = ?NS_MAM_03}) ->
-    iq_action_03(IQ);
-iq_action(IQ=#iq{xmlns = ?NS_MAM_04}) ->
-    iq_action_03(IQ).
+iq_action(IQ = #iq{xmlns = ?NS_MAM}) ->
+    iq_action_v02(IQ);
+iq_action(IQ = #iq{xmlns = ?NS_MAM_03}) ->
+    iq_action_v03(IQ);
+iq_action(IQ = #iq{xmlns = ?NS_MAM_04}) ->
+    iq_action_v03(IQ).
 
-iq_action_02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
+iq_action_v02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
     case {Action, Category} of
         {set, <<"prefs">>} -> mam_set_prefs;
         {get, <<"prefs">>} -> mam_get_prefs;
@@ -415,23 +416,24 @@ iq_action_02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
             end
     end.
 
-iq_action_03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
+iq_action_v03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
     case {Action, Category} of
         {set, <<"prefs">>} -> mam_set_prefs;
         {get, <<"prefs">>} -> mam_get_prefs;
         {get, <<"query">>} -> mam_get_message_form;
-        {set, <<"query">>} -> mam_set_message_form
-        %% Purge is NOT official extention, it is not implemented for XEP-0313 v0.3.
-        %% Use v0.2 namespace if you really want it.
+        {set, <<"query">>} ->
+            mam_set_message_form
+            %% Purge is NOT official extention, it is not implemented for XEP-0313 v0.3.
+            %% Use v0.2 namespace if you really want it.
     end.
 
 -spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) ->
-    ejabberd:iq() | {error, term(), ejabberd:iq()}.
+                              ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_set_prefs(ArcJID=#jid{},
                  IQ=#iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
     ?DEBUG("Parsed data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
-              [DefaultMode, AlwaysJIDs, NeverJIDs]),
+           [DefaultMode, AlwaysJIDs, NeverJIDs]),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
@@ -447,7 +449,7 @@ handle_set_prefs_result({error, Reason},
 
 
 -spec handle_get_prefs(ejabberd:jid(), IQ :: ejabberd:iq()) ->
-    ejabberd:iq() | {error, term(), ejabberd:iq()}.
+                              ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
@@ -456,7 +458,7 @@ handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
 
 handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
     ?DEBUG("Extracted data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
-              [DefaultMode, AlwaysJIDs, NeverJIDs]),
+           [DefaultMode, AlwaysJIDs, NeverJIDs]),
     Namespace = IQ#iq.xmlns,
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
@@ -466,12 +468,12 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
                              IQ :: ejabberd:iq()) ->
-    ejabberd:iq() | {error, term(), ejabberd:iq()}.
+                                    ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_lookup_messages(
-        From=#jid{},
-        ArcJID=#jid{},
-        IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+  From=#jid{},
+  ArcJID=#jid{},
+  IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
+    Now = p1_time_compat:system_time(micro_seconds),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -481,6 +483,7 @@ handle_lookup_messages(
     Start = elem_to_start_microseconds(QueryEl),
     End   = elem_to_end_microseconds(QueryEl),
     %% Filtering by contact.
+    SearchText = undefined,
     With  = elem_to_with_jid(QueryEl),
     RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = borders_decode(QueryEl),
@@ -490,42 +493,42 @@ handle_lookup_messages(
     LimitPassed = Limit =/= <<>>,
     IsSimple = decode_optimizations(QueryEl),
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With,
+                         Start, End, Now, With, SearchText,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
-    {error, 'policy-violation'} ->
-        ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
-        ErrorEl = jlib:stanza_errort(<<"">>, <<"modify">>, <<"policy-violation">>,
-                                 <<"en">>, <<"Too many results">>),
-        IQ#iq{type = error, sub_el = [ErrorEl]};
-    {error, Reason} ->
-        report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
-        return_error_iq(IQ, Reason);
-    {ok, {TotalCount, Offset, MessageRows}} ->
-        {FirstMessID, LastMessID} =
-            case MessageRows of
-                []    -> {undefined, undefined};
-                [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
-                          message_row_to_ext_id(lists:last(MessageRows))}
-            end,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, M, QueryID))
-         || M <- MessageRows],
-        ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-        ResultQueryEl = result_query(ResultSetEl, Namespace),
-        %% On receiving the query, the server pushes to the client a series of
-        %% messages from the archive that match the client's given criteria,
-        %% and finally returns the <iq/> result.
-        IQ#iq{type = result, sub_el = [ResultQueryEl]}
+        {error, 'policy-violation'} ->
+            ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
+            ErrorEl = jlib:stanza_errort(<<"">>, <<"modify">>, <<"policy-violation">>,
+                                         <<"en">>, <<"Too many results">>),
+            IQ#iq{type = error, sub_el = [ErrorEl]};
+        {error, Reason} ->
+            report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
+            return_error_iq(IQ, Reason);
+        {ok, {TotalCount, Offset, MessageRows}} ->
+            {FirstMessID, LastMessID} =
+                case MessageRows of
+                    []    -> {undefined, undefined};
+                    [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
+                              message_row_to_ext_id(lists:last(MessageRows))}
+                end,
+            [send_message(ArcJID, From, message_row_to_xml(MamNs, M, QueryID))
+             || M <- MessageRows],
+            ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+            ResultQueryEl = result_query(ResultSetEl, Namespace),
+            %% On receiving the query, the server pushes to the client a series of
+            %% messages from the archive that match the client's given criteria,
+            %% and finally returns the <iq/> result.
+            IQ#iq{type = result, sub_el = [ResultQueryEl]}
     end.
 
 
 -spec handle_set_message_form(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
-                             IQ :: ejabberd:iq()) ->
-    ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
+                              IQ :: ejabberd:iq()) ->
+                                     ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
 handle_set_message_form(
-        From=#jid{},
-        ArcJID=#jid{},
-        IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+  From=#jid{},
+  ArcJID=#jid{},
+  IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
+    Now = p1_time_compat:system_time(micro_seconds),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -535,6 +538,9 @@ handle_set_message_form(
     End   = form_to_end_microseconds(QueryEl),
     %% Filtering by contact.
     With  = form_to_with_jid(QueryEl),
+    %% Filtering by text
+    Text  = mod_mam_utils:form_to_text(QueryEl),
+
     RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = form_borders_decode(QueryEl),
     Limit = elem_to_limit(QueryEl),
@@ -547,66 +553,73 @@ handle_set_message_form(
     IsSimple = form_decode_optimizations(QueryEl),
 
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With,
+                         Start, End, Now, With, Text,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
-    {error, Reason} ->
-        report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
-        return_error_iq(IQ, Reason);
-    {ok, {TotalCount, Offset, MessageRows}} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
-        ResIQ = IQ#iq{type = result, sub_el = []},
-        %% Server accepts the query
-        ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
+        {error, Reason} ->
+            report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
+            return_error_iq(IQ, Reason);
+        {ok, {TotalCount, Offset, MessageRows}} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
+            ResIQ = IQ#iq{type = result, sub_el = []},
+            %% Server accepts the query
+            ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
 
-        %% Forward messages
-        {FirstMessID, LastMessID} =
-            case MessageRows of
-                []    -> {undefined, undefined};
-                [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
-                          message_row_to_ext_id(lists:last(MessageRows))}
-            end,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
-         || M <- MessageRows],
+            %% Forward messages
+            {FirstMessID, LastMessID} =
+                case MessageRows of
+                    []    -> {undefined, undefined};
+                    [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
+                              message_row_to_ext_id(lists:last(MessageRows))}
+                end,
 
-        %% Make fin message
-        IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
-        IsStable = true,
-        ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-        FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl, QueryID),
-        ejabberd_sm:route(ArcJID, From, FinMsg),
+            lists:foreach(
+                fun(M) ->
+                    send_message(ArcJID, From,
+                                 message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
+                end, MessageRows),
 
-        %% IQ was sent above
-        ignore;
-    {ok, {TotalCount, Offset, MessageRows}} ->
-        %% Forward messages
-        {FirstMessID, LastMessID} =
-            case MessageRows of
-                []    -> {undefined, undefined};
-                [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
-                          message_row_to_ext_id(lists:last(MessageRows))}
-            end,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
-         || M <- MessageRows],
+            %% Make fin message
+            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+            IsStable = true,
+            ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+            FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl, QueryID),
+            ejabberd_sm:route(ArcJID, From, FinMsg),
 
-        %% Make fin iq
-        IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
-        IsStable = true,
-        ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-        FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
-        IQ#iq{type = result, sub_el = [FinElem]}
+            %% IQ was sent above
+            ignore;
+        {ok, {TotalCount, Offset, MessageRows}} ->
+            %% Forward messages
+            {FirstMessID, LastMessID} =
+                case MessageRows of
+                    []    -> {undefined, undefined};
+                    [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
+                              message_row_to_ext_id(lists:last(MessageRows))}
+                end,
+            lists:foreach(
+                fun(M) ->
+                    send_message(ArcJID, From,
+                                 message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
+                end, MessageRows),
+
+            %% Make fin iq
+            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+            IsStable = true,
+            ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+            FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
+            IQ#iq{type = result, sub_el = [FinElem]}
     end.
 
 -spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
-        ejabberd:iq().
-handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}) ->
-    return_message_form_iq(IQ).
+                                     ejabberd:iq().
+handle_get_message_form(_From=#jid{lserver = Host}, _ArcJID=#jid{}, IQ=#iq{}) ->
+    return_message_form_iq(Host, IQ).
 
 
 %% @doc Purging multiple messages
 -spec handle_purge_multiple_messages(ejabberd:jid(), IQ :: ejabberd:iq()) ->
-    ejabberd:iq() | {error, term(), ejabberd:iq()}.
+                                            ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_purge_multiple_messages(ArcJID=#jid{},
                                IQ=#iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
@@ -623,10 +636,10 @@ handle_purge_multiple_messages(ArcJID=#jid{},
 
 
 -spec handle_purge_single_message(ejabberd:jid(), IQ :: ejabberd:iq()) ->
-    ejabberd:iq() | {error, term(), ejabberd:iq()}.
+                                         ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_purge_single_message(ArcJID=#jid{},
                             IQ=#iq{sub_el = PurgeEl}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = p1_time_compat:system_time(micro_seconds),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
@@ -648,8 +661,8 @@ determine_amp_strategy(Strategy, _, _, _, _) ->
     Strategy.
 
 -spec handle_package(Dir :: incoming | outgoing, ReturnMessID :: boolean(),
-    LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(),
-    Packet :: jlib:xmlel()) -> MaybeMessID :: binary() | undefined.
+                     LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(),
+                     Packet :: jlib:xmlel()) -> MaybeMessID :: binary() | undefined.
 handle_package(Dir, ReturnMessID,
                LocJID=#jid{},
                RemJID=#jid{},
@@ -663,16 +676,19 @@ handle_package(Dir, ReturnMessID,
                     MessID = generate_message_id(),
                     Result = archive_message(Host, MessID, ArcID,
                                              LocJID, RemJID, SrcJID, Dir, Packet),
-                    case {ReturnMessID, Result} of
-                        {true, ok} -> mess_id_to_external_binary(MessID);
-                        _ -> undefined
-                    end;
+                    return_external_message_id_if_ok(ReturnMessID, Result, MessID);
                 false ->
                     undefined
             end;
         false ->
             undefined
     end.
+
+-spec return_external_message_id_if_ok(ReturnMessID :: boolean(),
+                                       ArchivingResult :: ok | any(),
+                                       MessID :: integer()) -> binary() | undefined.
+return_external_message_id_if_ok(true, ok, MessID) -> mess_id_to_external_binary(MessID);
+return_external_message_id_if_ok(_, _, _MessID) -> undefined.
 
 is_interesting(LocJID, RemJID) ->
     Host = server_host(LocJID),
@@ -690,7 +706,7 @@ is_interesting(Host, LocJID, RemJID, ArcID) ->
 %% Backend wrappers
 
 -spec archive_id_int(ejabberd:server(), ejabberd:jid()) ->
-    non_neg_integer() | undefined.
+                            non_neg_integer() | undefined.
 archive_id_int(Host, ArcJID=#jid{}) ->
     ejabberd_hooks:run_fold(mam_archive_id, Host, undefined, [Host, ArcJID]).
 
@@ -701,12 +717,12 @@ archive_size(Host, ArcID, ArcJID=#jid{}) ->
 
 
 -spec get_behaviour(ejabberd:server(), archive_id(), LocJID :: ejabberd:jid(),
-    RemJID :: ejabberd:jid(), Default :: 'always') -> atom().
+                    RemJID :: ejabberd:jid(), Default :: 'always') -> atom().
 get_behaviour(Host, ArcID,
               LocJID=#jid{},
               RemJID=#jid{}, DefaultBehaviour) ->
     ejabberd_hooks:run_fold(mam_get_behaviour, Host, DefaultBehaviour,
-        [Host, ArcID, LocJID, RemJID]).
+                            [Host, ArcID, LocJID, RemJID]).
 
 
 -spec set_prefs(ejabberd:server(), archive_id(), ArcJID :: ejabberd:jid(),
@@ -714,17 +730,17 @@ get_behaviour(Host, ArcID,
                 NeverJIDs :: [ejabberd:literal_jid()]) -> any().
 set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     ejabberd_hooks:run_fold(mam_set_prefs, Host, {error, not_implemented},
-        [Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
+                            [Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
 
 
 %% @doc Load settings from the database.
 -spec get_prefs(Host :: ejabberd:server(), ArcID :: archive_id(),
                 ArcJID :: ejabberd:jid(), GlobalDefaultMode :: archive_behaviour()
-                ) -> preference() | {error, Reason :: term()}.
+               ) -> preference() | {error, Reason :: term()}.
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
     ejabberd_hooks:run_fold(mam_get_prefs, Host,
-        {GlobalDefaultMode, [], []},
-        [Host, ArcID, ArcJID]).
+                            {GlobalDefaultMode, [], []},
+                            [Host, ArcID, ArcJID]).
 
 
 -spec remove_archive(ejabberd:server(), archive_id(), ejabberd:jid()) -> 'ok'.
@@ -752,32 +768,38 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
                       End :: mod_mam:unix_timestamp()  | undefined,
                       Now :: mod_mam:unix_timestamp(),
                       WithJID :: ejabberd:jid()  | undefined,
+                      SearchText :: binary() | undefined,
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
-    {ok, mod_mam:lookup_result()}
-    | {error, 'policy-violation'}
-    | {error, Reason :: term()}.
+                             {ok, mod_mam:lookup_result()}
+                                 | {error, 'policy-violation'}
+                                 | {error, Reason :: term()}.
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
-                WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
+                WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     StartT = os:timestamp(),
-    R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
-        [Host, ArcID, ArcJID, RSM, Borders,
-         Start, End, Now, WithJID,
-         PageSize, LimitPassed, MaxResultLimit, IsSimple]),
-    Diff = timer:now_diff(os:timestamp(), StartT),
-    mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
-    R.
+    case SearchText /= undefined andalso not mod_mam_utils:has_full_text_search(?MODULE, Host) of
+        true -> %% Use of disabled full text search
+            {error, 'not-supported'};
+        false ->
+            R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
+                                        [Host, ArcID, ArcJID, RSM, Borders,
+                                         Start, End, Now, WithJID, SearchText,
+                                         PageSize, LimitPassed, MaxResultLimit, IsSimple]),
+            Diff = timer:now_diff(os:timestamp(), StartT),
+            mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
+            R
+    end.
 
 
 -spec archive_message(Host :: ejabberd:server(), MessID :: message_id(),
-    ArcID :: archive_id(), LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
-    SrcJID :: ejabberd:jid(), Dir :: incoming | outgoing, Packet :: term()
-    ) -> ok | {error, timeout}.
+                      ArcID :: archive_id(), LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
+                      SrcJID :: ejabberd:jid(), Dir :: incoming | outgoing, Packet :: term()
+                     ) -> ok | {error, timeout}.
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     StartT = os:timestamp(),
     R = ejabberd_hooks:run_fold(mam_archive_message, Host, ok,
-        [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]),
+                                [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]),
     Diff = timer:now_diff(os:timestamp(), StartT),
     mongoose_metrics:update(Host, [backends, ?MODULE, archive], Diff),
     R.
@@ -786,24 +808,25 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
                            MessID :: message_id(), ArcID :: archive_id(),
                            ArcJID :: ejabberd:jid(),
                            Now :: unix_timestamp()) ->
-    ok  | {error, 'not-found'}
-    | {error, Reason :: term()}.
+                                  ok  | {error, 'not-found'}
+                                      | {error, Reason :: term()}.
 purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     ejabberd_hooks:run_fold(mam_purge_single_message, Host, ok,
-        [Host, MessID, ArcID, ArcJID, Now]).
+                            [Host, MessID, ArcID, ArcJID, Now]).
 
 -spec purge_multiple_messages(Host :: ejabberd:server(), ArcID :: archive_id(),
-    ArcJID  :: ejabberd:jid(), Borders :: borders() | undefined,
-    Start :: unix_timestamp() | undefined, End :: unix_timestamp() | undefined,
-    Now :: unix_timestamp(), WithJID :: ejabberd:jid() | undefined) ->
-        ok | {error, Reason :: term()}.
+                              ArcJID  :: ejabberd:jid(), Borders :: borders() | undefined,
+                              Start :: unix_timestamp() | undefined,
+                              End :: unix_timestamp() | undefined,
+                              Now :: unix_timestamp(), WithJID :: ejabberd:jid() | undefined) ->
+                                     ok | {error, Reason :: term()}.
 purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID) ->
     ejabberd_hooks:run_fold(mam_purge_multiple_messages, Host, ok,
-        [Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID]).
+                            [Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID]).
 
 
--spec wait_shaper(ejabberd:server(), action(), ejabberd:jid()
-                  ) -> 'ok' | {'error', 'max_delay_reached'}.
+-spec wait_shaper(ejabberd:server(), action(), ejabberd:jid()) ->
+    'ok' | {'error', 'max_delay_reached'}.
 wait_shaper(Host, Action, From) ->
     case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of
         ok ->
@@ -874,14 +897,13 @@ elem_to_end_microseconds(El) ->
 elem_to_with_jid(El) ->
     maybe_jid(xml:get_path_s(El, [{elem, <<"with">>}, cdata])).
 
-
 %% @doc This element's name is "limit". But it must be "max" according XEP-0313.
 -spec elem_to_limit(any()) -> any().
 elem_to_limit(QueryEl) ->
     get_one_of_path(QueryEl, [
-        [{elem, <<"set">>}, {elem, <<"max">>}, cdata],
-        [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
-    ]).
+                              [{elem, <<"set">>}, {elem, <<"max">>}, cdata],
+                              [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
+                             ]).
 
 
 -spec form_to_start_microseconds(_) -> 'undefined' | non_neg_integer().
@@ -908,7 +930,7 @@ handle_error_iq(_Host, _To, _Action, IQ) ->
 -spec return_action_not_allowed_error_iq(ejabberd:iq()) -> ejabberd:iq().
 return_action_not_allowed_error_iq(IQ) ->
     ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"not-allowed">>,
-         <<"en">>, <<"The action is not allowed.">>),
+                                 <<"en">>, <<"The action is not allowed.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 return_purge_multiple_message_iq(IQ, ok) ->
@@ -919,7 +941,7 @@ return_purge_multiple_message_iq(IQ, {error, Reason}) ->
 -spec return_purge_single_message_iq(ejabberd:iq(),
                                      ok  | {error, 'not-found'}
                                      | {error, Reason :: term()}) ->
-    ejabberd:iq().
+                                            ejabberd:iq().
 return_purge_single_message_iq(IQ, ok) ->
     return_purge_success(IQ);
 return_purge_single_message_iq(IQ, {error, 'not-found'}) ->
@@ -935,7 +957,8 @@ return_purge_success(IQ) ->
 return_purge_not_found_error_iq(IQ) ->
     %% Message not found.
     ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"item-not-found">>,
-         <<"en">>, <<"The provided UID did not match any message stored in archive.">>),
+                                 <<"en">>, <<"The provided UID did not match ",
+                                             "any message stored in archive.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 
@@ -943,7 +966,7 @@ return_purge_not_found_error_iq(IQ) ->
 return_max_delay_reached_error_iq(IQ) ->
     %% Message not found.
     ErrorEl = ?ERRT_RESOURCE_CONSTRAINT(
-        <<"en">>, <<"The action is cancelled because of flooding.">>),
+                 <<"en">>, <<"The action is cancelled because of flooding.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 
@@ -957,8 +980,8 @@ return_error_iq(IQ, not_implemented) ->
 return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.
 
-return_message_form_iq(IQ) ->
-    IQ#iq{type = result, sub_el = [message_form(IQ#iq.xmlns)]}.
+return_message_form_iq(Host, IQ) ->
+    IQ#iq{type = result, sub_el = [message_form(?MODULE, Host, IQ#iq.xmlns)]}.
 
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
     report_issue(Reason, Stacktrace, Issue, ArcJID, IQ);
@@ -997,21 +1020,22 @@ params_helper(Params) ->
 
             Mod -> {Mod, is_archivable_message}
         end,
-
-    binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_params).~n"
-        "-compile(export_all).~n"
-        "add_archived_element() -> ~p.~n"
-        "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
-        "default_result_limit() -> ~p.~n"
-        "max_result_limit() -> ~p.~n"
-        "params() -> ~p.~n",
-        [proplists:get_bool(add_archived_element, Params),
-         IsArchivableModule, IsArchivableFunction,
-         proplists:get_value(default_result_limit, Params, 50),
-         proplists:get_value(max_result_limit, Params, 50),
-         Params
-        ]))).
+    Format =
+        io_lib:format(
+          "-module(mod_mam_params).~n"
+          "-compile(export_all).~n"
+          "add_archived_element() -> ~p.~n"
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
+          "default_result_limit() -> ~p.~n"
+          "max_result_limit() -> ~p.~n"
+          "params() -> ~p.~n",
+          [proplists:get_bool(add_archived_element, Params),
+           IsArchivableModule, IsArchivableFunction,
+           proplists:get_value(default_result_limit, Params, 50),
+           proplists:get_value(max_result_limit, Params, 50),
+           Params
+          ]),
+    binary_to_list(iolist_to_binary(Format)).
 
 set_params(Params) ->
     compile_params_module(Params ++ mod_mam_params:params()).

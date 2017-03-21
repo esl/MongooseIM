@@ -51,8 +51,6 @@
 -include("mod_privacy.hrl").
 -include("mod_last.hrl").
 
--define(BACKEND, mod_last_backend).
-
 %% ------------------------------------------------------------------
 %% Backend callbacks
 
@@ -87,7 +85,7 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
     gen_mod:start_backend_module(?MODULE, Opts, [get_last, set_last_info]),
-    ?BACKEND:init(Host, Opts),
+    mod_last_backend:init(Host, Opts),
 
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,
         ?NS_LAST, ?MODULE, process_local_iq, IQDisc),
@@ -134,7 +132,7 @@ get_node_uptime() ->
     case ejabberd_config:get_local_option(node_start) of
         {_, _, _} = StartNow ->
             now_to_seconds(now()) - now_to_seconds(StartNow);
-        _undefined ->
+        _Undefined ->
             trunc(element(1, erlang:statistics(wall_clock))/1000)
     end.
 
@@ -145,46 +143,42 @@ now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
 %%%
 %%% Serve queries about user last online
 %%%
--spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
-        -> ejabberd:iq().
-process_sm_iq(From, To,
-    #iq{type = Type, sub_el = SubEl} = IQ) ->
-    case Type of
-        set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-        get ->
-            User = To#jid.luser,
-            Server = To#jid.lserver,
-            {Subscription, _Groups} =
-                ejabberd_hooks:run_fold(roster_get_jid_info, Server,
-                    {none, []}, [User, Server, From]),
-            if (Subscription == both) or (Subscription == from) or
-                (From#jid.luser == To#jid.luser) and
-                    (From#jid.lserver == To#jid.lserver) ->
-                UserListRecord =
-                    ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                        #userlist{}, [User, Server]),
-                case ejabberd_hooks:run_fold(privacy_check_packet,
-                    Server, allow,
-                    [User, Server, UserListRecord,
-                        {To, From,
-                            #xmlel{name = <<"presence">>,
-                                attrs = [],
-                                children = []}},
-                        out])
-                of
-                    allow -> get_last_iq(IQ, SubEl, User, Server);
-                    deny ->
-                        IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
-                end;
-                true ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
-            end
+-spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+process_sm_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_sm_iq(From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
+    User = To#jid.luser,
+    Server = To#jid.lserver,
+    {Subscription, _Groups} =
+    ejabberd_hooks:run_fold(roster_get_jid_info, Server,
+                            {none, []}, [User, Server, From]),
+    MutualSubscription = Subscription == both,
+    RequesterSubscribedToTarget = Subscription == from,
+    QueryingSameUsersLast = (From#jid.luser == To#jid.luser) and
+                            (From#jid.lserver == To#jid.lserver),
+    case MutualSubscription or RequesterSubscribedToTarget or QueryingSameUsersLast of
+        true ->
+            UserListRecord = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
+                                                     #userlist{}, [User, Server]),
+            ?TEMPORARY,
+            Packet = #xmlel{name = <<"presence">>,
+                            attrs = [],
+                            children = []},
+            Acc = mongoose_acc:from_map(#{name => <<"iq">>, type => get, attrs => [],
+                                          element => Packet}),
+            {_, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
+                                                             UserListRecord, To, From,
+                                                             out),
+            make_response(IQ, SubEl, User, Server, Res);
+        false ->
+            IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
     end.
 
--spec get_last_iq(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],
-                  ejabberd:luser(), ejabberd:lserver()) -> ejabberd:iq().
-get_last_iq(IQ, SubEl, LUser, LServer) ->
+-spec make_response(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],
+                    ejabberd:luser(), ejabberd:lserver(), allow | deny) -> ejabberd:iq().
+make_response(IQ, SubEl, _, _, deny) ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]};
+make_response(IQ, SubEl, LUser, LServer, allow) ->
     case ejabberd_sm:get_user_resources(LUser, LServer) of
         [] ->
             case get_last(LUser, LServer) of
@@ -217,11 +211,11 @@ get_last_iq(IQ, SubEl, LUser, LServer) ->
     end.
 
 get_last(LUser, LServer) ->
-    ?BACKEND:get_last(LUser, LServer).
+    mod_last_backend:get_last(LUser, LServer).
 
 -spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
 count_active_users(LServer, Timestamp) ->
-    ?BACKEND:count_active_users(LServer, Timestamp).
+    mod_last_backend:count_active_users(LServer, Timestamp).
 
 -spec on_presence_update(map(), ejabberd:user(), ejabberd:server(), ejabberd:resource(),
                          Status :: binary()) -> map() | {error, term()}.
@@ -235,7 +229,7 @@ on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
 -spec store_last_info(ejabberd:user(), ejabberd:server(), non_neg_integer(),
                       Status :: binary()) -> ok | {error, term()}.
 store_last_info(LUser, LServer, TimeStamp, Status) ->
-    ?BACKEND:set_last_info(LUser, LServer, TimeStamp, Status).
+    mod_last_backend:set_last_info(LUser, LServer, TimeStamp, Status).
 
 -spec get_last_info(ejabberd:luser(), ejabberd:lserver())
         -> 'not_found' | {'ok', integer(), string()}.
@@ -250,7 +244,7 @@ get_last_info(LUser, LServer) ->
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    case ?BACKEND:remove_user(LUser, LServer) of
+    case mod_last_backend:remove_user(LUser, LServer) of
         ok -> Acc;
         E -> E
     end.

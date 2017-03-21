@@ -2182,7 +2182,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                         {error, Reason};
                     false ->
                         node_call(Host, Type, publish_item,
-                                  [Nidx, Publisher, PublishModel, MaxItems, ItemId,
+                                  [ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId,
                                    ItemPublisher, Payload, PublishOptions])
                 end
         end,

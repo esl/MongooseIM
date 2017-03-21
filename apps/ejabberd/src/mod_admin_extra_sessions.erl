@@ -48,15 +48,13 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(GEN_FSM, p1_fsm).
-
 -type status() :: binary().
 -type u_s_r_p_st() :: { User    :: ejabberd:user(),
                         Server  :: ejabberd:server(),
                         Res     :: ejabberd:resource(),
                         Prio    :: integer(),
                         Status  :: status()}.
--type formatted_user_info() :: {U_S_R :: string(),
+-type formatted_user_info() :: {USR :: string(),
                                 Conn :: string(),
                                 IPS :: string(),
                                 Port :: inet:port_number(),
@@ -100,7 +98,8 @@ commands() ->
         #ejabberd_commands{name = kick_session, tags = [session],
                            desc = "Kick a user session",
                            module = ?MODULE, function = kick_session,
-                           args = [{user, binary}, {host, binary}, {resource, binary}, {reason, binary}],
+                           args = [{user, binary}, {host, binary},
+                                   {resource, binary}, {reason, binary}],
                            result = {res, rescode}},
         #ejabberd_commands{name = status_num_host, tags = [session, stats],
                            desc = "Number of logged users with this status in host",
@@ -281,10 +280,13 @@ set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
     Message = {xmlstreamelement,
                #xmlel{ name = <<"presence">>,
                       attrs = [{<<"from">>, USR}, {<<"to">>, US}, {<<"type">>, Type}],
-                      children = [#xmlel{ name = <<"show">>, children = [#xmlcdata{content = Show}]},
-                                  #xmlel{ name = <<"status">>, children = [#xmlcdata{content = Status}]},
-                                  #xmlel{ name = <<"priority">>, children = [#xmlcdata{content = Priority}]}]}},
-    ?GEN_FSM:send_event(Pid, Message).
+                      children = [#xmlel{ name = <<"show">>,
+                                          children = [#xmlcdata{content = Show}]},
+                                  #xmlel{ name = <<"status">>,
+                                          children = [#xmlcdata{content = Status}]},
+                                  #xmlel{ name = <<"priority">>,
+                                          children = [#xmlcdata{content = Priority}]}]}},
+    p1_fsm_old:send_event(Pid, Message).
 
 
 -spec user_sessions_info(ejabberd:user(), ejabberd:server()) -> [formatted_user_info()].
