@@ -35,7 +35,7 @@
 -export([start_link/2,
          start/2,
          stop/1,
-         room_destroyed/4,
+         room_destroyed/3,
          store_room/3,
          restore_room/2,
          forget_room/2,
@@ -176,11 +176,10 @@ stop(Host) ->
 %% C) mod_muc:stop was called, and each room is being terminated
 %%    In this case, the mod_muc process died before the room processes
 %%    So the message sending must be catched
--spec room_destroyed(ejabberd:server(), room(), pid(),
-                     ejabberd:server()) -> 'ok'.
-room_destroyed(Host, Room, Pid, ServerHost) ->
-    catch gen_mod:get_module_proc(ServerHost, ?PROCNAME) !
-        {room_destroyed, {Room, Host}, Pid},
+-spec room_destroyed(ejabberd:server(), room(), pid()) -> 'ok'.
+room_destroyed(Host, Room, Pid) ->
+    F = fun() -> mnesia:delete_object(#muc_online_room{name_host = {Room, Host}, pid = Pid}) end,
+    {atomic, ok} = mnesia:transaction(F),
     ok.
 
 
@@ -392,13 +391,6 @@ handle_info({route, From, To, Packet}, State) ->
         _ ->
             ok
     end,
-    {noreply, State};
-handle_info({room_destroyed, RoomHost, Pid}, State) ->
-    F = fun() ->
-                mnesia:delete_object(#muc_online_room{name_host = RoomHost,
-                                                      pid = Pid})
-        end,
-    mnesia:transaction(F),
     {noreply, State};
 handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
     clean_table_from_bad_node(Node),
@@ -1246,4 +1238,3 @@ ensure_metrics(_Host) ->
     mongoose_metrics:ensure_metric(global, [mod_muc, online_rooms],
                                    {function, mod_muc, online_rooms_number, [],
                                     eval, ?EX_EVAL_SINGLE_VALUE}).
-
