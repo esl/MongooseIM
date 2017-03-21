@@ -85,7 +85,7 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
 unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
     node_flat:unsubscribe_node(Nidx, Sender, Subscriber, SubId).
 
-publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload,
+publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublisher, Payload,
              PublishOptions) ->
     SubKey = jid:to_lower(Publisher),
     GenKey = jid:to_bare(SubKey),
@@ -98,14 +98,13 @@ publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher
 
     case is_allowed_to_publish(Model, Affiliation) of
         true ->
-            do_publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher,
-                            Payload, PublishOptions);
+            do_publish_item(ServerHost, PublishOptions, Payload);
         false ->
             {error, ?ERR_FORBIDDEN}
     end.
 
-do_publish_item(ServerHost, _Nidx, _Publisher, _Model, _MaxItems, _ItemId, _ItemPublisher,
-                [#xmlel{name = <<"notification">>} | _] = Notifications, PublishOptions) ->
+do_publish_item(ServerHost, PublishOptions,
+                [#xmlel{name = <<"notification">>} | _] = Notifications) ->
     case catch parse_form(PublishOptions) of
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
             NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
@@ -116,8 +115,7 @@ do_publish_item(ServerHost, _Nidx, _Publisher, _Model, _MaxItems, _ItemId, _Item
         _ ->
             {error, mod_pubsub:extended_error(?ERR_CONFLICT, <<"precondition-not-met">>)}
     end;
-do_publish_item(_ServerHost, _Nidx, _Publisher, _Model, _MaxItems, _ItemId, _ItemPublisher,
-                _Payload, _PublishOptions) ->
+do_publish_item(_ServerHost, _PublishOptions, _Payload) ->
     {error, ?ERR_BAD_REQUEST}.
 
 remove_extra_items(Nidx, MaxItems, ItemIds) ->
