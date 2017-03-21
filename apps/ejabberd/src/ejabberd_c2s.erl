@@ -1142,7 +1142,6 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 handle_info(new_offline_messages, session_established,
             #state{pres_last = Presence, pres_invis = Invisible} = StateData)
   when Presence =/= undefined orelse Invisible ->
-    From = StateData#state.jid,
     resend_offline_messages(mongoose_acc:new(), StateData),
     {next_state, session_established, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
