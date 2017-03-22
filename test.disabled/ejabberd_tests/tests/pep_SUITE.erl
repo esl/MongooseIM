@@ -24,13 +24,15 @@ all() -> [
          ].
 
 groups() -> [
-             {pep_tests, [sequence],
+             {pep_tests, [sequence], %% TODO: Make these tests independent of each other
               [
                pep_caps_test,
                publish_test,
                notify_test,
                send_caps_after_login_test,
-               h_ok_after_notify_test
+               h_ok_after_notify_test,
+               authorize_access_model,
+               unsubscribe_after_presence_unsubscription
               ]
              }
             ].
@@ -41,6 +43,7 @@ suite() ->
 -define(CAPS_HASH, <<"+XtEyyuYqe1dzskS+JMkYABKv2U=">>).
 -define(CAPS_NODE_NAME, <<"http://www.chatopus.com">>).
 -define(CAPS_NODE, {?CAPS_NODE_NAME, ?CAPS_HASH}).
+-define(NS_USER_TUNA, <<"http://jabber.org/protocol/tuna">>).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -151,6 +154,59 @@ h_ok_after_notify_test(ConfigIn) ->
                 escalus_connection:get_stanza(Kate, stream_mgmt_ack))
         end).
 
+authorize_access_model(Config) ->
+    escalus:story(Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              {NodeAddr, _} = PepNode = make_pep_node_info(Alice, ?NS_USER_TUNA),
+              AccessModel = {<<"pubsub#access_model">>, <<"authorize">>},
+              pubsub_tools:create_node(Alice, PepNode, [{config, [AccessModel]}]),
+
+              pubsub_tools:subscribe(Bob, PepNode, [{subscription, <<"pending">>}]),
+              BobsRequest = pubsub_tools:receive_subscription_request(Alice, Bob, PepNode, []),
+
+              %% FIXME: Only one item should be here but node_pep is based on node_flat, which
+              %% is node_dag's ancestor, so this entry gets duplicated because every plugin
+              %% is queried for subscriptions. Nasty fix involves deduplicating entries
+              %% in mod_pubsub:get_subscriptions. The proper fix means not hacking node plugins
+              %% into serving PEP but it's definitely a major change...
+              Subs = [{?NS_USER_TUNA, <<"pending">>}, {?NS_USER_TUNA, <<"pending">>}],
+              pubsub_tools:retrieve_user_subscriptions(Bob, NodeAddr, [{expected_result, Subs}]),
+
+              pubsub_tools:submit_subscription_response(Alice, BobsRequest, PepNode, true, []),
+              pubsub_tools:receive_subscription_notification(Bob, <<"subscribed">>, PepNode, []),
+
+              pubsub_tools:publish(Alice, <<"fish">>, {pep, ?NS_USER_TUNA}, []),
+              pubsub_tools:receive_item_notification(
+                Bob, <<"fish">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNA}, []),
+
+              pubsub_tools:delete_node(Alice, PepNode, [])
+      end).
+
+unsubscribe_after_presence_unsubscription(Config) ->
+    escalus:story(Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              PepNode = make_pep_node_info(Alice, ?NS_USER_TUNA),
+              pubsub_tools:create_node(Alice, PepNode, []),
+              pubsub_tools:subscribe(Bob, PepNode, []),
+              pubsub_tools:publish(Alice, <<"fish">>, {pep, ?NS_USER_TUNA}, []),
+              pubsub_tools:receive_item_notification(
+                Bob, <<"fish">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNA}, []),
+
+              BobJid = escalus_users:get_jid(Config, bob),
+              escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"unsubscribed">>)),
+              %% Bob & Alice get roster update, Bob gets presence unsubscribed & unavailable
+              [_, _, _] = escalus:wait_for_stanzas(Bob, 3),
+              _ = escalus:wait_for_stanza(Alice),
+
+              %% Unsubscription from PEP nodes is implicit
+              pubsub_tools:publish(Alice, <<"salmon">>, {pep, ?NS_USER_TUNA}, []),
+              [] = escalus:wait_for_stanzas(Bob, 1),
+
+              pubsub_tools:delete_node(Alice, PepNode, [])
+      end).
+
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
@@ -232,6 +288,9 @@ receive_presence_with_caps(User1, User2, Caps) ->
     escalus:assert(is_presence, PresenceNotification),
     escalus:assert(is_stanza_from, [User2], PresenceNotification),
     Caps = exml_query:subelement(PresenceNotification, <<"c">>).
+
+make_pep_node_info(Client, NodeName) ->
+    {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.
 
 %%-----------------------------------------------------------------
 %% XML helpers
