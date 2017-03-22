@@ -1174,7 +1174,7 @@ iq_disco_items(Host, <<>>, From, _RSM) ->
                                    false ->
                                        [{<<"jid">>, Host}
                                         | nodeAttr(SubNode)];
-                                   Title ->
+                                   [Title] ->
                                        [{<<"jid">>, Host},
                                         {<<"name">>, Title}
                                         | nodeAttr(SubNode)]
@@ -1207,7 +1207,7 @@ iq_disco_items(Host, Item, From, RSM) ->
                                                                    false ->
                                                                        [{<<"jid">>, Host}
                                                                         | nodeAttr(SubNode)];
-                                                                   Title ->
+                                                                   [Title] ->
                                                                        [{<<"jid">>, Host},
                                                                         {<<"name">>, Title}
                                                                         | nodeAttr(SubNode)]
