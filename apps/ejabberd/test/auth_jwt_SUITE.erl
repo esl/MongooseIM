@@ -22,6 +22,7 @@ all_tests() ->
     [
      check_password_succeeds_for_correct_token,
      check_password_fails_for_wrong_token,
+     check_password_fails_for_correct_token_but_wrong_username,
      set_password,
      try_register,
      get_password,
@@ -73,13 +74,17 @@ check_password_succeeds_for_correct_token(_Config) ->
     true = ejabberd_auth_jwt:check_password(?USERNAME, ?DOMAIN1, generate_token(0)).
 
 check_password_fails_for_wrong_token(_C) ->
-    false = ejabberd_auth_jwt:check_password(<<"alice">>, ?DOMAIN1, generate_token(60)).
+    false = ejabberd_auth_jwt:check_password(?USERNAME, ?DOMAIN1, generate_token(60)).
+
+check_password_fails_for_correct_token_but_wrong_username(_C) ->
+    false = ejabberd_auth_jwt:check_password(<<"alice">>, ?DOMAIN1, generate_token(0)).
 
 set_password(_Config) ->
     {error, not_allowed} = ejabberd_auth_jwt:set_password(<<"alice">>, ?DOMAIN1, <<"mialakota">>).
 
 try_register(_Config) ->
-    {error, not_allowed} = ejabberd_auth_jwt:try_register(<<"nonexistent">>, ?DOMAIN1, <<"newpass">>).
+    {error, not_allowed} = ejabberd_auth_jwt:try_register(<<"nonexistent">>,
+                                                          ?DOMAIN1, <<"newpass">>).
 
 % get_password + get_password_s
 get_password(_Config) ->
@@ -91,7 +96,8 @@ is_user_exists(_Config) ->
 % remove_user/2,3
 remove_user(_Config) ->
     ok = ejabberd_auth_jwt:remove_user(<<"toremove3">>, ?DOMAIN1),
-    {error, not_allowed} = ejabberd_auth_jwt:remove_user(<<"toremove3">>, ?DOMAIN1, <<"wrongpass">>).
+    {error, not_allowed} = ejabberd_auth_jwt:remove_user(<<"toremove3">>,
+                                                         ?DOMAIN1, <<"wrongpass">>).
 
 %%--------------------------------------------------------------------
 %% Helpers
