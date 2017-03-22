@@ -48,6 +48,8 @@
 {s2s_use_starttls, "{s2s_use_starttls, optional}."}.
 {s2s_certfile, "{s2s_certfile, \"priv/ssl/fake_server.pem\"}."}.
 
+{normal_shaper_rate, 1000}.
+
 {all_metrics_are_global, "false"}.
 
 %% Defined in Makefile by appending configure.vars.config
