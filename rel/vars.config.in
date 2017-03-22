@@ -52,10 +52,11 @@
 
 %% Defined in Makefile by appending configure.vars.config
 %% Uncomment for manual release generation.
+%{mongooseim_runner_user, ""}.
 %{mongooseim_script_dir, "$(cd ${0%/*} && pwd)"}.
 %{mongooseim_etc_dir, "$RUNNER_BASE_DIR/etc"}.
 %{mongooseim_log_dir, "log"}.
 %{mongooseim_mdb_dir, "$RUNNER_BASE_DIR/Mnesia.$NODE"}.
 %{mongooseim_mdb_dir_toggle, "%"}.
 %{mongooseim_lock_dir, "$EJABBERD_DIR/var/lock"}.
-%{mongooseim_runner_user, ""}.
+%{mongooseim_nodetool_etc_dir, "etc"}.
