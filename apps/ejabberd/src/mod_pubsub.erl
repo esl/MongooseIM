@@ -571,6 +571,8 @@ disco_sm_identity(Acc, From, To, Node, _Lang) ->
     disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
         ++ Acc.
 
+disco_identity(error, _Node, _From) ->
+    [];
 disco_identity(_Host, <<>>, _From) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"pubsub">>},
@@ -614,6 +616,8 @@ disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
          disco_features(jid:to_lower(jid:to_bare(To)), Node, From)};
 disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
 
+disco_features(error, _Node, _From) ->
+    [];
 disco_features(Host, <<>>, _From) ->
     [?NS_PUBSUB | [feature(F) || F <- plugin_features(Host, <<"pep">>)]];
 disco_features(Host, Node, From) ->
@@ -1388,8 +1392,7 @@ iq_pubsub(Host, ServerHost, From, IQType, SubEl, Lang, Access, Plugins) ->
           SubEl      :: xmlel(),
           Lang       :: binary())
         -> {result, [xmlel()]}
-%%%
-               | {error, xmlel()}.
+           | {error, exml:element() | [exml:element()] | {exml:element(), [exml:element()]}}.
 iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
     #xmlel{children = SubEls} = SubEl,
     Action = xml:remove_cdata(SubEls),
@@ -2664,7 +2667,7 @@ get_affiliations(Host, Node, JID) ->
           Node        :: mod_pubsub:nodeId(),
           From        :: jid(),
           EntitiesEls :: [xmlel()])
-        -> {result, []}
+        -> {result, []} | {error, exml:element() | {exml:element(), [exml:element()]}}
 %%%
                | {error, xmlel()}.
 set_affiliations(Host, Node, From, EntitiesEls) ->
@@ -4147,6 +4150,14 @@ transaction(Host, Fun, Trans) ->
     Retry = 1,
     transaction_retry(Host, ServerHost, Fun, Trans, DBType, Retry).
 
+-spec transaction_retry(Host :: binary() | ejabberd:simple_jid(),
+                        ServerHost :: binary(),
+                        Fun :: fun(() -> tuple()),
+                        Trans :: atom(),
+                        DBType :: any(),
+                        Count :: non_neg_integer()) ->
+    {result, any()}
+    | {error, exml:element() | [exml:element()] | {exml:element(), [exml:element()]}}.
 transaction_retry(_Host, _ServerHost, _Fun, _Trans, _DBType, 0) ->
     {error, ?ERR_INTERNAL_SERVER_ERROR};
 transaction_retry(Host, ServerHost, Fun, Trans, DBType, Count) ->
