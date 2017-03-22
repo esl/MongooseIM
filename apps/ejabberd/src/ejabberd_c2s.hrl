@@ -111,9 +111,11 @@
                              Packet :: jlib:xmlel(),
                              NewState :: state()}.
 
--type routing_result() :: {DoRoute :: allow | atom(), NewAcc :: mongoose_acc:t(),
+-type routing_result_atom() :: allow | deny | forbidden | ignore | block | invalid | probe.
+
+-type routing_result() :: {DoRoute :: routing_result_atom(), NewAcc :: mongoose_acc:t(),
                            NewState :: state()}
-                        | {DoRoute :: allow | atom(), NewAcc :: mongoose_acc:t(),
+                        | {DoRoute :: routing_result_atom(), NewAcc :: mongoose_acc:t(),
                            NewPacket :: jlib:xmlel(), NewState :: state()}.
 
 %-define(DBGFSM, true).

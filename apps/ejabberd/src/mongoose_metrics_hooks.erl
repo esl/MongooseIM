@@ -237,7 +237,7 @@ user_ping_timeout(Acc, _JID) ->
                           binary(),
                           Server :: ejabberd:server(),
                           term(), term(), term()) -> mongoose_acc:t().
-privacy_check_packet(Acc, _, Server, _, {_, _, _}, _) ->
+privacy_check_packet(Acc, _, Server, _, {_, _, _, _}, _) ->
     mongoose_metrics:update(Server, modPrivacyStanzaAll, 1),
     case mongoose_acc:get(privacy_check, Acc, allow) of
         deny ->
