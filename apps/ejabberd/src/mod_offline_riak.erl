@@ -51,7 +51,7 @@ init(_Host, _Opts) ->
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     Reason :: term(),
-    Result :: list(#offline_msg{}).
+    Result :: list(mod_offline:msg()).
 pop_messages(LUser, LServer) ->
     Keys = read_user_idx(LUser, LServer),
     To = jid:make(LUser, LServer, <<>>),
@@ -171,7 +171,7 @@ bucket_type(LServer) ->
 -spec key(binary(), integer()) -> binary().
 key(LUser, TimestampInt) ->
     Timestamp = integer_to_binary(TimestampInt),
-    Random = integer_to_binary(random:uniform(1024)),
+    Random = integer_to_binary(rand:uniform(1024)),
     <<LUser/binary, "@", Timestamp/binary, "@", Random/binary>>.
 
 maybe_encode_timestamp(never) ->

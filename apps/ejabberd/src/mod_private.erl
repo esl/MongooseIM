@@ -38,7 +38,6 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -xep([{xep, 49}, {version, "1.2"}]).
--define(BACKEND, mod_private_backend).
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
@@ -73,7 +72,7 @@
 
 start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [multi_get_data, multi_set_data]),
-    ?BACKEND:init(Host, Opts),
+    mod_private_backend:init(Host, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
@@ -100,7 +99,7 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    ?BACKEND:remove_user(LUser, LServer).
+    mod_private_backend:remove_user(LUser, LServer).
 
 process_sm_iq(
         From = #jid{luser = LUser, lserver = LServer},
@@ -112,21 +111,21 @@ process_sm_iq(
     case Strategy of
         get ->
             NS2XML = to_map(Elems),
-            XMLs = ?BACKEND:multi_get_data(LUser, LServer, NS2XML),
+            XMLs = mod_private_backend:multi_get_data(LUser, LServer, NS2XML),
             IQ#iq{type = result, sub_el = [SubElem#xmlel{children = XMLs}]};
         set ->
             NS2XML = to_map(Elems),
-            Result = ?BACKEND:multi_set_data(LUser, LServer, NS2XML),
+            Result = mod_private_backend:multi_set_data(LUser, LServer, NS2XML),
             case Result of
                 ok ->
                     IQ#iq{type = result, sub_el = [SubElem]};
                 {error, Reason} ->
                     ?ERROR_MSG("~p:multi_set_data failed ~p for ~ts@~ts.",
-                               [?BACKEND, Reason, LUser, LServer]),
+                               [mod_private_backend, Reason, LUser, LServer]),
                     error_iq(IQ, ?ERR_INTERNAL_SERVER_ERROR);
                 {aborted, Reason} ->
                     ?ERROR_MSG("~p:multi_set_data aborted ~p for ~ts@~ts.",
-                               [?BACKEND, Reason, LUser, LServer]),
+                               [mod_private_backend, Reason, LUser, LServer]),
                     error_iq(IQ, ?ERR_INTERNAL_SERVER_ERROR)
             end;
         not_allowed ->

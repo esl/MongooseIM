@@ -111,21 +111,7 @@ forget_default_list(LUser, LServer) ->
     end.
 
 set_default_list(LUser, LServer, Name) ->
-    F = fun() ->
-            case mnesia:read({privacy, {LUser, LServer}}) of
-                [] ->
-                    {error, not_found};
-                [#privacy{lists = Lists} = P] ->
-                    case lists:keymember(Name, 1, Lists) of
-                        true ->
-                            mnesia:write(P#privacy{default = Name}),
-                            ok;
-                        false ->
-                            {error, not_found}
-                    end
-            end
-        end,
-    case mnesia:transaction(F) of
+    case mnesia:transaction(fun() -> set_default_list_t(LUser, LServer, Name) end) of
         {atomic, ok} ->
             ok;
         {atomic, {error, Reason}} ->
@@ -134,21 +120,34 @@ set_default_list(LUser, LServer, Name) ->
             {error, {aborted, Reason}}
     end.
 
+-spec set_default_list_t(ejabberd:luser(), ejabberd:lserver(), Name :: binary()) ->
+    ok | {error, not_found}.
+set_default_list_t(LUser, LServer, Name) ->
+    case mnesia:read({privacy, {LUser, LServer}}) of
+        [] ->
+            {error, not_found};
+        [#privacy{lists = Lists} = P] ->
+            case lists:keymember(Name, 1, Lists) of
+                true ->
+                    mnesia:write(P#privacy{default = Name}),
+                    ok;
+                false ->
+                    {error, not_found}
+            end
+    end.
+
 remove_privacy_list(LUser, LServer, Name) ->
     F = fun() ->
-            case mnesia:read({privacy, {LUser, LServer}}) of
-                [] ->
-                    ok;
-                [#privacy{default = Default, lists = Lists} = P] ->
-                    if
-                        Name == Default ->
-                            {error, conflict};
-                        true ->
-                            NewLists = lists:keydelete(Name, 1, Lists),
-                            mnesia:write(P#privacy{lists = NewLists}),
-                            ok
-                    end
-            end
+                case mnesia:read({privacy, {LUser, LServer}}) of
+                    [] ->
+                        ok;
+                    [#privacy{default = Default}] when Name == Default ->
+                        {error, conflict};
+                    [#privacy{lists = Lists} = P] ->
+                        NewLists = lists:keydelete(Name, 1, Lists),
+                        mnesia:write(P#privacy{lists = NewLists}),
+                        ok
+                end
         end,
     case mnesia:transaction(F) of
         {atomic, ok} ->
