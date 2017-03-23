@@ -75,12 +75,16 @@
           raw_config = [] :: raw_config()
          }).
 
+-type op_config() :: #config{}.
+
 -record(affiliations, {
           id = <<>> :: binary(),
           prev_version = <<>> :: binary(),
           version = <<>> :: binary(),
           aff_users = [] :: aff_users()
          }).
+
+-type op_affiliations() :: #affiliations{}.
 
 -record(info, {
           id = <<>> :: binary(),

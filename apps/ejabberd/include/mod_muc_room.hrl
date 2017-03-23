@@ -59,6 +59,8 @@
     last_presence
    }).
 
+-type mod_muc_room_user() :: #user{}.
+
 -record(activity, {message_time = 0,
                    presence_time = 0,
                    message_shaper :: shaper:shaper(),

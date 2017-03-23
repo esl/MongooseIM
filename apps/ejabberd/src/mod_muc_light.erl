@@ -216,9 +216,7 @@ process_decoded_packet(From, To, {ok, #iq{} = IQ}, OrigPacket) ->
         ignore -> ok;
         error ->
             mod_muc_light_codec_backend:encode_error(
-              {error, feature_not_implemented}, From, To, OrigPacket, fun ejabberd_router:route/3);
-        ResIQ ->
-            ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
+              {error, feature_not_implemented}, From, To, OrigPacket, fun ejabberd_router:route/3)
     end;
 process_decoded_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, OrigPacket)
   when RoomU =/= <<>> ->

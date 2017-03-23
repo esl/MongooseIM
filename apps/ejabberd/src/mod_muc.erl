@@ -285,7 +285,6 @@ init([Host, Opts]) ->
     mnesia:add_table_copy(muc_registered, node(), disc_copies),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
     MyHost = gen_mod:get_opt_subhost(Host, Opts, default_host()),
-    update_tables(MyHost),
     clean_table_from_bad_node(node(), MyHost),
     mnesia:add_table_index(muc_registered, nick),
     mnesia:subscribe(system),
@@ -662,8 +661,8 @@ route_by_type(<<"message">>, {From, To, Packet},
                     broadcast_service_message(Host, Msg);
                 _ ->
                     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-                    ErrText = <<"Only service administrators are allowed to send service messages">>,
-                    Err = ?ERRT_FORBIDDEN(Lang, ErrText),
+                    ErrTxt = <<"Only service administrators are allowed to send service messages">>,
+                    Err = ?ERRT_FORBIDDEN(Lang, ErrTxt),
                     ErrorReply = jlib:make_error_reply(Packet, Err),
                     ejabberd_router:route(To, From, ErrorReply)
             end
@@ -688,35 +687,36 @@ check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
         Access :: access(), HistorySize :: 'undefined' | integer(),
         RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool()) -> 'ok'.
 load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool) ->
+    RoomsToLoad =
     case catch mnesia:dirty_select(
                  muc_room, [{#muc_room{name_host = {'_', Host}, _ = '_'},
                              [],
                              ['$_']}]) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]),
-            ok;
+            [];
         Rs ->
-            lists:foreach(
-              fun(R) ->
-                      {Room, Host} = R#muc_room.name_host,
-                      case mnesia:dirty_read(muc_online_room, {Room, Host}) of
-                          [] ->
-                              {ok, Pid} = mod_muc_room:start(
-                                            Host,
-                                            ServerHost,
-                                            Access,
-                                            Room,
-                                            HistorySize,
-                                            RoomShaper,
-                                            HttpAuthPool,
-                                            R#muc_room.opts),
-                              register_room(Host, Room, Pid);
-                          _ ->
-                              ok
-                      end
-              end, Rs)
-    end.
-
+            Rs
+    end,
+    lists:foreach(
+      fun(R) ->
+              {Room, Host} = R#muc_room.name_host,
+              case mnesia:dirty_read(muc_online_room, {Room, Host}) of
+                  [] ->
+                      {ok, Pid} = mod_muc_room:start(
+                                    Host,
+                                    ServerHost,
+                                    Access,
+                                    Room,
+                                    HistorySize,
+                                    RoomShaper,
+                                    HttpAuthPool,
+                                    R#muc_room.opts),
+                      register_room(Host, Room, Pid);
+                  _ ->
+                      ok
+              end
+      end, RoomsToLoad).
 
 -spec start_new_room(Host :: 'undefined' | ejabberd:server(),
         Srv :: ejabberd:server(), Access :: access(), room(),
@@ -836,20 +836,20 @@ get_vh_rooms(Host, #rsm_in{max=M, direction=Direction, id=I, index=Index}) ->
                               [{#muc_online_room{name_host = '$1', _ = '_'},
                                 Guard,
                                 ['$_']}])),
-    L2 = if
-             Index == undefined andalso Direction == before ->
+    L2 = case {Index, Direction} of
+             {undefined, before} ->
                  lists:reverse(lists:sublist(lists:reverse(L), 1, M));
-             Index == undefined ->
+             {undefined, _} ->
                  lists:sublist(L, 1, M);
-             Index > Count  orelse Index < 0 ->
+             {Index, _} when Index > Count orelse Index < 0 ->
                  [];
-             true ->
+             _ ->
                  lists:sublist(L, Index+1, M)
          end,
-    if
-        L2 == [] ->
+    case L2 of
+        [] ->
             {L2, #rsm_out{count=Count}};
-        true ->
+        _ ->
             H = hd(L2),
             NewIndex = get_room_pos(H, AllRooms),
             T=lists:last(L2),
@@ -911,26 +911,30 @@ iq_get_register_info(Host, From, Lang) ->
     {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
     {Nick, Registered} =
-        case catch mnesia:dirty_read(muc_registered, {LUS, Host}) of
-            {'EXIT', _Reason} ->
-                {<<>>, []};
-            [] ->
-                {<<>>, []};
-            [#muc_registered{nick = N}] ->
-                {N, [#xmlel{name = <<"registered">>}]}
-        end,
+    case catch mnesia:dirty_read(muc_registered, {LUS, Host}) of
+        {'EXIT', _Reason} ->
+            {<<>>, []};
+        [] ->
+            {<<>>, []};
+        [#muc_registered{nick = N}] ->
+            {N, [#xmlel{name = <<"registered">>}]}
+    end,
+    ClientReqText = translate:translate(
+                      Lang, <<"You need a client that supports x:data to register the nickname">>),
+    ClientReqEl = #xmlel{name = <<"instructions">>,
+                         children = [#xmlcdata{content = ClientReqText}]},
+    EnterNicknameText = translate:translate(Lang, <<"Enter nickname you want to register">>),
+    EnterNicknameEl = #xmlel{name = <<"instructions">>,
+                             children = [#xmlcdata{content = EnterNicknameText}]},
+    TitleText = <<(translate:translate(Lang, <<"Nickname Registration at ">>))/binary,
+                  Host/binary>>,
+    TitleEl = #xmlel{name = <<"title">>, children = [#xmlcdata{content = TitleText}]},
     Registered ++
-        [#xmlel{name = <<"instructions">>,
-                children = [#xmlcdata{content = translate:translate(
-                                                  Lang, <<"You need a client that supports x:data to register the nickname">>)}]},
-         #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}],
-                children = [#xmlel{name = <<"title">>,
-                                   children = [#xmlcdata{content = <<(translate:translate(
-                                                                     Lang, <<"Nickname Registration at ">>))/binary, Host/binary>>}]},
-                            #xmlel{name = <<"instructions">>,
-                                   children = [#xmlcdata{content = translate:translate(
-                                                                     Lang, <<"Enter nickname you want to register">>)}]},
-                            xfield(<<"text-single">>, <<"Nickname">>, <<"nick">>, Nick, Lang)]}].
+    [ClientReqEl,
+     #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}],
+            children = [TitleEl,
+                        EnterNicknameEl,
+                        xfield(<<"text-single">>, <<"Nickname">>, <<"nick">>, Nick, Lang)]}].
 
 
 -spec iq_set_register_info(ejabberd:server(),
@@ -939,37 +943,7 @@ iq_get_register_info(Host, From, Lang) ->
 iq_set_register_info(Host, From, Nick, Lang) ->
     {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
-    F = fun() ->
-                case Nick of
-                    <<>> ->
-                        mnesia:delete({muc_registered, {LUS, Host}}),
-                        ok;
-                    _ ->
-                        Allow =
-                            case mnesia:select(
-                                   muc_registered,
-                                   [{#muc_registered{us_host = '$1',
-                                                     nick = Nick,
-                                                     _ = '_'},
-                                     [{'==', {element, 2, '$1'}, Host}],
-                                     ['$_']}]) of
-                                [] ->
-                                    true;
-                                [#muc_registered{us_host = {U, _Host}}] ->
-                                    U == LUS
-                            end,
-                        if
-                            Allow ->
-                                mnesia:write(
-                                  #muc_registered{us_host = {LUS, Host},
-                                                  nick = Nick}),
-                                ok;
-                            true ->
-                                false
-                        end
-                end
-        end,
-    case mnesia:transaction(F) of
+    case mnesia:transaction(iq_set_register_info_t(Host, LUS, Nick)) of
         {atomic, ok} ->
             {result, []};
         {atomic, false} ->
@@ -979,37 +953,42 @@ iq_set_register_info(Host, From, Nick, Lang) ->
             {error, ?ERR_INTERNAL_SERVER_ERROR}
     end.
 
+-spec iq_set_register_info_t(Host :: ejabberd:server(), LUS :: ejabberd:simple_bare_jid(),
+                             Nick :: binary()) -> fun(() -> ok | false).
+iq_set_register_info_t(Host, LUS, <<>>) ->
+    fun() ->
+            mnesia:delete({muc_registered, {LUS, Host}}),
+            ok
+    end;
+iq_set_register_info_t(Host, LUS, Nick) ->
+    Allow =
+    case mnesia:select(muc_registered,
+                       [{#muc_registered{us_host = '$1', nick = Nick, _ = '_'},
+                         [{'==', {element, 2, '$1'}, Host}],
+                         ['$_']}]) of
+        [] ->
+            true;
+        [#muc_registered{us_host = {U, _Host}}] ->
+            U == LUS
+    end,
+    case Allow of
+        true ->
+            mnesia:write(#muc_registered{us_host = {LUS, Host}, nick = Nick}),
+            ok;
+        false ->
+            false
+    end.
 
--spec process_iq_register_set(ejabberd:server(), ejabberd:jid(),
-        jlib:xmlel(), ejabberd:lang())
-            -> {'error', jlib:xmlel()} | {'result', []}.
-process_iq_register_set(Host, From, SubEl, Lang) ->
-    #xmlel{children = Els} = SubEl,
+-spec process_iq_register_set(ejabberd:server(), jid(), exml:element(), ejabberd:lang()) ->
+    {error, exml:element()} | {result, []}.
+process_iq_register_set(Host, From, #xmlel{ children = Els } = SubEl, Lang) ->
     case xml:get_subtag(SubEl, <<"remove">>) of
         false ->
             case xml:remove_cdata(Els) of
                 [#xmlel{name = <<"x">>} = XEl] ->
-                    case {xml:get_tag_attr_s(<<"xmlns">>, XEl),
-                          xml:get_tag_attr_s(<<"type">>, XEl)} of
-                        {?NS_XDATA, <<"cancel">>} ->
-                            {result, []};
-                        {?NS_XDATA, <<"submit">>} ->
-                            XData = jlib:parse_xdata_submit(XEl),
-                            case XData of
-                                invalid ->
-                                    {error, ?ERR_BAD_REQUEST};
-                                _ ->
-                                    case lists:keysearch(<<"nick">>, 1, XData) of
-                                        {value, {_, [Nick]}} when Nick /= <<>> ->
-                                            iq_set_register_info(Host, From, Nick, Lang);
-                                        _ ->
-                                            ErrText = <<"You must fill in field \"Nickname\" in the form">>,
-                                            {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)}
-                                    end
-                            end;
-                        _ ->
-                            {error, ?ERR_BAD_REQUEST}
-                    end;
+                    process_register(xml:get_tag_attr_s(<<"xmlns">>, XEl),
+                                     xml:get_tag_attr_s(<<"type">>, XEl),
+                                     Host, From, Lang, XEl);
                 _ ->
                     {error, ?ERR_BAD_REQUEST}
             end;
@@ -1017,6 +996,27 @@ process_iq_register_set(Host, From, SubEl, Lang) ->
             iq_set_register_info(Host, From, <<>>, Lang)
     end.
 
+-spec process_register(XMLNS :: binary(), Type :: binary(), Host :: ejabberd:server(),
+                       From :: jid(), Lang :: ejabberd:lang(), XEl :: exml:element()) ->
+    {error, exml:element()} | {result, []}.
+process_register(?NS_XDATA, <<"cancel">>, _Host, _From, _Lang, _XEl) ->
+    {result, []};
+process_register(?NS_XDATA, <<"submit">>, Host, From, Lang, XEl) ->
+    XData = jlib:parse_xdata_submit(XEl),
+    case XData of
+        invalid ->
+            {error, ?ERR_BAD_REQUEST};
+        _ ->
+            case lists:keysearch(<<"nick">>, 1, XData) of
+                {value, {_, [Nick]}} when Nick /= <<>> ->
+                    iq_set_register_info(Host, From, Nick, Lang);
+                _ ->
+                    ErrText = <<"You must fill in field \"Nickname\" in the form">>,
+                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)}
+            end
+    end;
+process_register(_, _, _Host, _From, _Lang, _XEl) ->
+    {error, ?ERR_BAD_REQUEST}.
 
 -spec iq_get_vcard(ejabberd:lang()) -> [jlib:xmlel(), ...].
 iq_get_vcard(Lang) ->
@@ -1076,97 +1076,6 @@ clean_table_from_bad_node(Node, Host) ->
                               end, Es)
         end,
     mnesia:async_dirty(F).
-
-
--spec update_tables(ejabberd:server()) -> any().
-update_tables(Host) ->
-    update_muc_room_table(Host),
-    update_muc_registered_table(Host).
-
-
--spec update_muc_room_table(ejabberd:server()) -> any().
-update_muc_room_table(Host) ->
-    Fields = record_info(fields, muc_room),
-    case mnesia:table_info(muc_room, attributes) of
-        Fields ->
-            ok;
-        [name, opts] ->
-            ?INFO_MSG("Converting muc_room table from {name, opts} format", []),
-            {atomic, ok} = mnesia:create_table(
-                             mod_muc_tmp_table,
-                             [{disc_only_copies, [node()]},
-                              {type, bag},
-                              {local_content, true},
-                              {record_name, muc_room},
-                              {attributes, record_info(fields, muc_room)}]),
-            mnesia:transform_table(muc_room, ignore, Fields),
-            F1 = fun() ->
-                         mnesia:write_lock_table(mod_muc_tmp_table),
-                         mnesia:foldl(
-                           fun(#muc_room{name_host = Name} = R, _) ->
-                                   mnesia:dirty_write(
-                                     mod_muc_tmp_table,
-                                     R#muc_room{name_host = {Name, Host}})
-                           end, ok, muc_room)
-                 end,
-            mnesia:transaction(F1),
-            mnesia:clear_table(muc_room),
-            F2 = fun() ->
-                         mnesia:write_lock_table(muc_room),
-                         mnesia:foldl(
-                           fun(R, _) ->
-                                   mnesia:dirty_write(R)
-                           end, ok, mod_muc_tmp_table)
-                 end,
-            mnesia:transaction(F2),
-            mnesia:delete_table(mod_muc_tmp_table);
-        _ ->
-            ?INFO_MSG("Recreating muc_room table", []),
-            mnesia:transform_table(muc_room, ignore, Fields)
-    end.
-
-
--spec update_muc_registered_table(ejabberd:server()) -> any().
-update_muc_registered_table(Host) ->
-    Fields = record_info(fields, muc_registered),
-    case mnesia:table_info(muc_registered, attributes) of
-        Fields ->
-            ok;
-        [user, nick] ->
-            ?INFO_MSG("Converting muc_registered table from {user, nick} format", []),
-            {atomic, ok} = mnesia:create_table(
-                             mod_muc_tmp_table,
-                             [{disc_only_copies, [node()]},
-                              {type, bag},
-                              {local_content, true},
-                              {record_name, muc_registered},
-                              {attributes, record_info(fields, muc_registered)}]),
-            mnesia:del_table_index(muc_registered, nick),
-            mnesia:transform_table(muc_registered, ignore, Fields),
-            F1 = fun() ->
-                         mnesia:write_lock_table(mod_muc_tmp_table),
-                         mnesia:foldl(
-                           fun(#muc_registered{us_host = US} = R, _) ->
-                                   mnesia:dirty_write(
-                                     mod_muc_tmp_table,
-                                     R#muc_registered{us_host = {US, Host}})
-                           end, ok, muc_registered)
-                 end,
-            mnesia:transaction(F1),
-            mnesia:clear_table(muc_registered),
-            F2 = fun() ->
-                         mnesia:write_lock_table(muc_registered),
-                         mnesia:foldl(
-                           fun(R, _) ->
-                                   mnesia:dirty_write(R)
-                           end, ok, mod_muc_tmp_table)
-                 end,
-            mnesia:transaction(F2),
-            mnesia:delete_table(mod_muc_tmp_table);
-        _ ->
-            ?INFO_MSG("Recreating muc_registered table", []),
-            mnesia:transform_table(muc_registered, ignore, Fields)
-    end.
 
 %%====================================================================
 %% Hooks handlers
