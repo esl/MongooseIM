@@ -371,17 +371,14 @@ inspect_packet(Acc, From, To, Packet) ->
             Acc
     end.
 
-store_packet(
-        From,
-        To = #jid{luser = LUser, lserver = LServer},
-        Packet = #xmlel{children = Els}) ->
+store_packet(From, To = #jid{luser = LUser, lserver = LServer},
+             Packet = #xmlel{children = Els}) ->
     TimeStamp =
-    case xml:get_subtag(Packet, <<"delay">>) of
-        false ->
+    case exml_query:subelement(Packet, <<"delay">>) of
+        undefined ->
             now();
-
-        #xmlel{name= <<"delay">>, attrs=Attr} ->
-            case xml:get_attr_s(<<"stamp">>, Attr) of
+        #xmlel{name= <<"delay">>, attrs=Attr} = DelayEl ->
+            case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
                 <<"">> ->
                     now();
                 Stamp ->
@@ -420,10 +417,10 @@ check_event_chatstates(From, To, Packet) ->
     end.
 
 inspect_xevent(From, To, Packet, XEvent) ->
-    case xml:get_subtag(XEvent, <<"id">>) of
-        false ->
-            case xml:get_subtag(XEvent, <<"offline">>) of
-                false ->
+    case exml_query:subelement(XEvent, <<"id">>) of
+        undefined ->
+            case exml_query:subelement(XEvent, <<"offline">>) of
+                undefined ->
                     true;
                 _ ->
                     ejabberd_router:route(To, From, patch_offline_message(Packet)),
@@ -434,13 +431,10 @@ inspect_xevent(From, To, Packet, XEvent) ->
     end.
 
 patch_offline_message(Packet) ->
-    ID = case xml:get_tag_attr_s(<<"id">>, Packet) of
-         <<"">> ->
-         #xmlel{name = <<"id">>};
-         S ->
-         #xmlel{name = <<"id">>,
-                children = [#xmlcdata{content = S}]}
-     end,
+    ID = case exml_query:attr(Packet, <<"id">>, <<>>) of
+             <<"">> -> #xmlel{name = <<"id">>};
+             S -> #xmlel{name = <<"id">>, children = [#xmlcdata{content = S}]}
+         end,
     Packet#xmlel{children = [x_elem(ID)]}.
 
 x_elem(ID) ->
@@ -455,13 +449,10 @@ find_x_event_chatstates([], Res) ->
 find_x_event_chatstates([#xmlcdata{} | Els], Res) ->
     find_x_event_chatstates(Els, Res);
 find_x_event_chatstates([El | Els], {A, B, C}) ->
-    case xml:get_tag_attr_s(<<"xmlns">>, El) of
-        ?NS_EVENT ->
-            find_x_event_chatstates(Els, {El, B, C});
-        ?NS_CHATSTATES ->
-            find_x_event_chatstates(Els, {A, El, C});
-        _ ->
-            find_x_event_chatstates(Els, {A, B, true})
+    case exml_query:attr(El, <<"xmlns">>, <<>>) of
+        ?NS_EVENT -> find_x_event_chatstates(Els, {El, B, C});
+        ?NS_CHATSTATES -> find_x_event_chatstates(Els, {A, El, C});
+        _ -> find_x_event_chatstates(Els, {A, B, true})
     end.
 
 find_x_expire(_, []) ->
@@ -469,9 +460,9 @@ find_x_expire(_, []) ->
 find_x_expire(TimeStamp, [#xmlcdata{} | Els]) ->
     find_x_expire(TimeStamp, Els);
 find_x_expire(TimeStamp, [El | Els]) ->
-    case xml:get_tag_attr_s(<<"xmlns">>, El) of
+    case exml_query:attr(El, <<"xmlns">>, <<>>) of
         ?NS_EXPIRE ->
-            Val = xml:get_tag_attr_s(<<"seconds">>, El),
+            Val = exml_query:attr(El, <<"seconds">>, <<>>),
             case catch list_to_integer(binary_to_list(Val)) of
                 {'EXIT', _} ->
                     never;
@@ -563,7 +554,7 @@ discard_warn_sender(Msgs) ->
       fun(#offline_msg{from=From, to=To, packet=Packet}) ->
               ErrText = <<"Your contact offline message queue is full."
                           " The message has been discarded.">>,
-              Lang = xml:get_tag_attr_s(<<"xml:lang">>, Packet),
+              Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
               amp_failed_event(Packet, From),
               Err = jlib:make_error_reply(
                       Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
