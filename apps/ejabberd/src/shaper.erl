@@ -1,89 +1,62 @@
-%%%----------------------------------------------------------------------
-%%% File    : shaper.erl
-%%% Author  : Alexey Shchepin <alexey@process-one.net>
-%%% Purpose : Functions to control connections traffic
-%%% Created :  9 Feb 2003 by Alexey Shchepin <alexey@process-one.net>
-%%%
-%%%
-%%% ejabberd, Copyright (C) 2002-2011   ProcessOne
-%%%
-%%% This program is free software; you can redistribute it and/or
-%%% modify it under the terms of the GNU General Public License as
-%%% published by the Free Software Foundation; either version 2 of the
-%%% License, or (at your option) any later version.
-%%%
-%%% This program is distributed in the hope that it will be useful,
-%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
-%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-%%% General Public License for more details.
-%%%
-%%% You should have received a copy of the GNU General Public License
-%%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
-%%%
-%%%----------------------------------------------------------------------
+%%==============================================================================
+%% Copyright 2016 Erlang Solutions Ltd.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%==============================================================================
 
 -module(shaper).
--author('alexey@process-one.net').
+-author('konrad.zemek@erlang-solutions.com').
 
--export([new/1, new1/1, update/2]).
+-export([new/1, update/2]).
 
--include("ejabberd.hrl").
+-record(shaper, {
+    max_rate :: undefined | pos_integer(),
+    tokens = 0 :: non_neg_integer(),
+    last_update = p1_time_compat:monotonic_time() :: integer()
+}).
 
--record(maxrate, {maxrate, lastrate, lasttime}).
-
--type shaper() :: none | #maxrate{}.
+-type shaper() :: #shaper{} | none.
 
 -export_type([shaper/0]).
 
 -spec new(atom()) -> shaper().
 new(Name) ->
-    Data = case ejabberd_config:get_global_option({shaper, Name, global}) of
-               undefined ->
-                   none;
-               D ->
-                   D
-           end,
-    new1(Data).
-
-
--spec new1(shaper()) -> shaper().
-new1(none) ->
-    none;
-new1({maxrate, MaxRate}) ->
-    #maxrate{maxrate = MaxRate,
-             lastrate = 0,
-             lasttime = now_to_usec(now())}.
-
+    case ejabberd_config:get_global_option({shaper, Name, global}) of
+        undefined -> none;
+        none -> none;
+        {maxrate, MaxRate} -> #shaper{max_rate = MaxRate, tokens = MaxRate}
+    end.
 
 %% @doc Update shaper.
 %% `Delay' is how many milliseconds to wait.
--spec update(shaper(), Size :: non_neg_integer()) ->
-                                      {shaper(), Delay :: non_neg_integer()}.
+-spec update(shaper(), Size :: pos_integer()) -> {shaper(), Delay :: non_neg_integer()}.
 update(none, _Size) ->
     {none, 0};
-update(#maxrate{} = State, Size) ->
-    MinInterv = 1000 * Size /
-        (2 * State#maxrate.maxrate - State#maxrate.lastrate),
-    Now = now_to_usec(now()),
-    Interv = (Now - State#maxrate.lasttime) / 1000,
-    ?DEBUG("State: ~p, Size=~p~nM=~p, I=~p~n",
-              [State, Size, MinInterv, Interv]),
-    Pause = if
-                MinInterv > Interv ->
-                    1 + trunc(MinInterv - Interv);
-                true ->
-                    0
-            end,
-    NextNow = Now + Pause * 1000,
-    {State#maxrate{
-       lastrate = (State#maxrate.lastrate +
-                   1000000 * Size / (NextNow - State#maxrate.lasttime))/2,
-       lasttime = NextNow},
-     Pause}.
+update(Shaper, Size) ->
+    Now = p1_time_compat:monotonic_time(),
+    Second = p1_time_compat:convert_time_unit(1, seconds, native),
 
+    SecondsSinceLastUpdate = (Now - Shaper#shaper.last_update) / Second,
+    TokenGrowth = round(Shaper#shaper.max_rate * SecondsSinceLastUpdate),
+    Tokens = min(Shaper#shaper.max_rate, Shaper#shaper.tokens + TokenGrowth),
 
--spec now_to_usec(erlang:timestamp()) -> non_neg_integer().
-now_to_usec({MSec, Sec, USec}) ->
-    (MSec*1000000 + Sec)*1000000 + USec.
+    TokensLeft = max(0, Tokens - Size),
+    AdditionalTokensNeeded = max(0, Size - Tokens),
+
+    TimeNeededForTokensToGrow = round(AdditionalTokensNeeded / Shaper#shaper.max_rate * Second),
+    Delay = p1_time_compat:convert_time_unit(TimeNeededForTokensToGrow, native, milli_seconds),
+    LastUpdate = Now + TimeNeededForTokensToGrow,
+
+    lager:debug("Tokens: ~p (+~p,-~p), delay: ~p ms", [TokensLeft, TokenGrowth, Size, Delay]),
+
+    {Shaper#shaper{last_update = LastUpdate, tokens = TokensLeft}, Delay}.

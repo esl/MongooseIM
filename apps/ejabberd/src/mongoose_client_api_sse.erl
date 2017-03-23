@@ -23,7 +23,7 @@ maybe_init(true, Req, #{jid := JID} = State) ->
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     Resource = <<"sse-", UUID/binary>>,
 
-    ok = ejabberd_sm:open_session(SID, User, Server, Resource, 1, []),
+    ejabberd_sm:open_session(SID, User, Server, Resource, 1, []),
 
     {ok, Req, State#{sid => SID, jid => jid:replace_resource(JID, Resource)}};
 maybe_init(true, Req, State) ->
@@ -66,4 +66,3 @@ maybe_send_message_event(<<"groupchat">>, Packet, Timestamp, #{id := ID} = State
     {send, Event, State#{id := ID + 1}};
 maybe_send_message_event(_, _, _, State) ->
     {nosend, State}.
-

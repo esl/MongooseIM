@@ -138,29 +138,31 @@ route(From, To, Packet) ->
         _ -> ok
     end.
 
--spec open_session(SID, User, Server, Resource, Info) -> ok when
+-spec open_session(SID, User, Server, Resource, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),
       User :: ejabberd:user(),
       Server :: ejabberd:server(),
       Resource :: binary(),
-      Info :: 'undefined' | [any()].
+      Info :: 'undefined' | [any()],
+      ReplacedPids :: [pid()].
 open_session(SID, User, Server, Resource, Info) ->
     open_session(SID, User, Server, Resource, undefined, Info).
 
--spec open_session(SID, User, Server, Resource, Priority, Info) -> ok when
+-spec open_session(SID, User, Server, Resource, Priority, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),
       User :: ejabberd:user(),
       Server :: ejabberd:server(),
       Resource :: binary(),
       Priority :: integer() | undefined,
-      Info :: 'undefined' | [any()].
+      Info :: 'undefined' | [any()],
+      ReplacedPids :: [pid()].
 open_session(SID, User, Server, Resource, Priority, Info) ->
     set_session(SID, User, Server, Resource, Priority, Info),
-    check_for_sessions_to_replace(User, Server, Resource),
+    ReplacedPIDs = check_for_sessions_to_replace(User, Server, Resource),
     JID = jid:make(User, Server, Resource),
     ejabberd_hooks:run(sm_register_connection_hook, JID#jid.lserver,
                        [SID, JID, Info]),
-    ok.
+    ReplacedPIDs.
 
 -spec close_session(SID, User, Server, Resource, Reason) -> ok when
       SID :: 'undefined' | sid(),
@@ -835,10 +837,11 @@ get_user_present_resources(LUser, LServer) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% @doc On new session, check if some existing connections need to be replace
--spec check_for_sessions_to_replace(User, Server, Resource) -> ok | replaced when
+-spec check_for_sessions_to_replace(User, Server, Resource) -> ReplacedPids when
       User :: ejabberd:user(),
       Server :: ejabberd:server(),
-      Resource :: ejabberd:resource().
+      Resource :: ejabberd:resource(),
+      ReplacedPids :: [pid()].
 check_for_sessions_to_replace(User, Server, Resource) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -846,43 +849,48 @@ check_for_sessions_to_replace(User, Server, Resource) ->
 
     %% TODO: Depending on how this is executed, there could be an unneeded
     %% replacement for max_sessions. We need to check this at some point.
-    check_existing_resources(LUser, LServer, LResource),
-    check_max_sessions(LUser, LServer).
+    ReplacedRedundantSessions = check_existing_resources(LUser, LServer, LResource),
+    AllReplacedSessionPids = check_max_sessions(LUser, LServer, ReplacedRedundantSessions),
+    [Pid ! replaced || Pid <- AllReplacedSessionPids],
+    AllReplacedSessionPids.
 
--spec check_existing_resources(LUser, LServer, LResource) -> ok when
+-spec check_existing_resources(LUser, LServer, LResource) -> ReplacedSessionsPIDs when
       LUser :: 'error' | ejabberd:luser() | tuple(),
       LServer :: 'error' | ejabberd:lserver() | tuple(),
-      LResource :: 'error' | ejabberd:lresource() | [byte()] | tuple().
+      LResource :: 'error' | ejabberd:lresource() | [byte()] | tuple(),
+      ReplacedSessionsPIDs :: ordsets:ordset(pid()).
 check_existing_resources(LUser, LServer, LResource) ->
     %% A connection exist with the same resource. We replace it:
     Sessions = ?SM_BACKEND:get_sessions(LUser, LServer, LResource),
-    SIDs = [S#session.sid || S <- Sessions],
-    if
-        SIDs == [] ->
-            ok;
-        true ->
+    case [S#session.sid || S <- Sessions] of
+        [] -> [];
+        SIDs ->
             MaxSID = lists:max(SIDs),
-            lists:foreach(
-              fun({_, Pid} = S) when S /= MaxSID ->
-                      Pid ! replaced;
-                 (_) -> ok
-              end, SIDs)
+            ordsets:from_list([Pid || {_, Pid} = S <- SIDs, S /= MaxSID])
     end.
 
 
--spec check_max_sessions(LUser :: ejabberd:user(), LServer :: ejabberd:server()) -> ok | replaced.
-check_max_sessions(LUser, LServer) ->
+-spec check_max_sessions(LUser :: ejabberd:user(), LServer :: ejabberd:server(),
+                         ReplacedPIDs :: [pid()]) -> AllReplacedPIDs :: ordsets:ordset(pid()).
+check_max_sessions(LUser, LServer, ReplacedPIDs) ->
     %% If the max number of sessions for a given is reached, we replace the
     %% first one
-    Sessions = ?SM_BACKEND:get_sessions(LUser, LServer),
-    SIDs = [S#session.sid || S <- Sessions],
+    SIDs = lists:filtermap(
+                fun(Session) ->
+                    {_, Pid} = SID = Session#session.sid,
+                    case ordsets:is_element(Pid, ReplacedPIDs) of
+                        true -> false;
+                        false -> {true, SID}
+                    end
+                end,
+                ?SM_BACKEND:get_sessions(LUser, LServer)),
+
     MaxSessions = get_max_user_sessions(LUser, LServer),
-    if
-        length(SIDs) =< MaxSessions ->
-            ok;
-        true ->
+    case length(SIDs) =< MaxSessions of
+        true -> ordsets:to_list(ReplacedPIDs);
+        false ->
             {_, Pid} = lists:min(SIDs),
-            Pid ! replaced
+            [Pid | ordsets:to_list(ReplacedPIDs)]
     end.
 
 
