@@ -1643,9 +1643,8 @@ send_element(Acc, StateData) ->
 -spec send_element(mongoose_acc:t(), xmlel(), state()) -> mongoose_acc:t() | ok.
 send_element(Acc, El,  #state{server = Server} = StateData) ->
     Acc1 = ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [El]),
-    % we might put send result into accumulator
     do_send_element(El, StateData),
-    Acc1.
+    mongoose_acc:record_sending(Acc1, El, c2s, sent).
 
 do_send_element(El, #state{sockmod = SockMod} = StateData)
                 when StateData#state.xml_socket ->

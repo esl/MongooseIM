@@ -437,7 +437,7 @@ route(From, To, Acc, Packet, []) ->
                [jid:to_binary(From), jid:to_binary(To),
                 mongoose_acc:to_binary(Packet)]),
     mongoose_metrics:update(global, routingErrors, 1),
-    Acc;
+    mongoose_acc:record_sending(Acc, From, To, Packet, none, out_of_modules);
 route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
     ?DEBUG("Using module ~p", [M]),
     case (catch xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc, OrigPacket)) of
@@ -448,10 +448,10 @@ route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
                        [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
                         M, Reason, mongoose_acc:to_binary(OrigPacket),
                         erlang:get_stacktrace()]),
-            Acc;
+            mongoose_acc:record_sending(Acc, OrigFrom, OrigTo, OrigPacket, M, Reason);
         drop ->
             ?DEBUG("filter dropped packet", []),
-            Acc;
+            mongoose_acc:record_sending(Acc, OrigFrom, OrigTo, OrigPacket, M, drop);
         {OrigFrom, OrigTo, NAcc, OrigPacketFiltered} ->
             ?DEBUG("filter passed", []),
             case catch(xmpp_router:call_route(M, OrigFrom, OrigTo, NAcc, OrigPacketFiltered)) of
@@ -462,10 +462,10 @@ route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
                                 M, Reason, mongoose_acc:to_binary(OrigPacketFiltered),
                                 erlang:get_stacktrace()]),
                     ?DEBUG("routing error", []),
-                    NAcc;
+                    mongoose_acc:record_sending(NAcc, OrigFrom, OrigTo, OrigPacketFiltered, M, Reason);
                 done ->
                     ?DEBUG("routing done", []),
-                    NAcc;
+                    mongoose_acc:record_sending(NAcc, OrigFrom, OrigTo, OrigPacketFiltered, M, done);
                 {From, To, NAcc1, Packet} ->
                     ?DEBUG("routing skipped", []),
                     route(From, To, NAcc1, Packet, Tail)

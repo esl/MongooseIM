@@ -14,7 +14,7 @@
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
--export([strip/1]).
+-export([strip/1, record_sending/4, record_sending/6]).
 -export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
 -export([to_element/1]).
 -export_type([t/0]).
@@ -199,6 +199,25 @@ strip(Acc) ->
                     end
                 end,
         NewAcc, OptionalAttributes).
+
+%% @doc Recording info about sending out a stanza/accumulator
+%% There are two versions because when we send xml element from c2s then
+%% there is no From and To args available, everything is already in the stanza
+%% while from ejabberd_router:route we get bare stanza and two jids.
+-spec record_sending(t(), xmlel(), atom(), any()) -> t().
+record_sending(Acc, Stanza, Module, Result) ->
+    record_sending(Acc, n, n, Stanza, Module, Result).
+-spec record_sending(t(), jid()|n, jid()|n, xmlel(), atom(), any()) -> t().
+record_sending(Acc, _From, _To, _Stanza, _Module, _Result) ->
+    Acc.
+%%    Rec = {os:timestamp(), Stanza, Module, Result},
+%%    case get(sent, Acc, []) of
+%%        [] ->
+%%            ok;
+%%        R ->
+%%            pt(R ++ [Rec])
+%%    end,
+%%    append(sent, Rec, Acc).
 
 %%%%% internal %%%%%
 

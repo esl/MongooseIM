@@ -90,7 +90,7 @@ start_link() ->
 filter(From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.
 
-route(From, To, Sthg) ->
+route(_From, _To, Sthg) ->
     ?ERROR_MSG("Sthg: ~p~n", [Sthg]),
     ok.
 
