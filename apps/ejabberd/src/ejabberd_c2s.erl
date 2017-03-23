@@ -819,7 +819,7 @@ do_open_session(El, JID, StateData) ->
 
 do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
-    ?TEMPORARY,
+    % no acc yet, but we need it to get subscription lists which are stored in state
     Acc = ejabberd_hooks:run_fold(roster_get_subscription_lists,
                                   NewStateData0#state.server,
                                   mongoose_acc:new(),

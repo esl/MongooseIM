@@ -64,7 +64,7 @@ to_binary(Acc) ->
     % replacement to exml:to_binary, for error logging
     case mongoose_acc:is_acc(Acc) of
         true ->
-            exml:to_binary(mongoose_acc:get(element, Acc));
+            exml:to_binary(mongoose_acc:get(to_send, Acc));
         false ->
             list_to_binary(io_lib:format("~p", [Acc]))
     end.
@@ -138,7 +138,6 @@ put(Key, Val, Acc) ->
 get(to_send, Acc) ->
     get(to_send, Acc, get(element, Acc));
 get([], _) ->
-
     undefined;
 get([Key|Keys], P) ->
     case maps:is_key(Key, P) of
