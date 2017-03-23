@@ -21,7 +21,7 @@
          auth_failed/3,
          user_send_packet/4,
          user_receive_packet/5,
-         xmpp_bounce_message/3,
+         xmpp_bounce_message/1,
          xmpp_stanza_dropped/4,
          xmpp_send_element/2,
          roster_get/2,
@@ -124,9 +124,9 @@ user_receive_packet_type(Server, #xmlel{name = <<"iq">>}) ->
 user_receive_packet_type(Server, #xmlel{name = <<"presence">>}) ->
     mongoose_metrics:update(Server, xmppPresenceReceived, 1).
 
--spec xmpp_bounce_message(Acc :: map(), Server :: ejabberd:server(),
-                          tuple()) -> metrics_notify_return().
-xmpp_bounce_message(Acc, Server, _) ->
+-spec xmpp_bounce_message(Acc :: mongoose_acc:t()) -> metrics_notify_return().
+xmpp_bounce_message(Acc) ->
+    Server = mongoose_acc:get(server, Acc),
     mongoose_metrics:update(Server, xmppMessageBounced, 1),
     Acc.
 

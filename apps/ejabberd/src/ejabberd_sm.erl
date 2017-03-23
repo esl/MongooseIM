@@ -241,24 +241,19 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
             {stop, false}
     end.
 
-
-%% #rh
 -spec bounce_offline_message(Acc, From, To, Packet) -> {stop, Acc} when
       Acc :: map(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel().
-bounce_offline_message(Acc, From, To, Packet) ->
-    bounce_offline_message(From, To, Packet),
-    {stop, Acc}.
-
-bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
-    ejabberd_hooks:run(xmpp_bounce_message,
-        Server,
-        [Server, Packet]),
+bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
+    Acc1 = ejabberd_hooks:run_fold(xmpp_bounce_message,
+                            Server,
+                            Acc,
+                            []),
     Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
-    ejabberd_router:route(To, From, Err),
-    stop.
+    Acc2 = ejabberd_router:route(To, From, Acc1, Err),
+    {stop, Acc2}.
 
 -spec disconnect_removed_user(mongoose_acc:t(), User :: ejabberd:user(),
                               Server :: ejabberd:server()) -> mongoose_acc:t().
@@ -589,7 +584,7 @@ do_route(From, To, {broadcast, Acc} = Broadcast) ->
     case LResource of
         <<>> ->
             CurrentPids = get_user_present_pids(LUser, LServer),
-            ejabberd_hooks:run(sm_broadcast, To#jid.lserver,
+            ejabberd_hooks:run_fold(sm_broadcast, To#jid.lserver, Acc,
                                [From, To, Broadcast, length(CurrentPids)]),
             ?DEBUG("bc_to=~p~n", [CurrentPids]),
             lists:foreach(fun({_, Pid}) -> Pid ! Broadcast end, CurrentPids);
@@ -608,17 +603,18 @@ do_route(From, To, {broadcast, Acc} = Broadcast) ->
 do_route(From, To, Acc) ->
     ?DEBUG("session manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Acc, 8]),
+    Packet = mongoose_acc:get(to_send, Acc),
     #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
-    #xmlel{name = Name, attrs = Attrs} = mongoose_acc:get(to_send, Acc),
+    #xmlel{name = Name, attrs = Attrs} = Packet,
     case LResource of
         <<>> ->
             do_route_no_resource(Name, xml:get_attr_s(<<"type">>, Attrs),
-                                 From, To, Acc);
+                                 From, To, Acc, Packet);
         _ ->
             case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
                 [] ->
                     do_route_offline(Name, xml:get_attr_s(<<"type">>, Attrs),
-                                     From, To, Acc);
+                                     From, To, Acc, Packet);
                 Ss ->
                     Session = lists:max(Ss),
                     Pid = element(2, Session#session.sid),
@@ -628,157 +624,151 @@ do_route(From, To, Acc) ->
     end,
     mongoose_acc:remove(to_send, Acc).
 
--spec do_route_no_resource_presence_prv(From, To, Packet, Type, Reason) -> boolean() when
+-spec do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) -> boolean() when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
+      Acc :: mongoose_acc:t(),
       Packet :: jlib:xmlel(),
       Type :: 'subscribe' | 'subscribed' | 'unsubscribe' | 'unsubscribed',
       Reason :: any().
-do_route_no_resource_presence_prv(From, To, Packet, Type, Reason) ->
-    is_privacy_allow(From, To, Packet) andalso ejabberd_hooks:run_fold(
+do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
+    is_privacy_allow(From, To, Acc, Packet) andalso ejabberd_hooks:run_fold(
         roster_in_subscription,
         To#jid.lserver,
         false,
         [To#jid.user, To#jid.server, From, Type, Reason]).
 
 
--spec do_route_no_resource_presence(Type, From, To, Packet) -> boolean() when
+-spec do_route_no_resource_presence(Type, From, To, Acc, Packet) -> boolean() when
       Type :: binary(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
+      Acc :: mongoose_acc:t(),
       Packet :: jlib:xmlel().
-do_route_no_resource_presence(<<"subscribe">>, From, To, Packet) ->
+do_route_no_resource_presence(<<"subscribe">>, From, To, Acc, Packet) ->
     Reason = xml:get_path_s(Packet, [{elem, <<"status">>}, cdata]),
-    do_route_no_resource_presence_prv(From, To, Packet, subscribe, Reason);
-do_route_no_resource_presence(<<"subscribed">>, From, To, Packet) ->
-    do_route_no_resource_presence_prv(From, To, Packet, subscribed, <<>>);
-do_route_no_resource_presence(<<"unsubscribe">>, From, To, Packet) ->
-    do_route_no_resource_presence_prv(From, To, Packet, unsubscribe, <<>>);
-do_route_no_resource_presence(<<"unsubscribed">>, From, To, Packet) ->
-    do_route_no_resource_presence_prv(From, To, Packet, unsubscribed, <<>>);
-do_route_no_resource_presence(_, _, _, _) ->
+    do_route_no_resource_presence_prv(From, To, Acc, Packet, subscribe, Reason);
+do_route_no_resource_presence(<<"subscribed">>, From, To, Acc, Packet) ->
+    do_route_no_resource_presence_prv(From, To, Acc, Packet, subscribed, <<>>);
+do_route_no_resource_presence(<<"unsubscribe">>, From, To, Acc, Packet) ->
+    do_route_no_resource_presence_prv(From, To, Acc, Packet, unsubscribe, <<>>);
+do_route_no_resource_presence(<<"unsubscribed">>, From, To, Acc, Packet) ->
+    do_route_no_resource_presence_prv(From, To, Acc, Packet, unsubscribed, <<>>);
+do_route_no_resource_presence(_, _, _, _, _) ->
     true.
 
 
--spec do_route_no_resource(Name, Type, From, To, Packet) -> Result when
+-spec do_route_no_resource(Name, Type, From, To, Acc, Packet) -> Result when
       Name :: undefined | binary(),
       Type :: any(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
-      Packet :: mongoose_acc:t(),
+      Acc :: mongoose_acc:t(),
+      Packet :: xmlel(),
       Result ::ok | stop | todo | pid() | {error, lager_not_running} | {process_iq, _, _, _}.
-do_route_no_resource(<<"presence">>, Type, From, To, Packet) ->
-    ?TEMPORARY,
-    P = mongoose_acc:to_element(Packet),
-    case do_route_no_resource_presence(Type, From, To, P) of
+do_route_no_resource(<<"presence">>, Type, From, To, Acc, Packet) ->
+    case do_route_no_resource_presence(Type, From, To, Acc, Packet) of
         true ->
             PResources = get_user_present_resources(To#jid.luser, To#jid.lserver),
             lists:foreach(
               fun({_, R}) ->
-                      do_route(From, jid:replace_resource(To, R), Packet)
+                      do_route(From, jid:replace_resource(To, R), Acc)
               end, PResources);
         false ->
             ok
     end;
-do_route_no_resource(<<"message">>, _, From, To, Packet) ->
-    route_message(From, To, Packet);
-do_route_no_resource(<<"iq">>, _, From, To, Packet) ->
-    ?TEMPORARY,
-    P = mongoose_acc:to_element(Packet),
-    process_iq(From, To, P);
-do_route_no_resource(<<"broadcast">>, _, From, To, Packet) ->
+do_route_no_resource(<<"message">>, _, From, To, Acc, Packet) ->
+    route_message(From, To, Acc, Packet);
+do_route_no_resource(<<"iq">>, _, From, To, Acc, Packet) ->
+    process_iq(From, To, Acc, Packet);
+do_route_no_resource(<<"broadcast">>, _, From, To, Acc, _Packet) ->
     %% Backward compatibility
-    ejabberd_hooks:run(sm_broadcast, To#jid.lserver, [From, To, Packet]),
-    broadcast_packet(From, To, Packet);
-do_route_no_resource(_, _, _, _, _) ->
+    ejabberd_hooks:run(sm_broadcast, To#jid.lserver, [From, To, Acc]),
+    broadcast_packet(From, To, Acc);
+do_route_no_resource(_, _, _, _, _, _) ->
     ok.
 
--spec do_route_offline(Name, Type, From, To, Packet) -> ok | stop when
+-spec do_route_offline(Name, Type, From, To, Acc, Packet) -> ok | stop when
       Name :: 'undefined' | binary(),
       Type :: binary(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
-      Packet :: jlib:xmlel() | mongoose_acc:t().
-do_route_offline(<<"message">>, _, From, To, Packet)  ->
+      Acc :: mongoose_acc:t(),
+      Packet :: jlib:xmlel().
+do_route_offline(<<"message">>, _, From, To, Acc, Packet)  ->
     Drop = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
                    false, [From, To, Packet]),
     case Drop of
         false ->
-            route_message(From, To, Packet);
+            route_message(From, To, Acc, Packet);
         true ->
             ?DEBUG("issue=\"message droped\", to=~1000p", [To]),
             ok
     end;
-do_route_offline(<<"iq">>, <<"error">>, _From, _To, _Packet) ->
+do_route_offline(<<"iq">>, <<"error">>, _From, _To, _Acc, _Packet) ->
     ok;
-do_route_offline(<<"iq">>, <<"result">>, _From, _To, _Packet) ->
+do_route_offline(<<"iq">>, <<"result">>, _From, _To, _Acc, _Packet) ->
     ok;
-do_route_offline(<<"iq">>, _, From, To, Acc) ->
-    El = mongoose_acc:get(element, Acc),
-    Err = jlib:make_error_reply(El, ?ERR_SERVICE_UNAVAILABLE),
+do_route_offline(<<"iq">>, _, From, To, Acc, Packet) ->
+    Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
     ejabberd_router:route(To, From, Acc, Err);
-do_route_offline(_, _, _, _, _) ->
+do_route_offline(_, _, _, _, _, _) ->
     ?DEBUG("packet droped~n", []),
     ok.
 
 %% Backward compatibility
 -spec broadcast_packet(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
-                       Packet :: mongoose_acc:t()) -> ok.
-broadcast_packet(From, To, Packet) ->
+                       Acc :: mongoose_acc:t()) -> ok.
+broadcast_packet(From, To, Acc) ->
     #jid{user = User, server = Server} = To,
     lists:foreach(
       fun(R) ->
               do_route(From,
                        jid:replace_resource(To, R),
-                       Packet)
+                       Acc)
       end, get_user_resources(User, Server)).
 
 %% @doc The default list applies to the user as a whole,
 %% and is processed if there is no active list set
 %% for the target session/resource to which a stanza is addressed,
 %% or if there are no current sessions for the user.
--spec is_privacy_allow(From, To, Packet) -> boolean() when
+-spec is_privacy_allow(From, To, Acc, Packet) -> boolean() when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
+      Acc :: mongoose_acc:t(),
       Packet :: jlib:xmlel() | mongoose_acc:t().
-is_privacy_allow(From, To, Packet) ->
+is_privacy_allow(From, To, Acc, Packet) ->
     User = To#jid.user,
     Server = To#jid.server,
     PrivacyList = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
                                           #userlist{}, [User, Server]),
-    is_privacy_allow(From, To, Packet, PrivacyList).
+    is_privacy_allow(From, To, Acc, Packet, PrivacyList).
 
 
 %% @doc Check if privacy rules allow this delivery
 %% Function copied from ejabberd_c2s.erl
--spec is_privacy_allow(From, To, Packet, PrivacyList) -> boolean() when
+-spec is_privacy_allow(From, To, Acc, Packet, PrivacyList) -> boolean() when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
-      Packet :: jlib:xmlel() | mongoose_acc:t(),
+      Acc :: mongoose_acc:t(),
+      Packet :: jlib:xmlel(),
       PrivacyList :: mongoose_privacy:userlist().
-is_privacy_allow(From, To, Packet, PrivacyList) ->
+is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
     User = To#jid.user,
     Server = To#jid.server,
-    ?TEMPORARY,
-    Acc = case mongoose_acc:is_acc(Packet) of
-              true ->
-                  Packet;
-              false ->
-                  Acc0 = mongoose_acc:from_element(Packet),
-                  mongoose_acc:put(from_jid, From, Acc0)
-          end,
     {_, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User, PrivacyList,
                                                      To, in),
     allow == Res.
 
 
--spec route_message(From, To, Acc) -> ok | stop when
+-spec route_message(From, To, Acc, Packet) -> Res when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
-      Acc :: mongoose_acc:t().
-route_message(From, To, Acc) ->
-    Packet = mongoose_acc:get(to_send, Acc),
+      Acc :: mongoose_acc:t(),
+      Packet :: xmlel(),
+      Res :: ok | stop | mongoose_acc:t() | {stop, mongoose_acc:t()}.
+route_message(From, To, Acc, Packet) ->
     LUser = To#jid.luser,
     LServer = To#jid.lserver,
     PrioPid = get_user_present_pids(LUser, LServer),
@@ -800,18 +790,20 @@ route_message(From, To, Acc) ->
                 <<"error">> ->
                     ok;
                 <<"groupchat">> ->
-                    ejabberd_hooks:run(offline_groupchat_message_hook,
-                                       LServer,
-                                       [From, To, Packet]);
+                    ejabberd_hooks:run_fold(offline_groupchat_message_hook,
+                                            LServer,
+                                            Acc,
+                                            [From, To, Packet]);
                 <<"headline">> ->
-                    bounce_offline_message(From, To, Packet);
+                    bounce_offline_message(Acc, From, To, Packet);
                 _Type ->
                     case ejabberd_auth:is_user_exists(LUser, LServer) of
                         true ->
-                            case is_privacy_allow(From, To, Packet) of
+                            case is_privacy_allow(From, To, Acc, Packet) of
                                 true ->
-                                    ejabberd_hooks:run(offline_message_hook,
+                                    ejabberd_hooks:run_fold(offline_message_hook,
                                                        LServer,
+                                                       Acc,
                                                        [From, To, Packet]);
                                 false ->
                                     ejabberd_hooks:run_fold(failed_to_store_message,
@@ -945,12 +937,13 @@ get_max_user_sessions(LUser, Host) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec process_iq(From, To, Packet) -> Result when
+-spec process_iq(From, To, Acc, Packet) -> Result when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
+      Acc :: mongoose_acc:t(),
       Packet :: jlib:xmlel(),
       Result :: ok | todo | pid() | {error, lager_not_running} | {process_iq, _, _, _}.
-process_iq(From, To, Packet) ->
+process_iq(From, To, Acc, Packet) ->
     IQ = jlib:iq_query_info(Packet),
     case IQ of
         #iq{xmlns = XMLNS} ->
@@ -971,13 +964,13 @@ process_iq(From, To, Packet) ->
                 [] ->
                     Err = jlib:make_error_reply(
                             Packet, ?ERR_SERVICE_UNAVAILABLE),
-                    ejabberd_router:route(To, From, Err)
+                    ejabberd_router:route(To, From, Acc, Err)
             end;
         reply ->
             ok;
         _ ->
             Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
-            ejabberd_router:route(To, From, Err),
+            ejabberd_router:route(To, From, Acc, Err),
             ok
     end.
 
