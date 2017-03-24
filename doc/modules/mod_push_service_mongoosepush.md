@@ -6,6 +6,7 @@ passed to `MongoosePush`:
 - `mode` - if not supplied, `prod` value will be used
 - `click_action` - optional. See `click_action` in FCM documentation or `category` in APNS documentation.
 - `service` - has to be specified and the value must be valid and supported by MongoosePush push service provider. E.g. `fcm`, `apns`.
+- `device_id` - has to be specified and the value must be valid device token received from push notification service provider specified in `service` option
 
 #### Prerequisites
 
