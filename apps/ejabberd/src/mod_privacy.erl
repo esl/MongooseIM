@@ -44,8 +44,6 @@
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
--define(BACKEND, mod_privacy_backend).
-
 -export_type([list_item/0]).
 
 -type list_name() :: binary().
@@ -119,7 +117,7 @@ start(Host, Opts) ->
                                                  set_default_list, forget_default_list,
                                                  remove_privacy_list, replace_privacy_list,
                                                  get_default_list]),
-    ?BACKEND:init(Host, Opts),
+    mod_privacy_backend:init(Host, Opts),
     ejabberd_hooks:add(privacy_iq_get, Host,
                ?MODULE, process_iq_get, 50),
     ejabberd_hooks:add(privacy_iq_set, Host,
@@ -178,7 +176,7 @@ process_iq_get(Val, _, _, _, _) ->
     Val.
 
 process_lists_get(LUser, LServer, Active) ->
-    case ?BACKEND:get_list_names(LUser, LServer) of
+    case mod_privacy_backend:get_list_names(LUser, LServer) of
         {ok, {Default, ListNames}} ->
             {result, [list_names_query(Active, Default, ListNames)]};
         {error, not_found} ->
@@ -188,7 +186,7 @@ process_lists_get(LUser, LServer, Active) ->
     end.
 
 process_list_get(LUser, LServer, {value, Name}) ->
-    case ?BACKEND:get_privacy_list(LUser, LServer, Name) of
+    case mod_privacy_backend:get_privacy_list(LUser, LServer, Name) of
         {ok, List} ->
             LItems = lists:map(fun item_to_xml/1, List),
             {result, [list_query_result(Name, LItems)]};
@@ -225,7 +223,7 @@ process_iq_set(Val, _, _, _) ->
     Val.
 
 process_default_set(LUser, LServer, {value, Name}) ->
-    case ?BACKEND:set_default_list(LUser, LServer, Name) of
+    case mod_privacy_backend:set_default_list(LUser, LServer, Name) of
         ok ->
             {result, []};
         {error, not_found} ->
@@ -234,7 +232,7 @@ process_default_set(LUser, LServer, {value, Name}) ->
             {error, ?ERR_INTERNAL_SERVER_ERROR}
     end;
 process_default_set(LUser, LServer, false) ->
-    case ?BACKEND:forget_default_list(LUser, LServer) of
+    case mod_privacy_backend:forget_default_list(LUser, LServer) of
         ok ->
             {result, []};
         {error, _Reason} ->
@@ -242,7 +240,7 @@ process_default_set(LUser, LServer, false) ->
     end.
 
 process_active_set(LUser, LServer, {value, Name}) ->
-    case ?BACKEND:get_privacy_list(LUser, LServer, Name) of
+    case mod_privacy_backend:get_privacy_list(LUser, LServer, Name) of
         {ok, List} ->
             NeedDb = is_list_needdb(List),
             {result, [], #userlist{name = Name, list = List, needdb = NeedDb}};
@@ -267,7 +265,7 @@ process_list_set(_LUser, _LServer, false, _Els) ->
     {error, ?ERR_BAD_REQUEST}.
 
 remove_privacy_list(LUser, LServer, Name) ->
-    case ?BACKEND:remove_privacy_list(LUser, LServer, Name) of
+    case mod_privacy_backend:remove_privacy_list(LUser, LServer, Name) of
         ok ->
             UserList = #userlist{name = Name, list = []},
             broadcast_privacy_list(LUser, LServer, Name, UserList),
@@ -280,7 +278,7 @@ remove_privacy_list(LUser, LServer, Name) ->
     end.
 
 replace_privacy_list(LUser, LServer, Name, List) ->
-    case ?BACKEND:replace_privacy_list(LUser, LServer, Name, List) of
+    case mod_privacy_backend:replace_privacy_list(LUser, LServer, Name, List) of
         ok ->
             NeedDb = is_list_needdb(List),
             UserList = #userlist{name = Name, list = List, needdb = NeedDb},
@@ -300,7 +298,7 @@ is_item_needdb(_)                              -> false.
 get_user_list(_, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    case ?BACKEND:get_default_list(LUser, LServer) of
+    case mod_privacy_backend:get_default_list(LUser, LServer) of
         {ok, {Default, List}} ->
             NeedDb = is_list_needdb(List),
             #userlist{name = Default, list = List, needdb = NeedDb};
@@ -357,20 +355,17 @@ do_check_packet_aux(jid, block, message_out, JID, JID, _, _, _, _, _) ->
 %% then we do more complicated checking
 do_check_packet_aux(Type, Action, PType, Value, JID, MType, Subscription, Groups, Item, List) ->
     #listitem{type = Type, value = Value, action = Action} = Item,
-    case is_ptype_match(Item, PType) of
-        true ->
-            case Type of
-                none ->
+    case {is_ptype_match(Item, PType), Type} of
+        {true, none} ->
+            Action;
+        {true, _} ->
+            case is_type_match(Type, Value, JID, Subscription, Groups) of
+                true ->
                     Action;
-                _ ->
-                    case is_type_match(Type, Value, JID, Subscription, Groups) of
-                        true ->
-                            Action;
-                        false ->
-                            check_packet_aux(List, PType, MType, JID, Subscription, Groups)
-                    end
+                false ->
+                    check_packet_aux(List, PType, MType, JID, Subscription, Groups)
             end;
-        false ->
+        {false, _} ->
             check_packet_aux(List, PType, MType, JID, Subscription, Groups)
     end.
 
@@ -396,32 +391,30 @@ is_ptype_match(Item, PType) ->
             end
     end.
 
-is_type_match(Type, Value, JID, Subscription, Groups) ->
-    case Type of
-        jid ->
-            case Value of
-                {<<>>, Server, <<>>} ->
-                    case JID of
-                        {_, Server, _} ->
-                            true;
-                        _ ->
-                            false
-                    end;
-                {User, Server, <<>>} ->
-                    case JID of
-                        {User, Server, _} ->
-                            true;
-                        _ ->
-                            false
-                    end;
+is_type_match(jid, Value, JID, _Subscription, _Groups) ->
+    case Value of
+        {<<>>, Server, <<>>} ->
+            case JID of
+                {_, Server, _} ->
+                    true;
                 _ ->
-                    Value == JID
+                    false
             end;
-        subscription ->
-            Value == Subscription;
-        group ->
-            lists:member(Value, Groups)
-    end.
+        {User, Server, <<>>} ->
+            case JID of
+                {User, Server, _} ->
+                    true;
+                _ ->
+                    false
+            end;
+        _ ->
+            Value == JID
+    end;
+
+is_type_match(subscription, Value, _JID, Subscription, _Groups) ->
+    Value == Subscription;
+is_type_match(group, Value, _JID, _Subscription, Groups) ->
+    lists:member(Value, Groups).
 
 %% #rh
 remove_user(Acc, User, Server) ->
@@ -433,18 +426,11 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    ?BACKEND:remove_user(LUser, LServer).
+    mod_privacy_backend:remove_user(LUser, LServer).
 
 
-updated_list(_,
-         #userlist{name = OldName} = Old,
-         #userlist{name = NewName} = New) ->
-    if
-    OldName == NewName ->
-        New;
-    true ->
-        Old
-    end.
+updated_list(_, #userlist{name = SameName}, #userlist{name = SameName} = New) -> New;
+updated_list(_, Old, _) -> Old.
 
 
 %% Deserialization

@@ -79,11 +79,9 @@ write_messages_t(Msgs) ->
     write_all_messages_t(Len, Msgs).
 
 write_all_messages_t(Len, Msgs) ->
-    if
-        Len >= ?OFFLINE_TABLE_LOCK_THRESHOLD ->
-            mnesia:write_lock_table(offline_msg);
-        true ->
-            ok
+    case Len >= ?OFFLINE_TABLE_LOCK_THRESHOLD of
+        true -> mnesia:write_lock_table(offline_msg);
+        false -> ok
     end,
     [mnesia:write(M) || M <- Msgs],
     ok.

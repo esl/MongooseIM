@@ -66,7 +66,6 @@
 
 %% default value for the maximum number of user messages
 -define(MAX_USER_MESSAGES, infinity).
--define(BACKEND, mod_offline_backend).
 
 -type msg() :: #offline_msg{us :: {ejabberd:luser(), ejabberd:lserver()},
                           timestamp :: erlang:timestamp(),
@@ -125,7 +124,7 @@ start(Host, Opts) ->
     AccessMaxOfflineMsgs = gen_mod:get_opt(access_max_user_messages, Opts,
                                            max_user_offline_messages),
     gen_mod:start_backend_module(?MODULE, Opts, [pop_messages, write_messages]),
-    ?BACKEND:init(Host, Opts),
+    mod_offline_backend:init(Host, Opts),
     start_worker(Host, AccessMaxOfflineMsgs),
     ejabberd_hooks:add(offline_message_hook, Host,
                        ?MODULE, inspect_packet, 50),
@@ -183,7 +182,7 @@ handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     end.
 
 write_messages(LUser, LServer, Msgs) ->
-    case ?BACKEND:write_messages(LUser, LServer, Msgs) of
+    case mod_offline_backend:write_messages(LUser, LServer, Msgs) of
         ok ->
             [mod_amp:check_packet(Packet, From, archived)
              || #offline_msg{from = From, packet = Packet} <- Msgs],
@@ -199,13 +198,14 @@ write_messages(LUser, LServer, Msgs) ->
     boolean().
 is_message_count_threshold_reached(infinity, _LUser, _LServer, _Len) ->
     false;
-is_message_count_threshold_reached(MaxOfflineMsgs, _LUser, _LServer, Len) when Len > MaxOfflineMsgs ->
+is_message_count_threshold_reached(MaxOfflineMsgs, _LUser, _LServer, Len)
+  when Len > MaxOfflineMsgs ->
     true;
 is_message_count_threshold_reached(MaxOfflineMsgs, LUser, LServer, Len) ->
     %% Only count messages if needed.
     MaxArchivedMsg = MaxOfflineMsgs - Len,
     %% Maybe do not need to count all messages in archive
-    MaxArchivedMsg < ?BACKEND:count_offline_messages(LUser, LServer, MaxArchivedMsg + 1).
+    MaxArchivedMsg < mod_offline_backend:count_offline_messages(LUser, LServer, MaxArchivedMsg + 1).
 
 
 
@@ -232,12 +232,8 @@ start_worker(Host, AccessMaxOfflineMsgs) ->
     ChildSpec =
     {Proc,
      {?MODULE, start_link, [Proc, Host, AccessMaxOfflineMsgs]},
-     permanent,
-     5000,
-     worker,
-     [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec),
-    ok.
+     permanent, 5000, worker, [?MODULE]},
+    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
 
 stop_worker(Host) ->
     Proc = srv_name(Host),
@@ -276,7 +272,6 @@ determine_amp_strategy(Strategy, _, _, _, _) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Host, AccessMaxOfflineMsgs]) ->
-    random:seed(os:timestamp()),
     {ok, #state{
             host = Host,
             access_max_user_messages = AccessMaxOfflineMsgs}}.
@@ -291,7 +286,7 @@ init([Host, AccessMaxOfflineMsgs]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({pop_offline_messages, LUser, LServer}, {Pid, _}, State) ->
-    Result = ?BACKEND:pop_messages(LUser, LServer),
+    Result = mod_offline_backend:pop_messages(LUser, LServer),
     NewPoppers = monitored_map:put({LUser, LServer}, Pid, Pid, State#state.message_poppers),
     {reply, Result, State#state{message_poppers = NewPoppers}};
 handle_call(_, _, State) ->
@@ -376,17 +371,14 @@ inspect_packet(Acc, From, To, Packet) ->
             Acc
     end.
 
-store_packet(
-        From,
-        To = #jid{luser = LUser, lserver = LServer},
-        Packet = #xmlel{children = Els}) ->
+store_packet(From, To = #jid{luser = LUser, lserver = LServer},
+             Packet = #xmlel{children = Els}) ->
     TimeStamp =
-    case xml:get_subtag(Packet, <<"delay">>) of
-        false ->
+    case exml_query:subelement(Packet, <<"delay">>) of
+        undefined ->
             now();
-
-        #xmlel{name= <<"delay">>, attrs=Attr} ->
-            case xml:get_attr_s(<<"stamp">>, Attr) of
+        #xmlel{name = <<"delay">>} = DelayEl ->
+            case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
                 <<"">> ->
                     now();
                 Stamp ->
@@ -421,28 +413,28 @@ check_event_chatstates(From, To, Packet) ->
             false;
         %% There was an x:event element, and maybe also other stuff
         {El, _, _} when El /= false ->
-            case xml:get_subtag(El, <<"id">>) of
-                false ->
-                    case xml:get_subtag(El, <<"offline">>) of
-                        false ->
-                            true;
-                        _ ->
-                ejabberd_router:route(To, From, patch_offline_message(Packet)),
-                            true
-                    end;
+            inspect_xevent(From, To, Packet, El)
+    end.
+
+inspect_xevent(From, To, Packet, XEvent) ->
+    case exml_query:subelement(XEvent, <<"id">>) of
+        undefined ->
+            case exml_query:subelement(XEvent, <<"offline">>) of
+                undefined ->
+                    true;
                 _ ->
-                    false
-            end
+                    ejabberd_router:route(To, From, patch_offline_message(Packet)),
+                    true
+            end;
+        _ ->
+            false
     end.
 
 patch_offline_message(Packet) ->
-    ID = case xml:get_tag_attr_s(<<"id">>, Packet) of
-         <<"">> ->
-         #xmlel{name = <<"id">>};
-         S ->
-         #xmlel{name = <<"id">>,
-                children = [#xmlcdata{content = S}]}
-     end,
+    ID = case exml_query:attr(Packet, <<"id">>, <<>>) of
+             <<"">> -> #xmlel{name = <<"id">>};
+             S -> #xmlel{name = <<"id">>, children = [#xmlcdata{content = S}]}
+         end,
     Packet#xmlel{children = [x_elem(ID)]}.
 
 x_elem(ID) ->
@@ -457,13 +449,10 @@ find_x_event_chatstates([], Res) ->
 find_x_event_chatstates([#xmlcdata{} | Els], Res) ->
     find_x_event_chatstates(Els, Res);
 find_x_event_chatstates([El | Els], {A, B, C}) ->
-    case xml:get_tag_attr_s(<<"xmlns">>, El) of
-        ?NS_EVENT ->
-            find_x_event_chatstates(Els, {El, B, C});
-        ?NS_CHATSTATES ->
-            find_x_event_chatstates(Els, {A, El, C});
-        _ ->
-            find_x_event_chatstates(Els, {A, B, true})
+    case exml_query:attr(El, <<"xmlns">>, <<>>) of
+        ?NS_EVENT -> find_x_event_chatstates(Els, {El, B, C});
+        ?NS_CHATSTATES -> find_x_event_chatstates(Els, {A, El, C});
+        _ -> find_x_event_chatstates(Els, {A, B, true})
     end.
 
 find_x_expire(_, []) ->
@@ -471,9 +460,9 @@ find_x_expire(_, []) ->
 find_x_expire(TimeStamp, [#xmlcdata{} | Els]) ->
     find_x_expire(TimeStamp, Els);
 find_x_expire(TimeStamp, [El | Els]) ->
-    case xml:get_tag_attr_s(<<"xmlns">>, El) of
+    case exml_query:attr(El, <<"xmlns">>, <<>>) of
         ?NS_EXPIRE ->
-            Val = xml:get_tag_attr_s(<<"seconds">>, El),
+            Val = exml_query:attr(El, <<"seconds">>, <<>>),
             case catch list_to_integer(binary_to_list(Val)) of
                 {'EXIT', _} ->
                     never;
@@ -545,11 +534,11 @@ timestamp_xml(Server, Time) ->
     jlib:timestamp_to_xml(Time, utc, FromJID, <<"Offline Storage">>).
 
 remove_expired_messages(Host) ->
-    ?BACKEND:remove_expired_messages(Host).
+    mod_offline_backend:remove_expired_messages(Host).
 
 remove_old_messages(Host, Days) ->
     Timestamp = fallback_timestamp(Days, os:timestamp()),
-    ?BACKEND:remove_old_messages(Host, Timestamp).
+    mod_offline_backend:remove_old_messages(Host, Timestamp).
 
 %% #rh
 remove_user(Acc, User, Server) ->
@@ -557,14 +546,15 @@ remove_user(Acc, User, Server) ->
     Acc.
 
 remove_user(User, Server) ->
-    ?BACKEND:remove_user(User, Server).
+    mod_offline_backend:remove_user(User, Server).
 
 %% Warn senders that their messages have been discarded:
 discard_warn_sender(Msgs) ->
     lists:foreach(
       fun(#offline_msg{from=From, to=To, packet=Packet}) ->
-              ErrText = <<"Your contact offline message queue is full. The message has been discarded.">>,
-              Lang = xml:get_tag_attr_s(<<"xml:lang">>, Packet),
+              ErrText = <<"Your contact offline message queue is full."
+                          " The message has been discarded.">>,
+              Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
               amp_failed_event(Packet, From),
               Err = jlib:make_error_reply(
                       Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),

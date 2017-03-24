@@ -91,9 +91,8 @@ get_privacy_list(LUser, LServer, Name) ->
             {error, not_found};
         {selected, [{ID}]} ->
             case catch sql_get_privacy_list_data_by_id(ID, LServer) of
-                {selected,
-                 RItems} ->
-                    Items = lists:map(fun raw_to_item/1, RItems),
+                {selected, RItems} ->
+                    Items = raw_to_items(RItems),
                     {ok, Items};
                 Other ->
                     {error, Other}
@@ -101,6 +100,9 @@ get_privacy_list(LUser, LServer, Name) ->
         Other2 ->
             {error, Other2}
     end.
+
+raw_to_items(RItems) ->
+    lists:map(fun raw_to_item/1, RItems).
 
 %% @doc Set no default list for user.
 forget_default_list(LUser, LServer) ->
@@ -114,21 +116,8 @@ forget_default_list(LUser, LServer) ->
     end.
 
 set_default_list(LUser, LServer, Name) ->
-    F = fun() ->
-        case sql_get_privacy_list_names_t(LUser) of
-            {selected, []} ->
-                {error, not_found};
-            {selected, Names} ->
-                case lists:member({Name}, Names) of
-                    true ->
-                        sql_set_default_privacy_list(LUser, Name),
-                        ok;
-                    false ->
-                        {error, not_found}
-                end
-        end
-        end,
-    case rdbms_queries:sql_transaction(LServer, F) of
+    case rdbms_queries:sql_transaction(
+           LServer, fun() -> set_default_list_t(LUser, Name) end) of
         {atomic, ok} ->
             ok;
         {atomic, {error, Reason}} ->
@@ -139,20 +128,31 @@ set_default_list(LUser, LServer, Name) ->
             {error, Reason}
     end.
 
+-spec set_default_list_t(LUser :: ejabberd:luser(), Name :: binary()) -> ok | {error, not_found}.
+set_default_list_t(LUser, Name) ->
+    case sql_get_privacy_list_names_t(LUser) of
+        {selected, []} ->
+            {error, not_found};
+        {selected, Names} ->
+            case lists:member({Name}, Names) of
+                true ->
+                    sql_set_default_privacy_list(LUser, Name),
+                    ok;
+                false ->
+                    {error, not_found}
+            end
+    end.
+
 remove_privacy_list(LUser, LServer, Name) ->
      F = fun() ->
             case sql_get_default_privacy_list_t(LUser) of
                 {selected, []} ->
                     sql_remove_privacy_list(LUser, Name),
                     ok;
-                {selected, [{Default}]} ->
-                    if
-                        Name == Default ->
-                            {error, conflict};
-                        true ->
-                            sql_remove_privacy_list(LUser, Name),
-                            ok
-                    end
+                {selected, [{Name}]} ->
+                    {error, conflict};
+                {selected, [{_Default}]} ->
+                    sql_remove_privacy_list(LUser, Name)
             end
         end,
     case rdbms_queries:sql_transaction(LServer, F) of
