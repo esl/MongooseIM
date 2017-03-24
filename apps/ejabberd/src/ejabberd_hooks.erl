@@ -129,7 +129,7 @@ run_fold(Hook, Host, Val, Args) ->
     end,
     record(Hook, Res).
 
-record(Hook, Acc) ->
+record(_Hook, Acc) ->
     Acc.
     % just to show some nice things we can do now
     % this should probably be protected by a compilation flag
@@ -259,7 +259,7 @@ hook_apply_function(Module, Function, Hook, Val, Args) ->
     record(Hook, Module, Function, Result).
 
 
-record(Hook, Module, Function, Acc) ->
+record(_Hook, _Module, _Function, Acc) ->
     Acc.
     % just to show some nice things we can do now
     % this should probably be protected by a compilation flag
