@@ -377,7 +377,7 @@ store_packet(From, To = #jid{luser = LUser, lserver = LServer},
     case exml_query:subelement(Packet, <<"delay">>) of
         undefined ->
             now();
-        #xmlel{name= <<"delay">>, attrs=Attr} = DelayEl ->
+        #xmlel{name = <<"delay">>} = DelayEl ->
             case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
                 <<"">> ->
                     now();
