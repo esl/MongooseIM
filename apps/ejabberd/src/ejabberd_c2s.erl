@@ -1133,16 +1133,6 @@ handle_info(replaced, _StateName, StateData) ->
                             ?SERRT_CONFLICT(Lang, <<"Replaced by new connection">>)),
     maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
-%% Process Packets that are to be sent to the user
-handle_info({broadcast, Broadcast}, StateName, StateData) ->
-    ejabberd_hooks:run(c2s_loop_debug, [{broadcast, Broadcast}]),
-    ?DEBUG("broadcast=~p", [Broadcast]),
-    Res = handle_routed_broadcast(Broadcast, StateData),
-    handle_broadcast_result(Res, StateName, StateData);
-handle_info({route, From, To, Packet}, StateName, StateData) ->
-    ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-    Name = Packet#xmlel.name,
-    process_incoming_stanza(Name, From, To, Packet, StateName, StateData);
 handle_info(new_offline_messages, session_established,
             #state{pres_last = Presence, pres_invis = Invisible} = StateData)
   when Presence =/= undefined orelse Invisible ->
