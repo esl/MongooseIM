@@ -43,7 +43,8 @@ privacy_check_packet(Acc, Server, User, PrivacyList, To, Dir) ->
                            Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir) ->
     % check if it is there, if not then set default and run a hook
-    case mongoose_acc:get(privacy_check, Acc, undefined) of
+    Key = {cached_privacy_check, Server, User, From, To, Dir},
+    case mongoose_acc:get(Key, Acc, undefined) of
         undefined ->
             Packet = mongoose_acc:get(to_send, Acc),
             Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,
@@ -54,7 +55,9 @@ privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir) ->
                                             PrivacyList,
                                             {From, To, Packet},
                                             Dir]),
-            {Acc1, mongoose_acc:get(privacy_check, Acc1)};
+            Res = mongoose_acc:get(privacy_check, Acc1),
+            Acc2 = mongoose_acc:remove(privacy_check, Acc1),
+            {mongoose_acc:put(Key, Res, Acc2), Res};
         Res ->
             {Acc, Res}
     end.
