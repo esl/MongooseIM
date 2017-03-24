@@ -11,6 +11,7 @@
 -author("bartek").
 
 -include("ejabberd.hrl").
+-include_lib("jlib.hrl").
 -include("mod_privacy.hrl").
 
 %% API
@@ -23,37 +24,51 @@
 
 %% @doc abbreviated version - in most cases we have 'from' in Acc, but sometimes
 %% the caller wants something different (e.g. mod_last which swaps addresses)
--spec privacy_check_packet(Acc :: mongoose_acc:t(),
+-spec privacy_check_packet(Acc :: mongoose_acc:t() | {mongoose_acc:t(), jlib:xmlel()},
                            Server :: binary(),
                            User :: binary(),
                            PrivacyList :: userlist(),
                            To :: ejabberd:jid(),
                            Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, Server, User, PrivacyList, To, Dir) ->
-    From = mongoose_acc:get(from_jid, Acc),
+    A = case Acc of
+           {Ac, #xmlel{}} -> Ac;
+            _ -> Acc
+        end,
+    From = mongoose_acc:get(from_jid, A),
     privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir).
 
 %% @doc check packet, store result in accumulator, return acc and result for quick check
--spec privacy_check_packet(Acc :: mongoose_acc:t(),
+-spec privacy_check_packet(Acc :: mongoose_acc:t() | {mongoose_acc:t(), jlib:xmlel()},
                            Server :: binary(),
                            User :: binary(),
                            PrivacyList :: userlist(),
                            From :: ejabberd:jid(),
                            To :: ejabberd:jid(),
                            Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
-privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir) ->
+privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
+    % see if we have just Acc or also stanza to check - may have different name/type
+    {Acc, Name, Type} = case Acc0 of
+                       {A, #xmlel{name = SName} = Stanza} ->
+                           SType = exml_query:attr(Stanza, <<"type">>, undefined),
+                           {A, SName, SType};
+                       _ ->
+                           {Acc0, mongoose_acc:get(name, Acc0), mongoose_acc:get(type, Acc0)}
+                   end,
     % check if it is there, if not then set default and run a hook
-    Key = {cached_privacy_check, Server, User, From, To, Dir},
+    F = jid:to_binary(From),
+    T = jid:to_binary(To),
+    Key = {cached_privacy_check, Server, User, F, T, Name, Type, Dir},
     case mongoose_acc:get(Key, Acc, undefined) of
         undefined ->
-            Packet = mongoose_acc:get(to_send, Acc),
+%%            Packet = mongoose_acc:get(to_send, Acc),
             Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,
                                            Server,
                                            mongoose_acc:put(privacy_check, allow, Acc),
                                            [User,
                                             Server,
                                             PrivacyList,
-                                            {From, To, Packet},
+                                            {From, To, Name, Type},
                                             Dir]),
             Res = mongoose_acc:get(privacy_check, Acc1),
             Acc2 = mongoose_acc:remove(privacy_check, Acc1),
