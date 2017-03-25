@@ -53,7 +53,7 @@
           id = <<>> :: binary()
          }).
 
--type op_disco_info() :: #disco_info{}.
+-type disco_info_req_props() :: #disco_info{}.
 
 -record(disco_items, {
           id = <<>> :: binary(),
@@ -61,7 +61,7 @@
           rsm = none :: none | jlib:rsm_in() | jlib:rsm_out()
          }).
 
--type op_disco_items() :: #disco_items{}.
+-type disco_items_req_props() :: #disco_items{}.
 
 -record(msg, {
           id = <<>> :: binary(),
@@ -75,7 +75,7 @@
           raw_config = [] :: raw_config()
          }).
 
--type op_config() :: #config{}.
+-type config_req_props() :: #config{}.
 
 -record(affiliations, {
           id = <<>> :: binary(),
@@ -84,7 +84,7 @@
           aff_users = [] :: aff_users()
          }).
 
--type op_affiliations() :: #affiliations{}.
+-type affiliations_req_props() :: #affiliations{}.
 
 -record(info, {
           id = <<>> :: binary(),
@@ -99,7 +99,7 @@
           items = [] :: [blocking_item()]
          }).
 
--type op_blocking() :: #blocking{}.
+-type blocking_req_props() :: #blocking{}.
 
 -record(create, {
           id = <<>> :: binary(),
@@ -108,7 +108,7 @@
           aff_users = [] :: aff_users()
          }).
 
--type op_create() :: #create{}.
+-type create_req_props() :: #create{}.
 
 -record(destroy, {
           id = <<>> :: binary()
