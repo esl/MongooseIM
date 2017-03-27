@@ -146,10 +146,11 @@ process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
 
 %% --------- Config set ---------
 
--spec process_config_set(ConfigReq :: #config{}, RoomUS :: ejabberd:simple_bare_jid(),
+-spec process_config_set(ConfigReq :: config_req_props(),
+                         RoomUS :: ejabberd:simple_bare_jid(),
                          UserAff :: member | owner, AffUsers :: aff_users(),
                          UserAllowedToConfigure :: boolean()) ->
-    {set, #config{}} | {error, not_allowed} | validation_error().
+    {set, config_req_props()} | {error, not_allowed} | validation_error().
 process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, RoomUS, UserAff,
                    AffUsers, false) ->
     % Everyone is allowed to change subject
@@ -193,10 +194,10 @@ validate_aff_changes_by_member([{_, member} = AffUserChange | RAffUsersChanges],
 validate_aff_changes_by_member(_AffUsersChanges, _Acc, _UserUS, _OwnerUS, _RoomUS, _AllCanInvite) ->
     {error, not_allowed}.
 
--spec process_aff_set(AffReq :: #affiliations{},
+-spec process_aff_set(AffReq :: affiliations_req_props(),
                       RoomUS :: ejabberd:simple_bare_jid(),
                       ValidateResult :: {ok, aff_users()} | {error, not_allowed}) ->
-    {set, #affiliations{}, OldAffUsers :: aff_users(), NewAffUsers :: aff_users()}
+    {set, affiliations_req_props(), OldAffUsers :: aff_users(), NewAffUsers :: aff_users()}
     | {error, not_allowed}.
 process_aff_set(AffReq, _RoomUS, {ok, []}) -> % It seems that all users blocked this request
     {set, AffReq, [], []}; % Just return result to the user, don't change or broadcast anything
