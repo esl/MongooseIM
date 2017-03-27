@@ -12,7 +12,7 @@
 -include("ejabberd.hrl").
 
 %% API
--export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
+-export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
 -export([strip/1]).
 -export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
@@ -21,7 +21,7 @@
 -export([from_element/3]).
 
 %% if it is defined as -opaque then dialyzer fails
--type t() :: map().
+-type t() :: [{atom(), any()}].
 
 %%% This module encapsulates implementation of mongoose_acc
 %%% its interface is map-like but implementation might change
@@ -48,7 +48,7 @@ terminate(M, received, _F, _L) ->
     get(to_send, M, get(element, M, undefined)).
 
 dump(Acc) ->
-    dump(Acc, lists:sort(maps:keys(Acc))).
+    dump(sorted, lists:sort(Acc)).
 
 to_binary(#xmlel{} = Packet) ->
     ?DEPRECATED,
@@ -71,8 +71,8 @@ to_binary(Acc) ->
 
 %% This function is for transitional period, eventually all hooks will use accumulator
 %% and we will not have to check
-is_acc(A) when is_map(A) ->
-    maps:get(mongoose_acc, A, false);
+is_acc(A) when is_list(A) ->
+    proplists:get_value(mongoose_acc, A) =/= undefined;
 is_acc(_) ->
     false.
 
@@ -90,20 +90,18 @@ to_element(A) ->
 
 -spec new() -> t().
 new() ->
-    #{mongoose_acc => true}.
+    [{mongoose_acc, true}].
 
 -spec from_kv(atom(), any()) -> t().
 from_kv(K, V) ->
-    M = maps:put(K, V, #{}),
-    maps:put(mongoose_acc, true, M).
+    [{K, V}, {mongoose_acc, true}].
 
 -spec from_element(xmlel()) -> t().
 from_element(El) ->
     #xmlel{name = Name, attrs = Attrs} = El,
     Type = exml_query:attr(El, <<"type">>, undefined),
-    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
-        timestamp => os:timestamp(), ref => make_ref()
-        }.
+    [{element, El}, {mongoose_acc, true}, {name, Name}, {attrs, Attrs}, {type, Type},
+        {timestamp, os:timestamp()}, {ref, make_ref()}].
 
 -spec from_element(xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
 from_element(El, From, To) ->
@@ -113,60 +111,52 @@ from_element(El, From, To) ->
 
 -spec from_map(map()) -> t().
 from_map(M) ->
-    maps:put(mongoose_acc, true, M).
+    maps:to_list(M).
 
 -spec update(t(), map() | t()) -> t().
-update(Acc, M) ->
-    maps:merge(Acc, M).
+update(Acc, #{} = M)  ->
+    update(Acc, maps:to_list(M));
+update(Acc, []) ->
+    Acc;
+update(Acc, [{Key, Value}| Tail]) ->
+    A1 = proplists:delete(Key, Acc),
+    A2 = [{Key,Value}|A1],
+    update(A2, Tail).
 
-%% @doc convert to map so that we can pattern-match on it
--spec to_map(t()) -> map()|{error, cant_convert_to_map}.
-to_map(P) when is_map(P) ->
-    P;
-to_map(_) ->
-    {error, cant_convert_to_map}.
 
 -spec put(atom(), any(), t()) -> t().
 put(to_send, Val, Acc) ->
     % stanza to be sent out may change a few times, and sometimes it carries its own type
     % (e.g. presence probe), we have to clear previouse value
-    A1 = maps:remove(send_type, Acc),
-    maps:put(to_send, Val, A1);
+    A1 = remove(send_type, Acc),
+    A2 = remove(to_send, A1),
+    [{to_send, Val}|A2];
 put(from_jid, Val, Acc) ->
     ?DEPRECATED,
-    A = maps:put(from_jid, Val, Acc),
-    maps:put(from, jid:to_binary(Val), A);
+    A1 = remove(from, remove(from_jid, Acc)),
+    [{from_jid, Val}, {from, jid:to_binary(Val)}|A1];
 put(Key, Val, Acc) ->
-    maps:put(Key, Val, Acc).
+    [{Key, Val}|remove(Key, Acc)].
 
 -spec get(atom()|[atom()], t()) -> any().
 get(to_send, Acc) ->
     get(to_send, Acc, get(element, Acc));
-get([], _) ->
-
-    undefined;
-get([Key|Keys], P) ->
-    case maps:is_key(Key, P) of
-        true ->
-            maps:get(Key, P);
-        _ ->
-            get(Keys, P)
-    end;
 get(Key, P) ->
-    maps:get(Key, P).
+    proplists:get_value(Key, P).
 
 -spec get(atom(), t(), any()) -> any().
 get(Key, P, Default) ->
-    maps:get(Key, P, Default).
+    proplists:get_value(Key, P, Default).
 
 -spec append(atom(), any(), t()) -> t().
 append(Key, Val, P) ->
     L = get(Key, P, []),
-    maps:put(Key, append(Val, L), P).
+    NL = append(Val, L),
+    put(Key, NL, P).
 
 -spec remove(Key :: atom(), Accumulator :: t()) -> t().
 remove(Key, Accumulator) ->
-    maps:remove(Key, Accumulator).
+    proplists:delete(Key, Accumulator).
 
 %% @doc Make sure the acc has certain keys - some of them require expensive computations and
 %% are therefore not calculated upon instantiation, this func is saying "I will need these,
@@ -175,7 +165,7 @@ remove(Key, Accumulator) ->
 require([], Acc) ->
     Acc;
 require([Key|Tail], Acc) ->
-    Acc1 = case maps:is_key(Key, Acc) of
+    Acc1 = case proplists:is_defined(Key, Acc) of
                true -> Acc;
                false -> produce(Key, Acc)
            end,
@@ -204,13 +194,6 @@ strip(Acc) ->
                     end
                 end,
                 NAcc, OptAts).
-%%    mongoose_acc:put(element, mongoose_acc:get(to_send, Acc), NAcc1).
-%%    case mongoose_acc:get(send_type, Acc, undefined) of
-%%        undefined ->
-%%            NAcc1;
-%%        SType ->
-%%            mongoose_acc:put(type, SType, NAcc2)
-%%    end.
 
 
 %%%%% internal %%%%%
@@ -220,11 +203,11 @@ append(Val, L) when is_list(L), is_list(Val) ->
 append(Val, L) when is_list(L) ->
     [Val | L].
 
-dump(_, []) ->
+dump(sorted, []) ->
     ok;
-dump(Acc, [K|Tail]) ->
-    ?ERROR_MSG("~p = ~p", [K, maps:get(K, Acc)]),
-    dump(Acc, Tail).
+dump(sorted, [{K, V}|Tail]) ->
+    ?ERROR_MSG("~p = ~p", [K, V]),
+    dump(sorted, Tail).
 
 
 %% @doc pattern-match to figure out (a) which attrs can be 'required' (b) how to cook them

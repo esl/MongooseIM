@@ -72,8 +72,8 @@ parse_with_cdata(_C) ->
 
 strip(_C) ->
     Acc = mongoose_acc:from_element(iq_stanza()),
-    Acc1 = mongoose_acc:update(#{from => <<"ja">>, from_jid => <<"jajid">>,
-        to => <<"ty">>, to_jid => <<"tyjid">>}, Acc),
+    Acc1 = mongoose_acc:update(Acc, #{from => <<"ja">>, from_jid => <<"jajid">>,
+        to => <<"ty">>, to_jid => <<"tyjid">>}),
     Acc2 = mongoose_acc:require([command, xmlns, send_type], Acc1),
     ?assertEqual(mongoose_acc:get(xmlns, Acc2), <<"urn:ietf:params:xml:ns:xmpp-session">>),
     ?assertEqual(mongoose_acc:get(type, Acc2), <<"set">>),
