@@ -10,7 +10,7 @@ with working push notifications. The following list shows those components as de
   * _XMPP Push Service_ is implemented as [MongoosePush][] application
 
 All those entities have to be enabled and properly configured in order to use push notifications.
- So lets get it, shall we?
+ So let's get it, shall we?
 
 ### Overall component architecture
 
@@ -21,7 +21,7 @@ Please note that even that, there are two domains of _MongooseIM_ and third one 
 
 ### Configuring MongooseIM components
 
-Firstly, lets configure all required MongooseIM components, step by step.
+Firstly, let's configure all required MongooseIM components, step by step.
 
 #### [mod_push][] a.k.a. '_XMPP Server_'
 
@@ -50,7 +50,7 @@ Next component to configure in MongooseIM consist of two modules - [mod_pubsub][
 According to [XEP-0357 Push Notifications](https://xmpp.org/extensions/xep-0357.html), all
 notifications generated via module we have just enabled (i.e. [mod_push][]) have to be send to push
  enabled publish-subscribe node. In order to allow clients to allocate such node, we need to
- enable it our [mod_pubsub][] on the MongooseIM server that will communicate with _XMPP Push Service_.
+ enable it in our [mod_pubsub][] on the MongooseIM server that will communicate with _XMPP Push Service_.
 
 The minimal [mod_pubsub][]'a configuration looks as follows:
 
@@ -62,7 +62,7 @@ The minimal [mod_pubsub][]'a configuration looks as follows:
 
 Such configuration will enable [mod_pubsub][] with only one node type available: `push`. Please
 note that if you want use [mod_pubsub][] as 'normal' publish-subscribe service, you need to just append
-`<<"push">>` node type to list `plugins`. Also it's important to node, that the first node type
+`<<"push">>` node type to list `plugins`. Also, it's important to node, that the first node type
 on `plugins` list, will be the default one (allocated when client does not provide node type in
 node create stanza).
 
@@ -83,15 +83,15 @@ This module acts as bridge between [mod_pubsub][] that receives notifications fr
 
 First, we create the HTTP pool for communicating with [MongoosePush][]. Here, we assume that
 [MongoosePush][] will be available on localhost on port 8443 which is the default one.
-Next we enable [mod_push_service_mongoosepush][]. First option is an name of the HTTP pool to use
-and the second one is an version of [MongoosePush][]'s API (currently only "_v1_" is supported).
+Next we enable [mod_push_service_mongoosepush][]. First option is a name of the HTTP pool to use
+and the second one is a version of [MongoosePush][]'s API (currently only "_v1_" is supported).
 
-And that's it, thats the end of MongooseIM configuration. All we need to do now is to setup
+And that's it, thats the end of MongooseIM configuration. All we need to do now is to set up
 [MongoosePush][].
 
 ### Starting [MongoosePush][]
 
-The easiest way to start [MongoosePush][] is using its [docker image](https://hub.docker.com/r/mongooseim/mongoose-push). But before you can setup [MongoosePush][], you need _FCM_ application token and/or _APNS_ application certificate. The _FCM_ token you can get [here](https://console.firebase.google.com/) and the easiest way of getting _APNS_ application cetrificate is by running [this](https://github.com/fastlane/fastlane/tree/master/pem) script (please note that you need certificate in `pem` format).
+The easiest way to start [MongoosePush][] is using its [docker image](https://hub.docker.com/r/mongooseim/mongoose-push). But before you can set up [MongoosePush][], you need _FCM_ application token and/or _APNS_ application certificate. The _FCM_ token you can get [here](https://console.firebase.google.com/) and the easiest way of getting _APNS_ application certificate is by running [this](https://github.com/fastlane/fastlane/tree/master/pem) script (please note that you need certificate in `pem` format).
 
 After you get the _FCM_ application token and/or _APNS_ application certificate, you can prepare to start [MongoosePush][]. Firstly, prepare the following files structure:
 
@@ -127,13 +127,13 @@ The XMPP client application has very few things to do in order to receive push n
 
 ### Registering with Push Service provider
 
-Firstly, client application has to get a device-specific token from Push Service Provider (FCM or APNS). This process is different, depending on the platform, so please consult you Push Service Provider's manual to learn about how to get this token. For example, [here](https://firebase.google.com/docs/cloud-messaging/android/client) you can lear about setting up _FCM_ on _Android_ platform and [here](https://developer.apple.com/library/content/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/HandlingRemoteNotifications.html#/apple_ref/doc/uid/TP40008194-CH6-SW1) you can learn about setting up _APNS_ on _iOS_ platform.
+Firstly, client application has to get a device-specific token from Push Service Provider (FCM or APNS). This process is different, depending on the platform, so please consult your Push Service Provider's manual to learn about how to get this token. For example, [here](https://firebase.google.com/docs/cloud-messaging/android/client) you can learn about setting up _FCM_ on _Android_ platform and [here](https://developer.apple.com/library/content/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/HandlingRemoteNotifications.html#/apple_ref/doc/uid/TP40008194-CH6-SW1) you can learn about setting up _APNS_ on _iOS_ platform.
 
 After this step, your application shall be able to receive _FCM_ or _APNS_ token - it will be required in the next step of this tutorial.
 
 ### Setting up XMPP `pubsub` node
 
-First thing that the clinet has to setup on XMPP server is the `PubSub`'s node for handling push notications. Assuming that `mypubsub.com` is an domain of MongooseIM server that has [mod_pubsub][] enabled with `push` node support, the client shall send the following stanza to the server:
+First thing that the clinet has to set up on XMPP server is the `PubSub`'s node for handling push notifications. Assuming that `mypubsub.com` is a domain of MongooseIM server that has [mod_pubsub][] enabled with `push` node support, the client shall send the following stanza to the server:
 
 ```xml
 <iq type='set'
@@ -152,9 +152,9 @@ After this step, you need to have the `pubsub` host (here `pubsub.mypubsub.com`)
 
 ### Enabling push notifications
 
-The next and the last step is to enable push notifications on the server that handles your messages (and have [mod_push][] enabled). Lets assume this server**** is available under `mychat.com` domain.
+The next and the last step is to enable push notifications on the server that handles your messages (and have [mod_push][] enabled). Let's assume this server**** is available under `mychat.com` domain.
 
-To enable push notifications in simplest configuration, just send the following stanza:
+To enable push notifications in the simplest configuration, just send the following stanza:
 
 ```xml
 <iq type='set' id='x43'>
@@ -169,7 +169,7 @@ To enable push notifications in simplest configuration, just send the following 
 ```
 
 Here, we have enabled push notification to be send to the `pubsub.mypubsub.com` to node `princely_musings` which we have created in previous paragraph. In `publish-options` we have passed the service name that we are using (`apns` or `fcm`) and the device token (here: `your_pns_device_token`) that you received from you push notification service provider (as described in _Registering with Push Service provider_). Those two options are only required, but there are two more that are optional:
-  * `mode` - which may be either `prod` or `dev` (default to `prod`). Decides which connection pool type on [MongoosePush][] shall be used. This may be used when _APNS_ on [MongoosePush][] is configured to work with both production and developement certificate.
+  * `mode` - which may be either `prod` or `dev` (default to `prod`). Decides which connection pool type on [MongoosePush][] shall be used. This may be used when _APNS_ on [MongoosePush][] is configured to work with both production and development certificate.
   * `click_action` - action to perform when notification is clicked on the device. `activity` on _Android_ and `category` on _iOS_. Please refer to your platform / push notification service provider for more info.
 
 ### Disabling push notifications
@@ -182,7 +182,7 @@ Disabling push notifications is very simple. Just send the following stanza to y
 </iq>
 ```
 
-Here you may skip the `node='princely_musings'` to globally disable push notifications on all nodes that are registered from you `JID`. This may be used to disbale push notifications on all you devices.
+Here you may skip the `node='princely_musings'` to globally disable push notifications on all nodes that are registered from you `JID`. This may be used to disbale push notifications on all your devices.
 
 [mod_push]: ../modules/mod_pubsub.md
 [mod_pubsub]: ../modules/mod_push.md
