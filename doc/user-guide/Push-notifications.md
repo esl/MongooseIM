@@ -14,7 +14,10 @@ All those entities have to be enabled and properly configured in order to use pu
 
 ### Overall component architecture
 
-TODO: Put pretty image here. For now, please use your imagination
+The overall architecture of all components that make push notifications possible in MongooseIM, looks as follows:
+![](push_notifications_components.svg)
+
+Please note that even that, there are two domains of _MongooseIM_ and third one for [MongoosePush][], it is not required. All those 3 components can be on the same host with the same domain. 
 
 ### Configuring MongooseIM components
 
@@ -119,7 +122,8 @@ When your [MongoosePush][] docker is up and running, Push Notifications now can 
 
 ## Using push notifications on client side
 
-The XMPP client application has very few things to do in order to receive push notifications.
+The XMPP client application has very few things to do in order to receive push notifications. The whole process described in this section along with example notification flow we can see in the following diagram:
+ ![](push_notifications_example_message_flow.svg)
 
 ### Registering with Push Service provider
 
@@ -129,12 +133,12 @@ After this step, your application shall be able to receive _FCM_ or _APNS_ token
 
 ### Setting up XMPP `pubsub` node
 
-First thing that the clinet has to setup on XMPP server is the `PubSub`'s node for handling push notications. Assuming that `mongooseim-pubsub.com` is an domain of MongooseIM server that has [mod_pubsub][] enabled with `push` node support, the client shall send the following stanza to the server:
+First thing that the clinet has to setup on XMPP server is the `PubSub`'s node for handling push notications. Assuming that `mypubsub.com` is an domain of MongooseIM server that has [mod_pubsub][] enabled with `push` node support, the client shall send the following stanza to the server:
 
 ```xml
 <iq type='set'
     from='me@mongooseim.com'
-    to='pubsub.mongooseim-pubsub.com'
+    to='pubsub.mypubsub.com'
     id='create1'>
   <pubsub xmlns='http://jabber.org/protocol/pubsub'>
     <create node='princely_musings' type='push'/>
@@ -144,17 +148,17 @@ First thing that the clinet has to setup on XMPP server is the `PubSub`'s node f
 
 Here, the most important and only change from standard node creation is the `type='push'` part of `create` element. This denotes that you need node that will handle your push notifications. Here, created is named `princely_musings`. This node should be unique to the device and you may reuse nodes already created this way.
 
-After this step, you need to have the `pubsub` host (here `pubsub.mongooseim-pubsub.com`) and the node name (here: `princely_musings`).
+After this step, you need to have the `pubsub` host (here `pubsub.mypubsub.com`) and the node name (here: `princely_musings`).
 
 ### Enabling push notifications
 
-The next and the last step is to enable push notifications on the server that handles your messages (and have [mod_push][] enabled). Lets assume this severs is available under `mongooseim-xmpp.com` domain.
+The next and the last step is to enable push notifications on the server that handles your messages (and have [mod_push][] enabled). Lets assume this server**** is available under `mychat.com` domain.
 
 To enable push notifications in simplest configuration, just send the following stanza:
 
 ```xml
 <iq type='set' id='x43'>
-  <enable xmlns='urn:xmpp:push:0' jid='pubsub.mongooseim-pubsub.com' node='princely_musings'>
+  <enable xmlns='urn:xmpp:push:0' jid='pubsub.mypubsub.com' node='princely_musings'>
     <x xmlns='jabber:x:data' type='submit'>
       <field var='FORM_TYPE'><value>http://jabber.org/protocol/pubsub#publish-options</value></field>
       <field var='service'><value>apns</value></field>
@@ -164,7 +168,7 @@ To enable push notifications in simplest configuration, just send the following 
 </iq>
 ```
 
-Here, we have enabled push notification to be send to the `pubsub.mongooseim-pubsub.com` to node `princely_musings` which we have created in previous paragraph. In `publish-options` we have passed the service name that we are using (`apns` or `fcm`) and the device token (here: `your_pns_device_token`) that you received from you push notification service provider (as described in _Registering with Push Service provider_). Those two options are only required, but there are two more that are optional:
+Here, we have enabled push notification to be send to the `pubsub.mypubsub.com` to node `princely_musings` which we have created in previous paragraph. In `publish-options` we have passed the service name that we are using (`apns` or `fcm`) and the device token (here: `your_pns_device_token`) that you received from you push notification service provider (as described in _Registering with Push Service provider_). Those two options are only required, but there are two more that are optional:
   * `mode` - which may be either `prod` or `dev` (default to `prod`). Decides which connection pool type on [MongoosePush][] shall be used. This may be used when _APNS_ on [MongoosePush][] is configured to work with both production and developement certificate.
   * `click_action` - action to perform when notification is clicked on the device. `activity` on _Android_ and `category` on _iOS_. Please refer to your platform / push notification service provider for more info.
 
@@ -174,7 +178,7 @@ Disabling push notifications is very simple. Just send the following stanza to y
 
 ```xml
 <iq type='set' id='x44'>
-  <disable xmlns='urn:xmpp:push:0' jid='pubsub.mongooseim-pubsub.com' node='princely_musings'/>
+  <disable xmlns='urn:xmpp:push:0' jid='pubsub.mypubsub.com' node='princely_musings'/>
 </iq>
 ```
 
