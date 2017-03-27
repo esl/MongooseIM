@@ -171,7 +171,7 @@ authorize_access_model(Config) ->
               %% in mod_pubsub:get_subscriptions. The proper fix means not hacking node plugins
               %% into serving PEP but it's definitely a major change...
               Subs = [{?NS_USER_TUNA, <<"pending">>}, {?NS_USER_TUNA, <<"pending">>}],
-              pubsub_tools:retrieve_user_subscriptions(Bob, NodeAddr, [{expected_result, Subs}]),
+              pubsub_tools:get_user_subscriptions(Bob, NodeAddr, [{expected_result, Subs}]),
 
               pubsub_tools:submit_subscription_response(Alice, BobsRequest, PepNode, true, []),
               pubsub_tools:receive_subscription_notification(Bob, <<"subscribed">>, PepNode, []),

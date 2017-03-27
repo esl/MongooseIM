@@ -15,25 +15,32 @@
 -include_lib("exml/include/exml_stream.hrl").
 
 %% Send request, receive (optional) response
--export([create_node/3,
+-export([
+         discover_nodes/3,
+
+         create_node/3,
          delete_node/3,
-         request_configuration/3,
-         configure_node/4,
+
+         get_configuration/3,
+         set_configuration/4,
+
          get_affiliations/3,
          set_affiliations/4,
+
+         publish/4,
+         retract_item/4,
+         get_all_items/3,
+         purge_all_items/3,
+
          subscribe/3,
          unsubscribe/3,
-         publish/4,
-         retract_item/3,
-         request_all_items/3,
-         purge_all_items/3,
-         retrieve_user_subscriptions/3,
-         retrieve_node_subscriptions/3,
+         get_user_subscriptions/3,
+         get_node_subscriptions/3,
          submit_subscription_response/5,
-         request_pending_subscriptions/3,
-         request_pending_subscriptions/4,
-         modify_node_subscriptions/4,
-         discover_nodes/3]).
+         get_pending_subscriptions/3,
+         get_pending_subscriptions/4,
+         modify_node_subscriptions/4
+        ]).
 
 %% Receive notification or response
 -export([receive_item_notification/4,
@@ -45,10 +52,31 @@
          receive_unsubscribe_response/3]).
 
 %%-----------------------------------------------------------------------------
-%% API: pubsub tools
+%% Request functions with (optional) built-in response handlers
 %%-----------------------------------------------------------------------------
 
-%% Send request, receive (optional) response
+%% ------------------------ disco --------------------------------
+
+discover_nodes(User, {NodeAddr, NodeName}, Options) ->
+    %% discover child nodes
+    Id = id(User, {NodeAddr, NodeName}, <<"disco_children">>),
+    Request = escalus_pubsub_stanza:discover_nodes(User, Id, {NodeAddr, NodeName}),
+    send_request_and_receive_response(
+      User, Request, Id, Options,
+      fun(Response, ExpectedResult) ->
+              check_node_discovery_response(Response, {NodeAddr, NodeName}, ExpectedResult)
+      end);
+discover_nodes(User, NodeAddr, Options) ->
+    %% discover top-level nodes
+    Id = id(User, {NodeAddr, <<>>}, <<"disco_nodes">>),
+    Request = escalus_pubsub_stanza:discover_nodes(User, Id, NodeAddr),
+    send_request_and_receive_response(
+      User, Request, Id, Options,
+      fun(Response, ExpectedResult) ->
+              check_node_discovery_response(Response, {NodeAddr, undefined}, ExpectedResult)
+      end).
+
+%% ------------------------ create & delete --------------------------------
 
 create_node(User, Node, Options) ->
     Id = id(User, Node, <<"create_node">>),
@@ -75,25 +103,62 @@ delete_node(User, Node, Options) ->
     Request = escalus_pubsub_stanza:delete_node(User, Id, Node),
     send_request_and_receive_response(User, Request, Id, Options).
 
-request_configuration(User, Node, Options) ->
+%% ------------------------ config --------------------------------
+
+get_configuration(User, Node, Options) ->
     Id = id(User, Node, <<"get_config">>),
-    Request = escalus_pubsub_stanza:request_configuration(User, Id, Node),
+    Request = escalus_pubsub_stanza:get_configuration(User, Id, Node),
     decode_config_form(send_request_and_receive_response(User, Request, Id, Options)).
 
-configure_node(User, Node, Config, Options) ->
-    Id = id(User, Node, <<"configure_node">>),
-    Request = escalus_pubsub_stanza:configure_node(User, Id, Node, Config),
+set_configuration(User, Node, Config, Options) ->
+    Id = id(User, Node, <<"set_config">>),
+    Request = escalus_pubsub_stanza:set_configuration(User, Id, Node, Config),
     send_request_and_receive_response(User, Request, Id, Options).
 
+%% ------------------------ affiliations --------------------------------
+
 get_affiliations(User, Node, Options) ->
-    Id = id(User, Node, <<"get_config">>),
-    Request = escalus_pubsub_stanza:request_affiliations(User, Id, Node),
+    Id = id(User, Node, <<"get_affs">>),
+    Request = escalus_pubsub_stanza:get_affiliations(User, Id, Node),
     decode_affiliations(send_request_and_receive_response(User, Request, Id, Options)).
 
 set_affiliations(User, Node, AffChange, Options) ->
-    Id = id(User, Node, <<"set_affiliations">>),
+    Id = id(User, Node, <<"set_affs">>),
     Request = escalus_pubsub_stanza:set_affiliations(User, Id, Node, AffChange),
     send_request_and_receive_response(User, Request, Id, Options).
+
+%% ------------------------ publishing & items --------------------------------
+
+publish(User, ItemId, Node, Options) ->
+    Id = id(User, Node, <<"publish">>),
+    Request = case proplists:get_value(with_payload, Options, true) of
+                  true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
+                  false -> escalus_pubsub_stanza:publish(User, Id, Node)
+              end,
+    send_request_and_receive_response(User, Request, Id, Options).
+
+retract_item(User, Node, ItemId, Options) ->
+    Id = id(User, Node, <<"retract">>),
+    Request = escalus_pubsub_stanza:retract(User, Id, Node, ItemId),
+    send_request_and_receive_response(User, Request, Id, Options).
+
+get_all_items(User, {_, NodeName} = Node, Options) ->
+    Id = id(User, Node, <<"items">>),
+    Request = escalus_pubsub_stanza:get_all_items(User, Id, Node),
+    send_request_and_receive_response(
+      User, Request, Id, Options,
+      fun(Response, ExpectedResult) ->
+              Items = exml_query:path(Response, [{element, <<"pubsub">>},
+                                                 {element, <<"items">>}]),
+              check_items(Items, ExpectedResult, NodeName, true)
+      end).
+
+purge_all_items(User, Node, Options) ->
+    Id = id(User, Node, <<"purge">>),
+    Request = escalus_pubsub_stanza:purge_all_items(User, Id, Node),
+    send_request_and_receive_response(User, Request, Id, Options).
+
+%% ------------------------ subscriptions --------------------------------
 
 subscribe(User, Node, Options) ->
     Jid = jid(User, proplists:get_value(jid_type, Options, full)),
@@ -112,47 +177,18 @@ unsubscribe(User, Node, Options) ->
     Request = escalus_pubsub_stanza:unsubscribe(Jid, Id, Node),
     send_request_and_receive_response(User, Request, Id, Options).
 
-publish(User, ItemId, Node, Options) ->
-    Id = id(User, Node, <<"publish">>),
-    Request = case proplists:get_value(with_item, Options, true) of
-                  true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
-                  false -> escalus_pubsub_stanza:publish(User, Id, Node)
-              end,
-    send_request_and_receive_response(User, Request, Id, Options).
-
-retract_item(User, Node, ItemId) ->
-    Id = id(User, Node, <<"retract">>),
-    Request = escalus_pubsub_stanza:retract(User, Id, Node, ItemId),
-    send_request_and_receive_response(User, Request, Id, []).
-
-request_all_items(User, {_, NodeName} = Node, Options) ->
-    Id = id(User, Node, <<"items">>),
-    Request = escalus_pubsub_stanza:request_all_items(User, Id, Node),
-    send_request_and_receive_response(
-      User, Request, Id, Options,
-      fun(Response, ExpectedResult) ->
-              Items = exml_query:path(Response, [{element, <<"pubsub">>},
-                                                 {element, <<"items">>}]),
-              check_items(Items, ExpectedResult, NodeName, true)
-      end).
-
-purge_all_items(User, Node, Options) ->
-    Id = id(User, Node, <<"purge">>),
-    Request = escalus_pubsub_stanza:purge_all_items(User, Id, Node),
-    send_request_and_receive_response(User, Request, Id, Options).
-
-retrieve_user_subscriptions(User, NodeAddr, Options) ->
+get_user_subscriptions(User, NodeAddr, Options) ->
     Id = id(User, {NodeAddr, <<>>}, <<"user_subscriptions">>),
-    Request = escalus_pubsub_stanza:retrieve_user_subscriptions(User, Id, NodeAddr),
+    Request = escalus_pubsub_stanza:get_user_subscriptions(User, Id, NodeAddr),
     send_request_and_receive_response(
       User, Request, Id, Options,
       fun(Response, ExpectedResult) ->
               check_user_subscriptions_response(User, Response, ExpectedResult)
       end).
 
-retrieve_node_subscriptions(User, Node, Options) ->
+get_node_subscriptions(User, Node, Options) ->
     Id = id(User, Node, <<"node_subscriptions">>),
-    Request = escalus_pubsub_stanza:retrieve_node_subscriptions(User, Id, Node),
+    Request = escalus_pubsub_stanza:get_node_subscriptions(User, Id, Node),
     send_request_and_receive_response(
       User, Request, Id, Options,
       fun(Response, ExpectedResult) ->
@@ -163,17 +199,17 @@ submit_subscription_response(User, {MsgId, SubForm}, Node, Allow, Options) ->
     Key = <<"pubsub#allow">>,
     NewSubForm = lists:keyreplace(Key, 1, SubForm, {Key, <<"boolean">>, bool2bin(Allow)}),
     Request = escalus_pubsub_stanza:submit_subscription_response(User, MsgId, Node, NewSubForm),
-    send_request_and_receive_response(User, Request, MsgId, [{receive_response, false} | Options]).
+    send_request_and_receive_response(User, Request, MsgId, Options ++ [{receive_response, false}]).
 
-request_pending_subscriptions(User, Node, Options) ->
+get_pending_subscriptions(User, Node, Options) ->
     Id = id(User, Node, <<"request_pending_subscriptions">>),
-    Request = escalus_pubsub_stanza:request_pending_subscriptions(User, Id, Node),
+    Request = escalus_pubsub_stanza:get_pending_subscriptions(User, Id, Node),
     send_request_and_receive_response(User, Request, Id, Options),
     Request.
 
-request_pending_subscriptions(User, NodesAddr, NodeNames, Options) ->
-    Id = id(User, {<<>>, <<>>}, <<"request_pending_subscriptions">>),
-    Request = escalus_pubsub_stanza:request_pending_subscriptions(User, Id, NodesAddr),
+get_pending_subscriptions(User, NodesAddr, NodeNames, Options) ->
+    Id = id(User, {<<>>, <<>>}, <<"get_pending_subscriptions">>),
+    Request = escalus_pubsub_stanza:get_pending_subscriptions(User, Id, NodesAddr),
     Response = send_request_and_receive_response(User, Request, Id, Options),
     check_pending_subscriptions(Response, NodeNames).
 
@@ -183,26 +219,9 @@ modify_node_subscriptions(User, ModifiedSubscriptions, Node, Options) ->
     Request = escalus_pubsub_stanza:set_subscriptions(User, Id, Subs, Node),
     send_request_and_receive_response(User, Request, Id, Options).
 
-discover_nodes(User, {NodeAddr, NodeName}, Options) ->
-    %% discover child nodes
-    Id = id(User, {NodeAddr, NodeName}, <<"disco_children">>),
-    Request = escalus_pubsub_stanza:discover_nodes(User, Id, {NodeAddr, NodeName}),
-    send_request_and_receive_response(
-      User, Request, Id, Options,
-      fun(Response, ExpectedResult) ->
-              check_node_discovery_response(Response, {NodeAddr, NodeName}, ExpectedResult)
-      end);
-discover_nodes(User, NodeAddr, Options) ->
-    %% discover top-level nodes
-    Id = id(User, {NodeAddr, <<>>}, <<"disco_nodes">>),
-    Request = escalus_pubsub_stanza:discover_nodes(User, Id, NodeAddr),
-    send_request_and_receive_response(
-      User, Request, Id, Options,
-      fun(Response, ExpectedResult) ->
-              check_node_discovery_response(Response, {NodeAddr, undefined}, ExpectedResult)
-      end).
-
-%% Receive notification or response
+%%-----------------------------------------------------------------------------
+%% Receive functions for notifications and responses
+%%-----------------------------------------------------------------------------
 
 receive_item_notification(User, ItemId, {NodeAddr, NodeName}, Options) ->
     Stanza = receive_notification(User, NodeAddr, Options),
