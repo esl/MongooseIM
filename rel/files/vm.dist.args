@@ -1,0 +1,20 @@
+## Define what port range the Erlang VM should
+## listen on for Distributed Erlang connectivity,
+## aka communication within an Erlang cluster.
+## By default a random port in the ephemeral port range is used.
+## If you want to open specific ports on your firewall,
+## you have to explicitly set (uncomment) these ports here, too.
+#-kernel inet_dist_listen_min 30000
+#-kernel inet_dist_listen_max 30100
+
+## Use TLS for connections between Erlang cluster members.
+## Don't forget to override the paths to point to your certificate(s) and key(s)!
+## Once a connection is established, Erlang doesn't differentiate between
+## a client and a server - the same certs/keys can be used on both sides.
+#-proto_dist inet_tls
+#-ssl_dist_opt server_certfile   {{output_dir}}/priv/ssl/fake_cert.pem client_certfile   {{output_dir}}/priv/ssl/fake_cert.pem
+#              server_keyfile    {{output_dir}}/priv/ssl/fake_key.pem  client_keyfile    {{output_dir}}/priv/ssl/fake_key.pem
+#              server_cacertfile {{output_dir}}/priv/ssl/cacert.pem    client_cacertfile {{output_dir}}/priv/ssl/cacert.pem
+#              client_verify     verify_peer
+#              server_verify     verify_peer
+#              server_fail_if_no_peer_cert true

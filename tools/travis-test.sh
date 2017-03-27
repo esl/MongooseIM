@@ -182,6 +182,15 @@ run_tests() {
   exit ${RESULT}
 }
 
+enable_tls_dist () {
+  for node in "$MIM1" "$MIM2" "$MIM3" "$FED1"; do
+    # Reenable commented out TLS dist options,
+    # i.e. remove the single leading comment character on lines
+    # commented out with just a single comment character.
+    $SED -i -e 's/^#\([^#]\)/\1/' "$node"/etc/vm.dist.args
+  done
+}
+
 if [ $PRESET == "dialyzer_only" ]; then
   tools/print-dots.sh start
   ./rebar3 dialyzer
@@ -189,6 +198,7 @@ if [ $PRESET == "dialyzer_only" ]; then
   tools/print-dots.sh stop
   exit ${RESULT}
 else
+  [ x"$TLS_DIST" == xyes ] && enable_tls_dist
   run_tests
 fi
 

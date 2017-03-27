@@ -137,7 +137,7 @@ case "$1" in
         BINDIR=$ROOTDIR/erts-$ERTS_VSN/bin
         EMU=beam
         PROGNAME=`echo $0 | sed 's/.*\\///'`
-        CMD="$BINDIR/erlexec -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE -embedded -config $RUNNER_ETC_DIR/app.config -args_file $RUNNER_ETC_DIR/vm.args -- ${1+"$@"}"
+        CMD="$BINDIR/erlexec -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE -embedded -config $RUNNER_ETC_DIR/app.config -args_file $RUNNER_ETC_DIR/vm.args -args_file $RUNNER_ETC_DIR/vm.dist.args -- ${1+"$@"}"
         export EMU
         export ROOTDIR
         export BINDIR
@@ -178,7 +178,7 @@ case "$1" in
         ROOTDIR=$RUNNER_BASE_DIR
         BINDIR=$ROOTDIR/erts-$ERTS_VSN/bin
         PROGNAME=`echo $0 | sed 's/.*\\///'`
-        CMD="$BINDIR/erl $NAME debug-$TTY-$NODE $COOKIE_ARG -remsh $NODE -hidden"
+        CMD="$BINDIR/erl $NAME debug-$TTY-$NODE $COOKIE_ARG -remsh $NODE -hidden -args_file $RUNNER_ETC_DIR/vm.dist.args"
 
         # Log the startup
         logger -t "$SCRIPT[$$]" "Starting up"
@@ -199,7 +199,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version|join_cluster|leave_cluster}"
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version}"
         exit 1
         ;;
 esac

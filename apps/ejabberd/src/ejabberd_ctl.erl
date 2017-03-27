@@ -151,6 +151,7 @@ process(["status"]) ->
                                  {provided_status, ProvidedStatus},
                                  {mongoose_status, MongooseStatus},
                                  {os_pid, os:getpid()}, get_uptime(),
+                                 {dist_proto, get_dist_proto()},
                                  {logs, get_log_files()}])]),
     case MongooseStatus of
         not_running -> ?STATUS_ERROR;
@@ -507,7 +508,7 @@ get_list_ctls() ->
 
 format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
                {mongoose_status, MS}, {os_pid, OSPid}, {uptime, UptimeHMS},
-               {logs, LogFiles}]) ->
+               {dist_proto, DistProto}, {logs, LogFiles}]) ->
     ( ["MongooseIM node ", ?a2l(Node), ":\n",
        "    operating system pid: ", OSPid, "\n",
        "    Erlang VM status: ", ?a2l(IS), " (of: starting | started | stopping)\n",
@@ -516,7 +517,8 @@ format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
                           {running, App, Version} -> [Version, " (as ", ?a2l(App), ")"];
                           not_running -> "unavailable - neither ejabberd nor mongooseim is running"
                         end, "\n",
-       "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS), "\n"] ++
+       "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS), "\n",
+       "    distribution protocol: ", DistProto, "\n"] ++
       ["    logs: none - maybe enable logging to a file in app.config?\n" || LogFiles == [] ] ++
       ["    logs:\n" || LogFiles /= [] ] ++ [
       ["        ", LogFile, "\n"] || LogFile <- LogFiles ] ).
@@ -919,6 +921,13 @@ get_uptime() ->
     {MilliSeconds, _} = erlang:statistics(wall_clock),
     {D, {H, M, S}} = calendar:seconds_to_daystime(MilliSeconds div 1000),
     {uptime, [D, H, M, S]}.
+
+get_dist_proto() ->
+    %% See kernel/src/net_kernel.erl
+    case init:get_argument(proto_dist) of
+        {ok, [Proto]} -> Proto;
+        _ -> "inet_tcp"
+    end.
 
 %%-----------------------------
 %% Lager specific helpers
