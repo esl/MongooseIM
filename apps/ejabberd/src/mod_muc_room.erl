@@ -2323,7 +2323,7 @@ send_existing_presences(ToJID, StateData) ->
         end, dict:to_list(StateData#state.users)).
 
 -spec send_existing_presence({ejabberd:simple_jid(), mod_muc_room_user()}, mod_muc:role(),
-                             jid(), state()) -> ok.
+                             jid(), state()) -> mongoose_acc:t().
 send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
                                     role = FromRole, last_presence = Presence}},
                        Role, RealToJID, StateData) ->
