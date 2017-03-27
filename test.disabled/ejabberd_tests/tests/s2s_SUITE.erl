@@ -164,7 +164,7 @@ end_per_testcase(CaseName, Config) ->
 %%%===================================================================
 
 simple_message(Config) ->
-    escalus:story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
+    escalus:fresh_story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
 
         %% User on the main server sends a message to a user on a federated server
         escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
@@ -192,7 +192,7 @@ timeout_waiting_for_message(Config) ->
     end.
 
 nonexistent_user(Config) ->
-    escalus:story(Config, [{alice, 1}, {alice2, 1}], fun(Alice1, Alice2) ->
+    escalus:fresh_story(Config, [{alice, 1}, {alice2, 1}], fun(Alice1, Alice2) ->
 
         %% Alice@localhost1 sends message to Xyz@localhost2
         RemoteServer = escalus_client:server(Alice2),
@@ -207,7 +207,7 @@ nonexistent_user(Config) ->
     end).
 
 unknown_domain(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice1) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice1) ->
 
         %% Alice@localhost1 sends message to Xyz@localhost3
         escalus:send(Alice1, escalus_stanza:chat_to(
@@ -221,7 +221,7 @@ unknown_domain(Config) ->
     end).
 
 nonascii_addr(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob2, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob2, 1}], fun(Alice, Bob) ->
 
         %% Bob@localhost2 sends message to Alice@localhost1
         escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Cześć Alice!">>)),
