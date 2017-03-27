@@ -4,21 +4,21 @@
 
 ### Modules
 
-MongooseIM is basically a huge router, that comes with a large set of modules. These modules modify and extend the behaviour and features of MongooseIM. Sysadmins and DevOps can configure these modules and potentially enable them. A wide range of modules is available, such as authentication, privacy, storage, backend integration, mobile optimisations... See '[Extension Modules](../advanced-configuration/Modules.md)' for more info.
+At its core MongooseIM is a huge message router you can customise to fit your system's needs. You can choose and enable behaviours and functionalities by configuring any of the available modules. A wide range of options includes authentication, privacy, storage, backend integration and mobile optimisations. See '[Extension Modules](../advanced-configuration/Modules.md)' for a full list.
 
 ### Databases
 
-Remember that MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
+MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
 
 Please refer to '[Database Backends](../advanced-configuration/database-backends-configuration.md)' doc for more configuration information.
 
 #### Transient databases
 
-Mnesia will run on the same nodes as MongooseIM. Corollary: each MongooseIM node host has a Mnesia node.
+In the MongooseIM architecture each MongooseIM node host has an accompanying Mnesia node. 
 
-Redis will be a separate cluster, not using the same nodes as MongooseIM.
+Redis on the other hand forms a separate cluster and does not utilise MongooseIM nodes. 
 
-No need to backup here, since the transient data naturally rebuilds as clients reconnect massively.
+There is no need to set up any backups for transient data since it naturally rebuilds as clients reconnect massively.
 
 #### Persistant databases
 
@@ -38,9 +38,9 @@ Backups should be regular, and tested.
 
 ### Frontend
 
-Native clients, on platforms such as Android, iOS, Windows, Linux, macOS, will preferrably use a plain XMPP over TCP connections.
+Native clients on platforms such as Android, iOS, Windows, Linux, macOS, will preferrably use a plain XMPP over TCP connections.
 
-Web clients will preferrably use XMPP over websockets, or the now less relevant XMPP over BOSH (using long-lived HTTP connections, more and more used as fallback) because web clients cannot use TCP connections.
+Since web clients cannot use TCP connections, they will preferrably use XMPP over websockets, or the now less relevant XMPP over BOSH (using long-lived HTTP connections, more and more used as fallback).
 
 Any client could use the client REST API, which is using HTTP request/responses.
 
@@ -48,21 +48,21 @@ All these client connections will hit a frontend load balancer before reaching t
 
 ### Backend
 
-MongooseIM can communicate both ways with other backend services in the datacenter infrastructure.
+MongooseIM supports bilateral communication with other backend services in the datacenter infrastructure.
 
-The MongooseIM REST API is available for control/management of MongooseIM's operations as well as functional aspects.
+MongooseIM REST API is available for control/management of MongooseIM's operations as well as the functional aspects.
 
-An HTTP notification enables the forwarding of events to any other external HTTP service.
+An HTTP notification enables forwarding of the events to any other external HTTP service.
 
 ### Management and monitoring
 
 WombatOAM enables the monitoring and management of MongooseIM clusters, as well as Riak KV, RabbitMQ, and any other Erlang and Elixir based system.
 
-### ICE server (STUN/TURN)
+### MongooseICE (STUN/TURN)
 
 Contact us.
 
-### Mobile Push Notifications (APNS, GCM)
+### MongoosePush(APNS, GCM)
 
 Contact us.
 
