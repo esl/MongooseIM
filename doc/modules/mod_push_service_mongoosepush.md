@@ -23,10 +23,10 @@ supported
 
 ```Erlang
 {http_connections, [{mongoose_push_http,
-    [{server, "https:localhost:8443"}]
+    [{server, "https://localhost:8443"}]
 }]}.
 
-{mod_push_service_mongoose_push, [
+{mod_push_service_mongoosepush, [
         {pool_name, mongoose_push_http}
         {api_version, "v1"}
 ]}.
