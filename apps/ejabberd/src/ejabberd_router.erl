@@ -116,14 +116,13 @@ route(From, To, Acc, El) ->
 -spec route_error(From   :: ejabberd:jid(),
                   To     :: ejabberd:jid(),
                   ErrPacket :: jlib:xmlel(),
-                  OrigPacket :: jlib:xmlel()) -> ok.
-route_error(From, To, ErrPacket, OrigPacket) ->
-    #xmlel{attrs = Attrs} = OrigPacket,
-    case <<"error">> == xml:get_attr_s(<<"type">>, Attrs) of
+                  Acc :: mongoose_acc:t()) -> mongoose_acc:t().
+route_error(From, To, ErrPacket, Acc) ->
+    case <<"error">> == mongoose_acc:get(type, Acc) of
         false ->
-            route(From, To, ErrPacket);
+            route(From, To, ErrPacket, Acc);
         true ->
-            ok
+            Acc
     end.
 
 -spec register_components([Domain :: domain()],
