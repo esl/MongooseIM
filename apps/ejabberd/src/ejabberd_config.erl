@@ -154,7 +154,7 @@ start() ->
     Config = get_ejabberd_config_path(),
     ejabberd_config:load_file(Config),
     %% This start time is used by mod_last:
-    add_local_option(node_start, now()),
+    add_local_option(node_start, p1_time_compat:timestamp()),
     ok.
 
 

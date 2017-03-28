@@ -376,11 +376,11 @@ store_packet(From, To = #jid{luser = LUser, lserver = LServer},
     TimeStamp =
     case exml_query:subelement(Packet, <<"delay">>) of
         undefined ->
-            now();
+            p1_time_compat:timestamp();
         #xmlel{name = <<"delay">>} = DelayEl ->
             case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
                 <<"">> ->
-                    now();
+                    p1_time_compat:timestamp();
                 Stamp ->
                     jlib:datetime_binary_to_timestamp(Stamp)
             end

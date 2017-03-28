@@ -346,8 +346,7 @@ store_session(Sid, Socket) ->
 
 -spec make_sid() -> binary().
 make_sid() ->
-    %% TODO: now() skews system timer and ref() is unique enough as is
-    sha:sha1_hex(term_to_binary({now(), make_ref()})).
+    sha:sha1_hex(term_to_binary(make_ref())).
 
 %%--------------------------------------------------------------------
 %% HTTP errors

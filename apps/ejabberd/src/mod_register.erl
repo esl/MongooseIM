@@ -355,12 +355,12 @@ check_timeout(undefined) ->
     true;
 check_timeout(Source) ->
     Timeout = case ejabberd_config:get_local_option(registration_timeout) of
-                  undefined ->  600;
+                  undefined -> 600;
                   TO -> TO
               end,
-    if
-        is_integer(Timeout) ->
-            {MSec, Sec, _USec} = now(),
+    case is_integer(Timeout) of
+        true ->
+            {MSec, Sec, _USec} = p1_time_compat:timestamp(),
             Priority = -(MSec * 1000000 + Sec),
             CleanPriority = Priority + Timeout,
             F = fun() ->
@@ -391,7 +391,7 @@ check_timeout(Source) ->
                                [Reason]),
                     true
             end;
-        true ->
+        false ->
             true
     end.
 

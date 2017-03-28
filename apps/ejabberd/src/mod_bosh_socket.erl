@@ -549,10 +549,8 @@ maybe_trim_cache(Ack, S) ->
 schedule_report(Ack, #state{sent = Sent} = S) ->
     ReportRid = Ack + 1,
     try
-        {resp,
-         {ReportRid, TimeSent, _}} = {resp, lists:keyfind(ReportRid, 1, Sent)},
-        ElapsedTimeMillis = erlang:round(timer:now_diff(now(), TimeSent)
-                                         / 1000),
+        {ReportRid, TimeSent, _} = lists:keyfind(ReportRid, 1, Sent),
+        ElapsedTimeMillis = p1_time_compat:monotonic_time(milli_seconds) - TimeSent,
         Report = {ReportRid, ElapsedTimeMillis},
         case S#state.report of
             false ->
@@ -667,7 +665,7 @@ send_to_handler({_, Pid}, #xmlel{name = <<"body">>} = Wrapped, State) ->
     send_wrapped_to_handler(Pid, Wrapped, State);
 send_to_handler({Rid, Pid}, Data, State) ->
     {Wrapped, NS} = bosh_wrap(Data, Rid, State),
-    NS2 = cache_response({Rid, now(), Wrapped}, NS),
+    NS2 = cache_response({Rid, p1_time_compat:monotonic_time(milli_seconds), Wrapped}, NS),
     send_wrapped_to_handler(Pid, Wrapped, NS2).
 
 

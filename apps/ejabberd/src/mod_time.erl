@@ -44,7 +44,7 @@ process_local_iq(_From, _To, #iq{type = get} = IQ) ->
 
 %% Internals
 calculate_time() ->
-    Now = now(),
+    Now = p1_time_compat:timestamp(),
     Now_universal = calendar:now_to_universal_time(Now),
     Now_local = calendar:now_to_local_time(Now),
     {UTC_time, UTC_diff} = jlib:timestamp_to_iso(Now_universal, utc),
