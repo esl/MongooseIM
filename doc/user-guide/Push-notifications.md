@@ -184,7 +184,7 @@ Disabling push notifications is very simple. Just send the following stanza to y
 
 Here you may skip the `node='princely_musings'` to globally disable push notifications on all nodes that are registered from you `JID`. This may be used to disbale push notifications on all your devices.
 
-[mod_push]: ../modules/mod_pubsub.md
+[mod_push]: ../modules/mod_push.md
 [mod_pubsub]: ../modules/mod_push.md
 [mod_push_service_mongoosepush]: ../modules/mod_push_service_mongoosepush.md
 [MongoosePush]: htps://github.com/esl/MongoosePush
