@@ -10,7 +10,7 @@ Since you've gotten this far, we assume you're already familiar with Erlang synt
 
 # ejabberd.cfg
 
-This file consists of multiple erlang tuples terminated with a period. To configure it go to `[MongooseIM root]/rel/files/`.
+This file consists of multiple erlang tuples terminated with a period. To configure it, go to `[MongooseIM root]/rel/files/`.
 
 The tuple order is important, unless the no `host_config` option is set. Retaining the default layout is recommended so that the experienced MongooseIM users can smoothly traverse the file.
 
