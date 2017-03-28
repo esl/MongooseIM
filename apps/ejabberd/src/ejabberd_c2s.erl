@@ -1265,8 +1265,8 @@ process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
             preprocess_and_ship(NewAcc, From, To, NewPacket, StateName, NewState);
         {allow, NewAcc, NewState} ->
             preprocess_and_ship(NewAcc, From, To, Packet, StateName, NewState);
-        {Reason, _NewAcc, NewState} ->
-            response_negative(Name, Reason, From, To, Packet),
+        {Reason, NewAcc, NewState} ->
+            response_negative(Name, Reason, From, To, NewAcc),
             fsm_next_state(StateName, NewState)
     end.
 
@@ -1283,27 +1283,27 @@ preprocess_and_ship(Acc, From, To, Packet, StateName, StateData) ->
     % should we push accumulator further, perhaps as far as send_element?
     ship_to_local_user({From, To, FixedPacket}, StateData, StateName).
 
-response_negative(<<"iq">>, forbidden, From, To, Packet) ->
-    send_back_error(?ERR_FORBIDDEN, From, To, Packet);
-response_negative(<<"iq">>, deny, From, To, Packet) ->
-    IqType = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
-    response_iq_deny(IqType, From, To, Packet);
-response_negative(<<"message">>, deny, From, To, Packet) ->
-    mod_amp:check_packet(Packet, From, delivery_failed),
-    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Packet);
-response_negative(_, _, _, _, _) ->
-    ok.
+response_negative(<<"iq">>, forbidden, From, To, Acc) ->
+    send_back_error(?ERR_FORBIDDEN, From, To, Acc);
+response_negative(<<"iq">>, deny, From, To, Acc) ->
+    IqType = mongoose_acc:get(type, Acc),
+    response_iq_deny(IqType, From, To, Acc);
+response_negative(<<"message">>, deny, From, To, Acc) ->
+    mod_amp:check_packet(Acc, From, delivery_failed),
+    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Acc);
+response_negative(_, _, _, _, Acc) ->
+    Acc.
 
-response_iq_deny(<<"get">>, From, To, Packet) ->
-    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Packet);
-response_iq_deny(<<"set">>, From, To, Packet) ->
-    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Packet);
-response_iq_deny(_, _, _, _) ->
-    ok.
+response_iq_deny(<<"get">>, From, To, Acc) ->
+    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Acc);
+response_iq_deny(<<"set">>, From, To, Acc) ->
+    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Acc);
+response_iq_deny(_, _, _, Acc) ->
+    Acc.
 
-send_back_error(Etype, From, To, Packet) ->
-    Err = jlib:make_error_reply(Packet, Etype),
-    ejabberd_router:route(To, From, Err).
+send_back_error(Etype, From, To, Acc) ->
+    Err = jlib:make_error_reply(Acc, Etype),
+    ejabberd_router:route(To, From, Acc, Err).
 
 handle_routed(<<"presence">>, From, To, Acc, StateData) ->
     handle_routed_presence(From, To, Acc, StateData);
@@ -1710,7 +1710,7 @@ send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
     % this is coming in, no rewrite yet
     {SendResult, BufferedStateData} =
         send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State),
-    mod_amp:check_packet(El, send_result_to_amp_event(SendResult)),
+    mod_amp:check_packet(El, result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
             case catch maybe_send_ack_request(BufferedStateData) of
@@ -1726,8 +1726,8 @@ send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
             maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
     end.
 
-send_result_to_amp_event(ok) -> delivered;
-send_result_to_amp_event(_) -> delivery_failed.
+result_to_amp_event(ok) -> delivered;
+result_to_amp_event(_) -> delivery_failed.
 
 send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
     SendResult = maybe_send_element_safe(State, Stanza),

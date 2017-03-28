@@ -386,8 +386,8 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 
-handle_info({route, From, To, Packet}, State) ->
-    case catch process_packet(From, To, Packet, State) of
+handle_info({route, From, To, Acc}, State) ->
+    case catch process_packet(From, To, Acc, State) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);
         _ ->
@@ -481,12 +481,12 @@ stop_supervisor(Host) ->
 
 -spec process_packet(From :: jid(),
                      To :: ejabberd:simple_jid() | ejabberd:jid(),
-                     Packet :: any(),
-                     State :: state()) -> ok | pid().
-process_packet(From, To, PacketOrAcc, #state{
+                     Acc :: mongoose_acc:t(),
+                     State :: state()) -> ok | mongoose_acc:t().
+process_packet(From, To, Acc, #state{
                                     access = {AccessRoute, _, _, _},
                                     server_host = ServerHost} = State) ->
-    Packet = mongoose_acc:to_element(PacketOrAcc),
+    Packet = mongoose_acc:get(element, Acc),
     case acl:match_rule(ServerHost, AccessRoute, From) of
         allow ->
             {Room, _, _} = jid:to_lower(To),
@@ -497,7 +497,7 @@ process_packet(From, To, PacketOrAcc, #state{
             ErrText = <<"Access denied by service policy">>,
             Err = jlib:make_error_reply(Packet,
                                         ?ERRT_FORBIDDEN(Lang, ErrText)),
-            ejabberd_router:route_error(To, From, Err, Packet)
+            ejabberd_router:route_error(To, From, Err, Acc)
     end.
 
 

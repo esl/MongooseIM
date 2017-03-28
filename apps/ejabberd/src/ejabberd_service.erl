@@ -369,7 +369,7 @@ handle_info({route, From, To, Acc}, StateName, StateData) ->
            send_text(StateData, Text);
         deny ->
             Err = jlib:make_error_reply(Packet, ?ERR_NOT_ALLOWED),
-            ejabberd_router:route_error(To, From, Err, Packet)
+            ejabberd_router:route_error(To, From, Err, Acc)
     end,
     {next_state, StateName, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
