@@ -1196,16 +1196,11 @@ handle_info({store_session_info, User, Server, Resource, KV, _FromPid}, StateNam
 handle_info(Info, StateName, StateData) ->
     handle_incoming_message(Info, StateName, StateData).
 
-convert_to_stanza(Acc) ->
-    % instead of this, we will pass on the accumulator, only replacing
-    % 'element' with 'to_send', if present
-    case mongoose_acc:is_acc(Acc) of
-        true ->
-            mongoose_acc:terminate(Acc, received, ?FILE, ?LINE);
-        false ->
-            ?ERROR_MSG("Hey, it should be accumulator here! ~p", [Acc]),
-            Acc
-    end.
+extract_payload(Acc) ->
+    % this will go away after broadcasting is rewritten
+    % there can be many types of a payload
+    true = mongoose_acc:is_acc(Acc),
+    mongoose_acc:terminate(Acc, received, ?FILE, ?LINE).
 
 %%% incoming messages
 handle_incoming_message({send_text, Text}, StateName, StateData) ->
@@ -1215,7 +1210,8 @@ handle_incoming_message({send_text, Text}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [Text]),
     fsm_next_state(StateName, StateData);
 handle_incoming_message({broadcast, Acc}, StateName, StateData) ->
-    Broadcast = convert_to_stanza(Acc),
+    %% this is probably the last thing to rewrite
+    Broadcast = extract_payload(Acc),
     ejabberd_hooks:run(c2s_loop_debug, [{broadcast, Broadcast}]),
     ?DEBUG("broadcast=~p", [Broadcast]),
     Res = handle_routed_broadcast(Broadcast, StateData),
@@ -1246,8 +1242,8 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
             ejabberd_router:route(From, To, FinalPacket),
             fsm_next_state(StateName, StateData)
     end;
-handle_incoming_message({broadcast, Type, From, Acc}, StateName, StateData) ->
-    Packet = convert_to_stanza(Acc),
+handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) ->
+    %% this version is used only by mod_pubsub, which does things the old way
     Recipients = ejabberd_hooks:run_fold(
         c2s_broadcast_recipients, StateData#state.server,
         [], [StateData#state.server, StateData, Type, From, Packet]),
@@ -1336,12 +1332,16 @@ handle_routed_iq(From, To, Acc, StateData) ->
                        Acc :: mongoose_acc:t(),
                        IQ :: invalid | not_iq | reply | ejabberd:iq(),
                        StateData :: state()) -> routing_result().
-handle_routed_iq(From, To, Acc, #iq{ xmlns = ?NS_LAST }, StateData) ->
+handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST }, StateData) ->
     %% TODO: Support for mod_last / XEP-0012. Can we move it to the respective module?
     %%   Thanks to add_iq_handler(ejabberd_sm, ...)?
-    HasFromSub = ( is_subscribed_to_my_presence(From, StateData)
-                   andalso is_privacy_allow(StateData, To, From,
-                                            #xmlel{name = <<"presence">>}, out) ),
+    {Acc, HasFromSub} = case is_subscribed_to_my_presence(From, StateData) of
+                             true ->
+                                 {A, R} = privacy_check_packet(Acc0, To, out, StateData),
+                                 {A, R == 'allow'};
+                             false ->
+                                 {Acc0, false}
+                         end,
     case HasFromSub of
         true ->
             {Acc1, Res} = privacy_check_packet(Acc, To, in, StateData),
@@ -1429,8 +1429,8 @@ handle_routed_presence(From, To, Acc, StateData) ->
                            true -> State;
                            false -> make_available_to(LFrom, LBFrom, State)
                        end,
-            process_presence_probe(From, To, NewState),
-            {probe, Acc, NewState};
+            Acc1 = process_presence_probe(From, To, Acc, NewState),
+            {probe, Acc1, NewState};
         <<"error">> ->
             NewA = gb_sets:del_element(jid:to_lower(From), State#state.pres_a),
             {allow, Acc, State#state{pres_a = NewA}};
@@ -1633,12 +1633,7 @@ send_element(#state{server = Server} = StateData, #xmlel{} = El) ->
     % used mostly in states other then session_established
     Acc = mongoose_acc:from_element(El),
     send_element(mongoose_acc:put(server, Server, Acc), El, StateData),
-    ok;
-send_element(Acc, StateData) ->
-    ?DEPRECATED,
-    ?ERROR_MSG("aaaaaaaaaaa: ~p~n", [aaaaaaaaaaa]),
-    El = mongoose_acc:get(to_send, Acc),
-    send_element(Acc, El,  StateData).
+    ok.
 
 -spec send_element(mongoose_acc:t(), xmlel(), state()) -> mongoose_acc:t() | ok.
 send_element(Acc, El,  #state{server = Server} = StateData) ->
@@ -1707,9 +1702,10 @@ send_trailer(StateData) ->
 
 
 send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
-    % this is coming in, no rewrite yet
+    % this is a very last stage, we already terminated accumulator
     {SendResult, BufferedStateData} =
-        send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State),
+        send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State), % to be removed
+    % if we have to check packet before sending we should do it much earlier, when it is still accumulator
     mod_amp:check_packet(El, result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
@@ -1793,13 +1789,14 @@ get_conn_type(StateData) ->
 
 -spec process_presence_probe(From :: ejabberd:simple_jid() | ejabberd:jid(),
                              To :: ejabberd:jid(),
-                             State :: state()) -> 'ok'.
-process_presence_probe(From, To, StateData) ->
+                             Acc :: mongoose_acc:t(),
+                             State :: state()) -> mongoose_acc:t().
+process_presence_probe(From, To, Acc, StateData) ->
     LFrom = jid:to_lower(From),
     LBareFrom = setelement(3, LFrom, <<>>),
     case StateData#state.pres_last of
         undefined ->
-            ok;
+            Acc;
         _ ->
             case {should_retransmit_last_presence(LFrom, LBareFrom, StateData),
                   specifically_visible_to(LFrom, StateData)} of
@@ -1809,34 +1806,37 @@ process_presence_probe(From, To, StateData) ->
                                StateData#state.pres_last,
                                %% To is the one sending the presence (the target of the probe)
                                [jlib:timestamp_to_xml(Timestamp, utc, To, <<>>)]),
-                    check_privacy_and_route_probe(StateData, From, To, Packet);
+                    check_privacy_and_route_probe(StateData, From, To, Acc, Packet);
                 {false, true} ->
-                    ejabberd_router:route(To, From, #xmlel{name = <<"presence">>});
+                    ejabberd_router:route(To, From, Acc, #xmlel{name = <<"presence">>});
                 _ ->
-                    ok
+                    Acc
             end
     end.
 
 -spec check_privacy_and_route_probe(StateData :: state(),
                                     From :: ejabberd:jid(),
                                     To :: ejabberd:jid(),
-                                    Packet :: exml:element()) -> any().
-check_privacy_and_route_probe(StateData, From, To, Packet) ->
-    case privacy_check_packet(StateData, To, From, Packet, out) of
+                                    Acc :: mongoose_acc:t(),
+                                    Packet :: exml:element()) -> mongoose_acc:t().
+check_privacy_and_route_probe(StateData, From, To, Acc, Packet) ->
+    {Acc1, Res} = privacy_check_packet(Acc, Packet, To, From, out, StateData),
+    case Res of
         allow ->
             Pid = element(2, StateData#state.sid),
-            ejabberd_hooks:run(presence_probe_hook,
+            Acc2 = ejabberd_hooks:run_fold(presence_probe_hook,
                                StateData#state.server,
+                                Acc1,
                                [From, To, Pid]),
             %% Don't route a presence probe to oneself
             case jid:are_equal(From, To) of
                 false ->
-                    ejabberd_router:route(To, From, Packet);
+                    ejabberd_router:route(To, From, Acc2, Packet);
                 true ->
-                    ok
+                    Acc2
             end;
         _ ->
-            ok
+            Acc1
     end.
 
 should_retransmit_last_presence(LFrom, LBareFrom,
@@ -2104,7 +2104,7 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
                            Packet :: jlib:xmlel(),
                            Dir :: 'in' | 'out') -> allow|deny|block.
 privacy_check_packet(StateData, From, To, #xmlel{} = Packet, Dir) ->
-    ?DEPRECATED,
+    ?DEPRECATED, % but triggered by routed brodcast
     Acc = mongoose_acc:from_element(Packet),
     Acc1 = mongoose_acc:put(from_jid, From, Acc),
     {_, Res} = privacy_check_packet(Acc1, To, Dir, StateData),
@@ -2122,20 +2122,20 @@ privacy_check_packet(Acc, To, Dir, StateData) ->
                                           To,
                                           Dir).
 
-
-%% @doc Check if privacy rules allow this delivery
--spec is_privacy_allow(StateData :: state(),
-                       From :: ejabberd:jid(),
-                       To :: ejabberd:jid(),
-                       Packet :: jlib:xmlel(),
-                       Dir :: 'in' | 'out') -> boolean().
-is_privacy_allow(StateData, From, To, Packet, Dir) ->
-    ?DEPRECATED,
-    case privacy_check_packet(StateData, From, To, Packet, Dir) of
-        allow -> true;
-        _ -> false
-    end.
-
+-spec privacy_check_packet(Acc :: mongoose_acc:t(),
+                           Packet :: xmlel(),
+                           From :: ejabberd:jid(),
+                           To :: ejabberd:jid(),
+                           Dir :: 'in' | 'out',
+                           StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
+privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
+    mongoose_privacy:privacy_check_packet({Acc, Packet},
+                                          StateData#state.server,
+                                          StateData#state.user,
+                                          StateData#state.privacy_list,
+                                          From,
+                                          To,
+                                          Dir).
 
 -spec presence_broadcast(Acc :: mongoose_acc:t(),
                          JIDSet :: jid_set(),
@@ -2351,9 +2351,15 @@ resend_offline_messages(Acc, StateData) ->
                                    Acc,
                                    [StateData#state.user, StateData#state.server]),
     Rs = mongoose_acc:get(offline_messages, Acc1, []),
-    [check_privacy_and_route_or_ignore(StateData, From, To, Packet, in)
-     || {route, From, To, #xmlel{} = Packet} <- Rs],
-    mongoose_acc:remove(offline_messages, Acc1). % they are gone from db backend and sent
+%%    [check_privacy_and_route_or_ignore(StateData, From, To, Packet, in)
+%%     || {route, From, To, #xmlel{} = Packet} <- Rs],
+    Acc2 = lists:foldl(
+                       fun({route, From, To, Packet}, A) ->
+                           check_privacy_and_route_or_ignore(A, StateData, From, To, Packet, in)
+                       end,
+                       Acc1,
+                       Rs),
+    mongoose_acc:remove(offline_messages, Acc2). % they are gone from db backend and sent
 
 
 -spec check_privacy_and_route_or_ignore(StateData :: state(),
@@ -2362,7 +2368,7 @@ resend_offline_messages(Acc, StateData) ->
                                         Packet :: exml:element(),
                                         Dir :: in | out) -> any().
 check_privacy_and_route_or_ignore(StateData, From, To, Packet, Dir) ->
-    ?DEPRECATED,
+    ?DEPRECATED, % but triggered by incoming roster change broadcast
     case privacy_check_packet(StateData, From, To, Packet, Dir) of
         allow -> ejabberd_router:route(From, To, Packet);
         _ -> ok
@@ -2577,9 +2583,12 @@ maybe_update_presence(StateData = #state{jid = JID, pres_f = Froms}, NewList) ->
 
 send_unavail_if_newly_blocked(StateData = #state{jid = JID},
                               ContactJID, NewList) ->
+    ?DEPRECATED, % but triggered by routed brodcast
     Packet = #xmlel{name = <<"presence">>,
                     attrs = [{<<"type">>, <<"unavailable">>}]},
-    OldResult = privacy_check_packet(StateData,
+    %% WARNING: we can not use accumulator to cache privacy check result - this is
+    %% the only place where the list to check against changes
+    OldResult = privacy_check_packet(StateData, % CHCK
                                      JID, ContactJID, Packet, out),
     NewResult = privacy_check_packet(StateData#state{privacy_list = NewList},
                                      JID, ContactJID, Packet, out),

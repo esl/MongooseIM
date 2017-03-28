@@ -51,7 +51,6 @@ dump(Acc) ->
     dump(Acc, lists:sort(maps:keys(Acc))).
 
 to_binary(#xmlel{} = Packet) ->
-    ?DEPRECATED,
     exml:to_binary(Packet);
 to_binary({broadcast, Payload}) ->
     case is_acc(Payload) of
@@ -121,7 +120,8 @@ update(Acc, M) ->
 
 -spec put(any(), any(), t()) -> t().
 put(from_jid, Val, Acc) ->
-    ?DEPRECATED,
+    % used only when we have to manually construct an acc (instead of calling from_element)
+    % namely: in c2s terminate, since it is not triggered by stanza, and in some deprecated functions
     A = maps:put(from_jid, Val, Acc),
     maps:put(from, jid:to_binary(Val), A);
 put(Key, Val, Acc) ->

@@ -128,6 +128,7 @@ start_link() ->
       Packet :: jlib:xmlel() | mongoose_acc:t()| ejabberd_c2s:broadcast(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
+    ?DEPRECATED, % used by MAM
 %%    ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
     route(From, To, mongoose_acc:from_element(Packet, From, To));
 route(From, To, {broadcast, Payload} = Packet) ->
@@ -148,6 +149,7 @@ route(From, To, {broadcast, Payload} = Packet) ->
         Acc -> Acc
     end;
 route(From, To, Acc) ->
+%%    true = mongoose_acc:is_acc(Acc),
     case (catch do_route(From, To, Acc)) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
