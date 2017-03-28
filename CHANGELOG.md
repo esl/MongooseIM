@@ -1,3 +1,46 @@
+# [2.1.0beta1] -  2017-03-28
+
+## Added
+- full text search in [XEP-0313: MAM](http://xmpp.org/extensions/xep-0313.html): #1136
+- push notifications
+    - as described in [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) #1178, #1209
+    - to Amazon SNS: #1149
+- integration with [Tide](http://tide.erlang-solutions.com/) Continous Load Testing
+- file size limits to [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html): #1171
+- support for version 0.3.0 of [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html): #1185
+- SQL prepared queries #1172, #1177
+- XMPP pipelining #1181
+- Erlang distribution over TLS #1228
+- JSON Web Token authentication #977
+
+## Chnanged
+
+- build system to [rebar3](http://www.rebar3.org/) #1033
+- hooks implementation
+    - all hooks have now fold semantic (returned value is passed from hendler to handler) #1149
+    - result from a hook run is passed between different hooks #1174, #1194, #1202, #1220
+- RDBMS pools configuration: #1217
+    - this is backward incompatible - requires change in config file
+- shapers implementation: #1213
+    - this lead to some race condition bug fixes
+
+## Fixed
+
+- handling of TLS options for S2S connections #1182
+- deadlock between `mod_muc` and `mod_muc_log` #1219
+- fix for uncleaned resumed sessions #1186
+
+## Other
+
+- tons of refactoring improving code quality and test coverage
+- [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222017-01-25..2017-03-28%22%20sort%3Acreated-asc%20)
+- [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222017-01-25..2017-03-28%22%20)
+
+
+Special thanks to our contributors: @astro, @aszlig
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2017-01-25&to=2017-03-28&type=c)
+
 # MongooseIM 2.0.1
 
 2017-01-24
