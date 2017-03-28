@@ -319,8 +319,9 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
                         {archived, replace_archived_elem(BareTo, MessID, Packet)}
                 end
         end,
-    PacketAfterAmp = mod_amp:check_packet(PacketAfterArchive, From, AmpEvent),
-    {From, To, Acc, PacketAfterAmp}.
+    Acc1 = mongoose_acc:put(element, PacketAfterArchive, Acc),
+    Acc2 = mod_amp:check_packet(Acc1, From, AmpEvent),
+    {From, To, Acc, mongoose_acc:get(element, Acc2)}.
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).

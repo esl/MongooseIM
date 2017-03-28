@@ -50,7 +50,7 @@ stop(Host) ->
 check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
     % it is called this way only from ejabberd_c2s:send_and_maybe_buffer_stanza/3, line 1666
     % maybe Paweł Chrząszcz knows why and can advise what to do about it
-    ?DEPRECATED,
+    ?DEPRECATED, % -> Paweł
     case xml:get_attr(<<"from">>, Attrs) of
         {value, From} ->
             check_packet(Packet, jid:from_binary(From), Event);
@@ -63,9 +63,10 @@ check_packet(Acc, Event) ->
 -spec check_packet(exml:element()|mongoose_acc:t(), jid(), amp_event()) ->
     exml:element() | mongoose_acc:t() | drop.
 check_packet(Packet = #xmlel{name = <<"message">>}, From, Event) ->
-    ?DEPRECATED,
+    ?DEPRECATED, % -> Paweł
     mongoose_acc:get(element, check_packet(mongoose_acc:from_element(Packet), From, Event));
 check_packet(Packet = #xmlel{}, _, _) ->
+    ?DEPRECATED, % -> Paweł
     Packet;
 check_packet(Acc, #jid{lserver = Host} = From, Event) ->
     case mongoose_acc:get(name, Acc) of
@@ -112,6 +113,8 @@ amp_check_packet(_, _, Acc, _, _) ->
     Acc.
 
 strip_amp_el_from_request(Packet) ->
+    % this will probably be removed - we have accumulator so we won't need anymore to store amp markers
+    % in stanza
     case amp:is_amp_request(Packet) of
         true -> amp:strip_amp_el(Packet);
         false -> Packet

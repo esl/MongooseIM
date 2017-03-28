@@ -39,6 +39,8 @@ privacy_check_packet(Acc, Server, User, PrivacyList, To, Dir) ->
     privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir).
 
 %% @doc check packet, store result in accumulator, return acc and result for quick check
+%% Acc can be either a single argument (an Accumulator) or a tuple of {Acc, Stanza}
+%% in the latter case name and type to check against privacy lists are taken from the Stanza
 -spec privacy_check_packet(Acc :: mongoose_acc:t() | {mongoose_acc:t(), jlib:xmlel()},
                            Server :: binary(),
                            User :: binary(),

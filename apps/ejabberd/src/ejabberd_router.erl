@@ -98,7 +98,8 @@ start_link() ->
     To     :: ejabberd:jid(),
     Packet :: mongoose_acc:t()|jlib:xmlel()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
-%%    ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
+    % ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
+    % (called by broadcasting)
     route(From, To, mongoose_acc:from_element(Packet, From, To));
 route(From, To, Acc) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
@@ -115,12 +116,12 @@ route(From, To, Acc, El) ->
 %% RFC3920 9.3.1
 -spec route_error(From   :: ejabberd:jid(),
                   To     :: ejabberd:jid(),
-                  ErrPacket :: jlib:xmlel(),
-                  Acc :: mongoose_acc:t()) -> mongoose_acc:t().
-route_error(From, To, ErrPacket, Acc) ->
+                  Acc :: mongoose_acc:t(),
+                  ErrPacket :: jlib:xmlel()) -> mongoose_acc:t().
+route_error(From, To, Acc, ErrPacket) ->
     case <<"error">> == mongoose_acc:get(type, Acc) of
         false ->
-            route(From, To, ErrPacket, Acc);
+            route(From, To, Acc, ErrPacket);
         true ->
             Acc
     end.
