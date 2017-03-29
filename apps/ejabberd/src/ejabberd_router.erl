@@ -462,10 +462,12 @@ route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
                                 M, Reason, mongoose_acc:to_binary(OrigPacketFiltered),
                                 erlang:get_stacktrace()]),
                     ?DEBUG("routing error", []),
-                    mongoose_acc:record_sending(NAcc, OrigFrom, OrigTo, OrigPacketFiltered, M, Reason);
+                    mongoose_acc:record_sending(NAcc, OrigFrom, OrigTo, OrigPacketFiltered,
+                                                M, Reason);
                 done ->
                     ?DEBUG("routing done", []),
-                    mongoose_acc:record_sending(NAcc, OrigFrom, OrigTo, OrigPacketFiltered, M, done);
+                    mongoose_acc:record_sending(NAcc, OrigFrom, OrigTo, OrigPacketFiltered,
+                                                M, done);
                 {From, To, NAcc1, Packet} ->
                     ?DEBUG("routing skipped", []),
                     route(From, To, NAcc1, Packet, Tail)

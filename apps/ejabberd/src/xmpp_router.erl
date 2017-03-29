@@ -23,17 +23,17 @@
     drop | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), xmlel()}.
 
 
--export([call_route/4, call_filter/4]).
+-export([call_route/5, call_filter/5]).
 
 -spec call_route(Module :: module(), From :: ejabberd:jid(),
-    To :: ejabberd:jid(), Packet :: mongoose_acc:t()) ->
+    To :: ejabberd:jid(), Acc :: mongoose_acc:t(), Packet :: xmlel()) ->
     done | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t()}.
-call_route(Module, From, To, Packet) ->
-    Module:route(From, To, Packet).
+call_route(Module, From, To, Acc, Packet) ->
+    Module:route(From, To, Acc, Packet).
 
 
 -spec call_filter(Module :: module(), From :: ejabberd:jid(),
-    To :: ejabberd:jid(), Packet :: mongoose_acc:t()) ->
+    To :: ejabberd:jid(), Acc :: mongoose_acc:t(), Packet :: xmlel()) ->
     drop | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t()}.
-call_filter(Module, From, To, Packet) ->
-    Module:filter(From, To, Packet).
+call_filter(Module, From, To, Acc, Packet) ->
+    Module:filter(From, To, Acc, Packet).

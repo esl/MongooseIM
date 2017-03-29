@@ -113,8 +113,8 @@ amp_check_packet(_, _, Acc, _, _) ->
     Acc.
 
 strip_amp_el_from_request(Packet) ->
-    % this will probably be removed - we have accumulator so we won't need anymore to store amp markers
-    % in stanza
+    % this will probably be removed - we have accumulator so we won't need anymore to store amp
+    % markers in stanza
     case amp:is_amp_request(Packet) of
         true -> amp:strip_amp_el(Packet);
         false -> Packet

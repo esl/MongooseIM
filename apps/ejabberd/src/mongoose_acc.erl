@@ -89,7 +89,7 @@ to_element(A) ->
 
 -spec new() -> t().
 new() ->
-    #{mongoose_acc => true}.
+    #{mongoose_acc => true, timestamp => os:timestamp(), ref => make_ref()}.
 
 -spec from_kv(atom(), any()) -> t().
 from_kv(K, V) ->
@@ -121,7 +121,8 @@ update(Acc, M) ->
 -spec put(any(), any(), t()) -> t().
 put(from_jid, Val, Acc) ->
     % used only when we have to manually construct an acc (instead of calling from_element)
-    % namely: in c2s terminate, since it is not triggered by stanza, and in some deprecated functions
+    % namely: in c2s terminate, since it is not triggered by stanza, and in some
+    % deprecated functions
     A = maps:put(from_jid, Val, Acc),
     maps:put(from, jid:to_binary(Val), A);
 put(Key, Val, Acc) ->
@@ -191,8 +192,8 @@ strip(Acc) ->
 record_sending(Acc, Stanza, Module, Result) ->
     record_sending(Acc, n, n, Stanza, Module, Result).
 -spec record_sending(t(), jid()|n, jid()|n, xmlel(), atom(), any()) -> t().
-record_sending(Acc, _From, _To, _Stanza, _Module, _Result) ->
-    Acc.
+record_sending(Acc, _From, _To, _Stanza, _Module, Result) ->
+    mongoose_acc:put(send_result, Result, Acc).
 
 %%%%% internal %%%%%
 

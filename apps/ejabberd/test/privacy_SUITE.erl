@@ -125,7 +125,7 @@ userlist(deny_all_message) ->
     It = #listitem{action = deny, order = 1, match_message = true},
     #userlist{name= <<"deny_all_message">>, list = [It]};
 userlist(block_bob) ->
-    It = #listitem{type = jid, value = {<<"bob">>,<<"localhost">>,<<>>},
+    It = #listitem{type = jid, value = {<<"bob">>, <<"localhost">>, <<>>},
         action = block, order = 1, match_all = true},
     #userlist{name = <<"block_bob">>, list = [It]};
 userlist(_) ->
@@ -133,9 +133,9 @@ userlist(_) ->
 
 
 presence() ->
-    {xmlel,<<"presence">>,[{<<"xml:lang">>,<<"en">>}],[]}.
+    {xmlel, <<"presence">>, [{<<"xml:lang">>, <<"en">>}], []}.
 
 message() ->
-    {xmlel,<<"message">>,
-        [{<<"type">>,<<"chat">>},{<<"to">>,<<"bob@localhost">>}],
-        [{xmlel,<<"body">>,[],[{xmlcdata,<<"roar!">>}]}]}.
+    {xmlel, <<"message">>,
+        [{<<"type">>, <<"chat">>}, {<<"to">>, <<"bob@localhost">>}],
+        [{xmlel, <<"body">>, [], [{xmlcdata, <<"roar!">>}]}]}.

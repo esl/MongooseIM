@@ -915,7 +915,7 @@ session_established({xmlstreamelement, El}, StateData) ->
                                               from => jid:to_binary(FromJID),
                                               to_jid => ToJID,
                                               to => To}),
-            Acc1 = mod_amp:check_packet(Acc, initial_check),
+            Acc1 = mod_amp:check_packet(Acc, FromJID, initial_check),
             case mongoose_acc:get(amp_check_result, Acc1, ok) of
                 drop -> fsm_next_state(session_established, NewState);
                 _ -> process_outgoing_stanza(Acc1, NewState)
@@ -1625,21 +1625,21 @@ maybe_send_element_safe(State, El) ->
         _ -> error
     end.
 
-%% @doc This is the termination point - from here stanza is sent to the user
-%% We sent the original stanza ('element') unless there is a different thing
-% keyed 'to_send'
--spec send_element(mongoose_acc:t() | state(), state() | xmlel()) -> mongoose_acc:t() | ok.
+-spec send_element(state(), xmlel()) -> any().
 send_element(#state{server = Server} = StateData, #xmlel{} = El) ->
     % used mostly in states other then session_established
     Acc = mongoose_acc:from_element(El),
-    send_element(mongoose_acc:put(server, Server, Acc), El, StateData),
-    ok.
+    Acc1 = send_element(mongoose_acc:put(server, Server, Acc), El, StateData),
+    mongoose_acc:get(send_result, Acc1).
 
--spec send_element(mongoose_acc:t(), xmlel(), state()) -> mongoose_acc:t() | ok.
+%% @doc This is the termination point - from here stanza is sent to the user
+%% We sent the original stanza ('element') unless there is a different thing
+% keyed 'to_send'
+-spec send_element(mongoose_acc:t(), xmlel(), state()) -> mongoose_acc:t().
 send_element(Acc, El,  #state{server = Server} = StateData) ->
     Acc1 = ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [El]),
-    do_send_element(El, StateData),
-    mongoose_acc:record_sending(Acc1, El, c2s, sent).
+    Res = do_send_element(El, StateData),
+    mongoose_acc:record_sending(Acc1, El, c2s, Res).
 
 do_send_element(El, #state{sockmod = SockMod} = StateData)
                 when StateData#state.xml_socket ->
@@ -1703,9 +1703,11 @@ send_trailer(StateData) ->
 
 send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
     % this is a very last stage, we already terminated accumulator
+    % to be removed
     {SendResult, BufferedStateData} =
-        send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State), % to be removed
-    % if we have to check packet before sending we should do it much earlier, when it is still accumulator
+        send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State),
+    % if we have to check packet before sending we should do it much earlier, when it is
+    % still accumulator
     mod_amp:check_packet(El, result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
@@ -2351,15 +2353,26 @@ resend_offline_messages(Acc, StateData) ->
                                    Acc,
                                    [StateData#state.user, StateData#state.server]),
     Rs = mongoose_acc:get(offline_messages, Acc1, []),
-%%    [check_privacy_and_route_or_ignore(StateData, From, To, Packet, in)
-%%     || {route, From, To, #xmlel{} = Packet} <- Rs],
     Acc2 = lists:foldl(
                        fun({route, From, To, Packet}, A) ->
-                           check_privacy_and_route_or_ignore(A, StateData, From, To, Packet, in)
+                           resend_offline_message(A, StateData, From, To, Packet, in)
                        end,
                        Acc1,
                        Rs),
     mongoose_acc:remove(offline_messages, Acc2). % they are gone from db backend and sent
+
+
+resend_offline_message(A, StateData, From, To, Packet, in) ->
+    % this is one of very few (maybe the only) place where we have to tweak
+    % basic accumulator properties - we are sending various messages only because we
+    % received a presence (plus, sometimes the acc is empty)
+    % all we leave are system stuff like ref and timestamp
+    #xmlel{name = Name} = Packet,
+    Type = exml_query:attr(Packet, <<"type">>),
+    M = #{name => Name, type => Type, element => Packet, from_jid => From,
+        from => jid:to_binary(From), to_jid => To, to => jid:to_binary(To)},
+    Acc = mongoose_acc:update(A, M),
+    check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, in).
 
 
 -spec check_privacy_and_route_or_ignore(StateData :: state(),
@@ -2381,7 +2394,7 @@ check_privacy_and_route_or_ignore(StateData, From, To, Packet, Dir) ->
                                         Packet :: exml:element(),
                                         Dir :: in | out) -> any().
 check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
-    {Acc2, Res} = privacy_check_packet(Acc, To, Dir, StateData),
+    {Acc2, Res} = privacy_check_packet(Acc, Packet, From, To, Dir, StateData),
     case Res of
         allow -> ejabberd_router:route(From, To, Acc2, Packet);
         _ -> Acc2

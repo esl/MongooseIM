@@ -793,36 +793,40 @@ route_message(From, To, Acc, Packet) ->
               end,
               PrioPid);
         _ ->
-            case xml:get_tag_attr_s(<<"type">>, Packet) of
-                <<"error">> ->
-                    ok;
-                <<"groupchat">> ->
-                    ejabberd_hooks:run_fold(offline_groupchat_message_hook,
-                                            LServer,
-                                            Acc,
-                                            [From, To, Packet]);
-                <<"headline">> ->
-                    bounce_offline_message(Acc, From, To, Packet);
-                _Type ->
-                    case ejabberd_auth:is_user_exists(LUser, LServer) of
-                        true ->
-                            case is_privacy_allow(From, To, Acc, Packet) of
-                                true ->
-                                    ejabberd_hooks:run_fold(offline_message_hook,
-                                                       LServer,
-                                                       Acc,
-                                                       [From, To, Packet]);
-                                false ->
-                                    ejabberd_hooks:run_fold(failed_to_store_message,
-                                                            LServer, Packet, [From]),
-                                    ok
-                            end;
-                        _ ->
-                            Err = jlib:make_error_reply(
-                                    Packet, ?ERR_SERVICE_UNAVAILABLE),
-                            ejabberd_router:route(To, From, Acc, Err)
-                    end
-            end
+            MessageType = xml:get_tag_attr_s(<<"type">>, Packet),
+            route_message_by_type(MessageType, From, To, Acc, Packet)
+    end.
+
+route_message_by_type(<<"error">>, _From, _To, _Acc, _Packet) ->
+    ok;
+route_message_by_type(<<"groupchat">>, From, To, Acc, Packet) ->
+    LServer = To#jid.lserver,
+    ejabberd_hooks:run_fold(offline_groupchat_message_hook,
+        LServer,
+        Acc,
+        [From, To, Packet]);
+route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
+    bounce_offline_message(Acc, From, To, Packet);
+route_message_by_type(_, From, To, Acc, Packet) ->
+    LUser = To#jid.luser,
+    LServer = To#jid.lserver,
+    case ejabberd_auth:is_user_exists(LUser, LServer) of
+        true ->
+            case is_privacy_allow(From, To, Acc, Packet) of
+                true ->
+                    ejabberd_hooks:run_fold(offline_message_hook,
+                        LServer,
+                        Acc,
+                        [From, To, Packet]);
+                false ->
+                    ejabberd_hooks:run_fold(failed_to_store_message,
+                        LServer, Packet, [From]),
+                    ok
+            end;
+        _ ->
+            Err = jlib:make_error_reply(
+                Packet, ?ERR_SERVICE_UNAVAILABLE),
+            ejabberd_router:route(To, From, Acc, Err)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
