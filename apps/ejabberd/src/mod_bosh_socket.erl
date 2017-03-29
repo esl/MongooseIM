@@ -50,7 +50,7 @@
 -define(DEFAULT_MAXPAUSE, 120).
 -define(DEFAULT_CLIENT_ACKS, false).
 
--type cached_response() :: {rid(), erlang:timestamp(), jlib:xmlel()}.
+-type cached_response() :: {rid(), TStamp :: integer(), jlib:xmlel()}.
 -type rid() :: pos_integer().
 
 -record(state, {from            :: binary() | undefined,
@@ -465,10 +465,7 @@ maybe_diff(_, undefined) -> undefined;
 maybe_diff(Rid, Expected) -> abs(Rid-Expected).
 
 
--spec resend_cached({Rid :: pos_integer(),
-                     {non_neg_integer(), non_neg_integer(), non_neg_integer()},
-                     CachedBody :: jlib:xmlel()},
-                    state()) -> state().
+-spec resend_cached(cached_response(), state()) -> state().
 resend_cached({_Rid, _, CachedBody}, S) ->
     send_to_handler(CachedBody, S).
 
@@ -703,7 +700,7 @@ maybe_report(#state{report = Report} = S) ->
     {NewAttrs, S#state{report = false}}.
 
 
--spec cache_response({rid(), erlang:timestamp(), jlib:xmlel()}, state()) -> state().
+-spec cache_response(cached_response(), state()) -> state().
 cache_response({Rid, _, _} = Response, #state{sent = Sent} = S) ->
     NewSent = lists:keymerge(1, [Response], Sent),
     CacheUpTo = case S#state.client_acks of
