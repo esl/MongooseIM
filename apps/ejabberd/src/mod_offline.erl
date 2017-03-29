@@ -313,6 +313,7 @@ handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info} = Msg, State) ->
     {noreply, State#state{message_poppers = NewPoppers}};
 handle_info(Msg = #offline_msg{us = US},
             State = #state{access_max_user_messages = AccessMaxOfflineMsgs}) ->
+    ?DEPRECATED, % it should receive and pass on an accumulator -> kzemek
     handle_offline_msg(Msg, AccessMaxOfflineMsgs),
     case monitored_map:find(US, State#state.message_poppers) of
         {ok, Pid} ->

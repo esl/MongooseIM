@@ -89,7 +89,7 @@ to_element(A) ->
 
 -spec new() -> t().
 new() ->
-    #{mongoose_acc => true}.
+    #{mongoose_acc => true, timestamp => os:timestamp(), ref => make_ref()}.
 
 -spec from_kv(atom(), any()) -> t().
 from_kv(K, V) ->
