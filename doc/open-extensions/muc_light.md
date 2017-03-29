@@ -1,6 +1,10 @@
 # 1. Introduction
 
-Classic Multi-User chat, as described in XEP-0045, adds an IRC-like functionality to XMPP. It distinguishes between the affiliation list and the occupant list, where the latter is based on presences routed to the room from the client resource. While perfectly sufficient for desktop applications and relatively stable network connection, it does not exactly meet the challenges the mobile world it is facing. Modern mobile applications do not rely on presence information, as it can frequently change. The expected user experience not only differs from the IRC model, but also uses only a small subset of XEP-0045 features. The service described in this specification attempts to provide a complete solution for all common use cases of mobile groupchats.
+Classic Multi-User chat, as described in XEP-0045, adds an IRC-like functionality to XMPP. 
+It distinguishes between the affiliation list and the occupant list, where the latter is based on presences routed to the room from the client resource. 
+While perfectly sufficient for desktop applications and relatively stable network connection, it does not exactly meet the challenges the mobile world it is facing. 
+Modern mobile applications do not rely on presence information, as it can frequently change. The expected user experience not only differs from the IRC model, but also uses only a small subset of XEP-0045 features. 
+The service described in this specification attempts to provide a complete solution for all common use cases of mobile groupchats.
 
 # 2. Requirements
 
