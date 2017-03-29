@@ -1,10 +1,10 @@
 For advanced configuration use the following files:
 
-* `ejabberd.cfg` for pure XMPP settings, 
+* `ejabberd.cfg` for pure MongooseIM settings, 
 
 * `vm.args` to affect the Erlang VM behaviour (performance tuning, node name), 
 
-* `app.config` to change low-level logging parameters. 
+* `app.config` to change low-level logging parameters and settings of other Erlang applications. 
 
 Since you've gotten this far, we assume you're already familiar with Erlang syntax.
 
@@ -38,15 +38,6 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 * **loglevel** (local)
     * **Description:** Log level configured with integer: 0 (disabled), 1 (critical), 2 (error), 3 (warning), 4 (info), 5 (debug). Recommended values for production systems are 2 or 3 (5 is for development).
 
-* **alarms** (global)
-    * **Description:** Definition of the alarms to be set inside the node.
-    * **Alarm types:**
-        * `long_gc` (in milliseconds) - when garbage collection time exceeds the given time 
-        * `large_heap` (in bytes) - when process heap exceeds the given size 
-    * **Alarm handlers:**
-        * `alarms_basic_handler` - logs alarms and stores a brief alarm summary
-        * `alarms_folsom_handler` - stores alarm details in folsom metrics
-    * **Example:** `{alarms, [{long_gc, 10000}, {large_heap, 1000000}, {handlers, [alarms_basic_handler]}]}.`
 
 ### Served hostnames
 
