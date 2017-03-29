@@ -26,7 +26,8 @@
 -export([on_tc_skip/3]).
 
 -export([terminate/1]).
--record(state, { node, cookie, reader, writer, current_line_num, out_file, url_file }).
+-record(state, { node, cookie, reader, writer,
+                 current_line_num, out_file, url_file, group }).
 -include_lib("exml/include/exml.hrl").
 
 %% @doc Return a unique id for this CTH.
@@ -42,7 +43,7 @@ init(_Id, [Node0, Cookie0]) ->
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(Suite,Config,State) ->
-    {Config, State}.
+    {Config, State#state{group=no_group}}.
 
 %% @doc Called after init_per_suite.
 post_init_per_suite(_Suite,_Config,Return,State) ->
@@ -57,16 +58,16 @@ post_end_per_suite(Suite,_Config,Return,State) ->
     {Return, State}.
 
 %% @doc Called before each init_per_group.
-pre_init_per_group(_Group,Config,State) ->
-    {Config, State}.
+pre_init_per_group(Group,Config,State) ->
+    {Config, State#state{group=Group}}.
 
 %% @doc Called after each init_per_group.
 post_init_per_group(_Group,_Config,Return,State) ->
     {Return, State}.
 
 %% @doc Called after each end_per_group.
-pre_end_per_group(_Group,Config,State) ->
-    {Config, State}.
+pre_end_per_group(Group,Config,State) ->
+    {Config, State#state{group=no_group}}.
 
 %% @doc Called after each end_per_group.
 post_end_per_group(_Group,_Config,Return,State) ->
@@ -207,7 +208,8 @@ pre_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, write
 post_insert_line_numbers_into_report(State=#state{writer=undefined}, _TC) ->
     State; % Invalid state
 post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writer=Writer,
-                                             current_line_num=CurrentLineNum, url_file=UrlFile}, TC) ->
+                                             current_line_num=CurrentLineNum, url_file=UrlFile,
+                                             group=Group}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
     Heading = atom_to_list(Node),
     URL = UrlFile ++ "#L" ++ integer_to_list(CurrentLineNum2),
@@ -219,7 +221,8 @@ post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writ
             ct_logs:log(Heading, "<a href=\"~ts\">~p#~p (new log lines)</a>\n",
                         [URL, Node, CurrentLineNum2]),
             %% Write a message after the main part
-            MessageIfNotEmpty = io_lib:format("^^^^^^^^^^~p^^^^^^^^^^~n", [TC]),
+            MessageIfNotEmpty = io_lib:format("^^^^^^^^^^group=~p, case=~p^^^^^^^^^^~n",
+                                              [TC, Group]),
             file:write(Writer, MessageIfNotEmpty),
             file:write(Writer, "<hr/>")
     end,
