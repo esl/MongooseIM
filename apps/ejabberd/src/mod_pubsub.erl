@@ -3174,30 +3174,15 @@ sub_option_can_deliver(_, _, {deliver, false}) -> false;
 sub_option_can_deliver(_, _, {expire, When}) -> timestamp() < When;
 sub_option_can_deliver(_, _, _) -> true.
 
--spec presence_can_deliver(
-        Entity :: ljid(),
-          _      :: boolean())
-        -> boolean().
+-spec presence_can_deliver(Entity :: ljid(), PresenceBasedDelivery :: boolean()) -> boolean().
 presence_can_deliver(_, false) ->
     true;
+presence_can_deliver({User, Server, <<>>}, true) ->
+    ejabberd_sm:get_user_present_resources(User, Server) =/= [];
 presence_can_deliver({User, Server, Resource}, true) ->
-    case mnesia:dirty_match_object({session, '_', '_', {User, Server}, '_', '_'}) of
-        [] ->
-            false;
-        Ss ->
-            lists:foldl(fun
-                            (_, true) ->
-                               true;
-                            (#session{priority = undefined}, _Acc) ->
-                               false;
-                            (#session{usr = {_, _, R}}, _Acc) ->
-                               case Resource of
-                                   <<>> -> true;
-                                   R -> true;
-                                   _ -> false
-                               end
-                       end,
-                        false, Ss)
+    case ejabberd_sm:get_session(User, Server, Resource) of
+        {_SUser, _SID, SPriority, _SInfo} when SPriority /= undefined -> true;
+        _ -> false
     end.
 
 -spec state_can_deliver(
