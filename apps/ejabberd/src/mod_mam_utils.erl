@@ -177,8 +177,11 @@ microseconds_to_datetime(MicroSeconds) when is_integer(MicroSeconds) ->
 -spec generate_message_id() -> integer().
 generate_message_id() ->
     {ok, NodeId} = ejabberd_node_id:node_id(),
-    %% Use monotone function here.
-    encode_compact_uuid(now_to_microseconds(p1_time_compat:timestamp()), NodeId).
+    %% Unique enough
+    {T1, T2, T3} = p1_time_compat:timestamp(),
+    ImprovedTS = {T1, T2,
+                  (T3 div 1000) * 1000 + p1_time_compat:unique_integer([positive]) rem 1000 },
+    encode_compact_uuid(now_to_microseconds(ImprovedTS), NodeId).
 
 
 %% @doc Create a message ID (UID).
