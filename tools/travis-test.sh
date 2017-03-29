@@ -167,7 +167,7 @@ run_tests() {
   echo
   echo "All tests done."
 
-  grep "fail_ci_build=true" ${BASE}/dev/mongooseim_*/log/ejabberd.log
+  grep "fail_ci_build=true" ${BASE}/_build/mim*/rel/mongooseim/log/ejabberd.log
   # If phrase found than exit with code 1
   test $? -eq 1
   LOG_STATUS=$?
