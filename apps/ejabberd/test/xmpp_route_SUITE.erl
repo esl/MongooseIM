@@ -87,7 +87,7 @@ make_routing_fun(Name, PacketToRoute) ->
 
 route(I) ->
     Acc = mongoose_acc:from_kv(element, I),
-    #{} = ejabberd_router:route(jid:from_binary(<<"ala@localhost">>),
+    ejabberd_router:route(jid:from_binary(<<"ala@localhost">>),
                                jid:from_binary(<<"bob@localhost">>),
                                Acc).
 
