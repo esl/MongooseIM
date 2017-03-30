@@ -270,7 +270,7 @@ multiparty_multiprotocol(Config) ->
 %%--------------------------------------------------------------------
 
 make_distinct_name(Prefix) ->
-    {_, S, US} = erlang:now(),
+    {_, S, US} = os:timestamp(),
     L = lists:flatten([integer_to_list(S rem 100), ".", integer_to_list(US)]),
     Suffix = list_to_binary(L),
     %% The bove is adapted from `escalus_fresh'.

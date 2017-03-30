@@ -109,7 +109,7 @@ remove_user(User, Server) ->
 -spec remove_expired_messages(ejabberd:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_expired_messages(_Host) ->
-    TimeStamp = now(),
+    TimeStamp = p1_time_compat:timestamp(),
     F = fun() ->
                 mnesia:write_lock_table(offline_msg),
                 mnesia:foldl(

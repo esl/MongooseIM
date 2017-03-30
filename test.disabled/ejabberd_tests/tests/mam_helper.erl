@@ -920,7 +920,7 @@ parse_messages(Messages) ->
     end.
 
 bootstrap_archive(Config) ->
-    random:seed(now()),
+    random:seed(os:timestamp()),
     Users = escalus_ct:get_config(escalus_users),
     AliceJID    = escalus_users:get_jid(Config, alice),
     BobJID      = escalus_users:get_jid(Config, bob),
@@ -1217,7 +1217,7 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate,
     escalus:send(Alice, IqSet),
     _ReplySet = escalus:wait_for_stanza(Alice),
     Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
-                                               [N, PrefsState, now()]))
+                                               [N, PrefsState, os:timestamp()]))
                 || N <- [1, 2, 3, 4]],
     %% Messages:
     %% 1. Bob sends a message to Alice

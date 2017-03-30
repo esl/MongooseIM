@@ -80,13 +80,13 @@ post_end_per_group(Group,_Config,Return,State) ->
 %% @doc Called before each test case.
 pre_init_per_testcase(TC,Config,State) ->
     print_case_enter(TC, State, "Starting"),
-    {Config, State#state{ ts = now(), total = State#state.suite_total + 1 } }.
+    {Config, State#state{ ts = os:timestamp(), total = State#state.suite_total + 1 } }.
 
 %% @doc Called after each test case.
 post_end_per_testcase(TC, _Config, Return, State) ->
     ParallelTestDiffOverride = 1,
     %%% this fails when running in parallel:
-    %%% timer:now_diff(now(), State#state.ts),
+    %%% timer:now_diff(os:timestamp(), State#state.ts),
     TCInfo = {testcase, TC, Return, ParallelTestDiffOverride},
     print_case_enter(TC, State, "Finished"),
     {Return, State#state{ts = undefined, tcs = [TCInfo | State#state.tcs]}}.

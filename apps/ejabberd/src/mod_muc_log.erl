@@ -407,7 +407,7 @@ add_message_to_log(Nick1, Message, RoomJID, Opts, State) ->
     Room = get_room_info(RoomJID, Opts),
     Nick = htmlize(Nick1, FileFormat),
     Nick2 = htmlize(<<"<", Nick1/binary, ">">>, FileFormat),
-    Now = now(),
+    Now = p1_time_compat:timestamp(),
     TimeStamp = case Timezone of
                     local -> calendar:now_to_local_time(Now);
                     universal -> calendar:now_to_universal_time(Now)
@@ -874,7 +874,7 @@ put_header_script(F) ->
 put_room_config(_F, _RoomConfig, _Lang, plaintext) ->
     ok;
 put_room_config(F, RoomConfig, Lang, _FileFormat) ->
-    {Now1, Now2, Now3} = now(),
+    {Now1, Now2, Now3} = p1_time_compat:timestamp(),
     NowBin = list_to_binary(lists:flatten(io_lib:format("~p~p~p", [Now1, Now2, Now3]))),
     fw(F, <<"<div class=\"rc\">">>),
     fw(F, <<"<div class=\"rct\" onclick=\"sh('a", NowBin/binary, "');return false;\">",
@@ -889,7 +889,7 @@ put_room_config(F, RoomConfig, Lang, _FileFormat) ->
 put_room_occupants(_F, _RoomOccupants, _Lang, plaintext) ->
     ok;
 put_room_occupants(F, RoomOccupants, Lang, _FileFormat) ->
-    {Now1, Now2, Now3} = now(),
+    {Now1, Now2, Now3} = p1_time_compat:timestamp(),
     NowBin = list_to_binary(lists:flatten(io_lib:format("~p~p~p", [Now1, Now2, Now3]))),
     fw(F, <<"<div class=\"rc\">">>),
     fw(F, <<"<div class=\"rct\" onclick=\"sh('o", NowBin/binary, "');return false;\">",
@@ -1094,7 +1094,7 @@ get_proc_name(Host) -> gen_mod:get_module_proc(Host, ?PROCNAME).
 
 -spec calc_hour_offset(calendar:datetime()) -> integer().
 calc_hour_offset(TimeHere) ->
-    TimeZero = calendar:now_to_universal_time(now()),
+    TimeZero = calendar:now_to_universal_time(p1_time_compat:timestamp()),
     TimeHereHour = calendar:datetime_to_gregorian_seconds(TimeHere) div 3600,
     TimeZeroHour = calendar:datetime_to_gregorian_seconds(TimeZero) div 3600,
     TimeHereHour - TimeZeroHour.

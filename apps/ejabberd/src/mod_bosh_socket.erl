@@ -50,7 +50,7 @@
 -define(DEFAULT_MAXPAUSE, 120).
 -define(DEFAULT_CLIENT_ACKS, false).
 
--type cached_response() :: {rid(), erlang:timestamp(), jlib:xmlel()}.
+-type cached_response() :: {rid(), TStamp :: integer(), jlib:xmlel()}.
 -type rid() :: pos_integer().
 
 -record(state, {from            :: binary() | undefined,
@@ -465,10 +465,7 @@ maybe_diff(_, undefined) -> undefined;
 maybe_diff(Rid, Expected) -> abs(Rid-Expected).
 
 
--spec resend_cached({Rid :: pos_integer(),
-                     {non_neg_integer(), non_neg_integer(), non_neg_integer()},
-                     CachedBody :: jlib:xmlel()},
-                    state()) -> state().
+-spec resend_cached(cached_response(), state()) -> state().
 resend_cached({_Rid, _, CachedBody}, S) ->
     send_to_handler(CachedBody, S).
 
@@ -549,10 +546,8 @@ maybe_trim_cache(Ack, S) ->
 schedule_report(Ack, #state{sent = Sent} = S) ->
     ReportRid = Ack + 1,
     try
-        {resp,
-         {ReportRid, TimeSent, _}} = {resp, lists:keyfind(ReportRid, 1, Sent)},
-        ElapsedTimeMillis = erlang:round(timer:now_diff(now(), TimeSent)
-                                         / 1000),
+        {ReportRid, TimeSent, _} = lists:keyfind(ReportRid, 1, Sent),
+        ElapsedTimeMillis = p1_time_compat:monotonic_time(milli_seconds) - TimeSent,
         Report = {ReportRid, ElapsedTimeMillis},
         case S#state.report of
             false ->
@@ -667,7 +662,7 @@ send_to_handler({_, Pid}, #xmlel{name = <<"body">>} = Wrapped, State) ->
     send_wrapped_to_handler(Pid, Wrapped, State);
 send_to_handler({Rid, Pid}, Data, State) ->
     {Wrapped, NS} = bosh_wrap(Data, Rid, State),
-    NS2 = cache_response({Rid, now(), Wrapped}, NS),
+    NS2 = cache_response({Rid, p1_time_compat:monotonic_time(milli_seconds), Wrapped}, NS),
     send_wrapped_to_handler(Pid, Wrapped, NS2).
 
 
@@ -705,7 +700,7 @@ maybe_report(#state{report = Report} = S) ->
     {NewAttrs, S#state{report = false}}.
 
 
--spec cache_response({rid(), erlang:timestamp(), jlib:xmlel()}, state()) -> state().
+-spec cache_response(cached_response(), state()) -> state().
 cache_response({Rid, _, _} = Response, #state{sent = Sent} = S) ->
     NewSent = lists:keymerge(1, [Response], Sent),
     CacheUpTo = case S#state.client_acks of

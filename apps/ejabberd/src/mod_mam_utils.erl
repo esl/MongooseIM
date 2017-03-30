@@ -152,7 +152,7 @@ microseconds_to_now(MicroSeconds) when is_integer(MicroSeconds) ->
     {Seconds div 1000000, Seconds rem 1000000, MicroSeconds rem 1000000}.
 
 
-%% @doc Returns time in `now()' format.
+%% @doc Returns time in `timestamp()' format.
 -spec iso8601_datetime_binary_to_timestamp(iso8601_datetime_binary())
         -> erlang:timestamp() | undefined.
 iso8601_datetime_binary_to_timestamp(DateTime) when is_binary(DateTime) ->
@@ -177,8 +177,11 @@ microseconds_to_datetime(MicroSeconds) when is_integer(MicroSeconds) ->
 -spec generate_message_id() -> integer().
 generate_message_id() ->
     {ok, NodeId} = ejabberd_node_id:node_id(),
-    %% Use monotone function here.
-    encode_compact_uuid(now_to_microseconds(now()), NodeId).
+    %% Unique enough
+    {T1, T2, T3} = p1_time_compat:timestamp(),
+    ImprovedTS = {T1, T2,
+                  (T3 div 1000) * 1000 + p1_time_compat:unique_integer([positive]) rem 1000 },
+    encode_compact_uuid(now_to_microseconds(ImprovedTS), NodeId).
 
 
 %% @doc Create a message ID (UID).
