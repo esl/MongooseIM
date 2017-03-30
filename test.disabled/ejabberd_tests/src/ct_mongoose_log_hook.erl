@@ -193,9 +193,7 @@ pre_insert_line_numbers_into_report(State=#state{writer=undefined}) ->
 pre_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writer=Writer,
                                              current_line_num=CurrentLineNum, url_file=UrlFile}) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
-    Heading = atom_to_list(Node),
-    URL = UrlFile ++ "#L" ++ integer_to_list(CurrentLineNum2+1),
-    ct_logs:log(Heading, "<a href=\"~ts\">~p#~p</a>\n", [URL, Node, CurrentLineNum2+1]),
+    add_log_link(UrlFile, CurrentLineNum2+1, Node),
     Same = CurrentLineNum =:= CurrentLineNum2,
     case Same of
         true ->
@@ -212,14 +210,12 @@ post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writ
                                              group=Group}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
     Heading = atom_to_list(Node),
-    URL = UrlFile ++ "#L" ++ integer_to_list(CurrentLineNum2),
     Same = CurrentLineNum =:= CurrentLineNum2,
     case Same of
         true ->
             skip;
         _ ->
-            ct_logs:log(Heading, "<a href=\"~ts\">~p#~p (new log lines)</a>\n",
-                        [URL, Node, CurrentLineNum2]),
+            add_log_link(UrlFile, CurrentLineNum2, Node),
             %% Write a message after the main part
             MessageIfNotEmpty = io_lib:format("^^^^^^^^^^group=~p, case=~p^^^^^^^^^^~n",
                                               [TC, Group]),
@@ -227,6 +223,11 @@ post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writ
             file:write(Writer, "<hr/>")
     end,
     State#state{current_line_num=CurrentLineNum2}.
+
+add_log_link(UrlFile, LogLine, Node) ->
+    Heading = "Log message from node " ++ atom_to_list(Node),
+    URL = UrlFile ++ "#L" ++ integer_to_list(LogLine),
+    escalus_ct:add_log_link(Heading, URL, "text/html").
 
 open_out_file(OutFile) ->
     open_file_without_linking(node(), OutFile, [write, delayed_write]).
