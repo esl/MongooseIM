@@ -424,7 +424,7 @@ search_rsm_pages(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
-                Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -490,7 +490,7 @@ search_rsm_forward(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
-                Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -581,7 +581,7 @@ search_rsm_backward(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
-                Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -673,7 +673,7 @@ search_rsm_count(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
-                Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -705,22 +705,22 @@ search_rsm_count(Config) ->
         end).
 
 get_rsm_count(El) ->
-    exml_query:path(Res1, [{element, <<"query">>},
-                           {element, <<"set">>},
-                           {element, <<"count">>},
-                           cdata]).
+    exml_query:path(El, [{element, <<"query">>},
+                         {element, <<"set">>},
+                         {element, <<"count">>},
+                         cdata]).
 
 get_rsm_first(El) ->
-    exml_query:path(Res1, [{element, <<"query">>},
-                           {element, <<"set">>},
-                           {element, <<"first">>},
-                           cdata]).
+    exml_query:path(El, [{element, <<"query">>},
+                         {element, <<"set">>},
+                         {element, <<"first">>},
+                         cdata]).
 
 get_rsm_last(El) ->
-    exml_query:path(Res1, [{element, <<"query">>},
-                           {element, <<"set">>},
-                           {element, <<"last">>},
-                           cdata]).
+    exml_query:path(El, [{element, <<"query">>},
+                         {element, <<"set">>},
+                         {element, <<"last">>},
+                         cdata]).
 
 append_to_query(#xmlel{name = <<"iq">>,
                        children = IqChildren} = Iq,
