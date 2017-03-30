@@ -135,7 +135,7 @@ xmpp_stanza_dropped(Acc, #jid{server = Server} , _, _) ->
     mongoose_metrics:update(Server, xmppStanzaDropped, 1),
     Acc.
 
--spec xmpp_send_element(Acc :: map(), Server :: ejabberd:server()) -> ok | metrics_notify_return().
+-spec xmpp_send_element(mongoose_acc:t(), Server :: ejabberd:server()) -> mongoose_acc:t().
 xmpp_send_element(Acc, Server) ->
     mongoose_metrics:update(Server, xmppStanzaCount, 1),
     case mongoose_acc:get(type, Acc) of
