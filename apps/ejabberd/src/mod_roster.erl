@@ -767,7 +767,9 @@ remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     send_unsubscription_to_rosteritems(LUser, LServer),
-    ?BACKEND:remove_user(LUser, LServer).
+    R = ?BACKEND:remove_user(LUser, LServer),
+    mongoose_lib:log_if_backend_error(R),
+    ok.
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;

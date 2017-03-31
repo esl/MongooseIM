@@ -90,11 +90,13 @@ start_link() ->
 
 -spec process_iq(From :: ejabberd:jid(),
                  To :: ejabberd:jid(),
-                 Packet :: jlib:xmlel()
+                 Acc :: mongoose_acc:t()
                  ) -> 'nothing' | 'ok' | 'todo' | pid()
                     | {'error', 'lager_not_running'} | {'process_iq', _, _, _}.
-process_iq(From, To, Packet) ->
-    IQ = jlib:iq_query_info(Packet),
+process_iq(From, To, Acc0) ->
+    Acc = mongoose_acc:require(iq_query_info, Acc0),
+    IQ = mongoose_acc:get(iq_query_info, Acc),
+    El = mongoose_acc:get(element, Acc),
     case IQ of
         #iq{xmlns = XMLNS} ->
             Host = To#jid.lserver,
@@ -113,15 +115,15 @@ process_iq(From, To, Packet) ->
                                           From, To, IQ);
                 [] ->
                     Err = jlib:make_error_reply(
-                            Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+                        Acc, ?ERR_FEATURE_NOT_IMPLEMENTED),
                     ejabberd_router:route(To, From, Err)
             end;
         reply ->
-            IQReply = jlib:iq_query_or_response_info(Packet),
+            IQReply = jlib:iq_query_or_response_info(El),
             process_iq_reply(From, To, IQReply);
         _ ->
-            Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
-            ejabberd_router:route(To, From, Err),
+            Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
+            ejabberd_router:route(To, From, mongoose_acc:put(to_send, Err, Acc)),
             ok
     end.
 
@@ -141,15 +143,16 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
     end.
 
 
--spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Extra :: any()) ->
+-spec process_packet(From :: jid(), To :: jid(), Packet :: mongoose_acc:t(),
+                     Extra :: any()) ->
     ok | {error, lager_not_running}.
 process_packet(From, To, Packet, _Extra) ->
     case (catch do_route(From, To, Packet)) of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p,"
-                       " packet=~ts, stack_trace=~p",
+            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
+                       " packet=~ts~n~nstack_trace=~p~n",
                        [jid:to_binary(From), jid:to_binary(To),
-                        ?MODULE, Reason, exml:to_binary(Packet),
+                        ?MODULE, Reason, mongoose_acc:to_binary(Packet),
                         erlang:get_stacktrace()]);
         _ -> ok
     end.
@@ -157,7 +160,7 @@ process_packet(From, To, Packet, _Extra) ->
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
                IQ :: ejabberd:iq(),
-               F :: fun()) -> 'ok'.
+               F :: fun()) -> mongoose_acc:t().
 route_iq(From, To, IQ, F) ->
     route_iq(From, To, IQ, F, undefined).
 
@@ -166,7 +169,7 @@ route_iq(From, To, IQ, F) ->
                To :: ejabberd:jid(),
                IQ :: ejabberd:iq(),
                F :: fun(),
-               Timeout :: undefined | integer()) -> 'ok'.
+               Timeout :: undefined | integer()) -> mongoose_acc:t().
 route_iq(From, To, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
     Packet = if Type == set; Type == get ->
                      ID = list_to_binary(randoms:get_string()),
@@ -393,7 +396,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
-               Packet :: jlib:xmlel()) -> 'ok'.
+               Packet :: mongoose_acc:t()) -> 'ok'.
 do_route(From, To, Packet) ->
     ?DEBUG("local route~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Packet, 8]),
@@ -401,8 +404,7 @@ do_route(From, To, Packet) ->
         To#jid.luser /= <<>> ->
             ejabberd_sm:route(From, To, Packet);
         To#jid.lresource == <<>> ->
-            #xmlel{name = Name} = Packet,
-            case Name of
+            case mongoose_acc:get(name, Packet) of
                 <<"iq">> ->
                     process_iq(From, To, Packet);
                 <<"message">> ->
@@ -413,8 +415,7 @@ do_route(From, To, Packet) ->
                     ok
             end;
         true ->
-            #xmlel{attrs = Attrs} = Packet,
-            case xml:get_attr_s(<<"type">>, Attrs) of
+            case mongoose_acc:get(type, Packet) of
                 <<"error">> -> ok;
                 <<"result">> -> ok;
                 _ ->

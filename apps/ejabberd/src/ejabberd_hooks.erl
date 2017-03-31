@@ -108,7 +108,7 @@ run(Hook, Args) ->
           Host :: ejabberd:server() | global,
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
-    run_fold(Hook, Host, #{}, Args).
+    run_fold(Hook, Host, mongoose_acc:new(), Args).
 
 %% @spec (Hook::atom(), Val, Args) -> Val | stopped | NewVal
 %% @doc Run the calls of this hook in order.
@@ -129,16 +129,17 @@ run_fold(Hook, Host, Val, Args) ->
     end,
     record(Hook, Res).
 
-record(Hook, Acc) ->
+record(_Hook, Acc) ->
+    Acc.
     % just to show some nice things we can do now
     % this should probably be protected by a compilation flag
     % unless load tests show that the impact on performance is negligible
-    case mongoose_acc:is_acc(Acc) of % this check will go away some day
-        true ->
-            mongoose_acc:append(hooks_run, Hook, Acc);
-        false ->
-            Acc
-    end.
+%%    case mongoose_acc:is_acc(Acc) of % this check will go away some day
+%%        true ->
+%%            mongoose_acc:append(hooks_run, Hook, Acc);
+%%        false ->
+%%            Acc
+%%    end.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -258,13 +259,14 @@ hook_apply_function(Module, Function, Hook, Val, Args) ->
     record(Hook, Module, Function, Result).
 
 
-record(Hook, Module, Function, Acc) ->
+record(_Hook, _Module, _Function, Acc) ->
+    Acc.
     % just to show some nice things we can do now
     % this should probably be protected by a compilation flag
     % unless load tests show that the impact on performance is negligible
-    case mongoose_acc:is_acc(Acc) of % this check will go away some day
-        true ->
-            mongoose_acc:append(handlers_run, {Hook, Module, Function}, Acc);
-        false ->
-            Acc
-    end.
+%%    case mongoose_acc:is_acc(Acc) of % this check will go away some day
+%%        true ->
+%%            mongoose_acc:append(handlers_run, {Hook, Module, Function}, Acc);
+%%        false ->
+%%            Acc
+%%    end.
