@@ -680,6 +680,8 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
                     fsm_next_state(wait_for_feature_after_auth, StateData);
                 _ ->
                     JID = jid:make(U, StateData#state.server, R),
+                    lager:md([{jid, jid:to_binary(JID)}]),
+
                     JIDEl = #xmlel{name = <<"jid">>,
                                    children = [#xmlcdata{content = jid:to_binary(JID)}]},
                     Res = IQ#iq{type = result,

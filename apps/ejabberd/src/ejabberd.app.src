@@ -15,6 +15,7 @@
                   crypto,
                   csv,
                   cuesport,
+                  elogfmt,
                   exml,
                   exometer,
                   exometer_core,
