@@ -164,7 +164,8 @@ do_register_component({LDomain, _}, Handler, Node) ->
             mnesia:write(external_component_global, ComponentGlobal, write),
             NDomain = {LDomain, Node},
             Component = #external_component{domain = NDomain, handler = Handler, node = Node},
-            mnesia:write(Component);
+            mnesia:write(Component),
+            ejabberd_hooks:run(register_subhost, [LDomain]);
         _ -> mnesia:abort(route_already_exists)
     end.
 
@@ -241,7 +242,9 @@ do_unregister_component({LDomain, _}, Node) ->
         Comp ->
             ok = mnesia:delete_object(external_component_global, Comp, write)
     end,
-    ok = mnesia:delete({external_component, {LDomain, Node}}).
+    ok = mnesia:delete({external_component, {LDomain, Node}}),
+    ejabberd_hooks:run(unregister_subhost, [LDomain]),
+    ok.
 
 -spec unregister_component(Domain :: domain()) -> {atomic, ok}.
 unregister_component(Domain) ->
@@ -279,14 +282,16 @@ register_routes(Domains, Handler) ->
 register_route_to_ldomain(error, Domain, _) ->
     erlang:error({invalid_domain, Domain});
 register_route_to_ldomain(LDomain, _, Handler) ->
-    mnesia:dirty_write(#route{domain = LDomain, handler = Handler}).
+    mnesia:dirty_write(#route{domain = LDomain, handler = Handler}),
+    ejabberd_hooks:run(register_subhost, [LDomain]).
 
 unregister_route(Domain) ->
     case jid:nameprep(Domain) of
         error ->
             erlang:error({invalid_domain, Domain});
         LDomain ->
-            mnesia:dirty_delete(route, LDomain)
+            mnesia:dirty_delete(route, LDomain),
+            ejabberd_hooks:run(unregister_subhost, [LDomain])
     end.
 
 unregister_routes(Domains) ->
@@ -480,4 +485,3 @@ update_tables() ->
         false ->
             ok
     end.
-

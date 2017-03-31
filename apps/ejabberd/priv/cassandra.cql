@@ -1,3 +1,13 @@
+CREATE KEYSPACE mongooseim_global
+  WITH REPLICATION = {'class' : 'NetworkTopologyStrategy', 'datacenter1': 2};
+USE mongooseim_global;
+
+CREATE TABLE sessions(
+  jid varchar,
+  stamp timestamp,
+  host varchar,
+  PRIMARY KEY (jid, host));
+
 CREATE KEYSPACE mongooseim
          WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor': 3};
 USE mongooseim;
@@ -53,4 +63,3 @@ CREATE TABLE mam_config(
 
 CREATE INDEX ON mongooseim.mam_message (user_jid);
 CREATE INDEX ON mongooseim.mam_muc_message (room_jid);
-
