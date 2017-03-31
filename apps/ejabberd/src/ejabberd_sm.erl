@@ -510,7 +510,8 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 -spec handle_info(_, _) -> {'noreply', _}.
 handle_info({route, From, To, Packet}, State) ->
-    route(From, To, Packet),
+    Acc = mongoose_acc:from_element(Packet, From, To),
+    route(From, To, Acc),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function}),
@@ -623,7 +624,7 @@ do_route(From, To, Acc) ->
                     Session = lists:max(Ss),
                     Pid = element(2, Session#session.sid),
                     ?DEBUG("sending to process ~p~n", [Pid]),
-                    Pid ! {route, From, To, mongoose_acc:strip(Acc)}
+                    Pid ! {route, From, To, mongoose_acc:get(to_send, Acc)}
             end
     end,
     mongoose_acc:remove(to_send, Acc).
@@ -789,7 +790,7 @@ route_message(From, To, Acc) ->
               %% positive
               fun({Prio, Pid}) when Prio == Priority ->
                  %% we will lose message if PID is not alive
-                      Pid ! {route, From, To, mongoose_acc:strip(Acc)};
+                      Pid ! {route, From, To, mongoose_acc:get(to_send, Acc)};
                  %% Ignore other priority:
                  ({_Prio, _Pid}) ->
                       ok

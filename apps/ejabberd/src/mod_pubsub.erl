@@ -249,7 +249,11 @@ default_host() ->
 
 -spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
 process_packet(From, To, Packet, Pid) ->
-    Pid ! {route, From, To, Packet}.
+    ToSend = case Packet of
+                 #xmlel{} -> Packet;
+                 A -> mongoose_acc:get(to_send, A)
+             end,
+    Pid ! {route, From, To, ToSend}.
 
 %%====================================================================
 %% gen_server callbacks
@@ -891,9 +895,8 @@ handle_cast(_Msg, State) -> {noreply, State}.
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({route, From, To, Acc},
+handle_info({route, From, To, Packet},
             #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
-    Packet = mongoose_acc:to_element(Acc),
     case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
         {'EXIT', Reason} -> ?ERROR_MSG("~p", [Reason]);
         _ -> ok

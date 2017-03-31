@@ -10,6 +10,7 @@
 
 -include("jlib.hrl").
 -include("ejabberd.hrl").
+-include("ejabberd_c2s.hrl").
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
@@ -18,7 +19,7 @@
 -export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
 -export([to_element/1]).
 -export_type([t/0]).
--export([from_element/3]).
+-export([from_element/3, from_element/4]).
 
 %% if it is defined as -opaque then dialyzer fails
 -type t() :: map().
@@ -110,6 +111,17 @@ from_element(El, From, To) ->
     Acc = from_element(El),
     M = #{from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)},
     update(Acc, M).
+
+from_element(El, FromJID, ToJID, State) ->
+    Acc0 = from_element(El),
+    User = State#state.user,
+    Server = State#state.server,
+    update(Acc0, #{user => User,
+        server => Server,
+        from_jid => FromJID,
+        from => jid:to_binary(FromJID),
+        to_jid => ToJID,
+        to => jid:to_binary(ToJID)}).
 
 -spec from_map(map()) -> t().
 from_map(M) ->

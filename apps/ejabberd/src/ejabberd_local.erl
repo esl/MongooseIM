@@ -334,7 +334,8 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({route, From, To, Packet}, State) ->
-    process_packet(From, To, Packet, undefined),
+    Acc = mongoose_acc:from_element(Packet, From, To, State),
+    process_packet(From, To, Acc, undefined),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(?IQTABLE, {{XMLNS, Host}, Module, Function}),

@@ -1216,7 +1216,8 @@ handle_incoming_message({broadcast, Acc}, StateName, StateData) ->
     ?DEBUG("broadcast=~p", [Broadcast]),
     Res = handle_routed_broadcast(Broadcast, StateData),
     handle_broadcast_result(Res, StateName, StateData);
-handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
+handle_incoming_message({route, From, To, Packet}, StateName, StateData) ->
+    Acc = mongoose_acc:from_element(Packet, From, To, StateData),
     Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc, [{route, From, To}]),
     Name = mongoose_acc:get(name, Acc1),
     process_incoming_stanza(Name, From, To, Acc1, StateName, StateData);

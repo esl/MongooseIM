@@ -228,7 +228,8 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({route, From, To, Packet}, State) ->
-    route(From, To, Packet),
+    Acc = mongoose_acc:from_element(Packet, From, To),
+    route(From, To, Acc),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.

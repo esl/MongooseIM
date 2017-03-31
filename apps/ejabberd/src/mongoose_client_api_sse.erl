@@ -36,15 +36,14 @@ maybe_init({false, Value}, Req, State) ->
 handle_notify(_Msg, State) ->
     {nosend, State}.
 
-handle_info({route, _From, _To, Acc}, State) ->
-    handle_msg(mongoose_acc:get(name, Acc), Acc, State);
+handle_info({route, _From, _To, #xmlel{name = Name} = Packet}, State) ->
+    handle_msg(Name, Packet, State);
 handle_info(_Msg, State) ->
     {nosend, State}.
 
-handle_msg(<<"message">>, Acc, State) ->
+handle_msg(<<"message">>, Packet, State) ->
     Timestamp = usec:from_now(os:timestamp()),
-    Type = mongoose_acc:get(type, Acc),
-    Packet = mongoose_acc:get(to_send, Acc),
+    Type = exml_query:attr(Packet, <<"type">>, undefined),
     maybe_send_message_event(Type, Packet, Timestamp, State).
 
 handle_error(_Msg, _Reson, State) ->
