@@ -284,7 +284,7 @@ By default only the following applications can be found there:
 
 * `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information.
    
-    Here you can change the logs location and the file names (`file`), as well as rotation strategy (`size` and `count`) 
+    Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) 
    and date formatting (`date`). Ignore the log level parameters - they are overridden with the value in `ejabberd.cfg`.
 
 * `ejabberd` - set `keep_lager_intact` parameter to `true` when you want to
