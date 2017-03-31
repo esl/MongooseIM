@@ -54,14 +54,15 @@ read_roster_version(LUser, LServer) ->
 write_roster_version(LUser, LServer, InTransaction, Ver) ->
     Username = mongoose_rdbms:escape(LUser),
     EVer = mongoose_rdbms:escape(Ver),
-    if InTransaction ->
-           rdbms_queries:set_roster_version(Username, EVer);
-       true ->
-           rdbms_queries:sql_transaction(LServer,
-                                        fun () ->
-                                                rdbms_queries:set_roster_version(Username,
-                                                                                EVer)
-                                        end)
+    case InTransaction of
+        true ->
+            rdbms_queries:set_roster_version(Username, EVer);
+        _ ->
+            rdbms_queries:sql_transaction(LServer,
+                                          fun () ->
+                                                  rdbms_queries:set_roster_version(Username,
+                                                                                   EVer)
+                                          end)
     end.
 
 get_roster(LUser, LServer) ->
@@ -84,24 +85,24 @@ get_roster(LUser, LServer) ->
                                      end,
                                      dict:new(), JIDGroups),
             RItems = lists:flatmap(fun (I) ->
-                                           case raw_to_record(LServer, I) of
-                                               %% Bad JID in database:
-                                               error -> [];
-                                               R ->
-                                                   SJID =
-                                                   jid:to_binary(R#roster.jid),
-                                                   Groups = case dict:find(SJID,
-                                                                           GroupsDict)
-                                                            of
-                                                                {ok, Gs} -> Gs;
-                                                                error -> []
-                                                            end,
-                                                   [R#roster{groups = Groups}]
-                                           end
+                                          raw_to_record_with_group(LServer, I, GroupsDict)
                                    end,
                                    Items),
             RItems;
         _ -> []
+    end.
+
+raw_to_record_with_group(LServer, I, GroupsDict) ->
+    case raw_to_record(LServer, I) of
+        %% Bad JID in database:
+        error -> [];
+        R ->
+            SJID = jid:to_binary(R#roster.jid),
+            Groups = case dict:find(SJID, GroupsDict) of
+                         {ok, Gs} -> Gs;
+                         error -> []
+                     end,
+            [R#roster{groups = Groups}]
     end.
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->

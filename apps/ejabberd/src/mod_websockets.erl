@@ -38,7 +38,6 @@
 -include_lib("exml/include/exml_stream.hrl").
 
 -define(LISTENER, ?MODULE).
--define(GEN_FSM, p1_fsm).
 -define(NS_FRAMING, <<"urn:ietf:params:xml:ns:xmpp-framing">>).
 -define(NS_COMPONENT, <<"jabber:component:accept">>).
 
@@ -111,7 +110,8 @@ websocket_info({send_xml, XML}, Req, State) ->
     XML1 = process_server_stream_root(replace_stream_ns(XML, State), State),
     Text = exml:to_iolist(XML1),
     {reply, {text, Text}, Req, State};
-websocket_info({set_ping, Value}, Req, State = #ws_state{ping_rate = none}) when is_integer(Value) and (Value > 0)->
+websocket_info({set_ping, Value}, Req, State = #ws_state{ping_rate = none})
+  when is_integer(Value) and (Value > 0)->
     send_ping_request(Value),
     {ok, Req, State#ws_state{ping_rate = Value}};
 websocket_info({set_ping, Value}, Req, State) when is_integer(Value) and (Value > 0)->
@@ -164,7 +164,7 @@ process_client_elements(Elements, Req, #ws_state{fsm_pid = FSM} = State) ->
 send_to_fsm(FSM, #xmlel{} = Element) ->
     send_to_fsm(FSM, {xmlstreamelement, Element});
 send_to_fsm(FSM, StreamElement) ->
-    ?GEN_FSM:send_event(FSM, StreamElement).
+    p1_fsm:send_event(FSM, StreamElement).
 
 maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
                  | _], Req,
@@ -187,7 +187,7 @@ do_start_fsm(FSMModule, Opts, Req, State) ->
     SocketData = #websocket{pid = self(),
                             peername = Peer},
     Opts1 = [{xml_socket, true} | Opts],
-    case FSMModule:start({?MODULE, SocketData}, Opts1) of
+    case call_fsm_start(FSMModule, SocketData, Opts1) of
         {ok, Pid} ->
             ?DEBUG("started ~p via websockets: ~p", [FSMModule, Pid]),
             NewState = State#ws_state{fsm_pid = Pid},
@@ -196,6 +196,11 @@ do_start_fsm(FSMModule, Opts, Req, State) ->
             ?WARNING_MSG("~p start failed: ~p", [FSMModule, Reason]),
             {shutdown, NewReq, State}
     end.
+
+call_fsm_start(ejabberd_c2s, SocketData, Opts) ->
+    ejabberd_c2s:start({?MODULE, SocketData}, Opts);
+call_fsm_start(ejabberd_service, SocketData, Opts) ->
+    ejabberd_service:start({?MODULE, SocketData}, Opts).
 
 %%--------------------------------------------------------------------
 %% ejabberd_socket compatibility
@@ -302,8 +307,10 @@ replace_stream_ns(Element, #ws_state{ open_tag = open }) ->
 replace_stream_ns(Element, _State) ->
     Element.
 
-get_parser_opts(<<"<open", _/binary>>) -> [{infinite_stream, true}, {autoreset, true}]; % new-type WS
-get_parser_opts(_) -> [{start_tag, <<"stream:stream">>}]. % old-type WS
+get_parser_opts(<<"<open", _/binary>>) ->
+    [{infinite_stream, true}, {autoreset, true}]; % new-type WS
+get_parser_opts(_) ->
+    [{start_tag, <<"stream:stream">>}]. % old-type WS
 
 %%--------------------------------------------------------------------
 %% Helpers

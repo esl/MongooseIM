@@ -100,7 +100,6 @@ search_reported_fields(_VHost, Lang) ->
 
 prepare_db() ->
     create_tables(),
-    update_tables(),
     set_indexes(),
     add_table_copies().
 
@@ -110,10 +109,6 @@ create_tables() ->
     mnesia:create_table(vcard_search,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, vcard_search)}]).
-
-update_tables() ->
-    update_vcard_table(),
-    update_vcard_search_table().
 
 add_table_copies() ->
     mnesia:add_table_copy(vcard, node(), disc_only_copies),
@@ -132,147 +127,6 @@ set_indexes() ->
     mnesia:add_table_index(vcard_search, lemail),
     mnesia:add_table_index(vcard_search, lorgname),
     mnesia:add_table_index(vcard_search, lorgunit).
-
-update_vcard_table() ->
-    Fields = record_info(fields, vcard),
-    case mnesia:table_info(vcard, attributes) of
-        Fields ->
-            ok;
-        [user, vcard] ->
-            ?INFO_MSG("Converting vcard table from "
-                      "{user, vcard} format", []),
-            Host = ?MYNAME,
-            {atomic, ok} = mnesia:create_table(
-                             mod_vcard_tmp_table,
-                             [{disc_only_copies, [node()]},
-                              {type, bag},
-                              {local_content, true},
-                              {record_name, vcard},
-                              {attributes, record_info(fields, vcard)}]),
-            mnesia:transform_table(vcard, ignore, Fields),
-            F1 = fun() ->
-                         mnesia:write_lock_table(mod_vcard_tmp_table),
-                         mnesia:foldl(
-                           fun(#vcard{us = U} = R, _) ->
-                                   mnesia:dirty_write(
-                                     mod_vcard_tmp_table,
-                                     R#vcard{us = {U, Host}})
-                           end, ok, vcard)
-                 end,
-            mnesia:transaction(F1),
-            mnesia:clear_table(vcard),
-            F2 = fun() ->
-                         mnesia:write_lock_table(vcard),
-                         mnesia:foldl(
-                           fun(R, _) ->
-                                   mnesia:dirty_write(R)
-                           end, ok, mod_vcard_tmp_table)
-                 end,
-            mnesia:transaction(F2),
-            mnesia:delete_table(mod_vcard_tmp_table);
-        _ ->
-            ?INFO_MSG("Recreating vcard table", []),
-            mnesia:transform_table(vcard, ignore, Fields)
-    end.
-
-
-update_vcard_search_table() ->
-    Fields = record_info(fields, vcard_search),
-    case mnesia:table_info(vcard_search, attributes) of
-        Fields ->
-            ok;
-        [user,     luser,
-         fn,       lfn,
-         family,   lfamily,
-         given,    lgiven,
-         middle,   lmiddle,
-         nickname, lnickname,
-         bday,     lbday,
-         ctry,     lctry,
-         locality, llocality,
-         email,    lemail,
-         orgname,  lorgname,
-         orgunit,  lorgunit] ->
-            ?INFO_MSG("Converting vcard_search table from "
-                      "{user, luser, fn, lfn, family, lfamily, given, lgiven, middle, lmiddle, nickname, lnickname, bday, lbday, ctry, lctry, locality, llocality, email, lemail, orgname, lorgname, orgunit, lorgunit} format", []),
-            Host = ?MYNAME,
-            {atomic, ok} = mnesia:create_table(
-                             mod_vcard_tmp_table,
-                             [{disc_only_copies, [node()]},
-                              {type, bag},
-                              {local_content, true},
-                              {record_name, vcard_search},
-                              {attributes, record_info(fields, vcard_search)}]),
-            F1 = fun() ->
-                         mnesia:write_lock_table(mod_vcard_tmp_table),
-                         mnesia:foldl(
-                           fun({vcard_search,
-                                User,     LUser,
-                                FN,       LFN,
-                                Family,   LFamily,
-                                Given,    LGiven,
-                                Middle,   LMiddle,
-                                Nickname, LNickname,
-                                BDay,     LBDay,
-                                CTRY,     LCTRY,
-                                Locality, LLocality,
-                                EMail,    LEMail,
-                                OrgName,  LOrgName,
-                                OrgUnit,  LOrgUnit
-                               }, _) ->
-                                   mnesia:dirty_write(
-                                     mod_vcard_tmp_table,
-                                     #vcard_search{
-                                        us        = {LUser, Host},
-                                        user      = {User, Host},
-                                        luser     = LUser,
-                                        fn        = FN,       lfn        = LFN,
-                                        family    = Family,   lfamily    = LFamily,
-                                        given     = Given,    lgiven     = LGiven,
-                                        middle    = Middle,   lmiddle    = LMiddle,
-                                        nickname  = Nickname, lnickname  = LNickname,
-                                        bday      = BDay,     lbday      = LBDay,
-                                        ctry      = CTRY,     lctry      = LCTRY,
-                                        locality  = Locality, llocality  = LLocality,
-                                       email     = EMail,    lemail     = LEMail,
-                                       orgname   = OrgName,  lorgname   = LOrgName,
-                                       orgunit   = OrgUnit,  lorgunit   = LOrgUnit
-                                      })
-                           end, ok, vcard_search)
-                 end,
-            mnesia:transaction(F1),
-            lists:foreach(fun(I) ->
-                                  mnesia:del_table_index(
-                                    vcard_search,
-                                    element(I, {vcard_search,
-                                                user,     luser,
-                                                fn,       lfn,
-                                                family,   lfamily,
-                                                given,    lgiven,
-                                                middle,   lmiddle,
-                                                nickname, lnickname,
-                                                bday,     lbday,
-                                                ctry,     lctry,
-                                                locality, llocality,
-                                                email,    lemail,
-                                                orgname,  lorgname,
-                                                orgunit,  lorgunit}))
-                          end, mnesia:table_info(vcard_search, index)),
-            mnesia:clear_table(vcard_search),
-            mnesia:transform_table(vcard_search, ignore, Fields),
-            F2 = fun() ->
-                         mnesia:write_lock_table(vcard_search),
-                         mnesia:foldl(
-                           fun(R, _) ->
-                                   mnesia:dirty_write(R)
-                           end, ok, mod_vcard_tmp_table)
-                 end,
-            mnesia:transaction(F2),
-            mnesia:delete_table(mod_vcard_tmp_table);
-        _ ->
-            ?INFO_MSG("Recreating vcard_search table", []),
-            mnesia:transform_table(vcard_search, ignore, Fields)
-    end.
 
 make_matchhead(VHost, Data) ->
     GlobMatch = #vcard_search{_ = '_'},
