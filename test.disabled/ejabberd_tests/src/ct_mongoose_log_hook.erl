@@ -27,7 +27,7 @@
 
 -export([terminate/1]).
 -record(state, { node, cookie, reader, writer,
-                 current_line_num, out_file, url_file, group,
+                 current_line_num, out_file, url_file, group, suite,
                  priv_dir }).
 -include_lib("exml/include/exml.hrl").
 
@@ -44,7 +44,7 @@ init(_Id, [Node0, Cookie0]) ->
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(Suite,Config,State) ->
-    {Config, State#state{group=no_group}}.
+    {Config, State#state{group=no_group, suite=Suite}}.
 
 %% @doc Called after init_per_suite.
 post_init_per_suite(_Suite,_Config,Return,State) ->
@@ -52,7 +52,7 @@ post_init_per_suite(_Suite,_Config,Return,State) ->
 
 %% @doc Called before end_per_suite.
 pre_end_per_suite(_Suite,Config,State) ->
-    {Config, State}.
+    {Config, State#state{suite=no_suite}}.
 
 %% @doc Called after end_per_suite.
 post_end_per_suite(Suite,_Config,Return,State) ->
@@ -79,7 +79,7 @@ pre_init_per_testcase(TC,Config,State=#state{}) ->
     Dog = test_server:timetrap(test_server:seconds(10)),
     State2 = keep_priv_dir(Config, State),
     State3 = ensure_initialized(Config, State2),
-    State4 = pre_insert_line_numbers_into_report(State3),
+    State4 = pre_insert_line_numbers_into_report(State3, TC),
     test_server:timetrap_cancel(Dog),
     {Config, State4 }.
 
@@ -194,46 +194,37 @@ keep_priv_dir(Config, State) ->
     PrivDir = proplists:get_value(priv_dir, Config),
     State#state{priv_dir=PrivDir}.
 
-pre_insert_line_numbers_into_report(State=#state{writer=undefined}) ->
+pre_insert_line_numbers_into_report(State=#state{writer=undefined}, _TC) ->
     State; % Invalid state
 pre_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writer=Writer,
                                              current_line_num=CurrentLineNum, url_file=UrlFile,
-                                             priv_dir=PrivDir}) ->
+                                             priv_dir=PrivDir, group=Group, suite=Suite}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
-    add_log_link_to_line(PrivDir, UrlFile, CurrentLineNum2+1, Node),
-    Same = CurrentLineNum =:= CurrentLineNum2,
-    case Same of
-        true ->
-            skip;
-        _ ->
-            file:write(Writer, "<hr/>")
-    end,
+    add_log_link_to_line(PrivDir, UrlFile, CurrentLineNum2, Node, " when started"),
+    Message = io_lib:format(
+        "<font color=gray>INIT suite=~p group=~p testcase=~p</font>~n",
+        [Suite, Group, TC]),
+    file:write(Writer, Message),
     State#state{current_line_num=CurrentLineNum2}.
 
 post_insert_line_numbers_into_report(State=#state{writer=undefined}, _TC) ->
     State; % Invalid state
 post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writer=Writer,
                                              current_line_num=CurrentLineNum, url_file=UrlFile,
-                                             group=Group, priv_dir=PrivDir}, TC) ->
+                                             group=Group, suite=Suite, priv_dir=PrivDir}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
     Heading = atom_to_list(Node),
-    Same = CurrentLineNum =:= CurrentLineNum2,
-    case Same of
-        true ->
-            skip;
-        _ ->
-            add_log_link_to_line(PrivDir, UrlFile, CurrentLineNum2, Node),
-            %% Write a message after the main part
-            MessageIfNotEmpty = io_lib:format("^^^^^^^^^^group=~p, case=~p^^^^^^^^^^~n",
-                                              [TC, Group]),
-            file:write(Writer, MessageIfNotEmpty),
-            file:write(Writer, "<hr/>")
-    end,
+    add_log_link_to_line(PrivDir, UrlFile, CurrentLineNum2, Node, " when finished"),
+    %% Write a message after the main part
+    Message = io_lib:format(
+        "<font color=gray>DONE suite=~p group=~p testcase=~p</font>~n",
+        [Suite, Group, TC]),
+    file:write(Writer, Message),
     State#state{current_line_num=CurrentLineNum2}.
 
-add_log_link_to_line(PrivDir, UrlFile, LogLine, Node) ->
+add_log_link_to_line(PrivDir, UrlFile, LogLine, Node, ExtraDescription) ->
     Label = "L" ++ integer_to_list(LogLine),
-    Heading = "View log from node " ++ atom_to_list(Node),
+    Heading = "View log from node " ++ atom_to_list(Node) ++ ExtraDescription,
     %% We need to invent something unique enough here :)
     LinkName = atom_to_list(Node) ++ "_" ++ integer_to_list(LogLine) ++ ".html",
     add_log_link(Heading, PrivDir, LinkName, UrlFile, Label).
