@@ -117,7 +117,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Default:** `plain` (for compatibility reasons, might change soon)
 
 * **auth_scram_iterations** (local)
-    * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes. We advise against setting it too low.
+    * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
     * **Default:** 4096
 
 * **ext_auth_script** (local)
