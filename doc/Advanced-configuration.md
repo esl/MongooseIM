@@ -171,7 +171,7 @@ See [Database backends configuration](./advanced-configuration/database-backends
 ### Traffic shapers
 
 * **shaper** (mutli, global)
-    * **Description:** Define a class of a shaper which is mechanism for limiting traffic to prevent DoS attack or calming down too noisy clients.
+    * **Description:** Define a class of a shaper which is a mechanism for limiting traffic to prevent DoS attack or calming down too noisy clients.
     * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
 
 * **max_fsm_queue** (local)
