@@ -124,6 +124,7 @@ update(Acc, [{Key, Value}| Tail]) ->
     update(A2, Tail).
 
 
+
 -spec put(atom(), any(), t()) -> t().
 put(to_send, Val, Acc) ->
     % stanza to be sent out may change a few times, and sometimes it carries its own type
