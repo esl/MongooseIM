@@ -9,6 +9,8 @@ Please feel free to comment!
     * Amazon AWS SNS (Simple Notification Service)
 * Full text search in archive
 * Experimental pipelining
+* Instant Stream Resumption
+* Bind 2.0 (experimental)
 * Contributions to ecosystem
 
 ## 3.0.x
