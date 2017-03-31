@@ -27,6 +27,8 @@
 -module(ejabberd_admin).
 -author('mickael.remond@process-one.net').
 
+-define(REGISTER_WORKERS_NUM, 10).
+
 -export([start/0, stop/0,
          %% Server
          status/0,
@@ -34,6 +36,7 @@
          %% Accounts
          register/3, unregister/2,
          registered_users/1,
+         import_users/1,
          %% Purge DB
          delete_expired_messages/0, delete_old_messages/1,
          %% Mnesia
@@ -47,6 +50,8 @@
          get_loglevel/0,
          join_cluster/1, leave_cluster/0,
          remove_from_cluster/1]).
+
+-export([register_worker/1]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -94,6 +99,13 @@ commands() ->
                         module = ?MODULE, function = registered_users,
                         args = [{host, binary}],
                         result = {users, {list, {username, binary}}}},
+     #ejabberd_commands{name = import_users, tags = [accounts],
+                        desc = "Import users from CSV file",
+                        module = ?MODULE, function = import_users,
+                        args = [{file, string}],
+                        result = {users, {list, {res, {tuple,
+                                                       [{result, atom},
+                                                        {user, binary}]}}}}},
      #ejabberd_commands{name = delete_expired_messages, tags = [purge],
                         desc = "Delete expired offline messages from database",
                         module = ?MODULE, function = delete_expired_messages,
@@ -324,6 +336,83 @@ registered_users(Host) ->
     Users = ejabberd_auth:get_vh_registered_users(Host),
     SUsers = lists:sort(Users),
     lists:map(fun({U, _S}) -> U end, SUsers).
+
+-spec import_users(Filename :: string()) -> [{ok, ejabberd:user()} |
+                                             {exists, ejabberd:user()} |
+                                             {not_allowed, ejabberd:user()} |
+                                             {invalid_jid, ejabberd:user()} |
+                                             {null_password, ejabberd:user()} |
+                                             {bad_csv, binary()}].
+import_users(File) ->
+    FileStream = stdio:file(File),
+    CsvStream = csv:stream(FileStream),
+    Workers = spawn_link_workers(),
+    WorkersQueue = queue:from_list(Workers),
+    do_import(CsvStream, WorkersQueue).
+
+-spec do_import(CsvStream :: stdio:stream(), Workers :: queue:queue()) ->
+    [{ok, ejabberd:user()} |
+     {exists, ejabberd:user()} |
+     {not_allowed, ejabberd:user()} |
+     {invalid_jid, ejabberd:user()} |
+     {null_password, ejabberd:user()} |
+     {bad_csv, binary()}].
+do_import({}, WorkersQueue) ->
+    Workers = queue:to_list(WorkersQueue),
+    lists:flatmap(fun get_result/1, Workers);
+
+
+do_import({s, UserData, TailFun}, WorkersQueue) ->
+    {{value, Worker}, Q1} = queue:out(WorkersQueue),
+    Worker ! {proccess, UserData},
+    Q2 = queue:in(Worker, Q1),
+    do_import(TailFun(), Q2).
+
+-spec spawn_link_workers() -> [pid()].
+spawn_link_workers() ->
+    [ spawn_link(?MODULE, register_worker, [self()]) ||
+      _ <- lists:seq(1, ?REGISTER_WORKERS_NUM)].
+
+-spec get_result(Worker :: pid()) -> [{ok, ejabberd:user()} |
+                                      {exists, ejabberd:user()} |
+                                      {not_allowed, ejabberd:user()} |
+                                      {invalid_jid, ejabberd:user()} |
+                                      {null_password, ejabberd:user()} |
+                                      {bad_csv, binary()}].
+get_result(Pid) ->
+    Pid ! get_result,
+    receive
+        {result, Result} -> Result
+    end.
+
+-spec register_worker(Manager :: pid()) -> ok.
+register_worker(Manager) ->
+    register_worker(Manager, []).
+
+-spec register_worker(Manager :: pid(), any()) -> ok.
+register_worker(Manager, Result) ->
+    receive
+        {proccess, Data} -> RegisterResult = do_register(Data),
+                            register_worker(Manager, [RegisterResult | Result]);
+        get_result -> Manager ! {result, Result}
+    end,
+    ok.
+
+-spec do_register([binary()]) -> {ok, ejabberd:user()} |
+                                 {exists, ejabberd:user()} |
+                                 {not_allowed, ejabberd:user()} |
+                                 {invalid_jid, ejabberd:user()} |
+                                 {null_password, ejabberd:user()} |
+                                 {bad_csv, binary()}.
+do_register([User, Host, Password]) ->
+    case ejabberd_auth:try_register(User, Host, Password) of
+        {error, Reason} -> {Reason, User};
+        _ -> {ok, User}
+    end;
+
+do_register(List) ->
+    Info = list_to_binary(lists:join(<<",">>, List)),
+    {bad_csv, Info}.
 
 get_loglevel() ->
     BackendList = ejabberd_loglevel:get(),
