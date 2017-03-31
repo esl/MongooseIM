@@ -5,8 +5,9 @@ and APNS (**A**pple **P**ush **N**otification **S**ervice) providers. Server sid
 notification support is fully compliment with [XEP-0357 Push Notifications][XEP-0357], which defines several components that need to work together in order to provide clients with working push notifications.
 The following list shows those components as defined in
 [XEP-0357][] and MongooseIM components that correspond to those entities:
-  * _XMPP Server_ in _MongooseIM_ is enabled by module [mod_push][]
-  * _App Server_ in _MongooseIM_ is enabled by adding `node_push` node type to [mod_pubsub][]'s configuration
+
+  * _XMPP Server_ in MongooseIM is enabled by module [mod_push][]
+  * _App Server_ in MongooseIM is enabled by adding `node_push` node type to [mod_pubsub][]'s configuration
   * _XMPP Push Service_ is implemented as [MongoosePush][] application
 
 All those entities have to be enabled and properly configured in order to use push notifications.
@@ -17,7 +18,7 @@ So let's get it, shall we?
 The overall architecture of all components that make push notifications possible in MongooseIM, looks as follows:
 ![](push_notifications_components.svg)
 
-Please note that even that, there are two domains of _MongooseIM_ and third one for [MongoosePush][], it is not required. All those 3 components can be on the same host with the same domain. 
+Please note that even that, there are two domains of MongooseIM and third one for [MongoosePush][], it is not required. All those 3 components can be on the same host with the same domain. 
 
 ### Configuring MongooseIM components
 
@@ -142,7 +143,6 @@ Assuming that `mypubsub.com` is a domain of MongooseIM server that has [mod_pubs
 
 ```xml
 <iq type='set'
-    from='me@mongooseim.com'
     to='pubsub.mypubsub.com'
     id='create1'>
   <pubsub xmlns='http://jabber.org/protocol/pubsub'>
@@ -180,6 +180,7 @@ To enable push notifications in the simplest configuration, just send the follow
 Here, we have enabled push notification to be send to the `pubsub.mypubsub.com` to node `princely_musings` which we have created in previous paragraph.
 In `publish-options` we have passed the service name that we are using (`apns` or `fcm`) and the device token (here: `your_pns_device_token`) that you received from you push notification service provider (as described in _Registering with Push Service provider_).
 Those two options are only required, but there are two more that are optional:
+
   * `mode` - which may be either `prod` or `dev` (default to `prod`). Decides which connection pool type on [MongoosePush][] shall be used. This may be used when _APNS_ on [MongoosePush][] is configured to work with both production and development certificate.
   * `click_action` - action to perform when notification is clicked on the device. `activity` on _Android_ and `category` on _iOS_. Please refer to your platform / push notification service provider for more info.
 
