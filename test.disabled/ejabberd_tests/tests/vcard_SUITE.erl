@@ -626,7 +626,7 @@ prepare_vcard(ldap, JID, Fields) ->
 prepare_vcard(_, JID, Fields) ->
     RJID = get_jid_record(JID),
     VCard = escalus_stanza:vcard_update(JID, Fields),
-    ok = vcard_rpc(RJID, VCard).
+    vcard_rpc(RJID, VCard).
 
 insert_alice_photo(Config) ->
     User = <<"alice">>,

@@ -22,6 +22,8 @@ setup() ->
     meck:expect(ejabberd_hooks, run_fold,
                 fun(privacy_check_packet, _, _, _) -> allow end),
     meck:expect(ejabberd_hooks, run_fold,
+        fun(xmpp_send_element, _, A, _) -> A end),
+    meck:expect(ejabberd_hooks, run_fold,
                 fun(check_bl_c2s, _, _) -> false end),
 
     meck:new(ejabberd_config),

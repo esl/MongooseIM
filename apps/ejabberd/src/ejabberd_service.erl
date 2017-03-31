@@ -137,9 +137,9 @@ socket_type() ->
 %%% mongoose_packet_handler callback
 %%%----------------------------------------------------------------------
 
--spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
-process_packet(From, To, Packet, Pid) ->
-    Pid ! {route, From, To, Packet}.
+-spec process_packet(From :: jid(), To :: jid(), Acc :: mongoose_acc:t(), Pid :: pid()) -> any().
+process_packet(From, To, Acc, Pid) ->
+    Pid ! {route, From, To, mongoose_acc:get(to_send, Acc)}.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -348,9 +348,11 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 handle_info({send_text, Text}, StateName, StateData) ->
+    ?ERROR_MSG("{service:send_text, Text}: ~p~n", [{send_text, Text}]), % is it ever called?
     send_text(StateData, Text),
     {next_state, StateName, StateData};
 handle_info({send_element, El}, StateName, StateData) ->
+    ?ERROR_MSG("{service:send_element, El}: ~p~n", [{send_text, El}]), % is it ever called?
     send_element(StateData, El),
     {next_state, StateName, StateData};
 handle_info({route, From, To, Packet}, StateName, StateData) ->

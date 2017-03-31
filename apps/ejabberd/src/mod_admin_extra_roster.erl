@@ -354,7 +354,7 @@ push_roster_item(LU, LS, U, S, Action) ->
 
 
 -spec push_roster_item(ejabberd:luser(), ejabberd:lserver(), ejabberd:user(),
-        ejabberd:user(), ejabberd:server(), Action :: push_action()) -> 'ok'.
+        ejabberd:user(), ejabberd:server(), Action :: push_action()) -> mongoose_acc:t().
 push_roster_item(LU, LS, R, U, S, Action) ->
     LJID = jid:make(LU, LS, R),
     BroadcastEl = build_broadcast(U, S, Action),
