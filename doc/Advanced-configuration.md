@@ -1,10 +1,18 @@
-For advanced configuration use the following files: `ejabberd.cfg`, `vm.args` and `app.config`. The first one contains all pure XMPP settings, the second affects Erlang VM behaviour (performance tuning, node name) and third usually has to be modified to change low-level logging parameters. Since you've gotten this far, we assume you're already familiar with Erlang syntax.
+For advanced configuration use the following files:
+
+* `ejabberd.cfg` for pure MongooseIM settings, 
+
+* `vm.args` to affect the Erlang VM behaviour (performance tuning, node name), 
+
+* `app.config` to change low-level logging parameters and settings of other Erlang applications. 
+
+Since you've gotten this far, we assume you're already familiar with Erlang syntax.
 
 # ejabberd.cfg
 
-This file consists of multiple erlang tuples, terminated with a period. It can be found in `[MongooseIM root]/rel/files/`.
+This file consists of multiple erlang tuples terminated with a period. To configure it, go to `[MongooseIM root]/rel/files/`.
 
-The tuple order is important, unless the no `host_config` option is set. Retaining the default layout is recommended so that experienced MongooseIM users can smoothly traverse the file.
+The tuple order is important, unless the no `host_config` option is set. Retaining the default layout is recommended so that the experienced MongooseIM users can smoothly traverse the file.
 
 `ejabberd.cfg` is full of useful comments and in most cases they should be sufficient help in changing the configuration.
 
@@ -12,13 +20,13 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 * All options except `hosts`, `host`, `host_config`, `pool` and the ODBC options can be used in `host_config` tuple.
 
-* There are two kinds of local options - those that are kept separately for each domain in config file (defined inside `host_config`) and the options local for a node in the cluster.
+* There are two kinds of local options - those that are kept separately for each domain in the config file (defined inside `host_config`) and the options local for a node in the cluster.
 
 * "global" options are shared by all cluster nodes and all domains.
 
 * "multi" options can be declared multiple times in a row, e.g. one per domain.
 
-* Sections names below correspond with the ones in the file.
+* Section names below correspond with the ones in the file.
 
 ### Override stored options
 
@@ -30,31 +38,22 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 * **loglevel** (local)
     * **Description:** Log level configured with integer: 0 (disabled), 1 (critical), 2 (error), 3 (warning), 4 (info), 5 (debug). Recommended values for production systems are 2 or 3 (5 is for development).
 
-* **alarms** (global)
-    * **Description:** Definition of the alarms to be set inside the node.
-    * **Alarm types:**
-        * `long_gc` - when garbage collection time exceeds given time in milliseconds
-        * `large_heap` - when process heap exceeds given size in bytes
-    * **Alarm handlers:**
-        * `alarms_basic_handler` - logs alarms and stores a brief alarm summary
-        * `alarms_folsom_handler` - stores alarm details in folsom metrics
-    * **Example:** `{alarms, [{long_gc, 10000}, {large_heap, 1000000}, {handlers, [alarms_basic_handler]}]}.`
 
 ### Served hostnames
 
 * **hosts** (global)
     * **Description:** List of domains supported by this cluster.
-    * **Warning:** extension modules and database backends will be started separately for every domain, so when increasing the number of domains please make sure you have enough resources available (e.g. connection limit set in DBMS).
+    * **Warning:** Extension modules and database backends will be started separately for every domain. When increasing the number of domains please make sure you have enough resources available (e.g. connection limit set in DBMS).
     * **Example:** `["localhost", "domain2"]`
 
 * **route_subdomain** (local)
-    * **Description:** If stanza is addressed to a subdomain of the served domain and this option is set to `s2s`, such stanza will be transmitted over s2s. Without it, MongooseIM will try to route the stanza to one of internal services.
-    * **Note:** `s2s` is only valid value. Any other will simply disable the feature.
+    * **Description:** If a stanza is addressed to a subdomain of the served domain and this option is set to `s2s`, such a stanza will be transmitted over s2s. Without it, MongooseIM will try to route the stanza to one of the internal services.
+    * **Note:** `s2s` is the only valid value. Any other will simply disable the feature.
 
 ### Listening ports
 
 * **listen** (local)
-    * **Description:** List of modules handling incoming connections. By default, 3 are enabled: `ejabberd_cowboy`, `ejabberd_c2s` and `ejabberd_s2s_in`. They accept XMPP, BOSH, Websocket and S2S connections (plus queries to metrics API).
+    * **Description:** List of modules handling the incoming connections. By default, 3 are enabled: `ejabberd_cowboy`, `ejabberd_c2s` and `ejabberd_s2s_in`. They accept XMPP, BOSH, Websocket and S2S connections (plus queries to metrics API).
     * **Syntax:** List of tuples: `{Port, Module, ModuleSpecificOptions}`
     * **See also:** [Listener modules](advanced-configuration/Listener-modules.md)
 
@@ -70,7 +69,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Description:** Path to X509 PEM file with a certificate and a private key inside (not protected by any password). Required if `s2s_use_starttls` is enabled.
 
 * **s2s_ciphers** (global)
-    * **Description:** Defines list of accepted SSL ciphers in **outgoing** S2S connection. Please refer to [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for cipher string format.
+    * **Description:** Defines a list of accepted SSL ciphers in **outgoing** S2S connection. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
     * **Default:** As of OpenSSL 1.0.0 it's `ALL:!aNULL:!eNULL` ([source](https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS))
 
 * **domain_certfile** (multi, global)
@@ -89,11 +88,11 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Default:** 5269
 
 * **s2s_addr** (multi, global)
-    * **Description:** Override DNS lookup for specific non-local XMPP domain and use predefined server IP and port for S2S connection.
+    * **Description:** Override DNS lookup for a specific non-local XMPP domain and use predefined server IP and port for S2S connection.
     * **Syntax:** `"{ {s2s_addr, \"some-domain\"}, { {10,20,30,40}, 7890 } }."`
 
 * **outgoing_s2s_options** (global)
-    * **Description:** Specifies order of address families to try when establishing S2S connection and connection timeout (in milliseconds or atom `infinity`).
+    * **Description:** Specifies the order of address families to try when establishing S2S connection and the connection timeout (in milliseconds or atom `infinity`).
     * **Default:** `{outgoing_s2s_options, [ipv4, ipv6], 10000}.`
     * **Family values:** `inet4`/`ipv4`, `inet6`/`ipv6`
 
@@ -107,22 +106,22 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 ### Authentication
 
 * **auth_method** (local)
-    * **Description:** Chooses authentication module or list of modules. Modules from a list are queried one after another until one of them replies positively.
+    * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
     * **Valid values:** `internal` (Mnesia), `odbc`, `external`, `anonymous`, `ldap`
     * **Warning:** `external` and `ldap` limit SASL mechanisms list to `PLAIN` and `ANONYMOUS`.
     * **Examples:** `odbc`, `[internal, anonymous]`
 
 * **auth_password_format** (local)
-    * **Description:** Decide whether user passwords will be kept plain or hashed in the database. As of today popular XMPP clients support the SCRAM method, so it is strongly recommended to use hashed version, older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
+    * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
     * **Values:** `plain`, `scram`
     * **Default:** `plain` (for compatibility reasons, might change soon)
 
 * **auth_scram_iterations** (local)
-    * **Description:** Hash function round count. It is best to set custom value that is not too low, making breaking hashes much more difficult.
+    * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
     * **Default:** 4096
 
 * **ext_auth_script** (local)
-    * **Description:** Path to the authentication script used by `external` auth module. Script API specification can be found in [[External authentication script]].
+    * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
 
 * **LDAP-related options**
   * [[Everything about LDAP]]
@@ -145,7 +144,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 The following options can be used to configure a connection pool. To set the options for all connection pools, put them on the top level of the configuration file. To set them for an individual pool, put them inside the `Options` list in a pool specification. Setting `odbc_server` is mandatory.
 
-*Note*: `odbc` prefixes may be misleading. Such options apply to all kinds of DB connections, not only pure ODBC.
+*Note*: `odbc` prefixes may be misleading. The options apply to all kinds of DB connections, not only pure ODBC.
 
 * **odbc_server** (local)
     * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
@@ -161,18 +160,18 @@ The following options can be used to configure a connection pool. To set the opt
 * **odbc_keepalive_interval** (local)
     * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
     This option should be used to ensure that database connections are
-    restarted after they became broken (e.g. due to database restart or a load
+    restarted after they became broken (e.g. due to a database restart or a load
     balancer dropping connections). Currently, not every network related error
     returned from a database driver to a regular query will imply a connection
     restart.
 
-You should remember that SQL databases require also defining schema.
-See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information
+You should remember that SQL databases require creating a schema.
+See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
 
 ### Traffic shapers
 
 * **shaper** (mutli, global)
-    * **Description:** Define a class of shaper, mechanism for limiting traffic to prevent DoS attack or calming down too noisy clients.
+    * **Description:** Define a class of a shaper which is a mechanism for limiting traffic to prevent DoS attack or calming down too noisy clients.
     * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
 
 * **max_fsm_queue** (local)
@@ -187,35 +186,35 @@ See [Database backends configuration](./advanced-configuration/database-backends
     * **Regexp format:** Syntax for `_regexp` can be found in [Erlang documentation](http://www.erlang.org/doc/man/re.html) - it's based on AWK syntax. For `_glob` use `sh` regexp syntax.
     * **Valid definitions:**
         * `all`
-        * `{user, U}` - check if username equals `U` and the domain equals the one specified by module executing the check or domain is on served domains list (`hosts` option), if module does `global` check
+        * `{user, U}` - check if the username equals `U` and the domain either equals the one specified by the module executing the check or (if the module does a `global` check) is on the served domains list (`hosts` option) 
         * `{user, U, S}` - check if the username equals `U` and the domain equals `S`
         * `{server, S}` - check if the domain equals `S`
         * `{resource, R}` - check if the resource equals `R`
-        * `{user_regexp, UR}` - perform regular expression `UR` check on username and check server name like in `user`
-        * `{user_regexp, UR, S}` - perform regular expression `UR` check on username and check if domain equals `S`
-        * `{server_regexp, SR}` - perform regular expression `SR` check on domain
-        * `{resource_regexp, RR}` - perform regular expression `SR` check on resource
+        * `{user_regexp, UR}` - perform a regular expression `UR` check on the username and check the server name like in `user`
+        * `{user_regexp, UR, S}` - perform a regular expression `UR` check on the username and check if the domain equals `S`
+        * `{server_regexp, SR}` - perform a regular expression `SR` check on a domain
+        * `{resource_regexp, RR}` - perform a regular expression `SR` check on a resource
         * `{node_regexp, UR, SR}` - username must match `UR` and domain must match `SR`
         * `{user_glob, UR}` - like `_regexp` variant but with `sh` syntax
         * `{server_glob, UR}` - like `_regexp` variant but with `sh` syntax
         * `{resource_glob, UR}` - like `_regexp` variant but with `sh` syntax
         * `{node_glob, UR}` - like `_regexp` variant but with `sh` syntax
-        * `{shared_group, G}` - check if user is in shared group `G` in domain specified by module executing the check
-        * `{shared_group, G, H}`- check if users is in shared group `G` in domain `H`
+        * `{shared_group, G}` - check if the user is in a shared group `G` in the domain specified by the module executing the check
+        * `{shared_group, G, H}`- check if the user is in shared group `G` in domain `H`
 
 ### Access rules
 
 * **access** (multi, global)
-    * **Description:** Define access rule for internal checks. Configuration file contains all built-in ones with proper comments.
+    * **Description:** Define an access rule for internal checks. The configuration file contains all built-in ones with proper comments.
     * **Syntax:** `{access, AtomName, [{Value, AclName}]}`
 
 * **registration_timeout** (local)
-    * **Description:** Limits registration frequency from single IP. Valid values are `infinity` or number of seconds.
+    * **Description:** Limits the registration frequency from a single IP. Valid values are `infinity` or a number of seconds.
 
 ### Default language
 
 * **language** (global)
-    * **Description:** Default language for messages sent by server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls apps/ejabberd/priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
+    * **Description:** Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls apps/ejabberd/priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
     * **Default:** `en`
 
 ### Miscellaneous
@@ -226,7 +225,7 @@ See [Database backends configuration](./advanced-configuration/database-backends
 
 ### Modules
 
-For specific configuration, please refer to [Modules](advanced-configuration/Modules.md) page.
+For a specific configuration, please refer to [Modules](advanced-configuration/Modules.md) page.
 
 * **modules** (local)
     * **Description:** List of enabled modules with their options.
@@ -263,9 +262,9 @@ Following pool options are recognized - all of them are optional.
 
 # vm.args
 
-This file contains parameters passed directly to the Erlang VM. It can be found in `[MongooseIM root]/rel/files/`.
+This file contains parameters passed directly to the Erlang VM. To configure it, go to `[MongooseIM root]/rel/files/`.
 
-Section below describes the default options.
+Let's explore the default options/
 
 ## Options
 
@@ -274,28 +273,28 @@ Section below describes the default options.
 * `+K` - Enables kernel polling. It improves the stability when a large number of sockets is opened, but some systems might benefit from disabling it. Might be a subject of individual load testing.
 * `+A 5` - Sets the asynchronous threads number. Async threads improve I/O operations efficiency by relieving scheduler threads of IO waits.
 * `+P 10000000` - Process count limit. This is a maximum allowed number of processes running per node. In general, it should exceed the tripled estimated online user count.
-* `-env ERL_MAX_PORTS 250000` - Open port count. This is a maximum allowed number of ports opened per node. In general, it should exceed the tripled estimated online user count. Keep in mind that increasing this number also increases memory usage by a constant amount, so finding the right balance for it is crucial for every project.
+* `-env ERL_MAX_PORTS 250000` - Open port count. This is a maximum allowed number of ports opened per node. In general, it should exceed the tripled estimated online user count. Keep in mind that increasing this number also increases the memory usage by a constant amount, so finding the right balance for it is crucial for every project.
 * `-env ERL_FULLSWEEP_AFTER 2` - affects garbage collection. Reduces memory consumption (forces often full g.c.) at the expense of CPU usage.
 * `-sasl sasl_error_logger false` - MongooseIM's solution for logging is Lager, so SASL error logger is disabled.
 
 # app.config
 
-A file with Erlang application configuration. It can be found in `[MongooseIM root]/rel/files/`.
-By default only following applications can be found there:
+A file with Erlang application configuration. To configure it, go to `[MongooseIM root]/rel/files/`.
+By default only the following applications can be found there:
 
 * `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information.
    
-    Here you can change logs location and file names (`file`), rotation strategy (`size` and `count`) 
-   and date formatting (`date`). Ignore log level parameters - they are overridden with the value in `ejabberd.cfg`.
+    Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) 
+   and date formatting (`date`). Ignore the log level parameters - they are overridden with the value in `ejabberd.cfg`.
 
-* `ejabberd` - set `keep_lager_intact` parameter to `true` when you want
+* `ejabberd` - set `keep_lager_intact` parameter to `true` when you want to
     use `lager` log level parameters from `app.config`. Missing value or
-    `false` for this parameter means override log levels with the value
+    `false` for this parameter means overriding the log levels with the value
     in `ejabberd.cfg`.
 
 * `ssl` only `session_lifetime` parameter is specified in
     this file. Its default value is **600s**. This parameter says for how
-    long ssl session should remain in the cache for further re-use,
+    long the ssl session should remain in the cache for further re-use,
     should `ssl session resumption` happen.
 
 
@@ -307,4 +306,4 @@ TLS is configured in one of two ways: some modules need a private key and certif
 * Server-to-server connections need both in the __same__ `.pem` file (find more information under Listening Ports in *Advanced Configuration Overview*)
 * BOSH & Web Sockets use Cowboy, which uses OTP's `ssl` module like all our HTTPS endpoints, so they need them in __separate__ files (find more information in *Listener Modules*)
 
-When the private key and certificate (chain) need be in the same file it should suffice to concatenate them.
+When the private key and certificate (chain) need to be in the same file, it should suffice to concatenate them.
