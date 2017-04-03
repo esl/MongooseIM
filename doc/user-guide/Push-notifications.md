@@ -41,7 +41,7 @@ And that's basically it.
 You have just enabled the push notification support with 100 asynchronous workers that will handle all push notification related work.
 
 Let's now consider the case when you need to control the format of push notifications or the state of the user sessions more robustly.
-In that case you need to implement a plugin module that implements the `mod_push_plugin` behaviour and enable this plugin as specified in [mod_push][] documentation.
+In that case you need to create a plugin module that implements the `mod_push_plugin` behaviour and enable this plugin as specified in [mod_push][] documentation.
 
 #### [mod_pubsub][] with [mod_push_service_mongoosepush][] a.k.a. '_App Server_'
 
