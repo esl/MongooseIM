@@ -29,7 +29,7 @@ Firstly, let's configure all the required MongooseIM components, step by step.
 The first component that we need to configure in MongooseIM is the [mod_push][] module.
 This module communicates with XMPP clients directly in order to enable/disable notifications on per-client basis.
 
-The [mod_push][] module is very easy to enable - just paste the following in your MongooseIM configuration file:
+The [mod_push][] module is very easy to enable - just paste the following to your MongooseIM configuration file:
 
  ```Erlang
 {mod_push, [
