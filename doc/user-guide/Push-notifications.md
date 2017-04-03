@@ -31,7 +31,7 @@ This module communicates with XMPP clients directly in order to enable/disable n
 
 The [mod_push][] module is very easy to enable - just paste the following to your MongooseIM configuration file:
 
- ```Erlang
+ ```erlang
 {mod_push, [
     {wpool, [{workers, 100}]}
 ]}.
@@ -58,7 +58,7 @@ In order to allow clients to allocate such a node, we need to enable it in our [
 
 The minimal [mod_pubsub][]'s configuration looks as follows:
 
-```Erlang
+```erlang
 {mod_pubsub, [
     {plugins, [<<"push">>]}}
 ]}.
@@ -108,15 +108,15 @@ Firstly, prepare the following files structure:
         * prod_cert.pem - Production APNS app certificate
         * prod_key.pem - Production APNS app certificate's private key
         * dev_cert.pem - Development APNS app certificate
-        * dev_jey.pem - Development APNS app certificate's private key
+        * dev_key.pem - Development APNS app certificate's private key
 
 If your _FCM_ app token is `MY_FCM_SECRET_TOKEN` and you have the `priv` directory with all ceriticates in the current directory, start MongoosePush with the following command:
 
 ```bash
 docker run -v `pwd`/priv:/opt/app/priv \
   -e PUSH_FCM_APP_KEY="MY_FCM_SECRET_TOKEN" \
-  -e PUSH_HTTPS_CERTFILE="ssl/rest_cert.pem" \
-  -e PUSH_HTTPS_KEYFILE="ssl/rest_key.pem" \
+  -e PUSH_HTTPS_CERTFILE="/opt/app/priv/ssl/rest_cert.pem" \
+  -e PUSH_HTTPS_KEYFILE="/opt/app/priv/ssl/rest_key.pem" \
   -it --rm mongooseim/mongoose-push:latest
 ```
 
