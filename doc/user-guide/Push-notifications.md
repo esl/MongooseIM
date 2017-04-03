@@ -200,6 +200,6 @@ This may be used to disbale push notifications on all your devices.
 [mod_push]: ../modules/mod_push.md
 [mod_pubsub]: ../modules/mod_push.md
 [mod_push_service_mongoosepush]: ../modules/mod_push_service_mongoosepush.md
-[MongoosePush]: htps://github.com/esl/MongoosePush
+[MongoosePush]: https://github.com/esl/MongoosePush
 [MongoosePushReadme]: https://github.com/esl/MongoosePush/blob/master/README.md
 [XEP-0357]: https://xmpp.org/extensions/xep-0357.html
