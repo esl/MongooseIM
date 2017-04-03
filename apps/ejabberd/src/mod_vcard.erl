@@ -541,38 +541,21 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
 
     US = {LUser, VHost},
 
-    case
-        (LUser     == error) or
-        (LFN       == error) or
-        (LFamily   == error) or
-        (LGiven    == error) or
-        (LMiddle   == error) or
-        (LNickname == error) or
-        (LBDay     == error) or
-        (LCTRY     == error) or
-        (LLocality == error) or
-        (LEMail    == error) or
-        (LOrgName  == error) or
-        (LOrgUnit  == error) of
-        true ->
-            {error, badarg};
-        false ->
-            {ok, #vcard_search{us        = US,
-                               user      = {User, VHost},
-                               luser     = b2l(LUser),
-                               fn        = FN,       lfn        = b2l(LFN),
-                               family    = Family,   lfamily    = b2l(LFamily),
-                               given     = Given,    lgiven     = b2l(LGiven),
-                               middle    = Middle,   lmiddle    = b2l(LMiddle),
-                               nickname  = Nickname, lnickname  = b2l(LNickname),
-                               bday      = BDay,     lbday      = b2l(LBDay),
-                               ctry      = CTRY,     lctry      = b2l(LCTRY),
-                               locality  = Locality, llocality  = b2l(LLocality),
-                               email     = EMail,    lemail     = b2l(LEMail),
-                               orgname   = OrgName,  lorgname   = b2l(LOrgName),
-                               orgunit   = OrgUnit,  lorgunit   = b2l(LOrgUnit)
-                              }}
-    end.
+    {ok, #vcard_search{us        = US,
+                       user      = {User, VHost},
+                       luser     = b2l(LUser),
+                       fn        = FN,       lfn        = b2l(LFN),
+                       family    = Family,   lfamily    = b2l(LFamily),
+                       given     = Given,    lgiven     = b2l(LGiven),
+                       middle    = Middle,   lmiddle    = b2l(LMiddle),
+                       nickname  = Nickname, lnickname  = b2l(LNickname),
+                       bday      = BDay,     lbday      = b2l(LBDay),
+                       ctry      = CTRY,     lctry      = b2l(LCTRY),
+                       locality  = Locality, llocality  = b2l(LLocality),
+                       email     = EMail,    lemail     = b2l(LEMail),
+                       orgname   = OrgName,  lorgname   = b2l(LOrgName),
+                       orgunit   = OrgUnit,  lorgunit   = b2l(LOrgUnit)
+                      }}.
 
 -spec get_default_reported_fields(binary()) -> exml:element().
 get_default_reported_fields(Lang) ->

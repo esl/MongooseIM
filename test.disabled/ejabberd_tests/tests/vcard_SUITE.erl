@@ -63,7 +63,10 @@ groups() ->
     ].
 
 rw_tests() ->
-    [update_own_card].
+    [
+     update_own_card,
+     cant_update_own_card_with_invalid_field
+    ].
 
 ro_full_search_tests() ->
     [retrieve_own_card,
@@ -189,6 +192,18 @@ do_update_own_card(Config) ->
                     = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
                 <<"Old name">>
                     = stanza_get_vcard_field_cdata(Client1GetResultStanza, <<"FN">>)
+        end).
+
+cant_update_own_card_with_invalid_field(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Client1) ->
+                %% One of "Non-character code points". Banned in stringrep but still valid UTF.
+                Client1Fields = [{<<"FN">>, <<243,191,191,190>>}],
+                Client1SetResultStanza
+                    = escalus:send_and_wait(Client1,
+                                        escalus_stanza:vcard_update(Client1Fields)),
+                escalus:assert(is_iq_error, Client1SetResultStanza)
         end).
 
 retrieve_own_card(Config) ->

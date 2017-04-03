@@ -440,7 +440,9 @@ ldap_entries_to_group([#eldap_entry{ attributes = Attrs } | REntries], Host,
             ldap_entries_to_group(REntries, Host, Desc, NewJIDsAcc, State, Extractor, AuthChecker);
         _ ->
             ldap_entries_to_group(REntries, Host, DescAcc, JIDsAcc, State, Extractor, AuthChecker)
-    end.
+    end;
+ldap_entries_to_group([], _Host, DescAcc, JIDsAcc, _State, _Extractor, _AuthChecker) ->
+    {DescAcc, JIDsAcc}.
 
 check_and_accumulate_member({ok, UID}, AuthChecker, Host, JIDsAcc) ->
     PUID = jid:nodeprep(UID),

@@ -774,20 +774,20 @@ send_unsubscription_to_rosteritems(LUser, LServer) ->
                   end,
                   RosterItems).
 
-%% @spec (From::jid(), Item::roster()) -> ok
+%% @spec (From::jid(), Item::roster()) -> any()
 send_unsubscribing_presence(From, #roster{ subscription = Subscription } = Item) ->
-    case Subscription == both orelse Subscription == to of
-        true ->
-            send_presence_type(jid:to_bare(From), jid:make(Item#roster.jid), <<"unsubscribe">>);
-
+    BareFrom = jid:to_bare(From),
+    ContactJID = jid:make(Item#roster.jid),
+    IsTo = Subscription == both orelse Subscription == to,
+    IsFrom = Subscription == both orelse Subscription == from,
+    case IsTo of
+        true -> send_presence_type(BareFrom, ContactJID, <<"unsubscribe">>);
         _ -> ok
     end,
-    case Subscription == both orelse Subscription == from of
-        true ->
-            send_presence_type(jid:to_bare(From), jid:make(Item#roster.jid), <<"unsubscribed">>);
+    case IsFrom of
+        true -> send_presence_type(BareFrom, ContactJID, <<"unsubscribed">>);
         _ -> ok
-    end,
-    ok.
+    end.
 
 send_presence_type(From, To, Type) ->
     ejabberd_router:route(From, To,
