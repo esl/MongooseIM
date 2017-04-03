@@ -56,14 +56,13 @@ import_users_from_valid_csv(Config) ->
     % when
     Result = ejabberd_admin:import_users(ValidCsvPath),
     % then
-    ?assertEqual(Result,
-                 [{ok, <<"user">>},
+    ?assertEqual([{ok, <<"user">>},
                   {exists, <<"existing_user">>},
                   {null_password, <<"null_password_user">>},
                   {not_allowed, <<"bad_domain_user">>},
                   {invalid_jid, <<"invalid_jid_user">>},
-                  {bad_csv, <<"wrong,number,of,fields,line">>}
-                 ]).
+                  {bad_csv, <<"wrong,number,of,fields,line">>}],
+                 Result).
 
 import_users_from_valid_csv_with_quoted_fields(Config) ->
     % given
@@ -71,8 +70,8 @@ import_users_from_valid_csv_with_quoted_fields(Config) ->
     % when
     Result = ejabberd_admin:import_users(ValidCsvPath),
     % then
-    ?assertEqual(Result,
-                 [{ok, <<"username,with,commas">>}]).
+    ?assertEqual([{ok, <<"username,with,commas">>}],
+                 Result).
 
 import_from_invalid_csv(Config) ->
     % given

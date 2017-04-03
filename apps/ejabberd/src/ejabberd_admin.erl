@@ -411,7 +411,10 @@ do_register([User, Host, Password]) ->
     end;
 
 do_register(List) ->
-    Info = list_to_binary(lists:join(<<",">>, List)),
+    JoinBinary = fun(Elem, <<"">>) -> Elem;
+                    (Elem, Acc) -> <<Elem/binary, ",", Acc/binary>>
+                 end,
+    Info = lists:foldr(JoinBinary, <<"">>, List),
     {bad_csv, Info}.
 
 get_loglevel() ->
