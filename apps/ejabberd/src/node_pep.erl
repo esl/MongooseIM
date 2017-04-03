@@ -93,24 +93,20 @@ features() ->
         <<"retrieve-subscriptions">>,
         <<"subscribe">>].
 
-create_node_permission(Host, ServerHost, _Node, _ParentNode, Owner, Access) ->
-    LOwner = jid:to_lower(Owner),
-    {User, Server, _Resource} = LOwner,
-    Allowed = case LOwner of
-        {<<"">>, Host, <<"">>} ->
-            true; % pubsub service always allowed
+create_node_permission(Host, _ServerHost, _Node, _ParentNode,
+                       #jid{ luser = <<>>, lserver = Host, lresource = <<>> }, _Access) ->
+    {result, true}; % pubsub service always allowed
+create_node_permission(Host, ServerHost, _Node, _ParentNode,
+                       #jid{ luser = User, lserver = Server } = Owner, Access) ->
+    case acl:match_rule(ServerHost, Access, Owner) of
+        allow ->
+            case Host of
+                {User, Server, _} -> {result, true};
+                _ -> {result, false}
+            end;
         _ ->
-            case acl:match_rule(ServerHost, Access, Owner) of
-                allow ->
-                    case Host of
-                        {User, Server, _} -> true;
-                        _ -> false
-                    end;
-                _ ->
-                    false
-            end
-    end,
-    {result, Allowed}.
+            {result, false}
+    end.
 
 create_node(Nidx, Owner) ->
     node_flat:create_node(Nidx, Owner).
@@ -151,7 +147,7 @@ get_entity_affiliations(Host, Owner) ->
     States = mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'}, _ = '_'}),
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
-                    case NodeTree:get_node(N) of
+                    case gen_pubsub_nodetree:get_node(NodeTree, N) of
                         #pubsub_node{nodeid = {{_, D, _}, _}} = Node -> [{Node, A} | Acc];
                         _ -> Acc
                     end
@@ -182,23 +178,24 @@ get_entity_subscriptions(Host, Owner) ->
     end,
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {J, N}, subscriptions = Ss}, Acc) ->
-                    case NodeTree:get_node(N) of
+                    case gen_pubsub_nodetree:get_node(NodeTree, N) of
                         #pubsub_node{nodeid = {{_, D, _}, _}} = Node ->
-                            lists:foldl(fun
-                                    ({subscribed, SubId}, Acc2) ->
-                                        [{Node, subscribed, SubId, J} | Acc2];
-                                    ({pending, _SubId}, Acc2) ->
-                                        [{Node, pending, J} | Acc2];
-                                    (S, Acc2) ->
-                                        [{Node, S, J} | Acc2]
-                                end,
-                                Acc, Ss);
+                            accumulate_entity_subscriptions(J, Node, Ss, Acc);
                         _ ->
                             Acc
                     end
             end,
             [], States),
     {result, Reply}.
+
+accumulate_entity_subscriptions(J, Node, Ss, Acc) ->
+    lists:foldl(fun({subscribed, SubId}, Acc2) ->
+                        [{Node, subscribed, SubId, J} | Acc2];
+                   ({pending, _SubId}, Acc2) ->
+                        [{Node, pending, J} | Acc2];
+                   (S, Acc2) ->
+                        [{Node, S, J} | Acc2]
+                end, Acc, Ss).
 
 get_node_subscriptions(Nidx) ->
     node_flat:get_node_subscriptions(Nidx).

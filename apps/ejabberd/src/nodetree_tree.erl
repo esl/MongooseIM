@@ -4,13 +4,13 @@
 %%% compliance with the License. You should have received a copy of the
 %%% Erlang Public License along with this software. If not, it can be
 %%% retrieved via the world wide web at http://www.erlang.org/.
-%%% 
+%%%
 %%%
 %%% Software distributed under the License is distributed on an "AS IS"
 %%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %%% the License for the specific language governing rights and limitations
 %%% under the License.
-%%% 
+%%%
 %%%
 %%% The Initial Developer of the Original Code is ProcessOne.
 %%% Portions created by ProcessOne are Copyright 2006-2015, ProcessOne
@@ -129,51 +129,28 @@ get_subnodes_tree(Host, Node, _From) ->
 
 get_subnodes_tree(Host, Node) ->
     case get_node(Host, Node) of
-        {error, _} ->
-            [];
-        Rec ->
-            BasePlugin = binary_to_atom(<<"node_",
-                        (Rec#pubsub_node.type)/binary>>, utf8),
-            BasePath = BasePlugin:node_to_path(Node),
-            mnesia:foldl(fun (#pubsub_node{nodeid = {H, N}} = R, Acc) ->
-                        Plugin = binary_to_atom(<<"node_",
-                                    (R#pubsub_node.type)/binary>>, utf8),
-                        Path = Plugin:node_to_path(N),
-                        case lists:prefix(BasePath, Path) and (H == Host) of
-                            true -> [R | Acc];
-                            false -> Acc
-                        end
-                end,
-                [], pubsub_node)
+        {error, _} -> [];
+        NodeRec -> get_subnodes_of_existing_tree(Host, Node, NodeRec)
     end.
+
+get_subnodes_of_existing_tree(Host, Node, NodeRec) ->
+    BasePlugin = binary_to_atom(<<"node_", (NodeRec#pubsub_node.type)/binary>>, utf8),
+    BasePath = gen_pubsub_node:node_to_path(BasePlugin, Node),
+    mnesia:foldl(fun (#pubsub_node{nodeid = {H, N}} = R, Acc) ->
+                         Plugin = binary_to_atom(<<"node_", (R#pubsub_node.type)/binary>>, utf8),
+                         Path = gen_pubsub_node:node_to_path(Plugin, N),
+                         case lists:prefix(BasePath, Path) and (H == Host) of
+                             true -> [R | Acc];
+                             false -> Acc
+                         end
+                 end,
+                 [], pubsub_node).
 
 create_node(Host, Node, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
     case catch mnesia:read({pubsub_node, {Host, Node}}) of
         [] ->
-            ParentExists = case Host of
-                {_U, _S, _R} ->
-                    %% This is special case for PEP handling
-                    %% PEP does not uses hierarchy
-                    true;
-                _ ->
-                    case Parents of
-                        [] ->
-                            true;
-                        [Parent | _] ->
-                            case catch mnesia:read({pubsub_node, {Host, Parent}}) of
-                                [#pubsub_node{owners = [{[], Host, []}]}] ->
-                                    true;
-                                [#pubsub_node{owners = Owners}] ->
-                                    lists:member(BJID, Owners);
-                                _ ->
-                                    false
-                            end;
-                        _ ->
-                            false
-                    end
-            end,
-            case ParentExists of
+            case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
                     Nidx = pubsub_index:new(node),
                     mnesia:write(#pubsub_node{nodeid = {Host, Node},
@@ -187,6 +164,24 @@ create_node(Host, Node, Type, Owner, Options, Parents) ->
         _ ->
             {error, ?ERR_CONFLICT}
     end.
+
+check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->
+    %% This is special case for PEP handling
+    %% PEP does not uses hierarchy
+    true;
+check_parent_and_its_owner_list(_Host, [], _BJID) ->
+    true;
+check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
+    case catch mnesia:read({pubsub_node, {Host, Parent}}) of
+        [#pubsub_node{owners = [{[], Host, []}]}] ->
+            true;
+        [#pubsub_node{owners = Owners}] ->
+            lists:member(BJID, Owners);
+        _ ->
+            false
+    end;
+check_parent_and_its_owner_list(_Host, _Parents, _BJID) ->
+    false.
 
 delete_node(Host, Node) ->
     Removed = get_subnodes_tree(Host, Node),
