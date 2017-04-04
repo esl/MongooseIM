@@ -48,7 +48,7 @@ For load testing consider [megaLOAD](https://www.erlang-solutions.com/products/m
 
 In order to build client applications, the MoongooseIM team recommends the following libraries:
 
-|x|XMPP|REST API|
+| |XMPP|REST API|
 | ------------- | ------------- | ------------- |
 |iOS|[XMPPframework](https://github.com/robbiehanson/XMPPFramework), Objective-C|[Jayme](https://github.com/inaka/Jayme), Swift|
 |Android|[Smack](https://github.com/igniterealtime/Smack), Java|[Retrofit](https://github.com/square/retrofit), Java|
