@@ -141,7 +141,10 @@ After this step, your application shall be able to receive _FCM_ or _APNS_ token
 
 ### Setting up an XMPP `pubsub` node
 
-First thing that the client has to set up on the XMPP server is a `PubSub` node for handling the push notifications.
+This first step unfortunately is specific to the `app-server` your client application uses. 
+In case of MongooseIM, you just need to allocate (create) special `PubSub` node that will act as gateway for all notifications sent by the XMPP chat server. 
+
+Without any further ado, let's configure the `PubSub`'s `push` node. 
 In this example `mypubsub.com` is a domain of the MongooseIM server that has [mod_pubsub][] enabled with the `push` node support. 
 The client sends the following stanza to the server:
 
@@ -150,17 +153,19 @@ The client sends the following stanza to the server:
     to='pubsub.mypubsub.com'
     id='create1'>
   <pubsub xmlns='http://jabber.org/protocol/pubsub'>
-    <create node='princely_musings' type='push'/>
+    <create node='punsub_node_for_my_private_iphone' type='push'/>
   </pubsub>
 </iq>
 ```
 
+The `pubsub.mypubsub.com` will be used as an gateway for all notifications and will pass them through to the APNS and/or FCM. 
+
 The most important and only distinction from the standard node creation is the `type='push'` part of the `create` element.
 This denotes that you need a node that will handle your push notifications.
-Here we create a node called `princely_musings`.
+Here we create a node called `punsub_node_for_my_private_iphone`.
 This node should be unique to the device and you may reuse nodes already created this way.
 
-After this step, you need to have the `pubsub` host (here `pubsub.mypubsub.com`) and the node name (here: `princely_musings`).
+After this step, you need to have the `pubsub` host (here `pubsub.mypubsub.com`) and the node name (here: `punsub_node_for_my_private_iphone`).
 
 ### Enabling push notifications
 
@@ -171,7 +176,7 @@ To enable push notifications in the simplest configuration, just send the follow
 
 ```xml
 <iq type='set' id='x43'>
-  <enable xmlns='urn:xmpp:push:0' jid='pubsub.mypubsub.com' node='princely_musings'>
+  <enable xmlns='urn:xmpp:push:0' jid='pubsub.mypubsub.com' node='punsub_node_for_my_private_iphone'>
     <x xmlns='jabber:x:data' type='submit'>
       <field var='FORM_TYPE'><value>http://jabber.org/protocol/pubsub#publish-options</value></field>
       <field var='service'><value>apns</value></field>
@@ -181,7 +186,7 @@ To enable push notifications in the simplest configuration, just send the follow
 </iq>
 ```
 
-We have now enabled push notifications to be send to the `pubsub.mypubsub.com` to the node `princely_musings` created in previous paragraph.
+We have now enabled push notifications to be send to the `pubsub.mypubsub.com` to the node `punsub_node_for_my_private_iphone` created in previous paragraph.
 In `publish-options` we have passed the service name that we are using (`apns` or `fcm`) and the device token (here: `your_pns_device_token`) that you received from you push notification service provider (as described in _Registering with Push Service provider_).
 Those two options are the only ones required, but there are two more that are optional:
 
@@ -194,11 +199,11 @@ Disabling push notifications is very simple. Just send the following stanza to y
 
 ```xml
 <iq type='set' id='x44'>
-  <disable xmlns='urn:xmpp:push:0' jid='pubsub.mypubsub.com' node='princely_musings'/>
+  <disable xmlns='urn:xmpp:push:0' jid='pubsub.mypubsub.com' node='punsub_node_for_my_private_iphone'/>
 </iq>
 ```
 
-You may skip the `node='princely_musings'` to globally disable push notifications on all nodes that are registered from your `JID`.
+You may skip the `node='punsub_node_for_my_private_iphone'` to globally disable push notifications on all nodes that are registered from your `JID`.
 This may be used to disbale push notifications on all your devices.
 
 [mod_push]: ../modules/mod_push.md
