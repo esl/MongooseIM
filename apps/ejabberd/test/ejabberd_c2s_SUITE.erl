@@ -12,7 +12,9 @@
 
 all() -> [
           c2s_start_stop_test,
-          stream_error_when_invalid_domain
+          stream_error_when_invalid_domain,
+          session_established,
+          send_error_when_waiting
          ].
 
 init_per_suite(C) ->
@@ -55,14 +57,77 @@ stream_error_when_invalid_domain(_) ->
     ?am({close,[_P]}, CloseSocket),
     ok.
 
+session_established(_) ->
+    {ok, C2SPid} = given_c2s_started(),
+    change_state_to(session_estasblished, C2SPid),
+    ?eq(session_established, getstate(C2SPid)),
+    Last = last_stanza(),
+    ?eq(final_iq_response(), Last).
+
+send_error_when_waiting(_) ->
+    % this is a regression test for #1252 - when c2s is in state wait_for_session_or_sm and it fails to send a message
+    % it should be handled properly
+    {ok, C2SPid} = given_c2s_started(),
+    change_state_to(wait_for_session_or_sm, C2SPid),
+    % here we break things to check how c2s will handle error while sending message in this state
+    meck:expect(ejabberd_socket, send, fun(_, _El) -> error_error_error  end),
+    sync_c2s(C2SPid),
+    p1_fsm:send_event(C2SPid, {xmlstreamelement, setsession_stanza()}),
+    sync_c2s(C2SPid),
+    [Close, StreamEnd, StreamError | _] = lists:reverse(received_stanzas()),
+    ?am(<<"<stream:error><internal-server-error xmlns='urn:ietf:params:xml:ns:xmpp-streams'/></stream:error>">>,
+        StreamError),
+    ?am(<<"</stream:stream>">>, StreamEnd),
+    ?eq(close, Close),
+    ok.
+
+last_stanza() ->
+    [H|_] = lists:reverse(received_stanzas()),
+    H.
+
+received_stanzas() ->
+    Calls = lists:filtermap(filter_calls(ejabberd_socket, [send, close]),
+                            meck:history(ejabberd_socket)),
+%%    ct:pal("Calls: ~p", [Calls]),
+    lists:map(fun extract_stanza/1, Calls).
+
+extract_stanza({_, [_, S]}) -> S;
+extract_stanza({close, _}) -> close.
+
+change_state_to(Target, C2SPid) ->
+    Curr = getstate(C2SPid),
+    change_state_to(Curr, Target, C2SPid).
+
+change_state_to(T, T, _) ->
+    ok;
+change_state_to(wait_for_stream, T, C2SPid) ->
+    p1_fsm:send_event(C2SPid, stream_header(<<"localhost">>)),
+    change_state_to(getstate(C2SPid), T, C2SPid);
+change_state_to(wait_for_feature_before_auth, T, C2SPid) ->
+    p1_fsm:send_event(C2SPid, {xmlstreamelement, auth_stanza()}),
+    change_state_to(getstate(C2SPid), T, C2SPid);
+change_state_to(wait_for_feature_after_auth, T, C2SPid) ->
+    p1_fsm:send_event(C2SPid, {xmlstreamelement, bind_stanza()}),
+    change_state_to(getstate(C2SPid), T, C2SPid);
+change_state_to(wait_for_session_or_sm, T, C2SPid) ->
+    p1_fsm:send_event(C2SPid, {xmlstreamelement, setsession_stanza()}),
+    change_state_to(getstate(C2SPid), T, C2SPid);
+change_state_to(_, _, _) ->
+    error.
+
+getstate(C2SPid) ->
+    State = sync_c2s(C2SPid),
+    [_, StateName | _] = State,
+    StateName.
+
 when_stream_is_opened(C2SPid, Stanza) ->
     p1_fsm:send_event(C2SPid, Stanza),
     sync_c2s(C2SPid),
     lists:filtermap(filter_calls(ejabberd_socket, [send,close]),
                        meck:history(ejabberd_socket)).
 
-filter_calls(ExpecetdMod, Funs) ->
-    fun({_Pid, MFA, Return}) ->
+filter_calls(_ExpecetdMod, Funs) ->
+    fun({_Pid, MFA, _Return}) ->
             maybe_extract_function_with_args(MFA, Funs)
     end.
 
@@ -84,6 +149,23 @@ stream_header(Domain) ->
                              {<<"version">>, <<"1.0">>},
                              {<<"xmlns">>, <<"jabber:client">>},
                              {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>}]}.
+
+auth_stanza() ->
+    {xmlel, <<"auth">>,
+        [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-sasl">>}, {<<"mechanism">>, <<"PLAIN">>}],
+        [{xmlcdata, <<"AGFsaWNFOTkuODk3NzMzAG1hdHlncnlzYQ==">>}]}.
+
+bind_stanza() ->
+    {xmlel, <<"iq">>,
+            [{<<"type">>, <<"set">>}, {<<"id">>, <<"4436">>}],
+            [{xmlel, <<"bind">>,
+                    [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-bind">>}],
+                    [{xmlel, <<"resource">>, [], [{xmlcdata, <<"res1">>}]}]}]}.
+
+setsession_stanza() ->
+    {xmlel, <<"iq">>,
+        [{<<"type">>, <<"set">>}, {<<"id">>, <<"4436">>}],
+        [{xmlel, <<"session">>, [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-session">>}], []}]}.
 
 given_c2s_started() ->
     create_c2s().
@@ -107,3 +189,12 @@ stop_c2s(C2SPid) when is_pid(C2SPid) ->
 jid(Str) ->
     jid:from_binary(Str).
 
+final_iq_response() ->
+    <<"<iq type='result' id='4436'><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>">>.
+%%    Iq1 = <<"<iq id='4436' type='result'>">>,
+%%    B1 = <<"<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>">>,
+%%    Jid = <<"<jid>cosmic_hippo@localhost/res1</jid></bind></iq>">>,
+%%    B2 = <<"</bind>">>,
+%%    Iq2 = <<"</iq>">>,
+%%    <<Iq1/binary, B1/binary, Jid/binary, B2/binary, Iq2/binary>>.
+%%    Iq = <<"<iq id='4436' type='result'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><jid>cosmic_hippo@localhost/res1</jid></bind></iq>">>,
