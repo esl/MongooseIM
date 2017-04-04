@@ -1,14 +1,17 @@
 ### Module Description
-This module implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html). It enables a service that on user request creates an upload "slot". A slot is a pair of URLs, one of which can be used with `PUT` method to upload user's file, the other with `GET` method to retrieve the file.
+This module implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html). 
+It enables a service that on user request creates an upload "slot". 
+A slot is a pair of URLs, one of which can be used with a `PUT` method to upload user's file, the other with a `GET` method to retrieve the file.
 
-Currently, the module supports only S3 backend using [AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html).
+Currently, the module supports only the S3 backend using [AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html).
 
 ### Options
 
-* **host** (string, default: `"upload.@HOST@"`): Subdomain for upload service to reside under. `@HOST@` is replaced with each served domain.
+* **host** (string, default: `"upload.@HOST@"`): Subdomain for the upload service to reside under. `@HOST@` is replaced with each served domain.
 * **backend** (atom, default: `s3`) - Backend to use for generating slots. Currently only `s3` can be used.
 * **expiration_time** (integer, default: `60`) - Duration (in seconds) after which the generated `PUT` URL will become invalid.
-* **token_bytes** (integer, default: `32`) - Number of random bytes of a token that will be used in a generated URL. The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in URL will be 64 characters long.
+* **token_bytes** (integer, default: `32`) - Number of random bytes of a token that will be used in a generated URL. 
+ The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in URL will be 64 characters long.
 * **max_file_size** (integer, default: 10 MB) - Maximum file size (in bytes) accepted by the module. Disabled if set to `undefined`.
 * **s3** (list, default: unset) - Options specific to S3 backend.
 
