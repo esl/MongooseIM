@@ -1,10 +1,10 @@
 ### Module Description
-This module enables support to Amazon SNS service. Currently there are 3 available notifications:
-* **user presence changed** - Carries user id (bare jid by default) and boolean field corresponding to current user online status.
-* **private message sent** - Carries user ids (both sender and receiver) along with message body.
-* **group message sent** - Carries user id and room id (bare jids by default) along with message body.
+This module enables support for Amazon SNS service. Currently there are 3 available notifications:
+* **user presence changed** - Carries the user id (bare jid by default) and a boolean field corresponding to the current user online status.
+* **private message sent** - Carries the user ids (both sender and receiver) along with the message body.
+* **group message sent** - Carries the user id and the room id (bare jids by default) along with the message body.
 
-All those notifications are sent as JSON string to Amazon SNS along with custom MessageAttributes (see http://docs.aws.amazon.com/sns/latest/api/API_Publish.html). MessageAttributes can be specified via plugin module (more details in *Options* section).
+All those notifications are sent as a JSON string to Amazon SNS along with custom MessageAttributes (see http://docs.aws.amazon.com/sns/latest/api/API_Publish.html). MessageAttributes can be specified via a plugin module (more details in *Options* section).
 
 Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn]) are constructed as `arn:aws:sns:{region}:{account_id}:{topic}` where `{region}` and `{account_id}` are substituted with corresponding values from configuration options. `{topic}` is pulled from configuration option `presence_updates_topic`, `pm_messages_topic` or `muc_messages_topic` based on notification type.
 
