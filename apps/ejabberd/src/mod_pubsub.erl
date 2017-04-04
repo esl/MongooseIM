@@ -772,42 +772,37 @@ in_subscription(_, _, _, _, _, _) ->
     true.
 
 unsubscribe_user(Entity, Owner) ->
-    spawn(fun () ->
-                  [unsubscribe_user(ServerHost, Entity, Owner) ||
-                      ServerHost <- lists:usort(lists:foldl(
-                                                  fun(UserHost, Acc) ->
-                                                          case gen_mod:is_loaded(UserHost, mod_pubsub) of
-                                                              true -> [UserHost|Acc];
-                                                              false -> Acc
-                                                          end
-                                                  end, [], [Entity#jid.lserver, Owner#jid.lserver]))]
-          end).
+    ServerHosts = lists:usort(lists:foldl(
+                                fun(UserHost, Acc) ->
+                                        case gen_mod:is_loaded(UserHost, mod_pubsub) of
+                                            true -> [UserHost|Acc];
+                                            false -> Acc
+                                        end
+                                end, [], [Entity#jid.lserver, Owner#jid.lserver])),
+    spawn(fun() -> [unsubscribe_user(ServerHost, Entity, Owner) || ServerHost <- ServerHosts] end).
+
 unsubscribe_user(Host, Entity, Owner) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
     lists:foreach(fun (PType) ->
-                          {result, Subs} = node_action(Host, PType,
-                                                       get_entity_subscriptions,
-                                                       [Host, Entity]),
-                          lists:foreach(fun
-                                            ({#pubsub_node{options = Options,
-                                                           owners = O,
-                                                           id = Nidx},
-                                              subscribed, _, JID}) ->
-                                                Unsubscribe = match_option(Options, access_model, presence)
-                                                    andalso lists:member(BJID, node_owners_action(Host, PType, Nidx, O)),
-                                                case Unsubscribe of
-                                                    true ->
-                                                        node_action(Host, PType,
-                                                                    unsubscribe_node, [Nidx, Entity, JID, all]);
-                                                    false ->
-                                                        ok
-                                                end;
-                                            (_) ->
-                                                ok
-                                        end,
-                                        Subs)
-                  end,
-                  plugins(Host)).
+                         unsubscribe_user_per_plugin(Host, Entity, BJID, PType)
+                  end, plugins(Host)).
+
+unsubscribe_user_per_plugin(Host, Entity, BJID, PType) ->
+    {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
+    lists:foreach(fun({#pubsub_node{options = Options, owners = O, id = Nidx},
+                       subscribed, _, JID}) ->
+                          Unsubscribe = match_option(Options, access_model, presence)
+                          andalso lists:member(BJID, node_owners_action(Host, PType, Nidx, O)),
+                          case Unsubscribe of
+                              true ->
+                                  node_action(Host, PType,
+                                              unsubscribe_node, [Nidx, Entity, JID, all]);
+                              false ->
+                                  ok
+                          end;
+                     (_) ->
+                          ok
+                  end, Subs).
 
 %% -------
 %% user remove hook handling function
@@ -823,41 +818,31 @@ remove_user(User, Server) ->
     Entity = jid:make(LUser, LServer, <<>>),
     Host = host(LServer),
     HomeTreeBase = <<"/home/", LServer/binary, "/", LUser/binary>>,
-    spawn(fun () ->
-                  lists:foreach(
-                    fun (PType) ->
-                            {result, Subs} = node_action(Host, PType,
-                                                         get_entity_subscriptions,
-                                                         [Host, Entity]),
-                            lists:foreach(fun
-                                              ({#pubsub_node{id = Nidx}, _, _, JID}) ->
-                                                 node_action(Host, PType,
-                                                             unsubscribe_node,
-                                                             [Nidx, Entity, JID, all]);
-                                              (_) ->
-                                                 ok
-                                          end,
-                                          Subs),
-                            {result, Affs} = node_action(Host, PType,
-                                                         get_entity_affiliations,
-                                                         [Host, Entity]),
-                            lists:foreach(fun
-                                              ({#pubsub_node{nodeid = {H, N}, parents = []}, owner}) ->
-                                                 delete_node(H, N, Entity);
-                                              ({#pubsub_node{nodeid = {H, N}, type = Type}, owner})
-                                                when N == HomeTreeBase, Type == <<"hometree">> ->
-                                                  delete_node(H, N, Entity);
-                                              ({#pubsub_node{id = Nidx}, publisher}) ->
-                                                  node_action(Host, PType,
-                                                              set_affiliation,
-                                                              [Nidx, Entity, none]);
-                                              (_) ->
-                                                  ok
-                                          end,
-                                          Affs)
-                    end,
-                    plugins(Host))
-          end).
+    spawn(fun() -> lists:foreach(
+                     fun(PType) ->
+                             catch remove_user_per_plugin(PType, Host, Entity, HomeTreeBase)
+                     end, plugins(Host)) end).
+
+remove_user_per_plugin(PType, Host, Entity, HomeTreeBase) ->
+    {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
+    lists:foreach(fun({#pubsub_node{id = Nidx}, _, _, JID}) ->
+                          node_action(Host, PType, unsubscribe_node, [Nidx, Entity, JID, all]);
+                     (_) ->
+                          ok
+                  end, Subs),
+    {result, Affs} = node_action(Host, PType, get_entity_affiliations, [Host, Entity]),
+    lists:foreach(fun({#pubsub_node{nodeid = {H, N}, parents = []}, owner}) ->
+                          delete_node(H, N, Entity);
+                     ({#pubsub_node{nodeid = {H, N}, type = Type}, owner})
+                       when N == HomeTreeBase, Type == <<"hometree">> ->
+                          delete_node(H, N, Entity);
+                     ({#pubsub_node{id = Nidx}, publisher}) ->
+                          node_action(Host, PType,
+                                      set_affiliation,
+                                      [Nidx, Entity, none]);
+                     (_) ->
+                          ok
+                  end, Affs).
 
 handle_call(server_host, _From, State) ->
     {reply, State#state.server_host, State};
@@ -980,115 +965,113 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-do_route(ServerHost, Access, Plugins, Host, From, To, Packet) ->
-    #xmlel{name = Name, attrs = Attrs} = Packet,
-    case To of
-        #jid{luser = <<>>, lresource = <<>>} ->
-            case Name of
-                <<"iq">> ->
-                    case jlib:iq_query_info(Packet) of
-                        #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
-                            #xmlel{attrs = QAttrs} = SubEl,
-                            Node = xml:get_attr_s(<<"node">>, QAttrs),
-                            Info = ejabberd_hooks:run_fold(disco_info, ServerHost,
-                                                           [],
-                                                           [ServerHost, ?MODULE, <<>>, <<>>]),
-                            Res = case iq_disco_info(Host, Node, From, Lang) of
-                                      {result, IQRes} ->
-                                          jlib:iq_to_xml(IQ#iq{type = result,
-                                                               sub_el =
-                                                                   [#xmlel{name = <<"query">>,
-                                                                           attrs = QAttrs,
-                                                                           children = IQRes ++ Info}]});
-                                      {error, Error} ->
-                                          jlib:make_error_reply(Packet, Error)
-                                  end,
-                            ejabberd_router:route(To, From, Res);
-                        #iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = SubEl} = IQ ->
-                            #xmlel{attrs = QAttrs} = SubEl,
-                            Node = xml:get_attr_s(<<"node">>, QAttrs),
-                            Res = case iq_disco_items(Host, Node, From, jlib:rsm_decode(IQ)) of
-                                      {result, IQRes} ->
-                                          jlib:iq_to_xml(IQ#iq{type = result,
-                                                               sub_el =
-                                                                   [#xmlel{name = <<"query">>,
-                                                                           attrs = QAttrs,
-                                                                           children = IQRes}]});
-                                      {error, Error} ->
-                                          jlib:make_error_reply(Packet, Error)
-                                  end,
-                            ejabberd_router:route(To, From, Res);
-                        #iq{type = IQType, xmlns = ?NS_PUBSUB, lang = Lang, sub_el = SubEl} = IQ ->
-                            Res = case iq_pubsub(Host, ServerHost, From, IQType,
-                                                 SubEl, Lang, Access, Plugins)
-                                  of
-                                      {result, IQRes} ->
-                                          jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
-                                      {error, Error} ->
-                                          jlib:make_error_reply(Packet, Error)
-                                  end,
-                            ejabberd_router:route(To, From, Res);
-                        #iq{type = IQType, xmlns = ?NS_PUBSUB_OWNER, lang = Lang, sub_el = SubEl} = IQ ->
-                            Res = case iq_pubsub_owner(Host, ServerHost, From,
-                                                       IQType, SubEl, Lang)
-                                  of
-                                      {result, IQRes} ->
-                                          jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
-                                      {error, {Error, NewPayload}} ->
-                                          jlib:make_error_reply(Packet#xmlel{ children = NewPayload }, Error);
-                                      {error, Error} ->
-                                          jlib:make_error_reply(Packet, Error)
-                                  end,
-                            ejabberd_router:route(To, From, Res);
-                        #iq{type = get, xmlns = (?NS_VCARD) = XMLNS, lang = Lang, sub_el = _SubEl} = IQ ->
-                            Res = IQ#iq{type = result,
-                                        sub_el =
-                                            [#xmlel{name = <<"vCard">>,
-                                                    attrs = [{<<"xmlns">>, XMLNS}],
-                                                    children = iq_get_vcard(Lang)}]},
-                            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
-                        #iq{type = set, xmlns = ?NS_COMMANDS} = IQ ->
-                            Res = case iq_command(Host, ServerHost, From, IQ, Access, Plugins) of
-                                      {error, Error} ->
-                                          jlib:make_error_reply(Packet, Error);
-                                      {result, IQRes} ->
-                                          jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes})
-                                  end,
-                            ejabberd_router:route(To, From, Res);
-                        #iq{} ->
-                            Err = jlib:make_error_reply(Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
-                            ejabberd_router:route(To, From, Err);
-                        _ ->
-                            ok
-                    end;
-                <<"message">> ->
-                    case xml:get_attr_s(<<"type">>, Attrs) of
-                        <<"error">> ->
-                            ok;
-                        _ ->
-                            case find_authorization_response(Packet) of
-                                none ->
-                                    ok;
-                                invalid ->
-                                    Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
-                                    ejabberd_router:route(To, From, Err);
-                                XFields ->
-                                    handle_authorization_response(Host, From, To, Packet, XFields)
-                            end
-                    end;
-                _ ->
-                    ok
-            end;
+do_route(ServerHost, Access, Plugins, Host, From,
+         #jid{luser = <<>>, lresource = <<>>} = To,
+         #xmlel{ name = <<"iq">> } = Packet) ->
+    case jlib:iq_query_info(Packet) of
+        #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
+            #xmlel{attrs = QAttrs} = SubEl,
+            Node = xml:get_attr_s(<<"node">>, QAttrs),
+            Info = ejabberd_hooks:run_fold(disco_info, ServerHost,
+                                           [],
+                                           [ServerHost, ?MODULE, <<>>, <<>>]),
+            Res = case iq_disco_info(Host, Node, From, Lang) of
+                      {result, IQRes} ->
+                          jlib:iq_to_xml(IQ#iq{type = result,
+                                               sub_el =
+                                               [#xmlel{name = <<"query">>,
+                                                       attrs = QAttrs,
+                                                       children = IQRes ++ Info}]});
+                      {error, Error} ->
+                          jlib:make_error_reply(Packet, Error)
+                  end,
+            ejabberd_router:route(To, From, Res);
+        #iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = SubEl} = IQ ->
+            #xmlel{attrs = QAttrs} = SubEl,
+            Node = xml:get_attr_s(<<"node">>, QAttrs),
+            Res = case iq_disco_items(Host, Node, From, jlib:rsm_decode(IQ)) of
+                      {result, IQRes} ->
+                          jlib:iq_to_xml(IQ#iq{type = result,
+                                               sub_el =
+                                               [#xmlel{name = <<"query">>,
+                                                       attrs = QAttrs,
+                                                       children = IQRes}]});
+                      {error, Error} ->
+                          jlib:make_error_reply(Packet, Error)
+                  end,
+            ejabberd_router:route(To, From, Res);
+        #iq{type = IQType, xmlns = ?NS_PUBSUB, lang = Lang, sub_el = SubEl} = IQ ->
+            Res = case iq_pubsub(Host, ServerHost, From, IQType,
+                                 SubEl, Lang, Access, Plugins)
+                  of
+                      {result, IQRes} ->
+                          jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
+                      {error, Error} ->
+                          jlib:make_error_reply(Packet, Error)
+                  end,
+            ejabberd_router:route(To, From, Res);
+        #iq{type = IQType, xmlns = ?NS_PUBSUB_OWNER, lang = Lang, sub_el = SubEl} = IQ ->
+            Res = case iq_pubsub_owner(Host, ServerHost, From,
+                                       IQType, SubEl, Lang)
+                  of
+                      {result, IQRes} ->
+                          jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
+                      {error, {Error, NewPayload}} ->
+                          jlib:make_error_reply(Packet#xmlel{ children = NewPayload }, Error);
+                      {error, Error} ->
+                          jlib:make_error_reply(Packet, Error)
+                  end,
+            ejabberd_router:route(To, From, Res);
+        #iq{type = get, xmlns = (?NS_VCARD) = XMLNS, lang = Lang, sub_el = _SubEl} = IQ ->
+            Res = IQ#iq{type = result,
+                        sub_el =
+                        [#xmlel{name = <<"vCard">>,
+                                attrs = [{<<"xmlns">>, XMLNS}],
+                                children = iq_get_vcard(Lang)}]},
+            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
+        #iq{type = set, xmlns = ?NS_COMMANDS} = IQ ->
+            Res = case iq_command(Host, ServerHost, From, IQ, Access, Plugins) of
+                      {error, Error} ->
+                          jlib:make_error_reply(Packet, Error);
+                      {result, IQRes} ->
+                          jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes})
+                  end,
+            ejabberd_router:route(To, From, Res);
+        #iq{} ->
+            Err = jlib:make_error_reply(Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+            ejabberd_router:route(To, From, Err);
         _ ->
-            case xml:get_attr_s(<<"type">>, Attrs) of
-                <<"error">> ->
+            ok
+    end;
+do_route(_ServerHost, _Access, _Plugins, Host, From,
+         #jid{luser = <<>>, lresource = <<>>} = To,
+         #xmlel{ name = <<"message">> } = Packet) ->
+    case exml_query:attr(Packet, <<"type">>) of
+        <<"error">> ->
+            ok;
+        _ ->
+            case find_authorization_response(Packet) of
+                none ->
                     ok;
-                <<"result">> ->
-                    ok;
-                _ ->
-                    Err = jlib:make_error_reply(Packet, ?ERR_ITEM_NOT_FOUND),
-                    ejabberd_router:route(To, From, Err)
+                invalid ->
+                    Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
+                    ejabberd_router:route(To, From, Err);
+                XFields ->
+                    handle_authorization_response(Host, From, To, Packet, XFields)
             end
+    end;
+do_route(_ServerHost, _Access, _Plugins, _Host, _From,
+         #jid{luser = <<>>, lresource = <<>>} = _To, _Packet) ->
+    ok;
+do_route(_ServerHost, _Access, _Plugins, _Host, From, To, Packet) ->
+    case exml_query:attr(Packet, <<"type">>) of
+        <<"error">> ->
+            ok;
+        <<"result">> ->
+            ok;
+        _ ->
+            Err = jlib:make_error_reply(Packet, ?ERR_ITEM_NOT_FOUND),
+            ejabberd_router:route(To, From, Err)
     end.
 
 command_disco_info(_Host, ?NS_COMMANDS, _From) ->
@@ -1194,40 +1177,44 @@ iq_disco_items(Host, Item, From, RSM) ->
         [_Node, _ItemId] ->
             {result, []};
         [Node] ->
-            Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
-                             Owners = node_owners_call(Host, Type, Nidx, O),
-                             {NodeItems, RsmOut} = case get_allowed_items_call(Host, Nidx,
-                                                                               From, Type, Options, Owners, RSM)
-                                                   of
-                                                       {result, R} -> R;
-                                                       _ -> {[], none}
-                                                   end,
-                             Nodes = lists:map(fun (#pubsub_node{nodeid = {_, SubNode}, options = SubOptions}) ->
-                                                       Attrs = case get_option(SubOptions, title) of
-                                                                   false ->
-                                                                       [{<<"jid">>, Host}
-                                                                        | nodeAttr(SubNode)];
-                                                                   [Title] ->
-                                                                       [{<<"jid">>, Host},
-                                                                        {<<"name">>, Title}
-                                                                        | nodeAttr(SubNode)]
-                                                               end,
-                                                       #xmlel{name = <<"item">>, attrs = Attrs}
-                                               end,
-                                               tree_call(Host, get_subnodes, [Host, Node, From])),
-                             Items = lists:map(fun (#pubsub_item{itemid = {RN, _}}) ->
-                                                       {result, Name} = node_call(Host, Type, get_item_name, [Host, Node, RN]),
-                                                       #xmlel{name = <<"item">>,
-                                                              attrs = [{<<"jid">>, Host}, {<<"name">>, Name}]}
-                                               end,
-                                               NodeItems),
-                             {result, Nodes ++ Items ++ jlib:rsm_encode(RsmOut)}
+            Action = fun (PubSubNode) ->
+                             iq_disco_items_transaction(Host, From, Node, RSM, PubSubNode)
                      end,
             case transaction(Host, Node, Action, sync_dirty) of
                 {result, {_, Result}} -> {result, Result};
                 Other -> Other
             end
     end.
+
+iq_disco_items_transaction(Host, From, Node, RSM,
+                           #pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
+    Owners = node_owners_call(Host, Type, Nidx, O),
+    {NodeItems, RsmOut} = case get_allowed_items_call(Host, Nidx,
+                                                      From, Type, Options, Owners, RSM)
+                          of
+                              {result, R} -> R;
+                              _ -> {[], none}
+                          end,
+    Nodes = lists:map(fun (#pubsub_node{nodeid = {_, SubNode}, options = SubOptions}) ->
+                              Attrs = case get_option(SubOptions, title) of
+                                          false ->
+                                              [{<<"jid">>, Host}
+                                               | nodeAttr(SubNode)];
+                                          [Title] ->
+                                              [{<<"jid">>, Host},
+                                               {<<"name">>, Title}
+                                               | nodeAttr(SubNode)]
+                                      end,
+                              #xmlel{name = <<"item">>, attrs = Attrs}
+                      end,
+                      tree_call(Host, get_subnodes, [Host, Node, From])),
+    Items = lists:map(fun (#pubsub_item{itemid = {RN, _}}) ->
+                              {result, Name} = node_call(Host, Type, get_item_name, [Host, Node, RN]),
+                              #xmlel{name = <<"item">>,
+                                     attrs = [{<<"jid">>, Host}, {<<"name">>, Name}]}
+                      end,
+                      NodeItems),
+    {result, Nodes ++ Items ++ jlib:rsm_encode(RsmOut)}.
 
 -spec iq_sm(
         From :: jid(),
@@ -1258,123 +1245,51 @@ iq_get_vcard(Lang) ->
                          <<(translate:translate(Lang, <<"ejabberd Publish-Subscribe module">>))/binary,
                            "\nCopyright (c) 2004-2015 ProcessOne">>}]}].
 
--spec iq_pubsub(
-        Host       :: mod_pubsub:host(),
-          ServerHost :: binary(),
-          From       :: jid(),
-          IQType     :: 'get' | 'set',
-          SubEl      :: xmlel(),
-          Lang       :: binary())
-        -> {result, [xmlel()]}
-%%%
-               | {error, xmlel()}.
+-spec iq_pubsub(Host :: mod_pubsub:host(),
+                ServerHost :: binary(),
+                From :: jid(),
+                IQType :: get | set,
+                QueryEl :: xmlel(),
+                Lang :: binary()) -> {result, [xmlel()]} | {error, xmlel()}.
+iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
+    iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang, all, plugins(ServerHost)).
 
-iq_pubsub(Host, ServerHost, From, IQType, SubEl, Lang) ->
-    iq_pubsub(Host, ServerHost, From, IQType, SubEl, Lang, all, plugins(ServerHost)).
-
--spec iq_pubsub(
-        Host       :: mod_pubsub:host(),
-          ServerHost :: binary(),
-          From       :: jid(),
-          IQType     :: 'get' | 'set',
-          SubEl      :: xmlel(),
-          Lang       :: binary(),
-          Access     :: atom(),
-          Plugins    :: [binary(), ...])
-        -> {result, [xmlel()]}
-%%%
-               | {error, xmlel()}.
-
-iq_pubsub(Host, ServerHost, From, IQType, SubEl, Lang, Access, Plugins) ->
-    #xmlel{children = SubEls} = SubEl,
+-spec iq_pubsub(Host :: mod_pubsub:host(),
+                ServerHost :: binary(),
+                From :: jid(),
+                IQType :: 'get' | 'set',
+                QueryEl :: xmlel(),
+                Lang :: binary(),
+                Access :: atom(),
+                Plugins :: [binary(), ...]) -> {result, [xmlel()]} | {error, xmlel()}.
+iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
+          Lang, Access, Plugins) ->
     case xml:remove_cdata(SubEls) of
-        [#xmlel{name = Name, attrs = Attrs, children = Els} | Rest] ->
-            Node = xml:get_attr_s(<<"node">>, Attrs),
+        [#xmlel{name = Name, attrs = ActionAttrs, children = ActionSubEls} = ActionEl | _] ->
+            Node = xml:get_attr_s(<<"node">>, ActionAttrs),
             case {IQType, Name} of
                 {set, <<"create">>} ->
-                    Config = case Rest of
-                                 [#xmlel{name = <<"configure">>, children = C}] -> C;
-                                 _ -> []
-                             end,
-                    Type = case xml:get_attr_s(<<"type">>, Attrs) of
-                               <<>> -> hd(Plugins);
-                               T -> T
-                           end,
-                    case lists:member(Type, Plugins) of
-                        false ->
-                            {error,
-                             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"create-nodes">>)};
-                        true ->
-                            create_node(Host, ServerHost, Node, From, Type, Access, Config)
-                    end;
+                    iq_pubsub_set_create(Host, ServerHost, Node, From, Access,
+                                         Plugins, ActionEl, QueryEl);
                 {set, <<"publish">>} ->
-                    case xml:remove_cdata(Els) of
-                        [#xmlel{name = <<"item">>, attrs = ItemAttrs,
-                                children = Payload}] ->
-                            ItemId = xml:get_attr_s(<<"id">>, ItemAttrs),
-                            PublishOptions = exml_query:path(SubEl,
-                                                             [{element, <<"publish-options">>},
-                                                              {element, <<"x">>}]),
-                            publish_item(Host, ServerHost, Node, From, ItemId,
-                                         Payload, Access, PublishOptions);
-                        [] ->
-                            {error,
-                             extended_error(?ERR_BAD_REQUEST, <<"item-required">>)};
-                        _ ->
-                            {error,
-                             extended_error(?ERR_BAD_REQUEST, <<"invalid-payload">>)}
-                    end;
+                    iq_pubsub_set_publish(Host, ServerHost, Node, From, Access,
+                                         ActionSubEls, QueryEl);
                 {set, <<"retract">>} ->
-                    ForceNotify = case xml:get_attr_s(<<"notify">>, Attrs) of
-                                      <<"1">> -> true;
-                                      <<"true">> -> true;
-                                      _ -> false
-                                  end,
-                    case xml:remove_cdata(Els) of
-                        [#xmlel{name = <<"item">>, attrs = ItemAttrs}] ->
-                            ItemId = xml:get_attr_s(<<"id">>, ItemAttrs),
-                            delete_item(Host, Node, From, ItemId, ForceNotify);
-                        _ ->
-                            {error,
-                             extended_error(?ERR_BAD_REQUEST, <<"item-required">>)}
-                    end;
+                    iq_pubsub_set_retract(Host, Node, From, ActionAttrs, ActionSubEls);
                 {set, <<"subscribe">>} ->
-                    Config = case Rest of
-                                 [#xmlel{name = <<"options">>, children = C}] -> C;
-                                 _ -> []
-                             end,
-                    JID = xml:get_attr_s(<<"jid">>, Attrs),
-                    subscribe_node(Host, Node, From, JID, Config);
+                    iq_pubsub_set_subscribe(Host, Node, From, QueryEl, ActionAttrs);
                 {set, <<"unsubscribe">>} ->
-                    JID = xml:get_attr_s(<<"jid">>, Attrs),
-                    SubId = xml:get_attr_s(<<"subid">>, Attrs),
-                    unsubscribe_node(Host, Node, From, JID, SubId);
+                    iq_pubsub_set_unsubscribe(Host, Node, From, ActionAttrs);
                 {get, <<"items">>} ->
-                    MaxItems = xml:get_attr_s(<<"max_items">>, Attrs),
-                    SubId = xml:get_attr_s(<<"subid">>, Attrs),
-                    ItemIds = lists:foldl(fun
-                                              (#xmlel{name = <<"item">>, attrs = ItemAttrs}, Acc) ->
-                                                 case xml:get_attr_s(<<"id">>, ItemAttrs) of
-                                                     <<>> -> Acc;
-                                                     ItemId -> [ItemId | Acc]
-                                                 end;
-                                              (_, Acc) ->
-                                                 Acc
-                                         end,
-                                          [], xml:remove_cdata(Els)),
-                    get_items(Host, Node, From, SubId, MaxItems, ItemIds, jlib:rsm_decode(SubEl));
+                    iq_pubsub_get_items(Host, Node, From, QueryEl, ActionAttrs, ActionSubEls);
                 {get, <<"subscriptions">>} ->
                     get_subscriptions(Host, Node, From, Plugins);
                 {get, <<"affiliations">>} ->
                     get_affiliations(Host, Node, From, Plugins);
                 {get, <<"options">>} ->
-                    SubId = xml:get_attr_s(<<"subid">>, Attrs),
-                    JID = xml:get_attr_s(<<"jid">>, Attrs),
-                    get_options(Host, Node, JID, SubId, Lang);
+                    iq_pubsub_get_options(Host, Node, Lang, ActionAttrs);
                 {set, <<"options">>} ->
-                    SubId = xml:get_attr_s(<<"subid">>, Attrs),
-                    JID = xml:get_attr_s(<<"jid">>, Attrs),
-                    set_options(Host, Node, JID, SubId, Els);
+                    iq_pubsub_set_options(Host, Node, ActionAttrs, ActionSubEls);
                 _ ->
                     {error, ?ERR_FEATURE_NOT_IMPLEMENTED}
             end;
@@ -1383,6 +1298,86 @@ iq_pubsub(Host, ServerHost, From, IQType, SubEl, Lang, Access, Plugins) ->
             {error, ?ERR_BAD_REQUEST}
     end.
 
+iq_pubsub_set_create(Host, ServerHost, Node, From, Access, Plugins, CreateEl, QueryEl) ->
+    Config = case exml_query:subelement(QueryEl, <<"configure">>) of
+                 #xmlel{ children = C } -> C;
+                 _ -> []
+             end,
+    Type = exml_query:attr(CreateEl, <<"type">>, hd(Plugins)),
+    case lists:member(Type, Plugins) of
+        false ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"create-nodes">>)};
+        true ->
+            create_node(Host, ServerHost, Node, From, Type, Access, Config)
+    end.
+
+iq_pubsub_set_publish(Host, ServerHost, Node, From, Access, PublishSubEls, QueryEl) ->
+    case xml:remove_cdata(PublishSubEls) of
+        [#xmlel{name = <<"item">>, attrs = ItemAttrs, children = Payload}] ->
+            ItemId = xml:get_attr_s(<<"id">>, ItemAttrs),
+            PublishOptions = exml_query:path(QueryEl,
+                                             [{element, <<"publish-options">>},
+                                              {element, <<"x">>}]),
+            publish_item(Host, ServerHost, Node, From, ItemId,
+                         Payload, Access, PublishOptions);
+        [] ->
+            {error, extended_error(?ERR_BAD_REQUEST, <<"item-required">>)};
+        _ ->
+            {error, extended_error(?ERR_BAD_REQUEST, <<"invalid-payload">>)}
+    end.
+
+iq_pubsub_set_retract(Host, Node, From, RetractAttrs, RetractSubEls) ->
+    ForceNotify = case xml:get_attr_s(<<"notify">>, RetractAttrs) of
+                      <<"1">> -> true;
+                      <<"true">> -> true;
+                      _ -> false
+                  end,
+    case xml:remove_cdata(RetractSubEls) of
+        [#xmlel{name = <<"item">>, attrs = ItemAttrs}] ->
+            ItemId = xml:get_attr_s(<<"id">>, ItemAttrs),
+            delete_item(Host, Node, From, ItemId, ForceNotify);
+        _ ->
+            {error,
+             extended_error(?ERR_BAD_REQUEST, <<"item-required">>)}
+    end.
+
+iq_pubsub_set_subscribe(Host, Node, From, QueryEl, SubscribeAttrs) ->
+    Config = case exml_query:subelement(QueryEl, <<"options">>) of
+                 #xmlel{ children = C } -> C;
+                 _ -> []
+             end,
+    JID = xml:get_attr_s(<<"jid">>, SubscribeAttrs),
+    subscribe_node(Host, Node, From, JID, Config).
+
+iq_pubsub_set_unsubscribe(Host, Node, From, UnsubscribeAttrs) ->
+    JID = xml:get_attr_s(<<"jid">>, UnsubscribeAttrs),
+    SubId = xml:get_attr_s(<<"subid">>, UnsubscribeAttrs),
+    unsubscribe_node(Host, Node, From, JID, SubId).
+
+iq_pubsub_get_items(Host, Node, From, QueryEl, GetItemsAttrs, GetItemsSubEls) ->
+    MaxItems = xml:get_attr_s(<<"max_items">>, GetItemsAttrs),
+    SubId = xml:get_attr_s(<<"subid">>, GetItemsAttrs),
+    ItemIds = lists:foldl(fun(#xmlel{name = <<"item">>, attrs = ItemAttrs}, Acc) ->
+                                  case xml:get_attr_s(<<"id">>, ItemAttrs) of
+                                      <<>> -> Acc;
+                                      ItemId -> [ItemId | Acc]
+                                  end;
+                              (_, Acc) ->
+                                  Acc
+                          end,
+                          [], xml:remove_cdata(GetItemsSubEls)),
+    get_items(Host, Node, From, SubId, MaxItems, ItemIds, jlib:rsm_decode(QueryEl)).
+
+iq_pubsub_get_options(Host, Node, Lang, GetOptionsAttrs) ->
+    SubId = xml:get_attr_s(<<"subid">>, GetOptionsAttrs),
+    JID = xml:get_attr_s(<<"jid">>, GetOptionsAttrs),
+    get_options(Host, Node, JID, SubId, Lang).
+
+iq_pubsub_set_options(Host, Node, SetOptionsAttrs, SetOptionsSubEls) ->
+    SubId = xml:get_attr_s(<<"subid">>, SetOptionsAttrs),
+    JID = xml:get_attr_s(<<"jid">>, SetOptionsAttrs),
+    set_options(Host, Node, JID, SubId, SetOptionsSubEls).
 
 -spec iq_pubsub_owner(
         Host       :: mod_pubsub:host(),
@@ -1449,21 +1444,7 @@ adhoc_request(Host, _ServerHost, Owner,
               Request = #adhoc_request{node = ?NS_PUBSUB_GET_PENDING,
                                        action = <<"execute">>, xdata = XData},
               _Access, _Plugins) ->
-    ParseOptions = case XData of
-                       #xmlel{name = <<"x">>} = XEl ->
-                           case jlib:parse_xdata_submit(XEl) of
-                               invalid ->
-                                   {error, ?ERR_BAD_REQUEST};
-                               XData2 ->
-                                   case set_xoption(Host, XData2, []) of
-                                       NewOpts when is_list(NewOpts) -> {result, NewOpts};
-                                       Err -> Err
-                                   end
-                           end;
-                       _ ->
-                           ?INFO_MSG("Bad XForm: ~p", [XData]),
-                           {error, ?ERR_BAD_REQUEST}
-                   end,
+    ParseOptions = adhoc_get_pending_parse_options(Host, XData),
     case ParseOptions of
         {result, XForm} ->
             case lists:keysearch(node, 1, XForm) of
@@ -1522,21 +1503,27 @@ get_pending_nodes(Host, Owner, Plugins) ->
         Err -> Err
     end.
 
+adhoc_get_pending_parse_options(Host, #xmlel{name = <<"x">>} = XEl) ->
+    case jlib:parse_xdata_submit(XEl) of
+        invalid ->
+            {error, ?ERR_BAD_REQUEST};
+        XData2 ->
+            case set_xoption(Host, XData2, []) of
+                NewOpts when is_list(NewOpts) -> {result, NewOpts};
+                Err -> Err
+            end
+    end;
+adhoc_get_pending_parse_options(_Host, XData) ->
+    ?INFO_MSG("Bad XForm: ~p", [XData]),
+    {error, ?ERR_BAD_REQUEST}.
+
 %% @doc <p>Send a subscription approval form to Owner for all pending
 %% subscriptions on Host and Node.</p>
 send_pending_auth_events(Request, Host, Node, Owner) ->
     ?DEBUG("Sending pending auth events for ~s on ~s:~s",
            [jid:to_binary(Owner), Host, Node]),
-    Action = fun (#pubsub_node{id = Nidx, type = Type}) ->
-                     case lists:member(<<"get-pending">>, plugin_features(Host, Type)) of
-                         true ->
-                             case node_call(Host, Type, get_affiliation, [Nidx, Owner]) of
-                                 {result, owner} -> node_call(Host, Type, get_node_subscriptions, [Nidx]);
-                                 _ -> {error, ?ERR_FORBIDDEN}
-                             end;
-                         false ->
-                             {error, ?ERR_FEATURE_NOT_IMPLEMENTED}
-                     end
+    Action = fun(PubSubNode) ->
+                     get_node_subscriptions_transaction(Host, Owner, PubSubNode)
              end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {N, Subs}} ->
@@ -1549,6 +1536,17 @@ send_pending_auth_events(Request, Host, Node, Owner) ->
             adhoc:produce_response(Request, undefined);
         Err ->
             Err
+    end.
+
+get_node_subscriptions_transaction(Host, Owner, #pubsub_node{id = Nidx, type = Type}) ->
+    case lists:member(<<"get-pending">>, plugin_features(Host, Type)) of
+        true ->
+            case node_call(Host, Type, get_affiliation, [Nidx, Owner]) of
+                {result, owner} -> node_call(Host, Type, get_node_subscriptions, [Nidx]);
+                _ -> {error, ?ERR_FORBIDDEN}
+            end;
+        false ->
+            {error, ?ERR_FEATURE_NOT_IMPLEMENTED}
     end.
 
 %%% authorization handling
@@ -1625,27 +1623,19 @@ send_authorization_request(#pubsub_node{nodeid = {Host, Node}, type = Type, id =
                   end,
                   node_owners_action(Host, Type, Nidx, O)).
 
-find_authorization_response(Packet) ->
-    #xmlel{children = Els} = Packet,
-    XData1 = lists:map(fun
-                           (#xmlel{name = <<"x">>, attrs = XAttrs} = XEl) ->
-                              case xml:get_attr_s(<<"xmlns">>, XAttrs) of
-                                  ?NS_XDATA ->
-                                      case xml:get_attr_s(<<"type">>, XAttrs) of
-                                          <<"cancel">> -> none;
-                                          _ -> jlib:parse_xdata_submit(XEl)
-                                      end;
-                                  _ ->
-                                      none
-                              end;
-                           (_) ->
-                              none
-                      end,
-                       xml:remove_cdata(Els)),
-    XData = lists:filter(fun (E) -> E /= none end, XData1),
+find_authorization_response(#xmlel{ children = Els }) ->
+    XData = lists:foldl(fun(#xmlel{name = <<"x">>, attrs = XAttrs} = XEl, Acc) ->
+                                case {xml:get_attr_s(<<"xmlns">>, XAttrs),
+                                      xml:get_attr_s(<<"type">>, XAttrs)} of
+                                    {?NS_XDATA, <<"submit">>} ->
+                                        [jlib:parse_xdata_submit(XEl) | Acc];
+                                    _ ->
+                                        Acc
+                                end;
+                           (_, Acc) ->
+                                Acc
+                        end, [], xml:remove_cdata(Els)),
     case XData of
-        [invalid] ->
-            invalid;
         [] ->
             none;
         [XFields] when is_list(XFields) ->
@@ -1653,7 +1643,9 @@ find_authorization_response(Packet) ->
             case lists:keysearch(<<"FORM_TYPE">>, 1, XFields) of
                 {value, {_, [?NS_PUBSUB_SUB_AUTH]}} -> XFields;
                 _ -> invalid
-            end
+            end;
+        _ ->
+            invalid
     end.
 
 %% @doc Send a message to JID with the supplied Subscription
@@ -1674,27 +1666,16 @@ send_authorization_approval(Host, JID, SNode, Subscription) ->
 handle_authorization_response(Host, From, To, Packet, XFields) ->
     case {lists:keysearch(<<"pubsub#node">>, 1, XFields),
           lists:keysearch(<<"pubsub#subscriber_jid">>, 1, XFields),
-          lists:keysearch(<<"pubsub#allow">>, 1, XFields)}
-    of
+          lists:keysearch(<<"pubsub#allow">>, 1, XFields)} of
         {{value, {_, [Node]}},
          {value, {_, [SSubscriber]}},
          {value, {_, [SAllow]}}} ->
             FromLJID = jid:to_lower(jid:to_bare(From)),
             Subscriber = jid:from_binary(SSubscriber),
-            Allow = case SAllow of
-                        <<"1">> -> true;
-                        <<"true">> -> true;
-                        _ -> false
-                    end,
-            Action = fun (#pubsub_node{type = Type, id = Nidx, owners = O}) ->
-                             Owners = node_owners_call(Host, Type, Nidx, O),
-                             case lists:member(FromLJID, Owners) of
-                                 true ->
-                                     {result, Subs} = node_call(Host, Type, get_subscriptions, [Nidx, Subscriber]),
-                                     update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs);
-                                 false ->
-                                     {error, ?ERR_FORBIDDEN}
-                             end
+            Allow = string_allow_to_boolean(SAllow),
+            Action = fun (PubSubNode) ->
+                             handle_authorization_response_transaction(Host, FromLJID, Subscriber,
+                                                                       Allow, Node, PubSubNode)
                      end,
             case transaction(Host, Node, Action, sync_dirty) of
                 {error, Error} ->
@@ -1712,8 +1693,23 @@ handle_authorization_response(Host, From, To, Packet, XFields) ->
             ejabberd_router:route(To, From, Err)
     end.
 
+string_allow_to_boolean(<<"1">>) -> true;
+string_allow_to_boolean(<<"true">>) -> true;
+string_allow_to_boolean(_) -> false.
+
+handle_authorization_response_transaction(Host, FromLJID, Subscriber, Allow, Node,
+                                          #pubsub_node{type = Type, id = Nidx, owners = O}) ->
+    Owners = node_owners_call(Host, Type, Nidx, O),
+    case lists:member(FromLJID, Owners) of
+        true ->
+            {result, Subs} = node_call(Host, Type, get_subscriptions, [Nidx, Subscriber]),
+            update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs);
+        false ->
+            {error, ?ERR_FORBIDDEN}
+    end.
+
 update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
-    Sub= lists:filter(fun
+    Sub = lists:filter(fun
                           ({pending, _}) -> true;
                           (_) -> false
                      end,
@@ -1838,81 +1834,31 @@ create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
     end;
 create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
     Type = select_type(ServerHost, Host, Node, GivenType),
-    ParseOptions = case xml:remove_cdata(Configuration) of
-                       [] ->
-                           {result, node_options(Host, Type)};
-                       [#xmlel{name = <<"x">>} = XEl] ->
-                           case jlib:parse_xdata_submit(XEl) of
-                               invalid ->
-                                   {error, ?ERR_BAD_REQUEST};
-                               XData ->
-                                   case set_xoption(Host, XData, node_options(Host, Type)) of
-                                       NewOpts when is_list(NewOpts) -> {result, NewOpts};
-                                       Err -> Err
-                                   end
-                           end;
-                       _ ->
-                           ?INFO_MSG("Node ~p; bad configuration: ~p", [Node, Configuration]),
-                           {error, ?ERR_BAD_REQUEST}
-                   end,
-    case ParseOptions of
+    ConfigXEl = case xml:remove_cdata(Configuration) of
+                    [] ->
+                        {result, node_options(Host, Type)};
+                    [#xmlel{name = <<"x">>} = XEl] ->
+                        XEl;
+                    _ ->
+                        ?INFO_MSG("Node ~p; bad configuration: ~p", [Node, Configuration]),
+                        {error, ?ERR_BAD_REQUEST}
+                end,
+    case parse_create_node_options_if_possible(Host, Type, ConfigXEl) of
         {result, NodeOptions} ->
             CreateNode = fun () ->
-                                 Parent = case node_call(Host, Type, node_to_path, [Node]) of
-                                              {result, [Node]} ->
-                                                  <<>>;
-                                              {result, Path} ->
-                                                  element(2, node_call(Host, Type, path_to_node, [lists:sublist(Path, length(Path)-1)]))
-                                          end,
-                                 Parents = case Parent of
-                                               <<>> -> [];
-                                               _ -> [Parent]
-                                           end,
-                                 case node_call(Host, Type, create_node_permission,
-                                                [Host, ServerHost, Node, Parent, Owner, Access])
-                                 of
-                                     {result, true} ->
-                                         case tree_call(Host, create_node,
-                                                        [Host, Node, Type, Owner, NodeOptions, Parents])
-                                         of
-                                             {ok, Nidx} ->
-                                                 SubsByDepth = get_node_subs_by_depth(Host, Node, Owner),
-                                                 case node_call(Host, Type, create_node, [Nidx, Owner]) of
-                                                     {result, Result} -> {result, {Nidx, SubsByDepth, Result}};
-                                                     Error -> Error
-                                                 end;
-                                             {error, {virtual, Nidx}} ->
-                                                 case node_call(Host, Type, create_node, [Nidx, Owner]) of
-                                                     {result, Result} -> {result, {Nidx, [], Result}};
-                                                     Error -> Error
-                                                 end;
-                                             Error ->
-                                                 Error
-                                         end;
-                                     _ ->
-                                         {error, ?ERR_FORBIDDEN}
-                                 end
+                                 create_node_transaction(Host, ServerHost, Node, Owner,
+                                                         Type, Access, NodeOptions)
                          end,
-            Reply = [#xmlel{name = <<"pubsub">>,
-                            attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
-                            children = [#xmlel{name = <<"create">>,
-                                               attrs = nodeAttr(Node)}]}],
             case transaction(Host, CreateNode, transaction) of
                 {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
                     broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
                     ejabberd_hooks:run(pubsub_create_node, ServerHost,
                                        [ServerHost, Host, Node, Nidx, NodeOptions]),
-                    case Result of
-                        default -> {result, Reply};
-                        _ -> {result, Result}
-                    end;
+                    create_node_reply(Node, Result);
                 {result, {Nidx, _SubsByDepth, Result}} ->
                     ejabberd_hooks:run(pubsub_create_node, ServerHost,
                                        [ServerHost, Host, Node, Nidx, NodeOptions]),
-                    case Result of
-                        default -> {result, Reply};
-                        _ -> {result, Result}
-                    end;
+                    create_node_reply(Node, Result);
                 Error ->
                     %% in case we change transaction to sync_dirty...
                     %%  node_call(Host, Type, delete_node, [Host, Node]),
@@ -1922,6 +1868,66 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
         Error ->
             Error
     end.
+
+parse_create_node_options_if_possible(Host, Type, #xmlel{} = ConfigXEl) ->
+    case jlib:parse_xdata_submit(ConfigXEl) of
+        invalid ->
+            {error, ?ERR_BAD_REQUEST};
+        XData ->
+            case set_xoption(Host, XData, node_options(Host, Type)) of
+                NewOpts when is_list(NewOpts) -> {result, NewOpts};
+                Err -> Err
+            end
+    end;
+parse_create_node_options_if_possible(_Host, _Type, InvalidConfigXEl) ->
+    InvalidConfigXEl.
+
+create_node_transaction(Host, ServerHost, Node, Owner, Type, Access, NodeOptions) ->
+    Parent = case node_call(Host, Type, node_to_path, [Node]) of
+                 {result, [Node]} ->
+                     <<>>;
+                 {result, Path} ->
+                     element(2, node_call(Host, Type, path_to_node, [lists:sublist(Path, length(Path)-1)]))
+             end,
+    case node_call(Host, Type, create_node_permission,
+                   [Host, ServerHost, Node, Parent, Owner, Access]) of
+        {result, true} ->
+            create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions);
+        _ ->
+            {error, ?ERR_FORBIDDEN}
+    end.
+
+create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions) ->
+    Parents = case Parent of
+                  <<>> -> [];
+                  _ -> [Parent]
+              end,
+    case tree_call(Host, create_node, [Host, Node, Type, Owner, NodeOptions, Parents]) of
+        {ok, Nidx} ->
+            SubsByDepth = get_node_subs_by_depth(Host, Node, Owner),
+            case node_call(Host, Type, create_node, [Nidx, Owner]) of
+                {result, Result} -> {result, {Nidx, SubsByDepth, Result}};
+                Error -> Error
+            end;
+        {error, {virtual, Nidx}} ->
+            case node_call(Host, Type, create_node, [Nidx, Owner]) of
+                {result, Result} -> {result, {Nidx, [], Result}};
+                Error -> Error
+            end;
+        Error ->
+            Error
+    end.
+
+create_node_reply(Node, default) ->
+    {result, create_node_make_reply(Node)};
+create_node_reply(_Node, Result) ->
+    {result, Result}.
+
+create_node_make_reply(Node) ->
+    [#xmlel{name = <<"pubsub">>,
+            attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+            children = [#xmlel{name = <<"create">>,
+                               attrs = nodeAttr(Node)}]}].
 
 %% @doc <p>Delete specified node and all childs.</p>
 %%<p>There are several reasons why the node deletion request might fail:</p>
@@ -1940,20 +1946,7 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
 delete_node(_Host, <<>>, _Owner) ->
     {error, ?ERR_NOT_ALLOWED};
 delete_node(Host, Node, Owner) ->
-    Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     case node_call(Host, Type, get_affiliation, [Nidx, Owner]) of
-                         {result, owner} ->
-                             SubsByDepth = get_node_subs_by_depth(Host, Node, service_jid(Host)),
-                             Removed = tree_call(Host, delete_node, [Host, Node]),
-                             case node_call(Host, Type, delete_node, [Removed]) of
-                                 {result, Res} -> {result, {SubsByDepth, Res}};
-                                 Error -> Error
-                             end;
-                         _ ->
-                             {error, ?ERR_FORBIDDEN}
-                     end
-             end,
-    Reply = [],
+    Action = fun (PubSubNode) -> delete_node_transaction(Host, Owner, Node, PubSubNode) end,
     ServerHost = serverhost(Host),
     case transaction(Host, Node, Action, transaction) of
         {result, {_, {SubsByDepth, {Result, broadcast, Removed}}}} ->
@@ -1969,7 +1962,7 @@ delete_node(Host, Node, Owner) ->
                           end,
                           Removed),
             case Result of
-                default -> {result, Reply};
+                default -> {result, []};
                 _ -> {result, Result}
             end;
         {result, {_, {_, {Result, Removed}}}} ->
@@ -1982,7 +1975,7 @@ delete_node(Host, Node, Owner) ->
                           end,
                           Removed),
             case Result of
-                default -> {result, Reply};
+                default -> {result, []};
                 _ -> {result, Result}
             end;
         {result, {TNode, {_, Result}}} ->
@@ -1990,11 +1983,24 @@ delete_node(Host, Node, Owner) ->
             ejabberd_hooks:run(pubsub_delete_node, ServerHost,
                                [ServerHost, Host, Node, Nidx]),
             case Result of
-                default -> {result, Reply};
+                default -> {result, []};
                 _ -> {result, Result}
             end;
         Error ->
             Error
+    end.
+
+delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx}) ->
+    case node_call(Host, Type, get_affiliation, [Nidx, Owner]) of
+        {result, owner} ->
+            SubsByDepth = get_node_subs_by_depth(Host, Node, service_jid(Host)),
+            Removed = tree_call(Host, delete_node, [Host, Node]),
+            case node_call(Host, Type, delete_node, [Removed]) of
+                {result, Res} -> {result, {SubsByDepth, Res}};
+                Error -> Error
+            end;
+        _ ->
+            {error, ?ERR_FORBIDDEN}
     end.
 
 %% @see node_hometree:subscribe_node/5
@@ -2028,70 +2034,9 @@ subscribe_node(Host, Node, From, JID, Configuration) ->
                   _ -> invalid
               end,
     Subscriber = string_to_ljid(JID),
-    Action = fun (#pubsub_node{options = Options, type = Type, id = Nidx, owners = O}) ->
-                     Features = plugin_features(Host, Type),
-                     SubscribeFeature = lists:member(<<"subscribe">>, Features),
-                     OptionsFeature = lists:member(<<"subscription-options">>, Features),
-                     HasOptions = not (SubOpts == []),
-                     SubscribeConfig = get_option(Options, subscribe),
-                     AccessModel = get_option(Options, access_model),
-                     SendLast = get_option(Options, send_last_published_item),
-                     AllowedGroups = get_option(Options, roster_groups_allowed, []),
-                     CanSubscribe = case get_max_subscriptions_node(Host) of
-                                        Max when is_integer(Max) ->
-                                            case node_call(Host, Type, get_node_subscriptions, [Nidx]) of
-                                                {result, NodeSubs} ->
-                                                    SubsNum = lists:foldl(
-                                                                fun ({_, subscribed, _}, Acc) -> Acc+1;
-                                                                    (_, Acc) -> Acc
-                                                                end, 0, NodeSubs),
-                                                    SubsNum < Max;
-                                                _ ->
-                                                    true
-                                            end;
-                                        _ ->
-                                            true
-                                    end,
-                     if not SubscribeFeature ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
-                        not SubscribeConfig ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
-                        HasOptions andalso not OptionsFeature ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)};
-                        SubOpts == invalid ->
-                             {error,
-                              extended_error(?ERR_BAD_REQUEST, <<"invalid-options">>)};
-                        not CanSubscribe ->
-                             %% fallback to closest XEP compatible result, assume we are not allowed to subscribe
-                             {error,
-                              extended_error(?ERR_NOT_ALLOWED, <<"closed-node">>)};
-                        true ->
-                             Owners = node_owners_call(Host, Type, Nidx, O),
-                             {PS, RG} = get_presence_and_roster_permissions(Host, Subscriber,
-                                                                            Owners, AccessModel, AllowedGroups),
-                             node_call(Host, Type, subscribe_node,
-                                       [Nidx, From, Subscriber, AccessModel,
-                                        SendLast, PS, RG, SubOpts])
-                     end
+    Action = fun (PubSubNode) ->
+                     subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode)
              end,
-    Reply = fun (Subscription) ->
-                    SubAttrs = case Subscription of
-                                   {subscribed, SubId} ->
-                                       [{<<"subscription">>, subscription_to_string(subscribed)},
-                                        {<<"subid">>, SubId}, {<<"node">>, Node}];
-                                   Other ->
-                                       [{<<"subscription">>, subscription_to_string(Other)},
-                                        {<<"node">>, Node}]
-                               end,
-                    [#xmlel{name = <<"pubsub">>,
-                            attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
-                            children = [#xmlel{name = <<"subscription">>,
-                                               attrs = [{<<"jid">>, jid:to_binary(Subscriber)}
-                                                        | SubAttrs]}]}]
-            end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {TNode, {Result, subscribed, SubId, send_last}}} ->
             Nidx = TNode#pubsub_node.id,
@@ -2099,16 +2044,16 @@ subscribe_node(Host, Node, From, JID, Configuration) ->
             Options = TNode#pubsub_node.options,
             send_items(Host, Node, Nidx, Type, Options, Subscriber, last),
             case Result of
-                default -> {result, Reply({subscribed, SubId})};
+                default -> {result, subscribe_node_reply(Subscriber, Node, {subscribed, SubId})};
                 _ -> {result, Result}
             end;
         {result, {_TNode, {default, subscribed, SubId}}} ->
-            {result, Reply({subscribed, SubId})};
+            {result, subscribe_node_reply(Subscriber, Node, {subscribed, SubId})};
         {result, {_TNode, {Result, subscribed, _SubId}}} ->
             {result, Result};
         {result, {TNode, {default, pending, _SubId}}} ->
             send_authorization_request(TNode, Subscriber),
-            {result, Reply(pending)};
+            {result, subscribe_node_reply(Subscriber, Node, pending)};
         {result, {TNode, {Result, pending}}} ->
             send_authorization_request(TNode, Subscriber),
             {result, Result};
@@ -2116,6 +2061,75 @@ subscribe_node(Host, Node, From, JID, Configuration) ->
             {result, Result};
         Error -> Error
     end.
+
+subscribe_node_transaction(Host, SubOpts, From, Subscriber,
+                           #pubsub_node{options = Options, type = Type, id = Nidx, owners = O}) ->
+    Features = plugin_features(Host, Type),
+    SubscribeFeature = lists:member(<<"subscribe">>, Features),
+    OptionsFeature = lists:member(<<"subscription-options">>, Features),
+    HasOptions = not (SubOpts == []),
+    SubscribeConfig = get_option(Options, subscribe),
+    AccessModel = get_option(Options, access_model),
+    SendLast = get_option(Options, send_last_published_item),
+    AllowedGroups = get_option(Options, roster_groups_allowed, []),
+    SubsLimitReached = check_subs_limit(Host, Type, Nidx),
+    if not SubscribeFeature ->
+           {error,
+            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
+       not SubscribeConfig ->
+           {error,
+            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
+       HasOptions andalso not OptionsFeature ->
+           {error,
+            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)};
+       SubOpts == invalid ->
+           {error,
+            extended_error(?ERR_BAD_REQUEST, <<"invalid-options">>)};
+       SubsLimitReached ->
+           %% fallback to closest XEP compatible result, assume we are not allowed to subscribe
+           {error,
+            extended_error(?ERR_NOT_ALLOWED, <<"closed-node">>)};
+       true ->
+           Owners = node_owners_call(Host, Type, Nidx, O),
+           {PS, RG} = get_presence_and_roster_permissions(Host, Subscriber,
+                                                          Owners, AccessModel, AllowedGroups),
+           node_call(Host, Type, subscribe_node,
+                     [Nidx, From, Subscriber, AccessModel,
+                      SendLast, PS, RG, SubOpts])
+    end.
+
+check_subs_limit(Host, Type, Nidx) ->
+    case get_max_subscriptions_node(Host) of
+        Max when is_integer(Max) ->
+            case node_call(Host, Type, get_node_subscriptions, [Nidx]) of
+                {result, NodeSubs} -> count_subscribed(NodeSubs) >= Max;
+                _ -> false
+            end;
+        _ ->
+            false
+    end.
+
+count_subscribed(NodeSubs) ->
+    lists:foldl(
+      fun ({_, subscribed, _}, Acc) -> Acc+1;
+          (_, Acc) -> Acc
+      end, 0, NodeSubs).
+
+subscribe_node_reply(Subscriber, Node, {subscribed, SubId}) ->
+    SubAttrs = [{<<"subscription">>, subscription_to_string(subscribed)},
+                {<<"subid">>, SubId}, {<<"node">>, Node}],
+    subscribe_node_reply(Subscriber, SubAttrs);
+subscribe_node_reply(Subscriber, Node, Subscription) ->
+    SubAttrs = [{<<"subscription">>, subscription_to_string(Subscription)},
+                {<<"node">>, Node}],
+    subscribe_node_reply(Subscriber, SubAttrs).
+
+subscribe_node_reply(Subscriber, SubAttrs) ->
+    [#xmlel{name = <<"pubsub">>,
+            attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+            children = [#xmlel{name = <<"subscription">>,
+                               attrs = [{<<"jid">>, jid:to_binary(Subscriber)}
+                                        | SubAttrs]}]}].
 
 %% @doc <p>Unsubscribe <tt>JID</tt> from the <tt>Node</tt>.</p>
 %%<p>There are several reasons why the unsubscribe request might fail:</p>
@@ -2265,23 +2279,29 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
             {result, Result};
         {error, ErrorItemNotFound} ->
             Type = select_type(ServerHost, Host, Node),
-            case lists:member(<<"auto-create">>, plugin_features(Host, Type)) of
-                true ->
-                    case create_node(Host, ServerHost, Node, Publisher, Type, Access, []) of
-                        {result,
-                         [#xmlel{name = <<"pubsub">>,
-                                 attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
-                                 children = [#xmlel{name = <<"create">>,
-                                                    attrs = [{<<"node">>, NewNode}]}]}]} ->
-                            publish_item(Host, ServerHost, NewNode, Publisher, ItemId, Payload);
-                        _ ->
-                            {error, ErrorItemNotFound}
-                    end;
-                false ->
-                    {error, ErrorItemNotFound}
-            end;
+            autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
+                                                Type, Access, ItemId, Payload);
         Error ->
             Error
+    end.
+
+autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
+                                    Type, Access, ItemId, Payload) ->
+    ErrorItemNotFound = ?ERR_ITEM_NOT_FOUND,
+    case lists:member(<<"auto-create">>, plugin_features(Host, Type)) of
+        true ->
+            case create_node(Host, ServerHost, Node, Publisher, Type, Access, []) of
+                {result,
+                 [#xmlel{name = <<"pubsub">>,
+                         attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                         children = [#xmlel{name = <<"create">>,
+                                            attrs = [{<<"node">>, NewNode}]}]}]} ->
+                    publish_item(Host, ServerHost, NewNode, Publisher, ItemId, Payload);
+                _ ->
+                    {error, ErrorItemNotFound}
+            end;
+        false ->
+            {error, ErrorItemNotFound}
     end.
 
 %% @doc <p>Delete item from a PubSub node.</p>
@@ -2430,52 +2450,55 @@ get_items(Host, Node, From, SubId, SMaxItems, ItemIds, RSM) ->
                            Val -> Val
                        end
                end,
-    case MaxItems of
-        {error, Error} ->
-            {error, Error};
-        _ ->
-            Action = fun (#pubsub_node{options = Options, type = Type, id = Nidx, owners = O}) ->
-                             Features = plugin_features(Host, Type),
-                             RetreiveFeature = lists:member(<<"retrieve-items">>, Features),
-                             PersistentFeature = lists:member(<<"persistent-items">>, Features),
-                             AccessModel = get_option(Options, access_model),
-                             AllowedGroups = get_option(Options, roster_groups_allowed, []),
-                             if not RetreiveFeature ->
-                                     {error,
-                                      extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"retrieve-items">>)};
-                                not PersistentFeature ->
-                                     {error,
-                                      extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
-                                true ->
-                                     Owners = node_owners_call(Host, Type, Nidx, O),
-                                     {PS, RG} = get_presence_and_roster_permissions(Host, From, Owners,
-                                                                                    AccessModel, AllowedGroups),
-                                     node_call(Host, Type, get_items,
-                                               [Nidx, From, AccessModel, PS, RG, SubId, RSM])
-                             end
-                     end,
-            case transaction(Host, Node, Action, sync_dirty) of
-                {result, {_, {Items, RsmOut}}} ->
-                    SendItems = case ItemIds of
-                                    [] ->
-                                        Items;
-                                    _ ->
-                                        lists:filter(fun (#pubsub_item{itemid = {ItemId, _}}) ->
-                                                             lists:member(ItemId, ItemIds)
-                                                     end,
-                                                     Items)
-                                end,
-                    {result,
-                     [#xmlel{name = <<"pubsub">>,
-                             attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
-                             children =
-                                 [#xmlel{name = <<"items">>, attrs = nodeAttr(Node),
-                                         children = itemsEls(lists:sublist(SendItems, MaxItems))}
-                                  | jlib:rsm_encode(RsmOut)]}]};
-                Error ->
-                    Error
-            end
+    get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems).
+
+get_items_with_limit(_Host, _Node, _From, _SubId, _ItemIds, _RSM, {error, _} = Err) ->
+    Err;
+get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
+    Action = fun (PubSubNode) ->
+                     get_items_transaction(Host, From, RSM, SubId, PubSubNode)
+             end,
+    case transaction(Host, Node, Action, sync_dirty) of
+        {result, {_, {Items, RsmOut}}} ->
+            SendItems = filter_items_by_item_ids(Items, ItemIds),
+            {result,
+             [#xmlel{name = <<"pubsub">>,
+                     attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                     children =
+                     [#xmlel{name = <<"items">>, attrs = nodeAttr(Node),
+                             children = itemsEls(lists:sublist(SendItems, MaxItems))}
+                      | jlib:rsm_encode(RsmOut)]}]};
+        Error ->
+            Error
     end.
+
+get_items_transaction(Host, From, RSM, SubId,
+                      #pubsub_node{options = Options, type = Type, id = Nidx, owners = O}) ->
+    Features = plugin_features(Host, Type),
+    RetreiveFeature = lists:member(<<"retrieve-items">>, Features),
+    PersistentFeature = lists:member(<<"persistent-items">>, Features),
+    AccessModel = get_option(Options, access_model),
+    AllowedGroups = get_option(Options, roster_groups_allowed, []),
+    if not RetreiveFeature ->
+           {error,
+            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"retrieve-items">>)};
+       not PersistentFeature ->
+           {error,
+            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
+       true ->
+           Owners = node_owners_call(Host, Type, Nidx, O),
+           {PS, RG} = get_presence_and_roster_permissions(Host, From, Owners,
+                                                          AccessModel, AllowedGroups),
+           node_call(Host, Type, get_items,
+                     [Nidx, From, AccessModel, PS, RG, SubId, RSM])
+    end.
+
+filter_items_by_item_ids(Items, []) ->
+    Items;
+filter_items_by_item_ids(Items, ItemIds) ->
+    lists:filter(fun (#pubsub_item{itemid = {ItemId, _}}) ->
+                         lists:member(ItemId, ItemIds)
+                 end, Items).
 
 get_items(Host, Node) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
@@ -2595,21 +2618,18 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
                           {ok, []}, Plugins),
     case Result of
         {ok, Affs} ->
-            Entities = lists:flatmap(fun
-                                         ({_, none}) ->
-                                            [];
-                                         ({#pubsub_node{nodeid = {_, NodeId}}, Aff}) ->
-                                            if (Node == <<>>) or (Node == NodeId) ->
-                                                    [#xmlel{name = <<"affiliation">>,
-                                                            attrs = [{<<"affiliation">>, affiliation_to_string(Aff)}
-                                                                     | nodeAttr(NodeId)]}];
-                                               true ->
-                                                    []
-                                            end;
-                                         (_) ->
-                                            []
-                                    end,
-                                     lists:usort(lists:flatten(Affs))),
+            Entities = lists:flatmap(
+                         fun ({_, none}) ->
+                                 [];
+                             ({#pubsub_node{nodeid = {_, NodeId}}, Aff}) when
+                                   Node == <<>> orelse Node == NodeId ->
+                                 [#xmlel{name = <<"affiliation">>,
+                                         attrs = [{<<"affiliation">>, affiliation_to_string(Aff)}
+                                                  | nodeAttr(NodeId)]}];
+                             (_) ->
+                                 []
+                         end,
+                         lists:usort(lists:flatten(Affs))),
             {result,
              [#xmlel{name = <<"pubsub">>,
                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
@@ -2675,80 +2695,91 @@ set_affiliations(Host, Node, From, EntitiesEls) ->
     Entities = lists:foldl(fun
                                (_, error) ->
                                   error;
-                               (El, Acc) ->
-                                  case El of
-                                      #xmlel{name = <<"affiliation">>, attrs = Attrs} ->
-                                          JID = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
-                                          Affiliation = string_to_affiliation(xml:get_attr_s(<<"affiliation">>, Attrs)),
-                                          if (JID == error) or (Affiliation == false) -> error;
-                                             true -> [{jid:to_lower(JID), Affiliation} | Acc]
-                                          end
-                                  end
+                               (#xmlel{name = <<"affiliation">>, attrs = Attrs}, Acc) ->
+                                   JID = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
+                                   Affiliation = string_to_affiliation(
+                                                   xml:get_attr_s(<<"affiliation">>, Attrs)),
+                                   case (JID == error) or (Affiliation == false) of
+                                       true -> error;
+                                       false -> [{jid:to_lower(JID), Affiliation} | Acc]
+                                   end;
+                               (_, _) ->
+                                   error
                           end,
                            [], EntitiesEls),
     case Entities of
         error ->
             {error, ?ERR_BAD_REQUEST};
         _ ->
-            Action = fun (#pubsub_node{type = Type, id = Nidx, owners = O, nodeid = {_, NodeId}} = N) ->
-                             Owners = node_owners_call(Host, Type, Nidx, O),
-                             case lists:member(Owner, Owners) of
-                                 true ->
-                                     % It is a very simple check, as XEP doesn't state any
-                                     % other invalid affiliation transitions
-                                     OwnersDryRun = lists:foldl(
-                                                      fun({JID, owner}, Acc) ->
-                                                              sets:add_element(jid:to_bare(JID), Acc);
-                                                         ({JID, _}, Acc) ->
-                                                              sets:del_element(jid:to_bare(JID), Acc)
-                                                      end, sets:from_list(Owners), Entities),
-                                     case sets:size(OwnersDryRun) of
-                                         0 ->
-                                             OwnersPayload = [ #xmlel{ name = <<"affiliation">>,
-                                                                       attrs = [{<<"jid">>, jid:to_binary(Unchanged)}, {<<"affiliation">>, <<"owner">>}] }
-                                                               || Unchanged <- Owners ],
-                                             AffiliationsPayload = #xmlel{ name = <<"affiliations">>, attrs = [{<<"node">>, NodeId}],
-                                                                           children = OwnersPayload },
-                                             NewPubSubPayload = #xmlel{ name = <<"pubsub">>, attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
-                                                                        children = [AffiliationsPayload] },
-                                             {error, {?ERR_NOT_ACCEPTABLE, [NewPubSubPayload]}};
-                                         _ ->
-                                             lists:foreach(fun ({JID, Affiliation}) ->
-                                                                   node_call(Host, Type, set_affiliation, [Nidx, JID, Affiliation]),
-                                                                   case Affiliation of
-                                                                       owner ->
-                                                                           NewOwner = jid:to_bare(JID),
-                                                                           NewOwners = [NewOwner | Owners],
-                                                                           tree_call(Host,
-                                                                                     set_node,
-                                                                                     [N#pubsub_node{owners = NewOwners}]);
-                                                                       none ->
-                                                                           OldOwner = jid:to_bare(JID),
-                                                                           case lists:member(OldOwner, Owners) of
-                                                                               true ->
-                                                                                   NewOwners = Owners -- [OldOwner],
-                                                                                   tree_call(Host,
-                                                                                             set_node,
-                                                                                             [N#pubsub_node{owners = NewOwners}]);
-                                                                               _ ->
-                                                                                   ok
-                                                                           end;
-                                                                       _ ->
-                                                                           ok
-                                                                   end
-                                                           end,
-                                                           Entities),
-                                             {result, []}
-                                     end;
-                                 _ ->
-                                     {error, ?ERR_FORBIDDEN}
-                             end
+            Action = fun (PubSubNode) ->
+                             set_affiliations_transaction(Host, Owner, PubSubNode, Entities)
                      end,
             case transaction(Host, Node, Action, sync_dirty) of
                 {result, {_, Result}} -> {result, Result};
                 Other -> Other
             end
     end.
+
+set_affiliations_transaction(Host, Owner,
+                             #pubsub_node{type = Type, id = Nidx,
+                                          owners = O, nodeid = {_, NodeId}} = N, Entities) ->
+    Owners = node_owners_call(Host, Type, Nidx, O),
+    case lists:member(Owner, Owners) of
+        true ->
+            % It is a very simple check, as XEP doesn't state any
+            % other invalid affiliation transitions
+            OwnersDryRun = lists:foldl(
+                             fun({JID, owner}, Acc) ->
+                                     sets:add_element(jid:to_bare(JID), Acc);
+                                ({JID, _}, Acc) ->
+                                     sets:del_element(jid:to_bare(JID), Acc)
+                             end, sets:from_list(Owners), Entities),
+            case sets:size(OwnersDryRun) of
+                0 ->
+                    OwnersPayload = [ #xmlel{ name = <<"affiliation">>,
+                                              attrs = [{<<"jid">>, jid:to_binary(Unchanged)},
+                                                       {<<"affiliation">>, <<"owner">>}] }
+                                      || Unchanged <- Owners ],
+                    AffiliationsPayload = #xmlel{ name = <<"affiliations">>,
+                                                  attrs = [{<<"node">>, NodeId}],
+                                                  children = OwnersPayload },
+                    NewPubSubPayload = #xmlel{ name = <<"pubsub">>,
+                                               attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
+                                               children = [AffiliationsPayload] },
+                    {error, {?ERR_NOT_ACCEPTABLE, [NewPubSubPayload]}};
+                _ ->
+                    set_validated_affiliations_transaction(Host, N, Owners, Entities),
+                    {result, []}
+            end;
+        _ ->
+            {error, ?ERR_FORBIDDEN}
+    end.
+
+set_validated_affiliations_transaction(Host, #pubsub_node{ type = Type, id = Nidx } = N,
+                                       Owners, Entities) ->
+    lists:foreach(fun ({JID, owner}) ->
+                          node_call(Host, Type, set_affiliation, [Nidx, JID, owner]),
+                          NewOwner = jid:to_bare(JID),
+                          NewOwners = [NewOwner | Owners],
+                          tree_call(Host,
+                                    set_node,
+                                    [N#pubsub_node{owners = NewOwners}]);
+                      ({JID, none}) ->
+                          node_call(Host, Type, set_affiliation, [Nidx, JID, none]),
+                          OldOwner = jid:to_bare(JID),
+                          case lists:member(OldOwner, Owners) of
+                              true ->
+                                  NewOwners = Owners -- [OldOwner],
+                                  tree_call(Host,
+                                            set_node,
+                                            [N#pubsub_node{owners = NewOwners}]);
+                              _ ->
+                                  ok
+                          end;
+                      ({JID, Affiliation}) ->
+                          node_call(Host, Type, set_affiliation, [Nidx, JID, Affiliation])
+                  end,
+                  Entities).
 
 get_options(Host, Node, JID, SubId, Lang) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
@@ -2884,64 +2915,7 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
                          {ok, []}, Plugins),
     case Result of
         {ok, Subs} ->
-            Entities = lists:flatmap(fun
-                                         %% 2-element tuples are not used by any node type probably
-                                         ({_, none}) ->
-                                            [];
-                                         ({#pubsub_node{nodeid = {_, SubsNode}}, Sub}) ->
-                                            case Node of
-                                                <<>> ->
-                                                    [#xmlel{name = <<"subscription">>,
-                                                            attrs =
-                                                                [{<<"subscription">>, subscription_to_string(Sub)}
-                                                                 | nodeAttr(SubsNode)]}];
-                                                SubsNode ->
-                                                    [#xmlel{name = <<"subscription">>,
-                                                            attrs =
-                                                                [{<<"subscription">>, subscription_to_string(Sub)}]}];
-                                                _ ->
-                                                    []
-                                            end;
-                                         %% no idea how to trigger this one
-                                         ({_, none, _}) ->
-                                            [];
-                                         %% sometimes used by node_pep
-                                         ({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubId, SubJID}) ->
-                                            case Node of
-                                                <<>> ->
-                                                    [#xmlel{name = <<"subscription">>,
-                                                            attrs =
-                                                                [{<<"jid">>, jid:to_binary(SubJID)},
-                                                                 {<<"subid">>, SubId},
-                                                                 {<<"subscription">>, subscription_to_string(Sub)}
-                                                                 | nodeAttr(SubsNode)]}];
-                                                SubsNode ->
-                                                    [#xmlel{name = <<"subscription">>,
-                                                            attrs =
-                                                                [{<<"jid">>, jid:to_binary(SubJID)},
-                                                                 {<<"subid">>, SubId},
-                                                                 {<<"subscription">>, subscription_to_string(Sub)}]}];
-                                                _ ->
-                                                    []
-                                            end;
-                                         %% used by node_flat (therefore by dag, hometree and push as well)
-                                         ({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubJID}) ->
-                                            case Node of
-                                                <<>> ->
-                                                    [#xmlel{name = <<"subscription">>,
-                                                            attrs =
-                                                                [{<<"jid">>, jid:to_binary(SubJID)},
-                                                                 {<<"subscription">>, subscription_to_string(Sub)}
-                                                                 | nodeAttr(SubsNode)]}];
-                                                SubsNode ->
-                                                    [#xmlel{name = <<"subscription">>,
-                                                            attrs =
-                                                                [{<<"jid">>, jid:to_binary(SubJID)},
-                                                                 {<<"subscription">>, subscription_to_string(Sub)}]}];
-                                                _ ->
-                                                    []
-                                            end
-                                    end,
+            Entities = lists:flatmap(fun(Sub) -> subscription_to_xmlel(Sub, Node) end,
                                      lists:usort(lists:flatten(Subs))),
             {result,
              [#xmlel{name = <<"pubsub">>,
@@ -2951,6 +2925,54 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
         {Error, _} ->
             Error
     end.
+
+%% 2-element tuples are not used by any node type probably
+subscription_to_xmlel({_, none}, _Node) ->
+    [];
+subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub}, <<>>) ->
+    [#xmlel{name = <<"subscription">>,
+            attrs =
+            [{<<"subscription">>, subscription_to_string(Sub)}
+             | nodeAttr(SubsNode)]}];
+subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub}, SubsNode) ->
+    [#xmlel{name = <<"subscription">>,
+            attrs =
+            [{<<"subscription">>, subscription_to_string(Sub)}]}];
+subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _}, _) ->
+    [];
+%% no idea how to trigger this one
+subscription_to_xmlel({_, none, _}, _Node) ->
+    [];
+%% sometimes used by node_pep
+subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubId, SubJID}, <<>>) ->
+    [#xmlel{name = <<"subscription">>,
+            attrs =
+            [{<<"jid">>, jid:to_binary(SubJID)},
+             {<<"subid">>, SubId},
+             {<<"subscription">>, subscription_to_string(Sub)}
+             | nodeAttr(SubsNode)]}];
+subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubId, SubJID}, SubsNode) ->
+    [#xmlel{name = <<"subscription">>,
+            attrs =
+            [{<<"jid">>, jid:to_binary(SubJID)},
+             {<<"subid">>, SubId},
+             {<<"subscription">>, subscription_to_string(Sub)}]}];
+subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _, _, _}, _Node) ->
+    [];
+%% used by node_flat (therefore by dag, hometree and push as well)
+subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubJID}, <<>>) ->
+    [#xmlel{name = <<"subscription">>,
+            attrs =
+            [{<<"jid">>, jid:to_binary(SubJID)},
+             {<<"subscription">>, subscription_to_string(Sub)}
+             | nodeAttr(SubsNode)]}];
+subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubJID}, SubsNode) ->
+    [#xmlel{name = <<"subscription">>,
+            attrs =
+            [{<<"jid">>, jid:to_binary(SubJID)},
+             {<<"subscription">>, subscription_to_string(Sub)}]}];
+subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _, _}, _Node) ->
+    [].
 
 get_subscriptions(Host, Node, JID) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
@@ -3009,68 +3031,67 @@ get_subscriptions_for_send_last(_Host, _PType, _, _JIDs) ->
 
 set_subscriptions(Host, Node, From, EntitiesEls) ->
     Owner = jid:to_lower(jid:to_bare(From)),
-    Entities = lists:foldl(fun
-                               (_, error) ->
-                                  error;
-                               (El, Acc) ->
-                                  case El of
-                                      #xmlel{name = <<"subscription">>, attrs = Attrs} ->
-                                          JID = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
-                                          Sub = string_to_subscription(xml:get_attr_s(<<"subscription">>, Attrs)),
-                                          SubId = xml:get_attr_s(<<"subid">>, Attrs),
-                                          if (JID == error) or (Sub == false) -> error;
-                                             true -> [{jid:to_lower(JID), Sub, SubId} | Acc]
-                                          end
-                                  end
-                          end,
-                           [], EntitiesEls),
+    Entities = lists:foldl(fun(_, error) ->
+                                   error;
+                              (#xmlel{name = <<"subscription">>, attrs = Attrs}, Acc) ->
+                                   JID = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
+                                   Sub = string_to_subscription(xml:get_attr_s(<<"subscription">>,
+                                                                               Attrs)),
+                                   SubId = xml:get_attr_s(<<"subid">>, Attrs),
+                                   case (JID == error) or (Sub == false) of
+                                       true -> error;
+                                       false -> [{jid:to_lower(JID), Sub, SubId} | Acc]
+                                   end;
+                              (_, _) ->
+                                   error
+                           end, [], EntitiesEls),
     case Entities of
         error ->
             {error, ?ERR_BAD_REQUEST};
         _ ->
-            Notify = fun (JID, Sub, _SubId) ->
-                             Stanza = #xmlel{name = <<"message">>, attrs = [],
-                                             children =
-                                                 [#xmlel{name = <<"pubsub">>,
-                                                         attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
-                                                         children =
-                                                             [#xmlel{name = <<"subscription">>,
-                                                                     attrs = [{<<"jid">>, jid:to_binary(JID)},
-                                                                              {<<"subscription">>, subscription_to_string(Sub)}
-                                                                              | nodeAttr(Node)]}]}]},
-                             ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza)
-                     end,
-            Action = fun (#pubsub_node{type = Type, id = Nidx, owners = O}) ->
-                             Owners = node_owners_call(Host, Type, Nidx, O),
-                             case lists:member(Owner, Owners) of
-                                 true ->
-                                     Result = lists:foldl(fun ({JID, Sub, SubId}, Acc) ->
-                                                                  case
-                                                                      node_call(Host, Type,
-                                                                                set_subscriptions,
-                                                                                [Nidx, JID, Sub, SubId])
-                                                                  of
-                                                                      {error, Err} ->
-                                                                          [{error, Err} | Acc];
-                                                                      _ ->
-                                                                          Notify(JID, Sub, SubId),
-                                                                          Acc
-                                                                  end
-                                                          end,
-                                                          [], Entities),
-                                     case Result of
-                                         [] -> {result, []};
-                                         _ -> {error, ?ERR_NOT_ACCEPTABLE}
-                                     end;
-                                 _ ->
-                                     {error, ?ERR_FORBIDDEN}
-                             end
+            Action = fun (PubSubNode) ->
+                             set_subscriptions_transaction(Host, Owner, Node, PubSubNode, Entities)
                      end,
             case transaction(Host, Node, Action, sync_dirty) of
                 {result, {_, Result}} -> {result, Result};
                 Other -> Other
             end
     end.
+
+set_subscriptions_transaction(Host, Owner, Node,
+                              #pubsub_node{type = Type, id = Nidx, owners = O}, Entities) ->
+    Owners = node_owners_call(Host, Type, Nidx, O),
+    case lists:member(Owner, Owners) of
+        true ->
+            Result =
+            lists:foldl(fun(Entity, Acc) ->
+                                set_subscription_transaction(Host, Node, Nidx, Type, Entity, Acc)
+                        end,
+                        [], Entities),
+            case Result of
+                [] -> {result, []};
+                _ -> {error, ?ERR_NOT_ACCEPTABLE}
+            end;
+        _ ->
+            {error, ?ERR_FORBIDDEN}
+    end.
+
+set_subscription_transaction(Host, Node, Nidx, Type, {JID, Sub, SubId}, Acc) ->
+    case node_call(Host, Type, set_subscriptions, [Nidx, JID, Sub, SubId]) of
+        {error, Err} -> [{error, Err} | Acc];
+        _ -> notify_subscription_change(Host, Node, JID, Sub), Acc
+    end.
+
+notify_subscription_change(Host, Node, JID, Sub) ->
+    SubscriptionEl = #xmlel{name = <<"subscription">>,
+                            attrs = [{<<"jid">>, jid:to_binary(JID)},
+                                     {<<"subscription">>, subscription_to_string(Sub)}
+                                     | nodeAttr(Node)]},
+    PubSubEl = #xmlel{name = <<"pubsub">>,
+                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                      children = [SubscriptionEl]},
+    Stanza = #xmlel{name = <<"message">>, attrs = [], children = [PubSubEl]},
+    ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza).
 
 -spec get_presence_and_roster_permissions(
         Host          :: mod_pubsub:host(),
@@ -3292,25 +3313,26 @@ broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions, ItemId, From, Payloa
                                                   children = Content}]}]),
             broadcast_stanza(Host, From, Node, Nidx, Type,
                              NodeOptions, SubsByDepth, items, Stanza, true),
-            case Removed of
-                [] ->
-                    ok;
-                _ ->
-                    case get_option(NodeOptions, notify_retract) of
-                        true ->
-                            RetractStanza = event_stanza(
-                                              [#xmlel{name = <<"items">>, attrs = nodeAttr(Node),
-                                                      children = [#xmlel{name = <<"retract">>, attrs = itemAttr(RId)} || RId <- Removed]}]),
-                            broadcast_stanza(Host, Node, Nidx, Type,
-                                             NodeOptions, SubsByDepth,
-                                             items, RetractStanza, true);
-                        _ ->
-                            ok
-                    end
-            end,
+            broadcast_auto_retract_notification(Host, Node, Nidx, Type,
+                                                NodeOptions, SubsByDepth, Removed),
             {result, true};
         _ ->
             {result, false}
+    end.
+
+broadcast_auto_retract_notification(_Host, _Node, _Nidx, _Type, _NodeOptions, _SubsByDepth, []) ->
+    ok;
+broadcast_auto_retract_notification(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, Removed) ->
+    case get_option(NodeOptions, notify_retract) of
+        true ->
+            RetractEls = [#xmlel{name = <<"retract">>, attrs = itemAttr(RId)} || RId <- Removed],
+            RetractStanza = event_stanza([#xmlel{name = <<"items">>, attrs = nodeAttr(Node),
+                                                 children = RetractEls}]),
+            broadcast_stanza(Host, Node, Nidx, Type,
+                             NodeOptions, SubsByDepth,
+                             items, RetractStanza, true);
+        _ ->
+            ok
     end.
 
 broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds) ->
@@ -3381,13 +3403,7 @@ broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
         true ->
             case get_collection_subscriptions(Host, Node) of
                 SubsByDepth when is_list(SubsByDepth) ->
-                    Content = case get_option(NodeOptions, deliver_payloads) of
-                                  true ->
-                                      [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-                                              children = get_configure_xfields(Type, NodeOptions, Lang, [])}];
-                                  false ->
-                                      []
-                              end,
+                    Content = payload_by_option(Type, NodeOptions, Lang),
                     Stanza = event_stanza(
                                [#xmlel{name = <<"configuration">>, attrs = nodeAttr(Node), children = Content}]),
                     broadcast_stanza(Host, Node, Nidx, Type,
@@ -3398,6 +3414,15 @@ broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
             end;
         _ ->
             {result, false}
+    end.
+
+payload_by_option(Type, NodeOptions, Lang) ->
+    case get_option(NodeOptions, deliver_payloads) of
+        true ->
+            [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
+                    children = get_configure_xfields(Type, NodeOptions, Lang, [])}];
+        false ->
+            []
     end.
 
 get_collection_subscriptions(Host, Node) ->
@@ -3432,7 +3457,8 @@ get_options_for_subs(Host, Nidx, Subs) ->
 
 broadcast_stanza(Host, _Node, _Nidx, _Type, NodeOptions, SubsByDepth, NotifyType, BaseStanza, SHIM) ->
     NotificationType = get_option(NodeOptions, notification_type, headline),
-    BroadcastAll = get_option(NodeOptions, broadcast_all_resources), %% XXX this is not standard, but usefull
+    %% Option below is not standard, but useful
+    BroadcastAll = get_option(NodeOptions, broadcast_all_resources),
     From = service_jid(Host),
     Stanza = add_message_type(BaseStanza, NotificationType),
     %% Handles explicit subscriptions
@@ -3497,22 +3523,22 @@ nodes_to_deliver(NotifyType, Depth, Node, Subs, Acc) ->
                    Other -> Other
                end,
     NodeOptions = Node#pubsub_node.options,
-    lists:foldl(fun({LJID, SubID, SubOptions}, {JIDs, Recipients}) ->
+    lists:foldl(fun({LJID, SubID, SubOptions}, InnerAcc) ->
                         case is_to_deliver(LJID, NotifyType, Depth, NodeOptions, SubOptions) of
                             true ->
-                                case state_can_deliver(LJID, SubOptions) of
-                                    [] -> {JIDs, Recipients};
-                                    JIDsToDeliver ->
-                                        lists:foldl(
-                                          fun(JIDToDeliver, {JIDsAcc, RecipientsAcc}) ->
-                                                  process_jid_to_deliver(JIDs, SubID, NodeName,
-                                                                         JIDToDeliver, {JIDsAcc, RecipientsAcc})
-                                          end, {JIDs, Recipients}, JIDsToDeliver)
-                                end;
+                                JIDsToDeliver = state_can_deliver(LJID, SubOptions),
+                                process_jids_to_deliver(NodeName, SubID, JIDsToDeliver, InnerAcc);
                             false ->
-                                {JIDs, Recipients}
+                                Acc
                         end
                 end, Acc, Subs).
+
+process_jids_to_deliver(NodeName, SubID, JIDsToDeliver, {JIDs, Recipients}) ->
+    lists:foldl(
+      fun(JIDToDeliver, {JIDsAcc, RecipientsAcc}) ->
+              process_jid_to_deliver(JIDs, SubID, NodeName,
+                                     JIDToDeliver, {JIDsAcc, RecipientsAcc})
+      end, {JIDs, Recipients}, JIDsToDeliver).
 
 process_jid_to_deliver(JIDs, SubID, NodeName, JIDToDeliver, {JIDsAcc, RecipientsAcc}) ->
     case lists:member(JIDToDeliver, JIDs) of
@@ -3661,14 +3687,11 @@ max_items(Host, Options) ->
                 _ -> ?MAXITEMS
             end;
         false ->
-            case get_option(Options, send_last_published_item) of
-                never ->
-                    0;
-                _ ->
-                    case is_last_item_cache_enabled(Host) of
-                        true -> 0;
-                        false -> 1
-                    end
+            %% Don't publish if it means sending the item without a way to retrieve it
+            case get_option(Options, send_last_published_item) == never
+                 orelse is_last_item_cache_enabled(Host) of
+                true -> 0;
+                false -> 1
             end
     end.
 
@@ -3762,53 +3785,55 @@ set_configure(Host, Node, From, Els, Lang) ->
     case xml:remove_cdata(Els) of
         [#xmlel{name = <<"x">>} = XEl] ->
             case {xml:get_tag_attr_s(<<"xmlns">>, XEl), xml:get_tag_attr_s(<<"type">>, XEl)} of
-                {?NS_XDATA, <<"cancel">>} ->
-                    {result, []};
-                {?NS_XDATA, <<"submit">>} ->
-                    Action = fun (#pubsub_node{options = Options, type = Type, id = Nidx} = N) ->
-                                     case node_call(Host, Type, get_affiliation, [Nidx, From]) of
-                                         {result, owner} ->
-                                             case jlib:parse_xdata_submit(XEl) of
-                                                 invalid ->
-                                                     {error, ?ERR_BAD_REQUEST};
-                                                 XData ->
-                                                     OldOpts = case Options of
-                                                                   [] -> node_options(Host, Type);
-                                                                   _ -> Options
-                                                               end,
-                                                     case set_xoption(Host, XData, OldOpts) of
-                                                         NewOpts when is_list(NewOpts) ->
-                                                             NewNode = N#pubsub_node{options = NewOpts},
-                                                             case tree_call(Host,
-                                                                            set_node,
-                                                                            [NewNode])
-                                                             of
-                                                                 ok -> {result, NewNode};
-                                                                 Err -> Err
-                                                             end;
-                                                         Error ->
-                                                             Error
-                                                     end
-                                             end;
-                                         _ ->
-                                             {error, ?ERR_FORBIDDEN}
-                                     end
-                             end,
-                    case transaction(Host, Node, Action, transaction) of
-                        {result, {_OldNode, TNode}} ->
-                            Nidx = TNode#pubsub_node.id,
-                            Type = TNode#pubsub_node.type,
-                            Options = TNode#pubsub_node.options,
-                            broadcast_config_notification(Host, Node, Nidx, Type, Options, Lang),
-                            {result, []};
-                        Other ->
-                            Other
-                    end;
-                _ ->
-                    {error, ?ERR_BAD_REQUEST}
+                {?NS_XDATA, <<"cancel">>} -> {result, []};
+                {?NS_XDATA, <<"submit">>} -> set_configure_submit(Host, Node, From, XEl, Lang);
+                _ -> {error, ?ERR_BAD_REQUEST}
             end;
         _ ->
             {error, ?ERR_BAD_REQUEST}
+    end.
+
+set_configure_submit(Host, Node, User, XEl, Lang) ->
+    Action = fun(NodeRec) ->
+                     set_configure_transaction(Host, User, XEl, NodeRec)
+             end,
+    case transaction(Host, Node, Action, transaction) of
+        {result, {_OldNode, TNode}} ->
+            Nidx = TNode#pubsub_node.id,
+            Type = TNode#pubsub_node.type,
+            Options = TNode#pubsub_node.options,
+            broadcast_config_notification(Host, Node, Nidx, Type, Options, Lang),
+            {result, []};
+        Other ->
+            Other
+    end.
+
+set_configure_transaction(Host, User, XEl, #pubsub_node{ type = Type, id = Nidx } = NodeRec) ->
+    case node_call(Host, Type, get_affiliation, [Nidx, User]) of
+        {result, owner} ->
+            case jlib:parse_xdata_submit(XEl) of
+                invalid -> {error, ?ERR_BAD_REQUEST};
+                XData -> set_configure_valid_transaction(Host, NodeRec, XData)
+            end;
+        _ ->
+            {error, ?ERR_FORBIDDEN}
+    end.
+
+set_configure_valid_transaction(Host, #pubsub_node{ type = Type, options = Options } = NodeRec,
+                                XData) ->
+    OldOpts = case Options of
+                  [] -> node_options(Host, Type);
+                  _ -> Options
+              end,
+    case set_xoption(Host, XData, OldOpts) of
+        NewOpts when is_list(NewOpts) ->
+            NewNode = NodeRec#pubsub_node{options = NewOpts},
+            case tree_call(Host, set_node, [NewNode]) of
+                ok -> {result, NewNode};
+                Err -> Err
+            end;
+        Error ->
+            Error
     end.
 
 add_opt(Key, Value, Opts) ->
@@ -4117,17 +4142,18 @@ node_action(Host, Type, Function, Args) ->
 transaction(Host, Node, Action, Trans) ->
     transaction(Host, fun () ->
                               case tree_call(Host, get_node, [Host, Node]) of
-                                  N when is_record(N, pubsub_node) ->
-                                      case Action(N) of
-                                          {result, Result} -> {result, {N, Result}};
-                                          {atomic, {result, Result}} -> {result, {N, Result}};
-                                          Other -> Other
-                                      end;
-                                  Error ->
-                                      Error
+                                  #pubsub_node{} = N -> transaction(Action, N);
+                                  Error -> Error
                               end
                       end,
                 Trans).
+
+transaction(Action, PubSubNode) ->
+    case Action(PubSubNode) of
+        {result, Result} -> {result, {PubSubNode, Result}};
+        {atomic, {result, Result}} -> {result, {PubSubNode, Result}};
+        Other -> Other
+    end.
 
 transaction(Host, Fun, Trans) ->
     ServerHost = serverhost(Host),
@@ -4277,76 +4303,65 @@ on_user_offline(Acc, _, JID, _, _) ->
 purge_offline(LJID) ->
     Host = host(element(2, LJID)),
     Plugins = plugins(Host),
-    Result = lists:foldl(
-               fun (Type, {Status, Acc}) ->
-                       Features = plugin_features(Host, Type),
-                       case lists:member(<<"retrieve-affiliations">>, plugin_features(Host, Type)) of
-                           false ->
-                               {{error, extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
-                                                       unsupported, <<"retrieve-affiliations">>)},
-                                Acc};
-                           true ->
-                               Items = lists:member(<<"retract-items">>, Features)
-                                   andalso lists:member(<<"persistent-items">>, Features),
-                               if Items ->
-                                       {result, Affs} = node_action(Host, Type,
-                                                                    get_entity_affiliations, [Host, LJID]),
-                                       {Status, [Affs | Acc]};
-                                  true ->
-                                       {Status, Acc}
-                               end
-                       end
-               end,
-               {ok, []}, Plugins),
-    case Result of
-        {ok, Affs} ->
-            lists:foreach(
-              fun ({Node, Affiliation}) ->
-                      Options = Node#pubsub_node.options,
-                      Publisher = lists:member(Affiliation, [owner, publisher, publish_only]),
-                      Open = (get_option(Options, publish_model) == open),
-                      Purge = (get_option(Options, purge_offline)
-                               andalso get_option(Options, persist_items)),
-                      if (Publisher or Open) and Purge ->
-                              purge_offline(Host, LJID, Node);
-                         true ->
-                              ok
-                      end
-              end, lists:usort(lists:flatten(Affs)));
-        {Error, _} ->
-            ?DEBUG("on_user_offline ~p", [Error])
+    Affs = lists:foldl(
+             fun (PluginType, Acc) ->
+                     check_plugin_features_and_acc_affs(Host, PluginType, LJID, Acc)
+             end, [], Plugins),
+    lists:foreach(
+      fun ({Node, Affiliation}) ->
+              Options = Node#pubsub_node.options,
+              IsPublisherOrOwner = lists:member(Affiliation, [owner, publisher, publish_only]),
+              OpenNode = get_option(Options, publish_model) == open,
+              ShouldPurge = get_option(Options, purge_offline)
+              andalso get_option(Options, persist_items),
+              case (IsPublisherOrOwner or OpenNode) and ShouldPurge of
+                  true -> purge_offline(Host, LJID, Node);
+                  false -> ok
+              end
+      end, lists:usort(lists:flatten(Affs))).
+
+check_plugin_features_and_acc_affs(Host, PluginType, LJID, AffsAcc) ->
+    Features = plugin_features(Host, PluginType),
+    case lists:member(<<"retract-items">>, Features)
+         andalso lists:member(<<"persistent-items">>, Features)
+         andalso lists:member(<<"retrieve-affiliations">>, Features) of
+        true ->
+            {result, Affs} = node_action(Host, PluginType, get_entity_affiliations, [Host, LJID]),
+            [Affs | AffsAcc];
+        false ->
+            ?DEBUG("error=\"cant_purge_items_on_offline\" plugin=\"~p\" user=\"~s\"",
+                   [PluginType, jid:to_binary(LJID)]),
+            AffsAcc
     end.
 
-purge_offline(Host, LJID, Node) ->
-    Nidx = Node#pubsub_node.id,
-    Type = Node#pubsub_node.type,
-    Options = Node#pubsub_node.options,
+purge_offline(Host, {User, Server, _} = _LJID, #pubsub_node{ id = Nidx, type = Type } = Node) ->
     case node_action(Host, Type, get_items, [Nidx, service_jid(Host), none]) of
         {result, {[], _}} ->
             ok;
         {result, {Items, _}} ->
-            {User, Server, _} = LJID,
-            PublishModel = get_option(Options, publish_model),
-            ForceNotify = get_option(Options, notify_retract),
-            {_, NodeId} = Node#pubsub_node.nodeid,
-            lists:foreach(fun
-                              (#pubsub_item{itemid = {ItemId, _}, modification = {_, {U, S, _}}})
-                          when (U == User) and (S == Server) ->
-                                 case node_action(Host, Type, delete_item, [Nidx, {U, S, <<>>}, PublishModel, ItemId]) of
-                                     {result, {_, broadcast}} ->
-                                         broadcast_retract_items(Host, NodeId, Nidx, Type, Options, [ItemId], ForceNotify),
-                                         case get_cached_item(Host, Nidx) of
-                                             #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
-                                             _ -> ok
-                                         end;
-                                     {result, _} ->
-                                         ok;
-                                     Error ->
-                                         Error
-                                 end;
-                              (_) ->
-                                 true
-                         end, Items);
+            lists:foreach(fun(#pubsub_item{itemid = {ItemId, _}, modification = {_, {U, S, _}}})
+                                when (U == User) and (S == Server) ->
+                                  purge_item_of_offline_user(Host, Node, ItemId, U, S);
+                             (_) ->
+                                  true
+                          end, Items);
+        Error ->
+            Error
+    end.
+
+purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
+                                               options = Options, type = Type }, ItemId, U, S) ->
+    PublishModel = get_option(Options, publish_model),
+    ForceNotify = get_option(Options, notify_retract),
+    case node_action(Host, Type, delete_item, [Nidx, {U, S, <<>>}, PublishModel, ItemId]) of
+        {result, {_, broadcast}} ->
+            broadcast_retract_items(Host, NodeId, Nidx, Type, Options, [ItemId], ForceNotify),
+            case get_cached_item(Host, Nidx) of
+                #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
+                _ -> ok
+            end;
+        {result, _} ->
+            ok;
         Error ->
             Error
     end.
