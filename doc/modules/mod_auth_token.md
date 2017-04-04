@@ -1,11 +1,12 @@
 ### Module Description
 
-This module implements handling of tokens in oAuth-like authentication scheme. It provides necessary services to:
+This module implements handling of tokens in an OAuth-like authentication scheme. 
+It provides services necessary to:
 
-* deserialize/serialize binary tokens received and issued by server,
+* deserialize/serialize binary tokens received and issued by the server,
 * validate incoming binary tokens, i.e.:
-    * check integrity using Message Authentication Codes (MAC) with use of server-side stored user keys,
-    * check validity against configured validity duration times,
+    * check integrity using Message Authentication Codes (MAC) with server-side stored user keys,
+    * check validity against the configured validity duration times,
     * check revocation status,
 * handle token requests from logged in users.
 
@@ -16,7 +17,7 @@ Generation of keys necessary to sign binary tokens is delegated to module `mod_k
 
 #### Validity periods
 
-Access and refresh tokens validity periods can be defined independently.
+Validity periods of access and refresh tokens can be defined independently.
 
 Allowed units are:
 
@@ -25,10 +26,10 @@ Allowed units are:
 * minutes
 * seconds
 
-Unless defined, the default values for tokens are:
+The default values for tokens are:
 
-* 1 hour for access token
-* 25 days for refresh token
+* 1 hour for an access token
+* 25 days for a refresh token
 
 Example configuration from `ejabberd.cfg`, inside `modules` section:
 
@@ -39,8 +40,7 @@ Example configuration from `ejabberd.cfg`, inside `modules` section:
 ]}.
 ```
 
-Validity period configuration for provision tokens is outside the module scope
-since the server does not generate provision tokens - it only validates them.
+Validity period configuration for provision tokens happens outside the module since the server does not generate provision tokens - it only validates them.
 
 #### Required keys
 
@@ -54,55 +54,38 @@ The required keys are (example from `ejabberd.cfg`):
                         {provision_pre_shared, {file, "priv/provision_pre_shared.key"}}]}]}
 ```
 
-`token_secret` is a RAM-only (i.e. generated on cluster startup, never written to disk)
-key used for signing and verifying access and refresh tokens.
+`token_secret` is a RAM-only (i.e. generated on cluster startup, never written to disk) key used for signing and verifying access and refresh tokens.
 
-`provision_pre_shared` is a key read from file.
-As its name suggests, it's a key shared with a service issuing provision tokens.
+`provision_pre_shared` is a key read from a file.
+As its name suggests, it's shared with a service issuing provision tokens.
 Clients then use these provision tokens to authenticate with MongooseIM.
 
-While it's not enforced by the server and left completely to the operator,
-`provision_pre_shared` keys probably should not be shared between virtual
-XMPP domains hosted by the server.
-That is, make sure module configuration specifying a `provision_pre_shared` key
-is specific to an XMPP domain.
+While it's not enforced by the server and left completely to the operator, `provision_pre_shared` keys probably should not be shared between virtual XMPP domains hosted by the server.
+That is, make sure the module configuration specifying a `provision_pre_shared` key is specific to an XMPP domain.
 
-MongooseIM can't generate provision tokens on its own (neither can it distribute them to clients),
-so while configuring a `provision_pre_shared` key to be RAM-only is technically possible,
-it would in practice disable provision token support
-(as no external service could generate a valid token with this particular RAM key).
+MongooseIM can't generate provision tokens on its own (neither can it distribute them to clients), so while configuring a `provision_pre_shared` key to be RAM-only is technically possible, it would in practice disable the provision token support (as no external service could generate a valid token with this particular RAM key).
 
 ### Token types
 
 Three token types are supported:
 
-- _access tokens_: These are short lived tokens whose grants aren't
-  tracked by the server (i.e. there's no need to store anything in a database).
-  Access tokens can be used as a payload for the X-OAUTH authentication mechanism
-  and grant access to the system.
+- _access tokens_: These are short lived tokens which grants aren't tracked by the server (i.e. there's no need to store anything in a database).
+  Access tokens can be used as a payload for the X-OAUTH authentication mechanism and grant access to the system.
   Access tokens can't be revoked.
   An access token is valid only until its expiry date is reached.
 
-- _refresh tokens_: These are longer lived tokens which are tracked by the server,
-  therefore require persistent storage (as of now only PostgreSQL is supported).
-  Refresh tokens can be used as a payload for the X-OAUTH authentication mechanism
-  and grant access to the system, as well as result in a new set of tokens being
-  returned upon successful authentication.
-  Refresh tokens can be revoked.
-  A refresh token is valid until it has expired, unless it has been revoked.
+- _refresh tokens_: These are longer lived tokens which are tracked by the server and therefore require persistent storage (as of now only PostgreSQL is supported).
+  Refresh tokens can be used as a payload for the X-OAUTH authentication mechanism and to grant access to the system.
+  Also they can result in a new set of tokens being returned upon successful authentication.
+  They can be revoked - if a refresh token hasn't been revoked, it is valid until it has expired.
   On revocation, it immediately becomes invalid.
-  As the server stores information about granted tokens, it can also
-  persistently mark them as revoked.
+  As the server stores information about granted tokens, it can also persistently mark them as revoked.
 
-- _provision tokens_: These tokens are generated by a service external
-  to the server and grant the owner a permission to create an account.
-  A provision token may contain information which the server can use
-  to provision the VCard for the newly created account.
-  Using a provision token to create an account (and inject VCard data)
-  is done similarly to other token types, i.e. by passing it as payload
-  for the X-OAUTH mechanism.
-  The XMPP server has no way of tracking and revoking provision tokens,
-  as they come from an outside source.
+- _provision tokens_: These tokens are generated by a service external to the server. 
+   They grant the owner a permission to create an account.
+  A provision token may contain information which the server can use to provision the VCard for the newly created account.
+  Using a provision token to create an account (and inject VCard data) is done similarly to other token types, i.e. by passing it as payload for the X-OAUTH mechanism.
+  The XMPP server has no way of tracking and revoking provision tokens, as they come from an outside source.
 
 ### Token serialization format
 
@@ -117,10 +100,7 @@ Serialization format of the token before encoding with Base64 is dependent on it
 'provision' \0 <BARE_JID> \0 <EXPIRES_AT> \0 <VCARD> \0 <MAC>
 ```
 
-For example (these tokens are randomly generated,
-hence field values don't make much sense,
-line breaks are inserted only for the sake of formatting,
-`<vCard/>` inner XML is snipped):
+For example (these tokens are randomly generated, hence field values don't make much sense - line breaks are inserted only for the sake of formatting,`<vCard/>` inner XML is snipped):
 
 ```
 'access' \0 Q8@localhost \0 64875466454
@@ -141,15 +121,13 @@ line breaks are inserted only for the sake of formatting,
 </iq>
 ```
 
-To request access and refresh tokens for the first time a client should
-send an IQ stanza after he has successfully authenticated
-for the first time using some other method.
+To request access and refresh tokens for the first time a client should send an IQ stanza after they have successfully authenticated for the first time using some other method.
 
 ### Token response format
 
-Requested tokens are being returned by server wrapped in IQ stanza with the following fields:
+Requested tokens are being returned by the server wrapped in IQ stanza with the following fields:
 
-- `id`: value taken from request IQ stanza
+- `id`: value taken from the request IQ stanza
 - `type`: result
 - `from`: bare user JID
 - `to`: full user JID
@@ -165,14 +143,11 @@ Example response (encoded tokens have been truncated in this example):
 </iq>
 ```
 
-Once a client has obtained a token it may start authenticating
-using the `X-OAUTH` SASL mechanism when reaching the authentication
-phase of an XMPP connection initiation.
+Once a client has obtained a token, they may start authenticating using the `X-OAUTH` SASL mechanism when reaching the authentication phase of an XMPP connection initiation.
 
 ### Login with access or refresh token
 
-In order to log into the XMPP server using a previously requested token
-a client should send the following stanza:
+In order to log into the XMPP server using a previously requested token, a client should send the following stanza:
 
 ```xml
 <auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="X-OAUTH">
@@ -181,11 +156,9 @@ cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==
 ```
 
 The Base64 encoded content is a token obtained prior to authentication.
-Authentication will succeed unless the used tokens are expired, revoked,
-or the keys required for MAC verification could not be found by the server.
+Authentication will succeed unless the used tokens are expired, revoked, or the keys required for MAC verification could not be found by the server.
 
-**When using a refresh token to authenticate with the server**,
-the server will respond with a new *access token*:
+**When using a refresh token to authenticate with the server**, the server will respond with a new *access token*:
 
 ```xml
 <success xmlns="urn:ietf:params:xml:ns:xmpp-sasl">
@@ -193,8 +166,7 @@ cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==
 </success>
 ```
 
-The above response is to be expected unless the refresh token used is expired
-or there were some problems processing the key on the server side.
+The above response is to be expected unless the refresh token used is expired or there were some problems processing the key on the server side.
 
 ### Token revocation using command line tool
 
@@ -209,18 +181,13 @@ An administrator may *revoke* a refresh token:
 mongooseimctl revoke_token owner@xmpphost
 ```
 
-A client can no longer use a revoked token either for authentication
-or requesting new access tokens.
-After a client's token has been revoked in order to obtain a new refresh token
-a client has to log in using some other method.
+A client can no longer use a revoked token either for authentication or requesting new access tokens.
+After a client's token has been revoked, in order to obtain a new refresh token a client has to log in using some other method.
 
 **Caveat:** as of now, the user's session is not terminated automatically on token revocation.
-Therefore, the user might request a new set of tokens for as long as the session is active,
-even though his/her previous token was just revoked (possibly due to a breach / token leak).
-Moreover, an access token still kept on a compromised device can be used
-to establish a new session for as long as it's valid - access tokens can't be revoked.
-To alleviate rerequesting tokens by the user an operator can use
-`mod_admin` extension allowing to terminate the user's connection.
+Therefore, the user might request a new set of tokens for as long as the session is active, even though their previous token was just revoked (possibly due to a breach / token leak).
+Moreover, an access token still kept on a compromised device can be used to establish a new session for as long as it's valid - access tokens can't be revoked.
+To alleviate rerequesting tokens by the user, an operator can use `mod_admin` extension allowing to terminate the user's connection.
 Access token validity can't be sidestepped right now.
 
 
