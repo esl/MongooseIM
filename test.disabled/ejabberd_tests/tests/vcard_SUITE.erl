@@ -448,7 +448,12 @@ search_rsm_pages(Config) ->
                 escalus:assert(is_iq_result, Res1),
 
                 RSMCount1 = get_rsm_count(Res1),
-                <<"2">> = RSMCount1,
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount1;
+                    false ->
+                        <<"2">> = RSMCount1
+                end,
                 ItemTups1 = search_result_item_tuples(Res1),
 
                 Iq3 = append_to_query(
@@ -471,7 +476,12 @@ search_rsm_pages(Config) ->
                 escalus:assert(is_iq_result, Res2),
 
                 RSMCount2 = get_rsm_count(Res2),
-                <<"2">> = RSMCount2,
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2;
+                    false ->
+                        <<"2">> = RSMCount2
+                end,
                 ItemTups2 = search_result_item_tuples(Res2),
                 ExpectedItemTups = get_search_results(
                                      Config,
@@ -514,7 +524,12 @@ search_rsm_forward(Config) ->
                 escalus:assert(is_iq_result, Res1),
 
                 RSMCount1 = get_rsm_count(Res1),
-                <<"2">> = RSMCount1,
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount1;
+                    false ->
+                        <<"2">> = RSMCount1
+                end,
                 RSMLast1 = get_rsm_last(Res1),
                 ItemTups1 = search_result_item_tuples(Res1),
 
@@ -538,7 +553,12 @@ search_rsm_forward(Config) ->
                 escalus:assert(is_iq_result, Res2),
 
                 RSMCount2 = get_rsm_count(Res2),
-                <<"2">> = RSMCount2,
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2;
+                    false ->
+                        <<"2">> = RSMCount2
+                end,
                 RSMLast2 = get_rsm_last(Res2),
                 ItemTups2 = search_result_item_tuples(Res2),
                 ExpectedItemTups = get_search_results(
@@ -573,8 +593,14 @@ search_rsm_forward(Config) ->
                 escalus:assert(is_iq_result, Res3),
 
                 RSMCount2 = get_rsm_count(Res3),
-                <<"2">> = RSMCount2,
-                [] = search_result_item_tuples(Res3)
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2,
+                        [_] = search_result_item_tuples(Res3);
+                    false ->
+                        <<"2">> = RSMCount2,
+                        [] = search_result_item_tuples(Res3)
+                end
         end).
 
 search_rsm_backward(Config) ->
@@ -606,7 +632,12 @@ search_rsm_backward(Config) ->
                 escalus:assert(is_iq_result, Res1),
 
                 RSMCount1 = get_rsm_count(Res1),
-                <<"2">> = RSMCount1,
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount1;
+                    false ->
+                        <<"2">> = RSMCount1
+                end,
                 RSMFirst1 = get_rsm_first(Res1),
                 ItemTups1 = search_result_item_tuples(Res1),
 
@@ -630,7 +661,12 @@ search_rsm_backward(Config) ->
                 escalus:assert(is_iq_result, Res2),
 
                 RSMCount2 = get_rsm_count(Res2),
-                <<"2">> = RSMCount2,
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2;
+                    false ->
+                        <<"2">> = RSMCount2
+                end,
                 RSMFirst2 = get_rsm_first(Res2),
                 ItemTups2 = search_result_item_tuples(Res2),
                 ExpectedItemTups = get_search_results(
@@ -665,8 +701,14 @@ search_rsm_backward(Config) ->
                 escalus:assert(is_iq_result, Res3),
 
                 RSMCount2 = get_rsm_count(Res3),
-                <<"2">> = RSMCount2,
-                [] = search_result_item_tuples(Res3)
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2,
+                        [_] = search_result_item_tuples(Res3);
+                    false ->
+                        <<"2">> = RSMCount2,
+                        [] = search_result_item_tuples(Res3)
+                end
         end).
 
 search_rsm_count(Config) ->
@@ -700,8 +742,12 @@ search_rsm_count(Config) ->
                 0 = length(ItemTups),
 
                 RSMCount = get_rsm_count(Res),
-                <<"2">> = RSMCount
-
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount;
+                    false ->
+                        <<"2">> = RSMCount
+                end
         end).
 
 get_rsm_count(El) ->
