@@ -27,6 +27,12 @@ elif [ ${TRAVIS_BRANCH} == 'master' ]; then
     DOCKERHUB_TAG="latest";
 fi
 
+if [ ${TRAVIS_EVENT_TYPE} == 'cron' ]; then
+    DOCKERHUB_TAG=${VERSION};
+fi
+
+echo "Tag: ${DOCKERHUB_TAG}"
+
 IMAGE_TAG=${DOCKERHUB_REPO}/mongooseim:${DOCKERHUB_TAG}
 
 git clone https://github.com/esl/mongooseim-docker.git
