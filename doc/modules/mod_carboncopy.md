@@ -1,7 +1,7 @@
 ### Module Description
 
 ##### Discovering Support
-Server informs in disco query if carbons are active on server.
+The server informs in a disco query if carbons are enabled.
 
 ##### Enabling and disabling Carbons from the client
 Each client for a user can enable/disable carbons for itself by sending an iq stanza with a child element respectively `<enable xmlns='urn:xmpp:carbons:2'/>` or `<disable xmlns='urn:xmpp:carbons:2'/>`
