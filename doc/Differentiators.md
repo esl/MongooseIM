@@ -3,7 +3,7 @@
 MongooseIM provides:
 
 * Massive scalability, for greater growth and costs-effectiveness
-* Platform approach, designed from the start with consistency accross server and client components, and tools/ecosystem
+* Platform approach, designed from the start with consistency across server and client components, and tools/ecosystem
 * Code quality, through extensive refactoring, substantial optimisations, and continuous integration
 * Unique version, fully open source, fully open standards, innovations contributed to the XSF
 * Professional support, and flexible customer service
