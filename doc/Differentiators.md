@@ -2,9 +2,9 @@
 
 MongooseIM provides:
 
-* Massive scalability: for greater and faster growth, and costs-effectiveness as well as resource utilisation
-* Platform approach: designed with consistency, and end-to-end battle testing across the whole ecosystem (all server and client components, and tools)
-* Superior code quality: extensive refactoring, substantial optimisations, continuous integration and deployment
+* Massive scalability: for greater and faster growth, costs-effectiveness as well as resource utilisation
+* Platform approach: designed with consistency, end-to-end battle testing across the whole ecosystem (all server and client components, and tools)
+* Code quality: extensive refactoring, substantial optimisations, continuous integration and deployment
 * Extensive testing: automated continuous functional code coverage, integration testing, end-to-end testing with real clients
 * Continuous load testing
 * Unique version: no proprietary extensions, fully open source, fully open standards
