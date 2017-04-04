@@ -137,8 +137,6 @@
     Result :: error | roster().
 
 
--define(BACKEND, mod_roster_backend).
-
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     TrackedFuns = [read_roster_version,
@@ -153,7 +151,7 @@ start(Host, Opts) ->
                    read_subscription_and_groups
                    ],
     gen_mod:start_backend_module(?MODULE, Opts, TrackedFuns),
-    ?BACKEND:init(Host, Opts),
+    mod_roster_backend:init(Host, Opts),
 
     ejabberd_hooks:add(roster_get, Host,
                        ?MODULE, get_user_roster, 50),
@@ -245,7 +243,7 @@ roster_version(LServer, LUser) ->
     end.
 
 read_roster_version(LUser, LServer) ->
-    ?BACKEND:read_roster_version(LUser, LServer).
+    mod_roster_backend:read_roster_version(LUser, LServer).
 
 write_roster_version(LUser, LServer) ->
     write_roster_version(LUser, LServer, false).
@@ -255,14 +253,15 @@ write_roster_version_t(LUser, LServer) ->
 
 write_roster_version(LUser, LServer, InTransaction) ->
     Ver = sha:sha1_hex(term_to_binary(os:timestamp())),
-    ?BACKEND:write_roster_version(LUser, LServer, InTransaction, Ver),
+    mod_roster_backend:write_roster_version(LUser, LServer, InTransaction, Ver),
     Ver.
 
 %% Load roster from DB only if neccesary.
 %% It is neccesary if
 %%     - roster versioning is disabled in server OR
 %%     - roster versioning is not used by the client OR
-%%     - roster versioning is used by server and client, BUT the server isn't storing versions on db OR
+%%     - roster versioning is used by server and client,
+%%       BUT the server isn't storing versions on db OR
 %%     - the roster version from client don't match current version.
 process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
     LServer = From#jid.lserver,
@@ -348,7 +347,7 @@ get_user_roster(Acc, {LUser, LServer}) ->
                  end, get_roster(LUser, LServer)) ++ Acc.
 
 get_roster(LUser, LServer) ->
-    ?BACKEND:get_roster(LUser, LServer).
+    mod_roster_backend:get_roster(LUser, LServer).
 
 item_to_xml(Item) ->
     Attrs1 = [{<<"jid">>,
@@ -379,7 +378,7 @@ item_to_xml(Item) ->
            children = SubEls}.
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
-    ?BACKEND:get_roster_by_jid_t(LUser, LServer, LJID).
+    mod_roster_backend:get_roster_by_jid_t(LUser, LServer, LJID).
 
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
@@ -512,7 +511,7 @@ push_item_version(Server, User, From, Item,
 get_subscription_lists(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Items = ?BACKEND:get_subscription_lists(Acc, LUser, LServer),
+    Items = mod_roster_backend:get_subscription_lists(Acc, LUser, LServer),
     JID = jid:make(User, Server, <<>>),
     SubLists = fill_subscription_lists(JID, LServer, Items, [], [], []),
     mongoose_acc:put(subscription_lists, SubLists, Acc).
@@ -532,7 +531,7 @@ fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
         _ -> fill_subscription_lists(JID, LServer, Is, F, T, NewP)
     end;
 fill_subscription_lists(JID, LServer, [RawI | Is], F, T, P) ->
-    I = ?BACKEND:raw_to_record(LServer, RawI),
+    I = mod_roster_backend:raw_to_record(LServer, RawI),
     case I of
         %% Bad JID in database:
         error -> fill_subscription_lists(JID, LServer, Is, F, T, P);
@@ -542,10 +541,10 @@ fill_subscription_lists(_, _LServer, [], F, T, P) -> {F, T, P}.
 
 build_pending(#roster{ask = Ask} = I, JID, P)
   when Ask == in; Ask == both ->
-    Message = I#roster.askmessage,
-    Status  = if is_binary(Message) -> Message;
+    Status = case I#roster.askmessage of
+                 Message when is_binary(Message) -> Message;
                  true -> <<>>
-              end,
+             end,
     StatusEl = #xmlel{
                   name = <<"status">>,
                   children = [#xmlcdata{content = Status}]},
@@ -565,10 +564,10 @@ ask_to_pending(unsubscribe) -> none;
 ask_to_pending(Ask) -> Ask.
 
 roster_subscribe_t(LUser, LServer, LJID, Item) ->
-    ?BACKEND:roster_subscribe_t(LUser, LServer, LJID, Item).
+    mod_roster_backend:roster_subscribe_t(LUser, LServer, LJID, Item).
 
 transaction(LServer, F) ->
-    ?BACKEND:transaction(LServer, F).
+    mod_roster_backend:transaction(LServer, F).
 
 in_subscription(_, User, Server, JID, Type, Reason) ->
     process_subscription(in, User, Server, JID, Type,
@@ -579,82 +578,76 @@ out_subscription(Acc, User, Server, JID, Type) ->
     Acc.
 
 get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
-    ?BACKEND:get_roster_by_jid_with_groups_t(LUser, LServer, LJID).
+    mod_roster_backend:get_roster_by_jid_with_groups_t(LUser, LServer, LJID).
 
 process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     LJID = jid:to_lower(JID1),
-    F = fun () ->
-                Item = get_roster_by_jid_with_groups_t(LUser, LServer,
-                                                       LJID),
-                NewState = case Direction of
-                               out ->
-                                   out_state_change(Item#roster.subscription,
-                                                    Item#roster.ask, Type);
-                               in ->
-                                   in_state_change(Item#roster.subscription,
-                                                   Item#roster.ask, Type)
-                           end,
-                AutoReply = case Direction of
-                                out -> none;
-                                in ->
-                                    in_auto_reply(Item#roster.subscription,
-                                                  Item#roster.ask, Type)
-                            end,
-                AskMessage = case NewState of
-                                 {_, both} -> Reason;
-                                 {_, in} -> Reason;
-                                 _ -> <<"">>
-                             end,
-                case NewState of
-                    none -> {none, AutoReply};
-                    {none, none}
-                      when Item#roster.subscription == none,
-                           Item#roster.ask == in ->
-                        del_roster_t(LUser, LServer, LJID), {none, AutoReply};
-                    {Subscription, Pending} ->
-                        NewItem = Item#roster{subscription = Subscription,
-                                              ask = Pending,
-                                              askmessage =
-                                              iolist_to_binary(AskMessage)},
-                        roster_subscribe_t(LUser, LServer, LJID, NewItem),
-                        case roster_version_on_db(LServer) of
-                            true -> write_roster_version_t(LUser, LServer);
-                            false -> ok
-                        end,
-                        {{push, NewItem}, AutoReply}
-                end
-        end,
-    case transaction(LServer, F) of
+    TransactionFun = fun() -> process_subscription_transaction(Direction, LUser, LServer,
+                                                               LJID, Type, Reason) end,
+    case transaction(LServer, TransactionFun) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
                 none -> ok;
                 _ ->
-                    T = case AutoReply of
-                            subscribed -> <<"subscribed">>;
-                            unsubscribed -> <<"unsubscribed">>
-                        end,
-                    ejabberd_router:route(jid:make(User, Server,
-                                                   <<"">>),
-                                          JID1,
-                                          #xmlel{name = <<"presence">>,
-                                                 attrs = [{<<"type">>, T}],
-                                                 children = []})
+                    PresenceStanza = #xmlel{name = <<"presence">>,
+                                            attrs = [{<<"type">>, autoreply_to_type(AutoReply)}],
+                                            children = []},
+                    ejabberd_router:route(jid:make(User, Server, <<"">>), JID1, PresenceStanza)
             end,
             case Push of
+                {push, #roster{ subscription = none, ask = in }} ->
+                    true;
                 {push, Item} ->
-                    if Item#roster.subscription == none,
-                       Item#roster.ask == in ->
-                           ok;
-                       true ->
-                           push_item(User, Server,
-                                     jid:make(User, Server, <<"">>), Item)
-                    end,
+                    push_item(User, Server, jid:make(User, Server, <<"">>), Item),
                     true;
                 none -> false
             end;
         _ -> false
+    end.
+
+autoreply_to_type(subscribed) -> <<"subscribed">>;
+autoreply_to_type(unsubscribed) -> <<"unsubscribed">>.
+
+process_subscription_transaction(Direction, LUser, LServer, LJID, Type, Reason) ->
+    Item = get_roster_by_jid_with_groups_t(LUser, LServer, LJID),
+    NewState = case Direction of
+                   out ->
+                       out_state_change(Item#roster.subscription,
+                                        Item#roster.ask, Type);
+                   in ->
+                       in_state_change(Item#roster.subscription,
+                                       Item#roster.ask, Type)
+               end,
+    AutoReply = case Direction of
+                    out -> none;
+                    in ->
+                        in_auto_reply(Item#roster.subscription,
+                                      Item#roster.ask, Type)
+                end,
+    AskMessage = case NewState of
+                     {_, both} -> Reason;
+                     {_, in} -> Reason;
+                     _ -> <<"">>
+                 end,
+    case NewState of
+        none -> {none, AutoReply};
+        {none, none}
+          when Item#roster.subscription == none,
+               Item#roster.ask == in ->
+            del_roster_t(LUser, LServer, LJID), {none, AutoReply};
+        {Subscription, Pending} ->
+            NewItem = Item#roster{subscription = Subscription,
+                                  ask = Pending,
+                                  askmessage =
+                                  iolist_to_binary(AskMessage)},
+            roster_subscribe_t(LUser, LServer, LJID, NewItem),
+            case roster_version_on_db(LServer) of
+                true -> write_roster_version_t(LUser, LServer);
+                false -> ok
+            end,
+            {{push, NewItem}, AutoReply}
     end.
 
 %% in_state_change(Subscription, Pending, Type) -> NewState
@@ -714,7 +707,8 @@ out_state_change(none, none, subscribe) -> {none, out};
 out_state_change(none, none, subscribed) -> none;
 out_state_change(none, none, unsubscribe) -> none;
 out_state_change(none, none, unsubscribed) -> none;
-out_state_change(none, out, subscribe) ->{none, out}; %% We need to resend query (RFC3921, section 9.2)
+out_state_change(none, out, subscribe) ->
+    {none, out}; %% We need to resend query (RFC3921, section 9.2)
 out_state_change(none, out, subscribed) -> none;
 out_state_change(none, out, unsubscribe) -> {none, none};
 out_state_change(none, out, unsubscribed) -> none;
@@ -767,7 +761,7 @@ remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     send_unsubscription_to_rosteritems(LUser, LServer),
-    ?BACKEND:remove_user(LUser, LServer).
+    mod_roster_backend:remove_user(LUser, LServer).
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;
@@ -780,31 +774,20 @@ send_unsubscription_to_rosteritems(LUser, LServer) ->
                   end,
                   RosterItems).
 
-%% @spec (From::jid(), Item::roster()) -> ok
-send_unsubscribing_presence(From, Item) ->
-    IsTo = case Item#roster.subscription of
-               both -> true;
-               to -> true;
-               _ -> false
-           end,
-    IsFrom = case Item#roster.subscription of
-                 both -> true;
-                 from -> true;
-                 _ -> false
-             end,
-    if IsTo ->
-           send_presence_type(jid:to_bare(From),
-                              jid:make(Item#roster.jid),
-                              <<"unsubscribe">>);
-       true -> ok
+%% @spec (From::jid(), Item::roster()) -> any()
+send_unsubscribing_presence(From, #roster{ subscription = Subscription } = Item) ->
+    BareFrom = jid:to_bare(From),
+    ContactJID = jid:make(Item#roster.jid),
+    IsTo = Subscription == both orelse Subscription == to,
+    IsFrom = Subscription == both orelse Subscription == from,
+    case IsTo of
+        true -> send_presence_type(BareFrom, ContactJID, <<"unsubscribe">>);
+        _ -> ok
     end,
-    if IsFrom ->
-           send_presence_type(jid:to_bare(From),
-                              jid:make(Item#roster.jid),
-                              <<"unsubscribed">>);
-       true -> ok
-    end,
-    ok.
+    case IsFrom of
+        true -> send_presence_type(BareFrom, ContactJID, <<"unsubscribed">>);
+        _ -> ok
+    end.
 
 send_presence_type(From, To, Type) ->
     ejabberd_router:route(From, To,
@@ -826,10 +809,10 @@ set_items(User, Server, SubEl) ->
     transaction(LServer, F).
 
 update_roster_t(LUser, LServer, LJID, Item) ->
-    ?BACKEND:update_roster_t(LUser, LServer, LJID, Item).
+    mod_roster_backend:update_roster_t(LUser, LServer, LJID, Item).
 
 del_roster_t(LUser, LServer, LJID) ->
-    ?BACKEND:del_roster_t(LUser, LServer, LJID).
+    mod_roster_backend:del_roster_t(LUser, LServer, LJID).
 
 process_item_set_t(LUser, LServer,
                    #xmlel{attrs = Attrs, children = Els}) ->
@@ -882,20 +865,23 @@ process_item_attrs_ws(Item, []) ->
 read_subscription_and_groups(User, Server, LJID) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    ?BACKEND:read_subscription_and_groups(LUser, LServer, LJID).
+    mod_roster_backend:read_subscription_and_groups(LUser, LServer, LJID).
 
 get_jid_info(_, User, Server, JID) ->
     LJID = jid:to_lower(JID),
     case read_subscription_and_groups(User, Server, LJID) of
-        {Subscription, Groups} -> {Subscription, Groups};
+        {Subscription, Groups} ->
+            {Subscription, Groups};
         error ->
-            LRJID = jid:to_lower(jid:to_bare(JID)),
-            if LRJID == LJID -> {none, []};
-               true ->
-                   case read_subscription_and_groups(User, Server, LRJID)
-                   of
-                       {Subscription, Groups} -> {Subscription, Groups};
-                       error -> {none, []}
-                   end
-            end
+            get_bare_jid_info(User, Server, LJID)
     end.
+
+get_bare_jid_info(_User, _Server, {_, _, <<>>}) ->
+    {none, []};
+get_bare_jid_info(User, Server, LJID) ->
+    LRJID = jid:to_bare(LJID),
+    case read_subscription_and_groups(User, Server, LRJID) of
+        {Subscription, Groups} -> {Subscription, Groups};
+        error -> {none, []}
+    end.
+

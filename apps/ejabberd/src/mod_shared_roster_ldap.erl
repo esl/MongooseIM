@@ -174,8 +174,9 @@ get_jid_info({Subscription, Groups}, User, Server, JID) ->
     SRUsers = get_user_to_groups_map(US, false),
     case dict:find(US1, SRUsers) of
         {ok, GroupNames} ->
-            NewGroups = if Groups == [] -> GroupNames;
-                           true -> Groups
+            NewGroups = case Groups of
+                            [] -> GroupNames;
+                            _ -> Groups
                         end,
             {both, NewGroups};
         error -> {Subscription, Groups}
@@ -308,11 +309,10 @@ get_user_to_groups_map({_, Server} = US, SkipUS) ->
     %% record.
     lists:foldl(fun (Group, Dict1) ->
                         GroupName = get_group_name(Server, Group),
-                        lists:foldl(fun (Contact, Dict) ->
-                                            if
-                                                SkipUS, Contact == US -> Dict;
-                                                true -> dict:append(Contact, GroupName, Dict)
-                                            end
+                        lists:foldl(fun (Contact, Dict) when SkipUS, Contact == US ->
+                                            Dict;
+                                        (Contact, Dict) ->
+                                            dict:append(Contact, GroupName, Dict)
                                     end,
                                     Dict1, get_group_users(Server, Group))
                 end,
@@ -413,55 +413,52 @@ search_group_info(State, Group) ->
                       [eldap_filter:do_sub(State#state.gfilter,
                                            [{<<"%g">>, Group}])],
                       [State#state.group_attr, State#state.group_desc,
-                       State#state.uid])
-    of
+                       State#state.uid]) of
         [] ->
             error;
         LDAPEntries ->
-            {GroupDesc, MembersLists} =
-                lists:foldl(
-                  fun (#eldap_entry{attributes = Attrs}, {DescAcc, JIDsAcc}) ->
-                          case
-                              {eldap_utils:get_ldap_attr(State#state.group_attr, Attrs),
-                               eldap_utils:get_ldap_attr(State#state.group_desc, Attrs),
-                               lists:keysearch(State#state.uid, 1, Attrs)}
-                          of
-                              {ID, Desc, {value, {GroupMemberAttr, MemberIn}}}
-                                when ID /= <<"">>, GroupMemberAttr == State#state.uid ->
-                                  Member = case MemberIn of
-                                               [M] ->
-                                                   M;
-                                               _ ->
-                                                   MemberIn
-                                           end,
-                                  JIDs = lists:foldl(
-                                           fun ({ok, UID}, L) ->
-                                                   PUID = jid:nodeprep(UID),
-                                                   case PUID of
-                                                       error ->
-                                                           L;
-                                                       _ ->
-                                                           case AuthChecker(PUID, Host) of
-                                                               true ->
-                                                                   [{PUID, Host} | L];
-                                                               _ ->
-                                                                   L
-                                                           end
-                                                   end;
-                                               (_, L) -> L
-                                           end,
-                                           [],
-                                           [Extractor(Member)]),
-                                  {Desc, [JIDs | JIDsAcc]};
-                              _ ->
-                                  {DescAcc, JIDsAcc}
-                          end
-                  end,
-                  {Group, []}, LDAPEntries),
-            {ok,
-             #group_info{desc = GroupDesc,
-                         members = lists:usort(lists:flatten(MembersLists))}}
+            {GroupDesc, MembersLists} = ldap_entries_to_group(LDAPEntries, Host, Group, State,
+                                                             Extractor, AuthChecker),
+            {ok, #group_info{desc = GroupDesc, members = lists:usort(MembersLists)}}
     end.
+
+ldap_entries_to_group(LDAPEntries, Host, Group, State, Extractor, AuthChecker) ->
+    ldap_entries_to_group(LDAPEntries, Host, Group, [], State, Extractor, AuthChecker).
+
+ldap_entries_to_group([#eldap_entry{ attributes = Attrs } | REntries], Host,
+                      DescAcc, JIDsAcc, State, Extractor, AuthChecker) ->
+    case {eldap_utils:get_ldap_attr(State#state.group_attr, Attrs),
+          eldap_utils:get_ldap_attr(State#state.group_desc, Attrs),
+          lists:keysearch(State#state.uid, 1, Attrs)} of
+        {ID, Desc, {value, {GroupMemberAttr, MemberIn}}}
+          when ID /= <<"">>, GroupMemberAttr == State#state.uid ->
+            Member = case MemberIn of
+                         [M] -> M;
+                         _ -> MemberIn
+                     end,
+            NewJIDsAcc = check_and_accumulate_member(Extractor(Member), AuthChecker, Host, JIDsAcc),
+            ldap_entries_to_group(REntries, Host, Desc, NewJIDsAcc, State, Extractor, AuthChecker);
+        _ ->
+            ldap_entries_to_group(REntries, Host, DescAcc, JIDsAcc, State, Extractor, AuthChecker)
+    end;
+ldap_entries_to_group([], _Host, DescAcc, JIDsAcc, _State, _Extractor, _AuthChecker) ->
+    {DescAcc, JIDsAcc}.
+
+check_and_accumulate_member({ok, UID}, AuthChecker, Host, JIDsAcc) ->
+    PUID = jid:nodeprep(UID),
+    case PUID of
+        error ->
+            JIDsAcc;
+        _ ->
+            case AuthChecker(PUID, Host) of
+                true ->
+                    [{PUID, Host} | JIDsAcc];
+                _ ->
+                    JIDsAcc
+            end
+    end;
+check_and_accumulate_member(_, _AuthChecker, _Host, JIDsAcc) ->
+    JIDsAcc.
 
 search_user_name(State, User) ->
     case eldap_search(State,
@@ -490,7 +487,7 @@ get_user_part_re(String, Pattern) ->
     end.
 
 parse_options(Host, Opts) ->
-    Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE), utf8),
+    EldapID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE), utf8),
     Cfg = eldap_utils:get_config(Host, Opts),
     GroupAttr = eldap_utils:get_mod_opt(ldap_groupattr, Opts,
                                         fun iolist_to_binary/1,
@@ -573,7 +570,7 @@ parse_options(Host, Opts) ->
                       _ ->
                           <<"(&", GroupSubFilter/binary, ConfigFilter/binary, ")">>
                   end,
-    #state{host = Host, eldap_id = Eldap_ID,
+    #state{host = Host, eldap_id = EldapID,
            servers = Cfg#eldap_config.servers,
            backups = Cfg#eldap_config.backups,
            port = Cfg#eldap_config.port,

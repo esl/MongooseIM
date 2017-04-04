@@ -1,8 +1,12 @@
 -module(mod_version).
+
 -behaviour(gen_mod).
--export([start/2, stop/1, process_iq/3]).
+
 -include("jlib.hrl").
 -include("ejabberd.hrl").
+
+-export([start/2, stop/1, process_iq/3]).
+
 -xep([{xep, 92}, {version, "1.1"}]).
 
 -spec start(ejabberd:server(), list()) -> any().
@@ -17,10 +21,9 @@ stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_VERSION),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_VERSION).
 
--spec process_iq(#jid{}, #jid{}, #iq{}) -> #iq{}.
+-spec process_iq(jid(), jid(), iq()) -> iq().
 process_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-
 process_iq(From, _To, #iq{type = get} = IQ) ->
     {Name, Version} = mongoose_info(),
     Host = From#jid.lserver,
