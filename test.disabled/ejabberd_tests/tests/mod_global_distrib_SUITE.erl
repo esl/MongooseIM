@@ -12,20 +12,20 @@
 
 all() ->
     [
-     {group, mod_global_distrib},
-     {group, cluster_restart}
+     {group, mod_global_distrib}
+    %  {group, cluster_restart}
     ].
 
 groups() ->
     [{mod_global_distrib, [],
       [
-       test_pm_between_users_at_different_locations,
-       test_muc_conversation_on_one_host,
-       test_component_on_one_host,
-       test_component_disconnect,
-       test_pm_with_disconnection_on_other_server,
-       test_pm_with_graceful_reconnection_to_different_server,
-       test_pm_with_ungraceful_reconnection_to_different_server
+       test_pm_between_users_at_different_locations
+    %    test_muc_conversation_on_one_host,
+    %    test_component_on_one_host,
+    %    test_component_disconnect,
+    %    test_pm_with_disconnection_on_other_server,
+    %    test_pm_with_graceful_reconnection_to_different_server,
+    %    test_pm_with_ungraceful_reconnection_to_different_server
       ]},
      {cluster_restart, [],
       [
@@ -53,6 +53,7 @@ init_per_group(_, Config0) ->
           fun({NodeName, LocalHost}, Config1) ->
                   Opts = [{cookie, "cookie"}, {local_host, LocalHost}, {global_host, "localhost"}],
                   rpc(NodeName, gen_mod, start_module, [<<"localhost">>, mod_global_distrib, Opts]),
+                  rpc(NodeName, gen_mod, start_module, [<<"localhost">>, mod_global_distrib_bounce, Opts]),
                   HasOffline = rpc(NodeName, gen_mod, is_loaded, [<<"localhost">>, mod_offline]),
                   rpc(NodeName, gen_mod, stop_module_keep_config, [<<"localhost">>, mod_offline]),
                   ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
@@ -71,6 +72,7 @@ init_per_group(_, Config0) ->
 end_per_group(_, Config) ->
     lists:foreach(
       fun({NodeName, _}) ->
+              rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib_bounce]),
               rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib]),
 
               ResumeTimeout = proplists:get_value({resume_timeout, NodeName}, Config),

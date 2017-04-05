@@ -59,6 +59,7 @@ stop(Host) ->
         _ -> ok
     end.
 
+maybe_reroute_subhost(drop) -> drop;
 maybe_reroute_subhost({_From, To, _Packet} = FPacket) ->
     LocalHost = opt(local_host),
     case mod_global_distrib_backend:get_session(To#jid.lserver) of
@@ -77,7 +78,7 @@ maybe_unwrap_message({_From, _To, Packet} = FPacket) ->
     end.
 
 maybe_wrap_message(drop) -> drop;
-maybe_wrap_message({_, To, _} = FPacket) ->
+maybe_wrap_message({_, To, _Packet} = FPacket) ->
     LocalHost = opt(local_host),
     case lookup_jid(To) of
         LocalHost -> FPacket;
