@@ -52,12 +52,14 @@
 all() ->
     [
      {group, admin},
-     {group, dynamic_module}
+     {group, dynamic_module},
+     {group, roster}
     ].
 
 groups() ->
     [{admin, [parallel], test_cases()},
-     {dynamic_module, [], [stop_start_command_module]}
+     {dynamic_module, [], [stop_start_command_module]},
+     {roster, [], roster_tests()}
     ].
 
 test_cases() ->
@@ -70,7 +72,12 @@ test_cases() ->
      messages_are_archived,
      messages_can_be_paginated,
      password_can_be_changed
-     ].
+    ].
+
+roster_tests() ->
+    [list_contacts,
+     add_contact
+    ].
 
 suite() ->
     escalus:suite().
@@ -261,6 +268,42 @@ password_can_be_changed(Config) ->
     end),
     ok.
 
+list_contacts(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+            add_sample_contact(Bob, Alice),
+            % bob lists his contacts
+            {?OK, R} = gett(lists:flatten(["/contacts/", binary_to_list(BobJID)])),
+            ct:pal("R: ~p", [R]),
+            [R1] =  decode_maplist(R),
+            <<"alice", _/binary>> = maps:get(jid, R1)
+        end
+    ),
+    ok.
+
+add_contact(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            % bob has empty roster
+            {?OK, R} = gett(lists:flatten(["/contacts/bob@localhost"])),
+            Res = decode_maplist(R),
+            [] = Res,
+            % adds Alice
+            AddContact = #{caller => <<"bob@localhost">>,
+                           jid => <<"alice@localhost">>},
+            post(<<"/contacts">>, AddContact),
+            % and she is in his roster
+            {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
+            [Res2] = decode_maplist(R2),
+            #{jid := <<"alice@localhost">>} = Res2
+        end
+    ),
+    ok.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -303,3 +346,14 @@ to_list(V) when is_list(V) ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
+
+add_sample_contact(Bob, Alice) ->
+    escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
+                 [<<"friends">>],
+                 <<"Alicja">>)),
+    Received = escalus:wait_for_stanzas(Bob, 2),
+    escalus:assert_many([is_roster_set, is_iq_result], Received),
+    Result = hd([R || R <- Received, escalus_pred:is_roster_set(R)]),
+    escalus:assert(count_roster_items, [1], Result),
+    escalus:send(Bob, escalus_stanza:iq_result(Result)).
+

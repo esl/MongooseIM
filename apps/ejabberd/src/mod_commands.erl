@@ -11,6 +11,10 @@
          registered_users/1,
          change_user_password/3,
          list_sessions/1,
+         list_contacts/1,
+         add_contact/2,
+         add_contact/3,
+         add_contact/4,
          kick_session/3,
          get_recent_messages/3,
          get_recent_messages/4,
@@ -96,6 +100,28 @@ commands() ->
       {result, {msg, binary}}
      ],
      [
+      {name, list_contacts},
+      {category, <<"contacts">>},
+      {desc, <<"Get roster">>},
+      {module, ?MODULE},
+      {function, list_contacts},
+      {action, read},
+      {security_policy, [user]},
+      {args, [{caller, binary}]},
+      {result, []}
+     ],
+     [
+      {name, add_contact},
+      {category, <<"contacts">>},
+      {desc, <<"Add a contact to roster">>},
+      {module, ?MODULE},
+      {function, add_contact},
+      {action, create},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jid, binary}]},
+      {result, ok}
+     ],
+     [
       {name, send_message},
       {category, <<"messages">>},
       {desc, <<"Send chat message from to">>},
@@ -172,7 +198,8 @@ register(Host, User, Password) ->
                                    [User, Host, node(), Reason]),
             throw({error, String});
         _ ->
-            list_to_binary(io_lib:format("User ~s@~s successfully registered", [User, Host]))
+            list_to_binary(io_lib:format("User ~s@~s successfully registered",
+                                         [User, Host]))
     end.
 
 unregister(Host, User) ->
@@ -190,6 +217,26 @@ send_message(From, To, Body) ->
     ejabberd_router:route(F, T, Packet),
     ok.
 
+list_contacts(Caller) ->
+    {User, Host} = jid:to_lus(jid:from_binary(Caller)),
+    Res = ejabberd_hooks:run_fold(roster_get, Host, [], [{User, Host}]),
+    R = lists:map(fun mod_roster:item_to_map/1, Res),
+    lists:map(fun roster_info/1, R).
+
+roster_info(M) ->
+    Jid = jid:to_binary(maps:get(jid, M)),
+    #{jid => Jid}.
+
+add_contact(Caller, JabberID) ->
+    add_contact(Caller, JabberID, <<"">>, []).
+
+add_contact(Caller, JabberID, Name) ->
+    add_contact(Caller, JabberID, Name, []).
+
+add_contact(Caller, JabberID, Name, Groups) ->
+    CJid = jid:from_binary(Caller),
+    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
+
 registered_commands() ->
     [#{name => mongoose_commands:name(C),
        category => mongoose_commands:category(C),
@@ -203,7 +250,8 @@ get_recent_messages(Caller, Before, Limit) ->
 
 get_recent_messages(Caller, With, 0, Limit) ->
     {MegaSecs, Secs, _} = os:timestamp(),
-    Future = (MegaSecs + 1) * 1000000 + Secs, % to make sure we return all messages
+    % wait a while to make sure we return all messages
+    Future = (MegaSecs + 1) * 1000000 + Secs,
     get_recent_messages(Caller, With, Future, Limit);
 get_recent_messages(Caller, With, Before, Limit) ->
     Res = lookup_recent_messages(Caller, With, Before, Limit),
@@ -221,12 +269,15 @@ record_to_map({Id, From, Msg}) ->
                 false -> <<"">>
             end,
     Body = exml_query:path(Msg, [{element, <<"body">>}, cdata]),
-    #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId, body => Body}.
+    #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId,
+      body => Body}.
 
 build_packet(message_chat, Body) ->
     #xmlel{name = <<"message">>,
-           attrs = [{<<"type">>, <<"chat">>}, {<<"id">>, list_to_binary(randoms:get_string())}],
-           children = [#xmlel{ name = <<"body">>, children = [#xmlcdata{content = Body}]}]
+           attrs = [{<<"type">>, <<"chat">>},
+                    {<<"id">>, list_to_binary(randoms:get_string())}],
+           children = [#xmlel{name = <<"body">>,
+                              children = [#xmlcdata{content = Body}]}]
           }.
 
 lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
@@ -252,7 +303,8 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
                                 [Host, ArcID, ArcJID, RSM, Borders,
                                  Start, End, Now, WithJID, SearchText,
-                                 PageSize, LimitPassed, MaxResultLimit, IsSimple]),
+                                 PageSize, LimitPassed, MaxResultLimit,
+                                 IsSimple]),
     {ok, {_, _, L}} = R,
     L.
 
