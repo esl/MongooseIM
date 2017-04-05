@@ -47,14 +47,19 @@ stream_error_when_invalid_domain(_) ->
 
     C2Sactions = when_stream_is_opened(C2SPid, stream_header(<<"badhost">>)),
     [StreamStart, StreamError, StreamEnd, CloseSocket] = C2Sactions,
-
-    ?am({send,[_P, <<"<?xml version='1.0'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' id='57' from='localhost' xml:lang='en'>">>]},
+    ?am({send, [_P,
+         <<"<?xml version='1.0'?>",
+             "<stream:stream xmlns='jabber:client' ",
+             "xmlns:stream='http://etherx.jabber.org/streams' id='57' ",
+             "from='localhost' xml:lang='en'>">>
+         ]},
         StreamStart),
-    ?am({send,[_P, <<"<stream:error>",
-                      "<host-unknown xmlns='urn:ietf:params:xml:ns:xmpp-streams'/>",
-                      "</stream:error>">>]}, StreamError),
-    ?am({send,[_P,<<"</stream:stream>">>]}, StreamEnd),
-    ?am({close,[_P]}, CloseSocket),
+    ?am({send, [_P,
+                <<"<stream:error>",
+                "<host-unknown xmlns='urn:ietf:params:xml:ns:xmpp-streams'/>",
+                "</stream:error>">>]}, StreamError),
+    ?am({send, [_P, <<"</stream:stream>">>]}, StreamEnd),
+    ?am({close, [_P]}, CloseSocket),
     ok.
 
 session_established(_) ->
@@ -65,19 +70,21 @@ session_established(_) ->
     ?eq(final_iq_response(), Last).
 
 send_error_when_waiting(_) ->
-    % this is a regression test for #1252 - when c2s is in state wait_for_session_or_sm and it fails to send a message
+    % this is a regression test for #1252 - when c2s is in state
+    % wait_for_session_or_sm and it fails to send a message
     % it should be handled properly
     {ok, C2SPid} = given_c2s_started(),
     change_state_to(wait_for_session_or_sm, C2SPid),
-    % here we break things to check how c2s will handle error while sending message in this state
+    % here we break things to check how c2s will handle error while sending
+    % message in this state
     meck:expect(ejabberd_socket, send, fun(_, _El) -> error_error_error  end),
     sync_c2s(C2SPid),
     p1_fsm:send_event(C2SPid, {xmlstreamelement, setsession_stanza()}),
     sync_c2s(C2SPid),
     [Close, StreamEnd, StreamError | _] = lists:reverse(received_stanzas()),
-    ?am(<<"<stream:error><internal-server-error xmlns='urn:ietf:params:xml:ns:xmpp-streams'/></stream:error>">>,
+    ?eq(stream_error_response(),
         StreamError),
-    ?am(<<"</stream:stream>">>, StreamEnd),
+    ?eq(<<"</stream:stream>">>, StreamEnd),
     ?eq(close, Close),
     ok.
 
@@ -123,7 +130,7 @@ getstate(C2SPid) ->
 when_stream_is_opened(C2SPid, Stanza) ->
     p1_fsm:send_event(C2SPid, Stanza),
     sync_c2s(C2SPid),
-    lists:filtermap(filter_calls(ejabberd_socket, [send,close]),
+    lists:filtermap(filter_calls(ejabberd_socket, [send, close]),
                        meck:history(ejabberd_socket)).
 
 filter_calls(_ExpecetdMod, Funs) ->
@@ -140,7 +147,11 @@ maybe_extract_function_with_args({_Mod, Fun, Args}, List) ->
 sync_c2s(C2SPid) -> catch sys:get_state(C2SPid).
 
 stream_valid_header_response() ->
-     <<"<?xml version='1.0'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' id='4436' from='localhost' xml:lang='en'>">>.
+     R = "<?xml version='1.0'?>"
+         "<stream:stream xmlns='jabber:client' "
+         "xmlns:stream='http://etherx.jabber.org/streams' id='4436' "
+         "from='localhost' xml:lang='en'>",
+    list_to_binary(R).
 
 stream_header(Domain) ->
     #xmlstreamstart{name = <<"stream:stream">>,
@@ -148,11 +159,13 @@ stream_header(Domain) ->
                              {<<"xml:lang">>, <<"en">>},
                              {<<"version">>, <<"1.0">>},
                              {<<"xmlns">>, <<"jabber:client">>},
-                             {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>}]}.
+                             {<<"xmlns:stream">>,
+                              <<"http://etherx.jabber.org/streams">>}]}.
 
 auth_stanza() ->
     {xmlel, <<"auth">>,
-        [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-sasl">>}, {<<"mechanism">>, <<"PLAIN">>}],
+        [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-sasl">>},
+         {<<"mechanism">>, <<"PLAIN">>}],
         [{xmlcdata, <<"AGFsaWNFOTkuODk3NzMzAG1hdHlncnlzYQ==">>}]}.
 
 bind_stanza() ->
@@ -165,7 +178,9 @@ bind_stanza() ->
 setsession_stanza() ->
     {xmlel, <<"iq">>,
         [{<<"type">>, <<"set">>}, {<<"id">>, <<"4436">>}],
-        [{xmlel, <<"session">>, [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-session">>}], []}]}.
+        [{xmlel, <<"session">>, [{<<"xmlns">>,
+                                  <<"urn:ietf:params:xml:ns:xmpp-session">>}],
+            []}]}.
 
 given_c2s_started() ->
     create_c2s().
@@ -190,11 +205,12 @@ jid(Str) ->
     jid:from_binary(Str).
 
 final_iq_response() ->
-    <<"<iq type='result' id='4436'><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>">>.
-%%    Iq1 = <<"<iq id='4436' type='result'>">>,
-%%    B1 = <<"<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>">>,
-%%    Jid = <<"<jid>cosmic_hippo@localhost/res1</jid></bind></iq>">>,
-%%    B2 = <<"</bind>">>,
-%%    Iq2 = <<"</iq>">>,
-%%    <<Iq1/binary, B1/binary, Jid/binary, B2/binary, Iq2/binary>>.
-%%    Iq = <<"<iq id='4436' type='result'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><jid>cosmic_hippo@localhost/res1</jid></bind></iq>">>,
+    <<"<iq type='result' id='4436'>"
+          "<session xmlns='urn:ietf:params:xml:ns:xmpp-session'/>"
+      "</iq>">>.
+
+stream_error_response() ->
+    <<"<stream:error>",
+      "<internal-server-error xmlns='urn:ietf:params:xml:ns:xmpp-streams'/>",
+      "</stream:error>">>.
+

@@ -812,8 +812,8 @@ do_open_session(El, JID, StateData) ->
     case send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm) of
         {_, _, NStateData, _} ->
             do_open_session_common(JID, NStateData);
-        {_, _, _} -> % error, resume not possible
-            c2s_stream_error(?SERR_INTERNAL_SERVER_ERROR, StateData)
+        {_, _, NStateData} -> % error, resume not possible
+            c2s_stream_error(?SERR_INTERNAL_SERVER_ERROR, NStateData)
     end.
 
 do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
