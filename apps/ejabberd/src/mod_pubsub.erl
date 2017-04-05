@@ -386,7 +386,7 @@ init_plugins(Host, ServerHost, Opts) ->
                                             fun(A) when is_binary(A) -> A end,
                                             ?STDTREE)),
     ?DEBUG("** tree plugin is ~p", [TreePlugin]),
-    TreePlugin:init(Host, ServerHost, Opts),
+    gen_pubsub_nodetree:init(TreePlugin, Host, ServerHost, Opts),
     Plugins = gen_mod:get_opt(plugins, Opts,
                               fun(A) when is_list(A) -> A end, [?STDNODE]),
     PepMapping = gen_mod:get_opt(pep_mapping, Opts,
@@ -411,10 +411,10 @@ terminate_plugins(Host, ServerHost, Plugins, TreePlugin) ->
       fun (Name) ->
               ?DEBUG("** terminate ~s plugin", [Name]),
               Plugin = plugin(Host, Name),
-              Plugin:terminate(Host, ServerHost)
+              gen_pubsub_node:terminate(Plugin, Host, ServerHost)
       end,
       Plugins),
-    TreePlugin:terminate(Host, ServerHost),
+    gen_pubsub_nodetree:terminate(TreePlugin, Host, ServerHost),
     ok.
 
 send_loop(State) ->
@@ -483,9 +483,8 @@ get_nodes_owned_by(Host, OwnerJID) ->
     OwnerBLJID = jid:to_bare(jid:to_lower(OwnerJID)),
     tree_action(Host, get_nodes, [OwnerBLJID, OwnerJID]).
 
-send_last_item_to_jid(NodeOwner,
-                      #pubsub_node{nodeid = {_, Node}, type = NodeType, id = Nidx, options = NodeOptions},
-                      RecipientJID) ->
+send_last_item_to_jid(NodeOwner, #pubsub_node{nodeid = {_, Node}, type = NodeType,
+                                              id = Nidx, options = NodeOptions}, RecipientJID) ->
     NodeOwnerBLJID = jid:to_bare(jid:to_lower(NodeOwner)),
     case is_subscribed(RecipientJID, NodeOwnerBLJID, NodeOptions) of
         true -> send_items(NodeOwnerBLJID, Node, Nidx, NodeType, NodeOptions, RecipientJID, last);
@@ -624,8 +623,11 @@ disco_features(Host, Node, From) ->
     Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
                      Owners = node_owners_call(Host, Type, Nidx, O),
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, _} -> {result, [?NS_PUBSUB | [feature(F) || F <- plugin_features(Host, <<"pep">>)]]};
-                         _ -> {result, []}
+                         {result, _} ->
+                             {result, [?NS_PUBSUB | [feature(F)
+                                                     || F <- plugin_features(Host, <<"pep">>)]]};
+                         _ ->
+                             {result, []}
                      end
              end,
     case transaction(Host, Node, Action, sync_dirty) of
@@ -633,17 +635,11 @@ disco_features(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_items(
-        Acc  :: empty | {result, [xmlel()]},
-          From :: jid(),
-          To   :: jid(),
-          Node :: mod_pubsub:nodeId(),
-          Lang :: binary())
-        -> {result, [xmlel()]}.
-                                                %disco_sm_items(Acc, From, To, Node, Lang)
-                                                %    when is_binary(Node) ->
-                                                %    disco_sm_items(Acc, From, To, iolist_to_binary(Node),
-                                                %                   Lang);
+-spec disco_sm_items(Acc :: empty | {result, [xmlel()]},
+                     From :: jid(),
+                     To :: jid(),
+                     Node :: mod_pubsub:nodeId(),
+                     Lang :: binary()) -> {result, [xmlel()]}.
 disco_sm_items(empty, From, To, Node, Lang) ->
     disco_sm_items({result, []}, From, To, Node, Lang);
 disco_sm_items({result, OtherItems}, From, To, Node, _Lang) ->
@@ -894,8 +890,8 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 %% @private
-terminate(_Reason,
-          #state{host = Host, server_host = ServerHost, nodetree = TreePlugin, plugins = Plugins}) ->
+terminate(_Reason, #state{host = Host, server_host = ServerHost,
+                          nodetree = TreePlugin, plugins = Plugins}) ->
     ejabberd_router:unregister_route(Host),
     case lists:member(?PEPNODE, Plugins) of
         true ->
@@ -1122,7 +1118,8 @@ iq_disco_info(Host, SNode, From, Lang) ->
             {result, [#xmlel{name = <<"identity">>,
                              attrs = [{<<"category">>, <<"pubsub">>},
                                       {<<"type">>, <<"service">>},
-                                      {<<"name">>, translate:translate(Lang, <<"Publish-Subscribe">>)}]},
+                                      {<<"name">>, translate:translate(
+                                                     Lang, <<"Publish-Subscribe">>)}]},
                       #xmlel{name = <<"feature">>,
                              attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
                       #xmlel{name = <<"feature">>,
@@ -1156,11 +1153,11 @@ iq_disco_items(Host, <<>>, From, _RSM) ->
                        Attrs = case get_option(Options, title) of
                                    false ->
                                        [{<<"jid">>, Host}
-                                        | nodeAttr(SubNode)];
+                                        | node_attr(SubNode)];
                                    [Title] ->
                                        [{<<"jid">>, Host},
                                         {<<"name">>, Title}
-                                        | nodeAttr(SubNode)]
+                                        | node_attr(SubNode)]
                                end,
                        #xmlel{name = <<"item">>, attrs = Attrs}
                end,
@@ -1199,17 +1196,18 @@ iq_disco_items_transaction(Host, From, Node, RSM,
                               Attrs = case get_option(SubOptions, title) of
                                           false ->
                                               [{<<"jid">>, Host}
-                                               | nodeAttr(SubNode)];
+                                               | node_attr(SubNode)];
                                           [Title] ->
                                               [{<<"jid">>, Host},
                                                {<<"name">>, Title}
-                                               | nodeAttr(SubNode)]
+                                               | node_attr(SubNode)]
                                       end,
                               #xmlel{name = <<"item">>, attrs = Attrs}
                       end,
                       tree_call(Host, get_subnodes, [Host, Node, From])),
     Items = lists:map(fun (#pubsub_item{itemid = {RN, _}}) ->
-                              {result, Name} = node_call(Host, Type, get_item_name, [Host, Node, RN]),
+                              {result, Name} = node_call(Host, Type, get_item_name,
+                                                         [Host, Node, RN]),
                               #xmlel{name = <<"item">>,
                                      attrs = [{<<"jid">>, Host}, {<<"name">>, Name}]}
                       end,
@@ -1236,14 +1234,14 @@ iq_sm(From, To, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang} = I
     end.
 
 iq_get_vcard(Lang) ->
+    Desc = <<(translate:translate(Lang, <<"ejabberd Publish-Subscribe module">>))/binary,
+             "\nCopyright (c) 2004-2015 ProcessOne">>,
     [#xmlel{name = <<"FN">>, attrs = [],
-            children = [{xmlcdata, <<"ejabberd/mod_pubsub">>}]},
+            children = [#xmlcdata{content = <<"ejabberd/mod_pubsub">>}]},
      #xmlel{name = <<"URL">>, attrs = [],
-            children = [{xmlcdata, ?EJABBERD_URI}]},
+            children = [#xmlcdata{content = ?EJABBERD_URI}]},
      #xmlel{name = <<"DESC">>, attrs = [],
-            children = [{xmlcdata,
-                         <<(translate:translate(Lang, <<"ejabberd Publish-Subscribe module">>))/binary,
-                           "\nCopyright (c) 2004-2015 ProcessOne">>}]}].
+            children = [#xmlcdata{content = Desc}]}].
 
 -spec iq_pubsub(Host :: mod_pubsub:host(),
                 ServerHost :: binary(),
@@ -1554,74 +1552,64 @@ get_node_subscriptions_transaction(Host, Owner, #pubsub_node{id = Nidx, type = T
 send_authorization_request(#pubsub_node{nodeid = {Host, Node}, type = Type, id = Nidx, owners = O},
                            Subscriber) ->
     Lang = <<"en">>,
-    Stanza = #xmlel{name = <<"message">>, attrs = [{<<"id">>, list_to_binary(randoms:get_string())}],
-                    children =
-                        [#xmlel{name = <<"x">>,
-                                attrs =
-                                    [{<<"xmlns">>, ?NS_XDATA},
-                                     {<<"type">>, <<"form">>}],
-                                children =
-                                    [#xmlel{name = <<"title">>, attrs = [],
-                                            children =
-                                                [{xmlcdata,
-                                                  translate:translate(Lang, <<"PubSub subscriber request">>)}]},
-                                     #xmlel{name = <<"instructions">>,
-                                            attrs = [],
-                                            children =
-                                                [{xmlcdata,
-                                                  translate:translate(Lang,
-                                                                      <<"Choose whether to approve this entity's "
-                                                                        "subscription.">>)}]},
-                                     #xmlel{name = <<"field">>,
-                                            attrs =
-                                                [{<<"var">>, <<"FORM_TYPE">>},
-                                                 {<<"type">>, <<"hidden">>}],
-                                            children =
-                                                [#xmlel{name = <<"value">>,
-                                                        attrs = [],
-                                                        children =
-                                                            [{xmlcdata, ?NS_PUBSUB_SUB_AUTH}]}]},
-                                     #xmlel{name = <<"field">>,
-                                            attrs =
-                                                [{<<"var">>, <<"pubsub#node">>},
-                                                 {<<"type">>,
-                                                  <<"text-single">>},
-                                                 {<<"label">>, translate:translate(Lang, <<"Node ID">>)}],
-                                            children =
-                                                [#xmlel{name = <<"value">>,
-                                                        attrs = [],
-                                                        children =
-                                                            [{xmlcdata, Node}]}]},
-                                     #xmlel{name = <<"field">>,
-                                            attrs =
-                                                [{<<"var">>,
-                                                  <<"pubsub#subscriber_jid">>},
-                                                 {<<"type">>, <<"jid-single">>},
-                                                 {<<"label">>,
-                                                  translate:translate(Lang, <<"Subscriber Address">>)}],
-                                            children =
-                                                [#xmlel{name = <<"value">>,
-                                                        attrs = [],
-                                                        children =
-                                                            [{xmlcdata, jid:to_binary(Subscriber)}]}]},
-                                     #xmlel{name = <<"field">>,
-                                            attrs =
-                                                [{<<"var">>,
-                                                  <<"pubsub#allow">>},
-                                                 {<<"type">>, <<"boolean">>},
-                                                 {<<"label">>,
-                                                  translate:translate(Lang,
-                                                                      <<"Allow this Jabber ID to subscribe to "
-                                                                        "this pubsub node?">>)}],
-                                            children =
-                                                [#xmlel{name = <<"value">>,
-                                                        attrs = [],
-                                                        children =
-                                                            [{xmlcdata, <<"false">>}]}]}]}]},
-    lists:foreach(fun (Owner) ->
+    FormChildren = [#xmlel{name = <<"title">>, attrs = [],
+                           children =
+                           [#xmlcdata{content =
+                                      translate:translate(Lang, <<"PubSub subscriber request">>)}]},
+                    #xmlel{name = <<"instructions">>,
+                           attrs = [],
+                           children =
+                           [#xmlcdata{content = translate:translate(
+                                                  Lang, <<"Choose whether to approve this entity's "
+                                                          "subscription.">>)}]},
+                    #xmlel{name = <<"field">>,
+                           attrs =
+                           [{<<"var">>, <<"FORM_TYPE">>},
+                            {<<"type">>, <<"hidden">>}],
+                           children =
+                           [#xmlel{name = <<"value">>,
+                                   attrs = [],
+                                   children = [#xmlcdata{content = ?NS_PUBSUB_SUB_AUTH}]}]},
+                    #xmlel{name = <<"field">>,
+                           attrs =
+                           [{<<"var">>, <<"pubsub#node">>},
+                            {<<"type">>,
+                             <<"text-single">>},
+                            {<<"label">>, translate:translate(Lang, <<"Node ID">>)}],
+                           children = [#xmlel{name = <<"value">>,
+                                              attrs = [],
+                                              children = [#xmlcdata{content = Node}]}]},
+                    #xmlel{name = <<"field">>,
+                           attrs =
+                           [{<<"var">>,
+                             <<"pubsub#subscriber_jid">>},
+                            {<<"type">>, <<"jid-single">>},
+                            {<<"label">>,
+                             translate:translate(Lang, <<"Subscriber Address">>)}],
+                           children =
+                           [#xmlel{name = <<"value">>,
+                                   attrs = [],
+                                   children = [#xmlcdata{content = jid:to_binary(Subscriber)}]}]},
+                    #xmlel{name = <<"field">>,
+                           attrs =
+                           [{<<"var">>,
+                             <<"pubsub#allow">>},
+                            {<<"type">>, <<"boolean">>},
+                            {<<"label">>,
+                             translate:translate(Lang,
+                                                 <<"Allow this Jabber ID to subscribe to "
+                                                   "this pubsub node?">>)}],
+                           children = [#xmlel{name = <<"value">>,
+                                              attrs = [],
+                                              children = [#xmlcdata{content = <<"false">>}]}]}],
+    Stanza = #xmlel{name = <<"message">>,
+                    attrs = [{<<"id">>, list_to_binary(randoms:get_string())}],
+                    children = [#xmlel{name = <<"x">>,
+                                       attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
+                                       children = FormChildren}]},
+    lists:foreach(fun(Owner) ->
                           ejabberd_router:route(service_jid(Host), jid:make(Owner), Stanza)
-                  end,
-                  node_owners_action(Host, Type, Nidx, O)).
+                  end, node_owners_action(Host, Type, Nidx, O)).
 
 find_authorization_response(#xmlel{ children = Els }) ->
     XData = lists:foldl(fun(#xmlel{name = <<"x">>, attrs = XAttrs} = XEl, Acc) ->
@@ -1651,15 +1639,15 @@ find_authorization_response(#xmlel{ children = Els }) ->
 %% @doc Send a message to JID with the supplied Subscription
 send_authorization_approval(Host, JID, SNode, Subscription) ->
     SubAttrs = case Subscription of
-                                                %{S, SID} ->
-                                                %    [{<<"subscription">>, subscription_to_string(S)},
-                                                %     {<<"subid">>, SID}];
+                   %{S, SID} ->
+                   %    [{<<"subscription">>, subscription_to_string(S)},
+                   %     {<<"subid">>, SID}];
                    S ->
                        [{<<"subscription">>, subscription_to_string(S)}]
                end,
     Stanza = event_stanza(<<"subscription">>,
                           [{<<"jid">>, jid:to_binary(JID)}
-                           | nodeAttr(SNode)]
+                           | node_attr(SNode)]
                           ++ SubAttrs),
     ejabberd_router:route(service_jid(Host), JID, Stanza).
 
@@ -1787,10 +1775,12 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
                     || Val <- Vals]}).
 
 %% @doc <p>Create new pubsub nodes</p>
-%%<p>In addition to method-specific error conditions, there are several general reasons why the node creation request might fail:</p>
+%%<p>In addition to method-specific error conditions, there are several general reasons
+%%   why the node creation request might fail:</p>
 %%<ul>
 %%<li>The service does not support node creation.</li>
-%%<li>Only entities that are registered with the service are allowed to create nodes but the requesting entity is not registered.</li>
+%%<li>Only entities that are registered with the service are allowed to create nodes
+%%    but the requesting entity is not registered.</li>
 %%<li>The requesting entity does not have sufficient privileges to create nodes.</li>
 %%<li>The requested Node already exists.</li>
 %%<li>The request did not include a Node and "instant nodes" are not supported.</li>
@@ -1825,7 +1815,7 @@ create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
                     {result, [#xmlel{name = <<"pubsub">>,
                                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
                                      children = [#xmlel{name = <<"create">>,
-                                                        attrs = nodeAttr(Node)}]}]};
+                                                        attrs = node_attr(Node)}]}]};
                 Error ->
                     Error
             end;
@@ -1887,7 +1877,8 @@ create_node_transaction(Host, ServerHost, Node, Owner, Type, Access, NodeOptions
                  {result, [Node]} ->
                      <<>>;
                  {result, Path} ->
-                     element(2, node_call(Host, Type, path_to_node, [lists:sublist(Path, length(Path)-1)]))
+                     element(2, node_call(Host, Type, path_to_node,
+                                          [lists:sublist(Path, length(Path)-1)]))
              end,
     case node_call(Host, Type, create_node_permission,
                    [Host, ServerHost, Node, Parent, Owner, Access]) of
@@ -1927,7 +1918,7 @@ create_node_make_reply(Node) ->
     [#xmlel{name = <<"pubsub">>,
             attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
             children = [#xmlel{name = <<"create">>,
-                               attrs = nodeAttr(Node)}]}].
+                               attrs = node_attr(Node)}]}].
 
 %% @doc <p>Delete specified node and all childs.</p>
 %%<p>There are several reasons why the node deletion request might fail:</p>
@@ -1955,7 +1946,8 @@ delete_node(Host, Node, Owner) ->
                                   RNidx = RNode#pubsub_node.id,
                                   RType = RNode#pubsub_node.type,
                                   ROptions = RNode#pubsub_node.options,
-                                  broadcast_removed_node(RH, RN, RNidx, RType, ROptions, SubsByDepth),
+                                  broadcast_removed_node(RH, RN, RNidx,
+                                                         RType, ROptions, SubsByDepth),
                                   ejabberd_hooks:run(pubsub_delete_node,
                                                      ServerHost,
                                                      [ServerHost, RH, RN, RNidx])
@@ -2008,13 +2000,18 @@ delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx})
 %%<p>There are several reasons why the subscription request might fail:</p>
 %%<ul>
 %%<li>The bare JID portions of the JIDs do not match.</li>
-%%<li>The node has an access model of "presence" and the requesting entity is not subscribed to the owner's presence.</li>
-%%<li>The node has an access model of "roster" and the requesting entity is not in one of the authorized roster groups.</li>
-%%<li>The node has an access model of "whitelist" and the requesting entity is not on the whitelist.</li>
+%%<li>The node has an access model of "presence" and the requesting entity
+%%    is not subscribed to the owner's presence.</li>
+%%<li>The node has an access model of "roster" and the requesting entity
+%%    is not in one of the authorized roster groups.</li>
+%%<li>The node has an access model of "whitelist"
+%%    and the requesting entity is not on the whitelist.</li>
 %%<li>The service requires payment for subscriptions to the node.</li>
-%%<li>The requesting entity is anonymous and the service does not allow anonymous entities to subscribe.</li>
+%%<li>The requesting entity is anonymous and the service
+%%    does not allow anonymous entities to subscribe.</li>
 %%<li>The requesting entity has a pending subscription.</li>
-%%<li>The requesting entity is blocked from subscribing (e.g., because having an affiliation of outcast).</li>
+%%<li>The requesting entity is blocked from subscribing
+%%    (e.g., because having an affiliation of outcast).</li>
 %%<li>The node does not support subscriptions.</li>
 %%<li>The node does not exist.</li>
 %%</ul>
@@ -2028,8 +2025,7 @@ delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx})
 %%%
                | {error, xmlel()}.
 subscribe_node(Host, Node, From, JID, Configuration) ->
-    SubModule = subscription_plugin(Host),
-    SubOpts = case SubModule:parse_options_xform(Configuration) of
+    SubOpts = case pubsub_subscription:parse_options_xform(Configuration) of
                   {result, GoodSubOpts} -> GoodSubOpts;
                   _ -> invalid
               end,
@@ -2062,40 +2058,54 @@ subscribe_node(Host, Node, From, JID, Configuration) ->
         Error -> Error
     end.
 
-subscribe_node_transaction(Host, SubOpts, From, Subscriber,
-                           #pubsub_node{options = Options, type = Type, id = Nidx, owners = O}) ->
-    Features = plugin_features(Host, Type),
-    SubscribeFeature = lists:member(<<"subscribe">>, Features),
-    OptionsFeature = lists:member(<<"subscription-options">>, Features),
-    HasOptions = not (SubOpts == []),
-    SubscribeConfig = get_option(Options, subscribe),
-    AccessModel = get_option(Options, access_model),
-    SendLast = get_option(Options, send_last_published_item),
-    AllowedGroups = get_option(Options, roster_groups_allowed, []),
-    SubsLimitReached = check_subs_limit(Host, Type, Nidx),
-    if not SubscribeFeature ->
-           {error,
-            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
-       not SubscribeConfig ->
-           {error,
-            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
-       HasOptions andalso not OptionsFeature ->
+subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode) ->
+    Features = plugin_features(Host, PubSubNode#pubsub_node.type),
+    subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Features).
+
+subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
+    case lists:member(<<"subscribe">>, Features) of
+        false ->
+            {error, extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
+        true ->
+            subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features)
+    end.
+
+subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
+    case get_option(PubSubNode#pubsub_node.options, subscribe) of
+        false ->
+            {error, extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
+        true ->
+            subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Features)
+    end.
+
+subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
+    case {SubOpts /= [], lists:member(<<"subscription-options">>, Features)} of
+        {true, false} ->
            {error,
             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)};
-       SubOpts == invalid ->
-           {error,
-            extended_error(?ERR_BAD_REQUEST, <<"invalid-options">>)};
-       SubsLimitReached ->
-           %% fallback to closest XEP compatible result, assume we are not allowed to subscribe
-           {error,
-            extended_error(?ERR_NOT_ALLOWED, <<"closed-node">>)};
-       true ->
-           Owners = node_owners_call(Host, Type, Nidx, O),
-           {PS, RG} = get_presence_and_roster_permissions(Host, Subscriber,
-                                                          Owners, AccessModel, AllowedGroups),
-           node_call(Host, Type, subscribe_node,
-                     [Nidx, From, Subscriber, AccessModel,
-                      SendLast, PS, RG, SubOpts])
+        _ ->
+            subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber, PubSubNode)
+    end.
+
+subscribe_node_transaction_step4(_Host, invalid, _From, _Subscriber, _PubSubNode) ->
+    {error, extended_error(?ERR_BAD_REQUEST, <<"invalid-options">>)};
+subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber,
+                                 #pubsub_node{options = Options, type = Type,
+                                              id = Nidx, owners = O}) ->
+    case check_subs_limit(Host, Type, Nidx) of
+        true ->
+           {error, extended_error(?ERR_NOT_ALLOWED, <<"closed-node">>)};
+        false ->
+            AccessModel = get_option(Options, access_model),
+            SendLast = get_option(Options, send_last_published_item),
+            AllowedGroups = get_option(Options, roster_groups_allowed, []),
+
+            Owners = node_owners_call(Host, Type, Nidx, O),
+            {PS, RG} = get_presence_and_roster_permissions(Host, Subscriber,
+                                                           Owners, AccessModel, AllowedGroups),
+            node_call(Host, Type, subscribe_node,
+                      [Nidx, From, Subscriber, AccessModel,
+                       SendLast, PS, RG, SubOpts])
     end.
 
 check_subs_limit(Host, Type, Nidx) ->
@@ -2134,9 +2144,11 @@ subscribe_node_reply(Subscriber, SubAttrs) ->
 %% @doc <p>Unsubscribe <tt>JID</tt> from the <tt>Node</tt>.</p>
 %%<p>There are several reasons why the unsubscribe request might fail:</p>
 %%<ul>
-%%<li>The requesting entity has multiple subscriptions to the node but does not specify a subscription ID.</li>
+%%<li>The requesting entity has multiple subscriptions to the node
+%%    but does not specify a subscription ID.</li>
 %%<li>The request does not specify an existing subscriber.</li>
-%%<li>The requesting entity does not have sufficient privileges to unsubscribe the specified JID.</li>
+%%<li>The requesting entity does not have sufficient privileges
+%%    to unsubscribe the specified JID.</li>
 %%<li>The node does not exist.</li>
 %%<li>The request specifies a subscription ID that is not valid or current.</li>
 %%</ul>
@@ -2169,7 +2181,8 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
 %%<li>The node does not support item publication.</li>
 %%<li>The node does not exist.</li>
 %%<li>The payload size exceeds a service-defined limit.</li>
-%%<li>The item contains more than one payload element or the namespace of the root payload element does not match the configured namespace for the node.</li>
+%%<li>The item contains more than one payload element or the namespace of the root payload element
+%%    does not match the configured namespace for the node.</li>
 %%<li>The request does not match the node configuration.</li>
 %%</ul>
 -spec publish_item(
@@ -2232,9 +2245,9 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
         end,
     Reply = [#xmlel{name = <<"pubsub">>,
                     attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
-                    children = [#xmlel{name = <<"publish">>, attrs = nodeAttr(Node),
+                    children = [#xmlel{name = <<"publish">>, attrs = node_attr(Node),
                                        children = [#xmlel{name = <<"item">>,
-                                                          attrs = itemAttr(ItemId)}]}]}],
+                                                          attrs = item_attr(ItemId)}]}]}],
     ErrorItemNotFound = ?ERR_ITEM_NOT_FOUND,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {TNode, {Result, Broadcast, Removed}}} ->
@@ -2311,7 +2324,8 @@ autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
 %%<li>The publisher does not have sufficient privileges to delete the requested item.</li>
 %%<li>The node or item does not exist.</li>
 %%<li>The request does not specify a node.</li>
-%%<li>The request does not include an <item/> element or the <item/> element does not specify an ItemId.</li>
+%%<li>The request does not include an <item/> element
+%%    or the <item/> element does not specify an ItemId.</li>
 %%<li>The node does not support persistent items.</li>
 %%<li>The service does not support the deletion of items.</li>
 %%</ul>
@@ -2328,25 +2342,7 @@ delete_item(Host, Node, Publisher, ItemId) ->
 delete_item(_, <<>>, _, _, _) ->
     {error, extended_error(?ERR_BAD_REQUEST, <<"node-required">>)};
 delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
-    Action = fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
-                     Features = plugin_features(Host, Type),
-                     PersistentFeature = lists:member(<<"persistent-items">>, Features),
-                     DeleteFeature = lists:member(<<"delete-items">>, Features),
-                     PublishModel = get_option(Options, publish_model),
-                     if %%->   iq_pubsub just does that matchs
-                         %%        %% Request does not specify an item
-                         %%        {error, extended_error(?ERR_BAD_REQUEST, "item-required")};
-                         not PersistentFeature ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
-                         not DeleteFeature ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"delete-items">>)};
-                         true ->
-                             node_call(Host, Type, delete_item, [Nidx, Publisher, PublishModel, ItemId])
-                     end
-             end,
-    Reply = [],
+    Action = fun(PubSubNode) -> delete_item_transaction(Host, Publisher, ItemId, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
@@ -2358,15 +2354,33 @@ delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
                 _ -> ok
             end,
             case Result of
-                default -> {result, Reply};
+                default -> {result, []};
                 _ -> {result, Result}
             end;
         {result, {_, default}} ->
-            {result, Reply};
+            {result, []};
         {result, {_, Result}} ->
             {result, Result};
         Error ->
             Error
+    end.
+
+delete_item_transaction(Host, Publisher, ItemId,
+                        #pubsub_node{options = Options, type = Type, id = Nidx}) ->
+    Features = plugin_features(Host, Type),
+    case lists:member(<<"persistent-items">>, Features) of
+        true ->
+            case lists:member(<<"delete-items">>, Features) of
+                true ->
+                    PublishModel = get_option(Options, publish_model),
+                    node_call(Host, Type, delete_item, [Nidx, Publisher, PublishModel, ItemId]);
+                false ->
+                    {error,
+                     extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"delete-items">>)}
+            end;
+        false ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)}
     end.
 
 %% @doc <p>Delete all items of specified node owned by JID.</p>
@@ -2385,24 +2399,7 @@ delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
 %%%
                | {error, xmlel()}.
 purge_node(Host, Node, Owner) ->
-    Action = fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
-                     Features = plugin_features(Host, Type),
-                     PurgeFeature = lists:member(<<"purge-nodes">>, Features),
-                     PersistentFeature = lists:member(<<"persistent-items">>, Features),
-                     PersistentConfig = get_option(Options, persist_items),
-                     if not PurgeFeature ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"purge-nodes">>)};
-                        not PersistentFeature ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
-                        not PersistentConfig ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
-                        true -> node_call(Host, Type, purge_node, [Nidx, Owner])
-                     end
-             end,
-    Reply = [],
+    Action = fun (PubSubNode) -> purge_node_transaction(Host, Owner, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
@@ -2411,15 +2408,32 @@ purge_node(Host, Node, Owner) ->
             broadcast_purge_node(Host, Node, Nidx, Type, Options),
             unset_cached_item(Host, Nidx),
             case Result of
-                default -> {result, Reply};
+                default -> {result, []};
                 _ -> {result, Result}
             end;
         {result, {_, default}} ->
-            {result, Reply};
+            {result, []};
         {result, {_, Result}} ->
             {result, Result};
         Error ->
             Error
+    end.
+
+purge_node_transaction(Host, Owner, #pubsub_node{options = Options, type = Type, id = Nidx}) ->
+    Features = plugin_features(Host, Type),
+    case {lists:member(<<"purge-nodes">>, Features),
+          lists:member(<<"persistent-items">>, Features),
+          get_option(Options, persist_items)} of
+        {false, _, _} ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"purge-nodes">>)};
+        {_, false, _} ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
+        {_, _, false} ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
+        _ -> node_call(Host, Type, purge_node, [Nidx, Owner])
     end.
 
 %% @doc <p>Return the items of a given node.</p>
@@ -2427,28 +2441,23 @@ purge_node(Host, Node, Owner) ->
 %% <p>The permission are not checked in this function.</p>
 %% @todo We probably need to check that the user doing the query has the right
 %% to read the items.
--spec get_items(
-        Host      :: mod_pubsub:host(),
-          Node      :: mod_pubsub:nodeId(),
-          From      :: jid(),
-          SubId     :: mod_pubsub:subId(),
-          SMaxItems :: binary(),
-          ItemIds   :: [mod_pubsub:itemId()],
-          Rsm       :: none | rsm_in())
-        -> {result, [xmlel(), ...]}
-%%%
-               | {error, xmlel()}.
+-spec get_items(Host :: mod_pubsub:host(),
+                Node :: mod_pubsub:nodeId(),
+                From :: jid(),
+                SubId :: mod_pubsub:subId(),
+                SMaxItems :: binary(),
+                ItemIds :: [mod_pubsub:itemId()],
+                Rsm :: none | rsm_in()) -> {result, [xmlel(), ...]} | {error, xmlel()}.
+get_items(Host, Node, From, SubId, <<>>, ItemIds, RSM) ->
+    MaxItems = case get_max_items_node(Host) of
+                   undefined -> ?MAXITEMS;
+                   Max -> Max
+               end,
+    get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems);
 get_items(Host, Node, From, SubId, SMaxItems, ItemIds, RSM) ->
-    MaxItems = if SMaxItems == <<>> ->
-                       case get_max_items_node(Host) of
-                           undefined -> ?MAXITEMS;
-                           Max -> Max
-                       end;
-                  true ->
-                       case catch binary_to_integer(SMaxItems) of
-                           {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
-                           Val -> Val
-                       end
+    MaxItems = case catch binary_to_integer(SMaxItems) of
+                   {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                   Val -> Val
                end,
     get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems).
 
@@ -2465,8 +2474,8 @@ get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
              [#xmlel{name = <<"pubsub">>,
                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
                      children =
-                     [#xmlel{name = <<"items">>, attrs = nodeAttr(Node),
-                             children = itemsEls(lists:sublist(SendItems, MaxItems))}
+                     [#xmlel{name = <<"items">>, attrs = node_attr(Node),
+                             children = items_els(lists:sublist(SendItems, MaxItems))}
                       | jlib:rsm_encode(RsmOut)]}]};
         Error ->
             Error
@@ -2475,22 +2484,21 @@ get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
 get_items_transaction(Host, From, RSM, SubId,
                       #pubsub_node{options = Options, type = Type, id = Nidx, owners = O}) ->
     Features = plugin_features(Host, Type),
-    RetreiveFeature = lists:member(<<"retrieve-items">>, Features),
-    PersistentFeature = lists:member(<<"persistent-items">>, Features),
-    AccessModel = get_option(Options, access_model),
-    AllowedGroups = get_option(Options, roster_groups_allowed, []),
-    if not RetreiveFeature ->
-           {error,
-            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"retrieve-items">>)};
-       not PersistentFeature ->
+    case {lists:member(<<"retrieve-items">>, Features),
+          lists:member(<<"persistent-items">>, Features)} of
+        {false, _} ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"retrieve-items">>)};
+        {_, false} ->
            {error,
             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
-       true ->
-           Owners = node_owners_call(Host, Type, Nidx, O),
-           {PS, RG} = get_presence_and_roster_permissions(Host, From, Owners,
-                                                          AccessModel, AllowedGroups),
-           node_call(Host, Type, get_items,
-                     [Nidx, From, AccessModel, PS, RG, SubId, RSM])
+        _ ->
+            AccessModel = get_option(Options, access_model),
+            AllowedGroups = get_option(Options, roster_groups_allowed, []),
+            Owners = node_owners_call(Host, Type, Nidx, O),
+            {PS, RG} = get_presence_and_roster_permissions(Host, From, Owners,
+                                                           AccessModel, AllowedGroups),
+            node_call(Host, Type, get_items, [Nidx, From, AccessModel, PS, RG, SubId, RSM])
     end.
 
 filter_items_by_item_ids(Items, []) ->
@@ -2576,14 +2584,14 @@ dispatch_items({FromU, FromS, FromR} = From, {ToU, ToS, ToR} = To, Node,
                          _ -> undefined
                      end
              end,
-    if C2SPid == undefined -> ok;
-       true ->
+    case C2SPid of
+        undefined ->
+            ok;
+        _ ->
             NotificationType = get_option(Options, notification_type, headline),
             Message = add_message_type(Stanza, NotificationType),
-            ejabberd_c2s:send_filtered(C2SPid,
-                                       {pep_message, <<Node/binary, "+notify">>},
-                                       service_jid(From), jid:make(To),
-                                       Message)
+            ejabberd_c2s:send_filtered(C2SPid, {pep_message, <<Node/binary, "+notify">>},
+                                       service_jid(From), jid:make(To), Message)
     end;
 dispatch_items(From, To, _Node, Options, Stanza) ->
     NotificationType = get_option(Options, notification_type, headline),
@@ -2600,22 +2608,21 @@ dispatch_items(From, To, _Node, Options, Stanza) ->
 %%%
                | {error, xmlel()}.
 get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
-    Result = lists:foldl( fun (Type, {Status, Acc}) ->
-                                  Features = plugin_features(Host, Type),
-                                  RetrieveFeature = lists:member(<<"retrieve-affiliations">>, Features),
-                                  if not RetrieveFeature ->
-                                          {{error,
-                                            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
-                                                           unsupported, <<"retrieve-affiliations">>)},
-                                           Acc};
-                                     true ->
-                                          {result, Affs} = node_action(Host, Type,
-                                                                       get_entity_affiliations,
-                                                                       [Host, JID]),
-                                          {Status, [Affs | Acc]}
-                                  end
-                          end,
-                          {ok, []}, Plugins),
+    Result = lists:foldl(
+               fun(Type, {Status, Acc}) ->
+                       Features = plugin_features(Host, Type),
+                       case lists:member(<<"retrieve-affiliations">>, Features) of
+                           true ->
+                               {result, Affs} = node_action(Host, Type, get_entity_affiliations,
+                                                            [Host, JID]),
+                               {Status, [Affs | Acc]};
+                           false ->
+                               {{error,
+                                 extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
+                                                unsupported, <<"retrieve-affiliations">>)},
+                                Acc}
+                       end
+               end, {ok, []}, Plugins),
     case Result of
         {ok, Affs} ->
             Entities = lists:flatmap(
@@ -2625,7 +2632,7 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
                                    Node == <<>> orelse Node == NodeId ->
                                  [#xmlel{name = <<"affiliation">>,
                                          attrs = [{<<"affiliation">>, affiliation_to_string(Aff)}
-                                                  | nodeAttr(NodeId)]}];
+                                                  | node_attr(NodeId)]}];
                              (_) ->
                                  []
                          end,
@@ -2639,47 +2646,45 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
             Error
     end.
 
--spec get_affiliations(
-        Host :: mod_pubsub:host(),
-          Node :: mod_pubsub:nodeId(),
-          JID  :: jid())
-        -> {result, [xmlel(), ...]}
-%%%
-               | {error, xmlel()}.
+-spec get_affiliations(Host :: mod_pubsub:host(), Node :: mod_pubsub:nodeId(), JID :: jid()) ->
+    {result, [xmlel(), ...]} | {error, xmlel()}.
 get_affiliations(Host, Node, JID) ->
-    Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     Features = plugin_features(Host, Type),
-                     RetrieveFeature = lists:member(<<"modify-affiliations">>, Features),
-                     {result, Affiliation} = node_call(Host, Type, get_affiliation, [Nidx, JID]),
-                     if not RetrieveFeature ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"modify-affiliations">>)};
-                        Affiliation /= owner ->
-                             {error, ?ERR_FORBIDDEN};
-                        true ->
-                             node_call(Host, Type, get_node_affiliations, [Nidx])
-                     end
-             end,
+    Action = fun (PubSubNode) -> get_affiliations_transaction(Host, JID, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {_, []}} ->
             {error, ?ERR_ITEM_NOT_FOUND};
         {result, {_, Affs}} ->
-            Entities = lists:flatmap(fun
-                                         ({_, none}) ->
-                                            [];
-                                         ({AJID, Aff}) ->
-                                            [#xmlel{name = <<"affiliation">>,
-                                                    attrs = [{<<"jid">>, jid:to_binary(AJID)},
-                                                             {<<"affiliation">>, affiliation_to_string(Aff)}]}]
-                                    end,
-                                     Affs),
+            Entities =
+            lists:flatmap(fun({_, none}) ->
+                                  [];
+                             ({AJID, Aff}) ->
+                                  [#xmlel{
+                                      name = <<"affiliation">>,
+                                      attrs = [{<<"jid">>, jid:to_binary(AJID)},
+                                               {<<"affiliation">>, affiliation_to_string(Aff)}]}]
+                          end, Affs),
             {result,
              [#xmlel{name = <<"pubsub">>,
                      attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
                      children = [#xmlel{name = <<"affiliations">>,
-                                        attrs = nodeAttr(Node), children = Entities}]}]};
+                                        attrs = node_attr(Node), children = Entities}]}]};
         Error ->
             Error
+    end.
+
+get_affiliations_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) ->
+    Features = plugin_features(Host, Type),
+    case lists:member(<<"modify-affiliations">>, Features) of
+        true ->
+            case node_call(Host, Type, get_affiliation, [Nidx, JID]) of
+                {result, owner} ->
+                    node_call(Host, Type, get_node_affiliations, [Nidx]);
+                _ ->
+                    {error, ?ERR_FORBIDDEN}
+            end;
+        false ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"modify-affiliations">>)}
     end.
 
 -spec set_affiliations(
@@ -2782,18 +2787,21 @@ set_validated_affiliations_transaction(Host, #pubsub_node{ type = Type, id = Nid
                   Entities).
 
 get_options(Host, Node, JID, SubId, Lang) ->
-    Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     case lists:member(<<"subscription-options">>, plugin_features(Host, Type)) of
-                         true ->
-                             get_options_helper(Host, JID, Lang, Node, Nidx, SubId, Type);
-                         false ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)}
-                     end
+    Action = fun(PubSubNode) ->
+                     get_options_transaction(Host, Node, JID, SubId, Lang, PubSubNode)
              end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {_Node, XForm}} -> {result, [XForm]};
         Error -> Error
+    end.
+
+get_options_transaction(Host, Node, JID, SubId, Lang, #pubsub_node{type = Type, id = Nidx}) ->
+    case lists:member(<<"subscription-options">>, plugin_features(Host, Type)) of
+        true ->
+            get_options_helper(Host, JID, Lang, Node, Nidx, SubId, Type);
+        false ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)}
     end.
 
 get_options_helper(Host, JID, Lang, Node, Nidx, SubId, Type) ->
@@ -2805,33 +2813,31 @@ get_options_helper(Host, JID, Lang, Node, Nidx, SubId, Type) ->
             {error,
              extended_error(?ERR_NOT_ACCEPTABLE, <<"not-subscribed">>)};
         {<<>>, [SID]} ->
-            read_sub(Host, Node, Nidx, Subscriber, SID, Lang);
+            read_sub(Node, Nidx, Subscriber, SID, Lang);
         {<<>>, _} ->
             {error,
              extended_error(?ERR_NOT_ACCEPTABLE, <<"subid-required">>)};
         {_, _} ->
-            ValidSubId = lists:member(SubId, SubIds),
-            if ValidSubId ->
-                    read_sub(Host, Node, Nidx, Subscriber, SubId, Lang);
-               true ->
-                    {error,
-                     extended_error(?ERR_NOT_ACCEPTABLE, <<"invalid-subid">>)}
+            case lists:member(SubId, SubIds) of
+                true ->
+                    read_sub(Node, Nidx, Subscriber, SubId, Lang);
+                false ->
+                    {error, extended_error(?ERR_NOT_ACCEPTABLE, <<"invalid-subid">>)}
             end
     end.
 
-read_sub(Host, Node, Nidx, Subscriber, SubId, Lang) ->
-    SubModule = subscription_plugin(Host),
-    Children = case SubModule:get_subscription(Subscriber, Nidx, SubId) of
+read_sub(Node, Nidx, Subscriber, SubId, Lang) ->
+    Children = case pubsub_subscription:get_subscription(Subscriber, Nidx, SubId) of
                    {error, notfound} ->
                        [];
                    {result, #pubsub_subscription{options = Options}} ->
-                       {result, XdataEl} = SubModule:get_options_xform(Lang, Options),
+                       {result, XdataEl} = pubsub_subscription:get_options_xform(Lang, Options),
                        [XdataEl]
                end,
     OptionsEl = #xmlel{name = <<"options">>,
                        attrs = [{<<"jid">>, jid:to_binary(Subscriber)},
                                 {<<"subid">>, SubId}
-                                | nodeAttr(Node)],
+                                | node_attr(Node)],
                        children = Children},
     PubsubEl = #xmlel{name = <<"pubsub">>,
                       attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
@@ -2839,23 +2845,25 @@ read_sub(Host, Node, Nidx, Subscriber, SubId, Lang) ->
     {result, PubsubEl}.
 
 set_options(Host, Node, JID, SubId, Configuration) ->
-    Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     case lists:member(<<"subscription-options">>, plugin_features(Host, Type)) of
-                         true ->
-                             set_options_helper(Host, Configuration, JID, Nidx, SubId, Type);
-                         false ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)}
-                     end
+    Action = fun(PubSubNode) ->
+                     set_options_transaction(Host, JID, SubId, Configuration, PubSubNode)
              end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {_Node, Result}} -> {result, Result};
         Error -> Error
     end.
 
+set_options_transaction(Host, JID, SubId, Configuration, #pubsub_node{type = Type, id = Nidx}) ->
+    case lists:member(<<"subscription-options">>, plugin_features(Host, Type)) of
+        true ->
+            set_options_helper(Host, Configuration, JID, Nidx, SubId, Type);
+        false ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)}
+    end.
+
 set_options_helper(Host, Configuration, JID, Nidx, SubId, Type) ->
-    SubModule = subscription_plugin(Host),
-    SubOpts = case SubModule:parse_options_xform(Configuration) of
+    SubOpts = case pubsub_subscription:parse_options_xform(Configuration) of
                   {result, GoodSubOpts} -> GoodSubOpts;
                   _ -> invalid
               end,
@@ -2864,25 +2872,21 @@ set_options_helper(Host, Configuration, JID, Nidx, SubId, Type) ->
     SubIds = [Id || {Sub, Id} <- Subs, Sub == subscribed],
     case {SubId, SubIds} of
         {_, []} ->
-            {error,
-             extended_error(?ERR_NOT_ACCEPTABLE, <<"not-subscribed">>)};
+            {error, extended_error(?ERR_NOT_ACCEPTABLE, <<"not-subscribed">>)};
         {<<>>, [SID]} ->
-            write_sub(Host, Nidx, Subscriber, SID, SubOpts);
+            write_sub(Nidx, Subscriber, SID, SubOpts);
         {<<>>, _} ->
-            {error,
-             extended_error(?ERR_NOT_ACCEPTABLE, <<"subid-required">>)};
+            {error, extended_error(?ERR_NOT_ACCEPTABLE, <<"subid-required">>)};
         {_, _} ->
-            write_sub(Host, Nidx, Subscriber, SubId, SubOpts)
+            write_sub(Nidx, Subscriber, SubId, SubOpts)
     end.
 
-write_sub(_Host, _Nidx, _Subscriber, _SubId, invalid) ->
-    {error,
-     extended_error(?ERR_BAD_REQUEST, <<"invalid-options">>)};
-write_sub(_Host, _Nidx, _Subscriber, _SubId, []) ->
+write_sub(_Nidx, _Subscriber, _SubId, invalid) ->
+    {error, extended_error(?ERR_BAD_REQUEST, <<"invalid-options">>)};
+write_sub(_Nidx, _Subscriber, _SubId, []) ->
     {result, []};
-write_sub(Host, Nidx, Subscriber, SubId, Options) ->
-    SubModule = subscription_plugin(Host),
-    case SubModule:set_subscription(Subscriber, Nidx, SubId, Options) of
+write_sub(Nidx, Subscriber, SubId, Options) ->
+    case pubsub_subscription:set_subscription(Subscriber, Nidx, SubId, Options) of
         {result, _} -> {result, []};
         {error, _} -> {error, extended_error(?ERR_NOT_ACCEPTABLE, <<"invalid-subid">>)}
     end.
@@ -2898,18 +2902,19 @@ write_sub(Host, Nidx, Subscriber, SubId, Options) ->
 get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
     Result = lists:foldl(fun (Type, {Status, Acc}) ->
                                  Features = plugin_features(Host, Type),
-                                 RetrieveFeature = lists:member(<<"retrieve-subscriptions">>, Features),
-                                 if not RetrieveFeature ->
-                                         {{error,
-                                           extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
-                                                          unsupported, <<"retrieve-subscriptions">>)},
-                                          Acc};
-                                    true ->
+                                 case lists:member(<<"retrieve-subscriptions">>, Features) of
+                                     true ->
                                          Subscriber = jid:to_bare(JID),
                                          {result, Subs} = node_action(Host, Type,
                                                                       get_entity_subscriptions,
                                                                       [Host, Subscriber]),
-                                         {Status, [Subs | Acc]}
+                                         {Status, [Subs | Acc]};
+                                     false ->
+                                         {{error,
+                                           extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
+                                                          unsupported,
+                                                          <<"retrieve-subscriptions">>)},
+                                          Acc}
                                  end
                          end,
                          {ok, []}, Plugins),
@@ -2933,7 +2938,7 @@ subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub}, <<>>) ->
     [#xmlel{name = <<"subscription">>,
             attrs =
             [{<<"subscription">>, subscription_to_string(Sub)}
-             | nodeAttr(SubsNode)]}];
+             | node_attr(SubsNode)]}];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub}, SubsNode) ->
     [#xmlel{name = <<"subscription">>,
             attrs =
@@ -2950,7 +2955,7 @@ subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubId, SubJID}
             [{<<"jid">>, jid:to_binary(SubJID)},
              {<<"subid">>, SubId},
              {<<"subscription">>, subscription_to_string(Sub)}
-             | nodeAttr(SubsNode)]}];
+             | node_attr(SubsNode)]}];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubId, SubJID}, SubsNode) ->
     [#xmlel{name = <<"subscription">>,
             attrs =
@@ -2965,7 +2970,7 @@ subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubJID}, <<>>)
             attrs =
             [{<<"jid">>, jid:to_binary(SubJID)},
              {<<"subscription">>, subscription_to_string(Sub)}
-             | nodeAttr(SubsNode)]}];
+             | node_attr(SubsNode)]}];
 subscription_to_xmlel({#pubsub_node{nodeid = {_, SubsNode}}, Sub, SubJID}, SubsNode) ->
     [#xmlel{name = <<"subscription">>,
             attrs =
@@ -2975,47 +2980,49 @@ subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _, _}, _Node) ->
     [].
 
 get_subscriptions(Host, Node, JID) ->
-    Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     Features = plugin_features(Host, Type),
-                     RetrieveFeature = lists:member(<<"manage-subscriptions">>, Features),
-                     {result, Affiliation} = node_call(Host, Type, get_affiliation, [Nidx, JID]),
-                     if not RetrieveFeature ->
-                             {error,
-                              extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"manage-subscriptions">>)};
-                        Affiliation /= owner ->
-                             {error, ?ERR_FORBIDDEN};
-                        true ->
-                             node_call(Host, Type, get_node_subscriptions, [Nidx])
-                     end
-             end,
+    Action = fun (PubSubNode) -> get_subscriptions_transaction(Host, JID, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {_, Subs}} ->
-            Entities = lists:flatmap(fun
-                                         ({_, none}) ->
-                                            [];
-                                         ({_, pending, _}) ->
-                                            [];
-                                         ({AJID, Sub}) ->
-                                            [#xmlel{name = <<"subscription">>,
-                                                    attrs =
-                                                        [{<<"jid">>, jid:to_binary(AJID)},
-                                                         {<<"subscription">>, subscription_to_string(Sub)}]}];
-                                         ({AJID, Sub, SubId}) ->
-                                            [#xmlel{name = <<"subscription">>,
-                                                    attrs =
-                                                        [{<<"jid">>, jid:to_binary(AJID)},
-                                                         {<<"subscription">>, subscription_to_string(Sub)},
-                                                         {<<"subid">>, SubId}]}]
-                                    end,
-                                     Subs),
+            Entities =
+            lists:flatmap(fun({_, none}) ->
+                                  [];
+                             ({_, pending, _}) ->
+                                  [];
+                             ({AJID, Sub}) ->
+                                  [#xmlel{name = <<"subscription">>,
+                                          attrs =
+                                          [{<<"jid">>, jid:to_binary(AJID)},
+                                           {<<"subscription">>, subscription_to_string(Sub)}]}];
+                             ({AJID, Sub, SubId}) ->
+                                  [#xmlel{name = <<"subscription">>,
+                                          attrs =
+                                          [{<<"jid">>, jid:to_binary(AJID)},
+                                           {<<"subscription">>, subscription_to_string(Sub)},
+                                           {<<"subid">>, SubId}]}]
+                          end, Subs),
             {result,
              [#xmlel{name = <<"pubsub">>,
                      attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
                      children = [#xmlel{name = <<"subscriptions">>,
-                                        attrs = nodeAttr(Node),
+                                        attrs = node_attr(Node),
                                         children = Entities}]}]};
         Error ->
             Error
+    end.
+
+get_subscriptions_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) ->
+    Features = plugin_features(Host, Type),
+    case lists:member(<<"manage-subscriptions">>, Features) of
+        true ->
+            case node_call(Host, Type, get_affiliation, [Nidx, JID]) of
+                {result, owner} ->
+                    node_call(Host, Type, get_node_subscriptions, [Nidx]);
+                _ ->
+                    {error, ?ERR_FORBIDDEN}
+            end;
+        false ->
+            {error,
+             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"manage-subscriptions">>)}
     end.
 
 get_subscriptions_for_send_last(Host, PType, mnesia, [JID, LJID, BJID]) ->
@@ -3086,32 +3093,30 @@ notify_subscription_change(Host, Node, JID, Sub) ->
     SubscriptionEl = #xmlel{name = <<"subscription">>,
                             attrs = [{<<"jid">>, jid:to_binary(JID)},
                                      {<<"subscription">>, subscription_to_string(Sub)}
-                                     | nodeAttr(Node)]},
+                                     | node_attr(Node)]},
     PubSubEl = #xmlel{name = <<"pubsub">>,
                       attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
                       children = [SubscriptionEl]},
     Stanza = #xmlel{name = <<"message">>, attrs = [], children = [PubSubEl]},
     ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza).
 
--spec get_presence_and_roster_permissions(
-        Host          :: mod_pubsub:host(),
-          From          :: ljid(),
-          Owners        :: [ljid(), ...],
-          AccessModel   :: mod_pubsub:accessModel(),
-          AllowedGroups :: [binary()])
-        -> {PresenceSubscription::boolean(), RosterGroup::boolean()}.
-get_presence_and_roster_permissions(Host, From, Owners, AccessModel, AllowedGroups) ->
-    if (AccessModel == presence) or (AccessModel == roster) ->
-            case Host of
-                {User, Server, _} ->
-                    get_roster_info(User, Server, From, AllowedGroups);
-                _ ->
-                    [{OUser, OServer, _} | _] = Owners,
-                    get_roster_info(OUser, OServer, From, AllowedGroups)
-            end;
-       true ->
-            {true, true}
-    end.
+-spec get_presence_and_roster_permissions(Host :: mod_pubsub:host(),
+                                          From :: ljid(),
+                                          Owners :: [ljid(), ...],
+                                          AccessModel :: mod_pubsub:accessModel(),
+                                          AllowedGroups :: [binary()]) ->
+    {PresenceSubscription :: boolean(), RosterGroup :: boolean()}.
+get_presence_and_roster_permissions(Host, From, Owners, AccessModel, AllowedGroups)
+      when (AccessModel == presence) orelse (AccessModel == roster) ->
+    case Host of
+        {User, Server, _} ->
+            get_roster_info(User, Server, From, AllowedGroups);
+        _ ->
+            [{OUser, OServer, _} | _] = Owners,
+            get_roster_info(OUser, OServer, From, AllowedGroups)
+    end;
+get_presence_and_roster_permissions(_Host, _From, _Owners, _AccessModel, _AllowedGroups) ->
+    {true, true}.
 
 get_roster_info(_, _, {<<>>, <<>>, _}, _) ->
     {false, false};
@@ -3265,21 +3270,23 @@ payload_xmlelements([_ | Tail], Count) ->
     payload_xmlelements(Tail, Count).
 
 items_event_stanza(Node, Items) ->
-    MoreEls = case Items of
-                  [LastItem] ->
-                      {ModifNow, ModifUSR} = LastItem#pubsub_item.modification,
-                      DateTime = calendar:now_to_datetime(ModifNow),
-                      {T_string, Tz_string} = jlib:timestamp_to_iso(DateTime, utc),
-                      [#xmlel{name = <<"delay">>, attrs = [{<<"xmlns">>, ?NS_DELAY},
-                                                           {<<"from">>, jid:to_binary(ModifUSR)},
-                                                           {<<"stamp">>, iolist_to_binary([T_string, Tz_string])}],
-                              children = [{xmlcdata, <<>>}]}];
-                  _ ->
-                      []
-              end,
+    MoreEls =
+    case Items of
+        [LastItem] ->
+            {ModifNow, ModifUSR} = LastItem#pubsub_item.modification,
+            DateTime = calendar:now_to_datetime(ModifNow),
+            {TString, TzString} = jlib:timestamp_to_iso(DateTime, utc),
+            [#xmlel{name = <<"delay">>,
+                    attrs = [{<<"xmlns">>, ?NS_DELAY},
+                             {<<"from">>, jid:to_binary(ModifUSR)},
+                             {<<"stamp">>, iolist_to_binary([TString, TzString])}],
+                    children = [{xmlcdata, <<>>}]}];
+        _ ->
+            []
+    end,
     event_stanza_with_els([#xmlel{name = <<"items">>,
-                                  attrs = [{<<"type">>, <<"headline">>} | nodeAttr(Node)],
-                                  children = itemsEls(Items)}],
+                                  attrs = [{<<"type">>, <<"headline">>} | node_attr(Node)],
+                                  children = items_els(Items)}],
                           MoreEls).
 
 event_stanza(Els) ->
@@ -3296,7 +3303,8 @@ event_stanza(Event, EvAttr) ->
 
 %%%%%% broadcast functions
 
-broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions, ItemId, From, Payload, Removed, ItemPublisher) ->
+broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions,
+                       ItemId, From, Payload, Removed, ItemPublisher) ->
     case get_collection_subscriptions(Host, Node) of
         SubsByDepth when is_list(SubsByDepth) ->
             Content = case get_option(NodeOptions, deliver_payloads) of
@@ -3304,11 +3312,11 @@ broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions, ItemId, From, Payloa
                           false -> []
                       end,
             ItemAttr = case ItemPublisher of
-                           true  -> itemAttr(ItemId, From);
-                           false -> itemAttr(ItemId)
+                           true  -> item_attr(ItemId, From);
+                           false -> item_attr(ItemId)
                        end,
             Stanza = event_stanza(
-                       [#xmlel{name = <<"items">>, attrs = nodeAttr(Node),
+                       [#xmlel{name = <<"items">>, attrs = node_attr(Node),
                                children = [#xmlel{name = <<"item">>, attrs = ItemAttr,
                                                   children = Content}]}]),
             broadcast_stanza(Host, From, Node, Nidx, Type,
@@ -3325,8 +3333,8 @@ broadcast_auto_retract_notification(_Host, _Node, _Nidx, _Type, _NodeOptions, _S
 broadcast_auto_retract_notification(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, Removed) ->
     case get_option(NodeOptions, notify_retract) of
         true ->
-            RetractEls = [#xmlel{name = <<"retract">>, attrs = itemAttr(RId)} || RId <- Removed],
-            RetractStanza = event_stanza([#xmlel{name = <<"items">>, attrs = nodeAttr(Node),
+            RetractEls = [#xmlel{name = <<"retract">>, attrs = item_attr(RId)} || RId <- Removed],
+            RetractStanza = event_stanza([#xmlel{name = <<"items">>, attrs = node_attr(Node),
                                                  children = RetractEls}]),
             broadcast_stanza(Host, Node, Nidx, Type,
                              NodeOptions, SubsByDepth,
@@ -3345,8 +3353,10 @@ broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotif
             case get_collection_subscriptions(Host, Node) of
                 SubsByDepth when is_list(SubsByDepth) ->
                     Stanza = event_stanza(
-                               [#xmlel{name = <<"items">>, attrs = nodeAttr(Node),
-                                       children = [#xmlel{name = <<"retract">>, attrs = itemAttr(ItemId)} || ItemId <- ItemIds]}]),
+                               [#xmlel{name = <<"items">>, attrs = node_attr(Node),
+                                       children = [#xmlel{name = <<"retract">>,
+                                                          attrs = item_attr(ItemId)}
+                                                   || ItemId <- ItemIds]}]),
                     broadcast_stanza(Host, Node, Nidx, Type,
                                      NodeOptions, SubsByDepth, items, Stanza, true),
                     {result, true};
@@ -3363,7 +3373,7 @@ broadcast_purge_node(Host, Node, Nidx, Type, NodeOptions) ->
             case get_collection_subscriptions(Host, Node) of
                 SubsByDepth when is_list(SubsByDepth) ->
                     Stanza = event_stanza(
-                               [#xmlel{name = <<"purge">>, attrs = nodeAttr(Node)}]),
+                               [#xmlel{name = <<"purge">>, attrs = node_attr(Node)}]),
                     broadcast_stanza(Host, Node, Nidx, Type,
                                      NodeOptions, SubsByDepth, nodes, Stanza, false),
                     {result, true};
@@ -3382,7 +3392,7 @@ broadcast_removed_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
                     {result, false};
                 _ ->
                     Stanza = event_stanza(
-                               [#xmlel{name = <<"delete">>, attrs = nodeAttr(Node)}]),
+                               [#xmlel{name = <<"delete">>, attrs = node_attr(Node)}]),
                     broadcast_stanza(Host, Node, Nidx, Type,
                                      NodeOptions, SubsByDepth, nodes, Stanza, false),
                     {result, true}
@@ -3394,7 +3404,7 @@ broadcast_removed_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
 broadcast_created_node(_, _, _, _, _, []) ->
     {result, false};
 broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
-    Stanza = event_stanza([#xmlel{name = <<"create">>, attrs = nodeAttr(Node)}]),
+    Stanza = event_stanza([#xmlel{name = <<"create">>, attrs = node_attr(Node)}]),
     broadcast_stanza(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, nodes, Stanza, true),
     {result, true}.
 
@@ -3404,8 +3414,8 @@ broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
             case get_collection_subscriptions(Host, Node) of
                 SubsByDepth when is_list(SubsByDepth) ->
                     Content = payload_by_option(Type, NodeOptions, Lang),
-                    Stanza = event_stanza(
-                               [#xmlel{name = <<"configuration">>, attrs = nodeAttr(Node), children = Content}]),
+                    Stanza = event_stanza([#xmlel{name = <<"configuration">>,
+                                                  attrs = node_attr(Node), children = Content}]),
                     broadcast_stanza(Host, Node, Nidx, Type,
                                      NodeOptions, SubsByDepth, nodes, Stanza, false),
                     {result, true};
@@ -3440,22 +3450,24 @@ get_node_subs_by_depth(Host, Node, From) ->
 
 get_node_subs(Host, #pubsub_node{type = Type, id = Nidx}) ->
     case node_call(Host, Type, get_node_subscriptions, [Nidx]) of
-        {result, Subs} -> get_options_for_subs(Host, Nidx, Subs);
+        {result, Subs} -> get_options_for_subs(Nidx, Subs);
         Other -> Other
     end.
 
-get_options_for_subs(Host, Nidx, Subs) ->
-    SubModule = subscription_plugin(Host),
+get_options_for_subs(Nidx, Subs) ->
     lists:foldl(fun({JID, subscribed, SubID}, Acc) ->
-                        case SubModule:get_subscription(JID, Nidx, SubID) of
-                            #pubsub_subscription{options = Options} -> [{JID, SubID, Options} | Acc];
-                            {error, notfound} -> [{JID, SubID, []} | Acc]
+                        case pubsub_subscription:get_subscription(JID, Nidx, SubID) of
+                            #pubsub_subscription{options = Options} ->
+                                [{JID, SubID, Options} | Acc];
+                            {error, notfound} ->
+                                [{JID, SubID, []} | Acc]
                         end;
                    (_, Acc) ->
                         Acc
                 end, [], Subs).
 
-broadcast_stanza(Host, _Node, _Nidx, _Type, NodeOptions, SubsByDepth, NotifyType, BaseStanza, SHIM) ->
+broadcast_stanza(Host, _Node, _Nidx, _Type, NodeOptions,
+                 SubsByDepth, NotifyType, BaseStanza, SHIM) ->
     NotificationType = get_option(NodeOptions, notification_type, headline),
     %% Option below is not standard, but useful
     BroadcastAll = get_option(NodeOptions, broadcast_all_resources),
@@ -3482,12 +3494,15 @@ broadcast_stanza(Host, _Node, _Nidx, _Type, NodeOptions, SubsByDepth, NotifyType
                                                  add_shim_headers(Stanza, subid_shim(SubIDs))
                                          end,
                           lists:foreach(fun(To) ->
-                                                ejabberd_router:route(From, jid:make(To), StanzaToSend)
+                                                ejabberd_router:route(From, jid:make(To),
+                                                                      StanzaToSend)
                                         end, LJIDs)
                   end, SubIDsByJID).
 
-broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeOptions, SubsByDepth, NotifyType, BaseStanza, SHIM) ->
-    broadcast_stanza({LUser, LServer, LResource}, Node, Nidx, Type, NodeOptions, SubsByDepth, NotifyType, BaseStanza, SHIM),
+broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeOptions,
+                 SubsByDepth, NotifyType, BaseStanza, SHIM) ->
+    broadcast_stanza({LUser, LServer, LResource}, Node, Nidx, Type, NodeOptions,
+                     SubsByDepth, NotifyType, BaseStanza, SHIM),
     %% Handles implicit presence subscriptions
     SenderResource = user_resource(LUser, LServer, LResource),
     case ejabberd_sm:get_session_pid(LUser, LServer, SenderResource) of
@@ -3497,23 +3512,27 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
             %% set the from address on the notification to the bare JID of the account owner
             %% Also, add "replyto" if entity has presence subscription to the account owner
             %% See XEP-0163 1.1 section 4.3.1
+            ReplyTo = extended_headers([jid:to_binary(Publisher)]),
             ejabberd_c2s:broadcast(C2SPid,
                                    {pep_message, <<((Node))/binary, "+notify">>},
                                    _Sender = jid:make(LUser, LServer, <<"">>),
-                                   _StanzaToSend = add_extended_headers(Stanza,
-                                                                        _ReplyTo = extended_headers([jid:to_binary(Publisher)])));
+                                   _StanzaToSend = add_extended_headers(Stanza, ReplyTo));
         _ ->
-            ?DEBUG("~p@~p has no session; can't deliver ~p to contacts", [LUser, LServer, BaseStanza])
+            ?DEBUG("~p@~p has no session; can't deliver ~p to contacts",
+                   [LUser, LServer, BaseStanza])
     end;
-broadcast_stanza(Host, _Publisher, Node, Nidx, Type, NodeOptions, SubsByDepth, NotifyType, BaseStanza, SHIM) ->
-    broadcast_stanza(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, NotifyType, BaseStanza, SHIM).
+broadcast_stanza(Host, _Publisher, Node, Nidx, Type, NodeOptions,
+                 SubsByDepth, NotifyType, BaseStanza, SHIM) ->
+    broadcast_stanza(Host, Node, Nidx, Type, NodeOptions, SubsByDepth,
+                     NotifyType, BaseStanza, SHIM).
 
 subscribed_nodes_by_jid(NotifyType, SubsByDepth) ->
-    DepthsToDeliver = fun({Depth, SubsByNode}, Acc1) ->
-                              lists:foldl(fun({Node, Subs}, Acc2) ->
-                                                  nodes_to_deliver(NotifyType, Depth, Node, Subs, Acc2)
-                                          end, Acc1, SubsByNode)
-                      end,
+    DepthsToDeliver =
+    fun({Depth, SubsByNode}, Acc1) ->
+            lists:foldl(fun({Node, Subs}, Acc2) ->
+                                nodes_to_deliver(NotifyType, Depth, Node, Subs, Acc2)
+                        end, Acc1, SubsByNode)
+    end,
     {_, JIDSubs} = lists:foldl(DepthsToDeliver, {[], []}, SubsByDepth),
     JIDSubs.
 
@@ -3558,10 +3577,12 @@ process_jid_to_deliver(JIDs, SubID, NodeName, JIDToDeliver, {JIDsAcc, Recipients
                 lists:keysearch(JIDToDeliver, 1, RecipientsAcc),
             %%   delete the tuple from the Recipients list
             % v1 : Recipients1 = lists:keydelete(LJID, 1, Recipients),
-            % v2 : Recipients1 = lists:keyreplace(LJID, 1, Recipients, {LJID, Nidx1, [SubID | SubIDs]}),
+            % v2 : Recipients1 = lists:keyreplace(LJID, 1, Recipients,
+            %                                     {LJID, Nidx1, [SubID | SubIDs]}),
             %%   add the SubID to the SubIDs list in the tuple,
             %%   and add the tuple back to the Recipients list co-accumulator
-            % v1.1 : {JIDs, lists:append(Recipients1, [{LJID, Nidx1, lists:append(SubIDs, [SubID])}])}
+            % v1.1 : {JIDs, lists:append(Recipients1,
+            %                            [{LJID, Nidx1, lists:append(SubIDs, [SubID])}])}
             % v1.2 : {JIDs, [{LJID, Nidx1, [SubID | SubIDs]} | Recipients1]}
             % v2: {JIDs, Recipients1}
             {JIDsAcc,
@@ -3585,44 +3606,47 @@ user_resource(_, _, Resource) ->
 %%%%%%% Configuration handling
 
 get_configure(Host, ServerHost, Node, From, Lang) ->
-    Action = fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
-                     case node_call(Host, Type, get_affiliation, [Nidx, From]) of
-                         {result, owner} ->
-                             Groups = ejabberd_hooks:run_fold(roster_groups, ServerHost, [], [ServerHost]),
-                             {result,
-                              [#xmlel{name = <<"pubsub">>,
-                                      attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
-                                      children =
-                                          [#xmlel{name = <<"configure">>,
-                                                  attrs = nodeAttr(Node),
-                                                  children =
-                                                      [#xmlel{name = <<"x">>,
-                                                              attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                                                       {<<"type">>, <<"form">>}],
-                                                              children =
-                                                                  get_configure_xfields(Type, Options, Lang, Groups)}]}]}]};
-                         _ ->
-                             {error, ?ERR_FORBIDDEN}
-                     end
+    Action = fun(PubSubNode) ->
+                     get_configure_transaction(Host, ServerHost, Node, From, Lang, PubSubNode)
              end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {_, Result}} -> {result, Result};
         Other -> Other
     end.
 
+get_configure_transaction(Host, ServerHost, Node, From, Lang,
+                          #pubsub_node{options = Options, type = Type, id = Nidx}) ->
+    case node_call(Host, Type, get_affiliation, [Nidx, From]) of
+        {result, owner} ->
+            Groups = ejabberd_hooks:run_fold(roster_groups, ServerHost, [], [ServerHost]),
+            XEl = #xmlel{name = <<"x">>,
+                         attrs = [{<<"xmlns">>, ?NS_XDATA},
+                                  {<<"type">>, <<"form">>}],
+                         children = get_configure_xfields(Type, Options, Lang, Groups)},
+            ConfigureEl = #xmlel{name = <<"configure">>,
+                                 attrs = node_attr(Node),
+                                 children = [XEl]},
+            {result,
+             [#xmlel{name = <<"pubsub">>,
+                     attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
+                     children = [ConfigureEl]}]};
+        _ ->
+            {error, ?ERR_FORBIDDEN}
+    end.
+
 get_default(Host, Node, _From, Lang) ->
     Type = select_type(Host, Host, Node),
     Options = node_options(Host, Type),
+    DefaultEl = #xmlel{name = <<"default">>, attrs = [],
+                       children =
+                       [#xmlel{name = <<"x">>,
+                               attrs = [{<<"xmlns">>, ?NS_XDATA},
+                                        {<<"type">>, <<"form">>}],
+                               children = get_configure_xfields(Type, Options, Lang, [])}]},
     {result,
      [#xmlel{name = <<"pubsub">>,
              attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
-             children =
-                 [#xmlel{name = <<"default">>, attrs = [],
-                         children =
-                             [#xmlel{name = <<"x">>,
-                                     attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                              {<<"type">>, <<"form">>}],
-                                     children = get_configure_xfields(Type, Options, Lang, [])}]}]}]}.
+             children = [DefaultEl]}]}.
 
 match_option(Node, Var, Val) when is_record(Node, pubsub_node) ->
     match_option(Node#pubsub_node.options, Var, Val);
@@ -3646,15 +3670,17 @@ node_options(Host, Type) ->
         [] -> node_plugin_options(Host, Type);
         Config -> Config
     end.
+
 node_plugin_options(Host, Type) ->
     Module = plugin(Host, Type),
-    case catch Module:options() of
+    case catch gen_pubsub_node:options(Module) of
         {'EXIT', {undef, _}} ->
             DefaultModule = plugin(Host, ?STDNODE),
-            DefaultModule:options();
+            gen_pubsub_node:options(DefaultModule);
         Result ->
             Result
     end.
+
 filter_node_options(Options) ->
     lists:foldl(fun({Key, Val}, Acc) ->
                         DefaultValue = proplists:get_value(Key, Options, Val),
@@ -4022,9 +4048,6 @@ plugins(Host) ->
         Plugins -> Plugins
     end.
 
-subscription_plugin(_Host) ->
-    pubsub_subscription.
-
 config(ServerHost, Key) ->
     config(ServerHost, Key, undefined).
 config(ServerHost, Key, Default) ->
@@ -4080,7 +4103,7 @@ features() ->
 
 plugin_features(Host, Type) ->
     Module = plugin(Host, Type),
-    case catch Module:features() of
+    case catch gen_pubsub_node:features(Module) of
         {'EXIT', {undef, _}} -> [];
         Result -> Result
     end.
@@ -4226,31 +4249,23 @@ uniqid() ->
     {T1, T2, T3} = timestamp(),
     iolist_to_binary(io_lib:fwrite("~.16B~.16B~.16B", [T1, T2, T3])).
 
-nodeAttr(Node) -> [{<<"node">>, Node}].
+node_attr(Node) -> [{<<"node">>, Node}].
 
-itemAttr([])     -> [];
-itemAttr(ItemId) -> [{<<"id">>, ItemId}].
+item_attr([])     -> [];
+item_attr(ItemId) -> [{<<"id">>, ItemId}].
 
-itemAttr(ItemId, undefined) -> itemAttr(ItemId);
-itemAttr([], Publisher)     -> [{<<"publisher">>,
+item_attr(ItemId, undefined) -> item_attr(ItemId);
+item_attr([], Publisher)     -> [{<<"publisher">>,
                                  jid:to_binary(jid:to_lower(Publisher))}];
-itemAttr(ItemId, Publisher) -> [{<<"id">>, ItemId},
+item_attr(ItemId, Publisher) -> [{<<"id">>, ItemId},
                                 {<<"publisher">>,
                                  jid:to_binary(jid:to_lower(Publisher))}].
 
-itemsEls(Items) ->
-    [#xmlel{name     = <<"item">>,
-            attrs    = itemAttr(ItemId, Publisher),
-            children = Payload}
-     || #pubsub_item{itemid    = {ItemId, _},
-                     publisher = Publisher ,
-                     payload   = Payload    } <- Items].
+items_els(Items) ->
+    [#xmlel{name = <<"item">>, attrs = item_attr(ItemId, Publisher), children = Payload}
+     || #pubsub_item{itemid = {ItemId, _}, publisher = Publisher, payload = Payload } <- Items].
 
--spec add_message_type(
-        Message :: xmlel(),
-          Type    :: atom())
-        -> xmlel().
-
+-spec add_message_type(Message :: xmlel(), Type :: atom()) -> xmlel().
 add_message_type(Message, normal) -> Message;
 add_message_type(#xmlel{name = <<"message">>, attrs = Attrs, children = Els}, Type) ->
     #xmlel{name = <<"message">>,
