@@ -1,15 +1,9 @@
-% {cassandra_servers,
-% [
-%  {global, 10, [{servers, [{"172.17.0.2", 9042}]},
-%                 {keyspace, "mongooseim_global"}]}
-% ]}.
-%
-% {mod_global_distrib, [{cookie, "cookie"}, {local_host, "europe.vidyo.test"}, {global_host, "vidyo.test"}]},
-
-
 -module(mod_global_distrib).
 
 -behaviour(gen_mod).
+
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 
 -callback put_session(JID :: binary(), Host :: binary()) -> ok.
 -callback get_session(JID :: binary()) -> {ok, Host :: binary()} | term().
@@ -17,9 +11,6 @@
 
 -export([start/2, stop/1, maybe_reroute_subhost/1, maybe_wrap_message/1, user_present/2,
          register_subhost/2, maybe_unwrap_message/1, unregister_subhost/2, user_not_present/5]).
-
--include("ejabberd.hrl").
--include("jlib.hrl").
 
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
@@ -76,8 +67,6 @@ maybe_reroute_subhost({_From, To, _Packet} = FPacket) ->
         _ -> FPacket
     end.
 
-% -type fpacket() :: {From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()}.
-% -spec filter_packet(fpacket() | drop) -> fpacket() | drop.
 maybe_unwrap_message(drop) -> drop;
 maybe_unwrap_message({_From, _To, Packet} = FPacket) ->
     Cookie = opt(cookie),
@@ -108,6 +97,9 @@ unwrap_error_message({_From, _To, #xmlel{children = [Child, Error]}}) ->
 unwrap_message({_From, _To, #xmlel{children = [Child]}}) ->
     From = jid:from_binary(exml_query:attr(Child, <<"from">>)),
     To = jid:from_binary(exml_query:attr(Child, <<"to">>)),
+    ?DEBUG("Unwrapping message from=~s [~s] to=~s [~s]",
+           [exml_query:attr(Child, <<"from">>), jid:to_binary(_From),
+            exml_query:attr(Child, <<"to">>), jid:to_binary(_To)]),
     ejabberd_router:route(From, To, Child),
     drop.
 
@@ -143,6 +135,9 @@ wrap_message(Cookie, LocalHost, TargetHost, Child) ->
                                      {<<"from">>, LocalHost},
                                      {<<"to">>, TargetHost}],
                             children = [Child]},
+    ?DEBUG("Wrapping message from=~s [~s] to=~s [~s]",
+           [exml_query:attr(Child, <<"from">>), LocalHost,
+            exml_query:attr(Child, <<"to">>), TargetHost]),
     ejabberd_router:route(jid:from_binary(LocalHost), jid:from_binary(TargetHost), WrappedMessage),
     drop.
 
@@ -165,10 +160,10 @@ user_not_present(Acc, User, Host, Resource, _Status) ->
 
 register_subhost(_, SubHost) ->
     IsSubhostOf = fun(Host) ->
-                        case binary:match(SubHost, Host) of
-                            {Start, Length} -> Start + Length == byte_size(SubHost);
-                            _ -> false
-                        end
+                          case binary:match(SubHost, Host) of
+                              {Start, Length} -> Start + Length == byte_size(SubHost);
+                              _ -> false
+                          end
                   end,
 
     GlobalHost = opt(global_host),

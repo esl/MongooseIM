@@ -11,7 +11,10 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, mod_global_distrib}, {group, cluster_restart}].
+    [
+     {group, mod_global_distrib},
+     {group, cluster_restart}
+    ].
 
 groups() ->
     [{mod_global_distrib, [],
@@ -21,7 +24,8 @@ groups() ->
        test_component_on_one_host,
        test_component_disconnect,
        test_pm_with_disconnection_on_other_server,
-       test_pm_with_graceful_reconnection_to_different_server
+       test_pm_with_graceful_reconnection_to_different_server,
+       test_pm_with_ungraceful_reconnection_to_different_server
       ]},
      {cluster_restart, [],
       [
@@ -51,7 +55,13 @@ init_per_group(_, Config0) ->
                   rpc(NodeName, gen_mod, start_module, [<<"localhost">>, mod_global_distrib, Opts]),
                   HasOffline = rpc(NodeName, gen_mod, is_loaded, [<<"localhost">>, mod_offline]),
                   rpc(NodeName, gen_mod, stop_module_keep_config, [<<"localhost">>, mod_offline]),
-                  [{{has_offline, NodeName}, HasOffline} | Config1]
+                  ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
+                  rpc(NodeName, mod_stream_management, set_resume_timeout, [1]),
+                  [
+                   {{has_offline, NodeName}, HasOffline},
+                   {{resume_timeout, NodeName}, ResumeTimeout} |
+                   Config1
+                  ]
           end,
           Config0,
           get_hosts()),
@@ -62,12 +72,15 @@ end_per_group(_, Config) ->
     lists:foreach(
       fun({NodeName, _}) ->
               rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib]),
-              case lists:keyfind({has_offline, NodeName}, 1, Config) of
+
+              ResumeTimeout = proplists:get_value({resume_timeout, NodeName}, Config),
+              rpc(NodeName, mod_stream_management, set_resume_timeout, [ResumeTimeout]),
+
+              case proplists:get_value({has_offline, NodeName}, Config) of
                   true ->
-                      ModOfflineOpts = rpc(europe_node, gen_mod, get_module_opts,
-                                           [<<"localhost">>, mod_offline]),
-                      rpc(europe_node, gen_mod, start_module,
-                          [<<"localhost">>, mod_offline, ModOfflineOpts]);
+                      OffOpts = rpc(NodeName, gen_mod, get_module_opts,
+                                    [<<"localhost">>, mod_offline]),
+                      rpc(NodeName, gen_mod, start_module, [<<"localhost">>, mod_offline, OffOpts]);
                   _ ->
                       ok
               end
@@ -225,8 +238,6 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
       Config, [{alice, 1}],
       fun(Alice) ->
               Eve = connect_from_spec(EveSpec, Config),
-              escalus_story:send_initial_presence(Eve),
-              escalus_client:wait_for_stanza(Eve),
 
               escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
               escalus_connection:stop(Eve),
@@ -246,6 +257,41 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], FromAliceBounce),
               escalus:assert(is_chat_message, [<<"Hi again from Europe!">>], AgainFromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Asia!">>], AgainFromEve)
+      end).
+
+test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
+    Config = escalus_users:update_userspec(Config0, eve, stream_management, true),
+    EveSpec = muc_SUITE:given_fresh_spec(Config, eve),
+    escalus:create_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
+    escalus:fresh_story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
+              StepsWithSM = [start_stream, stream_features, maybe_use_ssl,
+                             authenticate, bind, session, stream_resumption],
+
+              {ok, Eve0, Eve0Props, _} = escalus_connection:start(EveSpec, StepsWithSM),
+              Eve = Eve0#client{jid = sm_SUITE:get_bjid(Eve0Props)},
+              escalus_story:send_initial_presence(Eve),
+              escalus_client:wait_for_stanza(Eve),
+
+              escalus_connection:kill(Eve),
+
+              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe!">>)),
+
+              NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
+
+              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi again from Europe!">>)),
+              escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
+
+              UnavailableEve = escalus_client:wait_for_stanza(NewEve),
+              FromAlice = escalus_client:wait_for_stanza(NewEve),
+              AgainFromAlice = escalus_client:wait_for_stanza(NewEve),
+              AgainFromEve = escalus_client:wait_for_stanza(Alice),
+
+              escalus:assert(is_presence_with_type, [<<"unavailable">>], UnavailableEve),
+              escalus:assert(is_chat_message, [<<"Hi from Europe!">>], FromAlice),
+              escalus:assert(is_chat_message, [<<"Hi again from Europe!">>], AgainFromAlice),
+              escalus:assert(is_chat_message, [<<"Hi from Asia!">>], AgainFromEve)
       end).
 
 %%--------------------------------------------------------------------
