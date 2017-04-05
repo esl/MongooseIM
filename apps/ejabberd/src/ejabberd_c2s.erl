@@ -809,8 +809,12 @@ do_open_session(El, JID, StateData) ->
     ?INFO_MSG("(~w) Opened session for ~s", [StateData#state.socket, jid:to_binary(JID)]),
     Res = jlib:make_result_iq_reply(El),
     Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Res},
-    {_, _, NStateData, _} = send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm),
-    do_open_session_common(JID, NStateData).
+    case send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm) of
+        {_, _, NStateData, _} ->
+            do_open_session_common(JID, NStateData);
+        {_, _, NStateData} -> % error, resume not possible
+            c2s_stream_error(?SERR_INTERNAL_SERVER_ERROR, NStateData)
+    end.
 
 do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
