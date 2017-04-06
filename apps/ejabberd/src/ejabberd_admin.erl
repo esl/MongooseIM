@@ -51,7 +51,7 @@
          join_cluster/1, leave_cluster/0,
          remove_from_cluster/1]).
 
--export([register_worker/1]).
+-export([registrator_proc/1]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -359,41 +359,46 @@ import_users(File) ->
      {bad_csv, binary()}].
 do_import({}, WorkersQueue) ->
     Workers = queue:to_list(WorkersQueue),
-    lists:flatmap(fun get_result/1, Workers);
+    lists:flatmap(fun get_results_from_registrator/1, Workers);
 
 
 do_import({s, UserData, TailFun}, WorkersQueue) ->
     {{value, Worker}, Q1} = queue:out(WorkersQueue),
-    Worker ! {proccess, UserData},
+    send_job_to_registrator(Worker, UserData),
     Q2 = queue:in(Worker, Q1),
     do_import(TailFun(), Q2).
 
 -spec spawn_link_workers() -> [pid()].
 spawn_link_workers() ->
-    [ spawn_link(?MODULE, register_worker, [self()]) ||
+    [ spawn_link(?MODULE, registrator_proc, [self()]) ||
       _ <- lists:seq(1, ?REGISTER_WORKERS_NUM)].
 
--spec get_result(Worker :: pid()) -> [{ok, ejabberd:user()} |
-                                      {exists, ejabberd:user()} |
-                                      {not_allowed, ejabberd:user()} |
-                                      {invalid_jid, ejabberd:user()} |
-                                      {null_password, ejabberd:user()} |
-                                      {bad_csv, binary()}].
-get_result(Pid) ->
+-spec get_results_from_registrator(Worker :: pid()) ->
+    [{ok, ejabberd:user()} |
+     {exists, ejabberd:user()} |
+     {not_allowed, ejabberd:user()} |
+     {invalid_jid, ejabberd:user()} |
+     {null_password, ejabberd:user()} |
+     {bad_csv, binary()}].
+get_results_from_registrator(Pid) ->
     Pid ! get_result,
     receive
         {result, Result} -> Result
     end.
 
--spec register_worker(Manager :: pid()) -> ok.
-register_worker(Manager) ->
-    register_worker(Manager, []).
+send_job_to_registrator(Pid, Data) ->
+    Pid ! {proccess, Data}.
 
--spec register_worker(Manager :: pid(), any()) -> ok.
-register_worker(Manager, Result) ->
+-spec registrator_proc(Manager :: pid()) -> ok.
+registrator_proc(Manager) ->
+    registrator_proc(Manager, []).
+
+-spec registrator_proc(Manager :: pid(), any()) -> ok.
+registrator_proc(Manager, Result) ->
     receive
-        {proccess, Data} -> RegisterResult = do_register(Data),
-                            register_worker(Manager, [RegisterResult | Result]);
+        {proccess, Data} ->
+            RegisterResult = do_register(Data),
+            registrator_proc(Manager, [RegisterResult | Result]);
         get_result -> Manager ! {result, Result}
     end,
     ok.
