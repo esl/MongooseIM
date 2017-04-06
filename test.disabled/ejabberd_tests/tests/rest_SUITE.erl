@@ -277,17 +277,17 @@ list_contacts(Config) ->
             add_sample_contact(Bob, Alice),
             % bob lists his contacts
             {?OK, R} = gett(lists:flatten(["/contacts/", binary_to_list(BobJID)])),
-            ct:pal("R: ~p", [R]),
             [R1] =  decode_maplist(R),
-            <<"alice", _/binary>> = maps:get(jid, R1)
+            <<"alice", _/binary>> = maps:get(jid, R1),
+            ?assertNot(maps:is_key(state, R1)) % empty state
         end
     ),
     ok.
 
 add_contact(Config) ->
     escalus:story(
-        Config, [{bob, 1}],
-        fun(Bob) ->
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
             % bob has empty roster
             {?OK, R} = gett(lists:flatten(["/contacts/bob@localhost"])),
             Res = decode_maplist(R),
@@ -296,10 +296,37 @@ add_contact(Config) ->
             AddContact = #{caller => <<"bob@localhost">>,
                            jid => <<"alice@localhost">>},
             post(<<"/contacts">>, AddContact),
-            % and she is in his roster
+            % and she is in his roster, as an invitee
             {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
             [Res2] = decode_maplist(R2),
-            #{jid := <<"alice@localhost">>} = Res2
+            #{jid := <<"alice@localhost">>, state := <<"invitee">>} = Res2,
+            % and he received a roster push
+            Push = escalus:wait_for_stanza(Bob, 1),
+            escalus:assert(is_roster_set, Push),
+            ct:pal("Push: ~p", [Push]),
+            % and another one because he sent subscription
+            Push2 = escalus:wait_for_stanza(Bob, 1),
+            escalus:assert(is_roster_set, Push2),
+            ct:pal("Push2: ~p", [Push2]),
+            % she receives  a subscription request
+            Sub = escalus:wait_for_stanza(Alice, 1),
+            escalus:assert(is_presence_with_type, [<<"subscribe">>], Sub),
+            % adds him to her contacts
+            escalus:send(Alice, escalus_stanza:roster_add_contact(Bob,
+                [], <<"Bob">>)),
+            PushReqB = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_roster_set, PushReqB),
+            escalus:send(Alice, escalus_stanza:iq_result(PushReqB)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            %% Alice sends subscribed presence
+            escalus:send(Alice,
+                escalus_stanza:presence_direct(escalus_client:short_jid(Bob),
+                    <<"subscribed">>)),
+            % now check Bob's roster
+            {?OK, R3} = gett(lists:flatten(["/contacts/bob@localhost"])),
+            [Res3] = decode_maplist(R3),
+            ct:pal("Res3: ~p", [Res3]),
+            ok
         end
     ),
     ok.

@@ -225,7 +225,16 @@ list_contacts(Caller) ->
 
 roster_info(M) ->
     Jid = jid:to_binary(maps:get(jid, M)),
-    #{jid => Jid}.
+    #{subscription := Sub, ask := Ask} = M,
+    case get_state(Sub, Ask) of
+        undefined ->
+            #{jid => Jid};
+        State ->
+            #{jid => Jid, state => State}
+    end.
+
+get_state(none, out) -> <<"invitee">>;
+get_state(_, _) -> undefined.
 
 add_contact(Caller, JabberID) ->
     add_contact(Caller, JabberID, <<"">>, []).
@@ -235,7 +244,9 @@ add_contact(Caller, JabberID, Name) ->
 
 add_contact(Caller, JabberID, Name, Groups) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
+    OJid = jid:from_binary(JabberID),
+    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups),
+    invite(CJid, OJid).
 
 registered_commands() ->
     [#{name => mongoose_commands:name(C),
@@ -307,4 +318,38 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
                                  IsSimple]),
     {ok, {_, _, L}} = R,
     L.
+
+create_acc(CallerJid, Name, Type) ->
+    A = mongoose_acc:new(),
+    Map = #{name => Name, type => Type, from => jid:to_binary(CallerJid),
+            from_jid => CallerJid},
+    mongoose_acc:update(A, Map).
+
+create_acc(CallerJid, Name, Type, OtherJid) ->
+    A = create_acc(CallerJid, Name, Type),
+    A1 = mongoose_acc:put(to, jid:to_binary(OtherJid), A),
+    mongoose_acc:put(to_jid, OtherJid, A1).
+
+
+invite(CallerJid, OtherJid) ->
+    A = create_acc(CallerJid, <<"presence">>, <<"subscribe">>, OtherJid),
+    El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, <<"subscribe">>}]},
+    Acc1 = mongoose_acc:put(element, El, A),
+    % set subscription to
+    Server = CallerJid#jid.server,
+    LUser = CallerJid#jid.luser,
+    LServer= CallerJid#jid.lserver,
+    Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
+        Server,
+        Acc1,
+        [LUser, LServer, OtherJid, subscribe]),
+    ejabberd_router:route(CallerJid, OtherJid, mongoose_acc:get(element, Acc2)),
+    ok.
+
+
+
+
+
+
+
 

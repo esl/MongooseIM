@@ -618,13 +618,14 @@ roster_subscribe_t(LUser, LServer, LJID, Item) ->
 transaction(LServer, F) ->
     mod_roster_backend:transaction(LServer, F).
 
-in_subscription(_, User, Server, JID, Type, Reason) ->
-    process_subscription(in, User, Server, JID, Type,
-        Reason).
+in_subscription(Acc, User, Server, JID, Type, Reason) ->
+    Res = process_subscription(in, User, Server, JID, Type,
+        Reason),
+    mongoose_acc:put(result, Res, Acc).
 
 out_subscription(Acc, User, Server, JID, Type) ->
-    process_subscription(out, User, Server, JID, Type, <<"">>),
-    Acc.
+    Res = process_subscription(out, User, Server, JID, Type, <<"">>),
+    mongoose_acc:put(result, Res, Acc).
 
 process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LUser = jid:nodeprep(User),
@@ -975,6 +976,7 @@ item_to_map(#roster{} = Roster) ->
     ContactName = Roster#roster.name,
     Subs = Roster#roster.subscription,
     Groups = Roster#roster.groups,
+    Ask = Roster#roster.ask,
     #{jid => ContactJid, name => ContactName, subscription => Subs,
-      groups => Groups}.
+      groups => Groups, ask => Ask}.
 
