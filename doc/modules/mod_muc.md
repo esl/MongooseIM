@@ -1,8 +1,8 @@
 ### Module Description
-This module implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/xep-0045.html) (MUC). 
+This module implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html) (MUC). 
 It's a common XMPP group chat solution. 
 This extension consists of two Erlang modules: `mod_muc` and `mod_muc_room`, the latter being the room code itself. 
-Only `mod_muc` needs to be enabled in the configuration file though. 
+Note that only `mod_muc` needs to be enabled in the configuration file. 
 Also  `mod_muc_log` is a logging submodule.
 
 ### Options
@@ -31,7 +31,7 @@ Also  `mod_muc_log` is a logging submodule.
 * `hibernated_room_check_interval` (timeout, default: `infinity`): Interval defining how often the hibernated rooms will be checked.
 * `hibernated_room_timeout` (timeout, default: `inifitniy`): A time after which a hibernated room is stopped (deeply hibernated). 
  See [MUC performance optimisation](#performance-optimisations).
-* `default_room_options` (list of key-value tuples, default: `[]`): List of room configuration options to be overridden in initial state.
+* `default_room_options` (list of key-value tuples, default: `[]`): List of room configuration options to be overridden in the initial state.
     * `title` (binary, default: `<<>>`): Room title, short free text.
     * `description` (binary, default: `<<>>`): Room description, long free text.
     * `allow_change_subj` (boolean, default: `true`): Allow all occupants to change the room subject.
@@ -43,17 +43,17 @@ Also  `mod_muc_log` is a logging submodule.
     * `public` (boolean, default: `true`): Room is included in the list available via Service Discovery.
     * `public_list` (boolean, default: `true`): Member list can be fetched by non-members.
     * `persistent` (boolean, default: `false`): Room will be stored in DB and survive even when the last occupant leaves or the node is restarted.
-    * `moderated` (boolean, default: `true`): Only occupants with "voice" can send group chat messages.
+    * `moderated` (boolean, default: `true`): Only occupants with a "voice" can send group chat messages.
     * `members_by_default` (boolean, default: `true`): All new occupants are members by default, unless they have a different affiliation assigned.
-    * `members_only` (boolean, default: `false`): Only users with member affiliation can join the room.
+    * `members_only` (boolean, default: `false`): Only users with a member affiliation can join the room.
     * `allow_user_invites` (boolean, default: `false`): Allow ordinary members to send mediated invitations.
     * `password_protected` (boolean, default: `false`): Room is protected with a password.
     * `password` (binary, default: `<<>>`): Room password is required upon joining. 
      This option has no effect when `password_protected` is `false`.
-    * `anonymous` (boolean, default: `true`): Room is anonymous, meaning occupants can't see each others real JIDs, except for room moderators.
+    * `anonymous` (boolean, default: `true`): Room is anonymous, meaning occupants can't see each others real JIDs, except for the room moderators.
     * `max_users` (positive integer, default: 200): Maximum user count per room. 
-     Admins and room owner are not affected.
-    * `logging` (boolean, default: `false`): Enables logging of room events (messages, presences) to file on disk. Uses `mod_muc_log`.
+     Admins and the room owner are not affected.
+    * `logging` (boolean, default: `false`): Enables logging of room events (messages, presences) to a file on the disk. Uses `mod_muc_log`.
 
 
 ### Example Configuration
@@ -67,9 +67,9 @@ Also  `mod_muc_log` is a logging submodule.
 
 ### Performance optimisations
 
-In large installations with many rooms, issues with memory consumption might occur.
-Each room is represented by an Erlang process with its own state.
-In MongooseIM there are 2 levels for MUC rooms memory optimisations.
+Each room is represented by an Erlang process with its own state and can consume memory even if it's not used.
+In large installations with many rooms, this might cause performance issues.
+To address that problem MongooseIM has 2 levels of MUC rooms memory optimisations.
 
 #### Room's process hibernation
 
@@ -78,20 +78,20 @@ This timeout can be modified by `hibernate_timeout` option.
 
 #### Room deep hibernation
 
-In addition to the process hibernation there is also room's deep hibernation.
-This optimisation works only for persistent rooms as only such rooms can be restored on demand.
+MongooseIM introduces an addtional option of deep hibernation for unused rooms.
+This optimisation works only for persistent rooms as only these can be restored on demand.
 The improvement works as follows:
-1. Every `hibernated_room_check_interval` all room processes are traversed.
-1. If a process is hibernated for longer than the `hibernated_room_timeout` a "stop" signal is sent to it.
-1. The room's process can be stopped only if there is no online users or if the only one is its owner.
-If the owner is online, a presence with type unavailable is sent to it indicating that the room's process is being terminated.
+1. All room processes are traversed at a chosen `hibernated_room_check_interval`.
+1. If a `hibernated_room_timeout` is exceeded, a "stop" signal is sent to a unused room.
+1. The room's process is stopped only if there is no online users or if the only one is its owner.
+If the owner is online, a presence of a type unavailable is sent to it indicating that the room's process is being terminated.
 
 The room's process can be recreated on demand, for example when a presence sent to it, or the owner wants to add more users to the room.
 
 ### External HTTP Authentication
 
 MUC rooms can be protected by a password that is set by the room owner. 
-However, MongooseIM supports another custom solution, where each attept to enter or create a room requires the password to be checked by an external HTTP service. 
+Note that MongooseIM supports another custom solution, where each attempt to enter or create a room requires the password to be checked by an external HTTP service. 
 To enable this option, you need to:
 
 * Configure an [HTTP connection pool](../Advanced-configuration.md#outgoing-http-connections).
@@ -99,12 +99,12 @@ To enable this option, you need to:
 * Enable the `password_protected` default room option (without setting the password itself).
 
 Whenever a user tries to enter or create a room, the server will receive a GET request to the `check_password` path. 
-It should return the code 200 with a JSON object `{"code": Code, "msg": Message}` in the response body. 
+It should return a 200 response with a JSON object `{"code": Code, "msg": Message}` in the response body. 
 If the server returns something else, an error presence will be sent back to the client.
 
-* `Code` is the status code: 0 indicates successful authentication, any other value means authentication failure.
+* `Code` is the status code: 0 indicates a successful authentication, any other value means the authentication failed.
 * `Message` is a string containing the message to be sent back to the XMPP client indicating the reason for a failed authentication. 
- For successful authentication it is ignored and can eg. contain the string `"OK"`.
+ When authentication succeeds it is ignored and can contain anything ( eg. the string `"OK"`).
 
 **Example:**
 
