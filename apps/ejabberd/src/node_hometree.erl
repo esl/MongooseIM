@@ -49,7 +49,8 @@ init(Host, ServerHost, Opts) ->
     node_flat:init(Host, ServerHost, Opts),
     Owner = mod_pubsub:service_jid(Host),
     mod_pubsub:create_node(Host, ServerHost, <<"/home">>, Owner, <<"hometree">>),
-    mod_pubsub:create_node(Host, ServerHost, <<"/home/", ServerHost/binary>>, Owner, <<"hometree">>),
+    mod_pubsub:create_node(Host, ServerHost, <<"/home/", ServerHost/binary>>,
+                           Owner, <<"hometree">>),
     ok.
 
 terminate(Host, ServerHost) ->
@@ -68,23 +69,19 @@ features() ->
 %% <tt>access_createnode</tt> ACL value in ejabberd config file.</p>
 %% <p>This function also check that node can be created as a children of its
 %% parent node</p>
-create_node_permission(Host, ServerHost, Node, _ParentNode, Owner, Access) ->
-    LOwner = jid:to_lower(Owner),
-    {User, Server, _Resource} = LOwner,
-    Allowed = case LOwner of
-        {<<"">>, Host, <<"">>} ->
-            true; % pubsub service always allowed
-        _ ->
-            case acl:match_rule(ServerHost, Access, Owner) of
-                allow ->
-                    case node_to_path(Node) of
-                        [<<"home">>, Server, User | _] -> true;
-                        _ -> false
-                    end;
-                _ -> false
-            end
-    end,
-    {result, Allowed}.
+create_node_permission(Host, _ServerHost, _Node, _ParentNode,
+                       #jid{ luser = <<>>, lserver = Host, lresource = <<>> }, _Access) ->
+    {result, true}; % pubsub service always allowed
+create_node_permission(_Host, ServerHost, Node, _ParentNode,
+                       #jid{ luser = User, lserver = Server } = Owner, Access) ->
+    case acl:match_rule(ServerHost, Access, Owner) of
+        allow ->
+            case node_to_path(Node) of
+                [<<"home">>, Server, User | _] -> {result, true};
+                _ -> {result, false}
+            end;
+        _ -> {result, false}
+    end.
 
 create_node(Nidx, Owner) ->
     node_flat:create_node(Nidx, Owner).
