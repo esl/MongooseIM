@@ -4025,8 +4025,8 @@ host(ServerHost) ->
 serverhost({_U, Server, _R})->
     Server;
 serverhost(Host) ->
-    case binary:match(Host, <<"pubsub.">>) of
-        {0, 7} ->
+    case config(Host, host, undefined) of
+        undefined ->
             [_, ServerHost] = binary:split(Host, <<".">>),
             ServerHost;
         _ ->

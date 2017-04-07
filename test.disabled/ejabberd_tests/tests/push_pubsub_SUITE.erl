@@ -11,7 +11,7 @@
 -define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
 -define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).
 
--define(PUBSUB_SUB_DOMAIN, "pubsub").
+-define(PUBSUB_SUB_DOMAIN, "push").
 
 
 %%--------------------------------------------------------------------
