@@ -5,11 +5,13 @@ This module implements [XEP-0077: In-Band Registration](http://xmpp.org/extensio
 
 * `iqdisc`
 * `access` (atom, default: `all`): Defines which ACL should be used for checking if a chosen username is allowed for registration.
-* `welcome_message` (`{Subject :: string(), Body :: string()}`, default: `{"", ""}`): Body and subject of `<message>` stanza sent to new users.
-* `registration_watchers` (list of binaries, default: `[]`): List of JIDs, which should receive `<message>` notification about every successful registration.
+* `welcome_message` (`{Subject :: string(), Body :: string()}`, default: `{"", ""}`): Body and subject of a `<message>` stanza sent to new users.
+* `registration_watchers` (list of binaries, default: `[]`): List of JIDs, which should receive a `<message>` notification about every successful registration.
 * `access_from` (atom, default: `none`): Allow registrations from existing C2S connections or S2S, that match specified ACL. **Use with caution!**
-* `password_strength` (non-negative integer, default: 0): Specify minimal entropy of allowed password. Entropy is measured with `ejabberd_auth:entropy/1`. Recommended minimum is 32.
-* `ip_access` (list of `{deny|allow, StringIP|StringSubnet, default: `[]`): Access list for specified IPs or networks. Default value allows registration from every IP.
+* `password_strength` (non-negative integer, default: 0): Specifies minimal entropy of allowed password. 
+ Entropy is measured with `ejabberd_auth:entropy/1`. Recommended minimum is 32.
+* `ip_access` (list of `{deny|allow, StringIP|StringSubnet, default: `[]`): Access list for specified IPs or networks. 
+ Default value allows registration from every IP.
 
 ### Example configuration
 
