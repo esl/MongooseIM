@@ -71,6 +71,7 @@
          process_iq_set/4,
          is_room_owner/3,
          can_access_room/3,
+         can_access_identity/3,
          muc_room_pid/2]).
 
 %% For Administration API
@@ -139,6 +140,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:add(muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:add(can_access_room, MUCHost, ?MODULE, can_access_room, 50),
+    ejabberd_hooks:add(can_access_identity, MUCHost, ?MODULE, can_access_identity, 50),
 
     %% Prepare config schema
     ConfigSchema = mod_muc_light_utils:make_config_schema(
@@ -164,6 +166,7 @@ stop(Host) ->
     ejabberd_hooks:delete(is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:delete(muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:delete(can_access_room, MUCHost, ?MODULE, can_access_room, 50),
+    ejabberd_hooks:delete(can_access_identity, MUCHost, ?MODULE, can_access_identity, 50),
 
     ejabberd_hooks:delete(roster_get, Host, ?MODULE, add_rooms_to_roster, 50),
     ejabberd_hooks:delete(privacy_iq_get, Host, ?MODULE, process_iq_get, 1),
@@ -352,8 +355,15 @@ muc_room_pid(_, _) ->
 
 -spec can_access_room(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
     boolean().
-can_access_room(_, User, Room) ->
+can_access_room(_, Room, User) ->
     none =/= get_affiliation(Room, User).
+
+-spec can_access_identity(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
+    boolean().
+can_access_identity(_Acc, _Room, _User) ->
+    %% User JIDs are explicit in MUC Light but this hook is about appending
+    %% 0045 MUC element with user identity and we don't want it
+    false.
 
 %%====================================================================
 %% Internal functions
