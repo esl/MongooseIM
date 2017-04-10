@@ -514,8 +514,11 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
         -> [xmlel()].
-disco_local_identity(Acc, _From, To, <<>>, _Lang) ->
+disco_local_identity(Acc, _From, To, Node, Lang) ->
     LServer = To#jid.lserver,
+    disco_local_identity(Acc, LServer, Node, Lang).
+
+disco_local_identity(Acc, Host, <<>>, _Lang) ->
     PepIdentity =
     #xmlel{name = <<"identity">>,
            attrs = [{<<"category">>, <<"pubsub">>},
@@ -524,8 +527,8 @@ disco_local_identity(Acc, _From, To, <<>>, _Lang) ->
     #xmlel{name = <<"identity">>,
            attrs = [{<<"category">>, <<"pubsub">>},
                     {<<"type">>, ?PUSHNODE}]},
-    HasPep = lists:member(?PEPNODE, plugins(LServer)),
-    HasPush = lists:member(?PUSHNODE, plugins(LServer)),
+    HasPep = lists:member(?PEPNODE, plugins(Host)),
+    HasPush = lists:member(?PUSHNODE, plugins(Host)),
     Plugins = [{HasPep, PepIdentity}, {HasPush, PushIdentity}],
     lists:foldl(
         fun
@@ -534,7 +537,7 @@ disco_local_identity(Acc, _From, To, <<>>, _Lang) ->
             ({false, _}, AccIn) ->
                 AccIn
         end, Acc, Plugins);
-disco_local_identity(Acc, _From, _To, _Node, _Lang) ->
+disco_local_identity(Acc, _Host, _Node, _Lang) ->
     Acc.
 
 -spec disco_local_features(
@@ -1115,12 +1118,15 @@ iq_disco_info(Host, SNode, From, Lang) ->
                                                 %   Node = string_to_node(RealSNode),
     case Node of
         <<>> ->
-            {result, [#xmlel{name = <<"identity">>,
-                             attrs = [{<<"category">>, <<"pubsub">>},
-                                      {<<"type">>, <<"service">>},
-                                      {<<"name">>, translate:translate(
-                                                     Lang, <<"Publish-Subscribe">>)}]},
-                      #xmlel{name = <<"feature">>,
+            InitAcc =
+                [#xmlel{name = <<"identity">>,
+                        attrs = [{<<"category">>, <<"pubsub">>},
+                                 {<<"type">>, <<"service">>},
+                                 {<<"name">>,
+                                  translate:translate(Lang, <<"Publish-Subscribe">>)}]}],
+            Identities = disco_local_identity(InitAcc, Host, Node, Lang),
+            {result, Identities ++
+                     [#xmlel{name = <<"feature">>,
                              attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
                       #xmlel{name = <<"feature">>,
                              attrs = [{<<"var">>, ?NS_DISCO_ITEMS}]},
@@ -4019,8 +4025,8 @@ host(ServerHost) ->
 serverhost({_U, Server, _R})->
     Server;
 serverhost(Host) ->
-    case binary:match(Host, <<"pubsub.">>) of
-        {0, 7} ->
+    case config(Host, host, undefined) of
+        undefined ->
             [_, ServerHost] = binary:split(Host, <<".">>),
             ServerHost;
         _ ->
