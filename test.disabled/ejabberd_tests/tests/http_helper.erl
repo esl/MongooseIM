@@ -15,7 +15,7 @@
 %%==============================================================================
 -module(http_helper).
 
--export([start/3, stop/0, init/2]).
+-export([start/3, stop/0, port/0, init/2]).
 
 start(Port, Path, HandleFun) ->
     application:ensure_all_started(cowboy),
@@ -25,6 +25,9 @@ start(Port, Path, HandleFun) ->
 
 stop() ->
     cowboy:stop_listener(http_helper_listener).
+
+port() ->
+    ranch:get_port(http_helper_listener).
 
 %% Cowboy handler callbacks
 

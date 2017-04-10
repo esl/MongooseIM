@@ -50,7 +50,6 @@ suite() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(cowboy),
-    MongoosePushMockPort = crypto:rand_uniform(20000, 50000),
 
     %% For mocking with unnamed functions
     {_Module, Binary, Filename} = code:get_object_code(?MODULE),
@@ -60,7 +59,7 @@ init_per_suite(Config) ->
     Config2 = dynamic_modules:save_modules(domain(), Config),
     dynamic_modules:ensure_modules(domain(), required_modules()),
 
-    escalus:init_per_suite([{mongoose_push_port, MongoosePushMockPort} | Config2]).
+    escalus:init_per_suite(Config2).
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(domain(), Config),
@@ -75,8 +74,7 @@ end_per_group(_, Config) ->
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(CaseName, Config) ->
-    MongoosePushMockPort = proplists:get_value(mongoose_push_port, Config),
-    setup_mock_rest(MongoosePushMockPort),
+    MongoosePushMockPort = setup_mock_rest(),
 
     %% Start HTTP pool
     HTTPOpts = [{mongoose_push_http, [
@@ -371,10 +369,12 @@ bare_jid(JIDOrClient) ->
 
 %% ----------------------------------------------
 %% REST mock handler
-setup_mock_rest(Port) ->
+setup_mock_rest() ->
     TestPid = self(),
     HandleFun = fun(Req) -> handle(Req, TestPid) end,
-    http_helper:start(Port, "/[:level1/[:level2/[:level3/[:level4]]]]", HandleFun).
+    {ok, _} = http_helper:start(0, "/[:level1/[:level2/[:level3/[:level4]]]]",
+                                          HandleFun),
+    http_helper:port().
 
 handle(Req, Master) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
