@@ -30,31 +30,31 @@ process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
 
 process_local_iq(_From, _To, #iq{type = get} = IQ) ->
-    {UTC, TZO_diff} = calculate_time(),
+    {UTC, TZODiff} = calculate_time(),
     IQ#iq{type = result,
           sub_el =
           [#xmlel{name = <<"time">>,
                   attrs = [{<<"xmlns">>, ?NS_TIME}],
                   children =
                   [#xmlel{name = <<"tzo">>, attrs = [],
-                          children = [#xmlcdata{content = iolist_to_binary(TZO_diff)}]},
+                          children = [#xmlcdata{content = iolist_to_binary(TZODiff)}]},
                    #xmlel{name = <<"utc">>, attrs = [],
                           children =
                           [#xmlcdata{content = UTC}]}]}]}.
 
 %% Internals
 calculate_time() ->
-    Now = now(),
-    Now_universal = calendar:now_to_universal_time(Now),
-    Now_local = calendar:now_to_local_time(Now),
-    {UTC_time, UTC_diff} = jlib:timestamp_to_iso(Now_universal, utc),
-    UTC = list_to_binary(UTC_time ++ UTC_diff),
-    Seconds_diff = difference_in_secs(Now_local, Now_universal),
-    {Hd, Md, _} = calendar:seconds_to_time(abs(Seconds_diff)),
-    {_, TZO_diff} = jlib:timestamp_to_iso({{2000, 1, 1},
-                                           {0, 0, 0}},
-                                          {sign(Seconds_diff), {Hd, Md}}),
-    {UTC, TZO_diff}.
+    Now = p1_time_compat:timestamp(),
+    NowUniversal = calendar:now_to_universal_time(Now),
+    NowLocal = calendar:now_to_local_time(Now),
+    {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
+    UTC = list_to_binary(UTCTime ++ UTCDiff),
+    SecondsDiff = difference_in_secs(NowLocal, NowUniversal),
+    {Hd, Md, _} = calendar:seconds_to_time(abs(SecondsDiff)),
+    {_, TZODiff} = jlib:timestamp_to_iso({{2000, 1, 1},
+                                          {0, 0, 0}},
+                                         {sign(SecondsDiff), {Hd, Md}}),
+    {UTC, TZODiff}.
 
 difference_in_secs(LocalTime, UniversalTime) ->
     LocalSeconds = calendar:datetime_to_gregorian_seconds(LocalTime),

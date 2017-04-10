@@ -99,7 +99,7 @@ publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublis
 
     case is_allowed_to_publish(Model, Affiliation) of
         true ->
-            do_publish_item(ServerHost, PublishOptions, Payload);
+            do_publish_item(ServerHost, PublishOptions, ElPayload);
         false ->
             {error, ?ERR_FORBIDDEN}
     end.
@@ -208,7 +208,7 @@ parse_form(undefined) ->
     #{};
 parse_form(Form) ->
     IsForm = ?NS_XDATA == exml_query:attr(Form, <<"xmlns">>),
-    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>),
+    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>, <<"submit">>),
 
     FieldsXML = exml_query:subelements(Form, <<"field">>),
     Fields = [{exml_query:attr(Field, <<"var">>),

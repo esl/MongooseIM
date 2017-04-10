@@ -24,8 +24,10 @@
 %%%
 %%%----------------------------------------------------------------------
 
-%%TODO LDAP layer should be separated like odbc one. Now every ldap module creates its own ldap pool per vhost
-%%TODO gen_server is created only to store the state and create/destroy pool, should it be replaced ?
+%%TODO LDAP layer should be separated like odbc one.
+%%     Now every ldap module creates its own ldap pool per vhost
+%%TODO gen_server is created only to store the state
+%%     and create/destroy pool, should it be replaced ?
 
 -module(mod_vcard_ldap).
 -author('alexey@process-one.net').
@@ -230,14 +232,12 @@ terminate(_Reason, State) ->
 %%--------------------------------------------------------------------
 find_ldap_user(User, State) ->
     Base = State#state.base,
-    RFC2254_Filter = State#state.user_filter,
-    Eldap_ID = State#state.eldap_id,
+    RFC2254Filter = State#state.user_filter,
+    EldapID = State#state.eldap_id,
     VCardAttrs = State#state.vcard_map_attrs,
-    case eldap_filter:parse(RFC2254_Filter,
-                            [{<<"%u">>, User}])
-        of
+    case eldap_filter:parse(RFC2254Filter, [{<<"%u">>, User}]) of
       {ok, EldapFilter} ->
-          case eldap_pool:search(Eldap_ID,
+          case eldap_pool:search(EldapID,
                                  [{base, Base}, {filter, EldapFilter},
                                   {deref_aliases, State#state.deref_aliases},
                                   {attributes, VCardAttrs}])
@@ -363,14 +363,14 @@ search_internal(_, []) ->
 search_internal(State, Data) ->
     Base = State#state.base,
     SearchFilter = State#state.search_filter,
-    Eldap_ID = State#state.eldap_id,
+    EldapID = State#state.eldap_id,
     UIDs = State#state.uids,
     Limit = State#state.matches,
     ReportedAttrs = State#state.search_reported_attrs,
     Op = State#state.search_operator,
     Filter = eldap:'and'([SearchFilter,
                           eldap_utils:make_filter(Data, UIDs, Op)]),
-    case eldap_pool:search(Eldap_ID,
+    case eldap_pool:search(EldapID,
                            [{base, Base}, {filter, Filter}, {limit, Limit},
                             {deref_aliases, State#state.deref_aliases},
                             {attributes, ReportedAttrs}])
@@ -381,56 +381,35 @@ search_internal(State, Data) ->
     end.
 
 search_items(Entries, State) ->
-    LServer = State#state.serverhost,
-    SearchReported = State#state.search_reported,
-    VCardMap = State#state.vcard_map,
-    UIDs = State#state.uids,
-    BinFields = State#state.binary_search_fields,
-    Attributes = lists:map(fun (E) ->
-                                   #eldap_entry{attributes = Attrs} = E, Attrs
-                           end,
-                           Entries),
-    lists:flatmap(fun (Attrs) ->
-                          case eldap_utils:find_ldap_attrs(UIDs, Attrs) of
-                            {U, UIDAttrFormat} ->
-                                case eldap_utils:get_user_part(U, UIDAttrFormat)
-                                    of
-                                  {ok, Username} ->
-                                      case
-                                        ejabberd_auth:is_user_exists(Username,
-                                                                     LServer)
-                                          of
-                                        true ->
-                                            RFields = lists:map(fun ({_,
-                                                                      VCardName}) ->
-                                                                        {VCardName,
-                                                                         map_vcard_attr(VCardName,
-                                                                                        Attrs,
-                                                                                        VCardMap,
-                                                                                        {Username,
-                                                                                         ?MYNAME})}
-                                                                end,
-                                                                SearchReported),
-                                            Result = [?FIELD(<<"jid">>,
-                                                             <<Username/binary,
-                                                               "@",
-                                                               LServer/binary>>)]
-                                                       ++
-                                                       [?FIELD(Name,
-                                       search_item_value(Name, Value, BinFields))
-                                                        || {Name, Value}
-                                                               <- RFields],
-                                            [#xmlel{name = <<"item">>,
-                                                    attrs = [],
-                                                    children = Result}];
-                                        _ -> []
-                                      end;
-                                  _ -> []
-                                end;
-                            <<"">> -> []
-                          end
-                  end,
-                  Attributes).
+    lists:flatmap(fun(#eldap_entry{attributes = Attrs}) -> attrs_to_item_xml(Attrs, State) end,
+                  Entries).
+
+attrs_to_item_xml(Attrs, #state{uids = UIDs} = State) ->
+    case eldap_utils:find_ldap_attrs(UIDs, Attrs) of
+        {U, UIDAttrFormat} ->
+            case eldap_utils:get_user_part(U, UIDAttrFormat) of
+                {ok, Username} ->
+                    make_user_item_if_exists(Username, Attrs, State);
+                _ -> []
+            end;
+        <<"">> -> []
+    end.
+
+make_user_item_if_exists(Username, Attrs,
+                         #state{serverhost = LServer, search_reported = SearchReported,
+                                vcard_map = VCardMap, binary_search_fields = BinFields}) ->
+    case ejabberd_auth:is_user_exists(Username, LServer) of
+        true ->
+            RFields = lists:map(fun ({_, VCardName}) ->
+                                        {VCardName, map_vcard_attr(VCardName, Attrs, VCardMap,
+                                                                   {Username, ?MYNAME})}
+                                end,
+                                SearchReported),
+            Result = [?FIELD(<<"jid">>, <<Username/binary, "@", LServer/binary>>)] ++
+            [?FIELD(Name, search_item_value(Name, Value, BinFields)) || {Name, Value} <- RFields],
+            [#xmlel{name = <<"item">>, attrs = [], children = Result}];
+        _ -> []
+    end.
 
 %%%-----------------------
 %%% Auxiliary functions.
@@ -466,7 +445,7 @@ parse_options(Host, Opts) ->
                               fun(infinity) -> 0;
                                  (I) when is_integer(I), I>0 -> I
                               end, 30),
-    Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?PROCNAME), utf8),
+    EldapID = atom_to_binary(gen_mod:get_module_proc(Host, ?PROCNAME), utf8),
     Cfg = eldap_utils:get_config(Host, Opts),
     UIDsTemp = eldap_utils:get_opt(
                  {ldap_uids, Host}, Opts,
@@ -542,7 +521,7 @@ parse_options(Host, Opts) ->
     BinaryFields = eldap_utils:get_mod_opt(ldap_binary_search_fields, Opts,
                                            fun(X) -> X end, []),
     #state{serverhost = Host, myhost = MyHost,
-           eldap_id = Eldap_ID,
+           eldap_id = EldapID,
            servers = Cfg#eldap_config.servers,
            backups = Cfg#eldap_config.backups,
            port = Cfg#eldap_config.port,

@@ -84,7 +84,14 @@
   {git,"git://github.com/davisp/jiffy.git",
        {ref,"06aaf440e091c9fd5f8aea557ac760a33bd37130"}},
   0},
- {<<"jsx">>,{pkg,<<"jsx">>,<<"2.8.0">>},1},
+ {<<"jsx">>,
+  {git,"https://github.com/talentdeficit/jsx.git",
+       {ref,"3074d4865b3385a050badf7828ad31490d860df5"}},
+  0},
+ {<<"jwerl">>,
+  {git,"git://github.com/emedia-project/jwerl.git",
+       {ref,"3f365d11955a440325e5ef16802c286dff1f1bd0"}},
+  0},
  {<<"lager">>,
   {git,"git://github.com/basho/lager.git",
        {ref,"81eaef0ce98fdbf64ab95665e3bc2ec4b24c7dac"}},
@@ -198,7 +205,6 @@
 [
 {pkg_hash,[
  {<<"eini">>, <<"ABD64A0533398A6D714D21219BB85F2D41FDB42665AC4080939B7BFA8E55F386">>},
- {<<"jsx">>, <<"749BEC6D205C694AE1786D62CEA6CC45A390437E24835FD16D12D74F07097727">>},
  {<<"lhttpc">>, <<"2137CB82D123751B21CC0461A00734CD32CB470BC6278BA139EE13C1ECC3C2B1">>},
  {<<"p1_utils">>, <<"EF0951DDF38E92B7E479AF4B8DC950DF76AF8C1030432EF68B7FD7AD17C436FE">>}]}
 ].

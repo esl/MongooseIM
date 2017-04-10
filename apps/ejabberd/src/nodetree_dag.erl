@@ -219,10 +219,8 @@ remove_config_parent(Node, [H | T], Acc) ->
 -spec validate_parentage(
         Key            :: mod_pubsub:hostPubsub(),
         Owners         :: [ljid(), ...],
-        Parent_Nodes :: [mod_pubsub:nodeId()])
-    -> true
-    %%%
-    | {error, xmlel()}.
+        ParentNodes    :: [mod_pubsub:nodeId()])
+    -> true | {error, xmlel()}.
 validate_parentage(_Key, _Owners, []) ->
     true;
 validate_parentage(Key, Owners, [[] | T]) ->

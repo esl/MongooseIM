@@ -1111,8 +1111,7 @@ get_addr_port(Server) ->
         {ok, #hostent{h_addr_list = AddrList}} ->
             %% Probabilities are not exactly proportional to weights
             %% for simplicity (higher weigths are overvalued)
-            {A1, A2, A3} = now(),
-            random:seed(A1, A2, A3),
+            random:seed(randoms:good_seed()),
             case (catch lists:map(
                           fun({Priority, Weight, Port, Host}) ->
                                   N = case Weight of
@@ -1286,7 +1285,7 @@ wait_before_reconnect(StateData) ->
                 undefined_delay ->
                     %% The initial delay is random between 1 and 15 seconds
                     %% Return a random integer between 1000 and 15000
-                    {_, _, MicroSecs} = now(),
+                    {_, _, MicroSecs} = p1_time_compat:timestamp(),
                     (MicroSecs rem 14000) + 1000;
                 D1 ->
                     %% Duplicate the delay with each successive failed

@@ -809,8 +809,12 @@ do_open_session(El, JID, StateData) ->
     ?INFO_MSG("(~w) Opened session for ~s", [StateData#state.socket, jid:to_binary(JID)]),
     Res = jlib:make_result_iq_reply(El),
     Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Res},
-    {_, _, NStateData, _} = send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm),
-    do_open_session_common(JID, NStateData).
+    case send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm) of
+        {_, _, NStateData, _} ->
+            do_open_session_common(JID, NStateData);
+        {_, _, NStateData} -> % error, resume not possible
+            c2s_stream_error(?SERR_INTERNAL_SERVER_ERROR, NStateData)
+    end.
 
 do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
@@ -831,7 +835,20 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
             {auth_module, NewStateData0#state.auth_module}],
-    ejabberd_sm:open_session(SID, U, NewStateData0#state.server, R, Info),
+    ReplacedPids = ejabberd_sm:open_session(SID, U, NewStateData0#state.server, R, Info),
+
+    MonitorRefs = ordsets:from_list([{monitor(process, PID), PID} || PID <- ReplacedPids]),
+    lists:foreach(
+        fun({MonitorRef, PID}) ->
+            receive
+                {'DOWN', MonitorRef, _, _, _} -> ok
+            after 100 ->
+                ?WARNING_MSG("C2S process ~p for ~s replaced by ~p has not stopped before timeout",
+                             [PID, jid:to_binary(NewStateData0#state.jid), self()])
+            end
+        end,
+        MonitorRefs),
+
     NewStateData =
     NewStateData0#state{sid = SID,
                         conn = Conn,
@@ -1126,7 +1143,11 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
     Name = Packet#xmlel.name,
     process_incoming_stanza(Name, From, To, Packet, StateName, StateData);
-
+handle_info(new_offline_messages, session_established,
+            #state{pres_last = Presence, pres_invis = Invisible} = StateData)
+  when Presence =/= undefined orelse Invisible ->
+    resend_offline_messages(mongoose_acc:new(), StateData),
+    {next_state, session_established, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData);
@@ -2282,11 +2303,9 @@ resend_offline_messages(Acc, StateData) ->
                                    Acc,
                                    [StateData#state.user, StateData#state.server]),
     Rs = mongoose_acc:get(offline_messages, Acc1, []),
-    Acc2 = lists:foldl(fun({route, From, To, #xmlel{} = Packet}, A) ->
-                           check_privacy_and_route_or_ignore(A, StateData, From, To, Packet, in)
-                       end,
-                       Acc1, Rs),
-    mongoose_acc:remove(offline_messages, Acc2). % they are gone from db backend and sent
+    [check_privacy_and_route_or_ignore(StateData, From, To, Packet, in)
+     || {route, From, To, #xmlel{} = Packet} <- Rs],
+    mongoose_acc:remove(offline_messages, Acc1). % they are gone from db backend and sent
 
 
 -spec check_privacy_and_route_or_ignore(StateData :: state(),
@@ -3169,4 +3188,3 @@ terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
 terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
     process_unauthenticated_stanza(StateData, El),
     fsm_next_state(wait_for_feature_before_auth, StateData).
-

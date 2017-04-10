@@ -134,8 +134,7 @@ call_port(Server, Msg) ->
 
 -spec random_instance(pos_integer()) -> non_neg_integer().
 random_instance(MaxNum) ->
-    {A1, A2, A3} = now(),
-    random:seed(A1, A2, A3),
+    random:seed(randoms:good_seed()),
     random:uniform(MaxNum) - 1.
 
 

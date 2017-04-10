@@ -163,7 +163,6 @@ search_reported_fields(_VHost, Lang) ->
 
 prepare_db() ->
     create_tables(),
-    update_tables(),
     set_indexes(),
     add_table_copies().
 
@@ -173,10 +172,6 @@ create_tables() ->
     mnesia:create_table(vcard_search,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, vcard_search)}]).
-
-update_tables() ->
-    update_vcard_table(),
-    update_vcard_search_table().
 
 add_table_copies() ->
     mnesia:add_table_copy(vcard, node(), disc_only_copies),

@@ -407,15 +407,15 @@ locked_state({route, From, _ToNick,
             next_normal_state(StateData3#state{just_created = false})
     end;
 %% Let owner leave. Destroy the room.
-locked_state({route, From, ToNick,
-              #xmlel{name = <<"presence">>, attrs = Attrs} = Presence} = Call,
+locked_state({route, From, ToNick, #xmlel{name = <<"presence">>, attrs = Attrs} = Presence} = Call,
              StateData) ->
     case xml:get_attr_s(<<"type">>, Attrs) =:= <<"unavailable">>
         andalso get_affiliation(From, StateData)  =:= owner of
         true ->
             %% Will let the owner leave and destroy the room if it's not persistant
             %% The rooms are not persistent by default, but just to be safe...
-            StateData1 = StateData#state{config = (StateData#state.config)#config{persistent = false}},
+            NewConfig = (StateData#state.config)#config{persistent = false},
+            StateData1 = StateData#state{config = NewConfig},
             process_presence(From, ToNick, Presence, StateData1, locked_state);
         _ ->
             locked_error(Call, locked_state, StateData)
@@ -459,28 +459,26 @@ normal_state({route, From, Nick,
     Activity = get_user_activity(From, StateData),
     Now = now_to_usec(os:timestamp()),
     MinPresenceInterval =
-        trunc(gen_mod:get_module_opt(StateData#state.server_host,
-                                     mod_muc, min_presence_interval, 0)
-              * 1000000),
-    if
-    (Now >= Activity#activity.presence_time + MinPresenceInterval) and
-    (Activity#activity.presence == undefined) ->
-        NewActivity = Activity#activity{presence_time = Now},
-        StateData1 = store_user_activity(From, NewActivity, StateData),
-        process_presence(From, Nick, Packet, StateData1);
-    true ->
-        if
-        Activity#activity.presence == undefined ->
-            Interval = (Activity#activity.presence_time +
-                MinPresenceInterval - Now) div 1000,
-            erlang:send_after(
-              Interval, self(), {process_user_presence, From});
+    trunc(gen_mod:get_module_opt(StateData#state.server_host,
+                                 mod_muc, min_presence_interval, 0) * 1000000),
+    case (Now >= Activity#activity.presence_time + MinPresenceInterval) and
+         (Activity#activity.presence == undefined) of
         true ->
-            ok
-        end,
-        NewActivity = Activity#activity{presence = {Nick, Packet}},
-        StateData1 = store_user_activity(From, NewActivity, StateData),
-        next_normal_state(StateData1)
+            NewActivity = Activity#activity{presence_time = Now},
+            StateData1 = store_user_activity(From, NewActivity, StateData),
+            process_presence(From, Nick, Packet, StateData1);
+        false ->
+            case Activity#activity.presence == undefined of
+                true ->
+                    Interval = (Activity#activity.presence_time +
+                                MinPresenceInterval - Now) div 1000,
+                    erlang:send_after(Interval, self(), {process_user_presence, From});
+                false ->
+                    ok
+            end,
+            NewActivity = Activity#activity{presence = {Nick, Packet}},
+            StateData1 = store_user_activity(From, NewActivity, StateData),
+            next_normal_state(StateData1)
     end;
 normal_state({route, From, ToNick,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
@@ -744,8 +742,7 @@ terminate(Reason, _StateName, StateData) ->
               tab_remove_online_user(LJID, StateData)
       end, [], StateData#state.users),
     add_to_log(room_existence, stopped, StateData),
-    mod_muc:room_destroyed(StateData#state.host, StateData#state.room, self(),
-               StateData#state.server_host),
+    mod_muc:room_destroyed(StateData#state.host, StateData#state.room, self()),
     ok.
 
 %%%----------------------------------------------------------------------
@@ -835,18 +832,18 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     {FromNick, Role} = get_participant_data(From, StateData),
     CanSendBroadcasts = can_send_broadcasts(Role, StateData),
-    if
-        CanSendBroadcasts ->
+    case CanSendBroadcasts of
+        true ->
             {NewState, Changed} = change_subject_if_allowed(FromNick, Role,
                                                             Packet, StateData),
-            if
-                Changed ->
+            case Changed of
+                true ->
                     broadcast_room_packet(From, FromNick, Role, Packet, NewState);
-                not Changed ->
+                false ->
                     change_subject_error(From, FromNick, Packet, Lang, NewState),
                     next_normal_state(NewState)
             end;
-        not CanSendBroadcasts ->
+        false ->
             ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
             Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
             ejabberd_router:route(StateData#state.jid, From, Err),
@@ -888,12 +885,10 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
 
 change_subject_error(From, FromNick, Packet, Lang, StateData) ->
     Err = case (StateData#state.config)#config.allow_change_subj of
-              true ->
-                  ?ERRT_FORBIDDEN(Lang,
-                                  <<"Only moderators and participants are allowed to change the subject in this room">>);
-              _ ->
-                  ?ERRT_FORBIDDEN(Lang,
-                                  <<"Only moderators are allowed to change the subject in this room">>)
+              true -> ?ERRT_FORBIDDEN(Lang, <<"Only moderators and participants are allowed"
+                                              " to change the subject in this room">>);
+              _ -> ?ERRT_FORBIDDEN(Lang, <<"Only moderators are allowed"
+                                           " to change the subject in this room">>)
           end,
     ejabberd_router:route(jid:replace_resource(StateData#state.jid,
                                                FromNick),
@@ -1000,9 +995,8 @@ next_normal_state(#state{hibernate_timeout = Timeout} = StateData) ->
       From :: ejabberd:jid(),
       Nick :: mod_muc:nick(),
       Packet :: jlib:xmlel().
-process_presence1(From, Nick, #xmlel{name = <<"presence">>,
-                                     attrs = Attrs} = Packet,
-                  StateData=#state{}) ->
+process_presence1(From, Nick, #xmlel{name = <<"presence">>, attrs = Attrs} = Packet,
+                  StateData = #state{}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     case Type of
@@ -1011,16 +1005,12 @@ process_presence1(From, Nick, #xmlel{name = <<"presence">>,
         <<"error">> ->
             process_presence_error(From, Packet, Lang, StateData);
         <<>> ->
-            case is_user_online(From, StateData) of
+            case is_new_nick_of_online_user(From, Nick, StateData) of
                 true ->
-                    case is_nick_change(From, Nick, StateData) of
-                        true ->
-                            process_presence_nick_change(From, Nick, Packet,
-                                                         Lang, StateData);
-                        _NotNickChange ->
-                            process_simple_presence(From, Packet, StateData)
-                    end;
+                    process_presence_nick_change(From, Nick, Packet, Lang, StateData);
                 false ->
+                    process_simple_presence(From, Packet, StateData);
+                user_is_offline ->
                     %% at this point we know that the presence has no type
                     %% (user wants to enter the room)
                     %% and that the user is not alredy online
@@ -1044,7 +1034,8 @@ process_simple_presence(From, Packet, StateData) ->
 process_presence_error(From, Packet, Lang, StateData) ->
     case is_user_online(From, StateData) of
         true ->
-            ErrorText = <<"This participant is kicked from the room because he sent an error presence">>,
+            ErrorText
+            = <<"This participant is kicked from the room because he sent an error presence">>,
             expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText)),
             StateData;
         _ ->
@@ -1062,7 +1053,7 @@ process_presence_unavailable(From, Packet, StateData) ->
             send_new_presence_un(From, NewState),
             Reason = case xml:get_subtag(NewPacket, <<"status">>) of
                 false -> <<>>;
-                Status_el -> xml:get_tag_cdata(Status_el)
+                StatusEl -> xml:get_tag_cdata(StatusEl)
             end,
             remove_online_user(From, NewState, Reason);
         _ ->
@@ -1431,23 +1422,17 @@ get_role(JID, StateData) ->
 
 
 -spec get_default_role(mod_muc:affiliation(), state()) -> mod_muc:role().
-get_default_role(Affiliation, StateData) ->
-    case Affiliation of
-        owner   -> moderator;
-        admin   -> moderator;
-        member  -> participant;
-        outcast -> none;
-        none    ->
-            case (StateData#state.config)#config.members_only of
-                true ->
-                    none;
-                _ ->
-                    case (StateData#state.config)#config.members_by_default of
-                        true ->
-                            participant;
-                        _ ->
-                            visitor
-                    end
+get_default_role(owner, _StateData) -> moderator;
+get_default_role(admin, _StateData) -> moderator;
+get_default_role(member, _StateData) -> participant;
+get_default_role(outcast, _StateData) -> none;
+get_default_role(none, StateData) ->
+    case (StateData#state.config)#config.members_only of
+        true -> none;
+        _ ->
+            case (StateData#state.config)#config.members_by_default of
+                true -> participant;
+                _ -> visitor
             end
     end.
 
@@ -1486,9 +1471,9 @@ count_users(#state{users=Users}) ->
 get_max_users(StateData) ->
     MaxUsers = (StateData#state.config)#config.max_users,
     ServiceMaxUsers = get_service_max_users(StateData),
-    if
-        MaxUsers =< ServiceMaxUsers -> MaxUsers;
-        true -> ServiceMaxUsers
+    case MaxUsers =< ServiceMaxUsers of
+        true -> MaxUsers;
+        false -> ServiceMaxUsers
     end.
 
 
@@ -1591,16 +1576,14 @@ store_user_activity(JID, UserActivity, StateData) ->
 -spec clean_treap(treap:treap(), {1, integer()}) -> treap:treap().
 clean_treap(Treap, CleanPriority) ->
     case treap:is_empty(Treap) of
-    true ->
-        Treap;
-    false ->
-        {_Key, Priority, _Value} = treap:get_root(Treap),
-        if
-        Priority > CleanPriority ->
-            clean_treap(treap:delete_root(Treap), CleanPriority);
         true ->
-            Treap
-        end
+            Treap;
+        false ->
+            {_Key, Priority, _Value} = treap:get_root(Treap),
+            case Priority > CleanPriority of
+                true -> clean_treap(treap:delete_root(Treap), CleanPriority);
+                false -> Treap
+            end
     end.
 
 
@@ -1694,22 +1677,17 @@ remove_online_user(JID, StateData, Reason) ->
 
 
 -spec filter_presence(jlib:xmlel()) -> jlib:xmlel().
-filter_presence(#xmlel{name = <<"presence">>, attrs = Attrs,
-                       children = Els}) ->
+filter_presence(#xmlel{name = <<"presence">>, attrs = Attrs, children = Els}) ->
     FEls = lists:filter(
-         fun(El) ->
-             case El of
-             #xmlcdata{} ->
-                 false;
-             #xmlel{attrs = Attrs1} ->
-                 XMLNS = xml:get_attr_s(<<"xmlns">>, Attrs1),
-                 case XMLNS of
-                 <<?NS_MUC_S, _/binary>> -> false;
-                 _ ->
-                     true
-                 end
-             end
-         end, Els),
+             fun(#xmlcdata{}) ->
+                     false;
+                (#xmlel{attrs = Attrs1}) ->
+                     XMLNS = xml:get_attr_s(<<"xmlns">>, Attrs1),
+                     case XMLNS of
+                         <<?NS_MUC_S, _/binary>> -> false;
+                         _ -> true
+                     end
+             end, Els),
     #xmlel{name = <<"presence">>, attrs = Attrs, children = FEls}.
 
 
@@ -1763,19 +1741,14 @@ find_jids_by_nick(Nick, StateData) ->
         {ok, JIDs} -> JIDs
     end.
 
--spec is_nick_change(ejabberd:simple_jid() | ejabberd:jid(), mod_muc:nick(),
-                     state()) -> boolean().
-is_nick_change(JID, Nick, StateData) ->
+-spec is_new_nick_of_online_user(ejabberd:simple_jid() | ejabberd:jid(), mod_muc:nick(),
+                                 state()) -> boolean() | user_is_offline.
+is_new_nick_of_online_user(JID, Nick, StateData) ->
     LJID = jid:to_lower(JID),
-    case Nick of
-    <<>> ->
-        false;
-    _ ->
-        {ok, #user{nick = OldNick}} =
-        dict:find(LJID, StateData#state.users),
-        Nick /= OldNick
+    case dict:find(LJID, StateData#state.users) of
+        {ok, #user{nick = OldNick}} -> Nick /= <<>> andalso Nick /= OldNick;
+        error -> user_is_offline
     end.
-
 
 -spec is_user_limit_reached(ejabberd:jid(), mod_muc:affiliation(), state()) -> boolean().
 is_user_limit_reached(From, Affiliation, StateData) ->
@@ -1925,20 +1898,22 @@ make_http_auth_request(From, RoomJid, Password, Pool) ->
         _ -> error
     end.
 
-handle_http_auth_result(Result, From, Nick, Packet, Role, StateData) ->
-    case Result of
-        allowed -> do_add_new_user(From, Nick, Packet, Role, StateData);
-        {invalid_password, ErrorMsg} -> reply_not_authorized(From, Nick, Packet, StateData, ErrorMsg);
-        error -> reply_service_unavailable(From, Nick, Packet, StateData, <<"Internal server error">>)
-    end.
+handle_http_auth_result(allowed, From, Nick, Packet, Role, StateData) ->
+    do_add_new_user(From, Nick, Packet, Role, StateData);
+handle_http_auth_result({invalid_password, ErrorMsg}, From, Nick, Packet, _Role, StateData) ->
+    reply_not_authorized(From, Nick, Packet, StateData, ErrorMsg);
+handle_http_auth_result(error, From, Nick, Packet, _Role, StateData) ->
+    reply_service_unavailable(From, Nick, Packet, StateData, <<"Internal server error">>).
 
 uri_encode(Bin) ->
     list_to_binary(http_uri:encode(binary_to_list(Bin))).
 
 decode_http_auth_response(Body) ->
     try decode_json_auth_response(Body) of
-        {0, _} -> allowed;
-        {AuthCode, Msg} -> {invalid_password, iolist_to_binary([integer_to_list(AuthCode), $ , Msg])}
+        {0, _} ->
+            allowed;
+        {AuthCode, Msg} ->
+            {invalid_password, iolist_to_binary([integer_to_list(AuthCode), $ , Msg])}
     catch
         error:_ -> error
     end.
@@ -2058,15 +2033,13 @@ count_stanza_shift(Nick, Els, StateData) ->
 count_seconds_shift(Seconds, HistoryList) ->
     lists:sum(
       lists:map(
-    fun({_Nick, _Packet, _HaveSubject, TimeStamp, _Size}) ->
-        T = calendar:datetime_to_gregorian_seconds(TimeStamp),
-        if
-        T < Seconds ->
-            1;
-        true ->
-            0
-        end
-    end, HistoryList)).
+        fun({_Nick, _Packet, _HaveSubject, TimeStamp, _Size}) ->
+                T = calendar:datetime_to_gregorian_seconds(TimeStamp),
+                case T < Seconds of
+                    true -> 1;
+                    false -> 0
+                end
+        end, HistoryList)).
 
 
 -spec count_maxstanzas_shift(non_neg_integer(), [any()]) -> integer().
@@ -2097,46 +2070,41 @@ calc_shift(MaxSize, Sizes) ->
         ) -> non_neg_integer().
 calc_shift(_MaxSize, _Size, Shift, []) ->
     Shift;
+calc_shift(MaxSize, Size, Shift, _Sizes) when MaxSize >= Size ->
+    Shift;
 calc_shift(MaxSize, Size, Shift, [S | TSizes]) ->
-    if
-    MaxSize >= Size ->
-        Shift;
-    true ->
-        calc_shift(MaxSize, Size - S, Shift + 1, TSizes)
-    end.
+    calc_shift(MaxSize, Size - S, Shift + 1, TSizes).
 
 
--spec extract_history([jlib:xmlcdata() | jlib:xmlel()], _Type :: binary()
-                     ) -> 'false' | non_neg_integer() | calendar:datetime().
+-spec extract_history([jlib:xmlcdata() | jlib:xmlel()], Type :: binary()) ->
+    false | non_neg_integer() | calendar:datetime1970().
 extract_history([], _Type) ->
     false;
 extract_history([#xmlel{attrs = Attrs} = El | Els], Type) ->
     case xml:get_attr_s(<<"xmlns">>, Attrs) of
-    ?NS_MUC ->
-        AttrVal = xml:get_path_s(El,
-               [{elem, <<"history">>}, {attr, Type}]),
-        case Type of
-        <<"since">> ->
-            case jlib:datetime_binary_to_timestamp(AttrVal) of
-            undefined ->
-                false;
-            TS ->
-                calendar:now_to_universal_time(TS)
-            end;
+        ?NS_MUC ->
+            parse_history_val(xml:get_path_s(El, [{elem, <<"history">>}, {attr, Type}]), Type);
         _ ->
-            case catch binary_to_integer(AttrVal) of
-            IntVal when is_integer(IntVal) and (IntVal >= 0) ->
-                IntVal;
-            _ ->
-                false
-            end
-        end;
-    _ ->
-        extract_history(Els, Type)
+            extract_history(Els, Type)
     end;
 extract_history([_ | Els], Type) ->
     extract_history(Els, Type).
 
+-spec parse_history_val(binary(), binary()) -> false | non_neg_integer() | calendar:datetime1970().
+parse_history_val(AttrVal, <<"since">>) ->
+    case jlib:datetime_binary_to_timestamp(AttrVal) of
+        undefined ->
+            false;
+        TS ->
+            calendar:now_to_universal_time(TS)
+    end;
+parse_history_val(AttrVal, _) ->
+    case catch binary_to_integer(AttrVal) of
+        IntVal when is_integer(IntVal) and (IntVal >= 0) ->
+            IntVal;
+        _ ->
+            false
+    end.
 
 -spec send_update_presence(ejabberd:jid(), Reason :: binary(), state()) -> any().
 send_update_presence(JID, Reason, StateData) ->
@@ -2151,11 +2119,9 @@ foreach_matched_jid(F, JID, #state{users=Users}) ->
     case LJID of
         %% Match by bare JID
         {U, S, <<>>} ->
-            FF = fun(J, #user{jid=MatchedJID}, _) ->
-                     case J of
-                         {U, S, _} -> F(MatchedJID);
-                         _         -> ok
-                     end
+            FF = fun({U0, S0, _}, #user{jid = MatchedJID}, _) when U =:= U0, S =:= S0 ->
+                         F(MatchedJID);
+                    (_, _, _) -> ok
                  end,
             dict:fold(FF, ok, Users);
         %% Match by full JID
@@ -2177,11 +2143,9 @@ foreach_matched_user(F, JID, #state{users=Users}) ->
     case LJID of
         %% Match by bare JID
         {U, S, <<>>} ->
-            FF = fun(J, User, _) ->
-                     case J of
-                         {U, S, _} -> F(User);
-                         _         -> ok
-                     end
+            FF = fun({U0, S0, _}, User, _) when U =:= U0, S =:= S0 ->
+                         F(User);
+                    (_, _, _)     -> ok
                  end,
             dict:fold(FF, ok, Users);
         %% Match by full JID
@@ -2276,73 +2240,70 @@ send_new_presence(NJID, Reason, StateData) ->
 
 -spec send_new_presence_to(ejabberd:jid(), binary(), [{ejabberd:jid(), user()}], state()) -> 'ok'.
 send_new_presence_to(NJID, Reason, Receivers, StateData) ->
-    {ok, #user{jid = RealJID,
-           nick = Nick,
-           role = Role,
-           last_presence = Presence}} =
-    dict:find(jid:to_lower(NJID), StateData#state.users),
+    {ok, #user{ role = Role } = User} = dict:find(jid:to_lower(NJID), StateData#state.users),
     Affiliation = get_affiliation(NJID, StateData),
     BAffiliation = affiliation_to_binary(Affiliation),
     BRole = role_to_binary(Role),
     lists:foreach(
       fun({_LJID, Info}) ->
-          ItemAttrs =
-          case (Info#user.role == moderator) orelse
-              ((StateData#state.config)#config.anonymous == false) of
-              true ->
-              [{<<"jid">>, jid:to_binary(RealJID)},
-               {<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole}];
-              _ ->
-              [{<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole}]
-          end,
-          ItemEls = case Reason of
-                <<>> ->
-                [];
-                _ ->
-                [#xmlel{name = <<"reason">>, children = [#xmlcdata{content = Reason}]}]
-                    end,
-          Status = case StateData#state.just_created of
-               true ->
-                   [status_code(201)];
-               false ->
-                   []
-               end,
-          Status2 = case (NJID == Info#user.jid) of
-                 true ->
-                    Status0 = case   (StateData#state.config)#config.logging of
-                            true ->
-                            [status_code(170) | Status];
-                            false ->
-                            Status
-                        end,
-                    Status1 = case ((StateData#state.config)#config.anonymous==false) of
-                            true ->
-                            [status_code(100) | Status0];
-                            false ->
-                            Status0
-                        end,
-                    case ((NJID == Info#user.jid)==true) of
-                            true ->
-                            [status_code(110) | Status1];
-                            false ->
-                            Status1
-                        end;
-                false ->
-                        Status
-          end,
-          Packet = xml:append_subtags(
-             Presence,
-             [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                     children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
-                                        children = ItemEls} | Status2]}]),
-          ejabberd_router:route(
-            jid:replace_resource(StateData#state.jid, Nick),
-            Info#user.jid,
-            Packet)
+        send_new_presence_to_single(NJID, User, BAffiliation, BRole, Reason, Info, StateData)
       end, Receivers).
 
+send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presence = Presence},
+                            BAffiliation, BRole, Reason, ReceiverInfo, StateData) ->
+    ItemAttrs =
+    case (ReceiverInfo#user.role == moderator) orelse
+         ((StateData#state.config)#config.anonymous == false) of
+        true ->
+            [{<<"jid">>, jid:to_binary(RealJID)},
+             {<<"affiliation">>, BAffiliation},
+             {<<"role">>, BRole}];
+        _ ->
+            [{<<"affiliation">>, BAffiliation},
+             {<<"role">>, BRole}]
+    end,
+    ItemEls = case Reason of
+                  <<>> ->
+                      [];
+                  _ ->
+                      [#xmlel{name = <<"reason">>, children = [#xmlcdata{content = Reason}]}]
+              end,
+    Status = case StateData#state.just_created of
+                 true ->
+                     [status_code(201)];
+                 false ->
+                     []
+             end,
+    Status2 = case (NJID == ReceiverInfo#user.jid) of
+                  true ->
+                      Status0 = case (StateData#state.config)#config.logging of
+                                    true ->
+                                        [status_code(170) | Status];
+                                    false ->
+                                        Status
+                                end,
+                      Status1 = case ((StateData#state.config)#config.anonymous==false) of
+                                    true ->
+                                        [status_code(100) | Status0];
+                                    false ->
+                                        Status0
+                                end,
+                      case ((NJID == ReceiverInfo#user.jid)==true) of
+                          true ->
+                              [status_code(110) | Status1];
+                          false ->
+                              Status1
+                      end;
+                  false ->
+                      Status
+              end,
+    Packet = xml:append_subtags(
+               Presence,
+               [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                       children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
+                                          children = ItemEls} | Status2]}]),
+    ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick),
+                          ReceiverInfo#user.jid, Packet).
 
 -spec send_existing_presences(ejabberd:jid(), state()) -> 'ok'.
 send_existing_presences(ToJID, StateData) ->
@@ -2354,42 +2315,38 @@ send_existing_presences(ToJID, StateData) ->
     % JIDsToSkip = [RealToJID | find_jids_by_nick(_Nick, StateData)],
     JIDsToSkip = [RealToJID],
     lists:foreach(
-        fun({LJID, #user{jid = FromJID,
-               nick = FromNick,
-               role = FromRole,
-               last_presence = Presence}}) ->
-            case lists:member(FromJID, JIDsToSkip) of
-                true ->
-                    ok;
-                _ ->
-                    FromAffiliation = get_affiliation(LJID, StateData),
-                    ItemAttrs =
-                    case (Role == moderator) orelse
-                         ((StateData#state.config)#config.anonymous == false) of
-                        true ->
-                            [{<<"jid">>, jid:to_binary(FromJID)},
-                            {<<"affiliation">>,
-                            affiliation_to_binary(FromAffiliation)},
-                            {<<"role">>, role_to_binary(FromRole)}];
-                        _ ->
-                            [{<<"affiliation">>,
-                            affiliation_to_binary(FromAffiliation)},
-                            {<<"role">>, role_to_binary(FromRole)}]
-                    end,
-                    Packet = xml:append_subtags(
-                        Presence,
-                        [#xmlel{name = <<"x">>,
-                                attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                children = [#xmlel{name = <<"item">>,
-                                                   attrs = ItemAttrs}]}]),
-                        ejabberd_router:route(
-                    jid:replace_resource(
-                   StateData#state.jid, FromNick),
-                    RealToJID,
-                    Packet)
-            end
+        fun({_, #user{jid = FromJID}} = User) ->
+                case lists:member(FromJID, JIDsToSkip) of
+                    true -> ok;
+                    _ -> send_existing_presence(User, Role, RealToJID, StateData)
+                end
         end, dict:to_list(StateData#state.users)).
 
+-spec send_existing_presence({ejabberd:simple_jid(), mod_muc_room_user()}, mod_muc:role(),
+                             jid(), state()) -> ok.
+send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
+                                    role = FromRole, last_presence = Presence}},
+                       Role, RealToJID, StateData) ->
+    FromAffiliation = get_affiliation(FromJID, StateData),
+    ItemAttrs =
+    case (Role == moderator) orelse ((StateData#state.config)#config.anonymous == false) of
+        true ->
+            [{<<"jid">>, jid:to_binary(FromJID)},
+             {<<"affiliation">>,
+              affiliation_to_binary(FromAffiliation)},
+             {<<"role">>, role_to_binary(FromRole)}];
+        _ ->
+            [{<<"affiliation">>,
+              affiliation_to_binary(FromAffiliation)},
+             {<<"role">>, role_to_binary(FromRole)}]
+    end,
+    Packet = xml:append_subtags(
+               Presence,
+               [#xmlel{name = <<"x">>,
+                       attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                       children = [#xmlel{name = <<"item">>,
+                                          attrs = ItemAttrs}]}]),
+    ejabberd_router:route(jid:replace_resource(StateData#state.jid, FromNick), RealToJID, Packet).
 
 -spec send_config_update(atom(), state()) -> 'ok'.
 send_config_update(Type, StateData) ->
@@ -2409,7 +2366,9 @@ send_config_update(Type, StateData) ->
 
 
 -spec send_invitation(ejabberd:jid(), ejabberd:jid(), binary(), state()) -> 'ok'.
-send_invitation(From, To, Reason, StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
+send_invitation(From, To, Reason, StateData = #state{host = Host,
+                                                     server_host = ServerHost,
+                                                     jid = RoomJID}) ->
     ejabberd_hooks:run(invitation_sent, Host, [Host, ServerHost, RoomJID, From, To, Reason]),
     Config = StateData#state.config,
     Password = case Config#config.password_protected of
@@ -2472,9 +2431,9 @@ send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role,
                          true -> RealJID;
                          false -> undefined
                      end,
-    MaybeSelfPresenceCode = if
-                                JID == Info#user.jid -> status_code(110);
-                                true -> undefined
+    MaybeSelfPresenceCode = case JID == Info#user.jid of
+                                true -> status_code(110);
+                                false -> undefined
                             end,
     Unavailable = nick_unavailable_presence(MaybePublicJID, Nick, Affiliation,
                                             Role, MaybeSelfPresenceCode),
@@ -2563,12 +2522,12 @@ lqueue_in(_Item, LQ = #lqueue{max = 0}) ->
     LQ;
 lqueue_in(Item, #lqueue{queue = Q1, len = Len, max = Max}) ->
     Q2 = queue:in(Item, Q1),
-    if
-    Len >= Max ->
-        Q3 = lqueue_cut(Q2, Len - Max + 1),
-        #lqueue{queue = Q3, len = Max, max = Max};
-    true ->
-        #lqueue{queue = Q2, len = Len + 1, max = Max}
+    case Len >= Max of
+        true ->
+            Q3 = lqueue_cut(Q2, Len - Max + 1),
+            #lqueue{queue = Q3, len = Max, max = Max};
+        false ->
+            #lqueue{queue = Q2, len = Len + 1, max = Max}
     end.
 
 
@@ -2682,47 +2641,47 @@ process_iq_admin(From, set, Lang, SubEl, StateData) ->
     process_admin_items_set(From, Items, Lang, StateData);
 process_iq_admin(From, get, Lang, SubEl, StateData) ->
     case xml:get_subtag(SubEl, <<"item">>) of
-    false ->
-        {error, ?ERR_BAD_REQUEST};
-    Item ->
-        FAffiliation = get_affiliation(From, StateData),
-        FRole = get_role(From, StateData),
-        case xml:get_tag_attr(<<"role">>, Item) of
         false ->
-            case xml:get_tag_attr(<<"affiliation">>, Item) of
-            false ->
-                {error, ?ERR_BAD_REQUEST};
-            {value, BAffiliation} ->
-                case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} ->
-                    {error, ?ERR_BAD_REQUEST};
-                Affiliation ->
-                    case iq_admin_allowed(get, affiliation, FAffiliation, FRole, StateData) of
-                    true ->
-                        Items = items_with_affiliation(
-                              Affiliation, StateData),
-                        {result, Items, StateData};
-                    _ ->
-                        ErrText = <<"Administrator privileges required">>,
-                        {error, ?ERRT_FORBIDDEN(Lang, ErrText)}
-                    end
-                end
-            end;
-        {value, BRole} ->
-            case catch binary_to_role(BRole) of
-            {'EXIT', _} ->
-                {error, ?ERR_BAD_REQUEST};
-            Role ->
-                case iq_admin_allowed(get, role, FAffiliation, FRole, StateData) of
-                true ->
+            {error, ?ERR_BAD_REQUEST};
+        Item ->
+            FAffiliation = get_affiliation(From, StateData),
+            FRole = get_role(From, StateData),
+            {RoleOrAff, _} = ExtractResult = extract_role_or_affiliation(Item),
+            IsAllowed = iq_admin_allowed(get, RoleOrAff, FAffiliation, FRole, StateData),
+            case {IsAllowed, ExtractResult} of
+                {true, {role, Role}} ->
                     Items = items_with_role(Role, StateData),
                     {result, Items, StateData};
-                _ ->
+                {true, {affiliation, Affiliation}} ->
+                    Items = items_with_affiliation(Affiliation, StateData),
+                    {result, Items, StateData};
+                {_, {role, _}} ->
                     ErrText = <<"Moderator privileges required">>,
-                    {error, ?ERRT_FORBIDDEN(Lang, ErrText)}
-                end
+                    {error, ?ERRT_FORBIDDEN(Lang, ErrText)};
+                {_, {affiliation, _}} ->
+                    ErrText = <<"Administrator privileges required">>,
+                    {error, ?ERRT_FORBIDDEN(Lang, ErrText)};
+                {_, Error} ->
+                    Error
             end
-        end
+    end.
+
+-spec extract_role_or_affiliation(Item :: exml:element()) ->
+    {role, mod_muc:role()} | {affiliation, mod_muc:affiliation()} | {error, exml:element()}.
+extract_role_or_affiliation(Item) ->
+    case {xml:get_tag_attr(<<"role">>, Item), xml:get_tag_attr(<<"affiliation">>, Item)} of
+        {false, false} ->
+            {error, ?ERR_BAD_REQUEST};
+        {false, {value, BAffiliation}} ->
+            case catch binary_to_affiliation(BAffiliation) of
+                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                Affiliation -> {affiliation, Affiliation}
+            end;
+        {{value, BRole}, _} ->
+            case catch binary_to_role(BRole) of
+                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                Role -> {role, Role}
+            end
     end.
 
 -spec iq_admin_allowed(atom(), atom(), atom(), atom(), state()) -> boolean().
@@ -2808,241 +2767,209 @@ process_admin_items_set(UJID, Items, Lang, StateData) ->
     UAffiliation = get_affiliation(UJID, StateData),
     URole = get_role(UJID, StateData),
     case find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData, []) of
-    {result, Res} ->
-        ?INFO_MSG("Processing MUC admin query from ~s in room ~s:~n ~p",
-              [jid:to_binary(UJID), jid:to_binary(StateData#state.jid), Res]),
-        NSD =
-        lists:foldl(
-          fun(E, SD) ->
-              case catch
-                 (case E of
-                      {JID, affiliation, owner, _}
-                      when (JID#jid.luser == <<>>) ->
-                      %% If the provided JID does not have username,
-                      %% forget the affiliation completely
-                      SD;
-                      {JID, role, none, Reason} ->
-                      catch send_kickban_presence(
-                          JID, Reason, <<"307">>, SD),
-                      set_role(JID, none, SD);
-                      {JID, affiliation, none, Reason} ->
-                      case  (SD#state.config)#config.members_only of
-                          true ->
-                          catch send_kickban_presence(
-                              JID, Reason, <<"321">>, none, SD),
-                          SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
-                          set_role(JID, none, SD1);
-                          _ ->
-                          SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
-                          send_update_presence(JID, Reason, SD1),
-                          SD1
-                      end;
-                      {JID, affiliation, outcast, Reason} ->
-                      catch send_kickban_presence(
-                          JID, Reason, <<"301">>, outcast, SD),
-                      set_affiliation_and_reason(
-                        JID, outcast, Reason,
-                        set_role(JID, none, SD));
-                      {JID, affiliation, A, Reason} when
-                         (A == admin) or (A == owner) ->
-                      SD1 = set_affiliation_and_reason(JID, A, Reason, SD),
-                      SD2 = set_role(JID, moderator, SD1),
-                      send_update_presence(JID, Reason, SD2),
-                      SD2;
-                      {JID, affiliation, member, Reason} ->
-                         case  (SD#state.config)#config.members_only of
-                             true -> send_invitation(UJID, JID, Reason, SD);
-                             _ -> ok
-                         end,
-                         SD1 = set_affiliation_and_reason(
-                             JID, member, Reason, SD),
-                         SD2 = set_role(JID, participant, SD1),
-                         send_update_presence(JID, Reason, SD2),
-                         SD2;
-                     {JID, role, Role, Reason} ->
-                     SD1 = set_role(JID, Role, SD),
-                     catch send_new_presence(JID, Reason, SD1),
-                     SD1;
-                     {JID, affiliation, A, Reason} ->
-                     SD1 = set_affiliation(JID, A, SD),
-                     send_update_presence(JID, Reason, SD1),
-                     SD1
-                  end)
-                  of
-                  {'EXIT', ErrReason} ->
-                  ?ERROR_MSG("MUC ITEMS SET ERR: ~p~n",
-                         [ErrReason]),
-                  SD;
-                  NSD ->
-                  NSD
-              end
-          end, StateData, Res),
-        case (NSD#state.config)#config.persistent of
-        true ->
-            mod_muc:store_room(NSD#state.host, NSD#state.room,
-                       make_opts(NSD));
-        _ ->
-            ok
-        end,
-        {result, [], NSD};
-    Err ->
-        Err
+        {result, Res} ->
+            ?INFO_MSG("Processing MUC admin query from ~s in room ~s:~n ~p",
+                      [jid:to_binary(UJID), jid:to_binary(StateData#state.jid), Res]),
+            NSD = lists:foldl(
+                    fun(ChangedItem, SD) ->
+                            process_admin_item_set(ChangedItem, UJID, SD)
+                    end, StateData, Res),
+            case (NSD#state.config)#config.persistent of
+                true -> mod_muc:store_room(NSD#state.host, NSD#state.room, make_opts(NSD));
+                _ -> ok
+            end,
+            {result, [], NSD};
+        Err ->
+            Err
     end.
 
+process_admin_item_set(ChangedItem, UJID, SD) ->
+    try
+        process_admin_item_set_unsafe(ChangedItem, UJID, SD)
+    catch
+        _:Error ->
+            ?ERROR_MSG("MUC ITEMS SET ERR: ~p~n", [Error]),
+            SD
+    end.
+
+process_admin_item_set_unsafe({JID, affiliation, owner, _}, _UJID, SD)
+  when (JID#jid.luser == <<>>) ->
+    %% If the provided JID does not have username,
+    %% ignore the affiliation completely
+    SD;
+process_admin_item_set_unsafe({JID, role, none, Reason}, _UJID, SD) ->
+    catch send_kickban_presence(JID, Reason, <<"307">>, SD),
+    set_role(JID, none, SD);
+process_admin_item_set_unsafe({JID, affiliation, none, Reason}, _UJID, SD) ->
+    case  (SD#state.config)#config.members_only of
+        true ->
+            catch send_kickban_presence(JID, Reason, <<"321">>, none, SD),
+            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
+            set_role(JID, none, SD1);
+        _ ->
+            SD1 = set_affiliation_and_reason(JID, none, Reason, SD),
+            send_update_presence(JID, Reason, SD1),
+            SD1
+    end;
+process_admin_item_set_unsafe({JID, affiliation, outcast, Reason}, _UJID, SD) ->
+    catch send_kickban_presence(JID, Reason, <<"301">>, outcast, SD),
+    set_affiliation_and_reason(JID, outcast, Reason, set_role(JID, none, SD));
+process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD)
+  when (A == admin) or (A == owner) ->
+    SD1 = set_affiliation_and_reason(JID, A, Reason, SD),
+    SD2 = set_role(JID, moderator, SD1),
+    send_update_presence(JID, Reason, SD2),
+    SD2;
+process_admin_item_set_unsafe({JID, affiliation, member, Reason}, UJID, SD) ->
+    case (SD#state.config)#config.members_only of
+        true -> send_invitation(UJID, JID, Reason, SD);
+        _ -> ok
+    end,
+    SD1 = set_affiliation_and_reason(JID, member, Reason, SD),
+    SD2 = set_role(JID, participant, SD1),
+    send_update_presence(JID, Reason, SD2),
+    SD2;
+process_admin_item_set_unsafe({JID, role, Role, Reason}, _UJID, SD) ->
+    SD1 = set_role(JID, Role, SD),
+    catch send_new_presence(JID, Reason, SD1),
+    SD1;
+process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD) ->
+    SD1 = set_affiliation(JID, A, SD),
+    send_update_presence(JID, Reason, SD1),
+    SD1.
 
 -type res_row() :: {ejabberd:simple_jid() | ejabberd:jid(),
                     'affiliation' | 'role', any(), any()}.
+-type find_changed_items_res() :: {'error', jlib:xmlel()} | {'result', [res_row()]}.
 -spec find_changed_items(ejabberd:jid(), mod_muc:affiliation(), mod_muc:role(),
-        [jlib:xmlel()], ejabberd:lang(), state(), [res_row()])
-            -> {'error', jlib:xmlel()} | {'result', [res_row()]}.
+                         [jlib:xmlel()], ejabberd:lang(), state(), [res_row()]) ->
+    find_changed_items_res().
 find_changed_items(_UJID, _UAffiliation, _URole, [], _Lang, _StateData, Res) ->
     {result, Res};
 find_changed_items(UJID, UAffiliation, URole, [#xmlcdata{} | Items],
-           Lang, StateData, Res) ->
+                   Lang, StateData, Res) ->
     find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData, Res);
 find_changed_items(UJID, UAffiliation, URole,
-           [#xmlel{name = <<"item">>, attrs = Attrs} = Item | Items],
-           Lang, StateData, Res) ->
-    TJID = case xml:get_attr(<<"jid">>, Attrs) of
-           {value, S} ->
-           case jid:from_binary(S) of
-               error ->
-               ErrText = <<(translate:translate(Lang, <<"Jabber ID ">>))/binary,
-                  S/binary, (translate:translate(Lang, <<" is invalid">>))/binary>>,
-               {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
-               J ->
-               {value, J}
-           end;
-           _ ->
-           case xml:get_attr(<<"nick">>, Attrs) of
-               {value, N} ->
-               case find_jids_by_nick(N, StateData) of
-                   [] ->
-                   ErrText = <<(translate:translate(Lang, <<"Nickname ">>))/binary,
-                      N/binary, (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
-                   {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
-                   [FirstSessionJid | _RestOfSessions] ->
-                   {value, FirstSessionJid}
-               end;
-               _ ->
-               {error, ?ERR_BAD_REQUEST}
-           end
-       end,
-    case TJID of
-    {value, JID} ->
-        TAffiliation = get_affiliation(JID, StateData),
-        TRole = get_role(JID, StateData),
-        case xml:get_attr(<<"role">>, Attrs) of
-        false ->
-            case xml:get_attr(<<"affiliation">>, Attrs) of
-            false ->
-                {error, ?ERR_BAD_REQUEST};
-            {value, BAffiliation} ->
-                case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} ->
-                    ErrText1 = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
-                        BAffiliation/binary>>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText1)};
-                Affiliation ->
-                    ServiceAf = get_service_affiliation(JID, StateData),
-                    CanChangeRA =
-                    case can_change_ra(
-                           UAffiliation, URole,
-                           TAffiliation, TRole,
-                           affiliation, Affiliation,
-                           ServiceAf) of
-                        nothing ->
-                        nothing;
-                        true ->
-                        true;
-                        cancel ->
-                        cancel;
-                        check_owner ->
-                        case search_affiliation(owner, StateData) of
-                            [{OJID, _}] ->
-                            jid:to_bare(OJID) /=
-                                jid:to_lower(jid:to_bare(UJID));
-                            _ ->
-                            true
-                        end;
-                        _ ->
-                        false
-                    end,
-                    case CanChangeRA of
-                    nothing ->
-                        find_changed_items(
-                          UJID,
-                          UAffiliation, URole,
-                          Items, Lang, StateData,
-                          Res);
-                    true ->
-                        find_changed_items(
-                          UJID,
-                          UAffiliation, URole,
-                          Items, Lang, StateData,
-                          [{jid:to_bare(JID),
-                        affiliation, Affiliation, decode_reason(Item)} | Res]);
-                    cancel ->
-                        {error, ?ERR_NOT_ALLOWED};
-                    false ->
-                        {error, ?ERR_FORBIDDEN}
-                    end
-                end
-            end;
-        {value, BRole} ->
-            case catch binary_to_role(BRole) of
-            {'EXIT', _} ->
-                ErrText1 = <<(translate:translate(Lang, <<"Invalid role ">>))/binary,
-                    BRole/binary>>,
-                {error, ?ERRT_BAD_REQUEST(Lang, ErrText1)};
-            Role ->
-                ServiceAf = get_service_affiliation(JID, StateData),
-                CanChangeRA =
-                case can_change_ra(
-                       UAffiliation, URole,
-                       TAffiliation, TRole,
-                       role, Role,
-                       ServiceAf) of
-                    nothing ->
-                    nothing;
-                    true ->
-                    true;
-                    check_owner ->
-                    case search_affiliation(owner, StateData) of
-                        [{OJID, _}] ->
-                        jid:to_bare(OJID) /=
-                            jid:to_lower(jid:to_bare(UJID));
-                        _ ->
-                        true
-                    end;
-                    _ ->
-                    false
-                end,
-                case CanChangeRA of
-                nothing ->
-                    find_changed_items(
-                      UJID,
-                      UAffiliation, URole,
-                      Items, Lang, StateData,
-                      Res);
-                true ->
-                    find_changed_items(
-                      UJID,
-                      UAffiliation, URole,
-                      Items, Lang, StateData,
-                      [{JID, role, Role, decode_reason(Item)} | Res]);
-                _ ->
-                    {error, ?ERR_NOT_ALLOWED}
-                end
-            end
-        end;
-    Err ->
-        Err
+                   [#xmlel{name = <<"item">>, attrs = Attrs} = Item | Items],
+                   Lang, StateData, Res) ->
+    case get_affected_jid(Attrs, Lang, StateData) of
+        {value, JID} ->
+            check_changed_item(UJID, UAffiliation, URole, JID, Item, Items, Lang, StateData, Res);
+        Err ->
+            Err
     end;
-find_changed_items(_UJID, _UAffiliation, _URole, _Items,
-           _Lang, _StateData, _Res) ->
+find_changed_items(_UJID, _UAffiliation, _URole, _Items, _Lang, _StateData, _Res) ->
     {error, ?ERR_BAD_REQUEST}.
 
+-spec get_affected_jid(Attrs :: [{binary(), binary()}],
+                       Lang :: ejabberd:lang(),
+                       StateData :: state()) ->
+    {value, jid()} | {error, exml:element()}.
+get_affected_jid(Attrs, Lang, StateData) ->
+    case {xml:get_attr(<<"jid">>, Attrs), xml:get_attr(<<"nick">>, Attrs)} of
+        {{value, S}, _} ->
+            case jid:from_binary(S) of
+                error ->
+                    ErrText = <<(translate:translate(Lang, <<"Jabber ID ">>))/binary,
+                                S/binary, (translate:translate(Lang, <<" is invalid">>))/binary>>,
+                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
+                J ->
+                    {value, J}
+            end;
+        {_, {value, N}} ->
+            case find_jids_by_nick(N, StateData) of
+                [] ->
+                    ErrText
+                    = <<(translate:translate(Lang, <<"Nickname ">>))/binary, N/binary,
+                        (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
+                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
+                [FirstSessionJid | _RestOfSessions] ->
+                    {value, FirstSessionJid}
+            end;
+        _ ->
+            {error, ?ERR_BAD_REQUEST}
+    end.
+
+-spec check_changed_item(jid(), mod_muc:affiliation(), mod_muc:role(), jid(), exml:element(),
+                         [exml:element()], ejabberd:lang(), state(), [res_row()]) ->
+    find_changed_items_res().
+check_changed_item(UJID, UAffiliation, URole, JID, #xmlel{ attrs = Attrs } = Item, Items,
+                   Lang, StateData, Res) ->
+    TAffiliation = get_affiliation(JID, StateData),
+    TRole = get_role(JID, StateData),
+    case which_property_changed(Attrs, Lang) of
+        {role, Role} ->
+            ServiceAf = get_service_affiliation(JID, StateData),
+            CanChangeRA =
+            case can_change_ra(UAffiliation, URole, TAffiliation, TRole, role, Role, ServiceAf) of
+                nothing -> nothing;
+                true -> true;
+                check_owner -> is_owner(UJID, StateData);
+                _ -> false
+            end,
+            case CanChangeRA of
+                nothing -> find_changed_items(UJID, UAffiliation, URole,
+                                              Items, Lang, StateData, Res);
+                true -> find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData,
+                                           [{JID, role, Role, decode_reason(Item)} | Res]);
+                _ -> {error, ?ERR_NOT_ALLOWED}
+            end;
+        {affiliation, Affiliation} ->
+            ServiceAf = get_service_affiliation(JID, StateData),
+            CanChangeRA =
+            case can_change_ra(UAffiliation, URole, TAffiliation, TRole,
+                               affiliation, Affiliation, ServiceAf) of
+                nothing -> nothing;
+                true -> true;
+                cancel -> cancel;
+                check_owner -> is_owner(UJID, StateData);
+                _ ->
+                    false
+            end,
+            case CanChangeRA of
+                nothing -> find_changed_items(UJID, UAffiliation, URole, Items,
+                                              Lang, StateData, Res);
+                true -> find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData,
+                                           [{jid:to_bare(JID), affiliation,
+                                             Affiliation, decode_reason(Item)} | Res]);
+                cancel -> {error, ?ERR_NOT_ALLOWED};
+                false -> {error, ?ERR_FORBIDDEN}
+            end;
+        Err -> Err
+    end.
+
+-spec is_owner(UJID :: jid(), StateData :: state()) -> boolean().
+is_owner(UJID, StateData) ->
+    case search_affiliation(owner, StateData) of
+        [{OJID, _}] -> jid:to_bare(OJID) /= jid:to_lower(jid:to_bare(UJID));
+        _ -> true
+    end.
+
+-spec which_property_changed(Attrs :: [{binary(), binary()}], Lang :: ejabberd:lang()) ->
+    {affiliation, mod_muc:affiliation()} | {role, mod_muc:role()} | {error, exml:element()}.
+which_property_changed(Attrs, Lang) ->
+    case {xml:get_attr(<<"role">>, Attrs), xml:get_attr(<<"affiliation">>, Attrs)} of
+        {false, false} ->
+            {error, ?ERR_BAD_REQUEST};
+        {false, {value, BAffiliation}} ->
+            case catch binary_to_affiliation(BAffiliation) of
+                {'EXIT', _} ->
+                    ErrText1 = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
+                                 BAffiliation/binary>>,
+                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText1)};
+                Affiliation ->
+                    {affiliation, Affiliation}
+            end;
+        {{value, BRole}, _} ->
+            case catch binary_to_role(BRole) of
+                {'EXIT', _} ->
+                    ErrText1 = <<(translate:translate(Lang, <<"Invalid role ">>))/binary,
+                                 BRole/binary>>,
+                    {error, ?ERRT_BAD_REQUEST(Lang, ErrText1)};
+                Role ->
+                    {role, Role}
+            end
+    end.
 
 -spec can_change_ra(FAff :: mod_muc:affiliation(), FRole :: mod_muc:role(),
         TAff :: mod_muc:affiliation(), TRole :: mod_muc:role(),
@@ -3271,86 +3198,74 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Owner stuff
 
--spec process_iq_owner(ejabberd:jid(), 'get' | 'set', ejabberd:lang(), jlib:xmlel(), state()) ->
-    {'error', jlib:xmlel()} | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
-process_iq_owner(From, set, Lang, SubEl, StateData) ->
-    FAffiliation = get_affiliation(From, StateData),
-    case FAffiliation of
-    owner ->
-        #xmlel{children = Els} = SubEl,
-        case xml:remove_cdata(Els) of
-        [#xmlel{name = <<"x">>, children = Els1} = XEl] ->
+-spec process_iq_owner(ejabberd:jid(), get | set, ejabberd:lang(), jlib:xmlel(), state()) ->
+    {error, jlib:xmlel()} | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
+process_iq_owner(From, Type, Lang, SubEl, StateData) ->
+    case get_affiliation(From, StateData) of
+        owner ->
+            process_authorized_iq_owner(From, Type, Lang, SubEl, StateData);
+        _ ->
+            ErrText = <<"Owner privileges required">>,
+            {error, ?ERRT_FORBIDDEN(Lang, ErrText)}
+    end.
+
+-spec process_authorized_iq_owner(ejabberd:jid(), get | set, ejabberd:lang(),
+                                  jlib:xmlel(), state()) ->
+    {error, jlib:xmlel()} | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
+process_authorized_iq_owner(From, set, Lang, SubEl, StateData) ->
+    #xmlel{children = Els} = SubEl,
+    case xml:remove_cdata(Els) of
+        [#xmlel{name = <<"x">>} = XEl] ->
             case {xml:get_tag_attr_s(<<"xmlns">>, XEl),
-              xml:get_tag_attr_s(<<"type">>, XEl)} of
-            {?NS_XDATA, <<"cancel">>} ->
-                ?INFO_MSG("Destroyed MUC room ~s by the owner ~s : cancelled",
-                    [jid:to_binary(StateData#state.jid), jid:to_binary(From)]),
-                add_to_log(room_existence, destroyed, StateData),
-                destroy_room(XEl, StateData);
-            {?NS_XDATA, <<"submit">>} ->
-                case Els1 of
-                [] ->
-                    %confrm an instant room
-                    {result, [], StateData};
+                  xml:get_tag_attr_s(<<"type">>, XEl)} of
+                {?NS_XDATA, <<"cancel">>} ->
+                    ?INFO_MSG("Destroyed MUC room ~s by the owner ~s : cancelled",
+                              [jid:to_binary(StateData#state.jid), jid:to_binary(From)]),
+                    add_to_log(room_existence, destroyed, StateData),
+                    destroy_room(XEl, StateData);
+                {?NS_XDATA, <<"submit">>} ->
+                    process_authorized_submit_owner(From, XEl, StateData);
                 _ ->
-                    %attepmt to configure
-                    case is_allowed_log_change(XEl, StateData, From)
-                    andalso
-                    is_allowed_persistent_change(XEl, StateData, From)
-                    andalso
-                    is_allowed_room_name_desc_limits(XEl, StateData)
-                    andalso
-                    is_password_settings_correct(XEl, StateData) of
-                    true -> set_config(XEl, StateData);
-                    false -> {error, ?ERR_NOT_ACCEPTABLE}
-                    end
-                end;
-            _ ->
-                {error, ?ERR_BAD_REQUEST}
+                    {error, ?ERR_BAD_REQUEST}
             end;
         [#xmlel{name = <<"destroy">>} = SubEl1] ->
             ?INFO_MSG("Destroyed MUC room ~s by the owner ~s",
-                  [jid:to_binary(StateData#state.jid), jid:to_binary(From)]),
+                      [jid:to_binary(StateData#state.jid), jid:to_binary(From)]),
             add_to_log(room_existence, destroyed, StateData),
             destroy_room(SubEl1, StateData);
         Items ->
             process_admin_items_set(From, Items, Lang, StateData)
-        end;
-    _ ->
-        ErrText = <<"Owner privileges required">>,
-        {error, ?ERRT_FORBIDDEN(Lang, ErrText)}
     end;
-process_iq_owner(From, get, Lang, SubEl, StateData) ->
-    FAffiliation = get_affiliation(From, StateData),
-    case FAffiliation of
-    owner ->
-        #xmlel{children = Els} = SubEl,
-        case xml:remove_cdata(Els) of
-        [] ->
+process_authorized_iq_owner(From, get, Lang, SubEl, StateData) ->
+    case exml_query:path(SubEl, [{element, <<"item">>}, {attr, <<"affiliation">>}]) of
+        undefined ->
             get_config(Lang, StateData, From);
-        [Item] ->
-            case xml:get_tag_attr(<<"affiliation">>, Item) of
-            false ->
-                {error, ?ERR_BAD_REQUEST};
-            {value, BAffiliation} ->
-                case catch binary_to_affiliation(BAffiliation) of
+        BAffiliation ->
+            case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
-                    ErrText = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
-                        BAffiliation/binary>>,
+                    InvAffT = translate:translate(Lang, <<"Invalid affiliation ">>),
+                    ErrText = <<InvAffT/binary, BAffiliation/binary>>,
                     {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
                 Affiliation ->
                     Items = items_with_affiliation(Affiliation, StateData),
                     {result, Items, StateData}
-                end
-            end;
-        _ ->
-            {error, ?ERR_FEATURE_NOT_IMPLEMENTED}
-        end;
-    _ ->
-        ErrText = <<"Owner privileges required">>,
-        {error, ?ERRT_FORBIDDEN(Lang, ErrText)}
+            end
     end.
 
+-spec process_authorized_submit_owner(From :: jid(), XEl :: exml:element(), StateData :: state()) ->
+    {error, jlib:xmlel()} | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
+process_authorized_submit_owner(_From, #xmlel{ children = [] } = _XEl, StateData) ->
+    %confrm an instant room
+    {result, [], StateData};
+process_authorized_submit_owner(From, XEl, StateData) ->
+    %attepmt to configure
+    case is_allowed_log_change(XEl, StateData, From)
+         andalso is_allowed_persistent_change(XEl, StateData, From)
+         andalso is_allowed_room_name_desc_limits(XEl, StateData)
+         andalso is_password_settings_correct(XEl, StateData) of
+        true -> set_config(XEl, StateData);
+        false -> {error, ?ERR_NOT_ACCEPTABLE}
+    end.
 
 -spec is_allowed_log_change(jlib:xmlel(), state(), ejabberd:jid()) -> boolean().
 is_allowed_log_change(XEl, StateData, From) ->
@@ -3443,7 +3358,8 @@ is_password_settings_correct(XEl, StateData) ->
 
 -spec get_default_room_maxusers(state()) -> any().
 get_default_room_maxusers(RoomState) ->
-    DefRoomOpts = gen_mod:get_module_opt(RoomState#state.server_host, mod_muc, default_room_options, []),
+    DefRoomOpts = gen_mod:get_module_opt(
+                    RoomState#state.server_host, mod_muc, default_room_options, []),
     RoomState2 = set_opts(DefRoomOpts, RoomState),
     (RoomState2#state.config)#config.max_users.
 
@@ -3452,20 +3368,13 @@ get_default_room_maxusers(RoomState) ->
             -> {'result', [jlib:xmlel(), ...], state()}.
 get_config(Lang, StateData, From) ->
     AccessPersistent = access_persistent(StateData),
-    ServiceMaxUsers = get_service_max_users(StateData),
-    DefaultRoomMaxUsers = get_default_room_maxusers(StateData),
     Config = StateData#state.config,
-    {MaxUsersRoomInteger, MaxUsersRoomString} =
-    case get_max_users(StateData) of
-        N when is_integer(N) ->
-        {N, integer_to_binary(N)};
-        _ -> {0, <<"none">>}
-    end,
 
+    TitleTxt = translate:translate(Lang, <<"Configuration of room ">>),
     Res =
     [#xmlel{name = <<"title">>,
-            children = [#xmlcdata{content = <<(translate:translate(Lang, <<"Configuration of room ">>))/binary,
-                                    (jid:to_binary(StateData#state.jid))/binary>>}]},
+            children = [#xmlcdata{content = <<TitleTxt/binary,
+                                              (jid:to_binary(StateData#state.jid))/binary>>}]},
      #xmlel{name = <<"field">>,
             attrs = [{<<"type">>, <<"hidden">>},
           {<<"var">>, <<"FORM_TYPE">>}],
@@ -3480,8 +3389,7 @@ get_config(Lang, StateData, From) ->
     ] ++
      case acl:match_rule(StateData#state.server_host, AccessPersistent, From) of
         allow ->
-            [boolxfield(
-             <<"Make room persistent">>,
+            [boolxfield(<<"Make room persistent">>,
              <<"muc#roomconfig_persistentroom">>,
               Config#config.persistent, Lang)];
         _ -> []
@@ -3501,69 +3409,9 @@ get_config(Lang, StateData, From) ->
                 true -> Config#config.password;
                 false -> <<>>
             end, Lang),
-     #xmlel{name = <<"field">>,
-            attrs = [{<<"type">>, <<"list-multi">>},
-                {<<"label">>, translate:translate(Lang, <<"Roles and affiliations that may retrieve member list">>)},
-                {<<"var">>, <<"muc#roomconfig_getmemberlist">>}],
-            children = [
-                #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"moderator">>}]},
-                #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"participant">>}]},
-                #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"visitor">>}]},
-                #xmlel{name = <<"option">>,
-                    attrs = [{<<"label">>, translate:translate(Lang, <<"moderator">>)}],
-                    children = [
-                        #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"moderator">>}]}
-                    ]},
-                #xmlel{name = <<"option">>,
-                attrs = [{<<"label">>, translate:translate(Lang, <<"participant">>)}],
-                children = [
-                    #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"participant">>}]}
-                ]},
-                #xmlel{name = <<"option">>,
-                attrs = [{<<"label">>, translate:translate(Lang, <<"visitor">>)}],
-                children = [
-                    #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"visitor">>}]}
-                ]}
-            ]
-     },
-     #xmlel{name = <<"field">>,
-            attrs = [{<<"type">>, <<"list-single">>},
-                     {<<"label">>, translate:translate(Lang, <<"Maximum Number of Occupants">>)},
-                     {<<"var">>, <<"muc#roomconfig_maxusers">>}],
-            children = [#xmlel{name = <<"value">>,
-                               children = [#xmlcdata{content = MaxUsersRoomString}]}] ++
-                       if
-                           is_integer(ServiceMaxUsers) -> [];
-                           true ->
-                           [#xmlel{name = <<"option">>,
-                                   attrs = [{<<"label">>, translate:translate(Lang, <<"No limit">>)}],
-                                   children = [#xmlel{name = <<"value">>,
-                                                      children = [#xmlcdata{content = <<"none">>}]}]}]
-                       end ++
-                       [#xmlel{name = <<"option">>,
-                               attrs = [{<<"label">>, list_to_binary(integer_to_list(N))}],
-                               children = [#xmlel{name = <<"value">>,
-                                                  children = [#xmlcdata{content = list_to_binary(integer_to_list(N))}]}]} ||
-                                                                      N <- lists:usort([ServiceMaxUsers, DefaultRoomMaxUsers, MaxUsersRoomInteger |
-                                                                               ?MAX_USERS_DEFAULT_LIST]), N =< ServiceMaxUsers]},
-     #xmlel{name = <<"field">>,
-            attrs = [{<<"type">>, <<"list-single">>},
-                     {<<"label">>, translate:translate(Lang, <<"Present real Jabber IDs to">>)},
-                     {<<"var">>, <<"muc#roomconfig_whois">>}],
-            children = [#xmlel{name = <<"value">>,
-                               children = [#xmlcdata{content = if Config#config.anonymous ->
-                                                                   <<"moderators">>;
-                                                                  true ->
-                                                                       <<"anyone">>
-                                                               end}]},
-                        #xmlel{name = <<"option">>,
-                               attrs = [{<<"label">>, translate:translate(Lang, <<"moderators only">>)}],
-                               children = [#xmlel{name = <<"value">>,
-                                                  children = [#xmlcdata{content = <<"moderators">>}]}]},
-                        #xmlel{name = <<"option">>,
-                               attrs = [{<<"label">>, translate:translate(Lang, <<"anyone">>)}],
-                               children = [#xmlel{name = <<"value">>,
-                                                  children = [#xmlcdata{content = <<"anyone">>}]}]}]},
+     getmemberlist_field(Lang),
+     maxusers_field(Lang, StateData),
+     whois_field(Lang, Config),
      boolxfield(<<"Make room members-only">>,
              <<"muc#roomconfig_membersonly">>,
               Config#config.members_only, Lang),
@@ -3595,64 +3443,162 @@ get_config(Lang, StateData, From) ->
              <<"muc#roomconfig_allowvisitornickchange">>,
               Config#config.allow_visitor_nickchange, Lang)
     ] ++
-    case mod_muc_log:check_access_log(
-           StateData#state.server_host, From) of
-        allow ->
-        [boolxfield(
-            <<"Enable logging">>,
-            <<"muc#roomconfig_enablelogging">>,
-             Config#config.logging, Lang)];
-        _ -> []
-    end,
-    {result, [#xmlel{name = <<"instructions">>,
-                     children = [#xmlcdata{content = translate:translate(
-                                                       Lang, <<"You need an x:data capable client to configure room">>)}]},
-          #xmlel{name = <<"x">>,
-                 attrs = [{<<"xmlns">>, ?NS_XDATA},
-               {<<"type">>, <<"form">>}],
-                 children = Res}],
+     case mod_muc_log:check_access_log(StateData#state.server_host, From) of
+         allow ->
+             [boolxfield(
+                <<"Enable logging">>,
+                <<"muc#roomconfig_enablelogging">>,
+                Config#config.logging, Lang)];
+         _ -> []
+     end,
+    InstructionsTxt = translate:translate(
+                        Lang, <<"You need an x:data capable client to configure room">>),
+    {result, [#xmlel{name = <<"instructions">>, children = [#xmlcdata{content = InstructionsTxt}]},
+              #xmlel{name = <<"x">>,
+                     attrs = [{<<"xmlns">>, ?NS_XDATA},
+                              {<<"type">>, <<"form">>}],
+                     children = Res}],
      StateData}.
 
+-spec getmemberlist_field(Lang :: ejabberd:lang()) -> exml:element().
+getmemberlist_field(Lang) ->
+    LabelTxt = translate:translate(
+                 Lang, <<"Roles and affiliations that may retrieve member list">>),
+    OptModerator = #xmlel{name = <<"option">>,
+                          attrs = [{<<"label">>, translate:translate(Lang, <<"moderator">>)}],
+                          children = [
+                                      #xmlel{name = <<"value">>,
+                                             children = [#xmlcdata{content = <<"moderator">>}]}
+                                     ]},
+    OptParticipant = #xmlel{name = <<"option">>,
+                            attrs = [{<<"label">>, translate:translate(Lang, <<"participant">>)}],
+                            children = [
+                                        #xmlel{name = <<"value">>,
+                                               children = [#xmlcdata{content = <<"participant">>}]}
+                                       ]},
+    OptVisitor = #xmlel{name = <<"option">>,
+                              attrs = [{<<"label">>, translate:translate(Lang, <<"visitor">>)}],
+                              children = [
+                                          #xmlel{name = <<"value">>,
+                                                 children = [#xmlcdata{content = <<"visitor">>}]}
+                                         ]},
+    #xmlel{name = <<"field">>,
+           attrs = [{<<"type">>, <<"list-multi">>},
+                    {<<"label">>, LabelTxt},
+                    {<<"var">>, <<"muc#roomconfig_getmemberlist">>}],
+           children = [
+                       #xmlel{name = <<"value">>,
+                              children = [#xmlcdata{content = <<"moderator">>}]},
+                       #xmlel{name = <<"value">>,
+                              children = [#xmlcdata{content = <<"participant">>}]},
+                       #xmlel{name = <<"value">>,
+                              children = [#xmlcdata{content = <<"visitor">>}]},
+                       OptModerator,
+                       OptParticipant,
+                       OptVisitor
+                      ]
+          }.
+
+maxusers_field(Lang, StateData) ->
+    ServiceMaxUsers = get_service_max_users(StateData),
+    DefaultRoomMaxUsers = get_default_room_maxusers(StateData),
+    {MaxUsersRoomInteger, MaxUsersRoomString} =
+    case get_max_users(StateData) of
+        N when is_integer(N) ->
+            {N, integer_to_binary(N)};
+        _ -> {0, <<"none">>}
+    end,
+
+    #xmlel{name = <<"field">>,
+           attrs = [{<<"type">>, <<"list-single">>},
+                    {<<"label">>, translate:translate(Lang, <<"Maximum Number of Occupants">>)},
+                    {<<"var">>, <<"muc#roomconfig_maxusers">>}],
+           children = [#xmlel{name = <<"value">>,
+                              children = [#xmlcdata{content = MaxUsersRoomString}]}] ++
+           if
+               is_integer(ServiceMaxUsers) -> [];
+               true ->
+                   [#xmlel{name = <<"option">>,
+                           attrs = [{<<"label">>, translate:translate(Lang, <<"No limit">>)}],
+                           children = [#xmlel{name = <<"value">>,
+                                              children = [#xmlcdata{content = <<"none">>}]}]}]
+           end ++
+           [#xmlel{name = <<"option">>,
+                   attrs = [{<<"label">>, list_to_binary(integer_to_list(N))}],
+                   children = [#xmlel{name = <<"value">>,
+                                      children = [#xmlcdata{content = integer_to_binary(N)}]}]} ||
+            N <- lists:usort([ServiceMaxUsers, DefaultRoomMaxUsers, MaxUsersRoomInteger |
+                              ?MAX_USERS_DEFAULT_LIST]), N =< ServiceMaxUsers]}.
+
+-spec whois_field(Lang :: ejabberd:lang(), Config :: config()) -> exml:element().
+whois_field(Lang, Config) ->
+    OptModerators = #xmlel{name = <<"option">>,
+                           attrs = [{<<"label">>,
+                                     translate:translate(Lang, <<"moderators only">>)}],
+                           children = [#xmlel{name = <<"value">>,
+                                              children = [#xmlcdata{content = <<"moderators">>}]}]},
+    OptAnyone = #xmlel{name = <<"option">>,
+                       attrs = [{<<"label">>, translate:translate(Lang, <<"anyone">>)}],
+                       children = [#xmlel{name = <<"value">>,
+                                          children = [#xmlcdata{content = <<"anyone">>}]}]},
+    #xmlel{name = <<"field">>,
+           attrs = [{<<"type">>, <<"list-single">>},
+                    {<<"label">>, translate:translate(Lang, <<"Present real Jabber IDs to">>)},
+                    {<<"var">>, <<"muc#roomconfig_whois">>}],
+           children = [#xmlel{name = <<"value">>,
+                              children = [#xmlcdata{content = if Config#config.anonymous ->
+                                                                     <<"moderators">>;
+                                                                 true ->
+                                                                     <<"anyone">>
+                                                              end}]},
+                       OptModerators,
+                       OptAnyone]}.
 
 -spec set_config(jlib:xmlel(), state()) -> any().
 set_config(XEl, StateData) ->
     XData = jlib:parse_xdata_submit(XEl),
     case XData of
-    invalid ->
-        {error, ?ERR_BAD_REQUEST};
-    _ ->
-        case set_xoption(XData, StateData#state.config) of
-        #config{} = Config ->
-            Res = change_config(Config, StateData),
-            {result, _, NSD} = Res,
-            Type = case {(StateData#state.config)#config.logging,
-                 Config#config.logging} of
-                   {true, false} ->
-                                  send_config_update(logging_disabled, StateData),
-                      roomconfig_change_disabledlogging;
-                   {false, true} ->
-                                  send_config_update(logging_enabled, StateData),
-                      roomconfig_change_enabledlogging;
-                               {_, _} -> case {(StateData#state.config)#config.anonymous,
-                                    Config#config.anonymous} of
-                      {true, false} ->
-                                      send_config_update(nonanonymous, StateData),
-                                      roomconfig_change_nonanonymous;
-                                  {false, true} ->
-                                      send_config_update(semianonymous, StateData),
-                                      roomconfig_change_anonymous;
-                                  {_, _} ->
-                      roomconfig_change
-                                end
-               end,
-            Users = [{U#user.jid, U#user.nick, U#user.role} ||
-                     {_, U} <- dict:to_list(StateData#state.users)],
-            add_to_log(Type, Users, NSD),
-            Res;
-        Err ->
-            Err
-        end
+        invalid ->
+            {error, ?ERR_BAD_REQUEST};
+        _ ->
+            case set_xoption(XData, StateData#state.config) of
+                #config{} = Config ->
+                    Res = change_config(Config, StateData),
+                    {result, _, NSD} = Res,
+                    PrevLogging = (StateData#state.config)#config.logging,
+                    NewLogging = Config#config.logging,
+                    PrevAnon = (StateData#state.config)#config.anonymous,
+                    NewAnon = Config#config.anonymous,
+                    Type = notify_config_change_and_get_type(PrevLogging, NewLogging,
+                                                             PrevAnon, NewAnon, StateData),
+                    Users = [{U#user.jid, U#user.nick, U#user.role} ||
+                             {_, U} <- dict:to_list(StateData#state.users)],
+                    add_to_log(Type, Users, NSD),
+                    Res;
+                Err ->
+                    Err
+            end
     end.
+
+-spec notify_config_change_and_get_type(PrevLogging :: boolean(), NewLogging :: boolean(),
+                                        PrevAnon :: boolean(), NewAnon :: boolean(),
+                                        StateData :: state()) ->
+    roomconfig_change_disabledlogging | roomconfig_change_enabledlogging
+    | roomconfig_change_nonanonymous | roomconfig_change_anonymous | roomconfig_change.
+notify_config_change_and_get_type(true, false, _, _, StateData) ->
+    send_config_update(logging_disabled, StateData),
+    roomconfig_change_disabledlogging;
+notify_config_change_and_get_type(false, true, _, _, StateData) ->
+    send_config_update(logging_enabled, StateData),
+    roomconfig_change_enabledlogging;
+notify_config_change_and_get_type(_, _, true, false, StateData) ->
+    send_config_update(nonanonymous, StateData),
+    roomconfig_change_nonanonymous;
+notify_config_change_and_get_type(_, _, false, true, StateData) ->
+    send_config_update(semianonymous, StateData),
+    roomconfig_change_anonymous;
+notify_config_change_and_get_type(_, _, _, _, _StateData) ->
+    roomconfig_change.
 
 -define(SET_BOOL_XOPT(Opt, Val),
     case Val of
@@ -4037,15 +3983,15 @@ get_title(StateData) ->
                         ) -> 'false' | {'item', _}.
 get_roomdesc_reply(JID, StateData, Tail) ->
     IsOccupantOrAdmin = is_occupant_or_admin(JID, StateData),
-    if (StateData#state.config)#config.public or IsOccupantOrAdmin ->
-        if (StateData#state.config)#config.public_list or IsOccupantOrAdmin ->
-                    Title = get_title(StateData),
+    case {(StateData#state.config)#config.public or IsOccupantOrAdmin,
+          (StateData#state.config)#config.public_list or IsOccupantOrAdmin} of
+        {true, true} ->
+            Title = get_title(StateData),
             {item, <<Title/binary, Tail/binary>>};
-           true ->
-            {item, get_title(StateData)}
-        end;
-       true ->
-        false
+        {true, false} ->
+            {item, get_title(StateData)};
+        _ ->
+            false
     end.
 
 
@@ -4087,24 +4033,20 @@ check_voice_approval(From, [#xmlel{name = <<"x">>,
                                    children = Items}], _Lang, StateData) ->
     BRole = get_field(<<"muc#role">>, Items),
     case Items of
-    [_Form, _Role] ->
-        case catch binary_to_role(BRole) of
-        {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
-        _ -> {form, BRole}
-        end;
-    _ ->
-        case get_role(From, StateData) of
-        moderator ->
-            case get_field(<<"muc#request_allow">>, Items) of
-            <<"true">> ->
-                case get_field(<<"muc#roomnick">>, Items) of
-                false -> {error, ?ERR_BAD_REQUEST};
-                RoomNick -> {role, BRole, RoomNick}
-                end;
-            _ -> ok
+        [_Form, _Role] ->
+            case catch binary_to_role(BRole) of
+                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                _ -> {form, BRole}
             end;
-        _ -> {error, ?ERR_NOT_ALLOWED}
-        end
+        _ ->
+            case {get_role(From, StateData),
+                  get_field(<<"muc#request_allow">>, Items),
+                  get_field(<<"muc#roomnick">>, Items)} of
+                {moderator, <<"true">>, false} -> {error, ?ERR_BAD_REQUEST};
+                {moderator, <<"true">>, RoomNick} -> {role, BRole, RoomNick};
+                {moderator, _, _} -> ok;
+                _ -> {error, ?ERR_NOT_ALLOWED}
+            end
     end.
 
 
@@ -4139,46 +4081,52 @@ check_invitation(FromJID, Els, Lang, StateData) ->
 -spec unsafe_check_invitation(ejabberd:jid(), [jlib:xmlcdata() | jlib:xmlel()],
                               ejabberd:lang(), state()) -> {ok, [ejabberd:jid()]}.
 unsafe_check_invitation(FromJID, Els, Lang,
-    StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
+                        StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
     FAffiliation = get_affiliation(FromJID, StateData),
     CanInvite = (StateData#state.config)#config.allow_user_invites
-         orelse (FAffiliation == admin)
-         orelse (FAffiliation == owner),
+                orelse (FAffiliation == admin)
+                orelse (FAffiliation == owner),
     case CanInvite of
-    false ->
-        throw({error, ?ERR_FORBIDDEN});
-    true ->
-        InviteEls = find_invite_elems(Els),
-        %% Decode all JIDs first, so we fail early if any JID is invalid.
-        JIDs = lists:map(fun decode_destination_jid/1, InviteEls),
-        lists:foreach(
-          fun(InviteEl) ->
-                  JID = decode_destination_jid(InviteEl),
-                  %% Create an invitation message and send it to the user.
-                  Reason = decode_reason(InviteEl),
-                  ContinueEl =
-                      case xml:get_path_s(InviteEl, [{elem, <<"continue">>}]) of
-                          <<>> -> [];
-                          Continue1 -> [Continue1]
-                      end,
-                  ReasonEl = #xmlel{
-                                name = <<"reason">>,
-                                children = [#xmlcdata{content = Reason}]},
-                  OutInviteEl = #xmlel{
-                                   name = <<"invite">>,
-                                   attrs = [{<<"from">>, jid:to_binary(FromJID)}],
-                                   children = [ReasonEl] ++ ContinueEl},
-                  PasswdEl = create_password_elem(StateData),
-                  BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
-                  Msg = create_invite_message_elem(
-                          OutInviteEl, BodyEl, PasswdEl, Reason),
-                  ejabberd_hooks:run(invitation_sent, Host,
-                                     [Host, ServerHost, RoomJID, FromJID, JID, Reason]),
-                  ejabberd_router:route(StateData#state.jid, JID, Msg)
-          end, InviteEls),
-        {ok, JIDs}
+        false ->
+            throw({error, ?ERR_FORBIDDEN});
+        true ->
+            InviteEls = find_invite_elems(Els),
+            %% Decode all JIDs first, so we fail early if any JID is invalid.
+            JIDs = lists:map(fun decode_destination_jid/1, InviteEls),
+            lists:foreach(
+              fun(InviteEl) ->
+                      {JID, Reason, Msg} = create_invite(FromJID, InviteEl, Lang, StateData),
+                      ejabberd_hooks:run(invitation_sent, Host,
+                                         [Host, ServerHost, RoomJID, FromJID, JID, Reason]),
+                      ejabberd_router:route(StateData#state.jid, JID, Msg)
+              end, InviteEls),
+            {ok, JIDs}
     end.
 
+-spec create_invite(FromJID :: jid(), InviteEl :: exml:element(),
+                    Lang :: ejabberd:lang(), StateData :: state()) ->
+    {JID :: jid(), Reason :: binary(), Msg :: exml:element()}.
+create_invite(FromJID, InviteEl, Lang, StateData) ->
+    JID = decode_destination_jid(InviteEl),
+    %% Create an invitation message and send it to the user.
+    Reason = decode_reason(InviteEl),
+    ContinueEl =
+    case xml:get_path_s(InviteEl, [{elem, <<"continue">>}]) of
+        <<>> -> [];
+        Continue1 -> [Continue1]
+    end,
+    ReasonEl = #xmlel{
+                  name = <<"reason">>,
+                  children = [#xmlcdata{content = Reason}]},
+    OutInviteEl = #xmlel{
+                     name = <<"invite">>,
+                     attrs = [{<<"from">>, jid:to_binary(FromJID)}],
+                     children = [ReasonEl] ++ ContinueEl},
+    PasswdEl = create_password_elem(StateData),
+    BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
+    Msg = create_invite_message_elem(
+            OutInviteEl, BodyEl, PasswdEl, Reason),
+    {JID, Reason, Msg}.
 
 -spec decode_destination_jid(jlib:xmlel()) -> ejabberd:jid().
 decode_destination_jid(InviteEl) ->
@@ -4281,11 +4229,10 @@ create_invite_message_elem(InviteEl, BodyEl, PasswdEl, Reason)
                     state(), ejabberd:simple_jid() | ejabberd:jid()) -> 'ok'.
 handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From) ->
     case catch check_decline_invitation(Packet) of
-        {true, Decline_data} ->
-            send_decline_invitation(Decline_data, StateData#state.jid, From);
+        {true, DeclineData} ->
+            send_decline_invitation(DeclineData, StateData#state.jid, From);
         _ ->
-            send_error_only_occupants(<<"messages">>, Packet, Lang,
-                                      StateData#state.jid, From)
+            send_error_only_occupants(<<"messages">>, Packet, Lang, StateData#state.jid, From)
     end.
 
 
@@ -4403,84 +4350,61 @@ element_size(El) ->
 
 -spec route_message(routed_message(), state()) -> state().
 route_message(#routed_message{allowed = true, type = <<"groupchat">>,
-    from = From, packet = Packet, lang = Lang}, StateData) ->
+                              from = From, packet = Packet, lang = Lang}, StateData) ->
     Activity = get_user_activity(From, StateData),
     Now = now_to_usec(os:timestamp()),
-    MinMessageInterval = trunc(gen_mod:get_module_opt(
-        StateData#state.server_host,
-        mod_muc, min_message_interval, 0) * 1000000),
+    MinMessageInterval = trunc(gen_mod:get_module_opt(StateData#state.server_host,
+                                                      mod_muc, min_message_interval, 0) * 1000000),
     Size = element_size(Packet),
-    {MessageShaper, MessageShaperInterval} =
-        shaper:update(Activity#activity.message_shaper, Size),
-    if
-        Activity#activity.message /= undefined ->
+    {MessageShaper, MessageShaperInterval} = shaper:update(Activity#activity.message_shaper, Size),
+    case {Activity#activity.message /= undefined,
+          Now >= Activity#activity.message_time + MinMessageInterval,
+          MessageShaperInterval} of
+        {true, _, _} ->
             ErrText = <<"Traffic rate limit is exceeded">>,
-            Err = jlib:make_error_reply(
-                Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
-            ejabberd_router:route(
-                StateData#state.jid,
-                From, Err),
+            Err = jlib:make_error_reply(Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
+            ejabberd_router:route(StateData#state.jid, From, Err),
             StateData;
-        Now >= Activity#activity.message_time + MinMessageInterval,
-            MessageShaperInterval == 0 ->
-            {RoomShaper, RoomShaperInterval} =
-                shaper:update(StateData#state.room_shaper, Size),
-            RoomQueueEmpty = queue:is_empty(
-                StateData#state.room_queue),
-            if
-                RoomShaperInterval == 0, RoomQueueEmpty ->
+        {false, true, 0} ->
+            {RoomShaper, RoomShaperInterval} = shaper:update(StateData#state.room_shaper, Size),
+            RoomQueueEmpty = queue:is_empty(StateData#state.room_queue),
+            case {RoomShaperInterval, RoomQueueEmpty} of
+                {0, true} ->
                     NewActivity = Activity#activity{
-                            message_time = Now,
-                            message_shaper = MessageShaper},
-                    StateData1 = store_user_activity(
-                        From, NewActivity, StateData),
-                    StateData2 =
-                        StateData1#state{room_shaper = RoomShaper},
+                                    message_time = Now,
+                                    message_shaper = MessageShaper},
+                    StateData1 = store_user_activity(From, NewActivity, StateData),
+                    StateData2 = StateData1#state{room_shaper = RoomShaper},
                     {next_state, normal_state, StateData3, _} =
-                        process_groupchat_message(From, Packet, StateData2),
+                    process_groupchat_message(From, Packet, StateData2),
                     StateData3;
-                true ->
-                    StateData1 =
-                    if
-                        RoomQueueEmpty ->
-                            erlang:send_after(RoomShaperInterval, self(),
-                                process_room_queue),
-                        StateData#state{room_shaper = RoomShaper};
-                        true ->
-                            StateData
-                    end,
+                _ ->
+                    StateData1 = schedule_queue_processing_when_empty(
+                                   RoomQueueEmpty, RoomShaper, RoomShaperInterval, StateData),
                     NewActivity = Activity#activity{
-                        message_time = Now,
-                        message_shaper = MessageShaper,
-                        message = Packet},
-                    RoomQueue = queue:in(
-                        {message, From},
-                        StateData#state.room_queue),
-                    StateData2 = store_user_activity(
-                        From, NewActivity, StateData1),
-                    StateData3 = StateData2#state{room_queue = RoomQueue},
-                    StateData3
+                                    message_time = Now,
+                                    message_shaper = MessageShaper,
+                                    message = Packet},
+                    RoomQueue = queue:in({message, From}, StateData#state.room_queue),
+                    StateData2 = store_user_activity(From, NewActivity, StateData1),
+                    StateData2#state{room_queue = RoomQueue}
             end;
-        true ->
-            MessageInterval =
-                (Activity#activity.message_time +
-                MinMessageInterval - Now) div 1000,
-                Interval = lists:max([MessageInterval, MessageShaperInterval]),
-                erlang:send_after(
-                    Interval, self(), {process_user_message, From}),
-                NewActivity = Activity#activity{
-                        message = Packet,
-                        message_shaper = MessageShaper},
-                StateData1 = store_user_activity(From, NewActivity, StateData),
-                StateData1
+        _ ->
+            MessageInterval = (Activity#activity.message_time + MinMessageInterval - Now) div 1000,
+            Interval = lists:max([MessageInterval, MessageShaperInterval]),
+            erlang:send_after(Interval, self(), {process_user_message, From}),
+            NewActivity = Activity#activity{
+                            message = Packet,
+                            message_shaper = MessageShaper},
+            store_user_activity(From, NewActivity, StateData)
     end;
 route_message(#routed_message{allowed = true, type = <<"error">>, from = From,
     packet = Packet, lang = Lang}, StateData) ->
     case is_user_online(From, StateData) of
         true ->
-            ErrorText = <<"This participant is kicked from the room because he sent an error message">>,
-            NewState = expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText)),
-            NewState;
+            ErrorText
+            = <<"This participant is kicked from the room because he sent an error message">>,
+            expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText));
         _ ->
             StateData
     end;
@@ -4521,6 +4445,16 @@ route_message(#routed_message{from = From, packet = Packet, lang = Lang},
     handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From),
     StateData.
 
+-spec schedule_queue_processing_when_empty(RoomQueueEmpty :: boolean(),
+                                           RoomShaper :: shaper:shaper(),
+                                           RoomShaperInterval :: non_neg_integer(),
+                                           StateData :: state()) -> state().
+schedule_queue_processing_when_empty(true, RoomShaper, RoomShaperInterval, StateData) ->
+    erlang:send_after(RoomShaperInterval, self(), process_room_queue),
+    StateData#state{room_shaper = RoomShaper};
+schedule_queue_processing_when_empty(_RoomQueueEmpty, _RoomShaper,
+                                     _RoomShaperInterval, StateData) ->
+    StateData.
 
 -spec route_error(mod_muc:nick(), ejabberd:jid(), jlib:xmlel(), state()) -> state().
 route_error(Nick, From, Error, StateData) ->
@@ -4574,36 +4508,28 @@ route_invitation({error, Error}, From, Packet, _Lang, StateData) ->
     Err = jlib:make_error_reply(Packet, Error),
     ejabberd_router:route(StateData#state.jid, From, Err),
     StateData;
-route_invitation({ok, IJIDs}, _From, _Packet, _Lang, StateData0) ->
-    Config = StateData0#state.config,
-    case Config#config.members_only of
-        true ->
-            lists:foldl(
-              fun(IJID, StateData) ->
-                      case get_affiliation(IJID, StateData) of
-                          none ->
-                              NSD = set_affiliation(
-                                      IJID,
-                                      member,
-                                      StateData),
-                              case (NSD#state.config)#config.persistent of
-                                  true ->
-                                      mod_muc:store_room(
-                                        NSD#state.host,
-                                        NSD#state.room,
-                                        make_opts(NSD));
-                                  _ ->
-                                      ok
-                              end,
-                              NSD;
-                          _ ->
-                              StateData
-                      end
-              end, StateData0, IJIDs);
-        false ->
-            StateData0
-    end.
+route_invitation({ok, IJIDs}, _From, _Packet, _Lang,
+                 #state{ config = #config{ members_only = true } } = StateData0) ->
+    lists:foldl(
+      fun(IJID, StateData) ->
+              case get_affiliation(IJID, StateData) of
+                  none ->
+                      NSD = set_affiliation(IJID, member, StateData),
+                      store_room_if_persistent(NSD),
+                      NSD;
+                  _ ->
+                      StateData
+              end
+      end, StateData0, IJIDs);
+route_invitation({ok, _IJIDs}, _From, _Packet, _Lang, StateData0) ->
+    StateData0.
 
+-spec store_room_if_persistent(state()) -> any().
+store_room_if_persistent(#state{ host = Host, room = Room,
+                                 config = #config{ persistent = true } } = StateData) ->
+    mod_muc:store_room(Host, Room, make_opts(StateData));
+store_room_if_persistent(_SD) ->
+    ok.
 
 -spec route_iq(routed_iq(), state()) -> {ok | stop, state()}.
 route_iq(#routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_ADMIN, lang = Lang,
@@ -4629,9 +4555,7 @@ route_iq(#routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
         ignore -> ok;
         error ->
             Err = jlib:make_error_reply(Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
-            ejabberd_router:route(RoomJID, From, Err);
-        ResIQ ->
-            ejabberd_router:route(RoomJID, From, jlib:iq_to_xml(ResIQ))
+            ejabberd_router:route(RoomJID, From, Err)
     end,
     {ok, StateData};
 route_iq(#routed_iq{iq = reply}, StateData) ->
@@ -4767,7 +4691,7 @@ route_nick_iq(#routed_nick_iq{packet = Packet, lang = Lang, nick = ToNick,
     ejabberd_router:route(RouteFrom, From, Err).
 
 
--spec decode_reason(jlib:xmlel()) -> any().
+-spec decode_reason(jlib:xmlel()) -> binary().
 decode_reason(Elem) ->
     xml:get_path_s(Elem, [{elem, <<"reason">>}, cdata]).
 

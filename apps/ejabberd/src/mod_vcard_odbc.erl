@@ -141,13 +141,10 @@ search_reported_fields(_VHost, Lang) ->
 make_restriction_sql(LServer, Data) ->
     filter_fields(Data, "", LServer).
 
+filter_fields([], "", _LServer) ->
+    "";
 filter_fields([], RestrictionSQLIn, LServer) ->
-    case RestrictionSQLIn of
-        "" ->
-            "";
-        _ ->
-            [" where ", [RestrictionSQLIn, " and ", ["server = '", mongoose_rdbms:escape(LServer), "'"]]]
-    end;
+    [" where ", [RestrictionSQLIn, " and ", ["server = '", mongoose_rdbms:escape(LServer), "'"]]];
 filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
   when is_binary(Val) and (Val /= <<"">>) ->
     LVal = stringprep:tolower(Val),

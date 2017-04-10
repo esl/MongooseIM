@@ -170,7 +170,7 @@ get_sha(AccountPass) ->
 
 -spec num_active_users(ejabberd:server(), integer()) -> non_neg_integer().
 num_active_users(Host, Days) ->
-    {MegaSecs, Secs, _MicroSecs} = now(),
+    {MegaSecs, Secs, _MicroSecs} = p1_time_compat:timestamp(),
     TimeStamp = MegaSecs * 1000000 + Secs,
     TS = TimeStamp - Days * 86400,
     case catch mod_last:count_active_users(Host, TS) of
@@ -206,7 +206,7 @@ delete_old_users(Days, Users) ->
     SecOlder = Days*24*60*60,
 
     %% Get current time
-    {MegaSecs, Secs, _MicroSecs} = now(),
+    {MegaSecs, Secs, _MicroSecs} = p1_time_compat:timestamp(),
     TimeStampNow = MegaSecs * 1000000 + Secs,
 
     %% Apply the remove function to every user in the list

@@ -56,14 +56,14 @@ read_roster_version(LUser, LServer) ->
         [] -> error
     end.
 
-write_roster_version(LUser, LServer, InTransaction, Ver) ->
-    US = {LUser, LServer},
-    if InTransaction ->
-           mnesia:write(#roster_version{us = US, version = Ver});
-       true ->
-           mnesia:dirty_write(#roster_version{us = US,
-                                              version = Ver})
-    end.
+-spec write_roster_version(LUser :: ejabberd:luser(),
+                           LServer :: ejabberd:lserver(),
+                           InTransaction :: boolean(),
+                           Ver :: binary()) -> ok.
+write_roster_version(LUser, LServer, true, Ver) ->
+    mnesia:write(#roster_version{us = {LUser, LServer}, version = Ver});
+write_roster_version(LUser, LServer, _, Ver) ->
+    mnesia:dirty_write(#roster_version{us = {LUser, LServer}, version = Ver}).
 
 get_roster(LUser, LServer) ->
     US = {LUser, LServer},

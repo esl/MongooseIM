@@ -11,6 +11,8 @@
 -define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
 -define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).
 
+-define(PUBSUB_SUB_DOMAIN, "push").
+
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -96,7 +98,7 @@ has_disco_identity(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Server = escalus_client:server(Alice),
+            Server = node_addr(),
             escalus:send(Alice, escalus_stanza:disco_info(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(has_identity, [<<"pubsub">>, <<"push">>], Stanza)
@@ -336,7 +338,7 @@ domain() ->
 
 node_addr() ->
     Domain = domain(),
-    <<"pubsub.", Domain/binary>>.
+    <<?PUBSUB_SUB_DOMAIN, ".", Domain/binary>>.
 
 rand_name(Prefix) ->
     Suffix = base64:encode(crypto:rand_bytes(5)),
@@ -390,12 +392,15 @@ next_rest_req() ->
         throw(rest_mock_timeout)
     end.
 
+pubsub_host(Host) ->
+    ?PUBSUB_SUB_DOMAIN ++ "." ++ Host.
+
 %% Module config
 required_modules() ->
     [{mod_pubsub, [
         {plugins, [<<"dag">>, <<"push">>]},
         {nodetree, <<"dag">>},
-        {host, "pubsub.@HOST@"}
+        {host, ?PUBSUB_SUB_DOMAIN ++ ".@HOST@"}
     ]},
      {mod_push_service_mongoosepush, [
          {pool_name, mongoose_push_http},

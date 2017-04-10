@@ -50,8 +50,8 @@
          c2s_presence_in/2, c2s_filter_packet/6,
          c2s_broadcast_recipients/6]).
 
-%% cleanup for test cases
--export([delete_caps/1]).
+%% for test cases
+-export([delete_caps/1, make_disco_hash/2]).
 
 -include("ejabberd.hrl").
 

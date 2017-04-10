@@ -123,6 +123,9 @@ init_per_suite(Config) ->
     stringprep:start(),
     Config.
 
+end_per_suite(_) ->
+    ok.
+
 init_per_testcase(_, Config) ->
     meck:new([gen_mod, erlcloud_sns, wpool], [non_strict, passthrough]),
     meck:expect(erlcloud_sns, new, fun(_, _, _) -> mod_aws_sns_SUITE_erlcloud_sns_new end),

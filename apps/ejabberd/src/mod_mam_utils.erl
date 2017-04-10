@@ -17,7 +17,8 @@
          encode_compact_uuid/2,
          decode_compact_uuid/1,
          mess_id_to_external_binary/1,
-         external_binary_to_mess_id/1]).
+         external_binary_to_mess_id/1,
+         wrapper_id/0]).
 
 %% XML
 -export([is_archived_elem_for/2,
@@ -31,6 +32,7 @@
          get_one_of_path/3,
          is_archivable_message/3,
          wrap_message/6,
+         wrap_message/7,
          result_set/4,
          result_query/2,
          result_prefs/4,
@@ -150,7 +152,7 @@ microseconds_to_now(MicroSeconds) when is_integer(MicroSeconds) ->
     {Seconds div 1000000, Seconds rem 1000000, MicroSeconds rem 1000000}.
 
 
-%% @doc Returns time in `now()' format.
+%% @doc Returns time in `timestamp()' format.
 -spec iso8601_datetime_binary_to_timestamp(iso8601_datetime_binary())
         -> erlang:timestamp() | undefined.
 iso8601_datetime_binary_to_timestamp(DateTime) when is_binary(DateTime) ->
@@ -175,8 +177,11 @@ microseconds_to_datetime(MicroSeconds) when is_integer(MicroSeconds) ->
 -spec generate_message_id() -> integer().
 generate_message_id() ->
     {ok, NodeId} = ejabberd_node_id:node_id(),
-    %% Use monotone function here.
-    encode_compact_uuid(now_to_microseconds(now()), NodeId).
+    %% Unique enough
+    {T1, T2, T3} = p1_time_compat:timestamp(),
+    ImprovedTS = {T1, T2,
+                  (T3 div 1000) * 1000 + p1_time_compat:unique_integer([positive]) rem 1000 },
+    encode_compact_uuid(now_to_microseconds(ImprovedTS), NodeId).
 
 
 %% @doc Create a message ID (UID).
@@ -346,11 +351,16 @@ is_valid_message_children(_,      _,    _,     _    ) -> false.
                    MessageUID :: term(), DateTime :: calendar:datetime(),
                    SrcJID :: ejabberd:jid()) -> Wrapper :: jlib:xmlel().
 wrap_message(MamNs, Packet, QueryID, MessageUID, DateTime, SrcJID) ->
-    #xmlel{
-       name = <<"message">>,
-       attrs = [],
-       children = [result(MamNs, QueryID, MessageUID,
-                          [forwarded(Packet, DateTime, SrcJID)])]}.
+    wrap_message(MamNs, Packet, QueryID, MessageUID, wrapper_id(), DateTime, SrcJID).
+
+-spec wrap_message(MamNs :: binary(), Packet :: jlib:xmlel(), QueryID :: binary(),
+                   MessageUID :: term(), WrapperI :: binary(), DateTime :: calendar:datetime(),
+                   SrcJID :: ejabberd:jid()) -> Wrapper :: jlib:xmlel().
+wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, DateTime, SrcJID) ->
+    #xmlel{ name = <<"message">>,
+            attrs = [{<<"id">>, WrapperID}],
+            children = [result(MamNs, QueryID, MessageUID,
+                               [forwarded(Packet, DateTime, SrcJID)])] }.
 
 -spec forwarded(jlib:xmlel(), calendar:datetime(), ejabberd:jid())
                -> jlib:xmlel().
@@ -932,6 +942,11 @@ success_sql_execute(HostOrConn, Name, Params) ->
 
 error_on_sql_error(HostOrConn, Query, {error, Reason}) ->
     ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p", [HostOrConn, Query, Reason]),
-    error({sql_error, Reason});
+            error({sql_error, Reason});
 error_on_sql_error(_HostOrConn, _Query, Result) ->
     Result.
+
+%% @doc Returns a UUIDv4 canonical form binary.
+-spec wrapper_id() -> binary().
+wrapper_id() ->
+    uuid:uuid_to_string(uuid:get_v4(), binary_standard).

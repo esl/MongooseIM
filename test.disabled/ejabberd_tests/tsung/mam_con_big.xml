@@ -58,7 +58,7 @@
       <!-- Returns a random message id of 10 minutes age -->
       <![CDATA[
         fun() ->
-            Now = now_to_microseconds(now()),
+            Now = now_to_microseconds(os:timestamp()),
             Microseconds = Now - random:uniform(600000000),
             NodeId = random:uniform(255),
             MessId = (Microseconds bsl 8) + NodeId,

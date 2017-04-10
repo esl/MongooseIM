@@ -315,7 +315,7 @@ apply_aff_users_change([{User1, _} | _] = AU, NAU, [{User2, member} | RAUC], CD,
 apply_aff_users_change([{User1, _} | _] = _AU, _NAU, [{User2, none} | _RAUC], _CD, _NO, _JA, _LA)
   when User1 > User2 ->
     % Meaningless change - user not in the room
-    {error, bad_request}; 
+    {error, bad_request};
 apply_aff_users_change([{User1, _} | _] = AU, NAU, [{User2, _} = NewAffUser | RAUC], CD, NO, JA, LA)
   when User1 > User2 ->
     %% Adding new member to a room - owner or member

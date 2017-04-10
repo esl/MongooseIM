@@ -248,7 +248,7 @@ num_active_users(Config) ->
     {AliceName, Domain, _} = get_user_data(alice, Config),
     {MikeName, Domain, _} = get_user_data(mike, Config),
 
-    {Mega, Secs, _} = erlang:now(),
+    {Mega, Secs, _} = os:timestamp(),
     Now = Mega*1000000+Secs,
     set_last(AliceName, Domain, Now),
     {Result, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
@@ -263,7 +263,7 @@ delete_old_users(Config) ->
     {KateName, Domain, _} = get_user_data(kate, Config),
     {MikeName, Domain, _} = get_user_data(mike, Config),
 
-    {Mega, Secs, _} = erlang:now(),
+    {Mega, Secs, _} = os:timestamp(),
     Now = Mega*1000000+Secs,
     set_last(AliceName, Domain, Now),
     set_last(BobName, Domain, Now),
@@ -280,7 +280,7 @@ delete_old_users_vhost(Config) ->
     {KateName, Domain, KatePass} = get_user_data(kate, Config),
     SecDomain = ct:get_config({hosts, mim, secondary_domain}),
 
-    {Mega, Secs, _} = erlang:now(),
+    {Mega, Secs, _} = os:timestamp(),
     Now = Mega*1000000+Secs,
     set_last(AliceName, Domain, Now-86400*30),
 
@@ -715,7 +715,7 @@ set_last(Config) ->
 
                 escalus:wait_for_stanza(Alice), % ignore push
 
-                Now = usec:to_sec(usec:from_now(erlang:now())),
+                Now = usec:to_sec(usec:from_now(os:timestamp())),
                 TS = integer_to_list(Now - 7200),
                 {_, 0} = ejabberdctl("set_last", [BobName, Domain, TS, "Status"], Config),
                 escalus:send(Alice, escalus_stanza:last_activity(BobJid)),
@@ -984,9 +984,9 @@ remove_old_messages_test(Config) ->
                                       "Hi, how are you? Its old message!"),
         Msg2 = escalus_stanza:chat_to(<<"bob@", Domain/binary>>,
                                       "Hello its new message!"),
-        OldTimestamp = fallback_timestamp(10, now()),
+        OldTimestamp = fallback_timestamp(10, os:timestamp()),
         OfflineOld = generate_offline_message(JidRecordAlice, JidRecordBob, Msg1, OldTimestamp),
-        OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, now()),
+        OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, os:timestamp()),
         {jid, _, _, _, LUser, LServer, _} = JidRecordBob,
         rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNew]]),
         %% when
@@ -1012,17 +1012,17 @@ remove_expired_messages_test(Config) ->
                                       "More wine..."),
         Msg4 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>,
                                       "kings of leon"),
-        OldTimestamp = fallback_timestamp(10, now()),
-        ExpirationTime = fallback_timestamp(2, now()),
-        ExpirationTimeFuture= fallback_timestamp(-5, now()),
+        OldTimestamp = fallback_timestamp(10, os:timestamp()),
+        ExpirationTime = fallback_timestamp(2, os:timestamp()),
+        ExpirationTimeFuture= fallback_timestamp(-5, os:timestamp()),
         OfflineOld = generate_offline_expired_message(JidRecordMike,
                                                       JidRecordKate, Msg1,
                                                       OldTimestamp,
                                                       ExpirationTime),
         OfflineNow = generate_offline_expired_message(JidRecordMike,
-                             JidRecordKate, Msg2, now(), ExpirationTime),
+                             JidRecordKate, Msg2, os:timestamp(), ExpirationTime),
         OfflineFuture = generate_offline_expired_message(JidRecordMike,
-                             JidRecordKate, Msg3, now(), ExpirationTimeFuture),
+                             JidRecordKate, Msg3, os:timestamp(), ExpirationTimeFuture),
         OfflineFuture2 = generate_offline_expired_message(JidRecordMike,
                                                           JidRecordKate, Msg4,
                                                           OldTimestamp,

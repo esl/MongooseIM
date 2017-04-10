@@ -1,8 +1,8 @@
 %% @doc Stores a table of custom IQ-handlers for mod_muc_room.
 -module(mod_muc_iq).
+
 -export([start_link/0,
          process_iq/4,
-         register_iq_handler/4,
          register_iq_handler/5,
          unregister_iq_handler/2]).
 
@@ -36,12 +36,9 @@ start_link() ->
 %% @doc Handle custom IQ.
 %% Called from mod_muc_room.
 -spec process_iq(ejabberd:server(), ejabberd:jid(), ejabberd:jid(),
-        ejabberd:iq()) -> error | ignore | any().
+        ejabberd:iq()) -> error | ignore.
 process_iq(Host, From, RoomJID, IQ = #iq{xmlns = XMLNS}) ->
     case ets:lookup(tbl_name(), {XMLNS, Host}) of
-        [{_, Module, Function}] ->
-            %% TODO: Introduce some stricter type checking here
-            Module:Function(From, RoomJID, IQ);
         [{_, Module, Function, Opts}] ->
             gen_iq_handler:handle(Host, Module, Function, Opts, From,
                                   RoomJID, IQ),
@@ -50,20 +47,13 @@ process_iq(Host, From, RoomJID, IQ = #iq{xmlns = XMLNS}) ->
     end.
 
 
--spec register_iq_handler(ejabberd:server(), binary(), module(), atom()) -> 'ok'.
-register_iq_handler(Host, XMLNS, Module, Fun) ->
-    gen_server:cast(srv_name(),
-                    {register_iq_handler, Host, XMLNS, Module, Fun}).
-
-
--spec register_iq_handler(ejabberd:server(), binary(), module(), atom(), any())
-            -> 'ok'.
+-spec register_iq_handler(ejabberd:server(), binary(), module(), atom(), any()) -> ok.
 register_iq_handler(Host, XMLNS, Module, Fun, Opts) ->
     gen_server:cast(srv_name(),
                     {register_iq_handler, Host, XMLNS, Module, Fun, Opts}).
 
 
--spec unregister_iq_handler(ejabberd:server(), binary()) -> 'ok'.
+-spec unregister_iq_handler(ejabberd:server(), binary()) -> ok.
 unregister_iq_handler(Host, XMLNS) ->
     gen_server:cast(srv_name(),
                     {unregister_iq_handler, Host, XMLNS}).
@@ -103,9 +93,6 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
-handle_cast({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
-    ets:insert(tbl_name(), {{XMLNS, Host}, Module, Function}),
-    {noreply, State};
 handle_cast({register_iq_handler, Host, XMLNS, Module, Function, Opts}, State) ->
     ets:insert(tbl_name(), {{XMLNS, Host}, Module, Function, Opts}),
     {noreply, State};

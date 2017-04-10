@@ -614,7 +614,7 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
 
         [] = get_user_resources(AliceSpec),
         [] = get_sid_by_stream_id(SMID),
-        false = escalus_connection:is_connected(Alice)
+        escalus_connection:wait_for_close(Alice, timer:seconds(5))
     end).
 
 resume_session_with_wrong_sid_returns_item_not_found(Config) ->

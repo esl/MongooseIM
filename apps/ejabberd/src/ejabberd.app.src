@@ -13,6 +13,7 @@
                   cache_tab,
                   cowboy,
                   crypto,
+                  csv,
                   cuesport,
                   exml,
                   exometer,

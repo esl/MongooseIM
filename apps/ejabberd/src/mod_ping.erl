@@ -38,8 +38,6 @@
 -define(DEFAULT_PING_INTERVAL, 60). % seconds
 -define(DEFAULT_PING_REQ_TIMEOUT, 32).
 
--define(DICT, dict).
-
 %% API
 -export([start_link/2, start_ping/2, stop_ping/2]).
 
@@ -62,7 +60,9 @@
                 ping_interval = ?DEFAULT_PING_INTERVAL,
                 timeout_action = none,
                 ping_req_timeout = ?DEFAULT_PING_REQ_TIMEOUT,
-                timers = ?DICT:new()}).
+                timers = dict:new()}).
+
+-type state() :: #state{}.
 
 %%====================================================================
 %% API
@@ -98,6 +98,8 @@ stop(Host) ->
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
+
+-spec init(Args :: list()) -> {ok, state()}.
 init([Host, Opts]) ->
     SendPings = gen_mod:get_opt(send_pings, Opts, ?DEFAULT_SEND_PINGS),
     PingInterval = gen_mod:get_opt(ping_interval, Opts, ?DEFAULT_PING_INTERVAL),
@@ -117,7 +119,7 @@ init([Host, Opts]) ->
                 ping_interval = timer:seconds(PingInterval),
                 timeout_action = TimeoutAction,
                 ping_req_timeout = timer:seconds(PingReqTimeout),
-                timers = ?DICT:new()}}.
+                timers = dict:new()}}.
 
 maybe_add_hooks_handlers(Host, true) ->
     ejabberd_hooks:add(sm_register_connection_hook, Host,
@@ -225,22 +227,22 @@ user_keep_alive(Acc, JID) ->
 %%====================================================================
 add_timer(JID, Interval, Timers) ->
     LJID = jid:to_lower(JID),
-    NewTimers = case ?DICT:find(LJID, Timers) of
+    NewTimers = case dict:find(LJID, Timers) of
                     {ok, OldTRef} ->
                         cancel_timer(OldTRef),
-                        ?DICT:erase(LJID, Timers);
+                        dict:erase(LJID, Timers);
                     _ ->
                         Timers
                 end,
     TRef = erlang:start_timer(Interval, self(), {ping, JID}),
-    ?DICT:store(LJID, TRef, NewTimers).
+    dict:store(LJID, TRef, NewTimers).
 
 del_timer(JID, Timers) ->
     LJID = jid:to_lower(JID),
-    case ?DICT:find(LJID, Timers) of
+    case dict:find(LJID, Timers) of
         {ok, TRef} ->
             cancel_timer(TRef),
-            ?DICT:erase(LJID, Timers);
+            dict:erase(LJID, Timers);
         _ ->
             Timers
     end.

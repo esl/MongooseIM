@@ -61,7 +61,10 @@ groups() ->
     ].
 
 rw_tests() ->
-    [update_own_card].
+    [
+     update_own_card,
+     cant_update_own_card_with_invalid_field
+    ].
 
 ro_full_search_tests() ->
     [retrieve_own_card,
@@ -192,6 +195,18 @@ do_update_own_card(Config) ->
                     = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
                 <<"Old name">>
                     = stanza_get_vcard_field_cdata(Client1GetResultStanza, <<"FN">>)
+        end).
+
+cant_update_own_card_with_invalid_field(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Client1) ->
+                %% One of "Non-character code points". Banned in stringrep but still valid UTF.
+                Client1Fields = [{<<"FN">>, <<243,191,191,190>>}],
+                Client1SetResultStanza
+                    = escalus:send_and_wait(Client1,
+                                        escalus_stanza:vcard_update(Client1Fields)),
+                escalus:assert(is_iq_error, Client1SetResultStanza)
         end).
 
 retrieve_own_card(Config) ->
@@ -411,6 +426,7 @@ search_wildcard(Config) ->
                 end
         end).
 
+<<<<<<< HEAD
 search_wildcard_all(Config) ->
     escalus:story(
         Config, [{bob, 1}],
@@ -436,11 +452,17 @@ search_wildcard_all(Config) ->
                 end
         end).
 
+=======
+>>>>>>> upstream/master
 search_rsm_pages(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
+<<<<<<< HEAD
                 Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+=======
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
+>>>>>>> upstream/master
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -452,35 +474,68 @@ search_rsm_pages(Config) ->
                         Iq1,
                         #xmlel{name = <<"set">>,
                                attrs = [{<<"xmlns">>, ?NS_RSM}],
+<<<<<<< HEAD
                                children = [#xmlel{name = "max",
                                                   children = [#xmlcdata{content = <<"1">>}]}
                                           ]}
+=======
+                               children =
+                                   [#xmlel{name = "max",
+                                           children =
+                                               [#xmlcdata{content = <<"1">>}]
+                                          }
+                                   ]}
+>>>>>>> upstream/master
                        ),
 
                 Res1 = escalus:send_and_wait(Client, Iq2),
                 escalus:assert(is_iq_result, Res1),
 
+<<<<<<< HEAD
                 RSMCount1 = exml_query:path(Res1, [{element, <<"query">>},
                                                    {element, <<"set">>},
                                                    {element, <<"count">>},
                                                    cdata]),
                 <<"2">> = RSMCount1,
+=======
+                RSMCount1 = get_rsm_count(Res1),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount1;
+                    false ->
+                        <<"2">> = RSMCount1
+                end,
+>>>>>>> upstream/master
                 ItemTups1 = search_result_item_tuples(Res1),
 
                 Iq3 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
                                attrs = [{<<"xmlns">>, ?NS_RSM}],
+<<<<<<< HEAD
                                children = [#xmlel{name = "max",
                                                   children = [#xmlcdata{content = <<"1">>}]},
                                            #xmlel{name = "index",
                                                   children = [#xmlcdata{content = <<"1">>}]}
                                           ]}
+=======
+                               children =
+                                   [#xmlel{name = "max",
+                                           children =
+                                               [#xmlcdata{content = <<"1">>}]
+                                          },
+                                    #xmlel{name = "index",
+                                           children =
+                                               [#xmlcdata{content = <<"1">>}]
+                                          }
+                                   ]}
+>>>>>>> upstream/master
                        ),
 
                 Res2 = escalus:send_and_wait(Client, Iq3),
                 escalus:assert(is_iq_result, Res2),
 
+<<<<<<< HEAD
                 RSMCount2 = exml_query:path(Res2, [{element, <<"query">>},
                                                    {element, <<"set">>},
                                                    {element, <<"count">>},
@@ -490,11 +545,30 @@ search_rsm_pages(Config) ->
                 ExpectedItemTups = get_search_results(Config,
                                                       [<<"bobb@localhost.bis">>,
                                                        <<"aliceb@localhost.bis">>]),
+=======
+                RSMCount2 = get_rsm_count(Res2),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2;
+                    false ->
+                        <<"2">> = RSMCount2
+                end,
+                ItemTups2 = search_result_item_tuples(Res2),
+                ExpectedItemTups = get_search_results(
+                                     Config,
+                                     [<<"bobb@localhost.bis">>,
+                                      <<"aliceb@localhost.bis">>]),
+>>>>>>> upstream/master
                 case vcard_simple_SUITE:is_vcard_ldap() of
                     true ->
                         ignore;
                     _ ->
+<<<<<<< HEAD
                         list_unordered_key_match2(ExpectedItemTups, ItemTups1 ++ ItemTups2)
+=======
+                        list_unordered_key_match2(ExpectedItemTups,
+                                                  ItemTups1 ++ ItemTups2)
+>>>>>>> upstream/master
                 end
         end).
 
@@ -502,7 +576,11 @@ search_rsm_forward(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
+<<<<<<< HEAD
                 Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+=======
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
+>>>>>>> upstream/master
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -514,14 +592,24 @@ search_rsm_forward(Config) ->
                         Iq1,
                         #xmlel{name = <<"set">>,
                                attrs = [{<<"xmlns">>, ?NS_RSM}],
+<<<<<<< HEAD
                                children = [#xmlel{name = "max",
                                                   children = [#xmlcdata{content = <<"1">>}]}
                                           ]}
+=======
+                               children =
+                                   [#xmlel{name = "max",
+                                           children =
+                                               [#xmlcdata{content = <<"1">>}]
+                                          }
+                                   ]}
+>>>>>>> upstream/master
                        ),
 
                 Res1 = escalus:send_and_wait(Client, Iq2),
                 escalus:assert(is_iq_result, Res1),
 
+<<<<<<< HEAD
                 RSMCount1 = exml_query:path(Res1, [{element, <<"query">>},
                                                    {element, <<"set">>},
                                                    {element, <<"count">>},
@@ -531,22 +619,46 @@ search_rsm_forward(Config) ->
                                                   {element, <<"set">>},
                                                   {element, <<"last">>},
                                                   cdata]),
+=======
+                RSMCount1 = get_rsm_count(Res1),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount1;
+                    false ->
+                        <<"2">> = RSMCount1
+                end,
+                RSMLast1 = get_rsm_last(Res1),
+>>>>>>> upstream/master
                 ItemTups1 = search_result_item_tuples(Res1),
 
                 Iq3 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
                                attrs = [{<<"xmlns">>, ?NS_RSM}],
+<<<<<<< HEAD
                                children = [#xmlel{name = "max",
                                                   children = [#xmlcdata{content = <<"1">>}]},
                                            #xmlel{name = "after",
                                                   children = [#xmlcdata{content = RSMLast1}]}
                                           ]}
+=======
+                               children =
+                                   [#xmlel{name = "max",
+                                           children =
+                                               [#xmlcdata{content = <<"1">>}]
+                                          },
+                                    #xmlel{name = "after",
+                                           children =
+                                               [#xmlcdata{content = RSMLast1}]
+                                          }
+                                   ]}
+>>>>>>> upstream/master
                        ),
 
                 Res2 = escalus:send_and_wait(Client, Iq3),
                 escalus:assert(is_iq_result, Res2),
 
+<<<<<<< HEAD
                 RSMCount2 = exml_query:path(Res2, [{element, <<"query">>},
                                                    {element, <<"set">>},
                                                    {element, <<"count">>},
@@ -560,40 +672,89 @@ search_rsm_forward(Config) ->
                 ExpectedItemTups = get_search_results(Config,
                                                       [<<"bobb@localhost.bis">>,
                                                        <<"aliceb@localhost.bis">>]),
+=======
+                RSMCount2 = get_rsm_count(Res2),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2;
+                    false ->
+                        <<"2">> = RSMCount2
+                end,
+                RSMLast2 = get_rsm_last(Res2),
+                ItemTups2 = search_result_item_tuples(Res2),
+                ExpectedItemTups = get_search_results(
+                                     Config,
+                                     [<<"bobb@localhost.bis">>,
+                                      <<"aliceb@localhost.bis">>]),
+>>>>>>> upstream/master
                 case vcard_simple_SUITE:is_vcard_ldap() of
                     true ->
                         ignore;
                     _ ->
+<<<<<<< HEAD
                         list_unordered_key_match2(ExpectedItemTups, ItemTups1 ++ ItemTups2)
+=======
+                        list_unordered_key_match2(ExpectedItemTups,
+                                                  ItemTups1 ++ ItemTups2)
+>>>>>>> upstream/master
                 end,
 
                 Iq4 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
                                attrs = [{<<"xmlns">>, ?NS_RSM}],
+<<<<<<< HEAD
                                children = [#xmlel{name = "max",
                                                   children = [#xmlcdata{content = <<"1">>}]},
                                            #xmlel{name = "after",
                                                   children = [#xmlcdata{content = RSMLast2}]}
                                           ]}
+=======
+                               children =
+                                   [#xmlel{name = "max",
+                                           children =
+                                               [#xmlcdata{content = <<"1">>}]
+                                          },
+                                    #xmlel{name = "after",
+                                           children =
+                                               [#xmlcdata{content = RSMLast2}]
+                                          }
+                                   ]}
+>>>>>>> upstream/master
                        ),
 
                 Res3 = escalus:send_and_wait(Client, Iq4),
                 escalus:assert(is_iq_result, Res3),
 
+<<<<<<< HEAD
                 RSMCount2 = exml_query:path(Res3, [{element, <<"query">>},
                                                    {element, <<"set">>},
                                                    {element, <<"count">>},
                                                    cdata]),
                 <<"2">> = RSMCount2,
                 [] = search_result_item_tuples(Res3)
+=======
+                RSMCount2 = get_rsm_count(Res3),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2,
+                        [_] = search_result_item_tuples(Res3);
+                    false ->
+                        <<"2">> = RSMCount2,
+                        [] = search_result_item_tuples(Res3)
+                end
+>>>>>>> upstream/master
         end).
 
 search_rsm_backward(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
+<<<<<<< HEAD
                 Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+=======
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
+>>>>>>> upstream/master
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -605,15 +766,26 @@ search_rsm_backward(Config) ->
                         Iq1,
                         #xmlel{name = <<"set">>,
                                attrs = [{<<"xmlns">>, ?NS_RSM}],
+<<<<<<< HEAD
                                children = [#xmlel{name = "max",
                                                   children = [#xmlcdata{content = <<"1">>}]},
                                            #xmlel{name = "before"}
                                           ]}
+=======
+                               children =
+                                   [#xmlel{name = "max",
+                                           children =
+                                               [#xmlcdata{content = <<"1">>}]
+                                          },
+                                    #xmlel{name = "before"}
+                                   ]}
+>>>>>>> upstream/master
                        ),
 
                 Res1 = escalus:send_and_wait(Client, Iq2),
                 escalus:assert(is_iq_result, Res1),
 
+<<<<<<< HEAD
                 RSMCount1 = exml_query:path(Res1, [{element, <<"query">>},
                                                    {element, <<"set">>},
                                                    {element, <<"count">>},
@@ -623,22 +795,46 @@ search_rsm_backward(Config) ->
                                                    {element, <<"set">>},
                                                    {element, <<"first">>},
                                                    cdata]),
+=======
+                RSMCount1 = get_rsm_count(Res1),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount1;
+                    false ->
+                        <<"2">> = RSMCount1
+                end,
+                RSMFirst1 = get_rsm_first(Res1),
+>>>>>>> upstream/master
                 ItemTups1 = search_result_item_tuples(Res1),
 
                 Iq3 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
                                attrs = [{<<"xmlns">>, ?NS_RSM}],
+<<<<<<< HEAD
                                children = [#xmlel{name = "max",
                                                   children = [#xmlcdata{content = <<"1">>}]},
                                            #xmlel{name = "before",
                                                   children = [#xmlcdata{content = RSMFirst1}]}
                                           ]}
+=======
+                               children =
+                                   [#xmlel{name = "max",
+                                           children =
+                                               [#xmlcdata{content = <<"1">>}]
+                                          },
+                                    #xmlel{name = "before",
+                                           children =
+                                               [#xmlcdata{content = RSMFirst1}]
+                                          }
+                                   ]}
+>>>>>>> upstream/master
                        ),
 
                 Res2 = escalus:send_and_wait(Client, Iq3),
                 escalus:assert(is_iq_result, Res2),
 
+<<<<<<< HEAD
                 RSMCount2 = exml_query:path(Res2, [{element, <<"query">>},
                                                    {element, <<"set">>},
                                                    {element, <<"count">>},
@@ -652,40 +848,89 @@ search_rsm_backward(Config) ->
                 ExpectedItemTups = get_search_results(Config,
                                                       [<<"bobb@localhost.bis">>,
                                                        <<"aliceb@localhost.bis">>]),
+=======
+                RSMCount2 = get_rsm_count(Res2),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2;
+                    false ->
+                        <<"2">> = RSMCount2
+                end,
+                RSMFirst2 = get_rsm_first(Res2),
+                ItemTups2 = search_result_item_tuples(Res2),
+                ExpectedItemTups = get_search_results(
+                                     Config,
+                                     [<<"bobb@localhost.bis">>,
+                                      <<"aliceb@localhost.bis">>]),
+>>>>>>> upstream/master
                 case vcard_simple_SUITE:is_vcard_ldap() of
                     true ->
                         ignore;
                     _ ->
+<<<<<<< HEAD
                         list_unordered_key_match2(ExpectedItemTups, ItemTups1 ++ ItemTups2)
+=======
+                        list_unordered_key_match2(ExpectedItemTups,
+                                                  ItemTups1 ++ ItemTups2)
+>>>>>>> upstream/master
                 end,
 
                 Iq4 = append_to_query(
                         Iq1,
                         #xmlel{name = <<"set">>,
                                attrs = [{<<"xmlns">>, ?NS_RSM}],
+<<<<<<< HEAD
                                children = [#xmlel{name = "max",
                                                   children = [#xmlcdata{content = <<"1">>}]},
                                            #xmlel{name = "before",
                                                   children = [#xmlcdata{content = RSMFirst2}]}
                                           ]}
+=======
+                               children =
+                                   [#xmlel{name = "max",
+                                           children =
+                                               [#xmlcdata{content = <<"1">>}]
+                                          },
+                                    #xmlel{name = "before",
+                                           children =
+                                               [#xmlcdata{content = RSMFirst2}]
+                                          }
+                                   ]}
+>>>>>>> upstream/master
                        ),
 
                 Res3 = escalus:send_and_wait(Client, Iq4),
                 escalus:assert(is_iq_result, Res3),
 
+<<<<<<< HEAD
                 RSMCount2 = exml_query:path(Res3, [{element, <<"query">>},
                                                    {element, <<"set">>},
                                                    {element, <<"count">>},
                                                    cdata]),
                 <<"2">> = RSMCount2,
                 [] = search_result_item_tuples(Res3)
+=======
+                RSMCount2 = get_rsm_count(Res3),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount2,
+                        [_] = search_result_item_tuples(Res3);
+                    false ->
+                        <<"2">> = RSMCount2,
+                        [] = search_result_item_tuples(Res3)
+                end
+>>>>>>> upstream/master
         end).
 
 search_rsm_count(Config) ->
     escalus:story(
         Config, [{bob, 1}],
         fun(Client) ->
+<<<<<<< HEAD
                 Domain = escalus_ct:get_config(ejabberd_secondary_domain),
+=======
+                Domain = ct:get_config({hosts, mim, secondary_domain}),
+>>>>>>> upstream/master
                 DirJID = <<"vjud.", Domain/binary>>,
                 Fields = [{get_full_name_search_field(),
                            <<"Doe*">>}],
@@ -697,9 +942,18 @@ search_rsm_count(Config) ->
                         Iq1,
                         #xmlel{name = <<"set">>,
                                attrs = [{<<"xmlns">>, ?NS_RSM}],
+<<<<<<< HEAD
                                children = [#xmlel{name = "max",
                                                   children = [#xmlcdata{content = <<"0">>}]}
                                           ]}
+=======
+                               children =
+                                   [#xmlel{name = "max",
+                                           children =
+                                               [#xmlcdata{content = <<"0">>}]
+                                          }
+                                   ]}
+>>>>>>> upstream/master
                        ),
 
                 Res = escalus:send_and_wait(Client, Iq2),
@@ -708,6 +962,7 @@ search_rsm_count(Config) ->
                 ItemTups = search_result_item_tuples(Res),
                 0 = length(ItemTups),
 
+<<<<<<< HEAD
                 RSMCount = exml_query:path(Res, [{element, <<"query">>},
                                                  {element, <<"set">>},
                                                  {element, <<"count">>},
@@ -716,6 +971,35 @@ search_rsm_count(Config) ->
 
         end).
 
+=======
+                RSMCount = get_rsm_count(Res),
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        <<"3">> = RSMCount;
+                    false ->
+                        <<"2">> = RSMCount
+                end
+        end).
+
+get_rsm_count(El) ->
+    exml_query:path(El, [{element, <<"query">>},
+                         {element, <<"set">>},
+                         {element, <<"count">>},
+                         cdata]).
+
+get_rsm_first(El) ->
+    exml_query:path(El, [{element, <<"query">>},
+                         {element, <<"set">>},
+                         {element, <<"first">>},
+                         cdata]).
+
+get_rsm_last(El) ->
+    exml_query:path(El, [{element, <<"query">>},
+                         {element, <<"set">>},
+                         {element, <<"last">>},
+                         cdata]).
+
+>>>>>>> upstream/master
 append_to_query(#xmlel{name = <<"iq">>,
                        children = IqChildren} = Iq,
                 NewChild) ->

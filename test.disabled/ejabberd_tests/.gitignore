@@ -3,3 +3,4 @@
 /ebin
 /deps
 /cover_summary.txt
+vm.dist.args

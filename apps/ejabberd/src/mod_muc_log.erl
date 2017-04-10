@@ -48,7 +48,9 @@
 
 -define(T(Text), translate:translate(Lang, Text)).
 -define(PROCNAME, ejabberd_mod_muc_log).
+
 -record(room, {jid, title, subject, subject_author, config}).
+-type room() :: #room{}.
 
 -type command() :: 'join'
                  | 'kickban'
@@ -158,7 +160,7 @@ init([Host, Opts]) ->
     AccessLog = gen_mod:get_opt(access_log, Opts, muc_admin),
     Timezone = gen_mod:get_opt(timezone, Opts, local),
     {TL1, TL2} = gen_mod:get_opt(top_link, Opts, {"/", "Home"}),
-    Top_link = {list_to_binary(TL1), list_to_binary(TL2)},
+    TopLink = {list_to_binary(TL1), list_to_binary(TL2)},
     NoFollow = gen_mod:get_opt(spam_prevention, Opts, true),
     Lang = case ejabberd_config:get_local_option({language, Host}) of
                undefined ->
@@ -178,7 +180,7 @@ init([Host, Opts]) ->
                 lang = Lang,
                 timezone = Timezone,
                 spam_prevention = NoFollow,
-                top_link = Top_link}}.
+                top_link = TopLink}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -360,11 +362,11 @@ get_timestamp_daydiff(TimeStamp, Daydiff) ->
 
 %% @doc Try to close the previous day log, if it exists
 -spec close_previous_log(binary(), any(), file_format()) -> 'ok' | {'error', atom()}.
-close_previous_log(Fn, Images_dir, FileFormat) ->
+close_previous_log(Fn, ImagesDir, FileFormat) ->
     case file:read_file_info(Fn) of
         {ok, _} ->
             {ok, F} = file:open(Fn, [append]),
-            write_last_lines(F, Images_dir, FileFormat),
+            write_last_lines(F, ImagesDir, FileFormat),
             file:close(F);
         _ -> ok
     end.
@@ -375,11 +377,17 @@ write_last_lines(_, _, plaintext) ->
     ok;
 write_last_lines(F, ImagesDir, _FileFormat) ->
     fw(F, <<"<div class=\"legend\">">>),
-    fw(F, <<"  <a href=\"http://www.ejabberd.im\"><img style=\"border:0\" src=\"", ImagesDir/binary, "/powered-by-ejabberd.png\" alt=\"Powered by ejabberd\"/></a>">>),
-    fw(F, <<"  <a href=\"http://www.erlang.org/\"><img style=\"border:0\" src=\"", ImagesDir/binary, "/powered-by-erlang.png\" alt=\"Powered by Erlang\"/></a>">>),
+    fw(F, <<"  <a href=\"http://www.ejabberd.im\"><img style=\"border:0\" src=\"", ImagesDir/binary,
+            "/powered-by-ejabberd.png\" alt=\"Powered by ejabberd\"/></a>">>),
+    fw(F, <<"  <a href=\"http://www.erlang.org/\"><img style=\"border:0\" src=\"", ImagesDir/binary,
+            "/powered-by-erlang.png\" alt=\"Powered by Erlang\"/></a>">>),
     fw(F, <<"<span class=\"w3c\">">>),
-    fw(F, <<"  <a href=\"http://validator.w3.org/check?uri=referer\"><img style=\"border:0;width:88px;height:31px\" src=\"", ImagesDir/binary, "/valid-xhtml10.png\" alt=\"Valid XHTML 1.0 Transitional\" /></a>">>),
-    fw(F, <<"  <a href=\"http://jigsaw.w3.org/css-validator/\"><img style=\"border:0;width:88px;height:31px\" src=\"", ImagesDir/binary, "/vcss.png\" alt=\"Valid CSS!\"/></a>">>),
+    fw(F, <<"  <a href=\"http://validator.w3.org/check?uri=referer\">"
+            "<img style=\"border:0;width:88px;height:31px\" src=\"", ImagesDir/binary,
+            "/valid-xhtml10.png\" alt=\"Valid XHTML 1.0 Transitional\" /></a>">>),
+    fw(F, <<"  <a href=\"http://jigsaw.w3.org/css-validator/\">"
+            "<img style=\"border:0;width:88px;height:31px\" src=\"", ImagesDir/binary,
+            "/vcss.png\" alt=\"Valid CSS!\"/></a>">>),
     fw(F, <<"</span></div></body></html>">>).
 
 
@@ -399,12 +407,13 @@ add_message_to_log(Nick1, Message, RoomJID, Opts, State) ->
     Room = get_room_info(RoomJID, Opts),
     Nick = htmlize(Nick1, FileFormat),
     Nick2 = htmlize(<<"<", Nick1/binary, ">">>, FileFormat),
-    Now = now(),
+    Now = p1_time_compat:timestamp(),
     TimeStamp = case Timezone of
                     local -> calendar:now_to_local_time(Now);
                     universal -> calendar:now_to_universal_time(Now)
                 end,
-    {Fd, Fn, _Dir} = build_filename_string(TimeStamp, OutDir, Room#room.jid, DirType, DirName, FileFormat),
+    {Fd, Fn, _Dir} = build_filename_string(TimeStamp, OutDir, Room#room.jid,
+                                           DirType, DirName, FileFormat),
     {Date, Time} = TimeStamp,
 
     %% Open file, create if it does not exist, create parent dirs if needed
@@ -430,75 +439,86 @@ add_message_to_log(Nick1, Message, RoomJID, Opts, State) ->
             put_header(F, Room, Datestring, CSSFile, Lang,
                        HourOffset, DatePrev, DateNext, TopLink, FileFormat, OccupantsMap),
 
-            Images_dir = <<OutDir/binary, "images">>,
-            file:make_dir(Images_dir),
-            create_image_files(Images_dir),
-            Images_url = case DirType of
+            ImagesDir = <<OutDir/binary, "images">>,
+            file:make_dir(ImagesDir),
+            create_image_files(ImagesDir),
+            ImagesUrl = case DirType of
                              subdirs -> <<"../../../images">>;
                              plain -> <<"../images">>
                          end,
-            close_previous_log(FnYesterday, Images_url, FileFormat)
+            close_previous_log(FnYesterday, ImagesUrl, FileFormat)
     end,
 
     %% Build message
-    Text = case Message of
-               roomconfig_change ->
-                       RoomConfig = roomconfig_to_binary(Room#room.config, Lang, FileFormat),
-                       put_room_config(F, RoomConfig, Lang, FileFormat),
-                       <<"<font class=\"mrcm\">", (?T(<<"Chatroom configuration modified">>))/binary, "</font><br/>">>;
-               {roomconfig_change, Occupants} ->
-                       RoomConfig = roomconfig_to_binary(Room#room.config, Lang, FileFormat),
-                       put_room_config(F, RoomConfig, Lang, FileFormat),
-                       RoomOccupants = roomoccupants_to_binary(Occupants, FileFormat),
-                       put_room_occupants(F, RoomOccupants, Lang, FileFormat),
-                       <<"<font class=\"mrcm\">", (?T(<<"Chatroom configuration modified">>))/binary, "</font><br/>">>;
-               join ->
-                       <<"<font class=\"mj\">", Nick/binary, " ", (?T(<<"joins the room">>))/binary, "</font><br/>">>;
-               leave ->
-                       <<"<font class=\"mj\">", Nick/binary, " ", (?T(<<"leaves the room">>))/binary, "</font><br/>">>;
-               {leave, Reason} ->
-                       <<"<font class=\"ml\">", Nick/binary, " ", (?T(<<"leaves the room">>))/binary, ": ",
-                            (htmlize(Reason, NoFollow, FileFormat))/binary, ": ~s</font><br/>">>;
-               {kickban, "301", ""} ->
-                       <<"<font class=\"mb\">", Nick/binary, " ", (?T(<<"has been banned">>))/binary, "</font><br/>">>;
-               {kickban, "301", Reason} ->
-                       <<"<font class=\"mb\">", Nick/binary, " ", (?T(<<"has been banned">>))/binary, ": ",
-                            (htmlize(Reason, FileFormat))/binary, "</font><br/>">>;
-               {kickban, "307", ""} ->
-                       <<"<font class=\"mk\">", Nick/binary, " ", (?T(<<"has been kicked">>))/binary, "</font><br/>">>;
-               {kickban, "307", Reason} ->
-                       <<"<font class=\"mk\">", Nick/binary, " ", (?T(<<"has been kicked">>))/binary, ": ",
-                            (htmlize(Reason, FileFormat))/binary, "</font><br/>">>;
-               {kickban, "321", ""} ->
-                       <<"<font class=\"mk\">", Nick/binary, " ",
-                            (?T(<<"has been kicked because of an affiliation change">>))/binary, "</font><br/>">>;
-               {kickban, "322", ""} ->
-                       <<"<font class=\"mk\">", Nick/binary, " ",
-                            (?T(<<"has been kicked because the room has been changed to members-only">>))/binary, "</font><br/>">>;
-               {kickban, "332", ""} ->
-                       <<"<font class=\"mk\">", Nick/binary, " ",
-                            (?T(<<"has been kicked because of a system shutdown">>))/binary, "</font><br/>">>;
-               {nickchange, OldNick} ->
-                       <<"<font class=\"mnc\">", (htmlize(OldNick, FileFormat))/binary, " ",
-                            (?T(<<"is now known as">>))/binary, " ", Nick/binary, "</font><br/>">>;
-               {subject, T} ->
-                      <<"<font class=\"msc\">", Nick/binary, (?T(<<" has set the subject to: ">>))/binary,
-                            (htmlize(T, NoFollow, FileFormat))/binary, "</font><br/>">>;
-               {body, T} ->
-                       case {re:run(T, <<"^/me\s">>, [{capture, none}]), Nick} of
-                           {_, ""} ->
-                                   <<"<font class=\"msm\">", (htmlize(T, NoFollow, FileFormat))/binary, "</font><br/>">>;
-                           {match, _} ->
-                       %% Delete "/me " from the beginning.
-                               <<_Pref:32, SubStr/binary>> = htmlize(T, FileFormat),
-                                   <<"<font class=\"mne\">", Nick/binary, " ", SubStr/binary, "</font><br/>">>;
-                           {nomatch, _} ->
-                                   <<"<font class=\"mn\">", Nick2/binary, "</font> ",
-                                        (htmlize(T, NoFollow, FileFormat))/binary, "<br/>">>
-                       end;
-               {room_existence, RoomNewExistence} ->
-                       <<"<font class=\"mrcm\">", (get_room_existence_string(RoomNewExistence, Lang))/binary, "</font><br/>">>
-           end,
+    Text
+    = case Message of
+          roomconfig_change ->
+              RoomConfig = roomconfig_to_binary(Room#room.config, Lang, FileFormat),
+              put_room_config(F, RoomConfig, Lang, FileFormat),
+              <<"<font class=\"mrcm\">", (?T(<<"Chatroom configuration modified">>))/binary,
+                "</font><br/>">>;
+          {roomconfig_change, Occupants} ->
+              RoomConfig = roomconfig_to_binary(Room#room.config, Lang, FileFormat),
+              put_room_config(F, RoomConfig, Lang, FileFormat),
+              RoomOccupants = roomoccupants_to_binary(Occupants, FileFormat),
+              put_room_occupants(F, RoomOccupants, Lang, FileFormat),
+              <<"<font class=\"mrcm\">", (?T(<<"Chatroom configuration modified">>))/binary,
+                "</font><br/>">>;
+          join ->
+              <<"<font class=\"mj\">", Nick/binary, " ", (?T(<<"joins the room">>))/binary,
+                "</font><br/>">>;
+          leave ->
+              <<"<font class=\"mj\">", Nick/binary, " ", (?T(<<"leaves the room">>))/binary,
+                "</font><br/>">>;
+          {leave, Reason} ->
+              <<"<font class=\"ml\">", Nick/binary, " ", (?T(<<"leaves the room">>))/binary, ": ",
+                (htmlize(Reason, NoFollow, FileFormat))/binary, ": ~s</font><br/>">>;
+          {kickban, "301", ""} ->
+              <<"<font class=\"mb\">", Nick/binary, " ", (?T(<<"has been banned">>))/binary,
+                "</font><br/>">>;
+          {kickban, "301", Reason} ->
+              <<"<font class=\"mb\">", Nick/binary, " ", (?T(<<"has been banned">>))/binary, ": ",
+                (htmlize(Reason, FileFormat))/binary, "</font><br/>">>;
+          {kickban, "307", ""} ->
+              <<"<font class=\"mk\">", Nick/binary, " ", (?T(<<"has been kicked">>))/binary,
+                "</font><br/>">>;
+          {kickban, "307", Reason} ->
+              <<"<font class=\"mk\">", Nick/binary, " ", (?T(<<"has been kicked">>))/binary, ": ",
+                (htmlize(Reason, FileFormat))/binary, "</font><br/>">>;
+          {kickban, "321", ""} ->
+              <<"<font class=\"mk\">", Nick/binary, " ",
+                (?T(<<"has been kicked because of an affiliation change">>))/binary,
+                "</font><br/>">>;
+          {kickban, "322", ""} ->
+              <<"<font class=\"mk\">", Nick/binary, " ",
+                (?T(<<"has been kicked because the room has been changed to"
+                      " members-only">>))/binary, "</font><br/>">>;
+          {kickban, "332", ""} ->
+              <<"<font class=\"mk\">", Nick/binary, " ",
+                (?T(<<"has been kicked because of a system shutdown">>))/binary, "</font><br/>">>;
+          {nickchange, OldNick} ->
+              <<"<font class=\"mnc\">", (htmlize(OldNick, FileFormat))/binary, " ",
+                (?T(<<"is now known as">>))/binary, " ", Nick/binary, "</font><br/>">>;
+          {subject, T} ->
+              <<"<font class=\"msc\">", Nick/binary, (?T(<<" has set the subject to: ">>))/binary,
+                (htmlize(T, NoFollow, FileFormat))/binary, "</font><br/>">>;
+          {body, T} ->
+              case {re:run(T, <<"^/me\s">>, [{capture, none}]), Nick} of
+                  {_, ""} ->
+                      <<"<font class=\"msm\">", (htmlize(T, NoFollow, FileFormat))/binary,
+                        "</font><br/>">>;
+                  {match, _} ->
+                      %% Delete "/me " from the beginning.
+                      <<_Pref:32, SubStr/binary>> = htmlize(T, FileFormat),
+                      <<"<font class=\"mne\">", Nick/binary, " ", SubStr/binary, "</font><br/>">>;
+                  {nomatch, _} ->
+                      <<"<font class=\"mn\">", Nick2/binary, "</font> ",
+                        (htmlize(T, NoFollow, FileFormat))/binary, "<br/>">>
+              end;
+          {room_existence, RoomNewExistence} ->
+              <<"<font class=\"mrcm\">", (get_room_existence_string(RoomNewExistence, Lang))/binary,
+                "</font><br/>">>
+      end,
     {Hour, Minute, Second} = Time,
     STime = lists:flatten(
               io_lib:format("~2..0w:~2..0w:~2..0w", [Hour, Minute, Second])),
@@ -709,7 +729,7 @@ image_base64(<<"powered-by-ejabberd.png">>) ->
 
 
 -spec create_image_files(<<_:8, _:_*8>>) -> 'ok'.
-create_image_files(Images_dir) ->
+create_image_files(ImagesDir) ->
     Filenames = [<<"powered-by-ejabberd.png">>,
                  <<"powered-by-erlang.png">>,
                  <<"valid-xhtml10.png">>,
@@ -717,8 +737,8 @@ create_image_files(Images_dir) ->
                 ],
     lists:foreach(
       fun(Filename) ->
-              Filename_full = filename:join([Images_dir, Filename]),
-              {ok, F} = file:open(Filename_full, [write]),
+              FilenameFull = filename:join([ImagesDir, Filename]),
+              {ok, F} = file:open(FilenameFull, [write]),
               Image = jlib:decode_base64(image_base64(Filename)),
               io:format(F, "~s", [Image]),
               file:close(F)
@@ -743,16 +763,18 @@ fw(F, S, FileFormat) ->
     io:format(F, S2, []).
 
 
--spec put_header(file:io_device(), Room :: #room{}, Date :: binary(),
-        CSSFile :: boolean(), Lang :: ejabberd:lang(), Hour_offset :: integer(),
-        Date_prev :: binary(), Date_next :: binary(), Top_link :: tuple(),
+-spec put_header(file:io_device(), Room :: room(), Date :: binary(),
+        CSSFile :: boolean(), Lang :: ejabberd:lang(), HourOffset :: integer(),
+        DatePrev :: binary(), DateNext :: binary(), TopLink :: tuple(),
         file_format(), OccupantsMap :: #{binary() => [jid_nick_role()]}) -> 'ok'.
 put_header(_, _, _, _, _, _, _, _, _, plaintext, _) ->
     ok;
-put_header(F, Room, Date, CSSFile, Lang, Hour_offset, Date_prev, Date_next, Top_link, FileFormat,
+put_header(F, Room, Date, CSSFile, Lang, HourOffset, DatePrev, DateNext, TopLink, FileFormat,
            OccupantsMap) ->
-    fw(F, <<"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">">>),
-    fw(F, <<"<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"", Lang/binary, "\" lang=\"", Lang/binary, "\">">>),
+    fw(F, <<"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\""
+            " \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">">>),
+    fw(F, <<"<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"",
+            Lang/binary, "\" lang=\"", Lang/binary, "\">">>),
     fw(F, <<"<head>">>),
     fw(F, <<"<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />">>),
     fw(F, <<"<title>", (htmlize(Room#room.title))/binary, " - ", Date/binary, "</title>">>),
@@ -760,25 +782,32 @@ put_header(F, Room, Date, CSSFile, Lang, Hour_offset, Date_prev, Date_next, Top_
     put_header_script(F),
     fw(F, <<"</head>">>),
     fw(F, <<"<body>">>),
-    {Top_url, Top_text} = Top_link,
-    fw(F, <<"<div style=\"text-align: right;\"><a style=\"color: #AAAAAA; font-family: monospace; text-decoration: none; font-weight: bold;\" href=\"", Top_url/binary, "\">", Top_text/binary, "</a></div>">>),
+    {TopUrl, TopText} = TopLink,
+    fw(F, <<"<div style=\"text-align: right;\"><a style=\"color: #AAAAAA; font-family: monospace;"
+            " text-decoration: none; font-weight: bold;\" href=\"", TopUrl/binary, "\">",
+            TopText/binary, "</a></div>">>),
     fw(F, <<"<div class=\"roomtitle\">", (htmlize(Room#room.title))/binary, "</div>">>),
-    fw(F, <<"<a class=\"roomjid\" href=\"xmpp:", (Room#room.jid)/binary, "?join\">", (Room#room.jid)/binary, "</a>">>),
-    fw(F, <<"<div class=\"logdate\">", Date/binary, "<span class=\"w3c\"><a class=\"nav\" href=\"", Date_prev/binary, "\">&lt;</a> <a class=\"nav\" href=\".\/\">^</a> <a class=\"nav\" href=\"", Date_next/binary, "\">&gt;</a></span></div>">>),
+    fw(F, <<"<a class=\"roomjid\" href=\"xmpp:", (Room#room.jid)/binary, "?join\">",
+            (Room#room.jid)/binary, "</a>">>),
+    fw(F, <<"<div class=\"logdate\">", Date/binary, "<span class=\"w3c\"><a class=\"nav\" href=\"",
+            DatePrev/binary, "\">&lt;</a> <a class=\"nav\" href=\".\/\">^</a>"
+            " <a class=\"nav\" href=\"", DateNext/binary, "\">&gt;</a></span></div>">>),
     case {htmlize(Room#room.subject_author), htmlize(Room#room.subject)} of
-            {<<"">>, <<"">>} -> ok;
-            {SuA, Su} -> fw(F, <<"<div class=\"roomsubject\">", SuA/binary, (?T(<<" has set the subject to: ">>))/binary, Su/binary, "</div>">>)
+        {<<"">>, <<"">>} ->
+            ok;
+        {SuA, Su} -> fw(F, <<"<div class=\"roomsubject\">", SuA/binary,
+                             (?T(<<" has set the subject to: ">>))/binary, Su/binary, "</div>">>)
     end,
     RoomConfig = roomconfig_to_binary(Room#room.config, Lang, FileFormat),
     put_room_config(F, RoomConfig, Lang, FileFormat),
     Occupants = maps:get(Room#room.jid, OccupantsMap, []),
     RoomOccupants = roomoccupants_to_binary(Occupants, FileFormat),
     put_room_occupants(F, RoomOccupants, Lang, FileFormat),
-    Time_offset_bin = case Hour_offset<0 of
-                          true -> list_to_binary(lists:flatten(io_lib:format("~p", [Hour_offset])));
-                          false -> list_to_binary(lists:flatten(io_lib:format("+~p", [Hour_offset])))
+    TimeOffsetBin = case HourOffset<0 of
+                          true -> list_to_binary(lists:flatten(io_lib:format("~p", [HourOffset])));
+                          false -> list_to_binary(lists:flatten(io_lib:format("+~p", [HourOffset])))
         end,
-    fw(F, <<"<br/><a class=\"ts\">GMT", Time_offset_bin/binary, "</a><br/>">>).
+    fw(F, <<"<br/><a class=\"ts\">GMT", TimeOffsetBin/binary, "</a><br/>">>).
 
 
 -spec put_header_css(file:io_device(), 'false' | binary()) -> 'ok'.
@@ -796,13 +825,22 @@ put_header_css(F, false) ->
     fw(F, <<".mnc {color: #009900; font-style: italic;}">>),
     fw(F, <<".mn {color: #0000AA;}">>),
     fw(F, <<".mne {color: #AA0099;}">>),
-    fw(F, <<"a.nav {color: #AAAAAA; font-family: monospace; letter-spacing: 3px; text-decoration: none;}">>),
+    fw(F, <<"a.nav {color: #AAAAAA; font-family: monospace; letter-spacing: 3px;"
+            " text-decoration: none;}">>),
     fw(F, <<"div.roomtitle {border-bottom: #224466 solid 3pt; margin-left: 20pt;}">>),
-    fw(F, <<"div.roomtitle {color: #336699; font-size: 24px; font-weight: bold; font-family: sans-serif; letter-spacing: 3px; text-decoration: none;}">>),
-    fw(F, <<"a.roomjid {color: #336699; font-size: 24px; font-weight: bold; font-family: sans-serif; letter-spacing: 3px; margin-left: 20pt; text-decoration: none;}">>),
-    fw(F, <<"div.logdate {color: #663399; font-size: 20px; font-weight: bold; font-family: sans-serif; letter-spacing: 2px; border-bottom: #224466 solid 1pt; margin-left:80pt; margin-top:20px;}">>),
-    fw(F, <<"div.roomsubject {color: #336699; font-size: 18px; font-family: sans-serif; margin-left: 80pt; margin-bottom: 10px;}">>),
-    fw(F, <<"div.rc {color: #336699; font-size: 12px; font-family: sans-serif; margin-left: 50%; text-align: right; background: #f3f6f9; border-bottom: 1px solid #336699; border-right: 4px solid #336699;}">>),
+    fw(F, <<"div.roomtitle {color: #336699; font-size: 24px; font-weight: bold;"
+            " font-family: sans-serif; letter-spacing: 3px; text-decoration: none;}">>),
+    fw(F, <<"a.roomjid {color: #336699; font-size: 24px; font-weight: bold;"
+            " font-family: sans-serif; letter-spacing: 3px; margin-left: 20pt;"
+            " text-decoration: none;}">>),
+    fw(F, <<"div.logdate {color: #663399; font-size: 20px; font-weight: bold;"
+            " font-family: sans-serif; letter-spacing: 2px; border-bottom: #224466 solid 1pt;"
+            " margin-left:80pt; margin-top:20px;}">>),
+    fw(F, <<"div.roomsubject {color: #336699; font-size: 18px; font-family: sans-serif;"
+            " margin-left: 80pt; margin-bottom: 10px;}">>),
+    fw(F, <<"div.rc {color: #336699; font-size: 12px; font-family: sans-serif; margin-left: 50%;"
+            " text-align: right; background: #f3f6f9; border-bottom: 1px solid #336699;"
+            " border-right: 4px solid #336699;}">>),
     fw(F, <<"div.rct {font-weight: bold; background: #e3e6e9; padding-right: 10px;}">>),
     fw(F, <<"div.rcos {padding-right: 10px;}">>),
     fw(F, <<"div.rcoe {color: green;}">>),
@@ -810,13 +848,17 @@ put_header_css(F, false) ->
     fw(F, <<"div.rcoe:after {content: \": v\";}">>),
     fw(F, <<"div.rcod:after {content: \": x\";}">>),
     fw(F, <<"div.rcot:after {}">>),
-    fw(F, <<".legend {width: 100%; margin-top: 30px; border-top: #224466 solid 1pt;  padding: 10px 0px 10px 0px; text-align: left; font-family: monospace; letter-spacing: 2px;}">>),
-    fw(F, <<".w3c {position: absolute; right: 10px; width: 60%; text-align: right; font-family: monospace; letter-spacing: 1px;}">>),
+    fw(F, <<".legend {width: 100%; margin-top: 30px; border-top: #224466 solid 1pt;"
+            " padding: 10px 0px 10px 0px; text-align: left;"
+            " font-family: monospace; letter-spacing: 2px;}">>),
+    fw(F, <<".w3c {position: absolute; right: 10px; width: 60%; text-align: right;"
+            " font-family: monospace; letter-spacing: 1px;}">>),
     fw(F, <<"//-->">>),
     fw(F, <<"</style>">>);
 put_header_css(F, CSSFileStr) ->
     CSSFile = list_to_binary(CSSFileStr),
-    fw(F, <<"<link rel=\"stylesheet\" type=\"text/css\" href=\"", CSSFile/binary, "\" media=\"all\">">>).
+    fw(F, <<"<link rel=\"stylesheet\" type=\"text/css\" href=\"",
+            CSSFile/binary, "\" media=\"all\">">>).
 
 put_header_script(F) ->
     fw(F, <<"<script type=\"text/javascript\">">>),
@@ -832,11 +874,13 @@ put_header_script(F) ->
 put_room_config(_F, _RoomConfig, _Lang, plaintext) ->
     ok;
 put_room_config(F, RoomConfig, Lang, _FileFormat) ->
-    {Now1, Now2, Now3} = now(),
+    {Now1, Now2, Now3} = p1_time_compat:timestamp(),
     NowBin = list_to_binary(lists:flatten(io_lib:format("~p~p~p", [Now1, Now2, Now3]))),
     fw(F, <<"<div class=\"rc\">">>),
-    fw(F,   <<"<div class=\"rct\" onclick=\"sh('a", NowBin/binary, "');return false;\">", (?T(<<"Room Configuration">>))/binary, "</div>">>),
-    fw(F,   <<"<div class=\"rcos\" id=\"a", NowBin/binary, "\" style=\"display: none;\" ><br/>", RoomConfig/binary, "</div>">>),
+    fw(F, <<"<div class=\"rct\" onclick=\"sh('a", NowBin/binary, "');return false;\">",
+            (?T(<<"Room Configuration">>))/binary, "</div>">>),
+    fw(F, <<"<div class=\"rcos\" id=\"a", NowBin/binary, "\" style=\"display: none;\" ><br/>",
+            RoomConfig/binary, "</div>">>),
     fw(F, <<"</div>">>).
 
 
@@ -845,11 +889,13 @@ put_room_config(F, RoomConfig, Lang, _FileFormat) ->
 put_room_occupants(_F, _RoomOccupants, _Lang, plaintext) ->
     ok;
 put_room_occupants(F, RoomOccupants, Lang, _FileFormat) ->
-    {Now1, Now2, Now3} = now(),
+    {Now1, Now2, Now3} = p1_time_compat:timestamp(),
     NowBin = list_to_binary(lists:flatten(io_lib:format("~p~p~p", [Now1, Now2, Now3]))),
     fw(F, <<"<div class=\"rc\">">>),
-    fw(F,   <<"<div class=\"rct\" onclick=\"sh('o", NowBin/binary, "');return false;\">", (?T(<<"Room Occupants">>))/binary, "</div>">>),
-    fw(F,   <<"<div class=\"rcos\" id=\"o", NowBin/binary, "\" style=\"display: none;\" ><br/>", RoomOccupants/binary, "</div>">>),
+    fw(F, <<"<div class=\"rct\" onclick=\"sh('o", NowBin/binary, "');return false;\">",
+            (?T(<<"Room Occupants">>))/binary, "</div>">>),
+    fw(F, <<"<div class=\"rcos\" id=\"o", NowBin/binary, "\" style=\"display: none;\" ><br/>",
+            RoomOccupants/binary, "</div>">>),
     fw(F, <<"</div>">>).
 
 
@@ -873,7 +919,7 @@ htmlize(S1, _NoFollow, plaintext) ->
                         re:replace(Acc, RegExp, Replace, [global, {return, binary}])
                 end, S1, ReplacementRules);
 htmlize(S1, NoFollow, _FileFormat) ->
-    S2_list = binary:split(S1, <<"\n">>, [global]),
+    S2List = binary:split(S1, <<"\n">>, [global]),
     lists:foldl(
       fun(Si, Res) ->
               Si2 = htmlize2(Si, NoFollow),
@@ -883,7 +929,7 @@ htmlize(S1, NoFollow, _FileFormat) ->
               end
       end,
       <<"">>,
-      S2_list).
+      S2List).
 
 htmlize2(S1, NoFollow) ->
     ReplacementRules =
@@ -953,25 +999,33 @@ roomconfig_to_binary(Options, Lang, FileFormat) ->
                       R;
                   OptT ->
                       OptText = ?T(OptT),
-                      R2 = case Val of
-                               false -> <<"<div class=\"rcod\">", OptText/binary, "</div>">>;
-                               true -> <<"<div class=\"rcoe\">", OptText/binary, "</div>">>;
-                               "" -> <<"<div class=\"rcod\">", OptText/binary, "</div>">>;
-                               T ->
-                                   case Opt of
-                                       password -> <<"<div class=\"rcoe\">", OptText/binary, "</div>">>;
-                                       max_users -> <<"<div class=\"rcot\">", OptText/binary, ": \"", (htmlize(list_to_binary(lists:flatten(io_lib:format("~p", [T]))), FileFormat))/binary, "\"</div>">>;
-                                       title -> <<"<div class=\"rcot\">", OptText/binary, ": \"", (htmlize(T, FileFormat))/binary, "\"</div>">>;
-                                       description -> <<"<div class=\"rcot\">", OptText/binary, ": \"", (htmlize(T, FileFormat))/binary, "\"</div>">>;
-                                       _ -> <<"\"", T/binary, "\"">>
-                                   end
-                           end,
+                      R2 = render_config_value(Opt, Val, OptText, FileFormat),
                       <<R/binary, R2/binary>>
               end
       end,
       <<"">>,
       Options2).
 
+-spec render_config_value(Opt :: atom(),
+                          Val :: boolean() | string() | binary(),
+                          OptText :: binary(),
+                          FileFormat :: file_format()) -> binary().
+render_config_value(_Opt, false, OptText, _FileFormat) ->
+    <<"<div class=\"rcod\">", OptText/binary, "</div>">>;
+render_config_value(_Opt, true, OptText, _FileFormat) ->
+    <<"<div class=\"rcoe\">", OptText/binary, "</div>">>;
+render_config_value(_Opt, "", OptText, _FileFormat) ->
+    <<"<div class=\"rcod\">", OptText/binary, "</div>">>;
+render_config_value(password, _T, OptText, _FileFormat) ->
+    <<"<div class=\"rcoe\">", OptText/binary, "</div>">>;
+render_config_value(max_users, T, OptText, FileFormat) ->
+    HtmlizedBin = htmlize(list_to_binary(lists:flatten(io_lib:format("~p", [T]))), FileFormat),
+    <<"<div class=\"rcot\">", OptText/binary, ": \"", HtmlizedBin/binary, "\"</div>">>;
+render_config_value(title, T, OptText, FileFormat) ->
+    <<"<div class=\"rcot\">", OptText/binary, ": \"", (htmlize(T, FileFormat))/binary, "\"</div>">>;
+render_config_value(description, T, OptText, FileFormat) ->
+    <<"<div class=\"rcot\">", OptText/binary, ": \"", (htmlize(T, FileFormat))/binary, "\"</div>">>;
+render_config_value(_, T, _OptText, _FileFormat) -> <<"\"", T/binary, "\"">>.
 
 -spec get_roomconfig_text(atom()) -> 'undefined' | binary().
 get_roomconfig_text(title) -> <<"Room title">>;
@@ -990,7 +1044,8 @@ get_roomconfig_text(allow_query_users) -> <<"Allow users to query other users">>
 get_roomconfig_text(allow_user_invites) -> <<"Allow users to send invites">>;
 get_roomconfig_text(logging) ->  <<"Enable logging">>;
 get_roomconfig_text(allow_visitor_nickchange) ->  <<"Allow visitors to change nickname">>;
-get_roomconfig_text(allow_visitor_status) ->  <<"Allow visitors to send status text in presence updates">>;
+get_roomconfig_text(allow_visitor_status) ->
+    <<"Allow visitors to send status text in presence updates">>;
 get_roomconfig_text(description) ->  <<"Room description">>;
 get_roomconfig_text(max_users) -> <<"Maximum Number of Occupants">>;
 get_roomconfig_text(_) -> undefined.
@@ -1010,13 +1065,13 @@ group_by_role(Users) ->
     {Ms, Ps, Vs, Ns} =
         lists:foldl(
           fun({JID, Nick, moderator}, {Mod, Par, Vis, Non}) ->
-                  {[{JID, Nick}]++Mod, Par, Vis, Non};
+                  {[{JID, Nick}] ++ Mod, Par, Vis, Non};
              ({JID, Nick, participant}, {Mod, Par, Vis, Non}) ->
-                  {Mod, [{JID, Nick}]++Par, Vis, Non};
+                  {Mod, [{JID, Nick}] ++ Par, Vis, Non};
              ({JID, Nick, visitor}, {Mod, Par, Vis, Non}) ->
-                  {Mod, Par, [{JID, Nick}]++Vis, Non};
+                  {Mod, Par, [{JID, Nick}] ++ Vis, Non};
              ({JID, Nick, none}, {Mod, Par, Vis, Non}) ->
-                  {Mod, Par, Vis, [{JID, Nick}]++Non}
+                  {Mod, Par, Vis, [{JID, Nick}] ++ Non}
           end,
           {[], [], [], []},
           Users),
@@ -1039,7 +1094,7 @@ get_proc_name(Host) -> gen_mod:get_module_proc(Host, ?PROCNAME).
 
 -spec calc_hour_offset(calendar:datetime()) -> integer().
 calc_hour_offset(TimeHere) ->
-    TimeZero = calendar:now_to_universal_time(now()),
+    TimeZero = calendar:now_to_universal_time(p1_time_compat:timestamp()),
     TimeHereHour = calendar:datetime_to_gregorian_seconds(TimeHere) div 3600,
     TimeZeroHour = calendar:datetime_to_gregorian_seconds(TimeZero) div 3600,
     TimeHereHour - TimeZeroHour.

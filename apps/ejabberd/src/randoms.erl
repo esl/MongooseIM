@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : randoms.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
-%%% Purpose : Random generation number wrapper
+%%% Purpose : Random generation utils
 %%% Created : 13 Dec 2002 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
@@ -27,8 +27,15 @@
 -author('alexey@process-one.net').
 
 -export([get_string/0]).
+-export([good_seed/0]).
 
 -spec get_string() -> string().
 get_string() ->
     R = crypto:rand_uniform(0, 16#10000000000000000),
     integer_to_list(R, 16).
+
+-spec good_seed() -> {integer(), integer(), integer()}.
+good_seed() ->
+    % Good seed, according to random:seed/3 documentation
+    {erlang:phash2([node()]), p1_time_compat:monotonic_time(), p1_time_compat:unique_integer()}.
+

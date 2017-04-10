@@ -714,9 +714,10 @@ send_muc_rsm_messages(Config) ->
         escalus:wait_for_stanzas(Alice, 3),
 
         %% Alice sends messages to Bob.
-        [escalus:send(Alice,
-                      escalus_stanza:groupchat_to(RoomAddr, generate_message_text(N)))
-         || N <- lists:seq(1, 15)],
+        lists:foreach(fun(N) ->
+                              escalus:send(Alice, escalus_stanza:groupchat_to(
+                                                    RoomAddr, generate_message_text(N)))
+                      end, lists:seq(1, 15)),
         %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
         escalus:wait_for_stanzas(Alice, 15, 5000),
@@ -746,9 +747,11 @@ send_rsm_messages(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends messages to Bob.
-        [escalus:send(Alice,
-                      escalus_stanza:chat_to(Bob, generate_message_text(N)))
-         || N <- lists:seq(1, 15)],
+        lists:foreach(fun(N) ->
+                              escalus:send(Alice,
+                                           escalus_stanza:chat_to(Bob, generate_message_text(N))),
+                              timer:sleep(1)
+                      end, lists:seq(1, 15)),
         %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
         maybe_wait_for_archive(Config),
@@ -920,7 +923,7 @@ parse_messages(Messages) ->
     end.
 
 bootstrap_archive(Config) ->
-    random:seed(now()),
+    random:seed(os:timestamp()),
     Users = escalus_ct:get_config(escalus_users),
     AliceJID    = escalus_users:get_jid(Config, alice),
     BobJID      = escalus_users:get_jid(Config, bob),
@@ -1217,7 +1220,7 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate,
     escalus:send(Alice, IqSet),
     _ReplySet = escalus:wait_for_stanza(Alice),
     Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
-                                               [N, PrefsState, now()]))
+                                               [N, PrefsState, os:timestamp()]))
                 || N <- [1, 2, 3, 4]],
     %% Messages:
     %% 1. Bob sends a message to Alice

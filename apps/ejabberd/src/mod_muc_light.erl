@@ -44,6 +44,11 @@
 -module(mod_muc_light).
 -author('piotr.nosek@erlang-solutions.com').
 
+-include("ejabberd.hrl").
+-include("jlib.hrl").
+-include("mod_muc_light.hrl").
+-include("mod_roster.hrl").
+
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
 
@@ -66,6 +71,7 @@
          process_iq_set/4,
          is_room_owner/3,
          can_access_room/3,
+         can_access_identity/3,
          muc_room_pid/2]).
 
 %% For Administration API
@@ -73,11 +79,6 @@
 
 %% For propEr
 -export([apply_rsm/3]).
-
--include("ejabberd.hrl").
--include("jlib.hrl").
--include("mod_muc_light.hrl").
--include("mod_roster.hrl").
 
 %%====================================================================
 %% API
@@ -139,6 +140,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:add(muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:add(can_access_room, MUCHost, ?MODULE, can_access_room, 50),
+    ejabberd_hooks:add(can_access_identity, MUCHost, ?MODULE, can_access_identity, 50),
 
     %% Prepare config schema
     ConfigSchema = mod_muc_light_utils:make_config_schema(
@@ -164,6 +166,7 @@ stop(Host) ->
     ejabberd_hooks:delete(is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:delete(muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:delete(can_access_room, MUCHost, ?MODULE, can_access_room, 50),
+    ejabberd_hooks:delete(can_access_identity, MUCHost, ?MODULE, can_access_identity, 50),
 
     ejabberd_hooks:delete(roster_get, Host, ?MODULE, add_rooms_to_roster, 50),
     ejabberd_hooks:delete(privacy_iq_get, Host, ?MODULE, process_iq_get, 1),
@@ -216,9 +219,7 @@ process_decoded_packet(From, To, {ok, #iq{} = IQ}, OrigPacket) ->
         ignore -> ok;
         error ->
             mod_muc_light_codec_backend:encode_error(
-              {error, feature_not_implemented}, From, To, OrigPacket, fun ejabberd_router:route/3);
-        ResIQ ->
-            ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
+              {error, feature_not_implemented}, From, To, OrigPacket, fun ejabberd_router:route/3)
     end;
 process_decoded_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, OrigPacket)
   when RoomU =/= <<>> ->
@@ -354,8 +355,15 @@ muc_room_pid(_, _) ->
 
 -spec can_access_room(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
     boolean().
-can_access_room(_, User, Room) ->
+can_access_room(_, Room, User) ->
     none =/= get_affiliation(Room, User).
+
+-spec can_access_identity(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
+    boolean().
+can_access_identity(_Acc, _Room, _User) ->
+    %% User JIDs are explicit in MUC Light but this hook is about appending
+    %% 0045 MUC element with user identity and we don't want it
+    false.
 
 %%====================================================================
 %% Internal functions
@@ -373,7 +381,7 @@ get_affiliation(Room, User) ->
     end.
 
 -spec create_room(From :: ejabberd:jid(), FromUS :: ejabberd:simple_bare_jid(),
-                  To :: ejabberd:jid(), Create :: op_create(), OrigPacket :: jlib:xmlel()) ->
+                  To :: ejabberd:jid(), Create :: create_req_props(), OrigPacket :: jlib:xmlel()) ->
     jlib:xmlel().
 create_room(From, FromUS, To, Create0, OrigPacket) ->
     case try_to_create_room(FromUS, To, Create0) of
@@ -393,8 +401,8 @@ create_room(From, FromUS, To, Create0, OrigPacket) ->
     end.
 
 -spec try_to_create_room(CreatorUS :: ejabberd:simple_bare_jid(), RoomJID :: ejabberd:jid(),
-                         CreationCfg :: op_create()) ->
-    {ok, ejabberd:simple_bare_jid(), op_create()}
+                         CreationCfg :: create_req_props()) ->
+    {ok, ejabberd:simple_bare_jid(), create_req_props()}
     | {error, validation_error() | bad_request | exists}.
 try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = CreationCfg) ->
     {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
@@ -449,12 +457,12 @@ process_create_aff_users(Creator, AffUsers, EqualOccupants) ->
 creator_aff(true) -> member;
 creator_aff(false) -> owner.
 
--spec handle_disco_info_get(From :: jid(), To :: jid(), DiscoInfo :: op_disco_info()) -> ok.
+-spec handle_disco_info_get(From :: jid(), To :: jid(), DiscoInfo :: disco_info_req_props()) -> ok.
 handle_disco_info_get(From, To, DiscoInfo) ->
     mod_muc_light_codec_backend:encode({get, DiscoInfo}, From, jid:to_lus(To),
                                        fun ejabberd_router:route/3).
 
--spec handle_disco_items_get(From :: jid(), To :: jid(), DiscoItems :: op_disco_items(),
+-spec handle_disco_items_get(From :: jid(), To :: jid(), DiscoItems :: disco_items_req_props(),
                              OrigPacket :: jlib:xmlel()) -> ok.
 handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
     case catch mod_muc_light_db_backend:get_user_rooms(jid:to_lus(From), To#jid.lserver) of
@@ -556,7 +564,7 @@ find_room_pos(RoomUS, [_ | RRooms], Pos) -> find_room_pos(RoomUS, RRooms, Pos + 
 find_room_pos(_, [], _) -> {error, item_not_found}.
 
 -spec handle_blocking(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                      BlockingReq :: {get | set, op_blocking()}) ->
+                      BlockingReq :: {get | set, blocking_req_props()}) ->
     {error, bad_request} | ok.
 handle_blocking(From, To, {get, #blocking{} = Blocking}) ->
     BlockingItems = mod_muc_light_db_backend:get_blocking(jid:to_lus(From), To#jid.lserver),

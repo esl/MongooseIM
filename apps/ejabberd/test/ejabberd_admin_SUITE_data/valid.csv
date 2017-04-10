@@ -1,0 +1,6 @@
+user,localhost,password
+existing_user,localhost,password
+null_password_user,localhost,
+bad_domain_user,not_allowed_domain,password
+invalid_jid_user,localhost,password
+wrong,number,of,fields,line

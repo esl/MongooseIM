@@ -67,7 +67,7 @@ Apache license 2.0
 
 Please contact us.
 
-### Push notifications server (APNS/GCM)
+### Push notifications server (APNS/FCM)
 
 Please contact us.
 

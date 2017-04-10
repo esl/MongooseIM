@@ -61,7 +61,8 @@ groups() ->
                                   tls_compression_authenticate_fail,
                                   tls_authenticate_compression,
                                   auth_compression_bind_session,
-                                  auth_bind_compression_session]}
+                                  auth_bind_compression_session,
+                                  bind_server_generated_resource]}
     ].
 
 test_cases() ->
@@ -121,8 +122,7 @@ init_per_group(feature_order, Config) ->
     Config;
 init_per_group(_, Config) ->
     Config.
-end_per_group(feature_order, Config) ->
-    Config;
+
 end_per_group(_, Config) ->
     Config.
 
@@ -529,6 +529,14 @@ auth_bind_pipelined_starttls_skipped_error(Config) ->
     AuthResponse = escalus_connection:get_stanza(Conn, auth_response),
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<"Use of STARTTLS required">>],
                    AuthResponse).
+
+bind_server_generated_resource(Config) ->
+    UserSpec = [{resource, <<>>} | given_fresh_spec(Config, ?SECURE_USER)],
+    ConnectionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, bind],
+    {ok, _Conn, NewSpec, _} = escalus_connection:start(UserSpec, ConnectionSteps),
+    {resource, Resource} = lists:keyfind(resource, 1, NewSpec),
+    ?assert(is_binary(Resource)),
+    ?assert(byte_size(Resource) > 0).
 
 %%--------------------------------------------------------------------
 %% Internal functions

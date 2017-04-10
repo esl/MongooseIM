@@ -22,7 +22,7 @@
 %%% Message identifiers (or UIDs in the spec) are generated based on:
 %%%
 %%% <ul>
-%%% <li>date (using `now()');</li>
+%%% <li>date (using `timestamp()');</li>
 %%% <li>node number (using {@link ejabberd_node_id}).</li>
 %%% </ul>
 %%% @end
@@ -64,8 +64,7 @@
 %% UID
 -import(mod_mam_utils,
         [generate_message_id/0,
-         decode_compact_uuid/1,
-         normalize_search_text/2]).
+         decode_compact_uuid/1]).
 
 %% XML
 -import(mod_mam_utils,
@@ -89,7 +88,6 @@
 %% Forms
 -import(mod_mam_utils,
         [form_field_value_s/2,
-         form_field_value/2,
          message_form/3]).
 
 %% Other
@@ -103,8 +101,8 @@
         [send_message/3]).
 
 
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include_lib("ejabberd.hrl").
+-include_lib("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -callback is_complete_message(Module :: atom(), Dir :: atom(), Packet :: any()) ->
@@ -325,22 +323,22 @@ is_room_action_allowed_by_default(Action, From, To) ->
     end.
 
 
--spec is_room_owner(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
-is_room_owner(From, To) ->
-    ejabberd_hooks:run_fold(is_muc_room_owner, To#jid.lserver, false, [To, From]).
+-spec is_room_owner(User :: ejabberd:jid(), Room :: ejabberd:jid()) -> boolean().
+is_room_owner(User, Room) ->
+    ejabberd_hooks:run_fold(is_muc_room_owner, Room#jid.lserver, false, [Room, User]).
 
 
 %% @doc Return true if user element should be removed from results
--spec is_user_identity_hidden(From :: ejabberd:jid(), ArcJID :: ejabberd:jid()) -> boolean().
-is_user_identity_hidden(From, ArcJID) ->
-    case mod_muc_room:can_access_identity(ArcJID, From) of
-        {error, _} -> true;
-        {ok, CanAccess} -> (not CanAccess)
+-spec is_user_identity_hidden(User :: ejabberd:jid(), Room :: ejabberd:jid()) -> boolean().
+is_user_identity_hidden(User, Room) ->
+    case ejabberd_hooks:run_fold(can_access_identity, Room#jid.lserver, false, [Room, User]) of
+        CanAccess when is_boolean(CanAccess) -> not CanAccess;
+        _ -> true
     end.
 
--spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
-can_access_room(From, To) ->
-    ejabberd_hooks:run_fold(can_access_room, To#jid.lserver, false, [From, To]).
+-spec can_access_room(User :: ejabberd:jid(), Room :: ejabberd:jid()) -> boolean().
+can_access_room(User, Room) ->
+    ejabberd_hooks:run_fold(can_access_room, Room#jid.lserver, false, [Room, User]).
 
 
 -spec action_type(action()) -> 'get' | 'set'.

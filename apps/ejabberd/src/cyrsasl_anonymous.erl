@@ -42,14 +42,15 @@ stop() ->
 
 -spec mech_new(Host :: ejabberd:server(),
                Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
-mech_new(Host, Creds) ->
+mech_new(_Host, Creds) ->
     {ok, #state{creds = Creds}}.
 
 -spec mech_step(State :: tuple(), ClientIn :: binary()) -> R when
       R :: {ok, mongoose_credentials:t()} | {error, binary()}.
 mech_step(#state{creds = Creds}, _ClientIn) ->
     %% We generate a random username:
-    User = list_to_binary(lists:concat([randoms:get_string() | tuple_to_list(now())])),
+    User = <<(list_to_binary(randoms:get_string()))/binary,
+             (integer_to_binary(p1_time_compat:unique_integer([positive])))/binary>>,
     %% Checks that the username is available
     case ejabberd_auth:is_user_exists(User, mongoose_credentials:lserver(Creds)) of
         true  -> {error, <<"not-authorized">>};

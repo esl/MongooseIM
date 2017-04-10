@@ -37,6 +37,9 @@ end_per_testcase(_T, C) ->
     meck:unload(gen_tcp),
     C.
 
+init_per_suite(C) ->
+   C.
+
 end_per_suite(_C) ->
     mnesia:stop(),
     mnesia:delete_schema([node()]).

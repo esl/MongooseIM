@@ -7,11 +7,11 @@ Please feel free to comment!
 * Push notifications:
     * [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html)
     * Amazon AWS SNS (Simple Notification Service)
-* Instant Stream Resumption
 * Full text search in archive
+* Experimental pipelining
+* Instant Stream Resumption
 * Bind 2.0 (experimental)
-* Contributions to Smack, XMPPFramework
-* Contributions to Jayme? Retrofit? Movim? Stanza.io? Strophe.js? Libervia?
+* Contributions to ecosystem
 
 ## 3.0.x
 
@@ -19,6 +19,7 @@ Please feel free to comment!
 * In-chat forms
 * SASL 2.0?
 * Stories?
+* IoT: things provisiong?
 * [XEP-0376: Pubsub Account Management](https://xmpp.org/extensions/xep-0376.html)?
 * Basic VoIP (relaying with ICE server)
 * Contributions? [XEP-xxxx: Explicit Message Encryption](https://xmpp.org/extensions/inbox/eme.html)?
@@ -36,3 +37,4 @@ Please feel free to comment!
 * Mangosta iOS
 * ICE/STUN/TURN server in Elixir
 * Push notifications server in Elixir
+* ?

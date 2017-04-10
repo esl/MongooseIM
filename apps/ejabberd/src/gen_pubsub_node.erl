@@ -48,27 +48,62 @@
 -type(payload() :: mod_pubsub:payload()).
 -type(publishOptions() :: mod_pubsub:publishOptions()).
 
--callback init(Host :: binary(),
-        ServerHost :: binary(),
-        Opts :: [any()]) -> atom().
+-export([
+         init/4,
+         terminate/3,
+         options/1,
+         features/1,
+         create_node_permission/7,
+         create_node/3,
+         delete_node/2,
+         purge_node/3,
+         subscribe_node/9,
+         unsubscribe_node/5,
+         publish_item/10,
+         delete_item/5,
+         remove_extra_items/4,
+         get_node_affiliations/2,
+         get_entity_affiliations/3,
+         get_affiliation/3,
+         set_affiliation/4,
+         get_node_subscriptions/2,
+         get_entity_subscriptions/3,
+         get_subscriptions/3,
+         get_pending_nodes/3,
+         get_states/2,
+         get_state/3,
+         set_state/2,
+         get_items/8,
+         get_items/4,
+         get_item/8,
+         get_item/3,
+         set_item/2,
+         get_item_name/4,
+         node_to_path/2,
+         path_to_node/2
+        ]).
 
--callback terminate(Host :: host(),
-        ServerHost :: binary()) -> atom().
+%% --------------------------------------------------------
+%% Callbacks
+%% --------------------------------------------------------
+
+-callback init(Host :: binary(), ServerHost :: binary(), Opts :: [any()]) -> atom().
+
+-callback terminate(Host :: host(), ServerHost :: binary()) -> atom().
 
 -callback options() -> [{atom(), any()}].
 
 -callback features() -> [binary()].
 
 -callback create_node_permission(Host :: host(),
-        ServerHost :: binary(),
-        Node :: nodeId(),
-        ParentNode :: nodeId(),
-        Owner :: jid(), Access :: atom()) ->
+                                 ServerHost :: binary(),
+                                 Node :: nodeId(),
+                                 ParentNode :: nodeId(),
+                                 Owner :: jid(),
+                                 Access :: atom()) ->
     {result, boolean()}.
 
--callback create_node(NodeIdx :: nodeIdx(),
-        Owner   :: jid()) ->
-    {result, {default, broadcast}}.
+-callback create_node(NodeIdx :: nodeIdx(), Owner :: jid()) -> {result, {default, broadcast}}.
 
 -callback delete_node(Nodes :: [pubsubNode(), ...]) ->
     {result,
@@ -85,10 +120,8 @@
             }
         }.
 
--callback purge_node(NodeIdx :: nodeIdx(),
-        Owner :: jid()) ->
-    {result, {default, broadcast}} |
-    {error, xmlel()}.
+-callback purge_node(NodeIdx :: nodeIdx(), Owner :: jid()) ->
+    {result, {default, broadcast}} | {error, xmlel()}.
 
 -callback subscribe_node(NodeIdx :: nodeIdx(),
         Sender :: jid(),
@@ -107,50 +140,39 @@
         Sender :: jid(),
         Subscriber :: jid(),
         SubId :: subId()) ->
-    {result, default} |
-    {error, xmlel()}.
+    {result, default} | {error, xmlel()}.
 
 -callback publish_item(ServerHost :: ejabberd:server(),
         NodeId :: nodeIdx(),
         Publisher :: jid(),
         PublishModel :: publishModel(),
-        Max_Items :: non_neg_integer(),
+        MaxItems :: non_neg_integer(),
         ItemId :: <<>> | itemId(),
         ItemPublisher :: boolean(),
         Payload :: payload(),
         PublishOptions :: publishOptions()) ->
-    {result, {default, broadcast, [itemId()]}} |
-    {error, xmlel()}.
+    {result, {default, broadcast, [itemId()]}} | {error, xmlel()}.
 
 -callback delete_item(NodeIdx :: nodeIdx(),
         Publisher :: jid(),
         PublishModel :: publishModel(),
         ItemId :: <<>> | itemId()) ->
-    {result, {default, broadcast}} |
-    {error, xmlel()}.
+    {result, {default, broadcast}} | {error, xmlel()}.
 
 -callback remove_extra_items(NodeIdx :: nodeIdx(),
-        Max_Items :: unlimited | non_neg_integer(),
+        MaxItems :: unlimited | non_neg_integer(),
         ItemIds :: [itemId()]) ->
-    {result, {[itemId()], [itemId()]}
-        }.
+    {result, {[itemId()], [itemId()]}}.
 
--callback get_node_affiliations(NodeIdx :: nodeIdx()) ->
-    {result, [{ljid(), affiliation()}]}.
+-callback get_node_affiliations(NodeIdx :: nodeIdx()) -> {result, [{ljid(), affiliation()}]}.
 
--callback get_entity_affiliations(Host :: host(),
-        Owner :: jid()) ->
+-callback get_entity_affiliations(Host :: host(), Owner :: jid()) ->
     {result, [{pubsubNode(), affiliation()}]}.
 
--callback get_affiliation(NodeIdx :: nodeIdx(),
-        Owner :: jid()) ->
-    {result, affiliation()}.
+-callback get_affiliation(NodeIdx :: nodeIdx(), Owner :: jid()) -> {result, affiliation()}.
 
--callback set_affiliation(NodeIdx :: nodeIdx(),
-        Owner :: jid(),
-        Affiliation :: affiliation()) ->
-    ok |
-    {error, xmlel()}.
+-callback set_affiliation(NodeIdx :: nodeIdx(), Owner :: jid(), Affiliation :: affiliation()) ->
+    ok | {error, xmlel()}.
 
 -callback get_node_subscriptions(NodeIdx :: nodeIdx()) ->
     {result,
@@ -158,43 +180,30 @@
         [{ljid(), none}, ...]
         }.
 
--callback get_entity_subscriptions(Host :: host(),
-        Key :: jid()) ->
-    {result, [{pubsubNode(), subscription(), subId(), ljid()}]
-        }.
+-callback get_entity_subscriptions(Host :: host(), Key :: jid()) ->
+    {result, [{pubsubNode(), subscription(), subId(), ljid()}]}.
 
--callback get_subscriptions(NodeIdx :: nodeIdx(),
-        Owner :: jid()) ->
+-callback get_subscriptions(NodeIdx :: nodeIdx(), Owner :: jid()) ->
     {result, [{subscription(), subId()}]}.
 
--callback get_pending_nodes(Host :: host(),
-        Owner :: jid()) ->
-    {result, [nodeId()]}.
+-callback get_pending_nodes(Host :: host(), Owner :: jid()) -> {result, [nodeId()]}.
 
--callback get_states(NodeIdx::nodeIdx()) ->
-    {result, [pubsubState()]}.
+-callback get_states(NodeIdx::nodeIdx()) -> {result, [pubsubState()]}.
 
--callback get_state(NodeIdx :: nodeIdx(),
-        Key :: ljid()) ->
-    pubsubState().
+-callback get_state(NodeIdx :: nodeIdx(), Key :: ljid()) -> pubsubState().
 
--callback set_state(State::pubsubState()) ->
-    ok |
-    {error, xmlel()}.
+-callback set_state(State::pubsubState()) -> ok | {error, xmlel()}.
 
 -callback get_items(NodeIdx :: nodeIdx(),
         JID :: jid(),
         AccessModel :: accessModel(),
-        Presence_Subscription :: boolean(),
+        PresenceSubscription :: boolean(),
         RosterGroup :: boolean(),
         SubId :: subId(),
         RSM :: none | rsm_in()) ->
-    {result, {[pubsubItem()], none | rsm_out()}} |
-    {error, xmlel()}.
+    {result, {[pubsubItem()], none | rsm_out()}} | {error, xmlel()}.
 
--callback get_items(NodeIdx :: nodeIdx(),
-        From :: jid(),
-        RSM :: none | rsm_in()) ->
+-callback get_items(NodeIdx :: nodeIdx(), From :: jid(), RSM :: none | rsm_in()) ->
     {result, {[pubsubItem()], none | rsm_out()}}.
 
 -callback get_item(NodeIdx :: nodeIdx(),
@@ -204,25 +213,120 @@
         PresenceSubscription :: boolean(),
         RosterGroup :: boolean(),
         SubId :: subId()) ->
-    {result, pubsubItem()} |
-    {error, xmlel()}.
+    {result, pubsubItem()} | {error, xmlel()}.
 
--callback get_item(NodeIdx :: nodeIdx(),
-        ItemId :: itemId()) ->
-    {result, pubsubItem()} |
-    {error, xmlel()}.
+-callback get_item(NodeIdx :: nodeIdx(), ItemId :: itemId()) ->
+    {result, pubsubItem()} | {error, xmlel()}.
 
--callback set_item(Item :: pubsubItem()) ->
-    ok.
-%   | {error, _}.
+-callback set_item(Item :: pubsubItem()) -> ok.
 
--callback get_item_name(Host :: host(),
-        ServerHost :: binary(),
-        Node :: nodeId()) ->
-    itemId().
+-callback get_item_name(Host :: host(), ServerHost :: binary(), Node :: nodeId()) -> itemId().
 
--callback node_to_path(Node :: nodeId()) ->
-    [nodeId()].
+-callback node_to_path(Node :: nodeId()) -> [nodeId()].
 
--callback path_to_node(Node :: [nodeId()]) ->
-    nodeId().
+-callback path_to_node(Path :: [nodeId()]) -> nodeId().
+
+%% --------------------------------------------------------
+%% API
+%% --------------------------------------------------------
+
+init(Mod, Host, ServerHost, Opts) ->
+    Mod:init(Host, ServerHost, Opts).
+
+terminate(Mod, Host, ServerHost) ->
+    Mod:terminate(Host, ServerHost).
+
+options(Mod) ->
+    Mod:options().
+
+features(Mod) ->
+    Mod:features().
+
+create_node_permission(Mod, Host, ServerHost, Node, ParentNode, Owner, Access) ->
+    Mod:create_node_permission(Host, ServerHost, Node, ParentNode, Owner, Access).
+
+create_node(Mod, NodeIdx, Owner) ->
+    Mod:create_node(NodeIdx, Owner).
+
+delete_node(Mod, Nodes) ->
+    Mod:delete_node(Nodes).
+
+purge_node(Mod, NodeIdx, Owner) ->
+    Mod:purge_node(NodeIdx, Owner).
+
+subscribe_node(Mod, NodeIdx, Sender, Subscriber, AccessModel, SendLast, PresenceSubscription,
+               RosterGroup, Options) ->
+    Mod:subscribe_node(NodeIdx, Sender, Subscriber, AccessModel, SendLast, PresenceSubscription,
+                       RosterGroup, Options).
+
+unsubscribe_node(Mod, NodeIdx, Sender, Subscriber, SubId) ->
+    Mod:unsubscribe_node(NodeIdx, Sender, Subscriber, SubId).
+
+publish_item(Mod, ServerHost, NodeId, Publisher, PublishModel, MaxItems, ItemId,
+             ItemPublisher, Payload, PublishOptions) ->
+    Mod:publish_item(ServerHost, NodeId, Publisher, PublishModel, MaxItems, ItemId,
+                     ItemPublisher, Payload, PublishOptions).
+
+delete_item(Mod, NodeIdx, Publisher, PublishModel, ItemId) ->
+    Mod:delete_item(NodeIdx, Publisher, PublishModel, ItemId).
+
+remove_extra_items(Mod, NodeIdx, MaxItems, ItemIds) ->
+    Mod:remove_extra_items(NodeIdx, MaxItems, ItemIds).
+
+get_node_affiliations(Mod, NodeIdx) ->
+    Mod:get_node_affiliations(NodeIdx).
+
+get_entity_affiliations(Mod, Host, Owner) ->
+    Mod:get_entity_affiliations(Host, Owner).
+
+get_affiliation(Mod, NodeIdx, Owner) ->
+    Mod:get_affiliation(NodeIdx, Owner).
+
+set_affiliation(Mod, NodeIdx, Owner, Affiliation) ->
+    Mod:set_affiliation(NodeIdx, Owner, Affiliation).
+
+get_node_subscriptions(Mod, NodeIdx) ->
+    Mod:get_node_subscriptions(NodeIdx).
+
+get_entity_subscriptions(Mod, Host, Key) ->
+    Mod:get_entity_subscriptions(Host, Key).
+
+get_subscriptions(Mod, NodeIdx, Owner) ->
+    Mod:get_subscriptions(NodeIdx, Owner).
+
+get_pending_nodes(Mod, Host, Owner) ->
+    Mod:get_pending_nodes(Host, Owner).
+
+get_states(Mod, NodeIdx) ->
+    Mod:get_states(NodeIdx).
+
+get_state(Mod, NodeIdx, Key) ->
+    Mod:get_state(NodeIdx, Key).
+
+set_state(Mod, State) ->
+    Mod:set_state(State).
+
+get_items(Mod, NodeIdx, JID, AccessModel, PresenceSubscription, RosterGroup, SubId, RSM) ->
+    Mod:get_items(NodeIdx, JID, AccessModel, PresenceSubscription, RosterGroup, SubId, RSM).
+
+get_items(Mod, NodeIdx, From, RSM) ->
+    Mod:get_items(NodeIdx, From, RSM).
+
+get_item(Mod, NodeIdx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, SubId) ->
+    Mod:get_item(NodeIdx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, SubId).
+
+get_item(Mod, NodeIdx, ItemId) ->
+    Mod:get_item(NodeIdx, ItemId).
+
+set_item(Mod, Item) ->
+    Mod:set_item(Item).
+
+get_item_name(Mod, Host, ServerHost, Node) ->
+    Mod:get_item_name(Host, ServerHost, Node).
+
+node_to_path(Mod, Node) ->
+    Mod:node_to_path(Node).
+
+path_to_node(Mod, Path) ->
+    Mod:path_to_node(Path).
+

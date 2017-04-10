@@ -15,7 +15,7 @@
                                  | {error, any()}.
 
 -type remove_user_return() :: [{RoomUS :: ejabberd:simple_bare_jid(),
-                                modify_aff_users_return()}]. 
+                                modify_aff_users_return()}].
 
 -export_type([modify_aff_users_return/0, remove_user_return/0]).
 

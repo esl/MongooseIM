@@ -73,7 +73,6 @@
 -export([config_change/4]).
 
 -define(PROCNAME, ejabberd_mod_vcard).
--define(BACKEND, mod_vcard_backend).
 
 -record(state, {search           :: boolean(),
                host             :: binary(),
@@ -184,7 +183,7 @@ start_link(VHost, Opts) ->
 
 init([VHost, Opts]) ->
     process_flag(trap_exit, true),
-    ?BACKEND:init(VHost, Opts),
+    mod_vcard_backend:init(VHost, Opts),
     [ ejabberd_hooks:add(Hook, VHost, M, F, Prio)
       || {Hook, M, F, Prio} <- hook_handlers() ],
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -254,7 +253,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_local_iq(_From,_To,#iq{type = get} = IQ) ->
+process_local_iq(_From, _To, #iq{type = get} = IQ) ->
+    DescCData = #xmlcdata{content = [<<"MongooseIM XMPP Server">>,
+                                     <<"\nCopyright (c) Erlang Solutions Ltd.">>]},
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, ?NS_VCARD}],
                            children = [#xmlel{name = <<"FN">>,
@@ -262,8 +263,7 @@ process_local_iq(_From,_To,#iq{type = get} = IQ) ->
                                        #xmlel{name = <<"URL">>,
                                               children = [#xmlcdata{content = ?MONGOOSE_URI}]},
                                        #xmlel{name = <<"DESC">>,
-                                              children = [#xmlcdata{content = [<<"MongooseIM XMPP Server">>,
-                                                                               <<"\nCopyright (c) Erlang Solutions Ltd.">>]}]}
+                                              children = [DescCData]}
                                       ]}]}.
 
 process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
@@ -294,7 +294,7 @@ process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
     end;
 process_sm_iq(_From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
     #jid{luser = LUser, lserver = LServer} = To,
-    case catch ?BACKEND:get_vcard(LUser, LServer) of
+    case catch mod_vcard_backend:get_vcard(LUser, LServer) of
         {ok, VCARD} ->
             IQ#iq{type = result, sub_el = VCARD};
         {error, Reason} ->
@@ -308,7 +308,7 @@ process_sm_iq(_From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
 unsafe_set_vcard(From, VCARD) ->
     #jid{user = FromUser, lserver = FromVHost} = From,
     {ok, VcardSearch} = prepare_vcard_search_params(FromUser, FromVHost, VCARD),
-    ?BACKEND:set_vcard(FromUser, FromVHost, VCARD, VcardSearch).
+    mod_vcard_backend:set_vcard(FromUser, FromVHost, VCARD, VcardSearch).
 
 -spec set_vcard(HandlerAcc, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
@@ -353,11 +353,11 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    ?BACKEND:remove_user(LUser, LServer).
+    mod_vcard_backend:remove_user(LUser, LServer).
 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->
-    case ?BACKEND:backend() of
+    case mod_vcard_backend:backend() of
         mod_vcard_ldap ->
             Mods = ejabberd_config:get_local_option({modules, Host}),
             Opts = proplists:get_value(?MODULE, Mods, []),
@@ -397,7 +397,7 @@ do_route(VHost, From, To, Packet, #iq{type = set,
                     Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
                     ejabberd_router:route(To, From, Err);
                 _ ->
-                    {XChildren, RSMOutEls} = search_result(Lang,To, VHost, XData, RSMIn),
+                    {SearchResult, RSMOutEls} = search_result(Lang, To, VHost, XData, RSMIn),
                     ResIQ = IQ#iq{
                               type = result,
                               sub_el = [#xmlel{name = <<"query">>,
@@ -405,7 +405,7 @@ do_route(VHost, From, To, Packet, #iq{type = set,
                                                children = [#xmlel{name = <<"x">>,
                                                                attrs = [{<<"xmlns">>, ?NS_XDATA},
                                                                         {<<"type">>, <<"result">>}],
-                                                               children = XChildren}
+                                                               children = SearchResult}
                                                           ] ++ RSMOutEls}
                                        ]},
                     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
@@ -414,11 +414,12 @@ do_route(VHost, From, To, Packet, #iq{type = set,
 do_route(VHost, From, To, _Packet, #iq{type = get,
                                         xmlns = ?NS_SEARCH,
                                         lang = Lang} = IQ) ->
-    ResIQ = IQ#iq{type = result,
-                  sub_el = [#xmlel{name = <<"query">>,
-                                   attrs = [{<<"xmlns">>, ?NS_SEARCH}],
-                                   children = ?FORM(To, ?BACKEND:search_fields(VHost), Lang)
-                                  }]},
+    ResIQ =
+    IQ#iq{type = result,
+          sub_el = [#xmlel{name = <<"query">>,
+                           attrs = [{<<"xmlns">>, ?NS_SEARCH}],
+                           children = ?FORM(To, mod_vcard_backend:search_fields(VHost), Lang)
+                          }]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Packet, #iq{type = set,
                                        xmlns = ?NS_DISCO_INFO}) ->
@@ -429,14 +430,14 @@ do_route(VHost, From, To, _Packet, #iq{type = get,
                                        lang = Lang} = IQ) ->
     Info = ejabberd_hooks:run_fold(disco_info, VHost, [],
                                    [VHost, ?MODULE, <<"">>, <<"">>]),
+    NameTxt = translate:translate(Lang, <<"vCard User Search">>),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs =[{<<"xmlns">>, ?NS_DISCO_INFO}],
                                    children = [#xmlel{name = <<"identity">>,
                                                       attrs = [{<<"category">>, <<"directory">>},
                                                                {<<"type">>, <<"user">>},
-                                                               {<<"name">>,
-                                                                translate:translate(Lang, <<"vCard User Search">>)}]},
+                                                               {<<"name">>, NameTxt}]},
                                                #xmlel{name = <<"feature">>,
                                                       attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
                                                #xmlel{name = <<"feature">>,
@@ -492,11 +493,11 @@ find_xdata_el1([_ | Els]) ->
     find_xdata_el1(Els).
 
 search_result(Lang, JID, VHost, Data, RSMIn) ->
+    Text = translate:translate(Lang, <<"Search Results for ">>),
     TitleEl = #xmlel{name = <<"title">>,
-                     children = [#xmlcdata{content = [translate:translate(Lang, <<"Search Results for ">>),
-                                                      jid:to_binary(JID)]}]},
-    ReportedFields = ?BACKEND:search_reported_fields(VHost, Lang),
-    Results1 = ?BACKEND:search(VHost, Data),
+                     children = [#xmlcdata{content = [Text, jid:to_binary(JID)]}]},
+    ReportedFields = mod_vcard_backend:search_reported_fields(VHost, Lang),
+    Results1 = mod_vcard_backend:search(VHost, Data),
     Results2 = lists:filtermap(
                  fun(Result) ->
                          case search_result_get_jid(Result) of
@@ -659,39 +660,23 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
 
     US = {LUser, VHost},
 
-    if
-        (LUser     == error) or
-        (LFN       == error) or
-        (LFamily   == error) or
-        (LGiven    == error) or
-        (LMiddle   == error) or
-        (LNickname == error) or
-        (LBDay     == error) or
-        (LCTRY     == error) or
-        (LLocality == error) or
-        (LEMail    == error) or
-        (LOrgName  == error) or
-        (LOrgUnit  == error) ->
-            {error, badarg};
-        true ->
-            {ok, #vcard_search{us        = US,
-                               user      = {User, VHost},
-                               luser     = b2l(LUser),
-                               fn        = FN,       lfn        = b2l(LFN),
-                               family    = Family,   lfamily    = b2l(LFamily),
-                               given     = Given,    lgiven     = b2l(LGiven),
-                               middle    = Middle,   lmiddle    = b2l(LMiddle),
-                               nickname  = Nickname, lnickname  = b2l(LNickname),
-                               bday      = BDay,     lbday      = b2l(LBDay),
-                               ctry      = CTRY,     lctry      = b2l(LCTRY),
-                               locality  = Locality, llocality  = b2l(LLocality),
-                               email     = EMail,    lemail     = b2l(LEMail),
-                               orgname   = OrgName,  lorgname   = b2l(LOrgName),
-                               orgunit   = OrgUnit,  lorgunit   = b2l(LOrgUnit)
-                              }}
-    end.
+    {ok, #vcard_search{us        = US,
+                       user      = {User, VHost},
+                       luser     = b2l(LUser),
+                       fn        = FN,       lfn        = b2l(LFN),
+                       family    = Family,   lfamily    = b2l(LFamily),
+                       given     = Given,    lgiven     = b2l(LGiven),
+                       middle    = Middle,   lmiddle    = b2l(LMiddle),
+                       nickname  = Nickname, lnickname  = b2l(LNickname),
+                       bday      = BDay,     lbday      = b2l(LBDay),
+                       ctry      = CTRY,     lctry      = b2l(LCTRY),
+                       locality  = Locality, llocality  = b2l(LLocality),
+                       email     = EMail,    lemail     = b2l(LEMail),
+                       orgname   = OrgName,  lorgname   = b2l(LOrgName),
+                       orgunit   = OrgUnit,  lorgunit   = b2l(LOrgUnit)
+                      }}.
 
--spec get_default_reported_fields(binary()) -> #xmlel{}.
+-spec get_default_reported_fields(binary()) -> exml:element().
 get_default_reported_fields(Lang) ->
     #xmlel{name = <<"reported">>,
            children = [

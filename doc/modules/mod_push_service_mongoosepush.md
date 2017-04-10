@@ -6,6 +6,7 @@ passed to `MongoosePush`:
 - `mode` - if not supplied, `prod` value will be used
 - `click_action` - optional. See `click_action` in FCM documentation or `category` in APNS documentation.
 - `service` - has to be specified and the value must be valid and supported by MongoosePush push service provider. E.g. `fcm`, `apns`.
+- `device_id` - has to be specified and the value must be valid device token received from push notification service provider specified in `service` option
 
 #### Prerequisites
 
@@ -22,10 +23,10 @@ supported
 
 ```Erlang
 {http_connections, [{mongoose_push_http,
-    [{server, "https:localhost:8443"}]
+    [{server, "https://localhost:8443"}]
 }]}.
 
-{mod_push_service_mongoose_push, [
+{mod_push_service_mongoosepush, [
         {pool_name, mongoose_push_http}
         {api_version, "v1"}
 ]}.

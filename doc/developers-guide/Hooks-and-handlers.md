@@ -188,7 +188,7 @@ store_packet(From, To, Packet) ->
             case check_event_chatstates(From, To, Packet) of
                 true ->
                     #jid{luser = LUser, lserver = LServer} = To,
-                    TimeStamp = now(),
+                    TimeStamp = erlang:timestamp(),
                     {xmlelement, _Name, _Attrs, Els} = Packet,
                     Expire = find_x_expire(TimeStamp, Els),
                     gen_mod:get_module_proc(To#jid.lserver, ?PROCNAME)

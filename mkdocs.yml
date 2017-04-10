@@ -15,6 +15,7 @@ pages:
       - 'Release/Installation configuration': 'user-guide/release_config.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
       - 'How to build':  'user-guide/How-to-build.md'
+      - 'Setting up Push Notifications': 'user-guide/Push-notifications.md'
   - Platform:
       - 'Roadmap': 'Roadmap.md'
       - 'Contributions to ecosystem': 'Contributions.md'
@@ -74,7 +75,8 @@ pages:
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
       - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
       - 'HTTP Administration API': 'http-api/http-administration-api-documentation.md'
-  - 'Server developer guide':
+      - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
+  - "Developer's guide":
       - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
       - 'REST interface to metrics': 'developers-guide/REST-interface-to-metrics.md'
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
