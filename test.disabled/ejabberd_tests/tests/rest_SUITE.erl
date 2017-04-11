@@ -52,14 +52,13 @@
 all() ->
     [
      {group, admin},
-     {group, dynamic_module},
-     {group, roster}
+     {group, dynamic_module}
     ].
 
 groups() ->
     [{admin, [parallel], test_cases()},
-     {dynamic_module, [], [stop_start_command_module]},
-     {roster, [], roster_tests()}
+        {roster, [parallel], [list_contacts]},
+     {dynamic_module, [], [stop_start_command_module]}
     ].
 
 test_cases() ->
@@ -72,11 +71,6 @@ test_cases() ->
      messages_are_archived,
      messages_can_be_paginated,
      password_can_be_changed
-    ].
-
-roster_tests() ->
-    [list_contacts,
-     add_contact
     ].
 
 suite() ->

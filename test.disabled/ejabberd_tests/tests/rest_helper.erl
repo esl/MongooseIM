@@ -92,6 +92,8 @@ delete(Path) ->
 
 -spec gett(Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
 gett(Path, Cred) ->
+    ct:pal("Path: ~p", [Path]),
+    ct:pal("Cred: ~p", [Cred]),
     make_request({<<"GET">>, Cred}, Path).
 
 post(Path, Body, Cred) ->
@@ -113,6 +115,7 @@ make_request(Method, Path, ReqBody) when not is_binary(Path) ->
     make_request(Method, list_to_binary(Path), ReqBody);
 make_request(Method, Path, ReqBody) ->
     CPath = <<?PATHPREFIX/binary, Path/binary>>,
+    ct:pal("CPath: ~p", [CPath]),
     {Code, RespBody} = case fusco_request(Method, CPath, ReqBody) of
                            {RCode, _, Body, _, _} ->
                                {RCode, Body};

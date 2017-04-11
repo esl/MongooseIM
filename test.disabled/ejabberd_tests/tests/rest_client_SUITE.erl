@@ -2,33 +2,49 @@
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+-define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
+-define(OK, {<<"200">>, <<"OK">>}).
+-define(CREATED, {<<"201">>, <<"Created">>}).
+-define(NOCONTENT, {<<"204">>, <<"No Content">>}).
+-define(ERROR, {<<"500">>, _}).
+-define(NOT_FOUND, {<<"404">>, _}).
 
 all() ->
-    [{group, all}].
+    [{group, messages}, {group, muc}, {group, roster}].
 
 groups() ->
-    [{all, [parallel], test_cases()}].
+    [{messages, [parallel], message_test_cases()},
+     {muc, [parallel], muc_test_cases()},
+     {roster, [parallel], roster_test_cases()}
+    ].
 
-test_cases() ->
+message_test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
      msg_is_sent_and_delivered_over_sse,
      all_messages_are_archived,
      messages_with_user_are_archived,
-     messages_can_be_paginated,
-     room_is_created,
-     user_is_invited_to_a_room,
-     user_is_removed_from_a_room,
-     rooms_can_be_listed,
-     owner_can_leave_a_room_and_auto_select_owner,
-     user_can_leave_a_room,
-     invitation_to_room_is_forbidden_for_non_memeber,
-     msg_is_sent_and_delivered_in_room,
-     messages_are_archived_in_room,
-     only_room_participant_can_read_messages,
-     messages_can_be_paginated_in_room,
-     room_msg_is_sent_and_delivered_over_sse,
-     aff_change_msg_is_delivered_over_sse
+     messages_can_be_paginated].
+
+muc_test_cases() ->
+     [room_is_created,
+      user_is_invited_to_a_room,
+      user_is_removed_from_a_room,
+      rooms_can_be_listed,
+      owner_can_leave_a_room_and_auto_select_owner,
+      user_can_leave_a_room,
+      invitation_to_room_is_forbidden_for_non_memeber,
+      msg_is_sent_and_delivered_in_room,
+      messages_are_archived_in_room,
+      only_room_participant_can_read_messages,
+      messages_can_be_paginated_in_room,
+      room_msg_is_sent_and_delivered_over_sse,
+      aff_change_msg_is_delivered_over_sse
      ].
+
+roster_test_cases() ->
+    [add_contact_and_subscribe].
 
 init_per_suite(C) ->
     application:ensure_all_started(shotgun),
@@ -520,4 +536,33 @@ assert_json_room_sse_message(Expected, Received) ->
             User = maps:get(user, Expected)
     end.
 
+
+add_contact_and_subscribe(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                            escalus_client:short_jid(Alice)),
+            BCred = credentials({bob, Bob}),
+            % bob has empty roster
+            {?OK, R} = rest_helper:gett("/contacts", BCred),
+            Res = rest_helper:decode_maplist(R),
+            [] = Res,
+            % adds Alice
+            AddContact = #{jid => AliceJID},
+            {?NOCONTENT, _} = rest_helper:post(<<"/contacts">>, AddContact,
+                                               BCred),
+            % and she is in his roster, as an invitee
+            {?OK, R2} = rest_helper:gett("/contacts", BCred),
+            Result = rest_helper:decode_maplist(R2),
+            [Res2] = Result,
+            #{jid := AliceJID, subscription := <<"none">>,
+              ask := <<"none">>} = Res2,
+            % and he received a roster push
+            Push = escalus:wait_for_stanza(Bob, 1),
+            escalus:assert(is_roster_set, Push),
+            ok
+        end
+    ),
+    ok.
 
