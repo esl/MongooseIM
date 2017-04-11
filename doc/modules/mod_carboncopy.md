@@ -4,7 +4,7 @@
 The server uses a disco query to inform if carbons are enabled.
 
 ##### Enabling and disabling Carbons from the client
-Each client can enable/disable carbons for its users by sending an iq stanza with a child element respectively `<enable xmlns='urn:xmpp:carbons:2'/>` or `<disable xmlns='urn:xmpp:carbons:2'/>`
+Each client can enable/disable carbons for its users by sending an iq stanza with a child element -  `<enable xmlns='urn:xmpp:carbons:2'/>` or `<disable xmlns='urn:xmpp:carbons:2'/>` respectively.
 
 ##### Receiving messages to a bare JID
 Each message to a bare JID is forked and sent to all carbon enabled resources of the recipient, and not just to the highest priority resource. 
@@ -20,14 +20,14 @@ The message is wrapped in the `<forwarded xmlns='urn:xmpp:forward:0'></forwarded
 
 ##### Private Messages
 Private messages are tagged `<private/>` and are not forwarded to any carbon enabled resource of the sender and recipient if the `to` attribute contains a full JID. 
-However, if the message is sent to bare JID, it is forked to all highest priority resources. 
+However, if the message is sent to a bare JID, it is forked to all highest priority resources. 
 This is not done through `mod_carboncopy` but is an expected outcome.
 
 ##### Multiple enable/disable requests
-Multiple enable/disable requests are not treated as an error even if they come from same resource.
+Multiple enable/disable requests are not treated as an error even if they come from the same resource.
 
 ##### Behavior with other modules
-  * **mod_offline**: Offline messages are delivered as it is. 
+  * **mod_offline**: Offline messages are delivered as they are. 
    Since, only one resource can connect at a time and there will be a finite time delay between login from two resources, `mod_carboncopy` has no role to play and only one resource can receive offline messages. 
    Other resources can retrieve old messages from the archive.
   *  **mod_mam**: `mod_mam` covers only direct messages from one user to another. 
