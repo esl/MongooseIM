@@ -11,6 +11,8 @@
 -define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
 -define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).
 
+-define(PUBSUB_SUB_DOMAIN, "push").
+
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -48,7 +50,6 @@ suite() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(cowboy),
-    MongoosePushMockPort = crypto:rand_uniform(20000, 50000),
 
     %% For mocking with unnamed functions
     {_Module, Binary, Filename} = code:get_object_code(?MODULE),
@@ -58,7 +59,7 @@ init_per_suite(Config) ->
     Config2 = dynamic_modules:save_modules(domain(), Config),
     dynamic_modules:ensure_modules(domain(), required_modules()),
 
-    escalus:init_per_suite([{mongoose_push_port, MongoosePushMockPort} | Config2]).
+    escalus:init_per_suite(Config2).
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(domain(), Config),
@@ -73,8 +74,7 @@ end_per_group(_, Config) ->
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(CaseName, Config) ->
-    MongoosePushMockPort = proplists:get_value(mongoose_push_port, Config),
-    setup_mock_rest(MongoosePushMockPort),
+    MongoosePushMockPort = setup_mock_rest(),
 
     %% Start HTTP pool
     HTTPOpts = [{mongoose_push_http, [
@@ -96,7 +96,7 @@ has_disco_identity(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Server = escalus_client:server(Alice),
+            Server = node_addr(),
             escalus:send(Alice, escalus_stanza:disco_info(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(has_identity, [<<"pubsub">>, <<"push">>], Stanza)
@@ -336,7 +336,7 @@ domain() ->
 
 node_addr() ->
     Domain = domain(),
-    <<"pubsub.", Domain/binary>>.
+    <<?PUBSUB_SUB_DOMAIN, ".", Domain/binary>>.
 
 rand_name(Prefix) ->
     Suffix = base64:encode(crypto:rand_bytes(5)),
@@ -369,10 +369,12 @@ bare_jid(JIDOrClient) ->
 
 %% ----------------------------------------------
 %% REST mock handler
-setup_mock_rest(Port) ->
+setup_mock_rest() ->
     TestPid = self(),
     HandleFun = fun(Req) -> handle(Req, TestPid) end,
-    http_helper:start(Port, "/[:level1/[:level2/[:level3/[:level4]]]]", HandleFun).
+    {ok, _} = http_helper:start(0, "/[:level1/[:level2/[:level3/[:level4]]]]",
+                                          HandleFun),
+    http_helper:port().
 
 handle(Req, Master) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
@@ -390,12 +392,15 @@ next_rest_req() ->
         throw(rest_mock_timeout)
     end.
 
+pubsub_host(Host) ->
+    ?PUBSUB_SUB_DOMAIN ++ "." ++ Host.
+
 %% Module config
 required_modules() ->
     [{mod_pubsub, [
         {plugins, [<<"dag">>, <<"push">>]},
         {nodetree, <<"dag">>},
-        {host, "pubsub.@HOST@"}
+        {host, ?PUBSUB_SUB_DOMAIN ++ ".@HOST@"}
     ]},
      {mod_push_service_mongoosepush, [
          {pool_name, mongoose_push_http},

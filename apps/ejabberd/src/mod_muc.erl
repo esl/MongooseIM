@@ -56,7 +56,8 @@
 %% Hooks handlers
 -export([is_room_owner/3,
          muc_room_pid/2,
-         can_access_room/3]).
+         can_access_room/3,
+         can_access_identity/3]).
 
 %% Stats
 -export([online_rooms_number/0]).
@@ -314,6 +315,7 @@ init([Host, Opts]) ->
     ejabberd_hooks:add(is_muc_room_owner, MyHost, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:add(muc_room_pid, MyHost, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:add(can_access_room, MyHost, ?MODULE, can_access_room, 50),
+    ejabberd_hooks:add(can_access_identity, MyHost, ?MODULE, can_access_identity, 50),
 
     ejabberd_router:register_route(MyHost, mongoose_packet_handler:new(?MODULE, State)),
     mongoose_subhosts:register(Host, MyHost),
@@ -342,6 +344,7 @@ handle_call(stop, _From, State) ->
     ejabberd_hooks:delete(is_muc_room_owner, State#state.host, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:delete(muc_room_pid, State#state.host, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:delete(can_access_room, State#state.host, ?MODULE, can_access_room, 50),
+    ejabberd_hooks:delete(can_access_identity, State#state.host, ?MODULE, can_access_identity, 50),
 
     {stop, normal, ok, State};
 
@@ -1090,10 +1093,18 @@ is_room_owner(_, Room, User) ->
 muc_room_pid(_, Room) ->
     room_jid_to_pid(Room).
 
--spec can_access_room(Acc :: boolean(), From :: ejabberd:jid(), To :: ejabberd:jid()) ->
+-spec can_access_room(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
     boolean().
-can_access_room(_, From, To) ->
-    case mod_muc_room:can_access_room(To, From) of
+can_access_room(_, Room, User) ->
+    case mod_muc_room:can_access_room(Room, User) of
+        {error, _} -> false;
+        {ok, CanAccess} -> CanAccess
+    end.
+
+-spec can_access_identity(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
+    boolean().
+can_access_identity(_, Room, User) ->
+    case mod_muc_room:can_access_identity(Room, User) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
     end.
