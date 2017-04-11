@@ -4,7 +4,10 @@
 The server uses a disco query to inform if carbons are enabled.
 
 ##### Enabling and disabling Carbons from the client
-Each client can enable/disable carbons for its users by sending an iq stanza with a child element -  `<enable xmlns='urn:xmpp:carbons:2'/>` or `<disable xmlns='urn:xmpp:carbons:2'/>` respectively.
+
+Carbons are not enabled by default. 
+Every client app has to enable carbons to get messages sent to other clients of the user. 
+Carbons are enabled and disabled with an iq stanza with a child element -  `<enable xmlns='urn:xmpp:carbons:2'/>` or `<disable xmlns='urn:xmpp:carbons:2'/>`.
 
 ##### Receiving messages to a bare JID
 Each message to a bare JID is forked and sent to all carbon enabled resources of the recipient, and not just to the highest priority resource. 
