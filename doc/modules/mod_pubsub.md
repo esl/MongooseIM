@@ -1,15 +1,15 @@
 ### What is PubSub?
 
-PubSub is a fascinating design pattern which mostly promotes a loose coupling between two kinds of entity (publishers and subscribers).
+PubSub is a fascinating design pattern which mostly promotes a loose coupling between two kinds of entities - publishers and subscribers.
 Like their names suggest, in the pubsub world we have publishers who fire events, and subscribers who wish to be notified about those events when publishers push data.
 There might be several subscribers, several publishers, and even several channels (or nodes) where the events are sent.
 
 ### Module Description
 
 This module implements [XEP-0060 (Publish-Subscribe)](http://www.xmpp.org/extensions/xep-0060.html).
-Due to the complexity of the protocol, the PubSub engine makes successive calls to `nodetree` and `node plugins` in order to check the validity of requests, perform the corresponding action and return a result or appropriate error.
+Due to the complexity of the protocol, the PubSub engine makes successive calls to the `nodetree` and `node plugins` in order to check the validity of requests, perform the corresponding action and return a result or appropriate error.
 Such an architecture makes it much easier to write custom pubsub plugins and add new storage backends.
-It's all about fitting PubSub to your needs!
+It's all about tailoring PubSub to your needs!
 
 ### Options
 
@@ -18,13 +18,13 @@ It's all about fitting PubSub to your needs!
 * `access_create` (atom, default: `all`): Who is allowed to create pubsub nodes.
 * `max_items_node` (integer, default: `10`): Define the maximum number of items that can be stored in a node.
 * `max_subscriptions_node` (integer, default: `undefined` - no limitation): The maximum number of subscriptions managed by a node.
-* `nodetree` (binary, default: `<<"tree">>`): Specify the storage and organisation of the pubsub nodes.
+* `nodetree` (binary, default: `<<"tree">>`): Specifies the storage and organisation of the pubsub nodes.
 Called on `get`, `create` and `delete` node.
-Only one nodetree can be used per host, and is shared by all node plugins.
-    * `<<"tree">>"` - store nodes in database (only mnesia supported).
-    * `<<"virtual">>` - does not store nodes in database.
+Only one nodetree can be used per host and is shared by all node plugins.
+    * `<<"tree">>"` - store nodes in a database (only mnesia supported).
+    * `<<"virtual">>` - does not store nodes in a database.
     This saves resources on systems when the number of nodes is large.
-    If using the `<<“virtual”>>` nodetree, you can only enable these node plugins:
+    When using the `<<“virtual”>>` nodetree, you can only enable these node plugins:
     `[<<“flat”>>,<<“pep”>>]` or `[<<“flat”>>]`; any other plugin configuration will not work.
     Also, all nodes will have the defaut configuration, and this can not be changed.
     Using the `<<“virtual”>>` nodetree requires the pubsub module to be started with a clean database, it will not work if you used the default `<<“tree”>>` nodetree before.
@@ -32,7 +32,7 @@ Only one nodetree can be used per host, and is shared by all node plugins.
     In this case you should also add the `<<“dag”>>` node plugin as default, for example: plugins: `[<<"dag">>,<<"flat">>,<<"hometree">>,<<"pep">>]`
 * `ignore_pep_from_offline` (boolean, default: `true`): specify whether or not we should get last published PEP items from users in our roster which are offline when we connect.
 The default option is `true` hence we will get only the last items from the online contacts.
-* `last_item_cache` (boolean, default `false`): specify whether or not pubsub should cache the last items. Such an option provides the ability to send the last published item to a new subscriber.
+* `last_item_cache` (boolean, default `false`): specifies whether or not pubsub should cache the last items. Such an option provides the ability to send the last published item to a new subscriber.
 Such caching might speed up pubsub's performance and can increase the number of user connections but in price of memory usage.
 * `plugins` ([Plugin, ...], default: `[<<"flat">>]`): List of enabled pubsub plugins.
 They handle affiliations, subscriptions and items and also provide default node conﬁguration and features.
@@ -50,17 +50,13 @@ If such an attribute is not specified, the default plugin will be the first on t
     Requires module `mod_caps` to be enabled.
     * `<<"dag">>` - implementation of [XEP-0248 (PubSub Collection Nodes)](https://xmpp.org/extensions/xep-0248.html).
     Every node takes a place in a tree and is either a collection node (and have only sub-nodes) or a leaf node (contains only items).
-    * `<<"push"">>` - special node type that may be used as target node for [XEP-0357 (Push 
-    Notifications)](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_push`). 
-    For each 
-    published notification, hook `push_notification` is run. You may enable as many modules that 
-    support this hook (all module with `mod_push_service_*` name prefix) as you like (see for 
-    example 
-    `mod_push_service_mongoosepush`). This node type **requires** `publish-options` with at
-    least `device_id` and `service` fields supplied.
-* `pep_mapping` ([{Key, Value}, ...]): This permits the definistion of a Key-Value list to define a custom node plugin on a given PEP namespace.
+    * `<<"push"">>` - special node type that may be used as a target node for [XEP-0357 (Push Notifications)](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_push`). 
+    For each published notification, a hook `push_notification` is run. 
+    You may enable as many modules that support this hook (all module with `mod_push_service_*` name prefix) as you like (see for example `mod_push_service_mongoosepush`). 
+    This node type **requires** `publish-options` with at least `device_id` and `service` fields supplied.
+* `pep_mapping` ([{Key, Value}, ...]): This permits creating a Key-Value list to define a custom node plugin on a given PEP namespace.
 E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of `node_pep` when the specified namespace is used.
-* `default_node_config` ([{Key, Value}, ...]): Overrides default node configuration, regradless of node plugin.
+* `default_node_config` ([{Key, Value}, ...]): Overrides the default node configuration, regradless of the node plugin.
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
 
 ### Example Configuration

@@ -1,10 +1,11 @@
 ### Reverse Proxy
 
-MongooseIM can be used as a reverse proxy thanks to `mod_revproxy` module. In order to enable this functionality a new entry to listeners and modules sections in the ejabberd.cfg file has to be added.
+MongooseIM can be used as a reverse proxy thanks to `mod_revproxy` module. 
+To enable this functionality, add a new entry to the listeners and modules sections in the ejabberd.cfg file.
 
 #### Setting up listener
 
-In the listeners section following entry has to be added:
+Add the following entry in the listeners section:
 
 ```Erlang
  { {8090, ejabberd_cowboy, [
@@ -28,13 +29,11 @@ In the listeners section following entry has to be added:
 
 ```
 
-For more details about listeners configuration please take a look at
-[ejabberd_cowboy section on Listeners config page](../advanced-configuration/Listener-modules.md#ejabberd_cowboy)
+For more details about the listeners configuration please take a look at [ejabberd_cowboy section on Listeners config page](../advanced-configuration/Listener-modules.md#ejabberd_cowboy)
 
 #### Configuring routes
 
-Also in order to defined reverse proxy rules following entry has to be
-added to the modules section.
+To define reverse proxy rules, add the following entry to the modules section.
 
 ```Erlang
 {mod_revproxy,
@@ -45,16 +44,12 @@ added to the modules section.
      }]},
 ```
 
-Routes are defined in the options of mod_revproxy module using either
-`{Host, Path, Method, Upstream}` or `{Host, Path, Upstream}`.
-The latter one is the equivalent of `{Host, Path, "_", Upstream}`.
-"_" can be used as wildcard for `Host`, `Path` and `Method` and it
-matches on everything.
+Routes are defined in the options of mod_revproxy module using either `{Host, Path, Method, Upstream}` or `{Host, Path, Upstream}`.
+The latter one is the equivalent of `{Host, Path, "_", Upstream}`. 
+"_" can be used as a wildcard for `Host`, `Path` and `Method` and it matches on everything.
 
-Upstream can be defined by either host (just `http(s)://host:port`) or URI.
-The difference between them is that host upstreams are concatenated by 
-the whole request path while URI upstreams are concatenated only by the 
-remainder that follows the matched `Path`.
+Upstreams can be defined either by host (just `http(s)://host:port`) or URI.
+The difference between them is that the host upstreams are concatenated by the whole request path while the URI upstreams are concatenated only by the remainder that follows the matched `Path`.
 This behaviour is similar to the nginx's proxy_pass rules.
 
 Moreover, bindings may be used to match certain parts of host and/or path.
