@@ -235,9 +235,9 @@ paths:
       responses:
         204:
           description: "The user was added to contacts list."
-  /contacts/{contact}/subscribe:
+  /contacts/{contact}:
     put:
-      description: "Send a subscription request to contact"
+      description: "Manage subscription"
       tags:
         - "Contacts"
       parameters:
@@ -245,26 +245,16 @@ paths:
           name: contact
           required: true
           type: string
-      responses:
-        204:
-          description: "A subscription request was sent to the contact (it may and may not change
-          the 'ask' state, depending what subscription and ask states were)"
-        404:
-          description: "The contact is not in the user's roster"
-  /contacts/{contact}/accept:
-    put:
-      description: "Accept a subscription requests from contact"
-      tags:
-        - "Contacts"
-      parameters:
-        - in: path
-          name: contact
+        - in: body
+          name: action
           required: true
           type: string
+          enum: ["invite", "accept"]
       responses:
         204:
-          description: "A subscription request from contact was accepted (it may and may not change
-          the 'subscription' and 'ask' state, depending what they were)"
+          description: "A subscription request was sent to the contact
+          with value 'subscribe' or 'subscribed' (it may and may not change
+          the 'subscription' and 'ask' states, depending what they were)"
         404:
           description: "The contact is not in the user's roster"
   /contacts/{contact}:

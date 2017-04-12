@@ -15,6 +15,7 @@
          add_contact/2,
          add_contact/3,
          add_contact/4,
+         subscription/3,
          kick_session/3,
          get_recent_messages/3,
          get_recent_messages/4,
@@ -119,6 +120,18 @@ commands() ->
       {action, create},
       {security_policy, [user]},
       {args, [{caller, binary}, {jid, binary}]},
+      {result, ok}
+     ],
+     [
+      {name, subscription},
+      {category, <<"contacts">>},
+      {desc, <<"Send out a subscription request">>},
+      {module, ?MODULE},
+      {function, subscription},
+      {action, update},
+      {security_policy, [user]},
+      {identifiers, [jid]},
+      {args, [{caller, binary}, {jid, binary}, {action, binary}]},
       {result, ok}
      ],
      [
@@ -321,20 +334,26 @@ create_acc(CallerJid, Name, Type, OtherJid) ->
     mongoose_acc:put(to_jid, OtherJid, A1).
 
 
-%%invite(CallerJid, OtherJid) ->
-%%    A = create_acc(CallerJid, <<"presence">>, <<"subscribe">>, OtherJid),
-%%    El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, <<"subscribe">>}]},
-%%    Acc1 = mongoose_acc:put(element, El, A),
-%%    % set subscription to
-%%    Server = CallerJid#jid.server,
-%%    LUser = CallerJid#jid.luser,
-%%    LServer= CallerJid#jid.lserver,
-%%    Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
-%%        Server,
-%%        Acc1,
-%%        [LUser, LServer, OtherJid, subscribe]),
-%%    ejabberd_router:route(CallerJid, OtherJid, mongoose_acc:get(element, Acc2)),
-%%    ok.
+subscription(Caller, Other, Action) ->
+    Act = binary_to_existing_atom(Action, latin1),
+    run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
+
+-spec run_subscription(subscribe | subscribed, jid(), jid()) -> ok.
+run_subscription(Type, CallerJid, OtherJid) ->
+    StanzaType = atom_to_binary(Type, latin1),
+    A = create_acc(CallerJid, <<"presence">>, StanzaType, OtherJid),
+    El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
+    Acc1 = mongoose_acc:put(element, El, A),
+    % set subscription to
+    Server = CallerJid#jid.server,
+    LUser = CallerJid#jid.luser,
+    LServer= CallerJid#jid.lserver,
+    Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
+        Server,
+        Acc1,
+        [LUser, LServer, OtherJid, Type]),
+    ejabberd_router:route(CallerJid, OtherJid, mongoose_acc:get(element, Acc2)),
+    ok.
 
 
 

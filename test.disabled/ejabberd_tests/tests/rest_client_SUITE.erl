@@ -4,12 +4,27 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-import(rest_helper,
+        [assert_inlist/2,
+         assert_notinlist/2,
+         decode_maplist/1,
+         gett/1,
+         post/2,
+         putt/2,
+         delete/1,
+         gett/2,
+         post/3,
+         putt/3,
+         delete/2]
+         ).
+
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
 -define(CREATED, {<<"201">>, <<"Created">>}).
 -define(NOCONTENT, {<<"204">>, <<"No Content">>}).
 -define(ERROR, {<<"500">>, _}).
 -define(NOT_FOUND, {<<"404">>, _}).
+-define(NOT_IMPLEMENTED, {<<"501">>, _}).
 
 all() ->
     [{group, messages}, {group, muc}, {group, roster}].
@@ -44,7 +59,9 @@ muc_test_cases() ->
      ].
 
 roster_test_cases() ->
-    [add_contact_and_subscribe].
+    [add_contact_and_invite,
+     add_contact_and_be_invited,
+     break_stuff].
 
 init_per_suite(C) ->
     application:ensure_all_started(shotgun),
@@ -537,7 +554,7 @@ assert_json_room_sse_message(Expected, Received) ->
     end.
 
 
-add_contact_and_subscribe(Config) ->
+add_contact_and_invite(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
@@ -545,24 +562,151 @@ add_contact_and_subscribe(Config) ->
                             escalus_client:short_jid(Alice)),
             BCred = credentials({bob, Bob}),
             % bob has empty roster
-            {?OK, R} = rest_helper:gett("/contacts", BCred),
-            Res = rest_helper:decode_maplist(R),
+            {?OK, R} = gett("/contacts", BCred),
+            Res = decode_maplist(R),
             [] = Res,
             % adds Alice
             AddContact = #{jid => AliceJID},
-            {?NOCONTENT, _} = rest_helper:post(<<"/contacts">>, AddContact,
-                                               BCred),
-            % and she is in his roster, as an invitee
-            {?OK, R2} = rest_helper:gett("/contacts", BCred),
-            Result = rest_helper:decode_maplist(R2),
+            {?NOCONTENT, _} = post(<<"/contacts">>, AddContact,
+                                   BCred),
+            % and she is in his roster, with empty status
+            {?OK, R2} = gett("/contacts", BCred),
+            Result = decode_maplist(R2),
             [Res2] = Result,
             #{jid := AliceJID, subscription := <<"none">>,
               ask := <<"none">>} = Res2,
             % and he received a roster push
             Push = escalus:wait_for_stanza(Bob, 1),
             escalus:assert(is_roster_set, Push),
+            % he invites her
+            PutPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
+            {?NOCONTENT, _} = putt(PutPath,
+                                   #{action => <<"invite">>},
+                                   BCred),
+            % another roster push
+            Push2 = escalus:wait_for_stanza(Bob, 1),
+            escalus:assert(is_roster_set, Push2),
+            ct:pal("Push2: ~p", [Push2]),
+            % she receives  a subscription request
+            Sub = escalus:wait_for_stanza(Alice, 1),
+            escalus:assert(is_presence_with_type, [<<"subscribe">>], Sub),
+            % in his roster she has a changed 'ask' status
+            {?OK, R3} = gett("/contacts", BCred),
+            Result3 = decode_maplist(R3),
+            [Res3] = Result3,
+            #{jid := AliceJID, subscription := <<"none">>,
+              ask := <<"out">>} = Res3,
+            % adds him to her contacts
+            escalus:send(Alice, escalus_stanza:roster_add_contact(Bob,
+                         [], <<"Bob">>)),
+            PushReqB = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_roster_set, PushReqB),
+            escalus:send(Alice, escalus_stanza:iq_result(PushReqB)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            %% Alice sends subscribed presence
+            escalus:send(Alice,
+                         escalus_stanza:presence_direct(
+                             escalus_client:short_jid(Bob),
+                             <<"subscribed">>)),
+            % now check Bob's roster
+            timer:sleep(100),
+            {?OK, R4} = gett("/contacts", BCred),
+            Result4 = decode_maplist(R4),
+            [Res4] = Result4,
+            #{jid := AliceJID, subscription := <<"to">>,
+                ask := <<"none">>} = Res4,
             ok
         end
     ),
     ok.
+
+add_contact_and_be_invited(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BCred = credentials({bob, Bob}),
+            % bob has empty roster
+            {?OK, R} = gett("/contacts", BCred),
+            Res = decode_maplist(R),
+            [] = Res,
+            % adds Alice
+            AddContact = #{jid => AliceJID},
+            {?NOCONTENT, _} = post(<<"/contacts">>, AddContact,
+                                   BCred),
+            % and she is in his roster, with empty status
+            {?OK, R2} = gett("/contacts", BCred),
+            Result = decode_maplist(R2),
+            [Res2] = Result,
+            #{jid := AliceJID, subscription := <<"none">>,
+              ask := <<"none">>} = Res2,
+            % and he received a roster push
+            Push = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_roster_set, Push),
+            %% she adds him and invites
+            escalus:send(Alice, escalus_stanza:roster_add_contact(Bob,
+                         [],
+                         <<"Bobek">>)),
+            escalus:assert_many([is_roster_set, is_iq_result],
+                                escalus:wait_for_stanzas(Alice, 2)),
+            escalus:send(Alice,
+                         escalus_stanza:presence_direct(
+                             escalus_client:short_jid(Bob),
+                             <<"subscribe">>)),
+            escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_presence_with_type, [<<"subscribe">>],
+                           escalus:wait_for_stanza(Bob, 1)),
+            % now check Bob's roster, and it is empty...
+            {?OK, R4} = gett("/contacts", BCred),
+            Result4 = decode_maplist(R4),
+            [] = Result4,
+            % because it is stated in RFC3921, 8.2.6, and implemented
+            % in mod_roster:get_user_roster/2, lines 344-349
+            % maybe we can change it, the RFC says "should not"
+            % he accepts
+            PutPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
+            {?NOCONTENT, _} = putt(PutPath,
+                                   #{action => <<"accept">>},
+                                   BCred),
+            escalus:assert(is_roster_set, escalus:wait_for_stanza(Bob)),
+            IsSub = fun(S) ->
+                        escalus_pred:is_presence_with_type(<<"subscribed">>, S)
+                    end,
+            escalus:assert_many([is_roster_set, IsSub,
+                                 is_presence],
+                                escalus:wait_for_stanzas(Alice, 3)),
+            ok
+        end
+    ),
+    ok.
+
+
+break_stuff(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BCred = credentials({bob, Bob}),
+            AddContact = #{jid => AliceJID},
+            {?NOCONTENT, _} = post(<<"/contacts">>, AddContact,
+                BCred),
+            PutPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
+            {?NOT_IMPLEMENTED, _} = putt(PutPath,
+                                         #{action => <<"nosuchaction">>},
+                                         BCred),
+            BadPutPath = "/contacts/zorro@localhost",
+            {?NOT_FOUND, _} = putt(BadPutPath,
+                                   #{action => <<"invite">>},
+                                   BCred),
+            ok
+        end
+    ),
+    ok.
+
+
+
+
+
 

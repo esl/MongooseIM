@@ -46,25 +46,64 @@ to_json(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
     {Method, _} = cowboy_req:method(Req),
     {Jid, _} = cowboy_req:binding(jid, Req),
-    {Action, _} = cowboy_req:binding(action, Req),
-    {ok, Res} = handle_request(Method, Jid, Action, CJid),
+    {ok, Res} = handle_request(Method, Jid, undefined, CJid),
     {jiffy:encode(lists:flatten([Res])), Req, State}.
 
 
 from_json(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
     {Method, Req2} = cowboy_req:method(Req),
-    {ok, Body, Req3} = cowboy_req:body(Req2),
+    {ok, Body, Req1} = cowboy_req:body(Req),
     JSONData = jiffy:decode(Body, [return_maps]),
-    Jid = maps:get(<<"jid">>, JSONData),
-    ok = handle_request(Method, Jid, undefined, CJid),
-    {true, Req3, State}.
-
+    Jid = case maps:get(<<"jid">>, JSONData, undefined) of
+              undefined ->
+                  {J, _} = cowboy_req:binding(jid, Req1),
+                  J;
+              J -> J
+          end,
+    Action = maps:get(<<"action">>, JSONData, undefined),
+    case handle_request(Method, to_binary(Jid), Action, CJid) of
+        ok ->
+            {true, Req2, State};
+        not_implemented ->
+            {ok, Req3} = cowboy_req:reply(501, Req2),
+            {halt, Req3, State};
+        not_found ->
+            {ok, Req3} = cowboy_req:reply(404, Req2),
+            {halt, Req3, State}
+    end.
 
 handle_request(<<"GET">>, undefined, undefined, CJid) ->
     mongoose_commands:execute(CJid, list_contacts, #{caller => CJid});
 handle_request(<<"POST">>, Jid, undefined, CJid) ->
     mongoose_commands:execute(CJid, add_contact, #{caller => CJid,
-                                                   jid => Jid}),
-    ok.
+        jid => Jid});
+handle_request(Method, Jid, Action, CJid) ->
+    case jid_exists(CJid, Jid) of
+        true -> handle_contact_request(Method, Jid, Action, CJid);
+        false -> not_found
+    end.
+
+handle_contact_request(<<"PUT">>, Jid, <<"invite">>, CJid) ->
+    mongoose_commands:execute(CJid, subscription, #{caller => CJid,
+        jid => Jid, action => <<"subscribe">>});
+handle_contact_request(<<"PUT">>, Jid, <<"accept">>, CJid) ->
+    mongoose_commands:execute(CJid, subscription, #{caller => CJid,
+        jid => Jid, action => <<"subscribed">>});
+handle_contact_request(_, _, _, _) ->
+    not_implemented.
+
+to_binary(S) when is_binary(S) ->
+    S;
+to_binary(S) ->
+    list_to_binary(S).
+
+-spec jid_exists(binary(), binary()) -> boolean().
+jid_exists(CJid, Jid) ->
+    {ok, Roster} = mongoose_commands:execute(CJid, list_contacts,
+                                             #{caller => CJid}),
+    Res = lists:filter(
+        fun(M) -> maps:get(jid, M, undefined) == Jid end,
+        Roster),
+    Res =/= [].
 

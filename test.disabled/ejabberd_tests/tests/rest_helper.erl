@@ -92,8 +92,6 @@ delete(Path) ->
 
 -spec gett(Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
 gett(Path, Cred) ->
-    ct:pal("Path: ~p", [Path]),
-    ct:pal("Cred: ~p", [Cred]),
     make_request({<<"GET">>, Cred}, Path).
 
 post(Path, Body, Cred) ->
