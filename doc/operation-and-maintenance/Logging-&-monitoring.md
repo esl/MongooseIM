@@ -73,7 +73,7 @@ For more details, please visit the Exometer's project page: [Exometer](https://g
 **Note that we are using the 1.2.1 version.**
 
 Below you can find a sample configuration. 
-It sets up a reporter which connects to graphite running on localhost.
+It shows setting up a reporter connecting to graphite running on localhost.
 
 You can see an additional option not listed in the Exometer docs - `mongooseim_report_interval`.
 That option sets the metrics resolution: how often Exometer gathers and sends metrics through reporters. 
