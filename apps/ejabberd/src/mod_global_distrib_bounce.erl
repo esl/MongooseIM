@@ -51,26 +51,28 @@ stop(Host) ->
 remove_message5(Acc, _Jid, From, To, Packet) ->
     remove_message4(Acc, From, To, Packet).
 
-remove_message4(Acc, _From, _To, Packet) ->
-    ets:delete(?MODULE, storage_key(Packet)),
+remove_message4(Acc, From, _To, Packet) ->
+    ?DEBUG("Removing message from=~s, to=~s from buffer: successful delivery",
+           [jid:to_binary(From), jid:to_binary(_To)]),
+    ets:delete(?MODULE, storage_key(From, Packet)),
     Acc.
 
 maybe_resend_message(drop) -> drop;
-maybe_resend_message({_From, _To, Packet} = FPacket) ->
-    case exml_query:attr(Packet, <<"distrib_ttl">>, <<"0">>) of
-        <<"0">> -> FPacket;
-        BinTTL  ->
-            case exml_query:attr(Packet, <<"type">>) of
-                <<"error">> ->
-                    case ets:lookup(?MODULE, storage_key(Packet)) of
-                        [] -> FPacket;
-                        [{_, StoredPacket}] ->
-                            resend_message(StoredPacket, FPacket, binary_to_integer(BinTTL)),
-                            drop
-                    end;
-                _ ->
-                    FPacket
-            end
+maybe_resend_message({_From, To, Packet} = FPacket) ->
+    case exml_query:attr(Packet, <<"type">>) of
+        <<"error">> ->
+            StorageKey = storage_key(To, Packet),
+            case ets:lookup(?MODULE, StorageKey) of
+                [] -> FPacket;
+                [{_, _StoredPacket, _TTL = 0}] ->
+                    ets:delete(?MODULE, StorageKey),
+                    FPacket;
+                [{_, StoredPacket, _TTL}] ->
+                    resend_message(StorageKey, StoredPacket),
+                    drop
+            end;
+        _ ->
+            FPacket
     end.
 
 maybe_store_message(drop) -> drop;
@@ -80,31 +82,34 @@ maybe_store_message({_From, _To, Packet} = FPacket) ->
         _ -> FPacket
     end.
 
-resend_message(StoredPacket, {From, To, _Packet}, TTL) ->
-    BouncedPacket = set_ttl(StoredPacket, TTL - 1),
-    timer:apply_after(100, ejabberd_router, route, [To, From, BouncedPacket]). %% TODO
+resend_message(StorageKey, StoredPacket) ->
+    TTL = ets:update_counter(?MODULE, StorageKey, {3, -1}),
+    FromBin = exml_query:attr(StoredPacket, <<"from">>),
+    ToBin = exml_query:attr(StoredPacket, <<"to">>),
+    ?DEBUG("Scheduling resend of message from=~s to=~s retries_left=~B", [FromBin, ToBin, TTL]),
+    mod_global_distrib_mapping:clear_cache_for_jid(ToBin),
+    timer:apply_after(200, ejabberd_router, route,
+                      [jid:from_binary(FromBin), jid:from_binary(ToBin), StoredPacket]). %% TODO
 
 store_message({From, To, Packet0}) ->
-    Packet = maybe_set_id(set_ttl(Packet0, 4)), %% TODO: TTL
-    ets:insert(?MODULE, {storage_key(Packet), Packet}),
+    Packet = jlib:replace_from_to(From, To, maybe_set_id(Packet0)),
+    ets:insert_new(?MODULE, {storage_key(From, Packet), Packet, 4}), %% TODO: TTL
     {From, To, Packet}.
 
 maybe_set_id(Packet) ->
     case exml_query:attr(Packet, <<"id">>) of
         undefined -> set_id(Packet);
-        Id -> {Packet, Id}
+        _ -> Packet
     end.
 
 set_id(Packet) ->
     NewId = uuid:uuid_to_string(uuid:get_v4(), binary_nodash),
     Packet#xmlel{attrs = [{<<"id">>, NewId} | Packet#xmlel.attrs]}.
 
-set_ttl(Packet, NewTTL) when is_integer(NewTTL) ->
-    TTLTuple = {<<"distrib_ttl">>, integer_to_binary(NewTTL)},
-    Packet#xmlel{attrs = lists:keystore(<<"distrib_ttl">>, 1, Packet#xmlel.attrs, TTLTuple)}.
-
-storage_key(Packet) ->
-    {exml_query:attr(Packet, <<"from">>), exml_query:attr(Packet, <<"id">>)}.
+storage_key(From, Packet) when is_binary(From) ->
+    {From, exml_query:attr(Packet, <<"id">>)};
+storage_key(From, Packet) ->
+    storage_key(jid:to_binary(From), Packet).
 
 opt(Key) ->
     try ets:lookup_element(?MODULE, Key, 2) catch _:_ -> undefined end.

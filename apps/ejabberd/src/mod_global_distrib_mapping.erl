@@ -37,47 +37,39 @@ delete_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
 for_jid(#jid{} = Jid) -> for_jid(jid:to_lower(Jid));
 for_jid({_, _, _} = Jid) ->
     BinJid = jid:to_binary(Jid),
-    LookupInDB =
-        fun() ->
-                case mod_global_distrib_backend:get_session(BinJid) of
-                    {ok, _} = Result -> Result;
-                    Other ->
-                        case jid:to_bare(Jid) of
-                            Jid -> Other;
-                            BareJid ->
-                                mod_global_distrib_backend:get_session(jid:to_binary(BareJid))
-                        end
-                end
-        end,
-    cache_tab:lookup(?JID_TAB, BinJid, LookupInDB).
+    LookupInDB = fun(BJid) -> fun() -> mod_global_distrib_backend:get_session(BJid) end end,
+    case cache_tab:lookup(?JID_TAB, BinJid, LookupInDB(BinJid)) of
+        {ok, _} = Result -> Result;
+        Other ->
+            case jid:to_bare(Jid) of
+                Jid -> Other;
+                BareJid -> cache_tab:lookup(?JID_TAB, BinJid, LookupInDB(jid:to_binary(BareJid)))
+            end
+    end.
 
 insert_for_jid(#jid{} = Jid, Host) -> insert_for_jid(jid:to_lower(Jid), Host);
 insert_for_jid({_, _, _} = Jid, Host) when is_binary(Host) ->
-    BinJid = jid:to_binary(Jid),
-    InsertToDB =
-        fun() ->
-                lists:all(fun(Res) -> Res =:= ok end,
-                          [mod_global_distrib_backend:put_session(BJid, Host)
-                           || BJid <- normalize_jid(Jid, BinJid)])
+    lists:foreach(
+        fun(BinJid) ->
+            InsertToDB = fun() -> mod_global_distrib_backend:put_session(BinJid, Host) end,
+            cache_tab:insert(?JID_TAB, BinJid, Host, InsertToDB)
         end,
-    cache_tab:insert(?JID_TAB, BinJid, Host, InsertToDB).
+        normalize_jid(Jid)).
 
 clear_cache_for_jid(Jid) when is_binary(Jid) ->
     cache_tab:dirty_delete(?JID_TAB, Jid).
 
 delete_for_jid(#jid{} = Jid, Host) -> delete_for_jid(jid:to_lower(Jid), Host);
 delete_for_jid({_, _, _} = Jid, Host) when is_binary(Host) ->
-    BinJid = jid:to_binary(Jid),
-    DeleteFromDB =
-        fun() ->
-                lists:all(fun(Res) -> Res =:= ok end,
-                          [mod_global_distrib_backend:delete_session(BJid, Host)
-                           || BJid <- normalize_jid(Jid, BinJid)])
+    lists:foreach(
+        fun(BinJid) ->
+            DeleteFromDB = fun() -> mod_global_distrib_backend:delete_session(BinJid, Host) end,
+            cache_tab:delete(?JID_TAB, BinJid, DeleteFromDB)
         end,
-    cache_tab:delete(?JID_TAB, BinJid, DeleteFromDB).
+        normalize_jid(Jid)).
 
-normalize_jid({_, _, _} = FullJid, BinFullJid) ->
+normalize_jid({_, _, _} = FullJid) ->
     case jid:to_bare(FullJid) of
-        FullJid -> [BinFullJid];
-        BareJid -> [BinFullJid, jid:to_binary(BareJid)]
+        FullJid -> [jid:to_binary(FullJid)];
+        BareJid -> [jid:to_binary(FullJid), jid:to_binary(BareJid)]
     end.

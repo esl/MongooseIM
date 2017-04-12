@@ -12,20 +12,20 @@
 
 all() ->
     [
-     {group, mod_global_distrib}
-    %  {group, cluster_restart}
+     {group, mod_global_distrib},
+     {group, cluster_restart}
     ].
 
 groups() ->
     [{mod_global_distrib, [],
       [
-       test_pm_between_users_at_different_locations
-    %    test_muc_conversation_on_one_host,
-    %    test_component_on_one_host,
-    %    test_component_disconnect,
-    %    test_pm_with_disconnection_on_other_server,
-    %    test_pm_with_graceful_reconnection_to_different_server,
-    %    test_pm_with_ungraceful_reconnection_to_different_server
+       test_pm_between_users_at_different_locations,
+       test_muc_conversation_on_one_host,
+       test_component_on_one_host,
+       test_component_disconnect,
+       test_pm_with_disconnection_on_other_server,
+       test_pm_with_graceful_reconnection_to_different_server,
+       test_pm_with_ungraceful_reconnection_to_different_server
       ]},
      {cluster_restart, [],
       [
@@ -141,10 +141,9 @@ test_muc_conversation_on_one_host(Config0) ->
               RoomAddr = muc_helper:room_address(RoomJid),
 
               escalus:send(Alice, muc_helper:stanza_muc_enter_room(RoomJid, AliceUsername)),
-              escalus:wait_for_stanzas(Alice, 2),
+              escalus:wait_for_stanza(Alice),
 
               escalus:send(Eve, muc_helper:stanza_muc_enter_room(RoomJid, EveUsername)),
-              escalus:wait_for_stanza(Alice),
               escalus:wait_for_stanzas(Eve, 3),
 
               Msg= <<"Hi, Eve!">>,
@@ -244,19 +243,21 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
               escalus_connection:stop(Eve),
 
-              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe!">>)),
+              escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe!">>)),
               NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
 
-              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi again from Europe!">>)),
+              escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe!">>)),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi again from Asia!">>)),
 
               FromEve = escalus_client:wait_for_stanza(Alice),
-              FromAliceBounce = escalus_client:wait_for_stanza(Alice),
-              AgainFromAlice = escalus_client:wait_for_stanza(NewEve),
+              FirstFromAlice = escalus_client:wait_for_stanza(NewEve),
               AgainFromEve = escalus_client:wait_for_stanza(Alice),
+              SecondFromAlice = escalus_client:wait_for_stanza(NewEve),
 
+              [FromAlice, AgainFromAlice] = order_by_seqnum([FirstFromAlice, SecondFromAlice]),
+
+              escalus:assert(is_chat_message, [<<"Hi from Europe!">>], FromAlice),
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], FromEve),
-              escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], FromAliceBounce),
               escalus:assert(is_chat_message, [<<"Hi again from Europe!">>], AgainFromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Asia!">>], AgainFromEve)
       end).
@@ -278,19 +279,19 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
 
               escalus_connection:kill(Eve),
 
-              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe!">>)),
+              escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe!">>)),
 
               NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
 
-              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi again from Europe!">>)),
+              escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe!">>)),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
 
-              UnavailableEve = escalus_client:wait_for_stanza(NewEve),
-              FromAlice = escalus_client:wait_for_stanza(NewEve),
-              AgainFromAlice = escalus_client:wait_for_stanza(NewEve),
+              FirstFromAlice = escalus_client:wait_for_stanza(NewEve, timer:seconds(10)),
+              SecondFromAlice = escalus_client:wait_for_stanza(NewEve),
               AgainFromEve = escalus_client:wait_for_stanza(Alice),
 
-              escalus:assert(is_presence_with_type, [<<"unavailable">>], UnavailableEve),
+              [FromAlice, AgainFromAlice] = order_by_seqnum([FirstFromAlice, SecondFromAlice]),
+
               escalus:assert(is_chat_message, [<<"Hi from Europe!">>], FromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Europe!">>], AgainFromAlice),
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], AgainFromEve)
@@ -310,5 +311,13 @@ rpc(NodeName, M, F, A) ->
 connect_from_spec(UserSpec, Config) ->
     {ok, User} = escalus_client:start(Config, UserSpec, <<"res1">>),
     escalus_story:send_initial_presence(User),
-    escalus_client:wait_for_stanza(User),
+    escalus_connection:set_filter_predicate(User, fun(S) -> not escalus_pred:is_presence(S) end),
     User.
+
+chat_with_seqnum(To, Text) ->
+    escalus_stanza:set_id(escalus_stanza:chat_to(To, Text),
+                          integer_to_binary(erlang:monotonic_time())).
+
+order_by_seqnum(Stanzas) ->
+    lists:sort(fun(A, B) -> exml_query:attr(B, <<"id">>) < exml_query:attr(A, <<"id">>) end,
+               Stanzas).

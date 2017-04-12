@@ -13,13 +13,21 @@ prepared_queries() ->
 
 put_session(Jid, Host) ->
     Stamp = p1_time_compat:system_time(milli_seconds),
-    mongoose_cassandra:cql_write(global, undefined, ?MODULE, put, [#{jid => Jid, stamp => Stamp,
-                                                                     host => Host}]),
-    ok.
+    case mongoose_cassandra:cql_write(global, undefined, ?MODULE, put,
+                                      [#{jid => Jid, stamp => Stamp, host => Host}]) of
+        ok -> ok;
+        _ -> error
+    end.
 
 get_session(Jid) ->
-    mongoose_cassandra:cql_read(global, undefined, ?MODULE, get, #{jid => Jid}).
+    case mongoose_cassandra:cql_read(global, undefined, ?MODULE, get, #{jid => Jid}) of
+        {ok, [#{host := Host}]} -> {ok, Host};
+        _ -> error
+    end.
 
 delete_session(Jid, Host) ->
-    mongoose_cassandra:cql_write(global, undefined, ?MODULE, delete, [#{jid => Jid, host => Host}]),
-    ok.
+    case mongoose_cassandra:cql_write(global, undefined, ?MODULE, delete,
+                                      [#{jid => Jid, host => Host}]) of
+        ok -> ok;
+        _ -> error
+    end.

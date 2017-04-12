@@ -1,5 +1,5 @@
 CREATE KEYSPACE mongooseim_global
-  WITH REPLICATION = {'class' : 'NetworkTopologyStrategy', 'datacenter1': 2};
+  WITH REPLICATION = {'class' : 'NetworkTopologyStrategy', 'datacenter1': 1, 'datacenter2': 1};
 USE mongooseim_global;
 
 CREATE TABLE sessions(

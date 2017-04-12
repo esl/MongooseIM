@@ -9,7 +9,7 @@
 -callback get_session(JID :: binary()) -> {ok, Host :: binary()} | term().
 -callback delete_session(JID :: binary(), Host :: binary()) -> ok.
 
--export([start/2, stop/1, maybe_reroute_subhost/1, maybe_wrap_message/1, user_present/2,
+-export([start/2, stop/1, maybe_reroute/1, user_present/2,
          register_subhost/2, maybe_unwrap_message/1, unregister_subhost/2, user_not_present/5]).
 
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
@@ -17,7 +17,7 @@ start(Host, Opts) ->
     {global_host, GlobalHostList} = lists:keyfind(global_host, 1, Opts),
     case unicode:characters_to_binary(GlobalHostList) of
         Host ->
-            gen_mod:start_backend_module(?MODULE, [{backend, cassandra} | Opts]),
+            gen_mod:start_backend_module(?MODULE, [{backend, cassandra} | Opts]), %% TODO: move to mapping module
 
             Self = self(),
             Heir = case whereis(ejabberd_sup) of
@@ -30,11 +30,11 @@ start(Host, Opts) ->
             [ets:insert(?MODULE, {K, unicode:characters_to_binary(V)}) || {K, V} <- Opts],
 
             LocalHost = opt(local_host),
+            mod_global_distrib_mapping:start(600, 5, 10000), %% TODO: cache settings
 
-            ejabberd_hooks:add(filter_packet, global, ?MODULE, maybe_reroute_subhost, 99),
+            ejabberd_hooks:add(filter_packet, global, ?MODULE, maybe_reroute, 99),
             ejabberd_hooks:add(register_subhost, global, ?MODULE, register_subhost, 90),
             ejabberd_hooks:add(unregister_subhost, Host, ?MODULE, unregister_subhost, 90),
-            ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, maybe_wrap_message, 99),
             ejabberd_hooks:add(filter_local_packet, LocalHost, ?MODULE, maybe_unwrap_message, 99),
             ejabberd_hooks:add(user_available_hook, Host, ?MODULE, user_present, 90),
             ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, user_not_present, 90);
@@ -53,19 +53,30 @@ stop(Host) ->
             ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, maybe_wrap_message, 99),
             ejabberd_hooks:delete(unregister_subhost, Host, ?MODULE, unregister_subhost, 90),
             ejabberd_hooks:delete(register_subhost, global, ?MODULE, register_subhost, 90),
-            ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_reroute_subhost, 99),
+            ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_reroute, 99),
+            mod_global_distrib_mapping:stop(),
             ets:delete(?MODULE);
 
         _ -> ok
     end.
 
-maybe_reroute_subhost(drop) -> drop;
-maybe_reroute_subhost({_From, To, _Packet} = FPacket) ->
+maybe_reroute(drop) -> drop;
+maybe_reroute({_From, To, _Packet} = FPacket) ->
     LocalHost = opt(local_host),
-    case mod_global_distrib_backend:get_session(To#jid.lserver) of
-        {ok, [#{host := LocalHost}]} -> FPacket;
-        {ok, [#{host := TargetHost}]} -> wrap_message(opt(cookie), LocalHost, TargetHost, FPacket);
+    GlobalHost = opt(global_host),
+    Cookie = opt(cookie),
+    case lookup_recipients_host(To, LocalHost, GlobalHost) of
+        {ok, LocalHost} -> FPacket;
+        {ok, TargetHost} -> wrap_message(Cookie, LocalHost, TargetHost, FPacket);
         _ -> FPacket
+    end.
+
+-spec lookup_recipients_host(jid(), binary(), binary()) -> {ok, binary()} | error.
+lookup_recipients_host(#jid{lserver = HostAddressedTo} = To, LocalHost, GlobalHost) ->
+    case HostAddressedTo of
+        LocalHost -> undefined;
+        GlobalHost -> mod_global_distrib_mapping:for_jid(To);
+        _ -> mod_global_distrib_mapping:for_domain(HostAddressedTo)
     end.
 
 maybe_unwrap_message(drop) -> drop;
@@ -77,21 +88,14 @@ maybe_unwrap_message({_From, _To, Packet} = FPacket) ->
         _ -> FPacket
     end.
 
-maybe_wrap_message(drop) -> drop;
-maybe_wrap_message({_, To, _Packet} = FPacket) ->
-    LocalHost = opt(local_host),
-    case lookup_jid(To) of
-        LocalHost -> FPacket;
-        undefined -> FPacket;
-        TargetHost -> wrap_message(opt(cookie), LocalHost, TargetHost, FPacket)
-    end.
-
 unwrap_error_message({_From, _To, #xmlel{children = [Child, Error]}}) ->
     ToBin = exml_query:attr(Child, <<"from">>),
     FromBin = exml_query:attr(Child, <<"to">>),
     UpdatedAttrs = lists:ukeysort(1, [{<<"from">>, FromBin}, {<<"to">>, ToBin},
                                       {<<"type">>, <<"error">>} | Child#xmlel.attrs]),
     UpdatedChild = Child#xmlel{attrs = UpdatedAttrs, children = Child#xmlel.children ++ [Error]},
+    ?DEBUG("Unwrapping error message from=~s [~s] to=~s [~s]",
+           [FromBin, jid:to_binary(_From), ToBin, jid:to_binary(_To)]),
     ejabberd_router:route(jid:from_binary(FromBin), jid:from_binary(ToBin), UpdatedChild),
     drop.
 
@@ -103,30 +107,6 @@ unwrap_message({_From, _To, #xmlel{children = [Child]}}) ->
             exml_query:attr(Child, <<"to">>), jid:to_binary(_To)]),
     ejabberd_router:route(From, To, Child),
     drop.
-
-lookup_jid({_, _, _} = FullJid) ->
-    case mod_global_distrib_backend:get_session(jid:to_binary(FullJid)) of
-        {ok, [#{host := Result}]} -> Result;
-        _ ->
-            BareJid = jid:to_bare(FullJid),
-            case mod_global_distrib_backend:get_session(jid:to_binary(BareJid)) of
-                {ok, [#{host := BareResult}]} -> BareResult;
-                _ -> undefined
-            end
-    end;
-lookup_jid(#jid{} = Jid) ->
-    lookup_jid(jid:to_lower(Jid)).
-
-normalize_jid(#jid{} = Jid) ->
-    normalize_jid(jid:to_lower(Jid));
-normalize_jid({_, _, _} = FullJid) ->
-    Jids =
-        case jid:to_bare(FullJid) of
-            FullJid -> [FullJid];
-            BareJid -> [FullJid, BareJid]
-        end,
-    [jid:to_binary(Jid) || Jid <- Jids].
-
 
 wrap_message(Cookie, LocalHost, TargetHost, {From, To, Packet}) ->
     wrap_message(Cookie, LocalHost, TargetHost, jlib:replace_from_to(From, To, Packet));
@@ -144,8 +124,7 @@ wrap_message(Cookie, LocalHost, TargetHost, Child) ->
 
 -spec user_present(Acc :: map(), UserJID :: ejabberd:jid()) -> ok.
 user_present(Acc, #jid{} = UserJid) ->
-    LocalHost = opt(local_host),
-    [mod_global_distrib_backend:put_session(Jid, LocalHost) || Jid <- normalize_jid(UserJid)],
+    mod_global_distrib_mapping:insert_for_jid(UserJid, opt(local_host)),
     Acc.
 
 -spec user_not_present(Acc :: map(),
@@ -154,9 +133,8 @@ user_present(Acc, #jid{} = UserJid) ->
                        Resource :: ejabberd:lresource(),
                        _Status :: any()) -> ok.
 user_not_present(Acc, User, Host, Resource, _Status) ->
-    LocalHost = opt(local_host),
     UserJid = {User, Host, Resource},
-    [mod_global_distrib_backend:delete_session(Jid, LocalHost) || Jid <- normalize_jid(UserJid)],
+    mod_global_distrib_mapping:delete_for_jid(UserJid, opt(local_host)),
     Acc.
 
 register_subhost(_, SubHost) ->
@@ -169,12 +147,12 @@ register_subhost(_, SubHost) ->
 
     GlobalHost = opt(global_host),
     case lists:filter(IsSubhostOf, ?MYHOSTS) of
-        [GlobalHost] -> mod_global_distrib_backend:put_session(SubHost, opt(local_host));
+        [GlobalHost] -> mod_global_distrib_mapping:insert_for_domain(SubHost, opt(local_host));
         _ -> ok
     end.
 
 unregister_subhost(_, SubHost) ->
-    mod_global_distrib_backend:delete_session(SubHost, opt(local_host)).
+    mod_global_distrib_mapping:delete_for_domain(SubHost, opt(local_host)).
 
 opt(Key) ->
     try ets:lookup_element(?MODULE, Key, 2) catch _:_ -> undefined end.
