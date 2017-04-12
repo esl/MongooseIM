@@ -32,8 +32,7 @@ All metrics are divided into the following groups:
 | disco_sm_features | spiral | host, hook | |
 | disco_sm_identity | spiral | host, hook | |
 | disco_sm_items | spiral | host, hook | |
-| host_config_update | spiral | host, hook | Hook run when a config update is being performed. 
-Currently this is run only if there is a change in the ldap configuraiton |
+| host_config_update | spiral | host, hook | Hook run when a config update is being performed. Currently this is run only if there is a change in the ldap configuraiton |
 | local_send_to_resource_hook | spiral | host, hook | Hook run when a stanza is addressed to a server's resource (f.e. localhost/watchdogs) |
 | mam_lookup_messages | spiral | host, hook | |
 | mam_muc_purge_multiple_message | spiral | host, hook | |
@@ -139,8 +138,8 @@ The only `backend` metrics which are always present are related to the authentic
 
 | Metric name | Type | Description |
 | ----------- | ---- | ----------- |
-| [xmpp,received,xml_stanza_size] | histogram | Size stats of a stanza received by the server after a possible decryption and decompression |
-| [xmpp,sent,xml_stanza_size] | histogra | Size stats sent to the client before possible encryption and compression |
+| [xmpp,received,xml_stanza_size] | histogram | Size stats of of a received plain stanza after possible decryption and decompression |
+| [xmpp,sent,xml_stanza_size] | histogram | Size stats sent to the client before possible encryption and compression |
 | [xmpp,received,compressed_size] | histogram | Size stats of a received compressed stanza |
 | [xmpp,sent,compressed_size] | histogram | Size stats of a sent compressed stanza |
 | [xmpp,received,encrypted_size] | histogram | Size stats of a received encrypted stanza |
