@@ -2,7 +2,7 @@
 
 To expose MongooseIM metrics, an adequate endpoint must be included in the Cowboy HTTP listener section.
 
-It may look as follows:
+Here's how it can look:
 ```
 ...
 { {5288, "127.0.0.1"}, ejabberd_cowboy, [
@@ -16,14 +16,13 @@ It may look as follows:
 
 ### Security notice
 
-Currently there is no auth mechanism for the HTTP API. That's why we recommend
-to expose this API only on some private interface or port hidden behind a firewall
-so not everyone can access the API. Above configuration starts the API only on
-loopback interface.
+An auth mechanism for the HTTP API has not yet been made available.
+That's why we recommend to expose this API only using a private interface or a port hidden behind a firewall to limit the access to the API.
+The above configuration starts the API only on a loopback interface.
 
 ## Response format
 
-Currently web-services responses are composed in JSON format with root element containing one or more attributes as response elements.
+Currently the web-service responses are composed in a JSON format with a root element containing one or more attributes as response elements.
 
 Example response:
 
@@ -82,60 +81,60 @@ Example response:
 
 Returns ```200 OK``` and two elements:
 
-* "hosts" containing list of XMPP available on the server
-* "metrics" containing list of metrics available on the server.
+* "hosts" containing a list of XMPP host names available on the server,
+* "metrics" containing a list of metrics available on the server.
 
 ### GET /api/metrics/all
 
 Returns ```200 OK``` and an element:
 
-* "metrics" containing list of metrics where values are summed for all server hosts
+* "metrics" containing a list of summed metrics for all server hosts.
 
 ### GET /api/metrics/all/:metric
 
-Returns ```200 OK``` and an element on success:
+On success returns ```200 OK``` and an element:
 
-* "metric" containing metric :metric value that is summed for all server hosts.
+* "metric" containing a metric :metric that summs up values for all server hosts.
 
 Returns ```404 Not Found``` when metric :metric couldn't been found.
 
 ### GET /api/metrics/host/:host
 
-Returns ```200 OK``` and an element on success:
+On success returns ```200 OK``` and an element:
 
-* "metrics" containing list of metrics values for host :host.
+* "metrics" containing a list of metric values for host :host.
 
 Returns ```404 Not Found``` when host :host couldn't been found.
 
 ### GET /api/metrics/host/:host/:metric
 
-Returns ```200 OK``` and an element on success:
+On success returns ```200 OK``` and an element:
 
-* "metric" containing metric :metric value for host :host.
+* "metric" containing a metric :metric value for host :host.
 
-Returns ```404 Not Found``` when pair (host :host, metric :metric) couldn't been found.
+Returns ```404 Not Found``` when the pair (host :host, metric :metric) couldn't been found.
 
 ### GET /api/metrics/global
 
-Returns ```200 OK``` and an element on success:
+On success returns ```200 OK``` and an element:
 
 * "metrics" containing all global metrics.
 
 ### GET /api/metrics/global/:metric
 
-Returns ```200 OK``` and an element on success:
+On success returns ```200 OK``` and an element:
 
-* "metric" containing global metric :metric.
+* "metric" containing a global metric :metric.
 
 Returns ```404 Not Found``` when metric :metric couldn't been found.
 
 
 ## collectd integration
 
-The interface is compatible with collectd curl_json plugin.
+The interface is compatible with the collectd curl_json plugin.
 Data fetched by collectd may be later visualized by tools like Graphite.
 
-An example collectd configuration entry may be as follows. It will fetch all available metrics for a given host.
+Here's an example of a collectd configuration entry that will fetch all available metrics for a given host:
 ```
 LoadPlugin curl_json
 ...
