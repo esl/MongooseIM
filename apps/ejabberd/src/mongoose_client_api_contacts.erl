@@ -11,6 +11,7 @@
 
 -export([to_json/2]).
 -export([from_json/2]).
+-export([delete_resource/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -36,7 +37,8 @@ content_types_accepted(Req, State) ->
      ], Req, State}.
 
 allowed_methods(Req, State) ->
-    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>, <<"PUT">>], Req, State}.
+    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>, <<"PUT">>, <<"DELETE">>],
+     Req, State}.
 
 forbidden_request(Req, State) ->
     cowboy_req:reply(403, Req),
@@ -73,6 +75,22 @@ from_json(Req, #{jid := Caller} = State) ->
             {halt, Req3, State}
     end.
 
+%% @doc Called for a method of type "DELETE"
+delete_resource(Req, #{jid := Caller} = State) ->
+    {Jid, Req2} = cowboy_req:binding(jid, Req),
+    CJid = jid:to_binary(Caller),
+    case handle_request(<<"DELETE">>, Jid, undefined, CJid) of
+        ok ->
+            {true, Req2, State};
+        not_implemented ->
+            {ok, Req3} = cowboy_req:reply(501, Req2),
+            {halt, Req3, State};
+        not_found ->
+            {ok, Req3} = cowboy_req:reply(404, Req2),
+            {halt, Req3, State}
+    end.
+
+
 handle_request(<<"GET">>, undefined, undefined, CJid) ->
     mongoose_commands:execute(CJid, list_contacts, #{caller => CJid});
 handle_request(<<"POST">>, Jid, undefined, CJid) ->
@@ -90,6 +108,9 @@ handle_contact_request(<<"PUT">>, Jid, <<"invite">>, CJid) ->
 handle_contact_request(<<"PUT">>, Jid, <<"accept">>, CJid) ->
     mongoose_commands:execute(CJid, subscription, #{caller => CJid,
         jid => Jid, action => <<"subscribed">>});
+handle_contact_request(<<"DELETE">>, Jid, undefined, CJid) ->
+    mongoose_commands:execute(CJid, delete_contact, #{caller => CJid,
+        jid => Jid});
 handle_contact_request(_, _, _, _) ->
     not_implemented.
 

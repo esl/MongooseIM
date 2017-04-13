@@ -61,6 +61,7 @@ muc_test_cases() ->
 roster_test_cases() ->
     [add_contact_and_invite,
      add_contact_and_be_invited,
+     add_and_remove,
      break_stuff].
 
 init_per_suite(C) ->
@@ -676,6 +677,37 @@ add_contact_and_be_invited(Config) ->
             escalus:assert_many([is_roster_set, IsSub,
                                  is_presence],
                                 escalus:wait_for_stanzas(Alice, 3)),
+            ok
+        end
+    ),
+    ok.
+
+
+add_and_remove(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BCred = credentials({bob, Bob}),
+            % adds Alice
+            AddContact = #{jid => AliceJID},
+            {?NOCONTENT, _} = post(<<"/contacts">>, AddContact,
+                BCred),
+            Push = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_roster_set, Push),
+            % and she is in his roster, with empty status
+            {?OK, R2} = gett("/contacts", BCred),
+            Result = decode_maplist(R2),
+            [Res2] = Result,
+            #{jid := AliceJID, subscription := <<"none">>,
+              ask := <<"none">>} = Res2,
+            % delete user
+            DelPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
+            {?NOCONTENT, _} = delete(DelPath, BCred),
+            % Bob's roster is empty again
+            {?OK, R3} = gett("/contacts", BCred),
+            [] = decode_maplist(R3),
             ok
         end
     ),

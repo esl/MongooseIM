@@ -15,6 +15,7 @@
          add_contact/2,
          add_contact/3,
          add_contact/4,
+         delete_contact/2,
          subscription/3,
          kick_session/3,
          get_recent_messages/3,
@@ -135,6 +136,17 @@ commands() ->
       {result, ok}
      ],
      [
+      {name, delete_contact},
+      {category, <<"contacts">>},
+      {desc, <<"Remove a contact from roster">>},
+      {module, ?MODULE},
+      {function, delete_contact},
+      {action, delete},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jid, binary}]},
+      {result, ok}
+     ],
+     [
       {name, send_message},
       {category, <<"messages">>},
       {desc, <<"Send chat message from to">>},
@@ -250,6 +262,10 @@ add_contact(Caller, JabberID, Name) ->
 add_contact(Caller, JabberID, Name, Groups) ->
     CJid = jid:from_binary(Caller),
     mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
+
+delete_contact(Caller, JabberID) ->
+    CJid = jid:from_binary(Caller),
+    mod_roster:remove_from_roster(CJid, JabberID).
 
 registered_commands() ->
     [#{name => mongoose_commands:name(C),

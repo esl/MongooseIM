@@ -58,6 +58,7 @@
          set_roster_entry/4,
          remove_user/2,
          remove_user/3,
+         remove_from_roster/2,
          get_jid_info/4,
          item_to_xml/1,
          get_versioning_feature/2,
@@ -877,6 +878,30 @@ set_roster_entry(UserJid, ContactBin, Name, Groups) ->
             LJID = jid:to_lower(JID1),
             Item = get_roster_by_jid(LUser, LServer, LJID),
             Item2 = Item#roster{name = Name, groups = Groups},
+            set_roster_item(
+                LUser, % User
+                LUser, % LUser
+                LServer, % LServer
+                LJID, % LJID
+                UserJid, % From
+                UserJid, % To
+                Item, % Item
+                Item2 % Item2
+            )
+    end.
+
+%% @doc remove from roster
+-spec remove_from_roster(jid(), binary()) -> ok|error.
+remove_from_roster(UserJid, ContactBin) ->
+    LUser = UserJid#jid.luser,
+    LServer = UserJid#jid.lserver,
+    JID1 = jid:from_binary(ContactBin),
+    case JID1 of
+        error -> error;
+        _ ->
+            LJID = jid:to_lower(JID1),
+            Item = get_roster_by_jid(LUser, LServer, LJID),
+            Item2 = Item#roster{subscription = remove},
             set_roster_item(
                 LUser, % User
                 LUser, % LUser
