@@ -466,7 +466,7 @@ set_roster_item(User, LUser, LServer, LJID, From, To, Item, Item2) ->
         end,
     case transaction(LServer, F) of
         {atomic, {OldItem, NewItem}} ->
-            push_item(User, LServer, To, Item),
+            push_item(User, LServer, To, NewItem),
             case NewItem#roster.subscription of
                 remove ->
                     send_unsubscribing_presence(From, OldItem), ok;
