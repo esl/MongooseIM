@@ -42,6 +42,9 @@ Implements [XEP-0280: Message Carbons](http://xmpp.org/extensions/xep-0280.html)
 ### [mod_disco](../modules/mod_disco.md)
 Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.html) for discovering information (capabilities, protocols, features) about other XMPP entities.
 
+### [mod_global_distrib](../modules/mod_global_distrib.md)
+Enables sharing a single XMPP domain between distinct datacenters.
+
 ### [mod_http_notification](../modules/mod_http_notification.md)
 Forward events to an external HTTP service.
 This applies to situations such as sending messages or presences to mobile/SMS/email push service, big data, or an analytics service.

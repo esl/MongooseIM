@@ -43,6 +43,7 @@ pages:
       - 'mod_carboncopy': 'modules/mod_carboncopy.md'
       - 'mod_csi': 'modules/mod_csi.md'
       - 'mod_disco': 'modules/mod_disco.md'
+      - 'mod_global_distrib': 'modules/mod_global_distrib.md'
       - 'mod_http_notification': 'modules/mod_http_notification.md'
       - 'mod_http_upload': 'modules/mod_http_upload.md'
       - 'mod_keystore': 'modules/mod_keystore.md'

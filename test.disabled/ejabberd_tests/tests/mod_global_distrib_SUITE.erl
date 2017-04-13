@@ -52,7 +52,8 @@ init_per_group(_, Config0) ->
         lists:foldl(
           fun({NodeName, LocalHost}, Config1) ->
                   Opts = [{cookie, "cookie"}, {local_host, LocalHost}, {global_host, "localhost"}],
-                  rpc(NodeName, gen_mod_deps, start_modules, [<<"localhost">>, [{mod_global_distrib, Opts}]]),
+                  rpc(NodeName, gen_mod_deps, start_modules,
+                      [<<"localhost">>, [{mod_global_distrib, Opts}]]),
                   HasOffline = rpc(NodeName, gen_mod, is_loaded, [<<"localhost">>, mod_offline]),
                   rpc(NodeName, gen_mod, stop_module_keep_config, [<<"localhost">>, mod_offline]),
                   ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
