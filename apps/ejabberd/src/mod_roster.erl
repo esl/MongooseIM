@@ -449,6 +449,14 @@ do_process_item_set(JID1,
 
 %% @doc this is run when a roster item is to be added, updated or removed
 %% the interface of this func could probably be a bit simpler
+-spec set_roster_item(User :: binary(),
+                      LUser :: binary(),
+                      LServer :: binary(),
+                      LJID :: ejabberd:simple_jid() | error,
+                      From :: jid(),
+                      To :: jid(),
+                      Item :: roster(),
+                      Item2 :: roster()) -> ok.
 set_roster_item(User, LUser, LServer, LJID, From, To, Item, Item2) ->
     F = fun () ->
                 case Item2#roster.subscription of
@@ -558,6 +566,9 @@ push_item_version(Server, User, From, Item,
                   end,
                   ejabberd_sm:get_user_resources(User, Server)).
 
+-spec get_subscription_lists(Acc :: mongoose_acc:t(),
+                             User :: binary(),
+                             Server :: binary()) -> mongoose_acc:t().
 get_subscription_lists(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -891,7 +902,8 @@ set_roster_entry(UserJid, ContactBin, Name, Groups) ->
     end.
 
 %% @doc remove from roster
--spec remove_from_roster(jid(), binary()) -> ok|error.
+-spec remove_from_roster(UserJid :: jid(),
+                         ContactBin :: binary()) -> ok|error.
 remove_from_roster(UserJid, ContactBin) ->
     LUser = UserJid#jid.luser,
     LServer = UserJid#jid.lserver,
