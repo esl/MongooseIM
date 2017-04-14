@@ -248,8 +248,9 @@ paths:
         - in: body
           name: action
           required: true
-          type: string
-          enum: ["invite", "accept"]
+          schema:
+            type: string
+            enum: ["invite", "accept"]
       responses:
         204:
           description: "A subscription request was sent to the contact
@@ -257,7 +258,6 @@ paths:
           the 'subscription' and 'ask' states, depending what they were)"
         404:
           description: "The contact is not in the user's roster"
-  /contacts/{contact}:
     delete:
       description: "Removes contact"
       tags:
