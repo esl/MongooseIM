@@ -237,7 +237,7 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
         true ->
             Acc;
         false ->
-            {stop, false}
+            {stop, mongoose_acc:put(result, false, Acc)}
     end.
 
 
