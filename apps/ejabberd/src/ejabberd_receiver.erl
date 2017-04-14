@@ -135,7 +135,7 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({starttls, TLSSocket}, _From, #state{parser = Parser} = State) ->
-    NewParser = reset_parser(Parser),
+    NewParser = reset_parser(Parser, State#state.max_stanza_size),
     NewState = State#state{socket = TLSSocket,
                            sock_mod = fast_tls,
                            parser = NewParser},
@@ -147,7 +147,7 @@ handle_call({starttls, TLSSocket}, _From, #state{parser = Parser} = State) ->
     end;
 handle_call({compress, ZlibSocket}, _From,
   #state{parser = Parser, c2s_pid = C2SPid} = State) ->
-    NewParser = reset_parser(Parser),
+    NewParser = reset_parser(Parser, State#state.max_stanza_size),
     NewState = State#state{socket = ZlibSocket,
                            sock_mod = ejabberd_zlib,
                            parser = NewParser},
@@ -156,13 +156,13 @@ handle_call({compress, ZlibSocket}, _From,
             {reply, ok, process_data(ZlibData, NewState), ?HIBERNATE_TIMEOUT};
         {error, inflate_size_exceeded} ->
             apply(gen_fsm(), send_event,
-                [C2SPid, {xmlstreamerror, <<"XML stanza is too big">>}]),
+                [C2SPid, {xmlstreamerror, <<"child element too big">>}]),
             {reply, ok, NewState, ?HIBERNATE_TIMEOUT};
         {error, inflate_error} ->
             {stop, normal, ok, NewState}
     end;
 handle_call({become_controller, C2SPid}, _From, State) ->
-    Parser = reset_parser(State#state.parser),
+    Parser = reset_parser(State#state.parser, State#state.max_stanza_size),
     NewState = State#state{c2s_pid = C2SPid, parser = Parser},
     activate_socket(NewState),
     Reply = ok,
@@ -216,7 +216,7 @@ handle_info({Tag, _TCPSocket, Data},
                     ?HIBERNATE_TIMEOUT};
                 {error, inflate_size_exceeded} ->
                     apply(gen_fsm(), send_event,
-                       [C2SPid, {xmlstreamerror, <<"XML stanza is too big">>}]),
+                       [C2SPid, {xmlstreamerror, <<"child element too big">>}]),
                     {noreply, State, ?HIBERNATE_TIMEOUT};
                 {error, inflate_error} ->
                     {stop, normal, State}
@@ -313,7 +313,6 @@ process_data([Element|Els], #state{c2s_pid = C2SPid} = State)
 %% Data processing for connectors receivind data as string.
 process_data(Data, #state{parser = Parser,
                           shaper_state = ShaperState,
-                          max_stanza_size = MaxSize,
                           c2s_pid = C2SPid} = State) ->
     ?DEBUG("Received XML on stream = \"~s\"", [Data]),
     Size = size(Data),
@@ -321,32 +320,18 @@ process_data(Data, #state{parser = Parser,
                               [data, xmpp, received, xml_stanza_size], Size),
 
     maybe_run_keep_alive_hook(Size, State),
-    case exml_stream:parse(Parser, Data) of
-        {ok, NewParser, Elems} ->
-            {NewShaperState, Pause} = shaper:update(ShaperState, Size),
-            ValidElems =
-                replace_too_big_elems_with_stream_error(Elems, MaxSize),
-            [gen_fsm:send_event(C2SPid, wrap_if_xmlel(E)) || E <- ValidElems],
-            maybe_pause(Pause, State),
-            State#state{parser = NewParser,
-                        shaper_state = NewShaperState};
-        {error, Reason} ->
-            {NewShaperState, Pause} = shaper:update(ShaperState, Size),
-            gen_fsm:send_event(C2SPid, {xmlstreamerror, Reason}),
-            maybe_pause(Pause, State),
-            State#state{shaper_state = NewShaperState}
-    end.
+    {C2SEvents, NewParser} =
+        case exml_stream:parse(Parser, Data) of
+            {ok, NParser, Elems} -> {[wrap_if_xmlel(E) || E <- Elems], NParser};
+            {error, Reason} -> {[{xmlstreamerror, Reason}], Parser}
+        end,
+    {NewShaperState, Pause} = shaper:update(ShaperState, Size),
+    [gen_fsm:send_event(C2SPid, Event) || Event <- C2SEvents],
+    maybe_pause(Pause, State),
+    State#state{parser = NewParser, shaper_state = NewShaperState}.
 
 wrap_if_xmlel(#xmlel{} = E) -> {xmlstreamelement, E};
 wrap_if_xmlel(E) -> E.
-
-replace_too_big_elems_with_stream_error(Elems, MaxSize) ->
-    lists:map(fun(Elem) ->
-                        case exml:xml_size(Elem) > MaxSize of
-                            true  -> {xmlstreamerror, "XML stanza is too big"};
-                            false -> Elem
-                        end
-                  end, Elems).
 
 maybe_pause(_, #state{c2s_pid = undefined}) ->
     ok;
@@ -373,10 +358,13 @@ element_wrapper(#xmlel{} = XMLElement) ->
 element_wrapper(Element) ->
     Element.
 
-reset_parser(undefined) ->
-    {ok, NewParser} = exml_stream:new_parser([{start_tag, <<"stream:stream">>}]),
+reset_parser(Parser, infinity) ->
+    reset_parser(Parser, 0);
+reset_parser(undefined, MaxSize) ->
+    {ok, NewParser} = exml_stream:new_parser([{start_tag, <<"stream:stream">>},
+                                              {max_child_size, MaxSize}]),
     NewParser;
-reset_parser(Parser) ->
+reset_parser(Parser, _MaxSize) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
     NewParser.
 
