@@ -208,7 +208,7 @@ execute_command(ArgMap, Command, Entity) ->
 do_execute_command(ArgMap, Command, Entity) ->
     mongoose_commands:execute(Entity, mongoose_commands:name(Command), ArgMap).
 
--spec maybe_add_caller(admin | binary) -> list() | list({caller, binary()}).
+-spec maybe_add_caller(admin | binary()) -> list() | list({caller, binary()}).
 maybe_add_caller(admin) ->
     [];
 maybe_add_caller(JID) ->

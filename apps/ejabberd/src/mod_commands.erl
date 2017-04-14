@@ -17,6 +17,7 @@
          add_contact/4,
          delete_contact/2,
          subscription/3,
+         set_subscription/3,
          kick_session/3,
          get_recent_messages/3,
          get_recent_messages/4,
@@ -133,6 +134,18 @@ commands() ->
       {security_policy, [user]},
       {identifiers, [caller, jid]},
       % caller has to be in identifiers, otherwise it breaks admin rest api
+      {args, [{caller, binary}, {jid, binary}, {action, binary}]},
+      {result, ok}
+     ],
+     [
+      {name, set_subscription},
+      {category, <<"contacts">>},
+      {subcategory, <<"manage">>},
+      {desc, <<"Set / unset mutual subscription">>},
+      {module, ?MODULE},
+      {function, set_subscription},
+      {action, update},
+      {identifiers, [caller, jid]},
       {args, [{caller, binary}, {jid, binary}, {action, binary}]},
       {result, ok}
      ],
@@ -352,6 +365,7 @@ create_acc(CallerJid, Name, Type, OtherJid) ->
 
 
 subscription(Caller, Other, Action) ->
+    _ = {invite, accept},
     Act = binary_to_existing_atom(Action, latin1),
     run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
 
@@ -372,6 +386,18 @@ run_subscription(Type, CallerJid, OtherJid) ->
     ejabberd_router:route(CallerJid, OtherJid, mongoose_acc:get(element, Acc2)),
     ok.
 
+set_subscription(Caller, Other, <<"connect">>) ->
+    add_contact(Caller, Other),
+    add_contact(Other, Caller),
+    subscription(Caller, Other, <<"subscribe">>),
+    subscription(Other, Caller, <<"subscribe">>),
+    subscription(Other, Caller, <<"subscribed">>),
+    subscription(Caller, Other, <<"subscribed">>),
+    ok;
+set_subscription(Caller, Other, <<"disconnect">>) ->
+    delete_contact(Caller, Other),
+    delete_contact(Other, Caller),
+    ok.
 
 
 

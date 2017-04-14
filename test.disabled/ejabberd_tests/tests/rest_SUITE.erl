@@ -57,7 +57,9 @@ all() ->
 
 groups() ->
     [{admin, [parallel], test_cases()},
-        {roster, [parallel], [list_contacts]},
+     {roster, [parallel], [list_contacts,
+                             befriend_and_alienate,
+                             befriend_and_alienate_auto]},
      {dynamic_module, [], [stop_start_command_module]}
     ].
 
@@ -266,60 +268,89 @@ list_contacts(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+            AliceJID = escalus_utils:jid_to_lower(
+                            escalus_client:short_jid(Alice)),
             BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
             add_sample_contact(Bob, Alice),
-            % bob lists his contacts
-            {?OK, R} = gett(lists:flatten(["/contacts/", binary_to_list(BobJID)])),
+            % list bob's contacts
+            {?OK, R} = gett(lists:flatten(["/contacts/",
+                                           binary_to_list(BobJID)])),
             [R1] =  decode_maplist(R),
-            <<"alice", _/binary>> = maps:get(jid, R1),
-            ?assertNot(maps:is_key(state, R1)) % empty state
+            #{jid := AliceJID, subscription := <<"none">>,
+                ask := <<"none">>} = R1,
+            ok
         end
     ),
     ok.
 
-add_contact(Config) ->
-    escalus:story(
+befriend_and_alienate(Config) ->
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            % bob has empty roster
-            {?OK, R} = gett(lists:flatten(["/contacts/bob@localhost"])),
-            Res = decode_maplist(R),
-            [] = Res,
-            % adds Alice
-            AddContact = #{caller => <<"bob@localhost">>,
-                           jid => <<"alice@localhost">>},
-            post(<<"/contacts">>, AddContact),
-            % and she is in his roster, as an invitee
-            {?OK, R2} = gett(lists:flatten(["/contacts/bob@localhost"])),
-            [Res2] = decode_maplist(R2),
-            #{jid := <<"alice@localhost">>, state := <<"invitee">>} = Res2,
-            % and he received a roster push
-            Push = escalus:wait_for_stanza(Bob, 1),
-            escalus:assert(is_roster_set, Push),
-            ct:pal("Push: ~p", [Push]),
-            % and another one because he sent subscription
-            Push2 = escalus:wait_for_stanza(Bob, 1),
-            escalus:assert(is_roster_set, Push2),
-            ct:pal("Push2: ~p", [Push2]),
-            % she receives  a subscription request
-            Sub = escalus:wait_for_stanza(Alice, 1),
-            escalus:assert(is_presence_with_type, [<<"subscribe">>], Sub),
-            % adds him to her contacts
-            escalus:send(Alice, escalus_stanza:roster_add_contact(Bob,
-                [], <<"Bob">>)),
-            PushReqB = escalus:wait_for_stanza(Alice),
-            escalus:assert(is_roster_set, PushReqB),
-            escalus:send(Alice, escalus_stanza:iq_result(PushReqB)),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
-            %% Alice sends subscribed presence
-            escalus:send(Alice,
-                escalus_stanza:presence_direct(escalus_client:short_jid(Bob),
-                    <<"subscribed">>)),
-            % now check Bob's roster
-            {?OK, R3} = gett(lists:flatten(["/contacts/bob@localhost"])),
-            [Res3] = decode_maplist(R3),
-            ct:pal("Res3: ~p", [Res3]),
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+            AliceS = binary_to_list(AliceJID),
+            BobS = binary_to_list(BobJID),
+            AlicePath = lists:flatten(["/contacts/", AliceS]),
+            BobPath = lists:flatten(["/contacts/", BobS]),
+            % rosters are empty
+            check_roster_empty(AlicePath),
+            check_roster_empty(BobPath),
+            % adds them to rosters
+            {?NOCONTENT, _} = post(AlicePath, #{jid => BobJID}),
+            {?NOCONTENT, _} = post(BobPath, #{jid => AliceJID}),
+            check_roster(BobPath, AliceJID, none, none),
+            check_roster(AlicePath, BobJID, none, none),
+            % now do the subscription sequence
+            PutPathA = lists:flatten([AlicePath, "/", BobS]),
+            {?NOCONTENT, _} = putt(PutPathA, #{action => <<"subscribe">>}),
+            check_roster(AlicePath, BobJID, none, out),
+            PutPathB = lists:flatten([BobPath, "/", AliceS]),
+            {?NOCONTENT, _} = putt(PutPathB, #{action => <<"subscribed">>}),
+            check_roster(AlicePath, BobJID, to, none),
+            check_roster(BobPath, AliceJID, from, none),
+            {?NOCONTENT, _} = putt(PutPathB, #{action => <<"subscribe">>}),
+            check_roster(BobPath, AliceJID, from, out),
+            {?NOCONTENT, _} = putt(PutPathA, #{action => <<"subscribed">>}),
+            check_roster(AlicePath, BobJID, both, none),
+            check_roster(BobPath, AliceJID, both, none),
+            % now remove
+            {?NOCONTENT, _} = delete(PutPathA),
+            check_roster_empty(AlicePath),
+            check_roster(BobPath, AliceJID, none, none),
+            {?NOCONTENT, _} = delete(PutPathB),
+            check_roster_empty(BobPath),
+            ok
+        end
+    ),
+    ok.
+
+befriend_and_alienate_auto(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+            AliceS = binary_to_list(AliceJID),
+            BobS = binary_to_list(BobJID),
+            AlicePath = lists:flatten(["/contacts/", AliceS]),
+            BobPath = lists:flatten(["/contacts/", BobS]),
+            check_roster_empty(AlicePath),
+            check_roster_empty(BobPath),
+            ManagePath = lists:flatten(["/contacts/",
+                                     AliceS,
+                                     "/",
+                                     BobS,
+                                     "/manage"
+            ]),
+            {?NOCONTENT, _} = putt(ManagePath, #{action => <<"connect">>}),
+            check_roster(AlicePath, BobJID, both, none),
+            check_roster(BobPath, AliceJID, both, none),
+            {?NOCONTENT, _} = putt(ManagePath, #{action => <<"disconnect">>}),
+            check_roster_empty(AlicePath),
+            check_roster_empty(BobPath),
             ok
         end
     ),
@@ -328,6 +359,17 @@ add_contact(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+check_roster(Path, Jid, Subs, Ask) ->
+    {?OK, R} = gett(Path),
+    S = atom_to_binary(Subs, latin1),
+    A = atom_to_binary(Ask, latin1),
+    Res = decode_maplist(R),
+    [#{jid := Jid, subscription := S, ask := A}] = Res.
+
+check_roster_empty(Path) ->
+    {?OK, R} = gett(Path),
+    [] = decode_maplist(R).
 
 get_messages(Me, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
