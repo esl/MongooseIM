@@ -131,7 +131,8 @@ commands() ->
       {function, subscription},
       {action, update},
       {security_policy, [user]},
-      {identifiers, [jid]},
+      {identifiers, [caller, jid]},
+      % caller has to be in identifiers, otherwise it breaks admin rest api
       {args, [{caller, binary}, {jid, binary}, {action, binary}]},
       {result, ok}
      ],
