@@ -453,7 +453,7 @@ message_zlib_limit(Config) ->
 
         escalus:send(Hacker, escalus_stanza:chat_to(Alice, ManySpaces)),
 
-        escalus:assert(is_stream_error, [<<"policy-violation">>, <<"XML stanza is too big">>],
+        escalus:assert(is_stream_error, [<<"policy-violation">>, <<"child element too big">>],
                        escalus:wait_for_stanza(Hacker)),
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Hacker))
 

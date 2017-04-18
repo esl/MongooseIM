@@ -915,7 +915,7 @@ session_established({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 
-session_established({xmlstreamerror, <<"XML stanza is too big">> = E}, StateData) ->
+session_established({xmlstreamerror, <<"child element too big">> = E}, StateData) ->
     send_element(StateData, ?POLICY_VIOLATION_ERR(StateData#state.lang, E)),
     send_trailer(StateData),
     {stop, normal, StateData};
