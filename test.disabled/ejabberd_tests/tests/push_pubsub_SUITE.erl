@@ -257,6 +257,7 @@ rest_service_gets_correct_payload_v2(Config) ->
 
             ?assertMatch(#{<<"service">> := <<"some_awesome_service">>}, Body),
             ?assertMatch(#{<<"mode">> := <<"selected_mode">>}, Body),
+            ?assertMatch(#{<<"topic">> := <<"some_topic">>}, Body),
             ?assert(not maps:is_key(<<"data">>, Body)),
             ?assertMatch(#{<<"alert">> := #{<<"badge">> := 876}}, Body),
             ?assertMatch(#{<<"alert">> := #{<<"title">> := <<"senderId">>}}, Body),
@@ -276,6 +277,7 @@ rest_service_gets_correct_payload_silent_v2(Config) ->
 
             ?assertMatch(#{<<"service">> := <<"some_awesome_service">>}, Body),
             ?assertMatch(#{<<"mode">> := <<"selected_mode">>}, Body),
+            ?assertMatch(#{<<"topic">> := <<"some_topic">>}, Body),
             ?assert(not maps:is_key(<<"alert">>, Body)),
             ?assertMatch(#{<<"data">> := #{<<"message-count">> := 876}}, Body),
             ?assertMatch(#{<<"data">> := #{<<"last-message-sender">> := <<"senderId">>}}, Body),
@@ -309,7 +311,8 @@ prepare_notification(CustomOptions) ->
     Options = [
         {<<"device_id">>, <<"sometoken">>},
         {<<"service">>, <<"some_awesome_service">>},
-        {<<"mode">>, <<"selected_mode">>}
+        {<<"mode">>, <<"selected_mode">>},
+        {<<"topic">>, <<"some_topic">>}
     ],
 
     {Notification, Options ++ CustomOptions}.

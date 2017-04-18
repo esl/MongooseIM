@@ -134,7 +134,8 @@ make_notification(v1, Notification, Options) ->
         tag => maps:get(<<"last-message-sender">>, Notification),
         badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
         mode => maps:get(<<"mode">>, Options, <<"prod">>),
-        click_action => maps:get(<<"click_action">>, Options, null)
+        click_action => maps:get(<<"click_action">>, Options, null),
+        topic => maps:get(<<"topic">>, Options, null)
     }};
 
 %% Create notification for API v2
@@ -143,6 +144,7 @@ make_notification(v2, Notification, Options = #{<<"silent">> := <<"true">>}) ->
     {ok, #{
         service => maps:get(<<"service">>, Options),
         mode => maps:get(<<"mode">>, Options, <<"prod">>),
+        topic => maps:get(<<"topic">>, Options, null),
         data => Notification#{<<"message-count">> => MessageCount}
     }};
 make_notification(v2, Notification, Options) ->
@@ -155,7 +157,8 @@ make_notification(v2, Notification, Options) ->
             tag => maps:get(<<"last-message-sender">>, Notification),
             badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
             click_action => maps:get(<<"click_action">>, Options, null)
-        }
+        },
+        topic => maps:get(<<"topic">>, Options, null)
     }}.
 
 -spec cast(Host :: ejabberd:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().

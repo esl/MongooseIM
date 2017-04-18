@@ -42,7 +42,8 @@ groups() ->
             pm_msg_notify_on_apns_w_click_action,
             pm_msg_notify_on_fcm_w_click_action,
             pm_msg_notify_on_apns_silent,
-            pm_msg_notify_on_fcm_silent
+            pm_msg_notify_on_fcm_silent,
+            pm_msg_notify_on_apns_w_topic
         ]},
         {muclight_msg_notifications, [parallel], [
             muclight_msg_notify_on_apns_no_click_action,
@@ -50,7 +51,8 @@ groups() ->
             muclight_msg_notify_on_apns_w_click_action,
             muclight_msg_notify_on_fcm_w_click_action,
             muclight_msg_notify_on_apns_silent,
-            muclight_msg_notify_on_fcm_silent
+            muclight_msg_notify_on_fcm_silent,
+            muclight_msg_notify_on_w_topic
         ]}
     ].
 
@@ -179,6 +181,13 @@ pm_msg_notify_on_apns(Config, EnableOpts) ->
                     ?assertMatch(#{<<"message-count">> := 1}, APNSData)
             end,
 
+            case  proplists:get_value(<<"topic">>, EnableOpts) of
+                undefined -> ok;
+                Topic ->
+                    Headers = maps:get(<<"request_headers">>, Notification),
+                    ?assertMatch(Topic, maps:get(<<"apns-topic">>, Headers, undefined))
+            end,
+
             ok
         end).
 
@@ -234,6 +243,9 @@ pm_msg_notify_on_fcm_silent(Config) ->
 pm_msg_notify_on_apns_silent(Config) ->
     pm_msg_notify_on_apns(Config, [{<<"silent">>, <<"true">>}]).
 
+pm_msg_notify_on_apns_w_topic(Config) ->
+    pm_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
+
 %%--------------------------------------------------------------------
 %% GROUP muclight_msg_notifications
 %%--------------------------------------------------------------------
@@ -272,6 +284,13 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
                     ?assertMatch(#{<<"last-message-body">> := <<"Heyah!">>}, APNSData),
                     ?assertMatch(#{<<"last-message-sender">> := SenderJID}, APNSData),
                     ?assertMatch(#{<<"message-count">> := 1}, APNSData)
+            end,
+
+            case  proplists:get_value(<<"topic">>, EnableOpts) of
+                undefined -> ok;
+                Topic ->
+                    Headers = maps:get(<<"request_headers">>, Notification),
+                    ?assertMatch(Topic, maps:get(<<"apns-topic">>, Headers, undefined))
             end,
 
             ok
@@ -328,6 +347,9 @@ muclight_msg_notify_on_fcm_silent(Config) ->
 
 muclight_msg_notify_on_apns_silent(Config) ->
     muclight_msg_notify_on_apns(Config, [{<<"silent">>, <<"true">>}]).
+
+muclight_msg_notify_on_w_topic(Config) ->
+    muclight_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
 
 
 %%--------------------------------------------------------------------
