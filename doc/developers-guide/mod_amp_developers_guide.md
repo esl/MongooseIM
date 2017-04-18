@@ -1,7 +1,7 @@
 The Developer's Guide to mod_amp
 ================================
 
-This is a quick introductory guide for developers wishing to extend `mod_amp` or plug into the message processing system.
+This is a quick, introductory guide for developers wishing to extend `mod_amp` or plug into the message processing system.
 
 Source Files, Headers and Tests
 -------------------------------
