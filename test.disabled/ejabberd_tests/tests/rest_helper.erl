@@ -113,7 +113,6 @@ make_request(Method, Path, ReqBody) when not is_binary(Path) ->
     make_request(Method, list_to_binary(Path), ReqBody);
 make_request(Method, Path, ReqBody) ->
     CPath = <<?PATHPREFIX/binary, Path/binary>>,
-    ct:pal("CPath: ~p", [CPath]),
     {Code, RespBody} = case fusco_request(Method, CPath, ReqBody) of
                            {RCode, _, Body, _, _} ->
                                {RCode, Body};

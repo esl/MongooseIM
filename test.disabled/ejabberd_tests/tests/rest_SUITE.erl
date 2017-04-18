@@ -284,6 +284,7 @@ list_contacts(Config) ->
     ok.
 
 befriend_and_alienate(Config) ->
+    % TOFIX - verify xmpp pushes
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
@@ -327,6 +328,7 @@ befriend_and_alienate(Config) ->
     ok.
 
 befriend_and_alienate_auto(Config) ->
+    % TOFIX - verify xmpp pushes
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->

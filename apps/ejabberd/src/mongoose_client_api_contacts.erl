@@ -104,10 +104,10 @@ handle_request(Method, Jid, Action, CJid) ->
 
 handle_contact_request(<<"PUT">>, Jid, <<"invite">>, CJid) ->
     mongoose_commands:execute(CJid, subscription, #{caller => CJid,
-        jid => Jid, action => <<"subscribe">>});
+        jid => Jid, action => atom_to_binary(subscribe, latin1)});
 handle_contact_request(<<"PUT">>, Jid, <<"accept">>, CJid) ->
     mongoose_commands:execute(CJid, subscription, #{caller => CJid,
-        jid => Jid, action => <<"subscribed">>});
+        jid => Jid, action => atom_to_binary(subscribed, latin1)});
 handle_contact_request(<<"DELETE">>, Jid, undefined, CJid) ->
     mongoose_commands:execute(CJid, delete_contact, #{caller => CJid,
         jid => Jid});
@@ -121,6 +121,7 @@ to_binary(S) ->
 
 -spec jid_exists(binary(), binary()) -> boolean().
 jid_exists(CJid, Jid) ->
+    % TOFIX
     {ok, Roster} = mongoose_commands:execute(CJid, list_contacts,
                                              #{caller => CJid}),
     Res = lists:filter(

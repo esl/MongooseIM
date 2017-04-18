@@ -45,6 +45,7 @@
          process_iq/3,
          process_local_iq/3,
          get_user_roster/2,
+         get_roster_by_jid/3,
          get_subscription_lists/3,
          get_roster_entry/3,
          get_roster_entry/4,
@@ -414,10 +415,10 @@ item_to_xml(Item) ->
 get_roster_by_jid_t(LUser, LServer, LJID) ->
     mod_roster_backend:get_roster_by_jid_t(LUser, LServer, LJID).
 
+-spec get_roster_by_jid(ejabberd:luser(), ejabberd:lserver(),
+    ejabberd:simple_jid()) -> roster().
 get_roster_by_jid(LUser, LServer, LJID) ->
-    {atomic, Item} = transaction(LServer,
-        fun() -> get_roster_by_jid_t(LUser, LServer, LJID) end),
-    Item.
+    get_roster_by_jid_t(LUser, LServer, LJID).
 
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
@@ -481,7 +482,7 @@ set_roster_item(User, LUser, LServer, LJID, From, To, Item, Item2) ->
                 _ -> ok
             end;
         E ->
-            ?ERROR_MSG("ROSTER: roster item set error: ~p~n", [E]), ok
+            ?DEBUG("ROSTER: roster item set error: ~p~n", [E]), ok
     end.
 
 process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
@@ -632,7 +633,7 @@ transaction(LServer, F) ->
 
 in_subscription(Acc, User, Server, JID, Type, Reason) ->
     Res = process_subscription(in, User, Server, JID, Type,
-        Reason),
+                               Reason),
     mongoose_acc:put(result, Res, Acc).
 
 out_subscription(Acc, User, Server, JID, Type) ->
@@ -880,6 +881,14 @@ set_items(User, Server, SubEl) ->
 %% @doc add a contact to roster, or update
 -spec set_roster_entry(jid(), binary(), binary(), [binary()]) -> ok|error.
 set_roster_entry(UserJid, ContactBin, Name, Groups) ->
+    set_roster_entry(UserJid, ContactBin, Name, Groups, unchanged).
+
+-spec set_roster_entry(UserJid :: jid(),
+                       ContactBin :: binary(),
+                       Name :: binary() | unchanged,
+                       Groups :: [binary()] | unchanged,
+                       NewSubscription :: remove | unchanged) -> ok|error.
+set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
     LUser = UserJid#jid.luser,
     LServer = UserJid#jid.lserver,
     JID1 = jid:from_binary(ContactBin),
@@ -888,7 +897,7 @@ set_roster_entry(UserJid, ContactBin, Name, Groups) ->
         _ ->
             LJID = jid:to_lower(JID1),
             Item = get_roster_by_jid(LUser, LServer, LJID),
-            Item2 = Item#roster{name = Name, groups = Groups},
+            Item2 = modify_roster_item(Item, Name, Groups, NewSubscription),
             set_roster_item(
                 LUser, % User
                 LUser, % LUser
@@ -901,30 +910,26 @@ set_roster_entry(UserJid, ContactBin, Name, Groups) ->
             )
     end.
 
-%% @doc remove from roster
+modify_roster_item(Item, Name, Groups, NewSubscription) ->
+    Item1 = case Name of
+                unchanged -> Item;
+                _ -> Item#roster{name = Name}
+            end,
+    Item2 = case Groups of
+                unchanged -> Item1;
+                _ -> Item#roster{groups = Groups}
+            end,
+    case NewSubscription of
+        unchanged -> Item2;
+        _ -> Item2#roster{subscription = NewSubscription}
+    end.
+
+%% @doc remove from roster - in practice it means changing
+%% subscription state to 'remove'
 -spec remove_from_roster(UserJid :: jid(),
                          ContactBin :: binary()) -> ok|error.
 remove_from_roster(UserJid, ContactBin) ->
-    LUser = UserJid#jid.luser,
-    LServer = UserJid#jid.lserver,
-    JID1 = jid:from_binary(ContactBin),
-    case JID1 of
-        error -> error;
-        _ ->
-            LJID = jid:to_lower(JID1),
-            Item = get_roster_by_jid(LUser, LServer, LJID),
-            Item2 = Item#roster{subscription = remove},
-            set_roster_item(
-                LUser, % User
-                LUser, % LUser
-                LServer, % LServer
-                LJID, % LJID
-                UserJid, % From
-                UserJid, % To
-                Item, % Item
-                Item2 % Item2
-            )
-    end.
+    set_roster_entry(UserJid, ContactBin, unchanged, unchanged, remove).
 
 update_roster_t(LUser, LServer, LJID, Item) ->
     mod_roster_backend:update_roster_t(LUser, LServer, LJID, Item).

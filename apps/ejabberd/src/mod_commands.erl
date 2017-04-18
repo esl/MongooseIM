@@ -259,8 +259,7 @@ send_message(From, To, Body) ->
 list_contacts(Caller) ->
     {User, Host} = jid:to_lus(jid:from_binary(Caller)),
     Res = ejabberd_hooks:run_fold(roster_get, Host, [], [{User, Host}]),
-    R = lists:map(fun mod_roster:item_to_map/1, Res),
-    lists:map(fun roster_info/1, R).
+    [roster_info(mod_roster:item_to_map(I)) || I <- Res].
 
 roster_info(M) ->
     Jid = jid:to_binary(maps:get(jid, M)),
@@ -365,7 +364,6 @@ create_acc(CallerJid, Name, Type, OtherJid) ->
 
 
 subscription(Caller, Other, Action) ->
-    _ = {invite, accept},
     Act = binary_to_existing_atom(Action, latin1),
     run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
 
@@ -378,11 +376,11 @@ run_subscription(Type, CallerJid, OtherJid) ->
     % set subscription to
     Server = CallerJid#jid.server,
     LUser = CallerJid#jid.luser,
-    LServer= CallerJid#jid.lserver,
+    LServer = CallerJid#jid.lserver,
     Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
-        Server,
-        Acc1,
-        [LUser, LServer, OtherJid, Type]),
+                                   Server,
+                                   Acc1,
+                                   [LUser, LServer, OtherJid, Type]),
     ejabberd_router:route(CallerJid, OtherJid, mongoose_acc:get(element, Acc2)),
     ok.
 
@@ -398,10 +396,3 @@ set_subscription(Caller, Other, <<"disconnect">>) ->
     delete_contact(Caller, Other),
     delete_contact(Other, Caller),
     ok.
-
-
-
-
-
-
-
