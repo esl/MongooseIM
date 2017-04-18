@@ -181,6 +181,8 @@ To enable push notifications in the simplest configuration, just send the follow
       <field var='FORM_TYPE'><value>http://jabber.org/protocol/pubsub#publish-options</value></field>
       <field var='service'><value>apns</value></field>
       <field var='device'><value>your_pns_device_token</value></field>
+      <field var='silent'><value>false</value></field>
+      <field var='topic'><value>some_apns_topic</value></field>
     </x>
   </enable>
 </iq>
@@ -188,10 +190,15 @@ To enable push notifications in the simplest configuration, just send the follow
 
 We have now enabled push notifications to be send to the `pubsub.mypubsub.com` to the node `punsub_node_for_my_private_iphone` created in previous paragraph.
 In `publish-options` we have passed the service name that we are using (`apns` or `fcm`) and the device token (here: `your_pns_device_token`) that you received from you push notification service provider (as described in _Registering with Push Service provider_).
-Those two options are the only ones required, but there are two more that are optional:
+Those two options are the only ones required, but there are some others that are optional:
 
   * `mode` - which may be either `prod` or `dev` (default to `prod`). Decides which connection pool type on [MongoosePush][] shall be used. This may be used when _APNS_ on [MongoosePush][] is configured to work with both production and development certificate.
   * `click_action` - action to perform when notification is clicked on the device. `activity` on _Android_ and `category` on _iOS_. Please refer to your platform / push notification service provider for more info.
+  * `topic` - currently only used with _APNS_. the value is passed to _APNS_ as `topic` header. 
+  For more information please refer to _APNS_ documentation.
+  * `silent` - if set to `true`, all notifications will be "silent". This means that only data 
+  payload will be send to push notifications provider with no notification. The data payload will
+   contain all notification fields as defined in [XEP-0357].
 
 ### Disabling push notifications
 

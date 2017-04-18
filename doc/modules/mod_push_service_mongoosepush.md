@@ -7,9 +7,15 @@ The following `publish-options` that are added to the hook are directly passed t
  * `mode` - if not supplied, `prod` value will be used
  * `click_action` - optional. 
  See `click_action` in the FCM documentation or `category` in the APNS documentation.
+ * `topic` - _null_ if not supplied
  * `service` - has to be specified and the value must be valid and supported by the MongoosePush push service provider. 
   E.g. `fcm`, `apns`.
  * `device_id` - has to be specified and the value must be valid device token received from push notification service provider specified in `service` option
+ 
+In addition to those `publish-options` you may specify also `silent` option, that when set to 
+`true` will result in "silent" notification. 
+Silent notifications send only data payload to push notifications service provider with all 
+fields specified in the notification without any modification and/or filtering.
 
 #### Prerequisites
 
