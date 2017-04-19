@@ -284,7 +284,6 @@ list_contacts(Config) ->
     ok.
 
 befriend_and_alienate(Config) ->
-    % TOFIX - verify xmpp pushes
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
@@ -322,10 +321,29 @@ befriend_and_alienate(Config) ->
             check_roster(BobPath, AliceJID, none, none),
             {?NOCONTENT, _} = delete(PutPathB),
             check_roster_empty(BobPath),
+            APushes = lists:filter(fun escalus_pred:is_roster_set/1,
+                                    escalus:wait_for_stanzas(Alice, 20)),
+            AExp = [{none, none},
+                    {none, subscribe},
+                    {to, none},
+                    {both, none},
+                    {remove, none}],
+            check_pushlist(AExp, APushes),
+            BPushes = lists:filter(fun escalus_pred:is_roster_set/1,
+                                    escalus:wait_for_stanzas(Bob, 20)),
+            BExp = [{none, none},
+                    {from, none},
+                    {from, subscribe},
+                    {both, none},
+                    {to, none},
+                    {none, none},
+                    {remove, none}],
+            check_pushlist(BExp, BPushes),
             ok
         end
     ),
     ok.
+
 
 befriend_and_alienate_auto(Config) ->
     % TOFIX - verify xmpp pushes
@@ -353,6 +371,20 @@ befriend_and_alienate_auto(Config) ->
             {?NOCONTENT, _} = putt(ManagePath, #{action => <<"disconnect">>}),
             check_roster_empty(AlicePath),
             check_roster_empty(BobPath),
+            APushes = lists:filter(fun escalus_pred:is_roster_set/1,
+                                   escalus:wait_for_stanzas(Alice, 20)),
+            ct:pal("APushes: ~p", [APushes]),
+            AExp = [{none, none},
+                    {both, none},
+                    {remove, none}],
+            check_pushlist(AExp, APushes),
+            BPushes = lists:filter(fun escalus_pred:is_roster_set/1,
+                                   escalus:wait_for_stanzas(Bob, 20)),
+            ct:pal("BPushes: ~p", [BPushes]),
+            BExp = [{none, none},
+                    {both, none},
+                    {remove, none}],
+            check_pushlist(BExp, BPushes),
             ok
         end
     ),
@@ -422,3 +454,30 @@ add_sample_contact(Bob, Alice) ->
     escalus:assert(count_roster_items, [1], Result),
     escalus:send(Bob, escalus_stanza:iq_result(Result)).
 
+check_pushlist([], _Stanzas) ->
+    ok;
+check_pushlist(Expected, []) ->
+    ?assertEqual(Expected, []);
+check_pushlist(Expected, [Iq|StanzaTail]) ->
+    [{ExpectedSub, ExpectedAsk}| TailExp] = Expected,
+    case does_push_match(Iq, ExpectedSub, ExpectedAsk) of
+        true ->
+            check_pushlist(TailExp, StanzaTail);
+        false ->
+            check_pushlist(Expected, StanzaTail)
+    end.
+
+does_push_match(Iq, ExpectedSub, ExpectedAsk) ->
+    [Subs] = exml_query:paths(Iq, [{element, <<"query">>},
+        {element, <<"item">>},
+        {attr, <<"subscription">>}]),
+    AskList = exml_query:paths(Iq, [{element, <<"query">>},
+        {element, <<"item">>},
+        {attr, <<"ask">>}]),
+    Ask = case AskList of
+              [] -> <<"none">>;
+              [A] -> A
+          end,
+    ESub = atom_to_binary(ExpectedSub, latin1),
+    EAsk = atom_to_binary(ExpectedAsk, latin1),
+    {Subs, Ask} == {ESub, EAsk}.
