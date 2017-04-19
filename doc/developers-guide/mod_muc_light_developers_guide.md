@@ -44,7 +44,7 @@ All source files can be found in `apps/ejabberd/src`.
   Utilities shared by other MUC Light modules. 
   It includes the room configuration processing or the affiliation logic.
 
-Only the header file can be found in `apps/ejabberd/include`.
+The header file can be found in `apps/ejabberd/include`.
 
 * `mod_muc_light.hrl`
   It contains definitions of MUC Light namespaces, default configuration options and several common data types and records.
