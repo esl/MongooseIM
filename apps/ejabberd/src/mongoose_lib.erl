@@ -1,5 +1,5 @@
 -module(mongoose_lib).
--export([bin_to_int/1, log_if_backend_error/1]).
+-export([bin_to_int/1, log_if_backend_error/4]).
 
 -include("ejabberd.hrl").
 
@@ -16,13 +16,21 @@ bin_to_int(Bin, X) ->
 %% @doc Database backends for various modules return ok, {atomic, ok}
 %% or {atomic, []} on success, and usually {error, ...} on failure.
 %% All we need is to log an error if such occurred, and proceed normally.
--spec log_if_backend_error(any()) -> ok.
-log_if_backend_error(V) ->
+-spec log_if_backend_error(V :: any(), % value return by called backend fun
+                           Module :: atom(), % caller
+                           Line :: integer(),
+                           Args :: any() ) -> ok.
+log_if_backend_error(V, Module, Line, Args) ->
     case V of
         ok -> ok;
         {atomic, _} -> ok;
-        {error, E} -> ?ERROR_MSG("Error calling backend - got '~p'", [E]);
-        E -> ?ERROR_MSG("Unexpected return from backend - got '~p'", [E])
+        {error, E} ->
+            make_msg("Error calling backend", E, Module, Line, Args);
+        E ->
+            make_msg("Unexpected return from backend", E, Module, Line, Args)
     end,
     ok.
 
+make_msg(Msg, Error, Module, Line, Args) ->
+    ?ERROR_MSG("~p: ~p~nBackend called in ~p:~p~nwith arguments~n~p",
+                  [Msg, Error, Module, Line, Args]).

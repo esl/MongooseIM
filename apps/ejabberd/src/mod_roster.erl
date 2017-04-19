@@ -762,7 +762,7 @@ remove_user(User, Server) ->
     LServer = jid:nameprep(Server),
     send_unsubscription_to_rosteritems(LUser, LServer),
     R = mod_roster_backend:remove_user(LUser, LServer),
-    mongoose_lib:log_if_backend_error(R),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {User, Server}),
     ok.
 
 %% For each contact with Subscription:

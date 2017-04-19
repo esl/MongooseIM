@@ -190,28 +190,20 @@ strip(Acc) ->
     El = get(to_send, Acc),
     Acc1 = from_element(El),
 %%    Ats = [name, type, attrs, from, from_jid, to, to_jid, ref, timestamp],
-    Ats = [from, from_jid, ref, timestamp],
-    NAcc = lists:foldl(fun(Atr, AccIn) ->
-                           Nval = mongoose_acc:get(Atr, Acc),
-                           mongoose_acc:put(Atr, Nval, AccIn)
+    Attributes = [from, from_jid, ref, timestamp],
+    NewAcc = lists:foldl(fun(Attrib, AccIn) ->
+                           Val = mongoose_acc:get(Attrib, Acc),
+                           mongoose_acc:put(Attrib, Val, AccIn)
                        end,
-                       Acc1, Ats),
-    OptAts = [to, to_jid],
-    lists:foldl(fun(Atr, AccIn) ->
-                    case mongoose_acc:get(Atr, Acc, undefined) of
+                       Acc1, Attributes),
+    OptionalAttributes = [to, to_jid],
+    lists:foldl(fun(Attrib, AccIn) ->
+                    case mongoose_acc:get(Attrib, Acc, undefined) of
                         undefined -> AccIn;
-                        Nval -> mongoose_acc:put(Atr, Nval, AccIn)
+                        Val -> mongoose_acc:put(Attrib, Val, AccIn)
                     end
                 end,
-                NAcc, OptAts).
-%%    mongoose_acc:put(element, mongoose_acc:get(to_send, Acc), NAcc1).
-%%    case mongoose_acc:get(send_type, Acc, undefined) of
-%%        undefined ->
-%%            NAcc1;
-%%        SType ->
-%%            mongoose_acc:put(type, SType, NAcc2)
-%%    end.
-
+        NewAcc, OptionalAttributes).
 
 %%%%% internal %%%%%
 

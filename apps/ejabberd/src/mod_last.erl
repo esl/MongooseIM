@@ -243,8 +243,8 @@ get_last_info(LUser, LServer) ->
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Res = mod_last_backend:remove_user(LUser, LServer),
-    mongoose_lib:log_if_backend_error(Res),
+    R = mod_last_backend:remove_user(LUser, LServer),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
     Acc.
 
 %% TODO fix

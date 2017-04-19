@@ -90,7 +90,7 @@ stop(Host) ->
 
 remove_user(Acc, User, Server) ->
     R = remove_user(User, Server),
-    mongoose_lib:log_if_backend_error(R),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
     Acc.
 
 remove_user(User, Server) ->
