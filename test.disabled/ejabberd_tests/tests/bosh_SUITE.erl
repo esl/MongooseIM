@@ -357,10 +357,10 @@ cant_send_invalid_rid(Config) ->
         %% mod_bosh:forward_body:265 session not found!
         
         %% NOTICE 3
-	%% We enable quickfail mode, because sometimes request with invalid RID
+        %% We enable quickfail mode, because sometimes request with invalid RID
         %% arrives before empty body req. with valid RID, so server returns an error
-	%% only for the first req. and escalus_bosh in normal mode would get stuck
-	%% since it wants to maintain order according to RIDs
+        %% only for the first req. and escalus_bosh in normal mode would get stuck
+        %% since it wants to maintain order according to RIDs
 
         escalus_bosh:set_quickfail(Carol, true),
 
@@ -627,7 +627,6 @@ server_acks(Config) ->
         timer:sleep(200),
 
         All = recv_all(Carol),
-	ct:pal("Recvall: ~p", [All]),
         ExpectedRid = exml_query:attr(hd(All), <<"ack">>)
 
         end).
