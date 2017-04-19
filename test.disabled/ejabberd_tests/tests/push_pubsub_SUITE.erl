@@ -23,7 +23,6 @@ all() ->
         {group, disco},
         {group, allocate},
         {group, pubsub_publish},
-        {group, rest_integration_v1},
         {group, rest_integration_v2}
     ].
 
@@ -35,10 +34,6 @@ groups() ->
             publish_fails_with_invalid_item,
             publish_fails_with_no_options,
             publish_succeeds_with_valid_options
-        ]},
-        {rest_integration_v1, [], [
-            rest_service_called_with_correct_path_v1,
-            rest_service_gets_correct_payload_v1
         ]},
         {rest_integration_v2, [], [
             rest_service_called_with_correct_path_v2,

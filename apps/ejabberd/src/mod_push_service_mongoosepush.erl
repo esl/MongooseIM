@@ -123,21 +123,6 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
-%% Create notification for API v1
-make_notification(v1, _Notification, #{<<"silent">> := <<"true">>}) ->
-    {error, unsupported_silent_notification};
-make_notification(v1, Notification, Options) ->
-    {ok, #{
-        service => maps:get(<<"service">>, Options),
-        body => maps:get(<<"last-message-body">>, Notification),
-        title => maps:get(<<"last-message-sender">>, Notification),
-        tag => maps:get(<<"last-message-sender">>, Notification),
-        badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
-        mode => maps:get(<<"mode">>, Options, <<"prod">>),
-        click_action => maps:get(<<"click_action">>, Options, null),
-        topic => maps:get(<<"topic">>, Options, null)
-    }};
-
 %% Create notification for API v2
 make_notification(v2, Notification, Options = #{<<"silent">> := <<"true">>}) ->
     MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
