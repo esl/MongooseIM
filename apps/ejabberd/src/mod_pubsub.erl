@@ -759,7 +759,7 @@ notify_send_loop(ServerHost, Action) ->
                        User :: binary(),
                        Server :: binary(),
                        JID :: jid(),
-                       Type :: sub_presence()) ->
+                       Type :: mod_roster:sub_presence()) ->
     mongoose_acc:t().
 out_subscription(Acc, User, Server, JID, subscribed) ->
     Owner = jid:make(User, Server, <<>>),
@@ -777,7 +777,7 @@ out_subscription(Acc, _, _, _, _) ->
                       User :: binary(),
                       Server :: binary(),
                       JID :: jid(),
-                      Type :: sub_presence(),
+                      Type :: mod_roster:sub_presence(),
                       _:: any()) ->
     mongoose_acc:t().
 in_subscription(Acc, User, Server, Owner, unsubscribed, _) ->
