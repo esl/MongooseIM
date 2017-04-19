@@ -65,13 +65,12 @@ In most cases, the handler is `ejabberd_local:route/3`.
 
 ## 7. `ejabberd_sm`
 
-`ejabberd_sm` determines the available resources of User B, takes into account their priorities and whether the message is
-addressed to a particular resource or a bare JID. 
+`ejabberd_sm` determines the available resources of User B, takes into account their priorities and whether the message is addressed to a particular resource or a bare JID. 
 It appropriately replicates (or not) the message and sends it to the recipient's `ejabberd_c2s` process(es).
 
 In case no resources are available for delivery (hence no `ejabberd_c2s` processes to pass the message to), `offline_message_hook` is run.
 
 ## 8. `ejabberd_c2s`
 
-`ejabberd_c2s` verifies the stanza against relevant privacy lists and sends it one the socket.
+`ejabberd_c2s` verifies the stanza against relevant privacy lists and sends it to the socket.
 `user_receive_packet` hook is run to notify the rest of the system about the stanza delivery to User B.
