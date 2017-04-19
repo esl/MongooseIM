@@ -13,9 +13,9 @@ To focus our attention, we'll analyze `mod_offline` which is responsible for sto
 
 ## Running a hook
 
-`ejabberd_sm` (ejabberd/MongooseIM session manager) is the module which discovers whether the recipient of a message is available or not.
+`ejabberd_sm` (ejabberd/MongooseIM session manager) is the module discovering whether the recipient of a message is available or not.
 That's where storing the message for later delivery takes place.
-Here's a simple example of calling `mod_offline`:
+To save a message in an offline storage just call `mod_offline`:
 
 ```erlang
 mod_offline:store_packet(From, To, Packet)
@@ -31,7 +31,8 @@ ejabberd_hooks:run(offline_message_hook, LServer,
 ```
 
 The extra level of indirection introduced by this call gives the flexibility to determine at runtime what code actually gets run at this point.
-`offline_message_hook` is just the name of the hook (in other words of the event that is being signalled); `From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly; `LServer` is [the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
+`offline_message_hook` is just the name of the hook (in other words of the event that is being signalled); 
+`From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly; `LServer` is [the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
 
 So how does this runtime configuration actually look like?
 
@@ -74,7 +75,7 @@ The handler itself is specified as a module-function pair; the arity of the func
 Multiple handlers may be registered for the same hook.
 The last argument, 50, is the sequence number of this handler in the handler chain.
 The higher the number, the later in the sequence the handler will be executed.
-It's reasonable to keep this number small (e.g. in the range 0-100), though there's no real limit other than the size of the integral type in the Erlang VM.
+It's reasonable to keep this number small (e.g. in the range 0-100), though there's no real limit other than the size of the integer type in the Erlang VM.
 
 ## Unregistering handlers
 
