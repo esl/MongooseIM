@@ -32,7 +32,8 @@ ejabberd_hooks:run(offline_message_hook, LServer,
 
 The extra level of indirection introduced by this call gives the flexibility to determine at runtime what code actually gets run at this point.
 `offline_message_hook` is just the name of the hook (in other words of the event that is being signalled); 
-`From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly; `LServer` is [the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
+`From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly; 
+`LServer` is [the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
 
 So how does this runtime configuration actually look like?
 
