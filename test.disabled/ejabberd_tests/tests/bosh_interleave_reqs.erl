@@ -15,18 +15,18 @@
 
 -export([read_config/1,
          connect_carol/1,
-         connect_geralt/1,
+         connect_alice/1,
          send_from_carol/2,
-         send_from_geralt/2,
+         send_from_alice/2,
          wait_for_msgs_carol/2,
-         wait_for_msgs_geralt/2]).
+         wait_for_msgs_alice/2]).
 
 -export([ct_config_giver/1]).
 
 -record(state, {carol,
-                geralt,
+                alice,
                 msgs_to_carol,
-                msgs_to_geralt,
+                msgs_to_alice,
                 config_pid}).
 
 test(Config) ->
@@ -42,7 +42,7 @@ prop(Config) ->
                begin
                    {History, State, Result} = run_commands(?MODULE, Cmds),
                    maybe_stop_client(State#state.carol),
-                   maybe_stop_client(State#state.geralt),
+                   maybe_stop_client(State#state.alice),
                    ?WHENFAIL(ct:log(error, "History: ~p~nState: ~p\nResult: ~p~n",
                                     [History, State, Result]),
                              aggregate(command_names(Cmds), Result =:= ok))
@@ -61,9 +61,9 @@ maybe_stop_client(Client) ->
 
 initial_state(Pid) ->
     #state{carol = undefined,
-           geralt = undefined,
+           alice = undefined,
            msgs_to_carol = [],
-           msgs_to_geralt = [],
+           msgs_to_alice = [],
            config_pid = Pid}.
 
 command(S) ->
@@ -72,19 +72,19 @@ command(S) ->
 
 possible_commands(S) ->
     Carol = (S#state.carol /= undefined),
-    Geralt = (S#state.geralt /= undefined),
-    Users = Carol andalso Geralt,
+    Alice = (S#state.alice /= undefined),
+    Users = Carol andalso Alice,
     MsgsToCarol = (S#state.msgs_to_carol /= []),
-    MsgsToGeralt = (S#state.msgs_to_geralt /= []),
+    MsgsToAlice = (S#state.msgs_to_alice /= []),
     Pid = S#state.config_pid,
     [{call, ?MODULE, connect_carol, [Pid]} || not Carol] ++
-    [{call, ?MODULE, connect_geralt, [Pid]} || not Geralt] ++
-    [{call, ?MODULE, send_from_carol, [S#state.carol, S#state.geralt]} || Users] ++
-    [{call, ?MODULE, send_from_geralt, [S#state.geralt, S#state.carol]} || Users] ++
+    [{call, ?MODULE, connect_alice, [Pid]} || not Alice] ++
+    [{call, ?MODULE, send_from_carol, [S#state.carol, S#state.alice]} || Users] ++
+    [{call, ?MODULE, send_from_alice, [S#state.alice, S#state.carol]} || Users] ++
     [{call, ?MODULE, wait_for_msgs_carol, [S#state.carol, S#state.msgs_to_carol]}
      || MsgsToCarol] ++
-    [{call, ?MODULE, wait_for_msgs_geralt, [S#state.geralt, S#state.msgs_to_geralt]}
-     || MsgsToGeralt].
+    [{call, ?MODULE, wait_for_msgs_alice, [S#state.alice, S#state.msgs_to_alice]}
+     || MsgsToAlice].
 
 
 precondition(_, _) -> true.
@@ -92,16 +92,16 @@ postcondition(_, _, _) -> true.
 
 next_state(S, V, {call, _, connect_carol, [_]}) ->
     S#state{carol = V};
-next_state(S, V, {call, _, connect_geralt, [_]}) ->
-    S#state{geralt = V};
-next_state(#state{msgs_to_geralt = Msgs} = S, V, {call, _, send_from_carol, _}) ->
-    S#state{msgs_to_geralt = [V | Msgs]};
-next_state(#state{msgs_to_carol = Msgs} = S, V, {call, _, send_from_geralt, _}) ->
+next_state(S, V, {call, _, connect_alice, [_]}) ->
+    S#state{alice = V};
+next_state(#state{msgs_to_alice = Msgs} = S, V, {call, _, send_from_carol, _}) ->
+    S#state{msgs_to_alice = [V | Msgs]};
+next_state(#state{msgs_to_carol = Msgs} = S, V, {call, _, send_from_alice, _}) ->
     S#state{msgs_to_carol = [V | Msgs]};
 next_state(S, _, {call, _, wait_for_msgs_carol, _}) ->
     S#state{msgs_to_carol = []};
-next_state(S, _, {call, _, wait_for_msgs_geralt, _}) ->
-    S#state{msgs_to_geralt = []};
+next_state(S, _, {call, _, wait_for_msgs_alice, _}) ->
+    S#state{msgs_to_alice = []};
 next_state(S, _, _) ->
     S.
 
@@ -118,7 +118,7 @@ connect_carol(Pid) ->
     Spec = given_fresh_spec(read_config(Pid), carol),
     connect_user([{keepalive, true} | Spec]).
 
-connect_geralt(Pid) ->
+connect_alice(Pid) ->
     Spec = given_fresh_spec(read_config(Pid), alice),
     connect_user(Spec).
 
@@ -140,17 +140,17 @@ make_jid(Proplist) ->
     {resource, R} = lists:keyfind(resource, 1, Proplist),
     <<U/binary, "@", S/binary, "/", R/binary>>.
 
-send_from_carol(Carol, Geralt) ->
+send_from_carol(Carol, Alice) ->
     Msg = gen_msg(),
-    escalus:send(Carol, escalus_stanza:chat_to(Geralt, Msg)),
+    escalus:send(Carol, escalus_stanza:chat_to(Alice, Msg)),
     {escalus_client:short_jid(Carol),
      Msg
     }.
 
-send_from_geralt(Geralt, Carol) ->
+send_from_alice(Alice, Carol) ->
     Msg = gen_msg(),
-    escalus:send(Geralt, escalus_stanza:chat_to(Carol, Msg)),
-    {escalus_client:short_jid(Geralt),
+    escalus:send(Alice, escalus_stanza:chat_to(Carol, Msg)),
+    {escalus_client:short_jid(Alice),
      Msg
     }.
 
@@ -159,21 +159,17 @@ gen_msg() ->
     Msg.
 
 wait_for_msgs_carol(Carol, Msgs) ->
-    L = length(Msgs),
-    Stanzas = escalus:wait_for_stanzas(Carol, L, timer:seconds(5)),
-    RMsgs = [exml_query:path(E, [{element, <<"body">>}, cdata])
-             || E <- Stanzas],
-    SortedMsgs = lists:sort([Msg || {_, Msg} <- Msgs]),
-    SortedMsgs = lists:sort(RMsgs),
-    ok.
+    wait_for_msgs(Carol, lists:reverse(Msgs)).
 
-wait_for_msgs_geralt(Geralt, Msgs) ->
-    wait_for_msgs(Geralt, lists:reverse(Msgs)).
+wait_for_msgs_alice(Alice, Msgs) ->
+    wait_for_msgs(Alice, lists:reverse(Msgs)).
 
-wait_for_msgs(_Client, []) ->
+wait_for_msgs(Client, []) ->
     ok;
-wait_for_msgs(Client, [{_, Msg} | Rest]) ->
-    escalus:assert(is_chat_message, [Msg],
-                   escalus:wait_for_stanza(Client, timer:seconds(5))),
-    wait_for_msgs(Client, Rest).
+wait_for_msgs(Client, All) ->
+    StanzasFromServer = escalus:wait_for_stanzas(Client, length(All), timer:seconds(5)),
+    ValidBodies = [ Body || {_, Body} <- All ],
+    equal_bodies(ValidBodies, [ exml_query:path(El, [{element, <<"body">>}, cdata]) || El <- StanzasFromServer ]).
+
+equal_bodies(Bodies, Bodies) -> ok.
 
