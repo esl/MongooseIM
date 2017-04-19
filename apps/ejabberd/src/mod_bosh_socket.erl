@@ -639,7 +639,7 @@ send_or_store(Data, State) ->
 
 %% @doc send_to_handler() assumes that Handlers is not empty!
 %% Be sure that's the case if calling it.
--spec send_to_handler([any()] | jlib:xmlel(), state()) -> state().
+-spec send_to_handler([any()] | jlib:xmlel(), state()) -> state() | no_valid_handler.
 send_to_handler(Data, State) ->
     case pick_handler(State) of
         {Handler, NS} ->
