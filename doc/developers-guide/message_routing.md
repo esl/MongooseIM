@@ -25,10 +25,10 @@ This also takes into account "blocking commands", which are part of the privacy 
 Further on, the behaviour is configurable: `ejabberd_router:route/3` passes the stanza through a chain of routing modules and applies `Mod:filter/3` and `Mod:route/3` from each of them.
 Each of those modules has to implement `xmpp_router` behaviour.
 
-A module can choose to either:
+There are a few actions available to the module:
 
-* drop/route the stanza,
-* pass the stanza on unchanged/modify the stanza and pass the result on.
+* it can drop or route the stanza,
+* it can pass the stanza on unchanged or modify it and pass the result on.
 
 A set of routing modules can be set in configuration as `routing_modules`. 
 The default behaviour is the following:
@@ -43,7 +43,8 @@ The default behaviour is the following:
 
 ## 5. Look up `external_component` and `route`
 
-An external component and a local route are obtained by looking up `external_component` and `route` mnesia tables, respectively. Whats in there is either a fun to call or an MF to apply:
+An external component and a local route are obtained by looking up `external_component` and `route` mnesia tables, respectively. 
+What's in there is either a fun to call or an MF to apply:
 
     ```erlang
     (ejabberd@localhost)2> ets:tab2list(route).
