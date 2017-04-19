@@ -65,7 +65,7 @@ mongoose_fips:status().
 A test using a `cipher_suites_test.sh` script (available in the tools directory) can be performed on MongooseIM with FIPS mode enabled and disabled. 
 We've used `OpenSSL 1.0.1j-fips`.
 
-Here are all the cipher suites returned when the **FIPS** mode is **enabled**:
+Here are all the cipher suites available when the **FIPS** mode is **enabled**:
 
 * ECDHE-RSA-AES256-SHA
 * DHE-RSA-AES256-SHA
@@ -77,7 +77,7 @@ Here are all the cipher suites returned when the **FIPS** mode is **enabled**:
 * DHE-RSA-AES128-SHA
 * AES128-SHA
 
-Here are all the cipher suites returned when the **FIPS** mode is **disabled**:
+Here are all the cipher suites available when the **FIPS** mode is **disabled**:
 
 * ECDHE-RSA-AES256-SHA
 * DHE-RSA-AES256-SHA
