@@ -20,7 +20,7 @@ In order to let the XEP-tool know about your module, we add a special attribute 
 
 Now we know that this module implements to [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html) with version 1.6.
 
-It gives the tool enough information to generate a URL link to the XEP homepage.
+It gives the tool enough information to generate a URL to the XEP homepage.
 There are also some variations of the `xep` attribute like:
 
 You ought to remember to specify `xep` and `version` attributes every time.
