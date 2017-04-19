@@ -755,6 +755,12 @@ notify_send_loop(ServerHost, Action) ->
 %% subscription hooks handling functions
 %%
 
+-spec out_subscription(Acc:: mongoose_acc:t(),
+                       User :: binary(),
+                       Server :: binary(),
+                       JID :: jid(),
+                       Type :: sub_presence()) ->
+    mongoose_acc:t().
 out_subscription(Acc, User, Server, JID, subscribed) ->
     Owner = jid:make(User, Server, <<>>),
     {PUser, PServer, PResource} = jid:to_lower(JID),
@@ -767,11 +773,18 @@ out_subscription(Acc, User, Server, JID, subscribed) ->
 out_subscription(Acc, _, _, _, _) ->
     Acc.
 
-in_subscription(_, User, Server, Owner, unsubscribed, _) ->
+-spec in_subscription(Acc:: mongoose_acc:t(),
+                      User :: binary(),
+                      Server :: binary(),
+                      JID :: jid(),
+                      Type :: sub_presence(),
+                      _:: any()) ->
+    mongoose_acc:t().
+in_subscription(Acc, User, Server, Owner, unsubscribed, _) ->
     unsubscribe_user(jid:make(User, Server, <<>>), Owner),
-    true;
-in_subscription(_, _, _, _, _, _) ->
-    true.
+    Acc;
+in_subscription(Acc, _, _, _, _, _) ->
+    Acc.
 
 unsubscribe_user(Entity, Owner) ->
     ServerHosts = lists:usort(lists:foldl(

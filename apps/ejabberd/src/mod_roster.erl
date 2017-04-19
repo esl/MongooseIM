@@ -418,7 +418,9 @@ get_roster_by_jid_t(LUser, LServer, LJID) ->
 -spec get_roster_by_jid(ejabberd:luser(), ejabberd:lserver(),
     ejabberd:simple_jid()) -> roster().
 get_roster_by_jid(LUser, LServer, LJID) ->
-    get_roster_by_jid_t(LUser, LServer, LJID).
+    {atomic, Item} = transaction(LServer,
+        fun() -> get_roster_by_jid_t(LUser, LServer, LJID) end),
+    Item.
 
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
@@ -631,11 +633,24 @@ roster_subscribe_t(LUser, LServer, LJID, Item) ->
 transaction(LServer, F) ->
     mod_roster_backend:transaction(LServer, F).
 
+-spec in_subscription(Acc:: mongoose_acc:t(),
+                      User :: binary(),
+                      Server :: binary(),
+                      JID :: jid(),
+                      Type :: sub_presence(),
+                      Reason :: any()) ->
+    mongoose_acc:t().
 in_subscription(Acc, User, Server, JID, Type, Reason) ->
     Res = process_subscription(in, User, Server, JID, Type,
                                Reason),
     mongoose_acc:put(result, Res, Acc).
 
+-spec out_subscription(Acc:: mongoose_acc:t(),
+                       User :: binary(),
+                       Server :: binary(),
+                       JID :: jid(),
+                       Type :: sub_presence()) ->
+    mongoose_acc:t().
 out_subscription(Acc, User, Server, JID, Type) ->
     Res = process_subscription(out, User, Server, JID, Type, <<"">>),
     mongoose_acc:put(result, Res, Acc).

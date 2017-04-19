@@ -104,7 +104,7 @@
 
 -type(subscription() :: 'none'
                       | 'pending'
-                      | 'unconfigured'
+                      | 'unconfigured' % this state does not seem to be used
                       | 'subscribed'
 ).
 %% @type subscription() = 'none' | 'pending' | 'unconfigured' | 'subscribed'.
