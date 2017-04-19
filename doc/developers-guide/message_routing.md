@@ -44,7 +44,7 @@ The default behaviour is the following:
 ## 5. Look up `external_component` and `route`
 
 An external component and a local route are obtained by looking up `external_component` and `route` mnesia tables, respectively. 
-What's in there is either a fun to call or an MF to apply:
+The items stored in the tables provide funs to call and MFs to apply:
 
     ```erlang
     (ejabberd@localhost)2> ets:tab2list(route).
