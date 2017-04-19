@@ -6,27 +6,26 @@ This is a quick guide on how to enjoy the usage of the XEP-tool.
 
 ###  Sign your module file first
 
-The architecture of MongooseIM determines that almost every XEP or feature implementation
-resides in its own file. It is not strictly enforced but usually the file is named with
-`mod_` prefix. For example `mod_privacy` file implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html).
+The architecture of MongooseIM determines that almost every XEP or feature implementation resides in its own file. 
+It is not strictly enforced but usually the file is named with a `mod_` prefix. 
+For example `mod_privacy` file implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html).
 
 #### Mandatory `xep` and `version`
 
-In order to let the XEP-tool know about your module we add a special attribute `xep`
-at the begining of the `mod_privacy` module:
+In order to let the XEP-tool know about your module, we add a special attribute `xep` at the begining of the `mod_privacy` module:
 
 ```
 -xep([{xep, 16}, {version, "1.6"}]).
 ```
 
-And we know that this module implements to [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html) with version 1.6.
+Now we know that this module implements to [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html) with version 1.6.
 
-It gives the tool enough information to generate URL link to the XEP homepage.
+It gives the tool enough information to generate a URL to the XEP homepage.
 There are also some variations of the `xep` attribute like:
 
 You ought to remember to specify `xep` and `version` attributes every time.
 You can also put several `xep` attributes in one module.
-For example `mod_mam_muc` implements to [XEP-0313: Message Archive Management](http://xmpp.org/extensions/xep-0313.html) and also to [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html).
+For example `mod_mam_muc` implements attributes of [XEP-0313: Message Archive Management](http://xmpp.org/extensions/xep-0313.html) and also [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html).
 
 Just list them one after another:
 
@@ -47,18 +46,20 @@ Just list them one after another:
 -xep([{xep, 16}, {version, "1.6"}, {comment, "Example comment: Partial Implemented"}]).
 ```
 
-And XEP-tool will do the work!
+And the XEP-tool will do the work!
 
 ### Compile and run
 
-You've just ended marking your modules. The only thing left is to
-`make compile` MongooseIM in order to generate .beam files.
-To run the XEP tool, you must issue an additional subcommand. There are two choices:
+You've just finished marking your modules. 
+The only thing left is to `make compile` MongooseIM in order to generate the .beam files.
+To run the XEP tool, you must issue an additional subcommand. 
+There are two choices:
 
-* `markdown`: to produce markdown of supported XEPs. This option needs also an output file as an argument
-* `list`: to print out supported XEPs to the console
+* `markdown`: to produce a markdown list of supported XEPs. 
+ This option also needs an output file as an argument.
+* `list`: to print out supported XEPs to the console.
 
-For example, to run our XEP-tool with `markdown` command type:
+For example, to run our XEP-tool with a `markdown` command, type:
 
 `make xeplist`
 
@@ -70,10 +71,10 @@ In our case, from MongooseIM root directory:
 
 `./tools/xep_tool/xep_tool.escript markdown apps/ejabberd/ebin list.md`
 
-The Markdown with unique XEP names and URLs is saved to file `list.md`
+The Markdown list with unique XEP names and URLs is saved to file `list.md`
 You can copy-paste the content of this file to your main README file.
 
-### Example look of generated file
+### Generated file example
 
 |||||
 | ------------- | ------------- | ------------- |------------- |
