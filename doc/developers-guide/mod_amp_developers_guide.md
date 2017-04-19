@@ -32,7 +32,7 @@ Source Files, Headers and Tests
     Also, the function verify_rule_support is hard-coded here to return an `unsupported-` type error for unsupported rule actions and values.
 
   * `apps/ejabberd/test/amp_resolver_SUITE.erl`  
-    These tests verify that the `amp_resolver:check_condition/4' hook works as intended, i.e: that the rules which would be triggered given a particular server-side strategy actually do get triggered, and that all others get rejected.
+    These tests verify that the `amp_resolver:check_condition/4` hook works as intended, i.e: that the rules which would be triggered given a particular server-side strategy actually do get triggered, and that all others get rejected.
 
   * `apps/ejabberd/test/amp_gen.erl`  
     This module contains PropEr generators for server-side strategies, as well as valid and invalid amp rules. 
