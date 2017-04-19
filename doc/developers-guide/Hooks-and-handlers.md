@@ -15,7 +15,7 @@ To focus our attention, we'll analyze `mod_offline` which is responsible for sto
 
 `ejabberd_sm` (ejabberd/MongooseIM session manager) is the module discovering whether the recipient of a message is available or not.
 That's where storing the message for later delivery takes place.
-To save a message in an offline storage just call `mod_offline`:
+It is possible, but not recommended, to save a message in an offline storage by calling `mod_offline` directly:
 
 ```erlang
 mod_offline:store_packet(From, To, Packet)
