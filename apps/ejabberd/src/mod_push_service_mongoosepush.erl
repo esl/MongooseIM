@@ -82,14 +82,10 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     lists:foreach(
         fun(Notification) ->
             ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
-            case make_notification(binary_to_atom(ProtocolVersion, utf8), Notification, Options) of
-                {ok, JSON} ->
-                    Payload = jiffy:encode(JSON),
-                    cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload]);
-                {error, Reason} ->
-                    ?WARNING_MSG("Invalid push notification: error=~p notification=~p options=~p",
-                                 [Reason, Notification, Options])
-            end
+            {ok, JSON} =
+                make_notification(binary_to_atom(ProtocolVersion, utf8), Notification, Options),
+            Payload = jiffy:encode(JSON),
+            cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
         end, Notifications),
 
     AccIn.
