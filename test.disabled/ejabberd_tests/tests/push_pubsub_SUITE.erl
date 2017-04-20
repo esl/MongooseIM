@@ -23,7 +23,7 @@ all() ->
         {group, disco},
         {group, allocate},
         {group, pubsub_publish},
-        {group, rest_integration}
+        {group, rest_integration_v2}
     ].
 
 groups() ->
@@ -35,9 +35,10 @@ groups() ->
             publish_fails_with_no_options,
             publish_succeeds_with_valid_options
         ]},
-        {rest_integration, [], [
-            rest_service_called_with_correct_path,
-            rest_service_gets_correct_payload
+        {rest_integration_v2, [], [
+            rest_service_called_with_correct_path_v2,
+            rest_service_gets_correct_payload_v2,
+            rest_service_gets_correct_payload_silent_v2
         ]}
     ].
 
@@ -57,21 +58,23 @@ init_per_suite(Config) ->
 
     %% Start modules
     Config2 = dynamic_modules:save_modules(domain(), Config),
-    dynamic_modules:ensure_modules(domain(), required_modules()),
-
-    escalus:init_per_suite(Config2).
+    Config3 = escalus:init_per_suite(Config2),
+    escalus:create_users(Config3, escalus:get_users([bob, alice])).
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(domain(), Config),
+    escalus:delete_users(Config, escalus:get_users([bob, alice])),
     escalus:end_per_suite(Config).
 
+init_per_group(rest_integration_v1, Config) ->
+    restart_modules(Config, "v1");
+init_per_group(rest_integration_v2, Config) ->
+    restart_modules(Config, "v2");
 init_per_group(_, Config) ->
-    escalus:create_users(Config, escalus:get_users([bob, alice])).
+    restart_modules(Config, "v2").
 
 end_per_group(_, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Host, mod_push),
-    escalus:delete_users(Config, escalus:get_users([bob, alice])).
+    Config.
 
 init_per_testcase(CaseName, Config) ->
     MongoosePushMockPort = setup_mock_rest(),
@@ -196,61 +199,38 @@ publish_succeeds_with_valid_options(Config) ->
 %% GROUP rest_integration
 %%--------------------------------------------------------------------
 
-rest_service_called_with_correct_path(Config) ->
+
+rest_service_called_with_correct_path(Version, Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
-            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
+            Node = setup_pubsub(Alice),
+            {Notification, Options} = prepare_notification(),
+            send_notification(Alice, Node, Notification, Options),
+            {Req, _Body} = get_mocked_request(),
 
-            Content = [
-                {<<"message-count">>, <<"1">>},
-                {<<"last-message-sender">>, <<"senderId">>},
-                {<<"last-message-body">>, <<"message body">>}
-            ],
-
-            Options = [
-                {<<"device_id">>, <<"sometoken_34320482">>},
-                {<<"service">>, <<"apns">>}
-            ],
-
-            PublishIQ = publish_iq(Alice, Node, Content, Options),
-            escalus:send(Alice, PublishIQ),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
-
-            {Req, _} = next_rest_req(),
             ?assertMatch(<<"POST">>, cowboy_req:method(Req)),
-            ?assertMatch(<<"v15">>, cowboy_req:binding(level1, Req)),
+            ?assertMatch(Version, cowboy_req:binding(level1, Req)),
             ?assertMatch(<<"notification">>, cowboy_req:binding(level2, Req)),
-            ?assertMatch(<<"sometoken_34320482">>, cowboy_req:binding(level3, Req)),
+            ?assertMatch(<<"sometoken">>, cowboy_req:binding(level3, Req)),
             ?assertMatch(undefined, cowboy_req:binding(level4, Req))
         end).
 
-rest_service_gets_correct_payload(Config) ->
+rest_service_called_with_correct_path_v1(Config) ->
+    rest_service_called_with_correct_path(<<"v1">>, Config).
+
+rest_service_called_with_correct_path_v2(Config) ->
+    rest_service_called_with_correct_path(<<"v2">>, Config).
+
+
+rest_service_gets_correct_payload_v1(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
-            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
-
-            Content = [
-                {<<"message-count">>, <<"876">>},
-                {<<"last-message-sender">>, <<"senderId">>},
-                {<<"last-message-body">>, <<"message body 576364!!">>}
-            ],
-
-            Options = [
-                {<<"device_id">>, <<"sometoken">>},
-                {<<"service">>, <<"some_awesome_service">>},
-                {<<"mode">>, <<"selected_mode">>}
-            ],
-
-            PublishIQ = publish_iq(Alice, Node, Content, Options),
-            escalus:send(Alice, PublishIQ),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
-
-            {Req, BodyRaw} = next_rest_req(),
-            Body = jsx:decode(BodyRaw, [return_maps]),
+            Node = setup_pubsub(Alice),
+            {Notification, Options} = prepare_notification(),
+            send_notification(Alice, Node, Notification, Options),
+            {_, Body} = get_mocked_request(),
 
             ?assertMatch(#{<<"service">> := <<"some_awesome_service">>}, Body),
             ?assertMatch(#{<<"badge">> := 876}, Body),
@@ -260,9 +240,82 @@ rest_service_gets_correct_payload(Config) ->
             ?assertMatch(#{<<"body">> := <<"message body 576364!!">>}, Body)
         end).
 
+rest_service_gets_correct_payload_v2(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Node = setup_pubsub(Alice),
+            {Notification, Options} = prepare_notification(),
+            send_notification(Alice, Node, Notification, Options),
+            {_, Body} = get_mocked_request(),
+
+
+            ?assertMatch(#{<<"service">> := <<"some_awesome_service">>}, Body),
+            ?assertMatch(#{<<"mode">> := <<"selected_mode">>}, Body),
+            ?assertMatch(#{<<"topic">> := <<"some_topic">>}, Body),
+            ?assert(not maps:is_key(<<"data">>, Body)),
+            ?assertMatch(#{<<"alert">> := #{<<"badge">> := 876}}, Body),
+            ?assertMatch(#{<<"alert">> := #{<<"title">> := <<"senderId">>}}, Body),
+            ?assertMatch(#{<<"alert">> := #{<<"tag">> := <<"senderId">>}}, Body),
+            ?assertMatch(#{<<"alert">> := #{<<"body">> := <<"message body 576364!!">>}}, Body)
+
+        end).
+
+rest_service_gets_correct_payload_silent_v2(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Node = setup_pubsub(Alice),
+            {Notification, Options} = prepare_notification([{<<"silent">>, <<"true">>}]),
+            send_notification(Alice, Node, Notification, Options),
+            {_, Body} = get_mocked_request(),
+
+            ?assertMatch(#{<<"service">> := <<"some_awesome_service">>}, Body),
+            ?assertMatch(#{<<"mode">> := <<"selected_mode">>}, Body),
+            ?assertMatch(#{<<"topic">> := <<"some_topic">>}, Body),
+            ?assert(not maps:is_key(<<"alert">>, Body)),
+            ?assertMatch(#{<<"data">> := #{<<"message-count">> := 876}}, Body),
+            ?assertMatch(#{<<"data">> := #{<<"last-message-sender">> := <<"senderId">>}}, Body),
+            ?assertMatch(#{<<"data">> := #{<<"last-message-body">> := <<"message body 576364!!">>}}, Body)
+
+        end).
+
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
+
+send_notification(User, Node, Notification, Options) ->
+    PublishIQ = publish_iq(User, Node, Notification, Options),
+    escalus:send(User, PublishIQ),
+    escalus:assert(is_result, escalus:wait_for_stanza(User)).
+
+get_mocked_request() ->
+    {Req, BodyRaw} = next_rest_req(),
+    Body = jsx:decode(BodyRaw, [return_maps]),
+    {Req, Body}.
+
+prepare_notification() ->
+    prepare_notification([]).
+prepare_notification(CustomOptions) ->
+    Notification = [
+        {<<"message-count">>, <<"876">>},
+        {<<"last-message-sender">>, <<"senderId">>},
+        {<<"last-message-body">>, <<"message body 576364!!">>}
+    ],
+
+    Options = [
+        {<<"device_id">>, <<"sometoken">>},
+        {<<"service">>, <<"some_awesome_service">>},
+        {<<"mode">>, <<"selected_mode">>},
+        {<<"topic">>, <<"some_topic">>}
+    ],
+
+    {Notification, Options ++ CustomOptions}.
+
+setup_pubsub(User) ->
+    Node = pubsub_node(),
+    pubsub_tools:create_node(User, Node, [{type, <<"push">>}]),
+    Node.
 
 %% ----------------------------------
 %% Stanzas
@@ -396,7 +449,7 @@ pubsub_host(Host) ->
     ?PUBSUB_SUB_DOMAIN ++ "." ++ Host.
 
 %% Module config
-required_modules() ->
+required_modules(APIVersion) ->
     [{mod_pubsub, [
         {plugins, [<<"dag">>, <<"push">>]},
         {nodetree, <<"dag">>},
@@ -404,5 +457,10 @@ required_modules() ->
     ]},
      {mod_push_service_mongoosepush, [
          {pool_name, mongoose_push_http},
-         {api_version, "v15"}
+         {api_version, APIVersion}
      ]}].
+
+restart_modules(Config, APIVersion) ->
+    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:ensure_modules(domain(), required_modules(APIVersion)),
+    Config.

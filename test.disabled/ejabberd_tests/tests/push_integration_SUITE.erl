@@ -40,13 +40,19 @@ groups() ->
             pm_msg_notify_on_apns_no_click_action,
             pm_msg_notify_on_fcm_no_click_action,
             pm_msg_notify_on_apns_w_click_action,
-            pm_msg_notify_on_fcm_w_click_action
+            pm_msg_notify_on_fcm_w_click_action,
+            pm_msg_notify_on_apns_silent,
+            pm_msg_notify_on_fcm_silent,
+            pm_msg_notify_on_apns_w_topic
         ]},
         {muclight_msg_notifications, [parallel], [
             muclight_msg_notify_on_apns_no_click_action,
             muclight_msg_notify_on_fcm_no_click_action,
             muclight_msg_notify_on_apns_w_click_action,
-            muclight_msg_notify_on_fcm_w_click_action
+            muclight_msg_notify_on_fcm_w_click_action,
+            muclight_msg_notify_on_apns_silent,
+            muclight_msg_notify_on_fcm_silent,
+            muclight_msg_notify_on_w_topic
         ]}
     ].
 
@@ -145,25 +151,41 @@ pm_msg_notify_on_apns(Config, EnableOpts) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            AliceJID = bare_jid(Alice),
-
-            DeviceToken = enable_push_for_user(Bob, <<"apns">>, EnableOpts),
-
-            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-
+            {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"apns">>, EnableOpts),
             [Notification = #{}] = get_push_logs(apns, DeviceToken, Config),
 
-            APNSData = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification)),
-            APNSAlert = maps:get(<<"alert">>, APNSData),
-            ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, APNSAlert),
-            ?assertMatch(#{<<"title">> := AliceJID}, APNSAlert),
-            ?assertMatch(#{<<"badge">> := 1}, APNSData),
+            APNSNotification = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification),
+                                        undefined),
+            APNSData = maps:remove(<<"aps">>, maps:get(<<"request_data">>, Notification)),
+            APNSAlert = maps:get(<<"alert">>, APNSNotification, undefined),
 
-            case proplists:get_value(<<"click_action">>, EnableOpts) of
+            case proplists:get_value(<<"silent">>, EnableOpts) of
                 undefined ->
-                    ?assertMatch(#{<<"category">> := null}, APNSData);
-                Activity ->
-                    ?assertMatch(#{<<"category">> := Activity}, APNSData)
+                    ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, APNSAlert),
+                    ?assertMatch(#{<<"title">> := SenderJID}, APNSAlert),
+                    ?assertMatch(#{<<"badge">> := 1}, APNSNotification),
+
+                    case proplists:get_value(<<"click_action">>, EnableOpts) of
+                        undefined ->
+                            ?assertMatch(#{<<"category">> := null}, APNSNotification);
+                        Activity ->
+                            ?assertMatch(#{<<"category">> := Activity}, APNSNotification)
+                    end;
+                <<"true">> ->
+                    ?assert(not maps:is_key(<<"aps">>, APNSNotification)),
+                    ?assert(not maps:is_key(<<"sound">>, APNSNotification)),
+                    ?assert(not maps:is_key(<<"badge">>, APNSNotification)),
+                    ?assertMatch(#{<<"content-available">> := 1}, APNSNotification),
+                    ?assertMatch(#{<<"last-message-body">> := <<"OH, HAI!">>}, APNSData),
+                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, APNSData),
+                    ?assertMatch(#{<<"message-count">> := 1}, APNSData)
+            end,
+
+            case  proplists:get_value(<<"topic">>, EnableOpts) of
+                undefined -> ok;
+                Topic ->
+                    Headers = maps:get(<<"request_headers">>, Notification),
+                    ?assertMatch(Topic, maps:get(<<"apns-topic">>, Headers, undefined))
             end,
 
             ok
@@ -173,24 +195,31 @@ pm_msg_notify_on_fcm(Config, EnableOpts) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            AliceJID = bare_jid(Alice),
-
-            DeviceToken = enable_push_for_user(Bob, <<"fcm">>, EnableOpts),
-
-            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-
+            {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"fcm">>, EnableOpts),
             [Notification = #{}] = get_push_logs(fcm, DeviceToken, Config),
 
-            FCMData = maps:get(<<"notification">>, maps:get(<<"request_data">>, Notification)),
-            ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, FCMData),
-            ?assertMatch(#{<<"title">> := AliceJID}, FCMData),
-            ?assertMatch(#{<<"tag">> := AliceJID}, FCMData),
+            FCMNotification = maps:get(<<"notification">>,
+                                       maps:get(<<"request_data">>, Notification)),
 
-            case proplists:get_value(<<"click_action">>, EnableOpts) of
+            FCMData = maps:get(<<"data">>,
+                               maps:get(<<"request_data">>, Notification)),
+
+            case proplists:get_value(<<"silent">>, EnableOpts) of
                 undefined ->
-                    ?assertMatch(#{<<"click_action">> :=  null}, FCMData);
-                Activity ->
-                    ?assertMatch(#{<<"click_action">> :=  Activity}, FCMData)
+                    ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, FCMNotification),
+                    ?assertMatch(#{<<"title">> := SenderJID}, FCMNotification),
+                    ?assertMatch(#{<<"tag">> := SenderJID}, FCMNotification),
+
+                    case proplists:get_value(<<"click_action">>, EnableOpts) of
+                        undefined ->
+                            ?assertMatch(#{<<"click_action">> :=  null}, FCMNotification);
+                        Activity ->
+                            ?assertMatch(#{<<"click_action">> :=  Activity}, FCMNotification)
+                    end;
+                <<"true">> ->
+                    ?assertMatch(#{<<"last-message-body">> := <<"OH, HAI!">>}, FCMData),
+                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, FCMData),
+                    ?assertMatch(#{<<"message-count">> := 1}, FCMData)
             end,
 
             ok
@@ -208,6 +237,15 @@ pm_msg_notify_on_apns_w_click_action(Config) ->
 pm_msg_notify_on_fcm_w_click_action(Config) ->
     pm_msg_notify_on_fcm(Config, [{<<"click_action">>, <<"myactivity">>}]).
 
+pm_msg_notify_on_fcm_silent(Config) ->
+    pm_msg_notify_on_fcm(Config, [{<<"silent">>, <<"true">>}]).
+
+pm_msg_notify_on_apns_silent(Config) ->
+    pm_msg_notify_on_apns(Config, [{<<"silent">>, <<"true">>}]).
+
+pm_msg_notify_on_apns_w_topic(Config) ->
+    pm_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
+
 %%--------------------------------------------------------------------
 %% GROUP muclight_msg_notifications
 %%--------------------------------------------------------------------
@@ -217,31 +255,42 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            Room = room_name(Config),
-            BobJID = bare_jid(Bob),
-            RoomJID = room_bin_jid(Room),
-            SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
-            create_room(Room, [bob, alice, kate], Config),
-
-            DeviceToken = enable_push_for_user(Alice, <<"apns">>, EnableOpts),
-
-            Msg = <<"Heyah!">>,
-            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
-            escalus:send(Bob, Stanza),
-
+            {SenderJID, DeviceToken} =
+                muclight_conversation(Config, Alice, Bob, <<"apns">>,EnableOpts),
             [Notification = #{}] = get_push_logs(apns, DeviceToken, Config),
 
-            APNSData = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification)),
-            APNSAlert = maps:get(<<"alert">>, APNSData),
-            ?assertMatch(#{<<"body">> := <<"Heyah!">>}, APNSAlert),
-            ?assertMatch(#{<<"title">> := SenderJID}, APNSAlert),
-            ?assertMatch(#{<<"badge">> := 1}, APNSData),
+            APNSNotification = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification),
+                                        undefined),
+            APNSData = maps:remove(<<"aps">>, maps:get(<<"request_data">>, Notification)),
+            APNSAlert = maps:get(<<"alert">>, APNSNotification, undefined),
 
-            case proplists:get_value(<<"click_action">>, EnableOpts) of
+            case proplists:get_value(<<"silent">>, EnableOpts) of
                 undefined ->
-                    ?assertMatch(#{<<"category">> := null}, APNSData);
-                Activity ->
-                    ?assertMatch(#{<<"category">> := Activity}, APNSData)
+                    ?assertMatch(#{<<"body">> := <<"Heyah!">>}, APNSAlert),
+                    ?assertMatch(#{<<"title">> := SenderJID}, APNSAlert),
+                    ?assertMatch(#{<<"badge">> := 1}, APNSNotification),
+
+                    case proplists:get_value(<<"click_action">>, EnableOpts) of
+                        undefined ->
+                            ?assertMatch(#{<<"category">> := null}, APNSNotification);
+                        Activity ->
+                            ?assertMatch(#{<<"category">> := Activity}, APNSNotification)
+                    end;
+                <<"true">> ->
+                    ?assert(not maps:is_key(<<"aps">>, APNSNotification)),
+                    ?assert(not maps:is_key(<<"sound">>, APNSNotification)),
+                    ?assert(not maps:is_key(<<"badge">>, APNSNotification)),
+                    ?assertMatch(#{<<"content-available">> := 1}, APNSNotification),
+                    ?assertMatch(#{<<"last-message-body">> := <<"Heyah!">>}, APNSData),
+                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, APNSData),
+                    ?assertMatch(#{<<"message-count">> := 1}, APNSData)
+            end,
+
+            case  proplists:get_value(<<"topic">>, EnableOpts) of
+                undefined -> ok;
+                Topic ->
+                    Headers = maps:get(<<"request_headers">>, Notification),
+                    ?assertMatch(Topic, maps:get(<<"apns-topic">>, Headers, undefined))
             end,
 
             ok
@@ -251,30 +300,31 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
-            Room = room_name(Config),
-            BobJID = bare_jid(Bob),
-            RoomJID = room_bin_jid(Room),
-            SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
-            create_room(Room, [bob, alice, kate], Config),
-
-            DeviceToken = enable_push_for_user(Alice, <<"fcm">>, EnableOpts),
-
-            Msg = <<"Heyah!">>,
-            Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
-            escalus:send(Bob, Stanza),
-
+            {SenderJID, DeviceToken} =
+                muclight_conversation(Config, Alice, Bob, <<"fcm">>,EnableOpts),
             [Notification = #{}] = get_push_logs(fcm, DeviceToken, Config),
 
-            FCMData = maps:get(<<"notification">>, maps:get(<<"request_data">>, Notification)),
-            ?assertMatch(#{<<"body">> := <<"Heyah!">>}, FCMData),
-            ?assertMatch(#{<<"title">> := SenderJID}, FCMData),
-            ?assertMatch(#{<<"tag">> := SenderJID}, FCMData),
+            FCMNotification = maps:get(<<"notification">>,
+                                       maps:get(<<"request_data">>, Notification)),
+            FCMData = maps:get(<<"data">>,
+                               maps:get(<<"request_data">>, Notification)),
 
-            case proplists:get_value(<<"click_action">>, EnableOpts) of
+            case proplists:get_value(<<"silent">>, EnableOpts) of
                 undefined ->
-                    ?assertMatch(#{<<"click_action">> :=  null}, FCMData);
-                Activity ->
-                    ?assertMatch(#{<<"click_action">> :=  Activity}, FCMData)
+                    ?assertMatch(#{<<"body">> := <<"Heyah!">>}, FCMNotification),
+                    ?assertMatch(#{<<"title">> := SenderJID}, FCMNotification),
+                    ?assertMatch(#{<<"tag">> := SenderJID}, FCMNotification),
+
+                    case proplists:get_value(<<"click_action">>, EnableOpts) of
+                        undefined ->
+                            ?assertMatch(#{<<"click_action">> :=  null}, FCMNotification);
+                        Activity ->
+                            ?assertMatch(#{<<"click_action">> :=  Activity}, FCMNotification)
+                    end;
+                <<"true">> ->
+                    ?assertMatch(#{<<"last-message-body">> := <<"Heyah!">>}, FCMData),
+                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, FCMData),
+                    ?assertMatch(#{<<"message-count">> := 1}, FCMData)
             end,
 
             ok
@@ -292,10 +342,40 @@ muclight_msg_notify_on_apns_w_click_action(Config) ->
 muclight_msg_notify_on_fcm_w_click_action(Config) ->
     muclight_msg_notify_on_fcm(Config, [{<<"click_action">>, <<"myactivity">>}]).
 
+muclight_msg_notify_on_fcm_silent(Config) ->
+    muclight_msg_notify_on_fcm(Config, [{<<"silent">>, <<"true">>}]).
+
+muclight_msg_notify_on_apns_silent(Config) ->
+    muclight_msg_notify_on_apns(Config, [{<<"silent">>, <<"true">>}]).
+
+muclight_msg_notify_on_w_topic(Config) ->
+    muclight_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
+
 
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
+
+muclight_conversation(Config, Alice, Bob, Service, EnableOpts) ->
+    Room = room_name(Config),
+    BobJID = bare_jid(Bob),
+    RoomJID = room_bin_jid(Room),
+    SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
+    create_room(Room, [bob, alice, kate], Config),
+
+    DeviceToken = enable_push_for_user(Alice, Service, EnableOpts),
+
+    Msg = <<"Heyah!">>,
+    Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
+    escalus:send(Bob, Stanza),
+    {SenderJID, DeviceToken}.
+
+pm_conversation(Alice, Bob, Service, EnableOpts) ->
+    AliceJID = bare_jid(Alice),
+    DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
+    escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+    {AliceJID, DeviceToken}.
+
 
 enable_push_for_user(User, Service, EnableOpts) ->
     PubsubJID = node_addr(),
@@ -437,7 +517,7 @@ required_modules() ->
         ]},
         {mod_push_service_mongoosepush, [
             {pool_name, mongoose_push_http},
-            {api_version, "v1"}
+            {api_version, "v2"}
         ]},
         {mod_push, [
             {backend, mnesia}

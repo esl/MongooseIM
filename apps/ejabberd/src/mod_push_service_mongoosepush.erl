@@ -35,6 +35,8 @@
 %% Definitions
 %%--------------------------------------------------------------------
 
+-define(DEFAULT_API_VERSION, "v2").
+
 -callback init(term(), term()) -> ok.
 
 %% Types
@@ -74,21 +76,15 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     ?DEBUG("push_notifications ~p", [{Notifications, Options}]),
 
     DeviceId = maps:get(<<"device_id">>, Options),
-    ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, api_version, "v1")),
+    ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, api_version,
+                                                            ?DEFAULT_API_VERSION)),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     lists:foreach(
         fun(Notification) ->
             ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
-            Payload = jiffy:encode(
-                #{
-                    service => maps:get(<<"service">>, Options),
-                    body => maps:get(<<"last-message-body">>, Notification),
-                    title => maps:get(<<"last-message-sender">>, Notification),
-                    tag => maps:get(<<"last-message-sender">>, Notification),
-                    badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
-                    mode => maps:get(<<"mode">>, Options, <<"prod">>),
-                    click_action => maps:get(<<"click_action">>, Options, null)
-                }),
+            {ok, JSON} =
+                make_notification(binary_to_atom(ProtocolVersion, utf8), Notification, Options),
+            Payload = jiffy:encode(JSON),
             cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
         end, Notifications),
 
@@ -122,6 +118,29 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
 %%--------------------------------------------------------------------
 %% Helper functions
 %%--------------------------------------------------------------------
+
+%% Create notification for API v2
+make_notification(v2, Notification, Options = #{<<"silent">> := <<"true">>}) ->
+    MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
+    {ok, #{
+        service => maps:get(<<"service">>, Options),
+        mode => maps:get(<<"mode">>, Options, <<"prod">>),
+        topic => maps:get(<<"topic">>, Options, null),
+        data => Notification#{<<"message-count">> => MessageCount}
+    }};
+make_notification(v2, Notification, Options) ->
+    {ok, #{
+        service => maps:get(<<"service">>, Options),
+        mode => maps:get(<<"mode">>, Options, <<"prod">>),
+        alert => #{
+            body => maps:get(<<"last-message-body">>, Notification),
+            title => maps:get(<<"last-message-sender">>, Notification),
+            tag => maps:get(<<"last-message-sender">>, Notification),
+            badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
+            click_action => maps:get(<<"click_action">>, Options, null)
+        },
+        topic => maps:get(<<"topic">>, Options, null)
+    }}.
 
 -spec cast(Host :: ejabberd:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 cast(Host, M, F, A) ->
