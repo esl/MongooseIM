@@ -87,10 +87,12 @@ time_test_cases() ->
     ].
 
 acks_test_cases() ->
-    [server_acks,
+    [
+     server_acks,
      force_report,
      force_retransmission,
-     force_cache_trimming].
+     force_cache_trimming
+    ].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -151,7 +153,7 @@ create_and_terminate_session(Config) ->
     {ok, Conn} = escalus_bosh:connect(CarolSpec),
 
     %% Assert there are no BOSH sessions on the server.
-    0 = length(get_bosh_sessions()),
+    [] = get_bosh_sessions(),
 
     Domain = ct:get_config({hosts, mim, domain}),
     Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
@@ -159,7 +161,7 @@ create_and_terminate_session(Config) ->
     escalus_connection:get_stanza(Conn, session_creation_response),
 
     %% Assert that a BOSH session was created.
-    1 = length(get_bosh_sessions()),
+    [_] = get_bosh_sessions(),
 
     Sid = get_bosh_sid(Conn),
     Terminate = escalus_bosh:session_termination_body(get_bosh_rid(Conn), Sid),
@@ -167,7 +169,7 @@ create_and_terminate_session(Config) ->
 
     timer:sleep(100),
     %% Assert the session was terminated.
-    0 = length(get_bosh_sessions()).
+    [] = get_bosh_sessions().
 
 accept_higher_hold_value(Config) ->
     #xmlel{attrs = RespAttrs} = send_specific_hold(Config, <<"2">>),
@@ -353,6 +355,14 @@ cant_send_invalid_rid(Config) ->
         %% completes. This will leave the following message in the log:
         %%
         %% mod_bosh:forward_body:265 session not found!
+        
+        %% NOTICE 3
+        %% We enable quickfail mode, because sometimes request with invalid RID
+        %% arrives before empty body req. with valid RID, so server returns an error
+        %% only for the first req. and escalus_bosh in normal mode would get stuck
+        %% since it wants to maintain order according to RIDs
+
+        escalus_bosh:set_quickfail(Carol, true),
 
         InvalidRid = get_bosh_rid(Carol) + ?INVALID_RID_OFFSET,
         Sid = get_bosh_sid(Carol),

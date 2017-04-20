@@ -623,36 +623,47 @@ is_acceptable_rid(Rid, ExpectedRid)
 is_acceptable_rid(_, _) ->
     false.
 
-%% @doc Send data to the client if any request handler is available.
+%% @doc Send data to the client if a request handler is available, that matches next RID.
 %% Otherwise, store for sending later.
 -spec send_or_store(_Data, state()) -> state().
 send_or_store(Data, State) when not is_list(Data) ->
     send_or_store([Data], State);
-send_or_store(Data, #state{handlers = []} = S) ->
-    store(Data, S);
 send_or_store(Data, State) ->
-    send_to_handler(Data, State).
+    case send_to_handler(Data, State) of
+        no_valid_handler ->
+            store(Data, State);
+        NewState ->
+            NewState
+    end.
 
 
 %% @doc send_to_handler() assumes that Handlers is not empty!
 %% Be sure that's the case if calling it.
--spec send_to_handler([any()] | jlib:xmlel(), state()) -> state().
+-spec send_to_handler([any()] | jlib:xmlel(), state()) -> state() | no_valid_handler.
 send_to_handler(Data, State) ->
-    {Handler, NS} = pick_handler(State),
-    send_to_handler(Handler, Data, NS).
+    case pick_handler(State) of
+        {Handler, NS} ->
+            send_to_handler(Handler, Data, NS);
+        false ->
+            no_valid_handler
+    end.
 
 
 %% Return handler and new state if a handler is available
 %% or `false` otherwise.
 -spec pick_handler(state()) -> {{rid(), pid()}, state()} | false.
-pick_handler(#state{handlers = []}) ->
+pick_handler(#state{ handlers = [] }) ->
     false;
-pick_handler(#state{handlers = Handlers} = S) ->
-    [{Rid, TRef, Pid} | HRest] = lists:sort(Handlers),
-    %% The cancellation might fail if the timer already fired.
-    %% Don't worry, it's handled on receiving the timeout message.
-    erlang:cancel_timer(TRef),
-    {{Rid, Pid}, S#state{handlers = HRest}}.
+pick_handler(#state{ handlers = Handlers, rid = Rid } = S) ->
+    case lists:sort(Handlers) of
+        [{HandlerRid, TRef, Pid} | HRest] when HandlerRid =< Rid->
+            %% The cancellation might fail if the timer already fired.
+            %% Don't worry, it's handled on receiving the timeout message.
+            erlang:cancel_timer(TRef),
+            {{HandlerRid, Pid}, S#state{handlers = HRest}};
+        _ ->
+            false
+    end.
 
 
 -spec send_to_handler({_, atom() | pid() | port() | {atom(), atom()}},
@@ -788,12 +799,13 @@ return_surplus_handlers(SName, #state{handlers = [_], pending = []} = State)
     when SName == normal; SName == closing ->
     State;
 return_surplus_handlers(accumulate, #state{handlers = _} = S) ->
-    NS = send_to_handler([], S),
-    return_surplus_handlers(accumulate, NS);
+    case send_to_handler([], S) of
+        no_valid_handler -> S;
+        NS -> return_surplus_handlers(accumulate, NS)
+    end;
 return_surplus_handlers(SName, #state{pending = Pending} = S)
     when SName == normal; SName == closing ->
-    NS = send_or_store(Pending, S#state{pending = []}),
-    return_surplus_handlers(normal, NS).
+    send_or_store(Pending, S#state{pending = []}).
 
 
 -spec bosh_unwrap(EventTag :: mod_bosh:event_type(), jlib:xmlel(), state())
