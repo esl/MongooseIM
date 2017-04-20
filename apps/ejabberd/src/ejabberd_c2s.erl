@@ -1630,20 +1630,22 @@ maybe_send_element_safe(State, El) ->
 %% @doc This is the termination point - from here stanza is sent to the user
 %% We sent the original stanza ('element') unless there is a different thing
 % keyed 'to_send'
--spec send_element(mongoose_acc:t() | state(), state() | xmlel()) -> mongoose_acc:t() | ok.
+-spec send_element(mongoose_acc:t() | state(), state() | xmlel()) ->
+    mongoose_acc:t() | ok.
 send_element(#state{} = StateData, #xmlel{} = El) ->
     ?DEPRECATED,
-    send_element(mongoose_acc:from_element(El), StateData),
-    ok;
+    Acc1 = send_element(mongoose_acc:from_element(El), StateData),
+    mongoose_acc:get(send_result, Acc1);
 send_element(Acc, #state{server = Server} = StateData) ->
     Acc1 = ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [Server]),
     El = mongoose_acc:get(to_send, Acc1),
-    % we might put send result into accumulator
-    do_send_element(El, StateData),
-    Acc1.
+    Res = do_send_element(El, StateData),
+    mongoose_acc:put(send_result, Res, Acc1).
 
-do_send_element(El, #state{sockmod = SockMod} = StateData) when StateData#state.xml_socket ->
-    mongoose_transport:send_xml(SockMod, StateData#state.socket, {xmlstreamelement, El});
+do_send_element(El, #state{sockmod = SockMod} = StateData)
+                when StateData#state.xml_socket ->
+    mongoose_transport:send_xml(SockMod, StateData#state.socket,
+        {xmlstreamelement, El});
 do_send_element(El, StateData) ->
     send_text(StateData, exml:to_binary(El)).
 
