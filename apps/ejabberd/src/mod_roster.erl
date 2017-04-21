@@ -330,6 +330,9 @@ create_sub_el(Items, Version) ->
 -spec get_user_roster(mongoose_acc:t(),
                       {ejabberd:luser(), ejabberd:lserver()}) ->
     mongoose_acc:t().
+get_user_roster(#{show_full_roster := true} = Acc, {LUser, LServer}) ->
+    Roster = get_roster(LUser, LServer),
+    mongoose_acc:append(roster, Roster, Acc);
 get_user_roster(Acc, {LUser, LServer}) ->
     Roster = lists:filter(fun (#roster{subscription = none, ask = in}) ->
                                   false;
