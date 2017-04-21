@@ -25,7 +25,8 @@ groups() ->
        test_component_disconnect,
        test_pm_with_disconnection_on_other_server,
        test_pm_with_graceful_reconnection_to_different_server,
-       test_pm_with_ungraceful_reconnection_to_different_server
+       test_pm_with_ungraceful_reconnection_to_different_server,
+       test_global_disco
       ]},
      {cluster_restart, [],
       [
@@ -91,13 +92,15 @@ end_per_group(_, Config) ->
       get_hosts()),
     escalus:delete_users(Config, escalus:get_users([alice, eve])).
 
-init_per_testcase(test_muc_conversation_on_one_host = CaseName, Config) ->
+init_per_testcase(CaseName, Config)
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco ->
     muc_helper:load_muc(<<"muc.localhost">>),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(test_muc_conversation_on_one_host = CaseName, Config) ->
+end_per_testcase(CaseName, Config)
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco ->
     muc_helper:unload_muc(),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
@@ -298,6 +301,22 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], AgainFromEve)
       end).
 
+test_global_disco(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {eve, 1}],
+      fun(Alice, Eve) ->
+          AliceServer = escalus_client:server(Alice),
+          escalus:send(Alice, escalus_stanza:service_discovery(AliceServer)),
+          AliceStanza = escalus:wait_for_stanza(Alice),
+        %   escalus:assert(fun has_exactly_one_service/2, [muc_helper:muc_host()], AliceStanza),
+        %% TODO: test for duplicate components
+
+          EveServer = escalus_client:server(Eve),
+          escalus:send(Eve, escalus_stanza:service_discovery(EveServer)),
+          EveStanza = escalus:wait_for_stanza(Eve),
+          escalus:assert(has_service, [muc_helper:muc_host()], EveStanza)
+      end).
+
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
@@ -322,3 +341,12 @@ chat_with_seqnum(To, Text) ->
 order_by_seqnum(Stanzas) ->
     lists:sort(fun(A, B) -> exml_query:attr(B, <<"id">>) < exml_query:attr(A, <<"id">>) end,
                Stanzas).
+
+has_exactly_one_service(Service, #xmlel{children = [#xmlel{children = Services}]}) ->
+    Pred = fun(Item) ->
+               exml_query:attr(Item, <<"jid">>) =:= Service
+           end,
+    case lists:filter(Pred, Services) of
+        [_] -> true;
+        _ -> false
+    end.

@@ -8,6 +8,12 @@ CREATE TABLE sessions(
   host varchar,
   PRIMARY KEY (jid, host));
 
+CREATE TABLE domains(
+  domain varchar,
+  stamp timestamp,
+  host varchar,
+  PRIMARY KEY (domain, host));
+
 CREATE KEYSPACE mongooseim
          WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor': 3};
 USE mongooseim;

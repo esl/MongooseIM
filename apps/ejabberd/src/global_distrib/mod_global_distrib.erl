@@ -68,7 +68,8 @@ maybe_unwrap_message({_From, _To, Packet} = FPacket) ->
 %%--------------------------------------------------------------------
 
 deps(Opts) ->
-    Deps0 = [{mod_global_distrib_mapping, Opts, hard}],
+    Deps0 = [{mod_global_distrib_mapping, Opts, hard},
+             {mod_global_distrib_disco, Opts, hard}],
     case proplists:get_value(bounce, Opts, []) of
         false -> Deps0;
         BounceOpts -> [{mod_global_distrib_bounce, BounceOpts ++ Opts, hard} | Deps0]

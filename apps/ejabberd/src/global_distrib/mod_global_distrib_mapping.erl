@@ -26,7 +26,7 @@
 -define(JID_TAB, mod_global_distrib_jid_cache_tab).
 
 -export([start/2, stop/1]).
--export([for_domain/1, insert_for_domain/2, delete_for_domain/2]).
+-export([for_domain/1, insert_for_domain/2, delete_for_domain/2, all_domains/0]).
 -export([for_jid/1, insert_for_jid/2, delete_for_jid/2, clear_cache_for_jid/1]).
 -export([register_subhost/2, unregister_subhost/2, user_present/2, user_not_present/5]).
 
@@ -37,6 +37,10 @@
 -callback put_session(DatabasePool :: atom(), JID :: binary(), Host :: binary()) -> ok.
 -callback get_session(DatabasePool :: atom(), JID :: binary()) -> {ok, Host :: binary()} | term().
 -callback delete_session(DatabasePool :: atom(), JID :: binary(), Host :: binary()) -> ok.
+-callback put_domain(DatabasePool :: atom(), Domain :: binary(), Host :: binary()) -> ok.
+-callback get_domain(DatabasePool :: atom(), Domain :: binary()) -> {ok, Host :: binary()} | term().
+-callback delete_domain(DatabasePool :: atom(), Domain :: binary(), Host :: binary()) -> ok.
+-callback get_domains(DatabasePool :: atom()) -> {ok, [Domain :: binary()]}.
 
 %%--------------------------------------------------------------------
 %% API
@@ -51,13 +55,13 @@ stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
 for_domain(Domain) when is_binary(Domain) ->
-    cache_tab:lookup(?DOMAIN_TAB, Domain, fun() -> get_session(Domain) end).
+    cache_tab:lookup(?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end).
 
 insert_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
-    cache_tab:insert(?DOMAIN_TAB, Domain, Host, fun() -> put_session(Domain, Host) end).
+    cache_tab:insert(?DOMAIN_TAB, Domain, Host, fun() -> put_domain(Domain, Host) end).
 
 delete_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
-    cache_tab:delete(?DOMAIN_TAB, Domain, fun() -> delete_session(Domain, Host) end).
+    cache_tab:delete(?DOMAIN_TAB, Domain, fun() -> delete_domain(Domain, Host) end).
 
 for_jid(#jid{} = Jid) -> for_jid(jid:to_lower(Jid));
 for_jid({_, _, _} = Jid) ->
@@ -90,6 +94,9 @@ delete_for_jid({_, _, _} = Jid, Host) when is_binary(Host) ->
               cache_tab:delete(?JID_TAB, BinJid, fun() -> delete_session(BinJid, Host) end)
       end,
       normalize_jid(Jid)).
+
+all_domains() ->
+    mod_global_distrib_mapping_backend:get_domains(opt(database_pool)).
 
 %%--------------------------------------------------------------------
 %% Hooks implementation
@@ -179,3 +186,12 @@ put_session(Key, Value) ->
 
 delete_session(Key, Value) ->
     mod_global_distrib_mapping_backend:delete_session(opt(database_pool), Key, Value).
+
+get_domain(Key) ->
+    mod_global_distrib_mapping_backend:get_domain(opt(database_pool), Key).
+
+put_domain(Key, Value) ->
+    mod_global_distrib_mapping_backend:put_domain(opt(database_pool), Key, Value).
+
+delete_domain(Key, Value) ->
+    mod_global_distrib_mapping_backend:delete_domain(opt(database_pool), Key, Value).
