@@ -46,18 +46,21 @@
          process_local_iq/3,
          get_user_roster/2,
          get_subscription_lists/3,
-         get_roster/2,
+         %get_roster/2,
          in_subscription/6,
          out_subscription/5,
          set_items/3,
-         remove_user/2, % seems to be never used
+         %remove_user/2, % seems to be never used
          remove_user/3,
          get_jid_info/4,
          item_to_xml/1,
          get_versioning_feature/2,
          roster_versioning_enabled/1,
-         roster_version/2,
-         send_unsubscription_to_rosteritems/3]). % and this one too
+         roster_version/2
+         %send_unsubscription_to_rosteritems/3]). % and this one too
+         ]).
+
+-export([remove_user/2, transaction/2, process_subscription_transaction/6]). % for testing
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -89,7 +92,7 @@
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     Result :: [roster()].
--callback get_roster_by_jid_t(LUser, LServer, LJid) -> Result when
+-callback get_roster_by_jid_t(LUser, LServer, LJid) -> Result when % DEPRECATED
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     LJid :: ejabberd:simple_jid(),
@@ -105,7 +108,7 @@
     LJid :: ejabberd:simple_jid(),
     SJid :: roster(),
     Result :: term().
--callback get_roster_by_jid_with_groups_t(LUser, LServer, LJid) -> Result when
+-callback get_roster_by_jid_with_groups_t(LUser, LServer, LJid) -> Result when % DEPRECATED
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     LJid :: ejabberd:simple_jid(),
@@ -125,11 +128,31 @@
     LServer :: ejabberd:lserver(),
     LJid :: ejabberd:simple_jid(),
     Result :: term().
--callback read_subscription_and_groups(LUser, LServer, LJid) -> Result when
+-callback read_subscription_and_groups(LUser, LServer, LJid) -> Result when % DEPRECATED
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     LJid :: ejabberd:simple_jid(),
     Result :: term().
+%%-callback get_roster_entry(LUser, LServer, LJid) -> Result when
+%%    LUser :: ejabberd:luser(),
+%%    LServer :: ejabberd:lserver(),
+%%    LJid :: ejabberd:simple_jid(),
+%%    Result :: roster() | does_not_exist | error.
+%%-callback get_roster_entry(LUser, LServer, LJid, full) -> Result when
+%%    LUser :: ejabberd:luser(),
+%%    LServer :: ejabberd:lserver(),
+%%    LJid :: ejabberd:simple_jid(),
+%%    Result :: roster() | does_not_exist | error.
+%%-callback get_roster_entry_t(LUser, LServer, LJid) -> Result when
+%%    LUser :: ejabberd:luser(),
+%%    LServer :: ejabberd:lserver(),
+%%    LJid :: ejabberd:simple_jid(),
+%%    Result :: roster() | does_not_exist | error.
+%%-callback get_roster_entry_t(LUser, LServer, LJid, full) -> Result when
+%%    LUser :: ejabberd:luser(),
+%%    LServer :: ejabberd:lserver(),
+%%    LJid :: ejabberd:simple_jid(),
+%%    Result :: roster() | does_not_exist | error.
 
 -callback raw_to_record(LServer, Item) -> Result when
     LServer :: ejabberd:lserver(),
@@ -748,7 +771,7 @@ in_auto_reply(both, none, unsubscribe) -> unsubscribed;
 in_auto_reply(_, _, _) -> none.
 
 remove_user(User, Server) ->
-    remove_user(mongoose_acc:new(), User, Server).
+    mod_roster_backend:remove_user(User, Server).
 
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
