@@ -30,7 +30,7 @@ For more advanced release generation and installation please see [Release/Instal
 
 #### Install from DMG
 
-Go to the [downloads](https://www.erlang-solutions.com/downloads/) page of Erlang Solution website, and download the version of MongooseIM you want.
+Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) page of Erlang Solution website, and download the version of MongooseIM you want.
 Once the DMG is downloaded, double click on it, it will open the content.
 Double click on the .pkg file, it will fire an installation wizard.
 Just follow the instructions.
