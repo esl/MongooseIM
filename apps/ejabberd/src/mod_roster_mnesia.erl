@@ -22,14 +22,14 @@
          get_roster/2,
          get_roster_entry/3,
          get_roster_entry/4,
-         get_roster_by_jid_t/3,
+         get_roster_entry_t/3,
+         get_roster_entry_t/4,
          get_subscription_lists/3,
          roster_subscribe_t/4,
-         get_roster_by_jid_with_groups_t/3,
          remove_user/2,
          update_roster_t/4,
-         del_roster_t/3,
-         read_subscription_and_groups/3]).
+         del_roster_t/3
+         ]).
 
 -export([raw_to_record/2]).
 
@@ -89,27 +89,17 @@ get_roster_entry(LUser, LServer, LJID) ->
 get_roster_entry(LUser, LServer, LJID, full) ->
     get_roster_entry(LUser, LServer, LJID).
 
-%%get_roster_entry_t(LUser, LServer, LJID) ->
-%%    case mnesia:read({roster, {LUser, LServer, LJID}}) of
-%%        [] ->
-%%            does_not_exist;
-%%        [I] ->
-%%            I#roster{jid = LJID, name = <<"">>,
-%%                xs = []}
-%%    end.
-
-%%get_roster_entry_t(LUser, LServer, LJID, full) ->
-%%    get_roster_entry_t(LUser, LServer, LJID).
-
-get_roster_by_jid_t(LUser, LServer, LJID) ->
+get_roster_entry_t(LUser, LServer, LJID) ->
     case mnesia:read({roster, {LUser, LServer, LJID}}) of
         [] ->
-            #roster{usj = {LUser, LServer, LJID},
-                    us = {LUser, LServer}, jid = LJID};
+            does_not_exist;
         [I] ->
-            I#roster{jid = LJID, name = <<"">>, groups = [],
-                     xs = []}
+            I#roster{jid = LJID, name = <<"">>,
+                xs = []}
     end.
+
+get_roster_entry_t(LUser, LServer, LJID, full) ->
+    get_roster_entry_t(LUser, LServer, LJID).
 
 get_subscription_lists(_, LUser, LServer) ->
     US = {LUser, LServer},
@@ -120,14 +110,6 @@ get_subscription_lists(_, LUser, LServer) ->
 
 roster_subscribe_t(_LUser, _LServer, _LJID, Item) ->
     mnesia:write(Item).
-
-get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
-    case mnesia:read({roster, {LUser, LServer, LJID}}) of
-        [] ->
-            #roster{usj = {LUser, LServer, LJID},
-                    us = {LUser, LServer}, jid = LJID};
-        [I] -> I
-    end.
 
 remove_user(LUser, LServer) ->
     US = {LUser, LServer},
@@ -143,16 +125,6 @@ update_roster_t(_LUser, _LServer, _LJID, Item) ->
 del_roster_t(LUser, LServer, LJID) ->
     mnesia:delete({roster, {LUser, LServer, LJID}}).
 
-
-read_subscription_and_groups(LUser, LServer, LJID) ->
-    case catch mnesia:dirty_read(roster,
-                                 {LUser, LServer, LJID})
-    of
-        [#roster{subscription = Subscription,
-                 groups = Groups}] ->
-            {Subscription, Groups};
-        _ -> error
-    end.
 
 raw_to_record(_, Item) -> Item.
 

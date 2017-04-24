@@ -20,16 +20,15 @@
          read_roster_version/2,
          write_roster_version/4,
          get_roster/2,
-         get_roster_by_jid_t/3,
          get_roster_entry/3,
          get_roster_entry/4,
+         get_roster_entry_t/3,
+         get_roster_entry_t/4,
          get_subscription_lists/3,
          roster_subscribe_t/4,
-         get_roster_by_jid_with_groups_t/3,
          remove_user/2,
          update_roster_t/4,
          del_roster_t/3,
-         read_subscription_and_groups/3,
          raw_to_record/2]).
 
 -define(ROSTER_BUCKET(LServer), {<<"rosters">>, LServer}).
@@ -67,25 +66,17 @@ get_roster_entry(_, _, _) ->
     does_not_exist. % what is "transaction" here?
 
 get_roster_entry(_, _, _, full) ->
-    does_not_exist. % what is "transaction" here?
+    does_not_exist.
 
-get_roster_by_jid_t(LUser, LServer, LJID) ->
-    case riakc_map:find({jid:to_binary(LJID), register}, get_t_roster(LUser, LServer)) of
-        {ok, ItemReg} ->
-            UnpackedItem = unpack_item(ItemReg),
-            UnpackedItem#roster{ jid = LJID, name = <<>>, groups = [], xs = [] };
-        error ->
-            #roster{usj = {LUser, LServer, LJID}, us = {LUser, LServer}, jid = LJID}
-    end.
+get_roster_entry_t(_, _, _) ->
+    does_not_exist.
+
+get_roster_entry_t(_, _, _, full) ->
+    does_not_exist.
+
 
 roster_subscribe_t(LUser, LServer, LJID, Item) ->
     set_t_roster(LUser, LServer, LJID, Item).
-
-get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
-    case riakc_map:find({jid:to_binary(LJID), register}, get_t_roster(LUser, LServer)) of
-        {ok, ItemReg} -> unpack_item(ItemReg);
-        error -> #roster{usj = {LUser, LServer, LJID}, us = {LUser, LServer}, jid = LJID}
-    end.
 
 update_roster_t(LUser, LServer, LJID, Item) ->
     set_t_roster(LUser, LServer, LJID, Item).
@@ -131,16 +122,16 @@ remove_user(LUser, LServer) ->
     mongoose_riak:delete(?ROSTER_BUCKET(LServer), LUser),
     {atomic, ok}.
 
-read_subscription_and_groups(LUser, LServer, LJID) ->
-    try
-        {ok, RosterMap} = mongoose_riak:fetch_type(?ROSTER_BUCKET(LServer), LUser),
-        ItemReg = riakc_map:fetch({jid:to_binary(LJID), register}, RosterMap),
-        #roster{ subscription = Subscription, groups = Groups } = unpack_item(ItemReg),
-        {Subscription, Groups}
-    catch
-        _:_ ->
-            error
-    end.
+%%read_subscription_and_groups(LUser, LServer, LJID) ->
+%%    try
+%%        {ok, RosterMap} = mongoose_riak:fetch_type(?ROSTER_BUCKET(LServer), LUser),
+%%        ItemReg = riakc_map:fetch({jid:to_binary(LJID), register}, RosterMap),
+%%        #roster{ subscription = Subscription, groups = Groups } = unpack_item(ItemReg),
+%%        {Subscription, Groups}
+%%    catch
+%%        _:_ ->
+%%            error
+%%    end.
 
 raw_to_record(_, Item) -> Item.
 

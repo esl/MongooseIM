@@ -46,9 +46,10 @@
          process_local_iq/3,
          get_user_roster/2,
          get_subscription_lists/3,
-         %get_roster/2,
          get_roster_entry/3,
          get_roster_entry/4,
+         get_roster_entry_t/3,
+         get_roster_entry_t/4,
          in_subscription/6,
          out_subscription/5,
          set_items/3,
@@ -59,7 +60,6 @@
          get_versioning_feature/2,
          roster_versioning_enabled/1,
          roster_version/2
-         %send_unsubscription_to_rosteritems/3]). % and this one too
          ]).
 
 -export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
@@ -71,6 +71,10 @@
 -export_type([roster/0]).
 
 -type roster() :: #roster{}.
+
+-type sub_presence() :: subscribe | subscribed | unsubscribe | unsubscribed.
+
+-type subscription_state() :: none  | from | to | both | remove.
 
 -callback init(Host, Opts) -> ok when
     Host :: ejabberd:server(),
@@ -94,11 +98,6 @@
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     Result :: [roster()].
--callback get_roster_by_jid_t(LUser, LServer, LJid) -> Result when % DEPRECATED
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_jid(),
-    Result :: term().
 -callback get_subscription_lists(Acc, LUser, LServer) -> Result when
     Acc :: term(),
     LUser :: ejabberd:luser(),
@@ -109,11 +108,6 @@
     LServer :: ejabberd:lserver(),
     LJid :: ejabberd:simple_jid(),
     SJid :: roster(),
-    Result :: term().
--callback get_roster_by_jid_with_groups_t(LUser, LServer, LJid) -> Result when % DEPRECATED
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_jid(),
     Result :: term().
 -callback remove_user(LUser, LServer) -> Result when
     LUser :: ejabberd:luser(),
@@ -130,11 +124,6 @@
     LServer :: ejabberd:lserver(),
     LJid :: ejabberd:simple_jid(),
     Result :: term().
--callback read_subscription_and_groups(LUser, LServer, LJid) -> Result when % DEPRECATED
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_jid(),
-    Result :: term().
 -callback get_roster_entry(LUser, LServer, Jid) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
@@ -145,16 +134,16 @@
     LServer :: ejabberd:lserver(),
     Jid :: ejabberd:simple_jid() | ljid() | jid(),
     Result :: roster() | does_not_exist | error.
-%%-callback get_roster_entry_t(LUser, LServer, LJid) -> Result when
-%%    LUser :: ejabberd:luser(),
-%%    LServer :: ejabberd:lserver(),
-%%    LJid :: ejabberd:simple_jid(),
-%%    Result :: roster() | does_not_exist | error.
-%%-callback get_roster_entry_t(LUser, LServer, LJid, full) -> Result when
-%%    LUser :: ejabberd:luser(),
-%%    LServer :: ejabberd:lserver(),
-%%    LJid :: ejabberd:simple_jid(),
-%%    Result :: roster() | does_not_exist | error.
+-callback get_roster_entry_t(LUser, LServer, Jid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Jid :: ejabberd:simple_jid() | ljid() | jid(),
+    Result :: roster() | does_not_exist | error.
+-callback get_roster_entry_t(LUser, LServer, Jid, full) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Jid :: ejabberd:simple_jid() | ljid() | jid(),
+    Result :: roster() | does_not_exist | error.
 
 -callback raw_to_record(LServer, Item) -> Result when
     LServer :: ejabberd:lserver(),
@@ -167,10 +156,10 @@ start(Host, Opts) ->
     TrackedFuns = [read_roster_version,
                    write_roster_version,
                    get_roster,
-                   get_roster_by_jid_t,
+                   get_roster_entry,
+                   get_roster_entry_t,
                    get_subscription_lists,
                    roster_subscribe_t,
-                   get_roster_by_jid_with_groups_t,
                    update_roster_t,
                    del_roster_t,
                    read_subscription_and_groups
@@ -221,6 +210,12 @@ get_roster_entry(LUser, LServer, Jid) ->
 
 get_roster_entry(LUser, LServer, Jid, full) ->
     mod_roster_backend:get_roster_entry(LUser, LServer, jid_arg_to_lower(Jid), full).
+
+get_roster_entry_t(LUser, LServer, Jid) ->
+    mod_roster_backend:get_roster_entry_t(LUser, LServer, jid_arg_to_lower(Jid)).
+
+get_roster_entry_t(LUser, LServer, Jid, full) ->
+    mod_roster_backend:get_roster_entry_t(LUser, LServer, jid_arg_to_lower(Jid), full).
 
 jid_arg_to_lower(Jid) when is_binary(Jid) ->
     RJid = jid:from_binary(Jid),
@@ -409,9 +404,6 @@ item_to_xml(Item) ->
     #xmlel{name = <<"item">>, attrs = Attrs4,
            children = SubEls}.
 
-get_roster_by_jid_t(LUser, LServer, LJID) ->
-    mod_roster_backend:get_roster_by_jid_t(LUser, LServer, LJID).
-
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
     ejabberd_hooks:run(roster_set, LServer, [From, To, SubEl]),
@@ -430,7 +422,13 @@ do_process_item_set(JID1,
                     #xmlel{attrs = Attrs, children = Els}) ->
     LJID = jid:to_lower(JID1),
     F = fun () ->
-                Item = get_roster_by_jid_t(LUser, LServer, LJID),
+                Item = case mod_roster_backend:get_roster_entry_t(LUser, LServer, LJID) of
+                           does_not_exist ->
+                               #roster{usj = {LUser, LServer, LJID},
+                                       us = {LUser, LServer},
+                                       jid = LJID};
+                           I -> I
+                       end,
                 Item1 = process_item_attrs(Item, Attrs),
                 Item2 = process_item_els(Item1, Els),
                 case Item2#roster.subscription of
@@ -609,9 +607,6 @@ out_subscription(Acc, User, Server, JID, Type) ->
     process_subscription(out, User, Server, JID, Type, <<"">>),
     Acc.
 
-get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
-    mod_roster_backend:get_roster_by_jid_with_groups_t(LUser, LServer, LJID).
-
 process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -643,7 +638,12 @@ autoreply_to_type(subscribed) -> <<"subscribed">>;
 autoreply_to_type(unsubscribed) -> <<"unsubscribed">>.
 
 process_subscription_transaction(Direction, LUser, LServer, LJID, Type, Reason) ->
-    Item = get_roster_by_jid_with_groups_t(LUser, LServer, LJID),
+    Item = case mod_roster_backend:get_roster_entry_t(LUser, LServer, LJID, full) of
+               does_not_exist ->
+                   #roster{usj = {LUser, LServer, LJID},
+                       us = {LUser, LServer}, jid = LJID};
+               R -> R
+           end,
     NewState = case Direction of
                    out ->
                        out_state_change(Item#roster.subscription,
@@ -899,27 +899,21 @@ process_item_attrs_ws(Item, []) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-read_subscription_and_groups(User, Server, LJID) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    mod_roster_backend:read_subscription_and_groups(LUser, LServer, LJID).
-
+-spec get_jid_info(_ :: term(),
+                   User :: ejabberd:luser(),
+                   Server :: ejabberd:lserver(),
+                   JID :: jid() | ljid()) -> {subscription_state(), [binary()]}.
 get_jid_info(_, User, Server, JID) ->
-    LJID = jid:to_lower(JID),
-    case read_subscription_and_groups(User, Server, LJID) of
-        {Subscription, Groups} ->
-            {Subscription, Groups};
-        error ->
-            get_bare_jid_info(User, Server, LJID)
-    end.
-
-get_bare_jid_info(_User, _Server, {_, _, <<>>}) ->
-    {none, []};
-get_bare_jid_info(User, Server, LJID) ->
-    LRJID = jid:to_bare(LJID),
-    case read_subscription_and_groups(User, Server, LRJID) of
-        {Subscription, Groups} -> {Subscription, Groups};
-        error -> {none, []}
+    case get_roster_entry(User, Server, JID, full) of
+        error -> {none, []};
+        does_not_exist ->
+            LRJID = jid:to_bare(jid:to_lower(JID)),
+            case get_roster_entry(User, Server, LRJID) of
+                error -> {none, []};
+                does_not_exist -> {none, []};
+                R -> {R#roster.subscription, R#roster.groups}
+            end;
+        Re -> {Re#roster.subscription, Re#roster.groups}
     end.
 
 get_roster_old(LUser, LServer) ->
