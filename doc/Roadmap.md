@@ -6,8 +6,9 @@ The mix of products and services allow businesses and administrations to build a
 ## Roadmap
 
 This is a previsional roadmap, so please note that the closer we get to an item, the more likely it is that something is going to change. 
-The process we have decided on gives us the ability to react to change and demand in an agile way, keeping MongooseIM project truly opened to external inspiration and contribution.
+The process we have decided on gives us the ability to react to change and demand in an agile way, keeping the MongooseIM project truly opened to external inspiration and contribution.
 This means that while we are pretty confident with the plan for the near future, nothing is set in stone. 
+
 We are excited about the vision we've came up with, but want to improve it based on your ideas.
 Please contact us and tell us about what features and improvements do you see as valuable in your project.
 
