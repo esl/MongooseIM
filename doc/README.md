@@ -47,6 +47,7 @@ We offer a set of server-side components:
 * Test suite - here are useful tools to test and validate your XMPP servers:
     * [escalus](https://github.com/esl/escalus): Erlang XMPP client
     * [amoc](https://github.com/esl/amoc): a load testing tools
+    * [exml](https://github.com/esl/exml): XML parsing library in Erlang
 * More components? There are some ideas we're working on. Tune in for updates on:
     * MongooseICE: ICE, STUN/TRUN server
     * MongoosePush: a push notification server
@@ -60,6 +61,9 @@ We offer a set of server-side components:
 * REST API client libraries: we recommend following client libraries:
     * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
     * Android, Java: [Retrofit](https://github.com/square/retrofit)
+* Mangosta clients, for messaging, and social:
+    * iOS
+    * Android
 
 ## Participate!
 
