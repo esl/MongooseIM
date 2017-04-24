@@ -54,7 +54,7 @@ Dual-node | Low-end system, load testing            |   1k to 100k   |   1M to  
 Multi-node | High-end production system             |  10k to   1M   |   2M to  10M
 Multi-datacenter | Very large scale production system  | 100k to  10M   |  10M to 100M
 
-####Important notes
+#### Important notes
 
 Scalability highly depends on variables such as:
 
