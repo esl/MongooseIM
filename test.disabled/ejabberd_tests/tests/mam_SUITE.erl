@@ -83,6 +83,7 @@
          muc_querying_for_all_messages_with_jid/1,
          muc_light_simple/1,
          muc_light_shouldnt_modify_pm_archive/1,
+         muc_light_stored_in_pm_if_allowed_to/1,
          messages_filtered_when_prefs_default_policy_is_always/1,
          messages_filtered_when_prefs_default_policy_is_never/1,
          messages_filtered_when_prefs_default_policy_is_roster/1,
@@ -348,7 +349,8 @@ muc_cases() ->
 muc_light_cases() ->
     [
      muc_light_simple,
-     muc_light_shouldnt_modify_pm_archive
+     muc_light_shouldnt_modify_pm_archive,
+     muc_light_stored_in_pm_if_allowed_to
     ].
 
 muc_rsm_cases() ->
@@ -834,6 +836,13 @@ init_per_testcase(C=muc_text_search_request, Config) ->
         end,
 
     skip_if_cassandra(Config, Init);
+init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
+    OrigVal = escalus_ejabberd:rpc(gen_mod, get_module_opt,
+                                   [host(), mod_mam, archive_groupchats, false]),
+    true = escalus_ejabberd:rpc(gen_mod, set_module_opt,
+                                [host(), mod_mam, archive_groupchats, true]),
+    clean_archives(Config),
+    escalus:init_per_testcase(C, [{archive_groupchats_backup, OrigVal} | Config]);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -889,6 +898,11 @@ end_per_testcase(C=muc_querying_for_all_messages, Config) ->
 end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
+end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
+    {value, {_, OrigVal}, Config1} = lists:keytake(archive_groupchats_backup, 1, Config0),
+    true = escalus_ejabberd:rpc(gen_mod, set_module_opt,
+                                [host(), mod_mam, archive_groupchats, OrigVal]),
+    escalus:end_per_testcase(C, Config1);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -1240,10 +1254,29 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
             when_archive_query_is_sent(Alice, <<>>, Config),
             then_archive_response_is(Alice, [{message, Alice, <<"private hi!">>}], Config),
             when_archive_query_is_sent(Bob, <<>>, Config),
-            then_archive_response_is(Bob, [{message, Alice, <<"private hi!">>}], Config),
-            when_archive_query_is_sent(Bob, <<>>, Config),
+            then_archive_response_is(Bob, [{message, Alice, <<"private hi!">>}], Config)
+        end).
 
-            ok
+muc_light_stored_in_pm_if_allowed_to(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Room = <<"testroom_pm">>,
+            given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+            AliceAffEvent = {affiliations, [{Alice, owner}]},
+            when_archive_query_is_sent(Alice, <<>>, Config),
+            then_archive_response_is(Alice, [AliceAffEvent], Config),
+            BobAffEvent = {affiliations, [{Bob, member}]},
+            when_archive_query_is_sent(Bob, <<>>, Config),
+            then_archive_response_is(Bob, [BobAffEvent], Config),
+
+            M1 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 1">>, <<"Id 1">>),
+            then_muc_light_message_is_received_by([Alice, Bob], M1),
+
+            MessageEvent = {muc_message, Room, Alice, <<"Msg 1">>},
+            when_archive_query_is_sent(Alice, <<>>, Config),
+            then_archive_response_is(Alice, [AliceAffEvent, MessageEvent], Config),
+            when_archive_query_is_sent(Bob, <<>>, Config),
+            then_archive_response_is(Bob, [BobAffEvent, MessageEvent], Config)
         end).
 
 muc_light_room_jid(Room, User) ->
@@ -2428,9 +2461,7 @@ assert_archive_element({{affiliations, Affiliations}, Stanza}) ->
     verify_archived_muc_light_aff_msg(Stanza, Affiliations, _IsCreate = false);
 assert_archive_element({{muc_message, Room, Sender, Body}, Stanza}) ->
     FromJid = escalus_utils:jid_to_lower(muc_light_room_jid(Room, Sender)),
-    RoomJid = muc_light_SUITE:room_bin_jid(Room),
     #forwarded_message{message_body = Body,
-                       from = RoomJid,
                        delay_from = FromJid} = Stanza;
 assert_archive_element({{message, Sender, Body}, Stanza}) ->
     FromJid = escalus_utils:jid_to_lower(escalus_utils:get_jid(Sender)),
