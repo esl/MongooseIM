@@ -72,6 +72,7 @@
          verify_aff_bcast/2,
          room_bin_jid/1,
          gc_message_verify_fun/3,
+         aff_msg_verify_fun/1,
          stanza_aff_set/2,
          bin_aff_users/1,
          verify_aff_users/2,
