@@ -31,7 +31,7 @@ Available on: [igniterealtime/Smack](https://github.com/igniterealtime/Smack)
 
 ### Movim
 
-[movim/movim](https://github.com/movim/movim)
+Available on: [movim/movim](https://github.com/movim/movim)
 
 * Docker image for Movim: https://github.com/esl/movim-docker
 
@@ -69,7 +69,7 @@ Please contact us.
 
 ### MongoosePush: Push notifications server (APNS/FCM)
 
-Available: [MongoosePush](https://github.com/esl/MongoosePush)
+Available on: [MongoosePush](https://github.com/esl/MongoosePush)
 
 ## Open standards
 
