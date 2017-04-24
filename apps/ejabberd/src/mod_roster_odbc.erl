@@ -21,6 +21,8 @@
          read_roster_version/2,
          write_roster_version/4,
          get_roster/2,
+         get_roster_entry/3,
+         get_roster_entry/4,
          get_roster_by_jid_t/3,
          get_subscription_lists/3,
          roster_subscribe_t/4,
@@ -103,6 +105,36 @@ raw_to_record_with_group(LServer, I, GroupsDict) ->
                          error -> []
                      end,
             [R#roster{groups = Groups}]
+    end.
+
+get_roster_entry(LUser, LServer, LJID) ->
+    Username = mongoose_rdbms:escape(LUser),
+    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
+    {selected,
+        Res} =
+        rdbms_queries:get_roster_by_jid(LServer, Username, SJID),
+    case Res of
+        [] ->
+            does_not_exist;
+        [I] ->
+            R = raw_to_record(LServer, I),
+            case R of
+                %% Bad JID in database:
+                error ->
+                    #roster{usj = {LUser, LServer, LJID},
+                        us = {LUser, LServer}, jid = LJID};
+                _ ->
+                    R#roster{usj = {LUser, LServer, LJID},
+                        us = {LUser, LServer}, jid = LJID, name = <<"">>}
+            end
+    end.
+
+get_roster_entry(LUser, LServer, LJID, full) ->
+    Rentry = get_roster_entry(LUser, LServer, LJID),
+    case read_subscription_and_groups(LUser, LServer, LJID) of
+        error -> error;
+        {Subscription, Groups} ->
+            Rentry#roster{subscription = Subscription, groups = Groups}
     end.
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->

@@ -52,7 +52,7 @@
          in_subscription/6,
          out_subscription/5,
          set_items/3,
-         remove_user/2,
+         %remove_user/2, % seems to be never used
          remove_user/3,
          get_jid_info/4,
          item_to_xml/1,
@@ -62,7 +62,7 @@
          %send_unsubscription_to_rosteritems/3]). % and this one too
          ]).
 
--export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
+-export([remove_user/2, transaction/2, process_subscription_transaction/6]). % for testing
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -784,18 +784,14 @@ in_auto_reply(from, out, unsubscribe) -> unsubscribed;
 in_auto_reply(both, none, unsubscribe) -> unsubscribed;
 in_auto_reply(_, _, _) -> none.
 
-remove_test_user(User, Server) ->
-    mod_roster_backend:remove_user(User, Server).
-
 remove_user(User, Server) ->
-    remove_user(mongoose_acc:new(), User, Server).
+    mod_roster_backend:remove_user(User, Server).
 
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     Acc1 = send_unsubscription_to_rosteritems(Acc, LUser, LServer),
-    R = mod_roster_backend:remove_user(LUser, LServer),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {User, Server}),
+    mod_roster_backend:remove_user(LUser, LServer),
     Acc1.
 
 %% For each contact with Subscription:

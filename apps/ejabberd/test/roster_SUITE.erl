@@ -23,7 +23,8 @@
 
 all() -> [
     roster_old,
-    roster_old_with_filter
+    roster_old_with_filter,
+    roster_new
 ].
 
 init_per_suite(C) ->
@@ -50,7 +51,7 @@ init_per_testcase(_TC, C) ->
     C.
 
 end_per_testcase(_TC, C) ->
-    mod_roster:remove_user(<<"alice">>, host()),
+    mod_roster:remove_user(a(), host()),
     gen_mod:stop_module(host(), mod_roster),
     meck:unload(gen_iq_handler),
     C.
@@ -62,35 +63,54 @@ end_per_testcase(_TC, C) ->
 
 
 roster_old(_C) ->
-    R1 = get_roster(),
+    R1 = get_roster_old(),
     ?assertEqual(length(R1), 0),
-    mod_roster:set_items(<<"alice">>, host(), addbob_stanza()),
-    assert_state(none, none),
+    mod_roster:set_items(a(), host(), addbob_stanza()),
+    assert_state_old(none, none),
     subscription(out, subscribe),
-    assert_state(none, out),
+    assert_state_old(none, out),
     ok.
 
 roster_old_with_filter(_C) ->
-    R1 = get_roster(),
+    R1 = get_roster_old(),
     ?assertEqual(0, length(R1)),
-    mod_roster:set_items(<<"alice">>, host(), addbob_stanza()),
-    assert_state(none, none),
+    mod_roster:set_items(a(), host(), addbob_stanza()),
+    assert_state_old(none, none),
     subscription(in, subscribe),
-    R2 = get_roster(),
+    R2 = get_roster_old(),
     ?assertEqual(0, length(R2)),
     R3 = get_full_roster(),
     ?assertEqual(1, length(R3)),
     ok.
 
+roster_new(_C) ->
+    R1 = mod_roster:get_roster_entry(a(), host(), bob()),
+    ?assertEqual(does_not_exist, R1),
+    mod_roster:set_items(a(), host(), addbob_stanza()),
+    assert_state_old(none, none),
+    ct:pal("get_roster_old(): ~p", [get_roster_old()]),
+    R2 = mod_roster:get_roster_entry(a(), host(), bob()),
+    ?assertMatch(#roster{}, R2), % is not guaranteed to contain full info
+    R3 = mod_roster:get_roster_entry(a(), host(), bob(), full),
+    assert_state(R3, none, none, [<<"friends">>]),
+    subscription(out, subscribe),
+    R4 = mod_roster:get_roster_entry(a(), host(), bob(), full),
+    assert_state(R4, none, out, [<<"friends">>]).
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%% HELPERS %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+assert_state(Rentry, Subscription, Ask, Groups) ->
+    ?assertEqual(Subscription, Rentry#roster.subscription),
+    ?assertEqual(Ask, Rentry#roster.ask),
+    ?assertEqual(Groups, Rentry#roster.groups).
 
 subscription(Direction, Type) ->
     LBob = jid:to_lower(jid:from_binary(bob())),
     TFun = fun() -> mod_roster:process_subscription_transaction(Direction,
-                                                                <<"alice">>,
+                                                                a(),
                                                                 host(),
                                                                 LBob,
                                                                 Type,
@@ -98,20 +118,18 @@ subscription(Direction, Type) ->
            end,
     {atomic, _} = mod_roster:transaction(host(), TFun).
 
-get_roster() ->
+get_roster_old() ->
     Acc = mongoose_acc:new(),
-    Acc1 = mod_roster:get_user_roster(Acc, {<<"alice">>, host()}),
+    Acc1 = mod_roster:get_user_roster(Acc, {a(), host()}),
     mongoose_acc:get(roster, Acc1).
 
 get_full_roster() ->
     Acc = mongoose_acc:from_kv(show_full_roster, true),
-    Acc1 = mod_roster:get_user_roster(Acc, {<<"alice">>, host()}),
+    Acc1 = mod_roster:get_user_roster(Acc, {a(), host()}),
     mongoose_acc:get(roster, Acc1).
 
-assert_state(Subscription, Ask) ->
-%%    ct:pal("get_roster(): ~p", [get_roster()]),
-    [Rentry] = get_roster(),
-%%    ct:pal("Rentry: ~p", [Rentry]),
+assert_state_old(Subscription, Ask) ->
+    [Rentry] = get_roster_old(),
     ?assertEqual(Subscription, Rentry#roster.subscription),
     ?assertEqual(Ask, Rentry#roster.ask).
 
@@ -119,12 +137,21 @@ init_ets() ->
     catch ets:new(local_config, [named_table]),
     ok.
 
+a() -> <<"alice">>.
+
 host() -> <<"localhost">>.
 
 bob() -> <<"bob@localhost">>.
 
 addbob_stanza() ->
     #xmlel{children = [
-        #xmlel{attrs = [{<<"jid">>, bob()}]}
+        #xmlel{
+            attrs = [{<<"jid">>, bob()}],
+            children = [
+                #xmlel{name = <<"group">>,
+                    children = [
+                        #xmlcdata{content = <<"friends">>}
+                    ]}
+            ]}
         ]
     }.

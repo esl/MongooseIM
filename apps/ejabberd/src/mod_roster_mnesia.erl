@@ -20,6 +20,8 @@
          read_roster_version/2,
          write_roster_version/4,
          get_roster/2,
+         get_roster_entry/3,
+         get_roster_entry/4,
          get_roster_by_jid_t/3,
          get_subscription_lists/3,
          roster_subscribe_t/4,
@@ -73,6 +75,31 @@ get_roster(LUser, LServer) ->
         Items  when is_list(Items)-> Items;
         _ -> []
     end.
+
+get_roster_entry(LUser, LServer, LJID) ->
+    LowerJID = jid:to_lower(LJID),
+    case mnesia:dirty_read({roster, {LUser, LServer, LowerJID}}) of
+        [] ->
+            does_not_exist;
+        [I] ->
+            I#roster{jid = LJID, name = <<"">>,
+                xs = []}
+    end.
+
+get_roster_entry(LUser, LServer, LJID, full) ->
+    get_roster_entry(LUser, LServer, LJID).
+
+%%get_roster_entry_t(LUser, LServer, LJID) ->
+%%    case mnesia:read({roster, {LUser, LServer, LJID}}) of
+%%        [] ->
+%%            does_not_exist;
+%%        [I] ->
+%%            I#roster{jid = LJID, name = <<"">>,
+%%                xs = []}
+%%    end.
+
+%%get_roster_entry_t(LUser, LServer, LJID, full) ->
+%%    get_roster_entry_t(LUser, LServer, LJID).
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
     case mnesia:read({roster, {LUser, LServer, LJID}}) of
