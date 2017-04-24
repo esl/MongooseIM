@@ -1,13 +1,17 @@
 ## Vision
 
-The MongooseIM Platform provides solutions for high-scalability and high-performance mobile messaging, social networking, and VoIP. The mix of products and services allow businesses and administrations to build apps, with high acquisition, retention, and referral.
+The MongooseIM Platform provides solutions for high-scalability and high-performance mobile messaging, social networking, and VoIP. 
+The mix of products and services allow businesses and administrations to build apps with high acquisition, retention, and referral.
 
 ## Roadmap
 
-This is a previsional roadmap, almost every item is subject to change:
-* The more it is close to the present, the more it is certain
-* The more it is in the future, the more it is uncertain
-* You have the power to influence it, so please feel free to comment!
+This is a previsional roadmap, so please note that the closer we get to an item, the more likely it is that something is going to change. 
+The process we have decided on gives us the ability to react to change and demand in an agile way, keeping MongooseIM project truly opened to external inspiration and contribution.
+This means that while we are pretty confident with the plan for the near future, nothing is set in stone. 
+We are excited about the vision we've came up with, but want to improve it based on your ideas.
+Please contact us and tell us about what features and improvements do you see as valuable in your project.
+
+
 
 ## MongooseIM 2.1.x: mobile focus (2017Q2)
 
