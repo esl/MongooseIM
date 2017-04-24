@@ -9,9 +9,7 @@ This is a previsional roadmap, almost every item is subject to change:
 * The more it is in the future, the more it is uncertain
 * You have the power to influence it, so please feel free to comment!
 
-## MongooseIM 2.1.x: mobile focus
-
-2017Q2
+## MongooseIM 2.1.x: mobile focus (2017Q2)
 
 * Flexible push notifications architecture:
     * [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) **NEW**
@@ -23,9 +21,7 @@ This is a previsional roadmap, almost every item is subject to change:
 * Bind 2.0 (experimental)
 * Contributions to ecosystem
 
-## MongooseIM 3.0.x: chatbots and IoT
-
-2017S2
+## MongooseIM 3.0.x: chatbots and IoT (2017S2)
 
 * Conversational model: in-chat forms, for bots and humans
 * IoT: things provisioning?
@@ -35,20 +31,18 @@ This is a previsional roadmap, almost every item is subject to change:
 * Basic one-to-one VoIP (NAT traversal and media relaying with ICE server)
 * Contributions? [XEP-xxxx: Explicit Message Encryption](https://xmpp.org/extensions/inbox/eme.html)?
 
-## MongooseIM 3.1.x: chatbots and IoT
-
-2018
+## MongooseIM 3.1.x: chatbots and IoT (2018)
 
 * [XEP-0156: Discovering Alternative XMPP Connection Methods](http://xmpp.org/extensions/xep-0156.html)?
 * [XEP-0379: Pre-Authenticated Roster Subscription](https://xmpp.org/extensions/xep-0379.html)?
 * Rich content
 * Contributions?
 
-## MongooseIM platform
+## MongooseIM platform (2017)
 
-This is not the MongooseIM XMPP/REST messaging server, all these components are part of the MongooseIM platform
+This is not the MongooseIM XMPP/REST messaging server, all these components are part of the MongooseIM platform.
 
-New components in 2017:
+New components:
 * Mangosta Android
 * Mangosta iOS
 * ICE/STUN/TURN server in Elixir
