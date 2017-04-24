@@ -34,7 +34,8 @@ Manages all HTTP-based services, such as BOSH (HTTP long-polling) and WebSocket.
 
 * `ip` (IP tuple, optional, default: `{0,0,0,0}`) - IP address to bind to.
 * `num_acceptors` (positive integer, optional, default: 100) - Number of acceptors.
-* `max_connections` (positive integer, optional, default: 1024) - Maximum total number of HTTP(S) connections.
+* `transport_options` (proplist, optional, default: []) - Ranch-specific transport options. See [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.2/manual/ranch/#_opt).
+* `protocol_options` (proplist, optional, default: []) - Protocol configuration options for Cowboy. See [Cowboy protocol manual](https://ninenines.eu/docs/en/cowboy/1.0/manual/cowboy_protocol/)
 * `ssl` (list of ssl options, required for https, no default value) - If specified, https will be used. Accepts all ranch_ssl options that don't take fun() parameters. Only `certfile` and `keyfile` are mandatory. See [ranch_ssl documentation](https://github.com/ninenines/ranch/blob/master/doc/src/manual/ranch_ssl.asciidoc) for details. A minimal usage would be as follows:
 
         {ssl, [

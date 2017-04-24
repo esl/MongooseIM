@@ -63,7 +63,10 @@ start_listener({Port, IP, tcp}=Listener, Opts) ->
                             [#cowboy_state{ref = Ref, opts = Opts}]},
                  transient, infinity, worker, [?MODULE]},
     {ok, Pid} = supervisor:start_child(ejabberd_listeners, ChildSpec),
-    {ok, _} = start_cowboy(Ref, [{port, Port}, {ip, IP} | Opts]),
+    TransportOpts = gen_mod:get_opt(transport_options, Opts, []),
+    TransportOpts2 = [{port, Port}, {ip, IP} | TransportOpts],
+    Opts2 = gen_mod:set_opt(transport_options, Opts, TransportOpts2),
+    {ok, _} = start_cowboy(Ref, Opts2),
     {ok, Pid}.
 
 reload_dispatch(Ref) ->
@@ -121,22 +124,13 @@ do_start_cowboy(Ref, Opts, Retries, SleepTime) ->
     end.
 
 do_start_cowboy(Ref, Opts) ->
-    Port = gen_mod:get_opt(port, Opts),
-    IP = gen_mod:get_opt(ip, Opts, {0, 0, 0, 0}),
     SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
-    MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
-    Compress = gen_mod:get_opt(compress, Opts, false),
-    Middlewares = case gen_mod:get_opt(middlewares, Opts, undefined) of
-        undefined -> [];
-        M -> [{middlewares, M}]
-    end,
-    TransportOpts = [{port, Port},
-                     {ip, IP},
-                     {max_connections, MaxConns}
-                    ],
-    Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
-    ProtocolOpts = [{compress, Compress}, {env, [{dispatch, Dispatch}]} | Middlewares],
+    TransportOpts = gen_mod:get_opt(transport_options, Opts, []),
+    Modules = gen_mod:get_opt(modules, Opts),
+    Dispatch = cowboy_router:compile(get_routes(Modules)),
+    ProtocolOpts = lists:merge([{env, [{dispatch, Dispatch}]}],
+                               gen_mod:get_opt(protocol_options, Opts, [])),
     case catch start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) of
         {error, {{shutdown,
                   {failed_to_start_child, ranch_acceptors_sup,
