@@ -62,9 +62,9 @@ WombatOAM enables the monitoring and management of MongooseIM clusters, as well 
 
 Contact us.
 
-### MongoosePush(APNS, GCM)
+### MongoosePush (APNS, GCM)
 
-Contact us.
+Available on: [MongoosePush](https://github.com/esl/MongoosePush)
 
 ## MongooseIM in a worldwide, multi-datacenter configuration
 
