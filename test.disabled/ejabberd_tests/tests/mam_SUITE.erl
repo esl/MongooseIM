@@ -557,8 +557,10 @@ init_modules(odbc, muc_light, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc, pm]),
     init_module(host(), mod_mam_odbc_arch, [muc, pm]),
     Config1;
-init_modules(cassandra, muc_light, Config) ->
-    init_modules_for_muc_light(cassandra, Config);
+init_modules(BT = riak_timed_yz_buckets, muc_light, config) ->
+    init_modules_for_muc_light(BT, config);
+init_modules(BT = cassandra, muc_light, config) ->
+    init_modules_for_muc_light(BT, config);
 init_modules(BackendType, muc_light, Config) ->
     Config1 = init_modules_for_muc_light(BackendType, Config),
     init_module(host(), mod_mam_odbc_user, [muc, pm]),
