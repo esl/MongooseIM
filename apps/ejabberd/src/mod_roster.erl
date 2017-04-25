@@ -72,7 +72,7 @@
 
 -type roster() :: #roster{}.
 
--type sub_presence() :: subscribe | subscribed | unsubscribe | unsubscribed.
+%%-type sub_presence() :: subscribe | subscribed | unsubscribe | unsubscribed.
 
 -type subscription_state() :: none  | from | to | both | remove.
 
@@ -215,8 +215,11 @@ get_roster_entry_t(LUser, LServer, Jid) ->
     mod_roster_backend:get_roster_entry_t(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
 
 get_roster_entry_t(LUser, LServer, Jid, full) ->
-    mod_roster_backend:get_roster_entry_t(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid), full).
+    mod_roster_backend:get_roster_entry_t(jid:nameprep(LUser), LServer,
+                                          jid_arg_to_lower(Jid), full).
 
+-spec jid_arg_to_lower(JID :: ejabberd:simple_jid() | ejabberd:jid() | binary()) ->
+    error | ejabberd:simple_jid().
 jid_arg_to_lower(Jid) when is_binary(Jid) ->
     RJid = jid:from_binary(Jid),
     jid:to_lower(RJid);
