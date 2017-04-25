@@ -557,8 +557,9 @@ init_modules(odbc, muc_light, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc, pm]),
     init_module(host(), mod_mam_odbc_arch, [muc, pm]),
     Config1;
-init_modules(BT = riak_timed_yz_buckets, muc_light, config) ->
-    init_modules_for_muc_light(BT, config);
+init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
+    dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
+    init_modules(BT, generic, [{muc_domain, "muclight.@HOST@"} | Config]);
 init_modules(BT = cassandra, muc_light, config) ->
     init_modules_for_muc_light(BT, config);
 init_modules(BackendType, muc_light, Config) ->
@@ -1224,6 +1225,7 @@ muc_light_simple(Config) ->
             Aff = when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
             then_muc_light_affiliations_are_received_by([Alice, Bob], Aff),
 
+            maybe_wait_for_archive(Config),
             when_archive_query_is_sent(Bob, muc_light_SUITE:room_bin_jid(Room), Config),
             ExpectedResponse = [{create, [{Alice, owner}]},
                                 {muc_message, Room, Alice, <<"Msg 1">>},
@@ -1240,6 +1242,7 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
             when_pm_message_is_sent(Alice, Bob, <<"private hi!">>),
             then_pm_message_is_received(Bob, <<"private hi!">>),
 
+            maybe_wait_for_archive(Config),
             when_archive_query_is_sent(Alice, <<>>, Config),
             then_archive_response_is(Alice, [{message, Alice, <<"private hi!">>}], Config),
             when_archive_query_is_sent(Bob, <<>>, Config),
@@ -1249,6 +1252,7 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
                                                 <<"Msg 1">>, <<"Id 1">>),
             then_muc_light_message_is_received_by([Alice, Bob], M1),
 
+            maybe_wait_for_archive(Config),
             when_archive_query_is_sent(Alice, muc_light_SUITE:room_bin_jid(Room), Config),
             then_archive_response_is(Alice, [{create, [{Alice, owner}, {Bob, member}]},
                                              {muc_message, Room, Alice, <<"Msg 1">>}], Config),
@@ -1264,6 +1268,7 @@ muc_light_stored_in_pm_if_allowed_to(Config) ->
             Room = <<"testroom_pm">>,
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
+            maybe_wait_for_archive(Config),
             AliceAffEvent = {affiliations, [{Alice, owner}]},
             when_archive_query_is_sent(Alice, <<>>, Config),
             then_archive_response_is(Alice, [AliceAffEvent], Config),
@@ -1274,6 +1279,7 @@ muc_light_stored_in_pm_if_allowed_to(Config) ->
             M1 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 1">>, <<"Id 1">>),
             then_muc_light_message_is_received_by([Alice, Bob], M1),
 
+            maybe_wait_for_archive(Config),
             MessageEvent = {muc_message, Room, Alice, <<"Msg 1">>},
             when_archive_query_is_sent(Alice, <<>>, Config),
             then_archive_response_is(Alice, [AliceAffEvent, MessageEvent], Config),
