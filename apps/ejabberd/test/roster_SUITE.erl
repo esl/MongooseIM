@@ -24,7 +24,8 @@
 all() -> [
     roster_old,
     roster_old_with_filter,
-    roster_new
+    roster_new,
+    roster_case_insensitive
 ].
 
 init_per_suite(C) ->
@@ -47,7 +48,11 @@ init_per_testcase(_TC, C) ->
     meck:expect(gen_iq_handler, add_iq_handler, fun(_, _, _, _, _, _) -> ok end),
     meck:expect(gen_iq_handler, remove_iq_handler, fun(_, _, _) -> ok end),
     gen_mod:start(),
-    gen_mod:start_module(host(), mod_roster, []),
+    Opts = [
+%%        {odbc_server, {mysql, "localhost", 3306, "mongoose", "bartek", "siema"}},
+%%        {backend, odbc}
+    ],
+    gen_mod:start_module(host(), mod_roster, Opts),
     C.
 
 end_per_testcase(_TC, C) ->
@@ -98,6 +103,19 @@ roster_new(_C) ->
     assert_state(R4, none, out, [<<"friends">>]).
 
 
+roster_case_insensitive(_C) ->
+    mod_roster:set_items(a(), host(), addbob_stanza()),
+    R1 = get_roster_old(),
+    ?assertEqual(1, length(R1)),
+    R2 = get_roster_old(ae()),
+    ?assertEqual(1, length(R2)),
+    R3 = mod_roster:get_roster_entry(a(), host(), bob(), full),
+    assert_state(R3, none, none, [<<"friends">>]),
+    R3 = mod_roster:get_roster_entry(ae(), host(), bob(), full),
+    assert_state(R3, none, none, [<<"friends">>]),
+    ok.
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%% HELPERS %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -119,8 +137,11 @@ subscription(Direction, Type) ->
     {atomic, _} = mod_roster:transaction(host(), TFun).
 
 get_roster_old() ->
+    get_roster_old(a()).
+
+get_roster_old(User) ->
     Acc = mongoose_acc:new(),
-    Acc1 = mod_roster:get_user_roster(Acc, {a(), host()}),
+    Acc1 = mod_roster:get_user_roster(Acc, {User, host()}),
     mongoose_acc:get(roster, Acc1).
 
 get_full_roster() ->
@@ -138,6 +159,7 @@ init_ets() ->
     ok.
 
 a() -> <<"alice">>.
+ae() -> <<"alicE">>.
 
 host() -> <<"localhost">>.
 

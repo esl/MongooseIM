@@ -206,16 +206,16 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ROSTER).
 
 get_roster_entry(LUser, LServer, Jid) ->
-    mod_roster_backend:get_roster_entry(LUser, LServer, jid_arg_to_lower(Jid)).
+    mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
 
 get_roster_entry(LUser, LServer, Jid, full) ->
-    mod_roster_backend:get_roster_entry(LUser, LServer, jid_arg_to_lower(Jid), full).
+    mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid), full).
 
 get_roster_entry_t(LUser, LServer, Jid) ->
-    mod_roster_backend:get_roster_entry_t(LUser, LServer, jid_arg_to_lower(Jid)).
+    mod_roster_backend:get_roster_entry_t(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
 
 get_roster_entry_t(LUser, LServer, Jid, full) ->
-    mod_roster_backend:get_roster_entry_t(LUser, LServer, jid_arg_to_lower(Jid), full).
+    mod_roster_backend:get_roster_entry_t(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid), full).
 
 jid_arg_to_lower(Jid) when is_binary(Jid) ->
     RJid = jid:from_binary(Jid),
@@ -374,7 +374,7 @@ get_user_roster(Acc, {LUser, LServer}) ->
     mongoose_acc:append(roster, Roster, Acc).
 
 get_roster(LUser, LServer) ->
-    mod_roster_backend:get_roster(LUser, LServer).
+    mod_roster_backend:get_roster(jid:nameprep(LUser), LServer).
 
 item_to_xml(Item) ->
     Attrs1 = [{<<"jid">>,
@@ -453,7 +453,7 @@ do_process_item_set(JID1,
                 _ -> ok
             end;
         E ->
-            ?DEBUG("ROSTER: roster item set error: ~p~n", [E]), ok
+            ?ERROR_MSG("ROSTER: roster item set error: ~p~n", [E]), ok
     end.
 
 process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
@@ -908,7 +908,7 @@ get_jid_info(_, User, Server, JID) ->
         error -> {none, []};
         does_not_exist ->
             LRJID = jid:to_bare(jid:to_lower(JID)),
-            case get_roster_entry(User, Server, LRJID) of
+            case get_roster_entry(User, Server, LRJID, full) of
                 error -> {none, []};
                 does_not_exist -> {none, []};
                 R -> {R#roster.subscription, R#roster.groups}

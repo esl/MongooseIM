@@ -12,6 +12,7 @@
 -module(mod_roster_odbc).
 -include("mod_roster.hrl").
 -include("jlib.hrl").
+-include("ejabberd.hrl").
 
 -behaviour(mod_roster).
 
@@ -107,12 +108,20 @@ raw_to_record_with_group(LServer, I, GroupsDict) ->
             [R#roster{groups = Groups}]
     end.
 
+rdbms_q(Funcname, Args) ->
+    apply(rdbms_queries, Funcname, Args).
+
 get_roster_entry(LUser, LServer, LJID) ->
+    do_get_roster_entry(LUser, LServer, LJID, get_roster_by_jid).
+
+get_roster_entry_t(LUser, LServer, LJID) ->
+    do_get_roster_entry(LUser, LServer, LJID, get_roster_by_jid_t).
+
+do_get_roster_entry(LUser, LServer, LJID, FuncName) ->
     Username = mongoose_rdbms:escape(LUser),
     SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
     {selected,
-        Res} =
-        rdbms_queries:get_roster_by_jid(LServer, Username, SJID),
+        Res} = rdbms_q(FuncName, [LServer, Username, SJID]),
     case Res of
         [] ->
             does_not_exist;
@@ -130,18 +139,27 @@ get_roster_entry(LUser, LServer, LJID) ->
     end.
 
 get_roster_entry(LUser, LServer, LJID, full) ->
-    Rentry = get_roster_entry(LUser, LServer, LJID),
-    case read_subscription_and_groups(LUser, LServer, LJID) of
-        error -> error;
-        {Subscription, Groups} ->
-            Rentry#roster{subscription = Subscription, groups = Groups}
+    case get_roster_entry(LUser, LServer, LJID) of
+        does_not_exist -> does_not_exist;
+        Rentry ->
+            case read_subscription_and_groups(LUser, LServer, LJID) of
+                error -> error;
+                {Subscription, Groups} ->
+                    Rentry#roster{subscription = Subscription, groups = Groups}
+            end
     end.
 
-get_roster_entry_t(LUser, LServer, LJID) ->
-    get_roster_entry(LUser, LServer, LJID).
-
 get_roster_entry_t(LUser, LServer, LJID, full) ->
-    get_roster_entry(LUser, LServer, LJID, full).
+    case get_roster_entry_t(LUser, LServer, LJID) of
+        does_not_exist -> does_not_exist;
+        Rentry ->
+        case read_subscription_and_groups_t(LUser, LServer, LJID) of
+            error -> error;
+            {Subscription, Groups} ->
+                Rentry#roster{subscription = Subscription, groups = Groups}
+        end
+    end.
+
 
 get_subscription_lists(_, LUser, LServer) ->
     Username = mongoose_rdbms:escape(LUser),
@@ -204,11 +222,21 @@ raw_to_record(LServer,
                     askmessage = SAskMessage}
     end.
 
+
 read_subscription_and_groups(LUser, LServer, LJID) ->
+    read_subscription_and_groups(LUser, LServer, LJID, get_subscription,
+        get_rostergroup_by_jid).
+
+read_subscription_and_groups_t(LUser, LServer, LJID) ->
+    read_subscription_and_groups(LUser, LServer, LJID, get_subscription_t,
+                                 get_rostergroup_by_jid_t).
+
+read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
     Username = mongoose_rdbms:escape(LUser),
     SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
-    case catch rdbms_queries:get_subscription(LServer,
-                                             Username, SJID)
+    case catch rdbms_q(GSFunc, [LServer, Username, SJID])
+%%    case catch rdbms_queries:get_subscription(LServer,
+%%                                             Username, SJID)
     of
         {selected, [{SSubscription}]} ->
             Subscription = case SSubscription of
@@ -217,16 +245,18 @@ read_subscription_and_groups(LUser, LServer, LJID) ->
                                <<"F">> -> from;
                                _ -> none
                            end,
-            Groups = case catch
-                          rdbms_queries:get_rostergroup_by_jid(LServer, Username,
-                                                              SJID)
+            Groups = case catch rdbms_q(GRFunc, [LServer, Username, SJID])
+%%                          rdbms_queries:get_rostergroup_by_jid(LServer, Username,
+%%                                                              SJID)
                      of
                          {selected, JGrps} when is_list(JGrps) ->
                              [JGrp || {JGrp} <- JGrps];
                          _ -> []
                      end,
             {Subscription, Groups};
-        _ -> error
+        E ->
+            ?ERROR_MSG("Error calling rdbms backend: ~p~n", [E]),
+            error
     end.
 
 %%==============================================================================
