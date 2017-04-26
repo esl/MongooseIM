@@ -194,13 +194,13 @@ close_session(SID, User, Server, Resource, Reason) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     LResource = jid:resourceprep(Resource),
-    Info = case sm_backend():get_sessions(LUser, LServer, LResource) of
+    Info = case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
                [Session] ->
                    Session#session.info;
                _ ->
                    []
            end,
-    sm_backend():delete_session(SID, LUser, LServer, LResource),
+    ejabberd_gen_sm:delete_session(sm_backend(), SID, LUser, LServer, LResource),
     JID = jid:make(User, Server, Resource),
     ejabberd_hooks:run(sm_remove_connection_hook, JID#jid.lserver,
                        [SID, JID, Info, Reason]).
@@ -271,7 +271,7 @@ disconnect_removed_user(Acc, User, Server) ->
 get_user_resources(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Ss = sm_backend():get_sessions(LUser, LServer),
+    Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
     [element(3, S#session.usr) || S <- clean_session_list(Ss)].
 
 
@@ -283,7 +283,7 @@ get_session_ip(User, Server, Resource) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     LResource = jid:resourceprep(Resource),
-    case sm_backend():get_sessions(LUser, LServer, LResource) of
+    case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
         [] ->
             undefined;
         Ss ->
@@ -300,7 +300,7 @@ get_session(User, Server, Resource) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     LResource = jid:resourceprep(Resource),
-    case sm_backend():get_sessions(LUser, LServer, LResource) of
+    case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
         [] ->
             offline;
         Ss ->
@@ -313,7 +313,7 @@ get_session(User, Server, Resource) ->
 -spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [sm_session()].
 get_raw_sessions(User, Server) ->
     clean_session_list(
-      sm_backend():get_sessions(jid:nodeprep(User), jid:nameprep(Server))).
+      ejabberd_gen_sm:get_sessions(sm_backend(), jid:nodeprep(User), jid:nameprep(Server))).
 
 -spec set_presence(Acc, SID, User, Server, Resource, Prio, Presence, Info) -> Acc1 when
       Acc :: mongoose_acc:t(),
@@ -371,7 +371,7 @@ get_session_pid(User, Server, Resource) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     LResource = jid:resourceprep(Resource),
-    case sm_backend():get_sessions(LUser, LServer, LResource) of
+    case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
         [#session{sid = {_, Pid}}] ->
             Pid;
         _ ->
@@ -382,7 +382,7 @@ get_session_pid(User, Server, Resource) ->
 -spec get_unique_sessions_number() -> integer().
 get_unique_sessions_number() ->
     try
-        C = sm_backend():unique_count(),
+        C = ejabberd_gen_sm:unique_count(sm_backend()),
         mongoose_metrics:update(global, ?UNIQUE_COUNT_CACHE, C),
         C
     catch
@@ -393,28 +393,29 @@ get_unique_sessions_number() ->
 
 -spec get_total_sessions_number() -> integer().
 get_total_sessions_number() ->
-    sm_backend():total_count().
+    ejabberd_gen_sm:total_count(sm_backend()).
 
 
 -spec get_vh_session_number(ejabberd:server()) -> non_neg_integer().
 get_vh_session_number(Server) ->
-    length(sm_backend():get_sessions(Server)).
+    length(ejabberd_gen_sm:get_sessions(sm_backend(), Server)).
 
 
 -spec get_vh_session_list(ejabberd:server()) -> [ses_tuple()].
 get_vh_session_list(Server) ->
-    sm_backend():get_sessions(Server).
+    ejabberd_gen_sm:get_sessions(sm_backend(), Server).
 
 
 -spec get_node_sessions_number() -> non_neg_integer().
 get_node_sessions_number() ->
-    {value, {active, Active}} = lists:keysearch(active, 1, supervisor:count_children(ejabberd_c2s_sup)),
+    {value, {active, Active}} = lists:keysearch(active, 1,
+                                                supervisor:count_children(ejabberd_c2s_sup)),
     Active.
 
 
--spec get_full_session_list() -> [session()].
+-spec get_full_session_list() -> [ses_tuple()].
 get_full_session_list() ->
-    sm_backend():get_sessions().
+    ejabberd_gen_sm:get_sessions(sm_backend()).
 
 
 register_iq_handler(Host, XMLNS, Module, Fun) ->
@@ -469,7 +470,7 @@ init([]) ->
       end, ?MYHOSTS),
     ejabberd_commands:register_commands(commands()),
 
-    sm_backend():start(Opts),
+    ejabberd_gen_sm:start(sm_backend(), Opts),
 
     {ok, #state{}}.
 
@@ -570,7 +571,7 @@ set_session(SID, User, Server, Resource, Priority, Info) ->
                        us = US,
                        priority = Priority,
                        info = Info},
-    sm_backend():create_session(LUser, LServer, LResource, Session).
+    ejabberd_gen_sm:create_session(sm_backend(), LUser, LServer, LResource, Session).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -593,7 +594,7 @@ do_route(From, To, {broadcast, Acc} = Broadcast) ->
             ?DEBUG("bc_to=~p~n", [CurrentPids]),
             lists:foreach(fun({_, Pid}) -> Pid ! Broadcast end, CurrentPids);
         _ ->
-            case sm_backend():get_sessions(LUser, LServer, LResource) of
+            case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
                 [] ->
                     ok; % do nothing
                 Ss ->
@@ -614,7 +615,7 @@ do_route(From, To, Acc) ->
             do_route_no_resource(Name, xml:get_attr_s(<<"type">>, Attrs),
                                  From, To, Acc);
         _ ->
-            case sm_backend():get_sessions(LUser, LServer, LResource) of
+            case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
                 [] ->
                     do_route_offline(Name, xml:get_attr_s(<<"type">>, Attrs),
                                      From, To, Acc);
@@ -858,14 +859,14 @@ clean_session_list([S1, S2 | Rest], Res) ->
       LUser :: ejabberd:luser(),
       LServer :: ejabberd:lserver().
 get_user_present_pids(LUser, LServer) ->
-    Ss = clean_session_list(sm_backend():get_sessions(LUser, LServer)),
+    Ss = clean_session_list(ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer)),
     [{S#session.priority, element(2, S#session.sid)} || S <- Ss, is_integer(S#session.priority)].
 
 -spec get_user_present_resources(LUser :: ejabberd:user(),
                                  LServer :: ejabberd:server()
                                 ) -> [{priority(), binary()}].
 get_user_present_resources(LUser, LServer) ->
-    Ss = sm_backend():get_sessions(LUser, LServer),
+    Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
     [{S#session.priority, element(3, S#session.usr)} ||
         S <- clean_session_list(Ss), is_integer(S#session.priority)].
 
@@ -896,7 +897,7 @@ check_for_sessions_to_replace(User, Server, Resource) ->
       ReplacedSessionsPIDs :: ordsets:ordset(pid()).
 check_existing_resources(LUser, LServer, LResource) ->
     %% A connection exist with the same resource. We replace it:
-    Sessions = sm_backend():get_sessions(LUser, LServer, LResource),
+    Sessions = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource),
     case [S#session.sid || S <- Sessions] of
         [] -> [];
         SIDs ->
@@ -918,7 +919,7 @@ check_max_sessions(LUser, LServer, ReplacedPIDs) ->
                         false -> {true, SID}
                     end
                 end,
-                sm_backend():get_sessions(LUser, LServer)),
+                ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer)),
 
     MaxSessions = get_max_user_sessions(LUser, LServer),
     case length(SIDs) =< MaxSessions of
@@ -984,7 +985,7 @@ process_iq(From, To, Packet) ->
 
 -spec force_update_presence({binary(), ejabberd:server()}) -> 'ok'.
 force_update_presence({LUser, LServer}) ->
-    Ss = sm_backend():get_sessions(LUser, LServer),
+    Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
     lists:foreach(fun(#session{sid = {_, Pid}}) ->
                           Pid ! {force_update_presence, LUser}
                   end, Ss).
@@ -1043,6 +1044,6 @@ get_cached_unique_count() ->
             0
     end.
 
-
+-spec sm_backend() -> backend().
 sm_backend() ->
     ejabberd_sm_backend:backend().
