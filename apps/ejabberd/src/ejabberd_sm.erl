@@ -310,7 +310,7 @@ get_session(User, Server, Resource) ->
              Session#session.priority,
              Session#session.info}
     end.
--spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [#session{}].
+-spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [sm_session()].
 get_raw_sessions(User, Server) ->
     clean_session_list(
       sm_backend():get_sessions(jid:nodeprep(User), jid:nameprep(Server))).

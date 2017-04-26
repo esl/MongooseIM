@@ -70,6 +70,8 @@
 
 -type scram() :: #scram{}.
 
+-type sm_session() :: #session{}.
+
 -record(route, {
           domain :: binary(),
           handler :: mongoose_packet_handler:t()
