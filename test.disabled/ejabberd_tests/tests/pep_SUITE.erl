@@ -130,14 +130,23 @@ send_caps_after_login_test(Config) ->
               pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
 
               escalus_story:make_all_clients_friends([Alice, Bob]),
-              
+
+              %% Presence subscription triggers PEP last item sending
+              %% and sometimes this async process takes place after caps
+              %% are updated, leading to duplicated notification
+              %% We use timer:sleep here to avoid it for now, because
+              %% TODO: mod_pubsub send loop has to be fixed, supervised, refactored etc.
+              timer:sleep(1000),
+
               Caps = caps(NodeNS),
               send_presence_with_caps_and_handle_disco(Bob, Caps, NodeNS),
               receive_presence_with_caps(Bob, Bob, Caps),
               receive_presence_with_caps(Alice, Bob, Caps),
 
               pubsub_tools:receive_item_notification(
-                Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, [])
+                Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+
+              [] = escalus_client:peek_stanzas(Bob)
       end).
 
 h_ok_after_notify_test(ConfigIn) ->
