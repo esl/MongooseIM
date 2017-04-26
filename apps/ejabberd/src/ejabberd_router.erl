@@ -429,7 +429,7 @@ route(From, To, Packet, []) ->
     Packet;
 route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
     ?DEBUG("Using module ~p", [M]),
-    case (catch M:filter(OrigFrom, OrigTo, OrigPacket)) of
+    case (catch xmpp_router:call_filter(M, OrigFrom, OrigTo, OrigPacket)) of
         {'EXIT', Reason} ->
             ?DEBUG("Filtering error", []),
             ?ERROR_MSG("error when filtering from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
@@ -443,7 +443,7 @@ route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
             OrigPacket;
         {OrigFrom, OrigTo, OrigPacketFiltered} ->
             ?DEBUG("filter passed", []),
-            case catch(M:route(OrigFrom, OrigTo, OrigPacketFiltered)) of
+            case catch(xmpp_router:call_route(M, OrigFrom, OrigTo, OrigPacketFiltered)) of
                 {'EXIT', Reason} ->
                     ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
                                "packet=~ts~n~nstack_trace=~p~n",

@@ -171,12 +171,13 @@ route_iq(From, To, IQ, F) ->
                F :: fun(),
                Timeout :: undefined | integer()) -> mongoose_acc:t().
 route_iq(From, To, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
-    Packet = if Type == set; Type == get ->
+    Packet = case Type == set orelse Type == get of
+                true ->
                      ID = list_to_binary(randoms:get_string()),
                      Host = From#jid.lserver,
                      register_iq_response_handler(Host, ID, undefined, F, Timeout),
                      jlib:iq_to_xml(IQ#iq{id = ID});
-                true ->
+                false ->
                      jlib:iq_to_xml(IQ)
              end,
     ejabberd_router:route(From, To, Packet).
@@ -400,30 +401,37 @@ code_change(_OldVsn, State, _Extra) ->
 do_route(From, To, Packet) ->
     ?DEBUG("local route~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Packet, 8]),
-    if
-        To#jid.luser /= <<>> ->
+    case directed_to(To) of
+        user ->
             ejabberd_sm:route(From, To, Packet);
-        To#jid.lresource == <<>> ->
+        server ->
             case mongoose_acc:get(name, Packet) of
                 <<"iq">> ->
                     process_iq(From, To, Packet);
-                <<"message">> ->
-                    ok;
-                <<"presence">> ->
-                    ok;
                 _ ->
                     ok
             end;
-        true ->
+        local_resource ->
             case mongoose_acc:get(type, Packet) of
                 <<"error">> -> ok;
                 <<"result">> -> ok;
                 _ ->
                     ejabberd_hooks:run(local_send_to_resource_hook,
-                                       To#jid.lserver,
-                                       [From, To, Packet])
+                        To#jid.lserver,
+                        [From, To, Packet])
             end
-        end.
+    end.
+
+-spec directed_to(jid()) -> user | server | local_resource.
+directed_to(To) ->
+    directed_to(To#jid.luser, To#jid.lresource).
+
+directed_to(<<>>, <<>>) ->
+    server;
+directed_to(<<>>, _) ->
+    local_resource;
+directed_to(_, _) ->
+    user.
 
 -spec update_table() -> ok | {atomic|aborted, _}.
 update_table() ->
