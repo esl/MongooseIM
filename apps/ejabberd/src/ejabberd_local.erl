@@ -149,8 +149,8 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
 process_packet(From, To, Packet, _Extra) ->
     case (catch do_route(From, To, Packet)) of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-                       " packet=~ts~n~nstack_trace=~p~n",
+            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p "
+                       "reason=~p packet=~ts stack_trace=~p",
                        [jid:to_binary(From), jid:to_binary(To),
                         ?MODULE, Reason, mongoose_acc:to_binary(Packet),
                         erlang:get_stacktrace()]);

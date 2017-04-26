@@ -32,5 +32,5 @@ log_if_backend_error(V, Module, Line, Args) ->
     ok.
 
 make_msg(Msg, Error, Module, Line, Args) ->
-    ?ERROR_MSG("~p: ~p~nBackend called in ~p:~p~nwith arguments~n~p",
+    ?ERROR_MSG("~p:~p module=~p line=~p arguments=~p",
                   [Msg, Error, Module, Line, Args]).
