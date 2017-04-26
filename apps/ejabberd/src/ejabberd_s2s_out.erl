@@ -1334,15 +1334,24 @@ fsm_limit_opts() ->
 %% @doc Get IPs predefined for a given s2s domain in the configuration
 -spec get_predefined_addresses(atom()) -> [{inet:ip_address(), inet:port_number()}].
 get_predefined_addresses(Server) ->
-    case ejabberd_config:get_local_option({s2s_addr, Server}) of
-        undefined ->
-            [];
-        {{_, _, _, _}, Port} = IP4Port when is_integer(Port) ->
-            [IP4Port];
-        {{_, _, _, _, _, _, _, _}, Port} = IP6Port when is_integer(Port) ->
-            [IP6Port];
-        {_, _, _, _} = IP4 ->
-            [{IP4, outgoing_s2s_port()}];
-        {_, _, _, _, _, _, _, _} = IP6 ->
-            [{IP6, outgoing_s2s_port()}]
-    end.
+    S2SAddr = ejabberd_config:get_local_option({s2s_addr, Server}),
+    do_get_predefined_addresses(S2SAddr).
+
+-spec do_get_predefined_addresses(undefined | string() | inet:ip_address() |
+                                  {string() | inet:ip_address(), non_neg_integer()}) ->
+                                         [{inet:ip_address(), non_neg_integer()}].
+do_get_predefined_addresses(undefined) ->
+    [];
+do_get_predefined_addresses({{_, _, _, _}, Port} = IP4Port) when is_integer(Port) ->
+    [IP4Port];
+do_get_predefined_addresses({{_, _, _, _, _, _, _, _}, Port} = IP6Port) when is_integer(Port) ->
+    [IP6Port];
+do_get_predefined_addresses({_, _, _, _} = IP4) ->
+    [{IP4, outgoing_s2s_port()}];
+do_get_predefined_addresses({_, _, _, _, _, _, _, _} = IP6) ->
+    [{IP6, outgoing_s2s_port()}];
+do_get_predefined_addresses({List, Port}) when is_list(List), is_integer(Port) ->
+    {ok, Addr} = inet:parse_strict_address(List),
+    do_get_predefined_addresses({Addr, Port});
+do_get_predefined_addresses(List) when is_list(List) ->
+    do_get_predefined_addresses({List, outgoing_s2s_port()}).
