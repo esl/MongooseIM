@@ -468,7 +468,7 @@ make_node_attr(Node) -> [{<<"node">>, Node}].
 
 -spec get_info(A :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
         Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_info(_A, Host, Mod, Node, _Lang) when Node == [] ->
+get_info(_A, Host, Mod, Node, _Lang) when Node == <<>> ->
     Module = case Mod of
                  undefined ->
                      ?MODULE;
@@ -512,7 +512,7 @@ fields_to_xml(Fields) ->
 -spec field_to_xml({_, Var :: binary(), Values :: [binary()]}) -> jlib:xmlel().
 field_to_xml({_, Var, Values}) ->
     XMLValues = values_to_xml(Values),
-    #xmlel{name = <<"field">>, attrs = [{<<"var">>, Var}],
+    #xmlel{name = <<"field">>, attrs = [{<<"var">>, list_to_binary(Var)}],
            children = XMLValues}.
 
 
@@ -520,7 +520,8 @@ field_to_xml({_, Var, Values}) ->
 values_to_xml(Values) ->
     lists:map(
       fun(Value) ->
-              #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}
+              #xmlel{name = <<"value">>, children = [#xmlcdata{content = list_to_binary(Value)}]}
       end,
       Values
      ).
+

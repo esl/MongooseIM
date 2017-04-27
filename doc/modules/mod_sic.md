@@ -3,7 +3,7 @@ This module implements [XEP-0279: Server IP Check](http://xmpp.org/extensions/xe
 
 ### Options
 
-* `iqdisc`
+* `iqdisc` (default: `one_queue`)
 
 ### Example Configuration
 
