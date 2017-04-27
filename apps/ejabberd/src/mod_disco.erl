@@ -504,12 +504,12 @@ get_fields_xml(Host, Module) ->
     fields_to_xml(FilteredFields).
 
 
--spec fields_to_xml([{_, Var :: binary(), Values :: [binary()]}]) -> [jlib:xmlel()].
+-spec fields_to_xml([{_, Var :: string(), Values :: [string()]}]) -> [jlib:xmlel()].
 fields_to_xml(Fields) ->
     [ field_to_xml(Field) || Field <- Fields].
 
 
--spec field_to_xml({_, Var :: binary(), Values :: [binary()]}) -> jlib:xmlel().
+-spec field_to_xml({_, Var :: string(), Values :: [string()]}) -> jlib:xmlel().
 field_to_xml({_, Var, Values}) ->
     XMLValues = values_to_xml(Values),
     #xmlel{name = <<"field">>, attrs = [{<<"var">>, list_to_binary(Var)}],
