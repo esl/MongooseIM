@@ -180,7 +180,7 @@ To enable push notifications in the simplest configuration, just send the follow
     <x xmlns='jabber:x:data' type='submit'>
       <field var='FORM_TYPE'><value>http://jabber.org/protocol/pubsub#publish-options</value></field>
       <field var='service'><value>apns</value></field>
-      <field var='device'><value>your_pns_device_token</value></field>
+      <field var='device_id'><value>your_pns_device_token</value></field>
       <field var='silent'><value>false</value></field>
       <field var='topic'><value>some_apns_topic</value></field>
     </x>
