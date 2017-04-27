@@ -24,6 +24,8 @@ log_if_backend_error(V, Module, Line, Args) ->
     case V of
         ok -> ok;
         {atomic, _} -> ok;
+        {updated, _} -> ok; % odbc
+        L when is_list(L) -> ok; % riak
         {error, E} ->
             make_msg("Error calling backend", E, Module, Line, Args);
         E ->
