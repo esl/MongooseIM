@@ -226,7 +226,7 @@ forget_room(Host, Name) ->
 
 
 -spec process_iq_disco_items(Host :: ejabberd:server(), From :: ejabberd:jid(),
-        To :: ejabberd:jid(), ejabberd:iq()) -> ok | {error, lager_not_started}.
+        To :: ejabberd:jid(), ejabberd:iq()) -> mongoose_acc:t().
 process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
     Rsm = jlib:rsm_decode(IQ),
     Res = IQ#iq{type = result,
@@ -483,9 +483,10 @@ stop_supervisor(Host) ->
                      To :: ejabberd:simple_jid() | ejabberd:jid(),
                      Packet :: any(),
                      State :: state()) -> ok | pid().
-process_packet(From, To, Packet, #state{
+process_packet(From, To, PacketOrAcc, #state{
                                     access = {AccessRoute, _, _, _},
                                     server_host = ServerHost} = State) ->
+    Packet = mongoose_acc:to_element(PacketOrAcc),
     case acl:match_rule(ServerHost, AccessRoute, From) of
         allow ->
             {Room, _, _} = jid:to_lower(To),

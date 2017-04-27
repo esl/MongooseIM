@@ -239,16 +239,15 @@ get_last_info(LUser, LServer) ->
         Res -> Res
     end.
 
-%% #rh
--spec remove_user(map(), ejabberd:user(), ejabberd:server()) -> map() | {error, term()}.
+-spec remove_user(mongoose_acc:t(), ejabberd:user(), ejabberd:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    case mod_last_backend:remove_user(LUser, LServer) of
-        ok -> Acc;
-        E -> E
-    end.
+    R = mod_last_backend:remove_user(LUser, LServer),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
 
+%% TODO fix
 -spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
                       LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->

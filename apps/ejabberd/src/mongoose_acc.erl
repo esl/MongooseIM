@@ -14,8 +14,11 @@
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
--export([initialise/3, terminate/3, dump/1]).
+-export([strip/1]).
+-export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
+-export([to_element/1]).
 -export_type([t/0]).
+-export([from_element/3]).
 
 %% if it is defined as -opaque then dialyzer fails
 -type t() :: map().
@@ -40,8 +43,31 @@ terminate(M, _F, _L) ->
 %%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
     get(element, M).
 
+terminate(M, received, _F, _L) ->
+%%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
+    get(to_send, M, get(element, M, undefined)).
+
 dump(Acc) ->
     dump(Acc, lists:sort(maps:keys(Acc))).
+
+to_binary(#xmlel{} = Packet) ->
+    ?DEPRECATED,
+    exml:to_binary(Packet);
+to_binary({broadcast, Payload}) ->
+    case mongoose_acc:is_acc(Payload) of
+        true ->
+            to_binary(Payload);
+        false ->
+            list_to_binary(io_lib:format("~p", [Payload]))
+    end;
+to_binary(Acc) ->
+    % replacement to exml:to_binary, for error logging
+    case mongoose_acc:is_acc(Acc) of
+        true ->
+            exml:to_binary(mongoose_acc:get(element, Acc));
+        false ->
+            list_to_binary(io_lib:format("~p", [Acc]))
+    end.
 
 %% This function is for transitional period, eventually all hooks will use accumulator
 %% and we will not have to check
@@ -49,6 +75,16 @@ is_acc(A) when is_map(A) ->
     maps:get(mongoose_acc, A, false);
 is_acc(_) ->
     false.
+
+%% this is a temporary hack - right now processes receive accumulators and stanzas, it is all
+%% mixed up so we have to cater for this
+-spec to_element(xmlel() | t()) -> xmlel().
+to_element(A) ->
+    case is_acc(A) of
+        true -> get(to_send, A, get(element, A, undefined));
+        false -> A
+    end.
+
 
 %%%%% API %%%%%
 
@@ -65,7 +101,15 @@ from_kv(K, V) ->
 from_element(El) ->
     #xmlel{name = Name, attrs = Attrs} = El,
     Type = exml_query:attr(El, <<"type">>, undefined),
-    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type}.
+    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
+        timestamp => os:timestamp(), ref => make_ref()
+        }.
+
+-spec from_element(xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
+from_element(El, From, To) ->
+    Acc = from_element(El),
+    M = #{from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)},
+    update(Acc, M).
 
 -spec from_map(map()) -> t().
 from_map(M) ->
@@ -83,11 +127,23 @@ to_map(_) ->
     {error, cant_convert_to_map}.
 
 -spec put(atom(), any(), t()) -> t().
-put(Key, Val, P) ->
-    maps:put(Key, Val, P).
+put(to_send, Val, Acc) ->
+    % stanza to be sent out may change a few times, and sometimes it carries its own type
+    % (e.g. presence probe), we have to clear previouse value
+    A1 = maps:remove(send_type, Acc),
+    maps:put(to_send, Val, A1);
+put(from_jid, Val, Acc) ->
+    ?DEPRECATED,
+    A = maps:put(from_jid, Val, Acc),
+    maps:put(from, jid:to_binary(Val), A);
+put(Key, Val, Acc) ->
+    maps:put(Key, Val, Acc).
 
 -spec get(atom()|[atom()], t()) -> any().
+get(to_send, Acc) ->
+    get(to_send, Acc, get(element, Acc));
 get([], _) ->
+
     undefined;
 get([Key|Keys], P) ->
     case maps:is_key(Key, P) of
@@ -127,6 +183,28 @@ require([Key|Tail], Acc) ->
 require(Key, Acc) ->
     require([Key], Acc).
 
+%% @doc Convert the acc before routing it out to another c2s process - remove everything except
+%% the very bare minimum (all caches, records etc), replace element with to_send
+-spec strip(t()) -> t().
+strip(Acc) ->
+    El = get(to_send, Acc),
+    Acc1 = from_element(El),
+%%    Ats = [name, type, attrs, from, from_jid, to, to_jid, ref, timestamp],
+    Attributes = [from, from_jid, ref, timestamp],
+    NewAcc = lists:foldl(fun(Attrib, AccIn) ->
+                           Val = mongoose_acc:get(Attrib, Acc),
+                           mongoose_acc:put(Attrib, Val, AccIn)
+                       end,
+                       Acc1, Attributes),
+    OptionalAttributes = [to, to_jid],
+    lists:foldl(fun(Attrib, AccIn) ->
+                    case mongoose_acc:get(Attrib, Acc, undefined) of
+                        undefined -> AccIn;
+                        Val -> mongoose_acc:put(Attrib, Val, AccIn)
+                    end
+                end,
+        NewAcc, OptionalAttributes).
+
 %%%%% internal %%%%%
 
 append(Val, L) when is_list(L), is_list(Val) ->
@@ -142,6 +220,14 @@ dump(Acc, [K|Tail]) ->
 
 
 %% @doc pattern-match to figure out (a) which attrs can be 'required' (b) how to cook them
+produce(send_type, Acc) ->
+    % 'type' is from original stanza
+    El = mongoose_acc:get(to_send, Acc),
+    SType = exml_query:attr(El, <<"type">>, undefined),
+    mongoose_acc:put(send_type, SType, Acc);
+produce(iq_query_info, Acc) ->
+    Iq = jlib:iq_query_info(mongoose_acc:get(element, Acc)), % it doesn't change
+    mongoose_acc:put(iq_query_info, Iq, Acc);
 produce(xmlns, Acc) ->
     read_children(Acc);
 produce(command, Acc) ->

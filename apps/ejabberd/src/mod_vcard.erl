@@ -230,9 +230,10 @@ handle_call(stop, _From, State) ->
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
-handle_info({route, From, To, Packet}, State) ->
-    IQ = jlib:iq_query_info(Packet),
-    case catch do_route(State#state.host, From, To, Packet, IQ) of
+handle_info({route, From, To, Acc}, State) ->
+    Acc1 = mongoose_acc:require(iq_query_info, Acc),
+    IQ = mongoose_acc:get(iq_query_info, Acc1),
+    case catch do_route(State#state.host, From, To, Acc1, IQ) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);
         _ ->
@@ -375,11 +376,11 @@ config_change(Acc, _, _, _) ->
 %% Internal
 %% ------------------------------------------------------------------
 do_route(_VHost, From, #jid{user = User,
-                            resource =Resource} = To, Packet, _IQ)
+                            resource =Resource} = To, Acc, _IQ)
   when (User /= <<"">>) or (Resource /= <<"">>) ->
-    Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
+    Err = jlib:make_error_reply(Acc, ?ERR_SERVICE_UNAVAILABLE),
     ejabberd_router:route(To, From, Err);
-do_route(VHost, From, To, Packet, #iq{type = set,
+do_route(VHost, From, To, Acc, #iq{type = set,
                                       xmlns = ?NS_SEARCH,
                                       lang = Lang,
                                       sub_el = SubEl} = IQ) ->
@@ -388,13 +389,13 @@ do_route(VHost, From, To, Packet, #iq{type = set,
     RSMIn = jlib:rsm_decode(IQ),
     case XDataEl of
         false ->
-            Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
+            Err = jlib:make_error_reply(Acc, ?ERR_BAD_REQUEST),
             ejabberd_router:route(To, From, Err);
         _ ->
             XData = jlib:parse_xdata_submit(XDataEl),
             case XData of
                 invalid ->
-                    Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
+                    Err = jlib:make_error_reply(Acc, ?ERR_BAD_REQUEST),
                     ejabberd_router:route(To, From, Err);
                 _ ->
                     {SearchResult, RSMOutEls} = search_result(Lang, To, VHost, XData, RSMIn),
@@ -411,7 +412,7 @@ do_route(VHost, From, To, Packet, #iq{type = set,
                     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
             end
     end;
-do_route(VHost, From, To, _Packet, #iq{type = get,
+do_route(VHost, From, To, _Acc, #iq{type = get,
                                         xmlns = ?NS_SEARCH,
                                         lang = Lang} = IQ) ->
     ResIQ =
@@ -421,11 +422,11 @@ do_route(VHost, From, To, _Packet, #iq{type = get,
                            children = ?FORM(To, mod_vcard_backend:search_fields(VHost), Lang)
                           }]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
-do_route(_VHost, From, To, Packet, #iq{type = set,
+do_route(_VHost, From, To, Acc, #iq{type = set,
                                        xmlns = ?NS_DISCO_INFO}) ->
-    Err = jlib:make_error_reply(Packet, ?ERR_NOT_ALLOWED),
+    Err = jlib:make_error_reply(Acc, ?ERR_NOT_ALLOWED),
     ejabberd_router:route(To, From, Err);
-do_route(VHost, From, To, _Packet, #iq{type = get,
+do_route(VHost, From, To, _Acc, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
     Info = ejabberd_hooks:run_fold(disco_info, VHost, [],
@@ -446,18 +447,18 @@ do_route(VHost, From, To, _Packet, #iq{type = get,
                                                       attrs = [{<<"var">>, ?NS_VCARD}]}
                                               ] ++ Info}]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
-do_route(_VHost, From, To, Packet, #iq{type=set,
+do_route(_VHost, From, To, Acc, #iq{type=set,
                                        xmlns = ?NS_DISCO_ITEMS}) ->
-    Err = jlib:make_error_reply(Packet, ?ERR_NOT_ALLOWED),
+    Err = jlib:make_error_reply(Acc, ?ERR_NOT_ALLOWED),
     ejabberd_router:route(To, From, Err);
-do_route(_VHost, From, To, _Packet, #iq{ type = get,
+do_route(_VHost, From, To, _Acc, #iq{ type = get,
                                          xmlns = ?NS_DISCO_ITEMS} = IQ) ->
     ResIQ =
         IQ#iq{type = result,
               sub_el = [#xmlel{name = <<"query">>,
                                attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS}]}]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
-do_route(_VHost, From, To, _Packet, #iq{ type = get,
+do_route(_VHost, From, To, _Acc, #iq{ type = get,
                                          xmlns = ?NS_VCARD,
                                          lang = Lang} = IQ) ->
     ResIQ =
@@ -466,8 +467,8 @@ do_route(_VHost, From, To, _Packet, #iq{ type = get,
                                attrs = [{<<"xmlns">>, ?NS_VCARD}],
                                children = iq_get_vcard(Lang)}]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
-do_route(_VHost, From, To, Packet, _IQ) ->
-    Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
+do_route(_VHost, From, To, Acc, _IQ) ->
+    Err = jlib:make_error_reply(Acc, ?ERR_SERVICE_UNAVAILABLE),
     ejabberd_router:route(To, From, Err).
 
 iq_get_vcard(_Lang) ->

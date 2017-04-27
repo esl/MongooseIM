@@ -704,22 +704,25 @@ disco_items(Host, Node, From) ->
 %% callback that prevents routing subscribe authorizations back to the sender
 %%
 
-handle_pep_authorization_response({From, To, #xmlel{ name = <<"message">> } = Packet} = Acc)
+handle_pep_authorization_response({From, To, Acc}) ->
+    Name = mongoose_acc:get(name, Acc),
+    Type = mongoose_acc:get(type, Acc),
+    handle_pep_authorization_response(Name, Type, From, To, Acc).
+
+handle_pep_authorization_response(_, <<"error">>, From, To, Acc) ->
+    {From, To, Acc};
+handle_pep_authorization_response(<<"message">>, _, From, To, Acc)
   when From#jid.luser == To#jid.luser, From#jid.lserver == To#jid.lserver ->
-    case exml_query:attr(Packet, <<"type">>) of
-        <<"error">> ->
-            Acc;
-        _ ->
-            case find_authorization_response(Packet) of
-                none -> Acc;
-                invalid -> Acc;
-                XFields ->
-                    handle_authorization_response(jid:to_lower(To), From, To, Packet, XFields),
-                    drop
-            end
-    end;
-handle_pep_authorization_response(Acc) ->
-    Acc.
+        Packet = mongoose_acc:get(to_send, Acc),
+        case find_authorization_response(Packet) of
+            none -> {From, To, Acc};
+            invalid -> {From, To, Acc};
+            XFields ->
+                handle_authorization_response(jid:to_lower(To), From, To, Packet, XFields),
+                drop
+        end;
+handle_pep_authorization_response(_, _, From, To, Acc) ->
+    {From, To, Acc}.
 
 %% -------
 %% presence hooks handling functions
@@ -875,8 +878,9 @@ handle_cast(_Msg, State) -> {noreply, State}.
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({route, From, To, Packet},
+handle_info({route, From, To, Acc},
             #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
+    Packet = mongoose_acc:to_element(Acc),
     case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
         {'EXIT', Reason} -> ?ERROR_MSG("~p", [Reason]);
         _ -> ok

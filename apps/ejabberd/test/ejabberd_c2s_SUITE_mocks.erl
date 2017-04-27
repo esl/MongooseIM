@@ -70,4 +70,5 @@ hookfold(roster_get_subscription_lists, _, _, _) -> mongoose_acc:new();
 hookfold(privacy_get_user_list, _, A, _) -> A;
 hookfold(session_opening_allowed_for_user, _, _, _) -> allow;
 hookfold(c2s_stream_features, _, _, _) -> [];
+hookfold(xmpp_send_element, _, A, _) -> A;
 hookfold(privacy_check_packet, _, _, _) -> allow.

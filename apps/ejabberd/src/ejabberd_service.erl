@@ -137,9 +137,9 @@ socket_type() ->
 %%% mongoose_packet_handler callback
 %%%----------------------------------------------------------------------
 
--spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
-process_packet(From, To, Packet, Pid) ->
-    Pid ! {route, From, To, Packet}.
+-spec process_packet(From :: jid(), To :: jid(), Acc :: mongoose_acc:t(), Pid :: pid()) -> any().
+process_packet(From, To, Acc, Pid) ->
+    Pid ! {route, From, To, mongoose_acc:strip(Acc)}.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -348,12 +348,17 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 handle_info({send_text, Text}, StateName, StateData) ->
+    % is it ever called?
+    ?ERROR_MSG("{service:send_text, Text}: ~p", [{send_text, Text}]),
     send_text(StateData, Text),
     {next_state, StateName, StateData};
 handle_info({send_element, El}, StateName, StateData) ->
+    % is it ever called?
+    ?ERROR_MSG("{service:send_element, El}: ~p~n", [{send_text, El}]),
     send_element(StateData, El),
     {next_state, StateName, StateData};
-handle_info({route, From, To, Packet}, StateName, StateData) ->
+handle_info({route, From, To, Acc}, StateName, StateData) ->
+    Packet = mongoose_acc:get(to_send, Acc),
     case acl:match_rule(global, StateData#state.access, From) of
         allow ->
            #xmlel{name =Name, attrs = Attrs, children = Els} = Packet,

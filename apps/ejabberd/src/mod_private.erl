@@ -88,13 +88,10 @@ stop(Host) ->
 %% ------------------------------------------------------------------
 %% Handlers
 
-
-%% #rh
 remove_user(Acc, User, Server) ->
-    case remove_user(User, Server) of
-        ok -> Acc;
-        E -> E
-    end.
+    R = remove_user(User, Server),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),

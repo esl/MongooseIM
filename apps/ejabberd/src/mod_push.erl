@@ -98,9 +98,11 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 %% Hook 'remove_user'
--spec remove_user(Acc :: map(), LUser :: binary(), LServer :: binary()) -> ok.
+-spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
+    mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
-    mod_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined, undefined),
+    R = mod_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined, undefined),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
     Acc.
 
 %% Hook 'filter_packet'
@@ -110,12 +112,13 @@ remove_user(Acc, LUser, LServer) ->
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From, To = #jid{lserver = Host}, Packet}) ->
+filter_packet({From, To = #jid{lserver = Host}, Acc}) ->
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
-           [From, To, Packet]),
-    PacketType = exml_query:attr(Packet, <<"type">>),
+           [From, To, Acc]),
+    PacketType = mongoose_acc:get(type, Acc),
     case lists:member(PacketType, [<<"chat">>, <<"groupchat">>]) of
         true ->
+            Packet = mongoose_acc:get(to_send, Acc),
             case mod_push_plugin:should_publish(Host, From, To, Packet) of
                 true ->
                     publish_message(From, To, Packet);
@@ -126,7 +129,7 @@ filter_packet({From, To = #jid{lserver = Host}, Packet}) ->
             skip
     end,
 
-    {From, To, Packet}.
+    {From, To, Acc}.
 
 -spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
                         ejabberd:iq() | ignore.
