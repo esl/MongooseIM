@@ -468,7 +468,7 @@ make_node_attr(Node) -> [{<<"node">>, Node}].
 
 -spec get_info(A :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
         Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_info(_A, Host, Mod, Node, _Lang) when Node == <<>> ->
+get_info(A, Host, Mod, Node, _Lang) when Node == <<>> ->
     Module = case Mod of
                  undefined ->
                      ?MODULE;
@@ -482,7 +482,7 @@ get_info(_A, Host, Mod, Node, _Lang) when Node == <<>> ->
                                               children = [#xmlcdata{content = ?NS_SERVERINFO}]}]},
     [#xmlel{name = <<"x">>,
             attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-            children = [FormTypeField | ServerInfoFields]}];
+            children = [FormTypeField | ServerInfoFields]} | A];
 get_info(Acc, _, _, _Node, _) ->
     Acc.
 

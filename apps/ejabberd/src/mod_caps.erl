@@ -587,22 +587,22 @@ concat_info(Els) ->
                              Els)).
 
 concat_xdata_fields(Fields) ->
-    [Form, Res] = lists:foldl(fun(#xmlel{name = <<"field">>, attrs = Attrs, children = Els},
-                                  [FormType, VarFields] = Acc) ->
-                                      case xml:get_attr_s(<<"var">>, Attrs) of
-                                          <<"">> -> Acc;
-                                          <<"FORM_TYPE">> ->
-                                              [xml:get_cdata([xml:get_subtag(VarFields,
-                                                                             <<"value">>)]),
-                                               VarFields];
-                                          Var ->
-                                              [FormType,
-                                               [[[Var, $<], extract_values_sorted_cdatas(Els)]
-                                                | VarFields]]
-                                      end;
-                                 (_, Acc) -> Acc
-                              end,
-                              [<<"">>, []], Fields),
+    [Form, Res] =
+    lists:foldl(fun(#xmlel{name = <<"field">>, attrs = Attrs, children = Els} = FieldEl,
+                    [FormType, VarFields] = Acc) ->
+                        case xml:get_attr_s(<<"var">>, Attrs) of
+                            <<"">> -> Acc;
+                            <<"FORM_TYPE">> ->
+                                [exml_query:path(FieldEl, [{element, <<"value">>}, cdata]),
+                                 VarFields];
+                            Var ->
+                                [FormType,
+                                 [[[Var, $<], extract_values_sorted_cdatas(Els)]
+                                  | VarFields]]
+                        end;
+                   (_, Acc) -> Acc
+                end,
+                [<<"">>, []], Fields),
     [Form, $<, lists:sort(Res)].
 
 extract_values_sorted_cdatas(Els) ->
