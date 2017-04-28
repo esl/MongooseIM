@@ -290,7 +290,7 @@ remove_user(Acc, User, Server) ->
 add_rooms_to_roster(Acc, UserUS) ->
     Items = mongoose_acc:get(roster, Acc, []),
     RoomList = mod_muc_light_db_backend:get_user_rooms(UserUS, undefined),
-    Info = get_rooms_info(lists:sort(RoomList )),
+    Info = get_rooms_info(lists:sort(RoomList)),
     NewItems = lists:foldl(
       fun({{RoomU, RoomS}, RoomName, RoomVersion}, Items0) ->
               Item = #roster{
