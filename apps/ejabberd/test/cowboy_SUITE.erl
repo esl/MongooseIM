@@ -209,7 +209,7 @@ start_cowboy_returns_error_eaddrinuse(_C) ->
     Opts = [{transport_options, [{port, 8088},
                                  {ip, {127, 0, 0, 1}}]},
             {modules, []},
-            {retires, {2, 10}}],
+            {retries, {2, 10}}],
     {ok, _Pid} = ejabberd_cowboy:start_cowboy(a_ref, Opts),
     Result = ejabberd_cowboy:start_cowboy(a_ref_2, Opts),
     {error, eaddrinuse} = Result.
