@@ -13,7 +13,8 @@
 all() ->
     [
      {group, mod_global_distrib},
-     {group, cluster_restart}
+     {group, cluster_restart},
+     {group, start_checks}
     ].
 
 groups() ->
@@ -31,6 +32,10 @@ groups() ->
      {cluster_restart, [],
       [
        test_location_disconnect
+      ]},
+     {start_checks, [],
+      [
+       test_error_on_wrong_hosts
       ]}].
 
 suite() ->
@@ -48,6 +53,8 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_group(start_checks, Config) ->
+    Config;
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
@@ -70,12 +77,15 @@ init_per_group(_, Config0) ->
     Config3 = [{escalus_user_db, xmpp} | Config2],
     escalus:create_users(Config3, escalus:get_users([alice, eve])).
 
+end_per_group(start_checks, Config) ->
+    Config;
 end_per_group(_, Config) ->
     lists:foreach(
       fun({NodeName, _}) ->
               rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib]),
               rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib_bounce]),
               rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib_mapping]),
+              rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib_disco]),
 
               ResumeTimeout = proplists:get_value({resume_timeout, NodeName}, Config),
               rpc(NodeName, mod_stream_management, set_resume_timeout, [ResumeTimeout]),
@@ -316,6 +326,11 @@ test_global_disco(Config) ->
           EveStanza = escalus:wait_for_stanza(Eve),
           escalus:assert(has_service, [muc_helper:muc_host()], EveStanza)
       end).
+
+test_error_on_wrong_hosts(Config) ->
+    Opts = [{cookie, "cookie"}, {local_host, "no_such_host"}, {global_host, "localhost"}],
+    Result = rpc(europe_node, gen_mod, start_module, [<<"localhost">>, mod_global_distrib, Opts]),
+    ?assertMatch({badrpc, {'EXIT', {"no_such_host is not a member of the host list", _}}}, Result).
 
 %%--------------------------------------------------------------------
 %% Test helpers

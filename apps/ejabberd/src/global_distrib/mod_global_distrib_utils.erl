@@ -19,11 +19,16 @@
 
 -export([start/4, deps/4, stop/3, opt/2]).
 
+-include("ejabberd.hrl").
+
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
 start(Module, Host, Opts, StartFun) ->
+    check_host(global_host, Opts),
+    check_host(local_host, Opts),
+
     {global_host, GlobalHostList} = lists:keyfind(global_host, 1, Opts),
     case unicode:characters_to_binary(GlobalHostList) of
         Host ->
@@ -32,6 +37,11 @@ start(Module, Host, Opts, StartFun) ->
         _ ->
             ok
     end.
+
+check_host(Key, Opts) ->
+    {Key, HostList} = lists:keyfind(Key, 1, Opts),
+    Host = unicode:characters_to_binary(HostList),
+    lists:member(Host, ?MYHOSTS) orelse error(HostList ++ " is not a member of the host list").
 
 stop(Module, Host, StopFun) ->
     case opt(Module, global_host) of
