@@ -111,7 +111,8 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 %% Hooks
 %%--------------------------------------------------------------------
-get_user_roster(Items, {U, S} = US) ->
+get_user_roster(Acc, {U, S} = US) ->
+    Items = mongoose_acc:get(roster, Acc, []),
     SRUsers = get_user_to_groups_map(US, true),
     {NewItems1, SRUsersRest} =
         lists:mapfoldl(
@@ -132,7 +133,7 @@ get_user_roster(Items, {U, S} = US) ->
                        name = get_user_name(U1, S1), subscription = both,
                        ask = none, groups = GroupNames}
                || {{U1, S1}, GroupNames} <- dict:to_list(SRUsersRest)],
-    SRItems ++ NewItems1.
+    mongoose_acc:put(roster, SRItems ++ NewItems1, Acc).
 
 %% This function in use to rewrite the roster entries when moving or renaming
 %% them in the user contact list.

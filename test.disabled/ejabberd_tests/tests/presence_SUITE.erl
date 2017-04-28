@@ -344,7 +344,8 @@ subscribe(Config) ->
         add_sample_contact(Alice, Bob),
 
         %% She subscribes to his presences
-        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid,
+                     <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:assert(is_roster_set, PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
@@ -352,6 +353,9 @@ subscribe(Config) ->
         %% Bob receives subscription reqest
         Received = escalus:wait_for_stanza(Bob),
         escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
+
+        check_roster_count(Bob, 0), % she is in his roster but invisible
+        % because she is {none, in}
 
         %% Bob adds new contact to his roster
         escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
@@ -363,7 +367,8 @@ subscribe(Config) ->
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
         %% Bob sends subscribed presence
-        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
+        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid,
+                     <<"subscribed">>)),
 
         %% Alice receives subscribed
         Stanzas = escalus:wait_for_stanzas(Alice, 2),
@@ -375,6 +380,7 @@ subscribe(Config) ->
         PushReqB1 = escalus:wait_for_stanza(Bob),
         escalus:assert(is_roster_set, PushReqB1),
 
+        check_roster_count(Bob, 1),
         %% Bob sends presence
         escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
         escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
@@ -629,3 +635,14 @@ restore_versioning(Config) ->
     RosterVersionOnDb = proplists:get_value(store_current_id, Config),
     escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, RosterVersioning]),
     escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, store_current_id, RosterVersionOnDb]).
+
+
+check_roster_count(User, ExpectedCount) ->
+    % the user sends get_roster iq
+    escalus_client:send(User, escalus_stanza:roster_get()),
+    Roster = escalus_client:wait_for_stanza(User),
+    ct:pal("Roster: ~p", [Roster]),
+    % Roster contains all created users excluding user
+    escalus:assert(is_roster_result, Roster),
+    escalus:assert(count_roster_items, [ExpectedCount], Roster).
+

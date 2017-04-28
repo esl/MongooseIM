@@ -55,13 +55,16 @@
          get_roster_groups/3,
          del_user_roster_t/2,
          get_roster_by_jid/3,
+         get_roster_by_jid_t/3,
          get_rostergroup_by_jid/3,
+         get_rostergroup_by_jid_t/3,
          del_roster/3,
          del_roster_sql/2,
          update_roster/5,
          update_roster_sql/4,
          roster_subscribe/4,
          get_subscription/3,
+         get_subscription_t/3,
          set_private_data/4,
          set_private_data_sql/3,
          get_private_data/3,
@@ -438,19 +441,28 @@ del_user_roster_t(LServer, Username) ->
                    "where username='">>, Username, "';"])
       end).
 
-get_roster_by_jid(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"select username, jid, nick, subscription, "
-         "ask, askmessage, server, subscribe, type from rosterusers "
-         "where username='">>, Username, <<"' "
-         "and jid='">>, SJID, "';"]).
+q_get_roster(Username, SJID) ->
+    [<<"select username, jid, nick, subscription, "
+    "ask, askmessage, server, subscribe, type from rosterusers "
+    "where username='">>, Username, <<"' "
+    "and jid='">>, SJID, "';"].
+
+get_roster_by_jid(LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query(LServer, q_get_roster(Username, SJID)).
+
+get_roster_by_jid_t(_LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query_t(q_get_roster(Username, SJID)).
+
+q_get_rostergroup(Username, SJID) ->
+    [<<"select grp from rostergroups "
+    "where username='">>, Username, <<"' "
+    "and jid='">>, SJID, "'"].
 
 get_rostergroup_by_jid(LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select grp from rostergroups "
-         "where username='">>, Username, <<"' "
-         "and jid='">>, SJID, "'"]).
+    mongoose_rdbms:sql_query(LServer, q_get_rostergroup(Username, SJID)).
+
+get_rostergroup_by_jid_t(_LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query_t(q_get_rostergroup(Username, SJID)).
 
 del_roster(_LServer, Username, SJID) ->
     mongoose_rdbms:sql_query_t(
@@ -510,12 +522,16 @@ roster_subscribe(_LServer, Username, SJID, ItemVals) ->
              ItemVals,
              [<<"username='">>, Username, <<"' and jid='">>, SJID, "'"]).
 
+q_get_subscription(Username, SJID) ->
+    [<<"select subscription from rosterusers "
+    "where username='">>, Username, <<"' "
+    "and jid='">>, SJID, "'"].
+
 get_subscription(LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select subscription from rosterusers "
-         "where username='">>, Username, <<"' "
-         "and jid='">>, SJID, "'"]).
+    mongoose_rdbms:sql_query( LServer, q_get_subscription(Username, SJID)).
+
+get_subscription_t(_LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query_t(q_get_subscription(Username, SJID)).
 
 set_private_data(_LServer, Username, LXMLNS, SData) ->
     update_t(<<"private_storage">>,

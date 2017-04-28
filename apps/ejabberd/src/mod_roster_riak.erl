@@ -11,6 +11,7 @@
 
 -include("mod_roster.hrl").
 -include("jlib.hrl").
+-include("ejabberd.hrl").
 
 -behaviour(mod_roster).
 
@@ -20,14 +21,15 @@
          read_roster_version/2,
          write_roster_version/4,
          get_roster/2,
-         get_roster_by_jid_t/3,
+         get_roster_entry/3,
+         get_roster_entry/4,
+         get_roster_entry_t/3,
+         get_roster_entry_t/4,
          get_subscription_lists/3,
          roster_subscribe_t/4,
-         get_roster_by_jid_with_groups_t/3,
          remove_user/2,
          update_roster_t/4,
          del_roster_t/3,
-         read_subscription_and_groups/3,
          raw_to_record/2]).
 
 -define(ROSTER_BUCKET(LServer), {<<"rosters">>, LServer}).
@@ -61,23 +63,15 @@ transaction(_LServer, F) ->
 
 %% --------------------- Inside "transactions" --------------------------------
 
-get_roster_by_jid_t(LUser, LServer, LJID) ->
-    case riakc_map:find({jid:to_binary(LJID), register}, get_t_roster(LUser, LServer)) of
-        {ok, ItemReg} ->
-            UnpackedItem = unpack_item(ItemReg),
-            UnpackedItem#roster{ jid = LJID, name = <<>>, groups = [], xs = [] };
-        error ->
-            #roster{usj = {LUser, LServer, LJID}, us = {LUser, LServer}, jid = LJID}
-    end.
+get_roster_entry_t(LUser, LServer, LJID) ->
+    roster_entry_strip(LJID, get_roster_entry_t(LUser, LServer, LJID, full)).
+
+get_roster_entry_t(LUser, LServer, LJID, full) ->
+    RosterMap = get_t_roster(LUser, LServer),
+    find_in_rostermap(LJID, RosterMap).
 
 roster_subscribe_t(LUser, LServer, LJID, Item) ->
     set_t_roster(LUser, LServer, LJID, Item).
-
-get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
-    case riakc_map:find({jid:to_binary(LJID), register}, get_t_roster(LUser, LServer)) of
-        {ok, ItemReg} -> unpack_item(ItemReg);
-        error -> #roster{usj = {LUser, LServer, LJID}, us = {LUser, LServer}, jid = LJID}
-    end.
 
 update_roster_t(LUser, LServer, LJID, Item) ->
     set_t_roster(LUser, LServer, LJID, Item).
@@ -105,15 +99,18 @@ write_roster_version(LUser, LServer, true, Ver) ->
     put(riak_version_t, lists:keystore({LUser, LServer}, 1, Versions1, {{LUser, LServer}, Ver})).
 
 get_roster(LUser, LServer) ->
-    case mongoose_riak:fetch_type(?ROSTER_BUCKET(LServer), LUser) of
-        {ok, RosterMap} ->
-            riakc_map:fold(
-              fun({_, register}, ItemReg, Acc) ->
-                      [unpack_item(ItemReg) | Acc]
-              end, [], RosterMap);
-        _ ->
-            []
-    end.
+    RosterMap = get_rostermap(LUser, LServer),
+    riakc_map:fold(fun({_, register}, ItemReg, Acc) ->
+                       [unpack_item(ItemReg) | Acc]
+                   end,
+                   [], RosterMap).
+
+get_roster_entry(LUser, LServer, LJID) ->
+    roster_entry_strip(LJID, get_roster_entry(LUser, LServer, LJID, full)).
+
+get_roster_entry(LUser, LServer, LJID, full) ->
+    RosterMap = get_rostermap(LUser, LServer),
+    find_in_rostermap(LJID, RosterMap).
 
 get_subscription_lists(_, LUser, LServer) ->
     get_roster(LUser, LServer).
@@ -123,20 +120,31 @@ remove_user(LUser, LServer) ->
     mongoose_riak:delete(?ROSTER_BUCKET(LServer), LUser),
     {atomic, ok}.
 
-read_subscription_and_groups(LUser, LServer, LJID) ->
-    try
-        {ok, RosterMap} = mongoose_riak:fetch_type(?ROSTER_BUCKET(LServer), LUser),
-        ItemReg = riakc_map:fetch({jid:to_binary(LJID), register}, RosterMap),
-        #roster{ subscription = Subscription, groups = Groups } = unpack_item(ItemReg),
-        {Subscription, Groups}
-    catch
-        _:_ ->
-            error
-    end.
-
 raw_to_record(_, Item) -> Item.
 
 %% --------------------- Helpers --------------------------------
+
+find_in_rostermap(LJID, RosterMap) ->
+    case riakc_map:find({jid:to_binary(LJID), register}, RosterMap) of
+        {ok, ItemReg} -> unpack_item(ItemReg);
+        error -> does_not_exist
+    end.
+
+-spec roster_entry_strip(ejabberd:simple_jid(), mod_roster:roster() | does_not_exist) ->
+    mod_roster:roster() | does_not_exist.
+roster_entry_strip(_, does_not_exist) ->
+    does_not_exist;
+roster_entry_strip(LJID, Entry) ->
+    Entry#roster{ jid = LJID, name = <<>>, groups = [], xs = [] }.
+
+%% this is a transaction-less equivalent of get_t_roster
+get_rostermap(LUser, LServer) ->
+    case mongoose_riak:fetch_type(?ROSTER_BUCKET(LServer), LUser) of
+        {ok, RMap} ->
+            RMap;
+        _ ->
+            riakc_map:new()
+    end.
 
 -spec unpack_item(ItemReg :: binary()) -> mod_roster:roster().
 unpack_item(ItemReg) ->
