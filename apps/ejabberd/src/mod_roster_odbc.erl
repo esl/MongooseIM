@@ -235,8 +235,6 @@ read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
     Username = mongoose_rdbms:escape(LUser),
     SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
     case catch rdbms_q(GSFunc, [LServer, Username, SJID])
-%%    case catch rdbms_queries:get_subscription(LServer,
-%%                                             Username, SJID)
     of
         {selected, [{SSubscription}]} ->
             Subscription = case SSubscription of
@@ -246,8 +244,6 @@ read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
                                _ -> none
                            end,
             Groups = case catch rdbms_q(GRFunc, [LServer, Username, SJID])
-%%                          rdbms_queries:get_rostergroup_by_jid(LServer, Username,
-%%                                                              SJID)
                      of
                          {selected, JGrps} when is_list(JGrps) ->
                              [JGrp || {JGrp} <- JGrps];
