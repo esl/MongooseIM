@@ -121,11 +121,6 @@ to_binary(S) ->
 
 -spec jid_exists(binary(), binary()) -> boolean().
 jid_exists(CJid, Jid) ->
-    % TOFIX
-    {ok, Roster} = mongoose_commands:execute(CJid, list_contacts,
-                                             #{caller => CJid}),
-    Res = lists:filter(
-        fun(M) -> maps:get(jid, M, undefined) == Jid end,
-        Roster),
-    Res =/= [].
-
+    FJid = jid:from_binary(CJid),
+    Res = mod_roster:get_roster_entry(FJid#jid.luser, FJid#jid.lserver, Jid),
+    Res =/= does_not_exist.
