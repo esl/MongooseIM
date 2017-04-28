@@ -45,7 +45,6 @@
          process_iq/3,
          process_local_iq/3,
          get_user_roster/2,
-         get_roster_by_jid/3,
          get_subscription_lists/3,
          get_roster_entry/3,
          get_roster_entry/4,
@@ -77,7 +76,7 @@
 
 -type roster() :: #roster{}.
 
-%%-type sub_presence() :: subscribe | subscribed | unsubscribe | unsubscribed.
+-type sub_presence() :: subscribe | subscribed | unsubscribe | unsubscribed.
 
 -type subscription_state() :: none  | from | to | both | remove.
 
@@ -412,16 +411,6 @@ item_to_xml(Item) ->
     #xmlel{name = <<"item">>, attrs = Attrs4,
            children = SubEls}.
 
-get_roster_by_jid_t(LUser, LServer, LJID) ->
-    mod_roster_backend:get_roster_by_jid_t(LUser, LServer, LJID).
-
--spec get_roster_by_jid(ejabberd:luser(), ejabberd:lserver(),
-    ejabberd:simple_jid()) -> roster().
-get_roster_by_jid(LUser, LServer, LJID) ->
-    {atomic, Item} = transaction(LServer,
-        fun() -> get_roster_by_jid_t(LUser, LServer, LJID) end),
-    Item.
-
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
     ejabberd_hooks:run(roster_set, LServer, [From, To, SubEl]),
@@ -439,7 +428,7 @@ do_process_item_set(JID1,
                     To,
                     #xmlel{attrs = Attrs, children = Els}) ->
     LJID = jid:to_lower(JID1),
-    Item = case mod_roster_backend:get_roster_entry(LUser, LServer, LJID) of
+    Item = case get_roster_entry(LUser, LServer, LJID) of
                does_not_exist ->
                    #roster{usj = {LUser, LServer, LJID},
                        us = {LUser, LServer},
@@ -911,7 +900,13 @@ set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
         error -> error;
         _ ->
             LJID = jid:to_lower(JID1),
-            Item = get_roster_by_jid(LUser, LServer, LJID),
+            Item = case get_roster_entry(LUser, LServer, LJID) of
+                       does_not_exist ->
+                           #roster{usj = {LUser, LServer, LJID},
+                               us = {LUser, LServer},
+                               jid = LJID};
+                       I -> I
+                   end,
             Item2 = modify_roster_item(Item, Name, Groups, NewSubscription),
             set_roster_item(
                 LUser, % User

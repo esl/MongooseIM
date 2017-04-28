@@ -257,8 +257,10 @@ send_message(From, To, Body) ->
     ok.
 
 list_contacts(Caller) ->
+    Acc = mongoose_acc:new(),
     {User, Host} = jid:to_lus(jid:from_binary(Caller)),
-    Res = ejabberd_hooks:run_fold(roster_get, Host, [], [{User, Host}]),
+    Acc1 = ejabberd_hooks:run_fold(roster_get, Host, Acc, [{User, Host}]),
+    Res = mongoose_acc:get(roster, Acc1),
     [roster_info(mod_roster:item_to_map(I)) || I <- Res].
 
 roster_info(M) ->
