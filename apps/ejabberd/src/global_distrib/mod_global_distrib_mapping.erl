@@ -149,7 +149,7 @@ start() ->
     MaxJids = opt(max_jids),
 
     ejabberd_hooks:add(register_subhost, global, ?MODULE, register_subhost, 90),
-    ejabberd_hooks:add(unregister_subhost, Host, ?MODULE, unregister_subhost, 90),
+    ejabberd_hooks:add(unregister_subhost, global, ?MODULE, unregister_subhost, 90),
     ejabberd_hooks:add(user_available_hook, Host, ?MODULE, user_present, 90),
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
 
@@ -165,7 +165,7 @@ stop() ->
 
     ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
     ejabberd_hooks:delete(user_available_hook, Host, ?MODULE, user_present, 90),
-    ejabberd_hooks:delete(unregister_subhost, Host, ?MODULE, unregister_subhost, 90),
+    ejabberd_hooks:delete(unregister_subhost, global, ?MODULE, unregister_subhost, 90),
     ejabberd_hooks:delete(register_subhost, global, ?MODULE, register_subhost, 90).
 
 

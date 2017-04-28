@@ -27,7 +27,8 @@ groups() ->
        test_pm_with_disconnection_on_other_server,
        test_pm_with_graceful_reconnection_to_different_server,
        test_pm_with_ungraceful_reconnection_to_different_server,
-       test_global_disco
+       test_global_disco,
+       test_component_unregister
       ]},
      {cluster_restart, [],
       [
@@ -326,6 +327,19 @@ test_global_disco(Config) ->
           EveStanza = escalus:wait_for_stanza(Eve),
           escalus:assert(has_service, [muc_helper:muc_host()], EveStanza)
       end).
+
+test_component_unregister(Config) ->
+    ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
+                       {port, 8888}, {component, <<"test_service">>}],
+
+    {Comp, _Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
+    ?assertMatch({ok, _}, rpc(europe_node, mod_global_distrib_mapping, for_domain,
+                              [<<"test_service.localhost">>])),
+
+    ok = escalus_connection:stop(Comp),
+
+    ?assertEqual(error, rpc(europe_node, mod_global_distrib_mapping, for_domain,
+                            [<<"test_service.localhost">>])).
 
 test_error_on_wrong_hosts(Config) ->
     Opts = [{cookie, "cookie"}, {local_host, "no_such_host"}, {global_host, "localhost"}],
