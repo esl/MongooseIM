@@ -428,16 +428,11 @@ do_process_item_set(JID1,
                     To,
                     #xmlel{attrs = Attrs, children = Els}) ->
     LJID = jid:to_lower(JID1),
-    Item = case get_roster_entry(LUser, LServer, LJID) of
-               does_not_exist ->
-                   #roster{usj = {LUser, LServer, LJID},
-                       us = {LUser, LServer},
-                       jid = LJID};
-               I -> I
-           end,
-    Item1 = process_item_attrs(Item, Attrs),
-    Item2 = process_item_els(Item1, Els),
-    set_roster_item(User, LUser, LServer, LJID, From, To, Item, Item2).
+    MakeItem2 = fun(Item) ->
+                    Item1 = process_item_attrs(Item, Attrs),
+                    process_item_els(Item1, Els)
+                end,
+    set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2).
 
 %% @doc this is run when a roster item is to be added, updated or removed
 %% the interface of this func could probably be a bit simpler
@@ -447,10 +442,18 @@ do_process_item_set(JID1,
                       LJID :: ejabberd:simple_jid() | error,
                       From :: jid(),
                       To :: jid(),
-                      Item :: roster(),
-                      Item2 :: roster()) -> ok.
-set_roster_item(User, LUser, LServer, LJID, From, To, Item, Item2) ->
+                      Item2 :: fun( (roster()) -> roster())) -> ok.
+set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
     F = fun () ->
+                Item = case get_roster_entry(LUser, LServer, LJID) of
+                           does_not_exist ->
+                               #roster{usj = {LUser, LServer, LJID},
+                                   us = {LUser, LServer},
+                                   jid = LJID};
+                           I -> I
+                       end,
+
+                Item2 = MakeItem2(Item),
                 case Item2#roster.subscription of
                     remove -> del_roster_t(LUser, LServer, LJID);
                     _ -> update_roster_t(LUser, LServer, LJID, Item2)
@@ -900,14 +903,9 @@ set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
         error -> error;
         _ ->
             LJID = jid:to_lower(JID1),
-            Item = case get_roster_entry(LUser, LServer, LJID) of
-                       does_not_exist ->
-                           #roster{usj = {LUser, LServer, LJID},
-                               us = {LUser, LServer},
-                               jid = LJID};
-                       I -> I
-                   end,
-            Item2 = modify_roster_item(Item, Name, Groups, NewSubscription),
+            MakeItem2 = fun(Item) ->
+                            modify_roster_item(Item, Name, Groups, NewSubscription)
+                        end,
             set_roster_item(
                 LUser, % User
                 LUser, % LUser
@@ -915,8 +913,7 @@ set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
                 LJID, % LJID
                 UserJid, % From
                 UserJid, % To
-                Item, % Item
-                Item2 % Item2
+                MakeItem2
             )
     end.
 
