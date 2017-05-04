@@ -190,7 +190,8 @@ groups() -> [
                 mediated_invite,
                 one2one_chat_to_muc,
                 exit_room,
-                exit_room_with_status
+                exit_room_with_status,
+                kicked_after_sending_malformed_presence
                 ]},
         {owner, [parallel], [
                 %% fails, see testcase
@@ -2688,6 +2689,39 @@ exit_room_with_status(Config1) ->
 		is_exit_message_with_status_correct(Alice, <<"owner">>, ?config(room, Config), Status,  Message),
 		is_exit_message_with_status_correct(Alice, <<"owner">>, ?config(room, Config), Status, escalus:wait_for_stanza(Bob)),
 		is_exit_message_with_status_correct(Alice, <<"owner">>, ?config(room, Config), Status, escalus:wait_for_stanza(Eve))
+    end),
+    destroy_room(Config).
+
+kicked_after_sending_malformed_presence(Config1) ->
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
+        %% GIVEN An user is in the room
+        Room = ?config(room, Config),
+        Username = escalus_utils:get_username(Bob),
+        Stanza = stanza_muc_enter_room(Room, Username),
+        escalus:send(Bob, Stanza),
+        Presence = escalus:wait_for_stanza(Bob),
+        is_self_presence(Bob, ?config(room, Config), Presence),
+        escalus:assert(is_message, escalus:wait_for_stanza(Bob)), %% subject
+        %% WHEN The user sends a malformed presence
+        Error = stanza_to_room(escalus_stanza:presence(<<"error">>), Room, Username),
+        escalus:send(Bob, Error),
+
+        %% THAN He is kicked from the room
+        PresenceUn = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], PresenceUn),
+        escalus:assert(is_stanza_from, [room_address(Room, Username)], PresenceUn),
+
+        %% THAN He is actually kicked
+        %% Kate should not receive his presence
+        KateUsername = escalus_utils:get_username(Kate),
+        KateStanza = stanza_muc_enter_room(Room, KateUsername),
+        escalus:send(Kate, KateStanza),
+        KatePresence = escalus:wait_for_stanza(Kate),
+        is_self_presence(Kate, ?config(room, Config), KatePresence),
+        escalus:assert(is_message, escalus:wait_for_stanza(Kate)), %% subject
+        ok
     end),
     destroy_room(Config).
 
