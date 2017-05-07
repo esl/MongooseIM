@@ -70,7 +70,7 @@ MaybeErtsExitSupport = fun(Config) ->
         _ -> ""
     end,
     true = Setenv("CFLAGS", ExitFlag),
-    CONFIG
+    Config
 end,
 
 lists:foldl(fun(Fun, Cfg) -> Fun(Cfg) end, CONFIG,
