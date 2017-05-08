@@ -41,9 +41,13 @@ restore_room(LServer, Host, Name) ->
               "where name='", SName, "' "
                 "and host='", SHost, "'"],
     case (catch mongoose_rdbms:sql_query(LServer, Query)) of
-    {selected, _, [{Opts}]} ->
+    {selected, [{Opts}]} ->
             jlib:expr_to_term(Opts);
-    _ ->
+    {selected, []} ->
+            error;
+    Reason ->
+        ?ERROR_MSG("issue=restore_room_failed room=~ts reason=~1000p",
+                   [Name, Reason]),
         error
     end.
 
@@ -66,7 +70,7 @@ can_use_nick(LServer, Host, JID, Nick) ->
               "where nick='", SNick, "' "
                 "and host='", SHost, "'"],
     case catch mongoose_rdbms:sql_query(LServer, Query) of
-    {selected, _, [{DbBinJID}]} -> BinJID == DbBinJID;
+    {selected, [{DbBinJID}]} -> BinJID == DbBinJID;
     _ -> true
     end.
 
@@ -75,7 +79,7 @@ get_rooms(LServer, Host) ->
     Query = ["select name, opts from muc_room"
               " where host='", SHost, "'"],
     case catch mongoose_rdbms:sql_query(LServer, Query) of
-    {selected, _, RoomOpts} ->
+    {selected, RoomOpts} ->
         lists:map(
           fun({Room, Opts}) ->
               #muc_room{name_host = {Room, Host},
@@ -93,7 +97,7 @@ get_nick(LServer, Host, From) ->
     Query = ["select nick from muc_registered where"
               " jid='", SBinJID, "' and host='", SHost, "'"],
     case catch mongoose_rdbms:sql_query(LServer, Query) of
-    {selected, _, [{Nick}]} -> Nick;
+    {selected, [{Nick}]} -> Nick;
     _ -> error
     end.
 
@@ -109,13 +113,13 @@ set_nick(LServer, Host, From, Nick) ->
 
     F = fun () ->
         case mongoose_rdbms:sql_query_t(JidQuery) of
-            {selected, _, [{J}]} when J == BinJID ->
+            {selected, [{J}]} when J == BinJID ->
                 %% Already inserted
                 ok;
-            {selected, _, [{_}]} ->
+            {selected, [{_}]} ->
                 %% Busy nick
                 false;
-            {selected, _, []} ->
+            {selected, []} ->
                 %% Available nick
                 SBinJID = mongoose_rdbms:escape(BinJID),
                 InsQuery = ["insert into muc_registered (jid, host, nick) "
