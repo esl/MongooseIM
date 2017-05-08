@@ -65,7 +65,8 @@ start_listener({Port, IP, tcp}=Listener, Opts) ->
     {ok, Pid} = supervisor:start_child(ejabberd_listeners, ChildSpec),
     TransportOpts = gen_mod:get_opt(transport_options, Opts, []),
     TransportOpts2 = [{port, Port}, {ip, IP} | TransportOpts],
-    Opts2 = gen_mod:set_opt(transport_options, Opts, TransportOpts2),
+    TransportOpts3 = maybe_insert_max_connections(TransportOpts2, Opts),
+    Opts2 = gen_mod:set_opt(transport_options, Opts, TransportOpts3),
     {ok, _} = start_cowboy(Ref, Opts2),
     {ok, Pid}.
 
@@ -129,8 +130,8 @@ do_start_cowboy(Ref, Opts) ->
     TransportOpts = gen_mod:get_opt(transport_options, Opts, []),
     Modules = gen_mod:get_opt(modules, Opts),
     Dispatch = cowboy_router:compile(get_routes(Modules)),
-    ProtocolOpts = lists:merge([{env, [{dispatch, Dispatch}]}],
-                               gen_mod:get_opt(protocol_options, Opts, [])),
+    ProtocolOpts = [{env, [{dispatch, Dispatch}]} |
+                    gen_mod:get_opt(protocol_options, Opts, [])],
     case catch start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) of
         {error, {{shutdown,
                   {failed_to_start_child, ranch_acceptors_sup,
@@ -211,3 +212,15 @@ filter_options(IgnoreOpts, [Opt | Opts]) when tuple_size(Opt) >= 1 ->
     end;
 filter_options(_, []) ->
     [].
+
+% This functions is for backward compatibility, as previous default config
+% used max_connections tuple for all ejabberd_cowboy listeners
+maybe_insert_max_connections(TransportOpts, Opts) ->
+    Key = max_connections,
+    case gen_mod:get_opt(Key, Opts, undefined) of
+        undefined ->
+            TransportOpts;
+        Value ->
+            NewTuple = {Key, Value},
+            lists:keystore(Key, 1, TransportOpts, NewTuple)
+    end.
