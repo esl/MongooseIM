@@ -195,6 +195,15 @@ archive_id(Server, User)
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam starting", []),
+    case gen_mod:get_opt(archive_groupchats, Opts, undefined) of
+        undefined ->
+            ?WARNING_MSG("mod_mam is enabled without explicit archive_groupchats option value."
+                         " It will default to `false` in one of future releases."
+                         " Please check the mod_mam documentation for more details.", []);
+        _ ->
+            ok
+    end,
+
     compile_params_module(Opts),
     ejabberd_users:start(Host),
     %% `parallel' is the only one recommended here.
@@ -687,7 +696,7 @@ handle_package(Dir, ReturnMessID,
     end.
 
 should_archive_if_groupchat(Host, <<"groupchat">>) ->
-    gen_mod:get_module_opt(Host, ?MODULE, archive_groupchats, false);
+    gen_mod:get_module_opt(Host, ?MODULE, archive_groupchats, true);
 should_archive_if_groupchat(_, _) ->
     true.
 
