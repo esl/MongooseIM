@@ -44,7 +44,7 @@ check_host(Key, Opts) ->
     lists:member(Host, ?MYHOSTS) orelse error(HostList ++ " is not a member of the host list").
 
 stop(Module, Host, StopFun) ->
-    case opt(Module, global_host) of
+    case catch opt(Module, global_host) of
         Host ->
             StopFun(),
             ets:delete(Module);
