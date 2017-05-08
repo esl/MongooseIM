@@ -42,7 +42,7 @@ All source files can be found in `apps/ejabberd/src`.
 
 * `mod_muc_light_utils.erl`
   Utilities shared by other MUC Light modules. 
-  It includes the room configuration processing or the affiliation logic.
+  It includes the room configuration processing and the affiliation logic.
 
 The header file can be found in `apps/ejabberd/include`.
 
@@ -61,27 +61,29 @@ There are 2 test suites and one helper module in `test/ejabberd_tests/tests`.
   Provides handy iterators over room participants. 
   Used in MUC Light suites but in the future could be used in `muc_SUITE` as well.
 
-Hooks used by this extension
+Hooks handled by this extension
 -----------------------
 
-* `offline_groupchat_message_hook` used by `mod_muc_light:prevent_service_unavailable/3` - Prevents the default behaviour of sending `service-unavailable` error to the room when a groupchat message is sent to an offline occupant.
+* `offline_groupchat_message_hook` handled by `mod_muc_light:prevent_service_unavailable/3` - Prevents the default behaviour of sending `service-unavailable` error to the room when a groupchat message is sent to an offline occupant.
 
-* `remove_user` used by `mod_muc_light:remove_user/2` - Triggers DB cleanup of all data related to the removed user. 
+* `remove_user` handled by `mod_muc_light:remove_user/2` - Triggers DB cleanup of all data related to the removed user. 
  Includes a broadcast of a notification about user removal from occupied rooms.
 
-* `disco_local_items` used by `mod_muc_light:get_muc_service/5` - Adds MUC service item to the Disco result. 
+* `disco_local_items` handled by `mod_muc_light:get_muc_service/5` - Adds MUC service item to the Disco result. 
  Uses either a MUC Light or a classic MUC namespace when the legacy mode is enabled.
 
-* `roster_get` used by `mod_muc_light:add_rooms_to_roster/2` - Injects room items to the user's roster.
+* `roster_get` handled by `mod_muc_light:add_rooms_to_roster/2` - Injects room items to the user's roster.
 
-* `privacy_iq_get`, `privacy_iq_set` used by `mod_muc_light:process_iq_get/5` and `mod_muc_light:process_iq_set/4` respectively - These callbacks handle blocking settings when legacy mode is enabled.
+* `privacy_iq_get`, `privacy_iq_set` handled by `mod_muc_light:process_iq_get/5` and `mod_muc_light:process_iq_set/4` respectively - These callbacks handle blocking settings when legacy mode is enabled.
 
-* `is_muc_room_owner`, `muc_room_pid` used by `mod_muc_light:is_room_owner/3` and `mod_muc_light:muc_room_pid/2` respectively - Callbacks that provide essential data for the `mod_mam_muc` extension.
+* `is_muc_room_owner`, `muc_room_pid`, `can_access_room`, `can_access_identity` used by `mod_muc_light:is_room_owner/3`, `mod_muc_light:muc_room_pid/2`, `mod_muc_light:can_access_room/3` and `mod_muc_light:can_access_identity/3` respectively - Callbacks that provide essential data for the `mod_mam_muc` extension.
 
 Hooks executed by this extension
 -----------------------
 
 * `filter_room_packet` by codecs - Allows `mod_mam_muc` to archive groupchat messages.
+
+* `room_send_packet` by codecs - Handled by `mod_aws_sns`.
 
 * `forget_room` by `mod_muc_light_db_mnesia` and `mod_muc_light_room` - It is a part of `mod_mam_muc` integration as well. 
  A hook used for MAM cleanup upon room destruction.

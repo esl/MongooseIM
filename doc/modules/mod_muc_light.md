@@ -1,7 +1,7 @@
 ### Module Description
 
-This module implements [XEP Multi-User Chat Light](https://github.com/xsf/xeps/pull/118) (still being reviewed by XMPP community). 
-It's an experimental XMPP group chat solution. 
+This module implements [Multi-User Chat Light](../open-extensions/muc_light.md).
+It's an experimental XMPP group chat solution.
 This extension consists of several modules but only `mod_muc_light` needs to be enabled in the config file.
 
 ### Options
