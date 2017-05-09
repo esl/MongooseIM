@@ -39,7 +39,7 @@
 -include("jlib.hrl").
 -include_lib("ejabberd/include/mod_muc.hrl").
 
-init(Host, Opts) ->
+init(_Host, _Opts) ->
     mnesia:create_table(muc_room,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, muc_room)}]),
@@ -48,8 +48,6 @@ init(Host, Opts) ->
                          {attributes, record_info(fields, muc_registered)}]),
     mnesia:add_table_copy(muc_room, node(), disc_copies),
     mnesia:add_table_copy(muc_registered, node(), disc_copies),
-    MyHost = gen_mod:get_opt_subhost(Host, Opts, <<"conference.@HOST@">>),
-    update_tables(MyHost),
     mnesia:add_table_index(muc_registered, nick),
     ok.
 
@@ -145,96 +143,4 @@ is_nick_change_allowed(Host, Nick, LUS) ->
         [] -> true;
         [#muc_registered{us_host = {U, _Host}}] ->
             U == LUS
-    end.
-
--spec update_tables(ejabberd:server()) -> any().
-update_tables(Host) ->
-    update_muc_room_table(Host),
-    update_muc_registered_table(Host).
-
--spec update_muc_room_table(ejabberd:server()) -> any().
-update_muc_room_table(Host) ->
-    Fields = record_info(fields, muc_room),
-    case mnesia:table_info(muc_room, attributes) of
-        Fields ->
-            ok;
-        [name, opts] ->
-            update_muc_room_table_from_name_opts_format(Host);
-        _ ->
-            ?INFO_MSG("Recreating muc_room table", []),
-            mnesia:transform_table(muc_room, ignore, Fields)
-    end.
-
-update_muc_room_table_from_name_opts_format(Host) ->
-    Fields = [name, opts],
-    ?INFO_MSG("Converting muc_room table from {name, opts} format", []),
-    {atomic, ok} = mnesia:create_table(
-                     mod_muc_tmp_table,
-                     [{disc_only_copies, [node()]},
-                      {type, bag},
-                      {local_content, true},
-                      {record_name, muc_room},
-                      {attributes, record_info(fields, muc_room)}]),
-    mnesia:transform_table(muc_room, ignore, Fields),
-    F1 = fun() ->
-                 mnesia:write_lock_table(mod_muc_tmp_table),
-                 mnesia:foldl(
-                   fun(#muc_room{name_host = Name} = R, _) ->
-                           mnesia:dirty_write(
-                             mod_muc_tmp_table,
-                             R#muc_room{name_host = {Name, Host}})
-                   end, ok, muc_room)
-         end,
-    mnesia:transaction(F1),
-    mnesia:clear_table(muc_room),
-    F2 = fun() ->
-                 mnesia:write_lock_table(muc_room),
-                 mnesia:foldl(
-                   fun(R, _) ->
-                           mnesia:dirty_write(R)
-                   end, ok, mod_muc_tmp_table)
-         end,
-    mnesia:transaction(F2),
-    mnesia:delete_table(mod_muc_tmp_table).
-
--spec update_muc_registered_table(ejabberd:server()) -> any().
-update_muc_registered_table(Host) ->
-    Fields = record_info(fields, muc_registered),
-    case mnesia:table_info(muc_registered, attributes) of
-        Fields ->
-            ok;
-        [user, nick] ->
-            ?INFO_MSG("Converting muc_registered table from {user, nick} format", []),
-            {atomic, ok} = mnesia:create_table(
-                             mod_muc_tmp_table,
-                             [{disc_only_copies, [node()]},
-                              {type, bag},
-                              {local_content, true},
-                              {record_name, muc_registered},
-                              {attributes, record_info(fields, muc_registered)}]),
-            mnesia:del_table_index(muc_registered, nick),
-            mnesia:transform_table(muc_registered, ignore, Fields),
-            F1 = fun() ->
-                         mnesia:write_lock_table(mod_muc_tmp_table),
-                         mnesia:foldl(
-                           fun(#muc_registered{us_host = US} = R, _) ->
-                                   mnesia:dirty_write(
-                                     mod_muc_tmp_table,
-                                     R#muc_registered{us_host = {US, Host}})
-                           end, ok, muc_registered)
-                 end,
-            mnesia:transaction(F1),
-            mnesia:clear_table(muc_registered),
-            F2 = fun() ->
-                         mnesia:write_lock_table(muc_registered),
-                         mnesia:foldl(
-                           fun(R, _) ->
-                                   mnesia:dirty_write(R)
-                           end, ok, mod_muc_tmp_table)
-                 end,
-            mnesia:transaction(F2),
-            mnesia:delete_table(mod_muc_tmp_table);
-        _ ->
-            ?INFO_MSG("Recreating muc_registered table", []),
-            mnesia:transform_table(muc_registered, ignore, Fields)
     end.
