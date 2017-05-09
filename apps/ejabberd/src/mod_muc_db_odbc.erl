@@ -94,7 +94,7 @@ can_use_nick(LServer, Host, JID, Nick) ->
         Error ->
             ?ERROR_MSG("issue=can_use_nick_failed jid=~ts nick=~ts reason=~1000p",
                        [BinJID, Nick, Error]),
-            true
+            false
     end.
 
 get_rooms(LServer, Host) ->

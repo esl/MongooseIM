@@ -123,7 +123,7 @@ can_use_nick_internal(Host, Nick, LUS) ->
         catch Class:Reason ->
             ?ERROR_MSG("issue=can_use_nick_failed jid=~ts nick=~ts reason=~p:~p",
                        [jid:to_binary(LUS), Nick, Class, Reason]),
-            true
+            false
     end.
 
 get_nick(_LServer, Host, From) ->
