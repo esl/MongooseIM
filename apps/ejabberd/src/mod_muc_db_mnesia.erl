@@ -1,8 +1,10 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_muc.erl
+%%% Based on file mod_muc.
+%%%
+%%% Original header and copyright notice:
+%%%
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : MUC support (XEP-0045)
-%%% Created : 19 Mar 2003 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2011   ProcessOne
