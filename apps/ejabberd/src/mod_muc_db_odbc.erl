@@ -25,14 +25,22 @@ store_room(LServer, Host, Name, Opts) ->
     SName = mongoose_rdbms:escape(Name),
     BinOpts = jlib:term_to_expr(Opts),
     SBinOpts = mongoose_rdbms:escape(BinOpts),
-    mongoose_rdbms:sql_transaction(
+    Result = mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
           rdbms_queries:update_t(<<"muc_room">>,
                [<<"name">>, <<"host">>, <<"opts">>],
                [SName, SHost, SBinOpts],
                [<<"name='">>, SName, <<"' AND host='">>, SHost, <<"'">>])
-      end).
+      end),
+    case Result of
+        {atomic, _} ->
+            ok;
+        _ ->
+            ?ERROR_MSG("issue=store_room_failed room=~ts reason=~1000p",
+                       [Name, Result])
+    end,
+    Result.
 
 restore_room(LServer, Host, Name) ->
     SHost = mongoose_rdbms:escape(Host),
@@ -61,7 +69,15 @@ forget_room(LServer, Host, Name) ->
     F = fun () ->
         mongoose_rdbms:sql_query_t(Query)
     end,
-    mongoose_rdbms:sql_transaction(LServer, F).
+    Result = mongoose_rdbms:sql_transaction(LServer, F),
+    case Result of
+        {atomic, _} ->
+            ok;
+        _ ->
+            ?ERROR_MSG("issue=forget_room_failed room=~ts reason=~1000p",
+                       [Name, Result])
+    end,
+    Result.
 
 can_use_nick(LServer, Host, JID, Nick) ->
     BinJID = jid:to_binary(jid:to_lower(jid:to_bare(JID))),
@@ -144,7 +160,15 @@ set_nick(LServer, Host, From, Nick) ->
                 ok
         end
     end,
-    mongoose_rdbms:sql_transaction(LServer, F).
+    Result = mongoose_rdbms:sql_transaction(LServer, F),
+    case Result of
+        {atomic, _} ->
+            ok;
+        _ ->
+            ?ERROR_MSG("issue=set_nick_failed jid=~ts nick=~ts reason=~1000p",
+                       [BinJID, Nick, Result])
+    end,
+    Result.
 
 
 unset_nick(LServer, Host, From) ->
@@ -158,4 +182,12 @@ unset_nick(LServer, Host, From) ->
             mongoose_rdbms:sql_query_t(Query),
             ok
     end,
-    mongoose_rdbms:sql_transaction(LServer, F).
+    Result = mongoose_rdbms:sql_transaction(LServer, F),
+    case Result of
+        {atomic, _} ->
+            ok;
+        _ ->
+            ?ERROR_MSG("issue=unset_nick_failed jid=~ts reason=~1000p",
+                       [BinJID, Result])
+    end,
+    Result.
