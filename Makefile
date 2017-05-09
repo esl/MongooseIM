@@ -21,8 +21,8 @@ clean:
 	-rm rel/vars.config
 
 ct:
-	@(if [ "$(SUITE)" ]; then ./rebar3 ct --dir apps/ejabberd/test --suite $(SUITE) ;\
-		else ./rebar3 ct ; fi) > $(LOG_SILENCE_COVER)
+	@(if [ "$(SUITE)" ]; then ./rebar3 ct --suite apps/ejabberd/test/$(SUITE) ;\
+		else ./rebar3 ct --dir apps/ejabberd/test; fi) > $(LOG_SILENCE_COVER)
 
 rel: certs configure.out rel/vars.config
 	. ./configure.out && ./rebar3 as prod release
