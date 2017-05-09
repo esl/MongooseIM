@@ -120,24 +120,28 @@ get_nick(_LServer, Host, From) ->
             Nick
     end.
 
+set_nick(_LServer, Host, From, <<>>) ->
+    unset_nick(Host, From);
 set_nick(_LServer, Host, From, Nick) ->
     LUS = jid_to_lower_us(From),
     F = fun () ->
-                set_nick_transaction_body(Host, Nick, LUS)
+            case can_use_nick_internal(Host, Nick, LUS) of
+                true ->
+                    Object = #muc_registered{us_host = {LUS, Host}, nick = Nick},
+                    mnesia:write(Object),
+                    ok;
+                false ->
+                    false
+            end
         end,
     mnesia:transaction(F).
 
-
-set_nick_transaction_body(Host, <<>>, LUS) ->
-    mnesia:delete({muc_registered, {LUS, Host}});
-set_nick_transaction_body(Host, Nick, LUS) ->
-    case can_use_nick_internal(Host, Nick, LUS) of
-        true ->
-            mnesia:write(#muc_registered{us_host = {LUS, Host}, nick = Nick}),
-            ok;
-        false ->
-            false
-    end.
+unset_nick(Host, From) ->
+    LUS = jid_to_lower_us(From),
+    F = fun () ->
+            mnesia:delete({muc_registered, {LUS, Host}})
+        end,
+    mnesia:transaction(F).
 
 jid_to_lower_us(JID) ->
     {LUser, LServer, _} = jid:to_lower(JID),
