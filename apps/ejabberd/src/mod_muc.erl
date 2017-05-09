@@ -287,11 +287,11 @@ init([Host, Opts]) ->
 
     case gen_mod:get_module_opt(Host, mod_muc, load_permanent_rooms_at_startup, false) of
         false ->
-            ?ERROR_MSG("issue=load_permanent_rooms_at_startup, skip=true, "
-                       "details=\"each room is loaded when someone access the room\"", []);
+            ?INFO_MSG("issue=load_permanent_rooms_at_startup, skip=true, "
+                      "details=\"each room is loaded when someone access the room\"", []);
         true ->
-            ?ERROR_MSG("issue=load_permanent_rooms_at_startup, skip=false, "
-                       "details=\"it can take some time\"", []),
+            ?INFO_MSG("issue=load_permanent_rooms_at_startup, skip=false, "
+                      "details=\"it can take some time\"", []),
             load_permanent_rooms(MyHost, Host,
                                  {Access, AccessCreate, AccessAdmin, AccessPersistent},
                                  HistorySize, RoomShaper, HttpAuthPool)
