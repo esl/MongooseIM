@@ -82,6 +82,8 @@
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
          muc_light_simple/1,
+         muc_light_shouldnt_modify_pm_archive/1,
+         muc_light_stored_in_pm_if_allowed_to/1,
          messages_filtered_when_prefs_default_policy_is_always/1,
          messages_filtered_when_prefs_default_policy_is_never/1,
          messages_filtered_when_prefs_default_policy_is_roster/1,
@@ -98,7 +100,6 @@
 
 -import(mam_helper,
         [rpc_apply/3,
-         rpc_call/3,
          is_riak_enabled/1,
          is_cassandra_enabled/1,
          is_mam_possible/1,
@@ -162,7 +163,6 @@
          run_prefs_case/6,
          prefs_cases2/0,
          default_policy/1,
-         namespaces/0,
          get_all_messages/2,
          parse_messages/1,
          run_set_and_get_prefs_case/4,
@@ -347,7 +347,11 @@ muc_cases() ->
      ].
 
 muc_light_cases() ->
-    [muc_light_simple].
+    [
+     muc_light_simple,
+     muc_light_shouldnt_modify_pm_archive,
+     muc_light_stored_in_pm_if_allowed_to
+    ].
 
 muc_rsm_cases() ->
     rsm_cases().
@@ -548,49 +552,55 @@ end_per_group(Group, Config) ->
     escalus_fresh:clean(),
     delete_users(Config2).
 
-init_modules(C, muc_light, Config) ->
-    dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
-    Config1 = init_modules(C, muc_all, Config), %% Init more modules!
-    stop_module(host(), mod_mam_muc),
-    init_module(host(), mod_mam_muc, [{host, "muclight.@HOST@"}]),
+init_modules(odbc, muc_light, Config) ->
+    Config1 = init_modules_for_muc_light(odbc, Config),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam_odbc_arch, [muc, pm]),
     Config1;
-
-
+init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
+    dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
+    init_modules(BT, generic, [{muc_domain, "muclight.@HOST@"} | Config]);
+init_modules(BT = cassandra, muc_light, config) ->
+    init_modules_for_muc_light(BT, config);
+init_modules(BackendType, muc_light, Config) ->
+    Config1 = init_modules_for_muc_light(BackendType, Config),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    Config1;
 init_modules(cassandra, muc_all, Config) ->
     init_module(host(), mod_mam_muc_cassandra_arch, []),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
 init_modules(odbc, muc_all, Config) ->
     init_module(host(), mod_mam_odbc_arch, [muc]),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
 init_modules(odbc_simple, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [muc, simple]),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
 init_modules(odbc_async_pool, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
 init_modules(odbc_mnesia, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
 init_modules(odbc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
 init_modules(odbc_async_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
@@ -598,30 +608,30 @@ init_modules(odbc_async_cache, muc_all, Config) ->
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
 init_modules(odbc_mnesia_muc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
 init_modules(odbc_mnesia_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
 init_modules(odbc, C, Config) ->
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(odbc_simple, C, Config) ->
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm, simple]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
@@ -630,44 +640,44 @@ init_modules(riak_timed_yz_buckets, C, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(host(), mod_mam_mnesia_prefs, [pm, muc,
                                                {archive_key, mam_archive_key_server_user}]),
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_muc,
-                [{host, "muc.@HOST@"}, add_archived_element] ++ addin_mam_options(C)),
+                [{host, muc_domain(Config)}, add_archived_element] ++ addin_mam_options(C, Config)),
     Config;
 init_modules(cassandra, C, Config) ->
     init_module(host(), mod_mam_cassandra_arch, [pm]),
     init_module(host(), mod_mam_cassandra_prefs, [pm]),
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     Config;
 init_modules(odbc_async, C, Config) ->
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
     init_module(host(), mod_mam_odbc_async_writer, [pm, {flush_interval, 1}]), % 1ms
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(odbc_async_pool, C, Config) ->
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
     init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(odbc_mnesia, C, Config) ->
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(odbc_cache, C, Config) ->
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
 init_modules(odbc_async_cache, C, Config) ->
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
     init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_odbc_prefs, [pm]),
@@ -677,12 +687,17 @@ init_modules(odbc_async_cache, C, Config) ->
 init_modules(odbc_mnesia_muc_cache, _, _Config) ->
     skip;
 init_modules(odbc_mnesia_cache, C, Config) ->
-    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C)),
+    init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config.
+
+init_modules_for_muc_light(BackendType, Config) ->
+    dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
+    Config1 = init_modules(BackendType, muc_all, [{muc_domain, "muclight.@HOST@"} | Config]),
+    init_modules(BackendType, pm, [{archive_groupchats, false} | Config1]).
 
 end_modules(C, muc_light, Config) ->
     end_modules(C, generic, Config),
@@ -692,10 +707,16 @@ end_modules(_, _, Config) ->
     [stop_module(host(), M) || M <- mam_modules()],
     Config.
 
-addin_mam_options(disabled_text_search) ->
-    [{full_text_search, false}];
-addin_mam_options(_) ->
-    [].
+muc_domain(Config) ->
+    proplists:get_value(muc_domain, Config, "muc.@HOST@").
+
+addin_mam_options(disabled_text_search, Config) ->
+    [{full_text_search, false} | addin_mam_options(Config)];
+addin_mam_options(_BasicGroup, Config) ->
+    addin_mam_options(Config).
+
+addin_mam_options(Config) ->
+    [{archive_groupchats, proplists:get_value(archive_groupchats, Config, false)}].
 
 mam_modules() ->
     [mod_mam,
@@ -717,10 +738,11 @@ mam_modules() ->
 init_state(_, muc_all, Config) ->
     Config;
 init_state(C, muc_light, Config) ->
+    clean_archives(Config),
     init_state(C, muc04, Config);
-init_state(C, prefs_cases, Config) ->
+init_state(_C, prefs_cases, Config) ->
     Config;
-init_state(C, policy_violation, Config) ->
+init_state(_C, policy_violation, Config) ->
     rpc_apply(mod_mam, set_params,
               [ [{max_result_limit, 5}] ]),
     Config;
@@ -820,6 +842,13 @@ init_per_testcase(C=muc_text_search_request, Config) ->
         end,
 
     skip_if_cassandra(Config, Init);
+init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
+    OrigVal = escalus_ejabberd:rpc(gen_mod, get_module_opt,
+                                   [host(), mod_mam, archive_groupchats, false]),
+    true = escalus_ejabberd:rpc(gen_mod, set_module_opt,
+                                [host(), mod_mam, archive_groupchats, true]),
+    clean_archives(Config),
+    escalus:init_per_testcase(C, [{archive_groupchats_backup, OrigVal} | Config]);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -875,6 +904,11 @@ end_per_testcase(C=muc_querying_for_all_messages, Config) ->
 end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
+end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
+    {value, {_, OrigVal}, Config1} = lists:keytake(archive_groupchats_backup, 1, Config0),
+    true = escalus_ejabberd:rpc(gen_mod, set_module_opt,
+                                [host(), mod_mam, archive_groupchats, OrigVal]),
+    escalus:end_per_testcase(C, Config1);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -1180,44 +1214,87 @@ muc_querying_for_all_messages_with_jid(Config) ->
 
 muc_light_simple(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room2 = muc_light_SUITE:room2(),
-            escalus:send(Alice, muc_light_SUITE:stanza_create_room(Room2, [], [])),
-            muc_light_SUITE:verify_aff_bcast([{Alice, owner}], [{Alice, owner}]),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            Room = <<"testroom">>,
+            given_muc_light_room(Room, Alice, []),
 
-            Room2BinJID = muc_light_SUITE:room_bin_jid(Room2),
-            MsgBody1 = <<"Message 1">>,
-            Id1 = <<"MyID1">>,
-            Stanza1 = escalus_stanza:set_id(
-                        escalus_stanza:groupchat_to(Room2BinJID, MsgBody1), Id1),
-            muc_helper:foreach_occupant(
-              [Alice], Stanza1, muc_light_SUITE:gc_message_verify_fun(Room2, MsgBody1, Id1)),
-            MsgBody2 = <<"Message 2">>,
-            Id2 = <<"MyID2">>,
-            Stanza2 = escalus_stanza:set_id(
-                        escalus_stanza:groupchat_to(Room2BinJID, MsgBody2), Id2),
-            muc_helper:foreach_occupant(
-              [Alice], Stanza2, muc_light_SUITE:gc_message_verify_fun(Room2, MsgBody2, Id2)),
-            escalus:send(Alice, muc_light_SUITE:stanza_aff_set(Room2, [{Bob, member}])),
-            muc_light_SUITE:verify_aff_bcast([{Alice, owner}, {Bob, member}], [{Bob, member}]),
+            M1 = when_muc_light_message_is_sent(Alice, Room,
+                                                <<"Msg 1">>, <<"Id1">>),
+            then_muc_light_message_is_received_by([Alice], M1),
 
-            P = ?config(props, Config),
+            M2 = when_muc_light_message_is_sent(Alice, Room,
+                                                <<"Message 2">>, <<"MyID2">>),
+            then_muc_light_message_is_received_by([Alice], M2),
+
+            Aff = when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
+            then_muc_light_affiliations_are_received_by([Alice, Bob], Aff),
+
             maybe_wait_for_archive(Config),
-
-            ArchiveReqStanza = escalus_stanza:to(stanza_archive_request(P, <<"mlight">>),
-                                                 Room2BinJID),
-            escalus:send(Bob, ArchiveReqStanza),
-            [CreateEvent, Msg1, Msg2, BobAdd] = respond_messages(assert_respond_size(
-                                                          4, wait_archive_respond(P, Bob))),
-
-            #forwarded_message{message_body = MsgBody1} = parse_forwarded_message(Msg1),
-            #forwarded_message{message_body = MsgBody2} = parse_forwarded_message(Msg2),
-
-            verify_archived_muc_light_aff_msg(parse_forwarded_message(CreateEvent),
-                                              [{Alice, owner}], true),
-            verify_archived_muc_light_aff_msg(parse_forwarded_message(BobAdd),
-                                              [{Bob, member}], false)
+            when_archive_query_is_sent(Bob, muc_light_SUITE:room_bin_jid(Room), Config),
+            ExpectedResponse = [{create, [{Alice, owner}]},
+                                {muc_message, Room, Alice, <<"Msg 1">>},
+                                {muc_message, Room, Alice, <<"Message 2">>},
+                                {affiliations, [{Bob, member}]}],
+            then_archive_response_is(Bob, ExpectedResponse, Config)
         end).
+
+muc_light_shouldnt_modify_pm_archive(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Room = <<"testroom2">>,
+            given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+            when_pm_message_is_sent(Alice, Bob, <<"private hi!">>),
+            then_pm_message_is_received(Bob, <<"private hi!">>),
+
+            maybe_wait_for_archive(Config),
+            when_archive_query_is_sent(Alice, undefined, Config),
+            then_archive_response_is(Alice, [{message, Alice, <<"private hi!">>}], Config),
+            when_archive_query_is_sent(Bob, undefined, Config),
+            then_archive_response_is(Bob, [{message, Alice, <<"private hi!">>}], Config),
+
+            M1 = when_muc_light_message_is_sent(Alice, Room,
+                                                <<"Msg 1">>, <<"Id 1">>),
+            then_muc_light_message_is_received_by([Alice, Bob], M1),
+
+            maybe_wait_for_archive(Config),
+            when_archive_query_is_sent(Alice, muc_light_SUITE:room_bin_jid(Room), Config),
+            then_archive_response_is(Alice, [{create, [{Alice, owner}, {Bob, member}]},
+                                             {muc_message, Room, Alice, <<"Msg 1">>}], Config),
+
+            when_archive_query_is_sent(Alice, undefined, Config),
+            then_archive_response_is(Alice, [{message, Alice, <<"private hi!">>}], Config),
+            when_archive_query_is_sent(Bob, undefined, Config),
+            then_archive_response_is(Bob, [{message, Alice, <<"private hi!">>}], Config)
+        end).
+
+muc_light_stored_in_pm_if_allowed_to(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Room = <<"testroom_pm">>,
+            given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+            maybe_wait_for_archive(Config),
+            AliceAffEvent = {affiliations, [{Alice, owner}]},
+            when_archive_query_is_sent(Alice, undefined, Config),
+            then_archive_response_is(Alice, [AliceAffEvent], Config),
+            BobAffEvent = {affiliations, [{Bob, member}]},
+            when_archive_query_is_sent(Bob, undefined, Config),
+            then_archive_response_is(Bob, [BobAffEvent], Config),
+
+            M1 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 1">>, <<"Id 1">>),
+            then_muc_light_message_is_received_by([Alice, Bob], M1),
+
+            maybe_wait_for_archive(Config),
+            MessageEvent = {muc_message, Room, Alice, <<"Msg 1">>},
+            when_archive_query_is_sent(Alice, undefined, Config),
+            then_archive_response_is(Alice, [AliceAffEvent, MessageEvent], Config),
+            when_archive_query_is_sent(Bob, undefined, Config),
+            then_archive_response_is(Bob, [BobAffEvent, MessageEvent], Config)
+        end).
+
+muc_light_room_jid(Room, User) ->
+    RoomJid = muc_light_SUITE:room_bin_jid(Room),
+    UserJid = escalus_utils:get_short_jid(User),
+    <<RoomJid/binary, $/, UserJid/binary>>.
+
 
 retrieve_form_fields(ConfigIn) ->
     escalus_fresh:story(ConfigIn, [{alice, 1}], fun(Alice) ->
@@ -2340,3 +2417,67 @@ text_search_messages() ->
        "pig officia.">>,
      <<"Spare ribs landjaeger pork belly, chuck aliquip turducken beef culpa nostrud.">>
     ].
+
+%% --------- MUC Light stories helpers ----------
+
+when_pm_message_is_sent(Sender, Receiver, Body) ->
+    escalus:send(Sender, escalus_stanza:chat_to(Receiver, Body)).
+
+then_pm_message_is_received(Receiver, Body) ->
+    escalus:assert(is_chat_message, [Body], escalus:wait_for_stanza(Receiver)).
+
+given_muc_light_room(Name, Creator, InitOccupants) ->
+    CreateStanza = muc_light_SUITE:stanza_create_room(Name, [], InitOccupants),
+    escalus:send(Creator, CreateStanza),
+    Affiliations = [{Creator, owner} | InitOccupants],
+    muc_light_SUITE:verify_aff_bcast(Affiliations, Affiliations),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Creator)).
+
+when_muc_light_message_is_sent(Sender, Room, Body, Id) ->
+    RoomJid = muc_light_SUITE:room_bin_jid(Room),
+    Stanza = escalus_stanza:set_id(
+               escalus_stanza:groupchat_to(RoomJid, Body), Id),
+    escalus:send(Sender, Stanza),
+    {Room, Body, Id}.
+
+then_muc_light_message_is_received_by(Users, {Room, Body, Id}) ->
+    F = muc_light_SUITE:gc_message_verify_fun(Room, Body, Id),
+    [ F(escalus:wait_for_stanza(User)) || User <- Users ].
+
+when_muc_light_affiliations_are_set(Sender, Room, Affiliations) ->
+    Stanza = muc_light_SUITE:stanza_aff_set(Room, Affiliations),
+    escalus:send(Sender, Stanza),
+    {Room, Affiliations}.
+
+then_muc_light_affiliations_are_received_by(Users, {_Room, Affiliations}) ->
+    F = muc_light_SUITE:aff_msg_verify_fun(Affiliations),
+    [ F(escalus:wait_for_stanza(User)) || User <- Users ].
+
+when_archive_query_is_sent(Sender, RecipientJid, Config) ->
+	P = ?config(props, Config),
+    Request = case RecipientJid of
+                  undefined -> stanza_archive_request(P, <<"q">>);
+                  _ -> escalus_stanza:to(stanza_archive_request(P, <<"q">>), RecipientJid)
+              end,
+    escalus:send(Sender, Request).
+
+then_archive_response_is(Receiver, Expected, Config) ->
+	P = ?config(props, Config),
+    Response = wait_archive_respond(P, Receiver),
+    Stanzas = respond_messages(assert_respond_size(length(Expected), Response)),
+    ParsedStanzas = [ parse_forwarded_message(Stanza) || Stanza <- Stanzas ],
+    [ assert_archive_element(Element)
+      || Element <- lists:zip(Expected, ParsedStanzas) ].
+
+assert_archive_element({{create, Affiliations}, Stanza}) ->
+    verify_archived_muc_light_aff_msg(Stanza, Affiliations, _IsCreate = true);
+assert_archive_element({{affiliations, Affiliations}, Stanza}) ->
+    verify_archived_muc_light_aff_msg(Stanza, Affiliations, _IsCreate = false);
+assert_archive_element({{muc_message, Room, Sender, Body}, Stanza}) ->
+    FromJid = escalus_utils:jid_to_lower(muc_light_room_jid(Room, Sender)),
+    #forwarded_message{message_body = Body,
+                       delay_from = FromJid} = Stanza;
+assert_archive_element({{message, Sender, Body}, Stanza}) ->
+    FromJid = escalus_utils:jid_to_lower(escalus_utils:get_jid(Sender)),
+    #forwarded_message{message_body = Body, delay_from = FromJid} = Stanza.
+

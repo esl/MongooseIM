@@ -750,7 +750,7 @@ send_rsm_messages(Config) ->
         lists:foreach(fun(N) ->
                               escalus:send(Alice,
                                            escalus_stanza:chat_to(Bob, generate_message_text(N))),
-                              timer:sleep(1)
+                              timer:sleep(5)
                       end, lists:seq(1, 15)),
         %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),

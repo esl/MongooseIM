@@ -195,6 +195,15 @@ archive_id(Server, User)
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam starting", []),
+    case gen_mod:get_opt(archive_groupchats, Opts, undefined) of
+        undefined ->
+            ?WARNING_MSG("mod_mam is enabled without explicit archive_groupchats option value."
+                         " It will default to `false` in one of future releases."
+                         " Please check the mod_mam documentation for more details.", []);
+        _ ->
+            ok
+    end,
+
     compile_params_module(Opts),
     ejabberd_users:start(Host),
     %% `parallel' is the only one recommended here.
@@ -665,12 +674,13 @@ determine_amp_strategy(Strategy, _, _, _, _) ->
                      LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(),
                      Packet :: jlib:xmlel()) -> MaybeMessID :: binary() | undefined.
 handle_package(Dir, ReturnMessID,
-               LocJID=#jid{},
-               RemJID=#jid{},
-               SrcJID=#jid{}, Packet) ->
-    case mod_mam_params:is_archivable_message(?MODULE, Dir, Packet) of
+               LocJID = #jid{},
+               RemJID = #jid{},
+               SrcJID = #jid{}, Packet) ->
+    Host = server_host(LocJID),
+    case mod_mam_params:is_archivable_message(?MODULE, Dir, Packet)
+         andalso should_archive_if_groupchat(Host, exml_query:attr(Packet, <<"type">>)) of
         true ->
-            Host = server_host(LocJID),
             ArcID = archive_id_int(Host, LocJID),
             case is_interesting(Host, LocJID, RemJID, ArcID) of
                 true ->
@@ -684,6 +694,11 @@ handle_package(Dir, ReturnMessID,
         false ->
             undefined
     end.
+
+should_archive_if_groupchat(Host, <<"groupchat">>) ->
+    gen_mod:get_module_opt(Host, ?MODULE, archive_groupchats, true);
+should_archive_if_groupchat(_, _) ->
+    true.
 
 -spec return_external_message_id_if_ok(ReturnMessID :: boolean(),
                                        ArchivingResult :: ok | any(),

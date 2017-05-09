@@ -25,14 +25,26 @@ For now `odbc` backend has very limited support for this feature, while `cassand
 ### Options
 
 * **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak` and `cassandra` are supported.
-* **add_archived_element** (atom, default: `false`) - Add `<archived/>` element from MAM v0.2.
+* **add_archived_element** (boolean, default: `false`) - Add `<archived/>` element from MAM v0.2.
 * **is_archivable_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
-* **host** (string, default: `"conference.@HOST@"`) - MUC host that will be archived if MUC archiving is enabled. 
  **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain.
 * **pm** (list | `false`, default: `[]`) - Override options for archivization of one-to-one messages. If the value of this option is `false`, one-to-one message archive is disabled.
 * **muc** (list | `false`, default: `false`) - Override options for archivization of group chat messages. If the value of this option is `false`, group chat message archive is disabled.
 
-All options described in this document can be overriden for a specific type of messages through `pm` and `muc` options, e.g.:
+**backend**, **add_archived_element** and **is_archivable_message** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
+
+#### PM-specific options
+
+* **archive_groupchats** (boolean, default: `true`) - When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results.
+MongooseIM will print a warning on startup if `pm` MAM is enabled without `archive_groupchats` being explicitly set to a specific value. In one of the future MongooseIM releases this option will default to `false` (as it's more common use case and less DB-consuming) and the warning message will be removed.
+
+#### MUC-specific options
+
+* **host** (string, default: `"conference.@HOST@"`) - MUC host that will be archived if MUC archiving is enabled. 
+
+#### Example
+
+The example below presents how to override common option for `muc` module specifically.
 
 ```erlang
 {mod_mam_meta, [
