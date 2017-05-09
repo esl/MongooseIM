@@ -44,6 +44,7 @@ restore_room(LServer, Host, Name) ->
     {selected, [{Opts}]} ->
             jlib:expr_to_term(Opts);
     {selected, []} ->
+            %% room not found
             error;
     Reason ->
         ?ERROR_MSG("issue=restore_room_failed room=~ts reason=~1000p",
@@ -70,8 +71,14 @@ can_use_nick(LServer, Host, JID, Nick) ->
               "where nick='", SNick, "' "
                 "and host='", SHost, "'"],
     case catch mongoose_rdbms:sql_query(LServer, Query) of
-    {selected, [{DbBinJID}]} -> BinJID == DbBinJID;
-    _ -> true
+        {selected, [{DbBinJID}]} ->
+            BinJID == DbBinJID;
+        {selected, []} ->
+            true;
+        Error ->
+            ?ERROR_MSG("issue=can_use_nick_failed jid=~ts nick=~ts reason=~1000p",
+                       [BinJID, Nick, Error]),
+            true
     end.
 
 get_rooms(LServer, Host) ->
@@ -86,7 +93,7 @@ get_rooms(LServer, Host) ->
                 opts = jlib:expr_to_term(Opts)}
           end, RoomOpts);
     Err ->
-        ?ERROR_MSG("failed to get rooms: ~p", [Err]),
+        ?ERROR_MSG("issue=get_rooms_failed reason=~1000p", [Err]),
         []
     end.
 
@@ -97,8 +104,15 @@ get_nick(LServer, Host, From) ->
     Query = ["select nick from muc_registered where"
               " jid='", SBinJID, "' and host='", SHost, "'"],
     case catch mongoose_rdbms:sql_query(LServer, Query) of
-    {selected, [{Nick}]} -> Nick;
-    _ -> error
+        {selected, [{Nick}]} ->
+            Nick;
+        {selected, []} ->
+            %% not found
+            error;
+        Error ->
+            ?ERROR_MSG("issue=get_nick_failed jid=~ts reason=~1000p",
+                       [BinJID, Error]),
+            error
     end.
 
 set_nick(LServer, Host, From, <<>>) ->
