@@ -1246,9 +1246,9 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
             then_pm_message_is_received(Bob, <<"private hi!">>),
 
             maybe_wait_for_archive(Config),
-            when_archive_query_is_sent(Alice, <<>>, Config),
+            when_archive_query_is_sent(Alice, undefined, Config),
             then_archive_response_is(Alice, [{message, Alice, <<"private hi!">>}], Config),
-            when_archive_query_is_sent(Bob, <<>>, Config),
+            when_archive_query_is_sent(Bob, undefined, Config),
             then_archive_response_is(Bob, [{message, Alice, <<"private hi!">>}], Config),
 
             M1 = when_muc_light_message_is_sent(Alice, Room,
@@ -1260,9 +1260,9 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
             then_archive_response_is(Alice, [{create, [{Alice, owner}, {Bob, member}]},
                                              {muc_message, Room, Alice, <<"Msg 1">>}], Config),
 
-            when_archive_query_is_sent(Alice, <<>>, Config),
+            when_archive_query_is_sent(Alice, undefined, Config),
             then_archive_response_is(Alice, [{message, Alice, <<"private hi!">>}], Config),
-            when_archive_query_is_sent(Bob, <<>>, Config),
+            when_archive_query_is_sent(Bob, undefined, Config),
             then_archive_response_is(Bob, [{message, Alice, <<"private hi!">>}], Config)
         end).
 
@@ -1273,10 +1273,10 @@ muc_light_stored_in_pm_if_allowed_to(Config) ->
 
             maybe_wait_for_archive(Config),
             AliceAffEvent = {affiliations, [{Alice, owner}]},
-            when_archive_query_is_sent(Alice, <<>>, Config),
+            when_archive_query_is_sent(Alice, undefined, Config),
             then_archive_response_is(Alice, [AliceAffEvent], Config),
             BobAffEvent = {affiliations, [{Bob, member}]},
-            when_archive_query_is_sent(Bob, <<>>, Config),
+            when_archive_query_is_sent(Bob, undefined, Config),
             then_archive_response_is(Bob, [BobAffEvent], Config),
 
             M1 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 1">>, <<"Id 1">>),
@@ -1284,9 +1284,9 @@ muc_light_stored_in_pm_if_allowed_to(Config) ->
 
             maybe_wait_for_archive(Config),
             MessageEvent = {muc_message, Room, Alice, <<"Msg 1">>},
-            when_archive_query_is_sent(Alice, <<>>, Config),
+            when_archive_query_is_sent(Alice, undefined, Config),
             then_archive_response_is(Alice, [AliceAffEvent, MessageEvent], Config),
-            when_archive_query_is_sent(Bob, <<>>, Config),
+            when_archive_query_is_sent(Bob, undefined, Config),
             then_archive_response_is(Bob, [BobAffEvent, MessageEvent], Config)
         end).
 
@@ -2455,7 +2455,10 @@ then_muc_light_affiliations_are_received_by(Users, {_Room, Affiliations}) ->
 
 when_archive_query_is_sent(Sender, RecipientJid, Config) ->
 	P = ?config(props, Config),
-    Request = escalus_stanza:to(stanza_archive_request(P, <<"q">>), RecipientJid),
+    Request = case RecipientJid of
+                  undefined -> stanza_archive_request(P, <<"q">>);
+                  _ -> escalus_stanza:to(stanza_archive_request(P, <<"q">>), RecipientJid)
+              end,
     escalus:send(Sender, Request).
 
 then_archive_response_is(Receiver, Expected, Config) ->
