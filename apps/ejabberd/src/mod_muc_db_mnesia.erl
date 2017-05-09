@@ -84,23 +84,22 @@ forget_room(_LServer, Host, Name) ->
     ok.
 
 get_rooms(_Lserver, Host) ->
-    mnesia:dirty_select(
-                 muc_room, [{#muc_room{name_host = {'_', Host}, _ = '_'},
-                             [],
-                             ['$_']}]).
+    Query = [{#muc_room{name_host = {'_', Host}, _ = '_'},
+             [],
+             ['$_']}],
+    mnesia:dirty_select(muc_room, Query).
 
 -spec can_use_nick(ejabberd:server(), ejabberd:server(),
                    ejabberd:jid(), mod_muc:nick()) -> boolean().
 can_use_nick(_LServer, Host, JID, Nick) ->
-    {LUser, LServer, _} = jid:to_lower(JID),
-    LUS = {LUser, LServer},
-    try mnesia:dirty_select(
-                 muc_registered,
-                 [{#muc_registered{us_host = '$1',
-                                   nick = Nick,
-                                   _ = '_'},
-                   [{'==', {element, 2, '$1'}, Host}],
-                   ['$_']}]) of
+    LUS = jid_to_lower_us(JID),
+    can_use_nick_internal(Host, Nick, LUS).
+
+can_use_nick_internal(Host, Nick, LUS) ->
+    Query = [{#muc_registered{us_host = '$1', nick = Nick, _ = '_'},
+             [{'==', {element, 2, '$1'}, Host}],
+             ['$_']}],
+    try mnesia:dirty_select(muc_registered, Query) of
         [] ->
             true;
         [#muc_registered{us_host = {U, _Host}}] ->
@@ -111,8 +110,7 @@ can_use_nick(_LServer, Host, JID, Nick) ->
     end.
 
 get_nick(_LServer, Host, From) ->
-    {LUser, LServer, _} = jid:to_lower(From),
-    LUS = {LUser, LServer},
+    LUS = jid_to_lower_us(From),
     case mnesia:dirty_read(muc_registered, {LUS, Host}) of
         [] ->
             error;
@@ -121,19 +119,17 @@ get_nick(_LServer, Host, From) ->
     end.
 
 set_nick(_LServer, Host, From, Nick) ->
-    {LUser, LServer, _} = jid:to_lower(From),
-    LUS = {LUser, LServer},
+    LUS = jid_to_lower_us(From),
     F = fun () ->
-        set_nick_transaction_body(Host, Nick, LUS)
-    end,
+                set_nick_transaction_body(Host, Nick, LUS)
+        end,
     mnesia:transaction(F).
 
 
 set_nick_transaction_body(Host, <<>>, LUS) ->
     mnesia:delete({muc_registered, {LUS, Host}});
 set_nick_transaction_body(Host, Nick, LUS) ->
-    Allow = is_nick_change_allowed(Host, Nick, LUS),
-    case Allow of
+    case can_use_nick_internal(Host, Nick, LUS) of
         true ->
             mnesia:write(#muc_registered{us_host = {LUS, Host}, nick = Nick}),
             ok;
@@ -141,12 +137,6 @@ set_nick_transaction_body(Host, Nick, LUS) ->
             false
     end.
 
-is_nick_change_allowed(Host, Nick, LUS) ->
-    Query = [{#muc_registered{us_host = '$1', nick = Nick, _ = '_'},
-              [{'==', {element, 2, '$1'}, Host}],
-              ['$_']}],
-    case mnesia:select(muc_registered, Query) of
-        [] -> true;
-        [#muc_registered{us_host = {U, _Host}}] ->
-            U == LUS
-    end.
+jid_to_lower_us(JID) ->
+    {LUser, LServer, _} = jid:to_lower(JID),
+    {LUser, LServer}.
