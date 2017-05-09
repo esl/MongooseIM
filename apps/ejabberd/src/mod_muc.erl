@@ -74,7 +74,6 @@
              role/0,
              affiliation/0
             ]).
--define(BACKEND, mod_muc_db_backend).
 
 -type role() :: moderator | participant | visitor | none.
 -type affiliation() :: admin | owner | member | outcast | none.
@@ -192,20 +191,20 @@ create_instant_room(Host, Name, From, Nick, Opts) ->
 
 
 -spec store_room(ejabberd:server(), ejabberd:server(), room(), list())
-            -> {'aborted',_} | {'atomic',_}.
+            -> {'aborted', _} | {'atomic', _}.
 store_room(ServerHost, Host, Name, Opts) ->
-    ?BACKEND:store_room(ServerHost, Host, Name, Opts).
+    mod_muc_db_backend:store_room(ServerHost, Host, Name, Opts).
 
 
 -spec restore_room(ejabberd:server(), ejabberd:server(), room())
                                     -> 'error' | 'undefined' | [any()].
 restore_room(ServerHost, Host, Name) ->
-    ?BACKEND:restore_room(ServerHost, Host, Name).
+    mod_muc_db_backend:restore_room(ServerHost, Host, Name).
 
 
 -spec forget_room(ejabberd:server(), ejabberd:server(), room()) -> 'ok'.
 forget_room(ServerHost, Host, Name) ->
-    ?BACKEND:forget_room(ServerHost, Host, Name).
+    mod_muc_db_backend:forget_room(ServerHost, Host, Name).
 
 
 -spec process_iq_disco_items(Host :: ejabberd:server(), From :: ejabberd:jid(),
@@ -225,13 +224,13 @@ process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
 can_use_nick(_ServerHost, _Host, _JID, <<>>) ->
     false;
 can_use_nick(ServerHost, Host, JID, Nick) ->
-    ?BACKEND:can_use_nick(ServerHost, Host, JID, Nick).
+    mod_muc_db_backend:can_use_nick(ServerHost, Host, JID, Nick).
 
 set_nick(LServer, Host, From, Nick) ->
-    ?BACKEND:set_nick(LServer, Host, From, Nick).
+    mod_muc_db_backend:set_nick(LServer, Host, From, Nick).
 
 get_nick(LServer, Host, From) ->
-    ?BACKEND:get_nick(LServer, Host, From).
+    mod_muc_db_backend:get_nick(LServer, Host, From).
 
 %%====================================================================
 %% gen_server callbacks
@@ -246,7 +245,7 @@ get_nick(LServer, Host, From) ->
 %%--------------------------------------------------------------------
 -spec init([ejabberd:server() | list(), ...]) -> {'ok', state()}.
 init([Host, Opts]) ->
-    ?BACKEND:init(Host, Opts),
+    mod_muc_db_backend:init(Host, Opts),
     mnesia:create_table(muc_online_room,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, muc_online_room)}]),
@@ -666,7 +665,7 @@ check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
         RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool()) -> 'ok'.
 load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool) ->
     RoomsToLoad =
-    case catch ?BACKEND:get_rooms(ServerHost, Host) of
+    case catch mod_muc_db_backend:get_rooms(ServerHost, Host) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]),
             [];
@@ -704,7 +703,7 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
 start_new_room(Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts) ->
-    case ?BACKEND:restore_room(ServerHost, Host, Room) of
+    case mod_muc_db_backend:restore_room(ServerHost, Host, Room) of
         error ->
             ?DEBUG("MUC: open new room '~s'~n", [Room]),
             mod_muc_room:start(Host, ServerHost, Access,
@@ -884,7 +883,7 @@ iq_get_unique(From) ->
         ejabberd:simple_jid() | ejabberd:jid(), ejabberd:lang())
             -> [jlib:xmlel(), ...].
 iq_get_register_info(Host, From, Lang) ->
-    {LUser, LServer, _} = jid:to_lower(From),
+    {_LUser, LServer, _} = jid:to_lower(From),
     {Nick, Registered} =
         case catch get_nick(LServer, Host, From) of
             {'EXIT', _Reason} ->

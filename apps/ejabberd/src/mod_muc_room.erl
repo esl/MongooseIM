@@ -3830,7 +3830,9 @@ destroy_room(DestroyEl, StateData) ->
     remove_each_occupant_from_room(DestroyEl, StateData),
     case (StateData#state.config)#config.persistent of
         true ->
-            mod_muc:forget_room(StateData#state.server_host, StateData#state.host, StateData#state.room);
+            mod_muc:forget_room(StateData#state.server_host,
+                                StateData#state.host,
+                                StateData#state.room);
         false ->
             ok
     end,

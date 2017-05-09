@@ -54,7 +54,7 @@ init(Host, Opts) ->
     ok.
 
 -spec store_room(ejabberd:server(), ejabberd:server(), mod_muc:room(), list())
-            -> {'aborted',_} | {'atomic',_}.
+            -> {'aborted', _} | {'atomic', _}.
 store_room(_LServer, Host, Name, Opts) ->
     F = fun() ->
                 mnesia:write(#muc_room{name_host = {Name, Host},
@@ -120,35 +120,32 @@ set_nick(_LServer, Host, From, Nick) ->
     {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
     F = fun () ->
-        case Nick of
-            <<"">> ->
-            mnesia:delete({muc_registered, {LUS, Host}}),
-            ok;
-            _ ->
-            Allow = case mnesia:select(
-                       muc_registered,
-                       [{#muc_registered{us_host =
-                                 '$1',
-                             nick = Nick,
-                             _ = '_'},
-                     [{'==', {element, 2, '$1'},
-                       Host}],
-                     ['$_']}]) of
-                    [] -> true;
-                    [#muc_registered{us_host = {U, _Host}}] ->
-                    U == LUS
-                end,
-            if Allow ->
-                mnesia:write(#muc_registered{
-                        us_host = {LUS, Host},
-                        nick = Nick}),
-                ok;
-               true ->
-                false
-            end
-        end
+        set_nick_transaction_body(Host, Nick, LUS)
     end,
     mnesia:transaction(F).
+
+
+set_nick_transaction_body(Host, <<>>, LUS) ->
+    mnesia:delete({muc_registered, {LUS, Host}});
+set_nick_transaction_body(Host, Nick, LUS) ->
+    Allow = is_nick_change_allowed(Host, Nick, LUS),
+    case Allow of
+        true ->
+            mnesia:write(#muc_registered{us_host = {LUS, Host}, nick = Nick}),
+            ok;
+        false ->
+            false
+    end.
+
+is_nick_change_allowed(Host, Nick, LUS) ->
+    Query = [{#muc_registered{us_host = '$1', nick = Nick, _ = '_'},
+              [{'==', {element, 2, '$1'}, Host}],
+              ['$_']}],
+    case mnesia:select(muc_registered, Query) of
+        [] -> true;
+        [#muc_registered{us_host = {U, _Host}}] ->
+            U == LUS
+    end.
 
 -spec update_tables(ejabberd:server()) -> any().
 update_tables(Host) ->
@@ -162,39 +159,43 @@ update_muc_room_table(Host) ->
         Fields ->
             ok;
         [name, opts] ->
-            ?INFO_MSG("Converting muc_room table from {name, opts} format", []),
-            {atomic, ok} = mnesia:create_table(
-                             mod_muc_tmp_table,
-                             [{disc_only_copies, [node()]},
-                              {type, bag},
-                              {local_content, true},
-                              {record_name, muc_room},
-                              {attributes, record_info(fields, muc_room)}]),
-            mnesia:transform_table(muc_room, ignore, Fields),
-            F1 = fun() ->
-                         mnesia:write_lock_table(mod_muc_tmp_table),
-                         mnesia:foldl(
-                           fun(#muc_room{name_host = Name} = R, _) ->
-                                   mnesia:dirty_write(
-                                     mod_muc_tmp_table,
-                                     R#muc_room{name_host = {Name, Host}})
-                           end, ok, muc_room)
-                 end,
-            mnesia:transaction(F1),
-            mnesia:clear_table(muc_room),
-            F2 = fun() ->
-                         mnesia:write_lock_table(muc_room),
-                         mnesia:foldl(
-                           fun(R, _) ->
-                                   mnesia:dirty_write(R)
-                           end, ok, mod_muc_tmp_table)
-                 end,
-            mnesia:transaction(F2),
-            mnesia:delete_table(mod_muc_tmp_table);
+            update_muc_room_table_from_name_opts_format(Host);
         _ ->
             ?INFO_MSG("Recreating muc_room table", []),
             mnesia:transform_table(muc_room, ignore, Fields)
     end.
+
+update_muc_room_table_from_name_opts_format(Host) ->
+    Fields = [name, opts],
+    ?INFO_MSG("Converting muc_room table from {name, opts} format", []),
+    {atomic, ok} = mnesia:create_table(
+                     mod_muc_tmp_table,
+                     [{disc_only_copies, [node()]},
+                      {type, bag},
+                      {local_content, true},
+                      {record_name, muc_room},
+                      {attributes, record_info(fields, muc_room)}]),
+    mnesia:transform_table(muc_room, ignore, Fields),
+    F1 = fun() ->
+                 mnesia:write_lock_table(mod_muc_tmp_table),
+                 mnesia:foldl(
+                   fun(#muc_room{name_host = Name} = R, _) ->
+                           mnesia:dirty_write(
+                             mod_muc_tmp_table,
+                             R#muc_room{name_host = {Name, Host}})
+                   end, ok, muc_room)
+         end,
+    mnesia:transaction(F1),
+    mnesia:clear_table(muc_room),
+    F2 = fun() ->
+                 mnesia:write_lock_table(muc_room),
+                 mnesia:foldl(
+                   fun(R, _) ->
+                           mnesia:dirty_write(R)
+                   end, ok, mod_muc_tmp_table)
+         end,
+    mnesia:transaction(F2),
+    mnesia:delete_table(mod_muc_tmp_table).
 
 -spec update_muc_registered_table(ejabberd:server()) -> any().
 update_muc_registered_table(Host) ->
