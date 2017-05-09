@@ -62,7 +62,7 @@ store_room(_LServer, Host, Name, Opts) ->
         end,
     Result = mnesia:transaction(F),
     case Result of
-        {atomic,_} ->
+        {atomic, _} ->
             ok;
         _ ->
             ?ERROR_MSG("issue=store_room_failed room=~ts", [Name])
@@ -91,7 +91,7 @@ forget_room(_LServer, Host, Name) ->
         end,
     Result = mnesia:transaction(F),
     case Result of
-        {atomic,_} ->
+        {atomic, _} ->
             ejabberd_hooks:run(forget_room, Host, [Host, Name]),
             ok;
         _ ->
@@ -133,7 +133,7 @@ get_nick(_LServer, Host, From) ->
             error;
         [#muc_registered{nick = Nick}] ->
             Nick
-        catch Class:Reason -> 
+        catch Class:Reason ->
             ?ERROR_MSG("issue=get_nick_failed jid=~ts reason=~p:~p",
                        [jid:to_binary(From), Class, Reason]),
             error
@@ -155,7 +155,7 @@ set_nick(_LServer, Host, From, Nick) ->
         end,
     Result = mnesia:transaction(F),
     case Result of
-        {atomic,_} ->
+        {atomic, _} ->
             ok;
         _ ->
             ?ERROR_MSG("issue=set_nick_failed jid=~ts nick=~ts",
@@ -170,7 +170,7 @@ unset_nick(Host, From) ->
         end,
     Result = mnesia:transaction(F),
     case Result of
-        {atomic,_} ->
+        {atomic, _} ->
             ok;
         _ ->
             ?ERROR_MSG("issue=unset_nick_failed jid=~ts",

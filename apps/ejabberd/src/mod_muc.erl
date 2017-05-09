@@ -928,7 +928,7 @@ iq_set_register_info(Host, From, Nick, Lang) ->
 
 -spec process_iq_register_set(ejabberd:server(), ejabberd:jid(),
         jlib:xmlel(), ejabberd:lang())
-            -> {'error', jlib:xmlel()} | {'result',[]}.
+            -> {'error', jlib:xmlel()} | {'result', []}.
 process_iq_register_set(Host, From, SubEl, Lang) ->
     #xmlel{children = Els} = SubEl,
     case xml:get_subtag(SubEl, <<"remove">>) of
