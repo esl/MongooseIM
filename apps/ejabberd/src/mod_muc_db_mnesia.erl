@@ -64,10 +64,13 @@ store_room(_LServer, Host, Name, Opts) ->
 -spec restore_room(ejabberd:server(), ejabberd:server(), mod_muc:room())
                                     -> 'error' | 'undefined' | [any()].
 restore_room(_LServer, Host, Name) ->
-    case catch mnesia:dirty_read(muc_room, {Name, Host}) of
+    try mnesia:dirty_read(muc_room, {Name, Host}) of
         [#muc_room{opts = Opts}] ->
             Opts;
         _ ->
+            error
+        catch Class:Reason ->
+            ?ERROR_MSG("issue=restore_room_failed, reason=~p:~p", [Class, Reason]),
             error
     end.
 
@@ -91,27 +94,30 @@ get_rooms(_Lserver, Host) ->
 can_use_nick(_LServer, Host, JID, Nick) ->
     {LUser, LServer, _} = jid:to_lower(JID),
     LUS = {LUser, LServer},
-    case catch mnesia:dirty_select(
+    try mnesia:dirty_select(
                  muc_registered,
                  [{#muc_registered{us_host = '$1',
                                    nick = Nick,
                                    _ = '_'},
                    [{'==', {element, 2, '$1'}, Host}],
                    ['$_']}]) of
-        {'EXIT', _Reason} ->
-            true;
         [] ->
             true;
         [#muc_registered{us_host = {U, _Host}}] ->
             U == LUS
+        catch Class:Reason ->
+            ?ERROR_MSG("issue=can_use_nick_failed, reason=~p:~p", [Class, Reason]),
+            true
     end.
 
 get_nick(_LServer, Host, From) ->
     {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
     case mnesia:dirty_read(muc_registered, {LUS, Host}) of
-    [] -> error;
-    [#muc_registered{nick = Nick}] -> Nick
+        [] ->
+            error;
+        [#muc_registered{nick = Nick}] ->
+            Nick
     end.
 
 set_nick(_LServer, Host, From, Nick) ->
