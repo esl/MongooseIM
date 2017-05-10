@@ -150,14 +150,18 @@ authorize(Creds) ->
       Creds :: mongoose_credentials:t(),
       R     :: mongoose_credentials:t().
 authorize_loop([], Creds) -> {error, {no_auth_modules, Creds}};
-authorize_loop([M | Modules], Creds) ->
+authorize_loop(Modules, Creds) -> do_authorize_loop(Modules, Creds).
+
+do_authorize_loop([], _Creds) -> {error, not_authorized};
+do_authorize_loop([M | Modules], Creds) ->
     try
         {ok, NewCreds} = M:authorize(Creds),
         {ok, mongoose_credentials:register(NewCreds, M, success)}
     catch
-        _:R -> authorize_loop(Modules,
+        _:R -> do_authorize_loop(Modules,
                               mongoose_credentials:register(Creds, M, {failure, R}))
     end.
+
 
 %% @doc Check if the user and password can login in server.
 -spec check_password(User :: jid:user(),
