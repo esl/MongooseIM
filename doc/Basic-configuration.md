@@ -1,6 +1,6 @@
 ## vars.config
 
-`vars.config` file can be found in `[MongooseIM root]/rel/`. It allows changing the most important settings quickly and without touching `ejabberd.cfg` or `vm.args` files directly. Recommended for basic usage.
+The `vars.config` file can be found under the `[MongooseIM root]/rel/` directory. Change the most important settings quickly and without touching `ejabberd.cfg` or `vm.args` files directly. Recommended for basic usage.
 
 The file contains erlang tuples terminated with period ('.'). For users not familiar with Erlang syntax, here is a quick cheat sheet:
 
@@ -22,7 +22,7 @@ There are 2 types of options: params and features. Unlike params, features can b
     * **Example:** `"[\"localhost\", \"domain2\"]"`
 
 * **host_config** - feature
-    * **Description:** List of specific options for chosen XMPP domains. They will override the global ones. Allowed keys are marked on [Advanced configuration](Advanced-configuration.md) page
+    * **Description:** List of specific options for chosen XMPP domains. They will override the global ones. Allowed keys are marked on the [Advanced configuration](Advanced-configuration.md) page
     * **Syntax:** `"{host_config, \"overridden-domain\", [{key, value}]}."`
     * **Example:** `"{host_config, \"localhost2\", [{auth_method, anonymous}, {allow_multiple_connections, false}]}." `
 
@@ -86,7 +86,7 @@ There are 2 types of options: params and features. Unlike params, features can b
     * **Description:** Path to the authentication script used by `external` auth module. Script API specification can be found in [[External authentication script]].
 
 * **tls_config** - feature
-    * **Description:** Allows enabling StartTLS feature in client-to-server XMPP connections. Just remove '%%' prefix and set path to PEM file containing certificate and (not protected by password) private key in X.509 format.
+    * **Description:** Allows enabling the StartTLS feature in client-to-server XMPP connections. Just remove '%%' prefix and set path to the PEM file containing certificate and (not protected by password) private key in X.509 format.
 
 * **zlib** - feature
     * **Description:** Controls the zlib compression feature for client-to-server XMPP connections. To enable it, remove '%%' prefix. You can define a limit for output data size to prevent killing the server with [zlib bomb](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/). Set it to `unlimited` to bypass the check (**not recommended**).
