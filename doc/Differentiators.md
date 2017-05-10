@@ -14,9 +14,9 @@ MongooseIM provides:
 
 ## Initial differences from the parent project
 
-This project began its life as a fork of ejabberd v.2.1.8 back in 2011, and later underwent major cleanups, refactorizations and optimizations.
+This project began its life as a fork of ejabberd v.2.1.8 back in 2011, and later underwent major cleanup, refactoring and optimization.
 
-Major steps performed at that time:
+Major steps performed at the time:
 
 *   Bringing the project source tree to compliance with OTP project structure recommendations
 *   Swapping `autotools` for the Erlang community-standard build tool `rebar`
