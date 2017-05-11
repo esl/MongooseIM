@@ -1,7 +1,8 @@
 ### Module Description
 Enables [XEP-0198: Stream Management](http://xmpp.org/extensions/xep-0198.html). 
-It is implemented mostly in `ejabberd_c2s`, this module is just a "starter", to supply configuration values to new client connections.
-It also supplies basic session table API and adds new stream feature.
+It is implemented mostly in `ejabberd_c2s`. 
+This module is just a "starter", to supply the configuration values to new client connections.
+It also provides a basic session table API and adds a new stream feature.
 
 ### Options
 
