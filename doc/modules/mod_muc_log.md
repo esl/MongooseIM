@@ -18,7 +18,7 @@ It writes room-related information (configuration) and events (messages, presenc
     * `plaintext`: Just a text file, better suited for processing than HTML.
 * `css_file` (binary or atom, default: `false`):
     * `false`: Uses default styles for HTML logs.
-    * `<<"path to custom CSS file">>`: Links custom CSS inside HTML logs. Please note it won't be copied to logs directory but given path will be linked in HTML files instead.
+    * `<<"path to custom CSS file">>`: Links custom CSS inside HTML logs. Please note it won't be copied to the logs directory but the given path will be linked in HTML files instead.
 * `timezone` (atom, default: `local`):
     * `local`: Uses the local server timezone in dates written into the logs.
     * `universal`: Uses GMT in dates written into the logs.
