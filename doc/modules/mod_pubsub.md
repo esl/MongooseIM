@@ -29,7 +29,8 @@ Such caching might speed up pubsub's performance and can increase the number of 
 E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of `node_pep` when the specified namespace is used.
 * `default_node_config` ([{Key, Value}, ...]): Overrides the default node configuration, regradless of the node plugin.
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
-* `item_publisher` (boolean, default: `false`): When enabled, JID of the publisher will be saved in item metadata. This effectively makes them an owner of this item.
+* `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata. 
+ This effectively makes them an owner of this item.
 
 ### Example Configuration
 
@@ -80,7 +81,7 @@ It handles the standard PubSub case.
 
 Uses the exact same features as the flat plugin but additionally organises nodes in a tree.
 Basically it follows a scheme similar to the filesystem's structure.
-Every user can create nodes in its own home root: e.g `/home/user`.
+Every user can create nodes in their own home root: e.g `/home/user`.
 Each node can contain items and/or sub-nodes.
 
 #### `<<"pep">>`
