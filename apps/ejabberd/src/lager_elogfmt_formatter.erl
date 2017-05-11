@@ -131,10 +131,10 @@ escape_char($\n) -> "\\n";
 escape_char($\t) -> "\\t";
 escape_char($\b) -> "\\b";
 escape_char($\r) -> "\\r";
-escape_char($')  -> "\\'";
-escape_char($")  -> "\\\"";
+escape_char($') -> "\\'";
+escape_char($") -> "\\\"";
 escape_char($\\) -> "\\\\";
-escape_char(C)   -> C.
+escape_char(C) -> C.
 
 %%====================================================================
 %% tests
@@ -149,13 +149,13 @@ severity_test() ->
 msg_test() ->
     Msg = lager_msg:new("\n\t\b\r'\"\\", error, [], []),
     ?assertEqual({"msg",
-                  ["\"", ["\\n","\\t","\\b","\\r","\\'","\\\"","\\\\"], "\""]},
+                  ["\"", ["\\n", "\\t", "\\b", "\\r", "\\'", "\\\"", "\\\\"], "\""]},
                  msg(Msg)).
 
 msg_iolist_test() ->
-    Msg = lager_msg:new(["\"", ["\n\t"],[["\b"]],"\r'\"\\"], error, [], []),
+    Msg = lager_msg:new(["\"", ["\n\t"], [["\b"]], "\r'\"\\"], error, [], []),
     ?assertEqual({"msg",
-                  ["\"", ["\\\"","\\n","\\t","\\b","\\r","\\'","\\\"","\\\\"],
+                  ["\"", ["\\\"", "\\n", "\\t", "\\b", "\\r", "\\'", "\\\"", "\\\\"],
                    "\""]},
                  msg(Msg)).
 
@@ -201,7 +201,7 @@ generic_meta_atom_value_test() ->
 
 generic_meta_dashed_key_test() ->
     Msg = lager_msg:new("msg", error, [{"k-e-y", "value"}], []),
-    ?assertEqual([{"k_e_y", ["\"","value","\""]}], meta(Msg, "myapp")).
+    ?assertEqual([{"k_e_y", ["\"", "value", "\""]}], meta(Msg, "myapp")).
 
 format_ignore_pid_test() ->
     Config = [{app, "myapp"}, {strip_pid, true}],
