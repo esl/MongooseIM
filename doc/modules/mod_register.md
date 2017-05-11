@@ -10,7 +10,7 @@ This module implements [XEP-0077: In-Band Registration](http://xmpp.org/extensio
 * `password_strength` (non-negative integer, default: 0): Specifies minimal entropy of allowed password. 
  Entropy is measured with `ejabberd_auth:entropy/1`.
  Recommended minimum is 32.
- Entropy calculation algorithm is described in a section below.
+ The entropy calculation algorithm is described in a section below.
 * `ip_access` (list of `{deny|allow, StringIP|StringSubnet, default: `[]`): Access list for specified IPs or networks. 
  Default value allows registration from every IP.
 
