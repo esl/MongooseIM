@@ -47,7 +47,7 @@ Also `mod_muc_log` is a logging submodule.
     * `members_by_default` (boolean, default: `true`): All new occupants are members by default, unless they have a different affiliation assigned.
     * `members_only` (boolean, default: `false`): Only users with a member affiliation can join the room.
     * `allow_user_invites` (boolean, default: `false`): Allow ordinary members to send mediated invitations.
-    * `allow_multiple_sessions` (boolean, default: `false`): Allow multiple user's session to use the same nick.
+    * `allow_multiple_sessions` (boolean, default: `false`): Allow multiple user session to use the same nick.
     * `password_protected` (boolean, default: `false`): Room is protected with a password.
     * `password` (binary, default: `<<>>`): Room password is required upon joining. 
      This option has no effect when `password_protected` is `false`.
@@ -55,10 +55,10 @@ Also `mod_muc_log` is a logging submodule.
     * `max_users` (positive integer, default: 200): Maximum user count per room. 
      Admins and the room owner are not affected.
     * `logging` (boolean, default: `false`): Enables logging of room events (messages, presences) to a file on the disk. Uses `mod_muc_log`.
-    * `maygetmemberlist` (list of atoms, default: `[]`): A list of roles and/or privileges that grant privilege to retrieve room's member list like an admin.
+    * `maygetmemberlist` (list of atoms, default: `[]`): A list of roles and/or privileges that enable retrieving the room's member list.
     * `affiliations` (list of `{{<<"user">>, <<"server">>, <<"resource">>}, affiliation}` tuples, default: `[]`): A default list of affiliations set for every new room.
     * `subject` (binary, default: `<<>>`): A default subject for new room.
-    * `subject_author` (binary, default: `<<>>`): A default subject's author's nick.
+    * `subject_author` (binary, default: `<<>>`): A nick name of the default subject's author.
 
 
 ### Example Configuration
