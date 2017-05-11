@@ -1,6 +1,6 @@
 Our contributions to the ecosystem.
 
-## Our software contributions to third-party opensource projects
+## Third-party opensource projects
 
 ### XMPPframework for iOS
 
@@ -31,11 +31,11 @@ Available on: [igniterealtime/Smack](https://github.com/igniterealtime/Smack)
 
 ### Movim
 
-[movim/movim](https://github.com/movim/movim)
+Available on: [movim/movim](https://github.com/movim/movim)
 
 * Docker image for Movim: https://github.com/esl/movim-docker
 
-## Opensource software developped and maintained by Erlang Solutions
+## Software by Erlang Solutions
 
 ### escalus
 
@@ -67,9 +67,9 @@ Apache license 2.0
 
 Please contact us.
 
-### Push notifications server (APNS/FCM)
+### MongoosePush: Push notifications server (APNS/FCM)
 
-Please contact us.
+Available on: [MongoosePush](https://github.com/esl/MongoosePush)
 
 ## Open standards
 
