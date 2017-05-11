@@ -105,7 +105,7 @@ Implements [XEP-0279: Server IP Check)](http://xmpp.org/extensions/xep-0279.html
 Enables [XEP-0198: Stream Management](http://xmpp.org/extensions/xep-0198.html) functionality that defines the active management of an XML stream between two XMPP entities, including features for stanza acknowledgements and stream resumption.
 
 ### [mod_time](../modules/mod_time.md)
-[XEP-0202: Entity Time](http://www.xmpp.org/extensions/xep-0202.html) implementation. With this extensions, clients can get current server time.
+[XEP-0202: Entity Time](http://www.xmpp.org/extensions/xep-0202.html) implementation. With this extensions, clients can get the current server time.
 
 ### [mod_vcard](../modules/mod_vcard.md)
 Provides support for vCards, as specified in [XEP-0054: vcard-temp](http://xmpp.org/extensions/xep-0054.html) and [XEP-0055: Jabber Search](http://xmpp.org/extensions/xep-0055.html).
