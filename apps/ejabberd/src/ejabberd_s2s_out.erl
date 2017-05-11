@@ -233,13 +233,7 @@ open_socket(init, StateData) ->
                                 StateData#state.server,
                                 StateData#state.new,
                                 StateData#state.verify}]),
-    AddrList = get_predefined_addresses(StateData#state.server) ++
-               case ejabberd_s2s:domain_utf8_to_ascii(StateData#state.server) of
-                   false ->
-                       [];
-                   ASCIIAddr ->
-                       get_addr_port(ASCIIAddr)
-               end,
+    AddrList = get_addr_list(StateData#state.server),
     case lists:foldl(fun({Addr, Port}, Acc) ->
                              case Acc of
                                  {ok, Socket} ->
@@ -1334,6 +1328,20 @@ fsm_limit_opts() ->
             [{max_queue, N}];
         _ ->
             []
+    end.
+
+
+-spec get_addr_list(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
+get_addr_list(Server) ->
+    case get_predefined_addresses(Server) of
+        [] ->
+            case ejabberd_s2s:domain_utf8_to_ascii(Server) of
+                false -> [];
+                ASCIIAddr -> get_addr_port(ASCIIAddr)
+            end;
+
+        Addrs ->
+            Addrs
     end.
 
 
