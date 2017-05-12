@@ -371,12 +371,13 @@ search_internal(State, Data) ->
     Filter = eldap:'and'([SearchFilter,
                           eldap_utils:make_filter(Data, UIDs, Op)]),
     case eldap_pool:search(EldapID,
-                           [{base, Base}, {filter, Filter}, {limit, Limit},
-                            {deref_aliases, State#state.deref_aliases},
+                           [{base, Base}, {filter, Filter},
+                            {deref, State#state.deref},
                             {attributes, ReportedAttrs}])
         of
       #eldap_search_result{entries = E} ->
-          search_items(E, State);
+          Limited = lists:nthtail(Limit, E),
+          search_items(Limited, State);
       _ -> error
     end.
 
