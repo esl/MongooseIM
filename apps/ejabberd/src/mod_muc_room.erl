@@ -1036,8 +1036,7 @@ process_presence_error(From, Packet, Lang, StateData) ->
         true ->
             ErrorText
             = <<"This participant is kicked from the room because he sent an error presence">>,
-            expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText)),
-            StateData;
+            expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText));
         _ ->
             StateData
     end.
