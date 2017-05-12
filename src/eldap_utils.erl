@@ -42,7 +42,8 @@
          get_config/2,
          decode_octet_string/3,
          uids_domain_subst/2,
-         singleton_value/1]).
+         singleton_value/1,
+         maybe_b2list/1]).
 
 -include("mongoose.hrl").
 -include("eldap.hrl").
@@ -126,8 +127,8 @@ get_user_part(String, Pattern) ->
 generate_substring_list(Value)->
     Splits = binary:split(Value, <<"*">>, [global]),
     {Acc, S}=case Splits of
-        [<<"">>|T]->{[], eldap_pool:maybe_binary_to_list(T)};
-        [H|T]-> {[{initial, eldap_pool:maybe_binary_to_list(H)}], T}
+        [<<"">>|T]->{[], maybe_b2list(T)};
+        [H|T]-> {[{initial, maybe_b2list(H)}], T}
     end,
     lists:reverse(generate_substring_list(S, Acc)).
 generate_substring_list([<<"">>], Acc)->
@@ -445,3 +446,10 @@ collect_parts_bit([{?N_BIT_STRING, <<Unused, Bits/binary>>}|Rest], Acc, Uacc) ->
     collect_parts_bit(Rest, [Bits|Acc], Unused+Uacc);
 collect_parts_bit([], Acc, Uacc) ->
     list_to_binary([Uacc|lists:reverse(Acc)]).
+
+maybe_b2list(B) when is_binary(B) ->
+  binary_to_list(B);
+maybe_b2list(L) when is_list(L) ->
+  L;
+maybe_b2list(O) ->
+  {error, {unknown_type, O}}.

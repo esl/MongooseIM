@@ -376,7 +376,7 @@ search_internal(State, Data) ->
                             {attributes, ReportedAttrs}])
         of
       #eldap_search_result{entries = E} ->
-          Limited = lists:nthtail(Limit, E),
+          Limited = if length(E) > Limit -> lists:nthtail(Limit, E); true -> E end,
           search_items(Limited, State);
       _ -> error
     end.

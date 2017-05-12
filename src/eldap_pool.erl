@@ -30,8 +30,8 @@
 
 %% API
 -export([start_link/7, stop/1, bind/3, search/2, delete/2, add/3,
-  modify_passwd/3, maybe_binary_to_list/1]).
-
+         modify_passwd/3]).
+-import(eldap_utils, [maybe_b2list/1]).
 -include("mongoose.hrl").
 -include("eldap.hrl").
 
@@ -41,13 +41,13 @@
 
 -spec bind(binary(), _, _) -> any().
 bind(PoolName, DN, Passwd) ->
-  do_request(PoolName, {simple_bind, [maybe_binary_to_list(DN), maybe_binary_to_list(Passwd)]}).
+  do_request(PoolName, {simple_bind, [maybe_b2list(DN), maybe_b2list(Passwd)]}).
 
 parse_search_opts(Opts) ->
   [parse_opt(O) || O <- Opts].
 
-parse_opt({base, Bin}) -> {base, maybe_binary_to_list(Bin)};
-parse_opt({attributes, BinList}) -> {attributes, [maybe_binary_to_list(B) || B <- BinList]};
+parse_opt({base, Bin}) -> {base, maybe_b2list(Bin)};
+parse_opt({attributes, BinList}) -> {attributes, [maybe_b2list(B) || B <- BinList]};
 parse_opt({Atom, List}) -> {Atom, List}.
 
 -spec search(binary(), _) -> any().
@@ -74,12 +74,12 @@ parse_refs(R) -> R.
 
 -spec modify_passwd(binary(), _, _) -> any().
 modify_passwd(PoolName, DN, Passwd) ->
-  do_request(PoolName, {modify_password, [maybe_binary_to_list(DN), maybe_binary_to_list(Passwd)]}).
+  do_request(PoolName, {modify_password, [maybe_b2list(DN), maybe_b2list(Passwd)]}).
 
 
 -spec delete(binary(), _) -> any().
 delete(PoolName, DN) ->
-  case do_request(PoolName, {delete, [maybe_binary_to_list(DN)]}) of
+  case do_request(PoolName, {delete, [maybe_b2list(DN)]}) of
     false -> not_exists;
     R -> R
   end.
@@ -87,25 +87,20 @@ delete(PoolName, DN) ->
 
 -spec add(binary(), _, _) -> any().
 add(PoolName, DN, Attrs) ->
-  do_request(PoolName, {add, [maybe_binary_to_list(DN), parse_add_atrs(Attrs)]}).
+  do_request(PoolName, {add, [maybe_b2list(DN), parse_add_atrs(Attrs)]}).
 
 parse_add_atrs(Attrs) ->
   [parse_add_attr(A) || A <- Attrs].
 
 parse_add_attr({N, List}) ->
-  {maybe_binary_to_list(N), [maybe_binary_to_list(L) || L <- List]}.
-
-maybe_binary_to_list(B) when is_binary(B) ->
-  binary_to_list(B);
-maybe_binary_to_list(L) ->
-  L.
+  {maybe_b2list(N), [maybe_b2list(L) || L <- List]}.
 
 -spec start_link(Name :: binary(), Hosts :: [any()], _, _, _, _, _) -> 'ok'.
 start_link(Name, Hosts, Backups, Port, Rootdn, Passwd, Opts) ->
   PoolName = make_id(Name),
   pg2:create(PoolName),
   lists:foreach(fun (Host) ->
-    case catch eldap:open([maybe_binary_to_list(Host)])
+    case catch eldap:open([maybe_b2list(Host)])
     of
       {ok, Pid} ->
         ldap_authenticate(Pid, Rootdn, Passwd, PoolName);
@@ -117,7 +112,7 @@ start_link(Name, Hosts, Backups, Port, Rootdn, Passwd, Opts) ->
     Hosts).
 
 ldap_authenticate(Handle, Rootdn, Password, PoolName) ->
-  case eldap:simple_bind(Handle, maybe_binary_to_list(Rootdn), maybe_binary_to_list(Password)) of
+  case eldap:simple_bind(Handle, maybe_b2list(Rootdn), maybe_b2list(Password)) of
     ok ->
       ?INFO_MSG("LDAP authentication successful for Rootdn ~p~n", [Rootdn]),
       pg2:join(PoolName, Handle);
