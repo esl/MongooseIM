@@ -146,8 +146,8 @@ start() ->
     gen_mod:start_backend_module(?MODULE, [{backend, cassandra}]),
 
     CacheMissed = opt(cache_missed),
-    DomainLifetime = opt(domain_lifetime_seconds),
-    JidLifetime = opt(jid_lifetime_seconds),
+    DomainLifetime = opt(domain_lifetime_seconds) * 1000,
+    JidLifetime = opt(jid_lifetime_seconds) * 1000,
     MaxJids = opt(max_jids),
 
     ejabberd_hooks:add(register_subhost, global, ?MODULE, register_subhost, 90),
