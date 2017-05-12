@@ -18,6 +18,7 @@
                   csv,
                   cuesport,
                   eredis,
+                  eldap,
                   exml,
                   exometer_core,
                   exometer_report_graphite,
