@@ -55,24 +55,25 @@ stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
 for_domain(Domain) when is_binary(Domain) ->
-    cache_tab:lookup(?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end).
+    ets_cache:lookup(?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end).
 
 insert_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
-    cache_tab:insert(?DOMAIN_TAB, Domain, Host, fun() -> put_domain(Domain, Host) end).
+    ets_cache:update(?DOMAIN_TAB, Domain, {ok, Host}, fun() -> put_domain(Domain, Host) end).
 
 delete_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
-    cache_tab:delete(?DOMAIN_TAB, Domain, fun() -> delete_domain(Domain, Host) end).
+    delete_domain(Domain, Host),
+    ets_cache:delete(?DOMAIN_TAB, Domain).
 
 for_jid(#jid{} = Jid) -> for_jid(jid:to_lower(Jid));
 for_jid({_, _, _} = Jid) ->
     BinJid = jid:to_binary(Jid),
     LookupInDB = fun(BJid) -> fun() -> get_session(BJid) end end,
-    case cache_tab:lookup(?JID_TAB, BinJid, LookupInDB(BinJid)) of
+    case ets_cache:lookup(?JID_TAB, BinJid, LookupInDB(BinJid)) of
         {ok, _} = Result -> Result;
         Other ->
             case jid:to_bare(Jid) of
                 Jid -> Other;
-                BareJid -> cache_tab:lookup(?JID_TAB, BinJid, LookupInDB(jid:to_binary(BareJid)))
+                BareJid -> ets_cache:lookup(?JID_TAB, BinJid, LookupInDB(jid:to_binary(BareJid)))
             end
     end.
 
@@ -80,18 +81,19 @@ insert_for_jid(#jid{} = Jid, Host) -> insert_for_jid(jid:to_lower(Jid), Host);
 insert_for_jid({_, _, _} = Jid, Host) when is_binary(Host) ->
     lists:foreach(
       fun(BinJid) ->
-              cache_tab:insert(?JID_TAB, BinJid, Host, fun() -> put_session(BinJid, Host) end)
+              ets_cache:update(?JID_TAB, BinJid, {ok, Host}, fun() -> put_session(BinJid, Host) end)
       end,
       normalize_jid(Jid)).
 
 clear_cache_for_jid(Jid) when is_binary(Jid) ->
-    cache_tab:dirty_delete(?JID_TAB, Jid).
+    ets_cache:delete(?JID_TAB, Jid).
 
 delete_for_jid(#jid{} = Jid, Host) -> delete_for_jid(jid:to_lower(Jid), Host);
 delete_for_jid({_, _, _} = Jid, Host) when is_binary(Host) ->
     lists:foreach(
       fun(BinJid) ->
-              cache_tab:delete(?JID_TAB, BinJid, fun() -> delete_session(BinJid, Host) end)
+              delete_session(BinJid, Host),
+              ets_cache:delete(?JID_TAB, BinJid)
       end,
       normalize_jid(Jid)).
 
@@ -153,15 +155,15 @@ start() ->
     ejabberd_hooks:add(user_available_hook, Host, ?MODULE, user_present, 90),
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
 
-    cache_tab:new(?DOMAIN_TAB, [{cache_missed, CacheMissed}, {life_time, DomainLifetime}]),
-    cache_tab:new(?JID_TAB, [{cache_missed, CacheMissed}, {life_time, JidLifetime},
+    ets_cache:new(?DOMAIN_TAB, [{cache_missed, CacheMissed}, {life_time, DomainLifetime}]),
+    ets_cache:new(?JID_TAB, [{cache_missed, CacheMissed}, {life_time, JidLifetime},
                              {max_size, MaxJids}]).
 
 stop() ->
     Host = opt(global_host),
 
-    cache_tab:delete(?JID_TAB),
-    cache_tab:delete(?DOMAIN_TAB),
+    ets_cache:delete(?JID_TAB),
+    ets_cache:delete(?DOMAIN_TAB),
 
     ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
     ejabberd_hooks:delete(user_available_hook, Host, ?MODULE, user_present, 90),
