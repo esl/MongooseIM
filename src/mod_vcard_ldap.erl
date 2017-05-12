@@ -79,7 +79,7 @@
          search_reported_attrs = [] :: [binary()],
          search_operator            :: 'or' | 'and',
          binary_search_fields       :: [binary()],
-         deref_aliases = never      :: never | searching | finding | always,
+         deref = neverDerefAliases  :: neverDerefAliases | derefInSearching | derefFindingBaseObj | derefAlways,
          matches = 0                :: non_neg_integer()}).
 
 -define(VCARD_MAP,
@@ -239,7 +239,7 @@ find_ldap_user(User, State) ->
       {ok, EldapFilter} ->
           case eldap_pool:search(EldapID,
                                  [{base, Base}, {filter, EldapFilter},
-                                  {deref_aliases, State#state.deref_aliases},
+                                  {deref, State#state.deref},
                                   {attributes, VCardAttrs}])
               of
             #eldap_search_result{entries = [E | _]} -> E;
@@ -523,7 +523,7 @@ parse_options(Host, Opts) ->
            dn = Cfg#eldap_config.dn,
            password = Cfg#eldap_config.password,
            base = Cfg#eldap_config.base,
-           deref_aliases = Cfg#eldap_config.deref_aliases,
+           deref = Cfg#eldap_config.deref,
            uids = UIDs, vcard_map = VCardMap,
            vcard_map_attrs = VCardMapAttrs,
            user_filter = UserFilter, search_filter = SearchFilter,

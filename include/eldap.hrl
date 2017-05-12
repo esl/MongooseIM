@@ -53,5 +53,5 @@
                        dn = <<"">> :: binary(),
                        password = <<"">> :: binary(),
                        base = <<"">> :: binary(),
-                       deref_aliases = never :: never | searching |
-                                                finding | always}).
+                       deref = neverDerefAliases :: neverDerefAliases | derefInSearching |
+                       derefFindingBaseObj | derefAlways}).

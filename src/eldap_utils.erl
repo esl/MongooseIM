@@ -302,12 +302,12 @@ get_config(Host, Opts) ->
     Base = get_opt({ldap_base, Host}, Opts,
                    fun iolist_to_binary/1,
                    <<"">>),
-    DerefAliases = get_opt({deref_aliases, Host}, Opts,
-                           fun(never) -> never;
-                              (searching) -> searching;
-                              (finding) -> finding;
-                              (always) -> always
-                           end, never),
+    DerefAliases = get_opt({deref, Host}, Opts,
+                               fun(never) -> neverDerefAliases;
+                                    (searching) -> derefInSearching;
+                                    (finding) -> derefFindingBaseObj;
+                                    (always) -> derefAlways
+                                end, neverDerefAliases),
     #eldap_config{servers = Servers,
                   backups = Backups,
                   tls_options = [{encrypt, Encrypt},
@@ -318,7 +318,7 @@ get_config(Host, Opts) ->
                   dn = RootDN,
                   password = Password,
                   base = Base,
-                  deref_aliases = DerefAliases}.
+                  deref = DerefAliases}.
 
 -spec singleton_value(list()) -> {binary(), binary()} | false.
 singleton_value([{K, [V]}]) ->

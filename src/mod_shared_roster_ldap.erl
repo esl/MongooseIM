@@ -69,8 +69,7 @@
          base = <<"">>                                :: binary(),
          password = <<"">>                            :: binary(),
          uid = <<"">>                                 :: binary(),
-         deref_aliases = never                        :: never | searching |
-         finding | always,
+         deref = neverDerefAliases  :: neverDerefAliases | derefInSearching | derefFindingBaseObj | derefAlways,
          group_attr = <<"">>                          :: binary(),
          group_desc = <<"">>                          :: binary(),
          user_desc = <<"">>                           :: binary(),
@@ -339,7 +338,7 @@ eldap_search(State, FilterParseArgs, AttributesList) ->
                                    [{base, State#state.base},
                                     {filter, EldapFilter},
                                     {timeout, ?LDAP_SEARCH_TIMEOUT},
-                                    {deref_aliases, State#state.deref_aliases},
+                                    {deref, State#state.deref},
                                     {attributes, AttributesList}])
             of
                 #eldap_search_result{entries = Es} ->
@@ -592,7 +591,7 @@ parse_options(Host, Opts) ->
            dn = Cfg#eldap_config.dn,
            password = Cfg#eldap_config.password,
            base = Cfg#eldap_config.base,
-           deref_aliases = Cfg#eldap_config.deref_aliases,
+           deref = Cfg#eldap_config.deref,
            uid = UIDAttr,
            group_attr = GroupAttr, group_desc = GroupDesc,
            user_desc = UserDesc, user_uid = UserUID,
