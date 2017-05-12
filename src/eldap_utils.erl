@@ -126,8 +126,8 @@ get_user_part(String, Pattern) ->
 generate_substring_list(Value)->
     Splits = binary:split(Value, <<"*">>, [global]),
     {Acc, S}=case Splits of
-        [<<"">>|T]->{[], T};
-        [H|T]-> {[{initial, H}], T}
+        [<<"">>|T]->{[], eldap_pool:maybe_binary_to_list(T)};
+        [H|T]-> {[{initial, eldap_pool:maybe_binary_to_list(H)}], T}
     end,
     lists:reverse(generate_substring_list(S, Acc)).
 generate_substring_list([<<"">>], Acc)->
@@ -160,7 +160,7 @@ make_filter(Data, UIDs, Op) ->
                            _ when Value /= <<"">> ->
                     case binary:match(Value, <<"*">>) of
                         nomatch -> [eldap:equalityMatch(Name, Value)];
-                        _ -> [eldap:substrings(Name, generate_substring_list(Value))]
+                        _ -> [eldap:substrings(binary_to_list(Name), generate_substring_list(Value))]
                     end;
                            _ ->
                                []

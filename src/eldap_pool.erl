@@ -30,9 +30,10 @@
 
 %% API
 -export([start_link/7, stop/1, bind/3, search/2, delete/2, add/3,
-         modify_passwd/3]).
+  modify_passwd/3, maybe_binary_to_list/1]).
 
 -include("mongoose.hrl").
+-include("eldap.hrl").
 
 %%====================================================================
 %% API
@@ -40,82 +41,122 @@
 
 -spec bind(binary(), _, _) -> any().
 bind(PoolName, DN, Passwd) ->
-    do_request(PoolName, {bind, [DN, Passwd]}).
+  do_request(PoolName, {simple_bind, [maybe_binary_to_list(DN), maybe_binary_to_list(Passwd)]}).
 
+parse_search_opts(Opts) ->
+  [parse_opt(O) || O <- Opts].
+
+parse_opt({base, Bin}) -> {base, maybe_binary_to_list(Bin)};
+parse_opt({attributes, BinList}) -> {attributes, [maybe_binary_to_list(B) || B <- BinList]};
+parse_opt({Atom, List}) -> {Atom, List}.
 
 -spec search(binary(), _) -> any().
 search(PoolName, Opts) ->
-    do_request(PoolName, {search, [Opts]}).
+  parse_search_result(do_request(PoolName, {search, [parse_search_opts(Opts)]})).
+
+parse_search_result({ok, #eldap_search_result{entries = Entries, referrals = Refs}}) ->
+  #eldap_search_result{entries = parse_entries(Entries), referrals = parse_refs(Refs)};
+parse_search_result(R) ->
+   R.
+
+parse_entries(Entries) ->
+  [#eldap_entry{object_name = list_to_binary(Obj), attributes = parse_attrs(Attrs)} ||
+    #eldap_entry{object_name = Obj, attributes = Attrs} <- Entries].
+
+parse_attrs(Attrs) ->
+  [{list_to_binary(Name), parse_values(Values)} || {Name, Values} <- Attrs].
+
+parse_values(Values) ->
+  [list_to_binary(V) || V <- Values].
+
+parse_refs(R) -> R.
 
 
 -spec modify_passwd(binary(), _, _) -> any().
 modify_passwd(PoolName, DN, Passwd) ->
-    do_request(PoolName, {modify_passwd, [DN, Passwd]}).
+  do_request(PoolName, {modify_password, [maybe_binary_to_list(DN), maybe_binary_to_list(Passwd)]}).
 
 
 -spec delete(binary(), _) -> any().
 delete(PoolName, DN) ->
-    case do_request(PoolName, {delete, [DN]}) of
-        false -> not_exists;
-        R -> R
-    end.
+  case do_request(PoolName, {delete, [maybe_binary_to_list(DN)]}) of
+    false -> not_exists;
+    R -> R
+  end.
 
 
 -spec add(binary(), _, _) -> any().
 add(PoolName, DN, Attrs) ->
-    do_request(PoolName, {add, [DN, Attrs]}).
+  do_request(PoolName, {add, [maybe_binary_to_list(DN), parse_add_atrs(Attrs)]}).
 
+parse_add_atrs(Attrs) ->
+  [parse_add_attr(A) || A <- Attrs].
+
+parse_add_attr({N, List}) ->
+  {maybe_binary_to_list(N), [maybe_binary_to_list(L) || L <- List]}.
+
+maybe_binary_to_list(B) when is_binary(B) ->
+  binary_to_list(B);
+maybe_binary_to_list(L) ->
+  L.
 
 -spec start_link(Name :: binary(), Hosts :: [any()], _, _, _, _, _) -> 'ok'.
 start_link(Name, Hosts, Backups, Port, Rootdn, Passwd, Opts) ->
-    PoolName = make_id(Name),
-    pg2:create(PoolName),
-    lists:foreach(fun (Host) ->
-                          ID = list_to_binary(erlang:ref_to_list(make_ref())),
-                          case catch eldap:start_link(ID, [Host | Backups],
-                                                      Port, Rootdn, Passwd,
-                                                      Opts)
-                              of
-                            {ok, Pid} -> pg2:join(PoolName, Pid);
-                            Err ->
-                                  ?INFO_MSG("Err = ~p", [Err]),
-                                  error
-                          end
-                  end,
-                  Hosts).
+  PoolName = make_id(Name),
+  pg2:create(PoolName),
+  lists:foreach(fun (Host) ->
+    case catch eldap:open([maybe_binary_to_list(Host)])
+    of
+      {ok, Pid} ->
+        ldap_authenticate(Pid, Rootdn, Passwd, PoolName);
+      {error, Err} ->
+        ?ERROR_MSG("LDAP connection failed with reason: ~p", [Err]),
+        error
+    end
+                end,
+    Hosts).
 
+ldap_authenticate(Handle, Rootdn, Password, PoolName) ->
+  case eldap:simple_bind(Handle, maybe_binary_to_list(Rootdn), maybe_binary_to_list(Password)) of
+    ok ->
+      ?INFO_MSG("LDAP authentication successful for Rootdn ~p~n", [Rootdn]),
+      pg2:join(PoolName, Handle);
+    {error, Reason} = Err ->
+      ?ERROR_MSG("LDAP authentication unsuccessful with readon: ~p", [Reason]),
+      Err
+  end.
 
 -spec stop(binary()) -> 'ok'.
 stop(Name) ->
-    Pids = pg2:get_local_members(make_id(Name)),
-    lists:foreach(fun (P) ->
-                          ok = pg2:leave(make_id(Name), P),
-                          eldap:close(P)
-                  end, Pids).
+  Pids = pg2:get_local_members(make_id(Name)),
+  lists:foreach(fun (P) ->
+    ok = pg2:leave(make_id(Name), P),
+    eldap:close(P)
+                end, Pids).
 
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
--type f() :: add | bind | delete | modify_passwd | search.
+-type f() :: add | bind | delete | modify_password | search.
 -spec do_request(Name :: binary(), {f(), [any(), ...]}) -> any().
 do_request(Name, {F, Args}) ->
-    case pg2:get_closest_pid(make_id(Name)) of
-      Pid when is_pid(Pid) ->
-          case catch apply(eldap, F, [Pid | Args]) of
-            {'EXIT', {timeout, _}} ->
-                ?ERROR_MSG("LDAP request failed: timed out", []);
-            {'EXIT', Reason} ->
-                ?ERROR_MSG("LDAP request failed: eldap:~p(~p)~nReason: ~p",
-                           [F, Args, Reason]),
-                {error, Reason};
-            Reply -> Reply
-          end;
-      Err -> Err
-    end.
+  case pg2:get_closest_pid(make_id(Name)) of
+    Pid when is_pid(Pid) ->
+      case catch apply(eldap, F, [Pid | Args]) of
+        {'EXIT', {timeout, _}} ->
+          ?ERROR_MSG("LDAP request failed: timed out", []);
+        {'EXIT', Reason} ->
+          ?ERROR_MSG("LDAP request failed: eldap:~p(~p)~nReason: ~p",
+            [F, Args, Reason]),
+          {error, Reason};
+        Reply -> Reply
+      end;
+    Err -> Err
+  end.
 
 
 -spec make_id(binary()) -> atom().
 make_id(Name) ->
-    binary_to_atom(<<"eldap_pool_", Name/binary>>, utf8).
+  binary_to_atom(<<"eldap_pool_", Name/binary>>, utf8).
