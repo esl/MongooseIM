@@ -161,7 +161,8 @@ make_filter(Data, UIDs, Op) ->
                            _ when Value /= <<"">> ->
                     case binary:match(Value, <<"*">>) of
                         nomatch -> [eldap:equalityMatch(Name, Value)];
-                        _ -> [eldap:substrings(binary_to_list(Name), generate_substring_list(Value))]
+                        _ -> [eldap:substrings(binary_to_list(Name),
+                          generate_substring_list(Value))]
                     end;
                            _ ->
                                []

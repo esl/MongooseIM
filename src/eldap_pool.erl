@@ -96,7 +96,7 @@ parse_add_attr({N, List}) ->
   {maybe_b2list(N), [maybe_b2list(L) || L <- List]}.
 
 -spec start_link(Name :: binary(), Hosts :: [any()], _, _, _, _, _) -> 'ok'.
-start_link(Name, Hosts, Backups, Port, Rootdn, Passwd, Opts) ->
+start_link(Name, Hosts, _Backups, _Port, Rootdn, Passwd, _Opts) ->
   PoolName = make_id(Name),
   pg2:create(PoolName),
   lists:foreach(fun (Host) ->
