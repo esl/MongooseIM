@@ -79,7 +79,8 @@
          search_reported_attrs = [] :: [binary()],
          search_operator            :: 'or' | 'and',
          binary_search_fields       :: [binary()],
-         deref = neverDerefAliases  :: neverDerefAliases | derefInSearching | derefFindingBaseObj | derefAlways,
+         deref = neverDerefAliases  :: neverDerefAliases | derefInSearching
+                                     | derefFindingBaseObj | derefAlways,
          matches = 0                :: non_neg_integer()}).
 
 -define(VCARD_MAP,

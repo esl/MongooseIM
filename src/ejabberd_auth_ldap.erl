@@ -77,7 +77,10 @@
         ufilter = <<"">>       :: binary(),
         sfilter = <<"">>       :: binary(),
         lfilter                :: {any(), any()} | undefined,
-        deref = neverDerefAliases  :: neverDerefAliases | derefInSearching | derefFindingBaseObj | derefAlways,
+        deref =                neverDerefAliases  :: neverDerefAliases |
+                                                     derefInSearching |
+                                                     derefFindingBaseObj |
+                                                     derefAlways,
         dn_filter              :: binary() | undefined,
         dn_filter_attrs = []   :: [binary()]
        }).

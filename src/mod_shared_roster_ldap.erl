@@ -69,7 +69,10 @@
          base = <<"">>                                :: binary(),
          password = <<"">>                            :: binary(),
          uid = <<"">>                                 :: binary(),
-         deref = neverDerefAliases  :: neverDerefAliases | derefInSearching | derefFindingBaseObj | derefAlways,
+         deref =                   neverDerefAliases  :: neverDerefAliases |
+                                                         derefInSearching |
+                                                         derefFindingBaseObj |
+                                                         derefAlways,
          group_attr = <<"">>                          :: binary(),
          group_desc = <<"">>                          :: binary(),
          user_desc = <<"">>                           :: binary(),
