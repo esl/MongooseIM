@@ -44,7 +44,7 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 maybe_reroute(drop) -> drop;
-maybe_reroute({_From, To, _Packet} = FPacket) ->
+maybe_reroute({_From, To, _Acc} = FPacket) ->
     LocalHost = opt(local_host),
     GlobalHost = opt(global_host),
     Cookie = opt(cookie),
@@ -55,7 +55,8 @@ maybe_reroute({_From, To, _Packet} = FPacket) ->
     end.
 
 maybe_unwrap_message(drop) -> drop;
-maybe_unwrap_message({_From, _To, Packet} = FPacket) ->
+maybe_unwrap_message({_From, _To, Acc} = FPacket) ->
+    Packet = mongoose_acc:get(to_send, Acc),
     Cookie = opt(cookie),
     case {exml_query:attr(Packet, <<"type">>), exml_query:attr(Packet, <<"distrib">>)} of
         {<<"error">>, Cookie} -> unwrap_error_message(FPacket);
@@ -93,38 +94,58 @@ lookup_recipients_host(#jid{lserver = HostAddressedTo} = To, LocalHost, GlobalHo
         _ -> mod_global_distrib_mapping:for_domain(HostAddressedTo)
     end.
 
-unwrap_error_message({_From, _To, #xmlel{children = [Child, Error]}}) ->
+unwrap_error_message({_From, _To, Acc}) ->
+    #xmlel{children = [Child, Error]} = mongoose_acc:get(to_send, Acc),
     ToBin = exml_query:attr(Child, <<"from">>),
     FromBin = exml_query:attr(Child, <<"to">>),
     UpdatedAttrs = lists:ukeysort(1, [{<<"from">>, FromBin}, {<<"to">>, ToBin},
                                       {<<"type">>, <<"error">>} | Child#xmlel.attrs]),
     UpdatedChild = Child#xmlel{attrs = UpdatedAttrs, children = Child#xmlel.children ++ [Error]},
+
     ?DEBUG("Unwrapping error message from=~s [~s] to=~s [~s]",
            [FromBin, jid:to_binary(_From), ToBin, jid:to_binary(_To)]),
-    ejabberd_router:route(jid:from_binary(FromBin), jid:from_binary(ToBin), UpdatedChild),
+
+    From = jid:from_binary(FromBin),
+    To = jid:from_binary(ToBin),
+
+    NewAcc = mongoose_acc:update_element(Acc, UpdatedChild, From, To),
+    ejabberd_router:route(From, To, NewAcc),
     drop.
 
-unwrap_message({_From, _To, #xmlel{children = [Child]}}) ->
+unwrap_message({_From, _To, Acc}) ->
+    #xmlel{children = [Child]} = mongoose_acc:get(to_send, Acc),
     From = jid:from_binary(exml_query:attr(Child, <<"from">>)),
     To = jid:from_binary(exml_query:attr(Child, <<"to">>)),
+
     ?DEBUG("Unwrapping message from=~s [~s] to=~s [~s]",
            [exml_query:attr(Child, <<"from">>), jid:to_binary(_From),
             exml_query:attr(Child, <<"to">>), jid:to_binary(_To)]),
-    ejabberd_router:route(From, To, Child),
+
+    NewAcc = mongoose_acc:update_element(Acc, Child, From, To),
+    ejabberd_router:route(From, To, NewAcc),
     drop.
 
-wrap_message(Cookie, LocalHost, TargetHost, {From, To, Packet}) ->
-    wrap_message(Cookie, LocalHost, TargetHost, jlib:replace_from_to(From, To, Packet));
-wrap_message(Cookie, LocalHost, TargetHost, Child) ->
+wrap_message(Cookie, LocalHost, TargetHost, {From, To, Acc}) ->
+    Packet = mongoose_acc:get(to_send, Acc),
+    NewPacket = jlib:replace_from_to(From, To, Packet),
+    NewAcc = mongoose_acc:update_element(Acc, NewPacket, From, To),
+    wrap_message(Cookie, LocalHost, TargetHost, NewAcc);
+wrap_message(Cookie, LocalHost, TargetHost, Acc) ->
+    Child = mongoose_acc:get(to_send, Acc),
     WrappedMessage = #xmlel{name = <<"message">>,
                             attrs = [{<<"distrib">>, Cookie},
                                      {<<"from">>, LocalHost},
                                      {<<"to">>, TargetHost}],
                             children = [Child]},
+
     ?DEBUG("Wrapping message from=~s [~s] to=~s [~s]",
            [exml_query:attr(Child, <<"from">>), LocalHost,
             exml_query:attr(Child, <<"to">>), TargetHost]),
-    ejabberd_router:route(jid:from_binary(LocalHost), jid:from_binary(TargetHost), WrappedMessage),
+
+    From = jid:from_binary(LocalHost),
+    To = jid:from_binary(TargetHost),
+    NewAcc = mongoose_acc:update_element(Acc, WrappedMessage, From, To),
+    ejabberd_router:route(From, To, NewAcc),
     drop.
 
 opt(Key) ->

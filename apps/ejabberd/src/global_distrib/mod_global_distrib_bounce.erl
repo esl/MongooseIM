@@ -50,7 +50,8 @@ remove_message4(Acc, From, _To, Packet) ->
     Acc.
 
 maybe_resend_message(drop) -> drop;
-maybe_resend_message({_From, To, Packet} = FPacket) ->
+maybe_resend_message({_From, To, Acc} = FPacket) ->
+    Packet = mongoose_acc:get(to_send, Acc),
     case exml_query:attr(Packet, <<"type">>) of
         <<"error">> ->
             StorageKey = storage_key(To, Packet),
@@ -59,7 +60,7 @@ maybe_resend_message({_From, To, Packet} = FPacket) ->
                     ets:delete(?MODULE, StorageKey),
                     FPacket;
                 [{_, StoredPacket, _TTL}] ->
-                    resend_message(StorageKey, StoredPacket),
+                    resend_message(Acc, StorageKey, StoredPacket),
                     drop;
                 [] ->
                     FPacket
@@ -69,7 +70,8 @@ maybe_resend_message({_From, To, Packet} = FPacket) ->
     end.
 
 maybe_store_message(drop) -> drop;
-maybe_store_message({_From, _To, Packet} = FPacket) ->
+maybe_store_message({_From, _To, Acc} = FPacket) ->
+    Packet = mongoose_acc:get(to_send, Acc),
     case exml_query:attr(Packet, <<"distrib_ttl">>) of
         undefined -> store_message(FPacket);
         _ -> FPacket
@@ -95,19 +97,23 @@ stop() ->
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, maybe_store_message, 80),
     ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_resend_message, 1).
 
-resend_message(StorageKey, StoredPacket) ->
+resend_message(Acc, StorageKey, StoredPacket) ->
     TTL = ets:update_counter(?MODULE, StorageKey, {3, -1}),
     FromBin = exml_query:attr(StoredPacket, <<"from">>),
     ToBin = exml_query:attr(StoredPacket, <<"to">>),
+    From = jid:from_binary(FromBin),
+    To = jid:from_binary(ToBin),
     ?DEBUG("Scheduling resend of message from=~s to=~s retries_left=~B", [FromBin, ToBin, TTL]),
     mod_global_distrib_mapping:clear_cache_for_jid(ToBin),
-    timer:apply_after(opt(resend_after_ms), ejabberd_router, route,
-                      [jid:from_binary(FromBin), jid:from_binary(ToBin), StoredPacket]).
+    NewAcc = mongoose_acc:update_element(Acc, StoredPacket, From, To),
+    timer:apply_after(opt(resend_after_ms), ejabberd_router, route, [From, To, NewAcc]).
 
-store_message({From, To, Packet0}) ->
+store_message({From, To, Acc}) ->
+    Packet0 = mongoose_acc:get(to_send, Acc),
     Packet = jlib:replace_from_to(From, To, maybe_set_id(Packet0)),
+    NewAcc = mongoose_acc:update_element(Acc, Packet, From, To),
     ets:insert_new(?MODULE, {storage_key(From, Packet), Packet, opt(max_retries)}),
-    {From, To, Packet}.
+    {From, To, NewAcc}.
 
 maybe_set_id(Packet) ->
     case exml_query:attr(Packet, <<"id">>) of

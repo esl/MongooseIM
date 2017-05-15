@@ -13,7 +13,7 @@
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
--export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
+-export([from_element/1, from_map/1, update/2, is_acc/1, require/2, update_element/4]).
 -export([strip/1]).
 -export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
 -export([to_element/1]).
@@ -101,8 +101,8 @@ from_kv(K, V) ->
 from_element(El) ->
     #xmlel{name = Name, attrs = Attrs} = El,
     Type = exml_query:attr(El, <<"type">>, undefined),
-    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
-        timestamp => os:timestamp(), ref => make_ref()
+    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs,
+        type => Type, timestamp => os:timestamp(), ref => make_ref()
         }.
 
 -spec from_element(xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
@@ -118,6 +118,12 @@ from_map(M) ->
 -spec update(t(), map() | t()) -> t().
 update(Acc, M) ->
     maps:merge(Acc, M).
+
+-spec update_element(t(), xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
+update_element(Acc, Element, From, To) ->
+    update(Acc, #{to_send => Element, from_jid => From, to_jid => To,
+                  from => jid:to_binary(From), to => jid:to_binary(To),
+                  name => Element#xmlel.name, attrs => Element#xmlel.attrs}).
 
 %% @doc convert to map so that we can pattern-match on it
 -spec to_map(t()) -> map()|{error, cant_convert_to_map}.
@@ -253,4 +259,3 @@ read_children(Acc, [#xmlel{} = Chld|Tail]) ->
     end;
 read_children(Acc, [_|Tail]) ->
     read_children(Acc, Tail).
-
