@@ -633,8 +633,8 @@ definitions:
       ask:
         type: string
         description: |
-          Tells whether one of us has asked the other for subscription to presence info and
-          is waiting for approval. Possible states:
+          Tells whether one of us has asked the other for subscription to presence info and is waiting for approval. 
+          Possible states:
           * none
           * out - I asked the contact and am waiting for his approval
           * in - my contact asked me, it is up to me to decide
