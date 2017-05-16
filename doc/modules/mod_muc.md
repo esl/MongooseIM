@@ -29,7 +29,7 @@ Also `mod_muc_log` is a logging submodule.
 * `user_presence_shaper` (atom, default: `none`): Shaper for user presences processed by a room (global for the room).
 * `max_user_conferences` (non-negative, default: 10): Specifies the number of rooms that a user can occupy simultaneously.
 * `http_auth_pool` (atom, default: `none`): If an external HTTP service is chosen to check passwords for password-protected rooms, this option specifies the HTTP pool name to use (see [External HTTP Authentication](#external-http-authentication) below).
-* `load_permanent_rooms_at_startup` (boolean, default: false) - Load all rooms at startup (can be not safe with a lot of rooms, that's why disabled).
+* `load_permanent_rooms_at_startup` (boolean, default: false) - Load all rooms at startup (can be unsafe when there are many rooms, that's why disabled).
 * `hibernate_timeout` (timeout, default: `90000`): Timeout (in milliseconds) defining the inactivity period after which the room's process should be hibernated.
 * `hibernated_room_check_interval` (timeout, default: `infinity`): Interval defining how often the hibernated rooms will be checked (a timer is global for a node).
 * `hibernated_room_timeout` (timeout, default: `inifitniy`): A time after which a hibernated room is stopped (deeply hibernated).
