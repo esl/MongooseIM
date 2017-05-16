@@ -135,7 +135,7 @@ stop(Name) ->
 %%====================================================================
 
 -type f() :: add | bind | delete | modify_password | search.
--spec do_request(Name :: binary(), {f(), [any(), ...]}) -> any().
+-spec do_request(Name :: string(), {f(), [any(), ...]}) -> any().
 do_request(Name, {F, Args}) ->
   case pg2:get_closest_pid(make_id(Name)) of
     Pid when is_pid(Pid) ->
