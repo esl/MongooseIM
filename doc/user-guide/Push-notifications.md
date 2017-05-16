@@ -16,7 +16,7 @@ So let's get to it, shall we?
 ### Overall component architecture
 
 The components that make push notifications possible in MongooseIM add up to the following architecture:
-![](push_notifications_components.svg)
+![](PushNotificationscomponents.png)
 
 The diagram lists three domains in total - two for MongooseIM and one for [MongoosePush][]. Note that this separation is not required, all three components can be on the same host with the same domain. 
 
