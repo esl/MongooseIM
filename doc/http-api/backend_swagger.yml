@@ -280,7 +280,7 @@ paths:
             items:
               $ref: '#/definitions/ContactDetails'
     post:
-      description: "Adds a user to contact list."
+      description: "Adds a user to a contact list."
       tags:
         - "Contacts"
       parameters:
@@ -300,7 +300,7 @@ paths:
                 type: string
       responses:
         204:
-          description: "The user was added to contacts list."
+          description: "The user was added to a contacts list."
   /contacts/{user}/{contact}:
     parameters:
       - in: path
@@ -349,12 +349,10 @@ paths:
         required: true
         type: string
     put:
-      description: "An administrative action to set roster entries and
-      two-way subscriptions. There are two possible actions: 'connect'
-      sets roster entries and performs subsciption in both ways, thus
-      effectively connecting the two users; 'disconnect' removes them from
-      each other's roster. The operation involves many stages and is not
-      atomic (can succeed partially)."
+      description: "An administrative action to set roster entries and two-way subscriptions. 
+      There are two possible actions: 'connect' sets roster entries and performs subsciption in both ways, thus
+      effectively connecting the two users; 'disconnect' removes them from each other's roster. 
+      The operation involves many stages and is not atomic (can succeed partially)."
       tags:
         - "Contacts"
       parameters:
