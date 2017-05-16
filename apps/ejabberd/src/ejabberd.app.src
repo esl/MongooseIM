@@ -28,6 +28,7 @@
                   lasse,
                   mnesia,
                   mochijson2,
+                  observer_cli,
                   pa,
                   poolboy,
                   public_key,
