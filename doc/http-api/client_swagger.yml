@@ -221,7 +221,7 @@ paths:
             items:
               $ref: '#/definitions/ContactDetails'
     post:
-      description: "Adds a user to contact list."
+      description: "Adds a user to a contact list."
       tags:
         - "Contacts"
       parameters:
@@ -234,7 +234,7 @@ paths:
                 type: string
       responses:
         204:
-          description: "The user was added to contacts list."
+          description: "The user was added to a contact list."
   /contacts/{contact}:
     put:
       description: "Manage subscription"
