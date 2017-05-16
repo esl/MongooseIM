@@ -7,12 +7,13 @@ Currently, the module supports only the S3 backend using [AWS Signature Version 
 
 ### Options
 
+* **iqdisc** (default: `one_queue`)
 * **host** (string, default: `"upload.@HOST@"`): Subdomain for the upload service to reside under. `@HOST@` is replaced with each served domain.
 * **backend** (atom, default: `s3`) - Backend to use for generating slots. Currently only `s3` can be used.
 * **expiration_time** (integer, default: `60`) - Duration (in seconds) after which the generated `PUT` URL will become invalid.
 * **token_bytes** (integer, default: `32`) - Number of random bytes of a token that will be used in a generated URL. 
  The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in URL will be 64 characters long.
-* **max_file_size** (integer, default: 10 MB) - Maximum file size (in bytes) accepted by the module. Disabled if set to `undefined`.
+* **max_file_size** (integer, default: 10485760 (10 MB)) - Maximum file size (in bytes) accepted by the module. Disabled if set to `undefined`.
 * **s3** (list, default: unset) - Options specific to S3 backend.
 
 #### S3 backend options

@@ -3,7 +3,7 @@ This module implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xe
 It's a common XMPP group chat solution. 
 This extension consists of two Erlang modules: `mod_muc` and `mod_muc_room`, the latter being the room code itself. 
 Note that only `mod_muc` needs to be enabled in the configuration file. 
-Also  `mod_muc_log` is a logging submodule.
+Also `mod_muc_log` is a logging submodule.
 
 ### Options
 * `host` (string, default: `"conference.@HOST@"`): Subdomain for MUC service to reside under. 
@@ -21,15 +21,15 @@ Also  `mod_muc_log` is a logging submodule.
 * `max_room_desc` (atom or positive integer, default: `infinite`): Maximum room description length.
 * `min_message_interval` (non-negative integer, default: 0): Minimal interval (in seconds) between messages processed by the room.
 * `min_presence_interval` (non-negative integer, default: 0): Minimal interval (in seconds) between presences processed by the room.
-* `max_user` (positive integer, default: 200): Absolute maximum user count per room on the node.
-* `max_users_admin_threshold` (positive integer, default: 5): Absolute maximum administrator count per room on the node.
+* `max_users` (positive integer, default: 200): Absolute maximum user count per room on the node.
+* `max_users_admin_threshold` (positive integer, default: 5): When the server checks if a new user can join a room and they are an admin, `max_users_admin_threshold` is added to `max_users` during occupant limit check.
 * `user_message_shaper` (atom, default: `none`): Shaper for user messages processed by a room (global for the room).
 * `user_presence_shaper` (atom, default: `none`): Shaper for user presences processed by a room (global for the room).
 * `max_user_conferences` (non-negative, default: 10): Specifies the number of rooms that a user can occupy simultaneously.
 * `http_auth_pool` (atom, default: `none`): If an external HTTP service is chosen to check passwords for password-protected rooms, this option specifies the HTTP pool name to use (see [External HTTP Authentication](#external-http-authentication) below).
 * `hibernate_timeout` (timeout, default: `90000`): Timeout (in milliseconds) defining the inactivity period after which the room's process should be hibernated.
-* `hibernated_room_check_interval` (timeout, default: `infinity`): Interval defining how often the hibernated rooms will be checked.
-* `hibernated_room_timeout` (timeout, default: `inifitniy`): A time after which a hibernated room is stopped (deeply hibernated). 
+* `hibernated_room_check_interval` (timeout, default: `infinity`): Interval defining how often the hibernated rooms will be checked (a timer is global for a node).
+* `hibernated_room_timeout` (timeout, default: `inifitniy`): A time after which a hibernated room is stopped (deeply hibernated).
  See [MUC performance optimisation](#performance-optimisations).
 * `default_room_options` (list of key-value tuples, default: `[]`): List of room configuration options to be overridden in the initial state.
     * `title` (binary, default: `<<>>`): Room title, short free text.
@@ -37,7 +37,7 @@ Also  `mod_muc_log` is a logging submodule.
     * `allow_change_subj` (boolean, default: `true`): Allow all occupants to change the room subject.
     * `allow_query_users` (boolean, default: `true`): Allow occupants to send IQ queries to other occupants.
     * `allow_private_messages` (boolean, default: `true`): Allow private messaging between occupants.
-    * `allow_visitor_status` (boolean, default: `true`): Allow occupants to use text statuses in presences. 
+    * `allow_visitor_status` (boolean, default: `true`): Allow occupants to use text statuses in presences.
      When disabled, text is removed by the room before broadcasting.
     * `allow_visitor_nickchange` (boolean, default: `true`): Allow occupants to change nicknames.
     * `public` (boolean, default: `true`): Room is included in the list available via Service Discovery.
@@ -47,6 +47,7 @@ Also  `mod_muc_log` is a logging submodule.
     * `members_by_default` (boolean, default: `true`): All new occupants are members by default, unless they have a different affiliation assigned.
     * `members_only` (boolean, default: `false`): Only users with a member affiliation can join the room.
     * `allow_user_invites` (boolean, default: `false`): Allow ordinary members to send mediated invitations.
+    * `allow_multiple_sessions` (boolean, default: `false`): Allow multiple user session to use the same nick.
     * `password_protected` (boolean, default: `false`): Room is protected with a password.
     * `password` (binary, default: `<<>>`): Room password is required upon joining. 
      This option has no effect when `password_protected` is `false`.
@@ -54,6 +55,10 @@ Also  `mod_muc_log` is a logging submodule.
     * `max_users` (positive integer, default: 200): Maximum user count per room. 
      Admins and the room owner are not affected.
     * `logging` (boolean, default: `false`): Enables logging of room events (messages, presences) to a file on the disk. Uses `mod_muc_log`.
+    * `maygetmemberlist` (list of atoms, default: `[]`): A list of roles and/or privileges that enable retrieving the room's member list.
+    * `affiliations` (list of `{{<<"user">>, <<"server">>, <<"resource">>}, affiliation}` tuples, default: `[]`): A default list of affiliations set for every new room.
+    * `subject` (binary, default: `<<>>`): A default subject for new room.
+    * `subject_author` (binary, default: `<<>>`): A nick name of the default subject's author.
 
 
 ### Example Configuration
@@ -83,7 +88,7 @@ This optimisation works only for persistent rooms as only these can be restored 
 The improvement works as follows:
 1. All room processes are traversed at a chosen `hibernated_room_check_interval`.
 1. If a `hibernated_room_timeout` is exceeded, a "stop" signal is sent to a unused room.
-1. The room's process is stopped only if there is no online users or if the only one is its owner.
+1. The room's process is stopped only if there are no online users or if the only one is its owner.
 If the owner is online, a presence of a type unavailable is sent to it indicating that the room's process is being terminated.
 
 The room's process can be recreated on demand, for example when a presence sent to it, or the owner wants to add more users to the room.

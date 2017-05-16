@@ -3,7 +3,7 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 
 ### Options
 
-* `iqdisc`
+* `iqdisc` (default: `one_queue`)
 * `host` (string, default: `"vjud.@HOST@"`): Domain of the vCard User Directory, used for searching.
  `@HOST@` is replaced with the domain(s) supported by the cluster.
 * `search` (boolean, default: `true`): Enables/disables the domain set in previous option. 
@@ -20,6 +20,8 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
  For the default setting, please see `[MongooseIM root]/apps/ejabberd/src/mod_vcard_ldap.erl`, line 96.
 * `ldap_search_reported` (list of `{SearchField, VCardField}`, default: see description): Mappings between the human-readable search fields and VCard fields. 
  For the default setting, please see `[MongooseIM root]/apps/ejabberd/src/mod_vcard_ldap.erl`, line 109.
+* `ldap_search_operator` (`or` | `and`, default: `and`): A default operator used for search query items.
+* `ldap_binary_search_fields` (list of binaries, default: `[]`): A list of search fields, which values should be Base64-encoded by MongooseIM before sending to LDAP.
 
 ### Example Configuration
 ```
@@ -27,6 +29,6 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
               {search_all_hosts, true},
               {matches, 1},
               {search, true},
-               {host, "directory.example.com"}
+              {host, "directory.example.com"}
              ]}
 ```
