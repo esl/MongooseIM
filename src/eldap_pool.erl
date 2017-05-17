@@ -39,7 +39,6 @@
 %% API
 %%====================================================================
 
--spec bind(binary(), _, _) -> any().
 bind(PoolName, DN, Passwd) ->
   do_request(PoolName, {simple_bind, [maybe_b2list(DN), maybe_b2list(Passwd)]}).
 
@@ -50,7 +49,6 @@ parse_opt({base, Bin}) -> {base, maybe_b2list(Bin)};
 parse_opt({attributes, BinList}) -> {attributes, [maybe_b2list(B) || B <- BinList]};
 parse_opt({Atom, List}) -> {Atom, List}.
 
--spec search(binary(), _) -> any().
 search(PoolName, Opts) ->
   parse_search_result(do_request(PoolName, {search, [parse_search_opts(Opts)]})).
 
@@ -72,12 +70,10 @@ parse_values(Values) ->
 parse_refs(R) -> R.
 
 
--spec modify_passwd(binary(), _, _) -> any().
 modify_passwd(PoolName, DN, Passwd) ->
   do_request(PoolName, {modify_password, [maybe_b2list(DN), maybe_b2list(Passwd)]}).
 
 
--spec delete(binary(), _) -> any().
 delete(PoolName, DN) ->
   case do_request(PoolName, {delete, [maybe_b2list(DN)]}) of
     false -> not_exists;
@@ -85,7 +81,6 @@ delete(PoolName, DN) ->
   end.
 
 
--spec add(binary(), _, _) -> any().
 add(PoolName, DN, Attrs) ->
   do_request(PoolName, {add, [maybe_b2list(DN), parse_add_atrs(Attrs)]}).
 
@@ -95,7 +90,6 @@ parse_add_atrs(Attrs) ->
 parse_add_attr({N, List}) ->
   {maybe_b2list(N), [maybe_b2list(L) || L <- List]}.
 
--spec start_link(Name :: binary(), Hosts :: [any()], _, _, _, _, _) -> 'ok'.
 start_link(Name, Hosts, _Backups, _Port, Rootdn, Passwd, _Opts) ->
   PoolName = make_id(Name),
   pg2:create(PoolName),
@@ -121,7 +115,6 @@ ldap_authenticate(Handle, Rootdn, Password, PoolName) ->
       Err
   end.
 
--spec stop(binary()) -> 'ok'.
 stop(Name) ->
   Pids = pg2:get_local_members(make_id(Name)),
   lists:foreach(fun (P) ->
@@ -134,8 +127,6 @@ stop(Name) ->
 %% Internal functions
 %%====================================================================
 
--type f() :: add | bind | delete | modify_password | search.
--spec do_request(Name :: string(), {f(), [any(), ...]}) -> any().
 do_request(Name, {F, Args}) ->
   case pg2:get_closest_pid(make_id(Name)) of
     Pid when is_pid(Pid) ->
@@ -152,6 +143,5 @@ do_request(Name, {F, Args}) ->
   end.
 
 
--spec make_id(binary()) -> atom().
 make_id(Name) ->
   binary_to_atom(<<"eldap_pool_", Name/binary>>, utf8).
