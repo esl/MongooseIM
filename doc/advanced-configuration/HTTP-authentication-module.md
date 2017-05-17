@@ -1,7 +1,7 @@
 
 ## Overview
 
-The purpose of this module is to connect with an external REST API and delegate the authentication operations to it whenever possible. 
+The purpose of this module is to connect with an external REST API and delegate the authentication operations to it whenever possible.
 The component must implement the API described in one of the next sections for `ejabberd_auth_http` to work out of the box.
 
 The module can be especially useful for users maintaining their own central user database which is shared with other services. It fits perfectly when the client application uses a custom authentication token and MongooseIM has to validate it externally.
@@ -10,7 +10,7 @@ The module can be especially useful for users maintaining their own central user
 
 ### How to enable
 
-For full reference please check [Advanced-configuration#authentication](../Advanced-configuration.md#authentication). 
+For a full reference please check [Advanced-configuration#authentication](../Advanced-configuration.md#authentication).
 The simplest way is to just replace the default `auth_method` option in `rel/files/ejabberd.cfg` with `{auth_method, http}`.
 
 Enabling the module **is not enough!** 
@@ -18,8 +18,8 @@ Please follow instructions below.
 
 ### Configuration options
 
-`ejabberd_auth_http` requires some parameters to function properly. 
-The following options can be set in `auth_opts` tuple in `rel/files/ejabberd.cfg`:
+`ejabberd_auth_http` requires some parameters to function properly.
+The following options can be set in the `auth_opts` tuple in `rel/files/ejabberd.cfg`:
 
 * `host` (mandatory, `string`) - consists of protocol, hostname (or IP) and port (optional). Examples:
     * `{host, "http://localhost:12000"}`
@@ -35,7 +35,7 @@ Example:
 
 ## SCRAM support
 
-`ejabberd_auth_http` can use the SCRAM method. 
+`ejabberd_auth_http` can use the SCRAM method.
 When SCRAM is enabled, the passwords sent to the auth service are serialised and the same serialised format is expected when fetching a password from the component.
 
 It is transparent when MongooseIM is responsible for all DB operations such as password setting, account creation etc.
@@ -68,12 +68,12 @@ For the best integration, the return code range should not exceed the list below
 
 Whenever the specification says "anything else", service should use one of the codes from the list above.
 
-Some requests consider multiple return codes a "success". 
+Some requests consider multiple return codes a "success".
 It is up to the server-side developer to pick one of the codes.
 
 ### HTTP header `Content-Length`
 
-**IMPORTANT:** The authentication server MUST include a `Content-Length` HTTP header in the response. 
+**IMPORTANT:** The authentication server MUST include a `Content-Length` HTTP header in the response.
 A body can be missing in the first data chunk read from a socket, leading to strange authentication errors.
 
 ### Method `register`
@@ -115,8 +115,8 @@ A body can be missing in the first data chunk read from a socket, leading to str
 
 ### Method `set_password`
 
-* **Description:** Must set user's password in the internal database to a provided value. 
- The value should not be transformed (except for URL-decoding) before writing into DB.
+* **Description:** Must set user's password in the internal database to a provided value.
+ The value should not be transformed (except for URL-decoding) before writing into the DB.
 * **HTTP method:** POST
 * **Type:** mandatory when `mod_register` is enabled
 * **Return values:**
