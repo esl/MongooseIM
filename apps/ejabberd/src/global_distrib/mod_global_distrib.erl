@@ -47,10 +47,10 @@ maybe_reroute(drop) -> drop;
 maybe_reroute({_From, To, _Acc} = FPacket) ->
     LocalHost = opt(local_host),
     GlobalHost = opt(global_host),
-    Cookie = opt(cookie),
+    % Cookie = opt(cookie),
     case lookup_recipients_host(To, LocalHost, GlobalHost) of
         {ok, LocalHost} -> FPacket;
-        {ok, TargetHost} -> wrap_message(Cookie, LocalHost, TargetHost, FPacket);
+        {ok, TargetHost} -> mod_global_distrib_sender:send(TargetHost, FPacket), drop;
         _ -> FPacket
     end.
 
@@ -70,7 +70,9 @@ maybe_unwrap_message({_From, _To, Acc} = FPacket) ->
 
 deps(Opts) ->
     Deps0 = [{mod_global_distrib_mapping, Opts, hard},
-             {mod_global_distrib_disco, Opts, hard}],
+             {mod_global_distrib_disco, Opts, hard},
+             {mod_global_distrib_receiver, Opts, hard},
+             {mod_global_distrib_sender, Opts, hard}],
     case proplists:get_value(bounce, Opts, []) of
         false -> Deps0;
         BounceOpts -> [{mod_global_distrib_bounce, BounceOpts ++ Opts, hard} | Deps0]

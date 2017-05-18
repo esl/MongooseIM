@@ -542,6 +542,8 @@ process_term(Term, State) ->
             add_option(outgoing_s2s_options, {Methods, Timeout}, State);
         {{s2s_addr, Host}, Addr} ->
             add_option({s2s_addr, list_to_binary(Host)}, Addr, State);
+        {{global_distrib_addr, Host}, Addr} ->
+            add_option({global_distrib_addr, list_to_binary(Host)}, Addr, State);
         {s2s_dns_options, PropList} ->
             add_option(s2s_dns_options, PropList, State);
         {s2s_use_starttls, Port} ->
