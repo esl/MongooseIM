@@ -56,9 +56,9 @@ init(_Host, _Opts) ->
 
 -spec store_room(ejabberd:server(), ejabberd:server(), mod_muc:room(), list())
             -> {'aborted', _} | {'atomic', _}.
-store_room(_LServer, Host, Name, Opts) ->
+store_room(_ServerHost, MucHost, RoomName, Opts) ->
     F = fun() ->
-                mnesia:write(#muc_room{name_host = {Name, Host},
+                mnesia:write(#muc_room{name_host = {RoomName, MucHost},
                                        opts = Opts})
         end,
     Result = mnesia:transaction(F),
@@ -66,55 +66,55 @@ store_room(_LServer, Host, Name, Opts) ->
         {atomic, _} ->
             ok;
         _ ->
-            ?ERROR_MSG("issue=store_room_failed room=~ts", [Name])
+            ?ERROR_MSG("issue=store_room_failed room=~ts", [RoomName])
     end,
     Result.
 
 
--spec restore_room(ejabberd:server(), ejabberd:server(), mod_muc:room())
-                                    -> 'error' | 'undefined' | [any()].
-restore_room(_LServer, Host, Name) ->
-    try mnesia:dirty_read(muc_room, {Name, Host}) of
+restore_room(_ServerHost, MucHost, RoomName) ->
+    try mnesia:dirty_read(muc_room, {RoomName, MucHost}) of
         [#muc_room{opts = Opts}] ->
-            Opts;
-        _ ->
-            error
+            {ok, Opts};
+        [] ->
+            {error, room_not_found};
+        Other ->
+            {error, Other}
         catch Class:Reason ->
             ?ERROR_MSG("issue=restore_room_failed room=~ts reason=~p:~p",
-                       [Name, Class, Reason]),
-            error
+                       [RoomName, Class, Reason]),
+            {error, {Class, Reason}}
     end.
 
 -spec forget_room(ejabberd:server(), ejabberd:server(), mod_muc:room()) -> 'ok'.
-forget_room(_LServer, Host, Name) ->
+forget_room(_ServerHost, MucHost, RoomName) ->
     F = fun() ->
-                mnesia:delete({muc_room, {Name, Host}})
+                mnesia:delete({muc_room, {RoomName, MucHost}})
         end,
     Result = mnesia:transaction(F),
     case Result of
         {atomic, _} ->
-            ejabberd_hooks:run(forget_room, Host, [Host, Name]),
+            ejabberd_hooks:run(forget_room, MucHost, [MucHost, RoomName]),
             ok;
         _ ->
-            ?ERROR_MSG("issue=forget_room_failed room=~ts", [Name])
+            ?ERROR_MSG("issue=forget_room_failed room=~ts", [RoomName])
     end,
     ok.
 
-get_rooms(_Lserver, Host) ->
-    Query = [{#muc_room{name_host = {'_', Host}, _ = '_'},
+get_rooms(_Lserver, MucHost) ->
+    Query = [{#muc_room{name_host = {'_', MucHost}, _ = '_'},
              [],
              ['$_']}],
     mnesia:dirty_select(muc_room, Query).
 
 -spec can_use_nick(ejabberd:server(), ejabberd:server(),
                    ejabberd:jid(), mod_muc:nick()) -> boolean().
-can_use_nick(_LServer, Host, JID, Nick) ->
+can_use_nick(_ServerHost, MucHost, JID, Nick) ->
     LUS = jid_to_lower_us(JID),
-    can_use_nick_internal(Host, Nick, LUS).
+    can_use_nick_internal(MucHost, Nick, LUS).
 
-can_use_nick_internal(Host, Nick, LUS) ->
+can_use_nick_internal(MucHost, Nick, LUS) ->
     Query = [{#muc_registered{us_host = '$1', nick = Nick, _ = '_'},
-             [{'==', {element, 2, '$1'}, Host}],
+             [{'==', {element, 2, '$1'}, MucHost}],
              ['$_']}],
     try mnesia:dirty_select(muc_registered, Query) of
         [] ->
@@ -127,27 +127,27 @@ can_use_nick_internal(Host, Nick, LUS) ->
             false
     end.
 
-get_nick(_LServer, Host, From) ->
+get_nick(_ServerHost, MucHost, From) ->
     LUS = jid_to_lower_us(From),
-    try mnesia:dirty_read(muc_registered, {LUS, Host}) of
+    try mnesia:dirty_read(muc_registered, {LUS, MucHost}) of
         [] ->
-            error;
+            {error, not_registered};
         [#muc_registered{nick = Nick}] ->
-            Nick
+            {ok, Nick}
         catch Class:Reason ->
             ?ERROR_MSG("issue=get_nick_failed jid=~ts reason=~p:~p",
                        [jid:to_binary(From), Class, Reason]),
-            error
+            {error, {Class, Reason}}
     end.
 
-set_nick(_LServer, Host, From, <<>>) ->
+set_nick(_ServerHost, _MucHost, _From, <<>>) ->
     {error, should_not_be_empty};
-set_nick(_LServer, Host, From, Nick) ->
+set_nick(_ServerHost, MucHost, From, Nick) ->
     LUS = jid_to_lower_us(From),
     F = fun () ->
-            case can_use_nick_internal(Host, Nick, LUS) of
+            case can_use_nick_internal(MucHost, Nick, LUS) of
                 true ->
-                    Object = #muc_registered{us_host = {LUS, Host}, nick = Nick},
+                    Object = #muc_registered{us_host = {LUS, MucHost}, nick = Nick},
                     mnesia:write(Object),
                     ok;
                 false ->
@@ -163,10 +163,10 @@ set_nick(_LServer, Host, From, Nick) ->
             {error, ErrorResult}
     end.
 
-unset_nick(_LServer, Host, From) ->
+unset_nick(_ServerHost, MucHost, From) ->
     LUS = jid_to_lower_us(From),
     F = fun () ->
-            mnesia:delete({muc_registered, {LUS, Host}})
+            mnesia:delete({muc_registered, {LUS, MucHost}})
         end,
     case mnesia:transaction(F) of
         {atomic, _} ->

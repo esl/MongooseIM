@@ -21,13 +21,13 @@
 init(_Host, _Opts) ->
     ok.
 
-store_room(LServer, Host, Name, Opts) ->
-    SHost = mongoose_rdbms:escape(Host),
-    SName = mongoose_rdbms:escape(Name),
+store_room(ServerHost, MucHost, RoomName, Opts) ->
+    SHost = mongoose_rdbms:escape(MucHost),
+    SName = mongoose_rdbms:escape(RoomName),
     BinOpts = jlib:term_to_expr(Opts),
     SBinOpts = mongoose_rdbms:escape(BinOpts),
     Result = mongoose_rdbms:sql_transaction(
-      LServer,
+      ServerHost,
       fun() ->
           rdbms_queries:update_t(<<"muc_room">>,
                [<<"name">>, <<"host">>, <<"opts">>],
@@ -39,55 +39,54 @@ store_room(LServer, Host, Name, Opts) ->
             ok;
         _ ->
             ?ERROR_MSG("issue=store_room_failed room=~ts reason=~1000p",
-                       [Name, Result])
+                       [RoomName, Result])
     end,
     Result.
 
-restore_room(LServer, Host, Name) ->
-    SHost = mongoose_rdbms:escape(Host),
-    SName = mongoose_rdbms:escape(Name),
+restore_room(ServerHost, MucHost, RoomName) ->
+    SHost = mongoose_rdbms:escape(MucHost),
+    SName = mongoose_rdbms:escape(RoomName),
     Query = ["select opts from muc_room "
               "where name='", SName, "' "
                 "and host='", SHost, "'"],
-    case (catch mongoose_rdbms:sql_query(LServer, Query)) of
-    {selected, [{Opts}]} ->
-            jlib:expr_to_term(Opts);
-    {selected, []} ->
-            %% room not found
-            error;
-    Reason ->
-        ?ERROR_MSG("issue=restore_room_failed room=~ts reason=~1000p",
-                   [Name, Reason]),
-        error
+    case (catch mongoose_rdbms:sql_query(ServerHost, Query)) of
+        {selected, [{Opts}]} ->
+            {ok, jlib:expr_to_term(Opts)};
+        {selected, []} ->
+            {error, room_not_found};
+        Reason ->
+            ?ERROR_MSG("issue=restore_room_failed room=~ts reason=~1000p",
+                       [RoomName, Reason]),
+            {error, Reason}
     end.
 
-forget_room(LServer, Host, Name) ->
-    SHost = mongoose_rdbms:escape(Host),
-    SName = mongoose_rdbms:escape(Name),
+forget_room(ServerHost, MucHost, RoomName) ->
+    SHost = mongoose_rdbms:escape(MucHost),
+    SName = mongoose_rdbms:escape(RoomName),
     Query = ["delete from muc_room "
               "where name='", SName, "' "
                 "and host='", SHost, "'"],
     F = fun () ->
         mongoose_rdbms:sql_query_t(Query)
     end,
-    Result = mongoose_rdbms:sql_transaction(LServer, F),
+    Result = mongoose_rdbms:sql_transaction(ServerHost, F),
     case Result of
         {atomic, _} ->
             ok;
         _ ->
             ?ERROR_MSG("issue=forget_room_failed room=~ts reason=~1000p",
-                       [Name, Result])
+                       [RoomName, Result])
     end,
     Result.
 
-can_use_nick(LServer, Host, JID, Nick) ->
+can_use_nick(ServerHost, MucHost, JID, Nick) ->
     BinJID = jid:to_binary(jid:to_lower(jid:to_bare(JID))),
-    SHost = mongoose_rdbms:escape(Host),
+    SHost = mongoose_rdbms:escape(MucHost),
     SNick = mongoose_rdbms:escape(Nick),
     Query = ["select jid from muc_registered "
               "where nick='", SNick, "' "
                 "and host='", SHost, "'"],
-    case catch mongoose_rdbms:sql_query(LServer, Query) of
+    case catch mongoose_rdbms:sql_query(ServerHost, Query) of
         {selected, [{DbBinJID}]} ->
             BinJID == DbBinJID;
         {selected, []} ->
@@ -98,15 +97,15 @@ can_use_nick(LServer, Host, JID, Nick) ->
             false
     end.
 
-get_rooms(LServer, Host) ->
-    SHost = mongoose_rdbms:escape(Host),
+get_rooms(ServerHost, MucHost) ->
+    SHost = mongoose_rdbms:escape(MucHost),
     Query = ["select name, opts from muc_room"
               " where host='", SHost, "'"],
-    case catch mongoose_rdbms:sql_query(LServer, Query) of
+    case catch mongoose_rdbms:sql_query(ServerHost, Query) of
     {selected, RoomOpts} ->
         lists:map(
           fun({Room, Opts}) ->
-              #muc_room{name_host = {Room, Host},
+              #muc_room{name_host = {Room, MucHost},
                 opts = jlib:expr_to_term(Opts)}
           end, RoomOpts);
     Err ->
@@ -114,28 +113,28 @@ get_rooms(LServer, Host) ->
         []
     end.
 
-get_nick(LServer, Host, From) ->
-    SHost = mongoose_rdbms:escape(Host),
+get_nick(ServerHost, MucHost, From) ->
+    SHost = mongoose_rdbms:escape(MucHost),
     BinJID = jid:to_binary(jid:to_lower(jid:to_bare(From))),
     SBinJID = mongoose_rdbms:escape(BinJID),
     Query = ["select nick from muc_registered where"
               " jid='", SBinJID, "' and host='", SHost, "'"],
-    case catch mongoose_rdbms:sql_query(LServer, Query) of
+    case catch mongoose_rdbms:sql_query(ServerHost, Query) of
         {selected, [{Nick}]} ->
-            Nick;
+            {ok, Nick};
         {selected, []} ->
             %% not found
-            error;
+            {error, not_registered};
         Error ->
             ?ERROR_MSG("issue=get_nick_failed jid=~ts reason=~1000p",
                        [BinJID, Error]),
-            error
+            {error, Error}
     end.
 
-set_nick(LServer, Host, From, <<>>) ->
+set_nick(_ServerHost, _MucHost, _From, <<>>) ->
     {error, should_not_be_empty};
-set_nick(LServer, Host, From, Nick) ->
-    SHost = mongoose_rdbms:escape(Host),
+set_nick(ServerHost, MucHost, From, Nick) ->
+    SHost = mongoose_rdbms:escape(MucHost),
     SNick = mongoose_rdbms:escape(Nick),
     BinJID = jid:to_binary(jid:to_lower(jid:to_bare(From))),
     SBinJID = mongoose_rdbms:escape(BinJID),
@@ -165,7 +164,7 @@ set_nick(LServer, Host, From, Nick) ->
                 ok
         end
     end,
-    case mongoose_rdbms:sql_transaction(LServer, F) of
+    case mongoose_rdbms:sql_transaction(ServerHost, F) of
         {atomic, Result} ->
             Result;
         ErrorResult ->
@@ -175,15 +174,15 @@ set_nick(LServer, Host, From, Nick) ->
     end.
 
 
-unset_nick(LServer, Host, From) ->
-    SHost = mongoose_rdbms:escape(Host),
+unset_nick(ServerHost, MucHost, From) ->
+    SHost = mongoose_rdbms:escape(MucHost),
     BinJID = jid:to_binary(jid:to_lower(jid:to_bare(From))),
     SBinJID = mongoose_rdbms:escape(BinJID),
     Query = ["delete from muc_registered "
               "where jid='", SBinJID, "' "
                 "and host='", SHost, "'"],
     F = fun () -> mongoose_rdbms:sql_query_t(Query) end,
-    case mongoose_rdbms:sql_transaction(LServer, F) of
+    case mongoose_rdbms:sql_transaction(ServerHost, F) of
         {atomic, _} ->
             ok;
         ErrorResult ->

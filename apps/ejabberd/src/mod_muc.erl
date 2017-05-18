@@ -538,13 +538,13 @@ route_packet_to_nonexistent_room(Room, From, To, Packet,
                                         access = Access} = State) ->
 
     case restore_room(ServerHost, Host, Room) of
-        error ->
+        {error, _} ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Conference room does not exist">>,
             Err = jlib:make_error_reply(
                     Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
             ejabberd_router:route(To, From, Err);
-        Opts ->
+        {ok, Opts} ->
             ?DEBUG("MUC: restore room '~s'~n", [Room]),
             #state{history_size = HistorySize,
                    room_shaper = RoomShaper,
@@ -708,13 +708,13 @@ start_new_room(Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts) ->
     case mod_muc_db_backend:restore_room(ServerHost, Host, Room) of
-        error ->
+        {error, _} ->
             ?DEBUG("MUC: open new room '~s'~n", [Room]),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, From,
                                Nick, DefRoomOpts);
-        Opts ->
+        {ok, Opts} ->
             ?DEBUG("MUC: restore room '~s'~n", [Room]),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
@@ -891,9 +891,9 @@ iq_get_register_info(ServerHost, Host, From, Lang) ->
         case catch get_nick(ServerHost, Host, From) of
             {'EXIT', _Reason} ->
                 {<<>>, []};
-            error ->
+            {error, _} ->
                 {<<>>, []};
-            N ->
+            {ok, N} ->
                 {N, [#xmlel{name = <<"registered">>}]}
         end,
     ClientReqText = translate:translate(

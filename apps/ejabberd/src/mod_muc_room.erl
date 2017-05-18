@@ -170,19 +170,22 @@ start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
             Opts :: list()) -> {'error', _}
                                    | {'ok', 'undefined' | pid()}
                                    | {'ok', 'undefined' | pid(), _}.
-start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
+start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts)
+    when is_list(Opts) ->
     Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
     supervisor:start_child(Supervisor, [Host, ServerHost, Access, Room,
                                         HistorySize, RoomShaper, HttpAuthPool, Opts]).
 
 start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
-       Creator, Nick, DefRoomOpts) ->
+       Creator, Nick, DefRoomOpts)
+    when is_list(DefRoomOpts) ->
     gen_fsm:start_link(?MODULE,
                        [Host, ServerHost, Access, Room, HistorySize,
                         RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
                        ?FSMOPTS).
 
-start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
+start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts)
+    when is_list(Opts) ->
     gen_fsm:start_link(?MODULE,
                        [Host, ServerHost, Access, Room, HistorySize,
                         RoomShaper, HttpAuthPool, Opts],
@@ -248,7 +251,7 @@ can_access_identity(RoomJID, UserJID) ->
 -spec init([any(), ...]) ->
     {ok, statename(), state()} | {ok, statename(), state(), timeout()}.
 init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
-      Creator, _Nick, DefRoomOpts]) ->
+      Creator, _Nick, DefRoomOpts]) when is_list(DefRoomOpts) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
     State = set_affiliation(Creator, owner,

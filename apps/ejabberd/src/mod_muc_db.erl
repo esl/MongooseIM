@@ -1,63 +1,46 @@
 -module(mod_muc_db).
+-include("mod_muc.hrl").
 
--callback init(ejabberd:server(), list()) -> ok.
--callback store_room(ejabberd:server(), ejabberd:server(),
-                     mod_muc:room(), list()) ->
-    {'aborted', _} | {'atomic', _}.
--callback restore_room(ejabberd:server(), ejabberd:server(), mod_muc:room()) ->
-    'error' | 'undefined' | [any()].
--callback forget_room(ejabberd:server(), ejabberd:server(),
-                      mod_muc:room()) -> 'ok'.
--callback can_use_nick(ejabberd:server(), ejabberd:server(),
-                       ejabberd:jid(), mod_muc:nick()) -> boolean().
--callback get_rooms(ejabberd:server(), ejabberd:server()) -> list().
+%% Defines which ODBC pool to use
+%% Parent host of the MUC service
+-type server_host() :: ejabberd:server().
 
-%% Get nick associated with jid From across MucHost domain
--callback get_nick(LServer, MucHost, From) ->
-    error | Nick
-      when
-      %% Defines which ODBC pool to use
-      %% Parent host of the MUC service
-      LServer :: ejabberd:server(),
-      %% Host of MUC service
-      MucHost :: ejabberd:server(),
-      %% User's JID. Can be on another domain accessable over FED.
-      %% Only bare part (user@host) is important.
-      From :: ejabberd:jid(),
-      %% Nick to register
-      %% Only one nick can be registred for each unique bare From.
-      %% Nick is registered per MUC-host (not per room).
-      %% Registered nicks are not available to register.
-      Nick :: mod_muc:nick().
+%% Host of MUC service
+-type muc_host() :: ejabberd:server().
+
+%% User's JID. Can be on another domain accessable over FED.
+%% Only bare part (user@host) is important.
+-type client_jid() :: ejabberd:jid().
+
+-type room_opts() :: [{OptionName :: atom(), OptionValue :: term()}].
+
+
+
+%% Called when MUC service starts or restarts for each domain
+-callback init(server_host(), ModuleOpts :: list()) -> ok.
+
+-callback store_room(server_host(), muc_host(), mod_muc:room(), room_opts()) ->
+    {aborted, _} | {atomic, _}.
+
+-callback restore_room(server_host(), muc_host(), mod_muc:room()) ->
+    {ok, room_opts()} | {error, room_not_found} | {error, term()}.
+
+-callback forget_room(server_host(), muc_host(), mod_muc:room()) -> ok.
+
+-callback can_use_nick(server_host(), muc_host(),
+                       client_jid(), mod_muc:nick()) -> boolean().
+
+-callback get_rooms(server_host(), muc_host()) -> [#muc_room{}].
+
+%% Get nick associated with jid client_jid() across muc_host() domain
+-callback get_nick(server_host(), muc_host(), client_jid()) ->
+    {ok, mod_muc:nick()} | {error, not_registered} | {error, term()}.
 
 %% Register nick
--callback set_nick(LServer, MucHost, From, Nick) ->
-    ok | {error, conflict} | {error, should_not_be_empty} | {error, term()}
-      when
-      %% Defines which ODBC pool to use
-      %% Parent host of the MUC service
-      LServer :: ejabberd:server(),
-      %% Host of MUC service
-      MucHost :: ejabberd:server(),
-      %% User's JID. Can be on another domain accessable over FED.
-      %% Only bare part (user@host) is important.
-      From :: ejabberd:jid(),
-      %% Nick to register
-      %% Only one nick can be registred for each unique bare From.
-      %% Nick is registered per MUC-host (not per room).
-      %% Registered nicks are not available to register.
-      Nick :: mod_muc:nick().
+-callback set_nick(server_host(), muc_host(), client_jid(), mod_muc:nick()) ->
+    ok | {error, conflict} | {error, should_not_be_empty} | {error, term()}.
 
 %% Unregister nick
 %% Unregistered nicks can be used by someone else
--callback unset_nick(LServer, MucHost, From) ->
-    ok | {error, term()}
-      when
-      %% Defines which ODBC pool to use
-      %% Parent host of the MUC service
-      LServer :: ejabberd:server(),
-      %% Host of MUC service
-      MucHost :: ejabberd:server(),
-      %% User's JID. Can be on another domain accessable over FED.
-      %% Only bare part (user@host) is important.
-      From :: ejabberd:jid().
+-callback unset_nick(server_host(), muc_host(), client_jid()) ->
+    ok | {error, term()}.
