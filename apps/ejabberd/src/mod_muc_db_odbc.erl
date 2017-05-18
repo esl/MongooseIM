@@ -7,7 +7,8 @@
          get_rooms/2,
          can_use_nick/4,
          get_nick/3,
-         set_nick/4]).
+         set_nick/4,
+         unset_nick/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -132,15 +133,18 @@ get_nick(LServer, Host, From) ->
     end.
 
 set_nick(LServer, Host, From, <<>>) ->
-    unset_nick(LServer, Host, From);
+    {error, should_not_be_empty};
 set_nick(LServer, Host, From, Nick) ->
     SHost = mongoose_rdbms:escape(Host),
     SNick = mongoose_rdbms:escape(Nick),
     BinJID = jid:to_binary(jid:to_lower(jid:to_bare(From))),
+    SBinJID = mongoose_rdbms:escape(BinJID),
     JidQuery = ["select jid from muc_registered "
                    " where nick='", SNick, "'"
                      " and host='", SHost, "'"],
-
+    DelQuery = ["delete from muc_registered "
+              "where jid='", SBinJID, "' "
+                "and host='", SHost, "'"],
     F = fun () ->
         case mongoose_rdbms:sql_query_t(JidQuery) of
             {selected, [{J}]} when J == BinJID ->
@@ -148,8 +152,9 @@ set_nick(LServer, Host, From, Nick) ->
                 ok;
             {selected, [{_}]} ->
                 %% Busy nick
-                false;
+                {error, conflict};
             {selected, []} ->
+                mongoose_rdbms:sql_query_t(DelQuery), %% unset old nick
                 %% Available nick
                 SBinJID = mongoose_rdbms:escape(BinJID),
                 InsQuery = ["insert into muc_registered (jid, host, nick) "
@@ -160,15 +165,14 @@ set_nick(LServer, Host, From, Nick) ->
                 ok
         end
     end,
-    Result = mongoose_rdbms:sql_transaction(LServer, F),
-    case Result of
-        {atomic, _} ->
-            ok;
-        _ ->
+    case mongoose_rdbms:sql_transaction(LServer, F) of
+        {atomic, Result} ->
+            Result;
+        ErrorResult ->
             ?ERROR_MSG("issue=set_nick_failed jid=~ts nick=~ts reason=~1000p",
-                       [BinJID, Nick, Result])
-    end,
-    Result.
+                       [BinJID, Nick, ErrorResult]),
+            {error, ErrorResult}
+    end.
 
 
 unset_nick(LServer, Host, From) ->
@@ -178,16 +182,12 @@ unset_nick(LServer, Host, From) ->
     Query = ["delete from muc_registered "
               "where jid='", SBinJID, "' "
                 "and host='", SHost, "'"],
-    F = fun () ->
-            mongoose_rdbms:sql_query_t(Query),
-            ok
-    end,
-    Result = mongoose_rdbms:sql_transaction(LServer, F),
-    case Result of
+    F = fun () -> mongoose_rdbms:sql_query_t(Query) end,
+    case mongoose_rdbms:sql_transaction(LServer, F) of
         {atomic, _} ->
             ok;
-        _ ->
+        ErrorResult ->
             ?ERROR_MSG("issue=unset_nick_failed jid=~ts reason=~1000p",
-                       [BinJID, Result])
-    end,
-    Result.
+                       [BinJID, ErrorResult]),
+            {error, ErrorResult}
+    end.

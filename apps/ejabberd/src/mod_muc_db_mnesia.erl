@@ -35,7 +35,8 @@
          get_rooms/2,
          can_use_nick/4,
          get_nick/3,
-         set_nick/4]).
+         set_nick/4,
+         unset_nick/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -140,7 +141,7 @@ get_nick(_LServer, Host, From) ->
     end.
 
 set_nick(_LServer, Host, From, <<>>) ->
-    unset_nick(Host, From);
+    {error, should_not_be_empty};
 set_nick(_LServer, Host, From, Nick) ->
     LUS = jid_to_lower_us(From),
     F = fun () ->
@@ -150,33 +151,31 @@ set_nick(_LServer, Host, From, Nick) ->
                     mnesia:write(Object),
                     ok;
                 false ->
-                    false
+                    {error, conflict}
             end
         end,
-    Result = mnesia:transaction(F),
-    case Result of
-        {atomic, _} ->
-            ok;
-        _ ->
-            ?ERROR_MSG("issue=set_nick_failed jid=~ts nick=~ts",
-                       [jid:to_binary(From), Nick])
-    end,
-    Result.
+    case mnesia:transaction(F) of
+        {atomic, Result} ->
+            Result;
+        ErrorResult ->
+            ?ERROR_MSG("issue=set_nick_failed jid=~ts nick=~ts reason=~1000p",
+                       [jid:to_binary(From), Nick, ErrorResult]),
+            {error, ErrorResult}
+    end.
 
-unset_nick(Host, From) ->
+unset_nick(_LServer, Host, From) ->
     LUS = jid_to_lower_us(From),
     F = fun () ->
             mnesia:delete({muc_registered, {LUS, Host}})
         end,
-    Result = mnesia:transaction(F),
-    case Result of
+    case mnesia:transaction(F) of
         {atomic, _} ->
             ok;
-        _ ->
-            ?ERROR_MSG("issue=unset_nick_failed jid=~ts",
-                       [jid:to_binary(From)])
-    end,
-    Result.
+        ErrorResult ->
+            ?ERROR_MSG("issue=unset_nick_failed jid=~ts reason=~1000p",
+                       [jid:to_binary(From), ErrorResult]),
+            {error, ErrorResult}
+    end.
 
 jid_to_lower_us(JID) ->
     {LUser, LServer, _} = jid:to_lower(JID),

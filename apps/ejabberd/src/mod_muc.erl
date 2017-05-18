@@ -139,7 +139,7 @@ start_link(Host, Opts) ->
 start(Host, Opts) ->
     ensure_metrics(Host),
     TrackedDBFuns = [store_room, restore_room, forget_room, get_rooms,
-                     can_use_nick, get_nick, set_nick],
+                     can_use_nick, get_nick, set_nick, unset_nick],
     gen_mod:start_backend_module(mod_muc_db, Opts, TrackedDBFuns),
     start_supervisor(Host),
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
@@ -228,6 +228,9 @@ can_use_nick(ServerHost, Host, JID, Nick) ->
 
 set_nick(LServer, Host, From, Nick) ->
     mod_muc_db_backend:set_nick(LServer, Host, From, Nick).
+
+unset_nick(LServer, Host, From) ->
+    mod_muc_db_backend:unset_nick(LServer, Host, From).
 
 get_nick(LServer, Host, From) ->
     mod_muc_db_backend:get_nick(LServer, Host, From).
@@ -586,16 +589,17 @@ route_by_type(<<"iq">>, {From, To, Packet}, #state{host = Host} = State) ->
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
             spawn(?MODULE, process_iq_disco_items, [Host, From, To, IQ]);
         #iq{type = get, xmlns = ?NS_REGISTER = XMLNS, lang = Lang} = IQ ->
+            Result = iq_get_register_info(ServerHost, Host, From, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
-                                         children = iq_get_register_info(Host, From, Lang)}]},
+                                         children = Result}]},
             ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{type = set,
             xmlns = ?NS_REGISTER = XMLNS,
             lang = Lang,
             sub_el = SubEl} = IQ ->
-            case process_iq_register_set(Host, From, SubEl, Lang) of
+            case process_iq_register_set(ServerHost, Host, From, SubEl, Lang) of
                 {result, IQRes} ->
                     Res = IQ#iq{type = result,
                                 sub_el = [#xmlel{name = <<"query">>,
@@ -879,13 +883,12 @@ iq_get_unique(From) ->
                                                          randoms:get_string()]))}.
 
 
--spec iq_get_register_info('undefined' | ejabberd:server(),
+-spec iq_get_register_info(ejabberd:server(), ejabberd:server(),
         ejabberd:simple_jid() | ejabberd:jid(), ejabberd:lang())
             -> [jlib:xmlel(), ...].
-iq_get_register_info(Host, From, Lang) ->
-    {_LUser, LServer, _} = jid:to_lower(From),
+iq_get_register_info(ServerHost, Host, From, Lang) ->
     {Nick, Registered} =
-        case catch get_nick(LServer, Host, From) of
+        case catch get_nick(ServerHost, Host, From) of
             {'EXIT', _Reason} ->
                 {<<>>, []};
             error ->
@@ -911,25 +914,44 @@ iq_get_register_info(Host, From, Lang) ->
                         xfield(<<"text-single">>, <<"Nickname">>, <<"nick">>, Nick, Lang)]}].
 
 
--spec iq_set_register_info(ejabberd:server(),
+-spec iq_set_register_info(ejabberd:server(), ejabberd:server(),
         ejabberd:simple_jid() | ejabberd:jid(), nick(), ejabberd:lang())
             -> {'error', jlib:xmlel()} | {'result', []}.
-iq_set_register_info(Host, From, Nick, Lang) ->
-    {_LUser, LServer, _} = jid:to_lower(From),
-    case set_nick(LServer, Host, From, Nick) of
-        {atomic, ok} ->
+iq_set_register_info(ServerHost, Host, From, Nick, Lang) ->
+    case set_nick(ServerHost, Host, From, Nick) of
+        ok ->
             {result, []};
-        {atomic, false} ->
+        {error, conflict} ->
             ErrText = <<"That nickname is registered by another person">>,
             {error, ?ERRT_CONFLICT(Lang, ErrText)};
-        _ ->
+        {error, should_not_be_empty} ->
+            ErrText = <<"You must fill in field \"Nickname\" in the form">>,
+            {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
+        {error, ErrorReason} ->
+            ?ERROR_MSG("issue=iq_set_register_info_failed, "
+                        "jid=~ts, nick=~p, reason=~p",
+                       [jid:to_binary(From), Nick, ErrorReason]),
             {error, ?ERR_INTERNAL_SERVER_ERROR}
     end.
 
--spec process_iq_register_set(ejabberd:server(), ejabberd:jid(),
-        jlib:xmlel(), ejabberd:lang())
+-spec iq_set_unregister_info(ejabberd:server(), ejabberd:server(),
+        ejabberd:simple_jid() | ejabberd:jid(), ejabberd:lang())
             -> {'error', jlib:xmlel()} | {'result', []}.
-process_iq_register_set(Host, From, SubEl, Lang) ->
+iq_set_unregister_info(ServerHost, Host, From, _Lang) ->
+    case unset_nick(ServerHost, Host, From) of
+        ok ->
+            {result, []};
+        {error, ErrorReason} ->
+            ?ERROR_MSG("issue=iq_set_unregister_info_failed, "
+                        "jid=~ts, reason=~p",
+                       [jid:to_binary(From), ErrorReason]),
+            {error, ?ERR_INTERNAL_SERVER_ERROR}
+    end.
+
+-spec process_iq_register_set(ejabberd:server(), ejabberd:server(),
+                              ejabberd:jid(), jlib:xmlel(), ejabberd:lang())
+            -> {'error', jlib:xmlel()} | {'result', []}.
+process_iq_register_set(ServerHost, Host, From, SubEl, Lang) ->
     #xmlel{children = Els} = SubEl,
     case xml:get_subtag(SubEl, <<"remove">>) of
         false ->
@@ -937,20 +959,21 @@ process_iq_register_set(Host, From, SubEl, Lang) ->
                 [#xmlel{name = <<"x">>} = XEl] ->
                     process_register(xml:get_tag_attr_s(<<"xmlns">>, XEl),
                                      xml:get_tag_attr_s(<<"type">>, XEl),
-                                     Host, From, Lang, XEl);
+                                     ServerHost, Host, From, Lang, XEl);
                 _ ->
                     {error, ?ERR_BAD_REQUEST}
             end;
         _ ->
-            iq_set_register_info(Host, From, <<>>, Lang)
+            iq_set_unregister_info(ServerHost, Host, From, Lang)
     end.
 
--spec process_register(XMLNS :: binary(), Type :: binary(), Host :: ejabberd:server(),
+-spec process_register(XMLNS :: binary(), Type :: binary(),
+                       ServerHost :: ejabberd:server(), Host :: ejabberd:server(),
                        From :: jid(), Lang :: ejabberd:lang(), XEl :: exml:element()) ->
     {error, exml:element()} | {result, []}.
-process_register(?NS_XDATA, <<"cancel">>, _Host, _From, _Lang, _XEl) ->
+process_register(?NS_XDATA, <<"cancel">>, _ServerHost, _Host, _From, _Lang, _XEl) ->
     {result, []};
-process_register(?NS_XDATA, <<"submit">>, Host, From, Lang, XEl) ->
+process_register(?NS_XDATA, <<"submit">>, ServerHost, Host, From, Lang, XEl) ->
     XData = jlib:parse_xdata_submit(XEl),
     case XData of
         invalid ->
@@ -958,13 +981,13 @@ process_register(?NS_XDATA, <<"submit">>, Host, From, Lang, XEl) ->
         _ ->
             case lists:keysearch(<<"nick">>, 1, XData) of
                 {value, {_, [Nick]}} when Nick /= <<>> ->
-                    iq_set_register_info(Host, From, Nick, Lang);
+                    iq_set_register_info(ServerHost, Host, From, Nick, Lang);
                 _ ->
                     ErrText = <<"You must fill in field \"Nickname\" in the form">>,
                     {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)}
             end
     end;
-process_register(_, _, _Host, _From, _Lang, _XEl) ->
+process_register(_, _, _ServerHost, _Host, _From, _Lang, _XEl) ->
     {error, ?ERR_BAD_REQUEST}.
 
 -spec iq_get_vcard(ejabberd:lang()) -> [jlib:xmlel(), ...].
