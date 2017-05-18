@@ -77,7 +77,7 @@ forget_room(ServerHost, MucHost, RoomName) ->
             ?ERROR_MSG("issue=forget_room_failed room=~ts reason=~1000p",
                        [RoomName, Result])
     end,
-    Result.
+    ok.
 
 can_use_nick(ServerHost, MucHost, JID, Nick) ->
     BinJID = jid:to_binary(jid:to_lower(jid:to_bare(JID))),
