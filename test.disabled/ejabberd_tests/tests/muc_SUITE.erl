@@ -393,6 +393,8 @@ end_per_group(hibernation, Config) ->
             ok
     end,
     Config;
+end_per_group(register_over_s2s, Config) ->
+    escalus:delete_users(Config, escalus:get_users([alice2, bob, kate]));
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
