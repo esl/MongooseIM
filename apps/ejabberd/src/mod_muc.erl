@@ -85,7 +85,7 @@
         {From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: packet()}.
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 
--include_lib("ejabberd/include/mod_muc.hrl").
+-include("mod_muc.hrl").
 
 -type muc_room() :: #muc_room{
                        name_host    :: room_host(),
