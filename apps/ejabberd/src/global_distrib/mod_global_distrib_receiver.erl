@@ -65,10 +65,7 @@ opt(Key) ->
 
 handle_data(Data, #state{worker_pool = WorkerPool}) ->
     Worker = wpool_pool:best_worker(WorkerPool),
-    case process_info(whereis(Worker), message_queue_len) of
-        {_, X} when X > 500 -> wpool_process:call(Worker, {data, Data}, 10000); % TODO
-        _ -> wpool_process:cast(Worker, {data, Data})
-    end.
+    ok = mod_global_distrib_utils:cast_or_call(wpool_process, Worker, {data, Data}).
 
 handle_buffered(#state{waiting_for = header, buffer = <<Header:4/binary, Rest/binary>>} = State) ->
     Size = binary:decode_unsigned(Header),

@@ -17,7 +17,7 @@
 -module(mod_global_distrib_utils).
 -author('konrad.zemek@erlang-solutions.com').
 
--export([start/4, deps/4, stop/3, opt/2]).
+-export([start/4, deps/4, stop/3, opt/2, cast_or_call/3, cast_or_call/4, cast_or_call/5]).
 
 -include("ejabberd.hrl").
 
@@ -61,6 +61,20 @@ deps(_Module, Host, Opts, DepsFun) ->
 
 opt(Module, Key) ->
     ets:lookup_element(Module, Key, 2).
+
+cast_or_call(Mod, Target, Message) ->
+    cast_or_call(Mod, Target, Message, 500).
+
+cast_or_call(Mod, Target, Message, SyncWatermark) ->
+    cast_or_call(Mod, Target, Message, SyncWatermark, 5000).
+
+cast_or_call(Mod, Target, Message, SyncWatermark, Timeout) when is_atom(Target) ->
+    cast_or_call(Mod, whereis(Target), Message, SyncWatermark, Timeout);
+cast_or_call(Mod, Target, Message, SyncWatermark, Timeout) when is_pid(Target) ->
+    case process_info(Target, message_queue_len) of
+        {_, X} when X > SyncWatermark -> Mod:call(Target, Message, Timeout);
+        {_, _} -> Mod:cast(Target, Message)
+    end.
 
 %%--------------------------------------------------------------------
 %% Helpers
