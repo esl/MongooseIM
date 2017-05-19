@@ -8,7 +8,14 @@
 -include("jlib.hrl").
 
 -export([start/2, stop/1]).
--export([start_link/4, init/1, handle_info/2]).
+-export([start_link/4, init/1, handle_info/2, terminate/2]).
+
+-record(state, {
+    socket,
+    worker_pool,
+    waiting_for,
+    buffer = <<>>
+}).
 
 %%--------------------------------------------------------------------
 %% API
@@ -33,20 +40,43 @@ start_link(Ref, Socket, Transport, Opts) ->
 	Pid = proc_lib:spawn_link(?MODULE, init, [{Ref, Socket, Transport, Opts}]),
 	{ok, Pid}.
 
-init({Ref, Socket, Transport, Opts}) ->
+init({Ref, Socket, ranch_tcp, Opts}) ->
     [{worker_pool, WorkerPool}] = Opts,
 	ok = ranch:accept_ack(Ref),
-    ok = Transport:setopts(Socket, [{active, once}, binary, {packet, 4}]),
-    gen_server:enter_loop(?MODULE, [], {Socket, Transport, WorkerPool}).
+    {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, [no_verify, {certfile, opt(certfile)}, {cafile, opt(cafile)}]),
+    ok = fast_tls:setopts(TLSSocket, [{active, once}]),
+    gen_server:enter_loop(?MODULE, [], #state{socket = TLSSocket, worker_pool = WorkerPool,
+                                              waiting_for = header}).
 
-handle_info({tcp, _Socket, Data}, {Socket, Transport, WorkerPool} = State) ->
-    ok = Transport:setopts(Socket, [{active, once}]),
+handle_info({tcp, _Socket, TLSData}, #state{socket = Socket, buffer = Buffer} = State) ->
+    ok = fast_tls:setopts(Socket, [{active, once}]),
+    {ok, Data} = fast_tls:recv_data(Socket, TLSData),
+    NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
+    {noreply, NewState};
+handle_info({tcp_closed, _Socket}, #state{socket = Socket} = State) ->
+    fast_tls:close(Socket),
+    {stop, normal, State}.
+
+terminate(_Reason, _State) ->
+    ignore.
+
+opt(Key) ->
+    mod_global_distrib_utils:opt(?MODULE, Key).
+
+handle_data(Data, #state{worker_pool = WorkerPool}) ->
     Worker = wpool_pool:best_worker(WorkerPool),
     case process_info(whereis(Worker), message_queue_len) of
         {_, X} when X > 500 -> wpool_process:call(Worker, {data, Data}, 10000); % TODO
         _ -> wpool_process:cast(Worker, {data, Data})
-    end,
-    {noreply, State}.
+    end.
 
-opt(Key) ->
-    mod_global_distrib_utils:opt(?MODULE, Key).
+handle_buffered(#state{waiting_for = header, buffer = <<Header:4/binary, Rest/binary>>} = State) ->
+    Size = binary:decode_unsigned(Header),
+    handle_buffered(State#state{waiting_for = Size, buffer = Rest});
+handle_buffered(#state{waiting_for = Size, buffer = Buffer} = State)
+  when byte_size(Buffer) >= Size ->
+    <<Data:Size/binary, Rest/binary>> = Buffer,
+    handle_data(Data, State),
+    handle_buffered(State#state{waiting_for = header, buffer = Rest});
+handle_buffered(State) ->
+    State.
