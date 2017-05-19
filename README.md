@@ -47,7 +47,7 @@ We offer a set of server-side components:
     * [escalus](https://github.com/esl/escalus): Erlang XMPP client
     * [amoc](https://github.com/esl/amoc): a load testing tools
 * More components? There are some ideas we're working on. Tune in for updates on
-    * MongooseICE: ICE, STUN/TRUN server
+    * MongooseICE: ICE, STUN/TURN server
     * MongoosePush: a push notification server
 
 ### Client-side components
