@@ -69,13 +69,17 @@ maybe_unwrap_message({_From, _To, Acc} = FPacket) ->
 %%--------------------------------------------------------------------
 
 deps(Opts) ->
-    Deps0 = [{mod_global_distrib_mapping, Opts, hard},
+    ConnectionsOpts = proplists:get_value(connections, Opts, []),
+    CacheOpts = proplists:get_value(cache, Opts, []),
+    BounceOpts = proplists:get_value(bounce, Opts, []),
+
+    Deps0 = [{mod_global_distrib_mapping, CacheOpts ++ Opts, hard},
              {mod_global_distrib_disco, Opts, hard},
-             {mod_global_distrib_receiver, Opts, hard},
-             {mod_global_distrib_sender, Opts, hard}],
-    case proplists:get_value(bounce, Opts, []) of
+             {mod_global_distrib_receiver, ConnectionsOpts ++ Opts, hard},
+             {mod_global_distrib_sender, ConnectionsOpts ++ Opts, hard}],
+    case BounceOpts of
         false -> Deps0;
-        BounceOpts -> [{mod_global_distrib_bounce, BounceOpts ++ Opts, hard} | Deps0]
+        _ -> [{mod_global_distrib_bounce, BounceOpts ++ Opts, hard} | Deps0]
     end.
 
 start() ->

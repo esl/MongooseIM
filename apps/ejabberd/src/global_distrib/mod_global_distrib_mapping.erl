@@ -47,7 +47,7 @@
 %%--------------------------------------------------------------------
 
 start(Host, Opts0) ->
-    Opts = [{database_pool, global}, {cache_missed, false},
+    Opts = [{database_pool, global}, {cache_missed, true},
             {domain_lifetime_seconds, 600}, {jid_lifetime_seconds, 5}, {max_jids, 10000} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 

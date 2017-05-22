@@ -12,7 +12,8 @@
 %% API
 %%--------------------------------------------------------------------
 
-start(Host, Opts) ->
+start(Host, Opts0) ->
+    Opts = [{listen_port, 5555}, {num_of_connections, 1} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 stop(Host) ->
@@ -29,25 +30,33 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 send(Server, {_From, _To, _Acc} = Packet) ->
-    Pid = get_process_for(Server),
+    Worker = get_process_for(Server),
     BinPacket = term_to_binary(Packet),
-    ok = mod_global_distrib_utils:cast_or_call(gen_server, Pid, {data, BinPacket}).
+    ok = mod_global_distrib_utils:cast_or_call(wpool_process, Worker, {data, BinPacket}).
 
 get_process_for(Server) ->
     Name = server_to_atom(Server),
     case whereis(Name) of
-        Pid when is_pid(Pid) -> Pid;
         undefined ->
-            case supervisor:start_child(?MODULE, [Name, Server]) of
+            case start_pool(Name, Server) of
                 {ok, Pid} -> Pid;
                 {error, {already_started, Pid}} -> Pid
-            end
-    end.
+            end;
+        _ ->
+            ok
+    end,
+    wpool_pool:best_worker(Name).
 
 init(_) ->
-    Module = mod_global_distrib_sender_worker,
-    Child = {Module, {Module, start_link, []}, temporary, 5000, worker, [Module]},
+    Child = {wpool_pool, {wpool_pool, start_link, []}, temporary, 5000, worker, dynamic},
     {ok, {{simple_one_for_one, 1000000, 1}, [Child]}}.
+
+start_pool(Name, Server) ->
+    supervisor:start_child(?MODULE, [Name, [{workers, opt(num_of_connections)},
+                                            {worker, {mod_global_distrib_connection, [Server]}}]]).
 
 server_to_atom(Server) ->
     binary_to_atom(base64:encode(Server), latin1).
+
+opt(Key) ->
+    mod_global_distrib_utils:opt(?MODULE, Key).
