@@ -49,7 +49,17 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    CertDir = filename:join(?config(data_dir, Config), "../../priv/ssl"),
+    CertPath = canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
+    CACertPath = canonicalize_path(filename:join(CertDir, "cacert.pem")),
+    escalus:init_per_suite([{certfile, CertPath}, {cafile, CACertPath} | Config]).
+
+canonicalize_path(Path) -> canonicalize_path(filename:split(Path), []).
+
+canonicalize_path([], Acc) -> filename:join(lists:reverse(Acc));
+canonicalize_path([".." | Path], [_ | Acc]) -> canonicalize_path(Path, Acc);
+canonicalize_path(["." | Path], Acc) -> canonicalize_path(Path, Acc);
+canonicalize_path([Elem | Path], Acc) -> canonicalize_path(Path, [Elem | Acc]).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -59,14 +69,21 @@ init_per_group(start_checks, Config) ->
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
-          fun({NodeName, LocalHost}, Config1) ->
-                  Opts = [{cookie, "cookie"}, {local_host, LocalHost}, {global_host, "localhost"}],
+          fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
+                  Opts = [{local_host, LocalHost}, {global_host, "localhost"}, {listen_port, ReceiverPort}, {certfile, ?config(certfile, Config1)}, {cafile, ?config(cafile, Config1)}],
                   rpc(NodeName, gen_mod_deps, start_modules,
                       [<<"localhost">>, [{mod_global_distrib, Opts}]]),
                   HasOffline = rpc(NodeName, gen_mod, is_loaded, [<<"localhost">>, mod_offline]),
                   rpc(NodeName, gen_mod, stop_module_keep_config, [<<"localhost">>, mod_offline]),
                   ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
                   rpc(NodeName, mod_stream_management, set_resume_timeout, [1]),
+
+                  lists:foreach(
+                      fun({_, OtherHost, OtherPort}) ->
+                          rpc(NodeName, ejabberd_config, add_local_option, [{global_distrib_addr, list_to_binary(OtherHost)}, {{127,0,0,1}, OtherPort}])
+                      end,
+                      get_hosts()),
+
                   [
                    {{has_offline, NodeName}, HasOffline},
                    {{resume_timeout, NodeName}, ResumeTimeout} |
@@ -82,11 +99,9 @@ end_per_group(start_checks, Config) ->
     Config;
 end_per_group(_, Config) ->
     lists:foreach(
-      fun({NodeName, _}) ->
-              rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib]),
-              rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib_bounce]),
-              rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib_mapping]),
-              rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_global_distrib_disco]),
+      fun({NodeName, _, _}) ->
+              lists:foreach(fun(Module) -> rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, Module]) end,
+                    [mod_global_distrib, mod_global_distrib_bounce,mod_global_distrib_mapping, mod_global_distrib_disco, mod_global_distrib_receiver, mod_global_distrib_sender]),
 
               ResumeTimeout = proplists:get_value({resume_timeout, NodeName}, Config),
               rpc(NodeName, mod_stream_management, set_resume_timeout, [ResumeTimeout]),
@@ -223,17 +238,14 @@ test_location_disconnect(Config) ->
                   escalus_client:wait_for_stanza(Eve),
 
                   ok = rpc(asia_node, application, stop, [ejabberd]),
+                  ok = rpc(asia_node, application, stop, [ranch]), %% TODO: Stopping ejabberd alone should stop connections too
 
                   escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi again!">>)),
                   Error = escalus:wait_for_stanza(Alice),
                   escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error)
-          end),
-
-        ct:fail("the test was expected to fail but didn't")
-    catch
-        _:{assertion_failed, assert, is_error, _, _, _} ->
-            {skip, "error translation not implemented"}
+          end)
     after
+        rpc(asia_node, application, start, [ranch]),
         rpc(asia_node, application, start, [ejabberd])
     end.
 
@@ -351,7 +363,7 @@ test_error_on_wrong_hosts(Config) ->
 %%--------------------------------------------------------------------
 
 get_hosts() ->
-    [{europe_node, "localhost.bis"}, {asia_node, "fed1"}].
+    [{europe_node, "localhost.bis", 5555}, {asia_node, "fed1", 6666}].
 
 rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
