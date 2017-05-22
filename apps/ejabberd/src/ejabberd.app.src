@@ -19,6 +19,7 @@
                   exometer,
                   exometer_core,
                   jiffy,
+                  jsx,
                   jwerl,
                   fusco,
                   idna,
