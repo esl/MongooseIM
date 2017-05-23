@@ -23,7 +23,7 @@
 -include("jlib.hrl").
 
 -export([start/2, stop/1]).
--export([remove_message5/5, remove_message4/4, maybe_store_message/1, maybe_resend_message/1]).
+-export([remove_message5/5, remove_message3/3, maybe_store_message/1, maybe_resend_message/1]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -40,12 +40,11 @@ stop(Host) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
-remove_message5(Acc, _Jid, From, To, Packet) ->
-    remove_message4(Acc, From, To, Packet).
+remove_message5(Acc, _Jid, From, _To, Packet) ->
+    remove_message3(Acc, From, Packet).
 
-remove_message4(Acc, From, _To, Packet) ->
-    ?DEBUG("Removing message from=~s, to=~s from buffer: successful delivery",
-           [jid:to_binary(From), jid:to_binary(_To)]),
+remove_message3(Acc, From, Packet) ->
+    ?DEBUG("Removing message from=~s from buffer: successful delivery", [jid:to_binary(From)]),
     ets:delete(?MODULE, storage_key(From, Packet)),
     Acc.
 
@@ -72,8 +71,9 @@ maybe_resend_message({_From, To, Acc} = FPacket) ->
 maybe_store_message(drop) -> drop;
 maybe_store_message({_From, _To, Acc} = FPacket) ->
     Packet = mongoose_acc:get(to_send, Acc),
-    case exml_query:attr(Packet, <<"distrib_ttl">>) of
-        undefined -> store_message(FPacket);
+    case {mongoose_acc:get(type, Acc), exml_query:attr(Packet, <<"distrib_ttl">>)} of
+        {T, _} when T =/= <<"message">> -> FPacket;
+        {_, undefined} -> store_message(FPacket);
         _ -> FPacket
     end.
 
@@ -83,17 +83,15 @@ maybe_store_message({_From, _To, Acc} = FPacket) ->
 
 start() ->
     Host = opt(global_host),
-    LocalHost = opt(local_host),
     ejabberd_hooks:add(filter_packet, global, ?MODULE, maybe_resend_message, 1),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, maybe_store_message, 80),
-    ejabberd_hooks:add(user_receive_packet, LocalHost, ?MODULE, remove_message5, 99),
-    ejabberd_hooks:add(s2s_send_packet, LocalHost, ?MODULE, remove_message4, 99).
+    ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, remove_message5, 99),
+    ejabberd_hooks:add(global_distrib_send_packet, global, ?MODULE, remove_message3, 99).
 
 stop() ->
     Host = opt(global_host),
-    LocalHost = opt(local_host),
-    ejabberd_hooks:delete(s2s_send_packet, LocalHost, ?MODULE, remove_message4, 99),
-    ejabberd_hooks:delete(user_receive_packet, LocalHost, ?MODULE, remove_message5, 99),
+    ejabberd_hooks:delete(global_distrib_send_packet, global, ?MODULE, remove_message3, 99),
+    ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, remove_message5, 99),
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, maybe_store_message, 80),
     ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_resend_message, 1).
 

@@ -29,10 +29,12 @@ stop() ->
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-send(Server, {_From, _To, _Acc} = Packet) ->
+send(Server, {From, _To, Acc} = Packet) ->
     Worker = get_process_for(Server),
     BinPacket = term_to_binary(Packet),
-    ok = mod_global_distrib_utils:cast_or_call(wpool_process, Worker, {data, BinPacket}).
+    ok = mod_global_distrib_utils:cast_or_call(wpool_process, Worker, {data, BinPacket}),
+    ejabberd_hooks:run(global_distrib_send_packet, [From, mongoose_acc:get(to_send, Acc)]),
+    ok.
 
 get_process_for(Server) ->
     Name = server_to_atom(Server),
