@@ -129,7 +129,7 @@ When your [MongoosePush][] docker is up and running, Push Notifications can be u
 
 There are just a few things the XMPP client application needs to receive the push notifications.
 See the diagram to examine the process described in this section along with the example notification flow:
- ![](push_notifications_example_message_flow.svg)
+ ![](push_notifications_example_message_flow.png)
 
 ### Registering with a Push Service provider
 
