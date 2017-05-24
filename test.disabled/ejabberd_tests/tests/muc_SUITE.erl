@@ -42,6 +42,7 @@
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
 -define(WAIT_TIME, 1500).
+-define(WAIT_TIMEOUT, 10000).
 
 -define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
@@ -4042,7 +4043,7 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
         ct:sleep(timer:seconds(1)),
 
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
-        Presence = escalus:wait_for_stanza(Bob),
+        Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
         ct:print("~p", [Presence]),
         MessageWithSubject = escalus:wait_for_stanza(Bob),
         ct:print("~p", [MessageWithSubject]),
@@ -4096,7 +4097,7 @@ stopped_members_only_room_process_invitations_correctly(Config) ->
         Stanza2 = stanza_set_affiliations(RoomName,
                                           [{escalus_client:short_jid(Kate), <<"member">>}]),
         escalus:send(Alice, Stanza2),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice, ?WAIT_TIMEOUT)),
         is_invitation(escalus:wait_for_stanza(Kate)),
 
         ok
@@ -4265,7 +4266,7 @@ wait_for_mam_result(RoomName, Client, Msg) ->
              {data_form, true}],
     QueryStanza = mam_helper:stanza_archive_request(Props, <<"q1">>),
     escalus:send(Client, muc_helper:stanza_to_room(QueryStanza, RoomName)),
-    S = escalus:wait_for_stanza(Client),
+    S = escalus:wait_for_stanza(Client, ?WAIT_TIMEOUT),
     M = exml_query:path(S, [{element, <<"result">>},
                             {element, <<"forwarded">>},
                             {element, <<"message">>}]),
