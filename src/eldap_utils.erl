@@ -161,7 +161,7 @@ make_filter(Data, UIDs, Op) ->
                            _ when Value /= <<"">> ->
                     case binary:match(Value, <<"*">>) of
                         nomatch -> [eldap:equalityMatch(Name, Value)];
-                        _ -> [eldap:substrings(binary_to_list(Name),
+                        _ -> [eldap:substrings(maybe_b2list(Name),
                           generate_substring_list(Value))]
                     end;
                            _ ->
@@ -178,8 +178,8 @@ make_filter(Data, UIDs, Op) ->
 
 -spec case_insensitive_match(binary(), binary()) -> boolean().
 case_insensitive_match(X, Y) ->
-    X1 = string:to_lower(binary_to_list(X)),
-    Y1 = string:to_lower(binary_to_list(Y)),
+    X1 = string:to_lower(maybe_b2list(X)),
+    Y1 = string:to_lower(maybe_b2list(Y)),
     if
         X1 == Y1 -> true;
         true -> false
