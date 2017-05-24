@@ -197,7 +197,7 @@ store_room(ServerHost, Host, Name, Opts) ->
 
 
 -spec restore_room(ejabberd:server(), ejabberd:server(), room())
-                                    -> 'error' | 'undefined' | [any()].
+                                    -> {error, _} | {ok, _}.
 restore_room(ServerHost, Host, Name) ->
     mod_muc_db_backend:restore_room(ServerHost, Host, Name).
 
