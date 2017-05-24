@@ -184,7 +184,7 @@ The room MUST route all messages of the 'groupchat' type.
 
 ```xml
 <message from='hag66@shakespeare.lit/pda'
-         id='hysf1v37'
+         id='msg111'
          to='coven@muclight.shakespeare.lit'
          type='groupchat'>
     <body>Harpier cries: 'tis time, 'tis time.</body>
@@ -204,7 +204,17 @@ The room MUST route all messages of the 'groupchat' type.
 ```xml
 <message id='msg111' type='groupchat'
     from='coven@muclight.shakespeare.lit/hag66@shakespeare.lit'
-    to='crone2@shakespeare.lit>
+    to='crone2@shakespeare.lit'>
+    <body>Harpier cries: 'tis time, 'tis time.</body>
+</message>
+```
+
+Note the message is sent to all the room occupants including the original sender.
+
+```xml
+<message id='msg111' type='groupchat'
+    from='coven@muclight.shakespeare.lit/hag66@shakespeare.lit'
+    to='hag66@shakespeare.lit'>
     <body>Harpier cries: 'tis time, 'tis time.</body>
 </message>
 ```
