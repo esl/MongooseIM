@@ -95,7 +95,7 @@ paths:
           schema:
             $ref: '#/definitions/ResourceID'
     get:
-      description: "Returns list of room to which user has subscribed."
+      description: "Returns a list of rooms to which the user has subscribed."
       tags:
         - "Rooms"
       responses:
@@ -119,10 +119,10 @@ paths:
           schema:
             $ref: '#/definitions/RoomDetails'
         404:
-          description: When there is no room with given ID.
+          description: When there is no room with the given ID.
         403:
           description: |
-            When authenticated user is not allowed to read room's deatails.
+            When the authenticated user is not allowed to read the room's details.
   /rooms/{id}/users:
     post:
       description: "Adds a user to a room."
@@ -139,16 +139,16 @@ paths:
         204:
           description: User was successfully added to the room.
         404:
-          description: When there is no room with given ID.
+          description: When there is no room with the given ID.
         403:
           description: |
-            When authenticated user is not allowed to add users to the room.
+            When the authenticated user is not allowed to add users to the room.
   /rooms/{id}/users/{user}:
     delete:
       description: |
         Removes a user from the room.
-        Owner can remove any user.
-        Occupant can also use this method, but can only remove itself.
+        The owner can remove any user.
+        The occupant can also use this method, but can only remove themself.
       tags:
         - "Rooms"
       parameters:
@@ -163,10 +163,10 @@ paths:
         204:
           description: User was successfully removed from the room.
         404:
-          description: When there is no room with given ID.
+          description: When there is no room with the given ID.
         403:
           description: |
-            When authenticated user is not allowed to add users to the room.
+            When the authenticated user is not allowed to add users to the room.
   /rooms/{id}/messages:
     parameters:
       - $ref: '#/parameters/roomID'
@@ -182,14 +182,14 @@ paths:
             $ref: '#/definitions/SendRoomMessage'
       responses:
         200:
-          description: Message was sent, ID returned in body.
+          description: Message was sent, ID returned in the body.
           schema:
             $ref: "#/definitions/ResourceID"
         404:
-          description: When there is no room with given ID.
+          description: When there is no room with a given ID.
         403:
           description: |
-            When authenticated user is not allowed to send message to the room.
+            When the authenticated user is not allowed to send messages to the room.
     get:
       description: Gets room's messages from the archive.
       tags:
@@ -203,14 +203,14 @@ paths:
           schema:
             $ref: "#/definitions/RecvRoomMessage"
         404:
-          description: When there is no room with given ID.
+          description: When there is no room with a given ID.
         403:
           description: |
-            When authenticated user is not allowed to read room's details.
+            When the authenticated user is not allowed to read room's details.
   /sse:
     get:
       summary: |
-        WARNING: Do not try to use this endpoint from this page. Swagger doesn't understand SSE.
+        WARNING: Do not try to use this endpoint from this page. Swagger does not understand SSE.
       description: |
         Opens an SSE (https://www.html5rocks.com/en/tutorials/eventsource/basics/) connection to retrieve updates from the server.
         The simplest way to test this endpoint is a `curl` command.
@@ -266,7 +266,7 @@ securityDefinitions:
   mongoose_basic_auth:
     type: basic
     description: |
-      Log in using your userid (users's bare JID - F.e. alice@wonderland.com) and their password.
+      Log in using your userid (users's bare JID - F.e. alice@wonderland.com) and password.
 parameters:
   roomID:
     in: path
@@ -362,7 +362,7 @@ definitions:
   RoomRole:
     type: string
     enum: ["owner", "member"]
-    description: The role of the user in given room. This can be 'owner' or 'member'.
+    description: The role of the user in a given room (can be 'owner' or 'member').
   SendRoomMessage:
     properties:
       body:
@@ -407,7 +407,7 @@ definitions:
     type: string
     example: "alice@wonderland.lit"
     description: |
-      This is user's JID (Jabber ID) which consist of username and server.
+      This is the user's JID (Jabber ID) which consist of username and server parts.
       Example: alice@wonderland.com
   RoomSubject:
     type: string

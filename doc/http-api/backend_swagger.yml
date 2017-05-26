@@ -1,7 +1,7 @@
 swagger: '2.0'
 info:
   version: "1.0.0"
-  title: MongooseIM control backend REST API
+  title: "MongooseIM's REST Control API"
   description: |
     Explore MongooseIM features using our REST API.
 
@@ -220,7 +220,7 @@ paths:
           required: false
           type: integer
       description: |
-        Retrieve recent message from my archive.
+        Retrieve recent messages from the given user's archive.
         This works only with `mod_mam` enabled.
       responses:
         200:
@@ -257,7 +257,7 @@ paths:
         This works only with `mod_mam` enabled.
       responses:
         200:
-          description: The messages archived for the given user and the other party
+          description: The messages archived for the given user and the other party.
           schema:
             $ref: '#/definitions/messageList'
   /muc-lights/{XMPPHost}:
@@ -338,7 +338,7 @@ paths:
     post:
       tags:
         - "MUC-light management"
-      description: Send message to the MUC Light room on behalf of a user.
+      description: Send a message to the MUC Light room on behalf of a user.
       consumes:
         - application/json
       parameters:
@@ -392,7 +392,7 @@ paths:
               nick:
                 type: string
                 description: A nickname for the owner.
-                example: "my-nick"
+                example: "ali"
       responses:
         201:
           description: A room was created
@@ -473,10 +473,10 @@ paths:
     delete:
       tags:
         - "MUC management"
-      description: Kick a user on behalf of one of the room's moderators.
+      description: Kick a user out on behalf of one of the room's moderators.
       responses:
         204:
-          description: User was kicked from the MUC room
+          description: User was kicked out from the MUC room.
 
 parameters:
   hostName:
