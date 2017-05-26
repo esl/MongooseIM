@@ -41,7 +41,7 @@ test_cases() ->
      escape_attrs].
 
 suite() ->
-    [{timetrap,{seconds,30}}|escalus:suite()].
+    escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown

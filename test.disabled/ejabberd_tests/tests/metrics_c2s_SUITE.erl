@@ -52,8 +52,7 @@ groups() ->
      {count, [sequence], [stanza_count]}].
 
 suite() ->
-    [{timetrap,{seconds,30}},
-     {require, ejabberd_node} | escalus:suite()].
+    [{require, ejabberd_node} | escalus:suite()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown

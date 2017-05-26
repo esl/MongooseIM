@@ -70,7 +70,6 @@ negative() ->
     [timeout_waiting_for_message].
 
 suite() ->
-    [{timetrap,{seconds,30}}] ++
     require_s2s_nodes() ++
     escalus:suite().
 

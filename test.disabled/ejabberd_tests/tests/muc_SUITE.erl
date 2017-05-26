@@ -249,7 +249,7 @@ rsm_cases() ->
        pagination_empty_rset].
 
 suite() ->
-    [{timetrap,{seconds,30}}|escalus:suite()].
+    escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown

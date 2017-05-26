@@ -33,7 +33,7 @@ test_cases() -> [last_online_user,
                  last_offline_user,
                  last_server].
 suite() ->
-    [{timetrap,{seconds,30}}|escalus:suite()].
+    escalus:suite().
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).

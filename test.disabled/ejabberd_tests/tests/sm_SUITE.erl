@@ -68,7 +68,7 @@ parallel_manual_ack_test_cases() ->
 
 
 suite() ->
-    [{timetrap,{seconds,30}}|escalus:suite()].
+    escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown

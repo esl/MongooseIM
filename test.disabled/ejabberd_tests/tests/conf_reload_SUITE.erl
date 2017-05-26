@@ -46,8 +46,7 @@ groups() ->
        ]}].
 
 suite() ->
-    [{timetrap,{seconds,30}},
-     {required, {hosts, mim, reloaded_domain}} | escalus:suite()].
+    [{required, {hosts, mim, reloaded_domain}} | escalus:suite()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
