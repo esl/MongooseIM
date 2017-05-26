@@ -293,5 +293,5 @@ compare_host_names(Node1, Node2) ->
     Host1 =:= Host2.
 
 node_to_host(Node) when is_atom(Node) ->
-    [$@|Host] = lists:dropwhile(fun(X) -> X =/= $@ end, atom_to_list(Node)),
+    [_Name, Host] = string:tokens(atom_to_list(Node), "@"),
     list_to_atom(Host).
