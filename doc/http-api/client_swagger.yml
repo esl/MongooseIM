@@ -122,7 +122,7 @@ paths:
           description: When there is no room with the given ID.
         403:
           description: |
-            When the authenticated user is not allowed to read the room's deatails.
+            When the authenticated user is not allowed to read the room's details.
   /rooms/{id}/users:
     post:
       description: "Adds a user to a room."
@@ -407,7 +407,7 @@ definitions:
     type: string
     example: "alice@wonderland.lit"
     description: |
-      This is user's JID (Jabber ID) which consist of a username and a server.
+      This is the user's JID (Jabber ID) which consist of username and server parts.
       Example: alice@wonderland.com
   RoomSubject:
     type: string

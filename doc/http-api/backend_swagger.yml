@@ -1,7 +1,7 @@
 swagger: '2.0'
 info:
   version: "1.0.0"
-  title: "MongooseIM's backend REST API"
+  title: "MongooseIM's REST Control API"
   description: |
     Explore MongooseIM features using our REST API.
 
@@ -220,7 +220,7 @@ paths:
           required: false
           type: integer
       description: |
-        Retrieve the recent message from my archive.
+        Retrieve recent messages from the given user's archive.
         This works only with `mod_mam` enabled.
       responses:
         200:
@@ -392,7 +392,7 @@ paths:
               nick:
                 type: string
                 description: A nickname for the owner.
-                example: "my-nick"
+                example: "ali"
       responses:
         201:
           description: A room was created

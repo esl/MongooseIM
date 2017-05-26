@@ -4,7 +4,7 @@
 
 Commands used by the REST API are provided by modules:
 
-`mod_commands` - provides general purpose commands, both user (sending a message, retrieving messages from the archive) and administration (create/delete a user, change the password etc)
+`mod_commands` - provides general purpose commands: both user-like (f.e. sending a message and retrieving messages from the archive) and administration-like (f.e. create/delete a user and change the password)
 
 `mod_muc_commands` - commands related to Multi-user Chat rooms: create a room, invite users, send a message etc.
 
