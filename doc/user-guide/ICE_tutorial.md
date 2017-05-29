@@ -1,56 +1,56 @@
-## How to: Setup fennec (TURN/STUN server) and see that it works (a.k.a ICE demo)
+## How to: Set up Fennec (TURN/STUN server) and see that it works (a.k.a ICE demo)
 
 ### Introduction
-#### Who is that document for?
+#### Who is this document for?
 
-This document shows our TURN/STUN server in action. 
-Not only shows how to setup and configure the [Fennec], but shows how to setup entire example system that takes advantage of what *Fennec* can do. 
-Therefore this documents is for everyone that want to tinker with a real example of a application that requires NAT traversal and uses a TURN and STUN server to achieve it.
+This document is a showcase of our TURN/STUN server in action.
+Not only does it show how to set up and configure [Fennec], but also shows how to set up entire example system that takes advantage of what Fennec does.
+Therefore this documents is for anyone who wants to tinker with example application that requires NAT traversal and uses TURN and STUN server to achieve it.
 
-#### What will be the end result of this tutorial?
+#### What is the end result of this tutorial?
 
-At the end of the tutorial you will get a working environment that includes two peers that are able to send live video stream to each other.
-This peer-to-peer communication will not be obstructed with any NATs that may happen to be on the way. 
-The live video stream is only an example here - there are many possible use cases for peer-to-peer communication with NAT transversal. 
-We choose to build the example application that shows video streaming only because it is probably most "presentable" use case. 
-
+At the end of the tutorial you will have a working environment with two peers, one sending live video to another.
+The peer-to-peer communication will not be obstructed with any NATs that may happen to be on the way.
+The live video stream is only an example here - there are many possible use cases for peer-to-peer communication with NAT traversal.
+We chose to build an example application that shows video streaming, only because it is probably the most eye-catchin use case.
 
 #### What do I need to begin?
 
-Before you begin you may need to prepare an environment for setting up the components used in this tutorial. 
-To keep it short, here's a list of things you need to have:
-* At least one Android phone (or at least an Android emulator). 
-The video player in this tutorial in available only as Android application.
+Before you begin you have to prepare an environment for setting up the components used in this tutorial.
+To keep it short, here's a list of things you'll need:
+* One Android phone (or at least an Android emulator).
+The video player in this tutorial is available only as Android application.
 * RaspberryPi or virtually any device that is able to [run Elixir code][Elixir]. Oh, and also has [ffmpeg] installed.
-In this tutorial we will use RaspberryPi 3 since it looks cool and it will be easier to distinguish this component from others since RaspberryPi as a name is much less common then "*generic device that runs elixir*". 
-* At least one machine with public IPv4 address. 
-You need this since, both [MongooseIM] and [Fennec] servers need to be accessible by all devices that are used in this demo system.
-You could use some private, local IP address, but then you would need to ensure that your phone and the RaspberryPi are behind some kind of a NAT relatively to this IP address.
-On this tutorial we are going to use 2 VPS (Virtual Private Server) that are based somewhere far far away and have a public IPv4 address each, that we will reference to as *1.1.1.1* for the Fennec's VPS and *2.2.2.2* for the MongooseIM's VPS. 
-Also we will assume that there is a domain connected to *2.2.2.2* IP address called *myxmpp.com* since we are going to setup XMPP server on the VPS with this IP address.
+We are going to use use RaspberryPi 3, to give this tutorial a smell of IoT.
+* At least one machine with public IPv4 address.
+It is necessary, because both [MongooseIM] and [Fennec] servers need to be accessible by all devices that are used in this demo system.
+You could use some private, local IP address, but then you would need to ensure that your phone and the RaspberryPi are behind some kind of a NAT relative to this IP address.
 
-#### General architecture of the environment build with this tutorial
+> Note: the demo will probably work without the NAT, but in such there is no point in setting up TURN server.
+
+We are going to use 2 VPS (Virtual Private Server) that are located somewhere far far away, both having public IPv4 address. Let's say Fennec is bound to *1.1.1.1*, and MongooseIM to *2.2.2.2*.
+
+#### General architecture of the environment built with this tutorial
 
 The architecture of the system we are building looks like this:
 ![ICE example architecture][ice_architecture]
 
-As stated in chapter above, we can see here [MongooseIM] at *2.2.2.2*/*myxmpp.com* and [Fennec] on *1.1.1.1*. 
-We also have a RaspberryPi that is connected to some private network (so is behind some NAT) and Android Phone that is connected to LTE network that also is behind carrier's NAT.
+As stated in chapter above, here we can see [MongooseIM] at *2.2.2.2*/*myxmpp.com* and [Fennec] at *1.1.1.1*.
+We also have a RaspberryPi that is connected to some private network (so is behind some NAT) and Android phone that is connected to LTE network and also is behind carrier's NAT.
 
 #### ICE notes
 
-The end result of this tutorial uses not only the [Fennec] and [MongooseIM] servers but also custom version of [Mangosta-Android] and [DemoStreamerICE].
-Both projects are custom modified and custom made respectively in order to showcase the video steaming on top of the [Fennec] data relay. 
-The streaming itself along with the signaling protocol are made only for this demo and **are not part of the platform**. 
-Those components exist only to visualize what [Fennec] can achieve and what one can build on top of it. 
+The end result of this tutorial not only uses [Fennec] and [MongooseIM] servers but also uses custom version of [Mangosta-Android] and [DemoStreamerICE].
+Both projects are custom modified and custom made respectively in order to showcase the video streaming using the data relay capabilities provided by [Fennec].
+The streaming itself, along with the signalling protocol, were prepared only for the case of this demo and **are not part of the platform**.
+Those components exist only to visualize what can be achieved with [Fennec] and what one can build on top of it.
 
+### Setting up MongooseIM (signalling)
 
-### Setting up MongooseIM (signaling)
-
-The ICE is nothing without signaling. The signaling protocol itself can be designed specifically for the application that is being deployed or can be implemented based on some standards like e.g. [Jingle].
-Here, since this is only an example that show [Fennec] in action we choose to implement simplest signaling possible - i.e. sending relay addresses via XMPP messages. 
-No matter whether we would use this approach or [Jingle] we can use [MongooseIM] XMPP server as transport for this signaling. 
-Therefore in order to enable signaling we need an instance of [MongooseIM] in the simplest configuration, since the only thing we need from [MongooseIM] is to provide us with means to communicate between two peers.
+The ICE is nothing without signalling. The signalling protocol itself can be designed specifically for the application that is being deployed or can be implemented based on some standards, e.g. [Jingle].
+Here, since this is only an example that shows [Fennec] in action, we chose to implement simplest signalling possible, i.e. sending relay addresses via XMPP messages.
+No matter if we use this approach or [Jingle], we can use [MongooseIM] XMPP server as transport layer for the signalling.
+In order to enable signalling we need an instance of [MongooseIM] running with the simplest configuration, since the only thing we need from it is to provide us with means to communicate between two peers.
 
 #### Configuration
 
@@ -58,7 +58,7 @@ TODO: describe MIM configuration or point to other docs to skip this section
 
 #### Users
 
-After we finish setting up [MongooseIM], we need to register some users. For this demo we need two: *movie@myxmpp.com* and *phone@myxmpp.com* for RaspberryPi and our Android phone respectively. 
+After we finish setting up [MongooseIM], we need to register some users. For this demo we need two users: *movie@myxmpp.com* and *phone@myxmpp.com*, for RaspberryPi and Android phone respectively.
 In order to do that, we can simply type in the following on machine that has [MongooseIM] installed:
 
 ```bash
@@ -66,71 +66,68 @@ In order to do that, we can simply type in the following on machine that has [Mo
 /usr/lib/mongooseim/bin/mongooseimctl register movie myxmpp.com xmpp_password
 ```
 
-As you can see here, we have created those two users, both with password *xmpp_password* for simplicity. 
+As you can see here, we have created those two users, both with password *xmpp_password* for simplicity.
 
 ### Setting up Fennec (TURN/STUN server)
 
-Now, since we have [MongooseIM] that can handle signaling, we need TURN relay and STUN server that will be used by peers to send peer-to-peer data. 
-For that we are going to use the star of this tutorial - [Fennec]. 
+Now, since we have [MongooseIM] that can handle signalling, we need TURN relay and STUN server that will be used by peers to send peer-to-peer data.
+For that we are going to use the star of this tutorial - [Fennec].
 
 #### How to get and configure
 
-The whole documentation that describes all options and deployment methods, you can find on the [project's github page][Fennec]. 
-Here we are going to just make it run (this command assumes we are on the server for [Fennec] and that it has docker installed):
+The whole documentation that describes all options and deployment methods, can be found on the [project's github page][Fennec].
+Let's start it! (this command assumes that we are on the server for [Fennec] and that it has Docker installed):
 ```bash
 docker run -it --net=host -e "FENNEC_UDP_RELAY_IP=1.1.1.1" -e "FENNEC_STUN_SECRET=secret" -e "FENNEC_UDP_REALM=myrelay" mongooseim/fennec:0.3.0
 ```
 
-This command started [Fennec] server in docker while attaching its network interface to the real network interface of the machine we are running docker on. 
-There are three important settings we have to set via environment variables:
-* **FENNEC\_UDP\_RELAY\_IP** - This sets the IP address that [Fennec] is accessible on for data relay. 
-This should be set to public IPv4 address that is able to pass-through UDP packets on all ports to [Fennec] server. 
-* **FENNEC\_STUN\_SECRET** - This is a secret password that will be needed by TURN clients to connect to this server. 
-It may be anything you will be also able to set on you Android phone, since the phone in this tutorial is going to need this TURN relay. 
-* **FENNEC\_UDP\_REALM** - This is just a name for your TURN relay. 
-It can be anything but it has to match when configuring TURN client, similar to the secret above.
+This command starts [Fennec] server in the Docker container, attaching its virtual network interface to the network interface of the host machine Docker deamon is running on.
+There are three important configuration options we have to set via environment variables:
+* **FENNEC\_UDP\_RELAY\_IP** - This is the IP address that [Fennec] provides data relay on. This should be set to public IPv4 address.
+* **FENNEC\_STUN\_SECRET** - This is a secret password that TURN clients need to provide to connect to this server.
+* **FENNEC\_UDP\_REALM** - This is just a name for your TURN relay.
 
 And that's it! [Fennec] is now ready to roll!
 
 ### Setting up Mangosta-Android
 #### How to get and install
 
-The source code of the "video stream demo enabled" [Mangosta-Android] can be found on the [ice_demo_kt][mangosta_ice_demo] branch.
+The source code of the video-stream-demo-enabled [Mangosta-Android] can be found on the [ice_demo_kt][mangosta_ice_demo] branch.
 If you want to tinker with it and compile it yourself, you can do that. All you need is [Android Studio 2.3+](https://developer.android.com/studio/index.html).
 The compilation is pretty straight forward, so I'm not going to explain it here. If you are interested in how it works, most of the code is in `inaka.com.mangosta.videostream` package.
-If you don't want to compile this application from source, you can just install [this .apk](https://drive.google.com/file/d/0B48g-HBQ5xpxclQ2RnBFMUluRU0/view?usp=sharing) on your phone and that's it. 
+If you don't want to compile this application from source, you can just install [this .apk](https://drive.google.com/file/d/0B48g-HBQ5xpxclQ2RnBFMUluRU0/view?usp=sharing) on your phone and that's it.
 
-#### How to configure 
+#### How to configure
 
-Just after you run [Mangosta-Android] for the fist time, you will need to login into your XMPP server. 
-In order to do that, just enter the JID you have created for the phone (*phone@myxmpp.com*), password (*xmpp_password*), the server address (*myxmpp.com* or *2.2.2.2*) and confirm by clicking "Enter".
+Right after you start [Mangosta-Android] for the fist time, you will need to log in to your XMPP server.
+In order to do that, just enter the JID you have created for the phone (*phone@myxmpp.com*), password (*xmpp_password*), the server address (*2.2.2.2*) and confirm by clicking "Enter".
 
 <img alt="Mangosta login" src="ice_tutorial_resources/mangosta_login.png" width="25%">
 
-After we log in, we can start setting up the connection to our [Fennec] server. The process is shown on the screen shoots below. 
+After we log in, we can start setting up the connection to the [Fennec] server we set up before. The process is shown on the screenshots below.
 
 <img src="ice_tutorial_resources/mangosta_ice_settings_1.png" width="30%">
 <img alt="Mangosta test ICE connection" src="ice_tutorial_resources/mangosta_ice_settings_2.png" width="30%">
 <img alt="Mangosta save ICE settings" src="ice_tutorial_resources/mangosta_ice_settings_3.png" width="30%">
 
-On the "*Configure ICE*" screen we have to setup 5 fields: 
+On the "*Configure ICE*" screen we have to setup 5 fields:
 * **TURN server address** - IPv4 address of our [Fennec]
 * **TURN Server port** - since we did not set the port while configuring [Fennec] it uses a default one - **3478**
 * **TURN Realm** - Realm name we have set via *FENNEC\_UDP\_REALM* variable. In our case it's "*myrelay*".
 * **TURN username** - Current version of [Fennec] ignores this, so you may leave it as is.
 * **TURN password** - The password that we have set via *FENNEC\_STUN\_SECRET* variable. In out case it's "*secret*"
 
-And that would be all. Now you can click "*TEST CONNECTEION*" to, well... test the connection. 
-If everything works, you can "*SAVE*" the settings. Now you [Mangosta-Android] is ready to play streamed video, but we still need the source...
+And that would be all. Now you can click "*TEST CONNECTEION*" to, well..., test the connection.
+If everything works, you can "*SAVE*" the settings. Now your [Mangosta-Android] is ready to play streamed video, but we still need the source...
 
 ### Setting up RaspberryPi
 
-So now let's configure the video source. In our case it will be RaspberryPi with [Elixir] and [ffmpeg] installed running [our ICE demo application][ice_demo_client].
+Let's configure the video source now. In our case it will be RaspberryPi with [Elixir] and [ffmpeg] installed running [our ICE demo application][ice_demo_client].
 
 #### The software
 
-For this demo we provide simple XMPP client that also is able to send live video stream using [ffmpeg] whenever other peer asks for it via XMPP. 
-This client is written in [Elixir], so we can run it from source quite easily. 
+For this demo we provide simple XMPP client that also is able to send live video stream using [ffmpeg] whenever other peer asks for it via XMPP.
+This client is written in [Elixir], so we can run it from source quite easily.
 
 #### How to get and configure
 
@@ -142,7 +139,7 @@ mix deps.get
 iex -S mix
 ```
 
-After a while we should get into Elixir's shell. In order to enable the streamer we need to start it while providing it with some options (in Elixir's shell we have just started):
+After a while we should get into Elixir's shell. In order to enable the streamer we need to start it, providing some configuration options (in Elixir shell we have just started):
 ```elixir
 opts = [
   jid: "movie@myxmpp.com",
@@ -156,25 +153,24 @@ opts = [
 ICEDemo.start_movie(opts)
 ```
 
-The first 3 options are all about connection to our XMPP server - we use "*movie@myxmpp.com*" user that we created earlier. 
-Next 3 options are about connection to the [Fennec] server. 
-Those are similar to ones we set in [Mangosta-Android]. 
-The last one points to the video file that will be streamed on request. This file has be a raw H.264 video-only file.
-If you are not sure how to get one, you can just use [this one][h264_sample_video] (pre-rendered [Sintel, OpenBlender project](https://durian.blender.org/)). 
-After this configuration, out RaspberryPi is ready to stream!
+The first 3 options are all about connecting to the XMPP server - we use "*movie@myxmpp.com*" user that we created earlier.
+Next 3 options are about connecting to the [Fennec] server. Those are similar to ones we set in [Mangosta-Android].
+The last one points to the video file that will be streamed on request. This file has to be raw, H.264-encoded, video-only file.
+If you are not sure how to get one, you can just use [this one][h264_sample_video] (pre-rendered [Sintel, OpenBlender project](https://durian.blender.org/)).
+With this configuration, out RaspberryPi is ready to stream!
 
 ### The end result
 #### Playing the video
 
-Now we finally can get out phone and start streaming the video! 
-In order to do that, we have to click the "*New video stream*" button as shown on the screen shoots below, enter the JID of the RaspberryPi and confirm with "*Stream!*" button. 
+Now we finally can get out phone and start streaming the video!
+In order to do that, we have to click the "*New video stream*" button as shown on the screen shoots below, enter the JID of the RaspberryPi and confirm with "*Stream!*" button.
 
 
 <img alt="Mangosta start streaming" src="ice_tutorial_resources/mangosta_start_stream_1.png" width="30%">
 <img alt="Mangosta start streaming" src="ice_tutorial_resources/mangosta_start_stream_2.png" width="30%">
 <img alt="Mangosta start streaming" src="ice_tutorial_resources/mangosta_start_stream_3.png" width="30%">
 
-Hopefully you can see the video now on your phone :)
+Hopefully, now you can see the video on your phone's screen :)
 
 [Fennec]: https://github.com/esl/fennec
 [MongooseIM]: https://github.com/esl/MongooseIM
