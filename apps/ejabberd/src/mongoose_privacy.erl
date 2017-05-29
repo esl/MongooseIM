@@ -30,13 +30,13 @@
                            PrivacyList :: userlist(),
                            To :: ejabberd:jid(),
                            Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
-privacy_check_packet(Acc, Server, User, PrivacyList, To, Dir) ->
-    A = case Acc of
-           {Ac, #xmlel{}} -> Ac;
-            _ -> Acc
+privacy_check_packet(Acc0, Server, User, PrivacyList, To, Dir) ->
+    Acc1 = case Acc0 of
+           {Acc, #xmlel{}} -> Acc;
+            _ -> Acc0
         end,
-    From = mongoose_acc:get(from_jid, A),
-    privacy_check_packet(Acc, Server, User, PrivacyList, From, To, Dir).
+    From = mongoose_acc:get(from_jid, Acc1),
+    privacy_check_packet(Acc1, Server, User, PrivacyList, From, To, Dir).
 
 %% @doc check packet, store result in accumulator, return acc and result for quick check
 %% Acc can be either a single argument (an Accumulator) or a tuple of {Acc, Stanza}
@@ -58,9 +58,9 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
                            {Acc0, mongoose_acc:get(name, Acc0), mongoose_acc:get(type, Acc0)}
                    end,
     % check if it is there, if not then set default and run a hook
-    F = jid:to_binary(From),
-    T = jid:to_binary(To),
-    Key = {cached_privacy_check, Server, User, F, T, Name, Type, Dir},
+    FromBin = jid:to_binary(From),
+    ToBin = jid:to_binary(To),
+    Key = {cached_privacy_check, Server, User, FromBin, ToBin, Name, Type, Dir},
     case mongoose_acc:get(Key, Acc, undefined) of
         undefined ->
 %%            Packet = mongoose_acc:get(to_send, Acc),

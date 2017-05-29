@@ -83,6 +83,7 @@ pages:
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
       - 'Hooks description': 'developers-guide/hooks_description.md'
       - 'Stanza routing': 'developers-guide/message_routing.md'
+      - 'Accumulators':  'developers-guide/accumulators.md'
       - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
       - 'mod_muc_light developers doc': 'developers-guide/mod_muc_light_developers_guide.md'
       - 'xep-tool usage': 'developers-guide/xep_tool.md'

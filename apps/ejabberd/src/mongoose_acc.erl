@@ -190,8 +190,8 @@ strip(Acc) ->
 %% while from ejabberd_router:route we get bare stanza and two jids.
 -spec record_sending(t(), xmlel(), atom(), any()) -> t().
 record_sending(Acc, Stanza, Module, Result) ->
-    record_sending(Acc, n, n, Stanza, Module, Result).
--spec record_sending(t(), jid()|n, jid()|n, xmlel(), atom(), any()) -> t().
+    record_sending(Acc, none, none, Stanza, Module, Result).
+-spec record_sending(t(), jid()|none, jid()|none, xmlel(), atom(), any()) -> t().
 record_sending(Acc, _From, _To, _Stanza, _Module, Result) ->
     mongoose_acc:put(send_result, Result, Acc).
 
