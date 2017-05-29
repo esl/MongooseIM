@@ -33,8 +33,8 @@ ejabberd_hooks:run(offline_message_hook, LServer,
 ```
 
 The extra level of indirection introduced by this call gives the flexibility to determine at runtime what code actually gets run at this point.
-`offline_message_hook` is just the name of the hook (in other words of the event that is being signalled); 
-`From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly; 
+`offline_message_hook` is just the name of the hook (in other words of the event that is being signalled);
+`From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly;
 `LServer` is [the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
 
 
@@ -70,14 +70,17 @@ If you haven't encountered the term _fold_ before, think of it as _reduce_ (like
 
 ### Using accumulators
 
-Frankly speaking, we already mislead you twice. First, usage of `ejabberd_hooks:run` is strongly discouraged and some day will
-not be supported. Second, you should not use a list as an accumulator.
+Frankly speaking, we already mislead you twice.
+First, usage of `ejabberd_hooks:run` is strongly discouraged and some day will not be supported.
+Second, you should not use a list as an accumulator.
 
 MongooseIM is undergoing a major architectural change: we are switching to `run_fold` everywhere, and using a dedicated data structure to
-accumulate results. This data structure is implemented in `mongoose_acc` module, which has a map-like interface: it
-has `get/2`, `get/3`, `put/3` etc. It is instantiated with an incoming stanza, passed along throughout the processing
-chain, supplied to and returned from hook calls, and terminated when stanza is leaving MongooseIM. If hook handlers are supposed
-to return some value they put it into the accumulator.
+accumulate results(see ["Accumulators"](accumulators.md)).
+This data structure is implemented in `mongoose_acc` module, which has a map-like interface: it
+has `get/2`, `get/3`, `put/3` etc.
+It is instantiated with an incoming stanza, passed along throughout the processing
+chain, supplied to and returned from hook calls, and terminated when stanza is leaving MongooseIM.
+If hook handlers are supposed to return some value they put it into the accumulator.
 
 The right way to use hooks is therefore:
 
@@ -166,6 +169,7 @@ Such skipped hooks update metrics defined in the `mongoose_metrics_hooks` module
 ## Writing handlers
 
 The signature of a handler has to follow three rules:
+
 * correct arity (the numer of args passed to `run_fold` + 1)
 * the first arg is a mongoose_acc
 * returns mongoose_acc
