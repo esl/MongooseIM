@@ -24,6 +24,8 @@
 
 %% @doc abbreviated version - in most cases we have 'from' in Acc, but sometimes
 %% the caller wants something different (e.g. mod_last which swaps addresses)
+%% the first arg can be accumulator, if we are checking its element, or a tuple
+%% {Acc, El} for cases where one acc triggers sending many messages which have to be checked
 -spec privacy_check_packet(Acc :: mongoose_acc:t() | {mongoose_acc:t(), jlib:xmlel()},
                            Server :: binary(),
                            User :: binary(),
@@ -36,7 +38,7 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, To, Dir) ->
             _ -> Acc0
         end,
     From = mongoose_acc:get(from_jid, Acc1),
-    privacy_check_packet(Acc1, Server, User, PrivacyList, From, To, Dir).
+    privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir).
 
 %% @doc check packet, store result in accumulator, return acc and result for quick check
 %% Acc can be either a single argument (an Accumulator) or a tuple of {Acc, Stanza}
