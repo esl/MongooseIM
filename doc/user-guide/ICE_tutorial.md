@@ -102,13 +102,13 @@ If you don't want to compile this application from source, you can just install 
 Right after you start [Mangosta-Android] for the fist time, you will need to log in to your XMPP server.
 In order to do that, just enter the JID you have created for the phone (*phone@myxmpp.com*), password (*xmpp_password*), the server address (*2.2.2.2*) and confirm by clicking "Enter".
 
-<img alt="Mangosta login" src="ice_tutorial_resources/mangosta_login.png" width="25%">
+<img alt="Mangosta login" src="mangosta_login.png" width="25%">
 
 After we log in, we can start setting up the connection to the [Fennec] server we set up before. The process is shown on the screenshots below.
 
-<img src="ice_tutorial_resources/mangosta_ice_settings_1.png" width="30%">
-<img alt="Mangosta test ICE connection" src="ice_tutorial_resources/mangosta_ice_settings_2.png" width="30%">
-<img alt="Mangosta save ICE settings" src="ice_tutorial_resources/mangosta_ice_settings_3.png" width="30%">
+<img src="mangosta_ice_settings_1.png" width="30%">
+<img alt="Mangosta test ICE connection" src="mangosta_ice_settings_2.png" width="30%">
+<img alt="Mangosta save ICE settings" src="mangosta_ice_settings_3.png" width="30%">
 
 On the "*Configure ICE*" screen we have to setup 5 fields:
 * **TURN server address** - IPv4 address of our [Fennec]
@@ -166,9 +166,9 @@ Now we finally can get out phone and start streaming the video!
 In order to do that, we have to click the "*New video stream*" button as shown on the screen shoots below, enter the JID of the RaspberryPi and confirm with "*Stream!*" button.
 
 
-<img alt="Mangosta start streaming" src="ice_tutorial_resources/mangosta_start_stream_1.png" width="30%">
-<img alt="Mangosta start streaming" src="ice_tutorial_resources/mangosta_start_stream_2.png" width="30%">
-<img alt="Mangosta start streaming" src="ice_tutorial_resources/mangosta_start_stream_3.png" width="30%">
+<img alt="Mangosta start streaming" src="mangosta_start_stream_1.png" width="30%">
+<img alt="Mangosta start streaming" src="mangosta_start_stream_2.png" width="30%">
+<img alt="Mangosta start streaming" src="mangosta_start_stream_3.png" width="30%">
 
 Hopefully, now you can see the video on your phone's screen :)
 
@@ -177,7 +177,7 @@ Hopefully, now you can see the video on your phone's screen :)
 [Mangosta-Android]: https://github.com/esl/mangosta-android
 [mangosta_ice_demo]: https://github.com/esl/mangosta-android/tree/ice_demo_kt
 [Jingle]: https://xmpp.org/extensions/xep-0166.html
-[ice_architecture]: ice_tutorial_resources/ice_architecture.png
+[ice_architecture]: ICE_tutorial/ice_architecture.png
 [Elixir]: https://elixir-lang.org/install.html
 [ffmpeg]: https://ffmpeg.org
 [ice_demo_client]: https://github.com/esl/ice_demo
