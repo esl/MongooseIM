@@ -54,7 +54,17 @@ In order to enable signalling we need an instance of [MongooseIM] running with t
 
 #### Configuration
 
-TODO: describe MIM configuration or point to other docs to skip this section
+You can find MongooseIM installation instructions on [this page](Getting-started.md). Once you have cloned the repository and compiled the project,
+you need to modify `ejabberd.cfg` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/ejabberd.cfg`, where `$REPO` is a top-level directory of
+cloned repo). You can use [this](ICE_tutorial/ejabberd.cfg) configuration file and modify the relevant part:
+```erlang
+%%%% ICE DEMO %%%%
+{hosts, ["localhost", "myxmpp.com"] }.
+```
+This sets the virtual hostname of the XMPP server, so that you can register user's in this domain. After that, you can start MongooseIM with
+```
+$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl start
+```
 
 #### Users
 
@@ -62,8 +72,8 @@ After we finish setting up [MongooseIM], we need to register some users. For thi
 In order to do that, we can simply type in the following on machine that has [MongooseIM] installed:
 
 ```bash
-/usr/lib/mongooseim/bin/mongooseimctl register phone myxmpp.com xmpp_password
-/usr/lib/mongooseim/bin/mongooseimctl register movie myxmpp.com xmpp_password
+$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl register phone myxmpp.com xmpp_password
+$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl register movie myxmpp.com xmpp_password
 ```
 
 As you can see here, we have created those two users, both with password *xmpp_password* for simplicity.
@@ -100,7 +110,8 @@ If you don't want to compile this application from source, you can just install 
 #### How to configure
 
 Right after you start [Mangosta-Android] for the fist time, you will need to log in to your XMPP server.
-In order to do that, just enter the JID you have created for the phone (*phone@myxmpp.com*), password (*xmpp_password*), the server address (*2.2.2.2*) and confirm by clicking "Enter".
+In order to do that, just enter the JID you have created for the phone (*phone@myxmpp.com*), password (*xmpp_password*), the server address (*2.2.2.2* or *myxmpp.com* if you've set up the domain
+to actually point to this IP address) and confirm by clicking "Enter".
 
 <img alt="Mangosta login" src="mangosta_login.png" width="25%">
 
