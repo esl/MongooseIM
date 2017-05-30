@@ -739,13 +739,10 @@ break_stuff(Config) ->
             {?NOT_FOUND, _} = putt(BadPutPath,
                                    #{action => <<"invite">>},
                                    BCred),
+            BadGetPath = "/contacts/zorro@localhost",
+            {?NOT_FOUND, _} = gett(BadGetPath, BCred),
             ok
         end
     ),
     ok.
-
-
-
-
-
 

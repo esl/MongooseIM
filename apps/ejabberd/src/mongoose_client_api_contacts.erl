@@ -48,8 +48,14 @@ to_json(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
     {Method, _} = cowboy_req:method(Req),
     {Jid, _} = cowboy_req:binding(jid, Req),
-    {ok, Res} = handle_request(Method, Jid, undefined, CJid),
-    {jiffy:encode(lists:flatten([Res])), Req, State}.
+    case Jid of
+        undefined ->
+            {ok, Res} = handle_request(Method, Jid, undefined, CJid),
+            {jiffy:encode(lists:flatten([Res])), Req, State};
+        _ ->
+            {ok, Req2} = cowboy_req:reply(404, Req),
+            {halt, Req2, State}
+    end.
 
 
 from_json(Req, #{jid := Caller} = State) ->

@@ -346,7 +346,6 @@ befriend_and_alienate(Config) ->
 
 
 befriend_and_alienate_auto(Config) ->
-    % TOFIX - verify xmpp pushes
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->

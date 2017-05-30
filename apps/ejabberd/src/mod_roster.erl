@@ -448,8 +448,8 @@ set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
                 Item = case get_roster_entry(LUser, LServer, LJID) of
                            does_not_exist ->
                                #roster{usj = {LUser, LServer, LJID},
-                                   us = {LUser, LServer},
-                                   jid = LJID};
+                                       us = {LUser, LServer},
+                                       jid = LJID};
                            I -> I
                        end,
 
@@ -903,7 +903,7 @@ set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
         error -> error;
         _ ->
             LJID = jid:to_lower(JID1),
-            MakeItem2 = fun(Item) ->
+            MakeItem = fun(Item) ->
                             modify_roster_item(Item, Name, Groups, NewSubscription)
                         end,
             set_roster_item(
@@ -913,7 +913,7 @@ set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
                 LJID, % LJID
                 UserJid, % From
                 UserJid, % To
-                MakeItem2
+                MakeItem
             )
     end.
 
