@@ -83,7 +83,7 @@ When the last stanza in the whole process is leaving the system we have a comple
 An 'exit point' is where we call a function sending something out of the system and, if all goes well, returning the original accumulator possibly with an additional track record of what's just been done.
 
 See the diagram to examine this concept.
-Note that the Acc1 going to the routing has the same `ref` as the one returning to the next function:
+Note that Acc1 going to the routing has the same `ref` as the one returning to the next function:
 
 ![You should see an image here; if you don't, use plantuml to generate it from accum_path.uml](accum_path.png)
 
