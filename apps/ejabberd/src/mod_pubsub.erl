@@ -65,7 +65,7 @@
 -define(PUSHNODE, <<"push">>).
 
 %% exports for hooks
--export([presence_probe/4, caps_change/4, caps_change/5,
+-export([presence_probe/4, caps_recognised/4,
          in_subscription/6, out_subscription/5,
          on_user_offline/5, remove_user/2, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
@@ -324,10 +324,8 @@ init([ServerHost, Opts]) ->
 
     case lists:member(?PEPNODE, Plugins) of
         true ->
-            ejabberd_hooks:add(caps_add, ServerHost,
-                               ?MODULE, caps_change, 80),
-            ejabberd_hooks:add(caps_update, ServerHost,
-                               ?MODULE, caps_change, 80),
+            ejabberd_hooks:add(caps_recognised, ServerHost,
+                               ?MODULE, caps_recognised, 80),
             ejabberd_hooks:add(disco_sm_identity, ServerHost,
                                ?MODULE, disco_sm_identity, 75),
             ejabberd_hooks:add(disco_sm_features, ServerHost,
@@ -728,15 +726,9 @@ handle_pep_authorization_response(_, _, From, To, Acc) ->
 %% presence hooks handling functions
 %%
 
-caps_change(Acc, FromJID, ToJID, Pid, Features) ->
-    caps_change(FromJID, ToJID, Pid, Features),
+caps_recognised(Acc, #jid{ lserver = S } = JID, Pid, _Features) ->
+    notify_send_loop(S, {send_last_pep_items, JID, Pid}),
     Acc.
-
-caps_change(#jid{luser = _U, lserver = S, lresource = _R} = FromJID, ToJID, Pid, _Features) ->
-    case jid:to_lower(FromJID) == jid:to_lower(ToJID) of
-        true -> notify_send_loop(S, {send_last_pep_items, ToJID, Pid});
-        false -> ok
-    end.
 
 presence_probe(Acc, #jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
     notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID}),
@@ -902,10 +894,8 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
     ejabberd_router:unregister_route(Host),
     case lists:member(?PEPNODE, Plugins) of
         true ->
-            ejabberd_hooks:delete(caps_add, ServerHost,
-                                  ?MODULE, caps_change, 80),
-            ejabberd_hooks:delete(caps_update, ServerHost,
-                                  ?MODULE, caps_change, 80),
+            ejabberd_hooks:delete(caps_recognised, ServerHost,
+                                  ?MODULE, caps_recognised, 80),
             ejabberd_hooks:delete(disco_sm_identity, ServerHost,
                                   ?MODULE, disco_sm_identity, 75),
             ejabberd_hooks:delete(disco_sm_features, ServerHost,

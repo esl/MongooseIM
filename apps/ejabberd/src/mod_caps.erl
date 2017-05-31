@@ -98,6 +98,12 @@ stop(Host) ->
     supervisor:terminate_child(ejabberd_sup, Proc),
     supervisor:delete_child(ejabberd_sup, Proc).
 
+get_features_list(Host, Caps) ->
+    case get_features(Host, Caps) of
+        unknown -> [];
+        Features -> Features
+    end.
+
 get_features(_Host, nothing) -> [];
 get_features(Host, #caps{node = Node, version = Version,
                          exts = Exts}) ->
@@ -109,7 +115,10 @@ get_features(Host, #caps{node = Node, version = Version,
                         of
                             {ok, Features} when is_list(Features) ->
                                 Features ++ Acc;
-                            _ -> Acc
+                            _ when Acc == [] ->
+                                unknown;
+                            _ ->
+                                Acc
                         end
                 end,
                 [], SubNodes).
@@ -280,7 +289,7 @@ c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
             LTo = jid:to_lower(To),
             case gb_trees:lookup(LTo, Rs) of
                 {value, Caps} ->
-                    Drop = not lists:member(Feature, get_features(Host, Caps)),
+                    Drop = not lists:member(Feature, get_features_list(Host, Caps)),
                     {stop, Drop};
                 none ->
                     {stop, true}
@@ -300,7 +309,7 @@ c2s_broadcast_recipients(Acc, _, _, _, _, _) -> Acc.
 
 filter_recipients_by_caps(InAcc, Feature, Host, Rs) ->
     gb_trees_fold(fun(USR, Caps, Acc) ->
-                          case lists:member(Feature, get_features(Host, Caps)) of
+                          case lists:member(Feature, get_features_list(Host, Caps)) of
                               true -> [USR | Acc];
                               false -> Acc
                           end
@@ -427,7 +436,10 @@ feature_request(Host, From, Caps,
                false -> feature_request(Host, From, Caps, Tail)
             end
     end;
-feature_request(_Host, _From, _Caps, []) -> ok.
+feature_request(Host, From, Caps, []) ->
+    %% feature_request is never executed with empty SubNodes list
+    %% so if we end up here, it means the caps are known
+    ejabberd_hooks:run(caps_recognised, Host, [From, self(), get_features_list(Host, Caps)]).
 
 feature_response(#iq{type = result,
                      sub_el = [#xmlel{children = Els}]},
