@@ -394,7 +394,7 @@ search_items(Entries, State) ->
 attrs_to_item_xml(Attrs, #state{uids = UIDs} = State) ->
     case eldap_utils:find_ldap_attrs(UIDs, Attrs) of
         {U, UIDAttrFormat} ->
-            case eldap_utils:get_user_part(U, UIDAttrFormat) of
+            case eldap_utils:get_user_part(list_to_binary(U), UIDAttrFormat) of
                 {ok, Username} ->
                     make_user_item_if_exists(Username, Attrs, State);
                 _ -> []

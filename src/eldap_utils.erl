@@ -43,6 +43,7 @@
          decode_octet_string/3,
          uids_domain_subst/2,
          singleton_value/1,
+         maybe_list2b/1,
          maybe_b2list/1]).
 
 -include("mongoose.hrl").
@@ -76,7 +77,7 @@ find_ldap_attrs([{Attr} | Rest], Attributes) ->
     find_ldap_attrs([{Attr, <<"%u">>} | Rest], Attributes);
 find_ldap_attrs([{Attr, Format} | Rest], Attributes) ->
     case get_ldap_attr(Attr, Attributes) of
-        Value when is_binary(Value), Value /= <<>> ->
+        Value when Value /= <<>>, Value /= [] ->
             {Value, Format};
         _ ->
             find_ldap_attrs(Rest, Attributes)
@@ -446,11 +447,18 @@ collect_parts([], Acc) ->
 collect_parts_bit([{?N_BIT_STRING, <<Unused, Bits/binary>>}|Rest], Acc, Uacc) ->
     collect_parts_bit(Rest, [Bits|Acc], Unused+Uacc);
 collect_parts_bit([], Acc, Uacc) ->
-    list_to_binary([Uacc|lists:reverse(Acc)]).
+    maybe_list2b([Uacc|lists:reverse(Acc)]).
 
 maybe_b2list(B) when is_binary(B) ->
   binary_to_list(B);
 maybe_b2list(L) when is_list(L) ->
   L;
 maybe_b2list(O) ->
+  {error, {unknown_type, O}}.
+
+maybe_list2b(L) when is_list(L) ->
+  list_to_binary(L);
+maybe_list2b(B) when is_binary(B) ->
+  B;
+maybe_list2b(O) ->
   {error, {unknown_type, O}}.
