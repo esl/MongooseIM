@@ -251,7 +251,7 @@ read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
                      end,
             {Subscription, Groups};
         E ->
-            ?ERROR_MSG("Error calling rdbms backend: ~p~n", [E]),
+            ?ERROR_MSG("Error calling rdbms backend: ~p", [E]),
             error
     end.
 

@@ -207,6 +207,71 @@ paths:
         403:
           description: |
             When the authenticated user is not allowed to read room's details.
+  /contacts:
+    get:
+      description: "Returns all contacts from the user's roster"
+      tags:
+        - "Contacts"
+      responses:
+        200:
+          description: "Contacts"
+          schema:
+            title: Contacts
+            type: array
+            items:
+              $ref: '#/definitions/ContactDetails'
+    post:
+      description: "Adds a user to a contact list."
+      tags:
+        - "Contacts"
+      parameters:
+        - in: body
+          name: contact
+          required: true
+          schema:
+            properties:
+              jid:
+                type: string
+      responses:
+        204:
+          description: "The user was added to a contact list."
+  /contacts/{contact}:
+    put:
+      description: "Manage subscription"
+      tags:
+        - "Contacts"
+      parameters:
+        - in: path
+          name: contact
+          required: true
+          type: string
+        - in: body
+          name: action
+          required: true
+          schema:
+            type: string
+            enum: ["invite", "accept"]
+      responses:
+        204:
+          description: "A subscription request was sent to the contact
+          with value 'subscribe' or 'subscribed' (it may and may not change
+          the 'subscription' and 'ask' states, depending what they were)"
+        404:
+          description: "The contact is not in the user's roster"
+    delete:
+      description: "Removes contact"
+      tags:
+        - "Contacts"
+      parameters:
+        - in: path
+          name: contact
+          required: true
+          type: string
+      responses:
+        204:
+          description: "The contact was successfully deleted."
+        404:
+          description: "There was no such contact."
   /sse:
     get:
       summary: |
@@ -417,3 +482,28 @@ definitions:
     type: string
     example: Important room
     description: The room's name
+  ContactDetails:
+    properties:
+      jid:
+        type: string
+        example: 'alice@wonderland.lit'
+        description: The message recipient's bare JID.
+      subscription:
+        type: string
+        description: |
+          Subscription state of me vs contact; there are four possible state:
+          * none
+          * to - I receive updates about the contact's presence
+          * from - the contact receives updates about my presence
+          * both
+        enum: ["none", "to", "from", "both"]
+      ask:
+        type: string
+        description: |
+          Tells whether one of us has asked the other for subscription to presence info and
+          is waiting for approval. Possible states:
+          * none
+          * out - I asked the contact and am waiting for his approval
+          * in - my contact asked me, it is up to me to decide
+          * both
+        enum: ["none", "in", "out", "both"]

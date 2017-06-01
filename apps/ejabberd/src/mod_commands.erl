@@ -11,6 +11,13 @@
          registered_users/1,
          change_user_password/3,
          list_sessions/1,
+         list_contacts/1,
+         add_contact/2,
+         add_contact/3,
+         add_contact/4,
+         delete_contact/2,
+         subscription/3,
+         set_subscription/3,
          kick_session/3,
          get_recent_messages/3,
          get_recent_messages/4,
@@ -96,6 +103,64 @@ commands() ->
       {result, {msg, binary}}
      ],
      [
+      {name, list_contacts},
+      {category, <<"contacts">>},
+      {desc, <<"Get roster">>},
+      {module, ?MODULE},
+      {function, list_contacts},
+      {action, read},
+      {security_policy, [user]},
+      {args, [{caller, binary}]},
+      {result, []}
+     ],
+     [
+      {name, add_contact},
+      {category, <<"contacts">>},
+      {desc, <<"Add a contact to roster">>},
+      {module, ?MODULE},
+      {function, add_contact},
+      {action, create},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jid, binary}]},
+      {result, ok}
+     ],
+     [
+      {name, subscription},
+      {category, <<"contacts">>},
+      {desc, <<"Send out a subscription request">>},
+      {module, ?MODULE},
+      {function, subscription},
+      {action, update},
+      {security_policy, [user]},
+      {identifiers, [caller, jid]},
+      % caller has to be in identifiers, otherwise it breaks admin rest api
+      {args, [{caller, binary}, {jid, binary}, {action, binary}]},
+      {result, ok}
+     ],
+     [
+      {name, set_subscription},
+      {category, <<"contacts">>},
+      {subcategory, <<"manage">>},
+      {desc, <<"Set / unset mutual subscription">>},
+      {module, ?MODULE},
+      {function, set_subscription},
+      {action, update},
+      {identifiers, [caller, jid]},
+      {args, [{caller, binary}, {jid, binary}, {action, binary}]},
+      {result, ok}
+     ],
+     [
+      {name, delete_contact},
+      {category, <<"contacts">>},
+      {desc, <<"Remove a contact from roster">>},
+      {module, ?MODULE},
+      {function, delete_contact},
+      {action, delete},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jid, binary}]},
+      {result, ok}
+     ],
+     [
       {name, send_message},
       {category, <<"messages">>},
       {desc, <<"Send chat message from to">>},
@@ -172,7 +237,8 @@ register(Host, User, Password) ->
                                    [User, Host, node(), Reason]),
             throw({error, String});
         _ ->
-            list_to_binary(io_lib:format("User ~s@~s successfully registered", [User, Host]))
+            list_to_binary(io_lib:format("User ~s@~s successfully registered",
+                                         [User, Host]))
     end.
 
 unregister(Host, User) ->
@@ -190,6 +256,32 @@ send_message(From, To, Body) ->
     ejabberd_router:route(F, T, Packet),
     ok.
 
+list_contacts(Caller) ->
+    Acc = mongoose_acc:from_kv(show_full_roster, true),
+    {User, Host} = jid:to_lus(jid:from_binary(Caller)),
+    Acc1 = ejabberd_hooks:run_fold(roster_get, Host, Acc, [{User, Host}]),
+    Res = mongoose_acc:get(roster, Acc1),
+    [roster_info(mod_roster:item_to_map(I)) || I <- Res].
+
+roster_info(M) ->
+    Jid = jid:to_binary(maps:get(jid, M)),
+    #{subscription := Sub, ask := Ask} = M,
+    #{jid => Jid, subscription => Sub, ask => Ask}.
+
+add_contact(Caller, JabberID) ->
+    add_contact(Caller, JabberID, <<"">>, []).
+
+add_contact(Caller, JabberID, Name) ->
+    add_contact(Caller, JabberID, Name, []).
+
+add_contact(Caller, JabberID, Name, Groups) ->
+    CJid = jid:from_binary(Caller),
+    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
+
+delete_contact(Caller, JabberID) ->
+    CJid = jid:from_binary(Caller),
+    mod_roster:remove_from_roster(CJid, JabberID).
+
 registered_commands() ->
     [#{name => mongoose_commands:name(C),
        category => mongoose_commands:category(C),
@@ -203,7 +295,8 @@ get_recent_messages(Caller, Before, Limit) ->
 
 get_recent_messages(Caller, With, 0, Limit) ->
     {MegaSecs, Secs, _} = os:timestamp(),
-    Future = (MegaSecs + 1) * 1000000 + Secs, % to make sure we return all messages
+    % wait a while to make sure we return all messages
+    Future = (MegaSecs + 1) * 1000000 + Secs,
     get_recent_messages(Caller, With, Future, Limit);
 get_recent_messages(Caller, With, Before, Limit) ->
     Res = lookup_recent_messages(Caller, With, Before, Limit),
@@ -221,12 +314,15 @@ record_to_map({Id, From, Msg}) ->
                 false -> <<"">>
             end,
     Body = exml_query:path(Msg, [{element, <<"body">>}, cdata]),
-    #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId, body => Body}.
+    #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId,
+      body => Body}.
 
 build_packet(message_chat, Body) ->
     #xmlel{name = <<"message">>,
-           attrs = [{<<"type">>, <<"chat">>}, {<<"id">>, list_to_binary(randoms:get_string())}],
-           children = [#xmlel{ name = <<"body">>, children = [#xmlcdata{content = Body}]}]
+           attrs = [{<<"type">>, <<"chat">>},
+                    {<<"id">>, list_to_binary(randoms:get_string())}],
+           children = [#xmlel{name = <<"body">>,
+                              children = [#xmlcdata{content = Body}]}]
           }.
 
 lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
@@ -252,7 +348,53 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
                                 [Host, ArcID, ArcJID, RSM, Borders,
                                  Start, End, Now, WithJID, SearchText,
-                                 PageSize, LimitPassed, MaxResultLimit, IsSimple]),
+                                 PageSize, LimitPassed, MaxResultLimit,
+                                 IsSimple]),
     {ok, {_, _, L}} = R,
     L.
 
+create_acc(CallerJid, Name, Type) ->
+    A = mongoose_acc:new(),
+    Map = #{name => Name, type => Type, from => jid:to_binary(CallerJid),
+            from_jid => CallerJid},
+    mongoose_acc:update(A, Map).
+
+create_acc(CallerJid, Name, Type, OtherJid) ->
+    A = create_acc(CallerJid, Name, Type),
+    A1 = mongoose_acc:put(to, jid:to_binary(OtherJid), A),
+    mongoose_acc:put(to_jid, OtherJid, A1).
+
+
+subscription(Caller, Other, Action) ->
+    Act = binary_to_existing_atom(Action, latin1),
+    run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
+
+-spec run_subscription(subscribe | subscribed, jid(), jid()) -> ok.
+run_subscription(Type, CallerJid, OtherJid) ->
+    StanzaType = atom_to_binary(Type, latin1),
+    A = create_acc(CallerJid, <<"presence">>, StanzaType, OtherJid),
+    El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
+    Acc1 = mongoose_acc:put(element, El, A),
+    % set subscription to
+    Server = CallerJid#jid.server,
+    LUser = CallerJid#jid.luser,
+    LServer = CallerJid#jid.lserver,
+    Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
+                                   Server,
+                                   Acc1,
+                                   [LUser, LServer, OtherJid, Type]),
+    ejabberd_router:route(CallerJid, OtherJid, mongoose_acc:get(element, Acc2)),
+    ok.
+
+set_subscription(Caller, Other, <<"connect">>) ->
+    add_contact(Caller, Other),
+    add_contact(Other, Caller),
+    subscription(Caller, Other, <<"subscribe">>),
+    subscription(Other, Caller, <<"subscribe">>),
+    subscription(Other, Caller, <<"subscribed">>),
+    subscription(Caller, Other, <<"subscribed">>),
+    ok;
+set_subscription(Caller, Other, <<"disconnect">>) ->
+    delete_contact(Caller, Other),
+    delete_contact(Other, Caller),
+    ok.

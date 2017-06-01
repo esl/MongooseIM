@@ -2,33 +2,67 @@
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+-import(rest_helper,
+        [assert_inlist/2,
+         assert_notinlist/2,
+         decode_maplist/1,
+         gett/1,
+         post/2,
+         putt/2,
+         delete/1,
+         gett/2,
+         post/3,
+         putt/3,
+         delete/2]
+         ).
+
+-define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
+-define(OK, {<<"200">>, <<"OK">>}).
+-define(CREATED, {<<"201">>, <<"Created">>}).
+-define(NOCONTENT, {<<"204">>, <<"No Content">>}).
+-define(ERROR, {<<"500">>, _}).
+-define(NOT_FOUND, {<<"404">>, _}).
+-define(NOT_IMPLEMENTED, {<<"501">>, _}).
 
 all() ->
-    [{group, all}].
+    [{group, messages}, {group, muc}, {group, roster}].
 
 groups() ->
-    [{all, [parallel], test_cases()}].
+    [{messages, [parallel], message_test_cases()},
+     {muc, [parallel], muc_test_cases()},
+     {roster, [parallel], roster_test_cases()}
+    ].
 
-test_cases() ->
+message_test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
      msg_is_sent_and_delivered_over_sse,
      all_messages_are_archived,
      messages_with_user_are_archived,
-     messages_can_be_paginated,
-     room_is_created,
-     user_is_invited_to_a_room,
-     user_is_removed_from_a_room,
-     rooms_can_be_listed,
-     owner_can_leave_a_room_and_auto_select_owner,
-     user_can_leave_a_room,
-     invitation_to_room_is_forbidden_for_non_memeber,
-     msg_is_sent_and_delivered_in_room,
-     messages_are_archived_in_room,
-     only_room_participant_can_read_messages,
-     messages_can_be_paginated_in_room,
-     room_msg_is_sent_and_delivered_over_sse,
-     aff_change_msg_is_delivered_over_sse
+     messages_can_be_paginated].
+
+muc_test_cases() ->
+     [room_is_created,
+      user_is_invited_to_a_room,
+      user_is_removed_from_a_room,
+      rooms_can_be_listed,
+      owner_can_leave_a_room_and_auto_select_owner,
+      user_can_leave_a_room,
+      invitation_to_room_is_forbidden_for_non_memeber,
+      msg_is_sent_and_delivered_in_room,
+      messages_are_archived_in_room,
+      only_room_participant_can_read_messages,
+      messages_can_be_paginated_in_room,
+      room_msg_is_sent_and_delivered_over_sse,
+      aff_change_msg_is_delivered_over_sse
      ].
+
+roster_test_cases() ->
+    [add_contact_and_invite,
+     add_contact_and_be_invited,
+     add_and_remove,
+     break_stuff].
 
 init_per_suite(C) ->
     application:ensure_all_started(shotgun),
@@ -520,4 +554,195 @@ assert_json_room_sse_message(Expected, Received) ->
             User = maps:get(user, Expected)
     end.
 
+
+add_contact_and_invite(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                            escalus_client:short_jid(Alice)),
+            BCred = credentials({bob, Bob}),
+            % bob has empty roster
+            {?OK, R} = gett("/contacts", BCred),
+            Res = decode_maplist(R),
+            [] = Res,
+            % adds Alice
+            AddContact = #{jid => AliceJID},
+            {?NOCONTENT, _} = post(<<"/contacts">>, AddContact,
+                                   BCred),
+            % and she is in his roster, with empty status
+            {?OK, R2} = gett("/contacts", BCred),
+            Result = decode_maplist(R2),
+            [Res2] = Result,
+            #{jid := AliceJID, subscription := <<"none">>,
+              ask := <<"none">>} = Res2,
+            % and he received a roster push
+            Push = escalus:wait_for_stanza(Bob, 1),
+            escalus:assert(is_roster_set, Push),
+            % he invites her
+            PutPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
+            {?NOCONTENT, _} = putt(PutPath,
+                                   #{action => <<"invite">>},
+                                   BCred),
+            % another roster push
+            Push2 = escalus:wait_for_stanza(Bob, 1),
+            escalus:assert(is_roster_set, Push2),
+            ct:pal("Push2: ~p", [Push2]),
+            % she receives  a subscription request
+            Sub = escalus:wait_for_stanza(Alice, 1),
+            escalus:assert(is_presence_with_type, [<<"subscribe">>], Sub),
+            % in his roster she has a changed 'ask' status
+            {?OK, R3} = gett("/contacts", BCred),
+            Result3 = decode_maplist(R3),
+            [Res3] = Result3,
+            #{jid := AliceJID, subscription := <<"none">>,
+              ask := <<"out">>} = Res3,
+            % adds him to her contacts
+            escalus:send(Alice, escalus_stanza:roster_add_contact(Bob,
+                         [], <<"Bob">>)),
+            PushReqB = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_roster_set, PushReqB),
+            escalus:send(Alice, escalus_stanza:iq_result(PushReqB)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            %% Alice sends subscribed presence
+            escalus:send(Alice,
+                         escalus_stanza:presence_direct(
+                             escalus_client:short_jid(Bob),
+                             <<"subscribed">>)),
+            % now check Bob's roster
+            timer:sleep(100),
+            {?OK, R4} = gett("/contacts", BCred),
+            Result4 = decode_maplist(R4),
+            [Res4] = Result4,
+            #{jid := AliceJID, subscription := <<"to">>,
+                ask := <<"none">>} = Res4,
+            ok
+        end
+    ),
+    ok.
+
+add_contact_and_be_invited(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BCred = credentials({bob, Bob}),
+            % bob has empty roster
+            {?OK, R} = gett("/contacts", BCred),
+            Res = decode_maplist(R),
+            [] = Res,
+            % adds Alice
+            AddContact = #{jid => AliceJID},
+            {?NOCONTENT, _} = post(<<"/contacts">>, AddContact,
+                                   BCred),
+            % and she is in his roster, with empty status
+            {?OK, R2} = gett("/contacts", BCred),
+            Result = decode_maplist(R2),
+            [Res2] = Result,
+            #{jid := AliceJID, subscription := <<"none">>,
+              ask := <<"none">>} = Res2,
+            % and he received a roster push
+            Push = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_roster_set, Push),
+            %% she adds him and invites
+            escalus:send(Alice, escalus_stanza:roster_add_contact(Bob,
+                         [],
+                         <<"Bobek">>)),
+            escalus:assert_many([is_roster_set, is_iq_result],
+                                escalus:wait_for_stanzas(Alice, 2)),
+            escalus:send(Alice,
+                         escalus_stanza:presence_direct(
+                             escalus_client:short_jid(Bob),
+                             <<"subscribe">>)),
+            escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_presence_with_type, [<<"subscribe">>],
+                           escalus:wait_for_stanza(Bob, 1)),
+            % now check Bob's roster, and it is the same...
+            {?OK, R4} = gett("/contacts", BCred),
+            [Res4] = decode_maplist(R4),
+            #{jid := AliceJID, subscription := <<"none">>,
+                ask := <<"in">>} = Res4,
+            % because although it is stated in RFC3921, 8.2.6 that {none, in}
+            % should be hidden from user, we changed it in REST API
+            % he accepts
+            PutPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
+            {?NOCONTENT, _} = putt(PutPath,
+                                   #{action => <<"accept">>},
+                                   BCred),
+            escalus:assert(is_roster_set, escalus:wait_for_stanza(Bob)),
+            IsSub = fun(S) ->
+                        escalus_pred:is_presence_with_type(<<"subscribed">>, S)
+                    end,
+            escalus:assert_many([is_roster_set, IsSub,
+                                 is_presence],
+                                escalus:wait_for_stanzas(Alice, 3)),
+            ok
+        end
+    ),
+    ok.
+
+
+add_and_remove(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BCred = credentials({bob, Bob}),
+            % adds Alice
+            AddContact = #{jid => AliceJID},
+            {?NOCONTENT, _} = post(<<"/contacts">>, AddContact,
+                BCred),
+            Push = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_roster_set, Push),
+            % and she is in his roster, with empty status
+            {?OK, R2} = gett("/contacts", BCred),
+            Result = decode_maplist(R2),
+            [Res2] = Result,
+            #{jid := AliceJID, subscription := <<"none">>,
+              ask := <<"none">>} = Res2,
+            % delete user
+            DelPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
+            {?NOCONTENT, _} = delete(DelPath, BCred),
+            % Bob's roster is empty again
+            {?OK, R3} = gett("/contacts", BCred),
+            [] = decode_maplist(R3),
+            IsSubscriptionRemove = fun(El) ->
+                Sub = exml_query:paths(El, [{element, <<"query">>},
+                                            {element, <<"item">>},
+                                            {attr, <<"subscription">>}]),
+                Sub == [<<"remove">>]
+                end,
+            escalus:assert(IsSubscriptionRemove, escalus:wait_for_stanza(Bob)),
+            ok
+        end
+    ),
+    ok.
+
+
+break_stuff(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BCred = credentials({bob, Bob}),
+            AddContact = #{jid => AliceJID},
+            {?NOCONTENT, _} = post(<<"/contacts">>, AddContact,
+                BCred),
+            PutPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
+            {?NOT_IMPLEMENTED, _} = putt(PutPath,
+                                         #{action => <<"nosuchaction">>},
+                                         BCred),
+            BadPutPath = "/contacts/zorro@localhost",
+            {?NOT_FOUND, _} = putt(BadPutPath,
+                                   #{action => <<"invite">>},
+                                   BCred),
+            BadGetPath = "/contacts/zorro@localhost",
+            {?NOT_FOUND, _} = gett(BadGetPath, BCred),
+            ok
+        end
+    ),
+    ok.
 

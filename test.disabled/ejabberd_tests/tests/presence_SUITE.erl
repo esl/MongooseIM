@@ -270,7 +270,13 @@ remove_contact(Config) ->
 
         %% remove contact
         escalus:send(Alice, escalus_stanza:roster_remove_contact(Bob)),
-        escalus:assert_many([is_roster_set, is_iq_result],
+        IsSubscriptionRemove = fun(El) ->
+            Sub = exml_query:paths(El, [{element, <<"query">>},
+                                  {element, <<"item">>},
+                                  {attr, <<"subscription">>}]),
+            Sub == [<<"remove">>]
+            end,
+        escalus:assert_many([IsSubscriptionRemove, is_iq_result],
                             escalus:wait_for_stanzas(Alice, 2)),
 
         %% check roster
@@ -606,11 +612,11 @@ remove_roster(Config, UserSpec) ->
     Mods = escalus_ejabberd:rpc(gen_mod, loaded_modules, [Server]),
     case lists:member(mod_roster, Mods) of
         true ->
-            ok = escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]);
+            escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]);
         false ->
             case lists:member(mod_roster_odbc, Mods) of
                 true ->
-                    ok = escalus_ejabberd:rpc(mod_roster_odbc, remove_user, [Username, Server]);
+                    escalus_ejabberd:rpc(mod_roster_odbc, remove_user, [Username, Server]);
                 false ->
                     throw(roster_not_loaded)
             end

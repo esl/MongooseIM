@@ -57,6 +57,9 @@ all() ->
 
 groups() ->
     [{admin, [parallel], test_cases()},
+     {roster, [parallel], [list_contacts,
+                             befriend_and_alienate,
+                             befriend_and_alienate_auto]},
      {dynamic_module, [], [stop_start_command_module]}
     ].
 
@@ -70,7 +73,7 @@ test_cases() ->
      messages_are_archived,
      messages_can_be_paginated,
      password_can_be_changed
-     ].
+    ].
 
 suite() ->
     escalus:suite().
@@ -261,9 +264,145 @@ password_can_be_changed(Config) ->
     end),
     ok.
 
+list_contacts(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                            escalus_client:short_jid(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+            add_sample_contact(Bob, Alice),
+            % list bob's contacts
+            {?OK, R} = gett(lists:flatten(["/contacts/",
+                                           binary_to_list(BobJID)])),
+            [R1] =  decode_maplist(R),
+            #{jid := AliceJID, subscription := <<"none">>,
+                ask := <<"none">>} = R1,
+            ok
+        end
+    ),
+    ok.
+
+befriend_and_alienate(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+            AliceS = binary_to_list(AliceJID),
+            BobS = binary_to_list(BobJID),
+            AlicePath = lists:flatten(["/contacts/", AliceS]),
+            BobPath = lists:flatten(["/contacts/", BobS]),
+            % rosters are empty
+            check_roster_empty(AlicePath),
+            check_roster_empty(BobPath),
+            % adds them to rosters
+            {?NOCONTENT, _} = post(AlicePath, #{jid => BobJID}),
+            {?NOCONTENT, _} = post(BobPath, #{jid => AliceJID}),
+            check_roster(BobPath, AliceJID, none, none),
+            check_roster(AlicePath, BobJID, none, none),
+            % now do the subscription sequence
+            PutPathA = lists:flatten([AlicePath, "/", BobS]),
+            {?NOCONTENT, _} = putt(PutPathA, #{action => <<"subscribe">>}),
+            check_roster(AlicePath, BobJID, none, out),
+            PutPathB = lists:flatten([BobPath, "/", AliceS]),
+            {?NOCONTENT, _} = putt(PutPathB, #{action => <<"subscribed">>}),
+            check_roster(AlicePath, BobJID, to, none),
+            check_roster(BobPath, AliceJID, from, none),
+            {?NOCONTENT, _} = putt(PutPathB, #{action => <<"subscribe">>}),
+            check_roster(BobPath, AliceJID, from, out),
+            {?NOCONTENT, _} = putt(PutPathA, #{action => <<"subscribed">>}),
+            check_roster(AlicePath, BobJID, both, none),
+            check_roster(BobPath, AliceJID, both, none),
+            % now remove
+            {?NOCONTENT, _} = delete(PutPathA),
+            check_roster_empty(AlicePath),
+            check_roster(BobPath, AliceJID, none, none),
+            {?NOCONTENT, _} = delete(PutPathB),
+            check_roster_empty(BobPath),
+            APushes = lists:filter(fun escalus_pred:is_roster_set/1,
+                                    escalus:wait_for_stanzas(Alice, 20)),
+            AExp = [{none, none},
+                    {none, subscribe},
+                    {to, none},
+                    {both, none},
+                    {remove, none}],
+            check_pushlist(AExp, APushes),
+            BPushes = lists:filter(fun escalus_pred:is_roster_set/1,
+                                    escalus:wait_for_stanzas(Bob, 20)),
+            BExp = [{none, none},
+                    {from, none},
+                    {from, subscribe},
+                    {both, none},
+                    {to, none},
+                    {none, none},
+                    {remove, none}],
+            check_pushlist(BExp, BPushes),
+            ok
+        end
+    ),
+    ok.
+
+
+befriend_and_alienate_auto(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+            AliceS = binary_to_list(AliceJID),
+            BobS = binary_to_list(BobJID),
+            AlicePath = lists:flatten(["/contacts/", AliceS]),
+            BobPath = lists:flatten(["/contacts/", BobS]),
+            check_roster_empty(AlicePath),
+            check_roster_empty(BobPath),
+            ManagePath = lists:flatten(["/contacts/",
+                                     AliceS,
+                                     "/",
+                                     BobS,
+                                     "/manage"
+            ]),
+            {?NOCONTENT, _} = putt(ManagePath, #{action => <<"connect">>}),
+            check_roster(AlicePath, BobJID, both, none),
+            check_roster(BobPath, AliceJID, both, none),
+            {?NOCONTENT, _} = putt(ManagePath, #{action => <<"disconnect">>}),
+            check_roster_empty(AlicePath),
+            check_roster_empty(BobPath),
+            APushes = lists:filter(fun escalus_pred:is_roster_set/1,
+                                   escalus:wait_for_stanzas(Alice, 20)),
+            ct:pal("APushes: ~p", [APushes]),
+            AExp = [{none, none},
+                    {both, none},
+                    {remove, none}],
+            check_pushlist(AExp, APushes),
+            BPushes = lists:filter(fun escalus_pred:is_roster_set/1,
+                                   escalus:wait_for_stanzas(Bob, 20)),
+            ct:pal("BPushes: ~p", [BPushes]),
+            BExp = [{none, none},
+                    {both, none},
+                    {remove, none}],
+            check_pushlist(BExp, BPushes),
+            ok
+        end
+    ),
+    ok.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+check_roster(Path, Jid, Subs, Ask) ->
+    {?OK, R} = gett(Path),
+    S = atom_to_binary(Subs, latin1),
+    A = atom_to_binary(Ask, latin1),
+    Res = decode_maplist(R),
+    [#{jid := Jid, subscription := S, ask := A}] = Res.
+
+check_roster_empty(Path) ->
+    {?OK, R} = gett(Path),
+    [] = decode_maplist(R).
 
 get_messages(Me, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
@@ -303,3 +442,41 @@ to_list(V) when is_list(V) ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
+
+add_sample_contact(Bob, Alice) ->
+    escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
+                 [<<"friends">>],
+                 <<"Alicja">>)),
+    Received = escalus:wait_for_stanzas(Bob, 2),
+    escalus:assert_many([is_roster_set, is_iq_result], Received),
+    Result = hd([R || R <- Received, escalus_pred:is_roster_set(R)]),
+    escalus:assert(count_roster_items, [1], Result),
+    escalus:send(Bob, escalus_stanza:iq_result(Result)).
+
+check_pushlist([], _Stanzas) ->
+    ok;
+check_pushlist(Expected, []) ->
+    ?assertEqual(Expected, []);
+check_pushlist(Expected, [Iq|StanzaTail]) ->
+    [{ExpectedSub, ExpectedAsk}| TailExp] = Expected,
+    case does_push_match(Iq, ExpectedSub, ExpectedAsk) of
+        true ->
+            check_pushlist(TailExp, StanzaTail);
+        false ->
+            check_pushlist(Expected, StanzaTail)
+    end.
+
+does_push_match(Iq, ExpectedSub, ExpectedAsk) ->
+    [Subs] = exml_query:paths(Iq, [{element, <<"query">>},
+        {element, <<"item">>},
+        {attr, <<"subscription">>}]),
+    AskList = exml_query:paths(Iq, [{element, <<"query">>},
+        {element, <<"item">>},
+        {attr, <<"ask">>}]),
+    Ask = case AskList of
+              [] -> <<"none">>;
+              [A] -> A
+          end,
+    ESub = atom_to_binary(ExpectedSub, latin1),
+    EAsk = atom_to_binary(ExpectedAsk, latin1),
+    {Subs, Ask} == {ESub, EAsk}.

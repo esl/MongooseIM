@@ -237,7 +237,7 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
         true ->
             Acc;
         false ->
-            {stop, false}
+            {stop, mongoose_acc:put(result, false, Acc)}
     end.
 
 
@@ -628,18 +628,26 @@ do_route(From, To, Acc) ->
     end,
     mongoose_acc:remove(to_send, Acc).
 
--spec do_route_no_resource_presence_prv(From, To, Packet, Type, Reason) -> boolean() when
+-spec do_route_no_resource_presence_prv(From, To, Packet, Type, Reason)
+        -> boolean() when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel(),
       Type :: 'subscribe' | 'subscribed' | 'unsubscribe' | 'unsubscribed',
       Reason :: any().
 do_route_no_resource_presence_prv(From, To, Packet, Type, Reason) ->
-    is_privacy_allow(From, To, Packet) andalso ejabberd_hooks:run_fold(
-        roster_in_subscription,
-        To#jid.lserver,
-        false,
-        [To#jid.user, To#jid.server, From, Type, Reason]).
+    case is_privacy_allow(From, To, Packet) of
+        true ->
+            Acc = mongoose_acc:new(),
+            Res = ejabberd_hooks:run_fold(
+                        roster_in_subscription,
+                        To#jid.lserver,
+                        Acc,
+                        [To#jid.user, To#jid.server, From, Type, Reason]),
+            mongoose_acc:get(result, Res, false);
+        false ->
+            false
+    end.
 
 
 -spec do_route_no_resource_presence(Type, From, To, Packet) -> boolean() when

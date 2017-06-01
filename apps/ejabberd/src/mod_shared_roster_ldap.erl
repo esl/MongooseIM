@@ -183,15 +183,28 @@ get_jid_info({Subscription, Groups}, User, Server, JID) ->
         error -> {Subscription, Groups}
     end.
 
+-spec in_subscription(Acc:: mongoose_acc:t(),
+                      User :: binary(),
+                      Server :: binary(),
+                      JID :: jid(),
+                      Type :: mod_roster:sub_presence(),
+                      _Reason :: any()) ->
+    mongoose_acc:t() | {stop, mongoose_acc:t()}.
 in_subscription(Acc, User, Server, JID, Type, _Reason) ->
     case process_subscription(in, User, Server, JID, Type) of
         stop ->
             {stop, Acc};
         {stop, false} ->
-            {stop, false};
+            {stop, mongoose_acc:put(result, false, Acc)};
         _ -> Acc
     end.
 
+-spec out_subscription(Acc:: mongoose_acc:t(),
+                      User :: binary(),
+                      Server :: binary(),
+                      JID :: jid(),
+                      Type :: mod_roster:sub_presence()) ->
+    mongoose_acc:t() | {stop, mongoose_acc:t()}.
 out_subscription(Acc, User, Server, JID, Type) ->
     case process_subscription(out, User, Server, JID, Type) of
         stop ->

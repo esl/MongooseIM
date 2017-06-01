@@ -260,6 +260,111 @@ paths:
           description: The messages archived for the given user and the other party.
           schema:
             $ref: '#/definitions/messageList'
+  /contacts/{user}:
+    get:
+      description: "Returns all contacts from the user's roster"
+      tags:
+        - "Contacts"
+      parameters:
+        - name: user
+          in: path
+          description: User's JID (f.e. alice@wonderland.lit)
+          required: true
+          type: string
+      responses:
+        200:
+          description: "Contacts"
+          schema:
+            title: Contacts
+            type: array
+            items:
+              $ref: '#/definitions/ContactDetails'
+    post:
+      description: "Adds a user to a contact list."
+      tags:
+        - "Contacts"
+      parameters:
+        - in: body
+          name: user
+          required: true
+          schema:
+            properties:
+              jid:
+                type: string
+        - in: body
+          name: contact
+          required: true
+          schema:
+            properties:
+              jid:
+                type: string
+      responses:
+        204:
+          description: "The user was added to a contacts list."
+  /contacts/{user}/{contact}:
+    parameters:
+      - in: path
+        name: user
+        required: true
+        type: string
+      - in: path
+        name: contact
+        required: true
+        type: string
+    put:
+      description: "Manage subscription"
+      tags:
+        - "Contacts"
+      parameters:
+        - in: body
+          name: action
+          required: true
+          schema:
+            type: string
+            enum: ["invite", "accept"]
+      responses:
+        204:
+          description: "A subscription request was sent to the contact
+          with value 'subscribe' or 'subscribed' (it may and may not change
+          the 'subscription' and 'ask' states, depending what they were)"
+        404:
+          description: "The contact is not in the user's roster"
+    delete:
+      description: "Removes contact"
+      tags:
+        - "Contacts"
+      responses:
+        204:
+          description: "The contact was successfully deleted."
+        404:
+          description: "There was no such contact."
+  /contacts/{user}/{contact}/manage:
+    parameters:
+      - in: path
+        name: user
+        required: true
+        type: string
+      - in: path
+        name: contact
+        required: true
+        type: string
+    put:
+      description: "An administrative action to set roster entries and two-way subscriptions. 
+      There are two possible actions: 'connect' sets roster entries and performs subsciption in both ways, thus
+      effectively connecting the two users; 'disconnect' removes them from each other's roster. 
+      The operation involves many stages and is not atomic (can succeed partially)."
+      tags:
+        - "Contacts"
+      parameters:
+        - in: body
+          name: action
+          required: true
+          schema:
+            type: string
+            enum: ["connect", "disconnect"]
+      responses:
+        204:
+          description: "The operation was successful."
   /muc-lights/{XMPPHost}:
     parameters:
       - $ref: '#/parameters/hostName'
@@ -510,3 +615,28 @@ definitions:
           type: string
         body:
           type: string
+  ContactDetails:
+    properties:
+      jid:
+        type: string
+        example: 'alice@wonderland.lit'
+        description: The message recipient's bare JID.
+      subscription:
+        type: string
+        description: |
+          Subscription state of me vs contact; there are four possible state:
+          * none
+          * to - I receive updates about the contact's presence
+          * from - the contact receives updates about my presence
+          * both
+        enum: ["none", "to", "from", "both"]
+      ask:
+        type: string
+        description: |
+          Tells whether one of us has asked the other for subscription to presence info and is waiting for approval. 
+          Possible states:
+          * none
+          * out - I asked the contact and am waiting for his approval
+          * in - my contact asked me, it is up to me to decide
+          * both
+        enum: ["none", "in", "out", "both"]
