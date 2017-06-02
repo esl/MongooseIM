@@ -105,26 +105,29 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 ### Authentication
 
-* **auth_method** (local)
+- **auth_method** (local)
     * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
     * **Valid values:** `internal` (Mnesia), `odbc`, `external`, `anonymous`, `ldap`
     * **Warning:** `external` and `ldap` limit SASL mechanisms list to `PLAIN` and `ANONYMOUS`.
     * **Examples:** `odbc`, `[internal, anonymous]`
 
-* **auth_password_format** (local)
-    * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
-    * **Values:** `plain`, `scram`
-    * **Default:** `plain` (for compatibility reasons, might change soon)
+- **auth_opts** (local)
+    * **Description:** Provides different parameters that will be applied to choosen authentication method. Those parameters are:
 
-* **auth_scram_iterations** (local)
-    * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
-    * **Default:** 4096
+        * **auth_password_format** (local)
+             * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
+             * **Values:** `plain`, `scram`
+             * **Default:** `plain` (for compatibility reasons, might change soon)
 
-* **ext_auth_script** (local)
-    * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
+        * **auth_scram_iterations** (local)
+             * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
+             * **Default:** 4096
 
-* **LDAP-related options**
-  * [[Everything about LDAP]]
+        * **ext_auth_script** (local)
+             * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
+
+- **LDAP-related options**
+    * [[Everything about LDAP]]
 
 ### Database setup
 
