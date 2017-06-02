@@ -300,6 +300,8 @@ interleave_requests(Config) ->
     end).
 
 interleave_requests_statem(Config) ->
+    %% cancel 30-seconds timetrap, start 5-minutes one
+    ct:timetrap({minutes, 5}),
     true = bosh_interleave_reqs:test([{user, carol} | Config]).
 
 interleave_requests_statem_https(Config) ->
