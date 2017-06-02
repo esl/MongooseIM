@@ -93,7 +93,7 @@ get_ldap_attr(LDAPAttr, Attributes) ->
                     case_insensitive_match(Name, LDAPAttr)
             end, Attributes),
     case singleton_value(Res) of
-        {_, Value} -> Value;
+        {_, Value} -> eldap_utils:maybe_list2b(Value);
         _ -> <<>>
     end.
 

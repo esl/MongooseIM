@@ -358,13 +358,13 @@ eldap_search(State, FilterParseArgs, AttributesList) ->
 
 get_user_displayed_groups({User, Host}) ->
     {ok, State} = eldap_utils:get_state(Host, ?MODULE),
-    GroupAttr = State#state.group_attr,
+    GroupAttr = eldap_utils:maybe_b2list(State#state.group_attr),
     Entries = eldap_search(State,
                            [eldap_filter:do_sub(State#state.rfilter, [{<<"%u">>, User}])],
                            [GroupAttr]),
     Reply = lists:flatmap(fun (#eldap_entry{attributes = Attrs}) ->
                                   case eldap_utils:singleton_value(Attrs) of
-                                      {GroupAttr, Value} -> [Value];
+                                      {GroupAttr, Value} -> [eldap_utils:maybe_list2b(Value)];
                                       _ -> []
                                   end
                           end,
@@ -443,16 +443,17 @@ ldap_entries_to_group(LDAPEntries, Host, Group, State, Extractor, AuthChecker) -
 
 ldap_entries_to_group([#eldap_entry{ attributes = Attrs } | REntries], Host,
                       DescAcc, JIDsAcc, State, Extractor, AuthChecker) ->
+    UID = lists:keysearch(eldap_utils:maybe_b2list(State#state.uid), 1, Attrs),
+    ListUID = eldap_utils:maybe_b2list(State#state.uid),
     case {eldap_utils:get_ldap_attr(State#state.group_attr, Attrs),
-          eldap_utils:get_ldap_attr(State#state.group_desc, Attrs),
-          lists:keysearch(State#state.uid, 1, Attrs)} of
+          eldap_utils:get_ldap_attr(State#state.group_desc, Attrs), UID} of
         {ID, Desc, {value, {GroupMemberAttr, MemberIn}}}
-          when ID /= <<"">>, GroupMemberAttr == State#state.uid ->
+          when ID /= <<"">>, GroupMemberAttr == ListUID ->
             Member = case MemberIn of
                          [M] -> M;
                          _ -> MemberIn
                      end,
-            NewJIDsAcc = check_and_accumulate_member(Extractor(Member), AuthChecker, Host, JIDsAcc),
+            NewJIDsAcc = check_and_accumulate_member(Extractor(eldap_utils:maybe_list2b(Member)), AuthChecker, Host, JIDsAcc),
             ldap_entries_to_group(REntries, Host, Desc, NewJIDsAcc, State, Extractor, AuthChecker);
         _ ->
             ldap_entries_to_group(REntries, Host, DescAcc, JIDsAcc, State, Extractor, AuthChecker)
