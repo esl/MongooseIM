@@ -213,7 +213,7 @@ out_subscription(Acc, User, Server, JID, Type) ->
             {stop, Acc};
         {stop, false} ->
             {stop, Acc};
-        _ -> Acc
+         false -> Acc
     end.
 
 process_subscription(Direction, User, Server, JID, _Type) ->
@@ -358,7 +358,7 @@ eldap_search(State, FilterParseArgs, AttributesList) ->
 
 get_user_displayed_groups({User, Host}) ->
     {ok, State} = eldap_utils:get_state(Host, ?MODULE),
-    GroupAttr = eldap_utils:maybe_b2list(State#state.group_attr),
+    GroupAttr =State#state.group_attr,
     Entries = eldap_search(State,
                            [eldap_filter:do_sub(State#state.rfilter, [{<<"%u">>, User}])],
                            [GroupAttr]),
@@ -443,8 +443,8 @@ ldap_entries_to_group(LDAPEntries, Host, Group, State, Extractor, AuthChecker) -
 
 ldap_entries_to_group([#eldap_entry{ attributes = Attrs } | REntries], Host,
                       DescAcc, JIDsAcc, State, Extractor, AuthChecker) ->
-    UID = lists:keysearch(eldap_utils:maybe_b2list(State#state.uid), 1, Attrs),
-    ListUID = eldap_utils:maybe_b2list(State#state.uid),
+    UID = lists:keysearch(State#state.uid, 1, Attrs),
+    ListUID = State#state.uid,
     case {eldap_utils:get_ldap_attr(State#state.group_attr, Attrs),
           eldap_utils:get_ldap_attr(State#state.group_desc, Attrs), UID} of
         {ID, Desc, {value, {GroupMemberAttr, MemberIn}}}
