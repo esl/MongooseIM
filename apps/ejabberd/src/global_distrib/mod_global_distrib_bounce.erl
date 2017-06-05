@@ -69,11 +69,11 @@ maybe_resend_message({_From, To, Acc} = FPacket) ->
     end.
 
 maybe_store_message(drop) -> drop;
-maybe_store_message({_From, _To, Acc} = FPacket) ->
+maybe_store_message({_From, To, Acc} = FPacket) ->
     Packet = mongoose_acc:get(to_send, Acc),
-    case {mongoose_acc:get(type, Acc), exml_query:attr(Packet, <<"distrib_ttl">>)} of
-        {T, _} when T =/= <<"message">> -> FPacket;
-        {_, undefined} -> store_message(FPacket);
+    %% TODO: explain why only chat messages
+    case exml_query:attr(Packet, <<"type">>) of
+        <<"chat">> -> store_message(FPacket);
         _ -> FPacket
     end.
 
