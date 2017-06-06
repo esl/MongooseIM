@@ -1,3 +1,4 @@
+#foobar
 language: erlang
 dist: trusty
 sudo: required
