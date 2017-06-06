@@ -14,7 +14,7 @@ We strive for Inaka's superb [guidelines](https://github.com/inaka/erlang_guidel
 
 MongooseIM has an extensive test suite.
 Find **unit** (white box) tests under `/apps/ejabberd/test` and **functional** (black box) tests under `/test/ejabberd_tests/tests`.
-It's important that tests are comprehendable: consider any preconditions, the test itself, and any postconditions that must hold.
+It's important that tests are comprehensible: consider any preconditions, the test itself, and any postconditions that must hold.
 Inspect the existing test suites to see how _we_ make these clear.
 
 Write type specifications and function signatures because they're remarkably helpful when it comes to reading the source.
