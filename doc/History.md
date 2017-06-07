@@ -4,10 +4,10 @@
 
 In 2010/2011, Erlang Solutions and ProcessOne were both working in parallel, uncoordinated, on separate private branches of ejabberd, the XMPP/Jabber server written in Erlang: 3.0.0-alpha-X series of ejabberd, and 0.1.0 of what would eventually be named MongooseIM.
 
-The main change to both codebases was roughly the same goal: all internal packets in binary rather than XML, for higher performance, and lower latency.
+The main change to both codebases was roughly the same goal: all internal strings stored in binaries rather than lists of characters, for higher performance, and lower latency.
 
 
-### Fully independant project
+### Fully independent project
 
 Erlang Solutions then worked on full OTP compliance, `rebar`, removal of obsolete and/or rarely used modules, reduction of runtime memory consumption, functional test coverage. [MongooseIM 1.0.0](https://github.com/esl/MongooseIM/releases/tag/1.0.0) was released on July 10th of 2012.
 
