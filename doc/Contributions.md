@@ -65,7 +65,7 @@ Apache license 2.0
 
 ### ICE (STUN/TURN) server
 
-Please contact us.
+Available on: [MongooseICE](https://github.com/esl/Fennec)
 
 ### MongoosePush: Push notifications server (APNS/FCM)
 
