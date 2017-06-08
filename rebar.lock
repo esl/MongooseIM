@@ -52,6 +52,10 @@
   {git,"git://github.com/epgsql/epgsql.git",
        {ref,"3652aa9c0a7cb58beb4736cdbdfa0dc4f7eafa20"}},
   0},
+ {<<"eredis">>,
+  {git,"git://github.com/wooga/eredis.git",
+       {ref,"cbc013f516e464706493c01662e5e9dd82d1db01"}},
+  0},
  {<<"erlcloud">>,
   {git,"git://github.com/erlcloud/erlcloud.git",
        {ref,"c1196989a8e7a5f45ddd7b4f81bbbc2ffcfc8274"}},
@@ -216,7 +220,7 @@
   0},
  {<<"worker_pool">>,
   {git,"git://github.com/inaka/worker_pool.git",
-       {ref,"707c2c6b36c8ba03343e760b56e87d6371a0e26e"}},
+       {ref,"b26ea6443f5e9909a516c4c8d50dac99ec2b1872"}},
   0}]}.
 [
 {pkg_hash,[

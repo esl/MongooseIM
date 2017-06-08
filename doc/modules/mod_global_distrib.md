@@ -1,8 +1,6 @@
 ### Module Description
 This module enables global distribution of a single XMPP domain, i.e. multiple federated servers can share a single domain name and route messages using federation capabilities.
 
-The module depends on Cassandra's cross-datacenter replication feature. Please refer to [Cassandra documentation](https://docs.datastax.com/en/cassandra/3.0/cassandra/initialize/initMultipleDS.html) on details how to configure the Cassandra database. The database instances should be configured to work as a part of a single cluster, and each data center should be recognized by Cassandra as a separate datacenter. The database needs to be initialized with a correct schema; please consult `cassandra.cql` included in MongooseIM distribution for example schema configuration (you will probably need to tweak the `NetworkTopologyStrategy` configuration).
-
 ### Manually specifying other clusters' addresses
 
 By default the messages will be routed between XMPP clusters sharing the global domain using DNS lookups and addressing the messages to the port given via **listen_port** option (default: 5555).
@@ -21,18 +19,29 @@ The addresses can be overridden per target host via a top-level configuration op
 
 * **global_host** (string, required): The XMPP domain that will be shared between datacenters. *Note:* this needs to be one of domains given in `host` option in `ejabberd.cfg`.
 * **local_host** (string, required): XMPP domain that maps uniquely to the local data center; it will be used for inter-center routing. *Note:* this needs to be one of domains given in `host` option in `ejabberd.cfg`.
-* **database_pool** (atom, default: `global`): Name of the database pool to use for storing session mappings. Refer to example `ejabberd.config` included in MongooseIM distribution for example Cassandra configuration.
+* **hosts** (string, required): List of **local_host** option values in all datacenters.
 * **num_of_workers** (integer, default: `1000`): Number of workers that will perform local routing operations on messages rerouted from other XMPP servers sharing the global domain.
+* **message_ttl** (integer, default: `4`): Number of times a message can be rerouted between datacenters.
 * **connections** (list, default: `[]`): Options for connections maintained by the module. See *Connections' options* section.
 * **cache** (list, default: `[]`): Options for caching database lookups. See *Database cache options* section.
 * **bounce** (list | `false`, default: `[]`): Options for message bouncing. If `false`, message bouncing is disabled. See *Message bouncing options* section.
+* **redis** (list, default: `[]`): Options for Redis session storage backend.
 
 #### Connections' options
 
 * **listen_port** (integer, default: `5555`): Port on which the server will listen to TCP connections from other XMPP clusters sharing the global domain.
-* **num_of_connections** (integer, default: `1`): Number of outgoing connections that will be established to other XMPP clusters sharing the global domain.
+* **num_of_connections** (integer, default: `1`): Number of outgoing connections that will be established to each other XMPP cluster sharing the global domain.
 * **certfile** (string, required): Path to the client certificate that will be used by the TLS connection. The file has to include a private key.
 * **cafile** (string, required): Path to a CA certificate that will be used to authenticate connections with other XMPP clusters sharing the global domain.
+
+#### Redis session storage options
+
+* **server** (string, default: `"127.0.0.1"`): Address of the Redis listener.
+* **port** (integer, default: `8102`): Port of the Redis listener.
+* **password** (string, default: `""`): Password to the Redis instance.
+* **pool_size** (integer, default: `1`): Number of persistent connections to the Redis instance.
+* **expire_after** (integer, default: `120`): Number of seconds after which a session entry written by this cluster will expire.
+* **refresh_after** (integer, default: `60`): Number of seconds after which session's expiration timer will be refreshed.
 
 #### Database cache options
 
@@ -44,28 +53,34 @@ The addresses can be overridden per target host via a top-level configuration op
 #### Message bouncing options
 
 * **resend_after_ms** (integer, default: `200`): Time after which message will be resent in case of delivery error.
-* **max_retries** (integer, default: `4`): Numbe of times message delivery will be retried in case of errors.
+* **max_retries** (integer, default: `4`): Number of times message delivery will be retried in case of errors.
 
 ### Example configuration
-
-```Erlang
-{cassandra_servers, [
-        {global, [
-              {servers, [{"localhost", 9042}]},
-              {keyspace, "mongooseim_global"}
-             ]}
-       ]}.
-```
 
 ```Erlang
 {mod_global_distrib, [
         {global_host, "example.com"},
         {local_host, "datacenter1.example.com"},
-        {cookie, "secret"},
-        {domain_lifetime_seconds, 60},
+        {hosts, ["datacenter1.example.com", "datacenter2.example.com"]},
+        {connections [
+              {listen_port, 5556},
+              {num_of_connections, 22}
+             ]},
+        {cache, [
+              {domain_lifetime_seconds, 60}
+             ]},
         {bounce, [
               {resend_after_ms, 300},
               {max_retries, 3}
+             ]},
+        {redis, [
+              {pool_size, 24},
+              {password, "secret"}
              ]}
        ]}.
+```
+
+```Erlang
+%% Manually specify address and port of the other datacenter
+{ {global_distrib_addr, "datacenter2.example.com"}, { {192, 168, 0, 7}, 5556} }.
 ```

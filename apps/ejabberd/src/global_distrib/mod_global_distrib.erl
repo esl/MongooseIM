@@ -32,7 +32,8 @@ deps(Host, Opts) ->
     mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
-start(Host, Opts) ->
+start(Host, Opts0) ->
+    Opts = [{message_ttl, 4} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 -spec stop(Host :: ejabberd:server()) -> any().
@@ -49,7 +50,7 @@ maybe_reroute({From, To, Acc} = FPacket) ->
     GlobalHost = opt(global_host),
     case lookup_recipients_host(To, LocalHost, GlobalHost) of
         {ok, TargetHost} when TargetHost =/= LocalHost ->
-            case mongoose_acc:get(distrib_ttl, Acc, 5) of %% TODO: 5
+            case mongoose_acc:get(distrib_ttl, Acc, opt(message_ttl)) of
                 0 -> FPacket;
                 TTL ->
                     Acc1 = mongoose_acc:put(distrib_ttl, TTL - 1, Acc),

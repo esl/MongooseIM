@@ -34,19 +34,15 @@
 %% Callbacks
 %%--------------------------------------------------------------------
 
--type pool() :: term().
-
--callback start(Opts :: proplists:proplist()) -> {ok, Pool :: term()}.
--callback stop(pool()) -> any().
--callback put_session(pool(), JID :: binary(), Host :: binary()) -> ok | error.
--callback get_session(pool(), JID :: binary()) -> {ok, Host :: binary()} | error.
--callback delete_session(pool(), JID :: binary(), Host :: binary()) -> ok | error.
-%% -callback refresh_session(pool(), JID :: binary()) -> ok | error.
--callback put_domain(pool(), Domain :: binary(), Host :: binary()) -> ok | error.
--callback get_domain(pool(), Domain :: binary()) -> {ok, Host :: binary()} | error.
--callback delete_domain(pool(), Domain :: binary(), Host :: binary()) -> ok | error.
-%% -callback refresh_domain(pool(), Domain :: binary()) -> ok | error.
--callback get_domains(pool()) -> {ok, [Domain :: binary()]} | error.
+-callback start(Opts :: proplists:proplist()) -> any().
+-callback stop() -> any().
+-callback put_session(JID :: binary(), Host :: binary()) -> ok | error.
+-callback get_session(JID :: binary()) -> {ok, Host :: binary()} | error.
+-callback delete_session(JID :: binary(), Host :: binary()) -> ok | error.
+-callback put_domain(Domain :: binary(), Host :: binary()) -> ok | error.
+-callback get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
+-callback delete_domain(Domain :: binary(), Host :: binary()) -> ok | error.
+-callback get_domains() -> {ok, [Domain :: binary()]} | error.
 
 %%--------------------------------------------------------------------
 %% API
@@ -104,7 +100,7 @@ delete_for_jid({_, _, _} = Jid, Host) when is_binary(Host) ->
       normalize_jid(Jid)).
 
 all_domains() ->
-    mod_global_distrib_mapping_backend:get_domains(opt(database_pool)).
+    mod_global_distrib_mapping_backend:get_domains().
 
 %%--------------------------------------------------------------------
 %% Hooks implementation
@@ -151,9 +147,7 @@ start() ->
     Host = opt(global_host),
     Backend = opt(backend),
     gen_mod:start_backend_module(?MODULE, [{backend, Backend}]),
-    {ok, Pool} = mod_global_distrib_mapping_backend:start(opt(Backend)),
-
-    ets:insert(?MODULE, {database_pool, Pool}),
+    mod_global_distrib_mapping_backend:start(opt(Backend)),
 
     CacheMissed = opt(cache_missed),
     DomainLifetime = opt(domain_lifetime_seconds) * 1000,
@@ -180,7 +174,7 @@ stop() ->
     ejabberd_hooks:delete(unregister_subhost, global, ?MODULE, unregister_subhost, 90),
     ejabberd_hooks:delete(register_subhost, global, ?MODULE, register_subhost, 90),
 
-    mod_global_distrib_mapping_backend:stop(opt(database_pool)).
+    mod_global_distrib_mapping_backend:stop().
 
 
 normalize_jid({_, _, _} = FullJid) ->
@@ -193,19 +187,19 @@ opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
 
 get_session(Key) ->
-    mod_global_distrib_mapping_backend:get_session(opt(database_pool), Key).
+    mod_global_distrib_mapping_backend:get_session(Key).
 
 put_session(Key, Value) ->
-    mod_global_distrib_mapping_backend:put_session(opt(database_pool), Key, Value).
+    mod_global_distrib_mapping_backend:put_session(Key, Value).
 
 delete_session(Key, Value) ->
-    mod_global_distrib_mapping_backend:delete_session(opt(database_pool), Key, Value).
+    mod_global_distrib_mapping_backend:delete_session(Key, Value).
 
 get_domain(Key) ->
-    mod_global_distrib_mapping_backend:get_domain(opt(database_pool), Key).
+    mod_global_distrib_mapping_backend:get_domain(Key).
 
 put_domain(Key, Value) ->
-    mod_global_distrib_mapping_backend:put_domain(opt(database_pool), Key, Value).
+    mod_global_distrib_mapping_backend:put_domain(Key, Value).
 
 delete_domain(Key, Value) ->
-    mod_global_distrib_mapping_backend:delete_domain(opt(database_pool), Key, Value).
+    mod_global_distrib_mapping_backend:delete_domain(Key, Value).

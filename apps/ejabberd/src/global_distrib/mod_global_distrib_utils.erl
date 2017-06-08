@@ -17,7 +17,8 @@
 -module(mod_global_distrib_utils).
 -author('konrad.zemek@erlang-solutions.com').
 
--export([start/4, deps/4, stop/3, opt/2, cast_or_call/3, cast_or_call/4, cast_or_call/5]).
+-export([start/4, deps/4, stop/3, opt/2, cast_or_call/3, cast_or_call/4, cast_or_call/5,
+         create_opts_ets/1]).
 
 -include("ejabberd.hrl").
 
@@ -32,7 +33,8 @@ start(Module, Host, Opts, StartFun) ->
     {global_host, GlobalHostList} = lists:keyfind(global_host, 1, Opts),
     case unicode:characters_to_binary(GlobalHostList) of
         Host ->
-            create_opts_ets(Module, Opts),
+            create_opts_ets(Module),
+            populate_opts_ets(Module, Opts),
             StartFun();
         _ ->
             ok
@@ -80,7 +82,7 @@ cast_or_call(Mod, Target, Message, SyncWatermark, Timeout) when is_pid(Target) -
 %% Helpers
 %%--------------------------------------------------------------------
 
-create_opts_ets(Module, Opts) ->
+create_opts_ets(Module) ->
     Self = self(),
     Heir = case whereis(ejabberd_sup) of
                undefined -> none;
@@ -88,7 +90,9 @@ create_opts_ets(Module, Opts) ->
                Pid -> Pid
            end,
 
-    ets:new(Module, [named_table, public, {read_concurrency, true}, {heir, Heir, testing}]),
+    ets:new(Module, [named_table, public, {read_concurrency, true}, {heir, Heir, testing}]).
+
+populate_opts_ets(Module, Opts) ->
     [ets:insert(Module, {Key, translate_opt(Value)}) || {Key, Value} <- Opts].
 
 translate_opt([Elem | _] = Opt) when is_list(Elem) ->

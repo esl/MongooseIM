@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, add_key/2, del_key/2]).
+-export([start_link/2, add_key/1, del_key/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -20,7 +20,6 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-     pids = #{},
      keys = #{},
      queue = queue:new(),
      last_stamp,
@@ -42,8 +41,8 @@
 start_link(RefreshAfter, RefreshFun) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, {RefreshAfter * 1000, RefreshFun}, []).
 
-add_key(Key, Pid) ->
-    gen_server:call(?SERVER, {add_key, Key, Pid}).
+add_key(Key) ->
+    gen_server:call(?SERVER, {add_key, Key}).
 
 del_key(Key) ->
     gen_server:call(?SERVER, {del_key, Key}).
@@ -66,7 +65,7 @@ del_key(Key) ->
 %% @end
 %%--------------------------------------------------------------------
 init({RefreshAfter, RefreshFun}) ->
-    Now = p1_time_compat:monotonic_time(milli_seconds).
+    Now = p1_time_compat:monotonic_time(milli_seconds),
     erlang:send_after(Now + 1000, self(), refresh, [{abs, true}]),
     process_flag(trap_exit, true),
     {ok, #state{refresh_after = RefreshAfter, refresh_fun = RefreshFun,
@@ -86,19 +85,15 @@ init({RefreshAfter, RefreshFun}) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({add_key, Key, Pid}, _From, State) ->
+handle_call({add_key, Key}, _From, State) ->
     RefreshAt = p1_time_compat:monotonic_time(milli_seconds) + State#state.refresh_after,
-    _Ref = erlang:monitor(Pid),
-    Keys = maps:put(Key, Pid, State#state.keys),
-    Queue = queue:in({RefreshAt, Key}, State#state.queue),
-    Pids = maps:put(Pid, Key, State#state.pids),
-    {reply, ok, State#state{keys = Keys, pids = Pids, queue = Queue}};
+    Ref = make_ref(),
+    Keys = maps:put(Key, Ref, State#state.keys),
+    Queue = queue:in({RefreshAt, Key, Ref}, State#state.queue),
+    {reply, ok, State#state{keys = Keys, queue = Queue}};
 handle_call({del_key, Key}, _From, State) ->
-    Pid = maps:get(Key, State#state.keys),
-    erlang:demonitor(Pid),
     Keys = maps:remove(Key, State#state.keys),
-    Pids = maps:remove(Pid, State#state.pids),
-    {reply, ok, State#state{keys = Keys, pids = Pids, queue = Queue}};
+    {reply, ok, State#state{keys = Keys}};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -127,7 +122,8 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info(refresh, State) ->
-    #state{refresh_fun = RefreshFun, last_stamp = LastStamp, refresh_after = RefreshAfter, keys = Keys},
+    #state{refresh_fun = RefreshFun, last_stamp = LastStamp,
+           refresh_after = RefreshAfter, keys = Keys} = State,
     NextStamp = LastStamp + 1000,
     {Queue, ToRefresh} = refresh_queue(State#state.queue, NextStamp, Keys, RefreshAfter),
     RefreshFun(ToRefresh),
@@ -141,12 +137,12 @@ refresh_queue(Queue, NextStamp, Keys, RefreshAfter) ->
 
 refresh_queue(Queue, NextStamp, Keys, RefreshAfter, ToRefresh) ->
     case queue:peek(Queue) of
-        {value, {Stamp, Key}} when Stamp < NextStamp ->
+        {value, {Stamp, Key, Ref}} when Stamp < NextStamp ->
             NewQ0 = queue:drop(Queue),
             NewQ =
-                case maps:is_key(Key, Keys) of
-                    true -> queue:in({Stamp + RefreshAfter, Key}, NewQ0);
-                    false -> NewQ0
+                case maps:get(Key, Keys, undefined) of
+                    Ref -> queue:in({Stamp + RefreshAfter, Key}, NewQ0);
+                    _ -> NewQ0
                 end,
             refresh_queue(NewQ, NextStamp, Keys, RefreshAfter, [Key | ToRefresh]);
 

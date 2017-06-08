@@ -21,10 +21,10 @@
 
 -behaviour(mod_global_distrib_mapping).
 
--export([start/1, stop/1,
-         put_session/3, get_session/2, delete_session/3,
-         put_domain/3, get_domain/2, delete_domain/3,
-         get_domains/1]).
+-export([start/1, stop/0,
+         put_session/2, get_session/1, delete_session/2,
+         put_domain/2, get_domain/1, delete_domain/2,
+         get_domains/0]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -37,7 +37,7 @@ start(Opts) ->
     PoolSize = proplists:get_value(pool_size, Opts, 1),
     RefreshAfter = proplists:get_value(refresh_after, Opts, 60),
 
-    ets:new(?MODULE, [protected, named_table, {read_concurrency, true}]),
+    mod_global_distrib_utils:create_opts_ets(?MODULE),
     ExpireAfter = proplists:get_value(expire_after, Opts, 120),
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
 
@@ -47,80 +47,86 @@ start(Opts) ->
                   permanent, 10000, supervisor, dynamic},
     Refresher = {mod_global_distrib_refresher,
                  {mod_global_distrib_refresher, start_link, [RefreshAfter, fun refresh/1]},
-                 permanent, 10000, worker, mod_global_distrib_refresher},
-    supervisor:start_child(ejabberd_sup, WorkerPool),
-    supervisor:start_child(ejabberd_sup, Refresher),
-    {ok, ?MODULE}.
-
-stop(_) ->
-    supervisor:terminate_child(ejabberd_sup, mod_global_distrib_refresher),
-    supervisor:delete_child(ejabberd_sup, mod_global_distrib_refresher).
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE).
-
-put_session(Pool, Jid, Host) ->
-    {ok, _} = eredis:q(worker(Pool), [<<"SET">>, make_key(Host, Jid), stamp(), <<"EX">>, opt(expire_after)]),
-    mod_global_distrib_refresher:add_key({jid, Jid}, )
+                 permanent, 10000, worker, [mod_global_distrib_refresher]},
+    {ok, _} = supervisor:start_child(ejabberd_sup, WorkerPool),
+    {ok, _} = supervisor:start_child(ejabberd_sup, Refresher),
+    mod_global_distrib_refresher:add_key(domains),
     ok.
 
-get_session(Pool, Jid) ->
-    Keys = [make_key(Host, Jid) || Host <- opt(hosts)],
-    {ok, Stamps} = eredis:q(worker(Pool), [<<"MGET">> | Keys]),
-    case lists:max(lists:zip(Stamps, opt(hosts))) of
-        {undefined, _Host} -> error;
-        {_Stamp, Host} -> {ok, Host}
+stop() ->
+    supervisor:terminate_child(ejabberd_sup, mod_global_distrib_refresher),
+    supervisor:delete_child(ejabberd_sup, mod_global_distrib_refresher),
+    supervisor:terminate_child(ejabberd_sup, ?MODULE),
+    supervisor:delete_child(ejabberd_sup, ?MODULE),
+    ets:delete(?MODULE).
+
+put_session(Jid, Host) ->
+    {ok, _} = eredis:q(worker(), [<<"SET">>, Jid, Host, <<"EX">>, expire_after()]),
+    ok = mod_global_distrib_refresher:add_key({jid, Jid}),
+    ok.
+
+get_session(Jid) ->
+    case eredis:q(worker(), [<<"GET">>, Jid]) of
+        {ok, undefined} -> error;
+        {ok, Host} -> {ok, Host}
     end.
 
-delete_session(Pool, Jid, Host) ->
-    {ok, _} = eredis:q(worker(Pool), [<<"DEL">>, make_key(Host, Jid)]),
+delete_session(Jid, _Host) ->
+    LocalHost = opt(local_host),
+    case eredis:q(worker(), [<<"GET">>, Jid]) of
+        {ok, LocalHost} ->
+            {ok, _} = eredis:q(worker(), [<<"DEL">>, Jid]);
+        _ ->
+            ok
+    end,
+    ok = mod_global_distrib_refresher:del_key({jid, Jid}),
     ok.
 
-%% refresh_session(Pool, Jid) ->
-%%     case eredis:q(worker(Pool), [<<"EXPIRE">>, Jid, integer_to_binary(120)]) of %% TODO: 120
-%%         {ok, _} -> ok;
-%%         {error, Reason} ->
-%%             ?ERROR_MSG("Failed to refresh session ~s: ~p", [Jid, Reason]),
-%%             error
-%%     end.
+refresh(Keys) ->
+    LocalHost = opt(local_host),
+    lists:foreach(
+      fun
+          ({jid, Jid}) ->
+              case get_session(Jid) of
+                  {ok, LocalHost} -> eredis:q(worker(), [<<"EXPIRE">>, Jid, expire_after()]);
+                  _ -> eredis:q(worker(), [<<"SET">>, Jid, LocalHost, expire_after()])
+              end;
+          (domains) ->
+              eredis:q(worker(), [<<"EXPIRE">>, domains_key(), expire_after()])
+      end,
+      Keys).
 
-put_domain(Pool, Domain, Host) ->
-    put_session(Pool, Domain, Host),
-    {ok, _} = eredis:q(worker(Pool), [<<"SADD">>, domains_key(Host), Domain]),
+put_domain(Domain, Host) ->
+    {ok, _} = eredis:q(worker(), [<<"SET">>, Domain, Host, <<"EX">>, expire_after()]),
+    {ok, _} = eredis:q(worker(), [<<"SADD">>, domains_key(), Domain]),
     ok.
 
-get_domain(Pool, Domain) ->
-    get_session(Pool, Domain).
+get_domain(Domain) ->
+    get_session(Domain).
 
-delete_domain(Pool, Domain, Host) ->
-    delete_session(Pool, Domain, Host),
-    {ok, _} = eredis:q(worker(Pool), [<<"SREM">>, domains_key(Host), Domain]),
+delete_domain(Domain, Host) ->
+    delete_session(Domain, Host),
+    {ok, _} = eredis:q(worker(), [<<"SREM">>, domains_key(), Domain]),
     ok.
 
-%% refresh_domain(Pool, Domain) ->
-%%     case refresh_session(Pool, Domain) of
-%%         ok -> put_domain_in_set(Pool, Domain);
-%%         error -> error
-%%     end.
-
-get_domains(Pool) ->
+get_domains() ->
     Keys = [domains_key(Host) || Host <- opt(hosts)],
-    {ok, Domains} = eredis:q(worker(Pool), [<<"SUNION">> | Keys]),
+    {ok, Domains} = eredis:q(worker(), [<<"SUNION">> | Keys]),
     {ok, Domains}.
 
-%% put_domain_in_set(Pool, Domain, Host) ->
-%%     Key = domains_key(opt(local_host)),
+worker() ->
+    wpool_pool:best_worker(?MODULE).
 
-worker(Pool) ->
-    wpool_pool:best_worker(Pool).
-
-stamp() ->
-    integer_to_binary(p1_time_compat:system_time()).
+domains_key() ->
+    LocalHost = opt(local_host),
+    domains_key(LocalHost).
 
 domains_key(Host) ->
-    make_key(Host, <<"{domains}">>).
-
-make_key(Host, Value) ->
-    <<Host/binary, "#", Value/binary>>.
+    <<Host/binary, "#{domains}">>.
 
 opt(Key) ->
     mod_global_distrib_utils:opt(mod_global_distrib_mapping, Key).
+
+expire_after() ->
+    [{_, Val}] = ets:lookup(?MODULE, expire_after),
+    Val.
