@@ -1,7 +1,7 @@
 ## Vision
 
 The MongooseIM Platform provides solutions for high-scalability and high-performance mobile messaging, social networking, and VoIP. 
-The products and services offered allow businesses and administrations to build apps with high acquisition, retention, and referral, though network effect.
+The products and services offered allow businesses and administrations to build apps with high acquisition, retention, and referral, through network effect.
 
 
 ## Roadmap
