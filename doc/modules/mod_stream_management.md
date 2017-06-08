@@ -7,7 +7,7 @@ It also provides a basic session table API and adds a new stream feature.
 ### Options
 
 * `buffer_max` (default: 100): Buffer size for messages yet to be acknowledged.
-* `ack_freq` (default: 1): Frequency of ack requests sent from server to client, e.g. 1 means a request after each stanza, 3 means a request after each 3 stanzas.
+* `ack_freq` (default: 1): Frequency of ack requests sent from the server to the client, e.g. 1 means a request after each stanza, 3 means a request after each 3 stanzas.
 * `resume_timeout` (default: 600): Timeout for the session resumption. Sessions will be removed after the specified number of seconds.
 
 ### Example Configuration

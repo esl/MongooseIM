@@ -466,9 +466,9 @@ make_node_attr(Node) -> [{<<"node">>, Node}].
 
 %%% Support for: XEP-0157 Contact Addresses for XMPP Services
 
--spec get_info(A :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
+-spec get_info(Acc :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
         Lang :: ejabberd:lang()) -> [jlib:xmlel()].
-get_info(A, Host, Mod, Node, _Lang) when Node == <<>> ->
+get_info(Acc, Host, Mod, Node, _Lang) when Node == <<>> ->
     Module = case Mod of
                  undefined ->
                      ?MODULE;
@@ -482,7 +482,7 @@ get_info(A, Host, Mod, Node, _Lang) when Node == <<>> ->
                                               children = [#xmlcdata{content = ?NS_SERVERINFO}]}]},
     [#xmlel{name = <<"x">>,
             attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-            children = [FormTypeField | ServerInfoFields]} | A];
+            children = [FormTypeField | ServerInfoFields]} | Acc];
 get_info(Acc, _, _, _Node, _) ->
     Acc.
 
@@ -504,24 +504,20 @@ get_fields_xml(Host, Module) ->
     fields_to_xml(FilteredFields).
 
 
--spec fields_to_xml([{_, Var :: string(), Values :: [string()]}]) -> [jlib:xmlel()].
+-spec fields_to_xml([{Modules :: [module()], Var :: string(), Values :: [string()]}]) ->
+    [jlib:xmlel()].
 fields_to_xml(Fields) ->
     [ field_to_xml(Field) || Field <- Fields].
 
 
--spec field_to_xml({_, Var :: string(), Values :: [string()]}) -> jlib:xmlel().
-field_to_xml({_, Var, Values}) ->
-    XMLValues = values_to_xml(Values),
+-spec field_to_xml({Modules :: [module()], Var :: string(), Values :: [string()]}) -> jlib:xmlel().
+field_to_xml({_Module, Var, Values}) ->
     #xmlel{name = <<"field">>, attrs = [{<<"var">>, list_to_binary(Var)}],
-           children = XMLValues}.
+           children = values_to_xml(Values)}.
 
 
 -spec values_to_xml([binary()]) -> [jlib:xmlel()].
 values_to_xml(Values) ->
-    lists:map(
-      fun(Value) ->
-              #xmlel{name = <<"value">>, children = [#xmlcdata{content = list_to_binary(Value)}]}
-      end,
-      Values
-     ).
+    [ #xmlel{name = <<"value">>, children = [#xmlcdata{content = list_to_binary(Value)}]}
+      || Value <- Values ].
 

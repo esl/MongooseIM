@@ -69,7 +69,7 @@ Implements [XEP Multi-User Chat Light](https://github.com/xsf/xeps/pull/118).
 Provides an offline messages storage that is compliant with [XEP-0160: Best Practices for Handling Offline Messages)](http://xmpp.org/extensions/xep-0160.html).
 
 ### [mod_offline_stub](../modules/mod_offline_stub.md)
-Prevents `<service-unavailable/>` error when message recipient is offline.
+Prevents `<service-unavailable/>` error when the message recipient is offline.
 
 ### [mod_ping](../modules/mod_ping.md)
 Implements [XEP-0199 XMPP Ping](http://xmpp.org/extensions/xep-0199.html), enabling periodic XMPP pings sent to clients and responds to those sent from clients.
