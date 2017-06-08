@@ -87,7 +87,7 @@ stop() ->
 -spec lookup_recipients_host(jid(), binary(), binary()) -> {ok, binary()} | error.
 lookup_recipients_host(#jid{lserver = HostAddressedTo} = To, LocalHost, GlobalHost) ->
     case HostAddressedTo of
-        LocalHost -> undefined;
+        LocalHost -> {ok, LocalHost};
         GlobalHost -> mod_global_distrib_mapping:for_jid(To);
         _ -> mod_global_distrib_mapping:for_domain(HostAddressedTo)
     end.

@@ -17,6 +17,7 @@
                   crypto,
                   csv,
                   cuesport,
+                  eredis,
                   exml,
                   exometer,
                   exometer_core,

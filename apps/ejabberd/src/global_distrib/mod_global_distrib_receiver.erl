@@ -22,7 +22,7 @@
 %%--------------------------------------------------------------------
 
 start(Host, Opts0) ->
-    Opts = [{listen_port, 5555}, {num_of_workers, 1000} | Opts0],
+    Opts = [{listen_port, 5555}, {num_of_workers, 10} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 stop(Host) ->
@@ -42,7 +42,7 @@ start_link(Ref, Socket, Transport, Opts) ->
 
 init({Ref, Socket, ranch_tcp, Opts}) ->
     [{worker_pool, WorkerPool}] = Opts,
-	ok = ranch:accept_ack(Ref),
+    ok = ranch:accept_ack(Ref),
     {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, [no_verify, {certfile, opt(certfile)}, {cafile, opt(cafile)}]),
     ok = fast_tls:setopts(TLSSocket, [{active, once}]),
     gen_server:enter_loop(?MODULE, [], #state{socket = TLSSocket, worker_pool = WorkerPool,

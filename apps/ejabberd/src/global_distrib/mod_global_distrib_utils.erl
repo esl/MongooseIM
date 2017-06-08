@@ -91,6 +91,8 @@ create_opts_ets(Module, Opts) ->
     ets:new(Module, [named_table, public, {read_concurrency, true}, {heir, Heir, testing}]),
     [ets:insert(Module, {Key, translate_opt(Value)}) || {Key, Value} <- Opts].
 
+translate_opt([Elem | _] = Opt) when is_list(Elem) ->
+    [translate_opt(E) || E <- Opt];
 translate_opt(Opt) when is_list(Opt) ->
     case catch unicode:characters_to_binary(Opt) of
         Bin when is_binary(Bin) -> Bin;
