@@ -1,7 +1,6 @@
 ### Module Description
 
-If you'd like clients to connect over Websocket connections, you must enable
-this module in the [`listen` section of `ejabberd.cfg`](../advanced-configuration/Listener-modules.md).
+If you'd like clients to connect over Websocket connections, you must enable this module in the [`listen` section of `ejabberd.cfg`](../advanced-configuration/Listener-modules.md).
 WebSockets are enabled by default.
 
 ### Options
@@ -22,4 +21,3 @@ In the listener section:
       ]}
   ]}
 ```
-

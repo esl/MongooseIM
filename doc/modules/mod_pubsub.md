@@ -102,4 +102,3 @@ Special node type that may be used as a target node for [XEP-0357 (Push Notifica
 For each published notification, a hook `push_notification` is run. 
 You may enable as many modules that support this hook (all module with `mod_push_service_*` name prefix) as you like (see for example `mod_push_service_mongoosepush`). 
 This node type **requires** `publish-options` with at least `device_id` and `service` fields supplied.
-

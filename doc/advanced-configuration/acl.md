@@ -99,7 +99,6 @@ To do so we need to set:<br/>
 This rule is used in mod_offline, it determines mod_offline's buffer size.
 For users defined in the admin ACL (for example `{acl, admin, {user, "pawel", "localhost"}}`) the size is 5000, while normal users size is 10.
 
-
 # Priority: global vs host access lists
 
 By default, both ACL and access elements are "global", they apply to all domains available on the server.
@@ -130,4 +129,3 @@ One can call:
 
 Which in our case will return deny.
 If the rule is not host specific, one can use `global` instead of `<<"localhost">>`.
-

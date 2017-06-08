@@ -148,10 +148,7 @@ var/log/mongooseim/erlang.log.1
 var/log/mongooseim/run_erl.log
 ```
 
-
 ### Caveats
 
 * Running `make install` will blindly overwrite any configs it encounters on its way.
-  Mnesia database and log files are preserved only due to the fact that they're
-  not build process artifacts.
-
+  Mnesia database and log files are preserved only due to the fact that they're not build process artifacts.

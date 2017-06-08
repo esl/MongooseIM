@@ -1,9 +1,10 @@
 ### Module Description
+
 This module provides support for vCards, as specified in [XEP-0054: vcard-temp](http://xmpp.org/extensions/xep-0054.html) and [XEP-0055: Jabber Search](http://xmpp.org/extensions/xep-0055.html).
 
 ### Options
 
-* `iqdisc` (default: `one_queue`)
+* `iqdisc` (default: `one_queue`).
 * `host` (string, default: `"vjud.@HOST@"`): Domain of the vCard User Directory, used for searching.
  `@HOST@` is replaced with the domain(s) supported by the cluster.
 * `search` (boolean, default: `true`): Enables/disables the domain set in previous option. 
@@ -11,7 +12,9 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 * `backend` (atom, default: `mnesia`): vCard storage backend. 
  Valid values are `ldap`, `odbc`, `riak` and `mnesia`. 
  **Warning:** LDAP backend is read-only.
-* `matches` (`inifnity` or positive integer, default: 30): Maxmimum search results to be returned to the user.
+* `matches` (`infinity` or positive integer, default: 30): Maximum search results to be returned to the user.
+* `allow_return_all` (boolean):
+* `search_all_hosts` (boolean): Search only local host or all hosts.
 
 ##### LDAP-specific options
 

@@ -1,4 +1,5 @@
 ### Module Description
+
 This module implements [XEP-0077: In-Band Registration](http://xmpp.org/extensions/xep-0077.html), allowing users to register accounts on the server via XMPP. Use of this module on Internet-facing servers is **not recommended**.
 
 ### Options

@@ -35,8 +35,6 @@ $(document).ready(function() {
     $('a[href$="swagger/index.html"]').attr('href', finalURL)
     $('#swagger-ui-iframe').attr('src', finalURL)
   }
-
-
 })
 
 </script>

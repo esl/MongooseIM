@@ -21,8 +21,5 @@ Major steps performed at that time:
 *   Bringing the project source tree to compliance with OTP project structure recommendations
 *   Swapping `autotools` for the Erlang community-standard build tool `rebar`
 *   Removal of obsolete and/or rarely used modules to reduce maintenance burden
-*   Reduction of runtime memory consumption by refactoring the code
-    to use Erlang's binary data type for string manipulation and storage
-    instead of operating on linked lists of characters
-*   Functional test coverage of the system according to corresponding
-    RFCs and XEPs
+*   Reduction of runtime memory consumption by refactoring the code to use Erlang's binary data type for string manipulation and storage instead of operating on linked lists of characters
+*   Functional test coverage of the system according to corresponding RFCs and XEPs

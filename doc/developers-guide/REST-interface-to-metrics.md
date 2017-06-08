@@ -128,7 +128,6 @@ On success returns ```200 OK``` and an element:
 
 Returns ```404 Not Found``` when metric :metric couldn't been found.
 
-
 ## collectd integration
 
 The interface is compatible with the collectd curl_json plugin.

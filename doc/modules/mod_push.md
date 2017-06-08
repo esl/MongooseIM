@@ -1,11 +1,12 @@
 ### Module Description
+
 This module implements [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html).
- It enables a service that notifies `PubSub` of a user's choice about every message that he could miss while being offline. 
- There are two control stanzas that the client may send to this module: `enable` and `disable`. 
- The `enable` stanza enables push notifications and forwards them to a specified `PubSub` node. 
- This stanza may also contain an optional `Data Form` that will be added to each and every notification to `PubSub` node as `publish-options`. 
- Please be sure to provide all form fields required by the specified `PubSub` node. 
- Any publish error may result in disabling push notifications to this node.  
+It enables a service that notifies `PubSub` of a user's choice about every message that he could miss while being offline. 
+There are two control stanzas that the client may send to this module: `enable` and `disable`. 
+The `enable` stanza enables push notifications and forwards them to a specified `PubSub` node. 
+This stanza may also contain an optional `Data Form` that will be added to each and every notification to `PubSub` node as `publish-options`. 
+Please be sure to provide all form fields required by the specified `PubSub` node. 
+Any publish error may result in disabling push notifications to this node.  
 
 ### Options
 

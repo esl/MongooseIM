@@ -10,7 +10,6 @@ Are you in need of an application requiring NAT traversal? Want to see how a TUR
 
 If that's the case, this tutorial is for you.
 
-
 #### What is the end result of this tutorial?
 
 At the end of the tutorial you will have a working environment with two peers, one sending a live video to another.
