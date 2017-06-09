@@ -715,9 +715,6 @@ rules(Config, Default) ->
 ns_amp() ->
     <<"http://jabber.org/protocol/amp">>.
 
-client_goes_offline(Client) ->
-    escalus_client:stop(Client).
-
 client_sends_message(Client, Msg) ->
     escalus_client:send(Client, Msg).
 
