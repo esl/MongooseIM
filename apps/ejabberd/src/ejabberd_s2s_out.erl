@@ -234,20 +234,15 @@ open_socket(init, StateData) ->
                                 StateData#state.new,
                                 StateData#state.verify}]),
     AddrList = get_addr_list(StateData#state.server),
-    case lists:foldl(fun({Addr, Port}, Acc) ->
-                             case Acc of
-                                 {ok, Socket} ->
-                                     {ok, Socket};
-                                 _ ->
-                                     open_socket1(Addr, Port)
-                             end
+    case lists:foldl(fun({_Addr, _Port}, {ok, Socket}) ->
+                             {ok, Socket};
+                        ({Addr, Port}, _Acc) ->
+                             open_socket1(Addr, Port)
                      end, ?SOCKET_DEFAULT_RESULT, AddrList) of
         {ok, Socket} ->
-            Version = if
-                          StateData#state.use_v10 ->
-                              <<" version='1.0'">>;
-                          true ->
-                              <<"">>
+            Version = case StateData#state.use_v10 of
+                          true -> <<" version='1.0'">>;
+                          false -> <<"">>
                       end,
             NewStateData = StateData#state{socket = Socket,
                                            tls_enabled = false,
@@ -1346,7 +1341,7 @@ get_addr_list(Server) ->
 
 
 %% @doc Get IPs predefined for a given s2s domain in the configuration
--spec get_predefined_addresses(atom()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_predefined_addresses(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_predefined_addresses(Server) ->
     S2SAddr = ejabberd_config:get_local_option({s2s_addr, Server}),
     do_get_predefined_addresses(S2SAddr).
