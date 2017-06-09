@@ -13,7 +13,7 @@
 - Erlang distribution over TLS #1228
 - JSON Web Token authentication #977
 
-## Chnanged
+## Changed
 
 - build system to [rebar3](http://www.rebar3.org/) #1033
 - hooks implementation
