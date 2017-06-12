@@ -21,7 +21,7 @@
          auth_failed/3,
          user_send_packet/4,
          user_receive_packet/5,
-         xmpp_bounce_message/3,
+         xmpp_bounce_message/1,
          xmpp_stanza_dropped/4,
          xmpp_send_element/2,
          roster_get/2,
@@ -124,19 +124,21 @@ user_receive_packet_type(Server, #xmlel{name = <<"iq">>}) ->
 user_receive_packet_type(Server, #xmlel{name = <<"presence">>}) ->
     mongoose_metrics:update(Server, xmppPresenceReceived, 1).
 
--spec xmpp_bounce_message(Acc :: map(), Server :: ejabberd:server(),
-                          tuple()) -> metrics_notify_return().
-xmpp_bounce_message(Acc, Server, _) ->
+-spec xmpp_bounce_message(Acc :: mongoose_acc:t()) -> metrics_notify_return().
+xmpp_bounce_message(Acc) ->
+    Server = mongoose_acc:get(server, Acc),
     mongoose_metrics:update(Server, xmppMessageBounced, 1),
     Acc.
 
--spec xmpp_stanza_dropped(map(), ejabberd:jid(), tuple(), tuple()) -> metrics_notify_return().
+-spec xmpp_stanza_dropped(mongoose_acc:t(), ejabberd:jid(), ejabberd:jid(), xmlel()) ->
+    metrics_notify_return().
 xmpp_stanza_dropped(Acc, #jid{server = Server} , _, _) ->
     mongoose_metrics:update(Server, xmppStanzaDropped, 1),
     Acc.
 
 -spec xmpp_send_element(Acc :: map(), Server :: ejabberd:server()) -> ok | metrics_notify_return().
-xmpp_send_element(Acc, Server) ->
+xmpp_send_element(Acc, _El) ->
+    Server = mongoose_acc:get(server, Acc),
     mongoose_metrics:update(Server, xmppStanzaCount, 1),
     case mongoose_acc:get(type, Acc) of
         <<"error">> ->
@@ -235,7 +237,7 @@ user_ping_timeout(Acc, _JID) ->
                           binary(),
                           Server :: ejabberd:server(),
                           term(), term(), term()) -> mongoose_acc:t().
-privacy_check_packet(Acc, _, Server, _, {_, _, _}, _) ->
+privacy_check_packet(Acc, _, Server, _, {_, _, _, _}, _) ->
     mongoose_metrics:update(Server, modPrivacyStanzaAll, 1),
     case mongoose_acc:get(privacy_check, Acc, allow) of
         deny ->

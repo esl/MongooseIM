@@ -138,7 +138,7 @@ make_error_reply(#xmlel{name = Name, attrs = Attrs,
     NewAttrs = make_error_reply_attrs(Attrs),
     #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]};
 make_error_reply(Acc, Error) ->
-    make_error_reply(mongoose_acc:get(to_send, Acc), Error).
+    make_error_reply(mongoose_acc:get(element, Acc), Error).
 
 
 -spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(), ...].

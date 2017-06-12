@@ -702,25 +702,25 @@ disco_items(Host, Node, From) ->
 %% callback that prevents routing subscribe authorizations back to the sender
 %%
 
-handle_pep_authorization_response({From, To, Acc}) ->
+handle_pep_authorization_response({From, To, Acc, Packet}) ->
     Name = mongoose_acc:get(name, Acc),
     Type = mongoose_acc:get(type, Acc),
-    handle_pep_authorization_response(Name, Type, From, To, Acc).
+    handle_pep_authorization_response(Name, Type, From, To, Acc, Packet).
 
-handle_pep_authorization_response(_, <<"error">>, From, To, Acc) ->
-    {From, To, Acc};
-handle_pep_authorization_response(<<"message">>, _, From, To, Acc)
+handle_pep_authorization_response(_, <<"error">>, From, To, Acc, Packet) ->
+    {From, To, Acc, Packet};
+handle_pep_authorization_response(<<"message">>, _, From, To, Acc, Packet)
   when From#jid.luser == To#jid.luser, From#jid.lserver == To#jid.lserver ->
         Packet = mongoose_acc:get(to_send, Acc),
         case find_authorization_response(Packet) of
-            none -> {From, To, Acc};
-            invalid -> {From, To, Acc};
+            none -> {From, To, Acc, Packet};
+            invalid -> {From, To, Acc, Packet};
             XFields ->
                 handle_authorization_response(jid:to_lower(To), From, To, Packet, XFields),
                 drop
         end;
-handle_pep_authorization_response(_, _, From, To, Acc) ->
-    {From, To, Acc}.
+handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
+    {From, To, Acc, Packet}.
 
 %% -------
 %% presence hooks handling functions
