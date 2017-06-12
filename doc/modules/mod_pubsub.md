@@ -9,11 +9,12 @@ There might be several subscribers, several publishers, and even several channel
 This module implements [XEP-0060 (Publish-Subscribe)](http://www.xmpp.org/extensions/xep-0060.html).
 Due to the complexity of the protocol, the PubSub engine makes successive calls to the `nodetree` and `node plugins` in order to check the validity of requests, perform the corresponding action and return a result or appropriate error.
 Such an architecture makes it much easier to write custom pubsub plugins and add new storage backends.
+Most MongooseIM modules have SQL backends but unfortunately mod_pubsub is not one of them.
 It's all about tailoring PubSub to your needs!
 
 ### Options
 
-* `iqdisc` (default: `one_queue`)
+* `iqdisc` (default: `one_queue`).
 * `host` (string, default: `"pubsub.@HOST@"`): Subdomain for Pubsub service to reside under.
 `@HOST@` is replaced with each served domain.
 * `access_create` (atom, default: `all`): Who is allowed to create pubsub nodes.
@@ -30,7 +31,7 @@ E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of 
 * `default_node_config` ([{Key, Value}, ...]): Overrides the default node configuration, regradless of the node plugin.
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
 * `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata. 
- This effectively makes them an owner of this item.
+This effectively makes them an owner of this item.
 
 ### Example Configuration
 
@@ -56,10 +57,10 @@ Stores nodes in a database (only mnesia supported).
 
 Does not store nodes in a database.
 This saves resources on systems when the number of nodes is large.
-When using the `<<"virtual">>` nodetree, you can only enable these node plugins: `[<<“flat”>>,<<“pep”>>]` or `[<<“flat”>>]`; any other plugin configuration will not work.
+When using the `<<"virtual">>` nodetree, you can only enable these node plugins: `[<<"flat">>,<<"pep">>]` or `[<<"flat">>]`; any other plugin configuration will not work.
 Also, all nodes will have the defaut configuration, and this can not be changed.
 
-Using the `<<“virtual”>>` nodetree requires the pubsub module to be started with a clean database, it will not work if you used the default `<<“tree”>>` nodetree before.
+Using the `<<"virtual">>` nodetree requires the pubsub module to be started with a clean database, it will not work if you used the default `<<"tree">>` nodetree before.
 
 #### `<<"dag">>`
 
@@ -98,7 +99,7 @@ Every node takes a place in a tree and is either a collection node (and have onl
 
 #### `<<"push">>`
 
-Special node type that may be used as a target node for [XEP-0357 (Push Notifications)](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_push`). 
-For each published notification, a hook `push_notification` is run. 
+Special node type that may be used as a target node for [XEP-0357 (Push Notifications)](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_push`).
+For each published notification, a hook `push_notification` is run.
 You may enable as many modules that support this hook (all module with `mod_push_service_*` name prefix) as you like (see for example `mod_push_service_mongoosepush`). 
 This node type **requires** `publish-options` with at least `device_id` and `service` fields supplied.
