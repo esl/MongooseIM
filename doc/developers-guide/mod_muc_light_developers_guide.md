@@ -131,4 +131,3 @@ Ideas for Further Development
 ### Hard
 
   * Room metadata cache (maybe "medium"?).
-

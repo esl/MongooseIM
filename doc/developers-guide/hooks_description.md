@@ -4,7 +4,6 @@ This is a brief documentation for a few selected hooks.
 Though hooks & handlers differ in what they are there to do, it is not necessary to describe them all, because the mechanism is general. 
 The following is meant to give you the idea of how hooks work, what they are used for and the various purposes they can serve.
 
-
 ## `user_send_packet`
 
 ```erlang

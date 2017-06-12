@@ -38,7 +38,6 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 * **loglevel** (local)
     * **Description:** Log level configured with integer: 0 (disabled), 1 (critical), 2 (error), 3 (warning), 4 (info), 5 (debug). Recommended values for production systems are 2 or 3 (5 is for development).
 
-
 ### Served hostnames
 
 * **hosts** (global)
@@ -296,7 +295,6 @@ By default only the following applications can be found there:
     this file. Its default value is **600s**. This parameter says for how
     long the ssl session should remain in the cache for further re-use,
     should `ssl session resumption` happen.
-
 
 # Configuring TLS: Certificates & Keys
 

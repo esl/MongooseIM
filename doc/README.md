@@ -22,8 +22,7 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) an
 
 For a quick start just download:
 
-* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html)
-that suit your platform (Ubuntu, Debian, CentOS, and macOS)
+* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html) that suit your platform (Ubuntu, Debian, CentOS, and MacOS)
 * The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): [https://hub.docker.com/r/mongooseim/mongooseim/](https://hub.docker.com/r/mongooseim/mongooseim/) (source code repository: [https://github.com/esl/mongooseim-docker](https://github.com/esl/mongooseim-docker))
 
 ## Public testing
@@ -37,7 +36,6 @@ Check out our test results:
 ## MongooseIM platform components
 
 <img src="MongooseIMPlatformcomponents.png" alt="MongooseIM platform schema" />
-
 
 ### Server-side components
 

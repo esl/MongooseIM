@@ -1,4 +1,5 @@
 ### Module Description
+
 This module implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html) (MUC). 
 It's a common XMPP group chat solution. 
 This extension consists of two Erlang modules: `mod_muc` and `mod_muc_room`, the latter being the room code itself. 
@@ -6,6 +7,7 @@ Note that only `mod_muc` needs to be enabled in the configuration file.
 Also `mod_muc_log` is a logging submodule.
 
 ### Options
+
 * `host` (string, default: `"conference.@HOST@"`): Subdomain for MUC service to reside under. 
  `@HOST@` is replaced with each served domain.
 * `access` (atom, default: `all`): Access Rule to determine who is allowed to use the MUC service.
@@ -60,14 +62,13 @@ Also `mod_muc_log` is a logging submodule.
     * `subject` (binary, default: `<<>>`): A default subject for new room.
     * `subject_author` (binary, default: `<<>>`): A nick name of the default subject's author.
 
-
 ### Example Configuration
 ```
 {mod_muc, [
              {host, "muc.example.com"},
              {access, muc},
              {access_create, muc_create}
-            ]},
+            ]}
 ```
 
 ### Performance optimisations

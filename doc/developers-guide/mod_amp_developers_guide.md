@@ -38,7 +38,6 @@ Source Files, Headers and Tests
     This module contains PropEr generators for server-side strategies, as well as valid and invalid amp rules. 
     Used in both test suites.
 
-
 Hooks for Other Modules
 -----------------------
 
@@ -56,7 +55,6 @@ Cf. this code from `amp_resolver`:
             _    -> resolve(Strategy, Condition, Value) %% PERFORM LOCAL CHECK %%
         end.
     
-
 Ideas for Further Development
 -----------------------------
 
@@ -79,10 +77,6 @@ Ideas for Further Development
     2.  Rule support is in `amp_resolver:verify_rule_support/1`
     3.  Every other function that deals with rules can handle unsupported rules, but ignores their meaning and decides that these rules don't apply.
 
-
 ### Hard
 
   * Implement support for the 'expire-at' condition.
-
-
-

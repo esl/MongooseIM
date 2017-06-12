@@ -1,4 +1,3 @@
-
 ## Overview
 
 The purpose of this module is to connect with an external REST API and delegate the authentication operations to it whenever possible.
@@ -31,7 +30,6 @@ The following options can be set in the `auth_opts` tuple in `rel/files/ejabberd
 
 Example:
 `TODO`
-
 
 ## SCRAM support
 

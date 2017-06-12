@@ -1,4 +1,5 @@
 ### Module Description
+
 A logging submodule for [mod_muc](mod_muc.md). 
 Is must be explicitly configured to work. 
 It writes room-related information (configuration) and events (messages, presences) to files on the disk.
@@ -35,5 +36,5 @@ It writes room-related information (configuration) and events (messages, presenc
         [
         {outdir, "/tmp/muclogs"},
         {access_log, muc}
-        ]},
+        ]}
 ```

@@ -69,9 +69,6 @@ $(document).ready(function() {
     $('a[href$="swagger/index.html?client=true"]').attr('href', finalURL)
     $('#swagger-ui-iframe').attr('src', finalURL)
   }
-
-
 })
 
 </script>
-

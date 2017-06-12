@@ -16,7 +16,6 @@ To compile MongooseIM you need:
 
 To compile MongooseIM, go to the main repo directory `$REPO` and execute the command (`$` stands for the shell prompt):
 
-
         $ ./rebar3 compile
 
 To generate full MongooseIM release (with mysql, pgsql or other deps):
@@ -70,4 +69,3 @@ which will generate releases `mim1`, `mim2`, `mim3`, `fed1` in `$REPO/_build/` a
 To run the tests (from project's root directory, i.e. `$REPO`):
 
     $ tools/travis-test
-

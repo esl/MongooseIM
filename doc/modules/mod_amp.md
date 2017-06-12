@@ -1,13 +1,10 @@
 ### Module Description
 
 This module enables support for a subset of the functionality described under
-[XEP-0079: Advanced Message
-Processing](http://xmpp.org/extensions/xep-0079.html). It currently does not
-provide features related to timed delivery, i.e the `expire-at` condition.
+[XEP-0079: Advanced Message Processing](http://xmpp.org/extensions/xep-0079.html). It currently does not
+provide features related to timed delivery, i.e. the `expire-at` condition.
 
-The `error` and `notify` actions are supported, while `alert` and `drop` are
-not. See more below, under XEP Support.
-
+The `error` and `notify` actions are supported, while `alert` and `drop` are not. See more below, under XEP Support.
 
 ### Options
 
@@ -16,13 +13,12 @@ none
 ### Example Configuration
 
 ```
-  {mod_amp, []},
+  {mod_amp, []}
 ```
 
 ### XEP Support
 
-What follows is a short description of which parts of the XEP-0079 specification
-mod_amp supports.
+What follows is a short description of which parts of the XEP-0079 specification mod_amp supports.
 
 * 2.1.1 Service Discovery
 

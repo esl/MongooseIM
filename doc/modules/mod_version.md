@@ -5,7 +5,7 @@ This module provides the functionality specified in [XEP-0092: Software Version]
 ### Options
 
 * `iqdisc`
-* `os_info` (boolean, default: `false`): Determines wheter information about the operating system will be included.
+* `os_info` (boolean, default: `false`): Determines whether information about the operating system will be included.
 
 ### Example configuration 
 ```

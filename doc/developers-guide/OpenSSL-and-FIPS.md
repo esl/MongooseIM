@@ -97,4 +97,3 @@ Here are all the cipher suites available when the **FIPS** mode is **disabled**:
 * ECDHE-RSA-RC4-SHA
 * RC4-SHA
 * RC4-MD5
-

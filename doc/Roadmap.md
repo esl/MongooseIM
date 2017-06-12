@@ -13,7 +13,6 @@ This means that while we are pretty confident with the plan for the near future,
 We are excited about the vision we have come up with, but want to improve it based on your ideas.
 Please contact us and tell us about what features and improvements do you see as valuable in your project.
 
-
 ## MongooseIM 2.1.x: mobile focus, highly technical (2017Q2)
 
 * Flexible push notifications architecture:

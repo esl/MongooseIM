@@ -1,4 +1,5 @@
 ### Module Description
+
 This module implements [XEP-0313 (Message Archive Management)](http://xmpp.org/extensions/attic/xep-0313.html). 
 It enables a service to store all user messages for one-to-one chats as well as group chats (MUC, MultiUser Chat). 
 It uses [XEP-0059: Result Set Management](http://xmpp.org/extensions/xep-0059.html) for paging. 
@@ -10,10 +11,10 @@ Configure MAM with different storage backends:
 * Riak KV (NOSQL)
 * Cassandra (NOSQL)
 
-
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
 #### Full Text Search
+
 This module allows message filtering by their text body (if enabled, see *Common backend options*). 
 This means that an XMPP client, while requesting messages from the archive may not only specify standard form fields (`with`, `start`, `end`), but also `full-text-search` (of type `text-single`). 
 If this happens, the client will receive only messages that contain words specified in the request.

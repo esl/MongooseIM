@@ -11,5 +11,5 @@ Protocol is described under [XEP-0202: Entity Time](http://www.xmpp.org/extensio
 ### Example Configuration
 
 ```
-  {mod_time, []},
+  {mod_time, []}
 ```

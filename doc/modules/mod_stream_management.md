@@ -14,6 +14,5 @@ It is implemented mostly in `ejabberd_c2s`, this module is just a "starter", to 
   {mod_stream_management, [{buffer_max, 30},
                            {ack_freq, 1},
                            {resume_timeout, 600}
-                          ]},
+                          ]}
 ```
-

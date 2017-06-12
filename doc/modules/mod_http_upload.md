@@ -1,8 +1,8 @@
 ### Module Description
+
 This module implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html). 
 It enables a service that on user request creates an upload "slot". 
 A slot is a pair of URLs, one of which can be used with a `PUT` method to upload user's file, the other with a `GET` method to retrieve the file.
-
 Currently, the module supports only the S3 backend using [AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html).
 
 ### Options

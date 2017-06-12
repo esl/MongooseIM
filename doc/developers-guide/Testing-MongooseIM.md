@@ -122,4 +122,3 @@ A similar command applies to other nodes, the important thing here is rebar3's p
 When the above command finishes, the code can be reloaded on the server by:
 1. loading new module(s) in the node's shell, f.e. `l(mongoose_riak)`
 1. restarting the node
-

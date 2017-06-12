@@ -16,17 +16,15 @@ MongooseIM is supported on Mac OS X 10.6.8 and later. Before you can compile and
 
 An easy way to install some of the packages is by using a package manager, such as [Homebrew](http://brew.sh) – the Homebrew commands are provided here.
 
-
 ##### Build and install from source code
 
 To build and install MongooseIM from source code, do the following:
 
-1. Clone the Git repository:  `git clone https://github.com/esl/MongooseIM.git`
+1. Clone the Git repository: `git clone https://github.com/esl/MongooseIM.git`
 2. Go to your MongooseIM directory.
 3. Run the following command: `make rel`.
 
 For more advanced release generation and installation please see [Release/Installation configuration](release_config.md)
-
 
 #### Install from DMG
 
@@ -35,15 +33,13 @@ Once the DMG is downloaded, double click on it, it will open the content.
 Double click on the .pkg file, it will fire an installation wizard.
 Just follow the instructions.
 
-
 #### Running MongooseIM
 
-* From your MongooseIM directory, go to the release directory:  `cd _build/prod/rel/mongooseim`
-* To start the MongooseIM server, run the following command:  `bin/mongooseim start`
-* To verify that MongooseIM is running, enter the following:  `bin/mongooseim ping`<br \>If the response is `pong`, then MongooseIM is running.
-* To connect to the MongooseIM console after starting the server:  `bin/mongooseim debug`
-* Alternatively, you can also run the server in interactive mode:  `bin/mongooseim live`
-
+* From your MongooseIM directory, go to the release directory: `cd _build/prod/rel/mongooseim`
+* To start the MongooseIM server, run the following command: `bin/mongooseim start`
+* To verify that MongooseIM is running, enter the following: `bin/mongooseim ping`<br>If the response is `pong`, then MongooseIM is running.
+* To connect to the MongooseIM console after starting the server: `bin/mongooseim debug`
+* Alternatively, you can also run the server in interactive mode: `bin/mongooseim live`
 
 #### Registering a user
 
@@ -54,7 +50,6 @@ You can register a user with the `mongooseimctl` utility:
 
 For example:
 `mongooseimctl register user1 localhost GJ9TuHq8`
-
 
 ##### Adium
 
@@ -71,7 +66,6 @@ After registration, the user will connect automatically.
 
 Registered users wishing to add an existing account to Adium should enter the MongooseIM server’s IP address in the **Connect Server** field on the **Options** tab.
 
-
 #### Domains
 
 To use your system’s domain name instead of localhost, edit the following MongooseIM configuration file: `$REPO/_build/prod/rel/mongooseim/etc/ejabberd.cfg` (where `$REPO` is the repository root).
@@ -81,7 +75,6 @@ A user’s Jabber ID will then use the domain instead of localhost, for example:
 
 You can also configure multiple domains for one server:
 `{hosts, ["example1.org", "example2.org"] }.`
-
 
 #### Get chatting!
 
