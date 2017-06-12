@@ -32,14 +32,14 @@ end_per_testcase(Name, C) ->
 
 caps_feature_is_advertised(Config) ->
     Spec = escalus_users:get_userspec(Config, alice),
-    {ok, Connection, _, Features} = escalus_connection:start(Spec, [start_stream, stream_features]),
+    {ok, Connection, Features} = escalus_connection:start(Spec, [start_stream, stream_features]),
     true = is_map(proplists:get_value(caps, Features)),
     escalus_connection:stop(Connection).
 
 user_can_query_server_caps_via_disco(Config) ->
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     Spec = escalus_users:get_userspec(NewConfig, alice),
-    {ok, Alice, _, Features} = escalus_connection:start(Spec),
+    {ok, Alice, Features} = escalus_connection:start(Spec),
     #{<<"node">> := Node,
       <<"ver">> := Ver} = proplists:get_value(caps, Features),
     NodeVer = <<Node/binary, $#, Ver/binary>>,

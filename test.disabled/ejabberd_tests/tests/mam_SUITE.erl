@@ -1455,7 +1455,7 @@ offline_message(Config) ->
     ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob)),
     assert_only_one_of_many_is_equal(ArcMsgs, Msg),
 
-    escalus_cleaner:clean(Config).
+    escalus_client:stop(Config, Bob).
 
 nostore_hint(Config) ->
     Msg = <<"So secret">>,

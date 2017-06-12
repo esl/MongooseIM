@@ -424,7 +424,7 @@ retract_when_user_goes_offline_test(Config) ->
               pubsub_tools:get_all_items(Alice, Node,
                                          [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
-              escalus_client:stop(Bob),
+              escalus_client:stop(Config, Bob),
               pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item1">>]}]),
 
               pubsub_tools:delete_node(Alice, Node, [])

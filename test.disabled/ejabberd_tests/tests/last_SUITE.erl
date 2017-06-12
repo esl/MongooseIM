@@ -82,7 +82,7 @@ last_offline_user(Config) ->
                           Status = escalus_stanza:tags([{<<"status">>, <<"I am a banana!">>}]),
                           Presence = escalus_stanza:presence(<<"unavailable">>, Status),
                           escalus_client:send(Bob, Presence),
-                          escalus_client:stop(Bob),
+                          escalus_client:stop(Config, Bob),
                           timer:sleep(1024), % more than a second
 
                           %% Alice asks for Bob's last availability

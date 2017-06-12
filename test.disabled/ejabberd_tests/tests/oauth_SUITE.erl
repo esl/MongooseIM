@@ -142,7 +142,7 @@ token_login_failure(Config, User, Token) ->
     %% when
     Result = login_with_token(Config, User, Token),
     % then
-    {{auth_failed, _}, _, _} = Result.
+    {{auth_failed, _}, _} = Result.
 
 get_revoked_token(Config, UserName) ->
     BJID = escalus_users:get_jid(Config, UserName),
@@ -200,12 +200,12 @@ login_with_other_users_token(Config) ->
                  stream_features,
                  maybe_use_ssl,
                  authenticate,
-                 fun (Alice, Props, Features) ->
+                 fun (Alice = #client{props = Props}, Features) ->
                          escalus:send(Alice, escalus_stanza:bind(<<"test-resource">>)),
                          BindReply = escalus_connection:get_stanza(Alice, bind_reply),
-                         {Alice, [{bind_reply, BindReply} | Props], Features}
+                         {Alice#client{props = [{bind_reply, BindReply} | Props]}, Features}
                  end],
-    {ok, _, Props, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    {ok, #client{props = Props}, _} = escalus_connection:start(AliceSpec, ConnSteps),
     %% then the server recognizes us as the other user
     LoggedInAs = extract_bound_jid(proplists:get_value(bind_reply, Props)),
     true = escalus_utils:get_username(LoggedInAs) /= escalus_users:get_username(Config, AliceSpec).
@@ -225,7 +225,7 @@ login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
                  maybe_use_compression
                 ],
 
-    {ok, ClientConnection, Props, _Features} = escalus_connection:start(BobSpec, ConnSteps),
+    {ok, ClientConnection = #client{props = Props}, _Features} = escalus_connection:start(BobSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, RefreshToken}),
     AuthResultToken = (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
     ok.
@@ -233,17 +233,15 @@ login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
 %% users logs in using access token he obtained in previous session (stream has been
 %% already reset)
 login_access_token_impl(Config, {AccessToken, _RefreshToken}) ->
-    {{ok, _ }, ClientConnection, Props2} = login_with_token(Config, bob, AccessToken),
+    {{ok, Props}, ClientConnection} = login_with_token(Config, bob, AccessToken),
     escalus_connection:reset_parser(ClientConnection),
-    {Props3, []} = escalus_session:start_stream(ClientConnection, Props2),
-    NewFeatures = escalus_session:stream_features(ClientConnection, Props3, []),
+    ClientConn1 = escalus_session:start_stream(ClientConnection#client{props = Props}),
+    {ClientConn1, _} = escalus_session:stream_features(ClientConn1, []),
     %todo: create step out of above lines
-    {NewClientConnection, Props4, NewFeatures2} =
-        escalus_session:bind(ClientConnection, Props3, NewFeatures),
-    {NewClientConnection2, _Props5, _NewFeatures3} =
-        escalus_session:session(NewClientConnection, Props4, NewFeatures2),
-    escalus:send(NewClientConnection2, escalus_stanza:presence(<<"available">>)),
-    escalus:assert(is_presence, escalus:wait_for_stanza(NewClientConnection2)).
+    ClientConn2 = escalus_session:bind(ClientConn1),
+    ClientConn3 = escalus_session:session(ClientConn2),
+    escalus:send(ClientConn3, escalus_stanza:presence(<<"available">>)),
+    escalus:assert(is_presence, escalus:wait_for_stanza(ClientConn3)).
 
 login_with_token(Config, User, Token) ->
     UserSpec = escalus_users:get_userspec(Config, User),
@@ -251,10 +249,10 @@ login_with_token(Config, User, Token) ->
                  stream_features,
                  maybe_use_ssl,
                  maybe_use_compression],
-    {ok, ClientConnection, Props, _Features} = escalus_connection:start(UserSpec, ConnSteps),
+    {ok, ClientConnection = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, Token}),
     AuthResult = (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
-    {AuthResult, ClientConnection, Props2}.
+    {AuthResult, ClientConnection}.
 
 token_revocation_test(Config) ->
     %% given
@@ -309,7 +307,7 @@ provision_token_login(Config) ->
     ProvisionToken = make_provision_token(Config, bob, VCard),
     UserSpec = user_authenticating_with_token(Config, bob, ProvisionToken),
     %% when logging in with provision token
-    {ok, Conn, _, _} = escalus_connection:start(UserSpec),
+    {ok, Conn, _} = escalus_connection:start(UserSpec),
     escalus:send(Conn, escalus_stanza:vcard_request()),
     %% then user's vcard is placed into the database on login
     Result = escalus:wait_for_stanza(Conn),

@@ -51,7 +51,7 @@ end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 offline_message_is_stored_and_delivered_at_login(Config) ->
     Story =
         fun(FreshConfig, Alice, Bob) ->
-                logout(Bob),
+                logout(FreshConfig, Bob),
                 escalus:send(Alice, escalus_stanza:chat_to
                                       (Bob, <<"msgtxt">>)),
                 NewBob = login_send_presence(FreshConfig, bob),
@@ -64,7 +64,7 @@ offline_message_is_stored_and_delivered_at_login(Config) ->
 
 error_message_is_not_stored(Config) ->
     Story = fun(FreshConfig, Alice, Bob) ->
-                    logout(Bob),
+                    logout(FreshConfig, Bob),
                     AliceJid = escalus_client:full_jid(Alice),
                     escalus:send(Alice, escalus_stanza:message
                               (AliceJid, Bob, <<"error">>, <<"msgtxt">>)),
@@ -76,7 +76,7 @@ error_message_is_not_stored(Config) ->
 
 groupchat_message_is_not_stored(Config) ->
     Story = fun(FreshConfig, Alice, Bob) ->
-                    logout(Bob),
+                    logout(FreshConfig, Bob),
                     AliceJid = escalus_client:full_jid(Alice),
                     escalus:send(Alice, escalus_stanza:message
                               (AliceJid, Bob, <<"groupchat">>, <<"msgtxt">>)),
@@ -88,7 +88,7 @@ groupchat_message_is_not_stored(Config) ->
 
 headline_message_is_not_stored(Config) ->
     Story = fun(FreshConfig, Alice, Bob) ->
-                    logout(Bob),
+                    logout(FreshConfig, Bob),
                     AliceJid = escalus_client:full_jid(Alice),
                     escalus:send(Alice, escalus_stanza:message
                               (AliceJid, Bob, <<"headline">>, <<"msgtxt">>)),
@@ -104,7 +104,7 @@ max_offline_messages_reached(Config) ->
                 BobsResources = [B1,B2,B3,B4],
                 MessagesPerResource = ?MAX_OFFLINE_MSGS div length(BobsResources),
 
-                logout(Alice),
+                logout(FreshConfig, Alice),
                 each_client_sends_messages_to(BobsResources, Alice,
                                               {count, MessagesPerResource}),
 
@@ -128,7 +128,7 @@ expired_messages_are_not_delivered(Config) ->
     Story =
         fun(FreshConfig, Alice, Bob) ->
                 BobJid = escalus_client:short_jid(Bob),
-                logout(Bob),
+                logout(FreshConfig, Bob),
                 escalus:send(Alice,
                              make_message_with_expiry(BobJid, 600000, <<"long">>)),
                 escalus:send(Alice,
@@ -157,9 +157,8 @@ is_chat(Content) ->
 %%% Helpers
 %%%===================================================================
 
-logout(User) ->
-    escalus_client:stop(User),
-    timer:sleep(100).
+logout(Config, User) ->
+    escalus_client:stop(Config, User).
 
 login_send_presence(Config, User) ->
     {ok, Client} = escalus_client:start(Config, User, <<"new-session">>),
