@@ -29,12 +29,14 @@ stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
 start() ->
-    wpool:start_sup_pool(?MODULE, [{workers, opt(num_of_workers)}, {worker, {mod_global_distrib_worker, []}}]),
+    Child = mod_global_distrib_worker_sup,
+    {ok, _}= supervisor:start_child(ejabberd_sup, {Child, {Child, start_link, []}, permanent, 10000, supervisor, [Child]}),
     {ok, _} = ranch:start_listener(?MODULE, 1, ranch_tcp, [{port, opt(listen_port)}], ?MODULE, [{worker_pool, ?MODULE}]).
 
 stop() ->
     ranch:stop_listener(?MODULE),
-    wpool:stop_pool(?MODULE).
+    supervisor:terminate_child(ejabberd_sup, mod_global_distrib_worker_sup),
+    supervisor:delete_child(ejabberd_sup, mod_global_distrib_worker_sup).
 
 start_link(Ref, Socket, Transport, Opts) ->
 	Pid = proc_lib:spawn_link(?MODULE, init, [{Ref, Socket, Transport, Opts}]),
@@ -64,8 +66,11 @@ opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
 
 handle_data(Data, #state{worker_pool = WorkerPool}) ->
-    Worker = wpool_pool:best_worker(WorkerPool),
-    ok = mod_global_distrib_utils:cast_or_call(wpool_process, Worker, {data, Data}).
+    <<BinFromSize:16, _/binary>> = Data,
+    <<_:16, BinFrom:BinFromSize/binary, BinTerm/binary>> = Data,
+    Worker = mod_global_distrib_worker_sup:get_worker(BinFrom),
+    Stamp = erlang:monotonic_time(),
+    ok = mod_global_distrib_utils:cast_or_call(gen_server, Worker, {data, Stamp, BinTerm}).
 
 handle_buffered(#state{waiting_for = header, buffer = <<Header:4/binary, Rest/binary>>} = State) ->
     Size = binary:decode_unsigned(Header),

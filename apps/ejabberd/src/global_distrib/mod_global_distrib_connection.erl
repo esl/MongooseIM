@@ -27,11 +27,12 @@ init(Server) ->
             {stop, normal}
     end.
 
-handle_call({data, Data}, From, Socket) ->
+handle_call({data, _, _} = Data, From, Socket) ->
     gen_server:reply(From, ok),
-    handle_cast({data, Data}, Socket).
+    handle_cast(Data, Socket).
 
-handle_cast({data, Data}, Socket) ->
+handle_cast({data, Stamp, Data}, Socket) ->
+    %% lager:error("Send to send: ~p ms", [erlang:system_time(milli_seconds) - Stamp]),
     Annotated = <<(byte_size(Data)):32, Data/binary>>,
     ok = fast_tls:send(Socket, Annotated),
     {noreply, Socket}.

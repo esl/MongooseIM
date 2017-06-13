@@ -18,13 +18,16 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -export([start/4, deps/4, stop/3, opt/2, cast_or_call/3, cast_or_call/4, cast_or_call/5,
-         create_opts_ets/1]).
+         create_opts_ets/1, any_binary_to_atom/1]).
 
 -include("ejabberd.hrl").
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
+
+any_binary_to_atom(Binary) ->
+    binary_to_atom(base64:encode(Binary), latin1).
 
 start(Module, Host, Opts, StartFun) ->
     check_host(global_host, Opts),
@@ -70,7 +73,7 @@ cast_or_call(Mod, Target, Message) ->
 cast_or_call(Mod, Target, Message, SyncWatermark) ->
     cast_or_call(Mod, Target, Message, SyncWatermark, 5000).
 
-cast_or_call(Mod, Target, Message, SyncWatermark, Timeout) when is_atom(Target) ->
+cast_or_call(Mod, Target, Message, SyncWatermark, Timeout) when is_atom(Target), Target =/= undefined ->
     cast_or_call(Mod, whereis(Target), Message, SyncWatermark, Timeout);
 cast_or_call(Mod, Target, Message, SyncWatermark, Timeout) when is_pid(Target) ->
     case process_info(Target, message_queue_len) of

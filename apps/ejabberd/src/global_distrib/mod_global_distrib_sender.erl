@@ -32,21 +32,19 @@ start_link() ->
 
 send(Server, {From, _To, Acc} = Packet) ->
     Worker = get_process_for(Server),
-    BinPacket = term_to_binary(Packet),
-    ok = mod_global_distrib_utils:cast_or_call(gen_server, Worker, {data, BinPacket}),
+    Stamp = erlang:system_time(milli_seconds),
+    BinPacket = term_to_binary({Stamp, Packet}),
+    BinFrom = jid:to_binary(From),
+    Data = <<(byte_size(BinFrom)):16, BinFrom/binary, BinPacket/binary>>,
+    ok = mod_global_distrib_utils:cast_or_call(gen_server, Worker, {data, Stamp, Data}),
     ejabberd_hooks:run(global_distrib_send_packet, [From, mongoose_acc:get(to_send, Acc)]),
     ok.
 
 get_process_for(Server) ->
-    Name = server_to_atom(Server),
+    Name = mod_global_distrib_utils:any_binary_to_atom(Server),
     case whereis(Name) of
-        undefined ->
-            case start_pool(Name, Server) of
-                {ok, Pid} -> Pid;
-                {error, {already_started, Pid}} -> Pid
-            end;
-        _ ->
-            ok
+        undefined -> start_pool(Name, Server);
+        _ -> ok
     end,
     cpool:get_connection(Name).
 
@@ -57,9 +55,6 @@ init(_) ->
 start_pool(Name, Server) ->
     supervisor:start_child(?MODULE, [Name, {mod_global_distrib_connection, start_link, [Server]},
                                      [{pool_size, opt(num_of_connections)}]]).
-
-server_to_atom(Server) ->
-    binary_to_atom(base64:encode(Server), latin1).
 
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
