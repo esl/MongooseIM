@@ -141,7 +141,7 @@ refresh_queue(Queue, NextStamp, Keys, RefreshAfter, ToRefresh) ->
             NewQ0 = queue:drop(Queue),
             NewQ =
                 case maps:get(Key, Keys, undefined) of
-                    Ref -> queue:in({Stamp + RefreshAfter, Key}, NewQ0);
+                    Ref -> queue:in({Stamp + RefreshAfter, Key, Ref}, NewQ0);
                     _ -> NewQ0
                 end,
             refresh_queue(NewQ, NextStamp, Keys, RefreshAfter, [Key | ToRefresh]);

@@ -61,44 +61,42 @@ stop() ->
     ets:delete(?MODULE).
 
 put_session(Jid, Host) ->
-    {ok, _} = eredis:q(worker(), [<<"SET">>, Jid, Host, <<"EX">>, expire_after()]),
-    ok = mod_global_distrib_refresher:add_key({jid, Jid}),
-    ok.
+    {ok, _} = q([<<"SET">>, Jid, Host, <<"EX">>, expire_after()]),
+    ok = mod_global_distrib_refresher:add_key({jid, Jid}).
 
 get_session(Jid) ->
-    case eredis:q(worker(), [<<"GET">>, Jid]) of
+    case q([<<"GET">>, Jid]) of
         {ok, undefined} -> error;
         {ok, Host} -> {ok, Host}
     end.
 
 delete_session(Jid, _Host) ->
     LocalHost = opt(local_host),
-    case eredis:q(worker(), [<<"GET">>, Jid]) of
-        {ok, LocalHost} ->
-            {ok, _} = eredis:q(worker(), [<<"DEL">>, Jid]);
-        _ ->
-            ok
+    case q([<<"GET">>, Jid]) of
+        {ok, LocalHost} -> {ok, _} = q([<<"DEL">>, Jid]);
+        _ -> ok
     end,
-    ok = mod_global_distrib_refresher:del_key({jid, Jid}),
-    ok.
+    ok = mod_global_distrib_refresher:del_key({jid, Jid}).
 
 refresh(Keys) ->
     LocalHost = opt(local_host),
     lists:foreach(
       fun
-          ({jid, Jid}) ->
-              case get_session(Jid) of
-                  {ok, LocalHost} -> eredis:q(worker(), [<<"EXPIRE">>, Jid, expire_after()]);
-                  _ -> eredis:q(worker(), [<<"SET">>, Jid, LocalHost, expire_after()])
-              end;
+          ({jid, Jid}) -> q([<<"SET">>, Jid, LocalHost, <<"EX">>, expire_after()]);
           (domains) ->
-              eredis:q(worker(), [<<"EXPIRE">>, domains_key(), expire_after()])
+              case q([<<"SMEMBERS">>, domains_key()]) of
+                  {ok, [_ | _] = Domains} ->
+                      q([<<"SADD">>, domains_key() | Domains]),
+                      q([<<"EXPIRE">>, domains_key(), expire_after()]);
+                  _ ->
+                      ok
+              end
       end,
       Keys).
 
 put_domain(Domain, Host) ->
-    {ok, _} = eredis:q(worker(), [<<"SET">>, Domain, Host, <<"EX">>, expire_after()]),
-    {ok, _} = eredis:q(worker(), [<<"SADD">>, domains_key(), Domain]),
+    {ok, _} = q([<<"SET">>, Domain, Host, <<"EX">>, expire_after()]),
+    {ok, _} = q([<<"SADD">>, domains_key(), Domain]),
     ok.
 
 get_domain(Domain) ->
@@ -106,16 +104,15 @@ get_domain(Domain) ->
 
 delete_domain(Domain, Host) ->
     delete_session(Domain, Host),
-    {ok, _} = eredis:q(worker(), [<<"SREM">>, domains_key(), Domain]),
+    {ok, _} = q([<<"SREM">>, domains_key(), Domain]),
     ok.
 
 get_domains() ->
     Keys = [domains_key(Host) || Host <- opt(hosts)],
-    {ok, Domains} = eredis:q(worker(), [<<"SUNION">> | Keys]),
-    {ok, Domains}.
+    {ok, _Domains} = q([<<"SUNION">> | Keys]).
 
-worker() ->
-    wpool_pool:best_worker(?MODULE).
+q(Args) ->
+    eredis:q(wpool_pool:best_worker(?MODULE), Args).
 
 domains_key() ->
     LocalHost = opt(local_host),
