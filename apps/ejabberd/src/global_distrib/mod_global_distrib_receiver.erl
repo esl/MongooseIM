@@ -30,6 +30,7 @@ stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
 start() ->
+    opt(tls_opts), %% Check for required tls_opts
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED, spiral),
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, histogram),
     Child = mod_global_distrib_worker_sup,
@@ -48,7 +49,7 @@ start_link(Ref, Socket, Transport, Opts) ->
 init({Ref, Socket, ranch_tcp, Opts}) ->
     [{worker_pool, WorkerPool}] = Opts,
     ok = ranch:accept_ack(Ref),
-    {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, [no_verify, {certfile, opt(certfile)}, {cafile, opt(cafile)}]),
+    {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, opt(tls_opts)),
     ok = fast_tls:setopts(TLSSocket, [{active, once}]),
     gen_server:enter_loop(?MODULE, [], #state{socket = TLSSocket, worker_pool = WorkerPool,
                                               waiting_for = header}).

@@ -70,7 +70,7 @@ init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
-                  Opts = [{local_host, LocalHost}, {global_host, "localhost"}, {hosts, ["fed1", "localhost.bis"]}, {listen_port, ReceiverPort}, {certfile, ?config(certfile, Config1)}, {cafile, ?config(cafile, Config1)}],
+                  Opts = [{local_host, LocalHost}, {global_host, "localhost"}, {hosts, ["fed1", "localhost.bis"]}, {listen_port, ReceiverPort}, {tls_opts, [{certfile, ?config(certfile, Config1)}, {cafile, ?config(cafile, Config1)}]}],
                   rpc(NodeName, gen_mod_deps, start_modules,
                       [<<"localhost">>, [{mod_global_distrib, Opts}]]),
                   HasOffline = rpc(NodeName, gen_mod, is_loaded, [<<"localhost">>, mod_offline]),

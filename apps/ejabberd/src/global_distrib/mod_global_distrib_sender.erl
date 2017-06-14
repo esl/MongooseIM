@@ -21,6 +21,7 @@ stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
 start() ->
+    opt(tls_opts), %% Check for required tls_opts
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MESSAGES_SENT, spiral),
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_SEND_QUEUE_TIME, histogram),
     ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, supervisor, [?MODULE]},

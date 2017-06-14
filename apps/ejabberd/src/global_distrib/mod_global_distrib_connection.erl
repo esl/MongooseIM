@@ -19,7 +19,7 @@ init(Server) ->
     {Addr, Port} = get_addr(Server),
     try
         {ok, Socket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
-        {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, [{certfile, opt(certfile)}, {cafile, opt(cafile)}, connect]),
+        {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, [connect | opt(tls_opts)]),
         fast_tls:setopts(TLSSocket, [{active, once}]),
         {ok, TLSSocket}
     catch
