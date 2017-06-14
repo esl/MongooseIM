@@ -59,6 +59,6 @@ opt(Key) ->
 
 get_addr(Server) ->
     case ejabberd_config:get_local_option({global_distrib_addr, Server}) of
-        undefined -> {Server, opt(listen_port)};
+        undefined -> {unicode:characters_to_list(Server), opt(listen_port)};
         Other -> Other
     end.
