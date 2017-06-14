@@ -118,6 +118,8 @@
 %% Erlang Solutions custom extension - token based authentication
 -define(NS_ESL_TOKEN_AUTH, <<"erlang-solutions.com:xmpp:token-auth:0">>).
 
+-define(NS_FOREIGN_EVENT_HTTP, <<"urn:xmpp:foreign_event:http:0">>).
+
 -define(ERR_BAD_REQUEST,
         jlib:stanza_error(<<"400">>,<<"modify">>,<<"bad-request">>)).
 -define(ERR_CONFLICT,
