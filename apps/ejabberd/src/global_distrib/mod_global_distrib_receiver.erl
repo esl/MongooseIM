@@ -6,6 +6,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("global_distrib_metrics.hrl").
 
 -export([start/2, stop/1]).
 -export([start_link/4, init/1, handle_info/2, terminate/2]).
@@ -29,6 +30,8 @@ stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
 start() ->
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED, spiral),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, histogram),
     Child = mod_global_distrib_worker_sup,
     {ok, _}= supervisor:start_child(ejabberd_sup, {Child, {Child, start_link, []}, permanent, 10000, supervisor, [Child]}),
     {ok, _} = ranch:start_listener(?MODULE, 1, ranch_tcp, [{port, opt(listen_port)}], ?MODULE, [{worker_pool, ?MODULE}]).

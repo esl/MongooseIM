@@ -4,6 +4,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("global_distrib_metrics.hrl").
 
 -define(TIMEOUT, 60000). % TODO
 
@@ -24,13 +25,12 @@ handle_call({data, Stamp, Data}, From, State) ->
     handle_cast({data, Stamp, Data}, State).
 
 handle_cast({data, Stamp, Data}, State) ->
-    {Stamp2, {From, To, Acc}} = erlang:binary_to_term(Data),
-    Now = erlang:system_time(milli_seconds),
-    %% lager:error("Send to route: ~p ms", [Now - Stamp2]),
-    %% lager:error("Recv to route: ~p ms", [erlang:convert_time_unit(erlang:monotonic_time() - Stamp, native, milli_seconds)]),
-    %% lager:error("~p", [ erlang:process_info(self(), message_queue_len)]),
-    {Duration, _} = timer:tc(ejabberd_router, route, [From, To, Acc]),
-    %% lager:error("Routing duration: ~p ms", [erlang:convert_time_unit(Duration, micro_seconds, milli_seconds)]),
+    QueueTimeNative = p1_time_compat:monotonic_time() - Stamp,
+    QueueTimeUS = p1_time_compat:convert_time_unit(QueueTimeNative, native, micro_seconds),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, QueueTimeUS),
+    {_Stamp2, {From, To, Acc}} = erlang:binary_to_term(Data), %% TODO: Stamp
+    ejabberd_router:route(From, To, Acc),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED, 1),
     {noreply, State, ?TIMEOUT}.
 
 handle_info(timeout, State) ->

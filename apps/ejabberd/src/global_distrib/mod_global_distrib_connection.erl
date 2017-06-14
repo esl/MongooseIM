@@ -4,6 +4,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("global_distrib_metrics.hrl").
 
 -export([start_link/1, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
@@ -32,9 +33,12 @@ handle_call({data, _, _} = Data, From, Socket) ->
     handle_cast(Data, Socket).
 
 handle_cast({data, Stamp, Data}, Socket) ->
-    %% lager:error("Send to send: ~p ms", [erlang:system_time(milli_seconds) - Stamp]),
+    QueueTimeNative = p1_time_compat:monotonic_time() - Stamp,
+    QueueTimeUS = p1_time_compat:convert_time_unit(QueueTimeNative, native, micro_seconds),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_SEND_QUEUE_TIME, QueueTimeUS),
     Annotated = <<(byte_size(Data)):32, Data/binary>>,
     ok = fast_tls:send(Socket, Annotated),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_SENT, 1),
     {noreply, Socket}.
 
 handle_info({tcp, _Socket, TLSData}, Socket) ->

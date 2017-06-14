@@ -5,6 +5,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("global_distrib_metrics.hrl").
 
 -export([start/2, stop/1, send/2, start_link/0, init/1]).
 
@@ -20,7 +21,9 @@ stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
 start() ->
-    ChildSpec = {?MODULE, {?MODULE, start_link, []}, transient, 1000, supervisor, [?MODULE]},
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MESSAGES_SENT, spiral),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_SEND_QUEUE_TIME, histogram),
+    ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, supervisor, [?MODULE]},
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
 stop() ->
@@ -32,10 +35,10 @@ start_link() ->
 
 send(Server, {From, _To, Acc} = Packet) ->
     Worker = get_process_for(Server),
-    Stamp = erlang:system_time(milli_seconds),
-    BinPacket = term_to_binary({Stamp, Packet}),
+    BinPacket = term_to_binary({stamp, Packet}), %% TODO: stamp
     BinFrom = jid:to_binary(From),
     Data = <<(byte_size(BinFrom)):16, BinFrom/binary, BinPacket/binary>>,
+    Stamp = erlang:monotonic_time(),
     ok = mod_global_distrib_utils:cast_or_call(gen_server, Worker, {data, Stamp, Data}),
     ejabberd_hooks:run(global_distrib_send_packet, [From, mongoose_acc:get(to_send, Acc)]),
     ok.

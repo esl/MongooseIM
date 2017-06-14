@@ -18,6 +18,8 @@
     xmppErrorIq,
     xmppErrorMessage,
     xmppErrorPresence,
+    modGlobalDistribMessagesSent,
+    modGlobalDistribMessagesReceived,
     modRosterSets,
     modRosterGets,
     modPresenceSubscriptions,
