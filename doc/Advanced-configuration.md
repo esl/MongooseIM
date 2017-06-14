@@ -127,7 +127,53 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
              * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
 
 - **LDAP-related options**
-    * [[Everything about LDAP]]
+    * **ldap_servers**
+        * **Description:** List of IP addresses or DNS names of your LDAP servers.
+        * **Values:** `[Servers, ...]`
+        * **Default:**  no default value. This option is required if want to set up LDAP connection.
+
+    * **ldap_encrpt**
+        * **Description:** Set the encryption in connection with your LDAP server.
+        The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
+        * **Values:** `none`, `tls`
+        * **Default:** `none`
+
+    * **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
+    When `soft` is enabled ejabberd proceeds even if check fails. `False` which means no checks are performed.
+        * **Values:** `soft`, `hard`, `false`
+        * **Default:** `false`
+
+    * **ldap_tls_cacertfile**
+        * **Description:** Path to file containing PEM encoded CA certificates. This option is needed (and required) when TLS verification is enabled.
+        * **Values:** Path
+        * **Default:**
+
+    * **ldap_tls_depth**
+        * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
+         i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
+         Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 thus means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
+        * **Values:** Integer
+        * **Default:** 1
+
+    * **ldap_port**
+        * **Description:** Port to connect to your LDAP server.
+        * **Values:** Integer
+        * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
+
+    * **ldap_rootdn**
+        * **Description:** Bind DN
+        * **Values:** String
+        * **Default:** empty string which is `anonymous connection`
+
+    * **ldap_password**
+        * **Description:** Bind password
+        * **Values:** String
+        * **Default:** empty string
+
+    * **ldap_deref_aliases**
+        * **Description:** Whether or not to dereference aliases
+        * **Values:** `never`, `always`, `finding`, `searching`
+        * **Default:** `never`
 
 ### Database setup
 
