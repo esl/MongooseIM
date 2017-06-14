@@ -65,7 +65,11 @@ deps(_Module, Host, Opts, DepsFun) ->
     end.
 
 opt(Module, Key) ->
-    ets:lookup_element(Module, Key, 2).
+    try ets:lookup_element(Module, Key, 2)
+    catch
+        error:badarg ->
+            error(atom_to_list(Module) ++ " required option unset: " ++ atom_to_list(Key))
+    end.
 
 cast_or_call(Mod, Target, Message) ->
     cast_or_call(Mod, Target, Message, 500).
