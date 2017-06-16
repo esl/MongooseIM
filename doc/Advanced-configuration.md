@@ -103,6 +103,55 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Mnesia:** `{sm_backend, {mnesia, []}}`
     * **Redis:** `{redis, [{pool_size, Size}, {worker_config, [{host, "Host"}, {port, Port}]}]}}`
 
+### LDAP Connection
+- **ldap_servers**
+    * **Description:** List of IP addresses or DNS names of your LDAP servers.
+    * **Values:** `[Servers, ...]`
+    * **Default:**  no default value. This option is required if want to set up LDAP connection.
+
+- **ldap_encrypt**
+    * **Description:** Set the encryption in connection with your LDAP server.
+        The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
+    * **Values:** `none`, `tls`
+    * **Default:** `none`
+
+- **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
+    When `soft` is enabled ejabberd proceeds even if check fails. `False` which means no checks are performed.
+    * **Values:** `soft`, `hard`, `false`
+    * **Default:** `false`
+
+- **ldap_tls_cacertfile**
+    * **Description:** Path to file containing PEM encoded CA certificates.
+    * **Values:** Path
+    * **Default:** This option is needed (and required) when TLS verification is enabled.
+
+- **ldap_tls_depth**
+    * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
+         i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
+         Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 thus means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
+    * **Values:** Integer
+    * **Default:** 1
+
+- **ldap_port**
+    * **Description:** Port to connect to your LDAP server.
+    * **Values:** Integer
+    * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
+
+- **ldap_rootdn**
+    * **Description:** Bind DN
+    * **Values:** String
+    * **Default:** empty string which is `anonymous connection`
+
+- **ldap_password**
+    * **Description:** Bind password
+    * **Values:** String
+    * **Default:** empty string
+
+- **ldap_deref_aliases**
+    * **Description:** Whether or not to dereference aliases
+    * **Values:** `never`, `always`, `finding`, `searching`
+    * **Default:** `never`
+
 ### Authentication
 
 - **auth_method** (local)
@@ -127,53 +176,51 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
              * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
 
 - **LDAP-related options**
-    * **ldap_servers**
-        * **Description:** List of IP addresses or DNS names of your LDAP servers.
-        * **Values:** `[Servers, ...]`
-        * **Default:**  no default value. This option is required if want to set up LDAP connection.
-
-    * **ldap_encrpt**
-        * **Description:** Set the encryption in connection with your LDAP server.
-        The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
-        * **Values:** `none`, `tls`
-        * **Default:** `none`
-
-    * **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
-    When `soft` is enabled ejabberd proceeds even if check fails. `False` which means no checks are performed.
-        * **Values:** `soft`, `hard`, `false`
-        * **Default:** `false`
-
-    * **ldap_tls_cacertfile**
-        * **Description:** Path to file containing PEM encoded CA certificates. This option is needed (and required) when TLS verification is enabled.
-        * **Values:** Path
-        * **Default:**
-
-    * **ldap_tls_depth**
-        * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
-         i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
-         Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 thus means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
-        * **Values:** Integer
-        * **Default:** 1
-
-    * **ldap_port**
-        * **Description:** Port to connect to your LDAP server.
-        * **Values:** Integer
-        * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
-
-    * **ldap_rootdn**
-        * **Description:** Bind DN
+    * **ldap_base:**
+        * **Description:**  LDAP base directory which stores users accounts.
         * **Values:** String
-        * **Default:** empty string which is `anonymous connection`
+        * **Default:** This option is required
 
-    * **ldap_password**
-        * **Description:** Bind password
-        * **Values:** String
-        * **Default:** empty string
+    * **ldap_uids:**
+        * **Description:**  LDAP attribute which holds a list of attributes to use as alternatives for getting the JID.
+       The attributes are of the form: `[{ldap_uidattr}]` or `[{ldap_uidattr, ldap_uidattr_format}]`. You can use as many comma separated attributes as needed.
+        * **Values** `[ ldap_uidattr | {ldap_uidattr: ldap_uidattr_format} ]`
+        The values for `ldap_uidattr` and `ldap_uidattr_format` are described as follow:
+             * **ldap_uidattr:** LDAP attribute which holds the user’s part of a JID. The default value is `uid`
+             * **ldap_uidattr_format:**  Format of the `ldap_uidattr` variable. The format must contain one and only one pattern variable `%u` which will be replaced by the user’s part of a JID. For example, ``%u@example.org`. The default value is `%u`.
+        * **Default**  `[{uid, %u}]`
 
-    * **ldap_deref_aliases**
-        * **Description:** Whether or not to dereference aliases
-        * **Values:** `never`, `always`, `finding`, `searching`
-        * **Default:** `never`
+    * **ldap_filter:**
+        * **Description:** LDAP filter. Please, do not forget to close brackets and do not use superfluous whitespaces.
+        Also you must not use `ldap_uidattr` attribute in filter because this attribute will be substituted in LDAP filter automatically.
+        * **Values:** String. For example:
+
+                                          (&(objectClass=shadowAccount)(memberOf=Jabber Users))
+
+        * **Default:** `undefined`
+
+    * **ldap_dn_filter:**
+        * **Description:**  This filter is applied on the results returned by the main filter.
+        This filter performs additional LDAP lookup to make the complete result. This is useful when you are unable to define all filter rules in ldap_filter.
+        You can define `%u`, `%d`, `%s` and `%D` pattern variables in Filter: `%u` is replaced by a user’s part of a JID, `%d` is replaced by the corresponding domain (virtual host), all `%s` variables are consecutively replaced by values of FilterAttrs attributes and `%D` is replaced by Distinguished Name.
+        Since this filter makes additional LDAP lookups, use it only in the last resort: try to define all filter rules in ldap_filter if possible.
+        * **Values:** `{Filter, [FilterAttributes]}`. For example:
+
+                                  (&(name=%s)(owner=%D)(user=%u@%d))": ["sn"]
+
+        * **Default:** `undefined`
+
+    * **ldap_local_filter:**
+        * **Description:** If you can’t use ldap_filter due to performance reasons (the LDAP server has many users registered), you can use this local filter.
+        The local filter checks an attribute in ejabberd, not in LDAP, so this limits the load on the LDAP directory.
+        * **Values:** `Filter`. Example values:
+
+                                  {ldap_local_filter, {notequal, {"accountStatus",["disabled"]}}}.
+                                  {ldap_local_filter, {equal, {"accountStatus",["enabled"]}}}.
+                                  {ldap_local_filter, undefined}.
+
+        * **Default:** `undefined`
+
 
 ### Database setup
 
