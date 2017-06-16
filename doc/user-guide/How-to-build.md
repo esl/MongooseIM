@@ -4,12 +4,12 @@
 
 To compile MongooseIM you need:
 
-*   GNU Make
-*   GCC
-*   Libexpat 1.95 or higher
-*   Erlang/OTP 17.5 or higher
+*   GNU Make `sudo apt-get install make autoconf`
+*   GCC `sudo apt-get install gcc g++`
+*   Libexpat 1.95 or higher `sudo apt-get install libexpat1 libexpat1-dev`
+*   Erlang/OTP 17.5 or higher, Elixir `sudo apt-get install erlang elixir`
 *   Reltool 0.6.6 or higher
-*   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption
+*   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption, +dev version of library, `sudo apt-get install openssl libssl-dev`.
 *   Zlib 1.2.3 or higher for Stream Compression support (XEP-0138). Optional.
 
 ## Compiling on UNIX-like systems
