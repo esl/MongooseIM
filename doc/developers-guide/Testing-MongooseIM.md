@@ -11,28 +11,28 @@ $ make devrel
 In shell #2:
 
 ```sh
-$ cd $MONGOOSEIM/_build/mim1/rel
+$ cd $MONGOOSEIM/_build/mim1/rel/mongooseim
 $ ./bin/mongooseimctl live
 ```
 
 In shell #3:
 
 ```sh
-$ cd $MONGOOSEIM/_build/mim2/rel
+$ cd $MONGOOSEIM/_build/mim2/rel/mongooseim
 $ ./bin/mongooseimctl live
 ```
 
 In shell #4:
 
 ```sh
-$ cd $MONGOOSEIM/_build/mim3/rel
+$ cd $MONGOOSEIM/_build/mim3/rel/mongooseim
 $ ./bin/mongooseimctl live
 ```
 
 In shell #5:
 
 ```sh
-$ cd $MONGOOSEIM/_build/fed1/rel
+$ cd $MONGOOSEIM/_build/fed1/rel/mongooseim
 $ ./bin/mongooseimctl live
 ```
 
@@ -44,6 +44,25 @@ $ make quicktest
 ```
 
 Wait for the tests to finish and celebrate (or wallow in despair and grief)!
+
+One-liner alternative for tmux users:
+
+```sh
+./rebar3 compile
+make devrel
+tmux new-window -n mim1 '_build/mim1/rel/mongooseim/bin/mongooseimctl live'
+tmux new-window -n mim2 '_build/mim2/rel/mongooseim/bin/mongooseimctl live'
+tmux new-window -n mim3 '_build/mim3/rel/mongooseim/bin/mongooseimctl live'
+tmux new-window -n fed1 '_build/fed1/rel/mongooseim/bin/mongooseimctl live'
+_build/mim1/rel/mongooseim/bin/mongooseimctl started
+_build/mim2/rel/mongooseim/bin/mongooseimctl started
+_build/mim3/rel/mongooseim/bin/mongooseimctl started
+_build/fed1/rel/mongooseim/bin/mongooseimctl started
+make -C test.disabled/ejabberd_tests quicktest
+```
+
+Start a new tmux and paste the commands.
+
 
 ## Step by step breakdown
 
