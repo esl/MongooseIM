@@ -147,7 +147,7 @@ get_disco_info(Acc, SubHost, _Mod, _Node = <<>>, _Lang) ->
         MaxFileSize ->
             MaxFileSizeBin = integer_to_binary(MaxFileSize),
             [get_disco_info_form(?NS_HTTP_UPLOAD_025, MaxFileSizeBin),
-             get_disco_info_form(?NS_HTTP_UPLOAD_030, MaxFileSizeBin)]
+             get_disco_info_form(?NS_HTTP_UPLOAD_030, MaxFileSizeBin) | Acc]
     end;
 get_disco_info(Acc, _Host, _Mod, _Node, _Lang) ->
     Acc.

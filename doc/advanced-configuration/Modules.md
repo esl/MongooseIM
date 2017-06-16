@@ -68,6 +68,12 @@ Implements [XEP Multi-User Chat Light](https://github.com/xsf/xeps/pull/118).
 ### [mod_offline](../modules/mod_offline.md)
 Provides an offline messages storage that is compliant with [XEP-0160: Best Practices for Handling Offline Messages)](http://xmpp.org/extensions/xep-0160.html).
 
+### [mod_offline_stub](../modules/mod_offline_stub.md)
+Prevents `<service-unavailable/>` error when the message recipient is offline.
+
+### [mod_ping](../modules/mod_ping.md)
+Implements [XEP-0199 XMPP Ping](http://xmpp.org/extensions/xep-0199.html), enabling periodic XMPP pings sent to clients and responds to those sent from clients.
+
 ### [mod_privacy](../modules/mod_privacy.md)
 This module implements [XEP-0016: Privacy Lists)](http://xmpp.org/extensions/xep-0016.html), for enabling or disabling communication with other entities on a network.
 
@@ -98,8 +104,12 @@ Implements [XEP-0279: Server IP Check)](http://xmpp.org/extensions/xep-0279.html
 ### [mod_stream_management](../modules/mod_stream_management.md)
 Enables [XEP-0198: Stream Management](http://xmpp.org/extensions/xep-0198.html) functionality that defines the active management of an XML stream between two XMPP entities, including features for stanza acknowledgements and stream resumption.
 
+### [mod_time](../modules/mod_time.md)
+[XEP-0202: Entity Time](http://www.xmpp.org/extensions/xep-0202.html) implementation. With this extensions, clients can get the current server time.
+
 ### [mod_vcard](../modules/mod_vcard.md)
 Provides support for vCards, as specified in [XEP-0054: vcard-temp](http://xmpp.org/extensions/xep-0054.html) and [XEP-0055: Jabber Search](http://xmpp.org/extensions/xep-0055.html).
 
-### [mod_websockets](../modules/mod_websockets.md)
-Allows users to connect to MongooseIM using Websockets.
+### [mod_version](../modules/mod_version.md)
+This module provides the functionality specified in [XEP-0092: Software Version](https://xmpp.org/extensions/xep-0092.html).
+

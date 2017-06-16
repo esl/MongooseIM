@@ -3,8 +3,8 @@ This module implements [XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/xe
 
 ### Options
 
-* **iqdisc**
+* **iqdisc** (default: `one_queue`)
 * **report_commands_node** (boolean, default: `false`): determines whether the Ad-Hoc Commands should be announced upon Service Discovery
 
 ### Example configuration
-` {mod_adhoc, []} `
+` {mod_adhoc, [{report_commands_node, true}]} `
