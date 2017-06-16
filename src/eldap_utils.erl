@@ -181,10 +181,10 @@ make_filter(Data, UIDs, Op) ->
 case_insensitive_match(X, Y) ->
     X1 = string:to_lower(maybe_b2list(X)),
     Y1 = string:to_lower(maybe_b2list(Y)),
-    if
-        X1 == Y1 -> true;
-        true -> false
-    end.
+  case X1 == Y1 of
+    true -> true;
+    _-> false
+  end.
 
 
 -spec get_state(binary() | string(), atom()) -> any().

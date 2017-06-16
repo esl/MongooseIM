@@ -453,7 +453,8 @@ ldap_entries_to_group([#eldap_entry{ attributes = Attrs } | REntries], Host,
                          [M] -> M;
                          _ -> MemberIn
                      end,
-            NewJIDsAcc = check_and_accumulate_member(Extractor(eldap_utils:maybe_list2b(Member)), AuthChecker, Host, JIDsAcc),
+            Extracted = Extractor(eldap_utils:maybe_list2b(Member)),
+            NewJIDsAcc = check_and_accumulate_member(Extracted, AuthChecker, Host, JIDsAcc),
             ldap_entries_to_group(REntries, Host, Desc, NewJIDsAcc, State, Extractor, AuthChecker);
         _ ->
             ldap_entries_to_group(REntries, Host, DescAcc, JIDsAcc, State, Extractor, AuthChecker)
