@@ -56,8 +56,12 @@ makes_http_request(_Config) ->
     ActualResponse = receive R -> R after 5000 -> timeout end,
     E = Response#xmlel{children = []},
     A = ActualResponse#xmlel{children = []},
-    %% TODO: check headers
-    ?assertMatch(A, E).
+
+    Headers = parse_headers(Response),
+    ActualHeaders = parse_headers(ActualResponse),
+    ?assertMatch(A, E),
+    [?assert(lists:any(fun(H) -> H =:= Header end, ActualHeaders)) ||
+     Header <- Headers].
 
 %% Helpers
 
@@ -67,4 +71,10 @@ process_request(Req0) ->
     {ok, Req3} = cowboy_req:reply(200, Headers, Body, Req2),
     Req3.
 
-
+parse_headers(#xmlel{} = XML) ->
+    Headers = exml_query:paths(XML, [{element, <<"header">>}]),
+    lists:foldl(fun(#xmlel{attrs = [{<<"name">>, Name}],
+                           children = [#xmlcdata{content = Value}]},
+                    Acc) ->
+                        [{Name, Value} | Acc]
+                end, [], Headers).
