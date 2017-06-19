@@ -192,10 +192,8 @@ end_per_testcase(delete_old_users, Config) ->
                 {Username, Domain, Pass} = get_user_data(UserSpec, Config),
                 escalus_ejabberd:rpc(ejabberd_auth, try_register, [Username, Domain, Pass])
         end, Users),
-    escalus_cleaner:clean(Config),
     escalus:end_per_testcase(delete_old_users, Config);
 end_per_testcase(CaseName, Config) ->
-    escalus_cleaner:clean(Config),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -207,7 +205,8 @@ change_password(Config) ->
     ejabberdctl("change_password", [User, Domain, <<OldPassword/binary, $2>>], Config),
     {error, {connection_step_failed, _, _}} = escalus_client:start_for(Config, alice, <<"newres">>),
     ejabberdctl("change_password", [User, Domain, OldPassword], Config),
-    {ok, _Alice2} = escalus_client:start_for(Config, alice, <<"newres2">>).
+    {ok, Alice2} = escalus_client:start_for(Config, alice, <<"newres2">>),
+    escalus_client:stop(Config, Alice2).
 
 check_password_hash(Config) ->
     {User, Domain, Pass} = get_user_data(alice, Config),
@@ -242,7 +241,9 @@ ban_account(Config) ->
     escalus:assert(is_stream_error, [<<"conflict">>, <<"SomeReason">>],
                    escalus:wait_for_stanza(Mike)),
     {error, {connection_step_failed, _, _}} = escalus_client:start_for(Config, mike, <<"newres2">>),
-    ejabberdctl("change_password", [User, Domain, Pass], Config).
+    ejabberdctl("change_password", [User, Domain, Pass], Config),
+    escalus_connection:wait_for_close(Mike, 1000),
+    escalus_cleaner:remove_client(Config, Mike).
 
 num_active_users(Config) ->
     {AliceName, Domain, _} = get_user_data(alice, Config),

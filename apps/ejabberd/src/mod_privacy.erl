@@ -311,13 +311,13 @@ get_user_list(_, User, Server) ->
 %% If Dir = in, User@Server is the destination account (To).
 check_packet(Acc, User, Server,
          #userlist{list = List, needdb = NeedDb},
-         {From, To, Packet},
+         {From, To, Name, Type},
          Dir) ->
     CheckResult = case List of
         [] ->
             allow;
         _ ->
-            PType = packet_directed_type(Dir, packet_type(Packet)),
+            PType = packet_directed_type(Dir, packet_type(Name, Type)),
             LJID = case Dir of
                    in -> jid:to_lower(From);
                    out -> jid:to_lower(To)
@@ -330,7 +330,6 @@ check_packet(Acc, User, Server,
                 false ->
                     {[], []}
             end,
-            Type = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
     end,
     mongoose_acc:put(privacy_check, CheckResult, Acc).
@@ -445,14 +444,14 @@ packet_directed_type(Dir, Type) ->
          {_, _} -> other
     end.
 
-packet_type(#xmlel{name = Name, attrs = Attrs}) ->
+packet_type(Name, Type) ->
     case Name of
         <<"message">> -> message;
         <<"iq">> -> iq;
         <<"presence">> ->
-            case xml:get_attr_s(<<"type">>, Attrs) of
+            case Type of
                 %% notification
-                <<>> -> presence;
+                undefined -> presence;
                 <<"unavailable">> -> presence;
                 %% subscribe, subscribed, unsubscribe,
                 %% unsubscribed, error, probe, or other

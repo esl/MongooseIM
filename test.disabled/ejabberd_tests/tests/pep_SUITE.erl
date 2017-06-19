@@ -164,7 +164,7 @@ h_ok_after_notify_test(ConfigIn) ->
               pubsub_tools:receive_item_notification(
                 Kate, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
 
-              H = escalus_tcp:get_sm_h(Kate),
+              H = escalus_tcp:get_sm_h(Kate#client.rcv_pid),
               escalus:send(Kate, escalus_stanza:sm_ack(H)),
 
               escalus_connection:send(Kate, escalus_stanza:sm_request()),

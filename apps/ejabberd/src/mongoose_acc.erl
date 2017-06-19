@@ -12,9 +12,9 @@
 -include("ejabberd.hrl").
 
 %% API
--export([new/0, from_kv/2, put/3, get/2, get/3, append/3, to_map/1, remove/2]).
+-export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
--export([strip/1]).
+-export([strip/1, record_sending/4, record_sending/6]).
 -export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
 -export([to_element/1]).
 -export_type([t/0]).
@@ -51,10 +51,9 @@ dump(Acc) ->
     dump(Acc, lists:sort(maps:keys(Acc))).
 
 to_binary(#xmlel{} = Packet) ->
-    ?DEPRECATED,
     exml:to_binary(Packet);
 to_binary({broadcast, Payload}) ->
-    case mongoose_acc:is_acc(Payload) of
+    case is_acc(Payload) of
         true ->
             to_binary(Payload);
         false ->
@@ -62,9 +61,9 @@ to_binary({broadcast, Payload}) ->
     end;
 to_binary(Acc) ->
     % replacement to exml:to_binary, for error logging
-    case mongoose_acc:is_acc(Acc) of
+    case is_acc(Acc) of
         true ->
-            exml:to_binary(mongoose_acc:get(element, Acc));
+            exml:to_binary(get(to_send, Acc));
         false ->
             list_to_binary(io_lib:format("~p", [Acc]))
     end.
@@ -90,7 +89,7 @@ to_element(A) ->
 
 -spec new() -> t().
 new() ->
-    #{mongoose_acc => true}.
+    #{mongoose_acc => true, timestamp => os:timestamp(), ref => make_ref()}.
 
 -spec from_kv(atom(), any()) -> t().
 from_kv(K, V) ->
@@ -119,59 +118,39 @@ from_map(M) ->
 update(Acc, M) ->
     maps:merge(Acc, M).
 
-%% @doc convert to map so that we can pattern-match on it
--spec to_map(t()) -> map()|{error, cant_convert_to_map}.
-to_map(P) when is_map(P) ->
-    P;
-to_map(_) ->
-    {error, cant_convert_to_map}.
-
--spec put(atom(), any(), t()) -> t().
-put(to_send, Val, Acc) ->
-    % stanza to be sent out may change a few times, and sometimes it carries its own type
-    % (e.g. presence probe), we have to clear previouse value
-    A1 = maps:remove(send_type, Acc),
-    maps:put(to_send, Val, A1);
+-spec put(any(), any(), t()) -> t().
 put(from_jid, Val, Acc) ->
-    ?DEPRECATED,
+    % used only when we have to manually construct an acc (instead of calling from_element)
+    % namely: in c2s terminate, since it is not triggered by stanza, and in some
+    % deprecated functions
     A = maps:put(from_jid, Val, Acc),
     maps:put(from, jid:to_binary(Val), A);
 put(Key, Val, Acc) ->
     maps:put(Key, Val, Acc).
 
--spec get(atom()|[atom()], t()) -> any().
+-spec get(any()|[any()], t()) -> any().
 get(to_send, Acc) ->
     get(to_send, Acc, get(element, Acc));
-get([], _) ->
-
-    undefined;
-get([Key|Keys], P) ->
-    case maps:is_key(Key, P) of
-        true ->
-            maps:get(Key, P);
-        _ ->
-            get(Keys, P)
-    end;
 get(Key, P) ->
     maps:get(Key, P).
 
--spec get(atom(), t(), any()) -> any().
+-spec get(any(), t(), any()) -> any().
 get(Key, P, Default) ->
     maps:get(Key, P, Default).
 
--spec append(atom(), any(), t()) -> t().
+-spec append(any(), any(), t()) -> t().
 append(Key, Val, P) ->
     L = get(Key, P, []),
     maps:put(Key, append(Val, L), P).
 
--spec remove(Key :: atom(), Accumulator :: t()) -> t().
+-spec remove(Key :: any(), Accumulator :: t()) -> t().
 remove(Key, Accumulator) ->
     maps:remove(Key, Accumulator).
 
 %% @doc Make sure the acc has certain keys - some of them require expensive computations and
 %% are therefore not calculated upon instantiation, this func is saying "I will need these,
 %% please prepare them for me"
--spec require(atom() | [atom()], t()) -> t().
+-spec require(any() | [any()], t()) -> t().
 require([], Acc) ->
     Acc;
 require([Key|Tail], Acc) ->
@@ -205,6 +184,17 @@ strip(Acc) ->
                 end,
         NewAcc, OptionalAttributes).
 
+%% @doc Recording info about sending out a stanza/accumulator
+%% There are two versions because when we send xml element from c2s then
+%% there is no From and To args available, everything is already in the stanza
+%% while from ejabberd_router:route we get bare stanza and two jids.
+-spec record_sending(t(), xmlel(), atom(), any()) -> t().
+record_sending(Acc, Stanza, Module, Result) ->
+    record_sending(Acc, none, none, Stanza, Module, Result).
+-spec record_sending(t(), jid()|none, jid()|none, xmlel(), atom(), any()) -> t().
+record_sending(Acc, _From, _To, _Stanza, _Module, Result) ->
+    mongoose_acc:put(send_result, Result, Acc).
+
 %%%%% internal %%%%%
 
 append(Val, L) when is_list(L), is_list(Val) ->
@@ -220,14 +210,9 @@ dump(Acc, [K|Tail]) ->
 
 
 %% @doc pattern-match to figure out (a) which attrs can be 'required' (b) how to cook them
-produce(send_type, Acc) ->
-    % 'type' is from original stanza
-    El = mongoose_acc:get(to_send, Acc),
-    SType = exml_query:attr(El, <<"type">>, undefined),
-    mongoose_acc:put(send_type, SType, Acc);
 produce(iq_query_info, Acc) ->
-    Iq = jlib:iq_query_info(mongoose_acc:get(element, Acc)), % it doesn't change
-    mongoose_acc:put(iq_query_info, Iq, Acc);
+    Iq = jlib:iq_query_info(get(element, Acc)), % it doesn't change
+    put(iq_query_info, Iq, Acc);
 produce(xmlns, Acc) ->
     read_children(Acc);
 produce(command, Acc) ->
@@ -237,8 +222,8 @@ produce(command, Acc) ->
 %% @doc scan xml children to look for namespace; the name of xml element containing namespace
 %% defines the purpose of a stanza, we store it as 'command'; if absent, we store 'undefined'.
 read_children(Acc) ->
-    Acc1 = mongoose_acc:put(command, undefined, mongoose_acc:put(xmlns, undefined, Acc)),
-    #xmlel{children = Children} = mongoose_acc:get(element, Acc1),
+    Acc1 = put(command, undefined, put(xmlns, undefined, Acc)),
+    #xmlel{children = Children} = get(element, Acc1),
     read_children(Acc, Children).
 
 read_children(Acc, []) ->
@@ -249,7 +234,7 @@ read_children(Acc, [#xmlel{} = Chld|Tail]) ->
             read_children(Acc, Tail);
         Ns ->
             #xmlel{name = Name} = Chld,
-            mongoose_acc:put(command, Name, mongoose_acc:put(xmlns, Ns, Acc))
+            put(command, Name, put(xmlns, Ns, Acc))
     end;
 read_children(Acc, [_|Tail]) ->
     read_children(Acc, Tail).

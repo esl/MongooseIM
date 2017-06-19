@@ -74,7 +74,7 @@ text_response(Config) ->
       cyrsasl, register_mechanism, [?TEST_MECHANISM, ?MODULE, plain]),
 
     AliceSpec = escalus_users:get_options(Config, alice),
-    {ok, Client, _, _} = escalus_connection:start(AliceSpec,
+    {ok, Client, _} = escalus_connection:start(AliceSpec,
                                                   [start_stream,
                                                    stream_features]),
     Stanza = escalus_stanza:auth(?TEST_MECHANISM,

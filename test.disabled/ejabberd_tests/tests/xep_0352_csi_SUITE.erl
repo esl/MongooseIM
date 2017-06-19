@@ -65,7 +65,7 @@ server_announces_csi(Config) ->
              authenticate,
              bind,
              session],
-    {ok, _Client, _Props, Features} = escalus_connection:start(Spec, Steps),
+    {ok, _Client, Features} = escalus_connection:start(Spec, Steps),
     true = proplists:get_value(client_state_indication, Features).
 
 alice_is_inactive_and_no_stanza_arrived(Config) ->
@@ -96,10 +96,10 @@ alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     AliceSpec = escalus_users:get_userspec(NewConfig, alice),
     BobSpec = escalus_users:get_userspec(NewConfig, bob),
-    {ok, Alice0, AliceProps, _} = escalus_connection:start(AliceSpec),
+    {ok, Alice0 = #client{props = AliceProps}, _} = escalus_connection:start(AliceSpec),
     JID = make_jid_from_spec(AliceProps),
     Alice = Alice0#client{jid = JID},
-    {ok, Bob, _BobProps, _} = escalus_connection:start(BobSpec),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
 
     given_client_is_inactive(Alice),
 
@@ -109,7 +109,7 @@ alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
 
     escalus_connection:kill(Alice),
 
-    {ok, Alice2, _AliceProps2, _} = escalus_connection:start(AliceSpec),
+    {ok, Alice2, _} = escalus_connection:start(AliceSpec),
 
     escalus_connection:send(Alice2, escalus_stanza:presence(<<"available">>)),
 
@@ -127,14 +127,14 @@ alice_gets_buffered_messages_after_stream_resumption(Config) ->
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     AliceSpec = escalus_users:get_userspec(NewConfig, alice),
     BobSpec = escalus_users:get_userspec(NewConfig, bob),
-    {ok, Alice0, AliceProps, _} = escalus_connection:start(AliceSpec,
-                                                           ConnSteps),
+    {ok, Alice0 = #client{props = AliceProps}, _} = escalus_connection:start(AliceSpec,
+                                                                             ConnSteps),
     JID = make_jid_from_spec(AliceProps),
     Alice = Alice0#client{jid = JID},
 
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus:wait_for_stanza(Alice),
-    {ok, Bob, _BobProps, _} = escalus_connection:start(BobSpec),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
 
     given_client_is_inactive(Alice),
 
@@ -150,8 +150,7 @@ alice_gets_buffered_messages_after_stream_resumption(Config) ->
                      authenticate,
                      mk_resume_stream(SMID, 1)],
 
-    {ok, Alice2, _AliceProps2, _} = escalus_connection:start(AliceSpec,
-                                                             ResumeSession),
+    {ok, Alice2, _} = escalus_connection:start(AliceSpec, ResumeSession),
 
     escalus_connection:send(Alice2, escalus_stanza:presence(<<"available">>)),
 
@@ -165,11 +164,11 @@ make_jid_from_spec(AliceProps) ->
     <<AliceUsername/binary, "@", AliceServer/binary>>.
 
 mk_resume_stream(SMID, PrevH) ->
-    fun (Conn, Props, Features) ->
+    fun (Conn = #client{props = Props}, Features) ->
             escalus_connection:send(Conn, escalus_stanza:resume(SMID, PrevH)),
             Resumed = escalus_connection:get_stanza(Conn, get_resumed),
             true = escalus_pred:is_sm_resumed(SMID, Resumed),
-            {Conn, [{smid, SMID} | Props], Features}
+            {Conn#client{props = [{smid, SMID} | Props]}, Features}
     end.
 
 alice_gets_message_after_buffer_overflow(Config) ->

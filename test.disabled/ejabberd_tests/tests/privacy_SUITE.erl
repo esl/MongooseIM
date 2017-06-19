@@ -502,7 +502,7 @@ allow_subscription_both_message(Config) ->
 
         BobBareJID = escalus_users:get_jid(Config, bob),
         [{_, Spec}] = escalus_users:get_users([bob]),
-        {ok, Bob, _Spec2, _Features} = escalus_connection:start(Spec),
+        {ok, Bob, _Features} = escalus_connection:start(Spec),
 
         %escalus_story:send_initial_presence(Alice),
         escalus_story:send_initial_presence(Bob),

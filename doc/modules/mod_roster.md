@@ -5,7 +5,7 @@ It can sometimes become quite a heavyweight feature, so there is an option to di
 
 ### Options
 
-* `iqdisc`
+* `iqdisc` (default: `one_queue`)
 * `versioning` (boolean, default: `false`): Turn on/off support for Roster Versioning.
 * `store_current_id` (boolean, default: `false`): Stores the last roster hash in DB (used in Roster Versioning). 
  Improves performance but should be disabled, when shared rosters are used.
@@ -14,5 +14,8 @@ It can sometimes become quite a heavyweight feature, so there is an option to di
 
 ### Example configuration
 ```
-{mod_roster, []}
+{mod_roster, [
+               {versioning, true},
+               {store_current_id, true}
+             ]}
 ```

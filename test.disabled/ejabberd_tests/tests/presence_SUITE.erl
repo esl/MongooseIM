@@ -89,8 +89,7 @@ end_per_testcase(unsubscribe, Config) ->
 end_per_testcase(VersionCases, Config)
       when VersionCases =:= versioning; VersionCases =:= versioning_no_store ->
     restore_versioning(Config),
-    end_rosters_remove(Config),
-    escalus:end_per_testcase(versioning, Config);
+    end_rosters_remove(Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -470,7 +469,7 @@ subscribe_relog(Config) ->
                 end
             ], Stanzas),
 
-        escalus_client:stop(NewBob),
+        escalus_client:stop(Config, NewBob),
 
         escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"unsubscribed">>))
 

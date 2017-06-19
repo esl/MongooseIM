@@ -303,13 +303,13 @@ user_send_packet(Acc, From, To, Packet) ->
 %% From and To are jid records.
 -type fpacket() :: {From :: ejabberd:jid(),
                     To :: ejabberd:jid(),
-                    Acc :: mongoose_acc:t()}.
+                    Acc :: mongoose_acc:t(),
+                    Packet :: xmlel()}.
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc}) ->
+filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
     % let them to their amp-related mambo jumbo on stanza
-    Packet = mongoose_acc:get(to_send, Acc),
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
     {AmpEvent, PacketAfterArchive} =
@@ -328,8 +328,9 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc}) ->
                         {archived, replace_archived_elem(BareTo, MessID, Packet)}
                 end
         end,
-    PacketAfterAmp = mod_amp:check_packet(PacketAfterArchive, From, AmpEvent),
-    {From, To, mongoose_acc:put(to_send, PacketAfterAmp, Acc)}.
+    Acc1 = mongoose_acc:put(element, PacketAfterArchive, Acc),
+    Acc2 = mod_amp:check_packet(Acc1, From, AmpEvent),
+    {From, To, Acc, mongoose_acc:get(element, Acc2)}.
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).

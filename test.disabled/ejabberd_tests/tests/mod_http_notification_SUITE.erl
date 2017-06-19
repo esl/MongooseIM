@@ -137,7 +137,7 @@ do_simple_message(Config, Msg) ->
     Stanzas = escalus:wait_for_stanzas(Bob, 2),
 %%  ct:pal("Stanzas:~p", [Stanzas]),
     escalus_new_assert:mix_match([is_presence, is_chat(Msg)], Stanzas),
-    escalus_cleaner:clean(Config).
+    escalus_client:stop(Config, Bob).
 
 
 %%%===================================================================

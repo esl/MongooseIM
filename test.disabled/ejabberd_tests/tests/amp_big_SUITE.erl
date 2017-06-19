@@ -669,7 +669,7 @@ user_has_incoming_offline_message(FreshConfig, UserName, MsgText) ->
         true -> client_has_mam_message(Client);
         false -> ok
     end,
-    escalus_cleaner:clean(FreshConfig).
+    escalus_client:stop(FreshConfig, Client).
 
 client_has_no_mam_messages(User) ->
     P = mam_helper:mam03_props(),
@@ -714,9 +714,6 @@ rules(Config, Default) ->
 
 ns_amp() ->
     <<"http://jabber.org/protocol/amp">>.
-
-client_goes_offline(Client) ->
-    escalus_client:stop(Client).
 
 client_sends_message(Client, Msg) ->
     escalus_client:send(Client, Msg).

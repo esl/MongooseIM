@@ -4925,7 +4925,7 @@ connect_fresh_alice(Config) ->
     connect_fresh_user(AliceSpec).
 
 connect_fresh_user(Spec) ->
-    {ok, User, _, _} = escalus_connection:start(Spec),
+    {ok, User, _} = escalus_connection:start(Spec),
     escalus:send(User, escalus_stanza:presence(<<"available">>)),
     escalus:wait_for_stanza(User),
     Username = proplists:get_value(username, Spec),
