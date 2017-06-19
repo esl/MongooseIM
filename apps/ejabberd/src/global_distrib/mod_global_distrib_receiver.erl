@@ -9,7 +9,7 @@
 -include("global_distrib_metrics.hrl").
 
 -export([start/2, stop/1]).
--export([start_link/4, init/1, handle_info/2, terminate/2]).
+-export([all_endpoints/0, endpoints/0, start_link/4, init/1, handle_info/2, terminate/2]).
 
 -record(state, {
     socket,
@@ -35,10 +35,10 @@ start() ->
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, histogram),
     Child = mod_global_distrib_worker_sup,
     {ok, _}= supervisor:start_child(ejabberd_sup, {Child, {Child, start_link, []}, permanent, 10000, supervisor, [Child]}),
-    {ok, _} = ranch:start_listener(?MODULE, 1, ranch_tcp, [{port, opt(listen_port)}], ?MODULE, [{worker_pool, ?MODULE}]).
+    start_listeners().
 
 stop() ->
-    ranch:stop_listener(?MODULE),
+    stop_listeners(),
     supervisor:terminate_child(ejabberd_sup, mod_global_distrib_worker_sup),
     supervisor:delete_child(ejabberd_sup, mod_global_distrib_worker_sup).
 
@@ -86,3 +86,39 @@ handle_buffered(#state{waiting_for = Size, buffer = Buffer} = State)
     handle_buffered(State#state{waiting_for = header, buffer = Rest});
 handle_buffered(State) ->
     State.
+
+random_endpoint() ->
+    Endpoints = all_endpoints(),
+    N = rand:uniform(length(Endpoints)),
+    lists:nth(N, Endpoints).
+
+all_endpoints() ->
+    {Res, BadNodes} = rpc:multicall(?MODULE, endpoints, [], 5000),
+    case BadNodes of
+        [] -> ok;
+        _ -> ?ERROR_MSG("Couldn't fetch endpoints from ~p", [BadNodes])
+    end,
+    Res.
+
+endpoints() ->
+    lists:map(
+      fun
+          ({StrAddr, Port}) when is_list(StrAddr) ->
+              {ok, Addr} = inet:parse_address(StrAddr),
+              {Addr, Port};
+          (AddrPort) ->
+              AddrPort
+      end,
+      opt(endpoints)).
+
+start_listeners() ->
+    lists:foreach(
+      fun({Addr, Port} = Ref) ->
+              {ok, _} = ranch:start_listener(Ref, 10, ranch_tcp, [{ip, Addr}, {port, Port}],
+                                             ?MODULE, [{worker_pool, ?MODULE}])
+      end,
+      endpoints()).
+
+stop_listeners() ->
+    lists:foreach(fun ranch:stop_listener/1, endpoints()).
+

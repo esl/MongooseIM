@@ -62,3 +62,4 @@ start_pool(Name, Server) ->
 
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
+

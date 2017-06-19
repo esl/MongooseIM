@@ -29,9 +29,9 @@ The addresses can be overridden per target host via a top-level configuration op
 
 #### Connections' options
 
-* **listen_port** (integer, default: `5555`): Port on which the server will listen to TCP connections from other XMPP clusters sharing the global domain.
+* **endpoints** (list, required): A list of `{IP, Port}` tuples on which the server will listen for connections. The endpoint list will be shared with other data centers via the replicated backend.
 * **num_of_connections** (integer, default: `1`): Number of outgoing connections that will be established to each other XMPP cluster sharing the global domain.
-* **tls_opts** (list, default: unset): Options for TLS connections passed to the `fast_tls` driver. As a minimum they should include `certfile` and `cafile` settings. 
+* **tls_opts** (list, required): Options for TLS connections passed to the `fast_tls` driver. As a minimum they should include `certfile` and `cafile` settings. 
 
 #### Redis session storage options
 

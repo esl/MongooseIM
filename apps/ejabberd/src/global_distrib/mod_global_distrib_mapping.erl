@@ -25,10 +25,11 @@
 -define(DOMAIN_TAB, mod_global_distrib_domain_cache_tab).
 -define(JID_TAB, mod_global_distrib_jid_cache_tab).
 
--export([start/2, stop/1]).
+-export([start/2, stop/1, deps/2]).
 -export([for_domain/1, insert_for_domain/2, delete_for_domain/2, all_domains/0]).
 -export([for_jid/1, insert_for_jid/2, delete_for_jid/2, clear_cache_for_jid/1]).
 -export([register_subhost/2, unregister_subhost/2, user_present/2, user_not_present/5]).
+-export([endpoints/1]).
 
 %%--------------------------------------------------------------------
 %% Callbacks
@@ -36,13 +37,14 @@
 
 -callback start(Opts :: proplists:proplist()) -> any().
 -callback stop() -> any().
--callback put_session(JID :: binary(), Host :: binary()) -> ok | error.
+-callback put_session(JID :: binary()) -> ok | error.
 -callback get_session(JID :: binary()) -> {ok, Host :: binary()} | error.
--callback delete_session(JID :: binary(), Host :: binary()) -> ok | error.
--callback put_domain(Domain :: binary(), Host :: binary()) -> ok | error.
+-callback delete_session(JID :: binary()) -> ok | error.
+-callback put_domain(Domain :: binary()) -> ok | error.
 -callback get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
--callback delete_domain(Domain :: binary(), Host :: binary()) -> ok | error.
+-callback delete_domain(Domain :: binary()) -> ok | error.
 -callback get_domains() -> {ok, [Domain :: binary()]} | error.
+-callback get_endpoints(Host :: binary()) -> {ok, [{inet:ip_address(), inet:port()}]} | error.
 
 %%--------------------------------------------------------------------
 %% API
@@ -56,14 +58,20 @@ start(Host, Opts0) ->
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
+deps(Host, Opts) ->
+    mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
+
+deps(_Opts) ->
+    [{mod_global_distrib_receiver, hard}].
+
 for_domain(Domain) when is_binary(Domain) ->
     ets_cache:lookup(?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end).
 
 insert_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
-    ets_cache:update(?DOMAIN_TAB, Domain, {ok, Host}, fun() -> put_domain(Domain, Host) end).
+    ets_cache:update(?DOMAIN_TAB, Domain, {ok, Host}, fun() -> put_domain(Domain) end).
 
-delete_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
-    delete_domain(Domain, Host),
+delete_for_domain(Domain, _Host) when is_binary(Domain), is_binary(_Host) ->
+    delete_domain(Domain),
     ets_cache:delete(?DOMAIN_TAB, Domain).
 
 for_jid(#jid{} = Jid) -> for_jid(jid:to_lower(Jid));
@@ -83,7 +91,7 @@ insert_for_jid(#jid{} = Jid, Host) -> insert_for_jid(jid:to_lower(Jid), Host);
 insert_for_jid({_, _, _} = Jid, Host) when is_binary(Host) ->
     lists:foreach(
       fun(BinJid) ->
-              ets_cache:update(?JID_TAB, BinJid, {ok, Host}, fun() -> put_session(BinJid, Host) end)
+              ets_cache:update(?JID_TAB, BinJid, {ok, Host}, fun() -> put_session(BinJid) end)
       end,
       normalize_jid(Jid)).
 
@@ -91,16 +99,19 @@ clear_cache_for_jid(Jid) when is_binary(Jid) ->
     ets_cache:delete(?JID_TAB, Jid).
 
 delete_for_jid(#jid{} = Jid, Host) -> delete_for_jid(jid:to_lower(Jid), Host);
-delete_for_jid({_, _, _} = Jid, Host) when is_binary(Host) ->
+delete_for_jid({_, _, _} = Jid, _Host) when is_binary(_Host) ->
     lists:foreach(
       fun(BinJid) ->
-              delete_session(BinJid, Host),
+              delete_session(BinJid),
               ets_cache:delete(?JID_TAB, BinJid)
       end,
       normalize_jid(Jid)).
 
 all_domains() ->
     mod_global_distrib_mapping_backend:get_domains().
+
+endpoints(Host) ->
+    mod_global_distrib_mapping_backend:get_endpoints(Host).
 
 %%--------------------------------------------------------------------
 %% Hooks implementation
@@ -189,17 +200,17 @@ opt(Key) ->
 get_session(Key) ->
     mod_global_distrib_mapping_backend:get_session(Key).
 
-put_session(Key, Value) ->
-    mod_global_distrib_mapping_backend:put_session(Key, Value).
+put_session(Key) ->
+    mod_global_distrib_mapping_backend:put_session(Key).
 
-delete_session(Key, Value) ->
-    mod_global_distrib_mapping_backend:delete_session(Key, Value).
+delete_session(Key) ->
+    mod_global_distrib_mapping_backend:delete_session(Key).
 
 get_domain(Key) ->
     mod_global_distrib_mapping_backend:get_domain(Key).
 
-put_domain(Key, Value) ->
-    mod_global_distrib_mapping_backend:put_domain(Key, Value).
+put_domain(Key) ->
+    mod_global_distrib_mapping_backend:put_domain(Key).
 
-delete_domain(Key, Value) ->
-    mod_global_distrib_mapping_backend:delete_domain(Key, Value).
+delete_domain(Key) ->
+    mod_global_distrib_mapping_backend:delete_domain(Key).

@@ -15,8 +15,13 @@
 start_link(Server) ->
     gen_server:start_link(?MODULE, Server, []).
 
+fetch_endpoint(Server) ->
+    {ok, Endpoints} = mod_global_distrib_mapping:endpoints(Server),
+    N = random:uniform(length(Endpoints)),
+    lists:nth(N, Endpoints).
+
 init(Server) ->
-    {Addr, Port} = get_addr(Server),
+    {Addr, Port} = fetch_endpoint(Server),
     try
         {ok, Socket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
         {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, [connect | opt(tls_opts)]),
@@ -28,9 +33,9 @@ init(Server) ->
             {stop, normal}
     end.
 
-handle_call({data, _, _} = Data, From, Socket) ->
+handle_call(Msg, From, Socket) ->
     gen_server:reply(From, ok),
-    handle_cast(Data, Socket).
+    handle_cast(Msg, Socket).
 
 handle_cast({data, Stamp, Data}, Socket) ->
     QueueTimeNative = p1_time_compat:monotonic_time() - Stamp,
