@@ -25,6 +25,9 @@
 
 -export([start/2, stop/1]).
 
+%% IQ handler
+-export([iq_handler/3]).
+
 %% Hook implementations
 -export([get_disco_items/5]).
 
@@ -52,12 +55,15 @@ start(Host, Opts) ->
     SubHost = subhost(Host),
     mod_disco:register_subhost(Host, SubHost),
     mongoose_subhosts:register(Host, SubHost),
-    ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_disco_items, 90).
+    ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_disco_items, 90),
+    gen_iq_handler:add_iq_handler(ejabberd_local, SubHost,
+                                  ?NS_FOREIGN_EVENT, ?MODULE, iq_handler, IQDisc).
 
 
 -spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     SubHost = subhost(Host),
+    gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_FOREIGN_EVENT),
     ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_disco_items, 90),
     mongoose_subhosts:unregister(SubHost),
     mod_disco:unregister_subhost(Host, SubHost).
@@ -73,6 +79,20 @@ get_disco_items(empty, From, To, Node, Lang) ->
 get_disco_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
+-spec iq_handler(From :: jid(), To :: jid(), iq()) -> iq() | ignore.
+iq_handler(_From, _To, #iq{type = get} = IQ) ->
+    IQ#iq{type = error, sub_el = ?ERR_NOT_ALLOWED};
+iq_handler(_From, _To, #iq{type = set, sub_el = ForeignEvent} = IQ) ->
+    case parse_foreign_event(ForeignEvent) of
+        {ok, Type, Request, _Publish} ->
+            maybe_dispatch_request(Type, Request, IQ);
+        error ->
+            IQ#iq{type = error, sub_el = ?ERR_BAD_REQUEST}
+    end.
+
+
+
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -86,3 +106,47 @@ subhost(Host) ->
 my_disco_name(Lang) ->
     translate:translate(Lang, <<"Foreign-Event">>).
 
+%%--------------------------------------------------------------------
+%% Dispatching
+%%--------------------------------------------------------------------
+
+-spec maybe_dispatch_request(Type :: binary(), Request :: xmlel(), iq()) -> iq().
+maybe_dispatch_request(<<"http">>, Request, IQ) ->
+    mod_foreign_http:make_request(Request, fun(_) -> ok end),
+    IQ#iq{type = result, sub_el = []};
+maybe_dispatch_request(_, _, IQ) ->
+    IQ#iq{type = error, sub_el = ?ERR_FEATURE_NOT_IMPLEMENTED}.
+
+%%--------------------------------------------------------------------
+%% IQ parsing
+%%--------------------------------------------------------------------
+
+-spec parse_foreign_event(xmlel()) ->
+    {ok, Type :: binary(), Request :: xmlel(), PublishNodes :: [xmlel()]} | error.
+parse_foreign_event(#xmlel{name = <<"foreign-event">>} = ForeignEvent) ->
+    case exml_query:subelement(ForeignEvent, <<"request">>) of
+        undefined ->
+            error;
+        Request ->
+            verify_request(Request)
+    end;
+parse_foreign_event(_) -> error.
+
+-spec verify_request(xmlel()) ->
+    {ok, Type :: binary(), PublishNodes :: [xmlel()]} | error.
+verify_request(Request) ->
+    case parse_type(Request) of
+        {ok, Type} ->
+            {ok, Type, Request, []};
+        error ->
+            error
+    end.
+
+-spec parse_type(xmlel()) -> {ok, Type :: binary()} | error.
+parse_type(Request) ->
+    case exml_query:attr(Request, <<"type">>) of
+        undefined ->
+            error;
+        Type ->
+            {ok, Type}
+    end.

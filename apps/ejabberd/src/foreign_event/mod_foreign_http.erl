@@ -28,9 +28,11 @@
 %%--------------------------------------------------------------------
 
 make_request(Request, OnResponse) ->
-    {Host, Path, Method, Headers, Body} = parse(Request),
-    Response = do_make_request(Host, Path, Method, Headers, Body),
-    respond(encode(Response), OnResponse),
+    spawn(fun() ->
+            {Host, Path, Method, Headers, Body} = parse(Request),
+            Response = do_make_request(Host, Path, Method, Headers, Body),
+            respond(encode(Response), OnResponse)
+          end),
     ok.
 
 %%--------------------------------------------------------------------
