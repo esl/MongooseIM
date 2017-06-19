@@ -437,7 +437,7 @@ is_offline(LUser, LServer) ->
     end.
 
 gen_token() ->
-    integer_to_binary(binary:decode_unsigned(crypto:rand_bytes(16)), 24).
+    integer_to_binary(binary:decode_unsigned(crypto:strong_rand_bytes(16)), 24).
 
 become_unavailable(Client) ->
     escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
@@ -473,7 +473,7 @@ node_addr() ->
     <<"pubsub.", Domain/binary>>.
 
 rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:rand_bytes(5)),
+    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
     <<Prefix/binary, "_", Suffix/binary>>.
 
 pubsub_node_name() ->

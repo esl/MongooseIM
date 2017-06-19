@@ -127,7 +127,7 @@ given_fresh_spec(Config, User) ->
     escalus_users:get_userspec(NewConfig, User).
 
 connect_user(Spec) ->
-    Res = base64:encode(crypto:rand_bytes(4)),
+    Res = base64:encode(crypto:strong_rand_bytes(4)),
     {ok, Conn, Props, _} = escalus_connection:start([{resource, Res} | Spec]),
     JID = make_jid(Props),
     escalus:send(Conn, escalus_stanza:presence(<<"available">>)),
@@ -155,7 +155,7 @@ send_from_alice(Alice, Carol) ->
     }.
 
 gen_msg() ->
-    Msg = base64:encode(crypto:rand_bytes(15)),
+    Msg = base64:encode(crypto:strong_rand_bytes(15)),
     Msg.
 
 wait_for_msgs_carol(Carol, Msgs) ->

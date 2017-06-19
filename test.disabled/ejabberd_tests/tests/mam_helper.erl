@@ -983,7 +983,7 @@ generate_msgs_for_day(Day, OwnerJID, OtherUsers) ->
      || RemoteJID <- OtherUsers].
 
 generate_msg_for_date_user(Owner, Remote, DateTime) ->
-    generate_msg_for_date_user(Owner, Remote, DateTime, base16:encode(crypto:rand_bytes(4))).
+    generate_msg_for_date_user(Owner, Remote, DateTime, base16:encode(crypto:strong_rand_bytes(4))).
 
 generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime, Content) ->
     MicrosecDateTime = datetime_to_microseconds(DateTime),

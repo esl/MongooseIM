@@ -404,11 +404,11 @@ clean_sessions(C) ->
     end.
 
 generate_random_user(S) ->
-    U = base16:encode(crypto:rand_bytes(5)),
+    U = base16:encode(crypto:strong_rand_bytes(5)),
     generate_random_user(U, S).
 
 generate_random_user(U, S) ->
-    R = base16:encode(crypto:rand_bytes(5)),
+    R = base16:encode(crypto:strong_rand_bytes(5)),
     generate_user(U, S, R).
 
 generate_user(U, S, R) ->
@@ -423,7 +423,7 @@ generate_random_users(Count, Server) ->
     [generate_random_user(Server) || _ <- lists:seq(1, Count)].
 
 generate_many_random_res(UsersPerServer, ResourcesPerUser, Servers) ->
-    Usernames = [base16:encode(crypto:rand_bytes(5)) || _ <- lists:seq(1, UsersPerServer)],
+    Usernames = [base16:encode(crypto:strong_rand_bytes(5)) || _ <- lists:seq(1, UsersPerServer)],
     [generate_random_user(U, S) || U <- Usernames, S <- Servers, _ <- lists:seq(1, ResourcesPerUser)].
 
 get_unique_us_dict(USRs) ->
