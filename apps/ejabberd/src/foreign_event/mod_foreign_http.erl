@@ -112,9 +112,10 @@ encode({{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}) ->
 do_make_request(Host, Path, Method, Headers, Body) ->
     {ok, Client} = fusco:start(Host, []),
     {ok, Response} = fusco:request(Client, Path, Method, Headers, Body, 5000),
+    ok = fusco:disconnect(Client),
     Response.
 
-respond(Response, noreply) ->
+respond(_Response, noreply) ->
     do_nothing;
 respond(Response, OnResponse) ->
     OnResponse(Response).
