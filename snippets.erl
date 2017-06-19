@@ -15,5 +15,13 @@ Req =
 {ok, Parsed}, exml:parse(Req).
 exml_query:paths(Parsed, [{element, <<"header">>}]).
 
+%% Recomile file in the shell
+compile:file("../../lib/ejabberd/src/foreign_event/mod_foreign.erl", [{i, "../../lib/ejabberd/include"}]).
+
+%% Trace pubsub node creation/publishing
+recon_trace:calls([{mod_pubsub,publish_item, fun(_) -> return_trace() end},
+                   {mod_pubsub,create_node, fun(_) -> return_trace() end}],
+                  100,
+                  [{scope, local}]).
 
 

@@ -28,6 +28,10 @@
 %% IQ handler
 -export([iq_handler/3]).
 
+%% Publishing
+-export([publish_to_pubsub/4]).
+
+
 %% Hook implementations
 -export([get_disco_items/5]).
 
@@ -150,3 +154,14 @@ parse_type(Request) ->
         Type ->
             {ok, Type}
     end.
+
+%%--------------------------------------------------------------------
+%% Publishing
+%%--------------------------------------------------------------------
+
+publish_to_pubsub(Host, From, Node, Payload) ->
+    SubHost = pubsub_subhost(Host),
+    {result, _} = mod_pubsub:publish_item(SubHost, Host, Node, From, <<>>, Payload).
+
+pubsub_subhost(Host) ->
+    gen_mod:get_module_opt_subhost(Host, mod_pubsub, mod_pubsub:default_host()).
