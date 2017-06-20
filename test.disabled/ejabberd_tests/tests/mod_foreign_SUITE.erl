@@ -26,6 +26,11 @@
                      "<payload>'{\"key\":\"value\"}'</payload>"
                      "</response>">>).
 
+-define(PUBLISH_PUBSUB(Type, NodeName),
+        <<"<publish type='", Type/binary, "' "
+                   "to='pubsub' "
+                   "name='", NodeName/binary, "'/>">>).
+
 
 -define(OPTS,
         [
@@ -50,7 +55,8 @@ groups() ->
                         foreign_event_without_request_type,
                         foreign_event_with_unknown_request_type,
                         foreign_event_http_success,
-                        publishes_to_pubsub
+                        publishes_to_pubsub,
+                        http_request_with_pubsub_publication
                        ]}].
 
 suite() ->
@@ -209,7 +215,6 @@ publishes_to_pubsub(Config) ->
                                                                Jid,
                                                                pubsub_node_name(Node),
                                                                [Request]]),
-              %% pubsub_tools:publish(Bob, ItemId = <<"item1">>, Node, []),
               ItemId = exml_query:path(Result, [{element, <<"publish">>}, {element, <<"item">>}, {attr, <<"id">>}]),
 
 
@@ -217,6 +222,36 @@ publishes_to_pubsub(Config) ->
               pubsub_tools:receive_item_notification(Alice, ItemId, Node, [{with_payload, false}]),
               teardown_pubsub_node(Bob, Node)
       end).
+
+http_request_with_pubsub_publication(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              %% GIVEN
+              Node = ensure_pubsub_node(Bob),
+              pubsub_tools:subscribe(Alice, Node, []),
+              NodeName = pubsub_node_name(Node),
+              {ok, Request} = exml:parse(?REQUEST),
+              [PubRequest, PubResponse] =
+                  [begin
+                       {ok, El} = exml:parse(?PUBLISH_PUBSUB(Type, NodeName)),
+                       El
+                   end || Type <- [<<"request">>, <<"response">>]],
+              ForeignEventJID = foreign_service(),
+              Stanza = foreign_event_iq(ForeignEventJID,
+                                        [PubRequest, PubResponse, Request]),
+
+              %% WHEN
+              Result = escalus:send_and_wait(Bob, Stanza),
+
+              %% THEN
+              escalus:assert(is_iq_result, Result),
+              Received = escalus:wait_for_stanzas(Alice, 2),
+              escalus:assert_many([is_chat_message, is_chat_message], Received),
+              teardown_pubsub_node(Bob, Node)
+      end).
+
 
 %%--------------------------------------------------------------------
 %% Test helpers
@@ -271,7 +306,6 @@ teardown_pubsub_node(User, Node) ->
     pubsub_tools:delete_node(User, Node, []).
 
 process_request(Req0) ->
-    {Headers, Req1} = cowboy_req:headers(Req0),
-    {ok, Body, Req2} = cowboy_req:body(Req1),
-    {ok, Req3} = cowboy_req:reply(200, Headers, Body, Req2),
-    Req3.
+    Headers = cowboy_req:headers(Req0),
+    {ok, Body, Req1} = cowboy_req:read_body(Req0),
+    cowboy_req:reply(200, Headers, Body, Req1).
