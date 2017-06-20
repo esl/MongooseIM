@@ -248,7 +248,7 @@ http_request_with_pubsub_publication(Config) ->
               %% THEN
               escalus:assert(is_iq_result, Result),
               Received = escalus:wait_for_stanzas(Alice, 2),
-              escalus:assert_many([is_chat_message, is_chat_message], Received),
+              escalus:assert_many([is_message, is_message], Received),
               teardown_pubsub_node(Bob, Node)
       end).
 

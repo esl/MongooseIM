@@ -24,4 +24,9 @@ recon_trace:calls([{mod_pubsub,publish_item, fun(_) -> return_trace() end},
                   100,
                   [{scope, local}]).
 
+% Trace paring of Foreign Event
+recon_trace:calls({mod_foreign, parse_foreign_event, fun(_) -> return_trace() end},100,[{scope, local}]).
+
+% Trace encoding the foregin event HTTP response
+recon_trace:calls({mod_foreign_http, encode, fun(_) -> return_trace() end},100,[{scope, local}]).
 

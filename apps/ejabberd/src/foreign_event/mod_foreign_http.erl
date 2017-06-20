@@ -88,15 +88,15 @@ parse_body(#xmlel{} = Request) ->
 %%--------------------------------------------------------------------
 
 encode({{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}) ->
-    #xmlel{name = <<"response">>, 
+    #xmlel{name = <<"response">>,
            attrs = [
                     {<<"xmlns">>, ?NS_FOREIGN_EVENT_HTTP},
                     {<<"type">>, <<"http">>},
                     {<<"status">>, exml:escape_attr(StatusCode)}
                    ],
            children = [
-                       #xmlel{name = <<"payload">>, children = exml:escape_cdata(Body)}
-                       | lists:foldl(fun({Name, Value}, Acc) -> 
+                       #xmlel{name = <<"payload">>, children = [exml:escape_cdata(Body)]}
+                       | lists:foldl(fun({Name, Value}, Acc) ->
                                              [#xmlel{name = <<"header">>,
                                                      attrs = [{<<"name">>, exml:escape_attr(Name)}],
                                                      children = [exml:escape_cdata(Value)]}

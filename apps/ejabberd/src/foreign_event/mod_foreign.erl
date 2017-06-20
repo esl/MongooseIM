@@ -41,6 +41,14 @@
 
 -type foreign_request() :: jlib:xmlel().
 -type foreign_response() :: jlib:xmlel().
+
+-type publish_service() :: pubsub. %% | muc | muc_light.
+-type publish_context() :: {publish_service(),
+                            Host :: ejabberd:server(),
+                            PublishServiceEntityName :: binary()}.
+-type publish_item() :: {publish, publish_context(), on_request() | on_response()}.
+
+-type on_request() :: fun((foreign_request()) -> term()).
 -type on_response() :: fun((foreign_response()) -> term()).
 
 %%--------------------------------------------------------------------
@@ -86,16 +94,17 @@ get_disco_items(Acc, _From, _To, _Node, _Lang) ->
 -spec iq_handler(From :: jid(), To :: jid(), iq()) -> iq() | ignore.
 iq_handler(_From, _To, #iq{type = get} = IQ) ->
     IQ#iq{type = error, sub_el = ?ERR_NOT_ALLOWED};
-iq_handler(_From, _To, #iq{type = set, sub_el = ForeignEvent} = IQ) ->
-    case parse_foreign_event(ForeignEvent) of
-        {ok, Type, Request, _Publish} ->
-            maybe_dispatch_request(Type, Request, IQ);
+iq_handler(From, _To, #iq{type = set, sub_el = ForeignEvent} = IQ) ->
+    case parse_foreign_event(From, ForeignEvent) of
+        {ok, Type, Request, OnReqPublish, OnRespPublish} ->
+            maybe_dispatch_request(Type,
+                                   Request,
+                                   OnReqPublish,
+                                   OnRespPublish,
+                                   IQ);
         error ->
             IQ#iq{type = error, sub_el = ?ERR_BAD_REQUEST}
     end.
-
-
-
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -114,37 +123,104 @@ my_disco_name(Lang) ->
 %% Dispatching
 %%--------------------------------------------------------------------
 
--spec maybe_dispatch_request(Type :: binary(), Request :: xmlel(), iq()) -> iq().
-maybe_dispatch_request(<<"http">>, Request, IQ) ->
-    mod_foreign_http:make_request(Request, fun(_) -> ok end),
+-spec maybe_dispatch_request(Type :: binary(),
+                             Request :: xmlel(),
+                             OnRequestPublishes :: [publish_item()],
+                             OnResponsePublishes :: [publish_item()],
+                             iq()) -> iq().
+maybe_dispatch_request(<<"http">>, Request, OnReqPublish, OnRespPublish, IQ) ->
+    publish_request(OnReqPublish, Request),
+    mod_foreign_http:make_request(Request, publish_response_fun(OnRespPublish)),
     IQ#iq{type = result, sub_el = []};
-maybe_dispatch_request(_, _, IQ) ->
+maybe_dispatch_request(_, _, _, _, IQ) ->
     IQ#iq{type = error, sub_el = ?ERR_FEATURE_NOT_IMPLEMENTED}.
+
 
 %%--------------------------------------------------------------------
 %% IQ parsing
 %%--------------------------------------------------------------------
 
--spec parse_foreign_event(xmlel()) ->
-    {ok, Type :: binary(), Request :: xmlel(), PublishNodes :: [xmlel()]} | error.
-parse_foreign_event(#xmlel{name = <<"foreign-event">>} = ForeignEvent) ->
-    case exml_query:subelement(ForeignEvent, <<"request">>) of
-        undefined ->
+-spec parse_foreign_event(jid(), xmlel()) -> Result when
+      Result :: error
+              | {ok, ReqType, Request, OnRequestPublishes, OnResponsePublishes},
+      ReqType :: binary(),
+      Request :: xmlel(),
+      OnRequestPublishes :: [publish_item()],
+      OnResponsePublishes :: [publish_item()].
+parse_foreign_event(From, #xmlel{name = <<"foreign-event">>} = ForeignEvent) ->
+    VerifiedRequest = case exml_query:subelement(ForeignEvent, <<"request">>) of
+                          undefined ->
+                              error;
+                          Request ->
+                              verify_request(Request)
+                      end,
+    Publish = case exml_query:paths(ForeignEvent, [{element, <<"publish">>}]) of
+                  undefined ->
+                      error;
+                  PublishNodes ->
+                      parse_publish_nodes(From, PublishNodes)
+              end,
+    case {VerifiedRequest, Publish} of
+        {X, Y} when X == error orelse Y == error ->
             error;
-        Request ->
-            verify_request(Request)
+        {{ok, VType, VRequest}, {ok, OnRequest, OnResponse}} ->
+            {ok, VType, VRequest, OnRequest, OnResponse}
     end;
-parse_foreign_event(_) -> error.
+parse_foreign_event(_, _) -> error.
 
 -spec verify_request(xmlel()) ->
-    {ok, Type :: binary(), PublishNodes :: [xmlel()]} | error.
+    {ok, Type :: binary(), Request :: xmlel()} | error.
 verify_request(Request) ->
     case parse_type(Request) of
         {ok, Type} ->
-            {ok, Type, Request, []};
+            {ok, Type, Request};
         error ->
             error
     end.
+
+-spec parse_publish_nodes(jid(), [xmlel()]) -> Result when
+      Result :: {ok, OnRequestPublishes, OnResponsePublishes} | error,
+      OnRequestPublishes :: [publish_item()],
+      OnResponsePublishes :: [publish_item()].
+parse_publish_nodes(From, PublishNodes) ->
+    case catch lists:foldl(
+                 fun(El, {OnReqPubs, OnRespPubs}) ->
+                         Type = exml_query:attr(El, <<"type">>, undefined),
+                         ToService = exml_query:attr(El, <<"to">>, undefined),
+                         ServiceEntityName = exml_query:attr(El, <<"name">>, undefined),
+                         Publish = mk_publish(publish_service(ToService),
+                                              From,
+                                              ServiceEntityName),
+                         case {Type, Publish} of
+                                    {T, P} when T == undefined orelse P == undefined ->
+                                 throw(error);
+                             {<<"request">>, P} ->
+                                 {[P | OnReqPubs], OnRespPubs};
+                             {<<"response">>, P} ->
+                                        {OnReqPubs, [P | OnRespPubs]}
+                         end
+                 end, {[], []}, PublishNodes) of
+        error ->
+            error;
+        {'EXIT', _Error} ->
+            error;
+        {OnReqPubs, OnRespPubs} ->
+            {ok, OnReqPubs, OnRespPubs}
+    end.
+
+-spec publish_service(binary()) -> publish_service().
+publish_service(<<"pubsub">>) -> pubsub;
+publish_service(_) -> undefined.
+
+-spec mk_publish(publish_service(), jid(), mod_pubsub:nodeId()) ->
+                        publish_item() | undefined.
+mk_publish(pubsub, #jid{lserver = Host} = From, NodeName) ->
+    {publish,
+     _Context = {pubusb, Host, NodeName},
+     fun(Payload) ->
+            ?MODULE:publish_to_pubsub(Host, From, NodeName, [Payload])
+     end};
+mk_publish(_, _, _) -> undefined.
 
 -spec parse_type(xmlel()) -> {ok, Type :: binary()} | error.
 parse_type(Request) ->
@@ -159,9 +235,24 @@ parse_type(Request) ->
 %% Publishing
 %%--------------------------------------------------------------------
 
+-spec publish_to_pubsub(ejabberd:server(), jlib:jid(), mod_pubsub:nodeId(),
+                        mod_pubsub:payload()) -> {result, [xmlel(), ...]}.
 publish_to_pubsub(Host, From, Node, Payload) ->
     SubHost = pubsub_subhost(Host),
     {result, _} = mod_pubsub:publish_item(SubHost, Host, Node, From, <<>>, Payload).
 
+-spec pubsub_subhost(ejabberd:server()) -> ejabberd:server().
 pubsub_subhost(Host) ->
     gen_mod:get_module_opt_subhost(Host, mod_pubsub, mod_pubsub:default_host()).
+
+-spec publish_response_fun([publish_item()]) -> ok.
+publish_response_fun(OnRespPublish) ->
+    fun(Response) ->
+            lists:foreach(fun({publish, _Context, Fun}) -> Fun(Response) end,
+                          OnRespPublish)
+    end.
+
+-spec publish_request([publish_item()], xmlel()) -> ok.
+publish_request(OnReqPublish, Request) ->
+    lists:foreach(fun({publish, _Context, Fun}) -> Fun(Request) end,
+                  OnReqPublish).
