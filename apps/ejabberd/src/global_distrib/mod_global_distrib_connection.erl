@@ -61,9 +61,3 @@ terminate(_Reason, _State) ->
 
 opt(Key) ->
     mod_global_distrib_utils:opt(mod_global_distrib_sender, Key).
-
-get_addr(Server) ->
-    case ejabberd_config:get_local_option({global_distrib_addr, Server}) of
-        undefined -> {unicode:characters_to_list(Server), opt(listen_port)};
-        Other -> Other
-    end.

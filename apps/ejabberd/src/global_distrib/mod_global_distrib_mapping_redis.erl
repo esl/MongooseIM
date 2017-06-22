@@ -29,10 +29,6 @@
          put_domain/1, get_domain/1, delete_domain/1,
          get_endpoints/1, get_domains/0]).
 
-%% TODO: This module could use some cleanup, e.g. in some places the Host argument
-%% is unneeded. Saving domains is probably unneeded too, as we simply refresh using
-%% ejabberd_router. Figure out a way to also expire specific entries from endpoints and
-%% domains; probably using a separate process similar to refresher.
 
 %%--------------------------------------------------------------------
 %% API
@@ -98,7 +94,7 @@ get_endpoints(Host) ->
     Nodes = [_ | _] = get_nodes(Host), %% TODO: error: unknown host
     EndpointKeys = [endpoints_key(Host, Node) || Node <- Nodes],
     {ok, BinEndpoints} = q([<<"SUNION">> | EndpointKeys]),
-    {ok, [binary_to_term(BinEndpoint) || BinEndpoint <- BinEndpoints]}.
+    {ok, lists:map(fun binary_to_endpoint/1, BinEndpoints)}.
 
 refresh() ->
     refresh_hosts(),
@@ -111,7 +107,8 @@ refresh_hosts() ->
     q([<<"SADD">>, <<"hosts">>, opt(local_host)]).
 
 get_hosts() ->
-    {ok, _} = q([<<"SMEMBERS">>, <<"hosts">>]).
+    {ok, Hosts} = q([<<"SMEMBERS">>, <<"hosts">>]),
+    Hosts.
 
 refresh_nodes() ->
     NodesKey = nodes_key(),
@@ -151,8 +148,17 @@ refresh_jid(Jid) ->
 
 refresh_endpoints() ->
     EndpointsKey = endpoints_key(),
-    BinEndpoints = [term_to_binary(E) || E <- mod_global_distrib_receiver:endpoints()],
+    BinEndpoints = lists:map(fun endpoint_to_binary/1, mod_global_distrib_receiver:endpoints()),
     refresh_set(EndpointsKey, BinEndpoints).
+
+endpoint_to_binary({IpAddr, Port}) ->
+    iolist_to_binary([inet:ntoa(IpAddr), "#", integer_to_binary(Port)]).
+
+binary_to_endpoint(Bin) ->
+    [Addr, BinPort] = binary:split(Bin, <<"#">>),
+    {ok, IpAddr} = inet:parse_address(binary_to_list(Addr)),
+    Port = binary_to_integer(BinPort),
+    {IpAddr, Port}.
 
 refresh_domains() ->
     LocalHost = opt(local_host),

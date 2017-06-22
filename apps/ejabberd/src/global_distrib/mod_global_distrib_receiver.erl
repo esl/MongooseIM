@@ -23,7 +23,8 @@
 %%--------------------------------------------------------------------
 
 start(Host, Opts0) ->
-    Opts = [{listen_port, 5555}, {num_of_workers, 10} | Opts0],
+    {local_host, LocalHost} = lists:keyfind(local_host, 1, Opts0),
+    Opts = [{endpoints, [{LocalHost, 5555}]}, {num_of_workers, 10} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 stop(Host) ->
@@ -35,6 +36,7 @@ start() ->
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, histogram),
     Child = mod_global_distrib_worker_sup,
     {ok, _}= supervisor:start_child(ejabberd_sup, {Child, {Child, start_link, []}, permanent, 10000, supervisor, [Child]}),
+    ets:insert(?MODULE, {endpoints, parse_endpoints()}),
     start_listeners().
 
 stop() ->
@@ -96,28 +98,44 @@ all_endpoints() ->
     {Res, BadNodes} = rpc:multicall(?MODULE, endpoints, [], 5000),
     case BadNodes of
         [] -> ok;
-        _ -> ?ERROR_MSG("Couldn't fetch endpoints from ~p", [BadNodes])
+        _ -> ?WARNING_MSG("Couldn't fetch endpoints from ~p", [BadNodes])
     end,
     Res.
 
 endpoints() ->
+    opt(endpoints).
+
+parse_endpoints() ->
     lists:map(
-      fun
-          ({StrAddr, Port}) when is_list(StrAddr) ->
-              {ok, Addr} = inet:parse_address(StrAddr),
-              {Addr, Port};
-          (AddrPort) ->
-              AddrPort
+      fun({Addr, Port}) ->
+              case to_ip_tuple(Addr) of
+                  {ok, IpAddr} ->
+                      {IpAddr, Port};
+                  {error, {Reasonv6, Reasonv4}} ->
+                      ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
+                                 [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),
+                      error({Reasonv6, Reasonv4})
+              end
       end,
       opt(endpoints)).
 
+to_ip_tuple(Addr) ->
+    case inet:getaddr(Addr, inet6) of
+        {ok, Av6} -> {ok, Av6};
+        {error, Reasonv6} ->
+            case inet:getaddr(Addr, inet) of
+                {ok, Av4} -> {ok, Av4};
+                {error, Reasonv4} -> {error, {Reasonv6, Reasonv4}}
+            end
+    end.
+
 start_listeners() ->
-    lists:foreach(
-      fun({Addr, Port} = Ref) ->
-              {ok, _} = ranch:start_listener(Ref, 10, ranch_tcp, [{ip, Addr}, {port, Port}],
-                                             ?MODULE, [{worker_pool, ?MODULE}])
-      end,
-      endpoints()).
+    lists:foreach(fun start_listener/1, endpoints()).
+
+start_listener({Addr, Port} = Ref) ->
+    ?INFO_MSG("Starting listener on ~s:~b", [inet:ntoa(Addr), Port]),
+    {ok, _} = ranch:start_listener(Ref, 10, ranch_tcp, [{ip, Addr}, {port, Port}],
+                                   ?MODULE, [{worker_pool, ?MODULE}]).
 
 stop_listeners() ->
     lists:foreach(fun ranch:stop_listener/1, endpoints()).

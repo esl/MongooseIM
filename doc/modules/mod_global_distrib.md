@@ -1,14 +1,6 @@
 ### Module Description
 This module enables global distribution of a single XMPP domain, i.e. multiple federated servers can share a single domain name and route messages using federation capabilities.
 
-### Manually specifying other clusters' addresses
-
-By default the messages will be routed between XMPP clusters sharing the global domain using DNS lookups and addressing the messages to the port given via **listen_port** option (default: 5555).
-
-Consider two servers sharing a domain `mim-global.com`, with one of the servers (**A**) having a local domain `mim-a.com` and the other (**B**) local domain `mim-b.com`. There are two users: Alice connected to server **A** and Bob connected to server **B**. When Alice sends a message to Bob, server **A** establishes a TCP connection to `mim-b.com:5555` and sends the message via this connection. Likewise when Bob replies to Alice, **B** will send the reply via its own connection to `mim-a.com:5555`.
-
-The addresses can be overridden per target host via a top-level configuration option `{ {global_distrib_addr, TargetHost}, { TargetAddress, TargetPort} }.`. The option should be put on the top level of ejabberd.cfg. For example: `{ {global_distrib_addr, "mim-a.com"}, { {127,0,0,1}, 5556} }.`
-
 ### Notes
 
 * You should only start `mod_global_distrib` by configuring it under `modules` option in `ejabberd.cfg`. Do not add it as host-specific module via `host_config`.
@@ -59,9 +51,8 @@ The addresses can be overridden per target host via a top-level configuration op
 {mod_global_distrib, [
         {global_host, "example.com"},
         {local_host, "datacenter1.example.com"},
-        {hosts, ["datacenter1.example.com", "datacenter2.example.com"]},
         {connections [
-              {listen_port, 5556},
+              {endpoints, [{172.16.0.2, 5555}]},
               {num_of_connections, 22}
              ]},
         {cache, [
@@ -76,9 +67,4 @@ The addresses can be overridden per target host via a top-level configuration op
               {password, "secret"}
              ]}
        ]}.
-```
-
-```Erlang
-%% Manually specify address and port of the other datacenter
-{ {global_distrib_addr, "datacenter2.example.com"}, { {192, 168, 0, 7}, 5556} }.
 ```
