@@ -19,7 +19,6 @@ The addresses can be overridden per target host via a top-level configuration op
 
 * **global_host** (string, required): The XMPP domain that will be shared between datacenters. *Note:* this needs to be one of domains given in `host` option in `ejabberd.cfg`.
 * **local_host** (string, required): XMPP domain that maps uniquely to the local data center; it will be used for inter-center routing. *Note:* this needs to be one of domains given in `host` option in `ejabberd.cfg`.
-* **hosts** (string, required): List of **local_host** option values in all datacenters.
 * **num_of_workers** (integer, default: `1000`): Number of workers that will perform local routing operations on messages rerouted from other XMPP servers sharing the global domain.
 * **message_ttl** (integer, default: `4`): Number of times a message can be rerouted between datacenters.
 * **connections** (list, default: `[]`): Options for connections maintained by the module. See *Connections' options* section.

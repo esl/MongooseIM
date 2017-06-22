@@ -101,10 +101,17 @@ get_endpoints(Host) ->
     {ok, [binary_to_term(BinEndpoint) || BinEndpoint <- BinEndpoints]}.
 
 refresh() ->
+    refresh_hosts(),
     refresh_nodes(),
     refresh_jids(),
     refresh_endpoints(),
     refresh_domains().
+
+refresh_hosts() ->
+    q([<<"SADD">>, <<"hosts">>, opt(local_host)]).
+
+get_hosts() ->
+    {ok, _} = q([<<"SMEMBERS">>, <<"hosts">>]).
 
 refresh_nodes() ->
     NodesKey = nodes_key(),
@@ -195,7 +202,8 @@ delete_domain(Domain) ->
     ok.
 
 get_domains() ->
-    Nodes = lists:flatmap(fun(Host) -> [{Host, Node} || Node <- get_nodes(Host)] end, opt(hosts)),
+    Hosts = get_hosts(),
+    Nodes = lists:flatmap(fun(Host) -> [{Host, Node} || Node <- get_nodes(Host)] end, Hosts),
     Keys = [domains_key(Host, Node) || {Host, Node} <- Nodes],
     {ok, _Domains} = q([<<"SUNION">> | Keys]).
 
