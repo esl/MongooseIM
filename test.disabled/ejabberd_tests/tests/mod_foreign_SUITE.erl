@@ -232,15 +232,11 @@ http_request_with_pubsub_publication(Config) ->
               Node = ensure_pubsub_node(Bob),
               pubsub_tools:subscribe(Alice, Node, []),
               NodeName = pubsub_node_name(Node),
-              {ok, Request} = exml:parse(?REQUEST),
-              [PubRequest, PubResponse] =
-                  [begin
-                       {ok, El} = exml:parse(?PUBLISH_PUBSUB(Type, NodeName)),
-                       El
-                   end || Type <- [<<"request">>, <<"response">>]],
+              PubElements = [publish_element(Type, NodeName)
+                             || Type <- [<<"request">>, <<"response">>]],
               ForeignEventJID = foreign_service(),
               Stanza = foreign_event_iq(ForeignEventJID,
-                                        [PubRequest, PubResponse, Request]),
+                                        PubElements ++ [request_element()]),
 
               %% WHEN
               Result = escalus:send_and_wait(Bob, Stanza),
@@ -248,10 +244,31 @@ http_request_with_pubsub_publication(Config) ->
               %% THEN
               escalus:assert(is_iq_result, Result),
               Received = escalus:wait_for_stanzas(Alice, 2),
-              escalus:assert_many([is_message, is_message], Received),
+              Preds = [fun(Stanza) ->
+                               assert_pubsub_notification_with_payload_element(
+                                 NodeName, El, Stanza)
+                       end || El <- [<<"request">>, <<"response">>]],
+              escalus:assert_many(Preds, Received),
+              escalus_assert:has_no_stanzas(Alice),
+              pubsub_tools:unsubscribe(Alice, Node, []),
               teardown_pubsub_node(Bob, Node)
       end).
 
+%%--------------------------------------------------------------------
+%% Assertions
+%%--------------------------------------------------------------------
+
+assert_pubsub_notification_with_payload_element(PubsubNode, ElementName, Stanza) ->
+    escalus_pred:is_message(Stanza)
+        andalso
+        PubsubNode =:= exml_query:path(Stanza, [{element, <<"event">>},
+                                                {element, <<"items">>},
+                                                {attr, <<"node">>}])
+        andalso
+        undefined =/= exml_query:path(Stanza, [{element, <<"event">>},
+                                               {element, <<"items">>},
+                                               {element, <<"item">>},
+                                               {element, ElementName}]).
 
 %%--------------------------------------------------------------------
 %% Test helpers
@@ -265,6 +282,14 @@ foreign_event_iq(To, Children) ->
                           attrs = [{<<"xmlns">>, ?NS_FOREIGN_EVENT}],
                           children = Children},
     escalus_stanza:iq(To, <<"set">>, [ForeignEvent]).
+
+request_element() ->
+    {ok, Request} = exml:parse(?REQUEST),
+    Request.
+
+publish_element(Type, NodeName) ->
+    {ok, El} = exml:parse(?PUBLISH_PUBSUB(Type, NodeName)),
+    El.
 
 foreign_service() ->
     <<"foreign.", (host())/binary>>.
