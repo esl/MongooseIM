@@ -166,8 +166,13 @@ start(Host, Opts) ->
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop(Host) ->
     stop_supervisor(Host),
+    stop_gen_server(Host).
+
+stop_gen_server(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
+    %% Proc can still be alive because of a race condition
+    supervisor:terminate_child(ejabberd_sup, Proc),
     supervisor:delete_child(ejabberd_sup, Proc).
 
 
