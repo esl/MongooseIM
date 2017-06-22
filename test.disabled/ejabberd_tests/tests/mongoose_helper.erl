@@ -18,6 +18,7 @@
          clear_caps_cache/1]).
 
 -export([kick_everyone/0]).
+-export([ensure_muc_clean/0]).
 
 -define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
 
@@ -195,3 +196,21 @@ get_session_specs() ->
 
 get_session_pids() ->
     [element(2, X) || X <- get_session_specs()].
+
+
+ensure_muc_clean() ->
+    stop_online_rooms(),
+    forget_persistent_rooms().
+
+stop_online_rooms() ->
+    Host = ct:get_config({hosts, mim, domain}),
+    Supervisor = escalus_ejabberd:rpc(gen_mod, get_module_proc,
+                                      [Host, ejabberd_mod_muc_sup]),
+    escalus_ejabberd:rpc(erlang, exit, [Supervisor, kill]),
+    escalus_ejabberd:rpc(mnesia, clear_table, [muc_online_room]),
+    ok.
+
+forget_persistent_rooms() ->
+    escalus_ejabberd:rpc(mnesia, clear_table, [muc_room]),
+    escalus_ejabberd:rpc(mnesia, clear_table, [muc_registered]),
+    ok.
