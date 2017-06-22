@@ -183,29 +183,27 @@ verify_request(Request) ->
       OnRequestPublishes :: [publish_item()],
       OnResponsePublishes :: [publish_item()].
 parse_publish_nodes(From, PublishNodes) ->
-    case catch lists:foldl(
-                 fun(El, {OnReqPubs, OnRespPubs}) ->
-                         Type = exml_query:attr(El, <<"type">>, undefined),
-                         ToService = exml_query:attr(El, <<"to">>, undefined),
-                         ServiceEntityName = exml_query:attr(El, <<"name">>, undefined),
-                         Publish = mk_publish(publish_service(ToService),
-                                              From,
-                                              ServiceEntityName),
-                         case {Type, Publish} of
-                                    {T, P} when T == undefined orelse P == undefined ->
-                                 throw(error);
-                             {<<"request">>, P} ->
-                                 {[P | OnReqPubs], OnRespPubs};
-                             {<<"response">>, P} ->
-                                        {OnReqPubs, [P | OnRespPubs]}
-                         end
-                 end, {[], []}, PublishNodes) of
-        error ->
+    parse_publish_nodes(From, PublishNodes, {[], []}).
+
+-spec parse_publish_nodes(jid(), [xmlel()],
+                          {[publish_item()], [publish_item()]}) ->
+    error | {ok, [publish_item()], [publish_item()]}.
+parse_publish_nodes(_From, [], {OnReqPubs, OnRespPubs}) ->
+    {ok, OnReqPubs, OnRespPubs};
+parse_publish_nodes(From, [El | Rest], {OnReqPubs, OnRespPubs}) ->
+    Type = exml_query:attr(El, <<"type">>, undefined),
+    ToService = exml_query:attr(El, <<"to">>, undefined),
+    ServiceEntityName = exml_query:attr(El, <<"name">>, undefined),
+    Publish = mk_publish(publish_service(ToService),
+                         From,
+                         ServiceEntityName),
+    case {Type, Publish} of
+        {T, P} when T == undefined orelse P == undefined ->
             error;
-        {'EXIT', _Error} ->
-            error;
-        {OnReqPubs, OnRespPubs} ->
-            {ok, OnReqPubs, OnRespPubs}
+        {<<"request">>, P} ->
+            parse_publish_nodes(From, Rest, {[P | OnReqPubs], OnRespPubs});
+        {<<"response">>, P} ->
+            parse_publish_nodes(From, Rest, {OnReqPubs, [P | OnRespPubs]})
     end.
 
 -spec publish_service(binary()) -> publish_service().
