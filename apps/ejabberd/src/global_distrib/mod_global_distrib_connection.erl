@@ -16,9 +16,17 @@ start_link(Server) ->
     gen_server:start_link(?MODULE, Server, []).
 
 fetch_endpoint(Server) ->
-    {ok, Endpoints} = mod_global_distrib_mapping:endpoints(Server),
+    {ok, Endpoints} = endpoints(Server),
     N = random:uniform(length(Endpoints)),
     lists:nth(N, Endpoints).
+
+endpoints(Server) ->
+    case ejabberd_config:get_local_option({global_distrib_addr, Server}) of
+        undefined -> mod_global_distrib_mapping:endpoints(Server);
+        Endpoints ->
+            ResolvedEndpoints = mod_global_distrib_receiver:parse_endpoints(Endpoints),
+            {ok, ResolvedEndpoints}
+    end.
 
 init(Server) ->
     {Addr, Port} = fetch_endpoint(Server),

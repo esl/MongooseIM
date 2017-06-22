@@ -8,7 +8,7 @@
 -include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
 
--export([start/2, stop/1]).
+-export([start/2, stop/1, parse_endpoints/1]).
 -export([all_endpoints/0, endpoints/0, start_link/4, init/1, handle_info/2, terminate/2]).
 
 -record(state, {
@@ -36,7 +36,7 @@ start() ->
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, histogram),
     Child = mod_global_distrib_worker_sup,
     {ok, _}= supervisor:start_child(ejabberd_sup, {Child, {Child, start_link, []}, permanent, 10000, supervisor, [Child]}),
-    ets:insert(?MODULE, {endpoints, parse_endpoints()}),
+    ets:insert(?MODULE, {endpoints, parse_endpoints(opt(endpoints))}),
     start_listeners().
 
 stop() ->
@@ -105,7 +105,8 @@ all_endpoints() ->
 endpoints() ->
     opt(endpoints).
 
-parse_endpoints() ->
+%% TODO: Move this to utils - shared between here and connection.
+parse_endpoints(Endpoints) ->
     lists:map(
       fun({Addr, Port}) ->
               case to_ip_tuple(Addr) of
@@ -117,7 +118,7 @@ parse_endpoints() ->
                       error({Reasonv6, Reasonv4})
               end
       end,
-      opt(endpoints)).
+      Endpoints).
 
 to_ip_tuple(Addr) ->
     case inet:getaddr(Addr, inet6) of
