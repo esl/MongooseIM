@@ -57,7 +57,9 @@
 %% Callbacks
 %%--------------------------------------------------------------------
 
--callback make_request(foreign_request(), on_response()) -> ok | {error, term()}.
+-callback make_request(ejabberd:server(),
+                       foreign_request(),
+                       on_response()) -> ok | {error, term()}.
 
 %%--------------------------------------------------------------------
 %% API
@@ -71,12 +73,13 @@ start(Host, Opts) ->
     mongoose_subhosts:register(Host, SubHost),
     ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_disco_items, 90),
     gen_iq_handler:add_iq_handler(ejabberd_local, SubHost,
-                                  ?NS_FOREIGN_EVENT, ?MODULE, iq_handler, IQDisc).
-
+                                  ?NS_FOREIGN_EVENT, ?MODULE, iq_handler, IQDisc),
+    start_backends(Host, proplists:get_value(backends, Opts, [])).
 
 -spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     SubHost = subhost(Host),
+    stop_backends(Host),
     gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_FOREIGN_EVENT),
     ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_disco_items, 90),
     mongoose_subhosts:unregister(SubHost),
@@ -96,10 +99,13 @@ get_disco_items(Acc, _From, _To, _Node, _Lang) ->
 -spec iq_handler(From :: jid(), To :: jid(), iq()) -> iq() | ignore.
 iq_handler(_From, _To, #iq{type = get} = IQ) ->
     IQ#iq{type = error, sub_el = ?ERR_NOT_ALLOWED};
-iq_handler(From, _To, #iq{type = set, sub_el = ForeignEvent} = IQ) ->
+iq_handler(From = #jid{lserver = Host},
+           _To,
+           #iq{type = set, sub_el = ForeignEvent} = IQ) ->
     case parse_foreign_event(From, ForeignEvent) of
         {ok, Type, Request, OnReqPublish, OnRespPublish} ->
             maybe_dispatch_request(Type,
+                                   Host,
                                    Request,
                                    OnReqPublish,
                                    OnRespPublish,
@@ -125,14 +131,16 @@ my_disco_name(Lang) ->
 %% Dispatching
 %%--------------------------------------------------------------------
 
--spec maybe_dispatch_request(Type :: binary(),
+-spec maybe_dispatch_request(Host:: ejabberd:server(),
+                             Type :: binary(),
                              Request :: xmlel(),
                              OnRequestPublishes :: [publish_item()],
                              OnResponsePublishes :: [publish_item()],
                              iq()) -> iq().
-maybe_dispatch_request(<<"http">>, Request, OnReqPublish, OnRespPublish, IQ) ->
+maybe_dispatch_request(<<"http">>, Host, Request, OnReqPublish, OnRespPublish, IQ) ->
     publish_request(OnReqPublish, Request),
-    case mod_foreign_http:make_request(Request,
+    case mod_foreign_http:make_request(Host,
+                                       Request,
                                        publish_response_fun(OnRespPublish))
     of
         ok ->
@@ -140,7 +148,7 @@ maybe_dispatch_request(<<"http">>, Request, OnReqPublish, OnRespPublish, IQ) ->
         error ->
             IQ#iq{type = error, sub_el = ?ERR_BAD_REQUEST}
     end;
-maybe_dispatch_request(_, _, _, _, IQ) ->
+maybe_dispatch_request(_, _, _, _, _, IQ) ->
     IQ#iq{type = error, sub_el = ?ERR_FEATURE_NOT_IMPLEMENTED}.
 
 
@@ -260,5 +268,19 @@ publish_response_fun(OnRespPublish) ->
 
 -spec publish_request([publish_item()], xmlel()) -> ok.
 publish_request(OnReqPublish, Request) ->
-    lists:foreach(fun({publish, _Context, Fun}) -> Fun(Request) end,
+    lists:foreach(fun({publish, _Context, Fun}) -> 
+                          Fun(#xmlel{name = <<"foreign-event">>,
+                                     attrs = [{<<"xmlns">>, ?NS_FOREIGN_EVENT}],
+                                     children = [Request]})
+                  end,
                   OnReqPublish).
+
+%%--------------------------------------------------------------------
+%% Backends
+%%--------------------------------------------------------------------
+
+start_backends(Host, BackendsOpts) ->
+    mod_foreign_http:start(Host, proplists:get_value(http, BackendsOpts, [])).
+
+stop_backends(Host) ->
+    mod_foreign_http:stop(Host).

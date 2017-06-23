@@ -47,13 +47,15 @@
                     ]}
         ]).
 -define(NS_FOREIGN_EVENT, <<"urn:xmpp:foreign_event:0">>).
+-define(MOD_FOREIGN_HTTP_TIMEOUT, 5000).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, mod_foreign}]. %%, {group, other}].
+    [{group, mod_foreign} %%].
+     , {group, mod_foreign_timeout}]. %% it's a slow test as it emulates slow http server
 
 
 groups() ->
@@ -66,7 +68,10 @@ groups() ->
                         foreign_event_http_success,
                         publishes_to_pubsub,
                         http_request_with_pubsub_publication
-                       ]}].
+                       ]},
+    {mod_foreign_timeout, [], [
+                               timeouted_http_request_with_pubsub_publication
+                              ]}].
 
 suite() ->
     escalus:suite().
@@ -78,15 +83,22 @@ suite() ->
 init_per_suite(Config) ->
     Config2 = dynamic_modules:save_modules(host(), Config),
     dynamic_modules:ensure_modules(host(), required_modules()),
-    http_helper:start(8080, '_', fun process_request/1),
     escalus:init_per_suite(Config2).
-
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(host(), Config),
-    http_helper:stop(),
     escalus:end_per_suite(Config).
+
+init_per_group(mod_foreign_timeout, Config) ->
+    http_helper:start(8080, '_', fun slowly_process_request/1),
+    Config;
+init_per_group(_, Config) ->
+    http_helper:start(8080, '_', fun process_request/1),
+    Config.
+
+end_per_group(_, _) ->
+    http_helper:stop().
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -291,6 +303,37 @@ http_request_with_pubsub_publication(Config) ->
               teardown_pubsub_node(Bob, Node)
       end).
 
+timeouted_http_request_with_pubsub_publication(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              %% GIVEN
+              Node = ensure_pubsub_node(Bob),
+              pubsub_tools:subscribe(Alice, Node, []),
+              NodeName = pubsub_node_name(Node),
+              PubElements = [publish_element(Type, NodeName)
+                             || Type <- [<<"request">>, <<"response">>]],
+              ForeignEventJID = foreign_service(),
+              Stanza = foreign_event_iq(ForeignEventJID,
+                                        PubElements ++ [request_element()]),
+
+              %% WHEN
+              Result = escalus:send_and_wait(Bob, Stanza),
+
+              %% THEN
+              escalus:assert(is_iq_result, Result),
+              Received = escalus:wait_for_stanzas(Alice, 2, ?MOD_FOREIGN_HTTP_TIMEOUT * 2),
+              Preds = [fun(ReceivedStanza) ->
+                               assert_pubsub_notification_with_payload_element(
+                                 NodeName, El, ReceivedStanza)
+                       end || El <- [<<"request">>, <<"failure">>]],
+              escalus:assert_many(Preds, Received),
+              escalus_assert:has_no_stanzas(Alice),
+              pubsub_tools:unsubscribe(Alice, Node, []),
+              teardown_pubsub_node(Bob, Node)
+      end).
+
 %%--------------------------------------------------------------------
 %% Assertions
 %%--------------------------------------------------------------------
@@ -305,6 +348,7 @@ assert_pubsub_notification_with_payload_element(PubsubNode, ElementName, Stanza)
         undefined =/= exml_query:path(Stanza, [{element, <<"event">>},
                                                {element, <<"items">>},
                                                {element, <<"item">>},
+                                               {element, <<"foreign-event">>},
                                                {element, ElementName}]).
 
 %%--------------------------------------------------------------------
@@ -374,4 +418,10 @@ teardown_pubsub_node(User, Node) ->
 process_request(Req0) ->
     Headers = cowboy_req:headers(Req0),
     {ok, Body, Req1} = cowboy_req:read_body(Req0),
+    cowboy_req:reply(200, Headers, Body, Req1).
+
+slowly_process_request(Req0) ->
+    Headers = cowboy_req:headers(Req0),
+    {ok, Body, Req1} = cowboy_req:read_body(Req0),
+    timer:sleep(?MOD_FOREIGN_HTTP_TIMEOUT * 2),
     cowboy_req:reply(200, Headers, Body, Req1).

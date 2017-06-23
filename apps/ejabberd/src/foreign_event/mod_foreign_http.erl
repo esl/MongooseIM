@@ -22,13 +22,17 @@
 -include("jlib.hrl").
 -include("ejabberd.hrl").
 
--export([start/2, make_request/2]).
+%% API
+-export([start/2, stop/1, make_request/3]).
+%% Internal exports
+-export([make_request_and_respond/3]).
 
 -type pool_size() :: non_neg_integer().
 %% passed from the backend opts from the config file
 -type opt() :: {pool_size, pool_size()}.
 
 -define(DEFAULT_POOL_SIZE, 100).
+-define(HTTP_TIMEOUT, 5000).
 
 %%--------------------------------------------------------------------
 %% API
@@ -39,18 +43,21 @@ start(Host, Opts) ->
     application:ensure_all_started(worker_pool),
     wpool:start_sup_pool(pool_name(Host), [{workers, pool_size(Opts)}]).
 
--spec make_request(mod_foreign:foreign_request(), mod_foreign:on_response())
+stop(Host) ->
+    wpool:stop_pool(pool_name(Host)).
+
+-spec make_request(ejabberd:server(),
+                   mod_foreign:foreign_request(),
+                   mod_foreign:on_response())
                   -> ok | error.
-make_request(Request, OnResponse) ->
+make_request(Host, Request, OnResponse) ->
     case parse(Request) of
         {error, _Error} ->
             error;
-        {ok, {Host, Path, Method, Headers, Body}} ->
-            spawn(fun() ->
-                          Response = do_make_request(Host, Path, Method, Headers, Body),
-                          respond(encode(Response), OnResponse)
-                  end),
-            ok
+        {ok, {_Host, _Path, _Method, _Headers, _Body} = Req} ->
+            Task = {?MODULE, make_request_and_respond, [Req, ?HTTP_TIMEOUT, 
+                                                        OnResponse]},
+            wpool:cast(pool_name(Host), Task, next_available_worker)
     end.
 
 %%--------------------------------------------------------------------
@@ -130,31 +137,51 @@ parse_body(#xmlel{} = Request) ->
 %% Internals: encoding
 %%--------------------------------------------------------------------
 
-encode({{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}) ->
-    #xmlel{name = <<"response">>,
-           attrs = [
-                    {<<"xmlns">>, ?NS_FOREIGN_EVENT_HTTP},
-                    {<<"type">>, <<"http">>},
-                    {<<"status">>, exml:escape_attr(StatusCode)}
-                   ],
+encode({ok, {{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}}) ->
+    %% the foreign event node constructed in the mod_foreign ?
+    #xmlel{name = <<"foreign-event">>,
+           attrs = [{<<"xmlns">>, ?NS_FOREIGN_EVENT}],
            children = [
-                       #xmlel{name = <<"payload">>, children = [exml:escape_cdata(Body)]}
-                       | lists:foldl(fun({Name, Value}, Acc) ->
-                                             [#xmlel{name = <<"header">>,
-                                                     attrs = [{<<"name">>, exml:escape_attr(Name)}],
-                                                     children = [exml:escape_cdata(Value)]}
-                                              | Acc ]
-                                     end, [], Headers)
-                      ]
-          }.
+                       #xmlel{name = <<"response">>,
+                              attrs = [
+                                       {<<"xmlns">>, ?NS_FOREIGN_EVENT_HTTP},
+                                       {<<"type">>, <<"http">>},
+                                       {<<"status">>, exml:escape_attr(StatusCode)}
+                                      ],
+                              children = [
+                                          #xmlel{name = <<"payload">>, children = [exml:escape_cdata(Body)]}
+                                          | lists:foldl(fun({Name, Value}, Acc) ->
+                                                                [#xmlel{name = <<"header">>,
+                                                                        attrs = [{<<"name">>, exml:escape_attr(Name)}],
+                                                                        children = [exml:escape_cdata(Value)]}
+                                                                 | Acc ]
+                                                        end, [], Headers)
+                                         ]}
+                       ]};
+encode({error, Reason}) ->
+    #xmlel{name = <<"foreign-event">>,
+           attrs = [{<<"xmlns">>, ?NS_FOREIGN_EVENT}],
+           children =
+               [
+                #xmlel{name = <<"failure">>,
+                       attrs = [{<<"reason">>,
+                                 exml:escape_attr(atom_to_binary(Reason, latin1))}]}
+               ]}.
 
 %%--------------------------------------------------------------------
-%% Internals: request
+%% Internals: request and response
 %%--------------------------------------------------------------------
 
-do_make_request(Host, Path, Method, Headers, Body) ->
+%% TODO: Internal server error on do_make_request exception (try catch)
+make_request_and_respond(Request, Timeout, OnResponse) ->
+    Response = do_make_request(Request, Timeout),
+    respond(encode(Response), OnResponse).
+
+%% The `Timeout' is the overall request timeout including the time spent on
+%% initiating the connection.
+do_make_request({Host, Path, Method, Headers, Body}, Timeout) ->
     {ok, Client} = fusco:start(Host, []),
-    {ok, Response} = fusco:request(Client, Path, Method, Headers, Body, 5000),
+    Response = fusco:request(Client, Path, Method, Headers, Body, Timeout),
     ok = fusco:disconnect(Client),
     Response.
 
@@ -164,7 +191,7 @@ respond(Response, OnResponse) ->
     OnResponse(Response).
 
 %%--------------------------------------------------------------------
-%% Internals: request
+%% Internals: pool
 %%--------------------------------------------------------------------
 
 -spec pool_name(Host :: ejabberd:lserver()) -> atom().
