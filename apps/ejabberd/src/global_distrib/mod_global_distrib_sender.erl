@@ -40,7 +40,7 @@ send(Server, {From, _To, Acc} = Packet) ->
     BinFrom = jid:to_binary(From),
     Data = <<(byte_size(BinFrom)):16, BinFrom/binary, BinPacket/binary>>,
     Stamp = erlang:monotonic_time(),
-    ok = mod_global_distrib_utils:cast_or_call(gen_server, Worker, {data, Stamp, Data}),
+    ok = mod_global_distrib_utils:cast_or_call(Worker, {data, Stamp, Data}),
     ejabberd_hooks:run(global_distrib_send_packet, [From, mongoose_acc:get(to_send, Acc)]),
     ok.
 

@@ -17,18 +17,25 @@
 -module(mod_global_distrib_utils).
 -author('konrad.zemek@erlang-solutions.com').
 
--export([start/4, deps/4, stop/3, opt/2, cast_or_call/3, cast_or_call/4, cast_or_call/5,
-         create_opts_ets/1, any_binary_to_atom/1]).
-
 -include("ejabberd.hrl").
+
+-export([start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
+         create_ets/1, any_binary_to_atom/1, resolve_endpoints/1]).
+
+-type endpoint() :: {inet:ip_address(), inet:port_number()}.
+
+-export_type([endpoint/0]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
+-spec any_binary_to_atom(binary()) -> atom().
 any_binary_to_atom(Binary) ->
     binary_to_atom(base64:encode(Binary), latin1).
 
+-spec start(module(), Host :: ejabberd:lserver(), Opts :: proplists:proplist(),
+            StartFun :: fun(() -> any())) -> any().
 start(Module, Host, Opts, StartFun) ->
     check_host(global_host, Opts),
     check_host(local_host, Opts),
@@ -36,18 +43,15 @@ start(Module, Host, Opts, StartFun) ->
     {global_host, GlobalHostList} = lists:keyfind(global_host, 1, Opts),
     case unicode:characters_to_binary(GlobalHostList) of
         Host ->
-            create_opts_ets(Module),
+            create_ets(Module),
             populate_opts_ets(Module, Opts),
             StartFun();
         _ ->
             ok
     end.
 
-check_host(Key, Opts) ->
-    {Key, HostList} = lists:keyfind(Key, 1, Opts),
-    Host = unicode:characters_to_binary(HostList),
-    lists:member(Host, ?MYHOSTS) orelse error(HostList ++ " is not a member of the host list").
-
+-spec stop(module(), Host :: ejabberd:lserver(), StopFun :: fun(() -> any())) ->
+                  any().
 stop(Module, Host, StopFun) ->
     case catch opt(Module, global_host) of
         Host ->
@@ -57,6 +61,9 @@ stop(Module, Host, StopFun) ->
             ok
     end.
 
+-spec deps(module(), Host :: ejabberd:lserver(), Opts :: proplists:proplist(),
+           DepsFun :: fun((proplists:proplist()) -> gen_mod:deps_list())) ->
+                           gen_mod:deps_list().
 deps(_Module, Host, Opts, DepsFun) ->
     {global_host, GlobalHostList} = lists:keyfind(global_host, 1, Opts),
     case unicode:characters_to_binary(GlobalHostList) of
@@ -64,6 +71,7 @@ deps(_Module, Host, Opts, DepsFun) ->
         _ -> []
     end.
 
+-spec opt(module(), Key :: atom()) -> Value :: term().
 opt(Module, Key) ->
     try ets:lookup_element(Module, Key, 2)
     catch
@@ -71,25 +79,31 @@ opt(Module, Key) ->
             error(atom_to_list(Module) ++ " required option unset: " ++ atom_to_list(Key))
     end.
 
-cast_or_call(Mod, Target, Message) ->
-    cast_or_call(Mod, Target, Message, 500).
+-spec cast_or_call(Target :: pid() | atom(), Message :: term()) -> any().
+cast_or_call(Target, Message) ->
+    cast_or_call(Target, Message, 500).
 
-cast_or_call(Mod, Target, Message, SyncWatermark) ->
-    cast_or_call(Mod, Target, Message, SyncWatermark, 5000).
+-spec cast_or_call(Target :: pid() | atom(), Message :: term(),
+                   SyncWatermark :: non_neg_integer()) ->
+                           any().
+cast_or_call(Target, Message, SyncWatermark) ->
+    cast_or_call(Target, Message, SyncWatermark, 5000).
 
-cast_or_call(Mod, Target, Message, SyncWatermark, Timeout) when is_atom(Target), Target =/= undefined ->
-    cast_or_call(Mod, whereis(Target), Message, SyncWatermark, Timeout);
-cast_or_call(Mod, Target, Message, SyncWatermark, Timeout) when is_pid(Target) ->
+-spec cast_or_call(Target :: pid() | atom(), Message :: term(),
+                   SyncWatermark :: non_neg_integer(), Timeout :: pos_integer() | infinity) ->
+                          any().
+cast_or_call(Target, Message, SyncWatermark, Timeout) when is_atom(Target), Target =/= undefined ->
+    cast_or_call(whereis(Target), Message, SyncWatermark, Timeout);
+cast_or_call(Target, Message, SyncWatermark, Timeout) when is_pid(Target) ->
     case process_info(Target, message_queue_len) of
-        {_, X} when X > SyncWatermark -> Mod:call(Target, Message, Timeout);
-        {_, _} -> Mod:cast(Target, Message)
+        {_, X} when X > SyncWatermark -> gen_server:call(Target, Message, Timeout);
+        {_, _} -> gen_server:cast(Target, Message)
     end.
 
-%%--------------------------------------------------------------------
-%% Helpers
-%%--------------------------------------------------------------------
-
-create_opts_ets(Module) ->
+-spec create_ets(Names :: [atom()] | atom()) -> any().
+create_ets(Names) when is_list(Names) ->
+    lists:foreach(fun create_ets/1, Names);
+create_ets(Name) ->
     Self = self(),
     Heir = case whereis(ejabberd_sup) of
                undefined -> none;
@@ -97,11 +111,39 @@ create_opts_ets(Module) ->
                Pid -> Pid
            end,
 
-    ets:new(Module, [named_table, public, {read_concurrency, true}, {heir, Heir, testing}]).
+    ets:new(Name, [named_table, public, {read_concurrency, true}, {heir, Heir, testing}]).
 
+-spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
+                               [endpoint()].
+resolve_endpoints(Endpoints) ->
+    lists:map(
+      fun({Addr, Port}) ->
+              case to_ip_tuple(Addr) of
+                  {ok, IpAddr} ->
+                      {IpAddr, Port};
+                  {error, {Reasonv6, Reasonv4}} ->
+                      ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
+                                 [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),
+                      error({Reasonv6, Reasonv4})
+              end
+      end,
+      Endpoints).
+
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
+
+-spec check_host(local_host | global_host, Opts :: proplists:proplist()) -> true.
+check_host(Key, Opts) ->
+    {Key, HostList} = lists:keyfind(Key, 1, Opts),
+    Host = unicode:characters_to_binary(HostList),
+    lists:member(Host, ?MYHOSTS) orelse error(HostList ++ " is not a member of the host list").
+
+-spec populate_opts_ets(module(), Opts :: proplists:proplist()) -> any().
 populate_opts_ets(Module, Opts) ->
     [ets:insert(Module, {Key, translate_opt(Value)}) || {Key, Value} <- Opts].
 
+-spec translate_opt(term()) -> term().
 translate_opt([Elem | _] = Opt) when is_list(Elem) ->
     [translate_opt(E) || E <- Opt];
 translate_opt(Opt) when is_list(Opt) ->
@@ -111,3 +153,16 @@ translate_opt(Opt) when is_list(Opt) ->
     end;
 translate_opt(Opt) ->
     Opt.
+
+-spec to_ip_tuple(Addr :: inet:ip_address() | string()) ->
+                         {ok, inet:ip_address()} | {error, {V6 :: atom(), V4 :: atom()}}.
+to_ip_tuple(Addr) ->
+    case inet:getaddr(Addr, inet6) of
+        {ok, Av6} -> {ok, Av6};
+        {error, Reasonv6} ->
+            case inet:getaddr(Addr, inet) of
+                {ok, Av4} -> {ok, Av4};
+                {error, Reasonv4} -> {error, {Reasonv6, Reasonv4}}
+            end
+    end.
+

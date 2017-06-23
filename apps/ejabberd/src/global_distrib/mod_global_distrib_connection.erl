@@ -1,4 +1,21 @@
+%%==============================================================================
+%% Copyright 2017 Erlang Solutions Ltd.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%==============================================================================
+
 -module(mod_global_distrib_connection).
+-author('konrad.zemek@erlang-solutions.com').
 
 -behaviour(gen_server).
 
@@ -6,30 +23,19 @@
 -include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
 
--export([start_link/1, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
+-export([start_link/1]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3, terminate/2]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
+-spec start_link(Server :: ejabberd:lserver()) -> {ok, pid()} | {error, any()}.
 start_link(Server) ->
     gen_server:start_link(?MODULE, Server, []).
 
-fetch_endpoint(Server) ->
-    {ok, Endpoints} = endpoints(Server),
-    N = random:uniform(length(Endpoints)),
-    lists:nth(N, Endpoints).
-
-endpoints(Server) ->
-    case ejabberd_config:get_local_option({global_distrib_addr, Server}) of
-        undefined -> mod_global_distrib_mapping:endpoints(Server);
-        Endpoints ->
-            ResolvedEndpoints = mod_global_distrib_receiver:parse_endpoints(Endpoints),
-            {ok, ResolvedEndpoints}
-    end.
-
 init(Server) ->
-    {Addr, Port} = fetch_endpoint(Server),
+    {Addr, Port} = choose_endpoint(Server),
     try
         {ok, Socket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
         {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, [connect | opt(tls_opts)]),
@@ -64,8 +70,31 @@ handle_info({tcp_closed, _}, Socket) ->
 handle_info(_, Socket) ->
     {noreply, Socket}.
 
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
 terminate(_Reason, _State) ->
     ignore.
 
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
+
+-spec opt(Key :: atom()) -> term().
 opt(Key) ->
     mod_global_distrib_utils:opt(mod_global_distrib_sender, Key).
+
+-spec choose_endpoint(Server :: ejabberd:lserver()) -> mod_global_distrib_utils:endpoint().
+choose_endpoint(Server) ->
+    {ok, Endpoints} = endpoints(Server),
+    N = random:uniform(length(Endpoints)),
+    lists:nth(N, Endpoints).
+
+-spec endpoints(Server :: ejabberd:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
+endpoints(Server) ->
+    case ejabberd_config:get_local_option({global_distrib_addr, Server}) of
+        undefined -> mod_global_distrib_mapping:endpoints(Server);
+        Endpoints ->
+            ResolvedEndpoints = mod_global_distrib_utils:resolve_endpoints(Endpoints),
+            {ok, ResolvedEndpoints}
+    end.

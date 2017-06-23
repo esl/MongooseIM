@@ -17,23 +17,23 @@
 -module(mod_global_distrib_mapping_redis).
 -author('konrad.zemek@erlang-solutions.com').
 
+-behaviour(mod_global_distrib_mapping).
+
 -include("ejabberd.hrl").
 
 -define(JIDS_ETS, mod_global_distrib_mapping_redis_jids).
 -define(DOMAINS_ETS, mod_global_distrib_mapping_redis_domains).
-
--behaviour(mod_global_distrib_mapping).
 
 -export([start/1, stop/0, refresh/0,
          put_session/1, get_session/1, delete_session/1,
          put_domain/1, get_domain/1, delete_domain/1,
          get_endpoints/1, get_domains/0]).
 
-
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
+-spec start(proplists:proplist()) -> any().
 start(Opts) ->
     Server = proplists:get_value(server, Opts, "127.0.0.1"),
     Port = proplists:get_value(port, Opts, 8102),
@@ -41,9 +41,7 @@ start(Opts) ->
     PoolSize = proplists:get_value(pool_size, Opts, 1),
     RefreshAfter = proplists:get_value(refresh_after, Opts, 60),
 
-    mod_global_distrib_utils:create_opts_ets(?MODULE),
-    mod_global_distrib_utils:create_opts_ets(?JIDS_ETS),
-    mod_global_distrib_utils:create_opts_ets(?DOMAINS_ETS),
+    mod_global_distrib_utils:create_ets([?MODULE, ?JIDS_ETS, ?DOMAINS_ETS]),
     ExpireAfter = proplists:get_value(expire_after, Opts, 120),
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
 
@@ -56,46 +54,129 @@ start(Opts) ->
     timer:apply_interval(timer:seconds(RefreshAfter), ?MODULE, refresh, []),
     ok.
 
+-spec stop() -> any().
 stop() ->
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
     [ets:delete(Tab) || Tab <- [?MODULE, ?JIDS_ETS, ?DOMAINS_ETS]].
 
+-spec put_session(Jid :: binary()) -> ok.
 put_session(Jid) ->
     ets:insert(?JIDS_ETS, {Jid}),
     do_put(Jid).
 
+-spec get_session(Jid :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
 get_session(Jid) ->
     do_get(Jid).
 
+-spec delete_session(Jid :: binary()) -> ok.
 delete_session(Jid) ->
     ets:delete(?JIDS_ETS, Jid),
     do_delete(Jid).
+put_domain(Domain) ->
+    ets:insert(?DOMAINS_ETS, {Domain}),
+    {ok, _} = q([<<"SADD">>, domains_key(), Domain]),
+    do_put(Domain).
 
-do_put(Key) ->
-    LocalHost = opt(local_host),
-    {ok, _} = q([<<"SET">>, Key, LocalHost, <<"EX">>, expire_after()]),
-    {ok, LocalHost}.
+-spec get_domain(Domain :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
+get_domain(Domain) ->
+    do_get(Domain).
 
-do_get(Key) ->
-    case q([<<"GET">>, Key]) of
-        {ok, undefined} -> error;
-        {ok, Host} -> {ok, Host}
-    end.
+-spec delete_domain(Domain :: binary()) -> ok.
+delete_domain(Domain) ->
+    ets:delete(?DOMAINS_ETS, Domain),
+    do_delete(Domain),
+    {ok, _} = q([<<"SREM">>, domains_key(), Domain]),
+    ok.
 
-do_delete(Key) ->
-    LocalHost = opt(local_host),
-    case q([<<"GET">>, Key]) of
-        {ok, LocalHost} -> {ok, _} = q([<<"DEL">>, Key]);
-        _ -> ok
-    end.
+-spec get_domains() -> {ok, [Domain :: binary()]}.
+get_domains() ->
+    Hosts = get_hosts(),
+    Nodes = lists:flatmap(fun(Host) -> [{Host, Node} || Node <- get_nodes(Host)] end, Hosts),
+    Keys = [domains_key(Host, Node) || {Host, Node} <- Nodes],
+    {ok, _Domains} = q([<<"SUNION">> | Keys]).
 
+-spec get_endpoints(Host :: ejabberd:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 get_endpoints(Host) ->
     Nodes = [_ | _] = get_nodes(Host), %% TODO: error: unknown host
     EndpointKeys = [endpoints_key(Host, Node) || Node <- Nodes],
     {ok, BinEndpoints} = q([<<"SUNION">> | EndpointKeys]),
     {ok, lists:map(fun binary_to_endpoint/1, BinEndpoints)}.
 
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
+
+-spec q(Args :: list()) -> {ok, term()}.
+q(Args) ->
+    {ok, _} = eredis:q(wpool_pool:best_worker(?MODULE), Args).
+
+-spec nodes_key() -> binary().
+nodes_key() ->
+    LocalHost = opt(local_host),
+    nodes_key(LocalHost).
+
+-spec nodes_key(Host :: ejabberd:lserver()) -> binary().
+nodes_key(Host) ->
+    <<Host/binary, "#{nodes}">>.
+
+-spec endpoints_key() -> binary().
+endpoints_key() ->
+    key(<<"endpoints">>).
+
+-spec endpoints_key(Host :: ejabberd:lserver(), Node :: binary()) -> binary().
+endpoints_key(Host, Node) ->
+    key(Host, Node, <<"endpoints">>).
+
+-spec domains_key() -> binary().
+domains_key() ->
+    key(<<"domains">>).
+
+-spec domains_key(Host :: ejabberd:lserver(), Node :: binary()) -> binary().
+domains_key(Host, Node) ->
+    key(Host, Node, <<"domains">>).
+
+-spec key(Type :: binary()) -> binary().
+key(Type) ->
+    LocalHost = opt(local_host),
+    Node = atom_to_binary(node(), latin1),
+    key(LocalHost, Node, Type).
+
+-spec key(Host :: ejabberd:lserver(), Node :: binary(), Type :: binary()) -> binary().
+key(Host, Node, Type) ->
+    <<Host/binary, "#", Node/binary, "#{", Type/binary, "}">>.
+
+-spec opt(Key :: atom()) -> term().
+opt(Key) ->
+    mod_global_distrib_utils:opt(mod_global_distrib_mapping, Key).
+
+-spec expire_after() -> pos_integer().
+expire_after() ->
+    ets:lookup_element(?MODULE, expire_after, 2).
+
+-spec do_put(Key :: binary()) -> ok.
+do_put(Key) ->
+    LocalHost = opt(local_host),
+    {ok, _} = q([<<"SET">>, Key, LocalHost, <<"EX">>, expire_after()]),
+    ok.
+
+-spec do_get(Key :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
+do_get(Key) ->
+    case q([<<"GET">>, Key]) of
+        {ok, undefined} -> error;
+        {ok, Host} -> {ok, Host}
+    end.
+
+-spec do_delete(Key :: binary()) -> ok.
+do_delete(Key) ->
+    LocalHost = opt(local_host),
+    case q([<<"GET">>, Key]) of
+        {ok, LocalHost} -> {ok, _} = q([<<"DEL">>, Key]);
+        _ -> ok
+    end,
+    ok.
+
+-spec refresh() -> any().
 refresh() ->
     refresh_hosts(),
     refresh_nodes(),
@@ -103,13 +184,16 @@ refresh() ->
     refresh_endpoints(),
     refresh_domains().
 
+-spec refresh_hosts() -> any().
 refresh_hosts() ->
     q([<<"SADD">>, <<"hosts">>, opt(local_host)]).
 
+-spec get_hosts() -> [Host :: ejabberd:lserver()].
 get_hosts() ->
     {ok, Hosts} = q([<<"SMEMBERS">>, <<"hosts">>]),
     Hosts.
 
+-spec refresh_nodes() -> any().
 refresh_nodes() ->
     NodesKey = nodes_key(),
     Now = p1_time_compat:system_time(seconds),
@@ -119,10 +203,12 @@ refresh_nodes() ->
     end,
     q([<<"HSET">>, NodesKey, atom_to_binary(node(), latin1), Now]).
 
+-spec get_nodes(Host :: ejabberd:lserver()) -> [Node :: binary()].
 get_nodes(Host) ->
     {ok, Nodes} = q([<<"HKEYS">>, nodes_key(Host)]),
     Nodes.
 
+-spec get_expired_nodes(Now :: integer()) -> [Node :: binary()].
 get_expired_nodes(Now) ->
     {ok, Results} = q([<<"HGETALL">>, nodes_key()]),
     lists:foldl(
@@ -139,27 +225,33 @@ get_expired_nodes(Now) ->
       [],
       Results).
 
+-spec refresh_jids() -> any().
 refresh_jids() ->
     ets:foldl(fun({Jid}, _) -> refresh_jid(Jid) end, [], ?JIDS_ETS).
 
+-spec refresh_jid(Jid :: binary()) -> any().
 refresh_jid(Jid) ->
     LocalHost = opt(local_host),
     q([<<"SET">>, Jid, LocalHost, <<"EX">>, expire_after()]). %% TODO: log error
 
+-spec refresh_endpoints() -> any().
 refresh_endpoints() ->
     EndpointsKey = endpoints_key(),
     BinEndpoints = lists:map(fun endpoint_to_binary/1, mod_global_distrib_receiver:endpoints()),
     refresh_set(EndpointsKey, BinEndpoints).
 
+-spec endpoint_to_binary(mod_global_distrib_utils:endpoint()) -> binary().
 endpoint_to_binary({IpAddr, Port}) ->
     iolist_to_binary([inet:ntoa(IpAddr), "#", integer_to_binary(Port)]).
 
+-spec binary_to_endpoint(binary()) -> mod_global_distrib_utils:endpoint().
 binary_to_endpoint(Bin) ->
     [Addr, BinPort] = binary:split(Bin, <<"#">>),
     {ok, IpAddr} = inet:parse_address(binary_to_list(Addr)),
     Port = binary_to_integer(BinPort),
     {IpAddr, Port}.
 
+-spec refresh_domains() -> any().
 refresh_domains() ->
     LocalHost = opt(local_host),
     DomainsKey = domains_key(),
@@ -170,11 +262,12 @@ refresh_domains() ->
                   end,
                   Domains).
 
+-spec refresh_set(Key :: binary(), Members :: [binary()]) -> any().
 refresh_set(Key, Members) ->
     q([<<"PERSIST">>, Key]),
 
     ToDelete =
-        case q([<<"SMEMBERS">>, Key]) of
+        case catch q([<<"SMEMBERS">>, Key]) of
             {ok, ExistingMembers} ->
                 ordsets:subtract(ordsets:from_list(ExistingMembers),
                                  ordsets:from_list(Members));
@@ -193,58 +286,3 @@ refresh_set(Key, Members) ->
     end,
     q([<<"EXPIRE">>, Key, expire_after()]).
 
-put_domain(Domain) ->
-    ets:insert(?DOMAINS_ETS, {Domain}),
-    {ok, _} = q([<<"SADD">>, domains_key(), Domain]),
-    do_put(Domain).
-
-get_domain(Domain) ->
-    do_get(Domain).
-
-delete_domain(Domain) ->
-    ets:delete(?DOMAINS_ETS, Domain),
-    do_delete(Domain),
-    {ok, _} = q([<<"SREM">>, domains_key(), Domain]),
-    ok.
-
-get_domains() ->
-    Hosts = get_hosts(),
-    Nodes = lists:flatmap(fun(Host) -> [{Host, Node} || Node <- get_nodes(Host)] end, Hosts),
-    Keys = [domains_key(Host, Node) || {Host, Node} <- Nodes],
-    {ok, _Domains} = q([<<"SUNION">> | Keys]).
-
-q(Args) ->
-    {ok, _} = eredis:q(wpool_pool:best_worker(?MODULE), Args).
-
-nodes_key() ->
-    LocalHost = opt(local_host),
-    nodes_key(LocalHost).
-
-nodes_key(Host) ->
-    <<Host/binary, "#{nodes}">>.
-
-endpoints_key() ->
-    key(<<"endpoints">>).
-
-endpoints_key(Host, Node) ->
-    key(Host, Node, <<"endpoints">>).
-
-domains_key() ->
-    key(<<"domains">>).
-
-domains_key(Host, Node) ->
-    key(Host, Node, <<"domains">>).
-
-key(Type) ->
-    LocalHost = opt(local_host),
-    Node = atom_to_binary(node(), latin1),
-    key(LocalHost, Node, Type).
-
-key(Host, Node, Type) ->
-    <<Host/binary, "#", Node/binary, "#{", Type/binary, "}">>.
-
-opt(Key) ->
-    mod_global_distrib_utils:opt(mod_global_distrib_mapping, Key).
-
-expire_after() ->
-    ets:lookup_element(?MODULE, expire_after, 2).

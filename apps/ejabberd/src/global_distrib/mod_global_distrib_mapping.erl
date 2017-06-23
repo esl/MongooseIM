@@ -26,8 +26,8 @@
 -define(JID_TAB, mod_global_distrib_jid_cache_tab).
 
 -export([start/2, stop/1, deps/2]).
--export([for_domain/1, insert_for_domain/2, delete_for_domain/2, all_domains/0]).
--export([for_jid/1, insert_for_jid/2, delete_for_jid/2, clear_cache_for_jid/1]).
+-export([for_domain/1, insert_for_domain/1, delete_for_domain/1, all_domains/0]).
+-export([for_jid/1, insert_for_jid/1, delete_for_jid/1, clear_cache_for_jid/1]).
 -export([register_subhost/2, unregister_subhost/2, user_present/2, user_not_present/5]).
 -export([endpoints/1]).
 
@@ -50,30 +50,21 @@
 %% API
 %%--------------------------------------------------------------------
 
-start(Host, Opts0) ->
-    Opts = [{backend, redis}, {redis, [no_opts]}, {cache_missed, true},
-            {domain_lifetime_seconds, 600}, {jid_lifetime_seconds, 5}, {max_jids, 10000} | Opts0],
-    mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
-
-stop(Host) ->
-    mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
-
-deps(Host, Opts) ->
-    mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
-
-deps(_Opts) ->
-    [{mod_global_distrib_receiver, hard}].
-
+-spec for_domain(Domain :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
 for_domain(Domain) when is_binary(Domain) ->
     ets_cache:lookup(?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end).
 
-insert_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
-    ets_cache:update(?DOMAIN_TAB, Domain, {ok, Host}, fun() -> put_domain(Domain) end).
+-spec insert_for_domain(Domain :: binary()) -> ok.
+insert_for_domain(Domain) when is_binary(Domain) ->
+    LocalHost = opt(local_host),
+    ets_cache:update(?DOMAIN_TAB, Domain, {ok, LocalHost}, fun() -> put_domain(Domain) end).
 
-delete_for_domain(Domain, _Host) when is_binary(Domain), is_binary(_Host) ->
+-spec delete_for_domain(Domain :: binary()) -> ok.
+delete_for_domain(Domain) when is_binary(Domain) ->
     delete_domain(Domain),
     ets_cache:delete(?DOMAIN_TAB, Domain).
 
+-spec for_jid(jid() | ljid()) -> {ok, Host :: ejabberd:lserver()} | error.
 for_jid(#jid{} = Jid) -> for_jid(jid:to_lower(Jid));
 for_jid({_, _, _} = Jid) ->
     BinJid = jid:to_binary(Jid),
@@ -87,19 +78,23 @@ for_jid({_, _, _} = Jid) ->
             end
     end.
 
-insert_for_jid(#jid{} = Jid, Host) -> insert_for_jid(jid:to_lower(Jid), Host);
-insert_for_jid({_, _, _} = Jid, Host) when is_binary(Host) ->
+-spec insert_for_jid(jid() | ljid()) -> ok.
+insert_for_jid(#jid{} = Jid) -> insert_for_jid(jid:to_lower(Jid));
+insert_for_jid({_, _, _} = Jid) ->
+    LocalHost = opt(local_host),
     lists:foreach(
       fun(BinJid) ->
-              ets_cache:update(?JID_TAB, BinJid, {ok, Host}, fun() -> put_session(BinJid) end)
+              ets_cache:update(?JID_TAB, BinJid, {ok, LocalHost}, fun() -> put_session(BinJid) end)
       end,
       normalize_jid(Jid)).
 
+-spec clear_cache_for_jid(Jid :: binary()) -> ok.
 clear_cache_for_jid(Jid) when is_binary(Jid) ->
     ets_cache:delete(?JID_TAB, Jid).
 
-delete_for_jid(#jid{} = Jid, Host) -> delete_for_jid(jid:to_lower(Jid), Host);
-delete_for_jid({_, _, _} = Jid, _Host) when is_binary(_Host) ->
+-spec delete_for_jid(jid() | ljid()) -> ok.
+delete_for_jid(#jid{} = Jid) -> delete_for_jid(jid:to_lower(Jid));
+delete_for_jid({_, _, _} = Jid) ->
     lists:foreach(
       fun(BinJid) ->
               delete_session(BinJid),
@@ -107,31 +102,52 @@ delete_for_jid({_, _, _} = Jid, _Host) when is_binary(_Host) ->
       end,
       normalize_jid(Jid)).
 
+-spec all_domains() -> {ok, [ejabberd:lserver()]}.
 all_domains() ->
     mod_global_distrib_mapping_backend:get_domains().
 
+-spec endpoints(Host :: ejabberd:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 endpoints(Host) ->
     mod_global_distrib_mapping_backend:get_endpoints(Host).
+
+%%--------------------------------------------------------------------
+%% gen_mod API
+%%--------------------------------------------------------------------
+
+-spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
+start(Host, Opts0) ->
+    Opts = [{backend, redis}, {redis, [no_opts]}, {cache_missed, true},
+            {domain_lifetime_seconds, 600}, {jid_lifetime_seconds, 5}, {max_jids, 10000} | Opts0],
+    mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
+
+-spec stop(Host :: ejabberd:lserver()) -> any().
+stop(Host) ->
+    mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
+
+-spec deps(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+deps(Host, Opts) ->
+    mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 
 %%--------------------------------------------------------------------
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec user_present(Acc :: map(), UserJID :: ejabberd:jid()) -> ok.
+-spec user_present(mongoose_acc:t(), UserJID :: jid()) -> mongoose_acc:t().
 user_present(Acc, #jid{} = UserJid) ->
-    insert_for_jid(UserJid, opt(local_host)),
+    insert_for_jid(UserJid),
     Acc.
 
--spec user_not_present(Acc :: map(),
+-spec user_not_present(mongoose_acc:t(),
                        User     :: ejabberd:luser(),
                        Server   :: ejabberd:lserver(),
                        Resource :: ejabberd:lresource(),
-                       _Status :: any()) -> ok.
+                       _Status :: any()) -> mongoose_acc:t().
 user_not_present(Acc, User, Host, Resource, _Status) ->
     UserJid = {User, Host, Resource},
-    delete_for_jid(UserJid, opt(local_host)),
+    delete_for_jid(UserJid),
     Acc.
 
+-spec register_subhost(any(), SubHost :: binary()) -> ok.
 register_subhost(_, SubHost) ->
     IsSubhostOf =
         fun(Host) ->
@@ -143,17 +159,23 @@ register_subhost(_, SubHost) ->
 
     GlobalHost = opt(global_host),
     case lists:filter(IsSubhostOf, ?MYHOSTS) of
-        [GlobalHost] -> insert_for_domain(SubHost, opt(local_host));
+        [GlobalHost] -> insert_for_domain(SubHost);
         _ -> ok
     end.
 
+-spec unregister_subhost(any(), SubHost :: binary()) -> ok.
 unregister_subhost(_, SubHost) ->
-    delete_for_domain(SubHost, opt(local_host)).
+    delete_for_domain(SubHost).
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
+-spec deps(proplists:proplist()) -> gen_mod:deps_list().
+deps(_Opts) ->
+    [{mod_global_distrib_receiver, hard}].
+
+-spec start() -> any().
 start() ->
     Host = opt(global_host),
     Backend = opt(backend),
@@ -174,6 +196,7 @@ start() ->
     ets_cache:new(?JID_TAB, [{cache_missed, CacheMissed}, {life_time, JidLifetime},
                              {max_size, MaxJids}]).
 
+-spec stop() -> any().
 stop() ->
     Host = opt(global_host),
 
@@ -187,30 +210,37 @@ stop() ->
 
     mod_global_distrib_mapping_backend:stop().
 
-
+-spec normalize_jid(ljid()) -> [binary()].
 normalize_jid({_, _, _} = FullJid) ->
     case jid:to_bare(FullJid) of
         FullJid -> [jid:to_binary(FullJid)];
         BareJid -> [jid:to_binary(FullJid), jid:to_binary(BareJid)]
     end.
 
+-spec opt(Key :: atom()) -> term().
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
 
+-spec get_session(Key :: binary()) -> {ok, term()} | error.
 get_session(Key) ->
     mod_global_distrib_mapping_backend:get_session(Key).
 
+-spec put_session(Key :: binary()) -> ok.
 put_session(Key) ->
     mod_global_distrib_mapping_backend:put_session(Key).
 
+-spec delete_session(Key :: binary()) -> ok.
 delete_session(Key) ->
     mod_global_distrib_mapping_backend:delete_session(Key).
 
+-spec get_domain(Key :: binary()) -> {ok, term()} | error.
 get_domain(Key) ->
     mod_global_distrib_mapping_backend:get_domain(Key).
 
+-spec put_domain(Key :: binary()) -> ok.
 put_domain(Key) ->
     mod_global_distrib_mapping_backend:put_domain(Key).
 
+-spec delete_domain(Key :: binary()) -> ok.
 delete_domain(Key) ->
     mod_global_distrib_mapping_backend:delete_domain(Key).

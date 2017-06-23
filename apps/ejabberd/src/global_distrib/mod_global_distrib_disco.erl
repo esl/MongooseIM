@@ -64,13 +64,16 @@ get_disco_items(Acc, _From, _To, _Node, _Lang) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+-spec start() -> any().
 start() ->
     Host = opt(global_host),
     ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_disco_items, 99).
 
+-spec stop() -> any().
 stop() ->
     Host = opt(global_host),
     ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_disco_items, 99).
 
+-spec opt(Key :: atom()) -> term().
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).

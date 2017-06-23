@@ -25,18 +25,19 @@
 -export([deps/2, start/2, stop/1, maybe_reroute/1]).
 
 %%--------------------------------------------------------------------
-%% API
+%% gen_mod API
 %%--------------------------------------------------------------------
 
+-spec deps(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Host, Opts) ->
     mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
+-spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     Opts = [{message_ttl, 4} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: ejabberd:server()) -> any().
+-spec stop(Host :: ejabberd:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
@@ -44,6 +45,8 @@ stop(Host) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
+-spec maybe_reroute(drop) -> drop;
+                   ({jid(), jid(), mongoose_acc:t()}) -> drop | {jid(), jid(), mongoose_acc:t()}.
 maybe_reroute(drop) -> drop;
 maybe_reroute({From, To, Acc} = FPacket) ->
     LocalHost = opt(local_host),
@@ -65,6 +68,7 @@ maybe_reroute({From, To, Acc} = FPacket) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+-spec deps(Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Opts) ->
     ConnectionsOpts = proplists:get_value(connections, Opts, []),
     CacheOpts = proplists:get_value(cache, Opts, []),
@@ -79,9 +83,11 @@ deps(Opts) ->
         _ -> [{mod_global_distrib_bounce, BounceOpts ++ Opts, hard} | Deps0]
     end.
 
+-spec start() -> any().
 start() ->
     ejabberd_hooks:add(filter_packet, global, ?MODULE, maybe_reroute, 99).
 
+-spec stop() -> any().
 stop() ->
     ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_reroute, 99).
 
@@ -93,5 +99,6 @@ lookup_recipients_host(#jid{lserver = HostAddressedTo} = To, LocalHost, GlobalHo
         _ -> mod_global_distrib_mapping:for_domain(HostAddressedTo)
     end.
 
+-spec opt(Key :: atom()) -> term().
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
