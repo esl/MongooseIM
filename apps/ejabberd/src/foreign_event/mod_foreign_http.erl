@@ -16,37 +16,76 @@
 
 -module(mod_foreign_http).
 -author('szymon.mentel@erlang-solutions.com').
+%% Shall that be mod?
 -behaviour(mod_foreign).
 
 -include("jlib.hrl").
 -include("ejabberd.hrl").
 
--export([make_request/2]).
+-export([start/2, make_request/2]).
+
+-type pool_size() :: non_neg_integer().
+%% passed from the backend opts from the config file
+-type opt() :: {pool_size, pool_size()}.
+
+-define(DEFAULT_POOL_SIZE, 100).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
+-spec start(ejabberd:server(), [opt()]) -> ok | {error, term()}.
+start(Host, Opts) ->
+    application:ensure_all_started(worker_pool),
+    wpool:start_sup_pool(pool_name(Host), [{workers, pool_size(Opts)}]).
+
+-spec make_request(mod_foreign:foreign_request(), mod_foreign:on_response())
+                  -> ok | error.
 make_request(Request, OnResponse) ->
-    spawn(fun() ->
-            {Host, Path, Method, Headers, Body} = parse(Request),
-            Response = do_make_request(Host, Path, Method, Headers, Body),
-            respond(encode(Response), OnResponse)
-          end),
-    ok.
+    case parse(Request) of
+        {error, _Error} ->
+            error;
+        {ok, {Host, Path, Method, Headers, Body}} ->
+            spawn(fun() ->
+                          Response = do_make_request(Host, Path, Method, Headers, Body),
+                          respond(encode(Response), OnResponse)
+                  end),
+            ok
+    end.
 
 %%--------------------------------------------------------------------
 %% Internals: parsing
 %%--------------------------------------------------------------------
 
+-spec parse(xmlel()) ->  {ok, {Host :: string(),
+                               Path :: string(),
+                               Method :: binary(),
+                               Headers :: [{Key :: binary(), Value :: binary()}],
+                               Payload :: binary()}}
+                             | {error, [Reason :: term()]}.
 parse(Request) ->
-    {Host, Path} = parse_url(Request),
-    {Host, Path, parse_method(Request), parse_headers(Request), parse_body(Request)}.
+    {Host, Path} = HP =  parse_url(Request),
+    Method = parse_method(Request),
+    Headers = parse_headers(Request),
+    Body = parse_body(Request),
+    case lists:foldl(fun({error, E}, Errors) -> [E | Errors];
+                        (_, Errors) -> Errors
+                     end, [],
+                     [HP, Method, Headers, Body])
+    of
+        [_] = Errors ->
+            {error, Errors};
+        [] ->
+            {ok, {Host, Path, Method, Headers, Body}}
+    end.
+
 
 parse_url(#xmlel{} = Request) ->
-    [Url] = exml_query:paths(Request, [{attr, <<"url">>}]),
+    Url = exml_query:path(Request, [{attr, <<"url">>}]),
     do_parse_url(Url).
 
+do_parse_url(undefined) ->
+    {error, no_url};
 do_parse_url(<<"http://", Rest/binary>>) ->
     do_parse_url(<<"http://">>, Rest);
 do_parse_url(<<"https://", Rest/binary>>) ->
@@ -64,13 +103,17 @@ do_parse_url(Scheme, Rest) ->
     {binary_to_list(<<Scheme/binary, Host/binary>>), Path}.
 
 parse_method(#xmlel{} = Request) ->
-    [Method] = exml_query:paths(Request, [{attr, <<"method">>}]),
+    Method = exml_query:path(Request, [{attr, <<"method">>}]),
     do_parse_method(Method).
 
+do_parse_method(undefined) ->
+    {error, no_http_method};
 do_parse_method(<<"get">>) ->
     <<"GET">>;
 do_parse_method(<<"post">>) ->
-    <<"POST">>.
+    <<"POST">>;
+do_parse_method(_UnknownMethod) ->
+    {error, unknown_http_method}.
 
 parse_headers(#xmlel{} = Request) ->
     Headers = exml_query:paths(Request, [{element, <<"header">>}]),
@@ -119,3 +162,15 @@ respond(_Response, noreply) ->
     do_nothing;
 respond(Response, OnResponse) ->
     OnResponse(Response).
+
+%%--------------------------------------------------------------------
+%% Internals: request
+%%--------------------------------------------------------------------
+
+-spec pool_name(Host :: ejabberd:lserver()) -> atom().
+pool_name(Host) ->
+    gen_mod:get_module_proc(Host, ?MODULE).
+
+-spec pool_size([opt()]) -> pool_size().
+pool_size(Opts) ->
+    proplists:get_value(pool_size, Opts, ?DEFAULT_POOL_SIZE).

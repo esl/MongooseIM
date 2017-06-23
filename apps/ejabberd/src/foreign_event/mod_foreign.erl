@@ -51,6 +51,8 @@
 -type on_request() :: fun((foreign_request()) -> term()).
 -type on_response() :: fun((foreign_response()) -> term()).
 
+-export_type([foreign_request/0, on_response/0]).
+
 %%--------------------------------------------------------------------
 %% Callbacks
 %%--------------------------------------------------------------------
@@ -130,8 +132,14 @@ my_disco_name(Lang) ->
                              iq()) -> iq().
 maybe_dispatch_request(<<"http">>, Request, OnReqPublish, OnRespPublish, IQ) ->
     publish_request(OnReqPublish, Request),
-    mod_foreign_http:make_request(Request, publish_response_fun(OnRespPublish)),
-    IQ#iq{type = result, sub_el = []};
+    case mod_foreign_http:make_request(Request,
+                                       publish_response_fun(OnRespPublish))
+    of
+        ok ->
+            IQ#iq{type = result, sub_el = []};
+        error ->
+            IQ#iq{type = error, sub_el = ?ERR_BAD_REQUEST}
+    end;
 maybe_dispatch_request(_, _, _, _, IQ) ->
     IQ#iq{type = error, sub_el = ?ERR_FEATURE_NOT_IMPLEMENTED}.
 

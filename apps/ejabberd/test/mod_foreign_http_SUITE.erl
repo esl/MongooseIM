@@ -27,10 +27,35 @@
                         "<payload>'{\"key\":\"value\"}'</payload>"
                       "</response>">>).
 
+-define(REQUEST_NO_URL,  <<"<request xmlns='", ?NS_FOREIGN_EVENT_HTTP/binary, "' "
+                           "type='http' "
+                           "method='get'>"
+                           "<header name='content-type'>application-json</header>"
+                           "<header name='token'>token</header>"
+                           "<payload>'{\"key\":\"value\"}'</payload>"
+                           "</request>">>).
+-define(REQUEST_BAD_METHOD,  <<"<request xmlns='", ?NS_FOREIGN_EVENT_HTTP/binary, "' "
+                               "type='http' "
+                               "url='http://localhost:8080' "
+                               "method='set'>"
+                               "<header name='content-type'>application-json</header>"
+                               "<header name='token'>token</header>"
+                               "<payload>'{\"key\":\"value\"}'</payload>"
+                               "</request>">>).
+-define(REQUEST_BAD_URL,  <<"<request xmlns='", ?NS_FOREIGN_EVENT_HTTP/binary, "' "
+                            "type='http' "
+                            "url='smb://localhost:8080' "
+                            "method='get'>"
+                            "<header name='content-type'>application-json</header>"
+                            "<header name='token'>token</header>"
+                            "<payload>'{\"key\":\"value\"}'</payload>"
+                            "</request>">>).
+
 
 
 all() -> [
-          makes_http_request
+          makes_http_request,
+          responds_with_error_on_malformed_request
          ].
 
 init_per_suite(Config) ->
@@ -41,6 +66,23 @@ end_per_suite(_Config) ->
     http_helper:stop().
 
 %% Tests
+
+responds_with_error_on_malformed_request(_Config) ->
+    %% GIVEN
+    {ok, Request1} = exml:parse(?REQUEST_NO_URL),
+    {ok, Request2} = exml:parse(?REQUEST_BAD_METHOD),
+    {ok, Request3} = exml:parse(?REQUEST_BAD_URL),
+    Self = self(),
+    OnResponse = fun(Resp) -> Self ! Resp end,
+
+    [begin
+         %% WHEN
+         Result = mod_foreign_http:make_request(R, OnResponse),
+
+         %% THEN
+         ?assertMatch(error, Result),
+         ?assertEqual(no_message, receive X -> X after 100 -> no_message end)
+     end || R <- [Request1, Request2, Request3]].
 
 makes_http_request(_Config) ->
     %% GIVEN
@@ -61,7 +103,9 @@ makes_http_request(_Config) ->
     ActualHeaders = parse_headers(ActualResponse),
     ?assertMatch(A, E),
     [?assert(lists:any(fun(H) -> H =:= Header end, ActualHeaders)) ||
-     Header <- Headers].
+        Header <- Headers].
+
+
 
 %% Helpers
 

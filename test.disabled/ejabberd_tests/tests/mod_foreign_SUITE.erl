@@ -32,6 +32,14 @@
                    "name='", NodeName/binary, "'/>">>).
 
 
+-define(REQUEST_NO_URL,  <<"<request xmlns='", ?NS_FOREIGN_EVENT_HTTP/binary, "' "
+                           "type='http' "
+                           "method='get'>"
+                           "<header name='content-type'>application-json</header>"
+                           "<header name='token'>token</header>"
+                           "<payload>'{\"key\":\"value\"}'</payload>"
+                           "</request>">>).
+
 -define(OPTS,
         [
          {backends, [
@@ -54,6 +62,7 @@ groups() ->
                         foreign_event_without_request_node,
                         foreign_event_without_request_type,
                         foreign_event_with_unknown_request_type,
+                        foreign_event_with_malformed_reqeust,
                         foreign_event_http_success,
                         publishes_to_pubsub,
                         http_request_with_pubsub_publication
@@ -140,6 +149,34 @@ foreign_event_without_request_type(Config) ->
                       ?assertEqual(<<"modify">>, ErrorType),
                       ?assertMatch([_], exml_query:paths(Error, [{element, <<"bad-request">>}]))
                   end).
+
+foreign_event_with_malformed_reqeust(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{bob, 1}],
+      fun(Bob) ->
+              %% GIVEN
+              PubElements = [publish_element(Type, _NodeName = <<"no-matter">>)
+                             || Type <- [<<"request">>, <<"response">>]],
+              ForeignEventJID = foreign_service(),
+              Stanza = foreign_event_iq(
+                         ForeignEventJID,
+                         PubElements ++ [malformed_request_element()]),
+
+              %% WHEN
+              Result = escalus:send_and_wait(Bob, Stanza),
+
+              %% THEN
+              escalus:assert(is_iq_error, Result),
+              Error = exml_query:subelement(Result, <<"error">>),
+              ?assertNotEqual(undefined, Error),
+              ErrorCode = exml_query:attr(Error, <<"code">>),
+              ErrorType = exml_query:attr(Error, <<"type">>),
+              ?assertEqual(<<"400">>, ErrorCode),
+              ?assertEqual(<<"modify">>, ErrorType),
+              ?assertMatch([_], exml_query:paths(Error, [{element, <<"bad-request">>}]))
+      end).
+
 
 
 %%--------------------------------------------------------------------
@@ -244,9 +281,9 @@ http_request_with_pubsub_publication(Config) ->
               %% THEN
               escalus:assert(is_iq_result, Result),
               Received = escalus:wait_for_stanzas(Alice, 2),
-              Preds = [fun(Stanza) ->
+              Preds = [fun(ReceivedStanza) ->
                                assert_pubsub_notification_with_payload_element(
-                                 NodeName, El, Stanza)
+                                 NodeName, El, ReceivedStanza)
                        end || El <- [<<"request">>, <<"response">>]],
               escalus:assert_many(Preds, Received),
               escalus_assert:has_no_stanzas(Alice),
@@ -282,6 +319,10 @@ foreign_event_iq(To, Children) ->
                           attrs = [{<<"xmlns">>, ?NS_FOREIGN_EVENT}],
                           children = Children},
     escalus_stanza:iq(To, <<"set">>, [ForeignEvent]).
+
+malformed_request_element() ->
+    {ok, Request} = exml:parse(?REQUEST_NO_URL),
+    Request.
 
 request_element() ->
     {ok, Request} = exml:parse(?REQUEST),
