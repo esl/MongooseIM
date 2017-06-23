@@ -61,11 +61,7 @@
 -spec start(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> ok.
 start(Host, Opts) ->
     MUCHost = gen_mod:get_opt_subhost(Host, muc_host, Opts, mod_muc:default_host()),
-    ejabberd_hooks:add(room_send_packet, MUCHost, ?MODULE, room_send_packet, 90),
-    ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(user_available_hook, Host, ?MODULE, user_present, 90),
-    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
+    ejabberd_hooks:add(hooks(Host, MUCHost)),
 
     application:ensure_all_started(erlcloud),
     application:ensure_all_started(worker_pool),
@@ -89,16 +85,18 @@ start(Host, Opts) ->
 -spec stop(Host :: ejabberd:server()) -> ok.
 stop(Host) ->
     MUCHost = gen_mod:get_module_opt_subhost(Host, ?MODULE, mod_muc:default_host()),
-    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
-    ejabberd_hooks:delete(user_available_hook, Host, ?MODULE, user_present, 90),
-    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
+    ejabberd_hooks:delete(hooks(Host, MUCHost)),
 
     wpool:stop(pool_name(Host)),
 
     ok.
 
+hooks(Host, MUCHost) ->
+    [{room_send_packet, MUCHost, ?MODULE, room_send_packet, 90},
+     {rest_user_send_packet, Host, ?MODULE, user_send_packet, 90},
+     {user_send_packet, Host, ?MODULE, user_send_packet, 90},
+     {user_available_hook, Host, ?MODULE, user_present, 90},
+     {unset_presence_hook, Host, ?MODULE, user_not_present, 90}].
 
 %% Handle user_send_packet hook
 -spec user_send_packet(Acc :: map(), From :: ejabberd:jid(), To :: ejabberd:jid(),
