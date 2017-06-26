@@ -54,7 +54,7 @@ start_link(Ref, Socket, ranch_tcp, Opts) ->
 -spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     {local_host, LocalHost} = lists:keyfind(local_host, 1, Opts0),
-    Opts = [{endpoints, [{LocalHost, 5555}]}, {num_of_workers, 10} | Opts0],
+    Opts = [{endpoints, [{LocalHost, 5555}]} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 -spec stop(Host :: ejabberd:lserver()) -> any().
