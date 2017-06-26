@@ -57,7 +57,8 @@ maybe_reroute({From, To, Acc} = FPacket) ->
                 0 -> FPacket;
                 TTL ->
                     Acc1 = mongoose_acc:put(distrib_ttl, TTL - 1, Acc),
-                    mod_global_distrib_sender:send(TargetHost, {From, To, Acc1}),
+                    Worker = get_bound_connection(TargetHost),
+                    mod_global_distrib_sender:send(Worker, {From, To, Acc1}),
                     drop
             end;
         _ ->
@@ -67,6 +68,21 @@ maybe_reroute({From, To, Acc} = FPacket) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+-spec get_bound_connection(Server :: ejabberd:lserver()) -> pid().
+get_bound_connection(Server) ->
+    get_bound_connection(Server, get({connection, Server})).
+
+-spec get_bound_connection(Server :: ejabberd:lserver(), pid() | undefined) -> pid().
+get_bound_connection(Server, undefined) ->
+    Pid = mod_global_distrib_sender:get_process_for(Server),
+    put({connection, Server}, Pid),
+    Pid;
+get_bound_connection(Server, Pid) when is_pid(Pid) ->
+    case is_process_alive(Pid) of
+        false -> get_bound_connection(Server, undefined);
+        true -> Pid
+    end.
 
 -spec deps(Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Opts) ->

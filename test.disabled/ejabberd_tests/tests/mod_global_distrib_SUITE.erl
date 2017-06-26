@@ -14,7 +14,8 @@ all() ->
     [
      {group, mod_global_distrib},
      {group, cluster_restart},
-     {group, start_checks}
+     {group, start_checks},
+     {group, multi_connection}
     ].
 
 groups() ->
@@ -37,6 +38,10 @@ groups() ->
      {start_checks, [],
       [
        test_error_on_wrong_hosts
+      ]},
+     {multi_connection, [],
+      [
+       test_in_order_messages_on_multiple_connections
       ]}].
 
 suite() ->
@@ -52,7 +57,7 @@ init_per_suite(Config) ->
     CertDir = filename:join(?config(data_dir, Config), "../../priv/ssl"),
     CertPath = canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
     CACertPath = canonicalize_path(filename:join(CertDir, "cacert.pem")),
-    escalus:init_per_suite([{certfile, CertPath}, {cafile, CACertPath} | Config]).
+    escalus:init_per_suite([{certfile, CertPath}, {cafile, CACertPath}, {extra_config, []} | Config]).
 
 canonicalize_path(Path) -> canonicalize_path(filename:split(Path), []).
 
@@ -66,11 +71,19 @@ end_per_suite(Config) ->
 
 init_per_group(start_checks, Config) ->
     Config;
+init_per_group(multi_connection, Config) ->
+    init_per_group(generic_group, [{extra_config, [{num_of_connections, 100}]} | Config]);
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
-                  Opts = [{local_host, LocalHost}, {global_host, "localhost"}, {endpoints, [{{127, 0, 0, 1}, ReceiverPort}]}, {tls_opts, [{certfile, ?config(certfile, Config1)}, {cafile, ?config(cafile, Config1)}]}, {redis, [{port, 6379}]}],
+                  Opts = [{local_host, LocalHost},
+                          {global_host, "localhost"},
+                          {endpoints, [{{127, 0, 0, 1}, ReceiverPort}]},
+                          {tls_opts, [
+                                      {certfile, ?config(certfile, Config1)},
+                                      {cafile, ?config(cafile, Config1)}]},
+                          {redis, [{port, 6379}]} | ?config(extra_config, Config1)],
                   rpc(NodeName, gen_mod_deps, start_modules,
                       [<<"localhost">>, [{mod_global_distrib, Opts}]]),
                   HasOffline = rpc(NodeName, gen_mod, is_loaded, [<<"localhost">>, mod_offline]),
@@ -80,7 +93,7 @@ init_per_group(_, Config0) ->
 
                   lists:foreach(
                       fun({_, OtherHost, OtherPort}) ->
-                          rpc(NodeName, ejabberd_config, add_local_option, [{global_distrib_addr, list_to_binary(OtherHost)}, {{127,0,0,1}, OtherPort}])
+                          rpc(NodeName, ejabberd_config, add_local_option, [{global_distrib_addr, list_to_binary(OtherHost)}, [{{127,0,0,1}, OtherPort}]])
                       end,
                       get_hosts()),
 
@@ -357,6 +370,25 @@ test_error_on_wrong_hosts(Config) ->
     Opts = [{cookie, "cookie"}, {local_host, "no_such_host"}, {global_host, "localhost"}],
     Result = rpc(europe_node, gen_mod, start_module, [<<"localhost">>, mod_global_distrib, Opts]),
     ?assertMatch({badrpc, {'EXIT', {"no_such_host is not a member of the host list", _}}}, Result).
+
+test_in_order_messages_on_multiple_connections(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {eve, 1}],
+      fun(Alice, Eve) ->
+              Seq = lists:seq(1, 100),
+              lists:foreach(
+                fun(I) ->
+                        Stanza = escalus_stanza:chat_to(Eve, integer_to_binary(I)),
+                        escalus_client:send(Alice, Stanza)
+                end,
+                Seq),
+              lists:foreach(
+                fun(I) ->
+                        Stanza = escalus_client:wait_for_stanza(Eve, 5000),
+                        escalus:assert(is_chat_message, [integer_to_binary(I)], Stanza)
+                end,
+                Seq)
+      end).
 
 %%--------------------------------------------------------------------
 %% Test helpers

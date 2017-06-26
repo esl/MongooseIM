@@ -7,7 +7,7 @@
 -include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
 
--export([start/2, stop/1, send/2, start_link/0, init/1]).
+-export([start/2, stop/1, send/2, get_process_for/1, start_link/0, init/1]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -34,8 +34,10 @@ stop() ->
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-send(Server, {From, _To, Acc} = Packet) ->
+send(Server, Packet) when is_binary(Server) ->
     Worker = get_process_for(Server),
+    send(Worker, Packet);
+send(Worker, {From, _To, Acc} = Packet) ->
     BinPacket = term_to_binary({stamp, Packet}), %% TODO: stamp
     BinFrom = jid:to_binary(From),
     Data = <<(byte_size(BinFrom)):16, BinFrom/binary, BinPacket/binary>>,
