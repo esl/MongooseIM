@@ -16,37 +16,83 @@
 
 -module(mod_foreign_http).
 -author('szymon.mentel@erlang-solutions.com').
+%% Shall that be mod?
 -behaviour(mod_foreign).
 
 -include("jlib.hrl").
 -include("ejabberd.hrl").
 
--export([make_request/2]).
+%% API
+-export([start/2, stop/1, make_request/3]).
+%% Internal exports
+-export([make_request_and_respond/3]).
+
+-type pool_size() :: non_neg_integer().
+%% passed from the backend opts from the config file
+-type opt() :: {pool_size, pool_size()}.
+
+-define(DEFAULT_POOL_SIZE, 100).
+-define(HTTP_TIMEOUT, 5000).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
-make_request(Request, OnResponse) ->
-    spawn(fun() ->
-            {Host, Path, Method, Headers, Body} = parse(Request),
-            Response = do_make_request(Host, Path, Method, Headers, Body),
-            respond(encode(Response), OnResponse)
-          end),
-    ok.
+-spec start(ejabberd:server(), [opt()]) -> ok | {error, term()}.
+start(Host, Opts) ->
+    application:ensure_all_started(worker_pool),
+    wpool:start_sup_pool(pool_name(Host), [{workers, pool_size(Opts)}]).
+
+stop(Host) ->
+    wpool:stop_pool(pool_name(Host)).
+
+-spec make_request(ejabberd:server(),
+                   mod_foreign:foreign_request(),
+                   mod_foreign:on_response())
+                  -> ok | error.
+make_request(Host, Request, OnResponse) ->
+    case parse(Request) of
+        {error, _Error} ->
+            error;
+        {ok, {_Host, _Path, _Method, _Headers, _Body} = Req} ->
+            Task = {?MODULE, make_request_and_respond, [Req, ?HTTP_TIMEOUT,
+                                                        OnResponse]},
+            wpool:cast(pool_name(Host), Task, next_available_worker)
+    end.
 
 %%--------------------------------------------------------------------
 %% Internals: parsing
 %%--------------------------------------------------------------------
 
+-spec parse(xmlel()) ->  {ok, {Host :: string(),
+                               Path :: string(),
+                               Method :: binary(),
+                               Headers :: [{Key :: binary(), Value :: binary()}],
+                               Payload :: binary()}}
+                             | {error, [Reason :: term()]}.
 parse(Request) ->
-    {Host, Path} = parse_url(Request),
-    {Host, Path, parse_method(Request), parse_headers(Request), parse_body(Request)}.
+    {Host, Path} = HP =  parse_url(Request),
+    Method = parse_method(Request),
+    Headers = parse_headers(Request),
+    Body = parse_body(Request),
+    case lists:foldl(fun({error, E}, Errors) -> [E | Errors];
+                        (_, Errors) -> Errors
+                     end, [],
+                     [HP, Method, Headers, Body])
+    of
+        [_] = Errors ->
+            {error, Errors};
+        [] ->
+            {ok, {Host, Path, Method, Headers, Body}}
+    end.
+
 
 parse_url(#xmlel{} = Request) ->
-    [Url] = exml_query:paths(Request, [{attr, <<"url">>}]),
+    Url = exml_query:path(Request, [{attr, <<"url">>}]),
     do_parse_url(Url).
 
+do_parse_url(undefined) ->
+    {error, no_url};
 do_parse_url(<<"http://", Rest/binary>>) ->
     do_parse_url(<<"http://">>, Rest);
 do_parse_url(<<"https://", Rest/binary>>) ->
@@ -64,13 +110,17 @@ do_parse_url(Scheme, Rest) ->
     {binary_to_list(<<Scheme/binary, Host/binary>>), Path}.
 
 parse_method(#xmlel{} = Request) ->
-    [Method] = exml_query:paths(Request, [{attr, <<"method">>}]),
+    Method = exml_query:path(Request, [{attr, <<"method">>}]),
     do_parse_method(Method).
 
+do_parse_method(undefined) ->
+    {error, no_http_method};
 do_parse_method(<<"get">>) ->
     <<"GET">>;
 do_parse_method(<<"post">>) ->
-    <<"POST">>.
+    <<"POST">>;
+do_parse_method(_UnknownMethod) ->
+    {error, unknown_http_method}.
 
 parse_headers(#xmlel{} = Request) ->
     Headers = exml_query:paths(Request, [{element, <<"header">>}]),
@@ -87,7 +137,7 @@ parse_body(#xmlel{} = Request) ->
 %% Internals: encoding
 %%--------------------------------------------------------------------
 
-encode({{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}) ->
+encode({ok, {{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}}) ->
     #xmlel{name = <<"response">>,
            attrs = [
                     {<<"xmlns">>, ?NS_FOREIGN_EVENT_HTTP},
@@ -102,16 +152,26 @@ encode({{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}) ->
                                                      children = [exml:escape_cdata(Value)]}
                                               | Acc ]
                                      end, [], Headers)
-                      ]
-          }.
+                      ]};
+encode({error, Reason}) ->
+    #xmlel{name = <<"failure">>,
+           attrs = [{<<"reason">>,
+                     exml:escape_attr(atom_to_binary(Reason, latin1))}]}.
 
 %%--------------------------------------------------------------------
-%% Internals: request
+%% Internals: request and response
 %%--------------------------------------------------------------------
 
-do_make_request(Host, Path, Method, Headers, Body) ->
+%% TODO: Internal server error on do_make_request exception (try catch)
+make_request_and_respond(Request, Timeout, OnResponse) ->
+    Response = do_make_request(Request, Timeout),
+    respond(encode(Response), OnResponse).
+
+%% The `Timeout' is the overall request timeout including the time spent on
+%% initiating the connection.
+do_make_request({Host, Path, Method, Headers, Body}, Timeout) ->
     {ok, Client} = fusco:start(Host, []),
-    {ok, Response} = fusco:request(Client, Path, Method, Headers, Body, 5000),
+    Response = fusco:request(Client, Path, Method, Headers, Body, Timeout),
     ok = fusco:disconnect(Client),
     Response.
 
@@ -119,3 +179,15 @@ respond(_Response, noreply) ->
     do_nothing;
 respond(Response, OnResponse) ->
     OnResponse(Response).
+
+%%--------------------------------------------------------------------
+%% Internals: pool
+%%--------------------------------------------------------------------
+
+-spec pool_name(Host :: ejabberd:lserver()) -> atom().
+pool_name(Host) ->
+    gen_mod:get_module_proc(Host, ?MODULE).
+
+-spec pool_size([opt()]) -> pool_size().
+pool_size(Opts) ->
+    proplists:get_value(pool_size, Opts, ?DEFAULT_POOL_SIZE).
