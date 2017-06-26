@@ -36,6 +36,14 @@
 -export([get_disco_items/5]).
 
 %%--------------------------------------------------------------------
+%% Macros
+%%--------------------------------------------------------------------
+
+-define(RESPONSE_TIME_METRIC, [?MODULE, response_time]).
+-define(SUCCESSFUL_REQS_METRIC, [?MODULE, successful_requests]).
+-define(FAILED_REQS_METRIC, [?MODULE, failed_requests]).
+
+%%--------------------------------------------------------------------
 %% Types
 %%--------------------------------------------------------------------
 
@@ -67,6 +75,7 @@
 
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
+    ensure_metrics(Host),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     SubHost = subhost(Host),
     mod_disco:register_subhost(Host, SubHost),
@@ -97,11 +106,18 @@ get_disco_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 -spec iq_handler(From :: jid(), To :: jid(), iq()) -> iq() | ignore.
-iq_handler(_From, _To, #iq{type = get} = IQ) ->
+iq_handler(From = #jid{lserver = Host}, To, IQ0) ->
+    T0 = os:timestamp(),
+    IQ1 = handle_iq(From, To, IQ0),
+    update_metrics(Host, IQ1, T0),
+    IQ1.
+
+-spec handle_iq(From :: jid(), To :: jid(), iq()) -> iq() | ignore.
+handle_iq(_From, _To, #iq{type = get} = IQ) ->
     IQ#iq{type = error, sub_el = ?ERR_NOT_ALLOWED};
-iq_handler(From = #jid{lserver = Host},
-           _To,
-           #iq{type = set, sub_el = ForeignEvent} = IQ) ->
+handle_iq(From = #jid{lserver = Host},
+          _To,
+          #iq{type = set, sub_el = ForeignEvent} = IQ) ->
     case parse_foreign_event(From, ForeignEvent) of
         {ok, Id, Type, Request, OnReqPublish, OnRespPublish} ->
             maybe_dispatch_request(Id,
@@ -127,6 +143,24 @@ subhost(Host) ->
 -spec my_disco_name(ejabberd:lang()) -> binary().
 my_disco_name(Lang) ->
     translate:translate(Lang, <<"Foreign-Event">>).
+
+ensure_metrics(Host) ->
+    mongoose_metrics:ensure_metric(Host, ?RESPONSE_TIME_METRIC, histogram),
+    mongoose_metrics:ensure_metric(Host, ?SUCCESSFUL_REQS_METRIC, spiral),
+    mongoose_metrics:ensure_metric(Host, ?FAILED_REQS_METRIC, spiral),
+    ok.
+
+-spec update_metrics(ejabberd:server(), iq(), erlang:timestamp()) -> ok.
+update_metrics(Host, #iq{type = Type}, T0) ->
+    Elapsed = timer:now_diff(os:timestamp(), T0),
+    mongoose_metrics:update(Host, ?RESPONSE_TIME_METRIC, Elapsed),
+    case Type of
+        error ->
+            mongoose_metrics:update(Host, ?FAILED_REQS_METRIC, 1);
+        result ->
+            mongoose_metrics:update(Host, ?SUCCESSFUL_REQS_METRIC, 1)
+    end,
+    ok.
 
 %%--------------------------------------------------------------------
 %% Dispatching
@@ -174,11 +208,11 @@ parse_foreign_event(From, #xmlel{name = <<"foreign-event">>} = ForeignEvent) ->
                               verify_request(Req)
                       end,
     Id = case exml_query:attr(ForeignEvent, <<"id">>) of
-        undefined ->
-            error;
-        I ->
-            I
-    end,
+             undefined ->
+                 error;
+             I ->
+                 I
+         end,
     Publish = case exml_query:paths(ForeignEvent, [{element, <<"publish">>}]) of
                   undefined ->
                       error;
@@ -194,7 +228,7 @@ parse_foreign_event(From, #xmlel{name = <<"foreign-event">>} = ForeignEvent) ->
 parse_foreign_event(_, _) -> error.
 
 -spec verify_request(xmlel()) ->
-    {ok, Type :: binary(), Request :: xmlel()} | error.
+                            {ok, Type :: binary(), Request :: xmlel()} | error.
 verify_request(Request) ->
     case parse_type(Request) of
         {ok, Type} ->
@@ -212,7 +246,7 @@ parse_publish_nodes(From, PublishNodes) ->
 
 -spec parse_publish_nodes(jid(), [xmlel()],
                           {[publish_item()], [publish_item()]}) ->
-    error | {ok, [publish_item()], [publish_item()]}.
+                                 error | {ok, [publish_item()], [publish_item()]}.
 parse_publish_nodes(_From, [], {OnReqPubs, OnRespPubs}) ->
     {ok, OnReqPubs, OnRespPubs};
 parse_publish_nodes(From, [El | Rest], {OnReqPubs, OnRespPubs}) ->
@@ -241,7 +275,7 @@ mk_publish(pubsub, #jid{lserver = Host} = From, NodeName) ->
     {publish,
      _Context = {pubusb, Host, NodeName},
      fun(Payload) ->
-            ?MODULE:publish_to_pubsub(Host, From, NodeName, [Payload])
+             ?MODULE:publish_to_pubsub(Host, From, NodeName, [Payload])
      end};
 mk_publish(_, _, _) -> undefined.
 

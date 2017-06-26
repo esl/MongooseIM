@@ -25,11 +25,19 @@
 %% API
 -export([start/2, stop/1, make_request/3]).
 %% Internal exports
--export([make_request_and_respond/3]).
+-export([make_request_and_respond/4]).
 
 -type pool_size() :: non_neg_integer().
 %% passed from the backend opts from the config file
 -type opt() :: {pool_size, pool_size()}.
+
+%%--------------------------------------------------------------------
+%% Macros
+%%--------------------------------------------------------------------
+
+-define(HTTP_REQUEST_TIME_METRIC, [?MODULE, http_request_time]).
+-define(SUCCESSFUL_HTTP_REQS_METRIC, [?MODULE, successful_http_requests]).
+-define(FAILED_HTTP_REQS_METRIC, [?MODULE, failed_http_requests]).
 
 -define(DEFAULT_POOL_SIZE, 100).
 -define(HTTP_TIMEOUT, 5000).
@@ -40,6 +48,7 @@
 
 -spec start(ejabberd:server(), [opt()]) -> ok | {error, term()}.
 start(Host, Opts) ->
+    ensure_metrics(Host),
     application:ensure_all_started(worker_pool),
     wpool:start_sup_pool(pool_name(Host), [{workers, pool_size(Opts)}]).
 
@@ -55,8 +64,8 @@ make_request(Host, Request, OnResponse) ->
         {error, _Error} ->
             error;
         {ok, {_Host, _Path, _Method, _Headers, _Body} = Req} ->
-            Task = {?MODULE, make_request_and_respond, [Req, ?HTTP_TIMEOUT,
-                                                        OnResponse]},
+            Task = {?MODULE, make_request_and_respond,
+                    [Host, Req, ?HTTP_TIMEOUT, OnResponse]},
             wpool:cast(pool_name(Host), Task, next_available_worker)
     end.
 
@@ -163,9 +172,10 @@ encode({error, Reason}) ->
 %%--------------------------------------------------------------------
 
 %% TODO: Internal server error on do_make_request exception (try catch)
-make_request_and_respond(Request, Timeout, OnResponse) ->
+make_request_and_respond(Host, Request, Timeout, OnResponse) ->
     Response = do_make_request(Request, Timeout),
-    respond(encode(Response), OnResponse).
+    respond(encode(Response), OnResponse),
+    update_metrics(Host, Response).
 
 %% The `Timeout' is the overall request timeout including the time spent on
 %% initiating the connection.
@@ -191,3 +201,20 @@ pool_name(Host) ->
 -spec pool_size([opt()]) -> pool_size().
 pool_size(Opts) ->
     proplists:get_value(pool_size, Opts, ?DEFAULT_POOL_SIZE).
+
+%%--------------------------------------------------------------------
+%% Internals: pool
+%%--------------------------------------------------------------------
+
+ensure_metrics(Host) ->
+    mongoose_metrics:ensure_metric(Host, ?HTTP_REQUEST_TIME_METRIC, histogram),
+    mongoose_metrics:ensure_metric(Host, ?SUCCESSFUL_HTTP_REQS_METRIC, spiral),
+    mongoose_metrics:ensure_metric(Host, ?FAILED_HTTP_REQS_METRIC, spiral),
+    ok.
+
+update_metrics(Host, {ok, {_SatusAndReason, _Headers, _Body, _Size, Time}}) ->
+    mongoose_metrics:update(Host, ?HTTP_REQUEST_TIME_METRIC, Time),
+    mongoose_metrics:update(Host, ?SUCCESSFUL_HTTP_REQS_METRIC, 1),
+    ok;
+update_metrics(Host, {error, _}) ->
+    mongoose_metrics:update(Host, ?FAILED_HTTP_REQS_METRIC, 1).

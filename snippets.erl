@@ -52,4 +52,13 @@ recon_trace:calls({mod_foreign, parse_foreign_event, fun(_) -> return_trace() en
 recon_trace:calls({mod_foreign_http, encode, fun(_) -> return_trace() end},100,[{scope, local}]).
 
 
+%% mod_foreign global metrics
 
+mongoose_metrics:get_metric_value([<<"localhost">>, mod_foreign, failed_requests]).
+mongoose_metrics:get_metric_value([<<"localhost">>, mod_foreign, successful_requests]).
+mongoose_metrics:get_metric_value([<<"localhost">>, mod_foreign, response_time]).
+
+%% mod_foreign_http metrics
+mongoose_metrics:get_metric_value([<<"localhost">>, mod_foreign_http, failed_http_requests]).
+mongoose_metrics:get_metric_value([<<"localhost">>, mod_foreign_http, successful_http_requests]).
+mongoose_metrics:get_metric_value([<<"localhost">>, mod_foreign_http, http_request_time]).
