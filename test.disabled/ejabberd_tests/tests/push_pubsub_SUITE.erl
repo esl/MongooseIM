@@ -392,7 +392,7 @@ node_addr() ->
     <<?PUBSUB_SUB_DOMAIN, ".", Domain/binary>>.
 
 rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:rand_bytes(5)),
+    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
     <<Prefix/binary, "_", Suffix/binary>>.
 
 pubsub_node_name() ->

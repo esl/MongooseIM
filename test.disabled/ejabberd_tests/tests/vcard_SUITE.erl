@@ -1292,7 +1292,7 @@ get_all_vcards() ->
        {<<"ROLE">>, <<"Patron Saint">>},
        {<<"DESC">>, <<"active">>},
        {<<"URL">>, <<"http://john.doe/">>},
-       %{<<"PHOTO">>, crypto:rand_bytes(10)},
+       %{<<"PHOTO">>, crypto:strong_rand_bytes(10)},
        {<<"EMAIL">>,
         [{<<"USERID">>, <<"alice@mail.example.com">>}]},
        {<<"N">>,

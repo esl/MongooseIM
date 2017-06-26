@@ -137,7 +137,7 @@ password_to_scram(Password) ->
 password_to_scram(#scram{} = Password, _) ->
     Password;
 password_to_scram(Password, IterationCount) ->
-    Salt = crypto:rand_bytes(?SALT_LENGTH),
+    Salt = crypto:strong_rand_bytes(?SALT_LENGTH),
     SaltedPassword = salted_password(Password, Salt, IterationCount),
     StoredKey = stored_key(scram:client_key(SaltedPassword)),
     ServerKey = server_key(SaltedPassword),

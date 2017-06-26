@@ -212,7 +212,7 @@ login_with_other_users_token(Config) ->
 
 login_with_malformed_token(Config) ->
     %% given
-    MalformedToken = <<"malformed ", (crypto:rand_bytes(64))/bytes>>,
+    MalformedToken = <<"malformed ", (crypto:strong_rand_bytes(64))/bytes>>,
     %% when / then
     token_login_failure(Config, bob, MalformedToken).
 

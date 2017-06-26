@@ -2830,7 +2830,7 @@ enable_stream_resumption(SD) ->
      stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}])}.
 
 make_smid() ->
-    base64:encode(crypto:rand_bytes(21)).
+    base64:encode(crypto:strong_rand_bytes(21)).
 
 maybe_unexpected_sm_request(NextState, El, StateData) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of

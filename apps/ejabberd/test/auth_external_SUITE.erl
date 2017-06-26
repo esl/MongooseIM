@@ -107,5 +107,5 @@ gen_user() ->
     {U, P}.
 
 random_binary(S) ->
-    base16:encode(crypto:rand_bytes(S)).
+    base16:encode(crypto:strong_rand_bytes(S)).
 

@@ -63,7 +63,7 @@ make_iq_reply_changes_type_to_result(_) ->
 
 base_iq() ->
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"id">>, base64:encode(crypto:rand_bytes(4))},
+           attrs = [{<<"id">>, base64:encode(crypto:strong_rand_bytes(4))},
                     {<<"xmlns">>, <<"jabber:client">>},
                     {<<"type">>, <<"set">>}],
            children = [#xmlel{name = <<"session">>,

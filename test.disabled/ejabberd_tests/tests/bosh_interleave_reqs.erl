@@ -148,7 +148,7 @@ send_from_alice(Alice, Carol) ->
     }.
 
 gen_msg() ->
-    Msg = base64:encode(crypto:rand_bytes(15)),
+    Msg = base64:encode(crypto:strong_rand_bytes(15)),
     Msg.
 
 wait_for_msgs_carol(Carol, Msgs) ->

@@ -631,6 +631,6 @@ get_or_generate_secret() ->
     end.
 
 generate_and_store_secret() ->
-    Secret = base16:encode(crypto:rand_bytes(10)),
+    Secret = base16:encode(crypto:strong_rand_bytes(10)),
     ejabberd_config:add_global_option(s2s_shared, Secret),
     Secret.
