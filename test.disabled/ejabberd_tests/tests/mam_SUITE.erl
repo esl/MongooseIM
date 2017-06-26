@@ -758,7 +758,7 @@ init_state(_, _, Config) ->
     clean_archives(Config).
 
 end_state(C, muc_light, Config) ->
-    muc_light_SUITE:clear_db(),
+    muc_light_helper:clear_db(),
     end_state(C, generic, Config);
 end_state(_, _, Config) ->
     Config.
@@ -1237,7 +1237,7 @@ muc_light_simple(Config) ->
             then_muc_light_affiliations_are_received_by([Alice, Bob], Aff),
 
             maybe_wait_for_archive(Config),
-            when_archive_query_is_sent(Bob, muc_light_SUITE:room_bin_jid(Room), Config),
+            when_archive_query_is_sent(Bob, muc_light_helper:room_bin_jid(Room), Config),
             ExpectedResponse = [{create, [{Alice, owner}]},
                                 {muc_message, Room, Alice, <<"Msg 1">>},
                                 {muc_message, Room, Alice, <<"Message 2">>},
@@ -1264,7 +1264,7 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
             then_muc_light_message_is_received_by([Alice, Bob], M1),
 
             maybe_wait_for_archive(Config),
-            when_archive_query_is_sent(Alice, muc_light_SUITE:room_bin_jid(Room), Config),
+            when_archive_query_is_sent(Alice, muc_light_helper:room_bin_jid(Room), Config),
             then_archive_response_is(Alice, [{create, [{Alice, owner}, {Bob, member}]},
                                              {muc_message, Room, Alice, <<"Msg 1">>}], Config),
 

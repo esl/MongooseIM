@@ -12,7 +12,7 @@
 -define(DEFAULT_MONGOOSE_PUSH_PORT,     "12993").
 
 
--import(muc_light_SUITE,
+-import(muc_light_helper,
     [
         room_bin_jid/1,
         create_room/6
@@ -397,18 +397,18 @@ get_push_logs(Service, DeviceToken, _Config) ->
         PushMock = connect_to(Service),
         {ok, 200, Body} = h2_req(PushMock, get, <<"/activity">>),
         #{<<"logs">> := Logs} = jiffy:decode(Body, [return_maps]),
-                                    
+
         DeviceLogs = lists:filter(
             fun(#{<<"device_token">> := Token}) ->
                 DeviceToken =:= Token
             end, Logs),
 
-        case length(DeviceLogs) > 0 of 
-            true -> 
+        case length(DeviceLogs) > 0 of
+            true ->
                 DeviceLogs;
             false ->
                 throw({no_push_messages, DeviceToken})
-        end             
+        end
      end).
 
 %% ----------------------------------

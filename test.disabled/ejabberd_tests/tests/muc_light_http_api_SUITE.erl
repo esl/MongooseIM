@@ -194,7 +194,7 @@ stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
     OccupantsItems = [ #xmlel{ name = <<"user">>,
         attrs = [{<<"affiliation">>, BinAff}],
         children = [#xmlcdata{ content = BinJID }] }
-        || {BinJID, BinAff} <- bin_aff_users(InitOccupants) ],
+        || {BinJID, BinAff} <- muc_light_helper:bin_aff_users(InitOccupants) ],
     OccupantsItem = #xmlel{ name = <<"occupants">>, children = OccupantsItems },
     escalus_stanza:to(escalus_stanza:iq_set(<<"urn:xmpp:muclight:0#create">>,
                                             [ConfigItem, OccupantsItem]),
@@ -203,8 +203,3 @@ stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
 kv_el(K, V) ->
     #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
 
-bin_aff_users(AffUsers) ->
-    [ {lbin(escalus_client:short_jid(User)), list_to_binary(atom_to_list(Aff))}
-        || {User, Aff} <- AffUsers ].
-
-lbin(Bin) -> list_to_binary(string:to_lower(binary_to_list(Bin))).

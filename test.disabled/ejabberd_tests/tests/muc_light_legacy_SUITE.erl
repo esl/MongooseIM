@@ -48,6 +48,11 @@
 
 -import(escalus_ejabberd, [rpc/3]).
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
+-import(muc_light_helper, [
+                           bin_aff_users/1,
+                           to_lus/2,
+                           lbin/1
+                          ]).
 
 -define(ROOM, <<"testroom">>).
 -define(ROOM2, <<"testroom2">>).
@@ -127,11 +132,12 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Backend = case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
+    Host = domain(),
+    Backend = case mongoose_helper:is_odbc_enabled(Host) of
                   true -> odbc;
                   false -> mnesia
               end,
-    dynamic_modules:start(<<"localhost">>, mod_muc_light,
+    dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(?MUCHOST)},
                            {backend, Backend},
                            {legacy_mode, true}]),
@@ -141,7 +147,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     clear_db(),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
-    dynamic_modules:stop(<<"localhost">>, mod_muc_light),
+    dynamic_modules:stop(domain(), mod_muc_light),
     escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
@@ -818,24 +824,6 @@ presence_verify(User, UserAff, #xmlel{ name = <<"presence">> } = Incoming) ->
 %% Other helpers
 %%--------------------------------------------------------------------
 
--spec bin_aff_users(AffUsers :: ct_aff_users()) -> [{LBinJID :: binary(), AffBin :: binary()}].
-bin_aff_users(AffUsers) ->
-    [ {lbin(escalus_client:short_jid(User)), list_to_binary(atom_to_list(Aff))}
-      || {User, Aff} <- AffUsers ].
-
--spec room_bin_jid(Room :: binary()) -> binary().
-room_bin_jid(Room) ->
-    <<Room/binary, $@, (?MUCHOST)/binary>>.
-
--spec to_lus(Config :: list(), UserAtom :: atom()) -> {binary(), binary()}.
-to_lus(UserAtom, Config) ->
-    {lbin(escalus_users:get_username(Config, UserAtom)),
-     lbin(escalus_users:get_server(Config, UserAtom))}.
-
--spec lbin(Bin :: binary()) -> binary().
-lbin(Bin) ->
-    list_to_binary(string:to_lower(binary_to_list(Bin))).
-
 -spec default_config() -> list().
 default_config() ->
     rpc(mod_muc_light, default_config, [?MUCHOST]).
@@ -860,3 +848,11 @@ set_mod_config(K, V) ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
+
+muc_domain() ->
+    Domain = domain(),
+    <<"muc.", Domain/binary>>.
+
+-spec room_bin_jid(Room :: binary()) -> binary().
+room_bin_jid(Room) ->
+    <<Room/binary, $@, (muc_domain())/binary>>.
