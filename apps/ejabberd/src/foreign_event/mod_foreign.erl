@@ -103,8 +103,9 @@ iq_handler(From = #jid{lserver = Host},
            _To,
            #iq{type = set, sub_el = ForeignEvent} = IQ) ->
     case parse_foreign_event(From, ForeignEvent) of
-        {ok, Type, Request, OnReqPublish, OnRespPublish} ->
-            maybe_dispatch_request(Type,
+        {ok, Id, Type, Request, OnReqPublish, OnRespPublish} ->
+            maybe_dispatch_request(Id,
+                                   Type,
                                    Host,
                                    Request,
                                    OnReqPublish,
@@ -131,24 +132,25 @@ my_disco_name(Lang) ->
 %% Dispatching
 %%--------------------------------------------------------------------
 
--spec maybe_dispatch_request(Host:: ejabberd:server(),
+-spec maybe_dispatch_request(Id :: binary(),
+                             Host:: ejabberd:server(),
                              Type :: binary(),
                              Request :: xmlel(),
                              OnRequestPublishes :: [publish_item()],
                              OnResponsePublishes :: [publish_item()],
                              iq()) -> iq().
-maybe_dispatch_request(<<"http">>, Host, Request, OnReqPublish, OnRespPublish, IQ) ->
-    publish_request(OnReqPublish, Request),
+maybe_dispatch_request(Id, <<"http">>, Host, Request, OnReqPublish, OnRespPublish, IQ) ->
+    publish_request(Id, Request, OnReqPublish),
     case mod_foreign_http:make_request(Host,
                                        Request,
-                                       publish_response_fun(OnRespPublish))
+                                       publish_response_fun(Id, OnRespPublish))
     of
         ok ->
             IQ#iq{type = result, sub_el = []};
         error ->
             IQ#iq{type = error, sub_el = ?ERR_BAD_REQUEST}
     end;
-maybe_dispatch_request(_, _, _, _, _, IQ) ->
+maybe_dispatch_request(_, _, _, _, _, _, IQ) ->
     IQ#iq{type = error, sub_el = ?ERR_FEATURE_NOT_IMPLEMENTED}.
 
 
@@ -158,7 +160,8 @@ maybe_dispatch_request(_, _, _, _, _, IQ) ->
 
 -spec parse_foreign_event(jid(), xmlel()) -> Result when
       Result :: error
-              | {ok, ReqType, Request, OnRequestPublishes, OnResponsePublishes},
+              | {ok, Id, ReqType, Request, OnRequestPublishes, OnResponsePublishes},
+      Id :: binary(),
       ReqType :: binary(),
       Request :: xmlel(),
       OnRequestPublishes :: [publish_item()],
@@ -167,20 +170,26 @@ parse_foreign_event(From, #xmlel{name = <<"foreign-event">>} = ForeignEvent) ->
     VerifiedRequest = case exml_query:subelement(ForeignEvent, <<"request">>) of
                           undefined ->
                               error;
-                          Request ->
-                              verify_request(Request)
+                          Req ->
+                              verify_request(Req)
                       end,
+    Id = case exml_query:attr(ForeignEvent, <<"id">>) of
+        undefined ->
+            error;
+        I ->
+            I
+    end,
     Publish = case exml_query:paths(ForeignEvent, [{element, <<"publish">>}]) of
                   undefined ->
                       error;
                   PublishNodes ->
                       parse_publish_nodes(From, PublishNodes)
               end,
-    case {VerifiedRequest, Publish} of
-        {X, Y} when X == error orelse Y == error ->
+    case {Id, VerifiedRequest, Publish} of
+        {X, Y, Z} when X == error orelse Y == error orelse Z == error ->
             error;
-        {{ok, VType, VRequest}, {ok, OnRequest, OnResponse}} ->
-            {ok, VType, VRequest, OnRequest, OnResponse}
+        {Id, {ok, Type, Request}, {ok, OnRequest, OnResponse}} ->
+            {ok, Id, Type, Request, OnRequest, OnResponse}
     end;
 parse_foreign_event(_, _) -> error.
 
@@ -190,7 +199,7 @@ verify_request(Request) ->
     case parse_type(Request) of
         {ok, Type} ->
             {ok, Type, Request};
-        error ->
+        _ ->
             error
     end.
 
@@ -243,6 +252,7 @@ parse_type(Request) ->
             error;
         Type ->
             {ok, Type}
+
     end.
 
 %%--------------------------------------------------------------------
@@ -259,21 +269,30 @@ publish_to_pubsub(Host, From, Node, Payload) ->
 pubsub_subhost(Host) ->
     gen_mod:get_module_opt_subhost(Host, mod_pubsub, mod_pubsub:default_host()).
 
--spec publish_response_fun([publish_item()]) -> ok.
-publish_response_fun(OnRespPublish) ->
-    fun(Response) ->
-            lists:foreach(fun({publish, _Context, Fun}) -> Fun(Response) end,
-                          OnRespPublish)
+-spec publish_response_fun(binary(), [publish_item()]) -> ok.
+publish_response_fun(ForeignEventId, OnRespPublish) ->
+    publish_fun(ForeignEventId, OnRespPublish).
+
+-spec publish_request(binary(), xmlel(), [publish_item()]) -> ok.
+publish_request(ForeignEventId, Request, OnReqPublish) ->
+    (publish_fun(ForeignEventId, OnReqPublish))(Request).
+
+-spec publish_fun(binary(), [publish_item()]) ->  on_request() | on_response().
+publish_fun(ForeignEventId, PublishItems) ->
+    Attrs = foreign_event_attrs(ForeignEventId),
+    fun(Payload) ->
+            lists:foreach(fun({publish, _Context, Fun}) ->
+                                  Fun(#xmlel{name = <<"foreign-event">>,
+                                             attrs = Attrs,
+                                             children = [Payload]})
+                          end,
+                          PublishItems)
     end.
 
--spec publish_request([publish_item()], xmlel()) -> ok.
-publish_request(OnReqPublish, Request) ->
-    lists:foreach(fun({publish, _Context, Fun}) -> 
-                          Fun(#xmlel{name = <<"foreign-event">>,
-                                     attrs = [{<<"xmlns">>, ?NS_FOREIGN_EVENT}],
-                                     children = [Request]})
-                  end,
-                  OnReqPublish).
+-spec foreign_event_attrs(binary()) -> [{Key :: binary(), Value :: binary()}].
+foreign_event_attrs(Id) ->
+    [{K, exml:escape_attr(V)} || {K,V} <- [{<<"id">>, Id},
+                                           {<<"xmlns">>, ?NS_FOREIGN_EVENT}]].
 
 %%--------------------------------------------------------------------
 %% Backends

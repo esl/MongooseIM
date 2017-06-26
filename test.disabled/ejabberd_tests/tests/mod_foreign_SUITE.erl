@@ -9,6 +9,8 @@
 
 -define(NS_FOREIGN_EVENT_HTTP, <<"urn:xmpp:foreign_event:http:0">>).
 
+-define(FOREIGN_EVENT_ID, <<"client-generated-id">>).
+
 -define(REQUEST,  <<"<request xmlns='", ?NS_FOREIGN_EVENT_HTTP/binary, "' "
                     "type='http' "
                     "url='http://localhost:8080' "
@@ -54,7 +56,7 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, mod_foreign} %%].
+    [{group, mod_foreign}%% ].
      , {group, mod_foreign_timeout}]. %% it's a slow test as it emulates slow http server
 
 
@@ -201,7 +203,10 @@ foreign_event_with_unknown_request_type(Config) ->
                       ForeignEventJID = foreign_service(),
                       Stanza = foreign_event_iq(ForeignEventJID,
                                                 [#xmlel{name = <<"request">>,
-                                                        attrs = [{<<"type">>, <<"amqp">>}]}]),
+                                                        attrs = [
+                                                                 {<<"id">>, <<"my-id">>},
+                                                                 {<<"type">>, <<"amqp">>}]
+                                                }]),
 
                       Result = escalus:send_and_wait(Bob, Stanza),
 
@@ -237,7 +242,7 @@ foreign_event_http_success(Config) ->
       end).
 
 %%--------------------------------------------------------------------
-%% Publishing 
+%% Publishing
 %%--------------------------------------------------------------------
 
 
@@ -294,8 +299,8 @@ http_request_with_pubsub_publication(Config) ->
               escalus:assert(is_iq_result, Result),
               Received = escalus:wait_for_stanzas(Alice, 2),
               Preds = [fun(ReceivedStanza) ->
-                               assert_pubsub_notification_with_payload_element(
-                                 NodeName, El, ReceivedStanza)
+                               assert_pubusb_notification_of_foreign_event(
+                                 NodeName, ?FOREIGN_EVENT_ID, El, ReceivedStanza)
                        end || El <- [<<"request">>, <<"response">>]],
               escalus:assert_many(Preds, Received),
               escalus_assert:has_no_stanzas(Alice),
@@ -325,8 +330,8 @@ timeouted_http_request_with_pubsub_publication(Config) ->
               escalus:assert(is_iq_result, Result),
               Received = escalus:wait_for_stanzas(Alice, 2, ?MOD_FOREIGN_HTTP_TIMEOUT * 2),
               Preds = [fun(ReceivedStanza) ->
-                               assert_pubsub_notification_with_payload_element(
-                                 NodeName, El, ReceivedStanza)
+                               assert_pubusb_notification_of_foreign_event(
+                                 NodeName, ?FOREIGN_EVENT_ID, El, ReceivedStanza)
                        end || El <- [<<"request">>, <<"failure">>]],
               escalus:assert_many(Preds, Received),
               escalus_assert:has_no_stanzas(Alice),
@@ -338,12 +343,19 @@ timeouted_http_request_with_pubsub_publication(Config) ->
 %% Assertions
 %%--------------------------------------------------------------------
 
-assert_pubsub_notification_with_payload_element(PubsubNode, ElementName, Stanza) ->
+assert_pubusb_notification_of_foreign_event(
+  PubsubNode, ForeignEventId, ElementName, Stanza) ->
     escalus_pred:is_message(Stanza)
         andalso
         PubsubNode =:= exml_query:path(Stanza, [{element, <<"event">>},
                                                 {element, <<"items">>},
                                                 {attr, <<"node">>}])
+        andalso
+        ForeignEventId =:= exml_query:path(Stanza, [{element, <<"event">>},
+                                                    {element, <<"items">>},
+                                                    {element, <<"item">>},
+                                                    {element, <<"foreign-event">>},
+                                                    {attr, <<"id">>}])
         andalso
         undefined =/= exml_query:path(Stanza, [{element, <<"event">>},
                                                {element, <<"items">>},
@@ -360,7 +372,10 @@ host() ->
 
 foreign_event_iq(To, Children) ->
     ForeignEvent = #xmlel{name = <<"foreign-event">>,
-                          attrs = [{<<"xmlns">>, ?NS_FOREIGN_EVENT}],
+                          attrs = [
+                                   {<<"xmlns">>, ?NS_FOREIGN_EVENT},
+                                   {<<"id">>, ?FOREIGN_EVENT_ID}
+                                  ],
                           children = Children},
     escalus_stanza:iq(To, <<"set">>, [ForeignEvent]).
 

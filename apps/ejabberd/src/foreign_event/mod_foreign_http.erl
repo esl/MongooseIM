@@ -55,7 +55,7 @@ make_request(Host, Request, OnResponse) ->
         {error, _Error} ->
             error;
         {ok, {_Host, _Path, _Method, _Headers, _Body} = Req} ->
-            Task = {?MODULE, make_request_and_respond, [Req, ?HTTP_TIMEOUT, 
+            Task = {?MODULE, make_request_and_respond, [Req, ?HTTP_TIMEOUT,
                                                         OnResponse]},
             wpool:cast(pool_name(Host), Task, next_available_worker)
     end.
@@ -138,35 +138,25 @@ parse_body(#xmlel{} = Request) ->
 %%--------------------------------------------------------------------
 
 encode({ok, {{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}}) ->
-    %% the foreign event node constructed in the mod_foreign ?
-    #xmlel{name = <<"foreign-event">>,
-           attrs = [{<<"xmlns">>, ?NS_FOREIGN_EVENT}],
+    #xmlel{name = <<"response">>,
+           attrs = [
+                    {<<"xmlns">>, ?NS_FOREIGN_EVENT_HTTP},
+                    {<<"type">>, <<"http">>},
+                    {<<"status">>, exml:escape_attr(StatusCode)}
+                   ],
            children = [
-                       #xmlel{name = <<"response">>,
-                              attrs = [
-                                       {<<"xmlns">>, ?NS_FOREIGN_EVENT_HTTP},
-                                       {<<"type">>, <<"http">>},
-                                       {<<"status">>, exml:escape_attr(StatusCode)}
-                                      ],
-                              children = [
-                                          #xmlel{name = <<"payload">>, children = [exml:escape_cdata(Body)]}
-                                          | lists:foldl(fun({Name, Value}, Acc) ->
-                                                                [#xmlel{name = <<"header">>,
-                                                                        attrs = [{<<"name">>, exml:escape_attr(Name)}],
-                                                                        children = [exml:escape_cdata(Value)]}
-                                                                 | Acc ]
-                                                        end, [], Headers)
-                                         ]}
-                       ]};
+                       #xmlel{name = <<"payload">>, children = [exml:escape_cdata(Body)]}
+                       | lists:foldl(fun({Name, Value}, Acc) ->
+                                             [#xmlel{name = <<"header">>,
+                                                     attrs = [{<<"name">>, exml:escape_attr(Name)}],
+                                                     children = [exml:escape_cdata(Value)]}
+                                              | Acc ]
+                                     end, [], Headers)
+                      ]};
 encode({error, Reason}) ->
-    #xmlel{name = <<"foreign-event">>,
-           attrs = [{<<"xmlns">>, ?NS_FOREIGN_EVENT}],
-           children =
-               [
-                #xmlel{name = <<"failure">>,
-                       attrs = [{<<"reason">>,
-                                 exml:escape_attr(atom_to_binary(Reason, latin1))}]}
-               ]}.
+    #xmlel{name = <<"failure">>,
+           attrs = [{<<"reason">>,
+                     exml:escape_attr(atom_to_binary(Reason, latin1))}]}.
 
 %%--------------------------------------------------------------------
 %% Internals: request and response

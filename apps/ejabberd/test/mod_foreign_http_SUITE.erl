@@ -5,11 +5,10 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("jlib.hrl").
 
--define(OPTS,
+-define(HOST, <<"localhost">>).
+-define(HTTP_OPTS,
         [
-         {backends, [
-                     {http, [{pool_size, 100}]}
-                    ]}
+         {http, [{pool_size, 100}]}
         ]).
 -define(REQUEST,  <<"<request xmlns='", ?NS_FOREIGN_EVENT_HTTP/binary, "' "
                               "type='http' "
@@ -59,11 +58,13 @@ all() -> [
          ].
 
 init_per_suite(Config) ->
+    mod_foreign_http:start(?HOST, ?HTTP_OPTS),
     http_helper:start(8080, '_', fun process_request/1),
     Config.
 
 end_per_suite(_Config) ->
-    http_helper:stop().
+    http_helper:stop(),
+    mod_foreign_http:stop(?HOST).
 
 %% Tests
 
@@ -77,7 +78,7 @@ responds_with_error_on_malformed_request(_Config) ->
 
     [begin
          %% WHEN
-         Result = mod_foreign_http:make_request(R, OnResponse),
+         Result = mod_foreign_http:make_request(?HOST, R, OnResponse),
 
          %% THEN
          ?assertMatch(error, Result),
@@ -92,7 +93,7 @@ makes_http_request(_Config) ->
     OnResponse = fun(Resp) -> Self ! Resp end,
 
     %% WHEN
-    ok = mod_foreign_http:make_request(Request, OnResponse),
+    ok = mod_foreign_http:make_request(?HOST, Request, OnResponse),
 
     %% THEN
     ActualResponse = receive R -> R after 5000 -> timeout end,
