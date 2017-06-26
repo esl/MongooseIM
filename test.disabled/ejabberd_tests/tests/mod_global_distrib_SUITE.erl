@@ -29,7 +29,8 @@ groups() ->
        test_pm_with_graceful_reconnection_to_different_server,
        test_pm_with_ungraceful_reconnection_to_different_server,
        test_global_disco,
-       test_component_unregister
+       test_component_unregister,
+       test_update_senders_host
       ]},
      {cluster_restart, [],
       [
@@ -388,6 +389,19 @@ test_in_order_messages_on_multiple_connections(Config) ->
                         escalus:assert(is_chat_message, [integer_to_binary(I)], Stanza)
                 end,
                 Seq)
+      end).
+
+test_update_senders_host(Config) ->
+    {ok, Conn} = rpc(europe_node, eredis, start_link, []),
+    escalus:fresh_story(
+      Config, [{alice, 1}, {eve, 1}],
+      fun(Alice, Eve) ->
+              AliceJid = rpc(asia_node, jid, from_binary, [escalus_client:full_jid(Alice)]),
+              ok = rpc(asia_node, mod_global_distrib_mapping, insert_for_jid, [AliceJid, <<"sabotage">>]),
+              ?assertEqual({ok, <<"sabotage">>}, rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])),
+              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"hi">>)),
+              escalus_client:wait_for_stanza(Eve),
+              ?assertEqual({ok, <<"localhost.bis">>}, rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid]))
       end).
 
 %%--------------------------------------------------------------------

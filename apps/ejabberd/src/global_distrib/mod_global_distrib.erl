@@ -22,7 +22,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--export([deps/2, start/2, stop/1, maybe_reroute/1]).
+-export([deps/2, start/2, stop/1, get_metadata/2, put_metadata/3, maybe_reroute/1]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -41,6 +41,17 @@ start(Host, Opts0) ->
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
+-spec get_metadata(mongoose_acc:t(), Key :: term()) -> Value :: term().
+get_metadata(Acc, Key) ->
+    GD = mongoose_acc:get(global_distrib, Acc),
+    mongoose_acc:get(Key, GD).
+
+-spec put_metadata(mongoose_acc:t(), Key :: term(), Value :: term()) -> mongoose_acc:t().
+put_metadata(Acc, Key, Value) ->
+    GD0 = mongoose_acc:get(global_distrib, Acc),
+    GD = maps:put(Key, Value, GD0),
+    mongoose_acc:put(global_distrib, GD, Acc).
+
 %%--------------------------------------------------------------------
 %% Hooks implementation
 %%--------------------------------------------------------------------
@@ -48,15 +59,16 @@ stop(Host) ->
 -spec maybe_reroute(drop) -> drop;
                    ({jid(), jid(), mongoose_acc:t()}) -> drop | {jid(), jid(), mongoose_acc:t()}.
 maybe_reroute(drop) -> drop;
-maybe_reroute({From, To, Acc} = FPacket) ->
+maybe_reroute({From, To, Acc0} = FPacket) ->
     LocalHost = opt(local_host),
     GlobalHost = opt(global_host),
     case lookup_recipients_host(To, LocalHost, GlobalHost) of
         {ok, TargetHost} when TargetHost =/= LocalHost ->
-            case mongoose_acc:get(distrib_ttl, Acc, opt(message_ttl)) of
+            Acc = maybe_initialize_metadata(Acc0),
+            case get_metadata(Acc, ttl) of
                 0 -> FPacket;
                 TTL ->
-                    Acc1 = mongoose_acc:put(distrib_ttl, TTL - 1, Acc),
+                    Acc1 = put_metadata(Acc, ttl, TTL - 1),
                     Worker = get_bound_connection(TargetHost),
                     mod_global_distrib_sender:send(Worker, {From, To, Acc1}),
                     drop
@@ -68,6 +80,17 @@ maybe_reroute({From, To, Acc} = FPacket) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+-spec maybe_initialize_metadata(mongoose_acc:t()) -> mongoose_acc:t().
+maybe_initialize_metadata(Acc) ->
+    case mongoose_acc:get(global_distrib, Acc, undefined) of
+        #{} -> Acc;
+        undefined ->
+            Metadata = #{ttl => opt(message_ttl),
+                         id => crypto:rand_bytes(15),
+                         origin => opt(local_host)},
+            mongoose_acc:put(global_distrib, Metadata, Acc)
+    end.
 
 -spec get_bound_connection(Server :: ejabberd:lserver()) -> pid().
 get_bound_connection(Server) ->

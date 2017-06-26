@@ -25,7 +25,7 @@
 -define(DOMAINS_ETS, mod_global_distrib_mapping_redis_domains).
 
 -export([start/1, stop/0, refresh/0,
-         put_session/1, get_session/1, delete_session/1,
+         put_session/1, put_session/2, get_session/1, delete_session/1,
          put_domain/1, get_domain/1, delete_domain/1,
          get_endpoints/1, get_domains/0]).
 
@@ -63,7 +63,11 @@ stop() ->
 -spec put_session(Jid :: binary()) -> ok.
 put_session(Jid) ->
     ets:insert(?JIDS_ETS, {Jid}),
-    do_put(Jid).
+    do_put(Jid, opt(local_host)).
+
+-spec put_session(Jid :: binary(), Host :: binary()) -> ok.
+put_session(Jid, Host) ->
+    do_put(Jid, Host).
 
 -spec get_session(Jid :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
 get_session(Jid) ->
@@ -76,7 +80,7 @@ delete_session(Jid) ->
 put_domain(Domain) ->
     ets:insert(?DOMAINS_ETS, {Domain}),
     {ok, _} = q([<<"SADD">>, domains_key(), Domain]),
-    do_put(Domain).
+    do_put(Domain, opt(local_host)).
 
 -spec get_domain(Domain :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
 get_domain(Domain) ->
@@ -154,10 +158,9 @@ opt(Key) ->
 expire_after() ->
     ets:lookup_element(?MODULE, expire_after, 2).
 
--spec do_put(Key :: binary()) -> ok.
-do_put(Key) ->
-    LocalHost = opt(local_host),
-    {ok, _} = q([<<"SET">>, Key, LocalHost, <<"EX">>, expire_after()]),
+-spec do_put(Key :: binary(), Host :: binary()) -> ok.
+do_put(Key, Host) ->
+    {ok, _} = q([<<"SET">>, Key, Host, <<"EX">>, expire_after()]),
     ok.
 
 -spec do_get(Key :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.

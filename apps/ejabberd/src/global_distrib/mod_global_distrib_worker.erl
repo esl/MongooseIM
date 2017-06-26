@@ -51,8 +51,7 @@ handle_cast({data, Stamp, Data}, State) ->
     QueueTimeNative = p1_time_compat:monotonic_time() - Stamp,
     QueueTimeUS = p1_time_compat:convert_time_unit(QueueTimeNative, native, micro_seconds),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, QueueTimeUS),
-    {_Stamp2, {From, To, Acc}} = erlang:binary_to_term(Data), %% TODO: Stamp
-    ejabberd_router:route(From, To, Acc),
+    do_work(Data),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED, 1),
     {noreply, State, ?TIMEOUT}.
 
@@ -67,3 +66,20 @@ code_change(_FromVersion, State, _Extra) ->
 terminate(_Reason, _State) ->
     ok.
 
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
+
+-spec do_work(Data :: binary()) -> any().
+do_work(Data) ->
+    {_Stamp2, {From, To, Acc}} = erlang:binary_to_term(Data), %% TODO: Stamp
+    Origin = mod_global_distrib:get_metadata(Acc, origin),
+    maybe_update_mapping(From, Origin),
+    ejabberd_router:route(From, To, Acc).
+
+-spec maybe_update_mapping(From :: jid(), Origin :: ejabberd:lserver()) -> any().
+maybe_update_mapping(From, Origin) ->
+    case mod_global_distrib_mapping:for_jid(From) of
+        {ok, Origin} -> ok;
+        _ -> mod_global_distrib_mapping:insert_for_jid(From, Origin)
+    end.

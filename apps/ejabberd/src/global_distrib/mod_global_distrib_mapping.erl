@@ -27,7 +27,7 @@
 
 -export([start/2, stop/1, deps/2]).
 -export([for_domain/1, insert_for_domain/1, delete_for_domain/1, all_domains/0]).
--export([for_jid/1, insert_for_jid/1, delete_for_jid/1, clear_cache_for_jid/1]).
+-export([for_jid/1, insert_for_jid/1, insert_for_jid/2, delete_for_jid/1, clear_cache_for_jid/1]).
 -export([register_subhost/2, unregister_subhost/2, user_present/2, user_not_present/5]).
 -export([endpoints/1]).
 
@@ -38,6 +38,7 @@
 -callback start(Opts :: proplists:proplist()) -> any().
 -callback stop() -> any().
 -callback put_session(JID :: binary()) -> ok | error.
+-callback put_session(JID :: binary(), Host :: binary()) -> ok | error.
 -callback get_session(JID :: binary()) -> {ok, Host :: binary()} | error.
 -callback delete_session(JID :: binary()) -> ok | error.
 -callback put_domain(Domain :: binary()) -> ok | error.
@@ -79,14 +80,13 @@ for_jid({_, _, _} = Jid) ->
     end.
 
 -spec insert_for_jid(jid() | ljid()) -> ok.
-insert_for_jid(#jid{} = Jid) -> insert_for_jid(jid:to_lower(Jid));
-insert_for_jid({_, _, _} = Jid) ->
+insert_for_jid(Jid) ->
     LocalHost = opt(local_host),
-    lists:foreach(
-      fun(BinJid) ->
-              ets_cache:update(?JID_TAB, BinJid, {ok, LocalHost}, fun() -> put_session(BinJid) end)
-      end,
-      normalize_jid(Jid)).
+    do_insert_for_jid(Jid, LocalHost, fun put_session/1).
+
+-spec insert_for_jid(jid() | ljid(), Host :: ejabberd:lserver()) -> ok.
+insert_for_jid(Jid, Host) when is_binary(Host) ->
+    do_insert_for_jid(Jid, Host, fun(BinJid) -> put_session(BinJid, Host) end).
 
 -spec clear_cache_for_jid(Jid :: binary()) -> ok.
 clear_cache_for_jid(Jid) when is_binary(Jid) ->
@@ -229,6 +229,10 @@ get_session(Key) ->
 put_session(Key) ->
     mod_global_distrib_mapping_backend:put_session(Key).
 
+-spec put_session(Key :: binary(), Host :: binary()) -> ok.
+put_session(Key, Host) ->
+    mod_global_distrib_mapping_backend:put_session(Key, Host).
+
 -spec delete_session(Key :: binary()) -> ok.
 delete_session(Key) ->
     mod_global_distrib_mapping_backend:delete_session(Key).
@@ -244,3 +248,14 @@ put_domain(Key) ->
 -spec delete_domain(Key :: binary()) -> ok.
 delete_domain(Key) ->
     mod_global_distrib_mapping_backend:delete_domain(Key).
+
+-spec do_insert_for_jid(jid() | ljid(), Host :: ejabberd:lserver(),
+                        PutSession :: fun((binary()) -> ok | error)) -> ok.
+do_insert_for_jid(#jid{} = Jid, Host, PutSession) ->
+    do_insert_for_jid(jid:to_lower(Jid), Host, PutSession);
+do_insert_for_jid({_, _, _} = Jid, Host, PutSession) ->
+    lists:foreach(
+      fun(BinJid) ->
+              ets_cache:update(?JID_TAB, BinJid, {ok, Host}, fun() -> PutSession(BinJid) end)
+      end,
+      normalize_jid(Jid)).
