@@ -58,13 +58,18 @@ all() -> [
          ].
 
 init_per_suite(Config) ->
+    Fun = fun(all_metrics_are_global) -> false end,
+    given_module(ejabberd_config, get_local_option, Fun),
+    application:ensure_all_started(exometer),
     mod_foreign_http:start(?HOST, ?HTTP_OPTS),
     http_helper:start(8080, '_', fun process_request/1),
     Config.
 
 end_per_suite(_Config) ->
     http_helper:stop(),
-    mod_foreign_http:stop(?HOST).
+    mod_foreign_http:stop(?HOST),
+    application:stop(exometer),
+    application:stop(exometer_core).
 
 %% Tests
 
@@ -87,6 +92,8 @@ responds_with_error_on_malformed_request(_Config) ->
 
 makes_http_request(_Config) ->
     %% GIVEN
+    Fun = fun(all_metrics_are_global) -> false end,
+    given_module(ejabberd_config, get_local_option, Fun),
     {ok, Request} = exml:parse(?REQUEST),
     {ok, Response} = exml:parse(?RESPONSE),
     Self = self(),
@@ -123,3 +130,8 @@ parse_headers(#xmlel{} = XML) ->
                     Acc) ->
                         [{Name, Value} | Acc]
                 end, [], Headers).
+
+given_module(ModName, FunName, Fun) ->
+    catch meck:unload(ModName),
+    ok = meck:new(ModName, [non_strict]),
+    ok = meck:expect(ModName, FunName, Fun).
