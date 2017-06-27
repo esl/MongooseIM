@@ -18,7 +18,7 @@
 -export([mam_get_prefs/4,
          mam_set_prefs/7,
          mam_remove_archive/4,
-         mam_lookup_messages/15,
+         mam_lookup_messages/3,
          mam_archive_message/9,
          mam_flush_messages/3,
          mam_drop_message/2,
@@ -93,10 +93,7 @@ mam_remove_archive(Acc, Host, _ArcID, _ArcJID) ->
     Acc.
 
 mam_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
-    Host, _ArcID, _ArcJID,
-    _RSM, _Borders,
-    _Start, _End, _Now, _WithJID, _SearchText,
-    _PageSize, _LimitPassed, _MaxResultLimit, IsSimple) ->
+                    Host, #{is_simple := IsSimple}) ->
     mongoose_metrics:update(Host, modMamForwarded, length(MessageRows)),
     mongoose_metrics:update(Host, modMamLookups, 1),
     case IsSimple of
@@ -106,11 +103,7 @@ mam_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
             ok
     end,
     Result;
-mam_lookup_messages(Result = {error, _},
-    _Host, _ArcID, _ArcJID,
-    _RSM, _Borders,
-    _Start, _End, _Now, _WithJID, _SearchText,
-    _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
+mam_lookup_messages(Result = {error, _}, _Host, _Params) ->
     Result.
 
 -spec mam_archive_message(Result :: any(), Host :: ejabberd:server(),

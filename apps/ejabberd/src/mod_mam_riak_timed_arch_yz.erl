@@ -29,14 +29,14 @@
 -export([start/2,
          stop/1,
          archive_size/4,
-         lookup_messages/12,
+         lookup_messages/2,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
 -export([archive_message/9,
          archive_message_muc/9,
-         lookup_messages/15,
+         lookup_messages/3,
          lookup_messages_muc/15]).
 
 -export([key/3]).
@@ -147,22 +147,11 @@ maybe_muc_jid(Other) ->
     Other.
 
 
-lookup_messages({error, _Reason} = Result, _Host,
-                _UserID, _UserJID, _RSM, _Borders,
-                _Start, _End, _Now, _WithJID, _SearchText,
-                _PageSize, _LimitPassed, _MaxResultLimit,
-                _IsSimple) ->
+lookup_messages({error, _Reason} = Result, _Host, _Params) ->
     Result;
-lookup_messages(_Result, Host,
-                _UserID, UserJID, RSM, Borders,
-                Start, End, _Now, WithJID, SearchText,
-                PageSize, LimitPassed, MaxResultLimit,
-                IsSimple) ->
+lookup_messages(_Result, Host, Params) ->
     try
-        lookup_messages(Host, UserJID, RSM, Borders,
-                        Start, End, WithJID, SearchText,
-                        PageSize, LimitPassed, MaxResultLimit,
-                        IsSimple)
+        lookup_messages(Host, Params)
     catch _Type:Reason ->
               S = erlang:get_stacktrace(),
               {error, {Reason, {stacktrace, S}}}
@@ -175,11 +164,20 @@ lookup_messages_muc(Result, Host,
                     PageSize, LimitPassed, MaxResultLimit,
                     IsSimple) ->
     WithJIDMuc = maybe_muc_jid(WithJID),
-    lookup_messages(Result, Host,
-                    UserID, UserJID, RSM, Borders,
-                    Start, End, Now, WithJIDMuc, SearchText,
-                    PageSize, LimitPassed, MaxResultLimit,
-                    IsSimple).
+            Params = #{archive_id => UserID,
+                       owner_jid => UserJID,
+                       with_jid => WithJIDMuc,
+                       rsm => RSM,
+                       borders => Borders,
+                       start_ts => Start,
+                       end_ts => End,
+                       now => Now,
+                       search_text => SearchText,
+                       page_size => PageSize,
+                       limit_passed => LimitPassed,
+                       max_result_limit => MaxResultLimit,
+                       is_simple => IsSimple},
+    lookup_messages(Result, Host, Params).
 
 
 archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
@@ -256,23 +254,28 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
 
     mongoose_riak:create_new_map(Ops).
 
-lookup_messages(Host, ArchiveJID, RSM, Borders, Start, End,
-                WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    OwnerJID = bare_jid(ArchiveJID),
-    RemoteJID = bare_jid(WithJID),
+lookup_messages(Host, Params) ->
+    OwnerJID = bare_jid(maps:get(owner_jid, Params)),
+    RemoteJID = bare_jid(maps:get(with_jid, Params)),
 
-    SearchOpts2 = add_sorting(RSM, [{rows, PageSize}]),
+    RSM = maps:get(rsm, Params),
+
+    SearchOpts2 = add_sorting(RSM, [{rows, maps:get(page_size, Params)}]),
     SearchOpts = add_offset(RSM, SearchOpts2),
 
     F = fun get_msg_id_key/3,
 
+    Borders = maps:get(borders, Params),
+    Start = maps:get(start_ts, Params),
+    End = maps:get(end_ts, Params),
+    SearchText = maps:get(search_text, Params),
     {MsgIdStart, MsgIdEnd} = calculate_msg_id_borders(RSM, Borders, Start, End),
     {TotalCountFullQuery, Result} = read_archive(OwnerJID, RemoteJID,
                                                  MsgIdStart, MsgIdEnd, SearchText,
                                                  SearchOpts, F),
 
     SortedKeys = sort_messages(Result),
-    case IsSimple of
+    case maps:get(is_simple, Params) of
         true ->
             {ok, {undefined, undefined, get_messages(Host, SortedKeys)}};
         _ ->
@@ -283,6 +286,8 @@ lookup_messages(Host, ArchiveJID, RSM, Borders, Start, End,
                                            [{rows, 1}], F),
             Offset = calculate_offset(RSM, TotalCountFullQuery, length(SortedKeys),
                                       {OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText}),
+            LimitPassed = maps:get(limit_passed, Params),
+            MaxResultLimit = maps:get(max_result_limit, Params),
             case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
                 true ->
                     {error, 'policy-violation'};

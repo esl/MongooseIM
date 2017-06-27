@@ -794,15 +794,26 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
                                  | {error, Reason :: term()}.
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    StartT = os:timestamp(),
     case SearchText /= undefined andalso not mod_mam_utils:has_full_text_search(?MODULE, Host) of
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
+            Params = #{archive_id => ArcID,
+                       owner_jid => ArcJID,
+                       with_jid => WithJID,
+                       rsm => RSM,
+                       borders => Borders,
+                       start_ts => Start,
+                       end_ts => End,
+                       now => Now,
+                       search_text => SearchText,
+                       page_size => PageSize,
+                       limit_passed => LimitPassed,
+                       max_result_limit => MaxResultLimit,
+                       is_simple => IsSimple},
+            StartT = os:timestamp(),
             R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
-                                        [Host, ArcID, ArcJID, RSM, Borders,
-                                         Start, End, Now, WithJID, SearchText,
-                                         PageSize, LimitPassed, MaxResultLimit, IsSimple]),
+                                        [Host, Params]),
             Diff = timer:now_diff(os:timestamp(), StartT),
             mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
             R
