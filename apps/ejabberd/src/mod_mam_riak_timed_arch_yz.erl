@@ -498,18 +498,15 @@ solr_id_filters(Start, End) ->
 calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
     calculate_msg_id_borders(undefined, Borders, Start, End);
 calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
+    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
     NextId = Id + 1,
     {mod_mam_utils:maybe_max(StartId, NextId), EndId};
 calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
+    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
     PrevId = Id - 1,
     {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
-calculate_msg_id_borders(_RSM, Borders, Start, End) ->
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID = maybe_encode_compact_uuid(End, 255),
-    {mod_mam_utils:apply_start_border(Borders, StartID),
-     mod_mam_utils:apply_end_border(Borders, EndID)}.
+calculate_msg_id_borders(_, Borders, Start, End) ->
+    mod_mam_utils:calculate_msg_id_borders(Borders, Start, End).
 
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
@@ -519,11 +516,6 @@ full_jid(undefined) -> undefined;
 full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
 
-
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    mod_mam_utils:encode_compact_uuid(Microseconds, NodeID).
 
 
 %% ----------------------------------------------------------------------

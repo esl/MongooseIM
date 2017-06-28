@@ -74,6 +74,8 @@
          maybe_max/2,
          apply_start_border/2,
          apply_end_border/2,
+         calculate_msg_id_borders/3,
+         maybe_encode_compact_uuid/2,
          is_last_page/4]).
 
 %% Ejabberd
@@ -855,6 +857,23 @@ apply_end_border(undefined, EndID) ->
     EndID;
 apply_end_border(#mam_borders{before_id=BeforeID, to_id=ToID}, EndID) ->
     maybe_min(maybe_previous_id(BeforeID), maybe_min(ToID, EndID)).
+
+-spec calculate_msg_id_borders(mod_mam:borders() | undefined,
+                               mod_mam:unix_timestamp() | undefined,
+                               mod_mam:unix_timestamp() | undefined) -> R when
+      R :: {integer() | undefined, integer() | undefined}.
+calculate_msg_id_borders(Borders, Start, End) ->
+    StartID = maybe_encode_compact_uuid(Start, 0),
+    EndID = maybe_encode_compact_uuid(End, 255),
+    {apply_start_border(Borders, StartID),
+     apply_end_border(Borders, EndID)}.
+
+-spec maybe_encode_compact_uuid(mod_mam:unix_timestamp() | undefined, integer()) ->
+    undefined | integer().
+maybe_encode_compact_uuid(undefined, _) ->
+    undefined;
+maybe_encode_compact_uuid(Microseconds, NodeID) ->
+    mod_mam_utils:encode_compact_uuid(Microseconds, NodeID).
 
 
 -spec maybe_min('undefined' | integer(), undefined | integer()) -> integer().

@@ -28,21 +28,10 @@
 %% ----------------------------------------------------------------------
 %% Imports
 
-%% UID
--import(mod_mam_utils,
-        [encode_compact_uuid/2]).
-
-%% JID serialization
--import(mod_mam_utils,
-        [jid_to_opt_binary/2,
-         expand_minified_jid/2]).
-
 %% Other
 -import(mod_mam_utils,
         [maybe_min/2,
-         maybe_max/2,
-         apply_start_border/2,
-         apply_end_border/2]).
+         maybe_max/2]).
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
@@ -726,12 +715,9 @@ insert_offset_hint_query_cql() ->
 
 prepare_filter(UserJID, Borders, Start, End, WithJID) ->
     BUserJID = bare_jid(UserJID),
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID = maybe_encode_compact_uuid(End, 255),
-    StartID2 = apply_start_border(Borders, StartID),
-    EndID2 = apply_end_border(Borders, EndID),
+    {StartID, EndID} = mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
     BWithJID = maybe_full_jid(WithJID), %% it's NOT optional field
-    prepare_filter_params(BUserJID, BWithJID, StartID2, EndID2).
+    prepare_filter_params(BUserJID, BWithJID, StartID, EndID).
 
 prepare_filter_params(BUserJID, BWithJID, StartID, EndID) ->
     #mam_ca_filter{
@@ -806,11 +792,6 @@ calc_offset(PoolName, UserJID, Host, F, _PS, _TC, #rsm_in{direction = aft, id = 
     calc_index(PoolName, UserJID, Host, F, ID);
 calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, _RSM) ->
     0.
-
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    encode_compact_uuid(Microseconds, NodeID).
 
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
