@@ -8,7 +8,10 @@
 -define(HOST, <<"localhost">>).
 -define(HTTP_OPTS,
         [
-         {http, [{pool_size, 100}]}
+         {http, [
+                 {pool_size, 100},
+                 {timeout, 5000}
+                ]}
         ]).
 -define(REQUEST,  <<"<request xmlns='", ?NS_FOREIGN_EVENT_HTTP/binary, "' "
                               "type='http' "
@@ -58,8 +61,8 @@ all() -> [
          ].
 
 init_per_suite(Config) ->
-    Fun = fun(all_metrics_are_global) -> false end,
-    given_module(ejabberd_config, get_local_option, Fun),
+    given_module(ejabberd_config, get_local_option,
+                 fun(all_metrics_are_global) -> false end),
     application:ensure_all_started(exometer),
     mod_foreign_http:start(?HOST, ?HTTP_OPTS),
     http_helper:start(8080, '_', fun process_request/1),
@@ -75,6 +78,8 @@ end_per_suite(_Config) ->
 
 responds_with_error_on_malformed_request(_Config) ->
     %% GIVEN
+    given_module(gen_mod, get_module_opt,
+                 fun(<<"localhost">>, mod_foreign, backends, _) -> ?HTTP_OPTS end),
     {ok, Request1} = exml:parse(?REQUEST_NO_URL),
     {ok, Request2} = exml:parse(?REQUEST_BAD_METHOD),
     {ok, Request3} = exml:parse(?REQUEST_BAD_URL),
@@ -92,8 +97,8 @@ responds_with_error_on_malformed_request(_Config) ->
 
 makes_http_request(_Config) ->
     %% GIVEN
-    Fun = fun(all_metrics_are_global) -> false end,
-    given_module(ejabberd_config, get_local_option, Fun),
+    given_module(gen_mod, get_module_opt,
+                 fun(<<"localhost">>, mod_foreign, backends, _) -> ?HTTP_OPTS end),
     {ok, Request} = exml:parse(?REQUEST),
     {ok, Response} = exml:parse(?RESPONSE),
     Self = self(),
@@ -133,5 +138,5 @@ parse_headers(#xmlel{} = XML) ->
 
 given_module(ModName, FunName, Fun) ->
     catch meck:unload(ModName),
-    ok = meck:new(ModName, [non_strict]),
+    ok = meck:new(ModName, [non_strict, passthrough]),
     ok = meck:expect(ModName, FunName, Fun).
