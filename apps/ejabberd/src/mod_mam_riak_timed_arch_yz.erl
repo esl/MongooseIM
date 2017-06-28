@@ -181,7 +181,7 @@ lookup_messages_muc(Result, Host,
 
 
 archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
-    OwnerJID = bare_jid(ArchiveJID),
+    OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
     RemoteJID = undefined,
     {MsgIdStartNoRSM, MsgIdEndNoRSM} =
         calculate_msg_id_borders(undefined, undefined, undefined, undefined),
@@ -219,9 +219,9 @@ remove_bucket(Bucket) ->
     [mongoose_riak:delete(Bucket, Key) || Key <- Keys].
 
 archive_message(Host, MessID, LocJID, RemJID, SrcJID, Packet, Type) ->
-    LocalJID = bare_jid(LocJID),
-    RemoteJID = bare_jid(RemJID),
-    SourceJID = full_jid(SrcJID),
+    LocalJID = mod_mam_utils:bare_jid(LocJID),
+    RemoteJID = mod_mam_utils:bare_jid(RemJID),
+    SourceJID = mod_mam_utils:full_jid(SrcJID),
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
 
@@ -255,8 +255,8 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
     mongoose_riak:create_new_map(Ops).
 
 lookup_messages(Host, Params) ->
-    OwnerJID = bare_jid(maps:get(owner_jid, Params)),
-    RemoteJID = bare_jid(maps:get(with_jid, Params)),
+    OwnerJID = mod_mam_utils:bare_jid(maps:get(owner_jid, Params)),
+    RemoteJID = mod_mam_utils:bare_jid(maps:get(with_jid, Params)),
 
     RSM = maps:get(rsm, Params),
 
@@ -355,7 +355,7 @@ remove_archive(Host, _ArchiveID, ArchiveJID) ->
     end.
 
 remove_chunk(_Host, ArchiveJID, Acc) ->
-    KeyFiletrs = key_filters(bare_jid(ArchiveJID)),
+    KeyFiletrs = key_filters(mod_mam_utils:bare_jid(ArchiveJID)),
     fold_archive(fun delete_key_fun/3,
                  KeyFiletrs,
                  [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
@@ -370,14 +370,14 @@ do_remove_archive(N, {ok, _TotalResults, _RowsIterated, Acc}, Host, ArchiveJID) 
     do_remove_archive(N-1, R, Host, ArchiveJID).
 
 purge_single_message(_Result, _Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
-    ArchiveJIDBin = bare_jid(ArchiveJID),
+    ArchiveJIDBin = mod_mam_utils:bare_jid(ArchiveJID),
     KeyFilters = key_filters(ArchiveJIDBin, MessID),
     {ok, 1, 1, 1} = fold_archive(fun delete_key_fun/3, KeyFilters, [], 0),
     ok.
 
 purge_multiple_messages(_Result, _Host, _ArchiveID,
                         ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
-    ArchiveJIDBin = bare_jid(ArchiveJID),
+    ArchiveJIDBin = mod_mam_utils:bare_jid(ArchiveJID),
     KeyFilters = key_filters(ArchiveJIDBin, WithJID, Start, End),
     {ok, Total, _Iterated, Deleted} =
         fold_archive(fun delete_key_fun/3,
@@ -507,16 +507,6 @@ calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, E
     {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
 calculate_msg_id_borders(_, Borders, Start, End) ->
     mod_mam_utils:calculate_msg_id_borders(Borders, Start, End).
-
-bare_jid(undefined) -> undefined;
-bare_jid(JID) ->
-    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
-
-full_jid(undefined) -> undefined;
-full_jid(JID) ->
-    jid:to_binary(jid:to_lower(JID)).
-
-
 
 %% ----------------------------------------------------------------------
 %% Optimizations

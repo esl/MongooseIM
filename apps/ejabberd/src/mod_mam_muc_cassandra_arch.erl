@@ -28,11 +28,6 @@
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
 
-%% JID serialization
--import(mod_mam_utils,
-        [jid_to_opt_binary/2,
-         expand_minified_jid/2]).
-
 %% Other
 -import(mod_mam_utils,
         [maybe_min/2,
@@ -170,7 +165,7 @@ archive_message2(_Result, _Host, MessID,
                  LocJID = #jid{},
                  _RemJID = #jid{},
                  _SrcJID = #jid{lresource = BNick}, _Dir, Packet) ->
-    BLocJID = bare_jid(LocJID),
+    BLocJID = mod_mam_utils:bare_jid(LocJID),
     BPacket = packet_to_stored_binary(Packet),
     Messages = [#mam_muc_message{
                  id        = MessID,
@@ -231,7 +226,7 @@ select_for_removal_query_cql() ->
     "SELECT DISTINCT room_jid, with_nick FROM mam_muc_message WHERE room_jid = ?".
 
 remove_archive(Acc, _Host, _RoomID, RoomJID) ->
-    BRoomJID = bare_jid(RoomJID),
+    BRoomJID = mod_mam_utils:bare_jid(RoomJID),
     PoolName = pool_name(RoomJID),
     Params = #{room_jid => BRoomJID},
     %% Wait until deleted
@@ -534,7 +529,7 @@ row_to_message_id(#{id := MsgID}) ->
       Now :: unix_timestamp().
 purge_single_message(_Result, _Host, MessID, _RoomID, RoomJID, _Now) ->
     PoolName = pool_name(RoomJID),
-    BRoomJID = bare_jid(RoomJID),
+    BRoomJID = mod_mam_utils:bare_jid(RoomJID),
     Result = message_id_to_nick_name(PoolName, RoomJID, BRoomJID, MessID),
     case Result of
         {ok, BNick} ->
@@ -738,7 +733,7 @@ insert_offset_hint_query_cql() ->
     "INSERT INTO mam_muc_message_offset(room_jid, with_nick, id, offset) VALUES(?, ?, ?, ?)".
 
 prepare_filter(RoomJID, Borders, Start, End, WithNick) ->
-    BRoomJID = bare_jid(RoomJID),
+    BRoomJID = mod_mam_utils:bare_jid(RoomJID),
     StartID = maybe_encode_compact_uuid(Start, 0),
     EndID = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
@@ -831,11 +826,6 @@ maybe_nick(undefined) ->
     <<>>;
 maybe_nick(WithNick) when is_binary(WithNick) ->
     WithNick.
-
-bare_jid(undefined) -> undefined;
-bare_jid(JID) ->
-    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
-
 
 %%====================================================================
 %% Internal SQL part

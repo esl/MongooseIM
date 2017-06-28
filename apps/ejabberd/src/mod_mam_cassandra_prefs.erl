@@ -129,9 +129,9 @@ prepared_queries() ->
                     Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
                     LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid()) -> any().
 get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
-    BUserJID = bare_jid(LocJID),
-    BRemBareJID = bare_jid(RemJID),
-    BRemJID = full_jid(RemJID),
+    BUserJID = mod_mam_utils:bare_jid(LocJID),
+    BRemBareJID = mod_mam_utils:bare_jid(RemJID),
+    BRemJID = mod_mam_utils:full_jid(RemJID),
     case query_behaviour(Host, LocJID, BUserJID, BRemJID, BRemBareJID) of
         {ok, []} ->
             DefaultBehaviour;
@@ -164,7 +164,7 @@ set_prefs(_Result, Host, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) -
 
 set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     PoolName = pool_name(UserJID),
-    BUserJID = bare_jid(UserJID),
+    BUserJID = mod_mam_utils:bare_jid(UserJID),
     %% Force order of operations using timestamps
     %% http://stackoverflow.com/questions/30317877/cassandra-batch-statement-execution-order
     Now = mongoose_cassandra:now_timestamp(),
@@ -190,7 +190,7 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
                 ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid())
                -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
-    BUserJID = bare_jid(UserJID),
+    BUserJID = mod_mam_utils:bare_jid(UserJID),
     PoolName = pool_name(UserJID),
     Params = #{user_jid => BUserJID},
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
@@ -202,7 +202,7 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
                      ejabberd:jid()) -> any().
 remove_archive(Acc, _Host, _UserID, UserJID) ->
     PoolName = pool_name(UserJID),
-    BUserJID = bare_jid(UserJID),
+    BUserJID = mod_mam_utils:bare_jid(UserJID),
     Now = mongoose_cassandra:now_timestamp(),
     Params = #{'[timestamp]' => Now, user_jid => BUserJID},
     mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, del_prefs_ts_query, [Params]),
@@ -238,14 +238,6 @@ encode_behaviour(never) -> <<"N">>.
 decode_behaviour(<<"R">>) -> roster;
 decode_behaviour(<<"A">>) -> always;
 decode_behaviour(<<"N">>) -> never.
-
-bare_jid(undefined) -> undefined;
-bare_jid(JID) ->
-    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
-
-full_jid(undefined) -> undefined;
-full_jid(JID) ->
-    jid:to_binary(jid:to_lower(JID)).
 
 -spec decode_prefs_rows([[term()]],
                         DefaultMode :: mod_mam:archive_behaviour(),

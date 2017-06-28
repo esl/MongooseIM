@@ -31,7 +31,10 @@
 %% Other
 -import(mod_mam_utils,
         [maybe_min/2,
-         maybe_max/2]).
+         maybe_max/2,
+         bare_jid/1,
+         full_jid/1
+         ]).
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
@@ -491,7 +494,7 @@ rows_to_uniform_format(MessageRows) ->
     [row_to_uniform_format(Row) || Row <- MessageRows].
 
 row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
-    SrcJID = unserialize_jid(FromJID),
+    SrcJID = jid:from_binary(FromJID),
     Packet = stored_binary_to_packet(Msg),
     {MsgID, SrcJID, Packet}.
 
@@ -510,7 +513,7 @@ purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
     Result = message_id_to_remote_jid(PoolName, UserJID, BUserJID, MessID),
     case Result of
         {ok, BRemFullJID} ->
-            RemFullJID = unserialize_jid(BRemFullJID),
+            RemFullJID = jid:from_binary(BRemFullJID),
             RemBareJID = jid:to_bare(RemFullJID),
             BRemBareJID = jid:to_binary(RemBareJID),
             %% Remove duplicates if RemFullJID =:= RemBareJID
@@ -793,19 +796,10 @@ calc_offset(PoolName, UserJID, Host, F, _PS, _TC, #rsm_in{direction = aft, id = 
 calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, _RSM) ->
     0.
 
-bare_jid(undefined) -> undefined;
-bare_jid(JID) ->
-    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
-
-full_jid(JID) ->
-    jid:to_binary(jid:to_lower(JID)).
-
+-spec maybe_full_jid(undefined | ejabberd:jid()) -> undefined | binary().
 maybe_full_jid(undefined) -> <<>>;
 maybe_full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
-
-unserialize_jid(BJID) ->
-    jid:from_binary(BJID).
 
 %%====================================================================
 %% Internal SQL part

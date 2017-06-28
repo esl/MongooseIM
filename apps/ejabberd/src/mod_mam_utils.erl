@@ -74,6 +74,8 @@
          maybe_max/2,
          apply_start_border/2,
          apply_end_border/2,
+         bare_jid/1,
+         full_jid/1,
          calculate_msg_id_borders/3,
          maybe_encode_compact_uuid/2,
          is_last_page/4]).
@@ -837,6 +839,14 @@ is_loaded_application(AppName) when is_atom(AppName) ->
 
 %% -----------------------------------------------------------------------
 %% Other
+-spec bare_jid(undefined | ejabberd:jid()) -> undefined | binary().
+bare_jid(undefined) -> undefined;
+bare_jid(JID) ->
+    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
+
+-spec full_jid(ejabberd:jid()) -> binary().
+full_jid(JID) ->
+    jid:to_binary(jid:to_lower(JID)).
 
 -spec maybe_integer(binary(), Default :: integer()) -> integer().
 maybe_integer(<<>>, Def) -> Def;
