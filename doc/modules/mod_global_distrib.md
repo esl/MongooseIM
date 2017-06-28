@@ -17,7 +17,7 @@ Because access to the session table is very frequent, its entries are additional
 To preserve consistency between database instances, all data is stored with a set expiration time and is periodically refreshed.
 Each node of each cluster is responsible for refreshing its own data.
 Thus, in an event of a netsplit datacenters will have their information about other datacenter's users expire, as those users are now unreachable; but once the connection is reestablished, the data will be replicated again as datacenters refresh their entries.
-Additionally, to prevent edge cases where an incoming message is received and replied to before the datacenter learns about the sender's host, an incoming message also carries information about its origin which is used to temporarily update the local routing table.
+Additionally, to prevent edge cases where an incoming message is received and replied to before the datacenter learns about the sender's host, an incoming message also carries information about its origin which may be used to temporarily update the local routing table.
 
 #### Message routing
 

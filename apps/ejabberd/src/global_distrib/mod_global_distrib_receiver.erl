@@ -83,7 +83,10 @@ handle_info({tcp, _Socket, TLSData}, #state{socket = Socket, buffer = Buffer} = 
     {noreply, NewState};
 handle_info({tcp_closed, _Socket}, #state{socket = Socket} = State) ->
     fast_tls:close(Socket),
-    {stop, normal, State}.
+    {stop, normal, State};
+handle_info(Msg, State) ->
+    ?WARNING_MSG("Received unknown message ~p", [Msg]),
+    {noreply, State}.
 
 handle_cast(_Message, _State) ->
     exit(bad_cast).

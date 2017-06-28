@@ -27,7 +27,7 @@
 
 -export([start/2, stop/1, deps/2]).
 -export([for_domain/1, insert_for_domain/1, delete_for_domain/1, all_domains/0]).
--export([for_jid/1, insert_for_jid/1, insert_for_jid/2, delete_for_jid/1, clear_cache_for_jid/1]).
+-export([for_jid/1, insert_for_jid/1, insert_for_jid/2, delete_for_jid/1, clear_cache/1]).
 -export([register_subhost/2, unregister_subhost/2, user_present/2, user_not_present/5]).
 -export([endpoints/1]).
 
@@ -86,11 +86,17 @@ insert_for_jid(Jid) ->
 
 -spec insert_for_jid(jid() | ljid(), Host :: ejabberd:lserver()) -> ok.
 insert_for_jid(Jid, Host) when is_binary(Host) ->
-    do_insert_for_jid(Jid, Host, fun(BinJid) -> put_session(BinJid, Host) end).
+    do_insert_for_jid(Jid, Host, fun(_) -> ok end).
 
--spec clear_cache_for_jid(Jid :: binary()) -> ok.
-clear_cache_for_jid(Jid) when is_binary(Jid) ->
-    ets_cache:delete(?JID_TAB, Jid).
+-spec clear_cache(jid()) -> ok.
+clear_cache(#jid{} = Jid) ->
+    GlobalHost = opt(global_host),
+    case jid:to_lower(Jid) of
+        {_, GlobalHost, _} = LJid ->
+            [ets_cache:delete(?JID_TAB, J) || J <- normalize_jid(LJid)];
+        {_, SubHost, _} ->
+            ets_cache:delete(?DOMAIN_TAB, SubHost)
+    end.
 
 -spec delete_for_jid(jid() | ljid()) -> ok.
 delete_for_jid(#jid{} = Jid) -> delete_for_jid(jid:to_lower(Jid));

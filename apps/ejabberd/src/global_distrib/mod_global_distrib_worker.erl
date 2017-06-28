@@ -47,6 +47,9 @@ handle_call({data, Stamp, Data}, From, State) ->
     gen_server:reply(From, ok),
     handle_cast({data, Stamp, Data}, State).
 
+handle_cast({route, {From, To, Acc}}, State) ->
+    ejabberd_router:route(From, To, Acc),
+    {noreply, State, ?TIMEOUT};
 handle_cast({data, Stamp, Data}, State) ->
     QueueTimeNative = p1_time_compat:monotonic_time() - Stamp,
     QueueTimeUS = p1_time_compat:convert_time_unit(QueueTimeNative, native, micro_seconds),
@@ -73,13 +76,16 @@ terminate(_Reason, _State) ->
 -spec do_work(Data :: binary()) -> any().
 do_work(Data) ->
     {_Stamp2, {From, To, Acc}} = erlang:binary_to_term(Data), %% TODO: Stamp
-    Origin = mod_global_distrib:get_metadata(Acc, origin),
-    maybe_update_mapping(From, Origin),
+    maybe_update_mapping(From, Acc),
     ejabberd_router:route(From, To, Acc).
 
--spec maybe_update_mapping(From :: jid(), Origin :: ejabberd:lserver()) -> any().
-maybe_update_mapping(From, Origin) ->
+-spec maybe_update_mapping(From :: jid(), mongoose_acc:t()) -> any().
+maybe_update_mapping(_From, #{name := <<"presence">>, type := <<"unavailable">>}) ->
+    ok;
+maybe_update_mapping(From, Acc) ->
+    Origin = mod_global_distrib:get_metadata(Acc, origin),
     case mod_global_distrib_mapping:for_jid(From) of
-        {ok, Origin} -> ok;
-        _ -> mod_global_distrib_mapping:insert_for_jid(From, Origin)
+        error -> mod_global_distrib_mapping:insert_for_jid(From, Origin);
+        _ -> ok
     end.
+

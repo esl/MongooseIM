@@ -19,12 +19,12 @@ all() ->
     ].
 
 groups() ->
-    [{mod_global_distrib, [],
+    [{mod_global_distrib, [shuffle],
       [
        test_pm_between_users_at_different_locations,
        test_muc_conversation_on_one_host,
-       test_component_on_one_host,
        test_component_disconnect,
+       test_component_on_one_host,
        test_pm_with_disconnection_on_other_server,
        test_pm_with_graceful_reconnection_to_different_server,
        test_pm_with_ungraceful_reconnection_to_different_server,
@@ -209,11 +209,12 @@ test_component_on_one_host(Config) ->
     {Comp, Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
 
     Story = fun(User) ->
-                    Msg1 = escalus_stanza:chat_to(Addr, <<"Hi!">>),
+                    Msg1 = escalus_stanza:chat_to(Addr, <<"Hi2!">>),
                     escalus:send(User, Msg1),
                     %% Then component receives it
+                    ct:print("User: ~p", [User]),
                     Reply1 = escalus:wait_for_stanza(Comp),
-                    escalus:assert(is_chat_message, [<<"Hi!">>], Reply1),
+                    escalus:assert(is_chat_message, [<<"Hi2!">>], Reply1),
 
                     %% When components sends a reply
                     Msg2 = escalus_stanza:chat_to(User, <<"Oh hi!">>),
@@ -225,7 +226,7 @@ test_component_on_one_host(Config) ->
                     escalus:assert(is_stanza_from, [Addr], Reply2)
             end,
 
-    [escalus:story(Config, [{User, 1}], Story) || User <- [alice, eve]].
+    [escalus:fresh_story(Config, [{User, 1}], Story) || User <- [alice, eve]].
 
 test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
@@ -236,11 +237,11 @@ test_component_disconnect(Config) ->
 
     Story = fun(User) ->
                     escalus:send(User, escalus_stanza:chat_to(Addr, <<"Hi!">>)),
-                    Error = escalus:wait_for_stanza(User),
+                    Error = escalus:wait_for_stanza(User, 5000),
                     escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error)
             end,
 
-    [escalus:story(Config, [{User, 1}], Story) || User <- [alice, eve]].
+    [escalus:fresh_story(Config, [{User, 1}], Story) || User <- [alice, eve]].
 
 test_location_disconnect(Config) ->
     try
@@ -267,7 +268,7 @@ test_pm_with_disconnection_on_other_server(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
-              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe!">>)),
+              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
               escalus_connection:stop(Eve),
               FromAliceBounce = escalus_client:wait_for_stanza(Alice),
               escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], FromAliceBounce)
@@ -392,13 +393,12 @@ test_in_order_messages_on_multiple_connections(Config) ->
       end).
 
 test_update_senders_host(Config) ->
-    {ok, Conn} = rpc(europe_node, eredis, start_link, []),
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
               AliceJid = rpc(asia_node, jid, from_binary, [escalus_client:full_jid(Alice)]),
-              ok = rpc(asia_node, mod_global_distrib_mapping, insert_for_jid, [AliceJid, <<"sabotage">>]),
-              ?assertEqual({ok, <<"sabotage">>}, rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])),
+              ok = rpc(europe_node, mod_global_distrib_mapping, delete_for_jid, [AliceJid]),
+              ?assertEqual(error, rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])),
               escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"hi">>)),
               escalus_client:wait_for_stanza(Eve),
               ?assertEqual({ok, <<"localhost.bis">>}, rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid]))

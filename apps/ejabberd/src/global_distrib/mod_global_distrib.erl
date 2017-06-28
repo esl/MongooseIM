@@ -22,7 +22,8 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--export([deps/2, start/2, stop/1, get_metadata/2, put_metadata/3, maybe_reroute/1]).
+-export([deps/2, start/2, stop/1, get_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3,
+         maybe_reroute/1]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -41,15 +42,26 @@ start(Host, Opts0) ->
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
+-spec get_metadata(mongoose_acc:t(), Key :: term(), Default :: term()) -> Value :: term().
+get_metadata(Acc, Key, Default) ->
+    GD = mongoose_acc:get(global_distrib, Acc),
+    maps:get(Key, GD, Default).
+
 -spec get_metadata(mongoose_acc:t(), Key :: term()) -> Value :: term().
 get_metadata(Acc, Key) ->
     GD = mongoose_acc:get(global_distrib, Acc),
-    mongoose_acc:get(Key, GD).
+    maps:get(Key, GD).
 
 -spec put_metadata(mongoose_acc:t(), Key :: term(), Value :: term()) -> mongoose_acc:t().
 put_metadata(Acc, Key, Value) ->
     GD0 = mongoose_acc:get(global_distrib, Acc),
     GD = maps:put(Key, Value, GD0),
+    mongoose_acc:put(global_distrib, GD, Acc).
+
+-spec remove_metadata(mongoose_acc:t(), Key :: term()) -> mongoose_acc:t().
+remove_metadata(Acc, Key) ->
+    GD0 = mongoose_acc:get(global_distrib, Acc),
+    GD = maps:remove(Key, GD0),
     mongoose_acc:put(global_distrib, GD, Acc).
 
 %%--------------------------------------------------------------------
@@ -60,11 +72,13 @@ put_metadata(Acc, Key, Value) ->
                    ({jid(), jid(), mongoose_acc:t()}) -> drop | {jid(), jid(), mongoose_acc:t()}.
 maybe_reroute(drop) -> drop;
 maybe_reroute({From, To, Acc0} = FPacket) ->
+    Acc = maybe_initialize_metadata(Acc0),
     LocalHost = opt(local_host),
     GlobalHost = opt(global_host),
     case lookup_recipients_host(To, LocalHost, GlobalHost) of
-        {ok, TargetHost} when TargetHost =/= LocalHost ->
-            Acc = maybe_initialize_metadata(Acc0),
+        {ok, LocalHost} ->
+            {From, To, Acc};
+        {ok, TargetHost} ->
             case get_metadata(Acc, ttl) of
                 0 -> FPacket;
                 TTL ->
@@ -73,8 +87,9 @@ maybe_reroute({From, To, Acc0} = FPacket) ->
                     mod_global_distrib_sender:send(Worker, {From, To, Acc1}),
                     drop
             end;
-        _ ->
-            FPacket
+        error ->
+            ejabberd_hooks:run_fold(mod_global_distrib_unknown_recipient,
+                                    GlobalHost, {From, To, Acc}, [])
     end.
 
 %%--------------------------------------------------------------------

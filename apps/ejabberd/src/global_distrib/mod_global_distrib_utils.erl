@@ -20,7 +20,7 @@
 -include("ejabberd.hrl").
 
 -export([start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
-         create_ets/1, any_binary_to_atom/1, resolve_endpoints/1]).
+         create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1]).
 
 -type endpoint() :: {inet:ip_address(), inet:port_number()}.
 
@@ -101,9 +101,13 @@ cast_or_call(Target, Message, SyncWatermark, Timeout) when is_pid(Target) ->
     end.
 
 -spec create_ets(Names :: [atom()] | atom()) -> any().
-create_ets(Names) when is_list(Names) ->
-    lists:foreach(fun create_ets/1, Names);
-create_ets(Name) ->
+create_ets(Names) ->
+    create_ets(Names, set).
+
+-spec create_ets(Names :: [atom()] | atom(), Type :: atom()) -> any().
+create_ets(Names, Type) when is_list(Names) ->
+    [create_ets(Name, Type) || Name <- Names];
+create_ets(Name, Type) ->
     Self = self(),
     Heir = case whereis(ejabberd_sup) of
                undefined -> none;
@@ -111,7 +115,7 @@ create_ets(Name) ->
                Pid -> Pid
            end,
 
-    ets:new(Name, [named_table, public, {read_concurrency, true}, {heir, Heir, testing}]).
+    ets:new(Name, [named_table, public, Type, {read_concurrency, true}, {heir, Heir, testing}]).
 
 -spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
                                [endpoint()].

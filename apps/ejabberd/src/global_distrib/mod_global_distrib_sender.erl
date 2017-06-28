@@ -37,14 +37,12 @@ start_link() ->
 send(Server, Packet) when is_binary(Server) ->
     Worker = get_process_for(Server),
     send(Worker, Packet);
-send(Worker, {From, _To, Acc} = Packet) ->
+send(Worker, {From, _To, _Acc} = Packet) ->
     BinPacket = term_to_binary({stamp, Packet}), %% TODO: stamp
     BinFrom = jid:to_binary(From),
     Data = <<(byte_size(BinFrom)):16, BinFrom/binary, BinPacket/binary>>,
     Stamp = erlang:monotonic_time(),
-    ok = mod_global_distrib_utils:cast_or_call(Worker, {data, Stamp, Data}),
-    ejabberd_hooks:run(global_distrib_send_packet, [From, mongoose_acc:get(to_send, Acc)]),
-    ok.
+    ok = mod_global_distrib_utils:cast_or_call(Worker, {data, Stamp, Data}).
 
 get_process_for(Server) ->
     Name = mod_global_distrib_utils:any_binary_to_atom(Server),

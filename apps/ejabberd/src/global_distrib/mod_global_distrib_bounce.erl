@@ -18,14 +18,16 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -behaviour(gen_mod).
+-behaviour(gen_server).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--export([start/2, stop/1]).
--export([remove_message5/5, remove_message3/3, maybe_store_message/1, maybe_resend_message/1]).
+-define(MESSAGE_STORE, mod_global_distrib_bounce_message_store).
 
--type storage_key() :: {From :: binary(), MsgId :: binary()}.
+-export([start_link/0, start/2, stop/1]).
+-export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
+-export([maybe_store_message/1]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -33,61 +35,63 @@
 
 -spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
-    Opts = [{resend_after_ms, 200}, {max_retries, 4} | Opts0],
+    ResendAfterMs = proplists:get_value(resend_after_ms, Opts0, 200),
+    ResendAfter = p1_time_compat:convert_time_unit(ResendAfterMs, milli_seconds, native),
+    Opts = [{resend_after, ResendAfter}, {max_retries, 4} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 -spec stop(Host :: ejabberd:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
+-spec start_link() -> {ok, pid()} | {error, any()}.
+start_link() ->
+    gen_server:start_link(?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% gen_server API
+%%--------------------------------------------------------------------
+
+init(_) ->
+    self() ! resend,
+    {ok, no_state}.
+
+handle_info(resend, State) ->
+    erlang:send_after(100, self(), resend),
+    Now = p1_time_compat:monotonic_time(),
+    resend_messages(Now),
+    {noreply, State}.
+
+handle_cast(_Message, _State) ->
+    exit(bad_cast).
+
+handle_call(_Message, _From, _State) ->
+    exit(bad_call).
+
+code_change(_Version, State, _Extra) ->
+    {ok, State}.
+
+terminate(_Reason, _State) ->
+    ignore.
+
 %%--------------------------------------------------------------------
 %% Hooks implementation
 %%--------------------------------------------------------------------
-
--spec remove_message5(mongoose_acc:t(), Jid :: jid(), From :: jid(),
-                      To :: jid(), Packet :: xmlel()) -> mongoose_acc:t().
-remove_message5(Acc, _Jid, From, _To, Packet) ->
-    remove_message3(Acc, From, Packet).
-
--spec remove_message3(mongoose_acc:t(), From :: jid(), Packet :: xmlel()) -> mongoose_acc:t().
-remove_message3(Acc, From, Packet) ->
-    ?DEBUG("Removing message from=~s from buffer: successful delivery", [jid:to_binary(From)]),
-    ets:delete(?MODULE, storage_key(From, Packet)),
-    Acc.
-
--spec maybe_resend_message(drop) -> drop;
-                          ({jid(), jid(), mongoose_acc:t()}) ->
-                                  drop | {jid(), jid(), mongoose_acc:t()}.
-maybe_resend_message(drop) -> drop;
-maybe_resend_message({_From, To, Acc} = FPacket) ->
-    Packet = mongoose_acc:get(to_send, Acc),
-    case exml_query:attr(Packet, <<"type">>) of
-        <<"error">> ->
-            StorageKey = storage_key(To, Packet),
-            case ets:lookup(?MODULE, StorageKey) of
-                [{_, _StoredPacket, _TTL = 0}] ->
-                    ets:delete(?MODULE, StorageKey),
-                    FPacket;
-                [{_, StoredPacket, _TTL}] ->
-                    resend_message(Acc, StorageKey, StoredPacket),
-                    drop;
-                [] ->
-                    FPacket
-            end;
-        _ ->
-            FPacket
-    end.
 
 -spec maybe_store_message(drop) -> drop;
                          ({jid(), jid(), mongoose_acc:t()}) ->
                                  drop | {jid(), jid(), mongoose_acc:t()}.
 maybe_store_message(drop) -> drop;
-maybe_store_message({_From, _To, Acc} = FPacket) ->
-    Packet = mongoose_acc:get(to_send, Acc),
-    %% TODO: explain why only chat messages
-    case exml_query:attr(Packet, <<"type">>) of
-        <<"chat">> -> store_message(FPacket);
-        _ -> FPacket
+maybe_store_message({From, To, Acc0} = FPacket) ->
+    LocalHost = opt(local_host),
+    case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost}, opt(max_retries)) of
+        0 ->
+            FPacket;
+        OldTTL ->
+            Acc = mod_global_distrib:put_metadata(Acc0, {bounce_ttl, LocalHost}, OldTTL - 1),
+            ResendAt = p1_time_compat:monotonic_time() + opt(resend_after),
+            do_insert_in_store(ResendAt, {From, To, Acc}),
+            drop
     end.
 
 %%--------------------------------------------------------------------
@@ -97,57 +101,46 @@ maybe_store_message({_From, _To, Acc} = FPacket) ->
 -spec start() -> any().
 start() ->
     Host = opt(global_host),
-    ejabberd_hooks:add(filter_packet, global, ?MODULE, maybe_resend_message, 1),
-    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, maybe_store_message, 80),
-    ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, remove_message5, 99),
-    ejabberd_hooks:add(global_distrib_send_packet, global, ?MODULE, remove_message3, 99).
+    mod_global_distrib_utils:create_ets(?MESSAGE_STORE, ordered_set),
+    ejabberd_hooks:add(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
+    ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},
+    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
 
 -spec stop() -> any().
 stop() ->
     Host = opt(global_host),
-    ejabberd_hooks:delete(global_distrib_send_packet, global, ?MODULE, remove_message3, 99),
-    ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, remove_message5, 99),
-    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, maybe_store_message, 80),
-    ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_resend_message, 1).
+    supervisor:terminate_child(ejabberd_sup, ?MODULE),
+    supervisor:delete_child(ejabberd_sup, ?MODULE),
+    ejabberd_hooks:delete(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
+    ets:delete(?MESSAGE_STORE).
 
--spec resend_message(mongoose_acc:t(), storage_key(), Packet :: xmlel()) -> any().
-resend_message(Acc, StorageKey, StoredPacket) ->
-    TTL = ets:update_counter(?MODULE, StorageKey, {3, -1}),
-    FromBin = exml_query:attr(StoredPacket, <<"from">>),
-    ToBin = exml_query:attr(StoredPacket, <<"to">>),
-    From = jid:from_binary(FromBin),
-    To = jid:from_binary(ToBin),
-    ?DEBUG("Scheduling resend of message from=~s to=~s retries_left=~B", [FromBin, ToBin, TTL]),
-    mod_global_distrib_mapping:clear_cache_for_jid(ToBin),
-    NewAcc = mongoose_acc:update_element(Acc, StoredPacket, From, To),
-    %% TODO: timer module
-    timer:apply_after(opt(resend_after_ms), ejabberd_router, route, [From, To, NewAcc]).
+-spec update_data({TTL :: non_neg_integer(), Backoff :: non_neg_integer()}) ->
+                         {NewTTL :: non_neg_integer(), NewBackoff :: non_neg_integer()}.
+update_data({TTL, Backoff}) ->
+    NewTTL = TTL - 1,
+    NewBackoff = backoff:rand_increment(Backoff, opt(backoff_max)),
+    {NewTTL, NewBackoff}.
 
--spec store_message({jid(), jid(), mongoose_acc:t()}) -> {jid(), jid(), mongoose_acc:t()}.
-store_message({From, To, Acc}) ->
-    Packet0 = mongoose_acc:get(to_send, Acc),
-    Packet = jlib:replace_from_to(From, To, maybe_set_id(Packet0)),
-    NewAcc = mongoose_acc:update_element(Acc, Packet, From, To),
-    ets:insert_new(?MODULE, {storage_key(From, Packet), Packet, opt(max_retries)}),
-    {From, To, NewAcc}.
-
--spec maybe_set_id(Packet :: xmlel()) -> xmlel().
-maybe_set_id(Packet) ->
-    case exml_query:attr(Packet, <<"id">>) of
-        undefined -> set_id(Packet);
-        _ -> Packet
+-spec do_insert_in_store(ResendAt :: integer(), {jid(), jid(), mongoose_acc:t()}) -> ok.
+do_insert_in_store(ResendAt, FPacket) ->
+    case ets:insert_new(?MESSAGE_STORE, {ResendAt, FPacket}) of
+        true -> ok;
+        false -> do_insert_in_store(ResendAt + 1, FPacket)
     end.
 
--spec set_id(Packet :: xmlel()) -> xmlel().
-set_id(Packet) ->
-    NewId = uuid:uuid_to_string(uuid:get_v4(), binary_nodash),
-    Packet#xmlel{attrs = [{<<"id">>, NewId} | Packet#xmlel.attrs]}.
-
--spec storage_key(jid() | binary(), xmlel()) -> storage_key().
-storage_key(From, Packet) when is_binary(From) ->
-    {From, exml_query:attr(Packet, <<"id">>)};
-storage_key(From, Packet) ->
-    storage_key(jid:to_binary(From), Packet).
+-spec resend_messages(Now :: integer()) -> ok.
+resend_messages(Now) ->
+    case ets:first(?MESSAGE_STORE) of
+        Key when is_integer(Key) andalso Key < Now ->
+            [{Key, {From, To, _Acc} = FPacket}] = ets:lookup(?MESSAGE_STORE, Key),
+            ets:delete(?MESSAGE_STORE, Key),
+            mod_global_distrib_mapping:clear_cache(To),
+            Worker = mod_global_distrib_worker_sup:get_worker(jid:to_binary(From)),
+            gen_server:cast(Worker, {route, FPacket}),
+            resend_messages(Now);
+        _ ->
+            ok
+    end.
 
 -spec opt(Key :: atom()) -> term().
 opt(Key) ->
