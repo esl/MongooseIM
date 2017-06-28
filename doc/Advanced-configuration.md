@@ -18,7 +18,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 ## Options
 
-* All options except `hosts`, `host`, `host_config`, `pool` and the ODBC options can be used in `host_config` tuple.
+* All options except `hosts`, `host`, `host_config`, `pool` and the ODBC options can be used in the `host_config` tuple.
 
 * There are two kinds of local options - those that are kept separately for each domain in the config file (defined inside `host_config`) and the options local for a node in the cluster.
 
@@ -31,12 +31,12 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 ### Override stored options
 
 * **override_global, override_local, override_acls** - optional
-    * **Description:** Will cause MongooseIM to erase all global/local/acl options in database respectively. This ensures that ALL settings of specific type will be reloaded on startup.
+    * **Description:** Will cause MongooseIM to erase all global/local/acl options in database respectively. This ensures that ALL settings of a specific type will be reloaded on startup.
 
 ### Debugging
 
 * **loglevel** (local)
-    * **Description:** Log level configured with integer: 0 (disabled), 1 (critical), 2 (error), 3 (warning), 4 (info), 5 (debug). Recommended values for production systems are 2 or 3 (5 is for development).
+    * **Description:** Log level configured with an integer: 0 (disabled), 1 (critical), 2 (error), 3 (warning), 4 (info), 5 (debug). Recommended values for production systems are 2 or 3 (5 is for development).
 
 
 ### Served hostnames
@@ -77,7 +77,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Syntax:** `{domain_certfile, "example.com", "/path/to/example.com.pem"}.`
 
 * **s2s_default_policy** (local)
-    * **Description:** Default policy for new S2S (server-to-server) **both incoming and outgoing** connection to/from unknown remote server.
+    * **Description:** Default policy for a new S2S (server-to-server) **both incoming and outgoing** connection to/from an unknown remote server.
 
 * **s2s_host** (multi, local)
     * **Description:** Allows black/whitelisting S2S destinations.
@@ -88,7 +88,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Default:** 5269
 
 * **s2s_addr** (multi, global)
-    * **Description:** Override DNS lookup for a specific non-local XMPP domain and use predefined server IP and port for S2S connection.
+    * **Description:** Override DNS lookup for a specific non-local XMPP domain and use a predefined server IP and port for S2S connection.
     * **Syntax:** `"{ {s2s_addr, \"some-domain\"}, { {10,20,30,40}, 7890 } }."`
 
 * **outgoing_s2s_options** (global)
@@ -107,28 +107,30 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 - **ldap_servers**
     * **Description:** List of IP addresses or DNS names of your LDAP servers.
     * **Values:** `[Servers, ...]`
-    * **Default:**  no default value. This option is required if want to set up LDAP connection.
+    * **Default:**  no default value. This option is required when setting up an LDAP connection.
 
 - **ldap_encrypt**
-    * **Description:** Set the encryption in connection with your LDAP server.
+    * **Description:** Enable connection encryption with your LDAP server.
         The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
     * **Values:** `none`, `tls`
     * **Default:** `none`
 
-- **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
-    When `soft` is enabled ejabberd proceeds even if check fails. `False` which means no checks are performed.
+- **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. 
+    When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
+    When `soft` is enabled ejabberd proceeds even if the check fails. 
+    `False` means no checks are performed.
     * **Values:** `soft`, `hard`, `false`
     * **Default:** `false`
 
 - **ldap_tls_cacertfile**
-    * **Description:** Path to file containing PEM encoded CA certificates.
+    * **Description:** Path to a file containing PEM encoded CA certificates.
     * **Values:** Path
     * **Default:** This option is needed (and required) when TLS verification is enabled.
 
 - **ldap_tls_depth**
     * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
          i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
-         Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 thus means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
+         Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
     * **Values:** Integer
     * **Default:** 1
 
@@ -161,7 +163,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Examples:** `odbc`, `[internal, anonymous]`
 
 - **auth_opts** (local)
-    * **Description:** Provides different parameters that will be applied to choosen authentication method. Those parameters are:
+    * **Description:** Provides different parameters that will be applied to a choosen authentication method. Those parameters are:
 
         * **auth_password_format** (local)
              * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
