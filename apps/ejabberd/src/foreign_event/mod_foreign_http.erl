@@ -16,7 +16,6 @@
 
 -module(mod_foreign_http).
 -author('szymon.mentel@erlang-solutions.com').
-%% Shall that be mod?
 -behaviour(mod_foreign).
 
 -include("jlib.hrl").
@@ -40,7 +39,7 @@
 -define(FAILED_HTTP_REQS_METRIC, [?MODULE, failed_http_requests]).
 
 -define(DEFAULT_POOL_SIZE, 100).
--define(HTTP_TIMEOUT, 5000).
+-define(DEFAULT_HTTP_TIMEOUT, 5000).
 
 %%--------------------------------------------------------------------
 %% API
@@ -65,7 +64,7 @@ make_request(Host, Request, OnResponse) ->
             error;
         {ok, {_Host, _Path, _Method, _Headers, _Body} = Req} ->
             Task = {?MODULE, make_request_and_respond,
-                    [Host, Req, ?HTTP_TIMEOUT, OnResponse]},
+                    [Host, Req, http_timeout(Host), OnResponse]},
             wpool:cast(pool_name(Host), Task, next_available_worker)
     end.
 
@@ -146,7 +145,7 @@ parse_body(#xmlel{} = Request) ->
 %% Internals: encoding
 %%--------------------------------------------------------------------
 
-encode({ok, {{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}}) ->
+encode({ok, {{StatusCode, _ReasonPhrase}, Headers, Body, _Size, _Time}}) ->
     #xmlel{name = <<"response">>,
            attrs = [
                     {<<"xmlns">>, ?NS_FOREIGN_EVENT_HTTP},
@@ -165,16 +164,21 @@ encode({ok, {{StatusCode, _ReasonPhare}, Headers, Body, _Size, _Time}}) ->
 encode({error, Reason}) ->
     #xmlel{name = <<"failure">>,
            attrs = [{<<"reason">>,
-                     exml:escape_attr(atom_to_binary(Reason, latin1))}]}.
+                     exml:escape_attr(atom_to_binary(Reason, latin1))}]};
+encode({'EXIT', _}) ->
+    #xmlel{name = <<"failure">>,
+           attrs = [{<<"reason">>,
+                     exml:escape_attr(<<"internal-server-error">>)}]}.
 
 %%--------------------------------------------------------------------
 %% Internals: request and response
 %%--------------------------------------------------------------------
 
-%% TODO: Internal server error on do_make_request exception (try catch)
 make_request_and_respond(Host, Request, Timeout, OnResponse) ->
-    Response = do_make_request(Request, Timeout),
+    maybe_log_request(Request),
+    Response = (catch do_make_request(Request, Timeout)),
     respond(encode(Response), OnResponse),
+    maybe_log_reponse(Response),
     update_metrics(Host, Response).
 
 %% The `Timeout' is the overall request timeout including the time spent on
@@ -190,8 +194,17 @@ respond(_Response, noreply) ->
 respond(Response, OnResponse) ->
     OnResponse(Response).
 
+maybe_log_request(Request) ->
+    ?DEBUG("issue=mod_foreign_http_request request=~p", [Request]).
+
+maybe_log_reponse({ok, {{StatusCode, ReasonPhrase}, Headers, Body, _Size, _Time}}) ->
+    ?DEBUG("issue=mod_foreign_http_response response=~p",
+           [{StatusCode, ReasonPhrase, Headers, Body}]);
+maybe_log_reponse({Error, Reason}) when Error =:= error orelse Error =:= 'EXIT' ->
+    ?WARNING_MSG("issue=mod_foreign_http_error reason=~p", [Reason]).
+
 %%--------------------------------------------------------------------
-%% Internals: pool
+%% Internals: configuration
 %%--------------------------------------------------------------------
 
 -spec pool_name(Host :: ejabberd:lserver()) -> atom().
@@ -202,8 +215,21 @@ pool_name(Host) ->
 pool_size(Opts) ->
     proplists:get_value(pool_size, Opts, ?DEFAULT_POOL_SIZE).
 
+-spec http_timeout(ejabberd:server()) -> non_neg_integer().
+http_timeout(Host) ->
+    Opts0 = gen_mod:get_module_opt(Host, mod_foreign, backends, undefined),
+    Opts1 = proplists:get_value(http, Opts0),
+    case proplists:get_value(timeout, Opts1, ?DEFAULT_HTTP_TIMEOUT) of
+        Timeout when is_integer(Timeout) ->
+            Timeout;
+        BadTimeout ->
+            ?WARNING_MSG("issue=bad_mod_foreing_http_timeout value=~p",
+                         [BadTimeout]),
+            ?DEFAULT_HTTP_TIMEOUT
+    end.
+
 %%--------------------------------------------------------------------
-%% Internals: pool
+%% Internals: metrics
 %%--------------------------------------------------------------------
 
 ensure_metrics(Host) ->
@@ -216,5 +242,5 @@ update_metrics(Host, {ok, {_SatusAndReason, _Headers, _Body, _Size, Time}}) ->
     mongoose_metrics:update(Host, ?HTTP_REQUEST_TIME_METRIC, Time),
     mongoose_metrics:update(Host, ?SUCCESSFUL_HTTP_REQS_METRIC, 1),
     ok;
-update_metrics(Host, {error, _}) ->
+update_metrics(Host, {Error, _}) when Error =:= error orelse Error =:= 'EXIT' ->
     mongoose_metrics:update(Host, ?FAILED_HTTP_REQS_METRIC, 1).

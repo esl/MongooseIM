@@ -45,7 +45,10 @@
 -define(OPTS,
         [
          {backends, [
-                     {http, [{pool_size, 100}]}
+                     {http, [
+                             {pool_size, 100},
+                             {timeout, 5000}
+                            ]}
                     ]}
         ]).
 -define(NS_FOREIGN_EVENT, <<"urn:xmpp:foreign_event:0">>).
