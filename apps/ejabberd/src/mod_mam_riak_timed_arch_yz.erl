@@ -184,7 +184,7 @@ archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
     OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
     RemoteJID = undefined,
     {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-        calculate_msg_id_borders(undefined, undefined, undefined, undefined),
+    mod_mam_utils:calculate_msg_id_borders(undefined, undefined, undefined, undefined),
     F = fun get_msg_id_key/3,
     {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                    MsgIdStartNoRSM, MsgIdEndNoRSM, undefined,
@@ -269,7 +269,7 @@ lookup_messages(Host, Params) ->
     Start = maps:get(start_ts, Params),
     End = maps:get(end_ts, Params),
     SearchText = maps:get(search_text, Params),
-    {MsgIdStart, MsgIdEnd} = calculate_msg_id_borders(RSM, Borders, Start, End),
+    {MsgIdStart, MsgIdEnd} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
     {TotalCountFullQuery, Result} = read_archive(OwnerJID, RemoteJID,
                                                  MsgIdStart, MsgIdEnd, SearchText,
                                                  SearchOpts, F),
@@ -280,7 +280,7 @@ lookup_messages(Host, Params) ->
             {ok, {undefined, undefined, get_messages(Host, SortedKeys)}};
         _ ->
             {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-                calculate_msg_id_borders(undefined, Borders, Start, End),
+            mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
             {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                            MsgIdStartNoRSM, MsgIdEndNoRSM, SearchText,
                                            [{rows, 1}], F),
@@ -493,20 +493,6 @@ id_filters(StartInt, EndInt) ->
 
 solr_id_filters(Start, End) ->
     <<"msg_id_register:[", Start/binary, " TO ", End/binary, " ]">>.
-
-
-calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
-    calculate_msg_id_borders(undefined, Borders, Start, End);
-calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
-    NextId = Id + 1,
-    {mod_mam_utils:maybe_max(StartId, NextId), EndId};
-calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
-    PrevId = Id - 1,
-    {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
-calculate_msg_id_borders(_, Borders, Start, End) ->
-    mod_mam_utils:calculate_msg_id_borders(Borders, Start, End).
 
 %% ----------------------------------------------------------------------
 %% Optimizations
