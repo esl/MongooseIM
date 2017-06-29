@@ -37,7 +37,7 @@
 -export([archive_message/9,
          archive_message_muc/9,
          lookup_messages/3,
-         lookup_messages_muc/15]).
+         lookup_messages_muc/3]).
 
 -export([key/3]).
 
@@ -158,26 +158,9 @@ lookup_messages(_Result, Host, Params) ->
     end.
 
 
-lookup_messages_muc(Result, Host,
-                    UserID, UserJID, RSM, Borders,
-                    Start, End, Now, WithJID, SearchText,
-                    PageSize, LimitPassed, MaxResultLimit,
-                    IsSimple) ->
+lookup_messages_muc(Result, Host, #{with_jid := WithJID} = Params) ->
     WithJIDMuc = maybe_muc_jid(WithJID),
-            Params = #{archive_id => UserID,
-                       owner_jid => UserJID,
-                       with_jid => WithJIDMuc,
-                       rsm => RSM,
-                       borders => Borders,
-                       start_ts => Start,
-                       end_ts => End,
-                       now => Now,
-                       search_text => SearchText,
-                       page_size => PageSize,
-                       limit_passed => LimitPassed,
-                       max_result_limit => MaxResultLimit,
-                       is_simple => IsSimple},
-    lookup_messages(Result, Host, Params).
+    lookup_messages(Result, Host, Params#{with_jid => WithJIDMuc}).
 
 
 archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
