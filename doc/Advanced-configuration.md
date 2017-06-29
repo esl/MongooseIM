@@ -189,7 +189,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
         * **Values** `[ ldap_uidattr | {ldap_uidattr: ldap_uidattr_format} ]`
         The values for `ldap_uidattr` and `ldap_uidattr_format` are described as follow:
              * **ldap_uidattr:** LDAP attribute which holds the user’s part of a JID. The default value is `uid`
-             * **ldap_uidattr_format:**  Format of the `ldap_uidattr` variable. The format must contain one and only one pattern variable `%u` which will be replaced by the user’s part of a JID. For example, ``%u@example.org`. The default value is `%u`.
+             * **ldap_uidattr_format:**  Format of the `ldap_uidattr` variable. The format must contain one and only one pattern variable `%u` which will be replaced by the user’s part of a JID. For example, `%u@example.org`. The default value is `%u`.
         * **Default**  `[{uid, %u}]`
 
     * **ldap_filter:**
@@ -204,8 +204,8 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **ldap_dn_filter:**
         * **Description:**  This filter is applied on the results returned by the main filter.
         This filter performs additional LDAP lookup to make the complete result. This is useful when you are unable to define all filter rules in ldap_filter.
-        You can define `%u`, `%d`, `%s` and `%D` pattern variables in Filter: `%u` is replaced by a user’s part of a JID, `%d` is replaced by the corresponding domain (virtual host), all `%s` variables are consecutively replaced by values of FilterAttrs attributes and `%D` is replaced by Distinguished Name.
-        Since this filter makes additional LDAP lookups, use it only in the last resort: try to define all filter rules in ldap_filter if possible.
+        You can define `%u`, `%d`, `%s` and `%D` pattern variables in the filter: `%u` is replaced by a user’s part of a JID, `%d` is replaced by the corresponding domain (virtual host), all `%s` variables are consecutively replaced by values of FilterAttrs attributes and `%D` is replaced by Distinguished Name.
+        Since this filter makes additional LDAP lookups, use it only as the last resort: try to define all filter rules in ldap_filter if possible.
         * **Values:** `{Filter, [FilterAttributes]}`. For example:
 
                                   (&(name=%s)(owner=%D)(user=%u@%d))": ["sn"]
@@ -214,7 +214,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
     * **ldap_local_filter:**
         * **Description:** If you can’t use ldap_filter due to performance reasons (the LDAP server has many users registered), you can use this local filter.
-        The local filter checks an attribute in ejabberd, not in LDAP, so this limits the load on the LDAP directory.
+        The local filter checks an attribute in MongooseIM, not in LDAP, so this limits the load on the LDAP directory.
         * **Values:** `Filter`. Example values:
 
                                   {ldap_local_filter, {notequal, {"accountStatus",["disabled"]}}}.
@@ -343,7 +343,7 @@ The `http_connections` option configures a list of named pools of outgoing HTTP 
 
 Following pool options are recognized - all of them are optional.
 
-* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including port number if needed).
+* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
 * `{pool_size, Number}` - positive integer, default: `20` - number of workers in the connection pool.
 * `{max_overflow, Number}` - non-negative integer, default: `5` - maximum number of extra workers that can be allocated when the whole pool is busy.
 * `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
@@ -385,15 +385,12 @@ By default only the following applications can be found there:
     Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) 
    and date formatting (`date`). Ignore the log level parameters - they are overridden with the value in `ejabberd.cfg`.
 
-* `ejabberd` - set `keep_lager_intact` parameter to `true` when you want to
-    use `lager` log level parameters from `app.config`. Missing value or
-    `false` for this parameter means overriding the log levels with the value
-    in `ejabberd.cfg`.
+* `ejabberd` - set `keep_lager_intact` parameter to `true` when you want to use `lager` log level parameters from `app.config`. 
+    Missing value or`false` for this parameter means overriding the log levels with the value in `ejabberd.cfg`.
 
-* `ssl` only `session_lifetime` parameter is specified in
-    this file. Its default value is **600s**. This parameter says for how
-    long the ssl session should remain in the cache for further re-use,
-    should `ssl session resumption` happen.
+* `ssl` only `session_lifetime` parameter is specified in this file. 
+    Its default value is **600s**. 
+    This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
 
 
 # Configuring TLS: Certificates & Keys
