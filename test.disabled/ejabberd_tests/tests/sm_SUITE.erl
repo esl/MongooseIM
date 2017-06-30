@@ -28,7 +28,8 @@ all() ->
 
 groups() ->
     [{parallel, [parallel], parallel_test_cases()},
-     {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()}
+     {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
+     {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]}
     ].
 
 parallel_test_cases() ->
@@ -57,7 +58,6 @@ parallel_test_cases() ->
 parallel_manual_ack_test_cases() ->
     [client_acks_more_than_sent,
      too_many_unacked_stanzas,
-     preserve_order,
      resend_unacked_after_resume_timeout,
      resume_session_state_send_message,
      resume_session_state_stop_c2s,
@@ -86,6 +86,9 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(NewConfig1).
 
+init_per_group(manual_ack_freq_long_session_timeout, Config) ->
+    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
+    escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(parallel_manual_ack_freq_1, Config) ->
     true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
     escalus_ejabberd:rpc(?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
@@ -93,7 +96,9 @@ init_per_group(parallel_manual_ack_freq_1, Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
-
+end_per_group(manual_ack_freq_long_session_timeout, Config) ->
+    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [never]),
+    Config;
 end_per_group(parallel_manual_ack, Config) ->
     true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [never]),
     escalus_ejabberd:rpc(?MOD_SM, set_resume_timeout, [600]),
