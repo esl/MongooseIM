@@ -18,7 +18,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 ## Options
 
-* All options except `hosts`, `host`, `host_config`, `pool` and the ODBC options can be used in `host_config` tuple.
+* All options except `hosts`, `host`, `host_config`, `pool` and the ODBC options can be used in the `host_config` tuple.
 
 * There are two kinds of local options - those that are kept separately for each domain in the config file (defined inside `host_config`) and the options local for a node in the cluster.
 
@@ -31,12 +31,12 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 ### Override stored options
 
 * **override_global, override_local, override_acls** - optional
-    * **Description:** Will cause MongooseIM to erase all global/local/acl options in database respectively. This ensures that ALL settings of specific type will be reloaded on startup.
+    * **Description:** Will cause MongooseIM to erase all global/local/acl options in database respectively. This ensures that ALL settings of a specific type will be reloaded on startup.
 
 ### Debugging
 
 * **loglevel** (local)
-    * **Description:** Log level configured with integer: 0 (disabled), 1 (critical), 2 (error), 3 (warning), 4 (info), 5 (debug). Recommended values for production systems are 2 or 3 (5 is for development).
+    * **Description:** Log level configured with an integer: 0 (disabled), 1 (critical), 2 (error), 3 (warning), 4 (info), 5 (debug). Recommended values for production systems are 2 or 3 (5 is for development).
 
 
 ### Served hostnames
@@ -77,7 +77,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Syntax:** `{domain_certfile, "example.com", "/path/to/example.com.pem"}.`
 
 * **s2s_default_policy** (local)
-    * **Description:** Default policy for new S2S (server-to-server) **both incoming and outgoing** connection to/from unknown remote server.
+    * **Description:** Default policy for a new S2S (server-to-server) **both incoming and outgoing** connection to/from an unknown remote server.
 
 * **s2s_host** (multi, local)
     * **Description:** Allows black/whitelisting S2S destinations.
@@ -88,7 +88,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Default:** 5269
 
 * **s2s_addr** (multi, global)
-    * **Description:** Override DNS lookup for a specific non-local XMPP domain and use predefined server IP and port for S2S connection.
+    * **Description:** Override DNS lookup for a specific non-local XMPP domain and use a predefined server IP and port for S2S connection.
     * **Syntax:** `"{ {s2s_addr, \"some-domain\"}, { {10,20,30,40}, 7890 } }."`
 
 * **outgoing_s2s_options** (global)
@@ -103,28 +103,126 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Mnesia:** `{sm_backend, {mnesia, []}}`
     * **Redis:** `{redis, [{pool_size, Size}, {worker_config, [{host, "Host"}, {port, Port}]}]}}`
 
+### LDAP Connection
+- **ldap_servers**
+    * **Description:** List of IP addresses or DNS names of your LDAP servers.
+    * **Values:** `[Servers, ...]`
+    * **Default:**  no default value. This option is required when setting up an LDAP connection.
+
+- **ldap_encrypt**
+    * **Description:** Enable connection encryption with your LDAP server.
+        The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
+    * **Values:** `none`, `tls`
+    * **Default:** `none`
+
+- **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. 
+    When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
+    When `soft` is enabled ejabberd proceeds even if the check fails. 
+    `False` means no checks are performed.
+    * **Values:** `soft`, `hard`, `false`
+    * **Default:** `false`
+
+- **ldap_tls_cacertfile**
+    * **Description:** Path to a file containing PEM encoded CA certificates.
+    * **Values:** Path
+    * **Default:** This option is needed (and required) when TLS verification is enabled.
+
+- **ldap_tls_depth**
+    * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
+         i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
+         Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
+    * **Values:** Integer
+    * **Default:** 1
+
+- **ldap_port**
+    * **Description:** Port to connect to your LDAP server.
+    * **Values:** Integer
+    * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
+
+- **ldap_rootdn**
+    * **Description:** Bind DN
+    * **Values:** String
+    * **Default:** empty string which is `anonymous connection`
+
+- **ldap_password**
+    * **Description:** Bind password
+    * **Values:** String
+    * **Default:** empty string
+
+- **ldap_deref_aliases**
+    * **Description:** Whether or not to dereference aliases
+    * **Values:** `never`, `always`, `finding`, `searching`
+    * **Default:** `never`
+
 ### Authentication
 
-* **auth_method** (local)
+- **auth_method** (local)
     * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
     * **Valid values:** `internal` (Mnesia), `odbc`, `external`, `anonymous`, `ldap`
     * **Warning:** `external` and `ldap` limit SASL mechanisms list to `PLAIN` and `ANONYMOUS`.
     * **Examples:** `odbc`, `[internal, anonymous]`
 
-* **auth_password_format** (local)
-    * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
-    * **Values:** `plain`, `scram`
-    * **Default:** `plain` (for compatibility reasons, might change soon)
+- **auth_opts** (local)
+    * **Description:** Provides different parameters that will be applied to a choosen authentication method. Those parameters are:
 
-* **auth_scram_iterations** (local)
-    * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
-    * **Default:** 4096
+        * **auth_password_format** (local)
+             * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
+             * **Values:** `plain`, `scram`
+             * **Default:** `plain` (for compatibility reasons, might change soon)
 
-* **ext_auth_script** (local)
-    * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
+        * **auth_scram_iterations** (local)
+             * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
+             * **Default:** 4096
 
-* **LDAP-related options**
-  * [[Everything about LDAP]]
+        * **ext_auth_script** (local)
+             * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
+
+- **LDAP-related options**
+    * **ldap_base:**
+        * **Description:**  LDAP base directory which stores users accounts.
+        * **Values:** String
+        * **Default:** This option is required
+
+    * **ldap_uids:**
+        * **Description:**  LDAP attribute which holds a list of attributes to use as alternatives for getting the JID.
+       The attributes are of the form: `[{ldap_uidattr}]` or `[{ldap_uidattr, ldap_uidattr_format}]`. You can use as many comma separated attributes as needed.
+        * **Values** `[ ldap_uidattr | {ldap_uidattr: ldap_uidattr_format} ]`
+        The values for `ldap_uidattr` and `ldap_uidattr_format` are described as follow:
+             * **ldap_uidattr:** LDAP attribute which holds the user’s part of a JID. The default value is `uid`
+             * **ldap_uidattr_format:**  Format of the `ldap_uidattr` variable. The format must contain one and only one pattern variable `%u` which will be replaced by the user’s part of a JID. For example, `%u@example.org`. The default value is `%u`.
+        * **Default**  `[{uid, %u}]`
+
+    * **ldap_filter:**
+        * **Description:** LDAP filter. Please, do not forget to close brackets and do not use superfluous whitespaces.
+        Also you must not use `ldap_uidattr` attribute in filter because this attribute will be substituted in LDAP filter automatically.
+        * **Values:** String. For example:
+
+                                          (&(objectClass=shadowAccount)(memberOf=Jabber Users))
+
+        * **Default:** `undefined`
+
+    * **ldap_dn_filter:**
+        * **Description:**  This filter is applied on the results returned by the main filter.
+        This filter performs additional LDAP lookup to make the complete result. This is useful when you are unable to define all filter rules in ldap_filter.
+        You can define `%u`, `%d`, `%s` and `%D` pattern variables in the filter: `%u` is replaced by a user’s part of a JID, `%d` is replaced by the corresponding domain (virtual host), all `%s` variables are consecutively replaced by values of FilterAttrs attributes and `%D` is replaced by Distinguished Name.
+        Since this filter makes additional LDAP lookups, use it only as the last resort: try to define all filter rules in ldap_filter if possible.
+        * **Values:** `{Filter, [FilterAttributes]}`. For example:
+
+                                  (&(name=%s)(owner=%D)(user=%u@%d))": ["sn"]
+
+        * **Default:** `undefined`
+
+    * **ldap_local_filter:**
+        * **Description:** If you can’t use ldap_filter due to performance reasons (the LDAP server has many users registered), you can use this local filter.
+        The local filter checks an attribute in MongooseIM, not in LDAP, so this limits the load on the LDAP directory.
+        * **Values:** `Filter`. Example values:
+
+                                  {ldap_local_filter, {notequal, {"accountStatus",["disabled"]}}}.
+                                  {ldap_local_filter, {equal, {"accountStatus",["enabled"]}}}.
+                                  {ldap_local_filter, undefined}.
+
+        * **Default:** `undefined`
+
 
 ### Database setup
 
@@ -245,7 +343,7 @@ The `http_connections` option configures a list of named pools of outgoing HTTP 
 
 Following pool options are recognized - all of them are optional.
 
-* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including port number if needed).
+* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
 * `{pool_size, Number}` - positive integer, default: `20` - number of workers in the connection pool.
 * `{max_overflow, Number}` - non-negative integer, default: `5` - maximum number of extra workers that can be allocated when the whole pool is busy.
 * `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
@@ -287,15 +385,12 @@ By default only the following applications can be found there:
     Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) 
    and date formatting (`date`). Ignore the log level parameters - they are overridden with the value in `ejabberd.cfg`.
 
-* `ejabberd` - set `keep_lager_intact` parameter to `true` when you want to
-    use `lager` log level parameters from `app.config`. Missing value or
-    `false` for this parameter means overriding the log levels with the value
-    in `ejabberd.cfg`.
+* `ejabberd` - set `keep_lager_intact` parameter to `true` when you want to use `lager` log level parameters from `app.config`. 
+    Missing value or`false` for this parameter means overriding the log levels with the value in `ejabberd.cfg`.
 
-* `ssl` only `session_lifetime` parameter is specified in
-    this file. Its default value is **600s**. This parameter says for how
-    long the ssl session should remain in the cache for further re-use,
-    should `ssl session resumption` happen.
+* `ssl` only `session_lifetime` parameter is specified in this file. 
+    Its default value is **600s**. 
+    This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
 
 
 # Configuring TLS: Certificates & Keys
