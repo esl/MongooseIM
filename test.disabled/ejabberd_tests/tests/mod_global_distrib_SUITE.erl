@@ -42,7 +42,8 @@ groups() ->
       ]},
      {multi_connection, [],
       [
-       test_in_order_messages_on_multiple_connections
+       test_in_order_messages_on_multiple_connections,
+       test_muc_conversation_history
       ]}].
 
 suite() ->
@@ -133,14 +134,14 @@ end_per_group(_, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, eve])).
 
 init_per_testcase(CaseName, Config)
-  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco ->
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco; CaseName == test_muc_conversation_history ->
     muc_helper:load_muc(<<"muc.localhost">>),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config)
-  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco ->
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco; CaseName == test_muc_conversation_history ->
     muc_helper:unload_muc(),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
@@ -200,6 +201,55 @@ test_muc_conversation_on_one_host(Config0) ->
               escalus:assert(is_groupchat_message, [Msg2], escalus:wait_for_stanza(Eve)),
               escalus:assert(is_groupchat_message, [Msg2], escalus:wait_for_stanza(Alice))
       end),
+    muc_helper:destroy_room(Config).
+
+test_muc_conversation_history(Config0) ->
+    AliceSpec = muc_SUITE:given_fresh_spec(Config0, alice),
+    EveSpec = muc_SUITE:given_fresh_spec(Config0, eve),
+    Config = muc_SUITE:given_fresh_room(Config0, AliceSpec, []),
+    Alice = connect_from_spec(AliceSpec, Config),
+
+    RoomJid = ?config(room, Config),
+    AliceUsername = escalus_utils:get_username(Alice),
+    RoomAddr = muc_helper:room_address(RoomJid),
+
+    escalus:send(Alice, muc_helper:stanza_muc_enter_room(RoomJid, AliceUsername)),
+    escalus:wait_for_stanza(Alice),
+
+    lists:foreach(fun(I) ->
+                          Msg = <<"test-", (integer_to_binary(I))/binary>>,
+                          escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Msg))
+                  end, lists:seq(1, 3)),
+
+    Eve = connect_from_spec(EveSpec, Config, nofilter),
+    EveJid = escalus_client:full_jid(Eve),
+    MyPresence = escalus:wait_for_stanza(Eve),
+    escalus:assert(is_presence, MyPresence),
+    ?assertEqual(EveJid, exml_query:attr(MyPresence, <<"from">>)),
+
+    EveUsername = escalus_utils:get_username(Eve),
+    escalus:send(Eve, muc_helper:stanza_muc_enter_room(RoomJid, EveUsername)),
+
+    AlicePresence = escalus:wait_for_stanza(Eve),
+    escalus:assert(is_presence, AlicePresence),
+    ?assertEqual(muc_helper:room_address(RoomJid, AliceUsername),
+                 exml_query:attr(AlicePresence, <<"from">>)),
+
+    MyRoomPresence = escalus:wait_for_stanza(Eve),
+    escalus:assert(is_presence, MyRoomPresence),
+    ?assertEqual(muc_helper:room_address(RoomJid, EveUsername),
+                 exml_query:attr(MyRoomPresence, <<"from">>)),
+
+    lists:foreach(fun(J) ->
+                          Msg = <<"test-", (integer_to_binary(J))/binary>>,
+                          Stanza = escalus:wait_for_stanza(Eve),
+                          escalus:assert(is_groupchat_message, [Msg], Stanza)
+                  end, lists:seq(1, 3)),
+
+    Subject = escalus:wait_for_stanza(Eve),
+    escalus:assert(is_groupchat_message, Subject),
+    ?assertNotEqual(undefined, exml_query:subelement(Subject, <<"subject">>)),
+
     muc_helper:destroy_room(Config).
 
 test_component_on_one_host(Config) ->
@@ -416,9 +466,13 @@ rpc(NodeName, M, F, A) ->
     ct_rpc:call(Node, M, F, A).
 
 connect_from_spec(UserSpec, Config) ->
+    User = connect_from_spec(UserSpec, Config, nofilter),
+    escalus_connection:set_filter_predicate(User, fun(S) -> not escalus_pred:is_presence(S) end),
+    User.
+
+connect_from_spec(UserSpec, Config, nofilter) ->
     {ok, User} = escalus_client:start(Config, UserSpec, <<"res1">>),
     escalus_story:send_initial_presence(User),
-    escalus_connection:set_filter_predicate(User, fun(S) -> not escalus_pred:is_presence(S) end),
     User.
 
 chat_with_seqnum(To, Text) ->
