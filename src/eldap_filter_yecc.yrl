@@ -52,27 +52,20 @@ value -> str: value_of('$1').
 
 Erlang code.
 
-'and'(Value)                -> eldap:'and'(maybe_binary_to_list(Value)).
-'or'(Value)                 -> eldap:'or'(maybe_binary_to_list(Value)).
-'not'(Value)                -> eldap:'not'(maybe_binary_to_list(Value)).
-equal(Desc, Value)          -> eldap:equalityMatch(Desc, maybe_binary_to_list(Value)).
-approx(Desc, Value)         -> eldap:approxMatch(Desc, maybe_binary_to_list(Value)).
-greater(Desc, Value)        -> eldap:greaterOrEqual(Desc, maybe_binary_to_list(Value)).
-less(Desc, Value)           -> eldap:lessOrEqual(Desc, maybe_binary_to_list(Value)).
-present(Value)              -> eldap:present(maybe_binary_to_list(Value)).
-extensible(Value, Opts)     -> eldap:extensibleMatch(maybe_binary_to_list(Value), Opts).
+'and'(Value)                -> eldap:'and'(eldap_utils:maybe_b2list(Value)).
+'or'(Value)                 -> eldap:'or'(eldap_utils:maybe_b2list(Value)).
+'not'(Value)                -> eldap:'not'(eldap_utils:maybe_b2list(Value)).
+equal(Desc, Value)          -> eldap:equalityMatch(Desc, eldap_utils:maybe_b2list(Value)).
+approx(Desc, Value)         -> eldap:approxMatch(Desc, eldap_utils:maybe_b2list(Value)).
+greater(Desc, Value)        -> eldap:greaterOrEqual(Desc, eldap_utils:maybe_b2list(Value)).
+less(Desc, Value)           -> eldap:lessOrEqual(Desc, eldap_utils:maybe_b2list(Value)).
+present(Value)              -> eldap:present(eldap_utils:maybe_b2list(Value)).
+extensible(Value, Opts)     -> eldap:extensibleMatch(eldap_utils:maybe_b2list(Value), Opts).
 substrings(Desc, ValueList) -> eldap:substrings(Desc, flatten(ValueList)).
-initial(Value)              -> {initial, maybe_binary_to_list(Value)}.
-final(Value)                -> {final, maybe_binary_to_list(Value)}.
-'any'(Token, Value)         -> [Token, {any, maybe_binary_to_list(Value)}].
-xattr(Value)                -> {type, maybe_binary_to_list(Value)}.
-matchingrule(Value)         -> {matchingRule, maybe_binary_to_list(Value)}.
+initial(Value)              -> {initial, eldap_utils:maybe_b2list(Value)}.
+final(Value)                -> {final, eldap_utils:maybe_b2list(Value)}.
+'any'(Token, Value)         -> [Token, {any, eldap_utils:maybe_b2list(Value)}].
+xattr(Value)                -> {type, eldap_utils:maybe_b2list(Value)}.
+matchingrule(Value)         -> {matchingRule, eldap_utils:maybe_b2list(Value)}.
 value_of(Token)             -> iolist_to_binary(element(3, Token)).
 flatten(List)               -> lists:flatten(List).
-
-maybe_binary_to_list(El) when is_list(El) ->
-  El;
-maybe_binary_to_list(El) when is_binary(El) ->
-  binary_to_list(El);
-maybe_binary_to_list(X) ->
-  X.
