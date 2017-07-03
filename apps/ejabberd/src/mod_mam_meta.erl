@@ -85,7 +85,11 @@ mam_type_to_core_mod(muc) -> mod_mam_muc.
 
 -spec valid_core_mod_opts(module()) -> [atom()].
 valid_core_mod_opts(mod_mam) ->
-    [add_archived_element, is_archivable_message, full_text_search, archive_groupchats];
+    [add_archived_element,
+     is_archivable_message,
+     archive_chat_markers,
+     full_text_search,
+     archive_groupchats];
 valid_core_mod_opts(mod_mam_muc) ->
     [add_archived_element, is_archivable_message, host, full_text_search].
 

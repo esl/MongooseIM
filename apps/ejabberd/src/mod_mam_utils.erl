@@ -318,7 +318,7 @@ get_one_of_path(_Elem, [], Def) ->
 is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
     is_valid_message_type(Mod, Dir, Type) andalso
-        is_valid_message(Mod, Dir, Packet);
+        (is_valid_message(Mod, Dir, Packet) orelse is_chat_marker(Packet));
 is_archivable_message(_, _, _) ->
     false.
 
@@ -345,6 +345,25 @@ is_valid_message_children(_,     false, false, false) -> true;
 %% Forwarded by MAM message or delivered by mod_offline
 %% See mam_SUITE:offline_message for a test case
 is_valid_message_children(_,      _,    _,     _    ) -> false.
+
+is_chat_marker(Packet) ->
+    case mod_mam_params:archive_chat_markers() of
+        true ->
+            do_check_markers(Packet);
+        false ->
+            false
+    end.
+
+do_check_markers(Packet) ->
+    MarkerTags = [<<"received">>, <<"displayed">>, <<"acknowledged">>],
+    HasSubtag = fun(Tag) ->
+                    case xml:get_subtag(Packet, Tag) of
+                        #xmlel{} -> true;
+                        _        -> false
+                    end
+                end,
+            lists:any(fun(P) -> P end,
+                      lists:map(HasSubtag, MarkerTags)).
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
 -spec wrap_message(MamNs :: binary(), Packet :: jlib:xmlel(), QueryID :: binary(),

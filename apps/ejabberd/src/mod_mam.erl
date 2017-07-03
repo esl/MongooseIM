@@ -1037,17 +1037,20 @@ params_helper(Params) ->
 
             Mod -> {Mod, is_archivable_message}
         end,
+
     Format =
         io_lib:format(
           "-module(mod_mam_params).~n"
           "-compile(export_all).~n"
           "add_archived_element() -> ~p.~n"
           "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
+          "archive_chat_markers() -> ~p.~n"
           "default_result_limit() -> ~p.~n"
           "max_result_limit() -> ~p.~n"
           "params() -> ~p.~n",
           [proplists:get_bool(add_archived_element, Params),
            IsArchivableModule, IsArchivableFunction,
+           proplists:get_bool(archive_chat_markers, Params),
            proplists:get_value(default_result_limit, Params, 50),
            proplists:get_value(max_result_limit, Params, 50),
            Params
