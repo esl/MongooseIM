@@ -30,7 +30,7 @@
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
 
 -record(state, {
-    socket :: fast_tls:tls_socket(),
+    socket :: mod_global_distrib_transport:t(),
     waiting_for :: header | non_neg_integer(),
     buffer = <<>> :: binary()
 }).
@@ -65,24 +65,23 @@ stop(Host) ->
 %% ranch_protocol API
 %%--------------------------------------------------------------------
 
-init({Ref, Socket, _Opts}) ->
+init({Ref, RawSocket, _Opts}) ->
     ok = ranch:accept_ack(Ref),
-    {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, opt(tls_opts)),
-    ok = fast_tls:setopts(TLSSocket, [{active, once}]),
-    gen_server:enter_loop(?MODULE, [], #state{socket = TLSSocket,
-                                              waiting_for = header}).
+    {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, opt(tls_opts)),
+    ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
+    gen_server:enter_loop(?MODULE, [], #state{socket = Socket, waiting_for = header}).
 
 %%--------------------------------------------------------------------
 %% gen_server API
 %%--------------------------------------------------------------------
 
-handle_info({tcp, _Socket, TLSData}, #state{socket = Socket, buffer = Buffer} = State) ->
-    ok = fast_tls:setopts(Socket, [{active, once}]),
-    {ok, Data} = fast_tls:recv_data(Socket, TLSData),
+handle_info({tcp, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = State) ->
+    ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
+    {ok, Data} = mod_global_distrib_transport:recv_data(Socket, RawData),
     NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
     {noreply, NewState};
 handle_info({tcp_closed, _Socket}, #state{socket = Socket} = State) ->
-    fast_tls:close(Socket),
+    mod_global_distrib_transport:close(Socket),
     {stop, normal, State};
 handle_info(Msg, State) ->
     ?WARNING_MSG("Received unknown message ~p", [Msg]),

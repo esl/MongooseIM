@@ -37,10 +37,10 @@ start_link(Server) ->
 init(Server) ->
     {Addr, Port} = choose_endpoint(Server),
     try
-        {ok, Socket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
-        {ok, TLSSocket} = fast_tls:tcp_to_tls(Socket, [connect | opt(tls_opts)]),
-        fast_tls:setopts(TLSSocket, [{active, once}]),
-        {ok, TLSSocket}
+        {ok, RawSocket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
+        {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, [connect | opt(tls_opts)]),
+        mod_global_distrib_transport:setopts(Socket, [{active, once}]),
+        {ok, Socket}
     catch
         error:{badmatch, Reason} ->
             lager:error("Connection to ~p failed: ~p", [{Addr, Port}, Reason]),
@@ -56,16 +56,17 @@ handle_cast({data, Stamp, Data}, Socket) ->
     QueueTimeUS = p1_time_compat:convert_time_unit(QueueTimeNative, native, micro_seconds),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_SEND_QUEUE_TIME, QueueTimeUS),
     Annotated = <<(byte_size(Data)):32, Data/binary>>,
-    ok = fast_tls:send(Socket, Annotated),
+    ok = mod_global_distrib_transport:send(Socket, Annotated),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_SENT, 1),
     {noreply, Socket}.
 
-handle_info({tcp, _Socket, TLSData}, Socket) ->
-    ok = fast_tls:setopts(Socket, [{active, once}]),
-    fast_tls:recv_data(Socket, TLSData),
+handle_info({tcp, _Socket, RawData}, Socket) ->
+    ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
+    %% Feeding data to drive the TLS state machine (in case of TLS connection)
+    {ok, _} = mod_global_distrib_transport:recv_data(Socket, RawData),
     {noreply, Socket};
 handle_info({tcp_closed, _}, Socket) ->
-    fast_tls:close(Socket),
+    mod_global_distrib_transport:close(Socket),
     {stop, normal, Socket};
 handle_info(_, Socket) ->
     {noreply, Socket}.

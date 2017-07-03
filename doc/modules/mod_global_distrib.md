@@ -76,7 +76,8 @@ In the example above, the message from **U2** would be temporarily stored at **D
   The endpoint list will be shared with other datacenters via the replicated backend.
 * **num_of_connections** (integer, default: `1`): Number of outgoing connections that will be established from the current node to each other XMPP cluster sharing the global domain.
 * **tls_opts** (list, required): Options for TLS connections passed to the `fast_tls` driver.
-  At minimum, they should include `certfile` and `cafile` settings. 
+  May be set to `false`, in which case all data will be sent via standard TCP connections.
+  Otherwise, they should at least include `certfile` and `cafile` options. 
 
 #### Redis session storage options
 
