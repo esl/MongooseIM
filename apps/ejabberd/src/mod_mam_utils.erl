@@ -355,15 +355,12 @@ is_chat_marker(Packet) ->
     end.
 
 do_check_markers(Packet) ->
-    MarkerTags = [<<"received">>, <<"displayed">>, <<"acknowledged">>],
-    HasSubtag = fun(Tag) ->
-                    case xml:get_subtag(Packet, Tag) of
-                        #xmlel{} -> true;
-                        _        -> false
-                    end
-                end,
-            lists:any(fun(P) -> P end,
-                      lists:map(HasSubtag, MarkerTags)).
+    case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of
+        #xmlel{name = <<"received">>}     -> true;
+        #xmlel{name = <<"displayed">>}    -> true;
+        #xmlel{name = <<"acknowledged">>} -> true;
+        _                                 -> false
+    end.
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
 -spec wrap_message(MamNs :: binary(), Packet :: jlib:xmlel(), QueryID :: binary(),
@@ -748,8 +745,8 @@ normalize_search_text(Text, WordSeparator) ->
 packet_to_search_body(Module, Host, Packet) ->
     case has_full_text_search(Module, Host) of
         true ->
-            BodyValue = case xml:get_subtag(Packet, <<"body">>) of
-                                false ->
+            BodyValue = case exml_query:subelement(Packet, <<"body">>) of
+                                undefined ->
                                         <<"">>;
                                 Body ->
                                     xml:get_tag_cdata(Body)

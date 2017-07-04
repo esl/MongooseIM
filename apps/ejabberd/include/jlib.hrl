@@ -115,6 +115,8 @@
 
 -define(NS_CSI, <<"urn:xmpp:csi:0">>).
 
+-define(NS_CHAT_MARKERS, <<"urn:xmpp:chat-markers:0">>).
+
 %% Erlang Solutions custom extension - token based authentication
 -define(NS_ESL_TOKEN_AUTH, <<"erlang-solutions.com:xmpp:token-auth:0">>).
 
