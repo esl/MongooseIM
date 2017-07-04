@@ -52,29 +52,23 @@ start(Host, Opts) ->
                                   ?MODULE, process_local_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_COMMANDS,
                                   ?MODULE, process_sm_iq, IQDisc),
-
-    ejabberd_hooks:add(disco_local_identity, Host, ?MODULE, get_local_identity, 99),
-    ejabberd_hooks:add(disco_local_features, Host, ?MODULE, get_local_features, 99),
-    ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_local_commands, 99),
-    ejabberd_hooks:add(disco_sm_identity, Host, ?MODULE, get_sm_identity, 99),
-    ejabberd_hooks:add(disco_sm_features, Host, ?MODULE, get_sm_features, 99),
-    ejabberd_hooks:add(disco_sm_items, Host, ?MODULE, get_sm_commands, 99),
-    ejabberd_hooks:add(adhoc_local_items, Host, ?MODULE, ping_item, 100),
-    ejabberd_hooks:add(adhoc_local_commands, Host, ?MODULE, ping_command, 100).
+    ejabberd_hooks:add(hooks(Host)).
 
 stop(Host) ->
-    ejabberd_hooks:delete(adhoc_local_commands, Host, ?MODULE, ping_command, 100),
-    ejabberd_hooks:delete(adhoc_local_items, Host, ?MODULE, ping_item, 100),
-    ejabberd_hooks:delete(disco_sm_items, Host, ?MODULE, get_sm_commands, 99),
-    ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 99),
-    ejabberd_hooks:delete(disco_sm_identity, Host, ?MODULE, get_sm_identity, 99),
-    ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_local_commands, 99),
-    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_local_features, 99),
-    ejabberd_hooks:delete(disco_local_identity, Host, ?MODULE, get_local_identity, 99),
+    ejabberd_hooks:delete(hooks(Host)),
 
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_COMMANDS),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_COMMANDS).
 
+hooks(Host) ->
+    [{disco_local_identity, Host, ?MODULE, get_local_identity, 99},
+     {disco_local_features, Host, ?MODULE, get_local_features, 99},
+     {disco_local_items, Host, ?MODULE, get_local_commands, 99},
+     {disco_sm_identity, Host, ?MODULE, get_sm_identity, 99},
+     {disco_sm_features, Host, ?MODULE, get_sm_features, 99},
+     {disco_sm_items, Host, ?MODULE, get_sm_commands, 99},
+     {adhoc_local_items, Host, ?MODULE, ping_item, 100},
+     {adhoc_local_commands, Host, ?MODULE, ping_command, 100}].
 %%-------------------------------------------------------------------------
 
 -spec get_local_commands(Acc :: [jlib:xmlel()],

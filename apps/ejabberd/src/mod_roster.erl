@@ -171,43 +171,24 @@ start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, TrackedFuns),
     mod_roster_backend:init(Host, Opts),
 
-    ejabberd_hooks:add(roster_get, Host,
-                       ?MODULE, get_user_roster, 50),
-    ejabberd_hooks:add(roster_in_subscription, Host,
-                       ?MODULE, in_subscription, 50),
-    ejabberd_hooks:add(roster_out_subscription, Host,
-                       ?MODULE, out_subscription, 50),
-    ejabberd_hooks:add(roster_get_subscription_lists, Host,
-                       ?MODULE, get_subscription_lists, 50),
-    ejabberd_hooks:add(roster_get_jid_info, Host,
-                       ?MODULE, get_jid_info, 50),
-    ejabberd_hooks:add(remove_user, Host,
-                       ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, Host,
-                       ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(roster_get_versioning_feature, Host,
-                       ?MODULE, get_versioning_feature, 50),
+    ejabberd_hooks:add(hooks(Host)),
+
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ROSTER,
                                   ?MODULE, process_iq, IQDisc).
 
 stop(Host) ->
-    ejabberd_hooks:delete(roster_get, Host,
-                          ?MODULE, get_user_roster, 50),
-    ejabberd_hooks:delete(roster_in_subscription, Host,
-                          ?MODULE, in_subscription, 50),
-    ejabberd_hooks:delete(roster_out_subscription, Host,
-                          ?MODULE, out_subscription, 50),
-    ejabberd_hooks:delete(roster_get_subscription_lists, Host,
-                          ?MODULE, get_subscription_lists, 50),
-    ejabberd_hooks:delete(roster_get_jid_info, Host,
-                          ?MODULE, get_jid_info, 50),
-    ejabberd_hooks:delete(remove_user, Host,
-                          ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, Host,
-                          ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(roster_get_versioning_feature, Host,
-                          ?MODULE, get_versioning_feature, 50),
+    ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ROSTER).
+
+hooks(Host) ->
+    [{roster_get, Host, ?MODULE, get_user_roster, 50},
+     {roster_in_subscription, Host, ?MODULE, in_subscription, 50},
+     {roster_out_subscription, Host, ?MODULE, out_subscription, 50},
+     {roster_get_subscription_lists, Host, ?MODULE, get_subscription_lists, 50},
+     {roster_get_jid_info, Host, ?MODULE, get_jid_info, 50},
+     {remove_user, Host, ?MODULE, remove_user, 50},
+     {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
+     {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50}].
 
 get_roster_entry(LUser, LServer, Jid) ->
     mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).

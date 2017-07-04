@@ -48,6 +48,9 @@
          handle_info/2,
          terminate/2]).
 
+-export([add/1,
+         delete/1]).
+
 -include("ejabberd.hrl").
 
 
@@ -80,6 +83,18 @@ add(Hook, Host, Function, Seq) when is_function(Function) ->
 add(Hook, Host, Module, Function, Seq) ->
     gen_server:call(ejabberd_hooks, {add, Hook, Host, Module, Function, Seq}).
 
+-type hook() :: {atom(), ejabberd:server() | global, module(), fun() | atom(), integer()}.
+
+-spec add([hook()]) -> ok.
+add(Hooks) when is_list(Hooks) ->
+    add_or_del(add, Hooks).
+
+-spec add_or_del(add | delete, [hook()]) -> ok.
+add_or_del(AddOrDel, Hooks) ->
+    [erlang:apply(?MODULE, AddOrDel, tuple_to_list(Hook)) ||
+     Hook <- Hooks],
+    ok.
+
 %% @doc Delete a module and function from this hook.
 %% It is important to indicate exactly the same information than when the call was added.
 -spec delete(Hook :: atom(),
@@ -96,6 +111,10 @@ delete(Hook, Host, Function, Seq) when is_function(Function) ->
              Seq :: integer()) -> ok.
 delete(Hook, Host, Module, Function, Seq) ->
     gen_server:call(ejabberd_hooks, {delete, Hook, Host, Module, Function, Seq}).
+
+-spec delete([hook()]) -> ok.
+delete(Hooks) when is_list(Hooks) ->
+    add_or_del(delete, Hooks).
 
 %% @doc Run the calls of this hook in order, don't care about function results.
 %% If a call returns stop, no more calls are performed.

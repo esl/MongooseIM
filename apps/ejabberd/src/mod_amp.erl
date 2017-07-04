@@ -27,22 +27,19 @@
 
 start(Host, _Opts) ->
     mod_disco:register_feature(Host, ?NS_AMP),
-    ejabberd_hooks:add(c2s_stream_features, Host, ?MODULE, add_stream_feature, 50),
-    ejabberd_hooks:add(disco_local_features, Host, ?MODULE, add_local_features, 99),
-    ejabberd_hooks:add(amp_check_packet, Host, ?MODULE, amp_check_packet, 10),
-    ejabberd_hooks:add(amp_verify_support, Host, ?AMP_RESOLVER, verify_support, 10),
-    ejabberd_hooks:add(amp_check_condition, Host, ?AMP_RESOLVER, check_condition, 10),
-    ejabberd_hooks:add(amp_determine_strategy, Host, ?AMP_STRATEGY, determine_strategy, 10).
+    ejabberd_hooks:add(hooks(Host)).
 
 stop(Host) ->
-    ejabberd_hooks:delete(amp_determine_strategy, Host, ?AMP_STRATEGY, determine_strategy, 10),
-    ejabberd_hooks:delete(amp_check_condition, Host, ?AMP_RESOLVER, check_condition, 10),
-    ejabberd_hooks:delete(amp_verify_support, Host, ?AMP_RESOLVER, verify_support, 10),
-    ejabberd_hooks:delete(amp_check_packet, Host, ?MODULE, amp_check_packet, 10),
-    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, add_local_features, 99),
-    ejabberd_hooks:delete(c2s_stream_features, Host, ?MODULE, add_stream_feature, 50),
+    ejabberd_hooks:delete(hooks(Host)),
     mod_disco:unregister_feature(Host, ?NS_AMP).
 
+hooks(Host) ->
+    [{c2s_stream_features, Host, ?MODULE, add_stream_feature, 50},
+     {disco_local_features, Host, ?MODULE, add_local_features, 99},
+     {amp_check_packet, Host, ?MODULE, amp_check_packet, 10},
+     {amp_verify_support, Host, ?AMP_RESOLVER, verify_support, 10},
+     {amp_check_condition, Host, ?AMP_RESOLVER, check_condition, 10},
+     {amp_determine_strategy, Host, ?AMP_STRATEGY, determine_strategy, 10}].
 %% Business API
 
 -spec check_packet(mongoose_acc:t() | exml:element(), amp_event()) ->
