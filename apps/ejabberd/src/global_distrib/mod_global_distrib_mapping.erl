@@ -38,7 +38,6 @@
 -callback start(Opts :: proplists:proplist()) -> any().
 -callback stop() -> any().
 -callback put_session(JID :: binary()) -> ok | error.
--callback put_session(JID :: binary(), Host :: binary()) -> ok | error.
 -callback get_session(JID :: binary()) -> {ok, Host :: binary()} | error.
 -callback delete_session(JID :: binary()) -> ok | error.
 -callback put_domain(Domain :: binary()) -> ok | error.
@@ -234,10 +233,6 @@ get_session(Key) ->
 -spec put_session(Key :: binary()) -> ok.
 put_session(Key) ->
     mod_global_distrib_mapping_backend:put_session(Key).
-
--spec put_session(Key :: binary(), Host :: binary()) -> ok.
-put_session(Key, Host) ->
-    mod_global_distrib_mapping_backend:put_session(Key, Host).
 
 -spec delete_session(Key :: binary()) -> ok.
 delete_session(Key) ->

@@ -114,13 +114,6 @@ stop() ->
     ejabberd_hooks:delete(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
     ets:delete(?MESSAGE_STORE).
 
--spec update_data({TTL :: non_neg_integer(), Backoff :: non_neg_integer()}) ->
-                         {NewTTL :: non_neg_integer(), NewBackoff :: non_neg_integer()}.
-update_data({TTL, Backoff}) ->
-    NewTTL = TTL - 1,
-    NewBackoff = backoff:rand_increment(Backoff, opt(backoff_max)),
-    {NewTTL, NewBackoff}.
-
 -spec do_insert_in_store(ResendAt :: integer(), {jid(), jid(), mongoose_acc:t()}) -> ok.
 do_insert_in_store(ResendAt, FPacket) ->
     case ets:insert_new(?MESSAGE_STORE, {ResendAt, FPacket}) of

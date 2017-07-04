@@ -75,7 +75,7 @@ terminate(_Reason, _State) ->
 
 -spec do_work(Data :: binary()) -> any().
 do_work(Data) ->
-    {_Stamp2, {From, To, Acc}} = erlang:binary_to_term(Data), %% TODO: Stamp
+    {From, To, Acc} = erlang:binary_to_term(Data),
     maybe_update_mapping(From, Acc),
     ejabberd_router:route(From, To, Acc).
 
