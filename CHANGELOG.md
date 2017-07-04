@@ -1,4 +1,49 @@
-# [2.1.0beta1] -  2017-03-28
+# [MongooseIM 2.1.0beta2](https://github.com/esl/MongooseIM/releases/tag/2.1.0beta2) - 2017-07-06
+
+## Added
+- Roster management in client REST API (#1286)
+- Silent push notifications (#1287)
+- RSM support in `mod_vcard` (#978)
+- MAM can be configured to archive (or not) groupchat messages in private archives (#1294)
+- New command in `mongooseimctl` (#1256)
+- Extended `mod_roster` backends' API (#1302)
+- A warning is logged, when a module links to caller process on startup (#1247)
+
+## Changed
+
+- `now()` calls have been replaced with alternatives in `p1_time_compat` (#1246)
+- Stanza size limit is now checked while parsing the stanza (#1285)
+- `mongoose_acc` extended lifespan; supported by more hooks. (#1211, #1306)
+- `crypto:rand_bytes/1` calls have been replaced with `crypto:strong_rand_bytes/1` (#1348)
+
+## Fixed
+
+- Improved error handling in C2S (#1264)
+- MAM + MUC Light integration (#1270)
+- Push nodes discovery and handling in `mod_pubsub` (#1272)
+- BOSH interleaving logic (#1289)
+- Error presence handling in MUC (#1307)
+- Race condition between `mod_caps` and PEP (#1301)
+- Minor bugs in Service Discovery (#1303)
+
+## Other
+
+- Expanded, better tests and improved coverage (#645, #1241, #1278, #1291)
+- Ensured OTP 19.3 support. (#1251)
+- Configuration improvement (#1296, #1299)
+- Refactored many modules to satisfy our coding standards. (#1254, #1259)
+- Many improvements and fixes in MongooseIM documentation. (#1242, #1243, #1253, #1260, #1261, #1262, #1271, #1279, #1282, #1284, #1288, #1292, #1293, #1295, #1297, #1298, #1303, #1304, #1310, #1318, #1319, #1320, #1323, #1324, #1326, #1332, #1333, #1334, #1336, #1345)
+- Build improvements and fixes (#1258, #1266, #1300, #1309, #1315, #1335, #1355)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222017-03-29..2017-07-03%22%20sort%3Acreated-asc%20)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222017-03-29..2017-07-03%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2017-03-29&to=2017-07-03&type=c)
+
+Special thanks to our contributors: @astro @strugee @msantos @daniel-e @deadjdona !
+
+# [MongooseIM 2.1.0beta1](https://github.com/esl/MongooseIM/releases/tag/2.1.0beta1) -  2017-03-28
 
 ## Added
 - full text search in [XEP-0313: MAM](http://xmpp.org/extensions/xep-0313.html): #1136
