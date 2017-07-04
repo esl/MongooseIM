@@ -745,12 +745,8 @@ normalize_search_text(Text, WordSeparator) ->
 packet_to_search_body(Module, Host, Packet) ->
     case has_full_text_search(Module, Host) of
         true ->
-            BodyValue = case exml_query:subelement(Packet, <<"body">>) of
-                                undefined ->
-                                        <<"">>;
-                                Body ->
-                                    xml:get_tag_cdata(Body)
-                        end,
+            BodyValue = exml_query:path(Packet, [{element, <<"body">>}, cdata],
+                                        <<"">>),
             mod_mam_utils:normalize_search_text(BodyValue, " ");
         false -> ""
     end.
