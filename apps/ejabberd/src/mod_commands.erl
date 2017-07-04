@@ -334,22 +334,15 @@ lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
 lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     Host = ArcJID#jid.server,
     ArcID = mod_mam:archive_id(Host, ArcJID#jid.user),
-    Borders = undefined,
     RSM = #rsm_in{direction = before, id = undefined}, % last msgs
-    Start = undefined,
     End = Before * 1000000,
     Now = p1_time_compat:os_system_time(micro_seconds),
-    WithJID = WithJID,
-    SearchText = undefined,
     PageSize = Limit,
-    LimitPassed = false,
-    MaxResultLimit = 1,
-    IsSimple = true,
-    R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
-                                [Host, ArcID, ArcJID, RSM, Borders,
-                                 Start, End, Now, WithJID, SearchText,
-                                 PageSize, LimitPassed, MaxResultLimit,
-                                 IsSimple]),
+    R = mod_mam:lookup_messages(Host, ArcID, _ArchiveJID = ArcJID, RSM,
+                                _Borders = undefined, _Start = undefined,
+                                End, Now, WithJID, _SearchText = undefined,
+                                PageSize, _LimitPassed = false,
+                                _MaxResultLimit = 50, _IsSimple = true),
     {ok, {_, _, L}} = R,
     L.
 
