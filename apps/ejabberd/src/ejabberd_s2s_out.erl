@@ -233,27 +233,16 @@ open_socket(init, StateData) ->
                                 StateData#state.server,
                                 StateData#state.new,
                                 StateData#state.verify}]),
-    AddrList = get_predefined_addresses(StateData#state.server) ++
-               case ejabberd_s2s:domain_utf8_to_ascii(StateData#state.server) of
-                   false ->
-                       [];
-                   ASCIIAddr ->
-                       get_addr_port(ASCIIAddr)
-               end,
-    case lists:foldl(fun({Addr, Port}, Acc) ->
-                             case Acc of
-                                 {ok, Socket} ->
-                                     {ok, Socket};
-                                 _ ->
-                                     open_socket1(Addr, Port)
-                             end
+    AddrList = get_addr_list(StateData#state.server),
+    case lists:foldl(fun({_Addr, _Port}, {ok, Socket}) ->
+                             {ok, Socket};
+                        ({Addr, Port}, _Acc) ->
+                             open_socket1(Addr, Port)
                      end, ?SOCKET_DEFAULT_RESULT, AddrList) of
         {ok, Socket} ->
-            Version = if
-                          StateData#state.use_v10 ->
-                              <<" version='1.0'">>;
-                          true ->
-                              <<"">>
+            Version = case StateData#state.use_v10 of
+                          true -> <<" version='1.0'">>;
+                          false -> <<"">>
                       end,
             NewStateData = StateData#state{socket = Socket,
                                            tls_enabled = false,
@@ -1336,8 +1325,22 @@ fsm_limit_opts() ->
     end.
 
 
+-spec get_addr_list(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
+get_addr_list(Server) ->
+    case get_predefined_addresses(Server) of
+        [] ->
+            case ejabberd_s2s:domain_utf8_to_ascii(Server) of
+                false -> [];
+                ASCIIAddr -> get_addr_port(ASCIIAddr)
+            end;
+
+        Addrs ->
+            Addrs
+    end.
+
+
 %% @doc Get IPs predefined for a given s2s domain in the configuration
--spec get_predefined_addresses(atom()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_predefined_addresses(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_predefined_addresses(Server) ->
     S2SAddr = ejabberd_config:get_local_option({s2s_addr, Server}),
     do_get_predefined_addresses(S2SAddr).
