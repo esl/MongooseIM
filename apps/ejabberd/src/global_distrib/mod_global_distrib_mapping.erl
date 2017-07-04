@@ -21,6 +21,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("global_distrib_metrics.hrl").
 
 -define(DOMAIN_TAB, mod_global_distrib_domain_cache_tab).
 -define(JID_TAB, mod_global_distrib_jid_cache_tab).
@@ -52,7 +53,10 @@
 
 -spec for_domain(Domain :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
 for_domain(Domain) when is_binary(Domain) ->
-    ets_cache:lookup(?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end).
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, 1),
+    {Time, R} = timer:tc(ets_cache, lookup, [?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end]),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, Time),
+    R.
 
 -spec insert_for_domain(Domain :: binary()) -> ok.
 insert_for_domain(Domain) when is_binary(Domain) ->
@@ -67,16 +71,10 @@ delete_for_domain(Domain) when is_binary(Domain) ->
 -spec for_jid(jid() | ljid()) -> {ok, Host :: ejabberd:lserver()} | error.
 for_jid(#jid{} = Jid) -> for_jid(jid:to_lower(Jid));
 for_jid({_, _, _} = Jid) ->
-    BinJid = jid:to_binary(Jid),
-    LookupInDB = fun(BJid) -> fun() -> get_session(BJid) end end,
-    case ets_cache:lookup(?JID_TAB, BinJid, LookupInDB(BinJid)) of
-        {ok, _} = Result -> Result;
-        Other ->
-            case jid:to_bare(Jid) of
-                Jid -> Other;
-                BareJid -> ets_cache:lookup(?JID_TAB, BinJid, LookupInDB(jid:to_binary(BareJid)))
-            end
-    end.
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, 1),
+    {Time, R} = timer:tc(fun do_lookup_jid/1, [Jid]),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, Time),
+    R.
 
 -spec insert_for_jid(jid() | ljid()) -> ok.
 insert_for_jid(Jid) ->
@@ -187,6 +185,10 @@ start() ->
     gen_mod:start_backend_module(?MODULE, [{backend, Backend}]),
     mod_global_distrib_mapping_backend:start(opt(Backend)),
 
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, histogram),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, spiral),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, spiral),
+
     CacheMissed = opt(cache_missed),
     DomainLifetime = opt(domain_lifetime_seconds) * 1000,
     JidLifetime = opt(jid_lifetime_seconds) * 1000,
@@ -228,6 +230,7 @@ opt(Key) ->
 
 -spec get_session(Key :: binary()) -> {ok, term()} | error.
 get_session(Key) ->
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, 1),
     mod_global_distrib_mapping_backend:get_session(Key).
 
 -spec put_session(Key :: binary()) -> ok.
@@ -240,6 +243,7 @@ delete_session(Key) ->
 
 -spec get_domain(Key :: binary()) -> {ok, term()} | error.
 get_domain(Key) ->
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, 1),
     mod_global_distrib_mapping_backend:get_domain(Key).
 
 -spec put_domain(Key :: binary()) -> ok.
@@ -260,3 +264,16 @@ do_insert_for_jid({_, _, _} = Jid, Host, PutSession) ->
               ets_cache:update(?JID_TAB, BinJid, {ok, Host}, fun() -> PutSession(BinJid) end)
       end,
       normalize_jid(Jid)).
+
+-spec do_lookup_jid(ljid()) -> {ok, Host :: ejabberd:lserver()} | error.
+do_lookup_jid({_, _, _} = Jid) ->
+    BinJid = jid:to_binary(Jid),
+    LookupInDB = fun(BJid) -> fun() -> get_session(BJid) end end,
+    case ets_cache:lookup(?JID_TAB, BinJid, LookupInDB(BinJid)) of
+        {ok, _} = Result -> Result;
+        Other ->
+            case jid:to_bare(Jid) of
+                Jid -> Other;
+                BareJid -> ets_cache:lookup(?JID_TAB, BinJid, LookupInDB(jid:to_binary(BareJid)))
+            end
+    end.

@@ -33,7 +33,7 @@ Client's process binds itself to a connection to a remote datacenter on first us
 This - along with the dedicated worker process on the receiver's side - ensures that simple cross-datacenter messages between two entities are delivered in their sending order.
 
 It may happen that a message is rerouted through multiple datacenters (e.g. if the user has reconnected to a different datacenter while the message was already in flight).
-Messages are given a TTL parameter by the source datacenter so that it cannot be rerouted indefinitely.
+Messages are given a TTL parameter by the source datacenter so that they cannot be rerouted indefinitely.
 The TTL is decreased on each reroute.
 Note that in the edge case of multi-datacenter routing, the messages may be received out-of-order at the destination datacenter.
 
@@ -50,6 +50,20 @@ The stored messages are then assigned a bounce-TTL value and periodically - with
 In the example above, the message from **U2** would be temporarily stored at **DC2** and rerouted successfully once **DC2** learns (via replication) that **U1** is available at **DC3**.
 
 > Note: bounce mechanism, similarly to multi-datacenter routing, may result in out-of-order messages being received at the destination datacenter.
+
+#### Metrics
+
+Global distribution modules expose several per-datacenter metrics that can be used to monitor health of the system. All metrics begin with **global.mod_global_distrib** prefix:
+
+* **outgoing.messages**: number of cross-datacenter messages sent by this cluster.
+* **incoming.messages**: number of cross-datacenter messages received by this cluster.
+* **outgoing.queue_time** *[us]*: time elapsed while message waits in sending connection's queue.
+* **incoming.queue_time** *[us]*: time elapsed while message waits in routing worker's queue.
+* **incoming.transfer_time** *[us]*: time elapsed between sending and receiving the message over the network.
+  The duration is calculated using wall clock times on sender and receiver node.
+* **mapping_fetch_time** *[us]*: time spent on fetching an entry from the session table, cached or otherwise.
+* **mapping_fetches**: number of fetches of session table entries, cached or otherwise.
+* **mapping_cache_misses**: number of fetches of session table entries that hit the database.
 
 ### Notes
 

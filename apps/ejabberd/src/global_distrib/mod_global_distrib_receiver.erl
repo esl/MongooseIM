@@ -108,6 +108,7 @@ start() ->
     opt(tls_opts), %% Check for required tls_opts
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED, spiral),
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, histogram),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_TRANSFER_TIME, histogram),
     ChildMod = mod_global_distrib_worker_sup,
     Child = {ChildMod, {ChildMod, start_link, []}, permanent, 10000, supervisor, [ChildMod]},
     {ok, _}= supervisor:start_child(ejabberd_sup, Child),
@@ -127,8 +128,10 @@ opt(Key) ->
 
 -spec handle_data(Data :: binary(), state()) -> ok.
 handle_data(Data, #state{}) ->
-    <<BinFromSize:16, _/binary>> = Data,
-    <<_:16, BinFrom:BinFromSize/binary, BinTerm/binary>> = Data,
+    <<ClockTime:64, BinFromSize:16, _/binary>> = Data,
+    TransferTime = p1_time_compat:system_time(micro_seconds) - ClockTime,
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_TRANSFER_TIME, TransferTime),
+    <<_:80, BinFrom:BinFromSize/binary, BinTerm/binary>> = Data,
     Worker = mod_global_distrib_worker_sup:get_worker(BinFrom),
     Stamp = erlang:monotonic_time(),
     ok = mod_global_distrib_utils:cast_or_call(Worker, {data, Stamp, BinTerm}).

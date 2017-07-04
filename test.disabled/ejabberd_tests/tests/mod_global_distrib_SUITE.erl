@@ -480,13 +480,9 @@ rpc(NodeName, M, F, A) ->
     ct_rpc:call(Node, M, F, A).
 
 connect_from_spec(UserSpec, Config) ->
-    User = connect_from_spec(UserSpec, Config, nofilter),
-    escalus_connection:set_filter_predicate(User, fun(S) -> not escalus_pred:is_presence(S) end),
-    User.
-
-connect_from_spec(UserSpec, Config, nofilter) ->
     {ok, User} = escalus_client:start(Config, UserSpec, <<"res1">>),
     escalus_story:send_initial_presence(User),
+    escalus_connection:set_filter_predicate(User, fun(S) -> not escalus_pred:is_presence(S) end),
     User.
 
 chat_with_seqnum(To, Text) ->

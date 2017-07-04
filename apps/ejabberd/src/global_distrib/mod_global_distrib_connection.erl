@@ -55,7 +55,8 @@ handle_cast({data, Stamp, Data}, Socket) ->
     QueueTimeNative = p1_time_compat:monotonic_time() - Stamp,
     QueueTimeUS = p1_time_compat:convert_time_unit(QueueTimeNative, native, micro_seconds),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_SEND_QUEUE_TIME, QueueTimeUS),
-    Annotated = <<(byte_size(Data)):32, Data/binary>>,
+    ClockTime = p1_time_compat:system_time(micro_seconds),
+    Annotated = <<(byte_size(Data) + 8):32, ClockTime:64, Data/binary>>,
     ok = mod_global_distrib_transport:send(Socket, Annotated),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_SENT, 1),
     {noreply, Socket}.
