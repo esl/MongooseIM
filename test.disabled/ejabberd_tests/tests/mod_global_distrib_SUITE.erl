@@ -1,5 +1,23 @@
+%%==============================================================================
+%% Copyright 2017 Erlang Solutions Ltd.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%==============================================================================
+
 -module(mod_global_distrib_SUITE).
+
 -compile(export_all).
+
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -40,7 +58,7 @@ groups() ->
       [
        test_error_on_wrong_hosts
       ]},
-     {multi_connection, [],
+     {multi_connection, [shuffle],
       [
        test_in_order_messages_on_multiple_connections,
        test_muc_conversation_history
@@ -56,17 +74,16 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    CertDir = filename:join(?config(data_dir, Config), "../../priv/ssl"),
-    CertPath = canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
-    CACertPath = canonicalize_path(filename:join(CertDir, "cacert.pem")),
-    escalus:init_per_suite([{certfile, CertPath}, {cafile, CACertPath}, {extra_config, []} | Config]).
-
-canonicalize_path(Path) -> canonicalize_path(filename:split(Path), []).
-
-canonicalize_path([], Acc) -> filename:join(lists:reverse(Acc));
-canonicalize_path([".." | Path], [_ | Acc]) -> canonicalize_path(Path, Acc);
-canonicalize_path(["." | Path], Acc) -> canonicalize_path(Path, Acc);
-canonicalize_path([Elem | Path], Acc) -> canonicalize_path(Path, [Elem | Acc]).
+    case rpc(europe_node, eredis, start_link, []) of
+        {ok, _} ->
+            CertDir = filename:join(?config(data_dir, Config), "../../priv/ssl"),
+            CertPath = canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
+            CACertPath = canonicalize_path(filename:join(CertDir, "cacert.pem")),
+            escalus:init_per_suite([{certfile, CertPath}, {cafile, CACertPath},
+                                    {extra_config, []} | Config]);
+        _ ->
+            {skip, "Cannot connect to Redis server on 127.0.0.1 6379"}
+    end.
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -84,64 +101,62 @@ init_per_group(_, Config0) ->
                           {endpoints, [{{127, 0, 0, 1}, ReceiverPort}]},
                           {tls_opts, [
                                       {certfile, ?config(certfile, Config1)},
-                                      {cafile, ?config(cafile, Config1)}]},
-                          {redis, [{port, 6379}]} | ?config(extra_config, Config1)],
+                                      {cafile, ?config(cafile, Config1)}
+                                     ]},
+                          {redis, [{port, 6379}]}
+                          | ?config(extra_config, Config1)],
+
+                  OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
                   rpc(NodeName, gen_mod_deps, start_modules,
                       [<<"localhost">>, [{mod_global_distrib, Opts}]]),
-                  HasOffline = rpc(NodeName, gen_mod, is_loaded, [<<"localhost">>, mod_offline]),
-                  rpc(NodeName, gen_mod, stop_module_keep_config, [<<"localhost">>, mod_offline]),
+                  rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_offline]),
                   ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
                   rpc(NodeName, mod_stream_management, set_resume_timeout, [1]),
 
                   lists:foreach(
-                      fun({_, OtherHost, OtherPort}) ->
-                          rpc(NodeName, ejabberd_config, add_local_option, [{global_distrib_addr, list_to_binary(OtherHost)}, [{{127,0,0,1}, OtherPort}]])
-                      end,
-                      get_hosts()),
+                    fun({_, OtherHost, OtherPort}) ->
+                            rpc(NodeName, ejabberd_config, add_local_option,
+                                [{global_distrib_addr, list_to_binary(OtherHost)},
+                                 [{{127,0,0,1}, OtherPort}]])
+                    end,
+                    get_hosts()),
 
                   [
-                   {{has_offline, NodeName}, HasOffline},
+                   {{old_mods, NodeName}, OldMods},
                    {{resume_timeout, NodeName}, ResumeTimeout} |
                    Config1
                   ]
           end,
           Config0,
           get_hosts()),
-    Config3 = [{escalus_user_db, xmpp} | Config2],
-    escalus:create_users(Config3, escalus:get_users([alice, eve])).
+    [{escalus_user_db, xmpp} | Config2].
 
 end_per_group(start_checks, Config) ->
     Config;
 end_per_group(_, Config) ->
     lists:foreach(
       fun({NodeName, _, _}) ->
-              lists:foreach(fun(Module) -> rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, Module]) end,
-                    [mod_global_distrib, mod_global_distrib_bounce,mod_global_distrib_mapping, mod_global_distrib_disco, mod_global_distrib_receiver, mod_global_distrib_sender]),
+              CurrentMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
+              rpc(NodeName, gen_mod_deps, replace_modules,
+                  [<<"localhost">>, CurrentMods, ?config({old_mods, NodeName}, Config)]),
 
-              ResumeTimeout = proplists:get_value({resume_timeout, NodeName}, Config),
-              rpc(NodeName, mod_stream_management, set_resume_timeout, [ResumeTimeout]),
-
-              case proplists:get_value({has_offline, NodeName}, Config) of
-                  true ->
-                      OffOpts = rpc(NodeName, gen_mod, get_module_opts,
-                                    [<<"localhost">>, mod_offline]),
-                      rpc(NodeName, gen_mod, start_module, [<<"localhost">>, mod_offline, OffOpts]);
-                  _ ->
-                      ok
-              end
+              rpc(NodeName, mod_stream_management, set_resume_timeout,
+                  [?config({resume_timeout, NodeName}, Config)])
       end,
       get_hosts()),
-    escalus:delete_users(Config, escalus:get_users([alice, eve])).
+    escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config)
-  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco; CaseName == test_muc_conversation_history ->
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
+       CaseName == test_muc_conversation_history ->
     muc_helper:load_muc(<<"muc.localhost">>),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config)
-  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco; CaseName == test_muc_conversation_history ->
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
+       CaseName == test_muc_conversation_history ->
     muc_helper:unload_muc(),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
@@ -205,51 +220,47 @@ test_muc_conversation_on_one_host(Config0) ->
 
 test_muc_conversation_history(Config0) ->
     AliceSpec = muc_SUITE:given_fresh_spec(Config0, alice),
-    EveSpec = muc_SUITE:given_fresh_spec(Config0, eve),
     Config = muc_SUITE:given_fresh_room(Config0, AliceSpec, []),
-    Alice = connect_from_spec(AliceSpec, Config),
+    escalus:fresh_story(
+      Config, [{eve, 1}],
+      fun(Eve) ->
+              Alice = connect_from_spec(AliceSpec, Config),
 
-    RoomJid = ?config(room, Config),
-    AliceUsername = escalus_utils:get_username(Alice),
-    RoomAddr = muc_helper:room_address(RoomJid),
+              RoomJid = ?config(room, Config),
+              AliceUsername = escalus_utils:get_username(Alice),
+              RoomAddr = muc_helper:room_address(RoomJid),
 
-    escalus:send(Alice, muc_helper:stanza_muc_enter_room(RoomJid, AliceUsername)),
-    escalus:wait_for_stanza(Alice),
+              escalus:send(Alice, muc_helper:stanza_muc_enter_room(RoomJid, AliceUsername)),
+              escalus:wait_for_stanza(Alice),
 
-    lists:foreach(fun(I) ->
-                          Msg = <<"test-", (integer_to_binary(I))/binary>>,
-                          escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Msg))
-                  end, lists:seq(1, 3)),
+              lists:foreach(fun(I) ->
+                                    Msg = <<"test-", (integer_to_binary(I))/binary>>,
+                                    escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Msg))
+                            end, lists:seq(1, 3)),
 
-    Eve = connect_from_spec(EveSpec, Config, nofilter),
-    EveJid = escalus_client:full_jid(Eve),
-    MyPresence = escalus:wait_for_stanza(Eve),
-    escalus:assert(is_presence, MyPresence),
-    ?assertEqual(EveJid, exml_query:attr(MyPresence, <<"from">>)),
+              EveUsername = escalus_utils:get_username(Eve),
+              escalus:send(Eve, muc_helper:stanza_muc_enter_room(RoomJid, EveUsername)),
 
-    EveUsername = escalus_utils:get_username(Eve),
-    escalus:send(Eve, muc_helper:stanza_muc_enter_room(RoomJid, EveUsername)),
+              AlicePresence = escalus:wait_for_stanza(Eve),
+              escalus:assert(is_presence, AlicePresence),
+              ?assertEqual(muc_helper:room_address(RoomJid, AliceUsername),
+                           exml_query:attr(AlicePresence, <<"from">>)),
 
-    AlicePresence = escalus:wait_for_stanza(Eve),
-    escalus:assert(is_presence, AlicePresence),
-    ?assertEqual(muc_helper:room_address(RoomJid, AliceUsername),
-                 exml_query:attr(AlicePresence, <<"from">>)),
+              MyRoomPresence = escalus:wait_for_stanza(Eve),
+              escalus:assert(is_presence, MyRoomPresence),
+              ?assertEqual(muc_helper:room_address(RoomJid, EveUsername),
+                           exml_query:attr(MyRoomPresence, <<"from">>)),
 
-    MyRoomPresence = escalus:wait_for_stanza(Eve),
-    escalus:assert(is_presence, MyRoomPresence),
-    ?assertEqual(muc_helper:room_address(RoomJid, EveUsername),
-                 exml_query:attr(MyRoomPresence, <<"from">>)),
+              lists:foreach(fun(J) ->
+                                    Msg = <<"test-", (integer_to_binary(J))/binary>>,
+                                    Stanza = escalus:wait_for_stanza(Eve),
+                                    escalus:assert(is_groupchat_message, [Msg], Stanza)
+                            end, lists:seq(1, 3)),
 
-    lists:foreach(fun(J) ->
-                          Msg = <<"test-", (integer_to_binary(J))/binary>>,
-                          Stanza = escalus:wait_for_stanza(Eve),
-                          escalus:assert(is_groupchat_message, [Msg], Stanza)
-                  end, lists:seq(1, 3)),
-
-    Subject = escalus:wait_for_stanza(Eve),
-    escalus:assert(is_groupchat_message, Subject),
-    ?assertNotEqual(undefined, exml_query:subelement(Subject, <<"subject">>)),
-
+              Subject = escalus:wait_for_stanza(Eve),
+              escalus:assert(is_groupchat_message, Subject),
+              ?assertNotEqual(undefined, exml_query:subelement(Subject, <<"subject">>))
+      end),
     muc_helper:destroy_room(Config).
 
 test_component_on_one_host(Config) ->
@@ -262,7 +273,6 @@ test_component_on_one_host(Config) ->
                     Msg1 = escalus_stanza:chat_to(Addr, <<"Hi2!">>),
                     escalus:send(User, Msg1),
                     %% Then component receives it
-                    ct:print("User: ~p", [User]),
                     Reply1 = escalus:wait_for_stanza(Comp),
                     escalus:assert(is_chat_message, [<<"Hi2!">>], Reply1),
 
@@ -303,7 +313,8 @@ test_location_disconnect(Config) ->
                   escalus_client:wait_for_stanza(Eve),
 
                   ok = rpc(asia_node, application, stop, [ejabberd]),
-                  ok = rpc(asia_node, application, stop, [ranch]), %% TODO: Stopping ejabberd alone should stop connections too
+                  %% TODO: Stopping ejabberd alone should probably stop connections too
+                  ok = rpc(asia_node, application, stop, [ranch]), 
 
                   escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi again!">>)),
                   Error = escalus:wait_for_stanza(Alice),
@@ -352,7 +363,8 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], FromEve),
               escalus:assert(is_chat_message, [<<"Hi again from Europe!">>], AgainFromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Asia!">>], AgainFromEve)
-      end).
+      end),
+    escalus_users:delete_users(Config, [{eve, [{port, 5222} | EveSpec]}]).
 
 test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
     Config = escalus_users:update_userspec(Config0, eve, stream_management, true),
@@ -387,25 +399,26 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus:assert(is_chat_message, [<<"Hi from Europe!">>], FromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Europe!">>], AgainFromAlice),
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], AgainFromEve)
-      end).
+      end),
+    escalus_users:delete_users(Config, [{eve, [{port, 5222} | EveSpec]}]).
 
 test_global_disco(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
-          AliceServer = escalus_client:server(Alice),
-          escalus:send(Alice, escalus_stanza:service_discovery(AliceServer)),
-          AliceStanza = escalus:wait_for_stanza(Alice),
-        %   escalus:assert(fun has_exactly_one_service/2, [muc_helper:muc_host()], AliceStanza),
-        %% TODO: test for duplicate components
+              AliceServer = escalus_client:server(Alice),
+              escalus:send(Alice, escalus_stanza:service_discovery(AliceServer)),
+              _AliceStanza = escalus:wait_for_stanza(Alice),
+              %% TODO: test for duplicate components
+              %%escalus:assert(fun has_exactly_one_service/2, [muc_helper:muc_host()], AliceStanza),
 
-          EveServer = escalus_client:server(Eve),
-          escalus:send(Eve, escalus_stanza:service_discovery(EveServer)),
-          EveStanza = escalus:wait_for_stanza(Eve),
-          escalus:assert(has_service, [muc_helper:muc_host()], EveStanza)
+              EveServer = escalus_client:server(Eve),
+              escalus:send(Eve, escalus_stanza:service_discovery(EveServer)),
+              EveStanza = escalus:wait_for_stanza(Eve),
+              escalus:assert(has_service, [muc_helper:muc_host()], EveStanza)
       end).
 
-test_component_unregister(Config) ->
+test_component_unregister(_Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
@@ -418,7 +431,7 @@ test_component_unregister(Config) ->
     ?assertEqual(error, rpc(europe_node, mod_global_distrib_mapping, for_domain,
                             [<<"test_service.localhost">>])).
 
-test_error_on_wrong_hosts(Config) ->
+test_error_on_wrong_hosts(_Config) ->
     Opts = [{cookie, "cookie"}, {local_host, "no_such_host"}, {global_host, "localhost"}],
     Result = rpc(europe_node, gen_mod, start_module, [<<"localhost">>, mod_global_distrib, Opts]),
     ?assertMatch({badrpc, {'EXIT', {"no_such_host is not a member of the host list", _}}}, Result).
@@ -451,7 +464,8 @@ test_update_senders_host(Config) ->
               ?assertEqual(error, rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])),
               escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"hi">>)),
               escalus_client:wait_for_stanza(Eve),
-              ?assertEqual({ok, <<"localhost.bis">>}, rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid]))
+              AliceMapping = rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid]),
+              ?assertEqual({ok, <<"localhost.bis">>}, AliceMapping) 
       end).
 
 %%--------------------------------------------------------------------
@@ -485,9 +499,16 @@ order_by_seqnum(Stanzas) ->
 
 has_exactly_one_service(Service, #xmlel{children = [#xmlel{children = Services}]}) ->
     Pred = fun(Item) ->
-               exml_query:attr(Item, <<"jid">>) =:= Service
+                   exml_query:attr(Item, <<"jid">>) =:= Service
            end,
     case lists:filter(Pred, Services) of
         [_] -> true;
         _ -> false
     end.
+
+canonicalize_path(Path) -> canonicalize_path(filename:split(Path), []).
+
+canonicalize_path([], Acc) -> filename:join(lists:reverse(Acc));
+canonicalize_path([".." | Path], [_ | Acc]) -> canonicalize_path(Path, Acc);
+canonicalize_path(["." | Path], Acc) -> canonicalize_path(Path, Acc);
+canonicalize_path([Elem | Path], Acc) -> canonicalize_path(Path, [Elem | Acc]).
