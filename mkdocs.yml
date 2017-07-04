@@ -21,6 +21,7 @@ pages:
       - 'Roadmap': 'Roadmap.md'
       - 'Contributions to ecosystem': 'Contributions.md'
       - 'Differentiators': 'Differentiators.md'
+      - 'History': 'History.md'
   - 'Basic Configuration': 'Basic-configuration.md'
   - 'Advanced Configuration':
       - 'Overview': 'Advanced-configuration.md'
