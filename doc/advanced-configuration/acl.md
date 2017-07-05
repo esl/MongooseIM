@@ -17,6 +17,12 @@ The functionality is defined via two top-level options:
 
 ### Patterns
 
+This sections describes all possible ACL patterns.
+Some of them use `re` syntax for regular expressions and some accept `glob` syntax.
+
+* [`re` definitions](http://erlang.org/doc/man/re.html#id253353)
+* [`glob` definitions](https://en.wikipedia.org/wiki/Glob_(programming))
+
 Patterns can be defined in one of the following formats:
 
 #### **all**
@@ -29,56 +35,53 @@ All users with a given user name: <br/>
 
 #### **{user, username(), server()}**
 In this case the username and the domain have to match:<br/>
-`{user, "admin", "localhost"}`: `admin@localhost` matches,
-but`admin@xmpp.org` doesn't.
+`{user, "admin", "localhost"}`: `admin@localhost` matches, but`admin@xmpp.org` doesn't.
 
 #### **{server, server()}**
 All users from a given domain:<br/>
-`{server, "localhost"}`: `admin@localhost` and `pawel@localhost` match, but `pawel@xmpp.org`
-doesn't.
+`{server, "localhost"}`: `admin@localhost` and `pawel@localhost` match, but `pawel@xmpp.org` doesn't.
 
 #### **{resource, resource()}**
 All users with a matching resource:<br/>
 `{resource, "res1"}`: `admin@localhost/res1` matches, but `admin@localhost/res2` doesn't.
 
-#### **{user_regexp, regexp()}**
+#### **{user_regexp, username_regexp()}**
 Similar to user, but the match is done against a regular expression:<br/>
 `{user_regexp, "^ad.*"}`: `admin@localhost` and `ads@localhost2` match, but `pad@localhost` doesn't.
 
-#### **{user_regexp, regexp(), server()}** -
+#### **{user_regexp, username_regexp(), server()}**
 Similar to user, the username is matched against regex, the server part has to be exactly the same:<br/>
-`{user_regexp, "^ad.*", "localhost"}`: `admin@localhost` matches, but `admin@xmpp.org`
-doesn't.
+`{user_regexp, "^ad.*", "localhost"}`: `admin@localhost` matches, but `admin@xmpp.org` doesn't.
 
-#### **{server_regexp, regexp()}**
+#### **{server_regexp, server_regexp()}**
 Analogous to `user_regexp`, but regex matches on the server part of the JID:<br/>
 `{server_regexp, "^local.*"}`: `admin@localhost` matches, but `admin@relocal` doesn't.
 
-#### **{resource_regexp, regexp()}**
+#### **{resource_regexp, resource_regexp()}**
 The same story as above, but for the resource part:<br/>
 `{resource_regexp, "res.*"}`: `admin@localhost/resource` matches, but `admin@localhost/ios` doesn't.
 
-#### **{node_regexp, regexp(), regexp()}**
+#### **{node_regexp, username_regexp(), server_regexp()}**
 Regexp matching on both the username and the domain:<br/>
 `{node_regexp, "ad.*", "loc.*"}`: `admin@localhost` matches, but `pawel@xmpp.org` doesn't.
 
-#### **{user_glob, glob()}**
+#### **{user_glob, username_glob()}**
 Match on the username part using glob style patterns:<br/>
 `{user_glob, "paw*"}`: `pawel@localhost` matches, but `admin@localhost` doesn't.
 
-#### **{user_glob, glob(), server()}**
+#### **{user_glob, username_glob(), server()}**
 Match on the username part using glob patterns and on the server using exact match:<br/>
 `{user_glob, "paw*", "localhost"}`: `pawel@localhost` matches, but `pawel@xmpp.org` doesn't.
 
-#### **{server_glob, glob()}**
+#### **{server_glob, server_glob()}**
 Match on the server part using glob patterns:<br/>
 `{server_glob, "local*"}`: `pawel@localhost` matches, but `pawel@xmpp.org` doesn't.
 
-#### **{resource_glob, glob()}**
+#### **{resource_glob, resource_glob()}**
 Match on the resource part using glob patterns:<br/>
 `{resource_glob, "r*"}`: `pawel@localhost/res` matches, but `pawel@xmpp.org` doesn't.
 
-#### **{node_glob, glob(), glob()}**
+#### **{node_glob, username_glob(), server_glob()}**
 Match on the username and the server part using glob patterns:<br/>
 `{node_glob, "paw*", "loc*"}`: `pawel@localhost/res` matches, but `pawel@xmpp.org` doesn't.
 
@@ -94,16 +97,17 @@ As an example we can discuss 2 rules which are present in the default config fil
 * `{access, register, [{allow, all}]}`.<br/>
 This rule is used while registering a new user, the example above has no restrictions, but we might want to block certain JIDs, `admin` JID for instance.
 To do so we need to set:<br/>
-`{acl, admin, {user, "admin"}}.`, then `{access, register[{admin, deny}, {allow, all}]}.`
+`{acl, admin, {user, "admin"}}.`, then `{access, register, [{deny, admin}, {allow, all}]}.`
 * `{access, max_user_offline_messages, [{5000, admin}, {100, all}]}`.<br/>
-This rule is used in mod_offline, it determines mod_offline's buffer size.
-For users defined in the admin ACL (for example `{acl, admin, {user, "pawel", "localhost"}}`) the size is 5000, while normal users size is 10.
+This rule is used in `mod_offline`, it determines `mod_offline`'s storage limit.
+For users defined in the admin ACL (for example `{acl, admin, {user, "pawel", "localhost"}}`) the size is 5000 messages, while the size for normal user is 10.
 
 
 # Priority: global vs host access lists
 
-By default, both ACL and access elements are "global", they apply to all domains available on the server.
-However using the host_config option, we are able to override the rules for a particular domain.
+By default, both ACL and access elements are "global", so they apply to all domains available on the server.
+However using the `host_config` option, we are able to override the rules for a particular domain.
+
 ```
 %%  Define specific Access Rules in a virtual host.
 {host_config, "localhost",
@@ -126,7 +130,7 @@ Given the following ACL:
 
 One can call:
 
-`acl:match_rule(<<"localhost">>, register, jlib:make_jid(<<"p">>, <<"localhost">>, <<>>)).`<br/>
+`acl:match_rule(<<"localhost">>, register, jid:make(<<"p">>, <<"localhost">>, <<>>)).`
 
 Which in our case will return deny.
 If the rule is not host specific, one can use `global` instead of `<<"localhost">>`.
