@@ -1,8 +1,8 @@
--define(GLOBAL_DISTRIB_MESSAGES_SENT, [mod_global_distrib, outgoing, messages]).
--define(GLOBAL_DISTRIB_MESSAGES_RECEIVED, [mod_global_distrib, incoming, messages]).
--define(GLOBAL_DISTRIB_SEND_QUEUE_TIME, [mod_global_distrib, outgoing, queue_time]).
+-define(GLOBAL_DISTRIB_MESSAGES_SENT(Server), [mod_global_distrib, outgoing, messages, Server]).
+-define(GLOBAL_DISTRIB_MESSAGES_RECEIVED(Server), [mod_global_distrib, incoming, messages, Server]).
+-define(GLOBAL_DISTRIB_TRANSFER_TIME(Server), [mod_global_distrib, incoming, transfer_time, Server]).
+-define(GLOBAL_DISTRIB_SEND_QUEUE_TIME(Server), [mod_global_distrib, outgoing, queue_time, Server]).
 -define(GLOBAL_DISTRIB_RECV_QUEUE_TIME, [mod_global_distrib, incoming, queue_time]).
--define(GLOBAL_DISTRIB_TRANSFER_TIME, [mod_global_distrib, incoming, transfer_time]).
 -define(GLOBAL_DISTRIB_MAPPING_FETCH_TIME, [mod_global_distrib, mapping_fetch_time]).
 -define(GLOBAL_DISTRIB_MAPPING_FETCHES, [mod_global_distrib, mapping_fetches]).
 -define(GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, [mod_global_distrib, mapping_cache_misses]).

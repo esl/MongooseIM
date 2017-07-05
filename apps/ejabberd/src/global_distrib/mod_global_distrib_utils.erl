@@ -20,7 +20,8 @@
 -include("ejabberd.hrl").
 
 -export([start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
-         create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1]).
+         create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1,
+         binary_to_metric_atom/1, ensure_metric/2]).
 
 -type endpoint() :: {inet:ip_address(), inet:port_number()}.
 
@@ -29,6 +30,31 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
+
+-spec binary_to_metric_atom(binary()) -> atom().
+binary_to_metric_atom(Binary) ->
+    List = lists:filtermap(fun
+                               ($.) -> {true, $_};
+                               (C) when C > 31, C < 127 -> {true, C};
+                               (_) -> false
+                           end,
+                           unicode:characters_to_list(Binary)),
+    list_to_atom(List).
+
+ensure_metric(Metric, Type) ->
+    case mongoose_metrics:ensure_metric(global, Metric, Type) of
+        ok ->
+            Reporters = exometer_report:list_reporters(),
+            Interval = mongoose_metrics:get_report_interval(),
+            lists:foreach(
+              fun(Reporter) ->
+                      mongoose_metrics:subscribe_metric(Reporter, {[global | Metric], Type, []},
+                                                        Interval)
+              end,
+              Reporters);
+        Other ->
+            Other
+    end.
 
 -spec any_binary_to_atom(binary()) -> atom().
 any_binary_to_atom(Binary) ->

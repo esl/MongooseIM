@@ -32,7 +32,8 @@
 -record(state, {
     socket :: mod_global_distrib_transport:t(),
     waiting_for :: header | non_neg_integer(),
-    buffer = <<>> :: binary()
+    buffer = <<>> :: binary(),
+    host :: undefined | atom()
 }).
 
 -type state() :: #state{}.
@@ -106,9 +107,7 @@ terminate(_Reason, _State) ->
 -spec start() -> any().
 start() ->
     opt(tls_opts), %% Check for required tls_opts
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED, spiral),
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, histogram),
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_TRANSFER_TIME, histogram),
     ChildMod = mod_global_distrib_worker_sup,
     Child = {ChildMod, {ChildMod, start_link, []}, permanent, 10000, supervisor, [ChildMod]},
     {ok, _}= supervisor:start_child(ejabberd_sup, Child),
@@ -126,15 +125,21 @@ stop() ->
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
 
--spec handle_data(Data :: binary(), state()) -> ok.
-handle_data(Data, #state{}) ->
+-spec handle_data(Data :: binary(), state()) -> state().
+handle_data(BinHost, State = #state{host = undefined}) ->
+    Host = mod_global_distrib_utils:binary_to_metric_atom(BinHost),
+    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_MESSAGES_RECEIVED(Host), spiral),
+    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_TRANSFER_TIME(Host), histogram),
+    mongoose_metrics:init_subscriptions(),
+    State#state{host = Host};
+handle_data(Data, State = #state{host = Host}) ->
     <<ClockTime:64, BinFromSize:16, _/binary>> = Data,
     TransferTime = p1_time_compat:system_time(micro_seconds) - ClockTime,
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_TRANSFER_TIME, TransferTime),
     <<_:80, BinFrom:BinFromSize/binary, BinTerm/binary>> = Data,
     Worker = mod_global_distrib_worker_sup:get_worker(BinFrom),
     Stamp = erlang:monotonic_time(),
-    ok = mod_global_distrib_utils:cast_or_call(Worker, {data, Stamp, BinTerm}).
+    ok = mod_global_distrib_utils:cast_or_call(Worker, {data, Host, TransferTime, Stamp, BinTerm}),
+    State.
 
 -spec handle_buffered(state()) -> state().
 handle_buffered(#state{waiting_for = header, buffer = <<Header:4/binary, Rest/binary>>} = State) ->
@@ -143,8 +148,8 @@ handle_buffered(#state{waiting_for = header, buffer = <<Header:4/binary, Rest/bi
 handle_buffered(#state{waiting_for = Size, buffer = Buffer} = State)
   when byte_size(Buffer) >= Size ->
     <<Data:Size/binary, Rest/binary>> = Buffer,
-    handle_data(Data, State),
-    handle_buffered(State#state{waiting_for = header, buffer = Rest});
+    NewState = handle_data(Data, State),
+    handle_buffered(NewState#state{waiting_for = header, buffer = Rest});
 handle_buffered(State) ->
     State.
 

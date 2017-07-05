@@ -55,12 +55,14 @@ In the example above, the message from **U2** would be temporarily stored at **D
 
 Global distribution modules expose several per-datacenter metrics that can be used to monitor health of the system. All metrics begin with **global.mod_global_distrib** prefix:
 
-* **outgoing.messages**: number of cross-datacenter messages sent by this cluster.
-* **incoming.messages**: number of cross-datacenter messages received by this cluster.
-* **outgoing.queue_time** *[us]*: time elapsed while message waits in sending connection's queue.
-* **incoming.queue_time** *[us]*: time elapsed while message waits in routing worker's queue.
-* **incoming.transfer_time** *[us]*: time elapsed between sending and receiving the message over the network.
+* **outgoing.messages.<host>**: number of cross-datacenter messages sent by this cluster to a given host.
+* **incoming.messages.<host>**: number of cross-datacenter messages received by this cluster from a given host.
+* **incoming.transfer_time.<host>** *[us]*: time elapsed between sending and receiving the message over the network from a given host.
   The duration is calculated using wall clock times on sender and receiver node.
+* **outgoing.queue_time.<host>** *[us]*: time elapsed while message waits in queue of sender connection to a given host.
+  High value of this metric may be remedied by increasing the number of connections to other hosts.
+* **incoming.queue_time** *[us]*: time elapsed while message waits in routing worker's queue.
+  This value is not reported per-host as routing workers are bound to the sender's JID.
 * **mapping_fetch_time** *[us]*: time spent on fetching an entry from the session table, cached or otherwise.
 * **mapping_fetches**: number of fetches of session table entries, cached or otherwise.
 * **mapping_cache_misses**: number of fetches of session table entries that hit the database.

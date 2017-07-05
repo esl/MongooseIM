@@ -39,7 +39,9 @@
          get_dist_data_stats/0,
          get_up_time/0,
          remove_host_metrics/1,
-         remove_all_metrics/0]).
+         remove_all_metrics/0,
+         get_report_interval/0,
+         subscribe_metric/3]).
 
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 

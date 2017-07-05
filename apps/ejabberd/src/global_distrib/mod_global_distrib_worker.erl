@@ -50,12 +50,13 @@ handle_call({data, Stamp, Data}, From, State) ->
 handle_cast({route, {From, To, Acc}}, State) ->
     ejabberd_router:route(From, To, Acc),
     {noreply, State, ?TIMEOUT};
-handle_cast({data, Stamp, Data}, State) ->
+handle_cast({data, Host, TransferTime, Stamp, Data}, State) ->
     QueueTimeNative = p1_time_compat:monotonic_time() - Stamp,
     QueueTimeUS = p1_time_compat:convert_time_unit(QueueTimeNative, native, micro_seconds),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, QueueTimeUS),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_TRANSFER_TIME(Host), TransferTime),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED(Host), 1),
     do_work(Data),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED, 1),
     {noreply, State, ?TIMEOUT}.
 
 handle_info(timeout, State) ->

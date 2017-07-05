@@ -49,8 +49,6 @@ start_pool(Name, Server) ->
 -spec start() -> any().
 start() ->
     opt(tls_opts), %% Check for required tls_opts
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MESSAGES_SENT, spiral),
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_SEND_QUEUE_TIME, histogram),
     ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, supervisor, [?MODULE]},
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
