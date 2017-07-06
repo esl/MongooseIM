@@ -87,5 +87,6 @@ pages:
       - 'Accumulators':  'developers-guide/accumulators.md'
       - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
       - 'mod_muc_light developers doc': 'developers-guide/mod_muc_light_developers_guide.md'
+      - 'SCRAM serialization format': 'developers-guide/SCRAM-serialization.md'
       - 'xep-tool usage': 'developers-guide/xep_tool.md'
       - 'FIPS mode': 'developers-guide/OpenSSL-and-FIPS.md'
