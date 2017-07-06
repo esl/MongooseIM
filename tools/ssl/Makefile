@@ -1,7 +1,7 @@
 CA_SUB  = /C=PL/ST=Malopolska/L=Krakow/CN=MongooseIM Fake CA
 SRV_SUB = /C=PL/ST=Malopolska/L=Krakow/CN=MongooseIM Server
 
-all: ca/cacert.pem fake_cert.pem fake_server.pem fake_dh_server.pem
+all: ca/cacert.pem fake_cert.pem fake_pubkey.pem fake_privkey.pem fake_server.pem fake_dh_server.pem
 
 ca/cacert.pem ca/cakey.pem: openssl-ca.cnf
 	mkdir -p ca
@@ -17,6 +17,12 @@ fake_cert.csr: openssl-server.cnf
 fake_cert.pem: fake_cert.csr openssl-ca.cnf ca/cacert.pem ca/cakey.pem ca/index.txt ca/serial.txt
 	yes | openssl ca -config openssl-ca.cnf -policy signing_policy \
 		-extensions signing_req -out $@ -infiles fake_cert.csr
+
+fake_pubkey.pem: fake_cert.pem
+	openssl x509 -pubkey -noout -in fake_cert.pem > fake_pubkey.pem
+
+fake_privkey.pem: fake_key.pem
+	openssl rsa -in fake_key.pem -out fake_privkey.pem
 
 fake_server.pem: fake_cert.pem fake_key.pem
 	cat $^ > $@

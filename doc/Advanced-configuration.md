@@ -158,8 +158,8 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 - **auth_method** (local)
     * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
-    * **Valid values:** `internal` (Mnesia), `odbc`, `external`, `anonymous`, `ldap`
-    * **Warning:** `external` and `ldap` limit SASL mechanisms list to `PLAIN` and `ANONYMOUS`.
+    * **Valid values:** `internal` (Mnesia), `odbc`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`
+    * **Warning:** `external`, `jwt` and `ldap` work only with `PLAIN` SASL mechanism.
     * **Examples:** `odbc`, `[internal, anonymous]`
 
 - **auth_opts** (local)
@@ -176,6 +176,27 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
         * **ext_auth_script** (local)
              * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
+
+        * **jwt_secret_source** (local)
+            * **Description:** A path to a file or environment variable, which contents will be used as a JWT secret.
+            * **Warning:** A direct path to a file is read only once during startup, a path in the environment variable is read on every auth request.
+            * **Value:** string, e.g. `/etc/secrets/jwt` or `{env, "env-variable-name"}`
+            * **Default:** none, either `jwt_secret_source` or `jwt_secret` must be set
+        
+        * **jwt_secret** (local)
+            * **Description:** A binary with a JWT secret. This options is ignored and overwritten, if `jwt_secret_source` is defined.
+            * **Value:** binary
+            * **Default:** none (either `jwt_secret_source` or `jwt_secret` must be set)
+        
+        * **jwt_algorithm** (local)
+            * **Description:** A name of the algorithm used to sign JWT.
+            * **Valid values:** `"HS256", "RS256", "ES256", "HS386", "RS386", "ES386", "HS512", "RS512", "ES512"`
+            * **Default:** none, it's a mandatory option
+        
+        * **jwt_username_key** (local)
+            * **Description:** A JWT key that contains username to verify.
+            * **Value:** atom
+            * **Default:** none, it's a mandatory option
 
 - **LDAP-related options**
     * **ldap_base:**
@@ -220,9 +241,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
                                   {ldap_local_filter, {notequal, {"accountStatus",["disabled"]}}}.
                                   {ldap_local_filter, {equal, {"accountStatus",["enabled"]}}}.
                                   {ldap_local_filter, undefined}.
-
         * **Default:** `undefined`
-
 
 ### Database setup
 

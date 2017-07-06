@@ -2,23 +2,26 @@
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("public_key/include/PKCS-FRAME.hrl").
 
 -define(DOMAIN1, <<"localhost">>).
 -define(USERNAME, <<"10857839">>).
+-define(WRONG_USERNAME, <<"alice">>).
 -define(JWT_KEY, <<"testtesttest">>).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, all}].
+    [{group, generic}, {group, public_key}].
 
 groups() ->
     [
-     {all, [parallel], all_tests()}
+     {generic, [parallel], generic_tests()},
+     {public_key, [], public_key_tests()}
     ].
 
-all_tests() ->
+generic_tests() ->
     [
      check_password_succeeds_for_correct_token,
      check_password_fails_for_wrong_token,
@@ -35,6 +38,11 @@ all_tests() ->
      dirty_get_registered_users
     ].
 
+public_key_tests() ->
+    [
+     check_password_succeeds_for_pubkey_signed_token
+    ].
+
 suite() ->
     [].
 
@@ -43,25 +51,38 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    ok = stringprep:start(),
-    ok = ejabberd_auth_jwt:start(?DOMAIN1),
     case list_to_integer(erlang:system_info(otp_release)) of
         Release when Release < 18 ->
             {skip, "jwerl need recent crypto features"};
         _ ->
-            Config
+            application:ensure_all_started(stringprep),
+            Self = self(),
+            ETSProcess = spawn(fun() -> ets_owner(Self) end),
+            wait_for_ets(),
+            meck_config(Config),
+            [{ets_process, ETSProcess} | Config]
     end.
 
 end_per_suite(Config) ->
-    ok = ejabberd_auth_jwt:stop(?DOMAIN1),
+    meck_cleanup(),
+    stop_ets(proplists:get_value(ets_process, Config)),
     Config.
 
+init_per_group(public_key, Config) ->
+    Root = filename:join(["..", "..", "..", ".."]),
+    PrivkeyPath = filename:join([Root, "tools", "ssl", "fake_privkey.pem"]),
+    PubkeyPath = filename:join([Root, "tools", "ssl", "fake_pubkey.pem"]),
+    {ok, PrivKey} = file:read_file(PrivkeyPath),
+    set_auth_opts(PubkeyPath, undefined, "RS256", bookingNumber),
+    ok = ejabberd_auth_jwt:start(?DOMAIN1),
+    [{priv_key, PrivKey} | Config];
 init_per_group(_, Config) ->
-    meck_config(Config),
+    set_auth_opts(undefined, ?JWT_KEY, "HS256", bookingNumber),
+    ok = ejabberd_auth_jwt:start(?DOMAIN1),
     Config.
 
 end_per_group(_, Config) ->
-    meck_cleanup(),
+    ok = ejabberd_auth_jwt:stop(?DOMAIN1),
     Config.
 
 
@@ -76,29 +97,31 @@ end_per_testcase(_CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 check_password_succeeds_for_correct_token(_Config) ->
-    true = ejabberd_auth_jwt:check_password(?USERNAME, ?DOMAIN1, generate_token(0)).
+    true = ejabberd_auth_jwt:check_password(?USERNAME, ?DOMAIN1,
+                                            generate_token(hs256, 0, ?JWT_KEY)).
 
 check_password_fails_for_wrong_token(_C) ->
-    false = ejabberd_auth_jwt:check_password(?USERNAME, ?DOMAIN1, generate_token(60)).
+    false = ejabberd_auth_jwt:check_password(?USERNAME, ?DOMAIN1,
+                                             generate_token(hs256, 60, ?JWT_KEY)).
 
 check_password_fails_for_correct_token_but_wrong_username(_C) ->
-    false = ejabberd_auth_jwt:check_password(<<"alice">>, ?DOMAIN1, generate_token(0)).
+    false = ejabberd_auth_jwt:check_password(?WRONG_USERNAME, ?DOMAIN1,
+                                             generate_token(hs256, 0, ?JWT_KEY)).
 
 authorize(_C) ->
     Creds0 = mongoose_credentials:new(?DOMAIN1),
     Creds = mongoose_credentials:extend(Creds0, [{username, ?USERNAME},
-                                                 {password, generate_token(0)},
+                                                 {password, generate_token(hs256, 0, ?JWT_KEY)},
                                                  {digest, fake},
                                                  {digest_gen, fun(A) -> A end}]),
     {ok, Creds2} = ejabberd_auth_jwt:authorize(Creds),
     ejabberd_auth_jwt = mongoose_credentials:get(Creds2, auth_module).
 
 set_password(_Config) ->
-    {error, not_allowed} = ejabberd_auth_jwt:set_password(<<"alice">>, ?DOMAIN1, <<"mialakota">>).
+    {error, not_allowed} = ejabberd_auth_jwt:set_password(?USERNAME, ?DOMAIN1, <<"mialakota">>).
 
 try_register(_Config) ->
-    {error, not_allowed} = ejabberd_auth_jwt:try_register(<<"nonexistent">>,
-                                                          ?DOMAIN1, <<"newpass">>).
+    {error, not_allowed} = ejabberd_auth_jwt:try_register(?USERNAME, ?DOMAIN1, <<"newpass">>).
 
 % get_password + get_password_s
 get_password(_Config) ->
@@ -126,28 +149,57 @@ store_type(_C) ->
 dirty_get_registered_users(_C) ->
     [] = ejabberd_auth_jwt:dirty_get_registered_users().
 
+check_password_succeeds_for_pubkey_signed_token(C) ->
+    Key = proplists:get_value(priv_key, C),
+    true = ejabberd_auth_jwt:check_password(?USERNAME, ?DOMAIN1, generate_token(rs256, 0, Key)).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
+ets_owner(Parent) ->
+    ets:new(jwt_meck, [public, named_table, set]),
+    Parent ! ets_ready,
+    receive stop -> ok end.
+
+wait_for_ets() ->
+    receive
+        ets_ready -> ok
+    after
+        5000 -> ct:fail(cant_prepare_ets)
+    end.
+
+stop_ets(undefined) -> ok;
+stop_ets(Pid) -> Pid ! stop.
+
+set_auth_opts(SecretSource, Secret, Algorithm, Key) ->
+    ets:insert(jwt_meck, {auth_opts, [
+                                      {jwt_secret_source, SecretSource},
+                                      {jwt_secret, Secret},
+                                      {jwt_algorithm, Algorithm},
+                                      {jwt_username_key, Key}
+                                     ]}).
+
 meck_config(_Config) ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_local_option,
-                fun(auth_opts, _Host) ->
-                        [
-                         {jwt_key, ?JWT_KEY},
-                         {token_user_key, bookingNumber}
-                        ]
-                end).
+                fun(Key, _Host) -> [{_, Data}] = ets:lookup(jwt_meck, Key), Data end),
+    meck:expect(ejabberd_config, add_local_option,
+                fun({Key, _}, Val) -> ets:insert(jwt_meck, {Key, Val}) end).
 
 meck_cleanup() ->
     meck:validate(ejabberd_config),
-    meck:unload(ejabberd_config).
+    meck:unload(ejabberd_config),
+    ets:delete(jwt_meck).
 
-generate_token(NbfDelta) ->
+generate_token(Alg, NbfDelta, Key) ->
     Now = p1_time_compat:system_time(seconds),
     Data = #{bookingNumber => ?USERNAME,
              exp => Now + 60,
              nbf => Now + NbfDelta,
              iat => Now},
-    jwerl:sign(Data, #{alg => <<"HS256">>, key => ?JWT_KEY}).
+    jwerl:sign(Data, #{alg => alg_to_bin(Alg), key => Key}).
+
+alg_to_bin(hs256) -> <<"HS256">>;
+alg_to_bin(rs256) -> <<"RS256">>.
+
