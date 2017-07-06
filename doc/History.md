@@ -21,6 +21,7 @@ MongooseIM XMPP server fully independently went through multiple versions, follo
 MongooseIM Platform appeared in 2016, with the release of [MongooseIM XMPP server 2.0.0](https://github.com/esl/MongooseIM/releases/tag/2.0.0).
 
 The MongooseIM platform components were:
+
 * MongooseIM XMPP server, featuring a unique REST API for client developers and MUC light
 * WombatOAM, for monitoring and operations
 * escalus, an Erlang XMPP client for test automation
@@ -35,6 +36,7 @@ The MongooseIM platform components were:
 
 We also introduced some MongooseIM platform components that are independent of the XMPP server.
 So far the list includes:
+
 * Mangosta iOS
 * Mangosta Android
 * MongoosePush
