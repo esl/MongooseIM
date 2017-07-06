@@ -178,18 +178,18 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
              * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
 
         * **jwt_secret_source** (local)
-            * **Description:** A path to a file or environment variable, which contents will be used as JWT secret.
-            * **Warning:** A direct path to a file is read only once during startup, a path in environment variable is read on every auth request.
+            * **Description:** A path to a file or environment variable, which contents will be used as a JWT secret.
+            * **Warning:** A direct path to a file is read only once during startup, a path in the environment variable is read on every auth request.
             * **Value:** string, e.g. `/etc/secrets/jwt` or `{env, "env-variable-name"}`
             * **Default:** none, either `jwt_secret_source` or `jwt_secret` must be set
         
         * **jwt_secret** (local)
-            * **Description:** A binary with JWT secret. This options is ignored and overwritten, if `jwt_secret_source` is defined.
+            * **Description:** A binary with a JWT secret. This options is ignored and overwritten, if `jwt_secret_source` is defined.
             * **Value:** binary
-            * **Default:** none, either `jwt_secret_source` or `jwt_secret` must be set
+            * **Default:** none (either `jwt_secret_source` or `jwt_secret` must be set)
         
         * **jwt_algorithm** (local)
-            * **Description:** A name of algorithm used to sign JWT.
+            * **Description:** A name of the algorithm used to sign JWT.
             * **Valid values:** `"HS256", "RS256", "ES256", "HS386", "RS386", "ES386", "HS512", "RS512", "ES512"`
             * **Default:** none, it's a mandatory option
         
