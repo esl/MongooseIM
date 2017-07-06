@@ -71,6 +71,7 @@ Please contact us and tell us about what features and improvements do you see as
 * Stories?
 * Contributions?
 
-## Influence the vision and roadmap
+## Contribute to our roadmap
 
-You have the opportunity to influence the future of the MongooseIM platform: please contact us and explain your wishes!
+Our roadmap is build based on community feedback, customer demand and our own ideas. We would love to invite everyone to contribute their vision of where we should go next.
+No matter if you love, use or just know MongooseIM, share your passion and inspire the next steps of our journey.
