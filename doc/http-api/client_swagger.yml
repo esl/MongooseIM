@@ -94,6 +94,21 @@ paths:
           description: The room was successfully created.
           schema:
             $ref: '#/definitions/ResourceID'
+    put:
+      description: Creates a room with the given ID.
+      tags:
+        - "Rooms"
+      parameters:
+        - in: body
+          name: room
+          required: true
+          schema:
+            $ref: '#/definitions/RoomShortDetails'
+      responses:
+        200:
+          description: A room with the given ID was successfully created.
+          schema:
+            $ref: '#/definitions/ResourceID'
     get:
       description: "Returns a list of rooms to which the user has subscribed."
       tags:

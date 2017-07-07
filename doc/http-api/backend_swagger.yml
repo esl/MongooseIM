@@ -404,6 +404,51 @@ paths:
           schema:
             title: roomName
             type: string
+  /muc-lights/{XMPPHost}:
+    parameters:
+      - $ref: '#/parameters/hostName'
+    put:
+      tags:
+        - "MUC-light management"
+      description: Create a MUC Light room with the given ID.
+      consumes:
+        - application/json
+      parameters:
+        - name: roomDetails
+          in: body
+          description: Details for the room to be created (including ID)
+          required: true
+          schema:
+            title: roomDetails
+            type: object
+            properties:
+              id:
+                type: string
+                description: |
+                  The leading part of the room's JID.
+                  If the ID is "marmoreal" and the XMPP hostname is "wonderland" then the JID is "marmoreal@wonderland".
+                example: "marmoreal"
+              owner:
+                type: string
+                format: JID
+                description: The user's JID on whose behalf to create the room
+                example: "alice@wonderland.lit"
+              name:
+                type: string
+                description: |
+                  The name of the room. **NOT** the room's JID.
+                  This is the name that goes into the room's configuration.
+                example: "Rabbit hole"
+              subject:
+                type: string
+                description: Room's initial subject
+                example: "Magic stuff"
+      responses:
+        201:
+          description: Room was created
+          schema:
+            title: roomJID
+            type: string
   /muc-lights/{XMPPHost}/{roomName}/participants:
     parameters:
       - $ref: '#/parameters/hostName'
