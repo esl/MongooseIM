@@ -1974,10 +1974,9 @@ archive_chat_markers(Config) ->
             escalus:wait_for_stanzas(Alice, 3),
 
             %% Alice queries MAM
+            maybe_wait_for_archive(Config),
             escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
             Result = wait_archive_respond(P, Alice),
-
-            ct:pal("~p~n", [Result]),
 
             %% archived message + 3 markers
             assert_respond_size(1 + 3, Result),
