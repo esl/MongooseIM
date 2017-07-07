@@ -36,6 +36,22 @@ Acc1 = mongoose_acc:require(command, Acc),
 Cmd = mongoose_acc:get(command, Acc1)
 ```
 
+You can set whatever attributes you want, but treat them as read-only - an accumulator is meant
+to accumulate results and carry them forward with it, not to introduced a semi-mutable data structure.
+If you put a value to a key which already exists it will work, but will also produce a
+warning.
+
+If you need to store multiple values under the same key, then either:
+* use mongoose_acc:append/3
+* or generate a unique key for each use
+
+There is one exception: if you really must treat an acc to carry just one value back from a call,
+use a key `result`, this is not monitored.
+
+For mass updates (multiple key at once) consider using `mongoose_acc:update/2`, it may be
+slightly more efficient. Be aware, however, that it will not warn you if you
+overwrite an existing key.
+
 ## Entry points
 
 The stanza enters MongooseIM in the following places:

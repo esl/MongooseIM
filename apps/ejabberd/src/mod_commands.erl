@@ -358,9 +358,8 @@ create_acc(CallerJid, Name, Type) ->
 
 create_acc(CallerJid, Name, Type, OtherJid) ->
     A = create_acc(CallerJid, Name, Type),
-    A1 = mongoose_acc:put(to, jid:to_binary(OtherJid), A),
-    mongoose_acc:put(to_jid, OtherJid, A1).
-
+    Map = #{to => jid:to_binary(OtherJid), to_jid => OtherJid},
+    mongoose_acc:update(A, Map).
 
 subscription(Caller, Other, Action) ->
     Act = binary_to_existing_atom(Action, latin1),
@@ -371,7 +370,7 @@ run_subscription(Type, CallerJid, OtherJid) ->
     StanzaType = atom_to_binary(Type, latin1),
     A = create_acc(CallerJid, <<"presence">>, StanzaType, OtherJid),
     El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
-    Acc1 = mongoose_acc:put(element, El, A),
+    Acc1 = mongoose_acc:update(A, #{element => El}),
     % set subscription to
     Server = CallerJid#jid.server,
     LUser = CallerJid#jid.luser,

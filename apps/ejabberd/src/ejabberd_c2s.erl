@@ -899,7 +899,8 @@ session_established({xmlstreamelement, El}, StateData) ->
             NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
                                                    StateData),
             % initialise accumulator, fill with data
-            Acc0 = mongoose_acc:initialise(El, ?FILE, ?LINE),
+            El1 = fix_message_from_user(El, StateData#state.lang),
+            Acc0 = mongoose_acc:initialise(El1, ?FILE, ?LINE),
             User = NewState#state.user,
             Server = NewState#state.server,
             To = exml_query:attr(El, <<"to">>),
@@ -952,25 +953,10 @@ session_established(closed, StateData) ->
 %% comes back whence it originated
 -spec process_outgoing_stanza(mongoose_acc:t(), state()) -> fsm_return().
 process_outgoing_stanza(Acc, StateData) ->
-    El0 = mongoose_acc:get(element, Acc),
-    Attrs = mongoose_acc:get(attrs, Acc),
     ToJID = mongoose_acc:get(to_jid, Acc),
-    % do some cryptic preparation on xmlel
-    NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El0)),
-    NewEl = case xml:get_attr_s(<<"xml:lang">>, Attrs) of
-                <<>> ->
-                    case StateData#state.lang of
-                        <<>> -> NewEl1;
-                        Lang ->
-                            xml:replace_tag_attr(<<"xml:lang">>, Lang, NewEl1)
-                    end;
-                _ ->
-                    NewEl1
-            end,
-    Acc2 = mongoose_acc:put(element, NewEl, Acc),
-    Name = mongoose_acc:get(name, Acc2),
-    NState = process_outgoing_stanza(Acc2, ToJID, Name, StateData),
-    ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, NewEl}]),
+    Name = mongoose_acc:get(name, Acc),
+    NState = process_outgoing_stanza(Acc, ToJID, Name, StateData),
+    ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, mongoose_acc:get(element, Acc)}]),
     fsm_next_state(session_established, NState).
 
 process_outgoing_stanza(Acc, error, _Name, StateData) ->
@@ -1592,6 +1578,21 @@ reroute_unacked_messages(StateData) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
+
+fix_message_from_user(#xmlel{attrs = Attrs} = El0, Lang) ->
+    % do some cryptic preparation on xmlel
+    NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El0)),
+    case xml:get_attr_s(<<"xml:lang">>, Attrs) of
+        <<>> ->
+            case Lang of
+                <<>> -> NewEl1;
+                Lang ->
+                    xml:replace_tag_attr(<<"xml:lang">>, Lang, NewEl1)
+            end;
+        _ ->
+            NewEl1
+    end.
+
 should_close_session(resume_session) -> true;
 should_close_session(session_established) -> true;
 should_close_session(_) -> false.

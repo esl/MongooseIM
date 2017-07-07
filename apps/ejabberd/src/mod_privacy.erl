@@ -332,7 +332,7 @@ check_packet(Acc, User, Server,
             end,
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
     end,
-    mongoose_acc:put(privacy_check, CheckResult, Acc).
+    mongoose_acc:put(result, CheckResult, Acc).
 
 %% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->

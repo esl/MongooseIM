@@ -125,10 +125,24 @@ put(from_jid, Val, Acc) ->
     % deprecated functions
     A = maps:put(from_jid, Val, Acc),
     maps:put(from, jid:to_binary(Val), A);
+put(result, Val, Acc) ->
+    maps:put(result, Val, Acc);
 put(Key, Val, Acc) ->
+    % check whether we are replacing existing value (warning now, later it will become
+    % read-only; accumulator is for accumulating)
+    case maps:is_key(Key, Acc) of
+        true ->
+            ?WARNING_MSG("Overwriting existing key \"~p\" in accumulator,"
+                         "are you sure you have to do it?",
+                         [Key]);
+        false ->
+            ok
+    end,
     maps:put(Key, Val, Acc).
 
 -spec get(any()|[any()], t()) -> any().
+get(send_result, Acc) ->
+    hd(maps:get(send_result, Acc));
 get(to_send, Acc) ->
     get(to_send, Acc, get(element, Acc));
 get(Key, P) ->
@@ -173,15 +187,15 @@ strip(Acc) ->
 %%    Ats = [name, type, attrs, from, from_jid, to, to_jid, ref, timestamp],
     Attributes = [from, from_jid, ref, timestamp],
     NewAcc = lists:foldl(fun(Attrib, AccIn) ->
-                           Val = mongoose_acc:get(Attrib, Acc),
-                           mongoose_acc:put(Attrib, Val, AccIn)
+                           Val = maps:get(Attrib, Acc),
+                           maps:put(Attrib, Val, AccIn)
                        end,
                        Acc1, Attributes),
     OptionalAttributes = [to, to_jid],
     lists:foldl(fun(Attrib, AccIn) ->
-                    case mongoose_acc:get(Attrib, Acc, undefined) of
+                    case maps:get(Attrib, Acc, undefined) of
                         undefined -> AccIn;
-                        Val -> mongoose_acc:put(Attrib, Val, AccIn)
+                        Val -> maps:put(Attrib, Val, AccIn)
                     end
                 end,
         NewAcc, OptionalAttributes).
@@ -195,7 +209,7 @@ record_sending(Acc, Stanza, Module, Result) ->
     record_sending(Acc, none, none, Stanza, Module, Result).
 -spec record_sending(t(), jid()|none, jid()|none, xmlel(), atom(), any()) -> t().
 record_sending(Acc, _From, _To, _Stanza, _Module, Result) ->
-    mongoose_acc:put(send_result, Result, Acc).
+    mongoose_acc:append(send_result, Result, Acc).
 
 %%%%% internal %%%%%
 
