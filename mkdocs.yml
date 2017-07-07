@@ -24,12 +24,16 @@ pages:
       - 'History': 'History.md'
   - 'Basic Configuration': 'Basic-configuration.md'
   - 'Advanced Configuration':
-      - 'Overview': 'Advanced-configuration.md'
+      - 'Top-level options': 'Advanced-configuration.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
       - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'Extension Modules': 'advanced-configuration/Modules.md'
       - 'ACL': 'advanced-configuration/acl.md'
-      - 'HTTP Authentication Module': 'advanced-configuration/HTTP-authentication-module.md'
+  - 'Authentication backends'
+      - 'External Authentication Module': 'authentication-backends/External-authentication-module.md'
+      - 'HTTP Authentication Module': 'authentication-backends/HTTP-authentication-module.md'
+      - 'JWT Authentication Module': 'authentication-backends/JWT-authentication-module.md'
+      - 'LDAP Authentication Module': 'authentication-backends/LDAP-authentication-module.md'
   - 'MongooseIM open XMPP extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'

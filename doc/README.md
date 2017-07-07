@@ -100,10 +100,13 @@ The MongooseIM platform documentation:
     * [Release/Installation configuration](user-guide/release_config.md)
     * [High-level Architecture](user-guide/MongooseIM-High-level-Architecture.md) from single to multiple node setup to multi-datacenter
     * [How to build](user-guide/How-to-build.md) from source code
+    * [Setting up Push Notifications](user-guide/Push-notifications.md)
+    * [How to: Set up Fennec (TURN/STUN server) and see how it works (a.k.a. ICE demo)](user-guide/ICE_tutorial.md)
 * Platform:
     * [Roadmap](Roadmap.md)
-    * [Contributions](Contributions.md)
+    * [Contributions to ecosystem](Contributions.md)
     * [Differentiators](Differentiators.md)
+    * [History](History.md)
 * Configuration
     * [Basic configuration](Basic-configuration.md)
     * [Advanced configuration](Advanced-configuration.md)
@@ -112,7 +115,11 @@ The MongooseIM platform documentation:
         * [Listener modules](advanced-configuration/Listener-modules.md)
         * [Extension modules](advanced-configuration/Modules.md)
         * [ACL](advanced-configuration/acl.md)
-        * [HTTP authentication module](advanced-configuration/HTTP-authentication-module.md)
+    * Authentication backends
+        * [External authentication module](authentication-backends/External-authentication-module.md)
+        * [HTTP authentication module](authentication-backends/HTTP-authentication-module.md)
+        * [JWT authentication module](authentication-backends/JWT-authentication-module.md)
+        * [LDAP authentication module](authentication-backends/LDAP-authentication-module.md)
 * MongooseIM open XMPP extensions:
     * [MUC light](open-extensions/muc_light.md)
     * [Token-based reconnection](open-extensions/token-reconnection.md)
@@ -131,7 +138,9 @@ The MongooseIM platform documentation:
     * [Hooks and handlers](developers-guide/Hooks-and-handlers.md)
     * [Hooks description](developers-guide/hooks_description.md)
     * [Stanza routing](developers-guide/message_routing.md)
+    * [Accumulators](developers-guide/accumulators.md)
     * [mod_amp developer's guide](developers-guide/mod_amp_developers_guide.md)
     * [mod_muc_light developer's guide](developers-guide/mod_muc_light_developers_guide.md)
+    * [SCRAM serialization format](developers-guide/SCRAM-serialization.md)
     * [xep-tool usage](developers-guide/xep_tool.md)
     * [FIPS mode](developers-guide/OpenSSL-and-FIPS.md)

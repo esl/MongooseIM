@@ -163,85 +163,25 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Examples:** `odbc`, `[internal, anonymous]`
 
 - **auth_opts** (local)
-    * **Description:** Provides different parameters that will be applied to a choosen authentication method. Those parameters are:
+    * **Description:** Provides different parameters that will be applied to a choosen authentication method.
+                       `auth_password_format` and `auth_scram_iterations` are common to `http`, `odbc`, `internal` and `riak`.
 
-        * **auth_password_format** (local)
+        * **auth_password_format**
              * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
              * **Values:** `plain`, `scram`
              * **Default:** `plain` (for compatibility reasons, might change soon)
 
-        * **auth_scram_iterations** (local)
+        * **auth_scram_iterations**
              * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
              * **Default:** 4096
 
-        * **ext_auth_script** (local)
-             * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
-
-        * **jwt_secret_source** (local)
-            * **Description:** A path to a file or environment variable, which contents will be used as a JWT secret.
-            * **Warning:** A direct path to a file is read only once during startup, a path in the environment variable is read on every auth request.
-            * **Value:** string, e.g. `/etc/secrets/jwt` or `{env, "env-variable-name"}`
-            * **Default:** none, either `jwt_secret_source` or `jwt_secret` must be set
+        * [`external` backend options](authentication-backends/External-authentication-module.md#configuration-options)
         
-        * **jwt_secret** (local)
-            * **Description:** A binary with a JWT secret. This options is ignored and overwritten, if `jwt_secret_source` is defined.
-            * **Value:** binary
-            * **Default:** none (either `jwt_secret_source` or `jwt_secret` must be set)
+        * [`http` backend options](authentication-backends/HTTP-authentication-module.md#configuration-options)
+
+        * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
         
-        * **jwt_algorithm** (local)
-            * **Description:** A name of the algorithm used to sign JWT.
-            * **Valid values:** `"HS256", "RS256", "ES256", "HS386", "RS386", "ES386", "HS512", "RS512", "ES512"`
-            * **Default:** none, it's a mandatory option
-        
-        * **jwt_username_key** (local)
-            * **Description:** A JWT key that contains username to verify.
-            * **Value:** atom
-            * **Default:** none, it's a mandatory option
-
-- **LDAP-related options**
-    * **ldap_base:**
-        * **Description:**  LDAP base directory which stores users accounts.
-        * **Values:** String
-        * **Default:** This option is required
-
-    * **ldap_uids:**
-        * **Description:**  LDAP attribute which holds a list of attributes to use as alternatives for getting the JID.
-       The attributes are of the form: `[{ldap_uidattr}]` or `[{ldap_uidattr, ldap_uidattr_format}]`. You can use as many comma separated attributes as needed.
-        * **Values** `[ ldap_uidattr | {ldap_uidattr: ldap_uidattr_format} ]`
-        The values for `ldap_uidattr` and `ldap_uidattr_format` are described as follow:
-             * **ldap_uidattr:** LDAP attribute which holds the user’s part of a JID. The default value is `uid`
-             * **ldap_uidattr_format:**  Format of the `ldap_uidattr` variable. The format must contain one and only one pattern variable `%u` which will be replaced by the user’s part of a JID. For example, `%u@example.org`. The default value is `%u`.
-        * **Default**  `[{uid, %u}]`
-
-    * **ldap_filter:**
-        * **Description:** LDAP filter. Please, do not forget to close brackets and do not use superfluous whitespaces.
-        Also you must not use `ldap_uidattr` attribute in filter because this attribute will be substituted in LDAP filter automatically.
-        * **Values:** String. For example:
-
-                                          (&(objectClass=shadowAccount)(memberOf=Jabber Users))
-
-        * **Default:** `undefined`
-
-    * **ldap_dn_filter:**
-        * **Description:**  This filter is applied on the results returned by the main filter.
-        This filter performs additional LDAP lookup to make the complete result. This is useful when you are unable to define all filter rules in ldap_filter.
-        You can define `%u`, `%d`, `%s` and `%D` pattern variables in the filter: `%u` is replaced by a user’s part of a JID, `%d` is replaced by the corresponding domain (virtual host), all `%s` variables are consecutively replaced by values of FilterAttrs attributes and `%D` is replaced by Distinguished Name.
-        Since this filter makes additional LDAP lookups, use it only as the last resort: try to define all filter rules in ldap_filter if possible.
-        * **Values:** `{Filter, [FilterAttributes]}`. For example:
-
-                                  (&(name=%s)(owner=%D)(user=%u@%d))": ["sn"]
-
-        * **Default:** `undefined`
-
-    * **ldap_local_filter:**
-        * **Description:** If you can’t use ldap_filter due to performance reasons (the LDAP server has many users registered), you can use this local filter.
-        The local filter checks an attribute in MongooseIM, not in LDAP, so this limits the load on the LDAP directory.
-        * **Values:** `Filter`. Example values:
-
-                                  {ldap_local_filter, {notequal, {"accountStatus",["disabled"]}}}.
-                                  {ldap_local_filter, {equal, {"accountStatus",["enabled"]}}}.
-                                  {ldap_local_filter, undefined}.
-        * **Default:** `undefined`
+- `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `ejabberd.cfg` file.
 
 ### Database setup
 
