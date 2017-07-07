@@ -124,9 +124,9 @@ normalize_spec(none) ->
 match_rule(Host, Rule, JID) ->
     match_rule(Host, Rule, JID, deny).
 
-match_rule(_, all, _, Default) ->
+match_rule(_, all, _, _Default) ->
     allow;
-match_rule(_, none, _, Default) ->
+match_rule(_, none, _, _Default) ->
     deny;
 match_rule(global, Rule, JID, Default) ->
     case ejabberd_config:get_global_option({access, Rule, global}) of

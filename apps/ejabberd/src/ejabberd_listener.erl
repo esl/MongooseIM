@@ -419,7 +419,7 @@ stop_listeners() ->
 -spec stop_listener(PortIPProto :: port_ip_proto(),
                     Module :: atom())
       -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-stop_listener(PortIPProto, Module) ->
+stop_listener(PortIPProto, _Module) ->
     supervisor:terminate_child(ejabberd_listeners, PortIPProto),
     supervisor:delete_child(ejabberd_listeners, PortIPProto).
 

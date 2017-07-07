@@ -16,7 +16,7 @@ stop() ->
 
 -spec mech_new(Host :: ejabberd:server(),
                Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
-mech_new(Host, Creds) ->
+mech_new(_Host, Creds) ->
     {ok, #state{creds = Creds}}.
 
 -spec mech_step(State :: tuple(),
