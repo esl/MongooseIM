@@ -90,7 +90,9 @@ create_room(Config) ->
         {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
         [Item] = get_disco_rooms(Alice),
         MUCLightDomain = muc_light_domain(),
-        is_room(<<Name/binary, $@, MUCLightDomain/binary>>, Item)
+        true = is_room_name(Name, Item),
+        true = is_room_domain(MUCLightDomain, Item)
+    end).
     end).
 
 invite_to_room(Config) ->
@@ -159,8 +161,13 @@ get_disco_rooms(User) ->
     escalus:assert(is_stanza_from, [muc_light_domain()], Stanza),
     exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]).
 
-is_room(JID, Item) ->
-    JID == exml_query:attr(Item, <<"jid">>).
+is_room_name(Name, Item) ->
+    Name == exml_query:attr(Item, <<"name">>).
+
+is_room_domain(Domain, Item) ->
+    JID = exml_query:attr(Item, <<"jid">>),
+    [_, Got] = binary:split(JID, <<$@>>, [global]),
+    Domain == Got.
 
 see_message_from_user(User, Sender, Contents) ->
     Stanza = escalus:wait_for_stanza(User),
