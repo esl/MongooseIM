@@ -1,7 +1,7 @@
 The Developer's Guide to mod_muc_light
 ================================
 
-This is an in-depth guide on mod_muc_light design decisions and implementation.
+This is an in-depth guide on `mod_muc_light` design decisions and implementation.
 
 Source, header and test suite files
 -------------------------------
@@ -12,7 +12,7 @@ All source files can be found in `apps/ejabberd/src`.
   Main module. 
   It implements `gen_mod` behaviour. 
   It subscribes to some essential hooks and exports several functions, mostly callbacks. 
-  It handles integration with `mod_mam` and Disco Service. 
+  It handles integration with `mod_disco`, `mod_privacy` and `mod_roster`.
   All operations that take place outside the room (including the room creation) are implemented here. 
   Last but not least - this module prevents `service-unavailable` errors being sent when an offline user receives a groupchat message.
 
@@ -27,15 +27,28 @@ All source files can be found in `apps/ejabberd/src`.
   Not recommended for production systems (less efficient than modern codec and requires more round-trips).
 
 * `mod_muc_light_codec_modern.erl`
-  An implementation of modern MUC protocol, described in the XEP. 
+  An implementation of modern MUC Light protocol, described in the XEP.
   Supports all MUC Light features.
+
+* `mod_muc_light_commands.erl`
+  MUC Light-related commands.
+  They are registered in `mongoose_commands` module, so they are available via REST API.
 
 * `mod_muc_light_db.erl`
   A behaviour implemented by database backends for the MUC Light extension.
 
 * `mod_muc_light_db_mnesia.erl`
-  Mnesia backend for this extension. 
+  Mnesia backend for this extension.
   Uses transactions for room metadata updates (configuration and affiliation list) and dirty reads whenever possible.
+
+* `mod_muc_light_db_odbc.erl`
+  SQL backend for `mod_muc_light`.
+  `create_room`, `destroy_room`, `remove_user`, `set_config`, `modify_aff_users` execute at least one query in single transaction.
+  `room_exists`, `get_user_rooms`, `get_user_rooms_count`, `get_config`, `get_blocking`, `set_blocking`, `get_aff_users` execute only one query per function call.
+  `get_info` executes 3 `SELECT` queries, not protected by transaction.
+
+* `mod_muc_light_db_odbc_sql.erl`
+  SQL queries for `mod_muc_light_db_odbc.erl`.
 
 * `mod_muc_light_room.erl`
   This module handles everything that occurs inside the room: access checks, metadata changes, message broadcasting etc.
