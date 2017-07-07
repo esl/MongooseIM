@@ -318,7 +318,7 @@ get_one_of_path(_Elem, [], Def) ->
 is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
     is_valid_message_type(Mod, Dir, Type) andalso
-        (is_valid_message(Mod, Dir, Packet) orelse is_chat_marker(Packet));
+        is_valid_message(Mod, Dir, Packet);
 is_archivable_message(_, _, _) ->
     false.
 
@@ -330,31 +330,27 @@ is_valid_message_type(_, _, <<"error">>) -> false;
 is_valid_message_type(_, _, _) -> false.
 
 is_valid_message(_Mod, _Dir, Packet) ->
-    Body     = xml:get_subtag(Packet, <<"body">>),
+    Body       = xml:get_subtag(Packet, <<"body">>),
+    ChatMarker = should_check_chat_markers() andalso has_chat_marker(Packet),
     %% Used in MAM
-    Result   = xml:get_subtag(Packet, <<"result">>),
+    Result     = xml:get_subtag(Packet, <<"result">>),
     %% Used in mod_offline
-    Delay    = xml:get_subtag(Packet, <<"delay">>),
+    Delay      = xml:get_subtag(Packet, <<"delay">>),
     %% Message Processing Hints (XEP-0334)
-    NoStore  = xml:get_subtag(Packet, <<"no-store">>),
-    is_valid_message_children(Body, Result, Delay, NoStore).
+    NoStore    = xml:get_subtag(Packet, <<"no-store">>),
+    is_valid_message_children(Body, ChatMarker, Result, Delay, NoStore).
 
-%% Forwarded by MAM message or just a message without body
-is_valid_message_children(false, _,     _,     _    ) -> false;
-is_valid_message_children(_,     false, false, false) -> true;
+%% Forwarded by MAM message, or just a message without body or chat marker
+is_valid_message_children(false, false, _,     _,     _    ) -> false;
+is_valid_message_children(_,     _,     false, false, false) -> true;
 %% Forwarded by MAM message or delivered by mod_offline
 %% See mam_SUITE:offline_message for a test case
-is_valid_message_children(_,      _,    _,     _    ) -> false.
+is_valid_message_children(_,     _,     _,    _,     _    ) -> false.
 
-is_chat_marker(Packet) ->
-    case mod_mam_params:archive_chat_markers() of
-        true ->
-            do_check_markers(Packet);
-        false ->
-            false
-    end.
+should_check_chat_markers() ->
+    mod_mam_params:archive_chat_markers().
 
-do_check_markers(Packet) ->
+has_chat_marker(Packet) ->
     case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of
         #xmlel{name = <<"received">>}     -> true;
         #xmlel{name = <<"displayed">>}    -> true;
