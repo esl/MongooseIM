@@ -88,7 +88,7 @@ create_unique_room(Config) ->
                   owner => escalus_client:short_jid(Alice),
                   subject => <<"Lewis Carol">>
                 },
-        {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body), %%
+        {{<<"201">>, _}, _} = rest_helper:post(Path, Body),
         [Item] = get_disco_rooms(Alice),
         MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
@@ -105,7 +105,9 @@ create_identifiable_room(Config) ->
                   owner => escalus_client:short_jid(Alice),
                   subject => <<"Lewis Carol">>
                 },
-        {{<<"204">>, _}, <<"">>} = rest_helper:putt(Path, Body), %%
+        {{<<"201">>, _},
+         <<"just_some_id", $@, MUCLightDomain/binary>>
+        } = rest_helper:putt(Path, Body),
         [Item] = get_disco_rooms(Alice),
         MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
