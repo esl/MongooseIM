@@ -28,6 +28,7 @@ For now `odbc` backend has very limited support for this feature, while `cassand
 * **add_archived_element** (boolean, default: `false`) - Add `<archived/>` element from MAM v0.2.
 * **is_archivable_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
  **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain.
+* **archive_chat_markers** (boolean, default: `false`) - If set to true, XEP-0333 chat markers will be archived. See more details [here](#archiving-chat-markers)
 * **pm** (list | `false`, default: `[]`) - Override options for archivization of one-to-one messages. If the value of this option is `false`, one-to-one message archive is disabled.
 * **muc** (list | `false`, default: `false`) - Override options for archivization of group chat messages. If the value of this option is `false`, group chat message archive is disabled.
 
@@ -87,6 +88,13 @@ These options will only have effect when the `odbc` backend is used:
 Servers SHOULD NOT archive messages that do not have a `<body/>` child tag. Servers SHOULD NOT archive delayed messages.
 
 From MAM v0.3 onwards it is expected that all messages that hold meaningful content, rather than state changes such as Chat State Notifications, are archived.
+
+#### Archiving chat markers
+
+Archiving chat markers can be enabled by setting `archive_chat_markers` option to `true`. However it only works if
+`is_archivable_message` callback module is set to `mod_mam_utils` or isn't set at all.
+
+When performing full text search chat markers are treated as if they had empty message body.
 
 ### Riak backend
 

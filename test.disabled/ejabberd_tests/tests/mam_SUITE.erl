@@ -90,7 +90,9 @@
          run_set_and_get_prefs_cases/1,
          check_user_exist/1,
          metric_incremented_on_archive_request/1,
-         metric_incremented_when_store_message/1]).
+         metric_incremented_when_store_message/1,
+         archive_chat_markers/1,
+         dont_archive_chat_markers/1]).
 
 -import(muc_helper,
         [muc_host/0,
@@ -213,6 +215,7 @@ cassandra_configs(_) ->
 basic_group_names() ->
     [
      mam_all,
+     chat_markers,
      muc_all,
      muc_light,
      policy_violation,
@@ -264,6 +267,8 @@ basic_groups() ->
               {with_rsm02, [parallel], with_rsm_cases()},
               {with_rsm03, [parallel], with_rsm_cases()},
               {with_rsm04, [parallel], with_rsm_cases()}]}]},
+     {chat_markers, [parallel], [archive_chat_markers,
+                                 dont_archive_chat_markers]},
      {muc_all, [parallel],
            [{muc02, [parallel], muc_cases()},
             {muc03, [parallel], muc_cases() ++ muc_text_search_cases()},
@@ -712,6 +717,8 @@ muc_domain(Config) ->
 
 addin_mam_options(disabled_text_search, Config) ->
     [{full_text_search, false} | addin_mam_options(Config)];
+addin_mam_options(chat_markers, Config) ->
+    [{archive_chat_markers, true} | addin_mam_options(Config)];
 addin_mam_options(_BasicGroup, Config) ->
     addin_mam_options(Config).
 
@@ -849,6 +856,12 @@ init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
                                 [host(), mod_mam, archive_groupchats, true]),
     clean_archives(Config),
     escalus:init_per_testcase(C, [{archive_groupchats_backup, OrigVal} | Config]);
+init_per_testcase(C=archive_chat_markers, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, Config1);
+init_per_testcase(C=dont_archive_chat_markers, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, Config1);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -1941,6 +1954,74 @@ limit_archive_request(Config) ->
         end,
     %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}], F).
+
+archive_chat_markers(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+            %% Alice sends markable message to Bob
+            Message  = escalus_stanza:markable(
+                          escalus_stanza:chat_to(Bob, <<"Hello, Bob!">>)
+                       ),
+            MessageID = escalus_stanza:id(),
+            escalus:send(Alice, escalus_stanza:set_id(Message, MessageID)),
+            escalus:wait_for_stanza(Bob),
+
+            %% Bob sends 3 chat markers
+            Marker1 = escalus_stanza:chat_marker(Alice, <<"received">>,
+                                                 MessageID),
+            Marker2 = escalus_stanza:chat_marker(Alice, <<"displayed">>,
+                                                 MessageID),
+            Marker3 = escalus_stanza:chat_marker(Alice, <<"acknowledged">>,
+                                                 MessageID),
+            escalus:send(Bob, Marker1),
+            escalus:send(Bob, Marker2),
+            escalus:send(Bob, Marker3),
+            escalus:wait_for_stanzas(Alice, 3),
+
+            %% Alice queries MAM
+            maybe_wait_for_archive(Config),
+            escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+            Result = wait_archive_respond(P, Alice),
+
+            %% archived message + 3 markers
+            assert_respond_size(1 + 3, Result),
+            assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Result))
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+dont_archive_chat_markers(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+            %% Alice sends markable message to Bob
+            Message  = escalus_stanza:markable(
+                          escalus_stanza:chat_to(Bob, <<"Hello, Bob!">>)
+                       ),
+            MessageID = escalus_stanza:id(),
+            escalus:send(Alice, escalus_stanza:set_id(Message, MessageID)),
+            escalus:wait_for_stanza(Bob),
+
+            %% Bob sends 3 chat markers which also contain non-archivable elements
+            Marker = #xmlel{children = Children} =
+                escalus_stanza:chat_marker(Alice, <<"received">>, MessageID),
+            ResultEl = #xmlel{name = <<"result">>},
+            DelayEl = #xmlel{name = <<"delay">>},
+            NoStoreEl = #xmlel{name = <<"no-store">>},
+
+            escalus:send(Bob, Marker#xmlel{children = [ResultEl|Children]}),
+            escalus:send(Bob, Marker#xmlel{children = [DelayEl|Children]}),
+            escalus:send(Bob, Marker#xmlel{children = [NoStoreEl|Children]}),
+            escalus:wait_for_stanzas(Alice, 3),
+
+            %% Alice queries MAM
+            maybe_wait_for_archive(Config),
+            escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+            Result = wait_archive_respond(P, Alice),
+
+            %% archived message (no archived markers)
+            assert_respond_size(1, Result),
+            assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Result))
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 pagination_empty_rset(Config) ->
     P = ?config(props, Config),
