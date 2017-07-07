@@ -41,7 +41,8 @@ groups() ->
 
 success_response() ->
 
-    [create_room,
+    [create_unique_room,
+     create_identifiable_room,
      invite_to_room,
      send_message_to_room].
 
@@ -78,7 +79,7 @@ end_per_testcase(CaseName, Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
-create_room(Config) ->
+create_unique_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Domain = <<"localhost">>,
         Path = <<"/muc-lights", $/, Domain/binary>>,
@@ -87,12 +88,29 @@ create_room(Config) ->
                   owner => escalus_client:short_jid(Alice),
                   subject => <<"Lewis Carol">>
                 },
-        {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body), %%
         [Item] = get_disco_rooms(Alice),
         MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
         true = is_room_domain(MUCLightDomain, Item)
     end).
+
+create_identifiable_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Domain = <<"localhost">>,
+        Path = <<"/muc-lights", $/, Domain/binary>>,
+        Name = <<"wonderland">>,
+        Body = #{ id => <<"just_some_id">>,
+                  name => Name,
+                  owner => escalus_client:short_jid(Alice),
+                  subject => <<"Lewis Carol">>
+                },
+        {{<<"204">>, _}, <<"">>} = rest_helper:putt(Path, Body), %%
+        [Item] = get_disco_rooms(Alice),
+        MUCLightDomain = muc_light_domain(),
+        true = is_room_name(Name, Item),
+        true = is_room_domain(MUCLightDomain, Item),
+        true = is_room_id(<<"just_some_id">>, Item)
     end).
 
 invite_to_room(Config) ->
@@ -168,6 +186,11 @@ is_room_domain(Domain, Item) ->
     JID = exml_query:attr(Item, <<"jid">>),
     [_, Got] = binary:split(JID, <<$@>>, [global]),
     Domain == Got.
+
+is_room_id(Id, Item) ->
+    JID = exml_query:attr(Item, <<"jid">>),
+    [Got, _] = binary:split(JID, <<$@>>, [global]),
+    Id == Got.
 
 see_message_from_user(User, Sender, Contents) ->
     Stanza = escalus:wait_for_stanza(User),

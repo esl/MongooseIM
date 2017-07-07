@@ -69,7 +69,7 @@ commands() ->
        ]},
       {result, {name, binary}}],
 
-     [{name, update_muc_light_room},
+     [{name, create_identifiable_muc_light_room},
       {category, <<"muc-lights">>},
       {desc, <<"Update a MUC Light room.">>},
       {module, ?MODULE},
