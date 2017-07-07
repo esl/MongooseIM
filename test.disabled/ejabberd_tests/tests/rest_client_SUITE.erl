@@ -44,6 +44,7 @@ message_test_cases() ->
 
 muc_test_cases() ->
      [room_is_created,
+      room_is_created_with_given_identifier,
       user_is_invited_to_a_room,
       user_is_removed_from_a_room,
       rooms_can_be_listed,
@@ -214,6 +215,14 @@ room_is_created(Config) ->
         assert_room_info(Alice, RoomInfo)
     end).
 
+room_is_created_with_given_identifier(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        GivenRoomID = <<"just_an_id">>,
+        GivenRoomID = given_new_room({alice, Alice}, GivenRoomID),
+        RoomInfo = get_room_info({alice, Alice}, GivenRoomID),
+        assert_room_info(Alice, RoomInfo)
+    end).
+
 rooms_can_be_listed(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         [] = get_my_rooms({alice, Alice}),
@@ -365,6 +374,11 @@ given_new_room(Owner) ->
     RoomName = <<"new_room_name">>,
     create_room(Creds, RoomName, <<"This room subject">>).
 
+given_new_room(Owner, RoomID) ->
+    Creds = credentials(Owner),
+    RoomName = <<"new_room_name">>,
+    update_room(Creds, RoomName, <<"This room subject">>, RoomID).
+
 given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
     JID = user_jid(Invitee),
     {{<<"204">>, <<"No Content">>}, _} = invite_to_room(Owner, RoomID, JID),
@@ -439,10 +453,17 @@ get_room_messages(Client, RoomID, Count, Before) ->
     Path = erlang:iolist_to_binary(PathList),
     get_messages(Path, Creds).
 
-create_room({_AliceJID, _} = Creds, RoomID, Subject) ->
-    Room = #{name => RoomID,
+create_room({_AliceJID, _} = Creds, RoomName, Subject) ->
+    Room = #{name => RoomName,
              subject => Subject},
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(<<"/rooms">>, Room, Creds),
+    proplists:get_value(<<"id">>, Result).
+
+update_room({_AliceJID, _} = Creds, RoomName, Subject, RoomID) ->
+    Room = #{name => RoomName,
+             subject => Subject,
+             id => RoomID},
+    {{<<"201">>, <<"Created">>}, {Result}} = rest_helper:putt(<<"/rooms">>, Room, Creds),
     proplists:get_value(<<"id">>, Result).
 
 get_my_rooms(User) ->

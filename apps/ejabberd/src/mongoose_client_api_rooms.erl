@@ -37,7 +37,7 @@ content_types_accepted(Req, State) ->
      ], Req, State}.
 
 allowed_methods(Req, State) ->
-    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>], Req, State}.
+    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>, <<"PUT">>], Req, State}.
 
 resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
     {RoomID, Req2} = cowboy_req:binding(id, Req),
@@ -109,10 +109,9 @@ from_json(Req, State) ->
     JSONData = jiffy:decode(Body, [return_maps]),
     handle_request(Method, JSONData, Req3, State).
 
-handle_request(<<"POST">>, JSONData, Req,
+handle_request(Meth, JSONData, Req,
                #{user := User, jid := #jid{lserver = Server}} = State) ->
-    #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
-    case mod_muc_light_commands:create_unique_room(Server, RoomName, User, Subject) of
+    case handle_request_by_meth(Meth, JSONData, User, Server) of
         {error, _} ->
             {false, Req, State};
         Room ->
@@ -121,6 +120,16 @@ handle_request(<<"POST">>, JSONData, Req,
             RespReq = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
             {true, RespReq, State}
     end.
+
+handle_request_by_meth(<<"POST">>, JSONData, User, Server) ->
+    #{<<"name">>    := RoomName,
+      <<"subject">> := Subject} = JSONData,
+    mod_muc_light_commands:create_unique_room(Server, RoomName, User, Subject);
+handle_request_by_meth(<<"PUT">>, JSONData, User, Server) ->
+    #{<<"name">>    := RoomName,
+      <<"subject">> := Subject,
+      <<"id">>      := Id} = JSONData,
+    mod_muc_light_commands:create_identifiable_room(Server, Id, RoomName, User, Subject).
 
 user_to_json({UserServer, Role}) ->
     #{user => jid:to_binary(UserServer),
