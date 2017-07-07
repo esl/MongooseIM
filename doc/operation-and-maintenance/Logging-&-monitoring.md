@@ -38,7 +38,9 @@ For more advanced processing and analysis of logs, including gathering logs from
 
 ### WombatOAM
 
-WombatOAM is an operations and maintenance framework for Erlang based systems. Its Web Dashboard displays this data in an aggregated manner and provides interfaces to feed the data to other OAM tools such as Graphite, Nagios or Zabbix.
+WombatOAM is an operations and maintenance framework for Erlang based systems.
+Its Web Dashboard displays this data in an aggregated manner.
+What is more, WombatOAM provides interfaces to feed the data to other OAM tools such as Graphite, Nagios or Zabbix.
 
 For more information see: [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html).
 
@@ -61,11 +63,11 @@ Exometer has many build-in reporters that can send metrics to external services 
 * snmp
 * opentsdb
 
-It is possible to enable them in MoongooseIM via  the `app.config` file. 
+It is possible to enable them in MoongooseIM via the `app.config` file.
 The file sits next to the `ejabberd.cfg` file in the `rel/files` and `_REL_DIR_/etc` directories.
 For more details, please visit the Exometer's project page: [Exometer](https://github.com/Feuerlabs/exometer).
 
-**Note that we are using the 1.2.1 version.**
+**Note that we are using the 1.2.1 version with our patches.**
 
 Below you can find a sample configuration. 
 It shows setting up a reporter connecting to graphite running on localhost.
@@ -95,6 +97,10 @@ By default that is 60 seconds.
 
 ### Run graphite in Docker - quick start
 
+If you don't have a default docker machine created yet:
+
+    docker-machine create --driver=virtualbox default
+
 Start a docker machine:
 
     docker-machine start
@@ -122,6 +128,8 @@ Route subnet:
 
     $ sudo route add -net 172.17.0.0 192.168.99.100
 
+#### Verification
+
 And now http://172.17.0.2 should show a graphite page.
 
 Check if the data collection works - run:
@@ -133,3 +141,15 @@ Wait a while, then open:
     http://172.17.0.2/render?from=-10mins&until=now&target=stats.example
 
 Then, if you configure your MongooseIM to send Exometer reports to that IP address and run it for a while, you should be able to see some interesting charts.
+
+### Run graphite in Docker - alternative method
+
+If one of these steps above doesn't work for you (e.g. they may be incompatible with your Docker on Mac), please try a less advanced alternative.
+It doesn't require docker machine and will expose Graphite ports on localhost, instead of using a new route.
+
+Start a container with Graphite:
+
+    $ docker run -d --name graphite --restart=always -p 80:80 -p 2003-2004:2003-2004 -p 2023-2024:2023-2024 -p 8125:8125/udp -p 8126:8126 hopsoft/graphite-statsd
+
+Now do the "Verification" part from previous subsection. There is one difference: you need to replace every occurrence of `172.17.0.2` with `localhost`.
+
