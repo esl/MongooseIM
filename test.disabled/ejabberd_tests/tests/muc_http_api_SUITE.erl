@@ -92,7 +92,7 @@ create_room(Config) ->
         Body = #{name => Name,
                  owner => escalus_client:short_jid(Alice),
                  nick => <<"ali">>},
-        {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"201">>, _}, Name} = rest_helper:post(Path, Body),
         %% Service acknowledges room creation (10.1.1 Ex. 154), then
         %% (presumably 7.2.16) sends room subject, finally the IQ
         %% result of the IQ request (10.1.2) for an instant room. The
@@ -206,7 +206,7 @@ multiparty_multiprotocol(Config) ->
             %% XMPP: Bob does not see a MUC room called 'wonderland'.
             false = user_sees_room(Bob, Room),
             %% HTTP: create a room on Alice's behalf.
-            {{<<"201">>, _}, <<"">>} =
+            {{<<"201">>, _}, Room} =
                 rest_helper:post(MUCPath,
                                  #{name => Room,
                                    owner => escalus_client:short_jid(Alice),
