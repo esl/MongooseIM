@@ -94,21 +94,6 @@ paths:
           description: The room was successfully created.
           schema:
             $ref: '#/definitions/ResourceID'
-    put:
-      description: Creates a room with the given ID.
-      tags:
-        - "Rooms"
-      parameters:
-        - in: body
-          name: room
-          required: true
-          schema:
-            $ref: '#/definitions/RoomShortDetails'
-      responses:
-        200:
-          description: A room with the given ID was successfully created.
-          schema:
-            $ref: '#/definitions/ResourceID'
     get:
       description: "Returns a list of rooms to which the user has subscribed."
       tags:
@@ -138,6 +123,22 @@ paths:
         403:
           description: |
             When the authenticated user is not allowed to read the room's details.
+    put:
+      description: Creates a room with the given ID.
+      tags:
+        - "Rooms"
+      parameters:
+        - $ref: '#/parameters/roomID'
+        - in: body
+          name: room
+          required: true
+          schema:
+            $ref: '#/definitions/CreateRoomBody'
+      responses:
+        201:
+          description: A room with the given ID was successfully created.
+          schema:
+            $ref: '#/definitions/ResourceID'
   /rooms/{id}/users:
     post:
       description: "Adds a user to a room."

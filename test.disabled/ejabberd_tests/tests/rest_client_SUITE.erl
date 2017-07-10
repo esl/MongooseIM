@@ -377,7 +377,7 @@ given_new_room(Owner) ->
 given_new_room(Owner, RoomID) ->
     Creds = credentials(Owner),
     RoomName = <<"new_room_name">>,
-    update_room(Creds, RoomName, <<"This room subject">>, RoomID).
+    create_room_with_id(Creds, RoomName, <<"This room subject">>, RoomID).
 
 given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
     JID = user_jid(Invitee),
@@ -459,11 +459,11 @@ create_room({_AliceJID, _} = Creds, RoomName, Subject) ->
     {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(<<"/rooms">>, Room, Creds),
     proplists:get_value(<<"id">>, Result).
 
-update_room({_AliceJID, _} = Creds, RoomName, Subject, RoomID) ->
+create_room_with_id({_AliceJID, _} = Creds, RoomName, Subject, RoomID) ->
     Room = #{name => RoomName,
-             subject => Subject,
-             id => RoomID},
-    {{<<"201">>, <<"Created">>}, {Result}} = rest_helper:putt(<<"/rooms">>, Room, Creds),
+             subject => Subject},
+    Path = <<"/rooms/", RoomID/binary>>,
+    {{<<"201">>, <<"Created">>}, {Result}} = rest_helper:putt(Path, Room, Creds),
     proplists:get_value(<<"id">>, Result).
 
 get_my_rooms(User) ->
