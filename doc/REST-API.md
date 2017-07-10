@@ -51,7 +51,7 @@ REST API functionalities are enabled and exposed on the given paths.
 By default the REST API is exposed on port 8089 but this can be changed to whatever is more convenient.
 
 For more details about possible `ejabberd_cowboy` configuration parameters please
-see the relevant documentation in [Listener-modules](../advanced-configuration/Listener-modules/#http-based-services-bosh-websocket-rest-ejabberd_cowboy)
+see the relevant documentation in [Listener modules](advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy)
 
 ### Specification
 
