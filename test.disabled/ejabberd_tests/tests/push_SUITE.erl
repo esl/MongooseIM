@@ -17,7 +17,7 @@
         {backend, mnesia}
     ]).
 
--import(muc_light_SUITE,
+-import(muc_light_helper,
     [
         room_bin_jid/1,
         create_room/6

@@ -433,15 +433,15 @@ is_same_message_text(Stanza, Raw) ->
         Msg :: #forwarded_message{}, AffUsersChanges :: [{escalus:client(), binary()}],
         IsCreate :: boolean()) -> [].
 verify_archived_muc_light_aff_msg(Msg, AffUsersChanges, IsCreate) ->
-    BinAffUsersChanges = muc_light_SUITE:bin_aff_users(AffUsersChanges),
+    BinAffUsersChanges = muc_light_helper:bin_aff_users(AffUsersChanges),
     [X] = Msg#forwarded_message.message_xs,
-    ProperNS = muc_light_SUITE:ns_muc_light_affiliations(),
+    ProperNS = muc_light_helper:ns_muc_light_affiliations(),
     ProperNS = exml_query:attr(X, <<"xmlns">>),
     undefined = exml_query:subelement(X, <<"prev-version">>),
     Version = exml_query:path(X, [{element, <<"version">>}, cdata]),
     true = IsCreate orelse is_binary(Version),
     Items = exml_query:subelements(X, <<"user">>),
-    muc_light_SUITE:verify_aff_users(Items, BinAffUsersChanges).
+    muc_light_helper:verify_aff_users(Items, BinAffUsersChanges).
 
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
