@@ -223,16 +223,13 @@ maybe_add_caller(admin) ->
 maybe_add_caller(JID) ->
     [{caller, JID}].
 
--spec maybe_add_location_header(integer() | binary() | list() | float(), list(), any()) -> any().
+-spec maybe_add_location_header(binary() | list() | nocontent, list(), any())
+    -> any().
 maybe_add_location_header(Result, ResourcePath, Req) when is_binary(Result) ->
     add_location_header(binary_to_list(Result), ResourcePath, Req);
 maybe_add_location_header(Result, ResourcePath, Req) when is_list(Result) ->
     add_location_header(Result, ResourcePath, Req);
-maybe_add_location_header(Result, ResourcePath, Req) when is_integer(Result) ->
-    add_location_header(integer_to_list(Result), ResourcePath, Req);
-maybe_add_location_header(Result, ResourcePath, Req) when is_float(Result) ->
-    add_location_header(float_to_list(Result), ResourcePath, Req);
-maybe_add_location_header(nocontent, _Path, Req) ->
+maybe_add_location_header(_, _Path, Req) ->
     {ok, Req2} = cowboy_req:reply(204, [], Req),
     Req2.
 
