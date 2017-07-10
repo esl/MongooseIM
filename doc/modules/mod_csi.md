@@ -7,6 +7,9 @@ The Client State Indication functionality will be possible to use even
 without enabling this module, but the feature will not be present in the
 stream features list.
 
+The XEP doesn't **require** any specific server behaviour in response to CSI stanzas, there are only some suggestions.
+The implementation in MongooseIM will simply buffer all packets (up to a configured limit) when session is "inactive" and will flush the buffer when the session becomes "active" again.
+
 ### Options
 
 * `buffer_max` (default: 20): Buffer size for messages queued when session was `inactive`
