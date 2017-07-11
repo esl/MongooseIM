@@ -41,7 +41,9 @@ groups() ->
                                rejects_empty_filename,
                                rejects_negative_filesize,
                                rejects_invalid_size_type,
-                               denies_slots_over_max_file_size
+                               denies_slots_over_max_file_size,
+                               sends_different_put_and_get_urls,
+                               escapes_urls_once
                               ]}].
 
 suite() ->
@@ -219,6 +221,28 @@ denies_slots_over_max_file_size(Config) ->
                                                     cdata])
       end).
 
+sends_different_put_and_get_urls(Config) ->
+    namespaced_story(
+     Config, [{bob, 1}],
+     fun(Namespace, Bob) ->
+             ServJID = upload_service(Bob),
+             Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123,
+                                                  undefined, Namespace),
+             Result = escalus:send_and_wait(Bob, Request),
+             escalus:assert(fun urls_not_equal/2, [Namespace], Result)
+     end).
+
+escapes_urls_once(Config) ->
+    namespaced_story(
+      Config, [{bob, 1}],
+      fun(Namespace, Bob) ->
+              ServJID = upload_service(Bob),
+              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123,
+                                                   undefined, Namespace),
+              Result = escalus:send_and_wait(Bob, Request),
+              escalus:assert(fun url_contains/4, [<<"put">>, <<"&x-amz-acl=public-read">>, Namespace], Result)
+      end).
+
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
@@ -285,6 +309,11 @@ path_ends_with(UrlType, Filename, Namespace, Result) ->
 url_contains(UrlType, Filename, Namespace, Result) ->
     Url = extract_url(Result, UrlType, Namespace),
     binary:match(Url, Filename) =/= nomatch.
+
+urls_not_equal(Namespace, Result) ->
+    Get = extract_url(Result, <<"get">>, Namespace),
+    Put = extract_url(Result, <<"put">>, Namespace),
+    Get =/= Put.
 
 reverse(List) when is_list(List) ->
     list_to_binary(lists:reverse(List));
