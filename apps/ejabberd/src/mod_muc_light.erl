@@ -109,10 +109,10 @@ config_schema(MUCServer) ->
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
     %% Prevent sending service-unavailable on groupchat messages
-    ejabberd_hooks:add(offline_groupchat_message_hook, Host,
-                       ?MODULE, prevent_service_unavailable, 90),
-    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_muc_service, 50),
+
+    MUCHost = gen_mod:get_opt_subhost(Host, Opts, default_host()),
+    ejabberd_hooks:add(hooks(Host, MUCHost)),
+
     case gen_mod:get_opt(rooms_in_rosters, Opts, ?DEFAULT_ROOMS_IN_ROSTERS) of
         false -> ignore;
         true -> ejabberd_hooks:add(roster_get, Host, ?MODULE, add_rooms_to_roster, 50)
@@ -132,15 +132,9 @@ start(Host, Opts) ->
             end,
     gen_mod:start_backend_module(mod_muc_light_codec, [{backend, Codec}], []),
 
-    MUCHost = gen_mod:get_opt_subhost(Host, Opts, default_host()),
     mod_muc_light_db_backend:start(Host, MUCHost),
     mongoose_subhosts:register(Host, MUCHost),
     ejabberd_router:register_route(MUCHost, mongoose_packet_handler:new(?MODULE)),
-
-    ejabberd_hooks:add(is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50),
-    ejabberd_hooks:add(muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50),
-    ejabberd_hooks:add(can_access_room, MUCHost, ?MODULE, can_access_room, 50),
-    ejabberd_hooks:add(can_access_identity, MUCHost, ?MODULE, can_access_identity, 50),
 
     %% Prepare config schema
     ConfigSchema = mod_muc_light_utils:make_config_schema(
@@ -163,19 +157,25 @@ stop(Host) ->
 
     mod_muc_light_db_backend:stop(Host, MUCHost),
 
-    ejabberd_hooks:delete(is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50),
-    ejabberd_hooks:delete(muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50),
-    ejabberd_hooks:delete(can_access_room, MUCHost, ?MODULE, can_access_room, 50),
-    ejabberd_hooks:delete(can_access_identity, MUCHost, ?MODULE, can_access_identity, 50),
+    ejabberd_hooks:delete(hooks(Host, MUCHost)),
 
+    %% Hook for room in roster
     ejabberd_hooks:delete(roster_get, Host, ?MODULE, add_rooms_to_roster, 50),
+    %% Hooks for legacy mode
     ejabberd_hooks:delete(privacy_iq_get, Host, ?MODULE, process_iq_get, 1),
     ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 1),
-    ejabberd_hooks:delete(offline_groupchat_message_hook, Host,
-                          ?MODULE, prevent_service_unavailable, 90),
-    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_muc_service, 50),
+
     ok.
+
+hooks(Host, MUCHost) ->
+    [{is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50},
+     {muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50},
+     {can_access_room, MUCHost, ?MODULE, can_access_room, 50},
+     {can_access_identity, MUCHost, ?MODULE, can_access_identity, 50},
+
+     {offline_groupchat_message_hook, Host, ?MODULE, prevent_service_unavailable, 90},
+     {remove_user, Host, ?MODULE, remove_user, 50},
+     {disco_local_items, Host, ?MODULE, get_muc_service, 50}].
 
 %%====================================================================
 %% Routing
