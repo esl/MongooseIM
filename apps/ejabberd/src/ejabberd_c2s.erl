@@ -70,6 +70,8 @@
 
 -export_type([broadcast/0]).
 
+-type packet() :: {ejabberd:jid(), ejabberd:jid(), xmlel()}.
+
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
@@ -810,11 +812,17 @@ do_open_session(El, JID, StateData) ->
     ?INFO_MSG("(~w) Opened session for ~s", [StateData#state.socket, jid:to_binary(JID)]),
     Res = jlib:make_result_iq_reply(El),
     Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Res},
-    case send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm) of
-        {_, _, NStateData, _} ->
+    Acc = mongoose_acc:new(),
+    case send_and_maybe_buffer_stanza(Acc, Packet, StateData) of
+        {ok, _, NStateData} ->
             do_open_session_common(JID, NStateData);
-        {_, _, NStateData} -> % error, resume not possible
-            c2s_stream_error(?SERR_INTERNAL_SERVER_ERROR, NStateData)
+        {resume, _, NStateData} ->
+            case maybe_enter_resume_session(NStateData) of
+                {stop, normal, NextStateData} -> % error, resume not possible
+                    c2s_stream_error(?SERR_INTERNAL_SERVER_ERROR, NextStateData);
+                {_, _, NextStateData, _} ->
+                    do_open_session_common(JID, NextStateData)
+            end
     end.
 
 do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
@@ -1208,6 +1216,7 @@ handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
     process_incoming_stanza(Name, From, To, Acc1, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module
+    Acc = mongoose_acc:new(),
     Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
         true, [StateData#state.server, StateData,
             Feature, To, Packet]),
@@ -1219,7 +1228,15 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
             FinalPacket = jlib:replace_from_to(From, To, Packet),
             case privacy_check_packet(StateData, From, To, FinalPacket, in) of
                 allow ->
-                    send_and_maybe_buffer_stanza({From, To, FinalPacket}, StateData, StateName);
+                    {Act, _, NStateData} = send_and_maybe_buffer_stanza(Acc,
+                                                                        {From, To, FinalPacket},
+                                                                        StateData),
+                    case Act of
+                        ok ->
+                            fsm_next_state(StateName, NStateData);
+                        resume ->
+                            maybe_enter_resume_session(NStateData)
+                    end;
                 _ ->
                     fsm_next_state(StateName, StateData)
             end;
@@ -1242,28 +1259,38 @@ handle_incoming_message(Info, StateName, StateData) ->
 
 process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
     Packet = mongoose_acc:get(element, Acc),
-    case handle_routed(Name, From, To, Acc, StateData) of
-        {allow, NewAcc, NewPacket, NewState} ->
-            preprocess_and_ship(NewAcc, From, To, NewPacket, StateName, NewState);
-        {allow, NewAcc, NewState} ->
-            preprocess_and_ship(NewAcc, From, To, Packet, StateName, NewState);
-        {Reason, NewAcc, NewState} ->
-            response_negative(Name, Reason, From, To, NewAcc),
-            fsm_next_state(StateName, NewState)
+    {Act, _NextAcc, NextState} = case handle_routed(Name, From, To, Acc, StateData) of
+                                     {allow, NewAcc, NewPacket, NewState} ->
+                                         preprocess_and_ship(NewAcc, From, To, NewPacket, NewState);
+                                     {allow, NewAcc, NewState} ->
+                                         preprocess_and_ship(NewAcc, From, To, Packet, NewState);
+                                     {Reason, NewAcc, NewState} ->
+                                         response_negative(Name, Reason, From, To, NewAcc),
+                                         {ok, NewAcc, NewState}
+                                 end,
+    case Act of
+        ok ->
+            fsm_next_state(StateName, NextState);
+        resume ->
+            maybe_enter_resume_session(NextState)
     end.
 
-preprocess_and_ship(Acc, From, To, Packet, StateName, StateData) ->
-    #xmlel{attrs = Attrs} = Packet,
+-spec preprocess_and_ship(Acc :: mongoose_acc:t(),
+                          From :: ejabberd:jid(),
+                          To :: ejabberd:jid(),
+                          El :: xmlel(),
+                          StateData :: state()) -> {ok | resume, mongoose_acc:t(), state()}.
+preprocess_and_ship(Acc, From, To, El, StateData) ->
+    #xmlel{attrs = Attrs} = El,
     Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
         jid:to_binary(To),
         Attrs),
-    FixedPacket = Packet#xmlel{attrs = Attrs2},
-    _Acc2 = ejabberd_hooks:run_fold(user_receive_packet,
-        StateData#state.server,
-        Acc,
-        [StateData#state.jid, From, To, FixedPacket]),
-    % should we push accumulator further, perhaps as far as send_element?
-    ship_to_local_user({From, To, FixedPacket}, StateData, StateName).
+    FixedEl = El#xmlel{attrs = Attrs2},
+    Acc2 = ejabberd_hooks:run_fold(user_receive_packet,
+                                   StateData#state.server,
+                                   Acc,
+                                   [StateData#state.jid, From, To, FixedEl]),
+    ship_to_local_user(Acc2, {From, To, FixedEl}, StateData).
 
 response_negative(<<"iq">>, forbidden, From, To, Acc) ->
     send_back_error(?ERR_FORBIDDEN, From, To, Acc);
@@ -1390,7 +1417,15 @@ handle_broadcast_result({exit, ErrorMessage}, _StateName, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 handle_broadcast_result({send_new, From, To, Stanza, NewState}, StateName, _StateData) ->
-    ship_to_local_user({From, To, Stanza}, NewState, StateName);
+    Acc = mongoose_acc:new(),
+    {Act, _, NewStateData} = ship_to_local_user(Acc, {From, To, Stanza}, NewState),
+    case Act of
+        ok ->
+            fsm_next_state(StateName, NewStateData);
+        resume ->
+            maybe_enter_resume_session(NewStateData)
+
+    end;
 handle_broadcast_result({new_state, NewState}, StateName, _StateData) ->
     fsm_next_state(StateName, NewState).
 
@@ -1702,32 +1737,32 @@ send_trailer(StateData) ->
     send_text(StateData, ?STREAM_TRAILER).
 
 
-send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
-    % this is a very last stage, we already terminated accumulator
+-spec send_and_maybe_buffer_stanza(mongoose_acc:t(), packet(), state()) ->
+    {ok | resume, mongoose_acc:t(), state()}.
+send_and_maybe_buffer_stanza(Acc, {J1, J2, El}, State)->
     % to be removed
     {SendResult, BufferedStateData} =
         send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State),
-    % if we have to check packet before sending we should do it much earlier, when it is
-    % still accumulator
     mod_amp:check_packet(El, result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
             case catch maybe_send_ack_request(BufferedStateData) of
                 R when is_boolean(R) ->
-                    fsm_next_state(StateName, BufferedStateData);
+                    {ok, Acc, BufferedStateData};
                 _ ->
                     ?DEBUG("Send ack request error: ~p, try enter resume session", [SendResult]),
-                    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id,
-                                               BufferedStateData)
+                    {resume, Acc, BufferedStateData}
             end;
         _ ->
             ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
-            maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+            {resume, Acc, BufferedStateData}
     end.
 
 result_to_amp_event(ok) -> delivered;
 result_to_amp_event(_) -> delivery_failed.
 
+-spec send_and_maybe_buffer_stanza(packet(), state()) ->
+    {ok | any(), state()}.
 send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
     SendResult = maybe_send_element_safe(State, Stanza),
     BufferedStateData = buffer_out_stanza(Packet, State),
@@ -2748,18 +2783,20 @@ resend_csi_buffer(State) ->
     NewState = flush_csi_buffer(State),
     fsm_next_state(session_established, NewState#state{csi_state=active}).
 
-ship_to_local_user(Packet, State, StateName) ->
+-spec ship_to_local_user(mongoose_acc:t(), packet(), state()) ->
+    {ok | resume, mongoose_acc:t(), state()}.
+ship_to_local_user(Acc, Packet, State) ->
     % this is coming in, no rewrite yet
-    maybe_csi_inactive_optimisation(Packet, State, StateName).
+    maybe_csi_inactive_optimisation(Acc, Packet, State).
 
-maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,
-                                StateName) ->
-    send_and_maybe_buffer_stanza(Packet, State, StateName);
-maybe_csi_inactive_optimisation(Packet, #state{csi_buffer = Buffer} = State,
-                                StateName) ->
+-spec maybe_csi_inactive_optimisation(mongoose_acc:t(), packet(), state()) ->
+    {ok | resume, mongoose_acc:t(), state()}.
+maybe_csi_inactive_optimisation(Acc, Packet, #state{csi_state = active} = State) ->
+    send_and_maybe_buffer_stanza(Acc, Packet, State);
+maybe_csi_inactive_optimisation(Acc, Packet, #state{csi_buffer = Buffer} = State) ->
     NewBuffer = [Packet | Buffer],
     NewState = flush_or_buffer_packets(State#state{csi_buffer = NewBuffer}),
-    fsm_next_state(StateName, NewState).
+    {ok, Acc, NewState}.
 
 flush_or_buffer_packets(State) ->
     MaxBuffSize = gen_mod:get_module_opt(State#state.server, mod_csi,
@@ -3011,6 +3048,9 @@ re_route_packets(Buffer) ->
     [ejabberd_router:route(From, To, Packet)
      || {From, To, Packet} <- lists:reverse(Buffer)],
     ok.
+
+maybe_enter_resume_session(StateData) ->
+    maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
 
 maybe_enter_resume_session(undefined, StateData) ->
     {stop, normal, StateData};
