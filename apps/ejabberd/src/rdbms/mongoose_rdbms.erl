@@ -473,7 +473,7 @@ connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
                        " Retrying in ~p seconds.", [Settings, Error, SleepFor]),
             timer:sleep(timer:seconds(SleepFor)),
             NextRetryDelay = RetryAfter * RetryAfter,
-            connect(Settings, Retry - 1, max(MaxRetryDelay, NextRetryDelay), MaxRetryDelay)
+            connect(Settings, Retry - 1, min(MaxRetryDelay, NextRetryDelay), MaxRetryDelay)
     end.
 
 
