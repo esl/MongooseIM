@@ -63,7 +63,7 @@
 -export([start/2, stop/1]).
 
 %% Packet handler export
--export([process_packet/4]).
+-export([process_packet/5]).
 
 %% Hook handlers
 -export([prevent_service_unavailable/4,
@@ -218,11 +218,10 @@ hooks(Host, MUCHost) ->
 %% Routing
 %%====================================================================
 
--spec process_packet(From :: jid(), To :: jid(), Acc :: mongoose_acc:t(), Extra :: any()) ->
-    any().
-process_packet(From, To, Acc, _Extra) ->
-    Packet = mongoose_acc:to_element(Acc),
-    process_decoded_packet(From, To, mod_muc_light_codec_backend:decode(From, To, Packet), Packet).
+-spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
+                     El :: xmlel(), Extra :: any()) -> any().
+process_packet(_Acc, From, To, El, _Extra) ->
+    process_decoded_packet(From, To, mod_muc_light_codec_backend:decode(From, To, El), El).
 
 -spec process_decoded_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
                      DecodedPacket :: mod_muc_light_codec:decode_result(),

@@ -14,7 +14,7 @@
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
--export([strip/1, record_sending/4, record_sending/6]).
+-export([strip/1, strip/2, record_sending/4, record_sending/6]).
 -export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
 -export([to_element/1]).
 -export_type([t/0]).
@@ -179,10 +179,14 @@ require(Key, Acc) ->
     require([Key], Acc).
 
 %% @doc Convert the acc before routing it out to another c2s process - remove everything except
-%% the very bare minimum (all caches, records etc), replace element with to_send
+%% the very bare minimum (all caches, records etc)
 -spec strip(t()) -> t().
 strip(Acc) ->
-    El = get(to_send, Acc),
+    strip(Acc, get(element, Acc)).
+
+%% @doc alt version in case we want to replace the xmlel we are sending
+-spec strip(t(), xmlel()) -> t().
+strip(Acc, El) ->
     Acc1 = from_element(El),
 %%    Ats = [name, type, attrs, from, from_jid, to, to_jid, ref, timestamp],
     Attributes = [from, from_jid, ref, timestamp],

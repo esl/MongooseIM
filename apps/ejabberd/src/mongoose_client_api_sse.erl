@@ -36,16 +36,15 @@ maybe_init({false, Value}, Req, State) ->
 handle_notify(_Msg, State) ->
     {nosend, State}.
 
-handle_info({route, _From, _To, Acc}, State) ->
-    handle_msg(mongoose_acc:get(name, Acc), Acc, State);
+handle_info({route, Acc, _From, _To, El}, State) ->
+    handle_msg(mongoose_acc:get(name, Acc), Acc, El, State);
 handle_info(_Msg, State) ->
     {nosend, State}.
 
-handle_msg(<<"message">>, Acc, State) ->
+handle_msg(<<"message">>, Acc, El, State) ->
     Timestamp = usec:from_now(os:timestamp()),
     Type = mongoose_acc:get(type, Acc),
-    Packet = mongoose_acc:get(to_send, Acc),
-    maybe_send_message_event(Type, Packet, Timestamp, State).
+    maybe_send_message_event(Type, El, Timestamp, State).
 
 handle_error(_Msg, _Reson, State) ->
     {nosend, State}.

@@ -31,6 +31,7 @@
 %% API
 -export([start_link/0,
          route/3,
+         route/4,
          open_session/5, open_session/6,
          close_session/5,
          store_info/4,
@@ -149,8 +150,11 @@ route(From, To, {broadcast, Payload} = Packet) ->
         Acc -> Acc
     end;
 route(From, To, Acc) ->
+    route(From, To, Acc, mongoose_acc:get(element, Acc)).
+
+route(From, To, Acc, El) ->
 %%    true = mongoose_acc:is_acc(Acc),
-    case (catch do_route(From, To, Acc)) of
+    case (catch do_route(Acc, From, To, El)) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
                        "packet=~ts~n~nstack_trace=~p~n",
@@ -578,7 +582,7 @@ do_filter(From, To, Packet) ->
 -spec do_route(From, To, Packet) -> Acc when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
-      Packet :: jlib:xmlel() | mongoose_acc:t() | ejabberd_c2s:broadcast(),
+      Packet :: ejabberd_c2s:broadcast(),
       Acc :: mongoose_acc:t().
 do_route(From, To, {broadcast, Acc} = Broadcast) ->
     ?DEBUG("from=~p, to=~p, broadcast=~p", [From, To, Broadcast]),
@@ -601,30 +605,35 @@ do_route(From, To, {broadcast, Acc} = Broadcast) ->
                     Pid ! Broadcast
             end
     end,
-    mongoose_acc:remove(to_send, Acc);
-do_route(From, To, Acc) ->
+    mongoose_acc:remove(to_send, Acc).
+
+-spec do_route(Acc, From, To, El) -> Acc when
+    From :: ejabberd:jid(),
+    To :: ejabberd:jid(),
+    El :: jlib:xmlel(),
+    Acc :: mongoose_acc:t().
+do_route(Acc, From, To, El) ->
     ?DEBUG("session manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Acc, 8]),
-    Packet = mongoose_acc:get(to_send, Acc),
     #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
-    #xmlel{name = Name, attrs = Attrs} = Packet,
+    #xmlel{name = Name, attrs = Attrs} = El,
     case LResource of
         <<>> ->
             do_route_no_resource(Name, xml:get_attr_s(<<"type">>, Attrs),
-                                 From, To, Acc, Packet);
+                                 From, To, Acc, El);
         _ ->
             case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
                 [] ->
                     do_route_offline(Name, xml:get_attr_s(<<"type">>, Attrs),
-                                     From, To, Acc, Packet);
+                                     From, To, Acc, El);
                 Ss ->
                     Session = lists:max(Ss),
                     Pid = element(2, Session#session.sid),
                     ?DEBUG("sending to process ~p~n", [Pid]),
-                    Pid ! {route, From, To, mongoose_acc:strip(Acc)}
+                    Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}
             end
     end,
-    mongoose_acc:remove(to_send, Acc).
+    Acc.
 
 -spec do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) -> boolean() when
       From :: ejabberd:jid(),
@@ -665,33 +674,33 @@ do_route_no_resource_presence(_, _, _, _, _) ->
     true.
 
 
--spec do_route_no_resource(Name, Type, From, To, Acc, Packet) -> Result when
+-spec do_route_no_resource(Name, Type, From, To, Acc, El) -> Result when
       Name :: undefined | binary(),
       Type :: any(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: xmlel(),
+      El :: xmlel(),
       Result ::ok | stop | todo | pid() | {error, lager_not_running} | {process_iq, _, _, _}.
-do_route_no_resource(<<"presence">>, Type, From, To, Acc, Packet) ->
-    case do_route_no_resource_presence(Type, From, To, Acc, Packet) of
+do_route_no_resource(<<"presence">>, Type, From, To, Acc, El) ->
+    case do_route_no_resource_presence(Type, From, To, Acc, El) of
         true ->
             PResources = get_user_present_resources(To#jid.luser, To#jid.lserver),
             lists:foreach(
               fun({_, R}) ->
-                      do_route(From, jid:replace_resource(To, R), Acc)
+                      do_route(Acc, From, jid:replace_resource(To, R), El)
               end, PResources);
         false ->
             ok
     end;
-do_route_no_resource(<<"message">>, _, From, To, Acc, Packet) ->
-    route_message(From, To, Acc, Packet);
-do_route_no_resource(<<"iq">>, _, From, To, Acc, Packet) ->
-    process_iq(From, To, Acc, Packet);
-do_route_no_resource(<<"broadcast">>, _, From, To, Acc, _Packet) ->
+do_route_no_resource(<<"message">>, _, From, To, Acc, El) ->
+    route_message(From, To, Acc, El);
+do_route_no_resource(<<"iq">>, _, From, To, Acc, El) ->
+    process_iq(From, To, Acc, El);
+do_route_no_resource(<<"broadcast">>, _, From, To, Acc, El) ->
     %% Backward compatibility
     ejabberd_hooks:run(sm_broadcast, To#jid.lserver, [From, To, Acc]),
-    broadcast_packet(From, To, Acc);
+    broadcast_packet(From, To, Acc, El);
 do_route_no_resource(_, _, _, _, _, _) ->
     ok.
 
@@ -726,14 +735,16 @@ do_route_offline(_, _, _, _, _, _) ->
 %% Backward compatibility
 -spec broadcast_packet(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
-                       Acc :: mongoose_acc:t()) -> ok.
-broadcast_packet(From, To, Acc) ->
+                       Acc :: mongoose_acc:t(),
+                       El :: xmlel()) -> ok.
+broadcast_packet(From, To, Acc, El) ->
     #jid{user = User, server = Server} = To,
     lists:foreach(
       fun(R) ->
-              do_route(From,
+              do_route(Acc,
+                       From,
                        jid:replace_resource(To, R),
-                       Acc)
+                       El)
       end, get_user_resources(User, Server)).
 
 %% @doc The default list applies to the user as a whole,

@@ -96,7 +96,7 @@
 -export([default_host/0]).
 
 %% packet handler export
--export([process_packet/4]).
+-export([process_packet/5]).
 
 -export([send_loop/1]).
 
@@ -247,9 +247,10 @@ stop(Host) ->
 default_host() ->
     <<"pubsub.@HOST@">>.
 
--spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
-process_packet(From, To, Packet, Pid) ->
-    Pid ! {route, From, To, Packet}.
+-spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(), El :: exml:element(),
+                     Pid :: pid()) -> any().
+process_packet(Acc, From, To, El, Pid) ->
+    Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}.
 
 %%====================================================================
 %% gen_server callbacks
@@ -711,7 +712,6 @@ handle_pep_authorization_response(_, <<"error">>, From, To, Acc, Packet) ->
     {From, To, Acc, Packet};
 handle_pep_authorization_response(<<"message">>, _, From, To, Acc, Packet)
   when From#jid.luser == To#jid.luser, From#jid.lserver == To#jid.lserver ->
-        Packet = mongoose_acc:get(to_send, Acc),
         case find_authorization_response(Packet) of
             none -> {From, To, Acc, Packet};
             invalid -> {From, To, Acc, Packet};

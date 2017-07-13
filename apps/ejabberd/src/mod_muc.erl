@@ -51,7 +51,7 @@
          terminate/2, code_change/3]).
 
 %% packet handler callback
--export([process_packet/4]).
+-export([process_packet/5]).
 
 %% Hooks handlers
 -export([is_room_owner/3,
@@ -392,7 +392,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 
 handle_info({route, From, To, Acc}, State) ->
-    case catch process_packet(From, To, Acc, State) of
+    case catch process_packet(Acc, From, To, mongoose_acc:get(element, Acc), State) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);
         _ ->
@@ -484,20 +484,20 @@ stop_supervisor(Host) ->
     supervisor:delete_child(ejabberd_sup, Proc).
 
 
--spec process_packet(From :: jid(),
+-spec process_packet(Acc :: mongoose_acc:t(),
+                     From :: jid(),
                      To :: ejabberd:simple_jid() | ejabberd:jid(),
-                     Acc :: mongoose_acc:t(),
+                     El :: xmlel(),
                      State :: state()) -> ok | mongoose_acc:t().
-process_packet(From, To, Acc, #state{
+process_packet(Acc, From, To, El, #state{
                                     access = {AccessRoute, _, _, _},
                                     server_host = ServerHost} = State) ->
-    Packet = mongoose_acc:get(element, Acc),
     case acl:match_rule(ServerHost, AccessRoute, From) of
         allow ->
             {Room, _, _} = jid:to_lower(To),
-            route_to_room(Room, {From, To, Packet}, State);
+            route_to_room(Room, {From, To, El}, State);
         _ ->
-            #xmlel{attrs = Attrs} = Packet,
+            #xmlel{attrs = Attrs} = El,
             Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
             ErrText = <<"Access denied by service policy">>,
             ejabberd_router:route_error_reply(To, From, Acc,

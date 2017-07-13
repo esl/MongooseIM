@@ -19,8 +19,8 @@ do_route(OrigFrom, OrigTo, OrigAcc, OrigPacket, LDstDomain, Handler) ->
     case ejabberd_hooks:run_fold(filter_local_packet, LDstDomain,
         {OrigFrom, OrigTo, OrigAcc, OrigPacket}, []) of
         {From, To, Acc, Packet} ->
-            NAcc = mongoose_acc:put(to_send, Packet, Acc), % so as not to rewrite everything at once
-            mongoose_packet_handler:process(Handler, From, To, NAcc);
+%%            NAcc = mongoose_acc:put(to_send, Packet, Acc), % so as not to rewrite everything at once
+            mongoose_packet_handler:process(Handler, Acc, From, To, Packet);
         drop ->
             ejabberd_hooks:run(xmpp_stanza_dropped,
                 OrigFrom#jid.lserver,
