@@ -170,7 +170,7 @@ my_disco_name(Lang) ->
                        PutUrl :: binary(), GetUrl :: binary(),
                        Headers :: #{binary() => binary()}) ->
                               Reply :: ejabberd:iq().
-compose_iq_reply(IQ, Namespace, PutUrl, GetUrl, Headers) ->
+compose_iq_reply(IQ, Namespace, PutUrl, _GetUrl, Headers) ->
     Slot = #xmlel{
               name     = <<"slot">>,
               attrs    = [{<<"xmlns">>, Namespace}],

@@ -23,6 +23,7 @@
 -export([start/2, stop/1]).
 
 -export([create_unique_room/4]).
+-export([create_identifiable_room/5]).
 -export([send_message/4]).
 -export([invite_to_room/4]).
 -export([change_affiliation/5]).
@@ -68,6 +69,22 @@ commands() ->
        ]},
       {result, {name, binary}}],
 
+     [{name, create_identifiable_muc_light_room},
+      {category, <<"muc-lights">>},
+      {desc, <<"Update a MUC Light room.">>},
+      {module, ?MODULE},
+      {function, create_identifiable_room},
+      {action, update},
+      {identifiers, [domain]},
+      {args,
+       [{domain, binary},
+        {id, binary},
+        {name, binary},
+        {owner, binary},
+        {subject, binary}
+       ]},
+      {result, {id, binary}}],
+
      [{name, invite_to_room},
       {category, <<"muc-lights">>},
       {subcategory, <<"participants">>},
@@ -107,17 +124,10 @@ commands() ->
 %%--------------------------------------------------------------------
 
 create_unique_room(Domain, RoomName, Creator, Subject) ->
-    C = jid:to_lus(jid:from_binary(Creator)),
-    MUCLightDomain = gen_mod:get_module_opt_subhost(
-                       Domain, mod_muc_light, mod_muc_light:default_host()),
-    MUCService = jid:make(<<>>, MUCLightDomain, <<>>),
-    Config = make_room_config(RoomName, Subject),
-    case mod_muc_light:try_to_create_room(C, MUCService, Config) of
-        {ok, RoomUS, _} ->
-            jid:to_binary(RoomUS);
-        {error, _Reason} = E ->
-            E
-    end.
+    create_room(Domain, <<>>, RoomName, Creator, Subject).
+
+create_identifiable_room(Domain, Identifier, RoomName, Creator, Subject) ->
+    create_room(Domain, Identifier, RoomName, Creator, Subject).
 
 invite_to_room(Domain, RoomName, Sender, Recipient0) ->
     Recipient1 = jid:binary_to_bare(Recipient0),
@@ -162,6 +172,19 @@ send_message(Domain, RoomName, Sender, Message) ->
 %%--------------------------------------------------------------------
 %% Ancillary
 %%--------------------------------------------------------------------
+
+create_room(Domain, Identifier, RoomName, Creator, Subject) ->
+    C = jid:to_lus(jid:from_binary(Creator)),
+    MUCLightDomain = gen_mod:get_module_opt_subhost(
+                       Domain, mod_muc_light, mod_muc_light:default_host()),
+    MUCService = jid:make(Identifier, MUCLightDomain, <<>>),
+    Config = make_room_config(RoomName, Subject),
+    case mod_muc_light:try_to_create_room(C, MUCService, Config) of
+        {ok, RoomUS, _} ->
+            jid:to_binary(RoomUS);
+        {error, _Reason} = E ->
+            E
+    end.
 
 make_room_config(Name, Subject) ->
     #create{raw_config = [{<<"roomname">>, Name},

@@ -142,17 +142,26 @@ handle_result(Verb, ok, Req, State) ->
 %%    {halt, Req2, State};
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
+handle_result(<<"POST">>, {ok, nocontent}, Req, State) ->
+    {Path, Req2} = cowboy_req:url(Req),
+    Req3 = maybe_add_location_header(nocontent, binary_to_list(Path), Req2),
+    {halt, Req3, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
     {Path, Req2} = cowboy_req:url(Req),
-    Req3 = maybe_add_location_header(Res, binary_to_list(Path), Req2),
-    {halt, Req3, State};
-%% Ignore the returned value from a command for PUT and DELETE methods
+    Req3 = cowboy_req:set_resp_body(Res, Req2),
+    Req4 = maybe_add_location_header(Res, binary_to_list(Path), Req3),
+    {halt, Req4, State};
+%% Ignore the returned value from a command for DELETE methods
 handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
     {ok, Req2} = cowboy_req:reply(204, Req),
     {halt, Req2, State};
-handle_result(<<"PUT">>, {ok, _Res}, Req, State) ->
+handle_result(<<"PUT">>, {ok, nocontent}, Req, State) ->
     {ok, Req2} = cowboy_req:reply(204, Req),
     {halt, Req2, State};
+handle_result(<<"PUT">>, {ok, Res}, Req, State) ->
+    Req2 = cowboy_req:set_resp_body(Res, Req),
+    {ok, Req3} = cowboy_req:reply(201, Req2),
+    {halt, Req3, State};
 handle_result(_, {error, Error, Reason}, Req, State) when is_binary(Reason) ->
     error_response(Error, Reason, Req, State);
 handle_result(_, {error, Error, _R}, Req, State) ->
@@ -214,16 +223,13 @@ maybe_add_caller(admin) ->
 maybe_add_caller(JID) ->
     [{caller, JID}].
 
--spec maybe_add_location_header(integer() | binary() | list() | float(), list(), any()) -> any().
+-spec maybe_add_location_header(binary() | list() | nocontent, list(), any())
+    -> any().
 maybe_add_location_header(Result, ResourcePath, Req) when is_binary(Result) ->
     add_location_header(binary_to_list(Result), ResourcePath, Req);
 maybe_add_location_header(Result, ResourcePath, Req) when is_list(Result) ->
     add_location_header(Result, ResourcePath, Req);
-maybe_add_location_header(Result, ResourcePath, Req) when is_integer(Result) ->
-    add_location_header(integer_to_list(Result), ResourcePath, Req);
-maybe_add_location_header(Result, ResourcePath, Req) when is_float(Result) ->
-    add_location_header(float_to_list(Result), ResourcePath, Req);
-maybe_add_location_header(_Res, _Path, Req) ->
+maybe_add_location_header(_, _Path, Req) ->
     {ok, Req2} = cowboy_req:reply(204, [], Req),
     Req2.
 

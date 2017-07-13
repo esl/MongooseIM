@@ -37,7 +37,7 @@ content_types_accepted(Req, State) ->
      ], Req, State}.
 
 allowed_methods(Req, State) ->
-    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>], Req, State}.
+    {[<<"OPTIONS">>, <<"GET">>, <<"POST">>, <<"PUT">>], Req, State}.
 
 resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
     {RoomID, Req2} = cowboy_req:binding(id, Req),
@@ -66,14 +66,7 @@ does_room_exist(RoomU, RoomS, Req, #{jid := JID} = State) ->
             NewState = State#{room => Room, role_in_room => CallerRole},
             {true, Req, NewState};
         _ ->
-            {Method, Req2} = cowboy_req:method(Req),
-            case Method of
-                <<"PUT">> ->
-                    {ok, Req3} = cowboy_req:reply(404, Req2),
-                    {halt, Req3, State};
-                _ ->
-                    {false, Req, State}
-            end
+            {false, Req, State}
     end.
 
 forbidden_request(Req, State) ->
@@ -109,10 +102,8 @@ from_json(Req, State) ->
     JSONData = jiffy:decode(Body, [return_maps]),
     handle_request(Method, JSONData, Req3, State).
 
-handle_request(<<"POST">>, JSONData, Req,
-               #{user := User, jid := #jid{lserver = Server}} = State) ->
-    #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
-    case mod_muc_light_commands:create_unique_room(Server, RoomName, User, Subject) of
+handle_request(Method, JSONData, Req, State) ->
+    case handle_request_by_method(Method, JSONData, Req, State) of
         {error, _} ->
             {false, Req, State};
         Room ->
@@ -121,6 +112,18 @@ handle_request(<<"POST">>, JSONData, Req,
             RespReq = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
             {true, RespReq, State}
     end.
+
+handle_request_by_method(<<"POST">>, JSONData, _Req,
+                         #{user := User, jid := #jid{lserver = Server}}) ->
+    #{<<"name">>    := RoomName,
+      <<"subject">> := Subject} = JSONData,
+    mod_muc_light_commands:create_unique_room(Server, RoomName, User, Subject);
+handle_request_by_method(<<"PUT">>, JSONData, Req,
+                         #{user := User, jid := #jid{lserver = Server}}) ->
+    #{<<"name">>    := RoomName,
+      <<"subject">> := Subject} = JSONData,
+    {RoomID, _Req2} = cowboy_req:binding(id, Req),
+    mod_muc_light_commands:create_identifiable_room(Server, RoomID, RoomName, User, Subject).
 
 user_to_json({UserServer, Role}) ->
     #{user => jid:to_binary(UserServer),

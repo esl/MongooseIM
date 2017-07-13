@@ -123,6 +123,22 @@ paths:
         403:
           description: |
             When the authenticated user is not allowed to read the room's details.
+    put:
+      description: Creates a room with the given ID.
+      tags:
+        - "Rooms"
+      parameters:
+        - $ref: '#/parameters/roomID'
+        - in: body
+          name: room
+          required: true
+          schema:
+            $ref: '#/definitions/CreateRoomBody'
+      responses:
+        201:
+          description: A room with the given ID was successfully created.
+          schema:
+            $ref: '#/definitions/ResourceID'
   /rooms/{id}/users:
     post:
       description: "Adds a user to a room."
