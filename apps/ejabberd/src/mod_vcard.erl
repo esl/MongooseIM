@@ -54,7 +54,7 @@
          code_change/3]).
 
 %% mongoose_packet_handler export
--export([process_packet/4]).
+-export([process_packet/5]).
 
 %% Hook handlers
 -export([process_local_iq/3,
@@ -170,9 +170,10 @@ stop(VHost) ->
 %% mongoose_packet_handler callbacks
 %%--------------------------------------------------------------------
 
--spec process_packet(From :: jid(), To :: jid(), Packet :: exml:element(), Pid :: pid()) -> any().
-process_packet(From, To, Packet, Pid) ->
-    Pid ! {route, From, To, Packet}.
+-spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
+                     Packet :: exml:element(), Pid :: pid()) -> any().
+process_packet(Acc, From, To, Packet, Pid) ->
+    Pid ! {route, Acc, From, To, Packet}.
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
@@ -230,7 +231,7 @@ handle_call(stop, _From, State) ->
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
-handle_info({route, From, To, Acc}, State) ->
+handle_info({route, Acc, From, To, _El}, State) ->
     Acc1 = mongoose_acc:require(iq_query_info, Acc),
     IQ = mongoose_acc:get(iq_query_info, Acc1),
     case catch do_route(State#state.host, From, To, Acc1, IQ) of

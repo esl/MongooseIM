@@ -1190,12 +1190,6 @@ handle_info({store_session_info, User, Server, Resource, KV, _FromPid}, StateNam
 handle_info(Info, StateName, StateData) ->
     handle_incoming_message(Info, StateName, StateData).
 
-extract_payload(Acc) ->
-    % this will go away after broadcasting is rewritten
-    % there can be many types of a payload
-    true = mongoose_acc:is_acc(Acc),
-    mongoose_acc:terminate(Acc, received, ?FILE, ?LINE).
-
 %%% incoming messages
 handle_incoming_message({send_text, Text}, StateName, StateData) ->
     ?ERROR_MSG("{c2s:send_text, Text}: ~p~n", [{send_text, Text}]), % is it ever called?
@@ -1204,8 +1198,7 @@ handle_incoming_message({send_text, Text}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [Text]),
     fsm_next_state(StateName, StateData);
 handle_incoming_message({broadcast, Acc}, StateName, StateData) ->
-    %% this is probably the last thing to rewrite
-    Broadcast = extract_payload(Acc),
+    Broadcast = mongoose_acc:get(element, Acc),
     ejabberd_hooks:run(c2s_loop_debug, [{broadcast, Broadcast}]),
     ?DEBUG("broadcast=~p", [Broadcast]),
     Res = handle_routed_broadcast(Broadcast, StateData),
@@ -1669,8 +1662,6 @@ send_element(#state{server = Server} = StateData, #xmlel{} = El) ->
     mongoose_acc:get(send_result, Acc1).
 
 %% @doc This is the termination point - from here stanza is sent to the user
-%% We sent the original stanza ('element') unless there is a different thing
-% keyed 'to_send'
 -spec send_element(mongoose_acc:t(), xmlel(), state()) -> mongoose_acc:t().
 send_element(Acc, El,  #state{server = Server} = StateData) ->
     Acc1 = ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [El]),

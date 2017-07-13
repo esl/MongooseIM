@@ -125,8 +125,12 @@ This function is called when a stanza is ready to be sent.
 It makes an attempt to route it out via the appropriate channel - either locally to the same or another c2s process, or somewhere else via s2s.
 The stanza can be sent or dropped, or it may error out - whatever it does this function returns the original accumulator, optionally with the track record of what it tried to send, how and to what effect (see the commented out code in `mongoose_acc:record_sending/4`).
 
-Under the hood the routing modules work by passing a raw stanza, cloning the accumulator and storing the outgoing stanza with a `to_send` attr.
-The acc is then passed on and either sent to another c2s process by `ejabberd_sm`, stored as offline, or sent out to another XMPP server via `ejabberd_s2s`.
+Under the hood the routing modules work by passing an original accumulator and a stanza which is to be sent, which may be the original
+xml element, same element with modifications, or a broadcast.
+
+Eventually there are three things that may happen: either the stanza is sent to another c2s process - in this case we produce
+another fresh accumulator out of the data to be sent, stripping it of all caches and the likes but preserving original ref and
+timestamp (`mongoose_acc:strip/2`), or stanza is stored as offline, or is sent out to another XMPP server via `ejabberd_s2s`.
 
 ## Sample usage, actual and potential
 

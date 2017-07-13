@@ -70,7 +70,7 @@
 
 %% xmpp_router callback
 -export([do_filter/3]).
--export([do_route/3]).
+-export([do_route/4]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -132,28 +132,22 @@ route(From, To, #xmlel{} = Packet) ->
     ?DEPRECATED, % used by MAM
 %%    ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
     route(From, To, mongoose_acc:from_element(Packet, From, To));
-route(From, To, {broadcast, Payload} = Packet) ->
-    NPayload = case mongoose_acc:is_acc(Payload) of
-                   false ->
-%%                       ?ERROR_MSG("Deprecated broadcast - it should be Acc: ~p", [Packet]),
-                       mongoose_acc:from_kv(to_send, Payload);
-                   true ->
-                       Payload
-               end,
-    case (catch do_route(From, To, {broadcast, NPayload})) of
+route(From, To, {broadcast, Payload}) ->
+    route(From, To, mongoose_acc:new(), {broadcast, Payload});
+route(From, To, Acc) ->
+    route(From, To, Acc, mongoose_acc:get(element, Acc)).
+
+route(From, To, Acc, {broadcast, Payload}) ->
+    case (catch do_route(Acc, From, To, {broadcast, Payload})) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
             "packet=~ts~n~nstack_trace=~p~n",
                 [jid:to_binary(From), jid:to_binary(To),
-                    ?MODULE, Reason, mongoose_acc:to_binary(Packet),
+                    ?MODULE, Reason, mongoose_acc:to_binary(Payload),
                     erlang:get_stacktrace()]);
-        Acc -> Acc
+        Acc1 -> Acc1
     end;
-route(From, To, Acc) ->
-    route(From, To, Acc, mongoose_acc:get(element, Acc)).
-
 route(From, To, Acc, El) ->
-%%    true = mongoose_acc:is_acc(Acc),
     case (catch do_route(Acc, From, To, El)) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
@@ -265,7 +259,8 @@ bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
 disconnect_removed_user(Acc, User, Server) ->
     ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),
-                      {broadcast, mongoose_acc:put(to_send, {exit, <<"User removed">>}, Acc)}).
+                      Acc,
+                      {broadcast, {exit, <<"User removed">>}}).
 
 
 -spec get_user_resources(User :: ejabberd:user(), Server :: ejabberd:server()) -> [binary()].
@@ -579,39 +574,36 @@ set_session(SID, User, Server, Resource, Priority, Info) ->
 do_filter(From, To, Packet) ->
     {From, To, Packet}.
 
--spec do_route(From, To, Packet) -> Acc when
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
-      Packet :: ejabberd_c2s:broadcast(),
-      Acc :: mongoose_acc:t().
-do_route(From, To, {broadcast, Acc} = Broadcast) ->
+-spec do_route(Acc, From, To, Payload) -> Acc when
+    Acc :: mongoose_acc:t(),
+    From :: ejabberd:jid(),
+    To :: ejabberd:jid(),
+    Payload :: jlib:xmlel() | ejabberd_c2s:broadcast().
+do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
     ?DEBUG("from=~p, to=~p, broadcast=~p", [From, To, Broadcast]),
     #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
     case LResource of
         <<>> ->
             CurrentPids = get_user_present_pids(LUser, LServer),
-            ejabberd_hooks:run_fold(sm_broadcast, To#jid.lserver, Acc,
-                               [From, To, Broadcast, length(CurrentPids)]),
+            Acc1 = ejabberd_hooks:run_fold(sm_broadcast, To#jid.lserver, Acc,
+                                           [From, To, Broadcast, length(CurrentPids)]),
             ?DEBUG("bc_to=~p~n", [CurrentPids]),
-            lists:foreach(fun({_, Pid}) -> Pid ! Broadcast end, CurrentPids);
+            BCast = {broadcast, mongoose_acc:strip(Acc1, Payload)},
+            lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
+            Acc1;
         _ ->
             case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
                 [] ->
-                    ok; % do nothing
+                    Acc; % do nothing
                 Ss ->
                     Session = lists:max(Ss),
                     Pid = element(2, Session#session.sid),
                     ?DEBUG("sending to process ~p~n", [Pid]),
-                    Pid ! Broadcast
+                    BCast = {broadcast, mongoose_acc:strip(Acc, Payload)},
+                    Pid ! BCast,
+                    Acc
             end
-    end,
-    mongoose_acc:remove(to_send, Acc).
-
--spec do_route(Acc, From, To, El) -> Acc when
-    From :: ejabberd:jid(),
-    To :: ejabberd:jid(),
-    El :: jlib:xmlel(),
-    Acc :: mongoose_acc:t().
+    end;
 do_route(Acc, From, To, El) ->
     ?DEBUG("session manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Acc, 8]),

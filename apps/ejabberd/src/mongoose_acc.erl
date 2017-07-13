@@ -45,7 +45,7 @@ terminate(M, _F, _L) ->
 
 terminate(M, received, _F, _L) ->
 %%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
-    get(to_send, M, get(element, M, undefined)).
+    get(element, M, undefined).
 
 dump(Acc) ->
     dump(Acc, lists:sort(maps:keys(Acc))).
@@ -63,7 +63,11 @@ to_binary(Acc) ->
     % replacement to exml:to_binary, for error logging
     case is_acc(Acc) of
         true ->
-            exml:to_binary(get(to_send, Acc));
+            El = get(element, Acc),
+            case El of
+                #xmlel{} -> exml:to_binary(El);
+                _ -> list_to_binary(io_lib:format("~p", [El]))
+            end;
         false ->
             list_to_binary(io_lib:format("~p", [Acc]))
     end.
@@ -80,7 +84,7 @@ is_acc(_) ->
 -spec to_element(xmlel() | t()) -> xmlel().
 to_element(A) ->
     case is_acc(A) of
-        true -> get(to_send, A, get(element, A, undefined));
+        true -> get(element, A, undefined);
         false -> A
     end.
 
@@ -96,13 +100,19 @@ from_kv(K, V) ->
     M = maps:put(K, V, #{}),
     maps:put(mongoose_acc, true, M).
 
--spec from_element(xmlel()) -> t().
-from_element(El) ->
-    #xmlel{name = Name, attrs = Attrs} = El,
+%% @doc This one has an alternative form because normally an acc carries an xml element, as
+%% received from client, but sometimes messages are generated internally (broadcast) by sm
+%% and sent to c2s
+-spec from_element(xmlel() | tuple()) -> t().
+from_element(#xmlel{name = Name, attrs = Attrs} = El) ->
     Type = exml_query:attr(El, <<"type">>, undefined),
     #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
         timestamp => os:timestamp(), ref => make_ref()
-        }.
+        };
+from_element(El) when is_tuple(El) ->
+    Name = <<"broadcast">>,
+    Type = element(1, El),
+    #{element => El, name => Name, type => Type}. % ref and timestamp will be filled in by strip/2
 
 -spec from_element(xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
 from_element(El, From, To) ->
@@ -143,8 +153,6 @@ put(Key, Val, Acc) ->
 -spec get(any()|[any()], t()) -> any().
 get(send_result, Acc) ->
     hd(maps:get(send_result, Acc));
-get(to_send, Acc) ->
-    get(to_send, Acc, get(element, Acc));
 get(Key, P) ->
     maps:get(Key, P).
 
@@ -189,13 +197,13 @@ strip(Acc) ->
 strip(Acc, El) ->
     Acc1 = from_element(El),
 %%    Ats = [name, type, attrs, from, from_jid, to, to_jid, ref, timestamp],
-    Attributes = [from, from_jid, ref, timestamp],
+    Attributes = [ref, timestamp],
     NewAcc = lists:foldl(fun(Attrib, AccIn) ->
                            Val = maps:get(Attrib, Acc),
                            maps:put(Attrib, Val, AccIn)
                        end,
                        Acc1, Attributes),
-    OptionalAttributes = [to, to_jid],
+    OptionalAttributes = [from, from_jid, to, to_jid],
     lists:foldl(fun(Attrib, AccIn) ->
                     case maps:get(Attrib, Acc, undefined) of
                         undefined -> AccIn;
