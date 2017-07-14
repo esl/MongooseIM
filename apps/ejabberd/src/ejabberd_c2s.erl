@@ -1224,12 +1224,7 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
                     {Act, _, NStateData} = send_and_maybe_buffer_stanza(Acc,
                                                                         {From, To, FinalPacket},
                                                                         StateData),
-                    case Act of
-                        ok ->
-                            fsm_next_state(StateName, NStateData);
-                        resume ->
-                            maybe_enter_resume_session(NStateData)
-                    end;
+                    finish_state(Act, StateName, NStateData);
                 _ ->
                     fsm_next_state(StateName, StateData)
             end;
@@ -1261,12 +1256,7 @@ process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
                                          response_negative(Name, Reason, From, To, NewAcc),
                                          {ok, NewAcc, NewState}
                                  end,
-    case Act of
-        ok ->
-            fsm_next_state(StateName, NextState);
-        resume ->
-            maybe_enter_resume_session(NextState)
-    end.
+    finish_state(Act, StateName, NextState).
 
 -spec preprocess_and_ship(Acc :: mongoose_acc:t(),
                           From :: ejabberd:jid(),
@@ -1412,13 +1402,7 @@ handle_broadcast_result({exit, ErrorMessage}, _StateName, StateData) ->
 handle_broadcast_result({send_new, From, To, Stanza, NewState}, StateName, _StateData) ->
     Acc = mongoose_acc:new(),
     {Act, _, NewStateData} = ship_to_local_user(Acc, {From, To, Stanza}, NewState),
-    case Act of
-        ok ->
-            fsm_next_state(StateName, NewStateData);
-        resume ->
-            maybe_enter_resume_session(NewStateData)
-
-    end;
+    finish_state(Act, StateName, NewStateData);
 handle_broadcast_result({new_state, NewState}, StateName, _StateData) ->
     fsm_next_state(StateName, NewState).
 
@@ -3039,6 +3023,11 @@ re_route_packets(Buffer) ->
     [ejabberd_router:route(From, To, Packet)
      || {From, To, Packet} <- lists:reverse(Buffer)],
     ok.
+
+finish_state(ok, StateName, StateData) ->
+    fsm_next_state(StateName, StateData);
+finish_state(resume, _, StateData) ->
+    maybe_enter_resume_session(StateData).
 
 maybe_enter_resume_session(StateData) ->
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
