@@ -18,6 +18,19 @@ To activate those commands, put modules you need into the ejabberd.cfg file:
   {mod_muc_light_commands, []},
 
 ```
+
+You also have to hook `mongoose_api_admin` module to an http endpoint:
+
+```
+  { {8088, "127.0.0.1"} , ejabberd_cowboy, [
+      {num_acceptors, 10},
+      {transport_options, [{max_connections, 1024}]},
+      {modules, [
+          {"localhost", "/api", mongoose_api_admin, []}
+      ]}
+  ]},
+```
+
 ## API
 
 Find the beautiful Swagger documentation below or under [this link](http://mongooseim.readthedocs.io/en/latest/swagger/index.html)
