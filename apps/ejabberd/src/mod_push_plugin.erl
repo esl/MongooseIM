@@ -45,4 +45,4 @@ sender_id(Host, From, Packet) ->
 
 -spec plugin_module(Host :: ejabberd:server()) -> Module :: atom().
 plugin_module(Host) ->
-    gen_mod:get_module_opt(Host, mod_push, plugin_module, mod_push_plugin_default).
+    gen_mod:get_module_opt(Host, mod_event_pusher_push, plugin_module, mod_push_plugin_default).

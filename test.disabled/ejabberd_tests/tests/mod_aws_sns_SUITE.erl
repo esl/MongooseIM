@@ -104,14 +104,17 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config0) ->
-    Config = [{sns_config, ?SNS_OPTS} | Config0],
     Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Host, mod_aws_sns, ?SNS_OPTS),
+    OldModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
+    Config = [{sns_config, ?SNS_OPTS}, {old_modules, OldModules} | Config0],
+    rpc(gen_mod_deps, start_modules, [Host, [{mod_aws_sns, ?SNS_OPTS}]]),
     Config.
 
 end_per_group(_, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Host, mod_aws_sns),
+    OldModules = ?config(old_modules, Config),
+    CurrentModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
+    rpc(gen_mod_deps, replace_modules, [Host, CurrentModules, OldModules]),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(muc_messages = C, Config0) ->

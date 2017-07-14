@@ -1,5 +1,5 @@
 ### Module Description
-This module implements [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html).
+This module is a backend of [mod_event_pusher] that implements [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html).
  It enables a service that notifies `PubSub` of a user's choice about every message that he could miss while being offline. 
  There are two control stanzas that the client may send to this module: `enable` and `disable`. 
  The `enable` stanza enables push notifications and forwards them to a specified `PubSub` node. 
@@ -19,9 +19,15 @@ This module implements [XEP-0357: Push Notifications](https://xmpp.org/extension
 ### Example configuration
 
 ```Erlang
-{mod_push, [
-    {backend, mnesia},
-    {wpool, [{workers, 200}]},
-    {plugin_module, mod_push_plugin_default}
-]}.
+{mod_event_pusher, [
+    {backends, {
+        {push, [
+            {backend, mnesia},
+            {wpool, [{workers, 200}]},
+            {plugin_module, mod_push_plugin_default}
+        ]}
+    }}
+]}
 ```
+
+[mod_event_pusher]: ./mod_event_pusher/

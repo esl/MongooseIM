@@ -9,9 +9,9 @@
 %%% Mnesia backend for mod_push.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_push_mnesia).
+-module(mod_event_pusher_push_mnesia).
 -author("Rafal Slota").
--behavior(mod_push).
+-behavior(mod_event_pusher_push).
 
 %%--------------------------------------------------------------------
 %% Exports

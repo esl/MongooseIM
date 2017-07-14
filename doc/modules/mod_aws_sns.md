@@ -1,5 +1,5 @@
 ### Module Description
-This module enables support for the Amazon SNS service. Currently there are 3 available notifications:
+This module is a backend of [mod_event_pusher] that enables support for the Amazon SNS service. Currently there are 3 available notifications:
 * **user presence changed** - Carries the user id (bare jid by default) and a boolean field corresponding to the current user online status.
 * **private message sent** - Carries the user ids (both sender and receiver) along with the message body.
 * **group message sent** - Carries the user id and the room id (bare jids by default) along with the message body.
@@ -34,18 +34,24 @@ Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn
 ### Example configuration
 
 ```Erlang
-{mod_aws_sns, [
-    {access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-    {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
-    {region, "eu-west-1"},
-    {account_id, "123456789012"},
-    {sns_host, "sns.eu-west-1.amazonaws.com"},
-    {plugin_module, mod_aws_sns_defaults},
-    {presence_updates_topic, "user_presence_updated"},
-    {pm_messages_topic, "user_message_sent"},
-    {muc_messages_topic, "user_messagegroup_sent"},
-    {pool_size, 100},
-    {publish_retry_count, 2}, 
-    {publish_retry_time_ms, 50}
-   ]}.
+{mod_event_pusher, [
+    {backends, [
+        {sns, [
+            {access_key_id, "AKIAIOSFODNN7EXAMPLE"},
+            {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
+            {region, "eu-west-1"},
+            {account_id, "123456789012"},
+            {sns_host, "sns.eu-west-1.amazonaws.com"},
+            {plugin_module, mod_aws_sns_defaults},
+            {presence_updates_topic, "user_presence_updated"},
+            {pm_messages_topic, "user_message_sent"},
+            {muc_messages_topic, "user_messagegroup_sent"},
+            {pool_size, 100},
+            {publish_retry_count, 2}, 
+            {publish_retry_time_ms, 50}
+        ]}
+    ]}
+]}
 ```
+
+[mod_event_pusher]: ./mod_event_pusher
