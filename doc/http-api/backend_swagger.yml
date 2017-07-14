@@ -285,19 +285,17 @@ paths:
         - "Contacts"
       parameters:
         - in: body
-          name: user
-          required: true
-          schema:
-            properties:
-              jid:
-                type: string
-        - in: body
           name: contact
           required: true
           schema:
+            title: addcontact
+            type: object
             properties:
               jid:
                 type: string
+                format: JID
+                description: Contact's jid
+                example: "alice@wonderlant.lit"
       responses:
         204:
           description: "The user was added to a contacts list."
