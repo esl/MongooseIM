@@ -492,17 +492,20 @@ stream_established(timeout, StateData) ->
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
 
+-spec route_incoming_stanza(From :: jid(), To :: jid(), El :: xmlel(), StateData :: state()) ->
+    mongoose_acc:t() | error.
 route_incoming_stanza(From, To, El, StateData) ->
     LFrom = From#jid.lserver,
     LTo = To#jid.lserver,
     #xmlel{name = Name} = El,
+    Acc = mongoose_acc:from_element(El, From, To),
     case is_s2s_authenticated(LFrom, LTo, StateData) of
         true ->
-            route_stanza(Name, LTo, From, To, El);
+            route_stanza(Name, Acc);
         false ->
             case is_s2s_connected(LFrom, LTo, StateData) of
                 true ->
-                    route_stanza(Name, LTo, From, To, El);
+                    route_stanza(Name, Acc);
                 false ->
                     error
             end
@@ -523,42 +526,24 @@ is_s2s_connected(LFrom, LTo, StateData) ->
             false
     end.
 
-%%    if
-%%        StateData#state.authenticated ->
-%%            case (LFrom == StateData#state.auth_domain)
-%%                andalso
-%%                lists:member(
-%%                    LTo,
-%%                    ejabberd_router:dirty_get_all_domains()) of
-%%                true ->
-%%                    route_stanza(Name, LTo, From, To, El);
-%%                false ->
-%%                    error
-%%            end;
-%%        true ->
-%%            case dict:find({LFrom, LTo},
-%%                StateData#state.connections) of
-%%                {ok, established} ->
-%%                    route_stanza(Name, LTo, From, To, El);
-%%                _ ->
-%%                    error
-%%            end
-%%    end.
-
-route_stanza(<<"iq">>, LTo, From, To, El) ->
-    route_stanza(LTo, From, To, El);
-route_stanza(<<"message">>, LTo, From, To, El) ->
-    route_stanza(LTo, From, To, El);
-route_stanza(<<"presence">>, LTo, From, To, El) ->
-    route_stanza(LTo, From, To, El);
-route_stanza(_, _LTo, _From, _To, _El) ->
+-spec route_stanza(binary(), mongoose_acc:t()) -> mongoose_acc:t().
+route_stanza(<<"iq">>, Acc) ->
+    route_stanza(Acc);
+route_stanza(<<"message">>, Acc) ->
+    route_stanza(Acc);
+route_stanza(<<"presence">>, Acc) ->
+    route_stanza(Acc);
+route_stanza(_, _Acc) ->
     error.
 
-route_stanza(LTo, From, To, El) ->
-    ejabberd_hooks:run(s2s_receive_packet,
-                       LTo,
-                       [From, To, El]),
-    ejabberd_router:route(From, To, El).
+-spec route_stanza(mongoose_acc:t()) -> mongoose_acc:t().
+route_stanza(Acc) ->
+    From = mongoose_acc:get(from_jid, Acc),
+    To = mongoose_acc:get(to_jid, Acc),
+    LTo = To#jid.lserver,
+    Acc1 = ejabberd_hooks:run_fold(s2s_receive_packet,
+                                   LTo, Acc, []),
+    ejabberd_router:route(From, To, Acc1).
 
 %%----------------------------------------------------------------------
 %% Func: StateName/3

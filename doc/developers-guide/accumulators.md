@@ -66,7 +66,7 @@ Here we initialise the accumulator and pass it on.
 This is called by `ejabberd_c2s:handle_info/3` when an accumulator from another c2s process is received.
 It is a ready-made accumulator, but stripped of all cached values; it preserves the original `ref`, `timestamp`, `from` and `to`, but doesn't have the `user` and `server` which have to be set here since they are likely to differ.
 
-### `ejabberd_s2s_in:stream_established/2` (not done yet)
+### `ejabberd_s2s_in:route_incoming_stanza/4`
 
 Here is where a stanza from another MongooseIM server is received.
 
@@ -108,11 +108,13 @@ An 'exit point' function should be called with an acc AND a stanza to be sent ou
 Sometimes the stanza is the original one (which is stored in the accumulator as `element`), sometimes it's not.
 The 'exit point' should return an accumulator.
 
-Sending data out can be done in two ways:
+Sending data out can be done in three ways:
 
 * if we send it out of MongooseIM through a socket, we send a binary representation of the stanza to be sent,
 * if we send it to another c2s process within the same MongooseIM, we create another accumulator with the `element` replaced by the stanza we are sending, but preserving some useful attributes.
 This is done by `mongoose_acc:strip/1`.
+* if destination is outside the acc + element pair gets routed via ejabberd_s2s to a process running ejabberd_c2s_out,
+and it is sent from there (`ejabberd_s2s_out:handle_info/3`)
 
 ### `ejabberd_c2s:send_element/3`
 
