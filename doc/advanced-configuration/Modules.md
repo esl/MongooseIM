@@ -39,6 +39,10 @@ Allows users to connect to MongooseIM using BOSH (Bidirectional-streams Over Syn
 ### [mod_carboncopy](../modules/mod_carboncopy.md)
 Implements [XEP-0280: Message Carbons](http://xmpp.org/extensions/xep-0280.html), in order to keep all IM clients for a user engaged in a real-time conversation, by carbon-copying all inbound and outbound messages to all interested resources (Full JIDs).
 
+### [mod_commands](../modules/mod_commands.md)
+A central gateway providing access to a subset of MongooseIM functions by channels other
+then XMPP. Commands defined there are currently accessible via REST API.
+
 ### [mod_disco](../modules/mod_disco.md)
 Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.html) for discovering information (capabilities, protocols, features) about other XMPP entities.
 
