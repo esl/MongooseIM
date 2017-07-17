@@ -549,7 +549,7 @@ do_open_legacy_session(El, StateData, U, R, JID, AuthModule) ->
                                     resource = R,
                                     jid = JID,
                                     auth_module = AuthModule },
-    do_open_session_common(JID, NewStateData).
+    do_open_session_common(mongoose_acc:new(), JID, NewStateData).
 
 -spec wait_for_feature_before_auth(Item :: ejabberd:xml_stream_item(),
                                State :: state()) -> fsm_return().
@@ -731,7 +731,13 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
                                             StateData0),
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_SESSION} ->
-            maybe_open_session(El, StateData);
+            Acc = mongoose_acc:from_element(El),
+            {Res, _Acc1, NStateData} = maybe_open_session(Acc, StateData),
+            case Res of
+                stop -> {stop, normal, NStateData};
+                wait -> fsm_next_state(wait_for_session_or_sm, NStateData);
+                established ->  fsm_next_state_pack(session_established, NStateData)
+            end;
         _ ->
             maybe_do_compress(El, wait_for_session_or_sm, StateData)
     end;
@@ -792,47 +798,49 @@ check_compression_method(El, NextState, StateData) ->
             fsm_next_state(NextState, StateData)
     end.
 
-
-maybe_open_session(El, #state{jid = JID} = StateData) ->
+-spec maybe_open_session(mongoose_acc:t(), state()) ->
+    {wait | stop | established, mongoose_acc:t(), state()}.
+maybe_open_session(Acc, #state{jid = JID} = StateData) ->
     case user_allowed(JID, StateData) of
         true ->
-            do_open_session(El, JID, StateData);
+            do_open_session(Acc, JID, StateData);
         _ ->
-            ejabberd_hooks:run(forbidden_session_hook,
-                               StateData#state.server, [JID]),
+            Acc1 = ejabberd_hooks:run_fold(forbidden_session_hook,
+                               StateData#state.server, Acc, [JID]),
             ?INFO_MSG("(~w) Forbidden session for ~s",
                       [StateData#state.socket,
                        jid:to_binary(JID)]),
-            Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
-            send_element(StateData, Err),
-            fsm_next_state(wait_for_session_or_sm, StateData)
+            Err = jlib:make_error_reply(Acc1, ?ERR_NOT_ALLOWED),
+            Acc2 = send_element(Acc1, Err, StateData),
+            {wait, Acc2, StateData}
     end.
 
-do_open_session(El, JID, StateData) ->
+-spec do_open_session(mongoose_acc:t(), jid(), state()) ->
+    {stop | established, mongoose_acc:t(), state()}.
+do_open_session(Acc, JID, StateData) ->
     ?INFO_MSG("(~w) Opened session for ~s", [StateData#state.socket, jid:to_binary(JID)]),
-    Res = jlib:make_result_iq_reply(El),
-    Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Res},
-    Acc = mongoose_acc:new(),
+    Resp = jlib:make_result_iq_reply(mongoose_acc:get(element, Acc)),
+    Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Resp},
     case send_and_maybe_buffer_stanza(Acc, Packet, StateData) of
-        {ok, _, NStateData} ->
-            do_open_session_common(JID, NStateData);
-        {resume, _, NStateData} ->
+        {ok, Acc1, NStateData} ->
+            do_open_session_common(Acc1, JID, NStateData);
+        {resume, Acc1, NStateData} ->
             case maybe_enter_resume_session(NStateData) of
                 {stop, normal, NextStateData} -> % error, resume not possible
-                    c2s_stream_error(?SERR_INTERNAL_SERVER_ERROR, NextStateData);
+                    c2s_stream_error(?SERR_INTERNAL_SERVER_ERROR, NextStateData),
+                    {stop, Acc1, NStateData};
                 {_, _, NextStateData, _} ->
-                    do_open_session_common(JID, NextStateData)
+                    do_open_session_common(Acc1, JID, NextStateData)
             end
     end.
 
-do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
+do_open_session_common(Acc, JID, #state{user = U, resource = R} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
-    % no acc yet, but we need it to get subscription lists which are stored in state
-    Acc = ejabberd_hooks:run_fold(roster_get_subscription_lists,
+    Acc1 = ejabberd_hooks:run_fold(roster_get_subscription_lists,
                                   NewStateData0#state.server,
-                                  mongoose_acc:new(),
+                                  Acc,
                                   [U, NewStateData0#state.server]),
-    {Fs, Ts, Pending} = mongoose_acc:get(subscription_lists, Acc, {[], [], []}),
+    {Fs, Ts, Pending} = mongoose_acc:get(subscription_lists, Acc1, {[], [], []}),
     LJID = jid:to_lower(jid:to_bare(JID)),
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
@@ -865,7 +873,7 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                         pres_t = gb_sets:from_list(Ts1),
                         pending_invitations = Pending,
                         privacy_list = PrivList},
-    fsm_next_state_pack(session_established, NewStateData).
+    {established, Acc1, NewStateData}.
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().
