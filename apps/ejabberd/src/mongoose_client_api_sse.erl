@@ -37,9 +37,10 @@ handle_notify(_Msg, State) ->
     {nosend, State}.
 
 handle_info({route, _From, _To, Acc}, State) ->
-    handle_info({route, _From, _To, Acc, mongoose_acc:get(element, Acc)}, State);
-handle_info({route, _From, _To, Acc, El}, State) ->
-    handle_msg(mongoose_acc:get(name, Acc), Acc, El, State);
+    handle_msg(mongoose_acc:get(name, Acc), Acc, mongoose_acc:get(element, Acc), State);
+%%    handle_info({route, From, To, Acc, mongoose_acc:get(element, Acc)}, State);
+%%handle_info({route, _From, _To, Acc, El}, State) ->
+%%    handle_msg(mongoose_acc:get(name, Acc), Acc, El, State);
 handle_info(_Msg, State) ->
     {nosend, State}.
 
