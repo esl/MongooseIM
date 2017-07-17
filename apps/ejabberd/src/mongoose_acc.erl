@@ -142,9 +142,10 @@ put(Key, Val, Acc) ->
     % read-only; accumulator is for accumulating)
     case maps:is_key(Key, Acc) of
         true ->
-            ?WARNING_MSG("Overwriting existing key \"~p\" in accumulator,"
-                         "are you sure you have to do it?",
-                         [Key]);
+%%            ?WARNING_MSG("Overwriting existing key \"~p\" in accumulator,"
+%%                         "are you sure you have to do it?",
+%%                         [Key]);
+            ok;
         false ->
             ok
     end,

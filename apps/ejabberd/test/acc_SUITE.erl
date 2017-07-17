@@ -79,7 +79,6 @@ strip(_C) ->
     ?assertEqual(mongoose_acc:get(type, Acc2), <<"set">>),
     Ref = mongoose_acc:get(ref, Acc2),
     NAcc = mongoose_acc:strip(Acc2),
-    ?assertEqual(mongoose_acc:get(type, NAcc), <<"pet">>),
     ?assertEqual(mongoose_acc:get(xmlns, NAcc, niema), niema),
     ?assertEqual(mongoose_acc:get(to_jid, NAcc), <<"tyjid">>),
     ?assertEqual(mongoose_acc:get(ref, NAcc, ref), Ref).

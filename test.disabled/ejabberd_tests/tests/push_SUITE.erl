@@ -24,7 +24,7 @@
     ]).
 -import(escalus_ejabberd, [rpc/3]).
 
--record(route, {from, to, packet}).
+-record(route, {from, to, acc, packet}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -376,8 +376,7 @@ pm_msg_notify_if_user_offline(Config) ->
 
             Published = received_route(),
             ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Acc} = Published,
-            Packet = rpc(mongoose_acc, get, [element, Acc]),
+            #route{to = RealPubsubJID, packet = Packet} = Published,
             ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
             Form = exml_query:path(Packet, [{element, <<"pubsub">>},
                                              {element, <<"publish">>},
@@ -409,8 +408,7 @@ pm_msg_notify_if_user_offline_with_publish_options(Config) ->
 
             Published = received_route(),
             ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Acc} = Published,
-            Packet = rpc(mongoose_acc, get, [element, Acc]),
+            #route{to = RealPubsubJID, packet = Packet} = Published,
             ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
             Form = exml_query:path(Packet, [{element, <<"pubsub">>},
                                             {element, <<"publish-options">>},
@@ -506,8 +504,7 @@ muclight_msg_notify_if_user_offline(Config) ->
 
             Published = received_route(),
             ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Acc} = Published,
-            Packet = rpc(mongoose_acc, get, [element, Acc]),
+            #route{to = RealPubsubJID, packet = Packet} = Published,
             ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
             Form = exml_query:path(Packet, [{element, <<"pubsub">>},
                                             {element, <<"publish">>},
@@ -543,8 +540,7 @@ muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
 
             Published = received_route(),
             ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Acc} = Published,
-            Packet = rpc(mongoose_acc, get, [element, Acc]),
+            #route{to = RealPubsubJID, packet = Packet} = Published,
             ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
             Form = exml_query:path(Packet, [{element, <<"pubsub">>},
                                             {element, <<"publish-options">>},
@@ -653,8 +649,8 @@ start_publish_listener(CaseName, Config) ->
 
     Config.
 
-process_packet(From, To, Packet, TestCasePid) ->
-    TestCasePid ! #route{from = From, to = To, packet = Packet}.
+process_packet(Acc, From, To, El, TestCasePid) ->
+    TestCasePid ! #route{from = From, to = To, acc = Acc, packet = El}.
 
 create_room(Room, [Owner | Members], Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
