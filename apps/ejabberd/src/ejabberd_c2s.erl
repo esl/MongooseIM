@@ -916,7 +916,7 @@ session_established({xmlstreamelement, El}, StateData) ->
                                                    StateData),
             % initialise accumulator, fill with data
             El1 = fix_message_from_user(El, StateData#state.lang),
-            Acc0 = mongoose_acc:initialise(El1, ?FILE, ?LINE),
+            Acc0 = mongoose_acc:from_element(El1),
             User = NewState#state.user,
             Server = NewState#state.server,
             To = exml_query:attr(El, <<"to">>),
@@ -976,12 +976,11 @@ process_outgoing_stanza(Acc, StateData) ->
     fsm_next_state(session_established, NState).
 
 process_outgoing_stanza(Acc, error, _Name, StateData) ->
-    NewEl = mongoose_acc:terminate(Acc, ?FILE, ?LINE),
     case mongoose_acc:get(type, Acc) of
         <<"error">> -> StateData;
         <<"result">> -> StateData;
         _ ->
-            Err = jlib:make_error_reply(NewEl, ?ERR_JID_MALFORMED),
+            Err = jlib:make_error_reply(Acc, ?ERR_JID_MALFORMED),
             send_element(Acc, Err, StateData),
             StateData
     end;
@@ -1170,7 +1169,7 @@ handle_info({force_update_presence, LUser}, StateName,
                            StateData#state.pres_last,
                            [LUser, LServer]),
             StateData2 = StateData#state{pres_last = PresenceEl},
-            Acc = mongoose_acc:initialise(PresenceEl, ?FILE, ?LINE),
+            Acc = mongoose_acc:from_element(PresenceEl),
             presence_update(Acc, StateData2#state.jid, StateData2),
             StateData2;
         _ ->
@@ -2168,7 +2167,6 @@ presence_broadcast(Acc, JIDSet, StateData) ->
                           {A1, Res} = privacy_check_packet(A, FJID, out, StateData),
                           case Res of
                               allow ->
-                                  % here we sort of mongoose_acc:terminate
                                   ejabberd_router:route(From, FJID, A1);
                               _ ->
                                   A1

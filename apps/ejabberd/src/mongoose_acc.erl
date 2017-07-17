@@ -15,7 +15,7 @@
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
 -export([strip/1, strip/2, record_sending/4, record_sending/6]).
--export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
+-export([dump/1, to_binary/1]).
 -export([to_element/1]).
 -export_type([t/0]).
 -export([from_element/3]).
@@ -34,18 +34,6 @@
 %%% when it leaves. During development we can call both in arbitrary places, provided that
 %%% the code which is executed between them is rewritten. We will proceed by moving
 %%% both points further apart until they reach their respective ends of processing chain.
-
-initialise(El, _F, _L) ->
-%%    ?ERROR_MSG("AAA initialise accumulator ~p ~p", [F, L]),
-    from_element(El).
-
-terminate(M, _F, _L) ->
-%%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
-    get(element, M).
-
-terminate(M, received, _F, _L) ->
-%%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
-    get(element, M, undefined).
 
 dump(Acc) ->
     dump(Acc, lists:sort(maps:keys(Acc))).
