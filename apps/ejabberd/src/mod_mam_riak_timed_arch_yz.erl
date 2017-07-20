@@ -241,7 +241,8 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
             pm -> mod_mam;
             muc -> mod_mam_muc
         end,
-    BodyValue = unicode:characters_to_binary(mod_mam_utils:packet_to_search_body(ModMAM, Host, Packet)),
+    BodyChars = mod_mam_utils:packet_to_search_body(ModMAM, Host, Packet),
+    BodyValue = unicode:characters_to_binary(BodyChars),
     Ops = [
            {{<<"msg_id">>, register},
             fun(R) -> riakc_register:set(MsgId, R) end},
