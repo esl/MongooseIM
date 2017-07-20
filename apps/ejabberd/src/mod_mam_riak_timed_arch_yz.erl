@@ -241,6 +241,7 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
             pm -> mod_mam;
             muc -> mod_mam_muc
         end,
+         
     BodyChars = mod_mam_utils:packet_to_search_body(ModMAM, Host, Packet),
     BodyValue = unicode:characters_to_binary(BodyChars),
     Ops = [
