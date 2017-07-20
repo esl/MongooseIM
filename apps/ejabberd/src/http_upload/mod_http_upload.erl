@@ -175,7 +175,7 @@ compose_iq_reply(IQ, Namespace, PutUrl, _GetUrl, Headers) ->
               name     = <<"slot">>,
               attrs    = [{<<"xmlns">>, Namespace}],
               children = [create_url_xmlel(<<"put">>, PutUrl, Headers, Namespace),
-                          create_url_xmlel(<<"get">>, PutUrl, #{}, Namespace)]},
+                          create_url_xmlel(<<"get">>, GetUrl, #{}, Namespace)]},
     IQ#iq{type = result, sub_el =[Slot]}.
 
 
@@ -210,7 +210,8 @@ generate_token(Host) ->
 -spec file_too_large_error(MaxFileSize :: non_neg_integer(), Namespace :: binary()) -> jlib:exml().
 file_too_large_error(MaxFileSize, Namespace) ->
     MaxFileSizeBin = integer_to_binary(MaxFileSize),
-    MaxSizeEl = #xmlel{name = <<"max-file-size">>, children = [exml:escape_cdata(MaxFileSizeBin)]},
+    MaxSizeEl = #xmlel{name = <<"max-file-size">>,
+                       children = [#xmlcdata{content = MaxFileSizeBin}]},
     FileTooLargeEl = #xmlel{name = <<"file-too-large">>,
                             attrs = [{<<"xmlns">>, Namespace}],
                             children = [MaxSizeEl]},
@@ -248,17 +249,17 @@ get_disco_info_form(Namespace, MaxFileSizeBin) ->
 -spec header_to_xmlel({Key :: binary(), Value :: binary()}) -> exml:element().
 header_to_xmlel({Key, Value}) ->
     #xmlel{name = <<"header">>,
-           attrs = [{<<"name">>, exml:escape_attr(Key)}],
-           children = [exml:escape_cdata(Value)]}.
+           attrs = [{<<"name">>, Key}],
+           children = [#xmlcdata{content = Value}]}.
 
 
 -spec create_url_xmlel(Name :: binary(), Url :: binary(), Headers :: #{binary() => binary()},
                        Namespace :: binary()) -> exml:element().
 create_url_xmlel(Name, Url, _Headers, ?NS_HTTP_UPLOAD_025) ->
-    #xmlel{name = Name, children = [exml:escape_cdata(Url)]};
+    #xmlel{name = Name, children = [#xmlcdata{content = Url}]};
 create_url_xmlel(Name, Url, Headers, ?NS_HTTP_UPLOAD_030) ->
     HeadersXml = [header_to_xmlel(H) || H <- maps:to_list(Headers)],
-    #xmlel{name = Name, attrs = [{<<"url">>, exml:escape_attr(Url)}], children = HeadersXml}.
+    #xmlel{name = Name, attrs = [{<<"url">>, Url}], children = HeadersXml}.
 
 
 -spec is_nonempty_binary(term()) -> boolean().
