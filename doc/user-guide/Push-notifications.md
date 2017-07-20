@@ -79,7 +79,7 @@ This module acts as a bridge between [mod_pubsub][] that receives notifications 
 
 {mod_push_service_mongoosepush, [
     {pool_name, mongoose_push_http}
-    {api_version, "v1"}
+    {api_version, "v2"}
 ]}.
 ```
 

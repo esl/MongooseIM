@@ -36,6 +36,6 @@ It must be defined in `http_connections` setting.
 
 {mod_push_service_mongoosepush, [
         {pool_name, mongoose_push_http}
-        {api_version, "v1"}
+        {api_version, "v2"}
 ]}.
 ```
