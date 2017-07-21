@@ -2626,7 +2626,7 @@ one2one_chat_to_muc(Config) ->
 %% Registration at a server
 %%--------------------------------------------------------------------
 
-%% You send the register IQ to room jid "muc@host/room".
+%% You send the register IQ to room jid.
 %% But in MongooseIM you need to send it to "muc@host".
 user_asks_for_registration_form(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
