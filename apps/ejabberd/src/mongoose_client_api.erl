@@ -78,8 +78,11 @@ do_authorize(_, Req, State) ->
 
 do_check_password(RawUser, #jid{luser = User, lserver = Server} = JID,
                   Password, Req, State) ->
-    case ejabberd_auth:check_password(User, Server, Password) of
-        true ->
+    Creds0 = mongoose_credentials:new(Server),
+    Creds1 = mongoose_credentials:set(Creds0, username, User),
+    Creds2 = mongoose_credentials:set(Creds1, password, Password),
+    case ejabberd_auth:authorize(Creds2) of
+        {ok, _} ->
             {true, Req, State#{user => RawUser, jid => JID}};
         _ ->
             make_unauthorized_response(Req, State)
