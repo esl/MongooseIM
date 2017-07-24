@@ -147,6 +147,8 @@ make_request(Pool, Path, Method, Headers, Query) ->
             {ok, {Code, RespBody}};
         {error, timeout} ->
             {error, request_timeout};
+        {'EXIT', Reason} ->
+            {error, {'EXIT', Reason}};
         {error, Reason} ->
             {error, Reason}
     end.
