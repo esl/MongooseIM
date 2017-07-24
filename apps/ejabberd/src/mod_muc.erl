@@ -500,9 +500,8 @@ process_packet(From, To, Acc, #state{
             #xmlel{attrs = Attrs} = Packet,
             Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
             ErrText = <<"Access denied by service policy">>,
-            Err = jlib:make_error_reply(Packet,
-                                        ?ERRT_FORBIDDEN(Lang, ErrText)),
-            ejabberd_router:route_error(To, From, Acc, Err)
+            ejabberd_router:route_error_reply(To, From, Acc,
+                                              ?ERRT_FORBIDDEN(Lang, ErrText))
     end.
 
 
