@@ -64,8 +64,7 @@
 %% Imports
 
 -import(mod_mam_utils,
-        [maybe_microseconds/1,
-         microseconds_to_now/1]).
+        [microseconds_to_now/1]).
 
 %% UID
 -import(mod_mam_utils,
@@ -75,7 +74,6 @@
 %% XML
 -import(mod_mam_utils,
         [replace_archived_elem/3,
-         get_one_of_path/2,
          wrap_message/6,
          result_set/4,
          result_query/2,
@@ -91,9 +89,7 @@
 
 %% Forms
 -import(mod_mam_utils,
-        [form_field_value_s/2,
-         form_field_value/2,
-         message_form/3]).
+        [message_form/3]).
 
 %% Other
 -import(mod_mam_utils,
@@ -491,14 +487,14 @@ handle_lookup_messages(
     Namespace = IQ#iq.xmlns,
     %% Filtering by date.
     %% Start :: integer() | undefined
-    Start = elem_to_start_microseconds(QueryEl),
-    End   = elem_to_end_microseconds(QueryEl),
+    Start = mod_mam_iq:elem_to_start_microseconds(QueryEl),
+    End   = mod_mam_iq:elem_to_end_microseconds(QueryEl),
     %% Filtering by contact.
     SearchText = undefined,
-    With  = elem_to_with_jid(QueryEl),
-    RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
+    With  = mod_mam_iq:elem_to_with_jid(QueryEl),
+    RSM   = mod_mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = borders_decode(QueryEl),
-    Limit = elem_to_limit(QueryEl),
+    Limit = mod_mam_iq:elem_to_limit(QueryEl),
     PageSize = min(max_result_limit(),
                    maybe_integer(Limit, default_result_limit())),
     LimitPassed = Limit =/= <<>>,
@@ -545,16 +541,16 @@ handle_set_message_form(
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
     %% Filtering by date.
     %% Start :: integer() | undefined
-    Start = form_to_start_microseconds(QueryEl),
-    End   = form_to_end_microseconds(QueryEl),
+    Start = mod_mam_iq:form_to_start_microseconds(QueryEl),
+    End   = mod_mam_iq:form_to_end_microseconds(QueryEl),
     %% Filtering by contact.
-    With  = form_to_with_jid(QueryEl),
+    With  = mod_mam_iq:form_to_with_jid(QueryEl),
     %% Filtering by text
     Text  = mod_mam_utils:form_to_text(QueryEl),
 
-    RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
+    RSM   = mod_mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
     Borders = form_borders_decode(QueryEl),
-    Limit = elem_to_limit(QueryEl),
+    Limit = mod_mam_iq:elem_to_limit(QueryEl),
     PageSize = min(max_result_limit(),
                    maybe_integer(Limit, default_result_limit())),
     %% Whether or not the client query included a <set/> element,
@@ -635,12 +631,12 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
     %% Start :: integer() | undefined
-    Start = elem_to_start_microseconds(PurgeEl),
-    End   = elem_to_end_microseconds(PurgeEl),
+    Start = mod_mam_iq:elem_to_start_microseconds(PurgeEl),
+    End   = mod_mam_iq:elem_to_end_microseconds(PurgeEl),
     %% Set borders.
     Borders = borders_decode(PurgeEl),
     %% Filtering by contact.
-    With  = elem_to_with_jid(PurgeEl),
+    With  = mod_mam_iq:elem_to_with_jid(PurgeEl),
     Res = purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                                   Start, End, Now, With),
     return_purge_multiple_message_iq(IQ, Res).
@@ -885,68 +881,6 @@ message_row_to_ext_id({MessID, _, _}) ->
 
 set_client_xmlns(M) ->
     xml:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, M).
-
-
--spec maybe_jid(binary()) -> 'error' | 'undefined' | ejabberd:jid().
-maybe_jid(<<>>) ->
-    undefined;
-maybe_jid(JID) when is_binary(JID) ->
-    jid:from_binary(JID).
-
-
-%% @doc Convert id into internal format.
--spec fix_rsm('none' | jlib:rsm_in()) -> 'undefined' | jlib:rsm_in().
-fix_rsm(none) ->
-    undefined;
-fix_rsm(RSM=#rsm_in{direction = aft, id = <<>>}) ->
-    RSM#rsm_in{direction = undefined, id = undefined}; %% First page
-fix_rsm(RSM=#rsm_in{direction = aft, id = undefined}) ->
-    RSM#rsm_in{direction = undefined}; %% First page
-fix_rsm(RSM=#rsm_in{id = undefined}) ->
-    RSM;
-fix_rsm(RSM=#rsm_in{id = <<>>}) ->
-    RSM#rsm_in{id = undefined};
-fix_rsm(RSM=#rsm_in{id = BExtMessID}) when is_binary(BExtMessID) ->
-    MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),
-    RSM#rsm_in{id = MessID}.
-
-
--spec elem_to_start_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
-elem_to_start_microseconds(El) ->
-    maybe_microseconds(xml:get_path_s(El, [{elem, <<"start">>}, cdata])).
-
-
--spec elem_to_end_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
-elem_to_end_microseconds(El) ->
-    maybe_microseconds(xml:get_path_s(El, [{elem, <<"end">>}, cdata])).
-
-
--spec elem_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
-elem_to_with_jid(El) ->
-    maybe_jid(xml:get_path_s(El, [{elem, <<"with">>}, cdata])).
-
-%% @doc This element's name is "limit". But it must be "max" according XEP-0313.
--spec elem_to_limit(any()) -> any().
-elem_to_limit(QueryEl) ->
-    get_one_of_path(QueryEl, [
-                              [{elem, <<"set">>}, {elem, <<"max">>}, cdata],
-                              [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
-                             ]).
-
-
--spec form_to_start_microseconds(_) -> 'undefined' | non_neg_integer().
-form_to_start_microseconds(El) ->
-    maybe_microseconds(form_field_value_s(El, <<"start">>)).
-
-
--spec form_to_end_microseconds(_) -> 'undefined' | non_neg_integer().
-form_to_end_microseconds(El) ->
-    maybe_microseconds(form_field_value_s(El, <<"end">>)).
-
-
--spec form_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
-form_to_with_jid(El) ->
-    maybe_jid(form_field_value_s(El, <<"with">>)).
 
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
