@@ -50,6 +50,7 @@
         ]).
 
 -export([start_link/0]).
+-export([routes_cleanup_on_nodedown/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -340,6 +341,7 @@ init([]) ->
     mnesia:add_table_copy(external_component_global, node(), ram_copies),
     compile_routing_module(),
     mongoose_metrics:ensure_metric(global, routingErrors, spiral),
+    ejabberd_hooks:add(node_cleanup, global, ?MODULE, routes_cleanup_on_nodedown, 90),
 
     {ok, #state{}}.
 
@@ -386,6 +388,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
+    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, routes_cleanup_on_nodedown, 90),
     ok.
 
 %%--------------------------------------------------------------------
@@ -485,3 +488,10 @@ update_tables() ->
         false ->
             ok
     end.
+
+-spec routes_cleanup_on_nodedown(mongoose_acc:t(), node()) -> mongoose_acc:t().
+routes_cleanup_on_nodedown(Acc, Node) ->
+    Entries = mnesia:dirty_match_object(external_component_global,
+                                        #external_component{node = Node, _ = '_'}),
+    [mnesia:dirty_delete_object(external_component_global, Entry) || Entry <- Entries],
+    Acc.

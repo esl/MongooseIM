@@ -21,6 +21,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -import(reload_helper, [modify_config_file/3,
                         backup_ejabberd_config_file/2,
@@ -45,7 +46,7 @@ groups() ->
     [{xep0114_tcp, [], xep0114_tests()},
      {xep0114_ws, [], xep0114_tests()},
      {subdomain, [], [register_subdomain]},
-     {distributed, [], [register_in_cluster, register_same_on_both]}].
+     {distributed, [], [register_in_cluster, register_same_on_both, clear_on_node_down]}].
 
 suite() ->
     escalus:suite().
@@ -307,6 +308,17 @@ register_in_cluster(Config) ->
     ok = escalus_connection:stop(Comp2),
     ok = escalus_connection:stop(Comp_on_2),
     ok.
+
+clear_on_node_down(Config) ->
+    CompOpts = ?config(component1, Config),
+    ?assertMatch({_, _, _}, connect_component(CompOpts)),
+    ?assertThrow({stream_error, _}, connect_component(CompOpts)),
+
+    cluster_commands_SUITE:stop_node(ejabberd_node_utils:mim(), Config),
+    cluster_commands_SUITE:start_node(ejabberd_node_utils:mim(), Config),
+
+    {Comp, _, _} = connect_component(CompOpts),
+    ok = escalus_connection:stop(Comp).
 
 do_chat_with_component(Alice, ClusterGuy, Component1) ->
     {Comp, Addr, Name} = Component1,
