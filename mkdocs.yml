@@ -14,9 +14,9 @@ pages:
       - 'Getting started': 'user-guide/Getting-started.md'
       - 'Release/Installation configuration': 'user-guide/release_config.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
-      - 'How to build':  'user-guide/How-to-build.md'
-      - 'Setting up Push Notifications': 'user-guide/Push-notifications.md'
-      - 'How to: Set up Fennec (TURN/STUN server) and see how it works (a.k.a. ICE demo)': 'user-guide/ICE_tutorial.md'
+      - 'How to build MongooseIM':  'user-guide/How-to-build.md'
+      - 'How to setup Push Notifications with MongoosePush': 'user-guide/Push-notifications.md'
+      - 'How to set up MongooseICE (ICE/TURN/STUN server)': 'user-guide/ICE_tutorial.md'
   - Platform:
       - 'Roadmap': 'Roadmap.md'
       - 'Contributions to ecosystem': 'Contributions.md'
