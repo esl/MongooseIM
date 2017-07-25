@@ -83,37 +83,21 @@ maybe_jid(JID) when is_binary(JID) ->
     jid:from_binary(JID).
 
 query_to_lookup_params(QueryEl) ->
-    Now = p1_time_compat:system_time(micro_seconds),
-    %% Filtering by date.
-    %% Start :: integer() | undefined
-    Start = mod_mam_iq:elem_to_start_microseconds(QueryEl),
-    End   = mod_mam_iq:elem_to_end_microseconds(QueryEl),
-    %% Filtering by contact.
-    SearchText = undefined,
-    With  = mod_mam_iq:elem_to_with_jid(QueryEl),
-    RSM   = mod_mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
-    Borders = mod_mam_utils:borders_decode(QueryEl),
-    Limit = mod_mam_iq:elem_to_limit(QueryEl),
-    PageSize = min(mod_mam_params:max_result_limit(),
-                   mod_mam_utils:maybe_integer(Limit, mod_mam_params:default_result_limit())),
-    LimitPassed = Limit =/= <<>>,
-    IsSimple = mod_mam_utils:decode_optimizations(QueryEl),
-
-    #{with_jid => With,
-      rsm => RSM,
-      borders => Borders,
-      start_ts => Start,
-      end_ts => End,
-      now => Now,
-      search_text => SearchText,
-      page_size => PageSize,
-      limit_passed => LimitPassed,
-      max_result_limit => mod_mam_params:max_result_limit(),
-      is_simple => IsSimple}.
+    Params0 = common_lookup_params(QueryEl),
+    Params0#{
+      %% Filtering by date.
+      %% Start :: integer() | undefined
+      start_ts => mod_mam_iq:elem_to_start_microseconds(QueryEl),
+      end_ts => mod_mam_iq:elem_to_end_microseconds(QueryEl),
+      %% Filtering by contact.
+      search_text => undefined,
+      with_jid => elem_to_with_jid(QueryEl),
+      borders => mod_mam_utils:borders_decode(QueryEl),
+      is_simple => mod_mam_utils:decode_optimizations(QueryEl)}.
 
 form_to_lookup_params(QueryEl) ->
-    Limit = mod_mam_iq:elem_to_limit(QueryEl),
-    #{now => p1_time_compat:system_time(micro_seconds),
+    Params0 = common_lookup_params(QueryEl),
+    Params0#{
       %% Filtering by date.
       %% Start :: integer() | undefined
       start_ts => mod_mam_iq:form_to_start_microseconds(QueryEl),
@@ -123,15 +107,11 @@ form_to_lookup_params(QueryEl) ->
       %% Filtering by text
       search_text => mod_mam_utils:form_to_text(QueryEl),
 
-      rsm => mod_mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
       borders => mod_mam_utils:form_borders_decode(QueryEl),
-      page_size => min(mod_mam_params:max_result_limit(),
-                       mod_mam_utils:maybe_integer(Limit, mod_mam_params:default_result_limit())),
       %% Whether or not the client query included a <set/> element,
       %% the server MAY simply return its limited results.
       %% So, disable 'policy-violation'.
       limit_passed => true,
-      max_result_limit => mod_mam_params:max_result_limit(),
       %% `is_simple' can contain three values:
       %% - true - do not count records (useful during pagination, when we already
       %%          know how many messages we have from a previous query);
@@ -145,10 +125,16 @@ form_to_lookup_params(QueryEl) ->
       %% Same for mod_mam_muc.
       is_simple => mod_mam_utils:form_decode_optimizations(QueryEl)}.
 
+common_lookup_params(QueryEl) ->
+    Limit = mod_mam_iq:elem_to_limit(QueryEl),
+    #{now => p1_time_compat:system_time(micro_seconds),
+      rsm => mod_mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
+      max_result_limit => mod_mam_params:max_result_limit(),
+      page_size => min(mod_mam_params:max_result_limit(),
+                       mod_mam_utils:maybe_integer(Limit, mod_mam_params:default_result_limit())),
+      limit_passed => Limit =/= <<>>}.
+
 lookup_params_with_archive_details(Params, ArcID, ArcJID) ->
     Params#{archive_id => ArcID,
             owner_jid => ArcJID}.
-
-
-
 
