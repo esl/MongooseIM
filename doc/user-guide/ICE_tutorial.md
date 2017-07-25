@@ -1,4 +1,4 @@
-## How to: Set up Fennec (TURN/STUN server) and see that it works (a.k.a ICE demo)
+## How to set up MongooseICE (ICE/TURN/STUN server)
 
 ### Introduction
 #### Who is this document for?
