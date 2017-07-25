@@ -52,7 +52,7 @@
 
 %% private
 -export([archive_message/8]).
--export([lookup_messages/14]).
+-export([lookup_messages/2]).
 -export([archive_id_int/2]).
 %% ----------------------------------------------------------------------
 %% Imports
@@ -78,10 +78,7 @@
          make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
-         borders_decode/1,
-         decode_optimizations/1,
-         form_borders_decode/1,
-         form_decode_optimizations/1]).
+         borders_decode/1]).
 
 %% Forms
 -import(mod_mam_utils,
@@ -89,8 +86,7 @@
 
 %% Other
 -import(mod_mam_utils,
-        [maybe_integer/2,
-         mess_id_to_external_binary/1,
+        [mess_id_to_external_binary/1,
          is_last_page/4]).
 
 %% ejabberd
@@ -127,13 +123,6 @@
 -type row() :: {mod_mam:message_id(), ejabberd:jid(), jlib:xmlel()}.
 
 -export_type([row/0, row_batch/0]).
-
-%% ----------------------------------------------------------------------
-%% Constants
-
-default_result_limit() -> 50.
-
-max_result_limit() -> 50.
 
 %% ----------------------------------------------------------------------
 %% API
@@ -452,27 +441,12 @@ handle_lookup_messages(
   From = #jid{},
   ArcJID = #jid{},
   IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
-    %% Filtering by date.
-    %% Start :: integer() | undefined
-    Start = mod_mam_iq:elem_to_start_microseconds(QueryEl),
-    End = mod_mam_iq:elem_to_end_microseconds(QueryEl),
-    %% Filtering by contact.
-    SearchText = undefined,
-    With = mod_mam_iq:elem_to_with_jid(QueryEl),
-    RSM = mod_mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
-    Borders = borders_decode(QueryEl),
-    Limit = mod_mam_iq:elem_to_limit(QueryEl),
-    PageSize = min(max_result_limit(),
-                   maybe_integer(Limit, default_result_limit())),
-    LimitPassed = Limit =/= <<>>,
-    IsSimple = decode_optimizations(QueryEl),
-    case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With, SearchText,
-                         PageSize, LimitPassed, max_result_limit(), IsSimple) of
+    Params0 = mod_mam_iq:query_to_lookup_params(QueryEl),
+    Params = mod_mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
+    case lookup_messages(Host, Params) of
         {error, 'policy-violation'} ->
             ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
             ErrorEl = jlib:stanza_errort(<<"">>, <<"modify">>, <<"policy-violation">>,
@@ -505,37 +479,15 @@ handle_lookup_messages(
 -spec handle_set_message_form(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
                               IQ :: ejabberd:iq()) ->
                                      ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
-handle_set_message_form(
-  From = #jid{},
-  ArcJID = #jid{},
-  IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = p1_time_compat:system_time(micro_seconds),
+handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
+                        IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
-    %% Filtering by date.
-    %% Start :: integer() | undefined
-    Start = mod_mam_iq:form_to_start_microseconds(QueryEl),
-    End = mod_mam_iq:form_to_end_microseconds(QueryEl),
-    %% Filtering by contact.
-    With = mod_mam_iq:form_to_with_jid(QueryEl),
-    %% Filtering by text
-    Text  = mod_mam_utils:form_to_text(QueryEl),
-
-    RSM = mod_mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
-    Borders = form_borders_decode(QueryEl),
-    Limit = mod_mam_iq:elem_to_limit(QueryEl),
-    PageSize = min(max_result_limit(),
-                   maybe_integer(Limit, default_result_limit())),
-    %% Whether or not the client query included a <set/> element,
-    %% the server MAY simply return its limited results.
-    %% So, disable 'policy-violation'.
-    LimitPassed = true,
-    IsSimple = form_decode_optimizations(QueryEl),
-
-    case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With, Text,
-                         PageSize, LimitPassed, max_result_limit(), IsSimple) of
+    Params0 = mod_mam_iq:form_to_lookup_params(QueryEl),
+    Params = mod_mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
+    PageSize = maps:get(page_size, Params),
+    case lookup_messages(Host, Params) of
         {error, Reason} ->
             report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
@@ -678,41 +630,15 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
 
 
 %% See description in mod_mam.
--spec lookup_messages(Host :: ejabberd:server(),
-                      ArchiveID :: mod_mam:archive_id(),
-                      ArchiveJID :: ejabberd:jid(),
-                      RSM :: jlib:rsm_in()  | undefined,
-                      Borders :: mod_mam:borders()  | undefined,
-                      Start :: mod_mam:unix_timestamp()  | undefined,
-                      End :: mod_mam:unix_timestamp()  | undefined,
-                      Now :: mod_mam:unix_timestamp(),
-                      WithJID :: ejabberd:jid()  | undefined,
-                      SearchText :: binary() | undefined,
-                      PageSize :: non_neg_integer(), LimitPassed :: boolean(),
-                      MaxResultLimit :: non_neg_integer(),
-                      IsSimple :: boolean()  | opt_count) ->
-                             {ok, mod_mam:lookup_result()}
-                                 | {error, 'policy-violation'}
-                                 | {error, Reason :: term()}.%Result :: any(),
-lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
-                WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
+-spec lookup_messages(Host :: ejabberd:server(), Params :: map()) ->
+    {ok, mod_mam:lookup_result()}
+    | {error, 'policy-violation'}
+    | {error, Reason :: term()}.%Result :: any(),
+lookup_messages(Host, #{search_text := SearchText} = Params) ->
     case SearchText /= undefined andalso not mod_mam_utils:has_full_text_search(?MODULE, Host) of
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
-            Params = #{archive_id => ArcID,
-                       owner_jid => ArcJID,
-                       with_jid => WithJID,
-                       rsm => RSM,
-                       borders => Borders,
-                       start_ts => Start,
-                       end_ts => End,
-                       now => Now,
-                       search_text => SearchText,
-                       page_size => PageSize,
-                       limit_passed => LimitPassed,
-                       max_result_limit => MaxResultLimit,
-                       is_simple => IsSimple},
             ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
                                     [Host, Params])
     end.
