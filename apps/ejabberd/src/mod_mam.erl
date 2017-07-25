@@ -473,8 +473,8 @@ handle_lookup_messages(
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
-    Params0 = mod_mam_iq:query_to_lookup_params(QueryEl),
-    Params = mod_mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
+    Params0 = mam_iq:query_to_lookup_params(QueryEl),
+    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     case lookup_messages(Host, Params) of
         {error, 'policy-violation'} ->
             ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
@@ -510,8 +510,8 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
-    Params0 = mod_mam_iq:form_to_lookup_params(QueryEl),
-    Params = mod_mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
+    Params0 = mam_iq:form_to_lookup_params(QueryEl),
+    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     PageSize = maps:get(page_size, Params),
     case lookup_messages(Host, Params) of
         {error, Reason} ->
@@ -583,12 +583,12 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
     %% Start :: integer() | undefined
-    Start = mod_mam_iq:elem_to_start_microseconds(PurgeEl),
-    End   = mod_mam_iq:elem_to_end_microseconds(PurgeEl),
+    Start = mam_iq:elem_to_start_microseconds(PurgeEl),
+    End   = mam_iq:elem_to_end_microseconds(PurgeEl),
     %% Set borders.
     Borders = borders_decode(PurgeEl),
     %% Filtering by contact.
-    With  = mod_mam_iq:elem_to_with_jid(PurgeEl),
+    With  = mam_iq:elem_to_with_jid(PurgeEl),
     Res = purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                                   Start, End, Now, With),
     return_purge_multiple_message_iq(IQ, Res).
