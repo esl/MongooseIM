@@ -110,13 +110,6 @@
 
 %% ----------------------------------------------------------------------
 %% Other types
--type action() :: 'mam_get_prefs'
-                | 'mam_lookup_messages'
-                | 'mam_purge_multiple_messages'
-                | 'mam_purge_single_message'
-                | 'mam_set_prefs'
-                | 'mam_set_message_form'
-                | 'mam_get_message_form'.
 -type packet() :: any().
 -type row_batch() :: {TotalCount :: non_neg_integer(),
                       Offset :: non_neg_integer(),
@@ -268,10 +261,10 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
 -spec room_process_mam_iq(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
                           IQ :: ejabberd:iq()) -> {mongoose_acc:t(), ejabberd:iq() | 'ignore'}.
 room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
-    Action = iq_action(IQ),
+    Action = mam_iq:action(IQ),
     Res = case is_action_allowed(Action, From, To) of
         true ->
-            case wait_shaper(Host, Action, From) of
+            case mam_iq:wait_shaper(Host, Action, From) of
                 ok ->
                     handle_error_iq(Host, To, Action,
                                     handle_mam_iq(Action, From, To, IQ));
@@ -308,16 +301,16 @@ is_action_allowed(Action, From, To = #jid{lserver = Host}) ->
         default -> is_action_allowed_by_default(Action, From, To)
     end.
 
--spec is_action_allowed_by_default(Action :: action(), From :: ejabberd:jid(),
+-spec is_action_allowed_by_default(Action :: mam_iq:action(), From :: ejabberd:jid(),
                                    To :: ejabberd:jid()) -> boolean().
 is_action_allowed_by_default(Action, From, To) ->
     is_room_action_allowed_by_default(Action, From, To).
 
 
--spec is_room_action_allowed_by_default(Action :: action(),
+-spec is_room_action_allowed_by_default(Action :: mam_iq:action(),
                                         From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
 is_room_action_allowed_by_default(Action, From, To) ->
-    case action_type(Action) of
+    case mam_iq:action_type(Action) of
         set -> is_room_owner(From, To);
         get -> can_access_room(From, To)
     end.
@@ -341,26 +334,7 @@ can_access_room(User, Room) ->
     ejabberd_hooks:run_fold(can_access_room, Room#jid.lserver, false, [Room, User]).
 
 
--spec action_type(action()) -> 'get' | 'set'.
-action_type(mam_get_prefs) -> get;
-action_type(mam_set_prefs) -> set;
-action_type(mam_lookup_messages) -> get;
-action_type(mam_set_message_form) -> get;
-action_type(mam_get_message_form) -> get;
-action_type(mam_purge_single_message) -> set;
-action_type(mam_purge_multiple_messages) -> set.
-
-
--spec action_to_shaper_name(action()) -> atom().
-action_to_shaper_name(Action) ->
-    list_to_atom(atom_to_list(Action) ++ "_shaper").
-
-
--spec action_to_global_shaper_name(action()) -> atom().
-action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
-
-
--spec handle_mam_iq('mam_get_prefs', From :: ejabberd:jid(), ejabberd:jid(),
+-spec handle_mam_iq(mam_iq:action(), From :: ejabberd:jid(), ejabberd:jid(),
                     ejabberd:iq()) ->
                            ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_mam_iq(Action, From, To, IQ) ->
@@ -379,39 +353,6 @@ handle_mam_iq(Action, From, To, IQ) ->
             handle_purge_single_message(To, IQ);
         mam_purge_multiple_messages ->
             handle_purge_multiple_messages(To, IQ)
-    end.
-
-
--spec iq_action(ejabberd:iq()) -> action().
-iq_action(IQ = #iq{xmlns = ?NS_MAM}) ->
-    iq_action02(IQ);
-iq_action(IQ = #iq{xmlns = ?NS_MAM_03}) ->
-    iq_action03(IQ);
-iq_action(IQ = #iq{xmlns = ?NS_MAM_04}) ->
-    iq_action03(IQ);
-iq_action(IQ = #iq{xmlns = ?NS_MAM_06}) ->
-    iq_action03(IQ).
-
-iq_action02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
-    case {Action, Category} of
-        {set, <<"prefs">>} -> mam_set_prefs;
-        {get, <<"prefs">>} -> mam_get_prefs;
-        {get, <<"query">>} -> mam_lookup_messages;
-        {set, <<"purge">>} ->
-            case exml_query:attr(SubEl, <<"id">>) of
-                undefined -> mam_purge_multiple_messages;
-                _ -> mam_purge_single_message
-            end
-    end.
-
-iq_action03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
-    case {Action, Category} of
-        {set, <<"prefs">>} -> mam_set_prefs;
-        {get, <<"prefs">>} -> mam_get_prefs;
-        {get, <<"query">>} -> mam_get_message_form;
-        {set, <<"query">>} -> mam_set_message_form
-                              %% Purge is NOT official extention, it is not implemented for
-                              %% XEP-0313 v0.3. Use v0.2 namespace if you really want it.
     end.
 
 -spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) ->
@@ -694,17 +635,6 @@ purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                         Start, End, Now, WithJID) ->
     ejabberd_hooks:run_fold(mam_muc_purge_multiple_messages, Host, ok,
                             [Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID]).
-
-
--spec wait_shaper(ejabberd:server(), action(), ejabberd:jid())
-                 -> 'ok' | {'error', 'max_delay_reached'}.
-wait_shaper(Host, Action, From) ->
-    case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of
-        ok ->
-            shaper_srv:wait(Host, action_to_global_shaper_name(Action), global, 1);
-        Err ->
-            Err
-    end.
 
 %% ----------------------------------------------------------------------
 %% Helpers
