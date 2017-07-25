@@ -101,7 +101,8 @@ groups() -> [
                                         stopped_members_only_room_process_invitations_correctly,
                                         room_with_participants_is_not_stopped,
                                         room_with_only_owner_is_stopped,
-                                        deep_hibernation_metrics_are_updated
+                                        deep_hibernation_metrics_are_updated,
+                                        can_found_in_db_when_stopped
                                        ]},
         {disco, [parallel], [
                 disco_service,
@@ -4126,6 +4127,19 @@ room_with_only_owner_is_stopped(Config) ->
 
         Unavailable = escalus:wait_for_stanza(Alice),
         escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable)
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+can_found_in_db_when_stopped(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        {ok, _, Pid} = given_fresh_room_is_hibernated(
+                         Alice, RoomName, [{persistentroom, true}]),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+        {ok, _} = escalus_ejabberd:rpc(mod_muc, restore_room,
+                                       [domain(), muc_host(), RoomName])
     end),
 
     destroy_room(muc_host(), RoomName),
