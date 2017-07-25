@@ -333,16 +333,20 @@ lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
     lookup_recent_messages(ArcJID, jid:from_binary(With), Before, Limit);
 lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     Host = ArcJID#jid.server,
-    ArcID = mod_mam:archive_id(Host, ArcJID#jid.user),
-    RSM = #rsm_in{direction = before, id = undefined}, % last msgs
-    End = Before * 1000000,
-    Now = p1_time_compat:os_system_time(micro_seconds),
-    PageSize = Limit,
-    R = mod_mam:lookup_messages(Host, ArcID, _ArchiveJID = ArcJID, RSM,
-                                _Borders = undefined, _Start = undefined,
-                                End, Now, WithJID, _SearchText = undefined,
-                                PageSize, _LimitPassed = false,
-                                _MaxResultLimit = 50, _IsSimple = true),
+    Params = #{archive_id => mod_mam:archive_id(Host, ArcJID#jid.user),
+               owner_jid => ArcJID,
+               borders => undefined,
+               rsm => #rsm_in{direction = before, id = undefined}, % last msgs
+               start_ts => undefined,
+               end_ts => Before * 1000000,
+               now => p1_time_compat:os_system_time(micro_seconds),
+               with_jid => WithJID,
+               search_text => undefined,
+               page_size => Limit,
+               limit_passed => false,
+               max_result_limit => 1,
+               is_simple => true},
+    R = mod_mam:lookup_messages(Host, Params),
     {ok, {_, _, L}} = R,
     L.
 
