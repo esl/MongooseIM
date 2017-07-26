@@ -414,17 +414,9 @@ handle_lookup_messages(
             report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
         {ok, {TotalCount, Offset, MessageRows}} ->
-            {FirstMessID, LastMessID, HideUser} =
-                case MessageRows of
-                    [] -> {undefined, undefined, undefined};
-                    [_ | _] -> {message_row_to_ext_id(hd(MessageRows)),
-                                message_row_to_ext_id(lists:last(MessageRows)),
-                                is_user_identity_hidden(From, ArcJID)}
-                end,
-            SetClientNs = false,
-            [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs,
-                                                           Row, QueryID))
-             || Row <- MessageRows],
+            {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
+                                                         QueryID, MessageRows, false),
+
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
             ResultQueryEl = result_query(ResultSetEl, MamNs),
             %% On receiving the query, the server pushes to the client a series of
@@ -455,19 +447,8 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
             %% Server accepts the query
             ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
 
-
-            %% Forward messages
-            {FirstMessID, LastMessID, HideUser} =
-                case MessageRows of
-                    [] -> {undefined, undefined, undefined};
-                    [_ | _] -> {message_row_to_ext_id(hd(MessageRows)),
-                                message_row_to_ext_id(lists:last(MessageRows)),
-                                is_user_identity_hidden(From, ArcJID)}
-                end,
-            SetClientNs = true,
-            [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row,
-                                                           QueryID))
-             || Row <- MessageRows],
+            {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
+                                                         QueryID, MessageRows, true),
 
             %% Make fin message
             IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
@@ -478,27 +459,37 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
 
             %% IQ was sent above
             ignore;
-        {ok, {TotalCount, Offset, MessageRows}} ->
-            %% Forward messages
-            {FirstMessID, LastMessID, HideUser} =
-                case MessageRows of
-                    [] -> {undefined, undefined, undefined};
-                    [_ | _] -> {message_row_to_ext_id(hd(MessageRows)),
-                                message_row_to_ext_id(lists:last(MessageRows)),
-                                is_user_identity_hidden(From, ArcJID)}
-                end,
-            SetClientNs = true,
-            [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row,
-                                                           QueryID))
-             || Row <- MessageRows],
-
-            %% Make fin iq
-            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
-            IsStable = true,
-            ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-            FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
-            IQ#iq{type = result, sub_el = [FinElem]}
+        {ok, Result} ->
+            send_messages_and_iq_result(Result, From, ArcJID, IQ, MamNs, QueryID,
+                                        PageSize)
     end.
+
+send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From, ArcJID, IQ,
+                            MamNs, QueryID, PageSize) ->
+    %% Forward messages
+    {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
+                                                 QueryID, MessageRows, true),
+
+    %% Make fin iq
+    IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+    IsStable = true,
+    ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+    FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
+    IQ#iq{type = result, sub_el = [FinElem]}.
+
+forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
+    %% Forward messages
+    {FirstMessID, LastMessID, HideUser} =
+        case MessageRows of
+            [] -> {undefined, undefined, undefined};
+            [_ | _] -> {message_row_to_ext_id(hd(MessageRows)),
+                        message_row_to_ext_id(lists:last(MessageRows)),
+                        is_user_identity_hidden(From, ArcJID)}
+        end,
+    [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row,
+                                                   QueryID))
+     || Row <- MessageRows],
+    {FirstMessID, LastMessID}.
 
 -spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
                                      ejabberd:iq().
@@ -647,14 +638,9 @@ message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID, SrcJID, P
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
     Packet1 = maybe_delete_x_user_element(HideUser, ReceiverJID, Packet),
-    Packet2 = maybe_set_client_xmlns(SetClientNs, Packet1),
+    Packet2 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet1),
     Packet3 = replace_from_to_attributes(SrcJID, Packet2),
     wrap_message(MamNs, Packet3, QueryID, BExtMessID, DateTime, SrcJID).
-
-maybe_set_client_xmlns(true, Packet) ->
-    set_client_xmlns(Packet);
-maybe_set_client_xmlns(false, Packet) ->
-    Packet.
 
 maybe_delete_x_user_element(true, ReceiverJID, Packet) ->
     PacketJID = packet_to_x_user_jid(Packet),
@@ -678,9 +664,6 @@ replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
 -spec message_row_to_ext_id(row()) -> binary().
 message_row_to_ext_id({MessID, _, _}) ->
     mess_id_to_external_binary(MessID).
-
-set_client_xmlns(M) ->
-    xml:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, M).
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_muc_drop_iq, Host,

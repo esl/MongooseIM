@@ -453,14 +453,8 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
             report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
         {ok, {TotalCount, Offset, MessageRows}} ->
-            {FirstMessID, LastMessID} =
-                case MessageRows of
-                    []    -> {undefined, undefined};
-                    [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
-                              message_row_to_ext_id(lists:last(MessageRows))}
-                end,
-            [send_message(ArcJID, From, message_row_to_xml(MamNs, M, QueryID))
-             || M <- MessageRows],
+            {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
+                                                         QueryID, MessageRows, false),
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
             ResultQueryEl = result_query(ResultSetEl, MamNs),
             %% On receiving the query, the server pushes to the client a series of
@@ -491,19 +485,8 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
             %% Server accepts the query
             ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
 
-            %% Forward messages
-            {FirstMessID, LastMessID} =
-                case MessageRows of
-                    []    -> {undefined, undefined};
-                    [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
-                              message_row_to_ext_id(lists:last(MessageRows))}
-                end,
-
-            lists:foreach(
-                fun(M) ->
-                    send_message(ArcJID, From,
-                                 message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
-                end, MessageRows),
+            {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
+                                                         QueryID, MessageRows, true),
 
             %% Make fin message
             IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
@@ -516,18 +499,8 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
             ignore;
         {ok, {TotalCount, Offset, MessageRows}} ->
             %% Forward messages
-            {FirstMessID, LastMessID} =
-                case MessageRows of
-                    []    -> {undefined, undefined};
-                    [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
-                              message_row_to_ext_id(lists:last(MessageRows))}
-                end,
-            lists:foreach(
-                fun(M) ->
-                    send_message(ArcJID, From,
-                                 message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
-                end, MessageRows),
-
+            {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
+                                                         QueryID, MessageRows, true),
             %% Make fin iq
             IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
             IsStable = true,
@@ -535,6 +508,20 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
             FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
             IQ#iq{type = result, sub_el = [FinElem]}
     end.
+
+forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
+    %% Forward messages
+    {FirstMessID, LastMessID} =
+    case MessageRows of
+        [] -> {undefined, undefined};
+        [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
+                  message_row_to_ext_id(lists:last(MessageRows))}
+    end,
+
+    [send_message(ArcJID, From,
+                  message_row_to_xml(MamNs, M, QueryID, SetClientNs))
+     || M <- MessageRows],
+    {FirstMessID, LastMessID}.
 
 -spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
                                      ejabberd:iq().
@@ -739,22 +726,17 @@ purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID) 
 -type messid_jid_packet() :: {MessId :: integer(),
                               SrcJID :: ejabberd:jid(),
                               Packet :: jlib:xmlel()}.
--spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary()) -> jlib:xmlel().
-message_row_to_xml(MamNs, {MessID, SrcJID, Packet}, QueryID) ->
+-spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary(), boolean()) -> jlib:xmlel().
+message_row_to_xml(MamNs, {MessID, SrcJID, Packet}, QueryID, SetClientNs) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
-    wrap_message(MamNs, Packet, QueryID, BExtMessID, DateTime, SrcJID).
-
-set_client_xmlns_for_row({MessID, SrcJID, Packet}) ->
-    {MessID, SrcJID, set_client_xmlns(Packet)}.
+    Packet1 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet),
+    wrap_message(MamNs, Packet1, QueryID, BExtMessID, DateTime, SrcJID).
 
 -spec message_row_to_ext_id(messid_jid_packet()) -> binary().
 message_row_to_ext_id({MessID, _, _}) ->
     mess_id_to_external_binary(MessID).
-
-set_client_xmlns(M) ->
-    xml:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, M).
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_drop_iq, Host, [Host, To, IQ, Action, Reason]),

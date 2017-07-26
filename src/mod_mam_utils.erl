@@ -84,6 +84,7 @@
 
 %% Ejabberd
 -export([send_message/3,
+         maybe_set_client_xmlns/2,
          is_jid_in_user_roster/2]).
 
 %-define(MAM_INLINE_UTILS, true).
@@ -983,6 +984,12 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
     %%     it's not possible case: the page is bigger then page size.
     %% Otherwise either TotalCount or Offset is undefined because of optimizations.
     false.
+
+-spec maybe_set_client_xmlns(boolean(), exml:element()) -> exml:element().
+maybe_set_client_xmlns(true, Packet) ->
+    xml:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, Packet);
+maybe_set_client_xmlns(false, Packet) ->
+    Packet.
 
 %% -----------------------------------------------------------------------
 %% Ejabberd
