@@ -10,9 +10,11 @@ Since you've gotten this far, we assume you're already familiar with Erlang synt
 
 # ejabberd.cfg
 
-This file consists of multiple erlang tuples terminated with a period. To configure it, go to `[MongooseIM root]/rel/files/`.
+This file consists of multiple erlang tuples terminated with a period.
+In order to configure it, go to `[MongooseIM repo root]/rel/files/` (if you're building from source) or `[MongooseIM install root]/etc/` if you're using a pre-built version.
 
-The tuple order is important, unless the no `host_config` option is set. Retaining the default layout is recommended so that the experienced MongooseIM users can smoothly traverse the file.
+The tuple order is important, unless no `host_config` option is set.
+Retaining the default layout is recommended so that the experienced MongooseIM users can smoothly traverse the file.
 
 `ejabberd.cfg` is full of useful comments and in most cases they should be sufficient help in changing the configuration.
 
@@ -24,7 +26,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 * "global" options are shared by all cluster nodes and all domains.
 
-* "multi" options can be declared multiple times in a row, e.g. one per domain.
+* Options labeled as "multi" (in this page) can be declared multiple times in a row, e.g. one per domain.
 
 * Section names below correspond with the ones in the file.
 
@@ -74,6 +76,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 * **domain_certfile** (multi, global)
     * **Description:** Overrides common certificates with new ones specific for chosen XMPP domains.
+                       Applies to S2S and C2S connections.
     * **Syntax:** `{domain_certfile, "example.com", "/path/to/example.com.pem"}.`
 
 * **s2s_default_policy** (local)
@@ -183,6 +186,13 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
         
 - `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `ejabberd.cfg` file.
 
+- **sasl_mechanisms** (local)
+    * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
+    * **Warning:** This list is still filtered by auth backends capabilities, e.g. LDAP authentication requires a password provided via SALS PLAIN.
+    * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth`
+    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth]`
+    * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_anonymous, cyrsasl_scram]`
+
 ### Database setup
 
 #### Connection pools
@@ -232,7 +242,9 @@ See [Database backends configuration](./advanced-configuration/database-backends
     * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
 
 * **max_fsm_queue** (local)
-    * **Description:** When enabled, will terminate certain processes (e.g. client handlers) that exceed message limit, to prevent resource exhaustion. This option is set for all the listeners but can be overridden for particular `ejabberd_s2s` or `ejabberd_service` listeners in their configurations. **Use with caution!**
+    * **Description:** When enabled, will terminate certain processes (e.g. client handlers) that exceed message limit, to prevent resource exhaustion.
+                       This option is set for C2S, outgoing S2S and component connections and can be overridden for particular `ejabberd_s2s` or `ejabberd_service` listeners in their configurations.
+                       **Use with caution!**
     * **Syntax:** `{max_fsm_queue, MaxFsmQueueLength}`
 
 ### Access control lists
