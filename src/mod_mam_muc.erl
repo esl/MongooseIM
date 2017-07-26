@@ -55,6 +55,8 @@
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 -export([set_params/1]).
+-export([handle_set_message_form/3]).
+-export([send_messages_and_iq_result/4]).
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -243,7 +245,7 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
             case Result of
                 ok ->
                     maybe_add_arcid_elems(RoomJID,
-                                             mess_id_to_external_binary(MessID),
+                                          mess_id_to_external_binary(MessID),
                                              Packet,
                                              add_archived_element(),
                                              add_stanzaid_element());
@@ -460,13 +462,14 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
             %% IQ was sent above
             ignore;
         {ok, Result} ->
-            send_messages_and_iq_result(Result, From, ArcJID, IQ, MamNs, QueryID,
-                                        PageSize)
+            send_messages_and_iq_result(Result, From, IQ, Params)
     end.
 
-send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From, ArcJID, IQ,
-                            MamNs, QueryID, PageSize) ->
+send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From,
+                            #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
+                            #{owner_jid := ArcJID, page_size := PageSize}) ->
     %% Forward messages
+    QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
     {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
                                                  QueryID, MessageRows, true),
 
