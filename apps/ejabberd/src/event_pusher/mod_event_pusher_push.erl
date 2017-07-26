@@ -112,7 +112,8 @@ do_push_event(Host, #chat_event{from = From, to = To, packet = Packet}) ->
 -spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
     mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
-    R = mod_event_pusher_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>), undefined, undefined),
+    R = mod_event_pusher_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>),
+                                              undefined, undefined),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
     Acc.
 
@@ -123,10 +124,12 @@ iq_handler(_From, _To, IQ = #iq{type = get, sub_el = SubEl}) ->
 iq_handler(From, _To, IQ = #iq{type = set, sub_el = Request}) ->
     case parse_request(Request) of
         {enable, BarePubsubJID, Node, FormFields} ->
-            ok = mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubsubJID, Node, FormFields),
+            ok = mod_event_pusher_push_backend:enable(
+                   jid:to_bare(From), BarePubsubJID, Node, FormFields),
             IQ#iq{type = result, sub_el = []};
         {disable, BarePubsubJID, Node} ->
-            ok = mod_event_pusher_push_backend:disable(jid:to_bare(From), BarePubsubJID, Node),
+            ok = mod_event_pusher_push_backend:disable(
+                   jid:to_bare(From), BarePubsubJID, Node),
             IQ#iq{type = result, sub_el = []};
         bad_request ->
             IQ#iq{type = error, sub_el = [Request, ?ERR_BAD_REQUEST]}
