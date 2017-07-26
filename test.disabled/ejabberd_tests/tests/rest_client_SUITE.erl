@@ -45,6 +45,8 @@ message_test_cases() ->
 muc_test_cases() ->
      [room_is_created,
       room_is_created_with_given_identifier,
+      room_is_created_with_given_jid,
+      room_is_not_created_with_jid_not_matching_hostname,
       user_is_invited_to_a_room,
       user_is_removed_from_a_room,
       rooms_can_be_listed,
@@ -221,6 +223,27 @@ room_is_created_with_given_identifier(Config) ->
         GivenRoomID = given_new_room({alice, Alice}, GivenRoomID),
         RoomInfo = get_room_info({alice, Alice}, GivenRoomID),
         assert_room_info(Alice, RoomInfo)
+    end).
+
+room_is_created_with_given_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"some_id">>,
+        RoomJID = <<RoomID/binary, "@muclight.localhost">>,
+        RoomID = given_new_room({alice, Alice}, RoomJID),
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_room_info(Alice, RoomInfo)
+    end).
+
+room_is_not_created_with_jid_not_matching_hostname(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"some_id">>,
+        RoomJID = <<RoomID/binary, "@muclight.wrongdomain">>,
+        Creds = credentials({alice, Alice}),
+        {{Status, _}, _} = create_room_with_id_request(Creds,
+                                                       <<"some_name">>,
+                                                       <<"some subject">>,
+                                                       RoomJID),
+        ?assertEqual(<<"400">>, Status)
     end).
 
 rooms_can_be_listed(Config) ->
@@ -460,11 +483,15 @@ create_room({_AliceJID, _} = Creds, RoomName, Subject) ->
     proplists:get_value(<<"id">>, Result).
 
 create_room_with_id({_AliceJID, _} = Creds, RoomName, Subject, RoomID) ->
+    {{<<"201">>, <<"Created">>}, {Result}} =
+        create_room_with_id_request(Creds, RoomName, Subject, RoomID),
+    proplists:get_value(<<"id">>, Result).
+
+create_room_with_id_request(Creds, RoomName, Subject, RoomID) ->
     Room = #{name => RoomName,
              subject => Subject},
     Path = <<"/rooms/", RoomID/binary>>,
-    {{<<"201">>, <<"Created">>}, {Result}} = rest_helper:putt(Path, Room, Creds),
-    proplists:get_value(<<"id">>, Result).
+    rest_helper:putt(Path, Room, Creds).
 
 get_my_rooms(User) ->
     Creds = credentials(User),

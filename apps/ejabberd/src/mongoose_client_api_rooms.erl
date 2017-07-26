@@ -122,8 +122,24 @@ handle_request_by_method(<<"PUT">>, JSONData, Req,
                          #{user := User, jid := #jid{lserver = Server}}) ->
     #{<<"name">>    := RoomName,
       <<"subject">> := Subject} = JSONData,
-    {RoomID, _Req2} = cowboy_req:binding(id, Req),
-    mod_muc_light_commands:create_identifiable_room(Server, RoomID, RoomName, User, Subject).
+    {IDOrJID, _Req2} = cowboy_req:binding(id, Req),
+    MUCLightServer = muc_light_domain(Server),
+    case extract_room_id(IDOrJID) of
+        {ok, RoomID, <<>>} ->
+            mod_muc_light_commands:create_identifiable_room(Server,
+                                                            RoomID,
+                                                            RoomName,
+                                                            User,
+                                                            Subject);
+        {ok, RoomID, MUCLightServer} ->
+            mod_muc_light_commands:create_identifiable_room(Server,
+                                                            RoomID,
+                                                            RoomName,
+                                                            User,
+                                                            Subject);
+        _ ->
+            {error, bad_request}
+    end.
 
 user_to_json({UserServer, Role}) ->
     #{user => jid:to_binary(UserServer),
@@ -137,4 +153,16 @@ determine_role(US, Users) ->
         false -> none;
         {_, Role} ->
             Role
+    end.
+
+-spec extract_room_id(RoomIDOrJID :: binary()) ->
+    {ok, RoomID :: binary(), Server :: binary()} | error.
+extract_room_id(RoomIDOrJID) ->
+    case jid:from_binary(RoomIDOrJID) of
+        #jid{luser = <<>>, lserver = RoomID, lresource = <<>>} ->
+            {ok, RoomID, <<>>};
+        #jid{luser = RoomID, lserver = Server, lresource = <<>>} ->
+            {ok, RoomID, Server};
+        _ ->
+            error
     end.
