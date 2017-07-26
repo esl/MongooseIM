@@ -1,10 +1,10 @@
 # Module description
 
-This module enables forwarding certain events (messages, presence, etc.) via HTTP to external services such as push (by mobile, email or SMS), big data, or analytics services.
+This module as a backend of [mod_event_pusher] that enables forwarding certain events (messages, presence, etc.) via HTTP to external services such as push (by mobile, email or SMS), big data, or analytics services.
 
 ## How it works
 
-The module registers a `user_send_packet` hook every time a user sends anything. When the hook is triggered, the module:
+The module registers a hook every time a user sends a message. When the hook is triggered, the module:
 
 * checks whether http_notification is enabled (the `host` param is set)
 * runs a callback module's `should_make_req/3` function to see if a notification should be sent
@@ -31,6 +31,17 @@ This module uses a connection pool created by mongoose_http_client. It must be d
                              {pool_size, 50}, {path_prefix, "/webservice"}]}
                    ]}.`
 
-  `{mod_http_notification, [{pool_name, http_pool}, {path, "/notifications"}]}`
+```erlang
+{mod_event_pusher, [
+    {backends, [
+        {http_notification, [
+            {pool_name, http_pool},
+            {path, "/notifications"}
+        ]}
+    ]}
+]}
+```
 
 Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
+
+[event_pusher]: ./mod_event_pusher

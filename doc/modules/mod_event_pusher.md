@@ -9,7 +9,7 @@ Common events like user presence change (offline and online), chat and groupchat
 ### Options
 
 * **backends** (required, list) - Specifies backends to register with the frontend, along with arguments that will be passed to the backend.
-Currently supported backends include [sns] and [push].
+Currently supported backends include [sns], [push] and [http_notification].
 Refer to their specific documentation to learn more about their function and configuration option.
 
 ### Example configuration
@@ -33,3 +33,4 @@ Refer to their specific documentation to learn more about their function and con
 
 [sns]: ./mod_aws_sns/
 [push]: ./mod_push/
+[http_notification]: ./mod_http_notification/

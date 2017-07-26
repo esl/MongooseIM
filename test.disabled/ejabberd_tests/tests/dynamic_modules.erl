@@ -10,25 +10,29 @@ save_modules(Domain, Config) ->
 
 ensure_modules(Domain, RequiredModules) ->
     CurrentModules = get_current_modules(Domain),
-    [ensure_module(Domain, Mod, Opts, proplists:get_value(Mod, CurrentModules, stopped))
-        || {Mod, Opts} <- RequiredModules].
+    {ToReplace, ReplaceWith} = to_replace(RequiredModules, CurrentModules, [], []),
+    ok = escalus_ejabberd:rpc(gen_mod_deps, replace_modules,
+                              [Domain, ToReplace, ReplaceWith]).
+
+to_replace([], _CurrentModules, ReplaceAcc, ReplaceWithAcc) ->
+    {lists:usort(ReplaceAcc), ReplaceWithAcc};
+to_replace([RequiredModule | Rest], CurrentModules, ReplaceAcc, ReplaceWithAcc) ->
+    {Mod, Opts} = RequiredModule,
+    {NewReplaceAcc, NewReplaceWithAcc} =
+        case lists:keyfind(Mod, 1, CurrentModules) of
+            false when Opts =:= stopped -> {ReplaceAcc, ReplaceWithAcc};
+            false -> {ReplaceAcc, [RequiredModule | ReplaceWithAcc]};
+            {Mod, Opts} -> {ReplaceAcc, ReplaceWithAcc};
+            ExistingMod when Opts =:= stopped -> {[ExistingMod | ReplaceAcc], ReplaceWithAcc};
+            ExistingMod -> {[ExistingMod | ReplaceAcc], [RequiredModule | ReplaceWithAcc]}
+        end,
+    to_replace(Rest, CurrentModules, NewReplaceAcc, NewReplaceWithAcc).
 
 restore_modules(Domain, Config) ->
     SavedModules = ?config(saved_modules, Config),
     CurrentModules = get_current_modules(Domain),
-    [ensure_module(Domain, Mod, stopped, Opts) || {Mod, Opts} <- CurrentModules,
-            not lists:keymember(Mod, 1, SavedModules)],
-    [ensure_module(Domain, Mod, Opts, proplists:get_value(Mod, CurrentModules, stopped))
-        || {Mod, Opts} <- SavedModules].
-
-ensure_module(_Domain, _Mod, _Opts, _Opts) ->
-    ok;
-ensure_module(Domain, Mod, stopped, Opts) ->
-    stop(Domain, Mod);
-ensure_module(Domain, Mod, Opts, stopped) ->
-    start(Domain, Mod, Opts);
-ensure_module(Domain, Mod, RequiredOpts, CurrentOpts) ->
-    restart(Domain, Mod, RequiredOpts).
+    escalus_ejabberd:rpc(gen_mod_deps, replace_modules,
+                         [Domain, CurrentModules, SavedModules]).
 
 get_current_modules(Domain) ->
     escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]).

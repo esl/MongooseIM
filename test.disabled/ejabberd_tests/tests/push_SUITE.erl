@@ -92,26 +92,24 @@ init_per_group(disco, Config) ->
 init_per_group(muclight_msg_notifications, Config0) ->
     Host = ct:get_config({hosts, mim, domain}),
     Config = init_per_group(generic_group, Config0),
-    dynamic_modules:start(Host, mod_muc_light,
-                          [{host, binary_to_list(?MUCHOST)},
-                           {backend, mnesia},
-                           {rooms_in_rosters, true}]),
+    dynamic_modules:ensure_modules(Host, [{mod_muc_light,
+                                           [{host, binary_to_list(?MUCHOST)},
+                                            {backend, mnesia},
+                                            {rooms_in_rosters, true}]}]),
     rpc(mod_muc_light_db_backend, force_clear, []),
     Config;
 init_per_group(_, Config0) ->
-    Config = [{push_config, ?PUSH_OPTS} | Config0],
+    Config1 = [{push_config, ?PUSH_OPTS} | Config0],
     Host = ct:get_config({hosts, mim, domain}),
-    OldModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
-    rpc(gen_mod_deps, start_modules, [Host, [{mod_push, ?PUSH_OPTS}]]),
-    [{old_modules, OldModules} | Config].
+    Config = dynamic_modules:save_modules(Host, Config1),
+    dynamic_modules:ensure_modules(Host, [{mod_push, ?PUSH_OPTS}]),
+    Config.
 
 end_per_group(disco, Config) ->
     Config;
 end_per_group(_, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    OldModules = ?config(old_modules, Config),
-    CurrentModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
-    rpc(gen_mod_deps, replace_modules, [Host, CurrentModules, OldModules]),
+    dynamic_modules:restore_modules(Host, Config),
     Config.
 
 init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
@@ -145,7 +143,6 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 push_notifications_listed_disco_when_available(Config) ->
-    ct:fail("haha!"),
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->

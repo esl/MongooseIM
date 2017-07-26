@@ -66,7 +66,7 @@ filter_packet({From, To = #jid{lserver = Host}, Acc, Packet}) ->
 
 -spec user_send_packet(mongoose_acc:t(), From :: ejabberd:jid(), To :: ejabberd:jid(),
                        Packet :: jlib:xmlel()) -> mongoose_acc:t().
-user_send_packet(Acc, From, To, Packet) ->
+user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
     case chat_type(Acc) of
         false -> skip;
         Type ->
@@ -74,6 +74,8 @@ user_send_packet(Acc, From, To, Packet) ->
                                         #chat_event{type = Type, direction = in,
                                                     from = From, to = To, packet = Packet})
     end,
+    Acc;
+user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
 -spec user_present(mongoose_acc:t(), UserJID :: ejabberd:jid()) -> mongoose_acc:t().

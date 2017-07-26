@@ -8,7 +8,7 @@
 -module(mod_http_notification_default).
 -author("baibossynov.valery@gmail.com").
 
--behaviour(mod_http_notification).
+-behaviour(mod_event_pusher_http_notification).
 
 %% API
 -export([should_make_req/3]).
