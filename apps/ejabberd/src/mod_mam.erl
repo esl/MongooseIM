@@ -465,11 +465,8 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
                              IQ :: ejabberd:iq()) ->
                                     ejabberd:iq() | {error, term(), ejabberd:iq()}.
-handle_lookup_messages(
-  From=#jid{},
-  ArcJID=#jid{},
-  IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
-    Namespace = IQ#iq.xmlns,
+handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
+                       #iq{xmlns=MamNs, sub_el = QueryEl} = IQ) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
@@ -494,7 +491,7 @@ handle_lookup_messages(
             [send_message(ArcJID, From, message_row_to_xml(MamNs, M, QueryID))
              || M <- MessageRows],
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-            ResultQueryEl = result_query(ResultSetEl, Namespace),
+            ResultQueryEl = result_query(ResultSetEl, MamNs),
             %% On receiving the query, the server pushes to the client a series of
             %% messages from the archive that match the client's given criteria,
             %% and finally returns the <iq/> result.
