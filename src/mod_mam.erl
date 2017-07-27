@@ -193,7 +193,7 @@ start(Host, Opts) ->
         undefined -> ok;
         _ ->
             mongoose_deprecations:log(mam02, "<archived/> element is going to be removed in release 3.0.0"
-                                             " It is not recommended to use it."
+                         " It is not recommended to use it."
                                              " Consider using a <stanza-id/> element instead")
     end,
 
@@ -440,8 +440,10 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    Params0 = mam_iq:query_to_lookup_params(QueryEl, mod_mam_params:max_result_limit(),
-                                           mod_mam_params:default_result_limit()),
+    ExtraParamsModule = gen_mod:get_module_opt(Host, ?MODULE, extra_lookup_params, undefined),
+    Params0 = mam_iq:query_to_lookup_params(IQ, mod_mam_params:max_result_limit(),
+                                            mod_mam_params:default_result_limit(),
+                                            ExtraParamsModule),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     case lookup_messages(Host, Params) of
         {error, 'policy-violation'} ->
@@ -472,8 +474,10 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    Params0 = mam_iq:form_to_lookup_params(QueryEl, mod_mam_params:max_result_limit(),
-                                           mod_mam_params:default_result_limit()),
+    ExtraParamsModule = gen_mod:get_module_opt(Host, ?MODULE, extra_lookup_params, undefined),
+    Params0 = mam_iq:form_to_lookup_params(IQ, mod_mam_params:max_result_limit(),
+                                           mod_mam_params:default_result_limit(),
+                                           ExtraParamsModule),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     PageSize = maps:get(page_size, Params),
     case lookup_messages(Host, Params) of
@@ -726,7 +730,8 @@ purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID) 
 -type messid_jid_packet() :: {MessId :: integer(),
                               SrcJID :: ejabberd:jid(),
                               Packet :: jlib:xmlel()}.
--spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary(), boolean()) -> jlib:xmlel().
+-spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary(), boolean()) ->
+    jlib:xmlel().
 message_row_to_xml(MamNs, {MessID, SrcJID, Packet}, QueryID, SetClientNs) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),

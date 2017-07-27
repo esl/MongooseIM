@@ -9,12 +9,12 @@
 -export([elem_to_end_microseconds/1]).
 -export([elem_to_with_jid/1]).
 -export([elem_to_limit/1]).
--export([query_to_lookup_params/3]).
+-export([query_to_lookup_params/4]).
 
 -export([form_to_start_microseconds/1]).
 -export([form_to_end_microseconds/1]).
 -export([form_to_with_jid/1]).
--export([form_to_lookup_params/3]).
+-export([form_to_lookup_params/4]).
 
 -export([lookup_params_with_archive_details/3]).
 
@@ -34,6 +34,8 @@
                  | 'mam_get_message_form'.
 
 -export_type([action/0]).
+
+-callback extra_lookup_params(iq(), map()) -> map().
 
 -spec action(ejabberd:iq()) -> action().
 action(IQ = #iq{xmlns = ?NS_MAM}) ->
@@ -157,48 +159,54 @@ maybe_jid(<<>>) ->
 maybe_jid(JID) when is_binary(JID) ->
     jid:from_binary(JID).
 
-query_to_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
+-spec query_to_lookup_params(iq(), integer(), integer(), undefined | module()) -> map().
+query_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultLimit, Module) ->
     Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
-    Params0#{
-      %% Filtering by date.
-      %% Start :: integer() | undefined
-    start_ts => mam_iq:elem_to_start_microseconds(QueryEl),
-    end_ts => mam_iq:elem_to_end_microseconds(QueryEl),
-      %% Filtering by contact.
-      search_text => undefined,
-      with_jid => elem_to_with_jid(QueryEl),
-      borders => mod_mam_utils:borders_decode(QueryEl),
-      is_simple => mod_mam_utils:decode_optimizations(QueryEl)}.
+    Params = Params0#{
+               %% Filtering by date.
+               %% Start :: integer() | undefined
+               start_ts => mam_iq:elem_to_start_microseconds(QueryEl),
+               end_ts => mam_iq:elem_to_end_microseconds(QueryEl),
+               %% Filtering by contact.
+               search_text => undefined,
+               with_jid => elem_to_with_jid(QueryEl),
+               borders => mod_mam_utils:borders_decode(QueryEl),
+               is_simple => mod_mam_utils:decode_optimizations(QueryEl)},
 
-form_to_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
+    maybe_add_extra_lookup_params(Module, Params, IQ).
+
+
+-spec form_to_lookup_params(iq(), integer(), integer(), undefined | module()) -> map().
+form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultLimit, Module) ->
     Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
-    Params0#{
-      %% Filtering by date.
-      %% Start :: integer() | undefined
-    start_ts => mam_iq:form_to_start_microseconds(QueryEl),
-    end_ts => mam_iq:form_to_end_microseconds(QueryEl),
-      %% Filtering by contact.
-    with_jid => mam_iq:form_to_with_jid(QueryEl),
-      %% Filtering by text
-      search_text => mod_mam_utils:form_to_text(QueryEl),
+    Params = Params0#{
+               %% Filtering by date.
+               %% Start :: integer() | undefined
+               start_ts => mam_iq:form_to_start_microseconds(QueryEl),
+               end_ts => mam_iq:form_to_end_microseconds(QueryEl),
+               %% Filtering by contact.
+               with_jid => mam_iq:form_to_with_jid(QueryEl),
+               %% Filtering by text
+               search_text => mod_mam_utils:form_to_text(QueryEl),
 
-      borders => mod_mam_utils:form_borders_decode(QueryEl),
-      %% Whether or not the client query included a <set/> element,
-      %% the server MAY simply return its limited results.
-      %% So, disable 'policy-violation'.
-      limit_passed => true,
-      %% `is_simple' can contain three values:
-      %% - true - do not count records (useful during pagination, when we already
-      %%          know how many messages we have from a previous query);
-      %% - false - count messages (slow, according XEP-0313);
-      %% - opt_count - count messages (same as false, fast for small result sets)
-      %%
-      %% The difference between false and opt_count is that with IsSimple=false we count
-      %% messages first and then extract a messages on a page (if count is not zero).
-      %% If IsSimple=opt_count we extract a page and then calculate messages (if required).
-      %% `opt_count' can be passed inside an IQ.
-      %% Same for mod_mam_muc.
-      is_simple => mod_mam_utils:form_decode_optimizations(QueryEl)}.
+               borders => mod_mam_utils:form_borders_decode(QueryEl),
+               %% Whether or not the client query included a <set/> element,
+               %% the server MAY simply return its limited results.
+               %% So, disable 'policy-violation'.
+               limit_passed => true,
+               %% `is_simple' can contain three values:
+               %% - true - do not count records (useful during pagination, when we already
+               %%          know how many messages we have from a previous query);
+               %% - false - count messages (slow, according XEP-0313);
+               %% - opt_count - count messages (same as false, fast for small result sets)
+               %%
+               %% The difference between false and opt_count is that with IsSimple=false we count
+               %% messages first and then extract a messages on a page (if count is not zero).
+               %% If IsSimple=opt_count we extract a page and then calculate messages (if required).
+               %% `opt_count' can be passed inside an IQ.
+               %% Same for mod_mam_muc.
+               is_simple => mod_mam_utils:form_decode_optimizations(QueryEl)},
+    maybe_add_extra_lookup_params(Module, Params, IQ).
 
 common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
     Limit = mam_iq:elem_to_limit(QueryEl),
@@ -212,4 +220,9 @@ common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
 lookup_params_with_archive_details(Params, ArcID, ArcJID) ->
     Params#{archive_id => ArcID,
             owner_jid => ArcJID}.
+
+maybe_add_extra_lookup_params(undefined, Params, _) ->
+    Params;
+maybe_add_extra_lookup_params(Module, Params, IQ) ->
+    Module:extra_lookup_params(IQ, Params).
 

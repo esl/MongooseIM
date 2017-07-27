@@ -159,7 +159,7 @@ start(Host, Opts) ->
         undefined -> ok;
         _ ->
             mongoose_deprecations:log(mam02, "<archived/> element is going to be removed in release 3.0.0"
-                                             " It is not recommended to use it."
+                        " It is not recommended to use it."
                                              " Consider using a <stanza-id/> element instead")
     end,
     compile_params_module(Opts),
@@ -396,15 +396,15 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
                              IQ :: ejabberd:iq()) -> ejabberd:iq() | {error, any(), ejabberd:iq()}.
-handle_lookup_messages(
-  From = #jid{},
-  ArcJID = #jid{},
-  IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
+handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
+                       #iq{xmlns = MamNs, sub_el = QueryEl} = IQ) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    Params0 = mam_iq:query_to_lookup_params(QueryEl, mod_mam_muc_params:max_result_limit(),
-					   mod_mam_muc_params:default_result_limit()),
+    ExtraParamsModule = gen_mod:get_module_opt(Host, ?MODULE, extra_lookup_params, undefined),
+    Params0 = mam_iq:query_to_lookup_params(IQ, mod_mam_muc_params:max_result_limit(),
+                                            mod_mam_muc_params:default_result_limit(),
+                                            ExtraParamsModule),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     case lookup_messages(Host, Params) of
         {error, 'policy-violation'} ->
@@ -436,8 +436,10 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    Params0 = mam_iq:form_to_lookup_params(QueryEl, mod_mam_muc_params:max_result_limit(),
-					   mod_mam_muc_params:default_result_limit()),
+    ExtraParamsModule = gen_mod:get_module_opt(Host, ?MODULE, extra_lookup_params, undefined),
+    Params0 = mam_iq:form_to_lookup_params(IQ, mod_mam_muc_params:max_result_limit(),
+                                           mod_mam_muc_params:default_result_limit(),
+                                           ExtraParamsModule),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     PageSize = maps:get(page_size, Params),
     case lookup_messages(Host, Params) of

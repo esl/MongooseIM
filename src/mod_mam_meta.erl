@@ -89,10 +89,11 @@ valid_core_mod_opts(mod_mam) ->
      no_stanzaid_element,
      is_archivable_message,
      archive_chat_markers,
+     extra_lookup_params,
      full_text_search,
      archive_groupchats];
 valid_core_mod_opts(mod_mam_muc) ->
-    [add_archived_element, is_archivable_message, host, full_text_search].
+    [add_archived_element, is_archivable_message, host, extra_lookup_params, full_text_search].
 
 -spec parse_backend_opts(odbc | cassandra | riak, Type :: pm | muc,
                          Opts :: proplists:proplist(), deps()) -> deps().
