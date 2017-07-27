@@ -100,7 +100,8 @@ from_element(#xmlel{name = Name, attrs = Attrs} = El) ->
 from_element(El) when is_tuple(El) ->
     Name = <<"broadcast">>,
     Type = element(1, El),
-    #{element => El, name => Name, type => Type}. % ref and timestamp will be filled in by strip/2
+    % ref and timestamp will be filled in by strip/2
+    #{element => El, name => Name, type => Type, mongoose_acc => true}.
 
 -spec from_element(xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
 from_element(El, From, To) ->
