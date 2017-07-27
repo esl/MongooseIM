@@ -11,10 +11,10 @@
 -behaviour(gen_mod).
 -behaviour(mod_event_pusher).
 
+-callback should_make_req(Packet :: exml:element(), From :: jid(), To :: jid()) -> boolean().
+
 -include("mod_event_pusher_events.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
-
--callback should_make_req(Packet :: exml:element(), From :: jid(), To :: jid()) -> boolean().
 
 %% API
 -export([start/2, stop/1, push_event/2]).

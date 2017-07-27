@@ -31,19 +31,11 @@
 
 -spec start(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> any().
 start(Host, _Opts) ->
-    ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(user_available_hook, Host, ?MODULE, user_present, 90),
-    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
-    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90).
+    ejabberd_hooks:add(hooks(Host)).
 
 -spec stop(Host :: ejabberd:server()) -> ok.
 stop(Host) ->
-    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
-    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
-    ejabberd_hooks:delete(user_available_hook, Host, ?MODULE, user_present, 90),
-    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90).
+    ejabberd_hooks:delete(hooks(Host)).
 
 %%--------------------------------------------------------------------
 %% Hook callbacks
@@ -104,3 +96,13 @@ chat_type(Acc) ->
         <<"normal">> -> normal;
         _ -> false
     end.
+
+-spec hooks(Host :: ejabberd:server()) -> [ejabberd_hooks:hook()].
+hooks(Host) ->
+    [
+     {filter_local_packet, Host, ?MODULE, filter_packet, 90},
+     {unset_presence_hook, Host, ?MODULE, user_not_present, 90},
+     {user_available_hook, Host, ?MODULE, user_present, 90},
+     {user_send_packet, Host, ?MODULE, user_send_packet, 90},
+     {rest_user_send_packet, Host, ?MODULE, user_send_packet, 90}
+    ].
