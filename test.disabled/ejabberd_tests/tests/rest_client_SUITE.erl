@@ -3,6 +3,8 @@
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("common_test/include/ct.hrl").
 
 -import(rest_helper,
         [assert_inlist/2,
@@ -45,8 +47,6 @@ message_test_cases() ->
 muc_test_cases() ->
      [room_is_created,
       room_is_created_with_given_identifier,
-      room_is_created_with_given_jid,
-      room_is_not_created_with_jid_not_matching_hostname,
       user_is_invited_to_a_room,
       user_is_removed_from_a_room,
       rooms_can_be_listed,
@@ -58,7 +58,12 @@ muc_test_cases() ->
       only_room_participant_can_read_messages,
       messages_can_be_paginated_in_room,
       room_msg_is_sent_and_delivered_over_sse,
-      aff_change_msg_is_delivered_over_sse
+      aff_change_msg_is_delivered_over_sse,
+      room_is_created_with_given_jid,
+      room_is_not_created_with_jid_not_matching_hostname,
+      room_can_be_fetched_by_jid,
+      messages_can_be_sent_and_fetched_by_room_jid,
+      user_can_be_added_and_removed_by_room_jid
      ].
 
 roster_test_cases() ->
@@ -75,7 +80,7 @@ init_per_suite(C) ->
     dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(MUCLightHost)},
                            {rooms_in_rosters, true}]),
-    escalus:init_per_suite(C1).
+    [{muc_light_host, MUCLightHost} | escalus:init_per_suite(C1)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -225,27 +230,6 @@ room_is_created_with_given_identifier(Config) ->
         assert_room_info(Alice, RoomInfo)
     end).
 
-room_is_created_with_given_jid(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        RoomID = <<"some_id">>,
-        RoomJID = <<RoomID/binary, "@muclight.localhost">>,
-        RoomID = given_new_room({alice, Alice}, RoomJID),
-        RoomInfo = get_room_info({alice, Alice}, RoomID),
-        assert_room_info(Alice, RoomInfo)
-    end).
-
-room_is_not_created_with_jid_not_matching_hostname(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        RoomID = <<"some_id">>,
-        RoomJID = <<RoomID/binary, "@muclight.wrongdomain">>,
-        Creds = credentials({alice, Alice}),
-        {{Status, _}, _} = create_room_with_id_request(Creds,
-                                                       <<"some_name">>,
-                                                       <<"some subject">>,
-                                                       RoomJID),
-        ?assertEqual(<<"400">>, Status)
-    end).
-
 rooms_can_be_listed(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         [] = get_my_rooms({alice, Alice}),
@@ -349,6 +333,53 @@ messages_can_be_paginated_in_room(Config) ->
         assert_room_messages(OldestMsg1, hd(lists:keysort(1, GenMsgs1))),
         [OldestMsg2 | _] = get_room_messages({alice, Alice}, RoomID, 2, PriorTo),
         assert_room_messages(OldestMsg2, hd(lists:keysort(1, GenMsgs2)))
+    end).
+
+room_is_created_with_given_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"some_id">>,
+        RoomJID = room_jid(RoomID, Config),
+        RoomID = given_new_room({alice, Alice}, RoomJID),
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_room_info(Alice, RoomInfo)
+    end).
+
+room_is_not_created_with_jid_not_matching_hostname(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"some_id">>,
+        RoomJID = <<RoomID/binary, "@muclight.wrongdomain">>,
+        Creds = credentials({alice, Alice}),
+        {{Status, _}, _} = create_room_with_id_request(Creds,
+                                                       <<"some_name">>,
+                                                       <<"some subject">>,
+                                                       RoomJID),
+        ?assertEqual(<<"400">>, Status)
+    end).
+
+room_can_be_fetched_by_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"yet_another_id">>,
+        RoomJID = room_jid(RoomID, Config),
+        RoomID = given_new_room({alice, Alice}, RoomJID),
+        RoomInfo = get_room_info({alice, Alice}, RoomJID),
+        assert_room_info(Alice, RoomInfo)
+    end).
+
+messages_can_be_sent_and_fetched_by_room_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room({alice, Alice}),
+        RoomJID = room_jid(RoomID, Config),
+        given_message_sent_to_room(RoomJID, {alice, Alice}),
+        [_] = get_room_messages({alice, Alice}, RoomJID, 10)
+    end).
+
+user_can_be_added_and_removed_by_room_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room({alice, Alice}),
+        RoomJID = room_jid(RoomID, Config),
+        given_user_invited({alice, Alice}, RoomJID, Bob),
+        {{Status, _}, _} = remove_user_from_a_room({alice, Alice}, RoomJID, Bob),
+        ?assertEqual(<<"204">>, Status)
     end).
 
 assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
@@ -794,3 +825,7 @@ break_stuff(Config) ->
     ),
     ok.
 
+-spec room_jid(RoomID :: binary(), Config :: list()) -> RoomJID :: binary().
+room_jid(RoomID, Config) ->
+    MUCLightHost = ?config(muc_light_host, Config),
+    <<RoomID/binary, "@", MUCLightHost/binary>>.
