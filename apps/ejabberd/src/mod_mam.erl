@@ -406,8 +406,8 @@ iq_action_v02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
         {get, <<"prefs">>} -> mam_get_prefs;
         {get, <<"query">>} -> mam_lookup_messages;
         {set, <<"purge">>} ->
-            case xml:get_tag_attr_s(<<"id">>, SubEl) of
-                <<>> -> mam_purge_multiple_messages;
+            case exml_query:attr(SubEl, <<"id">>) of
+                undefined -> mam_purge_multiple_messages;
                 _    -> mam_purge_single_message
             end
     end.
@@ -469,7 +469,7 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
                        #iq{xmlns=MamNs, sub_el = QueryEl} = IQ) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
+    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     Params0 = mam_iq:query_to_lookup_params(QueryEl),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     case lookup_messages(Host, Params) of
@@ -506,7 +506,7 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
                         #iq{xmlns=MamNs, sub_el = QueryEl} = IQ) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
+    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     Params0 = mam_iq:form_to_lookup_params(QueryEl),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     PageSize = maps:get(page_size, Params),
@@ -598,7 +598,7 @@ handle_purge_single_message(ArcJID=#jid{},
     Now = p1_time_compat:system_time(micro_seconds),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
+    BExtMessID = exml_query:attr(PurgeEl, <<"id">>, <<>>),
     MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
@@ -794,7 +794,6 @@ message_row_to_ext_id({MessID, _, _}) ->
 
 set_client_xmlns(M) ->
     xml:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, M).
-
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_drop_iq, Host, [Host, To, IQ, Action, Reason]),

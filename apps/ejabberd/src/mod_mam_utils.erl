@@ -300,8 +300,8 @@ get_one_of_path(Elem, List) ->
 
 -spec get_one_of_path(_, list(T), T) -> T when T :: any().
 get_one_of_path(Elem, [H|T], Def) ->
-    case xml:get_path_s(Elem, H) of
-        Def -> get_one_of_path(Elem, T, Def);
+    case exml_query:path(Elem, H) of
+        undefined -> get_one_of_path(Elem, T, Def);
         Val  -> Val
     end;
 get_one_of_path(_Elem, [], Def) ->
@@ -319,13 +319,12 @@ get_one_of_path(_Elem, [], Def) ->
 -spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
                             Packet :: jlib:xmlel()) -> boolean().
 is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
-    Type = xml:get_tag_attr_s(<<"type">>, Packet),
+    Type = exml_query:attr(Packet, <<"type">>, <<"normal">>),
     is_valid_message_type(Mod, Dir, Type) andalso
         is_valid_message(Mod, Dir, Packet);
 is_archivable_message(_, _, _) ->
     false.
 
-is_valid_message_type(_, _, <<"">>) -> true;
 is_valid_message_type(_, _, <<"normal">>) -> true;
 is_valid_message_type(_, _, <<"chat">>) -> true;
 is_valid_message_type(_, incoming, <<"groupchat">>) -> true;
@@ -333,14 +332,14 @@ is_valid_message_type(_, _, <<"error">>) -> false;
 is_valid_message_type(_, _, _) -> false.
 
 is_valid_message(_Mod, _Dir, Packet) ->
-    Body       = xml:get_subtag(Packet, <<"body">>),
+    Body       = exml_query:subelement(Packet, <<"body">>, false),
     ChatMarker = should_check_chat_markers() andalso has_chat_marker(Packet),
     %% Used in MAM
-    Result     = xml:get_subtag(Packet, <<"result">>),
+    Result     = exml_query:subelement(Packet, <<"result">>, false),
     %% Used in mod_offline
-    Delay      = xml:get_subtag(Packet, <<"delay">>),
+    Delay      = exml_query:subelement(Packet, <<"delay">>, false),
     %% Message Processing Hints (XEP-0334)
-    NoStore    = xml:get_subtag(Packet, <<"no-store">>),
+    NoStore    = exml_query:subelement(Packet, <<"no-store">>, false),
     is_valid_message_children(Body, ChatMarker, Result, Delay, NoStore).
 
 %% Forwarded by MAM message, or just a message without body or chat marker
@@ -514,8 +513,8 @@ make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
 
 
 -spec parse_prefs(PrefsEl :: jlib:xmlel()) -> mod_mam:preference().
-parse_prefs(El=#xmlel{name = <<"prefs">>, attrs = Attrs}) ->
-    {value, Default} = xml:get_attr(<<"default">>, Attrs),
+parse_prefs(El = #xmlel{ name = <<"prefs">> }) ->
+    Default = exml_query:attr(El, <<"default">>),
     AlwaysJIDs = parse_jid_list(El, <<"always">>),
     NeverJIDs  = parse_jid_list(El, <<"never">>),
     {valid_behavior(Default), AlwaysJIDs, NeverJIDs}.
@@ -529,11 +528,11 @@ valid_behavior(<<"roster">>) -> roster.
 
 -spec parse_jid_list(jlib:xmlel(), binary()) -> [ejabberd:literal_jid()].
 parse_jid_list(El, Name) ->
-    case xml:get_subtag(El, Name) of
-        false -> [];
+    case exml_query:subelement(El, Name) of
+        undefined -> [];
         #xmlel{children = JIDEls} ->
             %% Ignore cdata between jid elements
-            MaybeJids = [binary_jid_to_lower(xml:get_tag_cdata(JIDEl))
+            MaybeJids = [binary_jid_to_lower(exml_query:cdata(JIDEl))
                          || JIDEl <- JIDEls, is_jid_element(JIDEl)],
             skip_bad_jids(MaybeJids)
     end.
@@ -591,7 +590,7 @@ borders(AfterID, BeforeID, FromID, ToID) ->
 
 -spec tag_id(jlib:xmlel(), binary()) -> 'undefined' | integer().
 tag_id(QueryEl, Name) ->
-    BExtMessID = xml:get_tag_attr_s(Name, QueryEl),
+    BExtMessID = exml_query:attr(QueryEl, Name, <<>>),
     maybe_external_binary_to_mess_id(BExtMessID).
 
 -spec form_field_mess_id(jlib:xmlel(), binary()) -> 'undefined' | integer().
@@ -601,10 +600,10 @@ form_field_mess_id(QueryEl, Name) ->
 
 -spec decode_optimizations(jlib:xmlel()) -> 'false' | 'opt_count' | 'true'.
 decode_optimizations(QueryEl) ->
-    case {xml:get_subtag(QueryEl, <<"simple">>),
-          xml:get_subtag(QueryEl, <<"opt_count">>)} of
-        {false, false} -> false;
-        {false, _}     -> opt_count;
+    case {exml_query:subelement(QueryEl, <<"simple">>),
+          exml_query:subelement(QueryEl, <<"opt_count">>)} of
+        {undefined, undefined} -> false;
+        {undefined, _}     -> opt_count;
         _              -> true
     end.
 
@@ -625,7 +624,7 @@ is_mam_result_message(_) ->
     false.
 
 maybe_get_result_namespace(Packet) ->
-    xml:get_path_s(Packet, [{elem, <<"result">>}, {attr, <<"xmlns">>}]).
+    exml_query:path(Packet, [{element, <<"result">>}, {attr, <<"xmlns">>}], <<>>).
 
 is_mam_namespace(?NS_MAM)    -> true;
 is_mam_namespace(?NS_MAM_03) -> true;
@@ -638,10 +637,10 @@ is_mam_namespace(_)          -> false.
 
 -spec form_field_value(jlib:xmlel(), binary()) -> undefined | binary().
 form_field_value(QueryEl, Name) ->
-    case xml:get_subtag(QueryEl, <<"x">>) of
-        false ->
+    case exml_query:subelement(QueryEl, <<"x">>) of
+        undefined ->
             undefined;
-        #xmlel{children=Fields} -> %% <x xmlns='jabber:x:data'/>
+        #xmlel{children = Fields} -> %% <x xmlns='jabber:x:data'/>
             case find_field(Fields, Name) of
                 undefined ->
                     undefined;
@@ -658,12 +657,10 @@ undefined_to_empty(X)         -> X.
 
 %% @doc Return first matched field
 -spec find_field(list(jlib:xmlel()), binary()) -> undefined | jlib:xmlel().
-find_field([#xmlel{name = <<"field">>, attrs = Attrs}=Field|Fields], Name) ->
-    case xml:get_attr(<<"var">>, Attrs) of
-        {value, Name} ->
-            Field;
-        _ ->
-            find_field(Fields, Name)
+find_field([#xmlel{ name = <<"field">> } = Field | Fields], Name) ->
+    case exml_query:attr(Field, <<"var">>) of
+        Name -> Field;
+        _ -> find_field(Fields, Name)
     end;
 find_field([_|Fields], Name) -> %% skip whitespaces
     find_field(Fields, Name);
@@ -672,7 +669,7 @@ find_field([], _Name) ->
 
 -spec field_to_value(jlib:xmlel()) -> binary().
 field_to_value(FieldEl) ->
-    xml:get_path_s(FieldEl, [{elem, <<"value">>}, cdata]).
+    exml_query:path(FieldEl, [{element, <<"value">>}, cdata], <<>>).
 
 -spec message_form(Mod :: mod_mam | mod_mam_muc, Host :: ejabberd:lserver(), binary()) ->
     jlib:xmlel().
@@ -966,8 +963,7 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
 -ifdef(MAM_COMPACT_FORWARDED).
 
 send_message(_From, To, Mess) ->
-    {value, BFrom} = xml:get_tag_attr(<<"from">>, Mess),
-    From = jid:from_binary(BFrom),
+    From = jid:from_binary(exml_query:attr(Mess, <<"from">>)),
     ejabberd_sm:route(From, To, Mess).
 
 -else.

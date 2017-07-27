@@ -40,24 +40,24 @@ fix_rsm(RSM=#rsm_in{id = BExtMessID}) when is_binary(BExtMessID) ->
 
 -spec elem_to_start_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
 elem_to_start_microseconds(El) ->
-    maybe_microseconds(xml:get_path_s(El, [{elem, <<"start">>}, cdata])).
+    maybe_microseconds(exml_query:path(El, [{element, <<"start">>}, cdata], <<>>)).
 
 
 -spec elem_to_end_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
 elem_to_end_microseconds(El) ->
-    maybe_microseconds(xml:get_path_s(El, [{elem, <<"end">>}, cdata])).
+    maybe_microseconds(exml_query:path(El, [{element, <<"end">>}, cdata], <<>>)).
 
 
 -spec elem_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
 elem_to_with_jid(El) ->
-    maybe_jid(xml:get_path_s(El, [{elem, <<"with">>}, cdata])).
+    maybe_jid(exml_query:path(El, [{element, <<"with">>}, cdata], <<>>)).
 
 %% @doc This element's name is "limit". But it must be "max" according XEP-0313.
 -spec elem_to_limit(any()) -> any().
 elem_to_limit(QueryEl) ->
     get_one_of_path(QueryEl, [
-                              [{elem, <<"set">>}, {elem, <<"max">>}, cdata],
-                              [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
+                              [{element, <<"set">>}, {element, <<"max">>}, cdata],
+                              [{element, <<"set">>}, {element, <<"limit">>}, cdata]
                              ]).
 
 
