@@ -52,14 +52,13 @@
 
 %% private
 -export([archive_message/8]).
--export([lookup_messages/14]).
+-export([lookup_messages/2]).
 -export([archive_id_int/2]).
 %% ----------------------------------------------------------------------
 %% Imports
 
 -import(mod_mam_utils,
-        [maybe_microseconds/1,
-         microseconds_to_now/1]).
+        [microseconds_to_now/1]).
 
 %% UID
 -import(mod_mam_utils,
@@ -72,7 +71,6 @@
          replace_x_user_element/4,
          delete_x_user_element/1,
          packet_to_x_user_jid/1,
-         get_one_of_path/2,
          wrap_message/6,
          result_set/4,
          result_query/2,
@@ -80,20 +78,15 @@
          make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
-         borders_decode/1,
-         decode_optimizations/1,
-         form_borders_decode/1,
-         form_decode_optimizations/1]).
+         borders_decode/1]).
 
 %% Forms
 -import(mod_mam_utils,
-        [form_field_value_s/2,
-         message_form/3]).
+        [message_form/3]).
 
 %% Other
 -import(mod_mam_utils,
-        [maybe_integer/2,
-         mess_id_to_external_binary/1,
+        [mess_id_to_external_binary/1,
          is_last_page/4]).
 
 %% ejabberd
@@ -130,13 +123,6 @@
 -type row() :: {mod_mam:message_id(), ejabberd:jid(), jlib:xmlel()}.
 
 -export_type([row/0, row_batch/0]).
-
-%% ----------------------------------------------------------------------
-%% Constants
-
-default_result_limit() -> 50.
-
-max_result_limit() -> 50.
 
 %% ----------------------------------------------------------------------
 %% API
@@ -396,8 +382,8 @@ iq_action02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
         {get, <<"prefs">>} -> mam_get_prefs;
         {get, <<"query">>} -> mam_lookup_messages;
         {set, <<"purge">>} ->
-            case xml:get_tag_attr_s(<<"id">>, SubEl) of
-                <<>> -> mam_purge_multiple_messages;
+            case exml_query:attr(SubEl, <<"id">>) of
+                undefined -> mam_purge_multiple_messages;
                 _ -> mam_purge_single_message
             end
     end.
@@ -455,27 +441,12 @@ handle_lookup_messages(
   From = #jid{},
   ArcJID = #jid{},
   IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
-    QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
-    %% Filtering by date.
-    %% Start :: integer() | undefined
-    Start = elem_to_start_microseconds(QueryEl),
-    End = elem_to_end_microseconds(QueryEl),
-    %% Filtering by contact.
-    SearchText = undefined,
-    With = elem_to_with_jid(QueryEl),
-    RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
-    Borders = borders_decode(QueryEl),
-    Limit = elem_to_limit(QueryEl),
-    PageSize = min(max_result_limit(),
-                   maybe_integer(Limit, default_result_limit())),
-    LimitPassed = Limit =/= <<>>,
-    IsSimple = decode_optimizations(QueryEl),
-    case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With, SearchText,
-                         PageSize, LimitPassed, max_result_limit(), IsSimple) of
+    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
+    Params0 = mam_iq:query_to_lookup_params(QueryEl),
+    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
+    case lookup_messages(Host, Params) of
         {error, 'policy-violation'} ->
             ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
             ErrorEl = jlib:stanza_errort(<<"">>, <<"modify">>, <<"policy-violation">>,
@@ -508,37 +479,15 @@ handle_lookup_messages(
 -spec handle_set_message_form(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
                               IQ :: ejabberd:iq()) ->
                                      ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
-handle_set_message_form(
-  From = #jid{},
-  ArcJID = #jid{},
-  IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
-    Now = p1_time_compat:system_time(micro_seconds),
+handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
+                        IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
-    QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
-    %% Filtering by date.
-    %% Start :: integer() | undefined
-    Start = form_to_start_microseconds(QueryEl),
-    End = form_to_end_microseconds(QueryEl),
-    %% Filtering by contact.
-    With = form_to_with_jid(QueryEl),
-    %% Filtering by text
-    Text  = mod_mam_utils:form_to_text(QueryEl),
-
-    RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
-    Borders = form_borders_decode(QueryEl),
-    Limit = elem_to_limit(QueryEl),
-    PageSize = min(max_result_limit(),
-                   maybe_integer(Limit, default_result_limit())),
-    %% Whether or not the client query included a <set/> element,
-    %% the server MAY simply return its limited results.
-    %% So, disable 'policy-violation'.
-    LimitPassed = true,
-    IsSimple = form_decode_optimizations(QueryEl),
-
-    case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start, End, Now, With, Text,
-                         PageSize, LimitPassed, max_result_limit(), IsSimple) of
+    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
+    Params0 = mam_iq:form_to_lookup_params(QueryEl),
+    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
+    PageSize = maps:get(page_size, Params),
+    case lookup_messages(Host, Params) of
         {error, Reason} ->
             report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
@@ -608,12 +557,12 @@ handle_purge_multiple_messages(ArcJID = #jid{},
     ArcID = archive_id_int(Host, ArcJID),
     %% Filtering by date.
     %% Start :: integer() | undefined
-    Start = elem_to_start_microseconds(PurgeEl),
-    End = elem_to_end_microseconds(PurgeEl),
+    Start = mam_iq:elem_to_start_microseconds(PurgeEl),
+    End = mam_iq:elem_to_end_microseconds(PurgeEl),
     %% Set borders.
     Borders = borders_decode(PurgeEl),
     %% Filtering by contact.
-    With = elem_to_with_jid(PurgeEl),
+    With = mam_iq:elem_to_with_jid(PurgeEl),
     Res = purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                                   Start, End, Now, With),
     return_purge_multiple_message_iq(IQ, Res).
@@ -626,7 +575,7 @@ handle_purge_single_message(ArcJID = #jid{},
     Now = p1_time_compat:system_time(micro_seconds),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
-    BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
+    BExtMessID = exml_query:attr(PurgeEl, <<"id">>, <<>>),
     MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
@@ -681,32 +630,17 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
 
 
 %% See description in mod_mam.
--spec lookup_messages(Host :: ejabberd:server(),
-                      ArchiveID :: mod_mam:archive_id(),
-                      ArchiveJID :: ejabberd:jid(),
-                      RSM :: jlib:rsm_in()  | undefined,
-                      Borders :: mod_mam:borders()  | undefined,
-                      Start :: mod_mam:unix_timestamp()  | undefined,
-                      End :: mod_mam:unix_timestamp()  | undefined,
-                      Now :: mod_mam:unix_timestamp(),
-                      WithJID :: ejabberd:jid()  | undefined,
-                      SearchText :: binary() | undefined,
-                      PageSize :: non_neg_integer(), LimitPassed :: boolean(),
-                      MaxResultLimit :: non_neg_integer(),
-                      IsSimple :: boolean()  | opt_count) ->
-                             {ok, mod_mam:lookup_result()}
-                                 | {error, 'policy-violation'}
-                                 | {error, Reason :: term()}.%Result :: any(),
-lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
-                WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
+-spec lookup_messages(Host :: ejabberd:server(), Params :: map()) ->
+    {ok, mod_mam:lookup_result()}
+    | {error, 'policy-violation'}
+    | {error, Reason :: term()}.%Result :: any(),
+lookup_messages(Host, #{search_text := SearchText} = Params) ->
     case SearchText /= undefined andalso not mod_mam_utils:has_full_text_search(?MODULE, Host) of
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
             ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
-                                    [Host, ArcID, ArcJID, RSM, Borders,
-                                     Start, End, Now, WithJID, SearchText,
-                                     PageSize, LimitPassed, MaxResultLimit, IsSimple])
+                                    [Host, Params])
     end.
 
 
@@ -799,68 +733,6 @@ message_row_to_ext_id({MessID, _, _}) ->
 
 set_client_xmlns(M) ->
     xml:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, M).
-
-
--spec maybe_jid(ejabberd:literal_jid()) -> 'error' | 'undefined' | ejabberd:jid().
-maybe_jid(<<>>) ->
-    undefined;
-maybe_jid(JID) when is_binary(JID) ->
-    jid:from_binary(JID).
-
-
-%% @doc Convert id into internal format.
--spec fix_rsm('none' | jlib:rsm_in()) -> 'undefined' | jlib:rsm_in().
-fix_rsm(none) ->
-    undefined;
-fix_rsm(RSM = #rsm_in{direction = aft, id = <<>>}) ->
-    RSM#rsm_in{direction = undefined, id = undefined}; %% First page
-fix_rsm(RSM = #rsm_in{direction = aft, id = undefined}) ->
-    RSM#rsm_in{direction = undefined}; %% First page
-fix_rsm(RSM = #rsm_in{id = undefined}) ->
-    RSM;
-fix_rsm(RSM = #rsm_in{id = <<>>}) ->
-    RSM#rsm_in{id = undefined};
-fix_rsm(RSM = #rsm_in{id = BExtMessID}) when is_binary(BExtMessID) ->
-    MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),
-    RSM#rsm_in{id = MessID}.
-
-
--spec elem_to_start_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
-elem_to_start_microseconds(El) ->
-    maybe_microseconds(xml:get_path_s(El, [{elem, <<"start">>}, cdata])).
-
-
--spec elem_to_end_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
-elem_to_end_microseconds(El) ->
-    maybe_microseconds(xml:get_path_s(El, [{elem, <<"end">>}, cdata])).
-
-
--spec elem_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
-elem_to_with_jid(El) ->
-    maybe_jid(xml:get_path_s(El, [{elem, <<"with">>}, cdata])).
-
-
-%% @doc This element's name is "limit". But it must be "max" according XEP-0313.
--spec elem_to_limit(jlib:xmlel()) -> any().
-elem_to_limit(QueryEl) ->
-    get_one_of_path(QueryEl, [
-                              [{elem, <<"set">>}, {elem, <<"max">>}, cdata],
-                              [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
-                             ]).
-
--spec form_to_start_microseconds(_) -> 'undefined' | non_neg_integer().
-form_to_start_microseconds(El) ->
-    maybe_microseconds(form_field_value_s(El, <<"start">>)).
-
-
--spec form_to_end_microseconds(_) -> 'undefined' | non_neg_integer().
-form_to_end_microseconds(El) ->
-    maybe_microseconds(form_field_value_s(El, <<"end">>)).
-
-
--spec form_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
-form_to_with_jid(El) ->
-    maybe_jid(form_field_value_s(El, <<"with">>)).
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_muc_drop_iq, Host,
