@@ -102,7 +102,8 @@ init_per_testcase(TC, Config) ->
                     messages_can_be_paginated,
                     messages_are_archived_in_room,
                     only_room_participant_can_read_messages,
-                    messages_can_be_paginated_in_room
+                    messages_can_be_paginated_in_room,
+                    messages_can_be_sent_and_fetched_by_room_jid
                    ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
