@@ -15,7 +15,7 @@ pages:
       - 'Release/Installation configuration': 'user-guide/release_config.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
       - 'How to build MongooseIM':  'user-guide/How-to-build.md'
-      - 'How to setup Push Notifications with MongoosePush': 'user-guide/Push-notifications.md'
+      - 'How to set up Push Notifications with MongoosePush': 'user-guide/Push-notifications.md'
       - 'How to set up MongooseICE (ICE/TURN/STUN server)': 'user-guide/ICE_tutorial.md'
   - Platform:
       - 'Roadmap': 'Roadmap.md'
