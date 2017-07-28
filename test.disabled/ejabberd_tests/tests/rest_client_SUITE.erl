@@ -371,6 +371,7 @@ messages_can_be_sent_and_fetched_by_room_jid(Config) ->
         RoomID = given_new_room({alice, Alice}),
         RoomJID = room_jid(RoomID, Config),
         given_message_sent_to_room(RoomJID, {alice, Alice}),
+        mam_helper:maybe_wait_for_archive(Config),
         [_] = get_room_messages({alice, Alice}, RoomJID, 10)
     end).
 
