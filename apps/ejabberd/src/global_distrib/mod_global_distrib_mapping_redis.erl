@@ -24,10 +24,12 @@
 -define(JIDS_ETS, mod_global_distrib_mapping_redis_jids).
 -define(DOMAINS_ETS, mod_global_distrib_mapping_redis_domains).
 
--export([start/1, stop/0, refresh/0,
+-export([start/1, stop/0,
          put_session/1, get_session/1, delete_session/1,
          put_domain/1, get_domain/1, delete_domain/1,
          get_endpoints/1, get_domains/0]).
+
+-export([init/1, handle_info/2]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -46,18 +48,25 @@ start(Opts) ->
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
 
     EredisArgs = [Server, Port, 0, Password, 100, 5000],
-    WorkerPool = {?MODULE, {wpool, start_pool, [?MODULE, [{workers, PoolSize},
-                                                          {worker, {eredis_client, EredisArgs}}]]},
+    WorkerPool = {?MODULE,
+                  {wpool, start_pool, [?MODULE, [{workers, PoolSize},
+                                                 {worker, {eredis_client, EredisArgs}}]]},
                   permanent, 10000, supervisor, dynamic},
+    Refresher = {mod_global_distrib_redis_refresher,
+                 {gen_server, start_link, [?MODULE, RefreshAfter, []]},
+                 permanent, 1000, supervisor, [?MODULE]},
     {ok, _} = supervisor:start_child(ejabberd_sup, WorkerPool),
-    refresh(),
-    timer:apply_interval(timer:seconds(RefreshAfter), ?MODULE, refresh, []),
+    {ok, _} = supervisor:start_child(ejabberd_sup, Refresher),
     ok.
 
 -spec stop() -> any().
 stop() ->
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
+    lists:foreach(
+     fun(Id) ->
+             supervisor:terminate_child(ejabberd_sup, Id),
+             supervisor:delete_child(ejabberd_sup, Id)
+     end,
+      [?MODULE, mod_global_distrib_redis_refresher]),
     [ets:delete(Tab) || Tab <- [?MODULE, ?JIDS_ETS, ?DOMAINS_ETS]].
 
 -spec put_session(Jid :: binary()) -> ok.
@@ -102,6 +111,23 @@ get_endpoints(Host) ->
     EndpointKeys = [endpoints_key(Host, Node) || Node <- Nodes],
     {ok, BinEndpoints} = q([<<"SUNION">> | EndpointKeys]),
     {ok, lists:map(fun binary_to_endpoint/1, BinEndpoints)}.
+
+%%--------------------------------------------------------------------
+%% gen_server API
+%%--------------------------------------------------------------------
+
+init(RefreshAfter) ->
+    handle_info(refresh, RefreshAfter),
+    {ok, RefreshAfter}.
+
+handle_info(refresh, RefreshAfter) ->
+    refresh_hosts(),
+    refresh_nodes(),
+    refresh_jids(),
+    refresh_endpoints(),
+    refresh_domains(),
+    erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
+    {noreply, RefreshAfter}.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -174,14 +200,6 @@ do_delete(Key) ->
         _ -> ok
     end,
     ok.
-
--spec refresh() -> any().
-refresh() ->
-    refresh_hosts(),
-    refresh_nodes(),
-    refresh_jids(),
-    refresh_endpoints(),
-    refresh_domains().
 
 -spec refresh_hosts() -> any().
 refresh_hosts() ->
