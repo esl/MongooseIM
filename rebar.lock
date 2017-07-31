@@ -1,8 +1,5 @@
 {"1.1.0",
-[{<<"backoff">>,
-  {git,"git://github.com/ferd/backoff.git",
-       {ref,"cc6160ba8f15204db4c23618dfc93932535f1d64"}},
-  1},
+[{<<"backoff">>,{pkg,<<"backoff">>,<<"1.1.3">>},1},
  {<<"base16">>,
   {git,"git://github.com/goj/base16.git",
        {ref,"f78918e7b593fbdc35ec9bcc349aa50f47f45a8b"}},
@@ -27,10 +24,7 @@
   {git,"https://github.com/ninenines/cowlib",
        {ref,"45f750db410a4b08c68d142ad0af839f544c5d3d"}},
   1},
- {<<"cpool">>,
-  {git,"git://github.com/kzemek/cpool.git",
-       {ref,"ace2dc14cd1613a6046e6dd3cf2427ee0841596c"}},
-  0},
+ {<<"cpool">>,{pkg,<<"cpool">>,<<"0.1.0">>},0},
  {<<"cqerl">>,
   {git,"https://github.com/matehat/cqerl.git",
        {ref,"db339b27fabc6d66a4f7d54716f946f78b44d02b"}},
@@ -224,6 +218,8 @@
   0}]}.
 [
 {pkg_hash,[
+ {<<"backoff">>, <<"DE762C05ED6DFAE862D83DC9E58AE936792B01302B3595F5CFFE86F2D8E6C1DD">>},
+ {<<"cpool">>, <<"76222AA1DAC0F8089707167BD69D221EDA63DB65B8BD67DBF6E133075392EEDC">>},
  {<<"eini">>, <<"ABD64A0533398A6D714D21219BB85F2D41FDB42665AC4080939B7BFA8E55F386">>},
  {<<"lhttpc">>, <<"2137CB82D123751B21CC0461A00734CD32CB470BC6278BA139EE13C1ECC3C2B1">>},
  {<<"observer_cli">>, <<"F3A47C22327424291758167DF3C4600DCF8BF34795A3787612019AA5B86A5C21">>}]}
