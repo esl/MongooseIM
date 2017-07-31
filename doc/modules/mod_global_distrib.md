@@ -19,6 +19,21 @@ Each node of each cluster is responsible for refreshing its own data.
 Thus, in an event of a netsplit datacenters will have their information about other datacenter's users expire, as those users are now unreachable; but once the connection is reestablished, the data will be replicated again as datacenters refresh their entries.
 Additionally, to prevent edge cases where an incoming message is received and replied to before the datacenter learns about the sender's host, an incoming message also carries information about its origin which may be used to temporarily update the local routing table.
 
+##### Redis entries
+
+Following structures are stored in Redis:
+
+* JID mappings are stored as normal key-value entries, where user's JID (full and bare) is the key, and the value is the local hostname where the user is logged in.
+Example: `"user1@example.com/res" -> "dc2.example.com"`.
+* Domains of components registered on the globally distributed host are stored in per-node set structures where the key is `<local_host>#<node_name>#{domains}`, and the values are the domain names.
+Example: `"dc1.example.com#mongoose1@dc1.example.com#{domains}" -> {"muc1.example.com", "muc2.example.com"}`.
+* Declared endpoints available on a node are similarly stored in a per-node set structure where the key is `<local_host>#<node_name>#{endpoints}` and the values represent the TCP endpoints of the node.
+Example: `"dc1.example.com#mongoose1@dc1.example.com#{endpoints}" -> {"172.16.2.14#8231", "2001:0db8:85a3:0000:0000:8a2e:0370:7334#8882"}`.
+* Nodes that comprise a host are stored in a set structure with key `<local_host>#{nodes}` and values being the names of the nodes.
+Example: `"dc2.example.com#{nodes}" -> {"node1@dc2.example.com", "node3@dc2.example.com"}`.
+* Hosts are stored in a set with key `hosts` and values being the individual local XMPP domains.
+Example: `"hosts" -> {"dc1.example.com", "dc2.example.com"}`.
+
 #### Message routing
 
 `mod_global_distrib` establishes its own listeners and dedicated TCP/TLS connections for message routing.
@@ -131,7 +146,7 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
 {mod_global_distrib, [
         {global_host, "example.com"},
         {local_host, "datacenter1.example.com"},
-        {connections [
+        {connections, [
               {endpoints, [{"172.16.0.2", 5555}]},
               {num_of_connections, 22},
               {tls_opts, [
