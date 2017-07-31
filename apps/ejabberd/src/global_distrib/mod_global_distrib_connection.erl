@@ -52,7 +52,7 @@ init(Server) ->
         {ok, #state{socket = Socket, host = MetricServer}}
     catch
         error:{badmatch, Reason} ->
-            lager:error("Connection to ~p failed: ~p", [{Addr, Port}, Reason]),
+            ?ERROR_MSG("Connection to ~p failed: ~p", [{Addr, Port}, Reason]),
             {stop, normal}
     end.
 

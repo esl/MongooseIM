@@ -86,8 +86,18 @@ maybe_store_message({From, To, Acc0} = FPacket) ->
     LocalHost = opt(local_host),
     case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost}, opt(max_retries)) of
         0 ->
+            ?DEBUG("Not storing global message id=~s from=~s to=~s as bounce_ttl=0",
+                   [mod_global_distrib:get_metadata(Acc0, id),
+                    jid:to_binary(From), jid:to_binary(To)]),
             FPacket;
+
         OldTTL ->
+            ?DEBUG("Storing global message id=~s from=~s to=~s to "
+                   "resend after ~B ms (bounce_ttl=~B)",
+                   [mod_global_distrib:get_metadata(Acc0, id),
+                    jid:to_binary(From), jid:to_binary(To),
+                    p1_time_compat:convert_time_unit(opt(resend_after), native, milli_seconds),
+                    OldTTL]),
             Acc = mod_global_distrib:put_metadata(Acc0, {bounce_ttl, LocalHost}, OldTTL - 1),
             ResendAt = p1_time_compat:monotonic_time() + opt(resend_after),
             do_insert_in_store(ResendAt, {From, To, Acc}),

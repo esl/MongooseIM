@@ -45,15 +45,15 @@ stop(Host) ->
 get_disco_items({result, Nodes}, _From, _To, <<"">>, _Lang) ->
     {ok, Domains} = mod_global_distrib_mapping:all_domains(),
     NameSet = gb_sets:from_list([exml_query:attr(Node, <<"jid">>) || Node <- Nodes]),
-    NewNodes = lists:foldl(
-        fun(Domain, Acc) ->
-            case gb_sets:is_member(Domain, NameSet) of
-                true -> Acc;
-                false -> [#xmlel{name  = <<"item">>, attrs = [{<<"jid">>, Domain}]} | Acc]
-            end
-        end,
-        Nodes,
-        Domains),
+    FilteredDomains = [Domain || Domain <- Domains, not gb_sets:is_member(Domain, NameSet)],
+    ?DEBUG("Adding global domains ~p to disco results", [FilteredDomains]),
+    NewNodes =
+        lists:foldl(
+          fun(Domain, Acc) ->
+                  [#xmlel{name  = <<"item">>, attrs = [{<<"jid">>, Domain}]} | Acc]
+          end,
+          Nodes,
+          FilteredDomains),
     {result, NewNodes};
 get_disco_items(empty, From, To, Node, Lang) ->
     get_disco_items({result, []}, From, To, Node, Lang);

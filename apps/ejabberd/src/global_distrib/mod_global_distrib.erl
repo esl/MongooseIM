@@ -77,17 +77,32 @@ maybe_reroute({From, To, Acc0} = FPacket) ->
     GlobalHost = opt(global_host),
     case lookup_recipients_host(To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
+            ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter",
+                   [get_metadata(Acc, id), jid:to_binary(From), jid:to_binary(To)]),
             {From, To, Acc};
+
         {ok, TargetHost} ->
             case get_metadata(Acc, ttl) of
-                0 -> FPacket;
+                0 ->
+                    ?DEBUG("Recipient of global message id=~s from=~s to=~s found at "
+                           "~s, but TTL=0. Routing locally.",
+                           [get_metadata(Acc, id), jid:to_binary(From),
+                            jid:to_binary(To), TargetHost]),
+                    FPacket;
                 TTL ->
+                    ?DEBUG("Rerouting global message id=~s from=~s to=~s to ~s (TTL: ~B)",
+                           [get_metadata(Acc, id), jid:to_binary(From),
+                            jid:to_binary(To), TargetHost, TTL]),
                     Acc1 = put_metadata(Acc, ttl, TTL - 1),
                     Worker = get_bound_connection(TargetHost),
                     mod_global_distrib_sender:send(Worker, {From, To, Acc1}),
                     drop
             end;
+
         error ->
+            ?DEBUG("Unable to route global message id=~s from=~s to=~s: "
+                   "user not found in the routing table",
+                   [get_metadata(Acc, id), jid:to_binary(From), jid:to_binary(To)]),
             ejabberd_hooks:run_fold(mod_global_distrib_unknown_recipient,
                                     GlobalHost, {From, To, Acc}, [])
     end.
@@ -102,7 +117,7 @@ maybe_initialize_metadata(Acc) ->
         #{} -> Acc;
         undefined ->
             Metadata = #{ttl => opt(message_ttl),
-                         id => crypto:rand_bytes(15),
+                         id => uuid:uuid_to_string(uuid:get_v4(), binary_standard),
                          origin => opt(local_host)},
             mongoose_acc:put(global_distrib, Metadata, Acc)
     end.
