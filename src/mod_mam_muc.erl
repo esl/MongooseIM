@@ -471,7 +471,7 @@ send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From,
                             #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
                             #{owner_jid := ArcJID, page_size := PageSize}) ->
     %% Forward messages
-    QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
+    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
                                                  QueryID, MessageRows, true),
 

@@ -53,7 +53,7 @@ action_v02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
         {get, <<"prefs">>} -> mam_get_prefs;
         {get, <<"query">>} -> mam_lookup_messages;
         {set, <<"purge">>} ->
-            case xml:get_tag_attr_s(<<"id">>, SubEl) of
+            case exml_query:attr(SubEl, <<"id">>, <<>>) of
                 <<>> -> mam_purge_multiple_messages;
                 _    -> mam_purge_single_message
             end
