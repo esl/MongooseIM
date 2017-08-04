@@ -658,7 +658,7 @@ add_contact_and_invite(Config) ->
             #{jid := AliceJID, subscription := <<"none">>,
               ask := <<"none">>} = Res2,
             % and he received a roster push
-            Push = escalus:wait_for_stanza(Bob, 1),
+            Push = escalus:wait_for_stanza(Bob),
             escalus:assert(is_roster_set, Push),
             % he invites her
             PutPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
@@ -666,11 +666,11 @@ add_contact_and_invite(Config) ->
                                    #{action => <<"invite">>},
                                    BCred),
             % another roster push
-            Push2 = escalus:wait_for_stanza(Bob, 1),
+            Push2 = escalus:wait_for_stanza(Bob),
             escalus:assert(is_roster_set, Push2),
             ct:pal("Push2: ~p", [Push2]),
             % she receives  a subscription request
-            Sub = escalus:wait_for_stanza(Alice, 1),
+            Sub = escalus:wait_for_stanza(Alice),
             escalus:assert(is_presence_with_type, [<<"subscribe">>], Sub),
             % in his roster she has a changed 'ask' status
             {?OK, R3} = gett("/contacts", BCred),
@@ -738,7 +738,7 @@ add_contact_and_be_invited(Config) ->
                              <<"subscribe">>)),
             escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice)),
             escalus:assert(is_presence_with_type, [<<"subscribe">>],
-                           escalus:wait_for_stanza(Bob, 1)),
+                           escalus:wait_for_stanza(Bob)),
             % now check Bob's roster, and it is the same...
             {?OK, R4} = gett("/contacts", BCred),
             [Res4] = decode_maplist(R4),
