@@ -145,12 +145,8 @@ remove_old_messages(_Host, TimeStamp) ->
 remove_expired_message(TimeStamp, Rec) ->
     case mod_offline:is_expired_message(TimeStamp, Rec) of
         true ->
-            case  mnesia:delete_object(Rec) of
-                ok ->
-                    1;
-                _ ->
-                    0
-            end;
+            mnesia:delete_object(Rec),
+            1;
         false ->
             0
     end.
@@ -158,12 +154,8 @@ remove_expired_message(TimeStamp, Rec) ->
 remove_old_message(TimeStamp, Rec) ->
     case is_old_message(TimeStamp, Rec) of
         true ->
-           case  mnesia:delete_object(Rec) of
-                ok ->
-                    1;
-                _ ->
-                    0
-            end;
+            mnesia:delete_object(Rec),
+            1;
         false ->
             0
     end.

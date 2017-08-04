@@ -127,7 +127,7 @@ given_fresh_spec(Config, User) ->
     escalus_users:get_userspec(NewConfig, User).
 
 connect_user(Spec) ->
-    Res = base64:encode(crypto:rand_bytes(4)),
+    Res = base64:encode(crypto:strong_rand_bytes(4)),
     {ok, Conn, _} = escalus_connection:start([{resource, Res} | Spec]),
     escalus:send(Conn, escalus_stanza:presence(<<"available">>)),
     escalus:wait_for_stanza(Conn, timer:seconds(5)),

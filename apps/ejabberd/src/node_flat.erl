@@ -59,11 +59,6 @@ init(_Host, _ServerHost, _Opts) ->
     mnesia:create_table(pubsub_item,
         [{disc_only_copies, [node()]},
             {attributes, record_info(fields, pubsub_item)}]),
-    ItemsFields = record_info(fields, pubsub_item),
-    case mnesia:table_info(pubsub_item, attributes) of
-        ItemsFields -> ok;
-        _ -> mnesia:transform_table(pubsub_item, ignore, ItemsFields)
-    end,
     ok.
 
 terminate(_Host, _ServerHost) ->

@@ -42,14 +42,6 @@ typedef struct {
       z_stream *i_stream;
 } ejabberd_zlib_data;
 
-/* Wrappers around driver_alloc() that check  */
-/* for OOM.                                   */
-#ifdef HAS_ERTS_EXIT
-void erts_exit(int n, char* v, ...);
-#define erl_exit erts_exit
-#else
-void erl_exit(int n, char* v, ...);
-#endif
 
 void *ejabberd_zlib_drv_alloc(ErlDrvSizeT size);
 ErlDrvBinary *ejabberd_zlib_drv_alloc_binary(ErlDrvSizeT size);
@@ -59,7 +51,7 @@ ErlDrvBinary *ejabberd_zlib_drv_realloc_binary(ErlDrvBinary *bin,
 void *ejabberd_zlib_drv_alloc(ErlDrvSizeT size) {
     void *p = driver_alloc(size);
     if (p == NULL) {
-        erl_exit(1, "ejabberd_zlib_drv: Can't allocate %lu bytes of memory\n",
+        erts_exit(1, "ejabberd_zlib_drv: Can't allocate %lu bytes of memory\n",
             size);
     }
     return p;
@@ -68,7 +60,7 @@ void *ejabberd_zlib_drv_alloc(ErlDrvSizeT size) {
 ErlDrvBinary *ejabberd_zlib_drv_alloc_binary(ErlDrvSizeT size) {
     ErlDrvBinary *p = driver_alloc_binary(size);
     if (p == NULL) {
-        erl_exit(1, "ejabberd_zlib_drv: Can't allocate %lu binary\n", size);
+        erts_exit(1, "ejabberd_zlib_drv: Can't allocate %lu binary\n", size);
     }
     return p;
 }
@@ -76,7 +68,7 @@ ErlDrvBinary *ejabberd_zlib_drv_alloc_binary(ErlDrvSizeT size) {
 ErlDrvBinary *ejabberd_zlib_drv_realloc_binary(ErlDrvBinary *bin, ErlDrvSizeT size) {
     ErlDrvBinary *p = driver_realloc_binary(bin, size);
     if (p == NULL) {
-        erl_exit(1, "ejabberd_zlib_drv: Can't reallocate %lu binary\n", size);
+        erts_exit(1, "ejabberd_zlib_drv: Can't reallocate %lu binary\n", size);
     }
     return p;
 }

@@ -330,7 +330,6 @@ init_db(mnesia, _Host) ->
                          {local_content, true},
                          {attributes,
                           record_info(fields, caps_features)}]),
-    update_table(),
     mnesia:add_table_copy(caps_features, node(),
                           disc_only_copies).
 
@@ -634,16 +633,6 @@ is_valid_node(Node) ->
             true;
         _ ->
             false
-    end.
-
-update_table() ->
-    Fields = record_info(fields, caps_features),
-    case mnesia:table_info(caps_features, attributes) of
-        Fields ->
-            ok;
-        _ ->
-            ?INFO_MSG("Recreating caps_features table", []),
-            mnesia:transform_table(caps_features, ignore, Fields)
     end.
 
 db_type(_Host) ->
