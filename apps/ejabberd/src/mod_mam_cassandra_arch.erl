@@ -6,6 +6,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_cassandra_arch).
 -behaviour(mongoose_cassandra).
+-behaviour(ejabberd_gen_mam_archive).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -16,7 +17,7 @@
 %% MAM hook handlers
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/15,
+         lookup_messages/3,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -27,21 +28,13 @@
 %% ----------------------------------------------------------------------
 %% Imports
 
-%% UID
--import(mod_mam_utils,
-        [encode_compact_uuid/2]).
-
-%% JID serialization
--import(mod_mam_utils,
-        [jid_to_opt_binary/2,
-         expand_minified_jid/2]).
-
 %% Other
 -import(mod_mam_utils,
         [maybe_min/2,
          maybe_max/2,
-         apply_start_border/2,
-         apply_end_border/2]).
+         bare_jid/1,
+         full_jid/1
+         ]).
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
@@ -275,37 +268,18 @@ message_id_to_remote_jid(PoolName, UserJID, BUserJID, MessID) ->
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
 
--spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
-                      ArchiveID :: mod_mam:archive_id(),
-                      ArchiveJID :: ejabberd:jid(),
-                      RSM :: jlib:rsm_in()  | undefined,
-                      Borders :: mod_mam:borders()  | undefined,
-                      Start :: mod_mam:unix_timestamp()  | undefined,
-                      End :: mod_mam:unix_timestamp()  | undefined,
-                      Now :: mod_mam:unix_timestamp(),
-                      WithJID :: ejabberd:jid()  | undefined,
-                      SearchText :: binary() | undefined,
-                      PageSize :: non_neg_integer(), LimitPassed :: boolean(),
-                      MaxResultLimit :: non_neg_integer(),
-                      IsSimple :: boolean()  | opt_count) ->
-                             {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
-lookup_messages({error, _Reason} = Result, _Host,
-                _UserID, _UserJID, _RSM, _Borders,
-                _Start, _End, _Now, _WithJID, _SearchText,
-                _PageSize, _LimitPassed, _MaxResultLimit,
-                _IsSimple) ->
+-spec lookup_messages(Result :: any(), Host :: ejabberd:server(), Params :: map()) ->
+  {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
+lookup_messages({error, _Reason} = Result, _Host, _Params) ->
     Result;
-lookup_messages(_Result, _Host,
-                _UserID, _UserJID, _RSM, _Borders,
-                _Start, _End, _Now, _WithJID, <<_SearchText/binary>>,
-                _PageSize, _LimitPassed, _MaxResultLimit,
-                _IsSimple) ->
+lookup_messages(_Result, _Host, #{search_text := <<_/binary>>}) ->
     {error, 'not-supported'};
 lookup_messages(_Result, Host,
-                _UserID, UserJID, RSM, Borders,
-                Start, End, _Now, WithJID, _SearchText = undefined,
-                PageSize, LimitPassed, MaxResultLimit,
-                IsSimple) ->
+                #{owner_jid := UserJID, rsm := RSM, borders := Borders,
+                  start_ts := Start, end_ts := End, with_jid := WithJID,
+                  search_text := undefined, page_size := PageSize,
+                  limit_passed := LimitPassed, max_result_limit := MaxResultLimit,
+                  is_simple := IsSimple}) ->
     try
         PoolName = pool_name(UserJID),
         lookup_messages2(PoolName, Host,
@@ -520,7 +494,7 @@ rows_to_uniform_format(MessageRows) ->
     [row_to_uniform_format(Row) || Row <- MessageRows].
 
 row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
-    SrcJID = unserialize_jid(FromJID),
+    SrcJID = jid:from_binary(FromJID),
     Packet = stored_binary_to_packet(Msg),
     {MsgID, SrcJID, Packet}.
 
@@ -539,7 +513,7 @@ purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
     Result = message_id_to_remote_jid(PoolName, UserJID, BUserJID, MessID),
     case Result of
         {ok, BRemFullJID} ->
-            RemFullJID = unserialize_jid(BRemFullJID),
+            RemFullJID = jid:from_binary(BRemFullJID),
             RemBareJID = jid:to_bare(RemFullJID),
             BRemBareJID = jid:to_binary(RemBareJID),
             %% Remove duplicates if RemFullJID =:= RemBareJID
@@ -744,12 +718,9 @@ insert_offset_hint_query_cql() ->
 
 prepare_filter(UserJID, Borders, Start, End, WithJID) ->
     BUserJID = bare_jid(UserJID),
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID = maybe_encode_compact_uuid(End, 255),
-    StartID2 = apply_start_border(Borders, StartID),
-    EndID2 = apply_end_border(Borders, EndID),
+    {StartID, EndID} = mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
     BWithJID = maybe_full_jid(WithJID), %% it's NOT optional field
-    prepare_filter_params(BUserJID, BWithJID, StartID2, EndID2).
+    prepare_filter_params(BUserJID, BWithJID, StartID, EndID).
 
 prepare_filter_params(BUserJID, BWithJID, StartID, EndID) ->
     #mam_ca_filter{
@@ -825,24 +796,10 @@ calc_offset(PoolName, UserJID, Host, F, _PS, _TC, #rsm_in{direction = aft, id = 
 calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, _RSM) ->
     0.
 
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    encode_compact_uuid(Microseconds, NodeID).
-
-bare_jid(undefined) -> undefined;
-bare_jid(JID) ->
-    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
-
-full_jid(JID) ->
-    jid:to_binary(jid:to_lower(JID)).
-
+-spec maybe_full_jid(undefined | ejabberd:jid()) -> undefined | binary().
 maybe_full_jid(undefined) -> <<>>;
 maybe_full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
-
-unserialize_jid(BJID) ->
-    jid:from_binary(BJID).
 
 %%====================================================================
 %% Internal SQL part

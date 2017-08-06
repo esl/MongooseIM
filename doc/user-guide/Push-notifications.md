@@ -1,4 +1,4 @@
-## Push Notifications
+## How to set up Push Notifications with MongoosePush
 
 MongooseIM server supports push notifications using FCM (**F**irebase **C**loud **M**essaging)
 and APNS (**A**pple **P**ush **N**otification **S**ervice) providers. Server side push
@@ -79,7 +79,7 @@ This module acts as a bridge between [mod_pubsub][] that receives notifications 
 
 {mod_push_service_mongoosepush, [
     {pool_name, mongoose_push_http}
-    {api_version, "v1"}
+    {api_version, "v2"}
 ]}.
 ```
 

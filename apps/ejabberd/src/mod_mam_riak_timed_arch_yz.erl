@@ -29,15 +29,15 @@
 -export([start/2,
          stop/1,
          archive_size/4,
-         lookup_messages/12,
+         lookup_messages/2,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
 -export([archive_message/9,
          archive_message_muc/9,
-         lookup_messages/15,
-         lookup_messages_muc/15]).
+         lookup_messages/3,
+         lookup_messages_muc/3]).
 
 -export([key/3]).
 
@@ -147,46 +147,27 @@ maybe_muc_jid(Other) ->
     Other.
 
 
-lookup_messages({error, _Reason} = Result, _Host,
-                _UserID, _UserJID, _RSM, _Borders,
-                _Start, _End, _Now, _WithJID, _SearchText,
-                _PageSize, _LimitPassed, _MaxResultLimit,
-                _IsSimple) ->
+lookup_messages({error, _Reason} = Result, _Host, _Params) ->
     Result;
-lookup_messages(_Result, Host,
-                _UserID, UserJID, RSM, Borders,
-                Start, End, _Now, WithJID, SearchText,
-                PageSize, LimitPassed, MaxResultLimit,
-                IsSimple) ->
+lookup_messages(_Result, Host, Params) ->
     try
-        lookup_messages(Host, UserJID, RSM, Borders,
-                        Start, End, WithJID, SearchText,
-                        PageSize, LimitPassed, MaxResultLimit,
-                        IsSimple)
+        lookup_messages(Host, Params)
     catch _Type:Reason ->
               S = erlang:get_stacktrace(),
               {error, {Reason, {stacktrace, S}}}
     end.
 
 
-lookup_messages_muc(Result, Host,
-                    UserID, UserJID, RSM, Borders,
-                    Start, End, Now, WithJID, SearchText,
-                    PageSize, LimitPassed, MaxResultLimit,
-                    IsSimple) ->
+lookup_messages_muc(Result, Host, #{with_jid := WithJID} = Params) ->
     WithJIDMuc = maybe_muc_jid(WithJID),
-    lookup_messages(Result, Host,
-                    UserID, UserJID, RSM, Borders,
-                    Start, End, Now, WithJIDMuc, SearchText,
-                    PageSize, LimitPassed, MaxResultLimit,
-                    IsSimple).
+    lookup_messages(Result, Host, Params#{with_jid => WithJIDMuc}).
 
 
 archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
-    OwnerJID = bare_jid(ArchiveJID),
+    OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
     RemoteJID = undefined,
     {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-        calculate_msg_id_borders(undefined, undefined, undefined, undefined),
+    mod_mam_utils:calculate_msg_id_borders(undefined, undefined, undefined, undefined),
     F = fun get_msg_id_key/3,
     {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                    MsgIdStartNoRSM, MsgIdEndNoRSM, undefined,
@@ -221,9 +202,9 @@ remove_bucket(Bucket) ->
     [mongoose_riak:delete(Bucket, Key) || Key <- Keys].
 
 archive_message(Host, MessID, LocJID, RemJID, SrcJID, Packet, Type) ->
-    LocalJID = bare_jid(LocJID),
-    RemoteJID = bare_jid(RemJID),
-    SourceJID = full_jid(SrcJID),
+    LocalJID = mod_mam_utils:bare_jid(LocJID),
+    RemoteJID = mod_mam_utils:bare_jid(RemJID),
+    SourceJID = mod_mam_utils:full_jid(SrcJID),
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
 
@@ -241,7 +222,8 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
             pm -> mod_mam;
             muc -> mod_mam_muc
         end,
-    BodyValue = list_to_binary(mod_mam_utils:packet_to_search_body(ModMAM, Host, Packet)),
+    BodyChars = mod_mam_utils:packet_to_search_body(ModMAM, Host, Packet),
+    BodyValue = unicode:characters_to_binary(BodyChars),
     Ops = [
            {{<<"msg_id">>, register},
             fun(R) -> riakc_register:set(MsgId, R) end},
@@ -255,33 +237,40 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
 
     mongoose_riak:create_new_map(Ops).
 
-lookup_messages(Host, ArchiveJID, RSM, Borders, Start, End,
-                WithJID, SearchText, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    OwnerJID = bare_jid(ArchiveJID),
-    RemoteJID = bare_jid(WithJID),
+lookup_messages(Host, Params) ->
+    OwnerJID = mod_mam_utils:bare_jid(maps:get(owner_jid, Params)),
+    RemoteJID = mod_mam_utils:bare_jid(maps:get(with_jid, Params)),
 
-    SearchOpts2 = add_sorting(RSM, [{rows, PageSize}]),
+    RSM = maps:get(rsm, Params),
+
+    SearchOpts2 = add_sorting(RSM, [{rows, maps:get(page_size, Params)}]),
     SearchOpts = add_offset(RSM, SearchOpts2),
 
     F = fun get_msg_id_key/3,
 
-    {MsgIdStart, MsgIdEnd} = calculate_msg_id_borders(RSM, Borders, Start, End),
+    Borders = maps:get(borders, Params),
+    Start = maps:get(start_ts, Params),
+    End = maps:get(end_ts, Params),
+    SearchText = maps:get(search_text, Params),
+    {MsgIdStart, MsgIdEnd} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
     {TotalCountFullQuery, Result} = read_archive(OwnerJID, RemoteJID,
                                                  MsgIdStart, MsgIdEnd, SearchText,
                                                  SearchOpts, F),
 
     SortedKeys = sort_messages(Result),
-    case IsSimple of
+    case maps:get(is_simple, Params) of
         true ->
             {ok, {undefined, undefined, get_messages(Host, SortedKeys)}};
         _ ->
             {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-                calculate_msg_id_borders(undefined, Borders, Start, End),
+            mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
             {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                            MsgIdStartNoRSM, MsgIdEndNoRSM, SearchText,
                                            [{rows, 1}], F),
             Offset = calculate_offset(RSM, TotalCountFullQuery, length(SortedKeys),
                                       {OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText}),
+            LimitPassed = maps:get(limit_passed, Params),
+            MaxResultLimit = maps:get(max_result_limit, Params),
             case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
                 true ->
                     {error, 'policy-violation'};
@@ -349,7 +338,7 @@ remove_archive(Host, _ArchiveID, ArchiveJID) ->
     end.
 
 remove_chunk(_Host, ArchiveJID, Acc) ->
-    KeyFiletrs = key_filters(bare_jid(ArchiveJID)),
+    KeyFiletrs = key_filters(mod_mam_utils:bare_jid(ArchiveJID)),
     fold_archive(fun delete_key_fun/3,
                  KeyFiletrs,
                  [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
@@ -364,14 +353,14 @@ do_remove_archive(N, {ok, _TotalResults, _RowsIterated, Acc}, Host, ArchiveJID) 
     do_remove_archive(N-1, R, Host, ArchiveJID).
 
 purge_single_message(_Result, _Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
-    ArchiveJIDBin = bare_jid(ArchiveJID),
+    ArchiveJIDBin = mod_mam_utils:bare_jid(ArchiveJID),
     KeyFilters = key_filters(ArchiveJIDBin, MessID),
     {ok, 1, 1, 1} = fold_archive(fun delete_key_fun/3, KeyFilters, [], 0),
     ok.
 
 purge_multiple_messages(_Result, _Host, _ArchiveID,
                         ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
-    ArchiveJIDBin = bare_jid(ArchiveJID),
+    ArchiveJIDBin = mod_mam_utils:bare_jid(ArchiveJID),
     KeyFilters = key_filters(ArchiveJIDBin, WithJID, Start, End),
     {ok, Total, _Iterated, Deleted} =
         fold_archive(fun delete_key_fun/3,
@@ -487,38 +476,6 @@ id_filters(StartInt, EndInt) ->
 
 solr_id_filters(Start, End) ->
     <<"msg_id_register:[", Start/binary, " TO ", End/binary, " ]">>.
-
-
-calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
-    calculate_msg_id_borders(undefined, Borders, Start, End);
-calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
-    NextId = Id + 1,
-    {mod_mam_utils:maybe_max(StartId, NextId), EndId};
-calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
-    PrevId = Id - 1,
-    {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
-calculate_msg_id_borders(_RSM, Borders, Start, End) ->
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID = maybe_encode_compact_uuid(End, 255),
-    {mod_mam_utils:apply_start_border(Borders, StartID),
-     mod_mam_utils:apply_end_border(Borders, EndID)}.
-
-bare_jid(undefined) -> undefined;
-bare_jid(JID) ->
-    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
-
-full_jid(undefined) -> undefined;
-full_jid(JID) ->
-    jid:to_binary(jid:to_lower(JID)).
-
-
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    mod_mam_utils:encode_compact_uuid(Microseconds, NodeID).
-
 
 %% ----------------------------------------------------------------------
 %% Optimizations

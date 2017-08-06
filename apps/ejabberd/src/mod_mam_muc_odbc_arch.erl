@@ -20,7 +20,7 @@
 
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/15,
+         lookup_messages/3,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -189,17 +189,14 @@ prepare_insert(Name, NumRows) ->
     ok.
 
 
-lookup_messages({error, _Reason}=Result, _Host,
-                _UserID, _UserJID, _RSM, _Borders,
-                _Start, _End, _Now, _WithJID, _SearchText,
-                _PageSize, _LimitPassed, _MaxResultLimit,
-                _IsSimple) ->
+lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
 lookup_messages(_Result, Host,
-                UserID, UserJID, RSM, Borders,
-                Start, End, Now, WithJID, SearchText,
-                PageSize, LimitPassed, MaxResultLimit,
-                IsSimple) ->
+                #{archive_id := UserID, owner_jid := UserJID, rsm := RSM,
+                  borders := Borders, start_ts := Start, end_ts := End, now := Now,
+                  with_jid := WithJID, search_text := SearchText, page_size := PageSize,
+                  limit_passed := LimitPassed, max_result_limit := MaxResultLimit,
+                  is_simple := IsSimple}) ->
     try
         lookup_messages(Host,
                         UserID, UserJID, RSM, Borders,

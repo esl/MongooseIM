@@ -11,17 +11,8 @@
     ok | {error, timeout}.
 
 -callback lookup_messages(Result :: any(), Host :: ejabberd:server(),
-                          ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
-                          RSM :: jlib:rsm_in() | undefined,
-                          Borders :: mod_mam:borders() | undefined,
-                          Start :: mod_mam:unix_timestamp() | undefined,
-                          End :: mod_mam:unix_timestamp() | undefined,
-                          Now :: mod_mam:unix_timestamp(),
-                          WithJID :: ejabberd:jid() | undefined,
-                          SearchText :: binary() | undefined, PageSize :: integer(),
-                          LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
-                          IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
-                                                        | {error, 'policy-violation'}.
+                          Params :: map()) -> Result when
+      Result :: {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 
 -callback remove_archive(Acc :: map(), Host :: ejabberd:server(),
     ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid()) -> map().
