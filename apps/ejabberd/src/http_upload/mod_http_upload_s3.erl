@@ -32,6 +32,7 @@
 create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
     S3Opts = gen_mod:get_opt(s3, Opts),
     ExpirationTime = gen_mod:get_opt(expiration_time, Opts, 60),
+    AddACL = proplists:get_value(add_acl, S3Opts, true),
     BucketURL = unicode:characters_to_binary(gen_mod:get_opt(bucket_url, S3Opts)),
     Region = list_to_binary(gen_mod:get_opt(region, S3Opts)),
     AccessKeyId = list_to_binary(gen_mod:get_opt(access_key_id, S3Opts)),
@@ -39,9 +40,9 @@ create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
 
     {Scheme, Host, Port, Path} = extract_uri_params(BucketURL, Token, Filename),
 
-    ExpectedHeaders = get_expected_headers(Host, Size, ContentType),
+    ExpectedHeaders = get_expected_headers(Scheme, Host, Port, Size, ContentType),
     UnsignedQueries = create_queries(UTCDateTime, AccessKeyId, Region,
-                                     ExpirationTime, ExpectedHeaders),
+                                     ExpirationTime, ExpectedHeaders, AddACL),
 
     Signature = aws_signature_v4:sign(<<"PUT">>, Path, UnsignedQueries, ExpectedHeaders,
                                       UTCDateTime, Region, <<"s3">>, SecretAccessKey),
@@ -60,31 +61,34 @@ create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
 
 -spec create_queries(UTCDateTime :: calendar:datetime(), AccessKeyId :: binary(),
                      Region :: binary(), ExpirationTime :: pos_integer(),
-                     ExpectedHeaders :: #{binary() => binary()}) ->
+                     ExpectedHeaders :: #{binary() => binary()}, AddACL :: boolean()) ->
                             Queries :: #{binary() => binary()}.
-create_queries(UTCDateTime, AccessKeyId, Region, ExpirationTime, ExpectedHeaders) ->
+create_queries(UTCDateTime, AccessKeyId, Region, ExpirationTime, ExpectedHeaders, AddACL) ->
     Scope = aws_signature_v4:compose_scope(UTCDateTime, Region, <<"s3">>),
     SignedHeadersSemi = << <<H/binary, ";">> || H <- maps:keys(ExpectedHeaders) >>,
     SignedHeaders = binary_part(SignedHeadersSemi, 0, byte_size(SignedHeadersSemi) - 1),
-    #{
+    WithAcl = maps:from_list([{<<"x-amz-acl">>, <<"public-read">>} || AddACL]),
+    WithAcl#{
        <<"X-Amz-Algorithm">> => <<"AWS4-HMAC-SHA256">>,
        <<"X-Amz-Credential">> => <<AccessKeyId/binary, "/", Scope/binary>>,
        <<"X-Amz-Date">> => aws_signature_v4:datetime_iso8601(UTCDateTime),
        <<"X-Amz-Expires">> => integer_to_binary(ExpirationTime),
-       <<"X-Amz-SignedHeaders">> => SignedHeaders,
-       <<"x-amz-acl">> => <<"public-read">>
+       <<"X-Amz-SignedHeaders">> => SignedHeaders
      }.
 
 
--spec get_expected_headers(Host :: unicode:unicode_binary(), Size :: pos_integer(),
+-spec get_expected_headers(Scheme :: http | https | atom(),
+                           Host :: unicode:unicode_binary(),
+                           Port :: inet:port_number(),
+                           Size :: pos_integer(),
                            ContentType :: binary() | undefined) ->
                                   Headers :: #{binary() => binary()}.
-get_expected_headers(Host, Size, undefined) ->
-    #{<<"host">> => Host,
+get_expected_headers(Scheme, Host, Port, Size, undefined) ->
+    #{<<"host">> => with_port_component(Scheme, Host, Port),
       <<"content-length">> => integer_to_binary(Size)};
-get_expected_headers(Host, Size, ContentType) ->
+get_expected_headers(Scheme, Host, Port, Size, ContentType) ->
     maps:put(<<"content-type">>, ContentType,
-             get_expected_headers(Host, Size, undefined)).
+             get_expected_headers(Scheme, Host, Port, Size, undefined)).
 
 
 -spec extract_uri_params(BucketURL :: unicode:unicode_binary(), Token :: binary(),
@@ -105,7 +109,7 @@ extract_uri_params(BucketURL, Token, Filename) ->
                          URL :: unicode:unicode_binary().
 compose_url(Scheme, Host, Port, Path, Queries) ->
     SchemeBin = atom_to_binary(Scheme, latin1),
-    <<SchemeBin/binary, "://", Host/binary, (port_component(Scheme, Port))/binary,
+    <<SchemeBin/binary, "://", (with_port_component(Scheme, Host, Port))/binary,
       Path/binary, (query_string(Queries))/binary>>.
 
 
@@ -129,11 +133,13 @@ query_encode({Key, Value}) ->
       (aws_signature_v4:uri_encode(Value))/binary>>.
 
 
--spec port_component(Scheme :: http | https | atom(), Port :: inet:port_number()) -> binary().
-port_component(Scheme, Port) ->
+-spec with_port_component(Scheme :: http | https | atom(),
+                          Host :: unicode:unicode_binary(),
+                          Port :: inet:port_number()) -> binary().
+with_port_component(Scheme, Host, Port) ->
     case lists:keyfind(Scheme, 1, http_uri:scheme_defaults()) of
-        {Scheme, Port} -> <<>>;
-        _ -> <<":", (integer_to_binary(Port))/binary>>
+        {Scheme, Port} -> Host;
+        _ -> <<Host/binary, ":", (integer_to_binary(Port))/binary>>
     end.
 
 
