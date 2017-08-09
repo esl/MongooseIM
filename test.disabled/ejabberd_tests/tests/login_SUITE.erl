@@ -404,7 +404,12 @@ log_one_scram(Config) ->
 
 
 log_non_existent_plain(Config) ->
-    {auth_failed, _, _} = log_non_existent(Config).
+    {auth_failed, _, Xmlel} = log_non_existent(Config),
+    {xmlel, <<"failure">>, _Attrs, Data} = Xmlel,
+    true = lists:any(
+             fun({xmlel, <<"not-authorized">>, _, _}) -> true; 
+                 (_) -> false end, 
+             Data).
 
 log_non_existent_digest(Config) ->
     R = log_non_existent([{escalus_auth_method, <<"DIGEST-MD5">>} | Config]),
