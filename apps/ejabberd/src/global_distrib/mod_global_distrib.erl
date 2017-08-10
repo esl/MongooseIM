@@ -77,11 +77,13 @@ maybe_reroute({From, To, Acc0} = FPacket) ->
     GlobalHost = opt(global_host),
     case lookup_recipients_host(To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
+            ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost, [From, To]),
             ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter",
                    [get_metadata(Acc, id), jid:to_binary(From), jid:to_binary(To)]),
             {From, To, Acc};
 
         {ok, TargetHost} ->
+            ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost, [From, To]),
             case get_metadata(Acc, ttl) of
                 0 ->
                     ?DEBUG("Recipient of global message id=~s from=~s to=~s found at "

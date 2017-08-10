@@ -82,6 +82,7 @@ get_session(Jid) ->
 delete_session(Jid) ->
     ets:delete(?JIDS_ETS, Jid),
     do_delete(Jid).
+
 put_domain(Domain) ->
     ets:insert(?DOMAINS_ETS, {Domain}),
     {ok, _} = q([<<"SADD">>, domains_key(), Domain]),

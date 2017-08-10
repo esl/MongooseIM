@@ -18,10 +18,11 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -include("ejabberd.hrl").
+-include("jlib.hrl").
 
 -export([start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
          create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1,
-         binary_to_metric_atom/1, ensure_metric/2]).
+         binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2]).
 
 -type endpoint() :: {inet:ip_address(), inet:port_number()}.
 
@@ -158,6 +159,14 @@ resolve_endpoints(Endpoints) ->
               end
       end,
       Endpoints).
+
+-spec recipient_to_worker_key(jid() | ljid(), ejabberd:lserver()) -> binary().
+recipient_to_worker_key(#jid{} = Jid, GlobalHost) ->
+    recipient_to_worker_key(jid:to_lower(Jid), GlobalHost);
+recipient_to_worker_key({_, GlobalHost, _} = Jid, GlobalHost) ->
+    jid:to_binary(Jid);
+recipient_to_worker_key({_, Domain, _}, _GlobalHost) ->
+    Domain.
 
 %%--------------------------------------------------------------------
 %% Helpers

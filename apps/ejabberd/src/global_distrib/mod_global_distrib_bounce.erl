@@ -24,10 +24,11 @@
 -include("jlib.hrl").
 
 -define(MESSAGE_STORE, mod_global_distrib_bounce_message_store).
+-define(MS_BY_TARGET, mod_global_distrib_bounce_message_store_by_target).
 
 -export([start_link/0, start/2, stop/1]).
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
--export([maybe_store_message/1]).
+-export([maybe_store_message/1, reroute_messages/3]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -104,6 +105,27 @@ maybe_store_message({From, To, Acc0} = FPacket) ->
             drop
     end.
 
+-spec reroute_messages(mongoose_acc:t(), jid(), jid()) -> [mongoose_acc:t()].
+reroute_messages(Acc, From, To) ->
+    Key = get_index_key(From, To),
+    StoredMessages =
+        lists:filtermap(
+          fun({_, {ResendAt, FPacket}}) ->
+                  case ets:take(?MESSAGE_STORE, ResendAt) of
+                      [_] -> {true, FPacket};
+                      [] -> false
+                  end
+          end,
+          ets:take(?MS_BY_TARGET, Key)),
+    case StoredMessages of
+        [] -> ok;
+        _ ->
+            ?DEBUG("Routing ~B previously stored messages addressed from ~s to ~s",
+                   [length(StoredMessages), jid:to_binary(From), jid:to_binary(To)])
+    end,
+    [ejabberd_router:route(F, T, A) || {F, T, A} <- StoredMessages],
+    Acc.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -112,7 +134,9 @@ maybe_store_message({From, To, Acc0} = FPacket) ->
 start() ->
     Host = opt(global_host),
     mod_global_distrib_utils:create_ets(?MESSAGE_STORE, ordered_set),
+    mod_global_distrib_utils:create_ets(?MS_BY_TARGET, bag),
     ejabberd_hooks:add(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
+    ejabberd_hooks:add(mod_global_distrib_known_recipient, Host, ?MODULE, reroute_messages, 80),
     ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},
     {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
 
@@ -121,13 +145,26 @@ stop() ->
     Host = opt(global_host),
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
+    ejabberd_hooks:delete(mod_global_distrib_known_recipient, Host, ?MODULE, reroute_messages, 80),
     ejabberd_hooks:delete(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
+    ets:delete(?MS_BY_TARGET),
     ets:delete(?MESSAGE_STORE).
+
+add_index(ResendAt, {From, To, _Acc} = FPacket) ->
+    Key = get_index_key(From, To),
+    ets:insert(?MS_BY_TARGET, {Key, {ResendAt, FPacket}}).
+
+delete_index(ResendAt, {From, To, _Acc} = FPacket) ->
+    Key = get_index_key(From, To),
+    ets:delete_object(?MS_BY_TARGET, {Key, {ResendAt, FPacket}}).
+
+get_index_key(From, To) ->
+    {jid:to_lower(From), jid:to_lower(To)}.
 
 -spec do_insert_in_store(ResendAt :: integer(), {jid(), jid(), mongoose_acc:t()}) -> ok.
 do_insert_in_store(ResendAt, FPacket) ->
     case ets:insert_new(?MESSAGE_STORE, {ResendAt, FPacket}) of
-        true -> ok;
+        true -> add_index(ResendAt, FPacket);
         false -> do_insert_in_store(ResendAt + 1, FPacket)
     end.
 
@@ -135,11 +172,16 @@ do_insert_in_store(ResendAt, FPacket) ->
 resend_messages(Now) ->
     case ets:first(?MESSAGE_STORE) of
         Key when is_integer(Key) andalso Key < Now ->
-            [{Key, {From, To, _Acc} = FPacket}] = ets:lookup(?MESSAGE_STORE, Key),
-            ets:delete(?MESSAGE_STORE, Key),
-            mod_global_distrib_mapping:clear_cache(To),
-            Worker = mod_global_distrib_worker_sup:get_worker(jid:to_binary(From)),
-            gen_server:cast(Worker, {route, FPacket}),
+            case ets:take(?MESSAGE_STORE, Key) of
+                [{Key, {From, To, _Acc} = FPacket}] ->
+                    delete_index(Key, FPacket),
+                    mod_global_distrib_mapping:clear_cache(To),
+                    WorkerKey = mod_global_distrib_utils:recipient_to_worker_key(From, opt(global_host)),
+                    Worker = mod_global_distrib_worker_sup:get_worker(WorkerKey),
+                    gen_server:cast(Worker, {route, FPacket});
+                _ ->
+                    ok
+            end,
             resend_messages(Now);
         _ ->
             ok

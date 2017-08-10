@@ -61,7 +61,9 @@ groups() ->
      {multi_connection, [shuffle],
       [
        test_in_order_messages_on_multiple_connections,
-       test_muc_conversation_history
+       test_muc_conversation_history,
+       test_in_order_messages_on_multiple_connections_with_bounce,
+       test_messages_bounced_in_order
       ]}].
 
 suite() ->
@@ -455,6 +457,52 @@ test_in_order_messages_on_multiple_connections(Config) ->
                 Seq)
       end).
 
+test_in_order_messages_on_multiple_connections_with_bounce(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {eve, 1}],
+      fun(Alice, Eve) ->
+              %% Send 99 messages, some while server knows the mapping and some when it doesn't
+              send_steps(Alice, Eve, 99, <<"fed1">>),
+              %% Make sure that the last message is sent when the mapping is known
+              set_mapping(europe_node, Eve, <<"fed1">>),
+              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"100">>)),
+
+              %% Check that all stanzas were received in order
+              lists:foreach(
+                fun(I) ->
+                        Stanza = escalus_client:wait_for_stanza(Eve, 5000),
+                        escalus:assert(is_chat_message, [integer_to_binary(I)], Stanza)
+                end,
+                lists:seq(1, 100))
+      end).
+
+test_messages_bounced_in_order(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {eve, 1}],
+      fun(Alice, Eve) ->
+              %% Make sure all messages land in bounce storage
+              delete_mapping(europe_node, Eve),
+
+              Seq = lists:seq(1, 100),
+              lists:foreach(
+                fun(I) ->
+                        Stanza = escalus_stanza:chat_to(Eve, integer_to_binary(I)),
+                        escalus_client:send(Alice, Stanza)
+                end,
+                Seq),
+
+              %% Restore the mapping so that bounce eventually succeeds
+              ?assertEqual(undefined, get_mapping(europe_node, Eve)),
+              set_mapping(europe_node, Eve, <<"fed1">>),
+
+              lists:foreach(
+                fun(I) ->
+                        Stanza = escalus_client:wait_for_stanza(Eve, 5000),
+                        escalus:assert(is_chat_message, [integer_to_binary(I)], Stanza)
+                end,
+                Seq)
+      end).
+
 test_update_senders_host(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
@@ -465,7 +513,7 @@ test_update_senders_host(Config) ->
               escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"hi">>)),
               escalus_client:wait_for_stanza(Eve),
               AliceMapping = rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid]),
-              ?assertEqual({ok, <<"localhost.bis">>}, AliceMapping) 
+              ?assertEqual({ok, <<"localhost.bis">>}, AliceMapping)
       end).
 
 %%--------------------------------------------------------------------
@@ -508,3 +556,46 @@ canonicalize_path([], Acc) -> filename:join(lists:reverse(Acc));
 canonicalize_path([".." | Path], [_ | Acc]) -> canonicalize_path(Path, Acc);
 canonicalize_path(["." | Path], Acc) -> canonicalize_path(Path, Acc);
 canonicalize_path([Elem | Path], Acc) -> canonicalize_path(Path, [Elem | Acc]).
+
+send_steps(From, To, Max, ToHost) ->
+    next_send_step(From, To, 1, Max, Max div 10, true, ToHost).
+
+next_send_step(_From, _To, I, Max, _ToReset, _KnowsMapping, _ToHost) when I > Max -> ok;
+next_send_step(From, To, I, Max, 0, KnowsMapping, ToHost) ->
+    ct:print("Reset: I: ~B", [I]),
+    case KnowsMapping of
+        true -> delete_mapping(europe_node, To);
+        false -> set_mapping(europe_node, To, ToHost)
+    end,
+    next_send_step(From, To, I, Max, Max div 10, not KnowsMapping, ToHost);
+next_send_step(From, To, I, Max, ToReset, KnowsMapping, ToHost) ->
+    ct:print("I: ~B ~B ~B", [I, Max, ToReset]),
+    Stanza = escalus_stanza:chat_to(To, integer_to_binary(I)),
+    escalus_client:send(From, Stanza),
+    next_send_step(From, To, I + 1, Max, ToReset - 1, KnowsMapping, ToHost).
+
+get_mapping(Node, Client) ->
+    {FullJid, _BareJid} = jids(Client),
+    {ok, What} = redis_query(Node, Client, [<<"GET">>, FullJid]),
+    What.
+
+delete_mapping(Node, Client) ->
+    {FullJid, BareJid} = jids(Client),
+    redis_query(Node, Client, [<<"DEL">>, FullJid, BareJid]),
+    Jid = rpc(Node, jid, from_binary, [FullJid]),
+    rpc(Node, mod_global_distrib_mapping, clear_cache, [Jid]).
+
+set_mapping(Node, Client, Mapping) ->
+    {FullJid, BareJid} = jids(Client),
+    redis_query(Node, Client, [<<"MSET">>, FullJid, Mapping, BareJid, Mapping]),
+    Jid = rpc(Node, jid, from_binary, [FullJid]),
+    rpc(Node, mod_global_distrib_mapping, clear_cache, [Jid]).
+
+jids(Client) ->
+    FullJid = escalus_client:full_jid(Client),
+    BareJid = escalus_client:short_jid(Client),
+    {FullJid, BareJid}.
+
+redis_query(Node, Client, Query) ->
+    RedisWorker = rpc(Node, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
+    rpc(Node, eredis, q, [RedisWorker, Query]).

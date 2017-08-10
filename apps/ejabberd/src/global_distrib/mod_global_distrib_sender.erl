@@ -63,19 +63,10 @@ send(Server, Packet) when is_binary(Server) ->
     send(Worker, Packet);
 send(Worker, {From, _To, _Acc} = Packet) ->
     BinPacket = term_to_binary(Packet),
-    BinFrom = from_to_streamid(From),
+    BinFrom = mod_global_distrib_utils:recipient_to_worker_key(From, opt(global_host)),
     Data = <<(byte_size(BinFrom)):16, BinFrom/binary, BinPacket/binary>>,
     Stamp = erlang:monotonic_time(),
     ok = mod_global_distrib_utils:cast_or_call(Worker, {data, Stamp, Data}).
-
--spec from_to_streamid(From :: jid()) -> binary().
-from_to_streamid(From) ->
-    GlobalHost = opt(global_host),
-    %% TODO: dedup: It's possible that there are other places with this kind of construct.
-    case jid:to_lower(From) of
-        {_, GlobalHost, _} = LJid -> jid:to_binary(LJid);
-        {_, Domain, _} -> Domain
-    end.
 
 -spec get_process_for(ejabberd:lserver()) -> pid().
 get_process_for(Server) ->
