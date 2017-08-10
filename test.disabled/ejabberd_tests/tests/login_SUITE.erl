@@ -405,7 +405,7 @@ log_one_scram(Config) ->
 
 log_non_existent_plain(Config) ->
     {auth_failed, _, Xmlel} = log_non_existent(Config),
-    #xmlel{name = <<"failure">>, children = Data} = Xmlel,
+    #xmlel{name = <<"failure">>} = Xmlel,
     #xmlel{} = exml_query:subelement(Xmlel, <<"not-authorized">>).
 
 log_non_existent_digest(Config) ->
