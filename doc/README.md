@@ -25,8 +25,7 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) an
 
 For a quick start just download:
 
-* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html)
-that suits your platform (Ubuntu, Debian, CentOS, and macOS)
+* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html) that suit your platform (Ubuntu, Debian, CentOS, and macOS)
 * The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): [https://hub.docker.com/r/mongooseim/mongooseim/](https://hub.docker.com/r/mongooseim/mongooseim/) (source code repository: [https://github.com/esl/mongooseim-docker](https://github.com/esl/mongooseim-docker))
 
 ## Public testing
@@ -49,17 +48,17 @@ We offer a set of server-side components:
 * Test suite - here are some useful tools to test and validate your XMPP servers:
     * [escalus](https://github.com/esl/escalus): Erlang XMPP client
     * [amoc](https://github.com/esl/amoc): a load testing tools
-* More components? There are some ideas we're working on. Tune in for updates on
+* More components? There are some ideas we're working on. Tune in for updates on:
     * MongooseICE: ICE, STUN/TURN server
     * MongoosePush: a push notification server
 
 ### Client-side components
 
-* XMPP client libraries: we recommend the following client libraries:
+* XMPP client libraries - we recommend the following client libraries:
     * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
     * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
     * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io), [Strophe.js](https://github.com/strophe/strophejs)
-* REST API client libraries: we recommend following client libraries:
+* REST API client libraries - we recommend following client libraries:
     * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
     * Android, Java: [Retrofit](https://github.com/square/retrofit)
 
@@ -79,8 +78,9 @@ Suggestions, questions, thoughts? Contact us directly:
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
 
 * [http://mongooseim.readthedocs.org/en/latest/](http://mongooseim.readthedocs.org/en/latest/)
-* [release 2.0.0](http://mongooseim.readthedocs.org/en/2.0.0/)
+* [release 2.0.1](http://mongooseim.readthedocs.org/en/2.0.1/)
 * Older versions:
+    * [release 2.0.0](http://mongooseim.readthedocs.org/en/2.0.0/) 
     * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
     * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
     * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
