@@ -45,6 +45,8 @@
                 creds :: mongoose_credentials:t()
               }).
 
+-type state() :: #state{}.
+
 start(_Opts) ->
     mongoose_fips:maybe_register_mech(<<"DIGEST-MD5">>, ?MODULE, digest).
 
@@ -52,7 +54,7 @@ stop() ->
     ok.
 
 -spec mech_new(Host :: jid:server(),
-               Creds :: mongoose_credentials:t()) -> {ok, #state{}}.
+               Creds :: mongoose_credentials:t()) -> {ok, state()}.
 mech_new(Host, Creds) ->
     {ok, #state{step = 1,
                 nonce = randoms:get_string(),
@@ -72,48 +74,7 @@ mech_step(#state{step = 3, nonce = Nonce} = State, ClientIn) ->
         bad ->
             {error, <<"bad-protocol">>};
         KeyVals ->
-            DigestURI = xml:get_attr_s(<<"digest-uri">>, KeyVals),
-            UserName = xml:get_attr_s(<<"username">>, KeyVals),
-            case is_digesturi_valid(DigestURI, State#state.host) of
-                false ->
-                    ?DEBUG("User login not authorized because digest-uri "
-                           "seems invalid: ~p", [DigestURI]),
-                    {error, <<"not-authorized">>, UserName};
-                true ->
-                    AuthzId = xml:get_attr_s(<<"authzid">>, KeyVals),
-                    LServer = mongoose_credentials:lserver(State#state.creds),
-                    case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
-                        {false, _} ->
-                            {error, <<"not-authorized">>, UserName};
-                        {Passwd, AuthModule} ->
-                            DigestGen = fun(PW) -> response(KeyVals, UserName, PW, Nonce, AuthzId,
-                                                            <<"AUTHENTICATE">>)
-                                        end,
-                            Request = mongoose_credentials:extend(State#state.creds,
-                                                                  [{username, UserName},
-                                                                   {password, <<>>},
-                                                                   {digest, xml:get_attr_s(<<"response">>, KeyVals)},
-                                                                   {digest_gen, DigestGen}]),
-                            case ejabberd_auth:authorize(Request) of
-                                {ok, Result} ->
-                                    RspAuth = response(KeyVals,
-                                                       UserName, Passwd,
-                                                       Nonce, AuthzId, <<>>),
-                                    {continue,
-                                     list_to_binary([<<"rspauth=">>, RspAuth]),
-                                     State#state{step = 5,
-                                                 auth_module = AuthModule,
-                                                 username = UserName,
-                                                 authzid = AuthzId,
-                                                 creds = Result}};
-                                {error, not_authorized} ->
-                                    {error, <<"not-authorized">>, UserName};
-                                {error, R} ->
-                                    ?DEBUG("authorize error: ~p", [R]),
-                                    {error, <<"not-authorized">>}
-                            end
-                    end
-            end
+            authorize_if_uri_valid(State, KeyVals, Nonce)
     end;
 mech_step(#state{step = 5,
                  auth_module = AuthModule,
@@ -127,6 +88,56 @@ mech_step(A, B) ->
     ?DEBUG("SASL DIGEST: A ~p B ~p", [A, B]),
     {error, <<"bad-protocol">>}.
 
+
+authorize_if_uri_valid(State, KeyVals, Nonce) ->
+    UserName = xml:get_attr_s(<<"username">>, KeyVals),
+    DigestURI = xml:get_attr_s(<<"digest-uri">>, KeyVals),
+    case is_digesturi_valid(DigestURI, State#state.host) of
+        false ->
+            ?DEBUG("User login not authorized because digest-uri "
+                   "seems invalid: ~p", [DigestURI]),
+            {error, <<"not-authorized">>, UserName};
+        true ->
+            maybe_authorize(UserName, KeyVals, Nonce, State)
+    end.
+
+maybe_authorize(UserName, KeyVals, Nonce, State) ->
+    AuthzId = xml:get_attr_s(<<"authzid">>, KeyVals),
+    LServer = mongoose_credentials:lserver(State#state.creds),
+    case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
+        {false, _} ->
+            {error, <<"not-authorized">>, UserName};
+        {Passwd, AuthModule} ->
+            DigestGen = fun(PW) -> response(KeyVals, UserName, PW, Nonce, AuthzId,
+                                            <<"AUTHENTICATE">>)
+                        end,
+            Request = mongoose_credentials:extend(State#state.creds,
+                                                  [{username, UserName},
+                                                   {password, <<>>},
+                                                   {digest, xml:get_attr_s(<<"response">>, KeyVals)},
+                                                   {digest_gen, DigestGen}]),
+            do_authorize(UserName, KeyVals, Nonce, Passwd, Request, AuthzId, AuthModule, State)
+    end.
+
+do_authorize(UserName, KeyVals, Nonce, Passwd, Request, AuthzId, AuthModule, State) ->
+    case ejabberd_auth:authorize(Request) of
+        {ok, Result} ->
+            RspAuth = response(KeyVals,
+                               UserName, Passwd,
+                               Nonce, AuthzId, <<>>),
+            {continue,
+             list_to_binary([<<"rspauth=">>, RspAuth]),
+             State#state{step = 5,
+                         auth_module = AuthModule,
+                         username = UserName,
+                         authzid = AuthzId,
+                         creds = Result}};
+      {error, not_authorized} ->
+            {error, <<"not-authorized">>, UserName};
+      {error, R} ->
+            ?DEBUG("authorize error: ~p", [R]),
+            {error, <<"not-authorized">>}
+    end.
 
 -spec parse(binary()) -> 'bad' | [{binary(), binary()}].
 parse(S) ->
