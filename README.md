@@ -125,6 +125,7 @@ The MongooseIM platform documentation:
     * [Reloading configuration on a running system](doc/operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
     * [Metrics](doc/operation-and-maintenance/Mongoose-metrics.md)
     * [HTTP Administration API](doc/http-api/http-administration-api-documentation.md)
+    * [Distribution over TLS](operation-and-maintenance/tls-distribution.md)
 * Server developer guide
     * [Testing MongooseIM](doc/developers-guide/Testing-MongooseIM.md)
     * [REST Interface to Metrics](doc/developers-guide/REST-interface-to-metrics.md)
