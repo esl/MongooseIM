@@ -68,7 +68,7 @@ tools/ssl/fake_key.pem \
 tools/ssl/fake_pubkey.pem \
 tools/ssl/fake_server.pem \
 tools/ssl/fake_dh_server.pem:
-	cd tools/ssl && make
+	cd tools/ssl && $(MAKE)
 
 xeplist: escript
 	escript $(XEP_TOOL)/xep_tool.escript markdown $(EJD_EBIN)
