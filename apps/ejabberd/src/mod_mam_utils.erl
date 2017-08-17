@@ -21,7 +21,8 @@
          wrapper_id/0]).
 
 %% XML
--export([is_archived_elem_for/2,
+-export([add_arcid_elems/3,
+	 is_archived_elem_for/2,
          replace_archived_elem/3,
          replace_x_user_element/4,
          append_archived_elem/3,
@@ -226,6 +227,15 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
 
 %% -----------------------------------------------------------------------
 %% XML
+%%
+%% As <archived/> is going to be depricated, I leave two versions of functions
+%% (not extracting any common part) dealing with inserting archive element.
+%% (so that is easier to delete it).
+
+-spec add_arcid_elems(By :: binary(), Id :: binary(), jlib:xmlel()) -> jlib:xmlel().
+add_arcid_elems(By, Id, Packet) ->
+  WithArchived = replace_archived_elem(By, Id, Packet),
+  replace_stanzaid_elem(By, Id, WithArchived).
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_archived_elem_for(jlib:xmlel(), By :: binary()) -> boolean().
@@ -233,6 +243,11 @@ is_archived_elem_for(#xmlel{name = <<"archived">>, attrs=As}, By) ->
     lists:member({<<"by">>, By}, As);
 is_archived_elem_for(_, _) ->
     false.
+
+is_stanzaid_elem_for(#xmlel{name = <<"stanza-id">>, attrs = As}, By) ->
+	lists:member({<<"by">>, By}, As);
+is_stanzaid_elem_for(_, _) ->
+	false.
 
 is_x_user_element(#xmlel{name = <<"x">>, attrs = As}) ->
     lists:member({<<"xmlns">>, ?NS_MUC_USER}, As);
@@ -243,6 +258,10 @@ is_x_user_element(_) ->
 replace_archived_elem(By, Id, Packet) ->
     append_archived_elem(By, Id,
                          delete_archived_elem(By, Packet)).
+
+replace_stanzaid_elem(By, Id, Packet) ->
+    append_stanzaid_elem(By, Id,
+			  delete_stanzaid_elem(By, Packet)).
 
 
 -spec replace_x_user_element(FromJID :: ejabberd:jid(), Role :: mod_muc:role(),
@@ -257,6 +276,12 @@ append_archived_elem(By, Id, Packet) ->
     Archived = #xmlel{
                   name = <<"archived">>,
                   attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
+    xml:append_subtags(Packet, [Archived]).
+
+append_stanzaid_elem(By, Id, Packet) ->
+    Archived = #xmlel{
+		  name = <<"stanza-id">>,
+		  attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
     xml:append_subtags(Packet, [Archived]).
 
 append_x_user_element(FromJID, Role, Affiliation, Packet) ->
@@ -277,6 +302,9 @@ x_user_item(FromJID, Role, Affiliation) ->
 -spec delete_archived_elem(By :: binary(), jlib:xmlel()) -> jlib:xmlel().
 delete_archived_elem(By, Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_archived_elem_for(C, By)]}.
+
+delete_stanzaid_elem(By, Packet=#xmlel{children=Cs}) ->
+    Packet#xmlel{children=[C || C <- Cs, not is_stanzaid_elem_for(C, By)]}.
 
 -spec delete_x_user_element(jlib:xmlel()) -> jlib:xmlel().
 delete_x_user_element(Packet=#xmlel{children=Cs}) ->
@@ -629,6 +657,7 @@ maybe_get_result_namespace(Packet) ->
 is_mam_namespace(?NS_MAM)    -> true;
 is_mam_namespace(?NS_MAM_03) -> true;
 is_mam_namespace(?NS_MAM_04) -> true;
+is_mam_namespace(?NS_MAM_06) -> true;
 is_mam_namespace(_)          -> false.
 
 
