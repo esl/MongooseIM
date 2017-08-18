@@ -67,7 +67,8 @@
 
 %% XML
 -import(mod_mam_utils,
-        [replace_archived_elem/3,
+        [add_arcid_elems/3,
+	 replace_archived_elem/3,
          replace_x_user_element/4,
          delete_x_user_element/1,
          packet_to_x_user_jid/1,
@@ -242,7 +243,7 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
             case {Result, add_archived_element()} of
                 {ok, true} ->
                     BareRoomJID = jid:to_binary(RoomJID),
-                    replace_archived_elem(BareRoomJID,
+                    add_arcid_elems(BareRoomJID,
                                           mess_id_to_external_binary(MessID),
                                           Packet);
                 {ok, false} -> Packet;
