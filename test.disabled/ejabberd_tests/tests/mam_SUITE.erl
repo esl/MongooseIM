@@ -70,7 +70,8 @@
          pagination_offset5_opt_count/1,
          pagination_offset5_opt_count_all/1,
          archived/1,
-         strip_archived/1,
+	 message_with_stanzaid_and_archived/1,
+         strip_stanzaid/1,
          filter_forwarded/1,
          policy_violation/1,
          offline_message/1,
@@ -334,7 +335,8 @@ mam_purge_cases() ->
 
 archived_cases() ->
     [archived,
-     strip_archived,
+     strip_stanzaid,
+     message_with_stanzaid_and_archived,
      filter_forwarded].
 
 policy_violation_cases() ->
@@ -782,7 +784,7 @@ init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
                      ConfigIn
              end,
     escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=strip_archived, Config) ->
+init_per_testcase(C=strip_stanzaid, Config) ->
     escalus:init_per_testcase(C, Config);
 init_per_testcase(C=filter_forwarded, Config) ->
     escalus:init_per_testcase(C, Config);
@@ -1330,7 +1332,7 @@ archived(Config) ->
         %% Bob receives a message.
         Msg = escalus:wait_for_stanza(Bob),
         try
-        Arc = exml_query:subelement(Msg, <<"archived">>),
+        Arc = exml_query:subelement(Msg, <<"stanza-id">>),
         %% JID of the archive (i.e. where the client would send queries to)
         By  = exml_query:attr(Arc, <<"by">>),
         %% Attribute giving the message's UID within the archive.
@@ -1354,6 +1356,39 @@ archived(Config) ->
     %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+
+message_with_stanzaid_and_archived(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        %% Archive must be empty.
+        %% Alice sends "OH, HAI!" to Bob.
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+        %% Bob receives a message.
+        Msg = escalus:wait_for_stanza(Bob),
+        try
+        Arc_archived = exml_query:subelement(Msg, <<"archived">>),
+	Arc_stanzaid = exml_query:subelement(Msg, <<"stanza-id">>),
+        %% JID of the archive (i.e. where the client would send queries to)
+        By_archived  = exml_query:attr(Arc_archived, <<"by">>),
+        By_stanzaid  = exml_query:attr(Arc_stanzaid, <<"by">>),
+        %% Attribute giving the message's UID within the archive.
+        Id_archived  = exml_query:attr(Arc_archived, <<"id">>),
+        Id_stanzaid  = exml_query:attr(Arc_stanzaid, <<"id">>),
+
+	%% The attributes of <stanza-id/> and <archived/> are the same
+	?assert_equal(By_archived, By_stanzaid),
+	?assert_equal(Id_archived, Id_stanzaid),
+	ok
+	catch Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ct:pal("Msg ~p", [Msg]),
+            erlang:raise(Class, Reason, Stacktrace)
+        end
+	end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+
 filter_forwarded(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
@@ -1373,7 +1408,7 @@ filter_forwarded(Config) ->
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
-strip_archived(Config) ->
+strip_stanzaid(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Archive must be empty.
@@ -1385,7 +1420,7 @@ strip_archived(Config) ->
 
         %% Bob receives a message.
         Msg = escalus:wait_for_stanza(Bob),
-        Arc = exml_query:subelement(Msg, <<"archived">>),
+        Arc = exml_query:subelement(Msg, <<"stanza-id">>),
         %% JID of the archive (i.e. where the client would send queries to)
         By  = exml_query:attr(Arc, <<"by">>),
         %% Attribute giving the message's UID within the archive.
@@ -1580,7 +1615,7 @@ muc_archive_request(Config) ->
         %% User's archive is disabled (i.e. bob@localhost).
         BobMsg = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, BobMsg),
-        Arc = exml_query:subelement(BobMsg, <<"archived">>),
+        Arc = exml_query:subelement(BobMsg, <<"stanza-id">>),
         %% JID of the archive (i.e. where the client would send queries to)
         By  = exml_query:attr(Arc, <<"by">>),
         %% Attribute giving the message's UID within the archive.
@@ -1679,8 +1714,8 @@ muc_multiple_devices(Config) ->
         Alice2Msg = escalus:wait_for_stanza(Alice2),
         escalus:assert(is_message, Alice2Msg),
 
-        Alice1Arc = exml_query:subelement(Alice1Msg, <<"archived">>),
-        Alice2Arc = exml_query:subelement(Alice2Msg, <<"archived">>),
+        Alice1Arc = exml_query:subelement(Alice1Msg, <<"stanza-id">>),
+        Alice2Arc = exml_query:subelement(Alice2Msg, <<"stanza-id">>),
         ?assert_equal(Alice1Arc, Alice2Arc),
 
         %% Bob received the message "Hi, Bob!".
@@ -1688,7 +1723,7 @@ muc_multiple_devices(Config) ->
         %% User's archive is disabled (i.e. bob@localhost).
         BobMsg = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, BobMsg),
-        Arc = exml_query:subelement(BobMsg, <<"archived">>),
+        Arc = exml_query:subelement(BobMsg, <<"stanza-id">>),
         %% JID of the archive (i.e. where the client would send queries to)
         By  = exml_query:attr(Arc, <<"by">>),
         %% Attribute giving the message's UID within the archive.
@@ -1737,7 +1772,7 @@ muc_protected_message(Config) ->
         BobArchiveAddr = escalus_client:short_jid(Bob),
         ArchivedBy = [exml_query:attr(Arc, <<"by">>)
                       || Arc <- BobMsg#xmlel.children,
-                         Arc#xmlel.name =:= <<"archived">>,
+                         Arc#xmlel.name =:= <<"stanza-id">>,
                          BobArchiveAddr =/= exml_query:attr(Arc, <<"by">>)],
         ?assert_equal([], ArchivedBy),
 
