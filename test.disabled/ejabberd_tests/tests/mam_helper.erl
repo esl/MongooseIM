@@ -55,6 +55,11 @@ mam04_props() ->
      {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
      {mam_ns, mam_ns_binary_v04()}].
 
+mam06_props() ->
+     [{data_form, true},                 %% send data forms
+     {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
+     {mam_ns, mam_ns_binary_v06()}].   
+
 respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
     Messages.
 
@@ -187,7 +192,8 @@ nick(User) -> escalus_utils:get_username(User).
 mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
-namespaces() -> [mam_ns_binary(), mam_ns_binary_v03(), mam_ns_binary_v04()].
+mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
+namespaces() -> [mam_ns_binary(), mam_ns_binary_v03(), mam_ns_binary_v04(), mam_ns_binary_v06()].
 muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
 stanza_purge_single_message(MessId) ->
@@ -777,6 +783,10 @@ append_subelem(Elem=#xmlel{children=Cs}, SubElem) ->
 archived_elem(By, Id) ->
     #xmlel{name = <<"archived">>,
            attrs = [{<<"by">>, By}, {<<"id">>, Id}]}.
+
+stanzaid_elem(By, Id) ->
+    #xmlel{name = <<"stanza-id">>,
+	   attrs = [{<<"by">>, By}, {<<"id">>, Id}]}.
 
 clean_archives(Config) ->
     SUs = serv_users(Config),
