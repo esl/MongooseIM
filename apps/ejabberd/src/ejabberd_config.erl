@@ -513,24 +513,24 @@ process_term(Term, State) ->
             State;
         {host_config, Host, Terms} ->
             lists:foldl(fun(T, S) ->
-                            process_host_term(T, list_to_binary(Host), S) end,
-                        State, Terms);
+                process_host_term(T, list_to_binary(Host), S) end,
+                State, Terms);
         {pool, odbc, _PoolName} ->
             State;
         {pool, odbc, PoolName, Options} ->
             lists:foldl(fun(T, S) ->
-                            process_db_pool_term(T, PoolName, S)
+                process_db_pool_term(T, PoolName, S)
                         end,
-                        State, Options);
+                State, Options);
         {listen, Listeners} ->
             Listeners2 =
                 lists:map(
-                  fun({PortIP, Module, Opts}) ->
-                      {Port, IPT, _, _, Proto, OptsClean} =
-                          ejabberd_listener:parse_listener_portip(PortIP, Opts),
-                      {{Port, IPT, Proto}, Module, OptsClean}
-                  end,
-                  Listeners),
+                    fun({PortIP, Module, Opts}) ->
+                        {Port, IPT, _, _, Proto, OptsClean} =
+                            ejabberd_listener:parse_listener_portip(PortIP, Opts),
+                        {{Port, IPT, Proto}, Module, OptsClean}
+                    end,
+                    Listeners),
             add_option(listen, Listeners2, State);
         {language, Val} ->
             add_option(language, list_to_binary(Val), State);
@@ -630,6 +630,8 @@ process_host_term(Term, Host, State) ->
             add_option(riak_server, RiakConfig, State);
         {cassandra_servers, CassandraConfig} ->
             add_option(cassandra_servers, CassandraConfig, State);
+        {modules, Modules} ->
+            add_option({modules, Host}, transform_modules(Modules), State);
         {Opt, Val} ->
             add_option({Opt, Host}, Val, State)
     end.
@@ -816,6 +818,19 @@ parse_file(ConfigFile) ->
     lists:foldl(fun process_term/2,
                 add_option(odbc_pools, State#state.odbc_pools, State),
                 TermsWExpandedMacros).
+
+transform_module_options(Module, Opts) ->
+    try
+        Module:transform_module_options(Opts)
+    catch error:undef ->
+        Opts
+    end.
+
+transform_modules(Modules) ->
+    lists:map(
+        fun({Module, Opts}) ->
+            {Module, transform_module_options(Module, Opts)}
+        end, Modules).
 
 -spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->
