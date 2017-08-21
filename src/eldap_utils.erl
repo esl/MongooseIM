@@ -150,25 +150,7 @@ make_filter(Data, UIDs, Op) ->
     NewUIDs = [{U, eldap_filter:do_sub(
                      UF, [{<<"%u">>, <<"*%u*">>, 1}])} || {U, UF} <- UIDs],
     Filter = lists:flatmap(
-               fun({Name, [Value | _]}) ->
-                       case Name of
-                           <<"%u">> when Value /= <<"">> ->
-                               case eldap_filter:parse(
-                                      generate_subfilter(NewUIDs),
-                                      [{<<"%u">>, Value}]) of
-                                   {ok, F} -> [F];
-                                   _ -> []
-                               end;
-                           _ when Value /= <<"">> ->
-                    case binary:match(Value, <<"*">>) of
-                        nomatch -> [eldap:equalityMatch(Name, Value)];
-                        _ -> [eldap:substrings(maybe_b2list(Name),
-                          generate_substring_list(Value))]
-                    end;
-                           _ ->
-                               []
-                       end
-               end, Data),
+               traverse_filter_fun(NewUIDs), Data),
     case Filter of
         [F] ->
             F;
@@ -176,6 +158,26 @@ make_filter(Data, UIDs, Op) ->
             eldap:Op(Filter)
     end.
 
+traverse_filter_fun(NewUIDs) ->
+  fun(Entry) ->
+    match_filter_name(Entry, NewUIDs)
+  end.
+
+match_filter_name({<<"%u">>, [Value | _]}, NewUIDs) when Value /= <<"">> ->
+  case eldap_filter:parse(
+    generate_subfilter(NewUIDs),
+    [{<<"%u">>, Value}]) of
+    {ok, F} -> [F];
+    _ -> []
+  end;
+match_filter_name({Name, [Value | _]}, _NewUIDs) when Value /= <<"">> ->
+  case binary:match(Value, <<"*">>) of
+    nomatch -> [eldap:equalityMatch(Name, Value)];
+    _ -> [eldap:substrings(maybe_b2list(Name),
+      generate_substring_list(Value))]
+  end;
+match_filter_name(_, _) ->
+  [].
 
 -spec case_insensitive_match(binary(), binary()) -> boolean().
 case_insensitive_match(X, Y) ->
