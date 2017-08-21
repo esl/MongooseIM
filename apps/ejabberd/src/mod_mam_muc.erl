@@ -68,7 +68,7 @@
 %% XML
 -import(mod_mam_utils,
         [add_arcid_elems/3,
-	 replace_archived_elem/3,
+         replace_archived_elem/3,
          replace_x_user_element/4,
          delete_x_user_element/1,
          packet_to_x_user_jid/1,

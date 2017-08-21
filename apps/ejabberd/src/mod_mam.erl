@@ -205,7 +205,7 @@ start(Host, Opts) ->
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_06,
-				  ?MODULE, process_mam_iq, IQDisc),
+                                  ?MODULE, process_mam_iq, IQDisc),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
@@ -406,7 +406,7 @@ iq_action(IQ = #iq{xmlns = ?NS_MAM_03}) ->
 iq_action(IQ = #iq{xmlns = ?NS_MAM_04}) ->
     iq_action_v03(IQ);
 iq_action(IQ = #iq{xmlns = ?NS_MAM_06}) ->
-    iq_action_v03(IQ).    
+    iq_action_v03(IQ).
 
 iq_action_v02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
     case {Action, Category} of

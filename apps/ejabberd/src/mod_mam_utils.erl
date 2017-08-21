@@ -22,7 +22,7 @@
 
 %% XML
 -export([add_arcid_elems/3,
-	 is_arcid_elem_for/3,
+         is_arcid_elem_for/3,
          replace_arcid_elem/4,
          replace_x_user_element/4,
          append_arcid_elem/4,
@@ -121,8 +121,8 @@ rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
 
 % Elements added to a message stanza to inform where and under
 % what ID the message is stored.
--define(ARCID_ELEM_02, <<"archived">>). 	% For MAM 0.2 and newer
--define(ARCID_ELEM_06, <<"stanza-id">>).	% For MAM 0.6
+-define(ARCID_ELEM_02, <<"archived">>).         % For MAM 0.2 and newer
+-define(ARCID_ELEM_06, <<"stanza-id">>).        % For MAM 0.6
 
 %% ----------------------------------------------------------------------
 %% Datetime types
@@ -240,7 +240,7 @@ add_arcid_elems(By, Id, Packet) ->
   replace_arcid_elem(?ARCID_ELEM_06, By, Id, WithArchived).
 
 %% @doc Return true, if the first element points on `By'.
--spec is_arcid_elem_for(Elem_name :: binary(), jlib:xmlel(), By :: binary()) -> boolean().
+-spec is_arcid_elem_for(ElemName :: binary(), jlib:xmlel(), By :: binary()) -> boolean().
 is_arcid_elem_for(?ARCID_ELEM_02, #xmlel{name = ?ARCID_ELEM_02, attrs=As}, By) ->
     lists:member({<<"by">>, By}, As);
 is_arcid_elem_for(?ARCID_ELEM_06, #xmlel{name = ?ARCID_ELEM_06, attrs=As}, By) ->
@@ -248,23 +248,23 @@ is_arcid_elem_for(?ARCID_ELEM_06, #xmlel{name = ?ARCID_ELEM_06, attrs=As}, By) -
 is_arcid_elem_for(_, _, _) ->
     false.
 
--spec replace_arcid_elem(Elem_name :: binary(), By :: binary(), Id :: binary(),
-			 Packet :: jlib:xmlel()) -> jlin:xmlel().
-replace_arcid_elem(Elem_name, By, Id, Packet) ->
-    append_arcid_elem(Elem_name, By, Id,
-			  delete_arcid_elem(Elem_name, By, Packet)).
+-spec replace_arcid_elem(ElemName :: binary(), By :: binary(), Id :: binary(),
+                         Packet :: jlib:xmlel()) -> jlin:xmlel().
+replace_arcid_elem(ElemName, By, Id, Packet) ->
+    append_arcid_elem(ElemName, By, Id,
+                       delete_arcid_elem(ElemName, By, Packet)).
 
--spec append_arcid_elem(Elem_name :: binary(), By :: binary(), Id :: binary(), 
-			Packet :: jlib:xmlel()) ->jlib:xmlel().
-append_arcid_elem(Elem_name, By, Id, Packet) ->
+-spec append_arcid_elem(ElemName :: binary(), By :: binary(), Id :: binary(),
+                        Packet :: jlib:xmlel()) ->jlib:xmlel().
+append_arcid_elem(ElemName, By, Id, Packet) ->
     Archived = #xmlel{
-                  name = Elem_name,
+                  name = ElemName,
                   attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
     xml:append_subtags(Packet, [Archived]).
 
--spec delete_arcid_elem(Elem_name :: binary(), By :: binary(), jlib:xmlel()) -> jlib:xmlel().
-delete_arcid_elem(Elem_name, By, Packet=#xmlel{children=Cs}) ->
-    Packet#xmlel{children=[C || C <- Cs, not is_arcid_elem_for(Elem_name, C, By)]}.
+-spec delete_arcid_elem(ElemName :: binary(), By :: binary(), jlib:xmlel()) -> jlib:xmlel().
+delete_arcid_elem(ElemName, By, Packet=#xmlel{children=Cs}) ->
+    Packet#xmlel{children=[C || C <- Cs, not is_arcid_elem_for(ElemName, C, By)]}.
 
 
 is_x_user_element(#xmlel{name = <<"x">>, attrs = As}) ->
