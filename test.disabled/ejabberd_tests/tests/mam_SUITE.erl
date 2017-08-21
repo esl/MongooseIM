@@ -1379,7 +1379,6 @@ archived(Config) ->
 
 
 message_with_stanzaid_and_archived(Config) ->
-    P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Archive must be empty.
         %% Alice sends "OH, HAI!" to Bob.
@@ -1609,7 +1608,6 @@ purge_multiple_messages(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_message_with_archived_and_stanzaid(Config) ->
-    P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
         RoomAddr = room_address(Room),
