@@ -630,9 +630,22 @@ process_host_term(Term, Host, State) ->
             add_option(riak_server, RiakConfig, State);
         {cassandra_servers, CassandraConfig} ->
             add_option(cassandra_servers, CassandraConfig, State);
+        {modules, Modules} ->
+            add_option({modules, Host}, transform_modules(Modules), State);
         {Opt, Val} ->
             add_option({Opt, Host}, Val, State)
     end.
+
+transform_modules(Modules) ->
+    lists:map(
+        fun({Module, Opts}) ->
+            NewOpts = try
+                          Module:transform_module_options(Opts)
+                      catch error:undef ->
+                          Opts
+                      end,
+            {Module, NewOpts}
+        end, Modules).
 
 process_db_pool_term({Opt, Val}, Pool, State) when is_atom(Pool) ->
     add_option({Opt, odbc_pool, Pool}, Val, State).
