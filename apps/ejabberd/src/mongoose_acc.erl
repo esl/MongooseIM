@@ -135,6 +135,8 @@ get(Key, P) ->
     maps:get(Key, P).
 
 -spec get(any(), t(), any()) -> any().
+get(to_send, P, Default) ->
+    maps:get(to_send, P, maps:get(element, P, Default));
 get(Key, P, Default) ->
     maps:get(Key, P, Default).
 
