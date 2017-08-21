@@ -1636,7 +1636,6 @@ muc_message_with_archived_and_stanzaid(Config) ->
         %% User's archive is disabled (i.e. bob@localhost).
         BobMsg = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, BobMsg),
-	io:format("Bobmsg: ~p~n", [BobMsg]),
         Arc_stanzaid = exml_query:subelement(BobMsg, <<"stanza-id">>),
         Arc_archived = exml_query:subelement(BobMsg, <<"archived">>),
         %% JID of the archive (i.e. where the client would send queries to)
@@ -1790,7 +1789,6 @@ muc_multiple_devices(Config) ->
         %% User's archive is disabled (i.e. bob@localhost).
         BobMsg = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, BobMsg),
-	io:format("BOB Msg: ~p~n", [BobMsg]),
         Arc = exml_query:subelement(BobMsg, <<"archived">>),
         %% JID of the archive (i.e. where the client would send queries to)
         By  = exml_query:attr(Arc, <<"by">>),
