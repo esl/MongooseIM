@@ -238,16 +238,20 @@ find_ldap_user(User, State) ->
     VCardAttrs = State#state.vcard_map_attrs,
     case eldap_filter:parse(RFC2254Filter, [{<<"%u">>, User}]) of
       {ok, EldapFilter} ->
-          case eldap_pool:search(EldapID,
-                                 [{base, Base}, {filter, EldapFilter},
-                                  {deref, State#state.deref},
-                                  {attributes, VCardAttrs}])
-              of
-            #eldap_search_result{entries = [E | _]} -> E;
-            _ -> false
-          end;
+        eldap_pool_search(EldapID, Base, EldapFilter, State#state.deref, VCardAttrs, false);
       _ -> false
     end.
+
+eldap_pool_search(EldapID, Base, EldapFilter, Deref, Attrs, NoResultRes) ->
+  case eldap_pool:search(EldapID,
+    [{base, Base}, {filter, EldapFilter},
+      {deref, Deref},
+      {attributes, Attrs}])
+  of
+    #eldap_search_result{entries = [E | _]} -> E;
+    _ ->
+      NoResultRes
+  end.
 
 ldap_attributes_to_vcard(Attributes, VCardMap, UD) ->
     Attrs = lists:map(fun ({VCardName, _, _}) ->
@@ -369,23 +373,20 @@ search_internal(State, Data) ->
     Limit = State#state.matches,
     ReportedAttrs = State#state.search_reported_attrs,
     Op = State#state.search_operator,
-    Filter = eldap:'and'([SearchFilter,
-                          eldap_utils:make_filter(Data, UIDs, Op)]),
-    case eldap_pool:search(EldapID,
-                           [{base, Base}, {filter, Filter},
-                            {deref, State#state.deref},
-                            {attributes, ReportedAttrs}])
-        of
-      #eldap_search_result{entries = E} ->
-          Limited =
-            case length(E) > Limit of
-              true ->
-                lists:nthtail(Limit, E);
-              _ -> E
-            end,
-          search_items(Limited, State);
-      _ -> error
-    end.
+    Filter = eldap:'and'([SearchFilter, eldap_utils:make_filter(Data, UIDs, Op)]),
+    E = eldap_pool_search(EldapID, Base, Filter, State#state.deref, ReportedAttrs, error),
+    case E of
+      error ->
+        error;
+      E ->
+        Limited = limited_results(E, Limit),
+        search_items(Limited, State)
+     end.
+
+limited_results(E, Limit) when length(E) > Limit ->
+        lists:nthtail(Limit, E);
+limited_results(E, _) ->
+  E.
 
 search_items(Entries, State) ->
     lists:flatmap(fun(#eldap_entry{attributes = Attrs}) -> attrs_to_item_xml(Attrs, State) end,
