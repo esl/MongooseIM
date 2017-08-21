@@ -197,7 +197,7 @@ start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_MAM),
     mod_disco:register_feature(Host, ?NS_MAM_03),
     mod_disco:register_feature(Host, ?NS_MAM_04),
-    mod_disco:register_feature(Host, ?NS_MAM_06),	% ?!?
+    mod_disco:register_feature(Host, ?NS_MAM_06),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_03,
@@ -205,7 +205,7 @@ start(Host, Opts) ->
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_06,
-				  ?MODULE, process_mam_iq, IQDisc),	% ?!?
+				  ?MODULE, process_mam_iq, IQDisc),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
