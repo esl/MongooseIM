@@ -256,6 +256,11 @@ replace_arcid_elem(ElemName, By, Id, Packet) ->
 
 -spec append_arcid_elem(ElemName :: binary(), By :: binary(), Id :: binary(),
                         Packet :: jlib:xmlel()) ->jlib:xmlel().
+append_arcid_elem(<<"stanza-id">>, By, Id, Packet) ->
+	Archived = #xmlel{
+                  name = <<"stanza-id">>,
+                  attrs=[{<<"by">>, By}, {<<"id">>, Id}, {<<"xmlns">>, ?NS_STANZAID}]},
+    xml:append_subtags(Packet, [Archived]);
 append_arcid_elem(ElemName, By, Id, Packet) ->
     Archived = #xmlel{
                   name = ElemName,
