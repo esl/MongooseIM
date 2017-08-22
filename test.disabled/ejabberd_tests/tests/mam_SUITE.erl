@@ -134,7 +134,6 @@
          parse_forwarded_message/1,
          append_subelem/2,
          archived_elem/2,
-	 stanzaid_elem/2,
          generate_message_text/1,
          parse_error_iq/1,
          login_send_presence/2,
@@ -569,7 +568,8 @@ do_init_per_group(C, ConfigIn) ->
 end_per_group(G, Config) when G == rsm_all; G == mam_purge; G == nostore;
     G == mam02; G == rsm02; G == with_rsm02; G == muc02; G == muc_rsm02;
     G == mam03; G == rsm03; G == with_rsm03; G == muc03; G == muc_rsm03;
-    G == muc06; G == mam04; G == mam06;  G == rsm04; G == with_rsm04; G == muc04;
+    G == mam04; G == rsm04; G == with_rsm04; G == muc04;
+    G == muc06; G == mam06;
     G == muc_rsm04; G == archived; G == mam_metrics ->
       Config;
 end_per_group(muc_rsm_all, Config) ->
@@ -1386,25 +1386,23 @@ message_with_stanzaid_and_archived(Config) ->
 
         %% Bob receives a message.
         Msg = escalus:wait_for_stanza(Bob),
-        try
-        Arc_archived = exml_query:subelement(Msg, <<"archived">>),
-	Arc_stanzaid = exml_query:subelement(Msg, <<"stanza-id">>),
+        
+        ArcArchived = exml_query:subelement(Msg, <<"archived">>),
+	ArcStanzaid = exml_query:subelement(Msg, <<"stanza-id">>),
         %% JID of the archive (i.e. where the client would send queries to)
-        By_archived  = exml_query:attr(Arc_archived, <<"by">>),
-        By_stanzaid  = exml_query:attr(Arc_stanzaid, <<"by">>),
+        ByArchived  = exml_query:attr(ArcArchived, <<"by">>),
+        ByStanzaid  = exml_query:attr(ArcStanzaid, <<"by">>),
         %% Attribute giving the message's UID within the archive.
-        Id_archived  = exml_query:attr(Arc_archived, <<"id">>),
-        Id_stanzaid  = exml_query:attr(Arc_stanzaid, <<"id">>),
+        IdArchived  = exml_query:attr(ArcArchived, <<"id">>),
+        IdStanzaid  = exml_query:attr(ArcStanzaid, <<"id">>),
 
 	%% The attributes of <stanza-id/> and <archived/> are the same
-	?assert_equal(By_archived, By_stanzaid),
-	?assert_equal(Id_archived, Id_stanzaid),
+	?assert_equal(ByArchived, ByStanzaid),
+	?assert_equal(IdArchived, IdStanzaid),
+
+	%% stanza-id has a namespace 'urn:xmpp:sid:0'
+	<<"urn:xmpp:sid:0">> = exml_query:attr(ArcStanzaid, <<"xmlns">>),
 	ok
-	catch Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
-            ct:pal("Msg ~p", [Msg]),
-            erlang:raise(Class, Reason, Stacktrace)
-        end
 	end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -1634,17 +1632,21 @@ muc_message_with_archived_and_stanzaid(Config) ->
         %% User's archive is disabled (i.e. bob@localhost).
         BobMsg = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, BobMsg),
-        Arc_stanzaid = exml_query:subelement(BobMsg, <<"stanza-id">>),
-        Arc_archived = exml_query:subelement(BobMsg, <<"archived">>),
+        ArcStanzaid = exml_query:subelement(BobMsg, <<"stanza-id">>),
+        ArcArchived = exml_query:subelement(BobMsg, <<"archived">>),
         %% JID of the archive (i.e. where the client would send queries to)
-        By_archived  = exml_query:attr(Arc_archived, <<"by">>),
-        By_stanzaid  = exml_query:attr(Arc_stanzaid, <<"by">>),
+        ByArchived  = exml_query:attr(ArcArchived, <<"by">>),
+        ByStanzaid  = exml_query:attr(ArcStanzaid, <<"by">>),
         %% Attribute giving the message's UID within the archive.
-        Id_archived  = exml_query:attr(Arc_archived, <<"id">>),
-        Id_stanzaid  = exml_query:attr(Arc_stanzaid, <<"id">>),
+        IdArchived  = exml_query:attr(ArcArchived, <<"id">>),
+        IdStanzaid  = exml_query:attr(ArcStanzaid, <<"id">>),
 	
-	?assert_equal(By_archived, By_stanzaid),
-	?assert_equal(Id_archived, Id_archived),
+	?assert_equal(ByArchived, ByStanzaid),
+	?assert_equal(IdArchived, IdStanzaid),
+	
+	%% stanza-id has a namespace 'urn:xmpp:sid:0'
+	Xmlns = exml_query:attr(ArcStanzaid, <<"xmlns">>),
+	?assert_equal(Xmlns, <<"urn:xmpp:sid:0">>),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).

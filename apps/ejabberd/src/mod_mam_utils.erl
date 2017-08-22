@@ -119,10 +119,6 @@
 %% Constants
 rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
 
-% Elements added to a message stanza to inform where and under
-% what ID the message is stored.
--define(ARCID_ELEM_02, <<"archived">>).         % For MAM 0.2 and newer
--define(ARCID_ELEM_06, <<"stanza-id">>).        % For MAM 0.6
 
 %% ----------------------------------------------------------------------
 %% Datetime types
@@ -236,15 +232,16 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
 %% @doc Adds all arcid elements (for backward compatibility)
 -spec add_arcid_elems(By :: binary(), Id :: binary(), jlib:xmlel()) -> jlib:xmlel().
 add_arcid_elems(By, Id, Packet) ->
-  WithArchived = replace_arcid_elem(?ARCID_ELEM_02, By, Id, Packet),
-  replace_arcid_elem(?ARCID_ELEM_06, By, Id, WithArchived).
+  WithArchived = replace_arcid_elem(<<"archived">>, By, Id, Packet),
+  replace_arcid_elem(<<"stanza-id">>, By, Id, WithArchived).
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), jlib:xmlel(), By :: binary()) -> boolean().
-is_arcid_elem_for(?ARCID_ELEM_02, #xmlel{name = ?ARCID_ELEM_02, attrs=As}, By) ->
+is_arcid_elem_for(<<"archived">>, #xmlel{name = <<"archived">>, attrs=As}, By) ->
     lists:member({<<"by">>, By}, As);
-is_arcid_elem_for(?ARCID_ELEM_06, #xmlel{name = ?ARCID_ELEM_06, attrs=As}, By) ->
-    lists:member({<<"by">>, By}, As);
+is_arcid_elem_for(<<"stanza-id">>, #xmlel{name = <<"stanza-id">>, attrs=As}, By) ->
+    lists:member({<<"by">>, By}, As) andalso
+    lists:member({<<"xmlns">>, ?NS_STANZAID}, As);
 is_arcid_elem_for(_, _, _) ->
     false.
 
@@ -257,7 +254,7 @@ replace_arcid_elem(ElemName, By, Id, Packet) ->
 -spec append_arcid_elem(ElemName :: binary(), By :: binary(), Id :: binary(),
                         Packet :: jlib:xmlel()) ->jlib:xmlel().
 append_arcid_elem(<<"stanza-id">>, By, Id, Packet) ->
-	Archived = #xmlel{
+    Archived = #xmlel{
                   name = <<"stanza-id">>,
                   attrs=[{<<"by">>, By}, {<<"id">>, Id}, {<<"xmlns">>, ?NS_STANZAID}]},
     xml:append_subtags(Packet, [Archived]);

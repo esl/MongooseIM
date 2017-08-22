@@ -784,10 +784,6 @@ archived_elem(By, Id) ->
     #xmlel{name = <<"archived">>,
            attrs = [{<<"by">>, By}, {<<"id">>, Id}]}.
 
-stanzaid_elem(By, Id) ->
-    #xmlel{name = <<"stanza-id">>,
-	   attrs = [{<<"by">>, By}, {<<"id">>, Id}]}.
-
 clean_archives(Config) ->
     SUs = serv_users(Config),
     %% It is not the best place to delete these messages.
