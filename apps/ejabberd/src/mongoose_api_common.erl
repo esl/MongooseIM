@@ -351,3 +351,35 @@ method_to_action(<<"POST">>) -> create;
 method_to_action(<<"PUT">>) -> update;
 method_to_action(<<"DELETE">>) -> delete.
 
+%%--------------------------------------------------------------------
+%% Authorization
+%%--------------------------------------------------------------------
+
+get_creds(Req) ->
+    case get_auth_details(Req) of
+	{ok, undefined, _} ->
+	    undefined,
+	{ok, {_AuthMethod, Creds}, _Req2} ->
+	   Creds
+    end.
+
+get_auth_method(Req) ->
+    case get_auth_details(Req) of
+	{ok, undefined, _} ->
+	    undefined,
+	{ok, {AuthMethod, _Creds}, _Req2} ->
+	   AuthMethod
+    end.
+
+get_http_method(Req) ->
+    {M, _} = cowboy_req:method(Req),
+    M.
+
+get_auth_details(Req) ->
+    cowboy_req:parse_header(<<"authorization">>, Req).
+
+is_known_auth_method(<<"basic">>) -> true;
+is_known_auth_method(_) -> false.
+
+make_unauthorized_response(Req, State) ->
+        {{false, <<"Basic realm=\"mongooseim\"">>}, Req, State}.

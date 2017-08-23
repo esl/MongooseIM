@@ -110,6 +110,39 @@ delete_resource(Req, #http_api_state{command_category = Category, bindings = B} 
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     process_request(<<"DELETE">>, Command, Req, State).
 
+
+%%--------------------------------------------------------------------
+%% Authorization
+%%--------------------------------------------------------------------
+
+% @doc Cowboy callback
+is_authorized(Req, State) ->
+    ControlCreds = get_control_creds(State),
+    Creds = mongoose_api_common:get_creds(Req),
+    AuthMethod = mongoose_api_common:get_auth_method(Req),
+    case compare_creds(ControlCreds, PassCreds) andalso
+	 mongoose_api_common:is_known_auth_method(AuthMethod) of
+	true ->
+	    {true, Req, State};
+	false ->
+	    mongoose_api_common:make_unauthorized_response(Req, State)
+    end.
+
+compare_creds({UserControl, PassControl}, {User, Pass}) ->
+    compare_single_cred(UserControl, User) andalso
+	 compare_simple_cred(PassControl, Pass).
+
+compare_users(any, _) -> true;
+compare_users(Control, Control) -> true;
+compare_users(_Control, _User) -> false.
+
+
+get_control_creds(#http_api_state{opts = Opts}) ->
+    case proplists:get_value(auth, Opts) of
+	{User, Pass} -> {User, Pass};
+	undefined -> {any, any}
+    end.
+
 %%--------------------------------------------------------------------
 %% Internal funs
 %%--------------------------------------------------------------------
