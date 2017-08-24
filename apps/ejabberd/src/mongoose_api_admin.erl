@@ -26,7 +26,6 @@
          content_types_accepted/2,
          delete_resource/2,
 	 is_authorized/2]).
-
 %% local callbacks
 -export([to_json/2, from_json/2]).
 -include("mongoose_api.hrl").
@@ -121,22 +120,27 @@ is_authorized(Req, State) ->
     ControlCreds = get_control_creds(State),
     Creds = mongoose_api_common:get_creds(Req),
     AuthMethod = mongoose_api_common:get_auth_method(Req),
-    case compare_creds(ControlCreds, Creds) andalso
-	 mongoose_api_common:is_known_auth_method(AuthMethod) of
+    case authorize(ControlCreds, Creds, AuthMethod) of
 	true ->
 	    {true, Req, State};
 	false ->
 	    mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
+authorize({any, any}, _, _) -> true;
+authorize(ControlCreds, Creds, AuthMethod) ->
+    compare_creds(ControlCreds, Creds) andalso
+	 mongoose_api_common:is_known_auth_method(AuthMethod).
+
 compare_creds({UserControl, PassControl}, {User, Pass}) ->
     compare_single_cred(UserControl, User) andalso
-	 compare_single_cred(PassControl, Pass).
+	 compare_single_cred(PassControl, Pass);
+compare_creds({any, any}, undefined) -> true;
+compare_creds(_, _) -> false.
 
 compare_single_cred(any, _) -> true;
 compare_single_cred(Control, Control) -> true;
 compare_single_cred(_Control, _User) -> false.
-
 
 get_control_creds(#http_api_state{opts = Opts}) ->
     case proplists:get_value(auth, Opts) of
