@@ -61,17 +61,18 @@ is_authorized(Req, State) ->
     Creds = mongoose_api_common:get_creds(Req),
     AuthMethod = mongoose_api_common:get_auth_method(Req),
     case check_password(Creds) andalso
-	 mongoose_api_common:is_known_auth_method(AuthMethod) andalso
+	 mongoose_api_common:is_known_auth_method(AuthMethod) orelse
 	 is_noauth_http_method(HTTPMethod) of
 	true ->
 	    {User, _} = Creds,
-            {true, Req, State#{user => User, jid => jlib:from_binary(User)}};
+            {true, Req, State#{user => User, jid => jid:from_binary(User)}};
 	false ->
 	    mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
+check_password(undefined) -> false;
 check_password({User, Password}) ->
-    #jid{luser = RawUser, lserver = Server} = jlib:from_binary(User),
+    #jid{luser = RawUser, lserver = Server} = jid:from_binary(User),
     Creds0 = mongoose_credentials:new(Server),
     Creds1 = mongoose_credentials:set(Creds0, username, RawUser),
     Creds2 = mongoose_credentials:set(Creds1, password, Password),

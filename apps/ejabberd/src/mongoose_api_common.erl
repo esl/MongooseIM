@@ -76,7 +76,13 @@
          parse_request_body/1,
          get_allowed_methods/1,
          process_request/4,
-         reload_dispatches/1]).
+         reload_dispatches/1,
+	 get_creds/1,
+	 get_auth_method/1,
+	 get_http_method/1,
+         get_auth_details/1,
+	 is_known_auth_method/1,
+	 make_unauthorized_response/2]).
 
 
 %% @doc Reload all ejabberd_cowboy listeners.
@@ -358,7 +364,7 @@ method_to_action(<<"DELETE">>) -> delete.
 get_creds(Req) ->
     case get_auth_details(Req) of
 	{ok, undefined, _} ->
-	    undefined,
+	    undefined;
 	{ok, {_AuthMethod, Creds}, _Req2} ->
 	   Creds
     end.
@@ -366,7 +372,7 @@ get_creds(Req) ->
 get_auth_method(Req) ->
     case get_auth_details(Req) of
 	{ok, undefined, _} ->
-	    undefined,
+	    undefined;
 	{ok, {AuthMethod, _Creds}, _Req2} ->
 	   AuthMethod
     end.

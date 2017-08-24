@@ -120,7 +120,7 @@ is_authorized(Req, State) ->
     ControlCreds = get_control_creds(State),
     Creds = mongoose_api_common:get_creds(Req),
     AuthMethod = mongoose_api_common:get_auth_method(Req),
-    case compare_creds(ControlCreds, PassCreds) andalso
+    case compare_creds(ControlCreds, Creds) andalso
 	 mongoose_api_common:is_known_auth_method(AuthMethod) of
 	true ->
 	    {true, Req, State};
@@ -130,11 +130,11 @@ is_authorized(Req, State) ->
 
 compare_creds({UserControl, PassControl}, {User, Pass}) ->
     compare_single_cred(UserControl, User) andalso
-	 compare_simple_cred(PassControl, Pass).
+	 compare_single_cred(PassControl, Pass).
 
-compare_users(any, _) -> true;
-compare_users(Control, Control) -> true;
-compare_users(_Control, _User) -> false.
+compare_single_cred(any, _) -> true;
+compare_single_cred(Control, Control) -> true;
+compare_single_cred(_Control, _User) -> false.
 
 
 get_control_creds(#http_api_state{opts = Opts}) ->
