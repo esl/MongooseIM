@@ -24,7 +24,8 @@
          rest_init/2,
          options/2,
          content_types_accepted/2,
-         delete_resource/2]).
+         delete_resource/2,
+	 is_authorized/2]).
 
 %% local callbacks
 -export([to_json/2, from_json/2]).
