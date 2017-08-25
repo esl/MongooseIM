@@ -120,7 +120,8 @@ listmech(Host) ->
                              scram ->
                                  [{'/=', '$2', digest}];
                              {'EXIT', {undef, [{Module, store_type, []} | _]}} ->
-                                 ?WARNING_MSG("~p doesn't implement the function store_type/0", [Module]),
+                                 ?WARNING_MSG("~p doesn't implement the function store_type/0",
+                                              [Module]),
                                  [];
                              _Else ->
                                  []
@@ -195,7 +196,7 @@ server_step(State, ClientIn) ->
 %% @doc Remove the anonymous mechanism from the list if not enabled for the
 %% given host
 -spec filter_mechanisms(ejabberd:server(), [mechanism()],
-                        [{fun(), mechanism()}]) -> [mechanism()].
+                        [{mechanism(), fun()}]) -> [mechanism()].
 filter_mechanisms(Host, Mechanisms, UnwantedMechanisms) ->
     lists:foldl(fun({Mechanism, FilterFun}, Acc) ->
                         case FilterFun(Host) of
