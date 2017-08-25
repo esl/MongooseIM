@@ -24,6 +24,9 @@
 
 -define(PATHPREFIX, <<"/api">>).
 
+
+-type role() :: admin | client.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -89,7 +92,7 @@ putt(Role, Path, Body) ->
 delete(Role, Path) ->
     make_request(Role, <<"DELETE">>, Path).
 
--spec gett(Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
+-spec gett(role(), Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
 gett(Role, Path, Cred) ->
     io:format("in gett: role-~p, path-~p, cred-~p~n", [Role, Path, Cred]),
     make_request(Role, {<<"GET">>, Cred}, Path).
@@ -149,13 +152,12 @@ fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     fusco_cp:stop(Client),
     Result.
 
-% TODO: make a role() type as it is all over the file
--spec get_port(Role :: admin | client) -> Port :: atom().
+-spec get_port(role()) -> Port :: atom().
 get_port(admin) -> 8088;
 get_port(client) -> 8089.
 
-% TODO: Should be fetched from ejabberd.cfg ?!? (Ask Piotr about the SSL staff generally)
--spec get_ssl_status(Role :: admin | client) -> boolean().
+% TODO: Should be fetched from ejabberd.cfg ?!?
+-spec get_ssl_status(role()) -> boolean().
 get_ssl_status(admin) -> false;
 get_ssl_status(client) -> true.
 
