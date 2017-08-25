@@ -6,14 +6,14 @@
     assert_inlist/2,
     assert_notinlist/2,
     decode_maplist/1,
-    gett/1,
-    post/2,
-    putt/2,
-    delete/1,
     gett/2,
     post/3,
     putt/3,
     delete/2,
+    gett/3,
+    post/4,
+    putt/4,
+    delete/3,
     maybe_enable_mam/3,
     maybe_disable_mam/2,
     maybe_skip_mam_test_cases/3,
@@ -23,7 +23,6 @@
 ]).
 
 -define(PATHPREFIX, <<"/api">>).
-
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -78,42 +77,44 @@ assert_notinmaplist([K|Keys], Map, L, Orig) ->
     assert_notinmaplist(Keys, Map, Nl, Orig).
 
 
-gett(Path) ->
-    make_request(<<"GET">>, Path).
+gett(Role, Path) ->
+    make_request(Role, <<"GET">>, Path).
 
-post(Path, Body) ->
-    make_request(<<"POST">>, Path, Body).
+post(Role, Path, Body) ->
+    make_request(Role, <<"POST">>, Path, Body).
 
-putt(Path, Body) ->
-    make_request(<<"PUT">>, Path, Body).
+putt(Role, Path, Body) ->
+    make_request(Role, <<"PUT">>, Path, Body).
 
-delete(Path) ->
-    make_request(<<"DELETE">>, Path).
+delete(Role, Path) ->
+    make_request(Role, <<"DELETE">>, Path).
 
 -spec gett(Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
-gett(Path, Cred) ->
-    make_request({<<"GET">>, Cred}, Path).
+gett(Role, Path, Cred) ->
+    io:format("in gett: role-~p, path-~p, cred-~p~n", [Role, Path, Cred]),
+    make_request(Role, {<<"GET">>, Cred}, Path).
 
-post(Path, Body, Cred) ->
-    make_request({<<"POST">>, Cred}, Path, Body).
+post(Role, Path, Body, Cred) ->
+    make_request(Role, {<<"POST">>, Cred}, Path, Body).
 
-putt(Path, Body, Cred) ->
-    make_request({<<"PUT">>, Cred}, Path, Body).
+putt(Role, Path, Body, Cred) ->
+    make_request(Role, {<<"PUT">>, Cred}, Path, Body).
 
-delete(Path, Cred) ->
-    make_request({<<"DELETE">>, Cred}, Path).
+delete(Role, Path, Cred) ->
+    make_request(Role, {<<"DELETE">>, Cred}, Path).
 
 
-make_request(Method, Path) ->
-    make_request(Method, Path, <<"">>).
+make_request(Role, Method, Path) ->
+    make_request(Role, Method, Path, <<"">>).
 
-make_request(Method, Path, ReqBody) when is_map(ReqBody) ->
-    make_request(Method, Path, jiffy:encode(ReqBody));
-make_request(Method, Path, ReqBody) when not is_binary(Path) ->
-    make_request(Method, list_to_binary(Path), ReqBody);
-make_request(Method, Path, ReqBody) ->
+make_request(Role, Method, Path, ReqBody) when is_map(ReqBody) ->
+    make_request(Role, Method, Path, jiffy:encode(ReqBody));
+make_request(Role, Method, Path, ReqBody) when not is_binary(Path) ->
+    make_request(Role, Method, list_to_binary(Path), ReqBody);
+make_request(Role, Method, Path, ReqBody) ->
+    io:format("in make_request: role-~p, method-~p, path-~p, body-~p~n", [Role, Method, Path, ReqBody]),
     CPath = <<?PATHPREFIX/binary, Path/binary>>,
-    {Code, RespBody} = case fusco_request(Method, CPath, ReqBody) of
+    {Code, RespBody} = case fusco_request(Role, Method, CPath, ReqBody) of
                            {RCode, _, Body, _, _} ->
                                {RCode, Body};
                            {RCode, _, Body, _, _, _} ->
@@ -132,20 +133,31 @@ decode(RespBody) ->
     end.
 
 %% a request specyfying credentials is directed to client http listener
-fusco_request({Method, {User, Password}}, Path, Body) ->
+fusco_request(Role, {Method, {User, Password}}, Path, Body) ->
     Basic = list_to_binary("basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
     Headers = [{<<"authorization">>, Basic}],
-    fusco_request(Method, Path, Body, Headers, 8089, true);
+    fusco_request(Method, Path, Body, Headers, get_port(Role), get_ssl_status(Role));
 %% without them it is for admin (secure) interface
-fusco_request(Method, Path, Body) ->
-    fusco_request(Method, Path, Body, [], 8088, false).
+fusco_request(Role, Method, Path, Body) ->
+    fusco_request(Method, Path, Body, [], get_port(Role), get_ssl_status(Role)).
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>} | HeadersIn],
+    io:format("before cp:request: client-~p, path-~p, method-~p, headers-~p, body-~p, port-~p~n", [Client, Path, Method, Headers, Body, Port]),
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
     fusco_cp:stop(Client),
     Result.
+
+% TODO: make a role() type as it is all over the file
+-spec get_port(Role :: admin | client) -> Port :: atom().
+get_port(admin) -> 8088;
+get_port(client) -> 8089.
+
+% TODO: Should be fetched from ejabberd.cfg ?!? (Ask Piotr about the SSL staff generally)
+-spec get_ssl_status(Role :: admin | client) -> boolean().
+get_ssl_status(admin) -> false;
+get_ssl_status(client) -> true.
 
 mapfromlist(L) ->
     Nl = lists:keymap(fun(B) -> binary_to_existing_atom(B, utf8) end, 1, L),
