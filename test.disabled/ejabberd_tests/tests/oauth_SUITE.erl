@@ -33,7 +33,8 @@ all() ->
      {group, token_revocation},
      {group, provision_token},
      {group, commands},
-     {group, cleanup}
+     {group, cleanup},
+     {group, sasl_mechanisms}
     ].
 
 groups() ->
@@ -43,7 +44,8 @@ groups() ->
      {provision_token, [], [provision_token_login]},
      {commands, [], [revoke_token_cmd_when_no_token,
                      revoke_token_cmd]},
-     {cleanup, [], [token_removed_on_user_removal]}
+     {cleanup, [], [token_removed_on_user_removal]},
+     {sasl_mechanisms, [], [check_for_supported_sasl_mechanisms]}
     ].
 
 token_login_tests() ->
@@ -312,6 +314,26 @@ provision_token_login(Config) ->
     %% then user's vcard is placed into the database on login
     Result = escalus:wait_for_stanza(Conn),
     VCard = exml_query:subelement(Result, <<"vCard">>).
+
+check_for_supported_sasl_mechanisms(Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    Module = mod_auth_token,
+    AliceSpec = escalus_users:get_userspec(Config, alice),
+    ConnSteps = [start_stream,
+                 stream_features,
+                 maybe_use_ssl,
+                 maybe_use_compression],
+    {ok, _, Features} = escalus_connection:start(AliceSpec, ConnSteps),
+    true = lists:member(<<"X-OAUTH">>, proplists:get_value(sasl_mechanisms,
+                                                           Features, [])),
+    dynamic_modules:stop(Host, Module),
+    {ok, _, NewFeatures} = escalus_connection:start(AliceSpec, ConnSteps),
+    false = lists:member(<<"X-OAUTH">>, proplists:get_value(sasl_mechanisms,
+                                                            NewFeatures, [])),
+    AuthOpts = [{ {validity_period, access}, {60, minutes} },
+                { {validity_period, refresh}, {1, days} }],
+    dynamic_modules:start(Host, Module, AuthOpts).
+
 
 %%
 %% Helpers

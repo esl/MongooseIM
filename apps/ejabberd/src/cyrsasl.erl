@@ -126,7 +126,11 @@ listmech(Host) ->
                                  []
                          end,
                          ['$1']}]),
-    filter_anonymous(Host, Mechs).
+    filter_mechanisms(Host, Mechs,
+                      [{<<"ANONYMOUS">>,
+                        fun(H)-> ejabberd_auth_anonymous:is_sasl_anonymous_enabled(H) end},
+                       {<<"X-OAUTH">>,
+                        fun(H) -> gen_mod:is_loaded(H, mod_auth_token) end}]).
 
 -spec server_new(Service :: binary(),
                  ServerFQDN :: ejabberd:server(),
@@ -190,12 +194,15 @@ server_step(State, ClientIn) ->
 
 %% @doc Remove the anonymous mechanism from the list if not enabled for the
 %% given host
--spec filter_anonymous(ejabberd:server(), [mechanism()]) -> [mechanism()].
-filter_anonymous(Host, Mechs) ->
-    case ejabberd_auth_anonymous:is_sasl_anonymous_enabled(Host) of
-        true  -> Mechs;
-        false -> Mechs -- [<<"ANONYMOUS">>]
-    end.
+-spec filter_mechanisms(ejabberd:server(), [mechanism()],
+                        [{fun(), mechanism()}]) -> [mechanism()].
+filter_mechanisms(Host, Mechanisms, UnwantedMechanisms) ->
+    lists:foldl(fun({Mechanism, FilterFun}, Acc) ->
+                        case FilterFun(Host) of
+                            true -> Acc;
+                            false -> Acc -- [Mechanism]
+                        end
+                end, Mechanisms, UnwantedMechanisms).
 
 get_mechanisms() ->
     Default = [cyrsasl_plain,
