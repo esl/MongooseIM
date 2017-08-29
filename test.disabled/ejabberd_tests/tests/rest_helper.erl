@@ -19,7 +19,8 @@
     maybe_skip_mam_test_cases/3,
     fill_archive/2,
     fill_room_archive/2,
-    make_timestamp/2
+    make_timestamp/2,
+    change_admin_creds/1
 ]).
 
 -define(PATHPREFIX, <<"/api">>).
@@ -94,7 +95,6 @@ delete(Role, Path) ->
 
 -spec gett(role(), Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
 gett(Role, Path, Cred) ->
-    io:format("in gett: role-~p, path-~p, cred-~p~n", [Role, Path, Cred]),
     make_request(Role, {<<"GET">>, Cred}, Path).
 
 post(Role, Path, Body, Cred) ->
@@ -115,7 +115,6 @@ make_request(Role, Method, Path, ReqBody) when is_map(ReqBody) ->
 make_request(Role, Method, Path, ReqBody) when not is_binary(Path) ->
     make_request(Role, Method, list_to_binary(Path), ReqBody);
 make_request(Role, Method, Path, ReqBody) ->
-    io:format("in make_request: role-~p, method-~p, path-~p, body-~p~n", [Role, Method, Path, ReqBody]),
     CPath = <<?PATHPREFIX/binary, Path/binary>>,
     {Code, RespBody} = case fusco_request(Role, Method, CPath, ReqBody) of
                            {RCode, _, Body, _, _} ->
@@ -147,19 +146,72 @@ fusco_request(Role, Method, Path, Body) ->
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>} | HeadersIn],
-    io:format("before cp:request: client-~p, path-~p, method-~p, headers-~p, body-~p, port-~p~n", [Client, Path, Method, Headers, Body, Port]),
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
     fusco_cp:stop(Client),
     Result.
 
--spec get_port(role()) -> Port :: atom().
+-spec get_port(role()) -> Port :: integer().
 get_port(admin) -> 8088;
 get_port(client) -> 8089.
 
-% TODO: Should be fetched from ejabberd.cfg ?!?
 -spec get_ssl_status(role()) -> boolean().
 get_ssl_status(admin) -> false;
 get_ssl_status(client) -> true.
+
+% @doc Changes the control credentials for admin by restarting the listener
+% with new options.
+-spec change_admin_creds({User :: binary(), Password :: binary()}) -> 'ok' | 'error'.
+change_admin_creds(Creds) ->
+    stop_listener(admin),
+    case start_admin_listener(Creds) of
+	{error, _} -> error;
+	{ok, _} -> ok
+    end.
+
+-spec stop_listener(role()) -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
+stop_listener(Role) ->
+    Port = get_port(Role),
+    Listeners = apply_on_mim1(ejabberd_config, get_local_option, [listen]),
+    [{PortIpNet, Module, _Opts}] = lists:filter(fun is_admin_port_ip_net/1, Listeners),
+    apply_on_mim1(ejabberd_listener, stop_listener, [PortIpNet, Module]).
+
+-spec start_admin_listener(Creds :: {binary(), binary()}) -> {'error', pid()} | {'ok', _}.
+start_admin_listener(Creds) ->
+    Port = get_port(admin),
+    Listeners = apply_on_mim1(ejabberd_config, get_local_option, [listen]),
+    [{PortIpNet, Module, Opts}] = lists:filter(fun is_admin_port_ip_net/1, Listeners),
+    NewOpts = insert_creds(Opts, Creds),
+    apply_on_mim1(ejabberd_listener, start_listener, [PortIpNet, Module, NewOpts]).
+
+insert_creds(Opts, Creds) ->
+    Modules = proplists:get_value(modules, Opts),
+    {Host, Path, mongoose_api_admin, PathOpts} = lists:keyfind(mongoose_api_admin, 3, Modules),
+    NewPathOpts = inject_creds_to_opts(PathOpts, Creds),
+    NewModules = lists:keyreplace(mongoose_api_admin, 3, Modules, {Host, Path, mongoose_api_admin,  NewPathOpts}),
+    lists:keyreplace(modules, 1, Opts, {modules, NewModules}).
+
+inject_creds_to_opts(PathOpts, any) ->
+    inject_creds_to_opts(PathOpts, {any, any});
+inject_creds_to_opts(PathOpts, {any, any}) ->
+    lists:keydelete(auth, 1, PathOpts);
+inject_creds_to_opts(PathOpts, Creds) ->
+    case lists:keymember(auth, 1, PathOpts) of
+	true -> 
+	    lists:keyreplace(auth, 1, PathOpts, {auth, Creds});
+	false ->
+	    lists:append(PathOpts, [{auth, Creds}])
+    end.
+
+% @doc Checks whether a tuple is a tuple of {Port, Ip, Net} and
+% port belongs to the admin http api listener.
+is_admin_port_ip_net({{Port, _, _}, ejabberd_cowboy, _opts}) ->
+    Port == get_port(admin);
+is_admin_port_ip_net(_) -> false.
+
+% @doc Applies a function on a mim1. Waits 5000 ms for response.
+apply_on_mim1(M, F, A) ->
+    rpc:call('mongooseim@localhost', M, F, A, 5000).
+
 
 mapfromlist(L) ->
     Nl = lists:keymap(fun(B) -> binary_to_existing_atom(B, utf8) end, 1, L),
