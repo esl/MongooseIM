@@ -1396,7 +1396,7 @@ message_with_stanzaid_and_archived(Config) ->
         IdArchived  = exml_query:attr(ArcArchived, <<"id">>),
         IdStanzaid  = exml_query:attr(ArcStanzaid, <<"id">>),
 
-	%% The attributes of <stanza-id/> and <archived/> are the same
+        %% The attributes of <stanza-id/> and <archived/> are the same
 	?assert_equal(ByArchived, ByStanzaid),
 	?assert_equal(IdArchived, IdStanzaid),
 
@@ -1641,8 +1641,8 @@ muc_message_with_archived_and_stanzaid(Config) ->
         IdArchived  = exml_query:attr(ArcArchived, <<"id">>),
         IdStanzaid  = exml_query:attr(ArcStanzaid, <<"id">>),
 	
-	?assert_equal(ByArchived, ByStanzaid),
-	?assert_equal(IdArchived, IdStanzaid),
+        ?assert_equal(ByArchived, ByStanzaid),
+        ?assert_equal(IdArchived, IdStanzaid),
 	
 	%% stanza-id has a namespace 'urn:xmpp:sid:0'
 	Xmlns = exml_query:attr(ArcStanzaid, <<"xmlns">>),
