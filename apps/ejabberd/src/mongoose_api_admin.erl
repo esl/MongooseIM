@@ -25,7 +25,7 @@
          options/2,
          content_types_accepted/2,
          delete_resource/2,
-	 is_authorized/2]).
+         is_authorized/2]).
 %% local callbacks
 -export([to_json/2, from_json/2]).
 -include("mongoose_api.hrl").
@@ -78,7 +78,7 @@ rest_init(Req, Opts) ->
                             bindings = Bindings,
                             command_category = CommandCategory,
                             command_subcategory = CommandSubCategory,
-			    auth = Auth},
+                            auth = Auth},
     options(Req1, State).
 
 options(Req, State) ->
@@ -125,24 +125,24 @@ is_authorized(Req, State) ->
     Creds = mongoose_api_common:get_creds(Req),
     AuthMethod = mongoose_api_common:get_auth_method(Req),
     case authorize(ControlCreds, Creds, AuthMethod) of
-	true ->
-	    {true, Req, State};
-	false ->
-	    mongoose_api_common:make_unauthorized_response(Req, State)
+        true ->
+            {true, Req, State};
+        false ->
+            mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
 -spec authorize(credentials(), credentials(), binary()) -> boolean().
 authorize({any, any}, _, _) -> true;
 authorize(ControlCreds, Creds, AuthMethod) ->
     compare_creds(ControlCreds, Creds) andalso
-	 mongoose_api_common:is_known_auth_method(AuthMethod).
+        mongoose_api_common:is_known_auth_method(AuthMethod).
 
 % @doc Checks if credentials are the same (if control creds are 'any'
 % it is equal to everything).
 -spec compare_creds(credentials(), credentials()) -> boolean().
 compare_creds({UserControl, PassControl}, {User, Pass}) ->
     compare_single_cred(UserControl, User) andalso
-	 compare_single_cred(PassControl, Pass);
+        compare_single_cred(PassControl, Pass);
 compare_creds({any, any}, undefined) -> true;
 compare_creds(_, _) -> false.
 
@@ -184,7 +184,8 @@ from_json(Req, #http_api_state{command_category = Category,
             end
     end.
 
--spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t(), [{atom(), term()}]) -> ejabberd_cowboy:route().
+-spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t(), [{atom(), term()}])
+      -> ejabberd_cowboy:route().
 handler_path(Base, Command, ExtraOpts) ->
     {[Base, mongoose_api_common:create_admin_url_path(Command)],
         ?MODULE, [{command_category, mongoose_commands:category(Command)},
