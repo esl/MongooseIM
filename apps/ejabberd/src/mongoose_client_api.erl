@@ -61,13 +61,13 @@ is_authorized(Req, State) ->
     Creds = mongoose_api_common:get_creds(Req),
     AuthMethod = mongoose_api_common:get_auth_method(Req),
     case check_password(Creds) andalso
-	 mongoose_api_common:is_known_auth_method(AuthMethod) orelse
-	 is_noauth_http_method(HTTPMethod) of
-	true ->
-	    {User, _} = Creds,
+         mongoose_api_common:is_known_auth_method(AuthMethod) orelse
+         is_noauth_http_method(HTTPMethod) of
+        true ->
+            {User, _} = Creds,
             {true, Req, State#{user => User, jid => jid:from_binary(User)}};
-	false ->
-	    mongoose_api_common:make_unauthorized_response(Req, State)
+        false ->
+            mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
 check_password(undefined) -> false;
@@ -77,8 +77,8 @@ check_password({User, Password}) ->
     Creds1 = mongoose_credentials:set(Creds0, username, RawUser),
     Creds2 = mongoose_credentials:set(Creds1, password, Password),
     case ejabberd_auth:authorize(Creds2) of
-	{ok, _} -> true;
-	_ -> false
+        {ok, _} -> true;
+        _ -> false
     end.
 
 % Constraints
