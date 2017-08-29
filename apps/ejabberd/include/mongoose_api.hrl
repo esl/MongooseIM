@@ -5,6 +5,7 @@
                          command_category,
                          command_subcategory,
                          entity = admin,
+			 auth = {any, any},
                          opts = []}).
 %% Error messages
 -define(ARGS_LEN_ERROR, <<"Bad parameters length.">>).

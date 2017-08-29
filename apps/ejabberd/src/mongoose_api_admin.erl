@@ -39,6 +39,8 @@
                               process_request/4,
                               parse_request_body/1]).
 
+-type credentials() :: {Username :: binary() | any, Password :: binary() | any}.
+
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
 %%--------------------------------------------------------------------
@@ -47,12 +49,12 @@
 %% Returns list of all available http paths.
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
     ejabberd_cowboy:implemented_result().
-cowboy_router_paths(Base, _Opts) ->
+cowboy_router_paths(Base, Opts) ->
     ejabberd_hooks:add(register_command, global, mongoose_api_common, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, mongoose_api_common, reload_dispatches, 50),
         try
             Commands = mongoose_commands:list(admin),
-            [handler_path(Base, Command) || Command <- Commands]
+            [handler_path(Base, Command, Opts) || Command <- Commands]
         catch
             _:Err ->
                 ?ERROR_MSG("Error occured when getting the commands list: ~p~n~p",
@@ -71,10 +73,12 @@ rest_init(Req, Opts) ->
     {Bindings, Req1} = cowboy_req:bindings(Req),
     CommandCategory = proplists:get_value(command_category, Opts),
     CommandSubCategory = proplists:get_value(command_subcategory, Opts),
+    Auth = proplists:get_value(auth, Opts, {any, any}),
     State = #http_api_state{allowed_methods = mongoose_api_common:get_allowed_methods(admin),
                             bindings = Bindings,
                             command_category = CommandCategory,
-                            command_subcategory = CommandSubCategory},
+                            command_subcategory = CommandSubCategory,
+			    auth = Auth},
     options(Req1, State).
 
 options(Req, State) ->
@@ -127,11 +131,15 @@ is_authorized(Req, State) ->
 	    mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
+-spec authorize(credentials(), credentials(), binary()) -> boolean().
 authorize({any, any}, _, _) -> true;
 authorize(ControlCreds, Creds, AuthMethod) ->
     compare_creds(ControlCreds, Creds) andalso
 	 mongoose_api_common:is_known_auth_method(AuthMethod).
 
+% @doc Checks if credentials are the same (if control creds are 'any'
+% it is equal to everything).
+-spec compare_creds(credentials(), credentials()) -> boolean().
 compare_creds({UserControl, PassControl}, {User, Pass}) ->
     compare_single_cred(UserControl, User) andalso
 	 compare_single_cred(PassControl, Pass);
@@ -142,11 +150,8 @@ compare_single_cred(any, _) -> true;
 compare_single_cred(Control, Control) -> true;
 compare_single_cred(_Control, _User) -> false.
 
-get_control_creds(#http_api_state{opts = Opts}) ->
-    case proplists:get_value(auth, Opts) of
-	{User, Pass} -> {User, Pass};
-	undefined -> {any, any}
-    end.
+get_control_creds(#http_api_state{auth = Creds}) ->
+    Creds.
 
 %%--------------------------------------------------------------------
 %% Internal funs
@@ -179,10 +184,10 @@ from_json(Req, #http_api_state{command_category = Category,
             end
     end.
 
--spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:route().
-handler_path(Base, Command) ->
+-spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t(), [{atom(), term()}]) -> ejabberd_cowboy:route().
+handler_path(Base, Command, ExtraOpts) ->
     {[Base, mongoose_api_common:create_admin_url_path(Command)],
         ?MODULE, [{command_category, mongoose_commands:category(Command)},
-                  {command_subcategory, mongoose_commands:subcategory(Command)}]}.
+                  {command_subcategory, mongoose_commands:subcategory(Command)} | ExtraOpts]}.
 
 
