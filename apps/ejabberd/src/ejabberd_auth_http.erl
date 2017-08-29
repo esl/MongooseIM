@@ -94,12 +94,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
         {ok, GotPasswd} ->
             case scram:enabled(LServer) of
                 true ->
-                    case scram:deserialize(GotPasswd) of
-                        {ok, #scram{} = Scram} ->
-                            scram:check_digest(Scram, Digest, DigestGen, Password);
-                        _ ->
-                            false
-                    end;
+                    check_scram_password(GotPasswd, Password, Digest, DigestGen);
                 false ->
                     ejabberd_auth:check_digest(Digest, DigestGen, Password, GotPasswd)
             end
@@ -160,12 +155,7 @@ get_password(LUser, LServer) ->
         {ok, Password} ->
             case scram:enabled(LServer) of
                 true ->
-                    case scram:deserialize(Password) of
-                        {ok, #scram{} = Scram} ->
-                            scram:scram_to_tuple(Scram);
-                        _ ->
-                            false
-                    end;
+                    convert_scram_to_tuple(Password);
                 false ->
                     Password
             end
@@ -304,4 +294,22 @@ is_external(Host) ->
             false;
         AuthOpts ->
             {is_external, true} == lists:keyfind(is_external, 1, AuthOpts)
+    end.
+
+-spec check_scram_password(binary(), binary(), binary(), fun()) -> boolean().
+check_scram_password(OriginalPassword, GotPassword, Digest, DigestGen) ->
+    case scram:deserialize(GotPassword) of
+        {ok, #scram{} = Scram} ->
+            scram:check_digest(Scram, Digest, DigestGen, OriginalPassword);
+        _ ->
+            false
+    end.
+
+-spec convert_scram_to_tuple(binary()) -> ejabberd_auth:passwordlike() | false.
+convert_scram_to_tuple(Password) ->
+    case scram:deserialize(Password) of
+        {ok, #scram{} = Scram} ->
+            scram:scram_to_tuple(Scram);
+        _ ->
+            false
     end.

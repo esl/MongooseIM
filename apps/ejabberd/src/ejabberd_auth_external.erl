@@ -271,27 +271,26 @@ check_password_cache(LUser, LServer, Password, CacheTime) ->
         never ->
             check_password_external_cache(LUser, LServer, Password);
         mod_last_required ->
-            ?ERROR_MSG("extauth is used, extauth_cache is enabled but mod_last is not enabled in that host", []),
+            ?ERROR_MSG("extauth is used, extauth_cache is enabled but mod_last"
+                       " is not enabled in that host", []),
             check_password_external_cache(LUser, LServer, Password);
         TimeStamp ->
             %% If last access exists, compare last access with cache refresh time
             case is_fresh_enough(TimeStamp, CacheTime) of
                 %% If no need to refresh, check password against Mnesia
                 true ->
-                    case check_password_internal(LUser, LServer, Password) of
-                        %% If password valid in Mnesia, accept it
-                        true ->
-                            true;
-                        %% Else (password nonvalid in Mnesia), check in extauth and cache result
-                        false ->
-                            check_password_external_cache(LUser, LServer, Password)
-                    end;
+                    check_caches(LUser, LServer, Password);
                 %% Else (need to refresh), check in extauth and cache result
                 false ->
                     check_password_external_cache(LUser, LServer, Password)
             end
     end.
 
+check_caches(LUser, LServer, Password) ->
+    case check_password_internal(LUser, LServer, Password) of
+        true -> true;
+        false -> check_password_external_cache(LUser, LServer, Password)
+    end.
 
 get_password_internal(LUser, LServer) ->
     ejabberd_auth_internal:get_password(LUser, LServer).
@@ -307,7 +306,8 @@ get_password_cache(LUser, LServer, CacheTime) ->
         never ->
             false;
         mod_last_required ->
-            ?ERROR_MSG("extauth is used, extauth_cache is enabled but mod_last is not enabled in that host", []),
+            ?ERROR_MSG("extauth is used, extauth_cache is enabled but mod_last"
+                       " is not enabled in that host", []),
             false;
         TimeStamp ->
             case is_fresh_enough(TimeStamp, CacheTime) of

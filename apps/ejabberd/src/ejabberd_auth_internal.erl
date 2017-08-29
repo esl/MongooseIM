@@ -162,7 +162,6 @@ set_password(LUser, LServer, Password) ->
     {atomic, ok} = mnesia:transaction(F),
     ok.
 
-
 -spec try_register(LUser :: ejabberd:luser(),
                    LServer :: ejabberd:lserver(),
                    Password :: binary()
@@ -172,11 +171,7 @@ try_register(LUser, LServer, Password) ->
     F = fun() ->
         case read_passwd(US) of
             [] ->
-                Password2 = case scram:enabled(LServer) and is_binary(Password) of
-                                true ->
-                                    scram:password_to_scram(Password, scram:iterations(LServer));
-                                false -> Password
-                            end,
+                Password2 = get_scram(LServer, Password),
                 write_passwd(#passwd{us = US, password = Password2}),
                 mnesia:dirty_update_counter(reg_users_counter, LServer, 1),
                 ok;
@@ -210,7 +205,6 @@ get_vh_registered_users(LServer) ->
         [{'==', {element, 2, '$1'}, LServer}],
         ['$1']}]).
 
-
 -type query_keyword() :: from | to | limit | offset | prefix.
 -type query_value() :: integer() | binary().
 -spec get_vh_registered_users(LServer :: ejabberd:lserver(),
@@ -221,18 +215,8 @@ get_vh_registered_users(LServer, [{from, Start}, {to, End}])
     get_vh_registered_users(LServer, [{limit, End-Start+1}, {offset, Start}]);
 get_vh_registered_users(LServer, [{limit, Limit}, {offset, Offset}])
         when is_integer(Limit) and is_integer(Offset) ->
-    case get_vh_registered_users(LServer) of
-    [] ->
-        [];
-    Users ->
-        Set = lists:keysort(1, Users),
-        L = length(Set),
-        Start = if Offset < 1 -> 1;
-                   Offset > L -> L;
-                   true -> Offset
-                end,
-        lists:sublist(Set, Start, Limit)
-    end;
+    get_vh_registered_users_within_interval(get_vh_registered_users(LServer),
+                                            Limit, Offset);
 get_vh_registered_users(LServer, [{prefix, Prefix}])
         when is_binary(Prefix) ->
     Set = [{U, S} || {U, S} <- get_vh_registered_users(LServer),
@@ -243,19 +227,9 @@ get_vh_registered_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}])
     get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, End-Start+1}, {offset, Start}]);
 get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, Limit}, {offset, Offset}])
         when is_binary(Prefix) and is_integer(Limit) and is_integer(Offset) ->
-    case [{U, S} || {U, S} <- get_vh_registered_users(LServer),
-                   binary:part(U, 0, bit_size(Prefix)) =:= Prefix] of
-    [] ->
-        [];
-    Users ->
-        Set = lists:keysort(1, Users),
-        L = length(Set),
-        Start = if Offset < 1 -> 1;
-                   Offset > L -> L;
-                   true -> Offset
-                end,
-        lists:sublist(Set, Start, Limit)
-    end;
+    UsersWithTheGivenPrefix = [{U, S} || {U, S} <- get_vh_registered_users(LServer),
+                                      binary:part(U, 0, bit_size(Prefix)) =:= Prefix],
+    get_vh_registered_users_within_interval(UsersWithTheGivenPrefix, Limit, Offset);
 get_vh_registered_users(LServer, _) ->
     get_vh_registered_users(LServer).
 
@@ -284,7 +258,6 @@ get_vh_registered_users_number(LServer, [{prefix, Prefix}]) when is_binary(Prefi
     length(Set);
 get_vh_registered_users_number(LServer, _) ->
     get_vh_registered_users_number(LServer).
-
 
 -spec get_password(LUser :: ejabberd:luser(),
                    LServer :: ejabberd:lserver()) -> binary() | false.
@@ -356,20 +329,9 @@ remove_user(LUser, LServer, Password) ->
     F = fun() ->
                 case read_passwd(US) of
                     [#passwd{password = Scram}] when is_record(Scram, scram) ->
-                        case scram:check_password(Password, Scram) of
-                            true ->
-                                mnesia:delete({passwd, US}),
-                                mnesia:dirty_update_counter(reg_users_counter,
-                                                            LServer, -1),
-                                ok;
-                            false ->
-                                not_allowed
-                        end;
+                        delete_scram_password(US, LServer, Password, Scram);
                     [#passwd{password = Password}] ->
-                        mnesia:delete({passwd, US}),
-                        mnesia:dirty_update_counter(reg_users_counter,
-                                                    LServer, -1),
-                        ok;
+                        delete_password(US, LServer);
                     _ ->
                         not_exists
                 end
@@ -385,6 +347,24 @@ remove_user(LUser, LServer, Password) ->
             ?ERROR_MSG("Mnesia transaction fail: ~p", [Error]),
             {error, bad_request}
     end.
+
+-spec delete_scram_password(tuple(), ejabberd:lserver(),
+                           binary(), scram()) ->
+                                   ok | not_allowed.
+delete_scram_password(US, LServer, Password, Scram) ->
+    case scram:check_password(Password, Scram) of
+        true ->
+            delete_password(US, LServer);
+        false ->
+            not_allowed
+    end.
+
+-spec delete_password(tuple(), ejabberd:lserver()) -> ok.
+delete_password(US, LServer) ->
+    mnesia:delete({passwd, US}),
+    mnesia:dirty_update_counter(reg_users_counter,
+                                LServer, -1),
+    ok.
 
 -spec scram_passwords() -> {atomic, ok}.
 scram_passwords() ->
@@ -412,3 +392,23 @@ write_passwd(#passwd{} = Passwd) ->
 -spec write_counter(users_counter()) -> ok.
 write_counter(#reg_users_counter{} = Counter) ->
     mnesia:write(Counter).
+
+-spec get_scram(ejabberd:lserver(), binary()) -> scram() | binary().
+get_scram(LServer, Password) ->
+    case scram:enabled(LServer) and is_binary(Password) of
+        true ->
+            scram:password_to_scram(Password, scram:iterations(LServer));
+        false -> Password
+    end.
+
+-spec get_vh_registered_users_within_interval(list(), integer(), integer()) ->
+                                                    list().
+get_vh_registered_users_within_interval(Users, Limit, Offset) ->
+    case Users of
+        [] -> [];
+        Users ->
+            Set = lists:keysort(1, Users),
+            Length = length(Set),
+            Start = min(1, max(Offset, Length)),
+            lists:sublist(Set, Start, Limit)
+    end.

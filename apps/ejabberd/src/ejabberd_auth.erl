@@ -533,7 +533,8 @@ do_remove_user(LUser, LServer) ->
 %% @doc Try to remove user if the provided password is correct.
 %% The removal is attempted in each auth method provided:
 %% when one returns 'ok' the loop stops;
-%% if no method returns 'ok' then it returns the error message indicated by the last method attempted.
+%% if no method returns 'ok' then it returns the error message
+%% indicated by the last method attempted.
 -spec remove_user(User :: ejabberd:user(),
                   Server :: ejabberd:server(),
                   Password :: binary()
@@ -564,22 +565,12 @@ entropy(IOList) ->
     case binary_to_list(iolist_to_binary(IOList)) of
         "" ->
             0.0;
-        S ->
+        EntropyList ->
             Set = lists:foldl(
-                    fun(C, [Digit, Printable, LowLetter, HiLetter, Other]) ->
-                            if C >= $a, C =< $z ->
-                                    [Digit, Printable, 26, HiLetter, Other];
-                               C >= $0, C =< $9 ->
-                                    [9, Printable, LowLetter, HiLetter, Other];
-                               C >= $A, C =< $Z ->
-                                    [Digit, Printable, LowLetter, 26, Other];
-                               C >= 16#21, C =< 16#7e ->
-                                    [Digit, 33, LowLetter, HiLetter, Other];
-                               true ->
-                                    [Digit, Printable, LowLetter, HiLetter, 128]
-                            end
-                    end, [0, 0, 0, 0, 0], S),
-            length(S) * math:log(lists:sum(Set))/math:log(2)
+                    fun(EntropyContent, Acc) ->
+                            convert_to_ordered_content(EntropyContent, Acc)
+                    end, [0, 0, 0, 0, 0], EntropyList),
+            length(EntropyList) * math:log(lists:sum(Set))/math:log(2)
     end.
 
 %%%----------------------------------------------------------------------
@@ -600,12 +591,15 @@ auth_modules() ->
 -spec auth_modules(Server :: ejabberd:lserver()) -> [authmodule()].
 auth_modules(LServer) ->
     Method = ejabberd_config:get_local_option({auth_method, LServer}),
-    Methods = if
-                  Method == undefined -> [];
-                  is_list(Method) -> Method;
-                  is_atom(Method) -> [Method]
-              end,
+    Methods = get_auth_method_as_a_list(Method),
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- Methods].
+
+get_auth_method_as_a_list(AuthMethod) ->
+    case AuthMethod of
+        undefined -> [];
+        AuthMethod when is_list(AuthMethod) -> AuthMethod;
+        AuthMethod when is_atom(AuthMethod) -> [AuthMethod]
+    end.
 
 ensure_metrics(Host) ->
     Metrics = [authorize, check_password, try_register, does_user_exist],
@@ -631,13 +625,29 @@ authorize_with_check_password(Module, Creds) ->
     Password  = mongoose_credentials:get(Creds, password),
     Digest    = mongoose_credentials:get(Creds, digest, undefined),
     DigestGen = mongoose_credentials:get(Creds, digest_gen, undefined),
-    Args = if
-               Digest /= undefined andalso DigestGen /= undefined ->
+    Args = case {Digest, DigestGen} of
+               _ when Digest /= undefined andalso DigestGen /= undefined ->
                    [LUser, LServer, Password, Digest, DigestGen];
-               Digest == undefined orelse DigestGen == undefined ->
+               _ when Digest == undefined orelse DigestGen == undefined ->
                    [LUser, LServer, Password]
            end,
     case erlang:apply(Module, check_password, Args) of
         true -> {ok, mongoose_credentials:set(Creds, auth_module, Module)};
         false -> {error, not_authorized}
+    end.
+
+-spec convert_to_ordered_content(integer() | term(), list()) -> list().
+convert_to_ordered_content(EntropyContent, [Digit, Printable, LowLetter,
+                                            HiLetter, Other]) ->
+    case EntropyContent of
+        _ when EntropyContent >= $a andalso EntropyContent =< $z ->
+            [Digit, Printable, 26, HiLetter, Other];
+        _ when EntropyContent >= $0 andalso EntropyContent =< $9 ->
+            [9, Printable, LowLetter, HiLetter, Other];
+        _ when EntropyContent >= $A andalso EntropyContent =< $Z ->
+            [Digit, Printable, LowLetter, 26, Other];
+        _ when EntropyContent >= 16#21 andalso EntropyContent =< 16#7e ->
+            [Digit, 33, LowLetter, HiLetter, Other];
+        _ ->
+            [Digit, Printable, LowLetter, HiLetter, 128]
     end.
