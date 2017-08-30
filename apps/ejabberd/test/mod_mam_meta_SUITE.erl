@@ -133,13 +133,13 @@ example_pm_only_good_performance(_Config) ->
     Deps = deps([
                  cache_users,
                  async_writer,
-                 {user_prefs_store, mnesia_dirty}
+                 {user_prefs_store, mnesia}
                 ]),
 
     check_equal_deps([
                       {mod_mam_odbc_user, [pm]},
                       {mod_mam_cache_user, [pm]},
-                      {mod_mam_mnesia_dirty_prefs, [pm]},
+                      {mod_mam_mnesia_prefs, [pm]},
                       {mod_mam_odbc_arch, [pm, no_writer]},
                       {mod_mam_odbc_async_pool_writer, [pm]},
                       {mod_mam, []}

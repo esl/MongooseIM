@@ -107,7 +107,6 @@ parse_backend_opts(cassandra, Type, Opts, Deps0) ->
     case proplists:get_value(user_prefs_store, Opts, false) of
         cassandra -> add_dep(mod_mam_cassandra_prefs, [Type], Deps);
         mnesia -> add_dep(mod_mam_mnesia_prefs, [Type], Deps);
-        mnesia_dirty -> add_dep(mod_mam_mnesia_dirty_prefs, [Type], Deps);
         _ -> Deps
     end;
 
@@ -116,7 +115,6 @@ parse_backend_opts(riak, Type, Opts, Deps0) ->
 
     case proplists:get_value(user_prefs_store, Opts, false) of
         mnesia -> add_dep(mod_mam_mnesia_prefs, [Type], Deps);
-        mnesia_dirty -> add_dep(mod_mam_mnesia_dirty_prefs, [Type], Deps);
         _ -> Deps
     end;
 
@@ -177,8 +175,6 @@ parse_backend_opt(Type, ModODBCArch, ModAsyncWriter, Option, Deps) ->
             add_dep(mod_mam_odbc_prefs, [Type], Deps);
         {user_prefs_store, mnesia} ->
             add_dep(mod_mam_mnesia_prefs, [Type], Deps);
-        {user_prefs_store, mnesia_dirty} ->
-            add_dep(mod_mam_mnesia_dirty_prefs, [Type], Deps);
         {odbc_message_format, simple} ->
             add_dep(ModODBCArch, odbc_simple_opts(), Deps);
         {async_writer, true} ->
@@ -191,4 +187,3 @@ parse_backend_opt(Type, ModODBCArch, ModAsyncWriter, Option, Deps) ->
 
 -spec odbc_simple_opts() -> list().
 odbc_simple_opts() -> [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
-
