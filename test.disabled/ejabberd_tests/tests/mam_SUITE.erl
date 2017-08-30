@@ -1388,7 +1388,7 @@ message_with_stanzaid_and_archived(Config) ->
         Msg = escalus:wait_for_stanza(Bob),
         
         ArcArchived = exml_query:subelement(Msg, <<"archived">>),
-	ArcStanzaid = exml_query:subelement(Msg, <<"stanza-id">>),
+        ArcStanzaid = exml_query:subelement(Msg, <<"stanza-id">>),
         %% JID of the archive (i.e. where the client would send queries to)
         ByArchived  = exml_query:attr(ArcArchived, <<"by">>),
         ByStanzaid  = exml_query:attr(ArcStanzaid, <<"by">>),
