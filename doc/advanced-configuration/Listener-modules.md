@@ -157,10 +157,7 @@ Interface for XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp
 ### Configuration
 
 * `access` (atom, default: `all`) - Access Rule to use for incoming component connections.
-* `hosts` (tuple: `{hosts, [Domain1, Domain2, ...], [{password, "password here"}]}`, optional when `host` present) - List of domains allowed for components, protected by specified password.
- If set, `host` is ignored.
-* `host` ( tuple: `{host, Domain, [{password, "password here"}]}`, optional when `hosts` present) - Only allowed domain for components, protected by password.
- Must be set when `hosts` are not present.
+* `password` (string) - with this password the service is protected
 * `shaper_rule` (atom, default: `fast`) - Connection shaper to use for incoming component traffic.
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from the component
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
