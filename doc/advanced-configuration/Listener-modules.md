@@ -158,12 +158,14 @@ Interface for XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp
 
 * `access` (atom, default: `all`) - Access Rule to use for incoming component connections.
 * `password` (string) - with this password the service is protected
-* `shaper_rule` (atom, default: `fast`) - Connection shaper to use for incoming component traffic.
+* `shaper_rule` (atom, default: `none`) - Connection shaper to use for incoming component traffic.
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from the component
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 
+According to ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)) component's hostname should be given in the <stream:stream> element.
+
 ### Custom extension to the protocol
 
-In order to register a component for all virtual hosts served by the server, the component must add the attribute `is_subdomain="true"`to the opening stream element.
+In order to register a component for all virtual hosts served by the server (listed in global variable `hosts), the component must add the attribute `is_subdomain="true"`to the opening stream element.
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
 The `is_subdomain` attribute is optional and the default behaviour is as described in the XEP.
