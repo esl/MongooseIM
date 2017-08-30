@@ -33,7 +33,8 @@ all() ->
      {group, token_revocation},
      {group, provision_token},
      {group, commands},
-     {group, cleanup}
+     {group, cleanup},
+     {group, sasl_mechanisms}
     ].
 
 groups() ->
@@ -43,7 +44,9 @@ groups() ->
      {provision_token, [], [provision_token_login]},
      {commands, [], [revoke_token_cmd_when_no_token,
                      revoke_token_cmd]},
-     {cleanup, [], [token_removed_on_user_removal]}
+     {cleanup, [], [token_removed_on_user_removal]},
+     {sasl_mechanisms, [], [check_for_oauth_with_mod_auth_token_not_loaded,
+                            check_for_oauth_with_mod_auth_token_loaded]}
     ].
 
 token_login_tests() ->
@@ -86,7 +89,7 @@ init_per_suite(Config0) ->
                         { {validity_period, refresh}, {1, days} }],
             dynamic_modules:start(Host, mod_keystore, KeyStoreOpts),
             dynamic_modules:start(Host, mod_auth_token, AuthOpts),
-            escalus:init_per_suite(Config);
+            escalus:init_per_suite([{auth_opts, AuthOpts} | Config]);
         false ->
             {skip, "PostgreSQL not available - check env configuration"}
     end.
@@ -118,13 +121,24 @@ end_per_group(_GroupName, Config) ->
     set_store_password(plain),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
-init_per_testcase(CaseName, Config0) ->
+init_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded = CaseName, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:stop(Host, mod_auth_token),
+    init_per_testcase(generic, Config);
+init_per_testcase(CaseName, Config) ->
     clean_token_db(),
-    escalus:init_per_testcase(CaseName, Config0).
+    escalus:init_per_testcase(CaseName, Config).
 
+
+end_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded = CaseName, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    AuthOpts = proplists:get_value(auth_opts, Config),
+    dynamic_modules:start(Host, mod_auth_token, AuthOpts),
+    end_per_testcase(generic, Config);
 end_per_testcase(CaseName, Config) ->
     clean_token_db(),
     escalus:end_per_testcase(CaseName, Config).
+
 
 %%
 %% Tests
@@ -312,6 +326,28 @@ provision_token_login(Config) ->
     %% then user's vcard is placed into the database on login
     Result = escalus:wait_for_stanza(Conn),
     VCard = exml_query:subelement(Result, <<"vCard">>).
+
+
+check_for_oauth_with_mod_auth_token_not_loaded(Config) ->
+    AliceSpec = escalus_users:get_userspec(Config, alice),
+    ConnSteps = [start_stream,
+                 stream_features,
+                 maybe_use_ssl,
+                 maybe_use_compression],
+    {ok, _, Features} = escalus_connection:start(AliceSpec, ConnSteps),
+    false = lists:member(<<"X-OAUTH">>, proplists:get_value(sasl_mechanisms,
+                                                           Features, [])).
+
+check_for_oauth_with_mod_auth_token_loaded(Config) ->
+    AliceSpec = escalus_users:get_userspec(Config, alice),
+    ConnSteps = [start_stream,
+                 stream_features,
+                 maybe_use_ssl,
+                 maybe_use_compression],
+    {ok, _, Features} = escalus_connection:start(AliceSpec, ConnSteps),
+    true = lists:member(<<"X-OAUTH">>, proplists:get_value(sasl_mechanisms,
+                                                           Features, [])).
+
 
 %%
 %% Helpers
