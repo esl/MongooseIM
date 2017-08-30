@@ -70,9 +70,9 @@ These options will only have effect when the `odbc` backend is used:
 #### Common backend options
 
 * **user_prefs_store** (atom, default: `false`) - Leaving this option as `false` will prevent users from setting their archiving preferences. It will also increase performance. Other possible values are:
-  * `odbc` (ODBC backend only) - User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
-  * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
-  * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
+    * `odbc` (ODBC backend only) - User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
+    * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
+    * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
 * **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that the full text search is currently only implemented for `odbc` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
@@ -114,10 +114,10 @@ Edit main config section adding:
 MongooseIM will create one pool with one worker to connect to localhost:9042.
 
 You can change the default settings using extra parameters:
-- 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
-- Keyspace "mongooseim";
-- Custom connect timeout in milliseconds;
-- Custom credentials.
+* 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
+* Keyspace "mongooseim";
+* Custom connect timeout in milliseconds;
+* Custom credentials.
 
 ```erlang
 {cassandra_servers,
