@@ -30,7 +30,7 @@
 -export([start/0, start_pool/1, stop_pool/1, pools/0]).
 -include("ejabberd.hrl").
 
--spec start() -> 'ok' | {'error', 'lager_not_running'}.
+-spec start() -> 'ok' | {'error', Reason :: atom()}.
 start() ->
     compile_odbc_type_helper(),
     %% Check if ejabberd has been compiled with ODBC
@@ -40,9 +40,10 @@ start() ->
                       "Skipping database startup.", []);
         _ ->
             {ok, _Pid} = start_pool_sup(),
-            [start_pool(Pool) || Pool <- pools()],
-            ok
+            Pools = pools(),
+            maybe_start_pools(Pools)
     end.
+
 
 start_pool_sup() ->
     ChildSpec =
@@ -82,3 +83,10 @@ normalize_type(mssql) ->
     "mssql";
 normalize_type(_) ->
     "generic".
+
+maybe_start_pools([]) ->
+    {error, no_pools_configured};
+maybe_start_pools(Pools) ->
+    [start_pool(Pool) || Pool <- Pools],
+    ok.
+

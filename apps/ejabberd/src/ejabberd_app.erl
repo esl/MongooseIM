@@ -32,7 +32,7 @@
 -export([start_modules/0, start/2, prep_stop/1, stop/1]).
 
 -include("ejabberd.hrl").
-
+-include("ejabberd_ctl.hrl").
 
 %%%
 %%% Application API
@@ -57,7 +57,7 @@ start(normal, _Args) ->
     ejabberd_check:config(),
     connect_nodes(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
-    ejabberd_rdbms:start(),
+    start_rdbms(),
     mongoose_riak:start(),
     mongoose_cassandra:start(),
     mongoose_http_client:start(),
@@ -74,6 +74,18 @@ start(normal, _Args) ->
     Sup;
 start(_, _) ->
     {error, badarg}.
+
+
+
+start_rdbms() ->
+    case ejabberd_rdbms:start() of
+        {error, no_pools_configured} ->
+            ?ERROR_MSG("RDBMS connection has been configured with no pools.", []),
+            exit(?STATUS_ERROR);
+        {error, _Reason} ->
+            exit(?STATUS_ERROR);
+         _ -> ok
+    end.
 
 %% @doc Prepare the application for termination.
 %% This function is called when an application is about to be stopped,
