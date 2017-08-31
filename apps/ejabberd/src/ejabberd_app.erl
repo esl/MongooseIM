@@ -81,9 +81,9 @@ start_rdbms() ->
     case ejabberd_rdbms:start() of
         {error, no_pools_configured} ->
             ?ERROR_MSG("RDBMS connection has been configured with no pools.", []),
-            exit(?STATUS_ERROR);
+            init:stop();
         {error, _Reason} ->
-            exit(?STATUS_ERROR);
+            init:stop();
          _ -> ok
     end.
 
