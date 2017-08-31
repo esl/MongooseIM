@@ -68,13 +68,6 @@ start_node() {
   echo
 }
 
-stop_node() {
-  echo -n "${1} stop: "
-  ${1} stop
-  ${1} stopped
-  echo
-}
-
 summaries_dir() {
   if [ `uname` = "Darwin" ]; then
     echo `ls -dt ${1} | head -n 1`
@@ -108,13 +101,6 @@ start_services() {
     for env in ${BASE}/test.disabled/ejabberd_tests/services/*-compose.yml; do
         echo "Stating service" $(basename "${env}") "..."
         docker-compose -f "${env}" up -d
-    done
-}
-
-stop_services() {
-    for env in ${BASE}/test.disabled/ejabberd_tests/services/*-compose.yml; do
-        echo "Stopping service" $(basename "${env}") "..."
-        docker-compose -f "${env}" down
     done
 }
 
@@ -152,12 +138,6 @@ run_tests() {
 
   run_test_preset
   BIG_STATUS=$?
-
-  stop_services
-
-  for node in ${NODES[@]}; do
-    stop_node $node;
-  done
 
   SUMMARIES_DIRS=${BASE}'/test.disabled/ejabberd_tests/ct_report/ct_run*'
   SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS})
