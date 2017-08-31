@@ -734,7 +734,8 @@ normalize_search_text(Text, WordSeparator) ->
     ReOpts = [{return, list}, global, unicode, ucp],
     Re0 = re:replace(LowerBody, "[, .:;-?!]+", " ", ReOpts),
     Re1 = re:replace(Re0, "([^\\w ]+)|(^\\s+)|(\\s+$)", "", ReOpts),
-    re:replace(Re1, "\s+", WordSeparator, ReOpts).
+    Re2 = re:replace(Re1, "\s+", WordSeparator, ReOpts),
+    unicode:characters_to_binary(Re2).
 
 -spec packet_to_search_body(Module :: mod_mam | mod_mam_muc, Host :: ejabberd:server(),
                             Packet :: xmlel()) -> string().

@@ -151,7 +151,8 @@ archive_message_unsafe(Host, MessID, RoomID, FromNick, Packet) ->
     SMessID = integer_to_list(MessID),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
     STextBody = mongoose_rdbms:escape(TextBody),
-    write_message(Host, SMessID, SRoomID, SFromNick, SData, STextBody).
+    BTextBody = unicode:characters_to_binary(STextBody),
+    write_message(Host, SMessID, SRoomID, SFromNick, SData, BTextBody).
 
 
 -spec write_message(ejabberd:server(), string(),
@@ -645,4 +646,3 @@ stored_binary_to_packet(Host, Bin) ->
 -spec db_message_codec(Host :: ejabberd:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
-
