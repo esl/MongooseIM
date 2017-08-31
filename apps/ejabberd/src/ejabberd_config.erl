@@ -516,7 +516,7 @@ process_term(Term, State) ->
                             process_host_term(T, list_to_binary(Host), S) end,
                         State, Terms);
         {pool, odbc, _PoolName} ->
-	    State;
+            State;
         {pool, odbc, PoolName, Options} ->
             lists:foldl(fun(T, S) ->
                             process_db_pool_term(T, PoolName, S)
@@ -597,7 +597,7 @@ process_term_for_hosts_and_pools(Term = {Key, _Val}, State) ->
     BKey = atom_to_binary(Key, utf8),
     case get_key_group(BKey, Key) of
         odbc ->
-	    add_local_option(odbc_configured, true),
+            add_local_option(odbc_configured, true),
             lists:foldl(fun(Pool, S) -> process_db_pool_term(Term, Pool, S) end,
                         State, State#state.odbc_pools);
         _ ->

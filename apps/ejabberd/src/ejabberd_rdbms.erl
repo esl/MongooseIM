@@ -90,16 +90,16 @@ normalize_type(_) ->
 is_connection_defined() ->
     case ejabberd_config:get_local_option(odbc_configured) of
         true -> true;
-	_ -> false
+        _ -> false
     end.
 
 % @doc Starts pools when odbc connection was configured
 maybe_start_pools(Pools) ->
     case is_connection_defined() of
-	false ->
-	    ok;
-	true ->
-	    start_pools(Pools)
+        false ->
+            ok;
+        true ->
+            start_pools(Pools)
     end.
 % @doc Starts pools if there are any, if not it returns an error.
 start_pools([]) ->
