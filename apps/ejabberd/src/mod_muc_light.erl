@@ -20,12 +20,12 @@
 %%% * config_schema (["roomname", "subject"]) - Custom list of configuration options for a room;
 %%%                               WARNING! Lack of `roomname` field will cause room names in
 %%%                               Disco results and Roster items be set to room username.
-%%% * default_config ([{"roomname, "Untitled"}, {"subject", ""}]) -
+%%% * default_config ([{roomname, "Untitled"}, {subject, ""}]) -
 %%%                                Custom default room configuration; must be a subset of
 %%%                                config schema. It's a list of KV tuples with string keys
 %%%                                and values of appriopriate type. String values will be
 %%%                                converted to binary automatically.
-%%%        Example: [{"roomname", "The room"}, {"subject", "Chit-chat"}, {"security", 10}]
+%%%        Example: [{roomname, "The room"}, {subject, "Chit-chat"}, {security, 10}]
 %%%
 %%% Allowed `config_schema` list items (may be mixed):
 %%% * Just field name: "field" - will be expanded to "field" of type 'binary'
