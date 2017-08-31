@@ -84,9 +84,27 @@ normalize_type(mssql) ->
 normalize_type(_) ->
     "generic".
 
-maybe_start_pools([]) ->
-    {error, no_pools_configured};
+% @doc Function checks whether user configured odbc connection.
+% It relies on ejabberd_config that adds option `odbc_configured`
+% with a value of true when odbc connection was defined.
+is_connection_defined() ->
+    case ejabberd_config:get_local_option(odbc_configured) of
+        true -> true;
+	_ -> false
+    end.
+
+% @doc Starts pools when odbc connection was configured
 maybe_start_pools(Pools) ->
+    case is_connection_defined() of
+	false ->
+	    ok;
+	true ->
+	    start_pools(Pools)
+    end.
+% @doc Starts pools if there are any, if not it returns an error.
+start_pools([]) ->
+    {error, no_pools_configured};
+start_pools(Pools) ->
     [start_pool(Pool) || Pool <- Pools],
     ok.
 
