@@ -34,7 +34,7 @@
          start_link/8,
          start/10,
          start/8,
-         route/4]).
+         route/5]).
 
 %% API exports
 -export([get_room_users/1,
@@ -308,9 +308,9 @@ read_hibernate_timeout(Host) ->
 %% @doc In the locked state StateData contains the same settings it previously
 %% held for the normal_state. The fsm awaits either a confirmation or a
 %% configuration form from the creator. Responds with error to any other queries.
--spec locked_error({'route', ejabberd:jid(), _, jlib:xmlel()},
+-spec locked_error({'route', ejabberd:jid(), _, mongoose_acc:t(), jlib:xmlel()},
                    statename(), state()) -> fsm_return().
-locked_error({route, From, ToNick, #xmlel{attrs = Attrs} = Packet},
+locked_error({route, From, ToNick, Acc, #xmlel{attrs = Attrs} = Packet},
              NextState, StateData) ->
     ?INFO_MSG("Wrong stanza: ~p", [Packet]),
     ErrText = <<"This room is locked">>,
@@ -318,14 +318,14 @@ locked_error({route, From, ToNick, #xmlel{attrs = Attrs} = Packet},
     Err = jlib:make_error_reply(Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid,
                                                ToNick),
-                          From, Err),
+                          From, Acc, Err),
     {next_state, NextState, StateData}.
 
 %% @doc  Receive the room-creating Stanza. Will crash if any other stanza is
 %% received in this state.
 -spec initial_state({'route', From :: ejabberd:jid(), To :: mod_muc:nick(),
-                    Presence :: jlib:xmlel()}, state()) -> fsm_return().
-initial_state({route, From, ToNick,
+                    Acc :: mongoose_acc:t(), Presence :: jlib:xmlel()}, state()) -> fsm_return().
+initial_state({route, From, ToNick, _Acc, % TOODOO
               #xmlel{name = <<"presence">>} = Presence}, StateData) ->
     %% this should never happen so crash if it does
     <<>> = exml_query:attr(Presence, <<"type">>, <<>>),
@@ -373,8 +373,8 @@ locked_state_process_owner_iq(_From, _Query, Lang, _Type, _StateData) ->
 
 %% @doc Destroy room / confirm instant room / configure room
 -spec locked_state({'route', From :: ejabberd:jid(), To :: mod_muc:nick(),
-                   Packet :: jlib:xmlel()}, state()) -> fsm_return().
-locked_state({route, From, _ToNick,
+                    Acc :: mongoose_acc:t(), Packet :: jlib:xmlel()}, state()) -> fsm_return().
+locked_state({route, From, _ToNick, Acc,
               #xmlel{name = <<"iq">>} = Packet}, StateData) ->
     #iq{lang = Lang, sub_el = Query} = IQ = jlib:iq_query_info(Packet),
     {Result, NextState1} =
@@ -397,7 +397,7 @@ locked_state({route, From, _ToNick,
             {result, InnerRes, StateData2} -> {MkQueryResult(InnerRes), StateData2, NextState1};
             {error, Error} -> {IQ#iq{type = error, sub_el = [Query, Error]}, StateData, NextState1}
         end,
-    ejabberd_router:route(StateData3#state.jid, From, jlib:iq_to_xml(IQRes)),
+    ejabberd_router:route(StateData3#state.jid, From, Acc, jlib:iq_to_xml(IQRes)),
     case NextState2 of
         stop ->
             {stop, normal, StateData3};
@@ -407,7 +407,8 @@ locked_state({route, From, _ToNick,
             next_normal_state(StateData3#state{just_created = false})
     end;
 %% Let owner leave. Destroy the room.
-locked_state({route, From, ToNick, #xmlel{name = <<"presence">>, attrs = Attrs} = Presence} = Call,
+locked_state({route, From, ToNick, _Acc,
+              #xmlel{name = <<"presence">>, attrs = Attrs} = Presence} = Call,
              StateData) ->
     case xml:get_attr_s(<<"type">>, Attrs) =:= <<"unavailable">>
         andalso get_affiliation(From, StateData)  =:= owner of
@@ -426,9 +427,9 @@ locked_state(Call, StateData) ->
     locked_error(Call, locked_state, StateData).
 
 
--spec normal_state({route, From :: ejabberd:jid(), To :: mod_muc:nick(),
+-spec normal_state({route, From :: ejabberd:jid(), To :: mod_muc:nick(), Acc :: mongoose_acc:t(),
                    Packet :: jlib:xmlel()}, state()) -> fsm_return().
-normal_state({route, From, <<>>,
+normal_state({route, From, <<>>, _Acc,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
              StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
@@ -441,18 +442,20 @@ normal_state({route, From, <<>>,
         packet = Packet,
         lang = Lang}, StateData),
     next_normal_state(NewStateData);
-normal_state({route, From, <<>>,
+normal_state({route, From, <<>>, Acc0,
           #xmlel{name = <<"iq">>} = Packet},
          StateData) ->
-    {RoutingEffect, NewStateData} = route_iq(#routed_iq{
-        iq = jlib:iq_query_info(Packet),
+    Acc = mongoose_acc:require(iq_query_info, Acc0),
+    IQ = mongoose_acc:get(iq_query_info, Acc),
+    {RoutingEffect, NewStateData} = route_iq(Acc, #routed_iq{
+        iq = IQ,
         from = From,
         packet = Packet}, StateData),
     case RoutingEffect of
         ok -> next_normal_state(NewStateData);
         stop -> {stop, normal, NewStateData}
     end;
-normal_state({route, From, Nick,
+normal_state({route, From, Nick, _Acc,
               #xmlel{name = <<"presence">>} = Packet},
              StateData) ->
     % FIXME sessions do we need to route presences to all sessions
@@ -480,7 +483,7 @@ normal_state({route, From, Nick,
             StateData1 = store_user_activity(From, NewActivity, StateData),
             next_normal_state(StateData1)
     end;
-normal_state({route, From, ToNick,
+normal_state({route, From, ToNick, _Acc,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
              StateData) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
@@ -501,7 +504,7 @@ normal_state({route, From, ToNick,
         JIDs -> lists:foldl(FunRouteNickMessage, StateData, JIDs)
     end,
     next_normal_state(NewStateData);
-normal_state({route, From, ToNick,
+normal_state({route, From, ToNick, _Acc,
           #xmlel{name = <<"iq">>, attrs = Attrs} = Packet},
          StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
@@ -769,9 +772,10 @@ occupant_jid(#user{nick=Nick}, RoomJID) ->
 
 
 -spec route(atom() | pid() | port() | {atom(), _} | {'via', _, _},
-    From :: ejabberd:jid(), To :: mod_muc:nick(), Pkt :: jlib:xmlel()) -> 'ok'.
-route(Pid, From, ToNick, Packet) ->
-    gen_fsm:send_event(Pid, {route, From, ToNick, Packet}).
+    From :: ejabberd:jid(), To :: mod_muc:nick(), Acc :: mongoose_acc:t(),
+    Pkt :: jlib:xmlel()) -> 'ok'.
+route(Pid, From, ToNick, Acc, Packet) ->
+    gen_fsm:send_event(Pid, {route, From, ToNick, Acc, Packet}).
 
 
 -spec process_groupchat_message(ejabberd:simple_jid() | ejabberd:jid(),
@@ -4530,45 +4534,45 @@ store_room_if_persistent(#state{ host = Host, room = Room,
 store_room_if_persistent(_SD) ->
     ok.
 
--spec route_iq(routed_iq(), state()) -> {ok | stop, state()}.
-route_iq(#routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_ADMIN, lang = Lang,
+-spec route_iq(mongoose_acc:t(), routed_iq(), state()) -> {ok | stop, state()}.
+route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_ADMIN, lang = Lang,
     sub_el = SubEl}, from = From} = Routed, StateData) ->
     Res = process_iq_admin(From, Type, Lang, SubEl, StateData),
-    do_route_iq(Res, Routed, StateData);
-route_iq(#routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_OWNER, lang = Lang,
+    do_route_iq(Acc, Res, Routed, StateData);
+route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_OWNER, lang = Lang,
     sub_el = SubEl}, from = From} = Routed, StateData) ->
     Res = process_iq_owner(From, Type, Lang, SubEl, StateData),
-    do_route_iq(Res, Routed, StateData);
-route_iq(#routed_iq{iq = #iq{type = Type, xmlns = ?NS_DISCO_INFO, lang = Lang},
+    do_route_iq(Acc, Res, Routed, StateData);
+route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_DISCO_INFO, lang = Lang},
     from = From} = Routed, StateData) ->
     Res = process_iq_disco_info(From, Type, Lang, StateData),
-    do_route_iq(Res, Routed, StateData);
-route_iq(#routed_iq{iq = #iq{type = Type, xmlns = ?NS_DISCO_ITEMS, lang = Lang},
+    do_route_iq(Acc, Res, Routed, StateData);
+route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_DISCO_ITEMS, lang = Lang},
     from = From} = Routed, StateData) ->
     Res = process_iq_disco_items(From, Type, Lang, StateData),
-    do_route_iq(Res, Routed, StateData);
-route_iq(#routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
+    do_route_iq(Acc, Res, Routed, StateData);
+route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
          #state{host = Host, jid = RoomJID} = StateData) ->
     %% Custom IQ, addressed to this room's JID.
-    case mod_muc_iq:process_iq(Host, From, RoomJID, IQ) of
+    case mod_muc_iq:process_iq(Host, From, RoomJID, Acc, IQ) of
         ignore -> ok;
         error ->
             Err = jlib:make_error_reply(Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
-            ejabberd_router:route(RoomJID, From, Err)
+            ejabberd_router:route(RoomJID, From, Acc, Err)
     end,
     {ok, StateData};
-route_iq(#routed_iq{iq = reply}, StateData) ->
+route_iq(_Acc, #routed_iq{iq = reply}, StateData) ->
     {ok, StateData};
-route_iq(#routed_iq{packet = Packet, from = From}, StateData) ->
+route_iq(Acc, #routed_iq{packet = Packet, from = From}, StateData) ->
     Err = jlib:make_error_reply(
         Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
-    ejabberd_router:route(StateData#state.jid, From, Err),
+    ejabberd_router:route(StateData#state.jid, From, Acc, Err),
     {ok, StateData}.
 
 
--spec do_route_iq({result, [jlib:xmlel()], state()} | {error, jlib:xmlel()},
+-spec do_route_iq(mongoose_acc:t(), {result, [jlib:xmlel()], state()} | {error, jlib:xmlel()},
                   routed_iq(), state()) -> {ok | stop, state()}.
-do_route_iq(Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
+do_route_iq(Acc, Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
     from = From}, StateData) ->
     {IQRes, RoutingResult} = case Res1 of
         {result, Res, SD} ->
@@ -4588,7 +4592,7 @@ do_route_iq(Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
              {ok, StateData}
             }
     end,
-    ejabberd_router:route(StateData#state.jid, From,
+    ejabberd_router:route(StateData#state.jid, From, Acc,
         jlib:iq_to_xml(IQRes)),
     RoutingResult.
 

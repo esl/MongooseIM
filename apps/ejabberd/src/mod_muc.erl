@@ -82,7 +82,8 @@
 -type room_host() :: ejabberd:simple_bare_jid().
 -type packet() :: jlib:xmlel().
 -type from_to_packet() ::
-        {From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: packet()}.
+        {From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
+         Packet :: packet()}.
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 
 -record(muc_room, {
@@ -495,7 +496,7 @@ process_packet(Acc, From, To, El, #state{
     case acl:match_rule(ServerHost, AccessRoute, From) of
         allow ->
             {Room, _, _} = jid:to_lower(To),
-            route_to_room(Room, {From, To, El}, State);
+            route_to_room(Room, {From, To, Acc, El}, State);
         _ ->
             #xmlel{attrs = Attrs} = El,
             Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
@@ -506,10 +507,10 @@ process_packet(Acc, From, To, El, #state{
 
 
 -spec route_to_room(room(), from_to_packet(), state()) -> 'ok' | pid().
-route_to_room(<<>>, {_, To, _} = Routed, State) ->
+route_to_room(<<>>, {_, To, _Acc, _} = Routed, State) ->
     {_, _, Nick} = jid:to_lower(To),
     route_by_nick(Nick, Routed, State);
-route_to_room(Room, {From, To, Packet} = Routed, #state{host=Host} = State) ->
+route_to_room(Room, {From, To, Acc, Packet} = Routed, #state{host=Host} = State) ->
     case mnesia:dirty_read(muc_online_room, {Room, Host}) of
         [] ->
             route_to_nonexistent_room(Room, Routed, State);
@@ -517,23 +518,23 @@ route_to_room(Room, {From, To, Packet} = Routed, #state{host=Host} = State) ->
             Pid = R#muc_online_room.pid,
             ?DEBUG("MUC: send to process ~p~n", [Pid]),
             {_, _, Nick} = jid:to_lower(To),
-            mod_muc_room:route(Pid, From, Nick, Packet),
+            mod_muc_room:route(Pid, From, Nick, Acc, Packet),
             ok
     end.
 
 
 -spec route_to_nonexistent_room(room(), from_to_packet(), state()) -> 'ok'.
-route_to_nonexistent_room(Room, {From, To, Packet}, State) ->
+route_to_nonexistent_room(Room, {From, To, Acc, Packet}, State) ->
     #xmlel{name = Name, attrs = Attrs} = Packet,
     Type = xml:get_attr_s(<<"type">>, Attrs),
     case {Name, Type} of
         {<<"presence">>, <<>>} ->
-            route_presence_to_nonexistent_room(Room, From, To, Packet, State);
+            route_presence_to_nonexistent_room(Room, From, To, Acc, Packet, State);
         _ ->
-            route_packet_to_nonexistent_room(Room, From, To, Packet, State)
+            route_packet_to_nonexistent_room(Room, From, To, Acc, Packet, State)
     end.
 
-route_presence_to_nonexistent_room(Room, From, To, Packet,
+route_presence_to_nonexistent_room(Room, From, To, Acc, Packet,
                                    #state{server_host = ServerHost,
                                           host = Host,
                                           access = Access} = State) ->
@@ -550,17 +551,17 @@ route_presence_to_nonexistent_room(Room, From, To, Packet,
                                        HistorySize, RoomShaper, HttpAuthPool,
                                        From, Nick, DefRoomOpts),
             register_room(Host, Room, Pid),
-            mod_muc_room:route(Pid, From, Nick, Packet),
+            mod_muc_room:route(Pid, From, Nick, Acc, Packet),
             ok;
         false ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Room creation is denied by service policy">>,
             Err = jlib:make_error_reply(
                     Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
-            ejabberd_router:route(To, From, Err)
+            ejabberd_router:route(To, From, Acc, Err)
     end.
 
-route_packet_to_nonexistent_room(Room, From, To, Packet,
+route_packet_to_nonexistent_room(Room, From, To, Acc, Packet,
                                  #state{server_host = ServerHost,
                                         host = Host,
                                         access = Access} = State) ->
@@ -582,14 +583,14 @@ route_packet_to_nonexistent_room(Room, From, To, Packet,
                                            RoomShaper, HttpAuthPool, Opts),
             {_, _, Nick} = jid:to_lower(To),
             register_room(Host, Room, Pid),
-            mod_muc_room:route(Pid, From, Nick, Packet)
+            mod_muc_room:route(Pid, From, Nick, Acc, Packet)
     end.
 
 -spec route_by_nick(room(), from_to_packet(), state()) -> 'ok' | pid().
-route_by_nick(<<>>, {_, _, Packet} = Routed, State) ->
+route_by_nick(<<>>, {_, _, _, Packet} = Routed, State) ->
     #xmlel{name = Name} = Packet,
     route_by_type(Name, Routed, State);
-route_by_nick(_Nick, {From, To, Packet}, _State) ->
+route_by_nick(_Nick, {From, To, Acc, Packet}, _State) ->
     #xmlel{attrs = Attrs} = Packet,
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"error">> ->
@@ -598,12 +599,12 @@ route_by_nick(_Nick, {From, To, Packet}, _State) ->
             ok;
         _ ->
             Err = jlib:make_error_reply(Packet, ?ERR_ITEM_NOT_FOUND),
-            ejabberd_router:route(To, From, Err)
+            ejabberd_router:route(To, From, Acc, Err)
     end.
 
 
 -spec route_by_type(binary(), from_to_packet(), state()) -> 'ok' | pid().
-route_by_type(<<"iq">>, {From, To, Packet}, #state{host = Host} = State) ->
+route_by_type(<<"iq">>, {From, To, _Acc, Packet}, #state{host = Host} = State) ->
     ServerHost = State#state.server_host,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
@@ -655,7 +656,7 @@ route_by_type(<<"iq">>, {From, To, Packet}, #state{host = Host} = State) ->
         _ ->
             ok
     end;
-route_by_type(<<"message">>, {From, To, Packet},
+route_by_type(<<"message">>, {From, To, _Acc, Packet},
               #state{host = Host, server_host = ServerHost,
                      access = {_, _, AccessAdmin, _}}) ->
     #xmlel{attrs = Attrs} = Packet,

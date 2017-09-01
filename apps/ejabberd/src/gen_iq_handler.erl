@@ -34,8 +34,8 @@
          add_iq_handler/6,
          remove_iq_handler/3,
          stop_iq_handler/3,
-         handle/7,
-         process_iq/6,
+         handle/8,
+         process_iq/7,
          check_type/1]).
 
 %% gen_server callbacks
@@ -115,36 +115,37 @@ stop_iq_handler(_Module, _Function, Opts) ->
 
 -spec handle(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
              Opts :: options(), From :: ejabberd:jid(), To :: ejabberd:jid(),
+             mongoose_acc:t(),
              IQ :: ejabberd:iq()) -> 'ok' | 'todo' | pid()
                                   | {'error', 'lager_not_running'}
                                   | {'process_iq', _, _, _}.
-handle(Host, Module, Function, Opts, From, To, IQ) ->
+handle(Host, Module, Function, Opts, From, To, Acc, IQ) ->
     case Opts of
         no_queue ->
-            process_iq(Host, Module, Function, From, To, IQ);
+            process_iq(Host, Module, Function, From, To, Acc, IQ);
         {one_queue, Pid} ->
-            Pid ! {process_iq, From, To, IQ};
+            Pid ! {process_iq, From, To, Acc, IQ};
         {queues, Pids} ->
             Pid = lists:nth(erlang:phash(p1_time_compat:unique_integer(), length(Pids)), Pids),
-            Pid ! {process_iq, From, To, IQ};
+            Pid ! {process_iq, From, To, Acc, IQ};
         parallel ->
-            spawn(?MODULE, process_iq, [Host, Module, Function, From, To, IQ]);
+            spawn(?MODULE, process_iq, [Host, Module, Function, From, To, Acc, IQ]);
         _ ->
             todo
     end.
 
 
 -spec process_iq(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
-                 From :: ejabberd:jid(), To :: ejabberd:jid(),
+                 From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
                  IQ :: ejabberd:iq()) -> 'ok' | {'error', 'lager_not_running'}.
-process_iq(_Host, Module, Function, From, To, IQ) ->
+process_iq(_Host, Module, Function, From, To, Acc, IQ) ->
     case catch Module:Function(From, To, IQ) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);
         ResIQ ->
             if
                 ResIQ /= ignore ->
-                    ejabberd_router:route(To, From,
+                    ejabberd_router:route(To, From, Acc,
                                           jlib:iq_to_xml(ResIQ));
                 true ->
                     ok
@@ -197,11 +198,11 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({process_iq, From, To, IQ},
+handle_info({process_iq, From, To, Acc, IQ},
             #state{host = Host,
                    module = Module,
                    function = Function} = State) ->
-    process_iq(Host, Module, Function, From, To, IQ),
+    process_iq(Host, Module, Function, From, To, Acc, IQ),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.

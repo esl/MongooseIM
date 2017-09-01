@@ -104,17 +104,15 @@ process_iq(Acc0, From, To, El) ->
                     if
                         ResIQ /= ignore ->
                             ejabberd_router:route(
-                              To, From, jlib:iq_to_xml(ResIQ));
+                              To, From, Acc, jlib:iq_to_xml(ResIQ));
                         true ->
                             ok
                     end;
                 [{_, Module, Function, Opts}] ->
                     gen_iq_handler:handle(Host, Module, Function, Opts,
-                                          From, To, IQ);
+                                          From, To, Acc, IQ);
                 [] ->
-                    Err = jlib:make_error_reply(
-                        Acc, ?ERR_FEATURE_NOT_IMPLEMENTED),
-                    ejabberd_router:route(To, From, Err)
+                    ejabberd_router:route_error_reply(To, From, Acc, ?ERR_FEATURE_NOT_IMPLEMENTED)
             end;
         reply ->
             IQReply = jlib:iq_query_or_response_info(El),
