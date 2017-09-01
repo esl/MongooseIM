@@ -250,6 +250,8 @@ convert_arg(float, Binary) when is_binary(Binary) ->
     binary_to_float(Binary);
 convert_arg(float, Float) when is_float(Float) ->
     Float;
+convert_arg([Type], List) when is_list(List) ->
+    [ convert_arg(Type, Item) || Item <- List ];
 convert_arg(_, _Binary) ->
     throw({error, bad_type}).
 
