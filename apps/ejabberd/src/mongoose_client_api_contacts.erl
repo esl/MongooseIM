@@ -106,7 +106,7 @@ kind_of_deletion(Jid, CJid) ->
     end.
 
 handle_deletion(CJid, ToDelete, Req, State) ->
-    case handle_request(<<"DELETE">>, ToDelete, undefined, CJid) of
+    case handle_contact_request(<<"DELETE">>, ToDelete, undefined, CJid) of
         ok ->
             {true, Req, State};
         not_implemented ->
