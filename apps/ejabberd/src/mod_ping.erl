@@ -186,7 +186,8 @@ handle_info({timeout, _TRef, {ping, JID}},
                 gen_server:cast(Pid, {iq_pong, JID, Response})
         end,
     From = jid:make(<<"">>, State#state.host, <<"">>),
-    ejabberd_local:route_iq(From, JID, IQ, F, PingReqTimeout),
+    Acc = mongoose_acc:from_element(IQ, From, JID),
+    ejabberd_local:route_iq(From, JID, Acc, IQ, F, PingReqTimeout),
     Timers = add_timer(JID, State#state.ping_interval, State#state.timers),
     {noreply, State#state{timers = Timers}};
 handle_info(_Info, State) ->

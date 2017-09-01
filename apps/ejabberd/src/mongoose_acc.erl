@@ -91,19 +91,23 @@ from_kv(K, V) ->
 %% @doc This one has an alternative form because normally an acc carries an xml element, as
 %% received from client, but sometimes messages are generated internally (broadcast) by sm
 %% and sent to c2s
--spec from_element(xmlel() | tuple()) -> t().
+-spec from_element(xmlel() | iq() | tuple()) -> t().
 from_element(#xmlel{name = Name, attrs = Attrs} = El) ->
     Type = exml_query:attr(El, <<"type">>, undefined),
     #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
         timestamp => os:timestamp(), ref => make_ref()
         };
+from_element(#iq{type = Type} = El) ->
+    #{element => El, mongoose_acc => true, name => <<"iq">>, type => Type,
+        timestamp => os:timestamp(), ref => make_ref()
+    };
 from_element(El) when is_tuple(El) ->
     Name = <<"broadcast">>,
     Type = element(1, El),
     % ref and timestamp will be filled in by strip/2
     #{element => El, name => Name, type => Type, mongoose_acc => true}.
 
--spec from_element(xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
+-spec from_element(xmlel() | iq(), ejabberd:jid(), ejabberd:jid()) -> t().
 from_element(El, From, To) ->
     Acc = from_element(El),
     M = #{from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)},

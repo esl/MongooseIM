@@ -34,9 +34,9 @@
 -export([start_link/0]).
 
 -export([process_packet/5,
-         route_iq/4,
          route_iq/5,
-         process_iq_reply/3,
+         route_iq/6,
+         process_iq_reply/4,
          register_iq_handler/4,
          register_iq_handler/5,
          register_host/1,
@@ -116,7 +116,7 @@ process_iq(Acc0, From, To, El) ->
             end;
         reply ->
             IQReply = jlib:iq_query_or_response_info(El),
-            process_iq_reply(From, To, IQReply);
+            process_iq_reply(From, To, Acc, IQReply);
         _ ->
             Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
             ejabberd_router:route(To, From, Acc, Err),
@@ -125,8 +125,9 @@ process_iq(Acc0, From, To, El) ->
 
 -spec process_iq_reply(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
+                       mongoose_acc:t(),
                        IQ :: ejabberd:iq() ) -> 'nothing' | 'ok'.
-process_iq_reply(From, To, #iq{id = ID} = IQ) ->
+process_iq_reply(From, To, _Acc, #iq{id = ID} = IQ) ->
     case get_iq_callback(ID) of
         {ok, undefined, Function} ->
             Function(IQ),
@@ -155,18 +156,20 @@ process_packet(Acc, From, To, El, _Extra) ->
 
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
+               Acc :: mongoose_acc:t(),
                IQ :: ejabberd:iq(),
                F :: fun()) -> mongoose_acc:t().
-route_iq(From, To, IQ, F) ->
-    route_iq(From, To, IQ, F, undefined).
+route_iq(From, To, Acc, IQ, F) ->
+    route_iq(From, To, Acc, IQ, F, undefined).
 
 
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
+               Acc :: mongoose_acc:t(),
                IQ :: ejabberd:iq(),
                F :: fun(),
                Timeout :: undefined | integer()) -> mongoose_acc:t().
-route_iq(From, To, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
+route_iq(From, To, Acc, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
     Packet = case Type == set orelse Type == get of
                 true ->
                      ID = list_to_binary(randoms:get_string()),
@@ -176,7 +179,7 @@ route_iq(From, To, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
                 false ->
                      jlib:iq_to_xml(IQ)
              end,
-    ejabberd_router:route(From, To, Packet).
+    ejabberd_router:route(From, To, Acc, Packet).
 
 register_iq_response_handler(Host, ID, Module, Function) ->
     register_iq_response_handler(Host, ID, Module, Function, undefined).

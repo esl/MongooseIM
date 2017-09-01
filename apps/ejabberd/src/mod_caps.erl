@@ -153,6 +153,7 @@ read_caps([_ | Tail], Result) ->
     read_caps(Tail, Result);
 read_caps([], Result) -> Result.
 
+-spec user_send_packet(mongoose_acc:t(), jid(), jid(), xmlel()) -> mongoose_acc:t().
 user_send_packet(Acc,
                  #jid{luser = User, lserver = Server} = From,
                  #jid{luser = User, lserver = Server,
@@ -163,16 +164,16 @@ user_send_packet(Acc,
     case Type == <<"">> orelse Type == <<"available">> of
         true ->
             case read_caps(Els) of
-                nothing -> ok;
+                nothing -> Acc;
                 #caps{version = Version, exts = Exts} = Caps ->
-                    feature_request(Server, From, Caps, [Version | Exts])
+                    feature_request(Acc, Server, From, Caps, [Version | Exts])
             end;
-        false -> ok
-    end,
-    Acc;
+        false -> Acc
+    end;
 user_send_packet(Acc, _From, _To, _Pkt) ->
     Acc.
 
+-spec user_receive_packet(mongoose_acc:t(), jid(), jid(), jid(), xmlel()) -> mongoose_acc:t().
 user_receive_packet(Acc, #jid{lserver = Server}, From, _To,
                     #xmlel{name = <<"presence">>, attrs = Attrs,
                            children = Els}) ->
@@ -181,13 +182,12 @@ user_receive_packet(Acc, #jid{lserver = Server}, From, _To,
          andalso ((Type == <<"">>) or (Type == <<"available">>)) of
         true ->
             case read_caps(Els) of
-                nothing -> ok;
+                nothing -> Acc;
                 #caps{version = Version, exts = Exts} = Caps ->
-                    feature_request(Server, From, Caps, [Version | Exts])
+                    feature_request(Acc, Server, From, Caps, [Version | Exts])
             end;
-        false -> ok
-    end,
-    Acc;
+        false -> Acc
+    end;
 user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
     Acc.
 
@@ -401,7 +401,9 @@ terminate(_Reason, State) ->
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-feature_request(Host, From, Caps,
+-spec feature_request(mongoose_acc:t(), ejabberd:server(), jid(), caps(), [binary()]) ->
+    mongoose_acc:t().
+feature_request(Acc, Host, From, Caps,
                 [SubNode | Tail] = SubNodes) ->
     Node = Caps#caps.node,
     NodePair = {Node, SubNode},
@@ -409,14 +411,14 @@ feature_request(Host, From, Caps,
                           caps_read_fun(Host, NodePair))
     of
         {ok, Fs} when is_list(Fs) ->
-            feature_request(Host, From, Caps, Tail);
+            feature_request(Acc, Host, From, Caps, Tail);
         Other ->
             NeedRequest = case Other of
                               {ok, TS} -> now_ts() >= TS + (?BAD_HASH_LIFETIME);
                               _ -> true
                           end,
             F = fun (IQReply) ->
-                        feature_response(IQReply, Host, From, Caps,
+                        feature_response(Acc, IQReply, Host, From, Caps,
                                          SubNodes)
                 end,
             case NeedRequest of
@@ -432,16 +434,19 @@ feature_request(Host, From, Caps,
                                          children = []}]},
                     cache_tab:insert(caps_features, NodePair, now_ts(),
                                      caps_write_fun(Host, NodePair, now_ts())),
-                    ejabberd_local:route_iq(jid:make(<<"">>, Host, <<"">>), From, IQ, F);
-               false -> feature_request(Host, From, Caps, Tail)
+                    ejabberd_local:route_iq(jid:make(<<"">>, Host, <<"">>), From, Acc, IQ, F);
+               false -> feature_request(Acc, Host, From, Caps, Tail)
             end
     end;
-feature_request(Host, From, Caps, []) ->
+feature_request(Acc, Host, From, Caps, []) ->
     %% feature_request is never executed with empty SubNodes list
     %% so if we end up here, it means the caps are known
-    ejabberd_hooks:run(caps_recognised, Host, [From, self(), get_features_list(Host, Caps)]).
+    ejabberd_hooks:run_fold(caps_recognised, Host, Acc,
+                            [From, self(), get_features_list(Host, Caps)]).
 
-feature_response(#iq{type = result,
+-spec feature_response(mongoose_acc:t(), iq(), ejabberd:server(), jid(), caps(), [binary()]) ->
+    mongoose_acc:t().
+feature_response(Acc, #iq{type = result,
                      sub_el = [#xmlel{children = Els}]},
                  Host, From, Caps, [SubNode | SubNodes]) ->
     NodePair = {Caps#caps.node, SubNode},
@@ -459,10 +464,10 @@ feature_response(#iq{type = result,
                              caps_write_fun(Host, NodePair, Features));
         false -> ok
     end,
-    feature_request(Host, From, Caps, SubNodes);
-feature_response(_IQResult, Host, From, Caps,
+    feature_request(Acc, Host, From, Caps, SubNodes);
+feature_response(Acc, _IQResult, Host, From, Caps,
                  [_SubNode | SubNodes]) ->
-    feature_request(Host, From, Caps, SubNodes).
+    feature_request(Acc, Host, From, Caps, SubNodes).
 
 caps_read_fun(Host, Node) ->
     LServer = jid:nameprep(Host),
