@@ -83,18 +83,42 @@ from_json(Req, #{jid := Caller} = State) ->
 
 %% @doc Called for a method of type "DELETE"
 delete_resource(Req, #{jid := Caller} = State) ->
-    {Jid, Req2} = cowboy_req:binding(jid, Req),
     CJid = jid:to_binary(Caller),
-    case handle_request(<<"DELETE">>, Jid, undefined, CJid) of
-        ok ->
-            {true, Req2, State};
-        not_implemented ->
-            {ok, Req3} = cowboy_req:reply(501, Req2),
-            {halt, Req3, State};
+    {Jid, Req2} = cowboy_req:binding(jid, Req),
+    case kind_of_deletion(Jid, CJid) of
         not_found ->
             {ok, Req3} = cowboy_req:reply(404, Req2),
-            {halt, Req3, State}
+            {halt, Req3, State};
+        single ->
+            handle_deletion(CJid, Jid, Req2, State);
+        multiple ->
+            handle_deletion(CJid, get_all_contacts(CJid), Req2, State)
     end.
+
+kind_of_deletion(undefined, CJid) ->
+    multiple;
+kind_of_deletion(Jid, CJid) ->
+    case jid_exists(CJid, Jid) of
+        true ->
+            single;
+        false ->
+            not_found
+    end.
+
+handle_deletion(CJid, ToDelete, Req, State) ->
+    case handle_request(<<"DELETE">>, ToDelete, undefined, CJid) of
+        ok ->
+            {true, Req, State};
+        not_implemented ->
+            {ok, Req2} = cowboy_req:reply(501, Req),
+            {halt, Req2, State}
+    end.
+
+
+% TODO Probably use it as a command? Or fetch contacts myself?
+get_all_contacts(Jid) ->
+    Contacts = mod_commands:list_contacts(Jid),
+    lists:map(fun(#{jid := Jid}) -> Jid end, Contacts).
 
 
 handle_request(<<"GET">>, undefined, undefined, CJid) ->
@@ -103,10 +127,7 @@ handle_request(<<"POST">>, Jid, undefined, CJid) ->
     mongoose_commands:execute(CJid, add_contact, #{caller => CJid,
         jid => Jid});
 handle_request(Method, Jid, Action, CJid) ->
-    case jid_exists(CJid, Jid) of
-        true -> handle_contact_request(Method, Jid, Action, CJid);
-        false -> not_found
-    end.
+    handle_contact_request(Method, Jid, Action, CJid).
 
 handle_contact_request(<<"PUT">>, Jid, <<"invite">>, CJid) ->
     mongoose_commands:execute(CJid, subscription, #{caller => CJid,
@@ -114,6 +135,9 @@ handle_contact_request(<<"PUT">>, Jid, <<"invite">>, CJid) ->
 handle_contact_request(<<"PUT">>, Jid, <<"accept">>, CJid) ->
     mongoose_commands:execute(CJid, subscription, #{caller => CJid,
         jid => Jid, action => atom_to_binary(subscribed, latin1)});
+handle_contact_request(<<"DELETE">>, Jids, undefined, CJid) when is_list(Jids) ->
+    mongoose_commands:execute(CJid, delete_contacts, #{caller => CJid,
+        jids => Jids});
 handle_contact_request(<<"DELETE">>, Jid, undefined, CJid) ->
     mongoose_commands:execute(CJid, delete_contact, #{caller => CJid,
         jid => Jid});

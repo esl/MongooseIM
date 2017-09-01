@@ -15,6 +15,7 @@
          add_contact/2,
          add_contact/3,
          add_contact/4,
+         delete_contacts/2,
          delete_contact/2,
          subscription/3,
          set_subscription/3,
@@ -161,6 +162,17 @@ commands() ->
       {result, ok}
      ],
      [
+      {name, delete_contacts},
+      {category, <<"contacts-all">>},   % Why can't I just name it as contacts ?!?
+      {desc, <<"Remove all contacts from roster">>},
+      {module, ?MODULE},
+      {function, delete_contacts},
+      {action, delete},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jids, [binary]}]},
+      {result, ok}
+     ],
+     [
       {name, send_message},
       {category, <<"messages">>},
       {desc, <<"Send chat message from to">>},
@@ -277,6 +289,11 @@ add_contact(Caller, JabberID, Name) ->
 add_contact(Caller, JabberID, Name, Groups) ->
     CJid = jid:from_binary(Caller),
     mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
+
+delete_contacts(_, []) -> ok;
+delete_contacts(Caller, [H | T]) ->
+    delete_contact(Caller, H),
+    delete_contacts(Caller, T).
 
 delete_contact(Caller, JabberID) ->
     CJid = jid:from_binary(Caller),
