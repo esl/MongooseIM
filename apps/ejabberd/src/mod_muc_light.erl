@@ -72,7 +72,8 @@
          is_room_owner/3,
          can_access_room/3,
          can_access_identity/3,
-         muc_room_pid/2]).
+         muc_room_pid/2,
+         delete_room/1]).
 
 %% For Administration API
 -export([try_to_create_room/3]).
@@ -372,6 +373,10 @@ can_access_identity(_Acc, _Room, _User) ->
     %% User JIDs are explicit in MUC Light but this hook is about appending
     %% 0045 MUC element with user identity and we don't want it
     false.
+
+-spec delete_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists}.
+delete_room(RoomUS) ->
+    mod_muc_light_db_backend:destroy_room(RoomUS).
 
 %%====================================================================
 %% Internal functions

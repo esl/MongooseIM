@@ -397,6 +397,8 @@ check_and_execute(Caller, Command, Args) ->
     % run command
     Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, Args),
     case Res of
+        {error, not_allowed} ->
+            throw(permission_denied);
         {error, E} ->
             throw({func_returned_error, E});
         _ ->

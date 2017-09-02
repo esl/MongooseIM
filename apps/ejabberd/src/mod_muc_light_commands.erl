@@ -27,6 +27,7 @@
 -export([send_message/4]).
 -export([invite_to_room/4]).
 -export([change_affiliation/5]).
+-export([delete_room/3]).
 
 -include("mod_muc_light.hrl").
 -include("ejabberd.hrl").
@@ -115,6 +116,20 @@ commands() ->
         {from, binary},
         {body, binary}
        ]},
+      {result, ok}],
+
+     [{name, delete_room},
+      {category, <<"muc-lights">>},
+      {subcategory, <<"messages">>},
+      {desc, <<"Delete a MUC room.">>},
+      {module, ?MODULE},
+      {function, delete_room},
+      {action, delete},
+      {identifiers, [domain, name, owner]},
+      {args,
+       [{domain, binary},
+        {name, binary},
+        {owner, binary}]},
       {result, ok}]
     ].
 
@@ -167,6 +182,24 @@ send_message(Domain, RoomName, Sender, Message) ->
             true = is_subdomain(RS, Domain),
             R = jid:make(RU, RS, <<>>),
             ejabberd_router:route(S, R, Stanza)
+    end.
+
+-spec delete_room(DomainName :: binary(), RoomName :: binary(),
+                  Sender :: binary()) ->
+                         ok | {error, not_exists} | {error, not_allowed}.
+delete_room(DomainName, RoomName, Owner) ->
+    OwnerJID = jid:binary_to_bare(Owner),
+    case muc_light_room_name_to_jid(OwnerJID, RoomName,
+                                    DomainName) of
+        {error, _} = Error ->
+            Error;
+        RoomJID ->
+            case mod_muc_light:is_room_owner(true, RoomJID, OwnerJID) of
+                true ->
+                    mod_muc_light:delete_room(jid:to_lus(RoomJID));
+                false ->
+                    {error, not_allowed}
+            end
     end.
 
 %%--------------------------------------------------------------------
