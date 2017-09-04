@@ -116,7 +116,7 @@ stop_iq_handler(_Module, _Function, Opts) ->
 -spec handle(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
              Opts :: options(), From :: ejabberd:jid(), To :: ejabberd:jid(),
              mongoose_acc:t(),
-             IQ :: ejabberd:iq()) -> 'ok' | 'todo' | pid()
+             IQ :: ejabberd:iq()) -> 'ok' | 'todo' | pid() | mongoose_acc:t()
                                   | {'error', 'lager_not_running'}
                                   | {'process_iq', _, _, _}.
 handle(Host, Module, Function, Opts, From, To, Acc, IQ) ->
@@ -137,18 +137,18 @@ handle(Host, Module, Function, Opts, From, To, Acc, IQ) ->
 
 -spec process_iq(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
                  From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
-                 IQ :: ejabberd:iq()) -> 'ok' | {'error', 'lager_not_running'}.
+                 IQ :: ejabberd:iq()) -> mongoose_acc:t() | {'error', 'lager_not_running'}.
 process_iq(_Host, Module, Function, From, To, Acc, IQ) ->
-    case catch Module:Function(From, To, IQ) of
+    case catch Module:Function(From, To, Acc, IQ) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);
-        ResIQ ->
+        {Acc1, ResIQ} ->
             if
                 ResIQ /= ignore ->
-                    ejabberd_router:route(To, From, Acc,
+                    ejabberd_router:route(To, From, Acc1,
                                           jlib:iq_to_xml(ResIQ));
                 true ->
-                    ok
+                    Acc1
             end
     end.
 

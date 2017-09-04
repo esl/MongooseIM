@@ -30,8 +30,8 @@
 
 -export([start/2,
          stop/1,
-         process_local_iq/3,
-         process_sm_iq/3,
+         process_local_iq/4,
+         process_sm_iq/4,
          get_local_commands/5,
          get_local_identity/5,
          get_local_features/5,
@@ -209,16 +209,16 @@ get_sm_features(Acc, _From, _To, _Node, _Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec process_local_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
-                                                        ignore | ejabberd:iq().
-process_local_iq(From, To, IQ) ->
-    process_adhoc_request(From, To, IQ, adhoc_local_commands).
+-spec process_local_iq(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
+    {mongoose_acc:t(), ignore | ejabberd:iq()}.
+process_local_iq(From, To, Acc, IQ) ->
+    {Acc, process_adhoc_request(From, To, IQ, adhoc_local_commands)}.
 
 
--spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
-                                                        ignore | ejabberd:iq().
-process_sm_iq(From, To, IQ) ->
-    process_adhoc_request(From, To, IQ, adhoc_sm_commands).
+-spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
+    {mongoose_acc:t(), ignore | ejabberd:iq()}.
+process_sm_iq(From, To, Acc, IQ) ->
+    {Acc, process_adhoc_request(From, To, IQ, adhoc_sm_commands)}.
 
 
 -spec process_adhoc_request(ejabberd:jid(), ejabberd:jid(), ejabberd:iq(),

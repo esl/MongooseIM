@@ -35,7 +35,7 @@
          stream_feature_register/2,
          unauthenticated_iq_register/4,
          try_register/5,
-         process_iq/3]).
+         process_iq/4]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -102,10 +102,12 @@ process_unauthenticated_iq(From, To, #iq{type = set} = IQ, IPAddr) ->
 process_unauthenticated_iq(From, To, #iq{type = get} = IQ, IPAddr) ->
     process_iq_get(From, To, IQ, IPAddr).
 
-process_iq(From, To, #iq{type = set} = IQ) ->
-    process_iq_set(From, To, IQ, jid:to_lower(From));
-process_iq(From, To, #iq{type = get} = IQ) ->
-    process_iq_get(From, To, IQ, jid:to_lower(From)).
+process_iq(From, To, Acc, #iq{type = set} = IQ) ->
+    Res = process_iq_set(From, To, IQ, jid:to_lower(From)),
+    {Acc, Res};
+process_iq(From, To, Acc, #iq{type = get} = IQ) ->
+    Res = process_iq_get(From, To, IQ, jid:to_lower(From)),
+    {Acc, Res}.
 
 process_iq_set(From, To, #iq{sub_el = Child} = IQ, Source) ->
     true = is_query_element(Child),

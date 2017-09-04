@@ -57,8 +57,8 @@
 -export([process_packet/5]).
 
 %% Hook handlers
--export([process_local_iq/3,
-         process_sm_iq/3,
+-export([process_local_iq/4,
+         process_sm_iq/4,
          get_local_features/5,
          remove_user/2,
          remove_user/3,
@@ -253,12 +253,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% Hook handlers
 %%--------------------------------------------------------------------
-process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_local_iq(_From, _To, #iq{type = get} = IQ) ->
+process_local_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
     DescCData = #xmlcdata{content = [<<"MongooseIM XMPP Server">>,
                                      <<"\nCopyright (c) Erlang Solutions Ltd.">>]},
-    IQ#iq{type = result,
+    {Acc, IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, ?NS_VCARD}],
                            children = [#xmlel{name = <<"FN">>,
                                               children = [#xmlcdata{content = <<"MongooseIM">>}]},
@@ -266,12 +266,12 @@ process_local_iq(_From, _To, #iq{type = get} = IQ) ->
                                               children = [#xmlcdata{content = ?MONGOOSE_URI}]},
                                        #xmlel{name = <<"DESC">>,
                                               children = [DescCData]}
-                                      ]}]}.
+                                      ]}]}}.
 
-process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
+process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
     #jid{user = FromUser, lserver = FromVHost} = From,
     #jid{user = ToUser, lserver = ToVHost, resource = ToResource} = To,
-    case lists:member(FromVHost, ?MYHOSTS) of
+    Res = case lists:member(FromVHost, ?MYHOSTS) of
         true when FromUser == ToUser,
                   FromVHost == ToVHost,
                   ToResource == <<>>;
@@ -293,10 +293,11 @@ process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
         _ ->
             IQ#iq{type = error,
                   sub_el = [VCARD, ?ERR_NOT_ALLOWED]}
-    end;
-process_sm_iq(_From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
+    end,
+    {Acc, Res};
+process_sm_iq(_From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     #jid{luser = LUser, lserver = LServer} = To,
-    case catch mod_vcard_backend:get_vcard(LUser, LServer) of
+    Res = case catch mod_vcard_backend:get_vcard(LUser, LServer) of
         {ok, VCARD} ->
             IQ#iq{type = result, sub_el = VCARD};
         {error, Reason} ->
@@ -305,7 +306,8 @@ process_sm_iq(_From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
             ?ERROR_MSG("~p", [Else]),
             IQ#iq{type = error,
                   sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
-    end.
+    end,
+    {Acc, Res}.
 
 unsafe_set_vcard(From, VCARD) ->
     #jid{user = FromUser, lserver = FromVHost} = From,

@@ -42,8 +42,8 @@
 
 -export([start/2,
          stop/1,
-         process_iq/3,
-         process_local_iq/3,
+         process_iq/4,
+         process_local_iq/4,
          get_user_roster/2,
          get_subscription_lists/3,
          get_roster_entry/3,
@@ -211,22 +211,22 @@ jid_arg_to_lower(Jid) when is_binary(Jid) ->
 jid_arg_to_lower(Jid) ->
     jid:to_lower(Jid).
 
-process_iq(From, To, IQ) ->
+process_iq(From, To, Acc, IQ) ->
     #iq{sub_el = SubEl} = IQ,
     #jid{lserver = LServer} = From,
     case lists:member(LServer, ?MYHOSTS) of
         true ->
-            process_local_iq(From, To, IQ);
+            process_local_iq(From, To, Acc, IQ);
         _ ->
             IQ#iq{type = error, sub_el = [SubEl, ?ERR_ITEM_NOT_FOUND]}
     end.
 
-process_local_iq(From, To, #iq{type = Type} = IQ) ->
+process_local_iq(From, To, Acc, #iq{type = Type} = IQ) ->
     case Type of
         set ->
-            process_iq_set(From, To, IQ);
+            {Acc, process_iq_set(From, To, IQ)};
         get ->
-            process_iq_get(From, To, IQ)
+            {Acc, process_iq_get(From, To, IQ)}
     end.
 
 roster_hash(Items) ->

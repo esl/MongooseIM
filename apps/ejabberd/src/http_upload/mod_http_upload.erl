@@ -27,7 +27,7 @@
 -define(DEFAULT_MAX_FILE_SIZE, 10 * 1024 * 1024). % 10 MB
 -define(DEFAULT_SUBHOST, <<"upload.@HOST@">>).
 
--export([start/2, stop/1, iq_handler/3]).
+-export([start/2, stop/1, iq_handler/4]).
 
 %% Hook implementations
 -export([get_disco_identity/5, get_disco_items/5, get_disco_features/5, get_disco_info/5]).
@@ -75,13 +75,14 @@ stop(Host) ->
     mod_disco:unregister_subhost(Host, SubHost).
 
 
--spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
-                        ejabberd:iq() | ignore.
-iq_handler(_From, _To, IQ = #iq{type = set, sub_el = SubEl}) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-iq_handler(_From, _To = #jid{lserver = SubHost}, IQ = #iq{type = get, sub_el = Request}) ->
+-spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
+                 IQ :: ejabberd:iq()) ->
+    {mongoose_acc:t(), ejabberd:iq() | ignore}.
+iq_handler(_From, _To, Acc, IQ = #iq{type = set, sub_el = SubEl}) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
-    case parse_request(Request) of
+    Res = case parse_request(Request) of
         {Filename, Size, ContentType, Namespace} ->
             MaxFileSize = max_file_size(Host),
             case MaxFileSize =:= undefined orelse Size =< MaxFileSize of
@@ -102,7 +103,8 @@ iq_handler(_From, _To = #jid{lserver = SubHost}, IQ = #iq{type = get, sub_el = R
 
         bad_request ->
             IQ#iq{type = error, sub_el = [Request, ?ERR_BAD_REQUEST]}
-    end.
+    end,
+    {Acc, Res}.
 
 
 -spec get_disco_identity(Acc :: term(), From :: ejabberd:jid(), To :: ejabberd:jid(),

@@ -38,8 +38,8 @@
 %% Hooks
 -export([user_send_packet/4,
          user_receive_packet/5,
-         iq_handler2/3,
-         iq_handler1/3,
+         iq_handler2/4,
+         iq_handler1/4,
          remove_connection/5
         ]).
 
@@ -89,12 +89,12 @@ stop(Host) ->
     ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, user_receive_packet, 89),
     ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, remove_connection, 10).
 
-iq_handler2(From, To, IQ) ->
-    iq_handler(From, To, IQ, ?NS_CC_2).
-iq_handler1(From, To, IQ) ->
-    iq_handler(From, To, IQ, ?NS_CC_1).
+iq_handler2(From, To, Acc, IQ) ->
+    iq_handler(From, To, Acc, IQ, ?NS_CC_2).
+iq_handler1(From, To, Acc, IQ) ->
+    iq_handler(From, To, Acc, IQ, ?NS_CC_1).
 
-iq_handler(From, _To,  #iq{type = set, sub_el = #xmlel{name = Operation,
+iq_handler(From, _To,  Acc, #iq{type = set, sub_el = #xmlel{name = Operation,
                                                        children = []}} = IQ, CC) ->
     ?DEBUG("carbons IQ received: ~p", [IQ]),
     {U, S, R} = jid:to_lower(From),
@@ -109,14 +109,14 @@ iq_handler(From, _To,  #iq{type = set, sub_el = #xmlel{name = Operation,
     case Result of
         ok ->
             ?DEBUG("carbons IQ result: ok", []),
-            IQ#iq{type=result, sub_el=[]};
+            {Acc, IQ#iq{type=result, sub_el=[]}};
         {error, _Error} ->
             ?WARNING_MSG("Error enabling / disabling carbons: ~p", [Result]),
-            IQ#iq{type=error, sub_el = [?ERR_BAD_REQUEST]}
+            {Acc, IQ#iq{type=error, sub_el = [?ERR_BAD_REQUEST]}}
     end;
 
-iq_handler(_From, _To, IQ, _CC) ->
-    IQ#iq{type=error, sub_el = [?ERR_NOT_ALLOWED]}.
+iq_handler(_From, _To, Acc, IQ, _CC) ->
+    {Acc, IQ#iq{type=error, sub_el = [?ERR_NOT_ALLOWED]}}.
 
 user_send_packet(Acc, From, To, Packet) ->
     check_and_forward(From, To, Packet, sent),

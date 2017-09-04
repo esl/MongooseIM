@@ -128,6 +128,7 @@ process_iq(Acc0, From, To, El) ->
                        mongoose_acc:t(),
                        IQ :: ejabberd:iq() ) -> 'nothing' | 'ok'.
 process_iq_reply(From, To, _Acc, #iq{id = ID} = IQ) ->
+    % this is used only by mod_ping, doesn't make sense to rewrite it further
     case get_iq_callback(ID) of
         {ok, undefined, Function} ->
             Function(IQ),

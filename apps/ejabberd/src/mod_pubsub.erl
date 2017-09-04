@@ -73,7 +73,7 @@
          disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1]).
 
 %% exported iq handlers
--export([iq_sm/3]).
+-export([iq_sm/4]).
 
 %% exports for console debug manual use
 -export([create_node/5, create_node/7, delete_node/3,
@@ -1227,12 +1227,12 @@ iq_disco_items_transaction(Host, From, Node, RSM,
                       NodeItems),
     {result, Nodes ++ Items ++ jlib:rsm_encode(RsmOut)}.
 
--spec iq_sm(
-        From :: jid(),
-          To   :: jid(),
-          IQ   :: iq())
-        -> iq().
-iq_sm(From, To, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang} = IQ) ->
+-spec iq_sm(From :: jid(),
+            To   :: jid(),
+            Acc :: mongoose_acc:t(),
+            IQ   :: iq())
+        -> {mongoose_acc:t(), iq()}.
+iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang} = IQ) ->
     ServerHost = To#jid.lserver,
     LOwner = jid:to_lower(jid:to_bare(To)),
     Res = case XMLNS of
@@ -1242,8 +1242,8 @@ iq_sm(From, To, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang} = I
                   iq_pubsub_owner(LOwner, ServerHost, From, Type, SubEl, Lang)
           end,
     case Res of
-        {result, IQRes} -> IQ#iq{type = result, sub_el = IQRes};
-        {error, Error} -> IQ#iq{type = error, sub_el = [Error, SubEl]}
+        {result, IQRes} -> {Acc, IQ#iq{type = result, sub_el = IQRes}};
+        {error, Error} -> {Acc, IQ#iq{type = error, sub_el = [Error, SubEl]}}
     end.
 
 iq_get_vcard(Lang) ->
