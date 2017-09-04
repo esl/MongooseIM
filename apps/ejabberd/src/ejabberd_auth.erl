@@ -565,12 +565,12 @@ entropy(IOList) ->
     case binary_to_list(iolist_to_binary(IOList)) of
         "" ->
             0.0;
-        EntropyList ->
+        InputList ->
             Set = lists:foldl(
-                    fun(EntropyContent, Acc) ->
-                            convert_to_ordered_content(EntropyContent, Acc)
-                    end, [0, 0, 0, 0, 0], EntropyList),
-            length(EntropyList) * math:log(lists:sum(Set))/math:log(2)
+                    fun(IOContent, Acc) ->
+                            get_type_information(IOContent, Acc)
+                    end, [0, 0, 0, 0, 0], InputList),
+            length(InputList) * math:log(lists:sum(Set))/math:log(2)
     end.
 
 %%%----------------------------------------------------------------------
@@ -594,12 +594,9 @@ auth_modules(LServer) ->
     Methods = get_auth_method_as_a_list(Method),
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- Methods].
 
-get_auth_method_as_a_list(AuthMethod) ->
-    case AuthMethod of
-        undefined -> [];
-        AuthMethod when is_list(AuthMethod) -> AuthMethod;
-        AuthMethod when is_atom(AuthMethod) -> [AuthMethod]
-    end.
+get_auth_method_as_a_list(undefined) -> [];
+get_auth_method_as_a_list(AuthMethod) when is_list(AuthMethod) -> AuthMethod;
+get_auth_method_as_a_list(AuthMethod) when is_atom(AuthMethod) -> [AuthMethod].
 
 ensure_metrics(Host) ->
     Metrics = [authorize, check_password, try_register, does_user_exist],
@@ -628,7 +625,7 @@ authorize_with_check_password(Module, Creds) ->
     Args = case {Digest, DigestGen} of
                _ when Digest /= undefined andalso DigestGen /= undefined ->
                    [LUser, LServer, Password, Digest, DigestGen];
-               _ when Digest == undefined orelse DigestGen == undefined ->
+               _  ->
                    [LUser, LServer, Password]
            end,
     case erlang:apply(Module, check_password, Args) of
@@ -636,18 +633,18 @@ authorize_with_check_password(Module, Creds) ->
         false -> {error, not_authorized}
     end.
 
--spec convert_to_ordered_content(integer() | term(), list()) -> list().
-convert_to_ordered_content(EntropyContent, [Digit, Printable, LowLetter,
-                                            HiLetter, Other]) ->
-    case EntropyContent of
-        _ when EntropyContent >= $a andalso EntropyContent =< $z ->
-            [Digit, Printable, 26, HiLetter, Other];
-        _ when EntropyContent >= $0 andalso EntropyContent =< $9 ->
-            [9, Printable, LowLetter, HiLetter, Other];
-        _ when EntropyContent >= $A andalso EntropyContent =< $Z ->
-            [Digit, Printable, LowLetter, 26, Other];
-        _ when EntropyContent >= 16#21 andalso EntropyContent =< 16#7e ->
-            [Digit, 33, LowLetter, HiLetter, Other];
-        _ ->
-            [Digit, Printable, LowLetter, HiLetter, 128]
-    end.
+-spec get_type_information(integer(), list()) -> list().
+get_type_information(IOContent, [Digit, Printable, _, HiLetter, Other])
+  when IOContent >= $a andalso IOContent =< $z ->
+    [Digit, Printable, 26, HiLetter, Other];
+get_type_information(IOContent, [_, Printable, LowLetter, HiLetter, Other])
+  when IOContent >= $0 andalso IOContent =< $9 ->
+    [9, Printable, LowLetter, HiLetter, Other];
+get_type_information(IOContent, [Digit, Printable, LowLetter, _, Other])
+  when IOContent >= $A andalso IOContent =< $Z ->
+    [Digit, Printable, LowLetter, 26, Other];
+get_type_information(IOContent, [Digit, _, LowLetter, HiLetter, Other])
+  when IOContent >= 16#21 andalso IOContent =< 16#7e ->
+    [Digit, 33, LowLetter, HiLetter, Other];
+get_type_information(_IOContent, [Digit, Printable, LowLetter, HiLetter, _Other]) ->
+    [Digit, Printable, LowLetter, HiLetter, 128].

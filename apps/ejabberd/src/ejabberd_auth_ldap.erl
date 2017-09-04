@@ -149,14 +149,11 @@ authorize(Creds) ->
 -spec check_password(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver(),
                      Password :: binary()) -> boolean().
+check_password(_LUser, _LServer, <<"">>) -> false;
 check_password(LUser, LServer, Password) ->
-    case Password of
-        <<"">> -> false;
-        _ ->
-            case catch check_password_ldap(LUser, LServer, Password) of
-                {'EXIT', _} -> false;
-                Result -> Result
-            end
+    case catch check_password_ldap(LUser, LServer, Password) of
+        {'EXIT', _} -> false;
+        Result -> Result
     end.
 
 -spec check_password(LUser :: ejabberd:luser(),

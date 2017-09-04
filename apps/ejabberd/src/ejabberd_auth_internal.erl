@@ -403,12 +403,9 @@ get_scram(LServer, Password) ->
 
 -spec get_vh_registered_users_within_interval(list(), integer(), integer()) ->
                                                     list().
+get_vh_registered_users_within_interval([], _Limit, _Offset) -> [];
 get_vh_registered_users_within_interval(Users, Limit, Offset) ->
-    case Users of
-        [] -> [];
-        Users ->
-            Set = lists:keysort(1, Users),
-            Length = length(Set),
-            Start = min(1, max(Offset, Length)),
-            lists:sublist(Set, Start, Limit)
-    end.
+    Set = lists:keysort(1, Users),
+    Length = length(Set),
+    Start = min(1, max(Offset, Length)),
+    lists:sublist(Set, Start, Limit).
