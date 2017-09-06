@@ -513,6 +513,23 @@ paths:
       responses:
         204:
           description: Message was sent to the MUC Light room
+  /muc-lights/{XMPPHost}/{roomName}/{user}/management:
+    parameters:
+      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/roomName'
+      - user: owner
+          in: path
+          description: User's JID (f.e. alice@wonderland.lit)
+          required: true
+          type: string
+          format: JID
+    delete:
+      tags:
+        - "MUC-light management"
+      description: Delete a MUC-light room.
+      responses:
+        204:
+          description: The MUC-light room was deleted.
   /mucs/{XMPPHost}:
     parameters:
       - $ref: '#/parameters/hostName'

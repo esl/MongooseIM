@@ -185,7 +185,7 @@ send_message(Domain, RoomName, Sender, Message) ->
     end.
 
 -spec delete_room(DomainName :: binary(), RoomName :: binary(),
-                  Sender :: binary()) ->
+                  Owner :: binary()) ->
                          ok | {error, not_exists} | {error, not_allowed}.
 delete_room(DomainName, RoomName, Owner) ->
     OwnerJID = jid:binary_to_bare(Owner),
