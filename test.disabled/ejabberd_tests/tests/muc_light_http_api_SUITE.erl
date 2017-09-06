@@ -38,14 +38,14 @@ groups() ->
     [{positive, [parallel], success_response()}].
 
 success_response() ->
-    [create_unique_room,
-     create_identifiable_room,
-     invite_to_room,
-     send_message_to_room,
-     delete_room_by_owner,
-     delete_room_by_non_owner,
-     delete_non_existent_room,
-     delete_room_without_having_a_membership
+    [%create_unique_room,
+     %create_identifiable_room,
+     invite_to_room
+     %send_message_to_room,
+     %delete_room_by_owner,
+     %delete_room_by_non_owner,
+     %delete_non_existent_room,
+     %delete_room_without_having_a_membership
     ].
 
 
@@ -259,8 +259,7 @@ check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
     [escalus:wait_for_stanza(Member) || Member <- [RoomOwner] ++ RoomMembers],
     ShortJID = escalus_client:short_jid(UserToExecuteDelete),
     Path = <<"/muc-lights",$/,Domain/binary,$/,
-             RoomNameToDelete/binary,$/,ShortJID/binary,$/,
-             "messages">>,
+             RoomNameToDelete/binary,$/,ShortJID/binary>>,
     rest_helper:delete(Path).
 
 %%--------------------------------------------------------------------

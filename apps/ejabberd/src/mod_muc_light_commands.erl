@@ -120,8 +120,7 @@ commands() ->
 
      [{name, delete_room},
       {category, <<"muc-lights">>},
-      {subcategory, <<"messages">>},
-      {desc, <<"Delete a MUC room.">>},
+      {desc, <<"Delete a MUC Light room.">>},
       {module, ?MODULE},
       {function, delete_room},
       {action, delete},
