@@ -158,12 +158,20 @@ process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, Roo
 process_config_set(_ConfigReq, _RoomUS, member, _AffUsers, false) ->
     {error, not_allowed};
 process_config_set(ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
-    case mod_muc_light_utils:process_raw_config(
-           ConfigReq#config.raw_config, [], mod_muc_light:config_schema(RoomS)) of
+    Schema = mod_muc_light:config_schema(RoomS),
+    case mod_muc_light_utils:process_raw_config(ConfigReq#config.raw_config, [], Schema) of
         {ok, Config} ->
+            ReadOnlyFields = mod_muc_light:read_only_config_fields(RoomS),
+            ConfigWoReadOnlyFields = mod_muc_light_utils:filter_out_read_only(Config,
+                                                                              ReadOnlyFields),
             NewVersion = mod_muc_light_utils:bin_ts(),
-            {ok, PrevVersion} = mod_muc_light_db_backend:set_config(RoomUS, Config, NewVersion),
-            {set, ConfigReq#config{ prev_version = PrevVersion, version = NewVersion }, AffUsers};
+            {ok, PrevVersion} = mod_muc_light_db_backend:set_config(RoomUS,
+                                                                    ConfigWoReadOnlyFields,
+                                                                    NewVersion),
+            RawConfig = mod_muc_light_utils:config_to_raw(ConfigWoReadOnlyFields, Schema),
+            {set, ConfigReq#config{prev_version = PrevVersion,
+                                   version = NewVersion,
+                                   raw_config = RawConfig}, AffUsers};
         Error ->
             Error
     end.

@@ -46,6 +46,7 @@
          destroy_room_get_disco_items_one_left/1,
          set_config/1,
          set_config_with_custom_schema/1,
+         set_config_read_only_field_is_not_updated/1,
          deny_config_change_that_conflicts_with_schema/1,
          assorted_config_doesnt_lead_to_duplication/1,
          remove_and_add_users/1,
@@ -164,6 +165,7 @@ groups() ->
                           destroy_room_get_disco_items_one_left,
                           set_config,
                           set_config_with_custom_schema,
+                          set_config_read_only_field_is_not_updated,
                           deny_config_change_that_conflicts_with_schema,
                           assorted_config_doesnt_lead_to_duplication,
                           remove_and_add_users,
@@ -224,6 +226,7 @@ end_per_group(_GroupName, Config) ->
 -define(CUSTOM_CONFIG_CASES, [set_config_with_custom_schema,
                               deny_config_change_that_conflicts_with_schema,
                               no_roomname_in_schema_doesnt_break_disco_and_roster,
+                              set_config_read_only_field_is_not_updated,
                               custom_default_config_works]).
 
 init_per_testcase(removing_users_from_server_triggers_room_destruction = CN, Config) ->
@@ -247,7 +250,8 @@ init_per_testcase(CaseName, Config) ->
         true ->
             CustomDefaultConfig = [{atom_to_list(K), binary_to_list(V)}
                                    || {K, V} <- custom_default_config()],
-            set_custom_config(["background", "music"], CustomDefaultConfig);
+            set_custom_config(["background", "music", "readonly"], CustomDefaultConfig,
+                              ["readonly"]);
         _ ->
             ok
     end,
@@ -260,7 +264,8 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     case lists:member(
            CaseName, [custom_schema_works_with_standard_default_config | ?CUSTOM_CONFIG_CASES]) of
-        true -> set_custom_config(standard_config_schema(), standard_default_config());
+        true ->
+            set_custom_config(standard_config_schema(), standard_default_config(), []);
         _ -> ok
     end,
     muc_light_helper:clear_db(),
@@ -634,10 +639,17 @@ destroy_room_get_disco_items_one_left(Config) ->
 
 set_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-            ConfigChange = [{<<"roomname">>, <<"The Coven">>}],
+            NewName = <<"The Coven">>,
+            ConfigChange = [{<<"roomname">>, NewName}],
             escalus:send(Alice, stanza_config_set(?ROOM, ConfigChange)),
             foreach_recipient([Alice, Bob, Kate], config_msg_verify_fun(ConfigChange)),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            %% read config and verify
+            escalus:send(Alice, stanza_config_get(?ROOM, <<"old">>)),
+            R = escalus:wait_for_stanza(Alice),
+            NewName = exml_query:path(R, [{element, <<"query">>},
+                                          {element, <<"roomname">>},
+                                          cdata])
         end).
 
 set_config_with_custom_schema(Config) ->
@@ -656,6 +668,36 @@ deny_config_change_that_conflicts_with_schema(Config) ->
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice))
         end).
+
+set_config_read_only_field_is_not_updated(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+        ReadOnlyValue = <<"it will not change">>,
+        InitConfig = [{<<"music">>, <<"current music">>},
+                      {<<"readonly">>, ReadOnlyValue}],
+        RoomName = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+        escalus:send(Alice, stanza_create_room(RoomName, InitConfig, [])),
+        verify_aff_bcast([{Alice, owner}], [{Alice, owner}]),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        %% now try to change config with read only field
+        NewMusic = <<"new song">>,
+        MusicItem = {<<"music">>, NewMusic},
+        ConfigChange = [MusicItem,
+                        {<<"readonly">>, <<"this will not be set">>}],
+        escalus:send(Alice, stanza_config_set(RoomName, ConfigChange)),
+        foreach_recipient([Alice], config_msg_verify_fun([MusicItem])),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        %% read config and verify
+        escalus:send(Alice, stanza_config_get(RoomName, <<"old">>)),
+        R = escalus:wait_for_stanza(Alice),
+        %% music changed
+        NewMusic = exml_query:path(R, [{element, <<"query">>},
+                                       {element, <<"music">>},
+                                       cdata]),
+        %% but readonly didn't change
+        ReadOnlyValue = exml_query:path(R, [{element, <<"query">>},
+                                       {element, <<"readonly">>},
+                                       cdata])
+    end).
 
 assorted_config_doesnt_lead_to_duplication(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -1088,14 +1130,21 @@ set_default_mod_config() ->
 
 -spec set_custom_config(RawSchema :: list(), RawDefaultConfig :: list()) -> true.
 set_custom_config(RawSchema, RawDefaultConfig) ->
+    set_custom_config(RawSchema, RawDefaultConfig, []).
+
+set_custom_config(RawSchema, RawDefaultConfig, RawReadOnly) ->
     ConfigSchema = rpc(mod_muc_light_utils, make_config_schema, [RawSchema]),
     _ = hd(ConfigSchema), %% checks if is a list
 
     DefaultConfig = rpc(mod_muc_light_utils, make_default_config, [RawDefaultConfig, ConfigSchema]),
     _ = hd(DefaultConfig), %% checks if is a list
 
+    ReadOnlyFields = rpc(mod_muc_light_utils, make_read_only_config_fields, [RawReadOnly]),
+
     set_mod_config(config_schema, ConfigSchema),
-    set_mod_config(default_config, DefaultConfig).
+    set_mod_config(default_config, DefaultConfig),
+    set_mod_config(read_only_config_fields, ReadOnlyFields).
+
 
 -spec set_mod_config(K :: atom(), V :: any()) -> ok.
 set_mod_config(K, V) ->

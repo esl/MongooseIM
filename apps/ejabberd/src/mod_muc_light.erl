@@ -26,6 +26,8 @@
 %%%                                and values of appriopriate type. String values will be
 %%%                                converted to binary automatically.
 %%%        Example: [{"roomname", "The room"}, {"subject", "Chit-chat"}, {"security", 10}]
+%%% * config_read_only_fields (["roomname"]) - List of room config keys which are read only
+%%%                               Such keys can only be set while creating the room.
 %%%
 %%% Allowed `config_schema` list items (may be mixed):
 %%% * Just field name: "field" - will be expanded to "field" of type 'binary'
@@ -54,7 +56,7 @@
 
 %% API
 -export([standard_config_schema/0, standard_default_config/0, default_host/0]).
--export([config_schema/1, default_config/1]).
+-export([config_schema/1, default_config/1, read_only_config_fields/1]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
@@ -102,6 +104,9 @@ default_config(MUCServer) ->
 config_schema(MUCServer) ->
     gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, config_schema, undefined).
 
+-spec read_only_config_fields(MUCServer :: ejabberd:lserver()) -> [atom()].
+read_only_config_fields(MUCServer) ->
+    gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, read_only_config_fields, []).
 %%====================================================================
 %% gen_mod callbacks
 %%====================================================================
@@ -146,6 +151,11 @@ start(Host, Opts) ->
                       gen_mod:get_opt(default_config, Opts, standard_default_config()),
                       ConfigSchema),
     gen_mod:set_module_opt(Host, ?MODULE, default_config, DefaultConfig),
+
+    %% Prepare read only config fields
+    ReadOnlyFields = mod_muc_light_utils:make_read_only_config_fields(
+                       gen_mod:get_opt(read_only_config_fields, Opts, [])),
+    gen_mod:set_module_opt(Host, ?MODULE, read_only_config_fields, ReadOnlyFields),
 
     ok.
 

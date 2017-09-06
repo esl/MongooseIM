@@ -27,11 +27,13 @@
 %% API
 -export([make_config_schema/1, make_default_config/2]).
 -export([process_raw_config/3, config_to_raw/2]).
+-export([filter_out_read_only/2]).
 -export([change_aff_users/2]).
 -export([b2aff/1, aff2b/1]).
 -export([bin_ts/0]).
 -export([room_limit_reached/2]).
 -export([filter_out_prevented/3]).
+-export([make_read_only_config_fields/1]).
 
 -include("jlib.hrl").
 -include("ejabberd.hrl").
@@ -75,6 +77,10 @@ make_default_config(UserConfigDefaults, ConfigSchema) ->
                   end, DefaultConfigCandidate),
     DefaultConfigCandidate.
 
+-spec make_read_only_config_fields([string()]) -> [atom()].
+make_read_only_config_fields(List) ->
+    [list_to_atom(I) || I <- List].
+
 %% Guarantees that config will have unique fields
 -spec process_raw_config(
         RawConfig :: raw_config(), Config :: config(), ConfigSchema :: config_schema()) ->
@@ -96,6 +102,11 @@ config_to_raw([], _ConfigSchema) ->
 config_to_raw([{Key, Val} | RConfig], ConfigSchema) ->
     {KeyBin, _, ValType} = lists:keyfind(Key, 2, ConfigSchema),
     [{KeyBin, value2b(Val, ValType)} | config_to_raw(RConfig, ConfigSchema)].
+
+-spec filter_out_read_only(Config :: config(), [atom()]) -> config().
+filter_out_read_only(Config, ReadOnlyFields) ->
+  F = fun({Key, _}) -> not lists:member(Key, ReadOnlyFields) end,
+  lists:filter(F, Config).
 
 -spec change_aff_users(CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
     change_aff_success() | {error, bad_request}.
