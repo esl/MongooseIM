@@ -236,7 +236,7 @@ get_expired_nodes(Now) ->
       fun
           (Val, [{Key} | Acc]) ->
               Stamp = binary_to_integer(Val),
-              case Stamp + expire_after() < Now of
+              case Stamp + expire_after() > Now of
                   true -> Acc;
                   false -> [Key | Acc]
               end;
