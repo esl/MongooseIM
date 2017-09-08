@@ -122,17 +122,18 @@ delete_resource(Req, #http_api_state{command_category = Category, bindings = B} 
 % @doc Cowboy callback
 is_authorized(Req, State) ->
     ControlCreds = get_control_creds(State),
-    {ok, {AuthMethod, Creds}, Req2} = mongoose_api_common:get_auth_details(Req),
-    case authorize(ControlCreds, Creds, AuthMethod) of
+    {ok, AuthDetails, Req2} = mongoose_api_common:get_auth_details(Req),
+    case authorize(ControlCreds, AuthDetails) of
         true ->
             {true, Req2, State};
         false ->
             mongoose_api_common:make_unauthorized_response(Req2, State)
     end.
 
--spec authorize(credentials(), credentials(), binary()) -> boolean().
-authorize(any, _, _) -> true;
-authorize(ControlCreds, Creds, AuthMethod) ->
+-spec authorize(credentials(), {credentials(), binary()}) -> boolean().
+authorize(any, _) -> true;
+authorize(_, undefined) -> false;
+authorize(ControlCreds, {AuthMethod, Creds}) ->
     compare_creds(ControlCreds, Creds) andalso
         mongoose_api_common:is_known_auth_method(AuthMethod).
 
@@ -140,13 +141,10 @@ authorize(ControlCreds, Creds, AuthMethod) ->
 % it is equal to everything).
 -spec compare_creds(credentials(), credentials() | undefined) -> boolean().
 compare_creds({UserControl, PassControl}, {User, Pass}) ->
-    compare_single_cred(UserControl, User) andalso
-        compare_single_cred(PassControl, Pass);
+    UserControl == User andalso
+    PassControl == Pass;
 compare_creds(any, undefined) -> true;
 compare_creds(_, _) -> false.
-
-compare_single_cred(Creds, Creds) -> true;
-compare_single_cred(_Control, _User) -> false.
 
 get_control_creds(#http_api_state{auth = Creds}) ->
     Creds.

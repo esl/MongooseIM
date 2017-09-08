@@ -359,7 +359,7 @@ method_to_action(<<"DELETE">>) -> delete.
 %%--------------------------------------------------------------------
 
 get_auth_details(Req) ->
-    cowboy_req:parse_header(<<"authorization">>, Req, {undefined, any}).
+    cowboy_req:parse_header(<<"authorization">>, Req).
 
 is_known_auth_method(<<"basic">>) -> true;
 is_known_auth_method(_) -> false.
