@@ -254,6 +254,15 @@ paths:
       responses:
         204:
           description: "The user was added to a contact list."
+
+    delete:
+        description: "Deletes all contacts from the user's roster"
+        tags:
+            - "Contacts"
+        responses:
+            204:
+                description: "Successfully deleted all contacts"
+
   /contacts/{contact}:
     put:
       description: "Manage subscription"
