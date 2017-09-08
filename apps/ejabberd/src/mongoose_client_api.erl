@@ -57,17 +57,16 @@ to_json(Req, User) ->
 
 % @doc cowboy callback
 is_authorized(Req, State) ->
-    HTTPMethod = mongoose_api_common:get_http_method(Req),
-    Creds = mongoose_api_common:get_creds(Req),
-    AuthMethod = mongoose_api_common:get_auth_method(Req),
+    {HTTPMethod, Req2} = cowboy_req:method(Req),
+    {ok, {AuthMethod, Creds}, Req3} = mongoose_api_common:get_auth_details(Req2),
     case check_password(Creds) andalso
          mongoose_api_common:is_known_auth_method(AuthMethod) orelse
          is_noauth_http_method(HTTPMethod) of
         true ->
             {User, _} = Creds,
-            {true, Req, State#{user => User, jid => jid:from_binary(User)}};
+            {true, Req3, State#{user => User, jid => jid:from_binary(User)}};
         false ->
-            mongoose_api_common:make_unauthorized_response(Req, State)
+            mongoose_api_common:make_unauthorized_response(Req3, State)
     end.
 
 check_password(undefined) -> false;

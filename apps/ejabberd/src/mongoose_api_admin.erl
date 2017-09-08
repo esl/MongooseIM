@@ -39,7 +39,7 @@
                               process_request/4,
                               parse_request_body/1]).
 
--type credentials() :: {Username :: binary() | any, Password :: binary() | any}.
+-type credentials() :: {Username :: binary(), Password :: binary()} | any.
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
@@ -73,7 +73,7 @@ rest_init(Req, Opts) ->
     {Bindings, Req1} = cowboy_req:bindings(Req),
     CommandCategory = proplists:get_value(command_category, Opts),
     CommandSubCategory = proplists:get_value(command_subcategory, Opts),
-    Auth = proplists:get_value(auth, Opts, {any, any}),
+    Auth = proplists:get_value(auth, Opts, any),
     State = #http_api_state{allowed_methods = mongoose_api_common:get_allowed_methods(admin),
                             bindings = Bindings,
                             command_category = CommandCategory,
@@ -122,32 +122,30 @@ delete_resource(Req, #http_api_state{command_category = Category, bindings = B} 
 % @doc Cowboy callback
 is_authorized(Req, State) ->
     ControlCreds = get_control_creds(State),
-    Creds = mongoose_api_common:get_creds(Req),
-    AuthMethod = mongoose_api_common:get_auth_method(Req),
+    {ok, {AuthMethod, Creds}, Req2} = mongoose_api_common:get_auth_details(Req),
     case authorize(ControlCreds, Creds, AuthMethod) of
         true ->
-            {true, Req, State};
+            {true, Req2, State};
         false ->
-            mongoose_api_common:make_unauthorized_response(Req, State)
+            mongoose_api_common:make_unauthorized_response(Req2, State)
     end.
 
 -spec authorize(credentials(), credentials(), binary()) -> boolean().
-authorize({any, any}, _, _) -> true;
+authorize(any, _, _) -> true;
 authorize(ControlCreds, Creds, AuthMethod) ->
     compare_creds(ControlCreds, Creds) andalso
         mongoose_api_common:is_known_auth_method(AuthMethod).
 
 % @doc Checks if credentials are the same (if control creds are 'any'
 % it is equal to everything).
--spec compare_creds(credentials(), credentials()) -> boolean().
+-spec compare_creds(credentials(), credentials() | undefined) -> boolean().
 compare_creds({UserControl, PassControl}, {User, Pass}) ->
     compare_single_cred(UserControl, User) andalso
         compare_single_cred(PassControl, Pass);
-compare_creds({any, any}, undefined) -> true;
+compare_creds(any, undefined) -> true;
 compare_creds(_, _) -> false.
 
-compare_single_cred(any, _) -> true;
-compare_single_cred(Control, Control) -> true;
+compare_single_cred(Creds, Creds) -> true;
 compare_single_cred(_Control, _User) -> false.
 
 get_control_creds(#http_api_state{auth = Creds}) ->
