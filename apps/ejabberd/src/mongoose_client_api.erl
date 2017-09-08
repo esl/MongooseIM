@@ -66,19 +66,25 @@ is_authorized(Req, State) ->
             authorize(AuthDetails, HTTPMethod, Req3, State)
     end.
 
-authorize({AuthMethod, Creds}, HTTPMethod, Req, State) ->
-    case {check_password(Creds) andalso
-         mongoose_api_common:is_known_auth_method(AuthMethod),
-         is_noauth_http_method(HTTPMethod)} of
-                {_, true} ->
-                    {true, Req, State};
-                {true, _} ->
-                    {User, _} = Creds,
-                    {true, Req, State#{user => User, jid => jid:from_binary(User)}};
-                {false, _} ->
-                    mongoose_api_common:make_unauthorized_response(Req, State)
+authorize({AuthMethod, Creds} = AuthDetails, HTTPMethod, Req, State) ->
+    case do_authorize(AuthDetails, HTTPMethod) of
+        noauth ->
+            {true, Req, State};
+        true ->
+            {User, _} = Creds,
+            {true, Req, State#{user => User, jid => jid:from_binary(User)}};
+        false ->
+            mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
+do_authorize({AuthMethod, Creds}, HTTPMethod) ->
+    case is_noauth_http_method(HTTPMethod) of
+        true ->
+            noauth;
+        false ->
+            check_password(Creds) andalso
+            mongoose_api_common:is_known_auth_method(AuthMethod)
+    end.
 
 check_password(undefined) -> false;
 check_password({User, Password}) ->
