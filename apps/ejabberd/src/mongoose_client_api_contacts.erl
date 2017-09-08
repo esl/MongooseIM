@@ -86,7 +86,7 @@ delete_resource(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
     {Jid, Req2} = cowboy_req:binding(jid, Req),
     case kind_of_deletion(Jid, CJid) of
-        not_found ->
+        {error, not_found} ->
             {ok, Req3} = cowboy_req:reply(404, Req2),
             {halt, Req3, State};
         single ->
@@ -102,7 +102,7 @@ kind_of_deletion(Jid, CJid) ->
         true ->
             single;
         false ->
-            not_found
+            {error, not_found}
     end.
 
 handle_deletion(CJid, ToDelete, Req, State) ->
