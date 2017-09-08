@@ -163,7 +163,8 @@ commands() ->
      ],
      [
       {name, delete_contacts},
-      {category, <<"contacts-all">>},   % Why can't I just name it as contacts ?!?
+      {category, <<"contacts">>},
+      {subcategory, <<"all">>},
       {desc, <<"Remove all contacts from roster">>},
       {module, ?MODULE},
       {function, delete_contacts},
