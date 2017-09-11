@@ -2,7 +2,6 @@
 
 -export([action/1]).
 -export([action_type/1]).
--export([wait_shaper/3]).
 
 -export([fix_rsm/1]).
 -export([elem_to_start_microseconds/1]).
@@ -78,25 +77,6 @@ action_type(mam_set_message_form) -> get;
 action_type(mam_get_message_form) -> get;
 action_type(mam_purge_single_message) -> set;
 action_type(mam_purge_multiple_messages) -> set.
-
-
--spec action_to_shaper_name(action()) -> atom().
-action_to_shaper_name(Action) ->
-    list_to_atom(atom_to_list(Action) ++ "_shaper").
-
--spec action_to_global_shaper_name(action()) -> atom().
-action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
-
-
--spec wait_shaper(ejabberd:server(), action(), ejabberd:jid()) ->
-    'ok' | {'error', 'max_delay_reached'}.
-wait_shaper(Host, Action, From) ->
-    case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of
-        ok ->
-            shaper_srv:wait(Host, action_to_global_shaper_name(Action), global, 1);
-        Err ->
-            Err
-    end.
 
 %% @doc Convert id into internal format.
 -spec fix_rsm('none' | jlib:rsm_in()) -> 'undefined' | jlib:rsm_in().

@@ -31,6 +31,10 @@ For now `odbc` backend has very limited support for this feature, while `cassand
 * **archive_chat_markers** (boolean, default: `false`) - If set to true, XEP-0333 chat markers will be archived. See more details [here](#archiving-chat-markers)
 * **pm** (list | `false`, default: `[]`) - Override options for archivization of one-to-one messages. If the value of this option is `false`, one-to-one message archive is disabled.
 * **muc** (list | `false`, default: `false`) - Override options for archivization of group chat messages. If the value of this option is `false`, group chat message archive is disabled.
+* **extra_lookup_params** (atom, default: `undefined`) - a module implementing `mam_iq` behaviour.
+ If this option has value other then undefined, function `extra_lookup_params/2` from this module will be called when building MAM lookup parameters.
+ This can be used to extend currently supported MAM query fields by a custom field or fields.
+ This field(s) can be added to lookup params later passed to MAM backend.
 
 **backend**, **add_archived_element**, **no_stanzaid_element** and **is_archivable_message** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
 
@@ -70,9 +74,9 @@ These options will only have effect when the `odbc` backend is used:
 #### Common backend options
 
 * **user_prefs_store** (atom, default: `false`) - Leaving this option as `false` will prevent users from setting their archiving preferences. It will also increase performance. Other possible values are:
-    * `odbc` (ODBC backend only) - User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
-    * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
-    * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
+  * `odbc` (ODBC backend only) - User archiving preferences saved in ODBC. Slow and not recommended, but might be used for simplicity (keeping everything in ODBC).
+  * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
+  * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
 * **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that the full text search is currently only implemented for `odbc` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback

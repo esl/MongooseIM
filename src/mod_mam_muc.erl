@@ -266,7 +266,7 @@ room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
     Action = mam_iq:action(IQ),
     Res = case is_action_allowed(Action, From, To) of
         true ->
-            case mam_iq:wait_shaper(Host, Action, From) of
+            case mod_mam_utils:wait_shaper(Host, Action, From) of
                 ok ->
                     handle_error_iq(Host, To, Action,
                                     handle_mam_iq(Action, From, To, IQ));
