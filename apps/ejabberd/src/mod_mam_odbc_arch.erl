@@ -22,7 +22,7 @@
 
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/15,
+         lookup_messages/3,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -269,32 +269,26 @@ prepare_insert(Name, NumRows) ->
     mongoose_rdbms:prepare(Name, Table, Fields, Query),
     ok.
 
--spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
-                      ArchiveID :: mod_mam:archive_id(),
-                      ArchiveJID :: ejabberd:jid(),
-                      RSM :: jlib:rsm_in()  | undefined,
-                      Borders :: mod_mam:borders()  | undefined,
-                      Start :: mod_mam:unix_timestamp()  | undefined,
-                      End :: mod_mam:unix_timestamp()  | undefined,
-                      Now :: mod_mam:unix_timestamp(),
-                      WithJID :: ejabberd:jid()  | undefined,
-                      SearchText :: binary() | undefined,
-                      PageSize :: non_neg_integer(), LimitPassed :: boolean(),
-                      MaxResultLimit :: non_neg_integer(),
-                      IsSimple :: boolean()  | opt_count) ->
+-spec lookup_messages(Result :: any(), Host :: ejabberd:server(), Params :: map()) ->
                              {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
-lookup_messages({error, _Reason}=Result, _Host,
-                _UserID, _UserJID, _RSM, _Borders,
-                _Start, _End, _Now, _WithJID, _SearchText,
-                _PageSize, _LimitPassed, _MaxResultLimit,
-                _IsSimple) ->
+lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
-lookup_messages(_Result, Host,
-                UserID, UserJID, RSM, Borders,
-                Start, End, Now, WithJID, SearchText,
-                PageSize, LimitPassed, MaxResultLimit,
-                IsSimple) ->
+lookup_messages(_Result, Host, Params) ->
     try
+        UserID = maps:get(archive_id, Params),
+        UserJID = maps:get(owner_jid, Params),
+        RSM = maps:get(rsm, Params),
+        Borders = maps:get(borders, Params),
+        Start = maps:get(start_ts, Params),
+        End = maps:get(end_ts, Params),
+        Now = maps:get(now, Params),
+        WithJID = maps:get(with_jid, Params),
+        SearchText = maps:get(search_text, Params),
+        PageSize = maps:get(page_size, Params),
+        LimitPassed = maps:get(limit_passed, Params),
+        MaxResultLimit = maps:get(max_result_limit, Params),
+        IsSimple = maps:get(is_simple, Params),
+
         do_lookup_messages(Host,
                            UserID, UserJID, RSM, Borders,
                            Start, End, Now, WithJID,

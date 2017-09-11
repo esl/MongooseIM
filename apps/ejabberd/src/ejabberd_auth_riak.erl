@@ -249,7 +249,7 @@ extract_password(Map) ->
             Password
     end.
 
--spec maybe_extract_scram_password({ok, binary()} | error) -> #scram{} | false.
+-spec maybe_extract_scram_password({ok, binary()} | error) -> scram() | false.
 maybe_extract_scram_password({ok, ScramSerialised}) ->
     case scram:deserialize(ScramSerialised) of
         {ok, Scram} ->

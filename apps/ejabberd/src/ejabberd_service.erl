@@ -368,8 +368,7 @@ handle_info({route, From, To, Acc}, StateName, StateData) ->
            Text = exml:to_binary(#xmlel{name = Name, attrs = Attrs2, children = Els}),
            send_text(StateData, Text);
         deny ->
-            Err = jlib:make_error_reply(Packet, ?ERR_NOT_ALLOWED),
-            ejabberd_router:route_error(To, From, Acc, Err)
+            ejabberd_router:route_error_reply(To, From, Acc, ?ERR_NOT_ALLOWED)
     end,
     {next_state, StateName, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)

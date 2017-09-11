@@ -3,6 +3,8 @@
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("common_test/include/ct.hrl").
 
 -import(rest_helper,
         [assert_inlist/2,
@@ -56,7 +58,12 @@ muc_test_cases() ->
       only_room_participant_can_read_messages,
       messages_can_be_paginated_in_room,
       room_msg_is_sent_and_delivered_over_sse,
-      aff_change_msg_is_delivered_over_sse
+      aff_change_msg_is_delivered_over_sse,
+      room_is_created_with_given_jid,
+      room_is_not_created_with_jid_not_matching_hostname,
+      room_can_be_fetched_by_jid,
+      messages_can_be_sent_and_fetched_by_room_jid,
+      user_can_be_added_and_removed_by_room_jid
      ].
 
 roster_test_cases() ->
@@ -73,7 +80,7 @@ init_per_suite(C) ->
     dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(MUCLightHost)},
                            {rooms_in_rosters, true}]),
-    escalus:init_per_suite(C1).
+    [{muc_light_host, MUCLightHost} | escalus:init_per_suite(C1)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -95,7 +102,8 @@ init_per_testcase(TC, Config) ->
                     messages_can_be_paginated,
                     messages_are_archived_in_room,
                     only_room_participant_can_read_messages,
-                    messages_can_be_paginated_in_room
+                    messages_can_be_paginated_in_room,
+                    messages_can_be_sent_and_fetched_by_room_jid
                    ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
@@ -328,6 +336,54 @@ messages_can_be_paginated_in_room(Config) ->
         assert_room_messages(OldestMsg2, hd(lists:keysort(1, GenMsgs2)))
     end).
 
+room_is_created_with_given_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"some_id">>,
+        RoomJID = room_jid(RoomID, Config),
+        RoomID = given_new_room({alice, Alice}, RoomJID),
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_room_info(Alice, RoomInfo)
+    end).
+
+room_is_not_created_with_jid_not_matching_hostname(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"some_id">>,
+        RoomJID = <<RoomID/binary, "@muclight.wrongdomain">>,
+        Creds = credentials({alice, Alice}),
+        {{Status, _}, _} = create_room_with_id_request(Creds,
+                                                       <<"some_name">>,
+                                                       <<"some subject">>,
+                                                       RoomJID),
+        ?assertEqual(<<"400">>, Status)
+    end).
+
+room_can_be_fetched_by_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"yet_another_id">>,
+        RoomJID = room_jid(RoomID, Config),
+        RoomID = given_new_room({alice, Alice}, RoomJID),
+        RoomInfo = get_room_info({alice, Alice}, RoomJID),
+        assert_room_info(Alice, RoomInfo)
+    end).
+
+messages_can_be_sent_and_fetched_by_room_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room({alice, Alice}),
+        RoomJID = room_jid(RoomID, Config),
+        given_message_sent_to_room(RoomJID, {alice, Alice}),
+        mam_helper:maybe_wait_for_archive(Config),
+        [_] = get_room_messages({alice, Alice}, RoomJID, 10)
+    end).
+
+user_can_be_added_and_removed_by_room_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room({alice, Alice}),
+        RoomJID = room_jid(RoomID, Config),
+        given_user_invited({alice, Alice}, RoomJID, Bob),
+        {{Status, _}, _} = remove_user_from_a_room({alice, Alice}, RoomJID, Bob),
+        ?assertEqual(<<"204">>, Status)
+    end).
+
 assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
     escalus:assert(is_chat_message, [maps:get(body, RecvMsg)], GenMsg),
     ok.
@@ -460,11 +516,15 @@ create_room({_AliceJID, _} = Creds, RoomName, Subject) ->
     proplists:get_value(<<"id">>, Result).
 
 create_room_with_id({_AliceJID, _} = Creds, RoomName, Subject, RoomID) ->
+    {{<<"201">>, <<"Created">>}, {Result}} =
+        create_room_with_id_request(Creds, RoomName, Subject, RoomID),
+    proplists:get_value(<<"id">>, Result).
+
+create_room_with_id_request(Creds, RoomName, Subject, RoomID) ->
     Room = #{name => RoomName,
              subject => Subject},
     Path = <<"/rooms/", RoomID/binary>>,
-    {{<<"201">>, <<"Created">>}, {Result}} = rest_helper:putt(Path, Room, Creds),
-    proplists:get_value(<<"id">>, Result).
+    rest_helper:putt(Path, Room, Creds).
 
 get_my_rooms(User) ->
     Creds = credentials(User),
@@ -598,7 +658,7 @@ add_contact_and_invite(Config) ->
             #{jid := AliceJID, subscription := <<"none">>,
               ask := <<"none">>} = Res2,
             % and he received a roster push
-            Push = escalus:wait_for_stanza(Bob, 1),
+            Push = escalus:wait_for_stanza(Bob),
             escalus:assert(is_roster_set, Push),
             % he invites her
             PutPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
@@ -606,11 +666,11 @@ add_contact_and_invite(Config) ->
                                    #{action => <<"invite">>},
                                    BCred),
             % another roster push
-            Push2 = escalus:wait_for_stanza(Bob, 1),
+            Push2 = escalus:wait_for_stanza(Bob),
             escalus:assert(is_roster_set, Push2),
             ct:pal("Push2: ~p", [Push2]),
             % she receives  a subscription request
-            Sub = escalus:wait_for_stanza(Alice, 1),
+            Sub = escalus:wait_for_stanza(Alice),
             escalus:assert(is_presence_with_type, [<<"subscribe">>], Sub),
             % in his roster she has a changed 'ask' status
             {?OK, R3} = gett("/contacts", BCred),
@@ -678,7 +738,7 @@ add_contact_and_be_invited(Config) ->
                              <<"subscribe">>)),
             escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice)),
             escalus:assert(is_presence_with_type, [<<"subscribe">>],
-                           escalus:wait_for_stanza(Bob, 1)),
+                           escalus:wait_for_stanza(Bob)),
             % now check Bob's roster, and it is the same...
             {?OK, R4} = gett("/contacts", BCred),
             [Res4] = decode_maplist(R4),
@@ -767,3 +827,7 @@ break_stuff(Config) ->
     ),
     ok.
 
+-spec room_jid(RoomID :: binary(), Config :: list()) -> RoomJID :: binary().
+room_jid(RoomID, Config) ->
+    MUCLightHost = ?config(muc_light_host, Config),
+    <<RoomID/binary, "@", MUCLightHost/binary>>.

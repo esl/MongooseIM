@@ -149,16 +149,12 @@ authorize(Creds) ->
 -spec check_password(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver(),
                      Password :: binary()) -> boolean().
+check_password(_LUser, _LServer, <<"">>) -> false;
 check_password(LUser, LServer, Password) ->
-    if Password == <<"">> -> false;
-       true ->
-           case catch check_password_ldap(LUser, LServer, Password)
-               of
-             {'EXIT', _} -> false;
-             Result -> Result
-           end
+    case catch check_password_ldap(LUser, LServer, Password) of
+        {'EXIT', _} -> false;
+        Result -> Result
     end.
-
 
 -spec check_password(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver(),
@@ -307,47 +303,51 @@ check_password_ldap(LUser, LServer, Password) ->
 get_vh_registered_users_ldap(LServer) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
     UIDs = State#state.uids,
-    Eldap_ID = State#state.eldap_id,
+    EldapID = State#state.eldap_id,
     LServer = State#state.host,
     ResAttrs = result_attrs(State),
     case eldap_filter:parse(State#state.sfilter) of
       {ok, EldapFilter} ->
-          case eldap_pool:search(Eldap_ID,
+          case eldap_pool:search(EldapID,
                                  [{base, State#state.base},
                                   {filter, EldapFilter},
                                   {timeout, ?LDAP_SEARCH_TIMEOUT},
                                   {deref_aliases, State#state.deref_aliases},
-                                  {attributes, ResAttrs}])
-              of
-            #eldap_search_result{entries = Entries} ->
-                lists:flatmap(fun (#eldap_entry{attributes = Attrs,
-                                                object_name = DN}) ->
-                                      case is_valid_dn(DN, Attrs, State) of
-                                        false -> [];
-                                        _ ->
-                                            case
-                                              eldap_utils:find_ldap_attrs(UIDs,
-                                                                          Attrs)
-                                                of
-                                              <<"">> -> [];
-                                              {User, UIDFormat} ->
-                                                  case
-                                                    eldap_utils:get_user_part(User,
-                                                                              UIDFormat)
-                                                      of
-                                                    {ok, U} ->
-                                                        [{U, LServer}];
-                                                    _ -> []
-                                                  end
-                                            end
-                                      end
-                              end,
-                              Entries);
-            _ -> []
+                                  {attributes, ResAttrs}]) of
+              #eldap_search_result{entries = Entries} ->
+                  get_users_from_ldap_entries(Entries, UIDs, LServer, State);
+              _ -> []
           end;
       _ -> []
     end.
 
+-spec get_users_from_ldap_entries(list(), [{binary()} | {binary(), binary()}],
+                                  ejabberd:lserver(), state()) -> list().
+get_users_from_ldap_entries(LDAPEntries, UIDs, LServer, State) ->
+    lists:flatmap(
+      fun(#eldap_entry{attributes = Attrs,
+                       object_name = DN}) ->
+              case is_valid_dn(DN, Attrs, State) of
+                  false -> [];
+                  _ ->
+                      get_user_from_ldap_attributes(UIDs, Attrs, LServer)
+              end
+      end,
+      LDAPEntries).
+
+-spec get_user_from_ldap_attributes([{binary()} | {binary(), binary()}],
+                                    [{binary(), [binary()]}], ejabberd:lserver())
+                                   -> list().
+get_user_from_ldap_attributes(UIDs, Attributes, LServer) ->
+    case eldap_utils:find_ldap_attrs(UIDs, Attributes) of
+        <<"">> -> [];
+        {User, UIDFormat} ->
+            case eldap_utils:get_user_part(User, UIDFormat) of
+                {ok, U} ->
+                    [{U, LServer}];
+                _ -> []
+            end
+    end.
 
 -spec is_user_exists_ldap(LUser :: ejabberd:luser(),
                           LServer :: ejabberd:lserver()) -> boolean().
@@ -488,8 +488,8 @@ result_attrs(#state{uids = UIDs,
 -spec parse_options(Host :: ejabberd:lserver()) -> state().
 parse_options(Host) ->
     Cfg = eldap_utils:get_config(Host, []),
-    Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE), utf8),
-    Bind_Eldap_ID = atom_to_binary(
+    EldapID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE), utf8),
+    BindEldapID = atom_to_binary(
                       gen_mod:get_module_proc(Host, bind_ejabberd_auth_ldap), utf8),
     UIDsTemp = eldap_utils:get_opt(
                  {ldap_uids, Host}, [],
@@ -531,8 +531,8 @@ parse_options(Host) ->
                             end, {undefined, []}),
     LocalFilter = eldap_utils:get_opt(
                     {ldap_local_filter, Host}, [], fun(V) -> V end),
-    #state{host = Host, eldap_id = Eldap_ID,
-           bind_eldap_id = Bind_Eldap_ID,
+    #state{host = Host, eldap_id = EldapID,
+           bind_eldap_id = BindEldapID,
            servers = Cfg#eldap_config.servers,
            backups = Cfg#eldap_config.backups,
            port = Cfg#eldap_config.port,
