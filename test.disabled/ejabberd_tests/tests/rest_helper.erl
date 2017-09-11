@@ -171,10 +171,7 @@ get_ssl_status(Role) ->
 -spec change_admin_creds({User :: binary(), Password :: binary()}) -> 'ok' | 'error'.
 change_admin_creds(Creds) ->
     stop_listener(admin),
-    case start_admin_listener(Creds) of
-	{error, _} -> error;
-	{ok, _} -> ok
-    end.
+    {ok, _} =  start_admin_listener(Creds).
 
 -spec stop_listener(role()) -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_listener(Role) ->
