@@ -67,7 +67,8 @@
 
 %% XML
 -import(mod_mam_utils,
-        [replace_archived_elem/3,
+        [add_arcid_elems/3,
+         replace_archived_elem/3,
          replace_x_user_element/4,
          delete_x_user_element/1,
          packet_to_x_user_jid/1,
@@ -166,11 +167,14 @@ start(Host, Opts) ->
     mod_disco:register_feature(MUCHost, ?NS_MAM),
     mod_disco:register_feature(MUCHost, ?NS_MAM_03),
     mod_disco:register_feature(MUCHost, ?NS_MAM_04),
+    mod_disco:register_feature(MUCHost, ?NS_MAM_06),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04,
+                                  ?MODULE, room_process_mam_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     ejabberd_hooks:add(filter_room_packet, MUCHost, ?MODULE,
                        filter_room_packet, 90),
@@ -187,9 +191,11 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
+    gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_03),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_04),
+    mod_disco:unregister_feature(MUCHost, ?NS_MAM_06),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -237,7 +243,7 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
             case {Result, add_archived_element()} of
                 {ok, true} ->
                     BareRoomJID = jid:to_binary(RoomJID),
-                    replace_archived_elem(BareRoomJID,
+                    add_arcid_elems(BareRoomJID,
                                           mess_id_to_external_binary(MessID),
                                           Packet);
                 {ok, false} -> Packet;
@@ -374,6 +380,8 @@ iq_action(IQ = #iq{xmlns = ?NS_MAM}) ->
 iq_action(IQ = #iq{xmlns = ?NS_MAM_03}) ->
     iq_action03(IQ);
 iq_action(IQ = #iq{xmlns = ?NS_MAM_04}) ->
+    iq_action03(IQ);
+iq_action(IQ = #iq{xmlns = ?NS_MAM_06}) ->
     iq_action03(IQ).
 
 iq_action02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->

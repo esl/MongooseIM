@@ -33,6 +33,7 @@
 -xep([{xep, 313}, {version, "0.3"}]).
 -xep([{xep, 313}, {version, "0.4.1"}]).
 -xep([{xep, 313}, {version, "0.5"}]).
+-xep([{xep, 313}, {version, "0.6"}]).
 %% ----------------------------------------------------------------------
 %% Exports
 
@@ -73,7 +74,7 @@
 
 %% XML
 -import(mod_mam_utils,
-        [replace_archived_elem/3,
+        [add_arcid_elems/3,
          wrap_message/6,
          result_set/4,
          result_query/2,
@@ -196,11 +197,14 @@ start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_MAM),
     mod_disco:register_feature(Host, ?NS_MAM_03),
     mod_disco:register_feature(Host, ?NS_MAM_04),
+    mod_disco:register_feature(Host, ?NS_MAM_06),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_03,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
+                                  ?MODULE, process_mam_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_06,
                                   ?MODULE, process_mam_iq, IQDisc),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
@@ -228,9 +232,11 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_03),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_06),
     mod_disco:unregister_feature(Host, ?NS_MAM),
     mod_disco:unregister_feature(Host, ?NS_MAM_03),
     mod_disco:unregister_feature(Host, ?NS_MAM_04),
+    mod_disco:unregister_feature(Host, ?NS_MAM_06),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -310,7 +316,7 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
                     {MessID, true} ->
                         ?DEBUG("Archived incoming ~p", [MessID]),
                         BareTo = jid:to_binary(jid:to_bare(To)),
-                        {archived, replace_archived_elem(BareTo, MessID, Packet)}
+                        {archived, add_arcid_elems(BareTo, MessID, Packet)}
                 end
         end,
     Acc1 = mongoose_acc:put(element, PacketAfterArchive, Acc),
@@ -398,6 +404,8 @@ iq_action(IQ = #iq{xmlns = ?NS_MAM}) ->
 iq_action(IQ = #iq{xmlns = ?NS_MAM_03}) ->
     iq_action_v03(IQ);
 iq_action(IQ = #iq{xmlns = ?NS_MAM_04}) ->
+    iq_action_v03(IQ);
+iq_action(IQ = #iq{xmlns = ?NS_MAM_06}) ->
     iq_action_v03(IQ).
 
 iq_action_v02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->

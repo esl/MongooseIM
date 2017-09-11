@@ -21,11 +21,12 @@
          wrapper_id/0]).
 
 %% XML
--export([is_archived_elem_for/2,
-         replace_archived_elem/3,
+-export([add_arcid_elems/3,
+         is_arcid_elem_for/3,
+         replace_arcid_elem/4,
          replace_x_user_element/4,
-         append_archived_elem/3,
-         delete_archived_elem/2,
+         append_arcid_elem/4,
+         delete_arcid_elem/3,
          delete_x_user_element/1,
          packet_to_x_user_jid/1,
          get_one_of_path/2,
@@ -117,6 +118,7 @@
 
 %% Constants
 rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
+
 
 %% ----------------------------------------------------------------------
 %% Datetime types
@@ -227,37 +229,56 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
 %% -----------------------------------------------------------------------
 %% XML
 
+%% @doc Adds all arcid elements (for backward compatibility)
+-spec add_arcid_elems(By :: binary(), Id :: binary(), jlib:xmlel()) -> jlib:xmlel().
+add_arcid_elems(By, Id, Packet) ->
+    WithArchived = replace_arcid_elem(<<"archived">>, By, Id, Packet),
+    replace_arcid_elem(<<"stanza-id">>, By, Id, WithArchived).
+
 %% @doc Return true, if the first element points on `By'.
--spec is_archived_elem_for(jlib:xmlel(), By :: binary()) -> boolean().
-is_archived_elem_for(#xmlel{name = <<"archived">>, attrs=As}, By) ->
+-spec is_arcid_elem_for(ElemName :: binary(), jlib:xmlel(), By :: binary()) -> boolean().
+is_arcid_elem_for(<<"archived">>, #xmlel{name = <<"archived">>, attrs=As}, By) ->
     lists:member({<<"by">>, By}, As);
-is_archived_elem_for(_, _) ->
+is_arcid_elem_for(<<"stanza-id">>, #xmlel{name = <<"stanza-id">>, attrs=As}, By) ->
+    lists:member({<<"by">>, By}, As) andalso
+    lists:member({<<"xmlns">>, ?NS_STANZAID}, As);
+is_arcid_elem_for(_, _, _) ->
     false.
+
+-spec replace_arcid_elem(ElemName :: binary(), By :: binary(), Id :: binary(),
+                         Packet :: jlib:xmlel()) -> jlin:xmlel().
+replace_arcid_elem(ElemName, By, Id, Packet) ->
+    append_arcid_elem(ElemName, By, Id,
+                       delete_arcid_elem(ElemName, By, Packet)).
+
+-spec append_arcid_elem(ElemName :: binary(), By :: binary(), Id :: binary(),
+                        Packet :: jlib:xmlel()) ->jlib:xmlel().
+append_arcid_elem(<<"stanza-id">>, By, Id, Packet) ->
+    Archived = #xmlel{
+                  name = <<"stanza-id">>,
+                  attrs=[{<<"by">>, By}, {<<"id">>, Id}, {<<"xmlns">>, ?NS_STANZAID}]},
+    xml:append_subtags(Packet, [Archived]);
+append_arcid_elem(ElemName, By, Id, Packet) ->
+    Archived = #xmlel{
+                  name = ElemName,
+                  attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
+    xml:append_subtags(Packet, [Archived]).
+
+-spec delete_arcid_elem(ElemName :: binary(), By :: binary(), jlib:xmlel()) -> jlib:xmlel().
+delete_arcid_elem(ElemName, By, Packet=#xmlel{children=Cs}) ->
+    Packet#xmlel{children=[C || C <- Cs, not is_arcid_elem_for(ElemName, C, By)]}.
+
 
 is_x_user_element(#xmlel{name = <<"x">>, attrs = As}) ->
     lists:member({<<"xmlns">>, ?NS_MUC_USER}, As);
 is_x_user_element(_) ->
     false.
 
--spec replace_archived_elem(By :: binary(), Id :: binary(), jlib:xmlel()) -> jlib:xmlel().
-replace_archived_elem(By, Id, Packet) ->
-    append_archived_elem(By, Id,
-                         delete_archived_elem(By, Packet)).
-
-
 -spec replace_x_user_element(FromJID :: ejabberd:jid(), Role :: mod_muc:role(),
                              Affiliation :: mod_muc:affiliation(), jlib:xmlel()) -> jlib:xmlel().
 replace_x_user_element(FromJID, Role, Affiliation, Packet) ->
     append_x_user_element(FromJID, Role, Affiliation,
                           delete_x_user_element(Packet)).
-
-
--spec append_archived_elem(By :: binary(), Id :: binary(), jlib:xmlel()) -> jlib:xmlel().
-append_archived_elem(By, Id, Packet) ->
-    Archived = #xmlel{
-                  name = <<"archived">>,
-                  attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
-    xml:append_subtags(Packet, [Archived]).
 
 append_x_user_element(FromJID, Role, Affiliation, Packet) ->
     ItemElem = x_user_item(FromJID, Role, Affiliation),
@@ -273,10 +294,6 @@ x_user_item(FromJID, Role, Affiliation) ->
        attrs = [{<<"affiliation">>, atom_to_binary(Affiliation, latin1)},
                 {<<"jid">>, jid:to_binary(FromJID)},
                 {<<"role">>, atom_to_binary(Role, latin1)}]}.
-
--spec delete_archived_elem(By :: binary(), jlib:xmlel()) -> jlib:xmlel().
-delete_archived_elem(By, Packet=#xmlel{children=Cs}) ->
-    Packet#xmlel{children=[C || C <- Cs, not is_archived_elem_for(C, By)]}.
 
 -spec delete_x_user_element(jlib:xmlel()) -> jlib:xmlel().
 delete_x_user_element(Packet=#xmlel{children=Cs}) ->
@@ -629,6 +646,7 @@ maybe_get_result_namespace(Packet) ->
 is_mam_namespace(?NS_MAM)    -> true;
 is_mam_namespace(?NS_MAM_03) -> true;
 is_mam_namespace(?NS_MAM_04) -> true;
+is_mam_namespace(?NS_MAM_06) -> true;
 is_mam_namespace(_)          -> false.
 
 
