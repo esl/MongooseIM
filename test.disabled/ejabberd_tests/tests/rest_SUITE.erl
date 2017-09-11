@@ -107,6 +107,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     rest_helper:maybe_disable_mam(mam_helper:backend(), host()),
+    ok = ejabberd_node_utils:restore_config_file(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(auth, Config) ->
@@ -129,6 +130,7 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
 
 %%--------------------------------------------------------------------
 %% Tests
