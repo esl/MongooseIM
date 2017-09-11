@@ -147,7 +147,7 @@ You can change the default settings using extra parameters:
 {mod_mam_meta, [
         {backend, odbc},
 
-        add_archived_element,
+        {add_archived_element, true},
 
         {pm, [{user_prefs_store, odbc}]},
         {muc, [
