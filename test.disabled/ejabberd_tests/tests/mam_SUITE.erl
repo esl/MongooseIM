@@ -570,7 +570,7 @@ end_per_group(G, Config) when G == rsm_all; G == mam_purge; G == nostore;
     G == mam03; G == rsm03; G == with_rsm03; G == muc03; G == muc_rsm03;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04;
     G == muc06; G == mam06;
-     G == archived; G == mam_metrics ->
+    G == archived; G == mam_metrics ->
       Config;
 end_per_group(muc_rsm_all, Config) ->
     destroy_room(Config);

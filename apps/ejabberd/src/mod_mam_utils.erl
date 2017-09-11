@@ -232,8 +232,8 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
 %% @doc Adds all arcid elements (for backward compatibility)
 -spec add_arcid_elems(By :: binary(), Id :: binary(), jlib:xmlel()) -> jlib:xmlel().
 add_arcid_elems(By, Id, Packet) ->
-  WithArchived = replace_arcid_elem(<<"archived">>, By, Id, Packet),
-  replace_arcid_elem(<<"stanza-id">>, By, Id, WithArchived).
+    WithArchived = replace_arcid_elem(<<"archived">>, By, Id, Packet),
+    replace_arcid_elem(<<"stanza-id">>, By, Id, WithArchived).
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), jlib:xmlel(), By :: binary()) -> boolean().
