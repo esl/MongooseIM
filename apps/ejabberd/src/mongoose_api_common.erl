@@ -365,4 +365,4 @@ is_known_auth_method(<<"basic">>) -> true;
 is_known_auth_method(_) -> false.
 
 make_unauthorized_response(Req, State) ->
-        {{false, <<"Basic realm=\"mongooseim\"">>}, Req, State}.
+    {{false, <<"Basic realm=\"mongooseim\"">>}, Req, State}.
