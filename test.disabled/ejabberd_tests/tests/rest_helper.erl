@@ -155,8 +155,10 @@ get_port(admin) -> 8088;
 get_port(client) -> 8089.
 
 -spec get_ssl_status(role()) -> boolean().
-get_ssl_status(admin) -> false;
-get_ssl_status(client) -> true.
+get_ssl_status(Role) ->
+    Listeners = apply_on_mim1(ejabberd_config, get_local_option, [listen]),
+    [{_PortIpNet, _Module, Opts}] = lists:filter(fun (Opts) -> is_roles_port_ip_net(Opts, Role) end, Listeners),
+    lists:keymember(ssl, 1, Opts).
 
 % @doc Changes the control credentials for admin by restarting the listener
 % with new options.
@@ -170,16 +172,14 @@ change_admin_creds(Creds) ->
 
 -spec stop_listener(role()) -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_listener(Role) ->
-    Port = get_port(Role),
     Listeners = apply_on_mim1(ejabberd_config, get_local_option, [listen]),
-    [{PortIpNet, Module, _Opts}] = lists:filter(fun is_admin_port_ip_net/1, Listeners),
+    [{PortIpNet, Module, _Opts}] = lists:filter(fun (Opts) -> is_roles_port_ip_net(Opts, Role) end, Listeners),
     apply_on_mim1(ejabberd_listener, stop_listener, [PortIpNet, Module]).
 
 -spec start_admin_listener(Creds :: {binary(), binary()}) -> {'error', pid()} | {'ok', _}.
 start_admin_listener(Creds) ->
-    Port = get_port(admin),
     Listeners = apply_on_mim1(ejabberd_config, get_local_option, [listen]),
-    [{PortIpNet, Module, Opts}] = lists:filter(fun is_admin_port_ip_net/1, Listeners),
+    [{PortIpNet, Module, Opts}] = lists:filter(fun (Opts) -> is_roles_port_ip_net(Opts, admin) end, Listeners),
     NewOpts = insert_creds(Opts, Creds),
     apply_on_mim1(ejabberd_listener, start_listener, [PortIpNet, Module, NewOpts]).
 
@@ -191,8 +191,6 @@ insert_creds(Opts, Creds) ->
     lists:keyreplace(modules, 1, Opts, {modules, NewModules}).
 
 inject_creds_to_opts(PathOpts, any) ->
-    inject_creds_to_opts(PathOpts, {any, any});
-inject_creds_to_opts(PathOpts, {any, any}) ->
     lists:keydelete(auth, 1, PathOpts);
 inject_creds_to_opts(PathOpts, Creds) ->
     case lists:keymember(auth, 1, PathOpts) of
@@ -204,9 +202,9 @@ inject_creds_to_opts(PathOpts, Creds) ->
 
 % @doc Checks whether a tuple is a tuple of {Port, Ip, Net} and
 % port belongs to the admin http api listener.
-is_admin_port_ip_net({{Port, _, _}, ejabberd_cowboy, _opts}) ->
-    Port == get_port(admin);
-is_admin_port_ip_net(_) -> false.
+is_roles_port_ip_net({{Port, _, _}, ejabberd_cowboy, _opts}, Role) ->
+    Port == get_port(Role);
+is_roles_port_ip_net(_, _) -> false.
 
 % @doc Applies a function on a mim1. Waits 5000 ms for response.
 apply_on_mim1(M, F, A) ->
