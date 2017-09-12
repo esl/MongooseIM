@@ -21,7 +21,8 @@
          wrapper_id/0]).
 
 %% XML
--export([add_arcid_elems/3,
+-export([add_archived_elem/3,
+         add_stanzaid_elem/3,
          is_arcid_elem_for/3,
          replace_arcid_elem/4,
          replace_x_user_element/4,
@@ -229,11 +230,15 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
 %% -----------------------------------------------------------------------
 %% XML
 
-%% @doc Adds all arcid elements (for backward compatibility)
--spec add_arcid_elems(By :: binary(), Id :: binary(), jlib:xmlel()) -> jlib:xmlel().
-add_arcid_elems(By, Id, Packet) ->
-    WithArchived = replace_arcid_elem(<<"archived">>, By, Id, Packet),
-    replace_arcid_elem(<<"stanza-id">>, By, Id, WithArchived).
+-spec add_archived_elem(binary(), binary(), jlib:xmlel()) ->
+      jlib:xmlel().
+add_archived_elem(By, Id, Packet) ->
+    replace_arcid_elem(<<"archived">>, By, Id, Packet).
+
+-spec add_stanzaid_elem(binary(), binary(), jlib:xmlel()) ->
+      jlib:xmlel().
+add_stanzaid_elem(By, Id, Packet) ->
+    replace_arcid_elem(<<"stanza-id">>, By, Id, Packet).
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), jlib:xmlel(), By :: binary()) -> boolean().

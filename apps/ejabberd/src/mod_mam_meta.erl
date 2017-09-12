@@ -86,6 +86,7 @@ mam_type_to_core_mod(muc) -> mod_mam_muc.
 -spec valid_core_mod_opts(module()) -> [atom()].
 valid_core_mod_opts(mod_mam) ->
     [add_archived_element,
+     add_stanzaid_element,
      is_archivable_message,
      archive_chat_markers,
      full_text_search,

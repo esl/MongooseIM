@@ -74,7 +74,8 @@
 
 %% XML
 -import(mod_mam_utils,
-        [add_arcid_elems/3,
+        [add_archived_elem/3,
+         add_stanzaid_elem/3,
          wrap_message/6,
          result_set/4,
          result_query/2,
@@ -188,6 +189,13 @@ start(Host, Opts) ->
                          " Please check the mod_mam documentation for more details.", []);
         _ ->
             ok
+    end,
+    case gen_mod:get_opt(add_archived_element, Opts, undefined) of
+        true ->
+            ?WARNING_MSG("Archived element is going to be deprecated in one of future releases."
+                         " It is not recommended to use it."
+                         " Consider using <stanza-id/> element", []);
+        _ -> ok
     end,
 
     compile_params_module(Opts),
@@ -309,19 +317,29 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
                 {mam_failed, Packet};
             true ->
                 PacketWithoutAmp = mod_amp:strip_amp_el_from_request(Packet),
-                case {process_incoming_packet(From, To, PacketWithoutAmp),
-                      add_archived_element()} of
-                    {undefined, _} -> {mam_failed, Packet};
-                    {_, false} -> {archived, Packet};
-                    {MessID, true} ->
-                        ?DEBUG("Archived incoming ~p", [MessID]),
-                        BareTo = jid:to_binary(jid:to_bare(To)),
-                        {archived, add_arcid_elems(BareTo, MessID, Packet)}
+                case process_incoming_packet(From, To, PacketWithoutAmp) of
+                    undefined -> {mam_failed, Packet};
+                    MessID -> {archived, maybe_add_archived_elems(To, MessID, Packet)}
                 end
         end,
     Acc1 = mongoose_acc:put(element, PacketAfterArchive, Acc),
     Acc2 = mod_amp:check_packet(Acc1, From, AmpEvent),
     {From, To, Acc, mongoose_acc:get(element, Acc2)}.
+
+-spec maybe_add_archived_elems(To :: binary(), MessID :: binary(), Packet :: jlib:xmlel()) ->
+      AlteredPacket :: jlib:xmlel().
+maybe_add_archived_elems(To, MessID, Packet) ->
+    BareTo = jid:to_binary(jid:to_bare(To)),
+    WithArchived = case add_archived_element() of
+                       true ->
+                            mod_mam_utils:add_archived_elem(BareTo, MessID, Packet);
+                       _ -> Packet
+                   end,
+    case add_stanzaid_element() of
+        true ->
+            mod_mam_utils:add_stanzaid_elem(BareTo, MessID, WithArchived);
+        _ -> WithArchived
+    end.
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
@@ -908,12 +926,14 @@ params_helper(Params) ->
           "-module(mod_mam_params).~n"
           "-compile(export_all).~n"
           "add_archived_element() -> ~p.~n"
+          "add_stanzaid_element() -> ~p.~n"
           "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
           "archive_chat_markers() -> ~p.~n"
           "default_result_limit() -> ~p.~n"
           "max_result_limit() -> ~p.~n"
           "params() -> ~p.~n",
-          [proplists:get_bool(add_archived_element, Params),
+          [proplists:get_value(add_archived_element, Params, false),
+           proplists:get_value(add_stanzaid_element, Params, true),
            IsArchivableModule, IsArchivableFunction,
            proplists:get_bool(archive_chat_markers, Params),
            proplists:get_value(default_result_limit, Params, 50),
@@ -929,3 +949,7 @@ set_params(Params) ->
 -spec add_archived_element() -> boolean().
 add_archived_element() ->
     mod_mam_params:add_archived_element().
+
+-spec add_stanzaid_element() -> boolean().
+add_stanzaid_element() ->
+    mod_mam_params:add_stanzaid_element().
