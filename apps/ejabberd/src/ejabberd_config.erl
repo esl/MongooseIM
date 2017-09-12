@@ -597,13 +597,21 @@ process_term_for_hosts_and_pools(Term = {Key, _Val}, State) ->
     BKey = atom_to_binary(Key, utf8),
     case get_key_group(BKey, Key) of
         odbc ->
-            add_local_option(odbc_configured, true),
+            ok = check_pools(State#state.odbc_pools),
             lists:foldl(fun(Pool, S) -> process_db_pool_term(Term, Pool, S) end,
                         State, State#state.odbc_pools);
         _ ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)
     end.
+
+check_pools([]) ->
+    ?CRITICAL_MSG("ODBC defined with no pools", []),
+    exit(no_odbc_pools);
+check_pools(Pools) when is_list(Pools) ->
+    ok;
+check_pools(_) ->
+    {error, bad_arg}.
 
 -spec process_host_term(Term :: host_term(),
                         Host :: acl:host(),

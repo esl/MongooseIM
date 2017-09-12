@@ -30,7 +30,7 @@
 -export([start/0, start_pool/1, stop_pool/1, pools/0]).
 -include("ejabberd.hrl").
 
--spec start() -> 'ok' | {'error', Reason :: atom()}.
+-spec start() -> 'ok' | {'error', 'lager_not_running'}.
 start() ->
     compile_odbc_type_helper(),
     %% Check if ejabberd has been compiled with ODBC
@@ -40,8 +40,8 @@ start() ->
                       "Skipping database startup.", []);
         _ ->
             {ok, _Pid} = start_pool_sup(),
-            Pools = pools(),
-            maybe_start_pools(Pools)
+            [start_pool(Pool) || Pool <- pools()],
+            ok
     end.
 
 
@@ -83,28 +83,3 @@ normalize_type(mssql) ->
     "mssql";
 normalize_type(_) ->
     "generic".
-
-% @doc Function checks whether user configured odbc connection.
-% It relies on ejabberd_config that adds option `odbc_configured`
-% with a value of true when odbc connection was defined.
-is_connection_defined() ->
-    case ejabberd_config:get_local_option(odbc_configured) of
-        true -> true;
-        _ -> false
-    end.
-
-% @doc Starts pools when odbc connection was configured
-maybe_start_pools(Pools) ->
-    case is_connection_defined() of
-        false ->
-            ok;
-        true ->
-            start_pools(Pools)
-    end.
-% @doc Starts pools if there are any, if not it returns an error.
-start_pools([]) ->
-    {error, no_pools_configured};
-start_pools(Pools) ->
-    [start_pool(Pool) || Pool <- Pools],
-    ok.
-

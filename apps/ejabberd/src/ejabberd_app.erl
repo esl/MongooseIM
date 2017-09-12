@@ -57,7 +57,7 @@ start(normal, _Args) ->
     ejabberd_check:config(),
     connect_nodes(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
-    start_rdbms(),
+    ejabberd_rdbms:start(),
     mongoose_riak:start(),
     mongoose_cassandra:start(),
     mongoose_http_client:start(),
@@ -76,16 +76,6 @@ start(_, _) ->
     {error, badarg}.
 
 
-
-start_rdbms() ->
-    case ejabberd_rdbms:start() of
-        {error, no_pools_configured} ->
-            ?ERROR_MSG("RDBMS connection has been configured with no pools.", []),
-            init:stop();
-        {error, _Reason} ->
-            init:stop();
-         _ -> ok
-    end.
 
 %% @doc Prepare the application for termination.
 %% This function is called when an application is about to be stopped,
