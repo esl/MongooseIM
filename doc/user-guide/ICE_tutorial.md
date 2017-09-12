@@ -94,7 +94,7 @@ For that we are going to use the star of this tutorial - [MongooseICE](https://g
 
 #### How to get and configure
 
-The whole documentation that describes all options and deployment methods, can be found on the [project's github page][https://github.com/esl/fennec].
+The whole documentation that describes all options and deployment methods, can be found on the (project's github page)[https://github.com/esl/fennec].
 Let's get to it! (this command assumes that we are on the server for [MongooseICE](https://github.com/esl/fennec) and that it has Docker installed):
 ```bash
 docker run -it --net=host -e "FENNEC_UDP_RELAY_IP=1.1.1.1" -e "FENNEC_STUN_SECRET=secret" -e "FENNEC_UDP_REALM=myrelay" mongooseim/fennec:0.3.0
