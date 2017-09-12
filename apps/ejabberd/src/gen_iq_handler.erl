@@ -142,14 +142,11 @@ process_iq(_Host, Module, Function, From, To, Acc, IQ) ->
     case catch Module:Function(From, To, Acc, IQ) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);
+        {Acc1, ignore} ->
+            Acc1;
         {Acc1, ResIQ} ->
-            if
-                ResIQ /= ignore ->
-                    ejabberd_router:route(To, From, Acc1,
-                                          jlib:iq_to_xml(ResIQ));
-                true ->
-                    Acc1
-            end
+            ejabberd_router:route(To, From, Acc1,
+                                  jlib:iq_to_xml(ResIQ))
     end.
 
 -spec check_type(type()) -> type().

@@ -960,34 +960,32 @@ get_max_user_sessions(LUser, Host) ->
 process_iq(From, To, Acc0, Packet) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),
     IQ = mongoose_acc:get(iq_query_info, Acc),
-    case IQ of
-        #iq{xmlns = XMLNS} ->
-            Host = To#jid.lserver,
-            case ets:lookup(sm_iqtable, {XMLNS, Host}) of
-                [{_, Module, Function}] ->
-                    ResIQ = Module:Function(From, To, IQ),
-                    if
-                        ResIQ /= ignore ->
-                            ejabberd_router:route(To, From, Acc,
-                                                  jlib:iq_to_xml(ResIQ));
-                        true ->
-                            ok
-                    end;
-                [{_, Module, Function, Opts}] ->
-                    gen_iq_handler:handle(Host, Module, Function, Opts,
-                                          From, To, Acc, IQ);
-                [] ->
-                    Err = jlib:make_error_reply(
-                            Packet, ?ERR_SERVICE_UNAVAILABLE),
-                    ejabberd_router:route(To, From, Acc, Err)
+    process_iq(IQ, From, To, Acc0, Packet).
+
+process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
+    Host = To#jid.lserver,
+    case ets:lookup(sm_iqtable, {XMLNS, Host}) of
+        [{_, Module, Function}] ->
+            case Module:Function(From, To, IQ) of
+                ignore -> ok;
+                ResIQ ->
+                    ejabberd_router:route(To, From, Acc,
+                        jlib:iq_to_xml(ResIQ))
             end;
-        reply ->
-            ok;
-        _ ->
-            Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
-            ejabberd_router:route(To, From, Acc, Err),
-            ok
-    end.
+        [{_, Module, Function, Opts}] ->
+            gen_iq_handler:handle(Host, Module, Function, Opts,
+                                  From, To, Acc, IQ);
+        [] ->
+            Err = jlib:make_error_reply(
+                    Packet, ?ERR_SERVICE_UNAVAILABLE),
+            ejabberd_router:route(To, From, Acc, Err)
+    end;
+process_iq(reply, _From, _To, _Acc, _Packet) ->
+    ok;
+process_iq(_, From, To, Acc, Packet) ->
+    Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
+    ejabberd_router:route(To, From, Acc, Err),
+    ok.
 
 
 -spec force_update_presence({binary(), ejabberd:server()}) -> 'ok'.

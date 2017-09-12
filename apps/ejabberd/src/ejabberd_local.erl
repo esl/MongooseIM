@@ -95,33 +95,29 @@ start_link() ->
 process_iq(Acc0, From, To, El) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),
     IQ = mongoose_acc:get(iq_query_info, Acc),
-    case IQ of
-        #iq{xmlns = XMLNS} ->
-            Host = To#jid.lserver,
-            case ets:lookup(?IQTABLE, {XMLNS, Host}) of
-                [{_, Module, Function}] ->
-                    ResIQ = Module:Function(From, To, IQ),
-                    if
-                        ResIQ /= ignore ->
-                            ejabberd_router:route(
-                              To, From, Acc, jlib:iq_to_xml(ResIQ));
-                        true ->
-                            ok
-                    end;
-                [{_, Module, Function, Opts}] ->
-                    gen_iq_handler:handle(Host, Module, Function, Opts,
-                                          From, To, Acc, IQ);
-                [] ->
-                    ejabberd_router:route_error_reply(To, From, Acc, ?ERR_FEATURE_NOT_IMPLEMENTED)
+    process_iq(IQ, Acc, From, To, El).
+
+process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
+    Host = To#jid.lserver,
+    case ets:lookup(?IQTABLE, {XMLNS, Host}) of
+        [{_, Module, Function}] ->
+            case Module:Function(From, To, IQ) of
+                ignore -> ok;
+                ResIQ -> ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ))
             end;
-        reply ->
-            IQReply = jlib:iq_query_or_response_info(El),
-            process_iq_reply(From, To, Acc, IQReply);
-        _ ->
-            Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
-            ejabberd_router:route(To, From, Acc, Err),
-            ok
-    end.
+        [{_, Module, Function, Opts}] ->
+            gen_iq_handler:handle(Host, Module, Function, Opts,
+                                  From, To, Acc, IQ);
+        [] ->
+            ejabberd_router:route_error_reply(To, From, Acc, ?ERR_FEATURE_NOT_IMPLEMENTED)
+    end;
+process_iq(reply, Acc, From, To, El) ->
+    IQReply = jlib:iq_query_or_response_info(El),
+    process_iq_reply(From, To, Acc, IQReply);
+process_iq(_, Acc, From, To, El) ->
+    Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
+    ejabberd_router:route(To, From, Acc, Err),
+    ok.
 
 -spec process_iq_reply(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
