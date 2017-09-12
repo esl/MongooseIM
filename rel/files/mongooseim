@@ -191,12 +191,12 @@ case "$1" in
         MIM=`ls $RUNNER_BASE_DIR/lib/mongooseim*/ebin/mongooseim.app | head -1`
         if [ $# == 2 ] && [ $2 == '--simple' ]
         then
-	    cat $RUNNER_BASE_DIR/version/VERSION
+	    cat $RUNNER_BASE_DIR/priv/VERSION
             # $NODETOOL version $MIM
         else
-            cat $RUNNER_BASE_DIR/version/logo.txt
+            cat $RUNNER_BASE_DIR/priv/logo.txt
             echo -n "MongooseIM version "
-	    cat $RUNNER_BASE_DIR/version/VERSION
+	    cat $RUNNER_BASE_DIR/priv/VERSION
             # $NODETOOL version $MIM
         fi
         ;;
