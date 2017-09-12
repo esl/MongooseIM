@@ -188,7 +188,6 @@ case "$1" in
         ;;
 
     version)
-        MIM=`ls $RUNNER_BASE_DIR/lib/mongooseim*/ebin/mongooseim.app | head -1`
         if [ $# == 2 ] && [ $2 == '--simple' ]
         then
             cat $RUNNER_BASE_DIR/priv/VERSION
