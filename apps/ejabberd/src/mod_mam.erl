@@ -74,8 +74,7 @@
 
 %% XML
 -import(mod_mam_utils,
-        [add_archived_elem/3,
-         add_stanzaid_elem/3,
+        [maybe_add_arcid_elems/5,
          wrap_message/6,
          result_set/4,
          result_query/2,
@@ -319,27 +318,15 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
                 PacketWithoutAmp = mod_amp:strip_amp_el_from_request(Packet),
                 case process_incoming_packet(From, To, PacketWithoutAmp) of
                     undefined -> {mam_failed, Packet};
-                    MessID -> {archived, maybe_add_archived_elems(To, MessID, Packet)}
+                    MessID -> {archived, maybe_add_arcid_elems(To, MessID, Packet,
+                                                                 add_archived_element(),
+                                                                 add_stanzaid_element())}
                 end
         end,
     Acc1 = mongoose_acc:put(element, PacketAfterArchive, Acc),
     Acc2 = mod_amp:check_packet(Acc1, From, AmpEvent),
     {From, To, Acc, mongoose_acc:get(element, Acc2)}.
 
--spec maybe_add_archived_elems(To :: binary(), MessID :: binary(), Packet :: jlib:xmlel()) ->
-      AlteredPacket :: jlib:xmlel().
-maybe_add_archived_elems(To, MessID, Packet) ->
-    BareTo = jid:to_binary(jid:to_bare(To)),
-    WithArchived = case add_archived_element() of
-                       true ->
-                            mod_mam_utils:add_archived_elem(BareTo, MessID, Packet);
-                       _ -> Packet
-                   end,
-    case add_stanzaid_element() of
-        true ->
-            mod_mam_utils:add_stanzaid_elem(BareTo, MessID, WithArchived);
-        _ -> WithArchived
-    end.
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
