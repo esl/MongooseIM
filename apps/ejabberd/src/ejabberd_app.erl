@@ -33,6 +33,7 @@
 
 -include("ejabberd.hrl").
 
+
 %%%
 %%% Application API
 %%%
@@ -73,8 +74,6 @@ start(normal, _Args) ->
     Sup;
 start(_, _) ->
     {error, badarg}.
-
-
 
 %% @doc Prepare the application for termination.
 %% This function is called when an application is about to be stopped,

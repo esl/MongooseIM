@@ -606,7 +606,7 @@ process_term_for_hosts_and_pools(Term = {Key, _Val}, State) ->
     end.
 
 check_pools([]) ->
-    ?CRITICAL_MSG("ODBC defined with no pools", []),
+    ?CRITICAL_MSG("Config file invalid: ODBC defined with no pools", []),
     exit(no_odbc_pools);
 check_pools(Pools) when is_list(Pools) ->
     ok;
