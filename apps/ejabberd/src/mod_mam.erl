@@ -190,11 +190,11 @@ start(Host, Opts) ->
             ok
     end,
     case gen_mod:get_opt(add_archived_element, Opts, undefined) of
-        true ->
+        undefined -> ok;
+        _ ->
             ?WARNING_MSG("Archived element is going to be deprecated in one of future releases."
                          " It is not recommended to use it."
-                         " Consider using <stanza-id/> element", []);
-        _ -> ok
+                         " Consider using <stanza-id/> element", [])
     end,
 
     compile_params_module(Opts),
@@ -913,14 +913,14 @@ params_helper(Params) ->
           "-module(mod_mam_params).~n"
           "-compile(export_all).~n"
           "add_archived_element() -> ~p.~n"
-          "add_stanzaid_element() -> ~p.~n"
+          "add_stanzaid_element() -> not ~p.~n"
           "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
           "archive_chat_markers() -> ~p.~n"
           "default_result_limit() -> ~p.~n"
           "max_result_limit() -> ~p.~n"
           "params() -> ~p.~n",
-          [proplists:get_value(add_archived_element, Params, false),
-           proplists:get_value(add_stanzaid_element, Params, true),
+          [proplists:get_bool(add_archived_element, Params),
+           proplists:get_bool(no_stanzaid_element, Params),
            IsArchivableModule, IsArchivableFunction,
            proplists:get_bool(archive_chat_markers, Params),
            proplists:get_value(default_result_limit, Params, 50),

@@ -159,6 +159,13 @@ archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam_muc starting", []),
+    case gen_mod:get_opt(add_archived_element, Opts, undefined) of
+        undefined -> ok;
+        _ ->
+            ?WARNING_MSG("Archived element is going to be deprecated in one of future releases."
+                        " It is not recommended to use it."
+                        " Consider using <stanza-id/> element", [])
+    end,
     compile_params_module(Opts),
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
@@ -856,10 +863,10 @@ params_helper(Params) ->
           "-module(mod_mam_muc_params).~n"
           "-compile(export_all).~n"
           "add_archived_element() -> ~p.~n"
-          "add_stanzaid_element() -> ~p.~n"
+          "add_stanzaid_element() -> not ~p.~n"
           "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
-          [proplists:get_value(add_archived_element, Params, false),
-           proplists:get_value(add_stanzaid_element, Params, true),
+          [proplists:get_bool(add_archived_element, Params),
+           proplists:get_bool(no_stanzaid_element, Params),
            IsArchivableModule, IsArchivableFunction]),
     binary_to_list(iolist_to_binary(Format)).
 
