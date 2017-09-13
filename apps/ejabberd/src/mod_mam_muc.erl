@@ -164,7 +164,7 @@ start(Host, Opts) ->
         _ ->
             ?WARNING_MSG("Archived element is going to be deprecated in one of future releases."
                         " It is not recommended to use it."
-                        " Consider using <stanza-id/> element", [])
+                        " Consider using <stanza-id/> element instead", [])
     end,
     compile_params_module(Opts),
     %% MUC host.
