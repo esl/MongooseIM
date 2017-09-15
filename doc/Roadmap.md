@@ -7,22 +7,22 @@ The products and services offered by the MongooseIM Platform allow businesses an
 
 The following components are a part of the MongooseIM platform, not only the XMPP/REST messaging server.
 
-New components:
+Backend/server components:
 
 * [MongoosePush](https://github.com/esl/MongoosePush): open source Push notifications server in Elixir
 * [MongooseICE](https://github.com/esl/Fennec): open source ICE/STUN/TURN server in Elixir
-* [Mangosta Android](https://github.com/esl/mangosta-android): chat and social client, sample app
-* [Mangosta iOS](https://github.com/esl/mangosta-ios): chat and social client, sample app
-
-Existing components:
-
 * [MongooseIM](https://github.com/esl/MongooseIM): MongooseIM XMPP/REST messaging cluster
 * [exml](https://github.com/esl/exml): XML library
 * [escalus](https://github.com/esl/escalus): Erlang XMPP client
 * [amoc](https://github.com/esl/amoc): A Murder Of Crows, load injector
 * [Tide/CLT](http://tide.erlang-solutions.com/): Continuous Load Testing platform
+
+Frontend/client components:
+
 * [Smack](https://github.com/igniterealtime/Smack): open source, third party library for Android
 * [XMPPFramework](https://github.com/robbiehanson/XMPPFramework): open source, third party library for iOS
+* [Mangosta Android](https://github.com/esl/mangosta-android): chat and social client, sample app
+* [Mangosta iOS](https://github.com/esl/mangosta-ios): chat and social client, sample app
 
 ## Roadmap
 
