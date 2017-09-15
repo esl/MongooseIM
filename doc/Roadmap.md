@@ -59,7 +59,7 @@ Please contact us and tell us about what features and improvements do you see as
 * Inbox
 * [XEP-0156: Discovering Alternative XMPP Connection Methods](http://xmpp.org/extensions/xep-0156.html)
 * [XEP-0379: Pre-Authenticated Roster Subscription](https://xmpp.org/extensions/xep-0379.html)
-* Contributions to ecosystem
+* Contributions to the ecosystem
 
 ## MongooseIM 4.0.x: chatbots and IoT (2018S2)
 
@@ -68,7 +68,7 @@ Please contact us and tell us about what features and improvements do you see as
     * Ephemeral messages
     * Foldable content
 * IoT:
-    * Things provisioning
+    * Entity provisioning
     * OCF certification
     * Embedded client
     * Cloud/fog focus
@@ -79,7 +79,7 @@ Please contact us and tell us about what features and improvements do you see as
 * Social networking improvements
 * Stories
 * Rich content
-* Contributions to ecosystem
+* Contributions to the ecosystem
 
 ## Probabilities
 
