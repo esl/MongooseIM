@@ -13,7 +13,6 @@ New components:
 * [MongooseICE](https://github.com/esl/Fennec): open source ICE/STUN/TURN server in Elixir
 * [Mangosta Android](https://github.com/esl/mangosta-android): chat and social client, sample app
 * [Mangosta iOS](https://github.com/esl/mangosta-ios): chat and social client, sample app
-* Mangosta Web? Mangosta Laptop (Windows, macOS, Linux)? Strophe.js? Stanza.io? React Native?
 
 Existing components:
 
@@ -50,37 +49,44 @@ Please contact us and tell us about what features and improvements do you see as
 ## MongooseIM 3.0.x: real-time planetary scale (2018Q1)
 
 * Cluster intercontinental geo-distribution for real-time content
-* SASL 2.0?
-* [XEP-0376: Pubsub Account Management](https://xmpp.org/extensions/xep-0376.html)?
+* SASL 2.0
+* [XEP-0376: Pubsub Account Management](https://xmpp.org/extensions/xep-0376.html)
 * Contributions to ecosystem
 
 ## MongooseIM 3.1.x:  (2018Q2)
 
 * Intercontinental geo-distribution for message archive
 * Inbox
-* [XEP-0156: Discovering Alternative XMPP Connection Methods](http://xmpp.org/extensions/xep-0156.html)?
-* [XEP-0379: Pre-Authenticated Roster Subscription](https://xmpp.org/extensions/xep-0379.html)?
+* [XEP-0156: Discovering Alternative XMPP Connection Methods](http://xmpp.org/extensions/xep-0156.html)
+* [XEP-0379: Pre-Authenticated Roster Subscription](https://xmpp.org/extensions/xep-0379.html)
 * Contributions to ecosystem
 
 ## MongooseIM 4.0.x: chatbots and IoT (2018S2)
 
 * Conversational model:
     * In-chat forms (quick replies), for bots and humans: new ProtoXEP, sample implementations on server and clients
-    * Ephemeral messages?
-    * Foldable content?
+    * Ephemeral messages
+    * Foldable content
 * IoT:
-    * things provisioning?
-    * OCF certification?
-    * Embedded client?
-    * Cloud/fog focus?
+    * Things provisioning
+    * OCF certification
+    * Embedded client
+    * Cloud/fog focus
 * Contributions? [XEP-xxxx: Explicit Message Encryption](https://xmpp.org/extensions/inbox/eme.html)?
 
 ## MongooseIM 4.1.x: social (2018S2)
 
 * Social networking improvements
-* Stories?
+* Stories
 * Rich content
 * Contributions to ecosystem
+
+## Probabilities
+
+* Mangosta Web
+* Mangosta desktop/laptop (Windows, macOS, Linux)
+* Contributions to Strophe.js and Stanza.io
+
 
 ## Contribute to our roadmap
 
