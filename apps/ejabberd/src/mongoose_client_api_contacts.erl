@@ -127,7 +127,11 @@ handle_request(<<"POST">>, Jid, undefined, CJid) ->
     mongoose_commands:execute(CJid, add_contact, #{caller => CJid,
         jid => Jid});
 handle_request(Method, Jid, Action, CJid) ->
-    handle_contact_request(Method, Jid, Action, CJid).
+    case jid_exists(CJid, Jid) of
+        true ->
+            handle_contact_request(Method, Jid, Action, CJid);
+        false -> not_found
+    end.
 
 handle_contact_request(<<"PUT">>, Jid, <<"invite">>, CJid) ->
     mongoose_commands:execute(CJid, subscription, #{caller => CJid,

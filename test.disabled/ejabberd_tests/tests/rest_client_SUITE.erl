@@ -71,7 +71,7 @@ roster_test_cases() ->
      add_contact_and_be_invited,
      add_and_remove,
      add_and_remove_some_contacts,
-     remove_all_contcts_on_empty_roster,
+     remove_all_contacts_on_empty_roster,
      break_stuff].
 
 init_per_suite(C) ->
@@ -770,7 +770,7 @@ add_and_remove(Config) ->
             Result = decode_maplist(R2),
             [Res2] = Result,
             #{jid := AliceJID, subscription := <<"none">>,
-            ask := <<"none">>} = Res2,
+              ask := <<"none">>} = Res2,
             % delete user
             DelPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
             {?NOCONTENT, _} = delete(DelPath, BCred),
@@ -829,7 +829,7 @@ add_and_remove_some_contacts(Config) ->
     ),
     ok.
 
-remove_all_contcts_on_empty_roster(Config) ->
+remove_all_contacts_on_empty_roster(Config) ->
     escalus:fresh_story(
         Config, [{bob, 1}],
         fun(Bob) ->
