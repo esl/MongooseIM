@@ -154,23 +154,23 @@ Below are some examples of the auth service APIs and MongooseIM-side configurati
 An Auth token is provided as a password.
 
 * **Service implements:** `check_password`, `user_exists`
-* **MongooseIM config:** `password format`: `plain`, `mod_register` disabled
+* **MongooseIM config:** `password_format`: `plain`, `mod_register` disabled
 * **Client side:** MUST NOT use `DIGEST-MD5` mechanism; use `PLAIN`
 
 #### Central database of plaintext passwords
 
 * **Service implements:** `check_password`, `get_password`, `user_exists`
-* **MongooseIM config:** `password format`: `plain`, `mod_register` disabled
+* **MongooseIM config:** `password_format`: `plain`, `mod_register` disabled
 * **Client side:** May use any available auth method
 
 #### Central database able to process SCRAM
 
 * **Service implements:** `get_password`, `user_exists`
-* **MongooseIM config:** `password format`: `scram`, `mod_register` disabled
+* **MongooseIM config:** `password_format`: `scram`, `mod_register` disabled
 * **Client side:** May use any available auth method
 
 #### Godlike MongooseIM
 
 * **Service implements:** all methods
-* **MongooseIM config:** `password format`: `scram` (recommended) or `plain`, `mod_register` enabled
+* **MongooseIM config:** `password_format`: `scram` (recommended) or `plain`, `mod_register` enabled
 * **Client side:** May use any available auth method
