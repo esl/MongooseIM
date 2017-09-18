@@ -60,6 +60,7 @@
 
 %% for feature (escalus) tests
 -export([set_params/1]).
+-export([overwrite_params/1]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -931,6 +932,9 @@ params_helper(Params) ->
 
 set_params(Params) ->
     compile_params_module(Params ++ mod_mam_params:params()).
+
+overwrite_params(Params) ->
+    compile_params_module(Params).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().

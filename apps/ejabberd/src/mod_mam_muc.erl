@@ -54,6 +54,7 @@
 -export([archive_message/8]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
+-export([set_params/1]).
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -864,11 +865,16 @@ params_helper(Params) ->
           "-compile(export_all).~n"
           "add_archived_element() -> ~p.~n"
           "add_stanzaid_element() -> not ~p.~n"
-          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
+          "params() -> ~p.~n",
           [proplists:get_bool(add_archived_element, Params),
            proplists:get_bool(no_stanzaid_element, Params),
-           IsArchivableModule, IsArchivableFunction]),
+           IsArchivableModule, IsArchivableFunction,
+           Params]),
     binary_to_list(iolist_to_binary(Format)).
+
+set_params(Params) ->
+    compile_params_module(Params).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().
