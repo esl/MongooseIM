@@ -46,7 +46,8 @@ So far the list includes:
 
 ### 2018-2019: Planetary architecture, to welcome IoT-scale and chabots
 
-The next step on our journey with the MongooseIM platform is delivering a planetary architecture, so that we can welcome the massive amounts of "users" that come with a full stack IoT and chatbot solution.
-The aim is to reconnect robots and humans.
+The next step on our journey with the MongooseIM platform is to enable building planetary scale architectures.
+This is necessary to welcome the massive influx of users that come with a full stack IoT and chatbot solution.
+The ability to connect robots and humans is the requirement of the next technological breakthrough.
 
 Erlang Solution's goal is to utilise XMPP features suited for chatbots, and build open standards for completeness of solution.
