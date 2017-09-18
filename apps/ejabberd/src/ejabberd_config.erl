@@ -609,9 +609,7 @@ check_pools([]) ->
     ?CRITICAL_MSG("Config file invalid: ODBC defined with no pools", []),
     exit(no_odbc_pools);
 check_pools(Pools) when is_list(Pools) ->
-    ok;
-check_pools(_) ->
-    {error, bad_arg}.
+    ok.
 
 -spec process_host_term(Term :: host_term(),
                         Host :: acl:host(),
