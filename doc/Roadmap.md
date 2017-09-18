@@ -90,6 +90,6 @@ Please contact us and tell us about what features and improvements do you see as
 
 ## Contribute to our roadmap
 
-Our roadmap is build based on community feedback, customer demand, market observation, and our own ideas.
+Our roadmap is built based on community feedback, customer demand, market observation, and our own ideas.
 We would love to invite everyone to contribute their vision, and suggest where we should go next.
 No matter if you love, use or just know MongooseIM, please share your passion and inspire the next steps of our journey.
