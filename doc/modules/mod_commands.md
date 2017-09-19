@@ -2,15 +2,17 @@
 
 ## Purpose
 
-This is a basic set of administration and client commands, which provide sort of an API for MongooseIM.
-The goal is to provide a consistent, easy to use API, providing enough information to allow for auto-generation of access methods.
-It is currently used to provide REST API, both admin and client interface, and in the future may replace current implementation of mongooseimctl.
+This is a basic set of administration and client commands.
+Our goal is to provide a consistent, easy to use API for MongooseIM.
+Both backend and client commands provide enough information to allow auto-generating access methods.
+We currently use it in our admin and client REST API interface.
+In the future it may replace the current mongooseimctl implementation.
 
 
 ## Configuration
 
-This module contains command definitions which are loaded when the module is activated.
-There are no more configuration parameters, so the following entry in config file is sufficient:
+This module contains command definitions loaded when the module is activated.
+There are no more configuration parameters, so the following entry in the config file is sufficient:
 
 ```
 {mod_commands, []]},
@@ -19,16 +21,16 @@ There are no more configuration parameters, so the following entry in config fil
 ## Command definition
 
 The module contains a list of command definitions.
-Each definitions contain the following entries:
+Each definition contains the following entries:
 
 * name (uniquely identifies the command)
 * category (used for listing commands and for generating urls for REST API)
-* optional: subcategory
+* subcategory (optional)
 * desc (a brief description)
 * module, function (what is called when the command is executed)
 * action (create|read|update|delete)
 * optional: security_policy (info to be used by the caller)
-* args (a list of two-element tuples specifying name and type of argument)
+* args (a list of two-element tuples specifying name and type of an argument)
 * result (what the command (and its underlying function) is supposed to return)
 
 A simple command definition may look like this:
@@ -57,7 +59,7 @@ mongoose_commands:register(list_of_command_definitions)
 ```
 
 The registry provides functions for listing commands, retrieving their signatures,
-and also calling. To call the above method you'd do:
+and also calling. To call the above method you should do:
 ```
 mongoose_commands:execute(admin, list_contacts) % if you want superuser privileges
 or
