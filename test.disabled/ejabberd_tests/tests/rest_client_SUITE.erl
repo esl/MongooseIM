@@ -839,7 +839,7 @@ remove_all_contacts_on_empty_roster(Config) ->
             [] = decode_maplist(R3),
             % delete all users
             {?NOCONTENT, _} = delete("/contacts", BCred),
-            % Bob's roster is empty again
+            % Bob's roster is still empty
             {?OK, R3} = gett("/contacts", BCred),
             [] = decode_maplist(R3),
             ok
