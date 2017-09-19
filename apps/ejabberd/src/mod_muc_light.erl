@@ -56,6 +56,9 @@
 -export([standard_config_schema/0, standard_default_config/0, default_host/0]).
 -export([config_schema/1, default_config/1]).
 
+%% For Administration API
+-export([try_to_create_room/3, delete_room/1]).
+
 %% gen_mod callbacks
 -export([start/2, stop/1]).
 
@@ -73,9 +76,6 @@
          can_access_room/3,
          can_access_identity/3,
          muc_room_pid/2]).
-
-%% For Administration API
--export([try_to_create_room/3]).
 
 %% For propEr
 -export([apply_rsm/3]).
@@ -101,6 +101,43 @@ default_config(MUCServer) ->
 -spec config_schema(MUCServer :: ejabberd:lserver()) -> config_schema().
 config_schema(MUCServer) ->
     gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, config_schema, undefined).
+
+%%====================================================================
+%% Administration API
+%%====================================================================
+
+-spec try_to_create_room(CreatorUS :: ejabberd:simple_bare_jid(), RoomJID :: ejabberd:jid(),
+                         CreationCfg :: create_req_props()) ->
+    {ok, ejabberd:simple_bare_jid(), create_req_props()}
+    | {error, validation_error() | bad_request | exists}.
+try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = CreationCfg) ->
+    {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
+    InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
+                        CreatorUS, RoomUS, CreationCfg#create.aff_users),
+    MaxOccupants = gen_mod:get_module_opt_by_subhost(
+                     RoomJID#jid.lserver, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+    case {mod_muc_light_utils:process_raw_config(
+            RawConfig, default_config(RoomS), config_schema(RoomS)),
+          process_create_aff_users_if_valid(RoomS, CreatorUS, InitialAffUsers)} of
+        {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
+            Version = mod_muc_light_utils:bin_ts(),
+            case mod_muc_light_db_backend:create_room(
+                   RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
+                {ok, FinalRoomUS} ->
+                    {ok, FinalRoomUS, CreationCfg#create{
+                                        aff_users = FinalAffUsers, version = Version}};
+                Other ->
+                    Other
+            end;
+        {{error, _} = Error, _} ->
+            Error;
+        _ ->
+            {error, bad_request}
+    end.
+
+-spec delete_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists}.
+delete_room(RoomUS) ->
+    mod_muc_light_db_backend:destroy_room(RoomUS).
 
 %%====================================================================
 %% gen_mod callbacks
@@ -406,35 +443,6 @@ create_room(From, FromUS, To, Create0, OrigPacket) ->
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
             mod_muc_light_codec_backend:encode_error(
               {error, bad_request, ErrorText}, From, To, OrigPacket, fun ejabberd_router:route/3)
-    end.
-
--spec try_to_create_room(CreatorUS :: ejabberd:simple_bare_jid(), RoomJID :: ejabberd:jid(),
-                         CreationCfg :: create_req_props()) ->
-    {ok, ejabberd:simple_bare_jid(), create_req_props()}
-    | {error, validation_error() | bad_request | exists}.
-try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = CreationCfg) ->
-    {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
-    InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
-                        CreatorUS, RoomUS, CreationCfg#create.aff_users),
-    MaxOccupants = gen_mod:get_module_opt_by_subhost(
-                     RoomJID#jid.lserver, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
-    case {mod_muc_light_utils:process_raw_config(
-            RawConfig, default_config(RoomS), config_schema(RoomS)),
-          process_create_aff_users_if_valid(RoomS, CreatorUS, InitialAffUsers)} of
-        {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
-            Version = mod_muc_light_utils:bin_ts(),
-            case mod_muc_light_db_backend:create_room(
-                   RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
-                {ok, FinalRoomUS} ->
-                    {ok, FinalRoomUS, CreationCfg#create{
-                                        aff_users = FinalAffUsers, version = Version}};
-                Other ->
-                    Other
-            end;
-        {{error, _} = Error, _} ->
-            Error;
-        _ ->
-            {error, bad_request}
     end.
 
 -spec process_create_aff_users_if_valid(MUCServer :: ejabberd:lserver(),
