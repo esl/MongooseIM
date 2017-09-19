@@ -146,7 +146,7 @@ create_identifiable_room(Domain, Identifier, RoomName, Creator, Subject) ->
 
 invite_to_room(Domain, RoomName, Sender, Recipient0) ->
     Recipient1 = jid:binary_to_bare(Recipient0),
-    R = muc_light_room_name_to_jid(jid:from_binary(Sender), RoomName, Domain),
+    {ok, R, _Aff} = muc_light_room_name_to_jid_and_aff(jid:from_binary(Sender), RoomName, Domain),
     S = jid:binary_to_bare(Sender),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
                     [affiliate(jid:to_binary(Recipient1), <<"member">>)]),
@@ -173,12 +173,12 @@ send_message(Domain, RoomName, Sender, Message) ->
                     children = [ Body ]
                    },
     S = jid:binary_to_bare(Sender),
-    case get_user_rooms(S, Domain) of
+    case get_user_rooms(jid:to_lus(S), Domain) of
         [] ->
             {error, given_user_does_not_occupy_any_room};
         RoomJIDs when is_list(RoomJIDs) ->
-            {RU, RS} = lists:foldl(find_room_with_name(RoomName),
-                                   none, RoomJIDs),
+            FindFun = find_room_and_user_aff_by_room_name(RoomName, jid:to_lus(S)),
+            {ok, {RU, RS}, _Aff} = lists:foldl(FindFun, none, RoomJIDs),
             true = is_subdomain(RS, Domain),
             R = jid:make(RU, RS, <<>>),
             ejabberd_router:route(S, R, Stanza)
@@ -189,17 +189,10 @@ send_message(Domain, RoomName, Sender, Message) ->
                          ok | {error, not_exists} | {error, not_allowed}.
 delete_room(DomainName, RoomName, Owner) ->
     OwnerJID = jid:binary_to_bare(Owner),
-    case muc_light_room_name_to_jid(OwnerJID, RoomName,
-                                    DomainName) of
-        {error, _} = Error ->
-            Error;
-        RoomJID ->
-            case mod_muc_light:is_room_owner(true, RoomJID, OwnerJID) of
-                true ->
-                    mod_muc_light:delete_room(jid:to_lus(RoomJID));
-                false ->
-                    {error, not_allowed}
-            end
+    case muc_light_room_name_to_jid_and_aff(OwnerJID, RoomName, DomainName) of
+        {error, _} = Error -> Error;
+        {ok, RoomJID, owner} -> mod_muc_light:delete_room(jid:to_lus(RoomJID));
+        {ok, _, _} -> {error, not_allowed}
     end.
 
 %%--------------------------------------------------------------------
@@ -224,32 +217,50 @@ make_room_config(Name, Subject) ->
                           {<<"subject">>, Subject}]
            }.
 
-muc_light_room_name_to_jid(Participant, RoomName, Domain) ->
-    case get_user_rooms(Participant, Domain) of
+-spec muc_light_room_name_to_jid_and_aff(UserJID :: ejabberd:jid(),
+                                         RoomName :: binary(),
+                                         Domain :: ejabberd:lserver()) ->
+    {ok, ejabberd:jid(), aff()} | {error, given_user_does_not_occupy_any_room}.
+muc_light_room_name_to_jid_and_aff(UserJID, RoomName, Domain) ->
+    UserUS = jid:to_lus(UserJID),
+    case get_user_rooms(UserUS, Domain) of
         [] ->
             {error, given_user_does_not_occupy_any_room};
-        RoomJIDs when is_list(RoomJIDs) ->
-            {RU, RS} = lists:foldl(find_room_with_name(RoomName),
-                                   none, RoomJIDs),
+        RoomUSs when is_list(RoomUSs) ->
+            FindFun = find_room_and_user_aff_by_room_name(RoomName, UserUS),
+            {ok, {RU, RS}, UserAff} = lists:foldl(FindFun, none, RoomUSs),
             true = is_subdomain(RS, Domain),
-            jid:make(RU, RS, <<>>)
+            {ok, jid:make(RU, RS, <<>>), UserAff}
     end.
 
-get_user_rooms(UserJID, Domain) ->
-    mod_muc_light_db_backend:get_user_rooms(jid:to_lus(UserJID), Domain).
+-spec get_user_rooms(UserUS :: ejabberd:simple_bare_jid(), Domain :: ejabberd:lserver()) ->
+    [ejabberd:simple_bare_jid()].
+get_user_rooms(UserUS, Domain) ->
+    mod_muc_light_db_backend:get_user_rooms(UserUS, Domain).
 
-name_of_room_with_jid(RoomJID) ->
-    case mod_muc_light_db_backend:get_info(RoomJID) of
-        {ok, Cfg, _, _} ->
-            {roomname, N} = lists:keyfind(roomname, 1, Cfg),
-            N
+-spec get_room_name_and_user_aff(RoomUS :: ejabberd:simple_bare_jid(),
+                                 UserUS :: ejabberd:simple_bare_jid()) ->
+    {ok, RoomName :: binary(), UserAff :: aff()} | {error, not_exists}.
+get_room_name_and_user_aff(RoomUS, UserUS) ->
+    case mod_muc_light_db_backend:get_info(RoomUS) of
+        {ok, Cfg, Affs, _} ->
+            {roomname, RoomName} = lists:keyfind(roomname, 1, Cfg),
+            {_, UserAff} = lists:keyfind(UserUS, 1, Affs),
+            {ok, RoomName, UserAff};
+        Error ->
+            Error
     end.
 
-find_room_with_name(RoomName) ->
-    fun (RoomJID, none) ->
-            case name_of_room_with_jid(RoomJID) of
-                RoomName ->
-                    RoomJID;
+-type find_room_acc() :: {ok, RoomUS :: ejabberd:simple_bare_jid(), UserAff :: aff()} | none.
+
+-spec find_room_and_user_aff_by_room_name(RoomName :: binary(),
+                                          UserUS :: ejabberd:simple_bare_jid()) ->
+    fun((RoomUS :: ejabberd:simple_bare_jid(), find_room_acc()) -> find_room_acc()). 
+find_room_and_user_aff_by_room_name(RoomName, UserUS) ->
+    fun (RoomUS, none) ->
+            case get_room_name_and_user_aff(RoomUS, UserUS) of
+                {ok, RoomName, UserAff} ->
+                    {ok, RoomUS, UserAff};
                 _ ->
                     none
             end;
