@@ -132,7 +132,7 @@ serve_failure({error, ErrorType, Msg}, Req, State) ->
     {halt, Req2, State}.
 
 get_requested_contacts(Req) ->
-    Body = get_whole_body(Req, ""),
+    Body = get_whole_body(Req, <<"">>),
     BodyString = binary_to_list(Body),
     Tokens = string:tokens(BodyString, ","),
     lists:map(fun list_to_binary/1, Tokens).
@@ -140,9 +140,9 @@ get_requested_contacts(Req) ->
 get_whole_body(Req, Acc) ->
     case cowboy_req:body(Req) of
         {ok, Data, _Req2} ->
-            Acc ++ Data;
+            <<Data/binary, Acc/binary>>;
         {more, Data, Req2} ->
-            get_whole_body(Req2, Acc ++ Data)
+            get_whole_body(Req2, <<Data/binary, Acc/binary>>)
     end.
 
 handle_request(<<"GET">>, undefined, undefined, CJid) ->
