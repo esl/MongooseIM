@@ -86,13 +86,13 @@ delete_resource(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
     {Jid, Req2} = cowboy_req:binding(jid, Req),
     case kind_of_deletion(Jid, CJid) of
-        {error, not_found} ->
+        {error, caller_not_found} ->
             {ok, Req3} = cowboy_req:reply(404, Req2),
             {halt, Req3, State};
         single ->
-            handle_deletion(CJid, Jid, Req2, State);
+            handle_single_deletion(CJid, Jid, Req2, State);
         multiple ->
-            handle_deletion(CJid, get_all_contacts(CJid), Req2, State)
+            handle_multiple_deletion(CJid, get_requested_contacts(Req2), Req2, State)
     end.
 
 kind_of_deletion(undefined, CJid) ->
@@ -102,24 +102,50 @@ kind_of_deletion(Jid, CJid) ->
         true ->
             single;
         false ->
-            {error, not_found}
+            {error, caller_not_found}
     end.
 
-handle_deletion(CJid, ToDelete, Req, State) ->
+handle_multiple_deletion(CJid, ToDelete, Req, State) ->
+    case handle_contact_request(<<"DELETE">>, ToDelete, undefined, CJid) of
+        {ok, NotDeleted} ->
+            RespBody = #{not_deleted => NotDeleted},
+            Req2 = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
+            Req3 = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req2),
+            {true, Req3, State};
+        Other ->
+            serve_failure(Other, Req, State)
+    end.
+
+handle_single_deletion(CJid, ToDelete, Req, State) ->
     case handle_contact_request(<<"DELETE">>, ToDelete, undefined, CJid) of
         ok ->
             {true, Req, State};
-        not_implemented ->
-            {ok, Req2} = cowboy_req:reply(501, Req),
-            {halt, Req2, State}
+        Other ->
+            serve_failure(Other, Req, State)
     end.
 
 
-% TODO Probably use it as a command? Or fetch contacts myself?
-get_all_contacts(Jid) ->
-    Contacts = mod_commands:list_contacts(Jid),
-    lists:map(fun(#{jid := Jid}) -> Jid end, Contacts).
+serve_failure(not_implemented, Req, State) ->
+    {ok, Req2} = cowboy_req:reply(501, Req),
+    {halt, Req2, State};
+serve_failure({error, ErrorType, Msg}, Req, State) ->
+    ?ERROR_MSG("Error while serving http request: ~p: ~s", [ErrorType, Msg]),
+    {ok, Req2} = cowboy_req:reply(500, Req),
+    {halt, Req2, State}.
 
+get_requested_contacts(Req) ->
+    Body = get_whole_body(Req, ""),
+    BodyString = binary_to_list(Body),
+    Tokens = string:tokens(BodyString, ","),
+    lists:map(fun list_to_binary/1, Tokens).
+
+get_whole_body(Req, Acc) ->
+    case cowboy_req:body(Req) of
+        {ok, Data, _Req2} ->
+            Acc ++ Data;
+        {more, Data, Req2} ->
+            get_whole_body(Req2, Acc ++ Data)
+    end.
 
 handle_request(<<"GET">>, undefined, undefined, CJid) ->
     mongoose_commands:execute(CJid, list_contacts, #{caller => CJid});
