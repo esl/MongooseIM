@@ -1026,15 +1026,20 @@ end_per_testcase(C=muc_message_with_archived_and_stanzaid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_no_elements, Config) ->
-    destroy_room(Config),
+    timer:sleep(50),
+    A = destroy_room(Config),
+    io:format("destroy: ~p~n", [A]),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_both_elements, Config) ->
+    timer:sleep(50),
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_only_stanzaid, Config) ->
+    timer:sleep(50),
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_only_archived, Config) ->
+    timer:sleep(50),
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
