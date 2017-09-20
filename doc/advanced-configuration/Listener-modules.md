@@ -99,6 +99,10 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 ### HTTP module: `mod_cowboy`
 
 This module provides an additional routing layer on top of HTTP(s) or WS(S) protocols.
+Regular cowboy handlers cannot cleanly handle both protocols on the same port. 
+The routing layer allows working with both - WebSocket connections and services connecting over HTTP.
+
+
 Here's an example of its configuration (added to ejabberd_cowboy modules list described above):
 
 ```Erlang
