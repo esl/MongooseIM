@@ -17,6 +17,7 @@
          gett/2,
          post/3,
          putt/3,
+         delete/3,
          delete/2]
          ).
 
@@ -70,8 +71,8 @@ roster_test_cases() ->
     [add_contact_and_invite,
      add_contact_and_be_invited,
      add_and_remove,
-     add_and_remove_some_contacts,
-     remove_all_contacts_on_empty_roster,
+     add_and_remove_some_contacts_properly,
+     add_and_remove_some_contacts_with_nonexisting,
      break_stuff].
 
 init_per_suite(C) ->
@@ -790,15 +791,15 @@ add_and_remove(Config) ->
     ok.
 
 
-add_and_remove_some_contacts(Config) ->
+add_and_remove_some_contacts_properly(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
-        fun(Alice, Bob, Kate) ->
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}, {carol, 1}],
+        fun(Alice, Bob, Kate, Carol) ->
             BCred = credentials({bob, Bob}),
             % adds all the other users
             lists:foreach(fun(AddContact) -> 
                                   add_contact_check_roster_push(AddContact, {bob, Bob}) end,
-                         [Alice, Kate]),
+                         [Alice, Kate, Carol]),
             % Check Bob's roster now
             {?OK, R2} = gett("/contacts", BCred),
             Result = decode_maplist(R2),
@@ -806,17 +807,20 @@ add_and_remove_some_contacts(Config) ->
                 escalus_client:short_jid(Alice)),
             KateJID = escalus_utils:jid_to_lower(
                 escalus_client:short_jid(Kate)),
-            AliceContact = #{jid => AliceJID, subscription => <<"none">>,
-                             ask => <<"none">>},
-            KateContact = #{jid => KateJID, subscription => <<"none">>,
-                            ask => <<"none">>},
+            CarolJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Carol)),
+            AliceContact = create_contact(AliceJID),
+            KateContact = create_contact(KateJID),
+            CarolContact = create_contact(CarolJID),
             true = lists:member(AliceContact, Result),
             true = lists:member(KateContact, Result),
-            % delete all users
-            {?NOCONTENT, _} = delete("/contacts", BCred),
-            % Bob's roster is empty again
-            {?OK, R3} = gett("/contacts", BCred),
-            [] = decode_maplist(R3),
+            true = lists:member(CarolContact, Result),
+            % delete Alice and Kate
+            Body = binary_to_list(AliceJID) ++ "," ++ binary_to_list(KateJID),
+            {?OK, {[{<<"not_deleted">>,[]}]}} = delete("/contacts", BCred, list_to_binary(Body)),
+            % Bob's roster consists now of only Carol
+            {?OK, R4} = gett("/contacts", BCred),
+            [CarolContact] = decode_maplist(R4),
             IsSubscriptionRemove = fun(El) ->
                 Sub = exml_query:paths(El, [{element, <<"query">>},
                                             {element, <<"item">>},
@@ -829,24 +833,52 @@ add_and_remove_some_contacts(Config) ->
     ),
     ok.
 
-remove_all_contacts_on_empty_roster(Config) ->
+add_and_remove_some_contacts_with_nonexisting(Config) ->
     escalus:fresh_story(
-        Config, [{bob, 1}],
-        fun(Bob) ->
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}, {carol, 1}],
+        fun(Alice, Bob, Kate, Carol) ->
             BCred = credentials({bob, Bob}),
-            % Bob's roster is empty
-            {?OK, R3} = gett("/contacts", BCred),
-            [] = decode_maplist(R3),
-            % delete all users
-            {?NOCONTENT, _} = delete("/contacts", BCred),
-            % Bob's roster is still empty
-            {?OK, R3} = gett("/contacts", BCred),
-            [] = decode_maplist(R3),
+            % adds all the other users
+            lists:foreach(fun(AddContact) -> 
+                                  add_contact_check_roster_push(AddContact, {bob, Bob}) end,
+                         [Alice, Kate]),
+            % Check Bob's roster now
+            {?OK, R2} = gett("/contacts", BCred),
+            Result = decode_maplist(R2),
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            KateJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Kate)),
+            CarolJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Carol)),
+            AliceContact = create_contact(AliceJID),
+            KateContact = create_contact(KateJID),
+            CarolContact = create_contact(CarolJID),
+            % Carol has not been added
+            true = lists:member(AliceContact, Result),
+            true = lists:member(KateContact, Result),
+            false = lists:member(CarolContact, Result),
+            % delete Alice, Kate and Carol (who is absent)
+            Body = binary_to_list(AliceJID) ++ "," ++ binary_to_list(KateJID) ++ "," ++ binary_to_list(CarolJID),
+            {?OK, {[{<<"not_deleted">>,[CarolJID]}]}} = delete("/contacts", BCred, list_to_binary(Body)),
+            % Bob's roster is empty now
+            {?OK, R4} = gett("/contacts", BCred),
+            [] = decode_maplist(R4),
+            IsSubscriptionRemove = fun(El) ->
+                Sub = exml_query:paths(El, [{element, <<"query">>},
+                                            {element, <<"item">>},
+                                            {attr, <<"subscription">>}]),
+                Sub == [<<"remove">>]
+                end,
+            escalus:assert(IsSubscriptionRemove, escalus:wait_for_stanza(Bob)),
             ok
         end
     ),
     ok.
 
+create_contact(JID) ->
+    #{jid => JID, subscription => <<"none">>,
+                             ask => <<"none">>}.
 
 add_contact_check_roster_push(Contact, {_, RosterOwnerSpec} = RosterOwner) ->
     ContactJID = escalus_utils:jid_to_lower(
