@@ -256,12 +256,16 @@ paths:
           description: "The user was added to a contact list."
 
     delete:
-        description: "Deletes all contacts from the user's roster"
+        description: "Deletes provided contacts from the user's roster"
         tags:
             - "Contacts"
+        parameters:
+            - in: body
+              name: contacts
+              required: true
         responses:
-            204:
-                description: "Successfully deleted all contacts"
+            200:
+                description: "In body it returns a comma-seperated list od jids of users that could not be deleted"
 
   /contacts/{contact}:
     put:
