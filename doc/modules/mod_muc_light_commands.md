@@ -14,7 +14,7 @@ There are no options to be provided, therefore the following entry in config fil
 
 ## Commands
 This file consists of [commands definitions](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/).
-This module defines following commands (along with functions necessary for them to run):
+Following commands (along with functions necessary for them to run) are defined:
 + `create_muc_light_room`  
 Creates a MUC Light room.  
     Args:  
