@@ -18,18 +18,18 @@ This module defines following commands (along with functions necessary for them 
 + `create_muc_light_room`  
 Creates a MUC Light room.  
     Args:  
-          - `domain` (binary)  
-          - `name`  (binary),  
-          - `owner` (binary),  
-          - `subject` (binary)  
+        - `domain` (binary)  
+        - `name`  (binary),  
+        - `owner` (binary),  
+        - `subject` (binary)  
 + `create_identifiable_muc_light_room`  
 Updates a MUC Light room.  
     Args:  
-          - `domain` (binary),  
-          - `id` (binary),  
-          - `name` (binary),  
-          - `owner` (binary),  
-          - `subject` (binary)  
+        - `domain` (binary),  
+        - `id` (binary),  
+        - `name` (binary),  
+        - `owner` (binary),  
+        - `subject` (binary)  
 + `invite_to_room`  
     Invites to a MUC Light room.  
     Args:  
@@ -40,10 +40,10 @@ Updates a MUC Light room.
 + `send_message_to_muc_light_room`  
 Sends a message to a MUC Light room.  
     Args:  
-          - `domain` (binary),  
-          - `name` (binary),  
-          - `from` (binary),  
-          - `body` (binary)  
+        - `domain` (binary),  
+        - `name` (binary),  
+        - `from` (binary),  
+        - `body` (binary)  
 
 ## Running commands
 Commands must be registered and then run using module `mongoose_commands`
