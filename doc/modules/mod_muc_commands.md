@@ -44,4 +44,4 @@ Sends a message to a MUC room from a given room.
         - `body` (binary)  
 
 ## Running commands
-Commands must be [registered and then run](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/) using module `mongoose_commands`.
+Commands must be [registered and then run](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/) using the module `mongoose_commands`.
