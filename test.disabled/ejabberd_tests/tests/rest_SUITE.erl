@@ -100,14 +100,14 @@ host() ->
 init_per_suite(Config) ->
     Config1 = rest_helper:maybe_enable_mam(mam_helper:backend(), host(), Config),
     Config2 = ejabberd_node_utils:init(Config1),
-    ejabberd_node_utils:backup_config_file(Config2),
+    %ejabberd_node_utils:backup_config_file(Config2),
     % Set username and password for blank
     escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     rest_helper:maybe_disable_mam(mam_helper:backend(), host()),
-    ok = ejabberd_node_utils:restore_config_file(Config),
+    %ok = ejabberd_node_utils:restore_config_file(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(auth, Config) ->
