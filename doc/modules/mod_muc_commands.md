@@ -38,10 +38,10 @@ Sends a MUC room invite from one user to another.
 + `send_message_to_room`  
 Sends a message to a MUC room from a given room.  
     Args:  
-          - `host` (binary),  
-          - `name` (binary),  
-          - `from` (binary),  
-          - `body` (binary)  
+        - `host` (binary),  
+        - `name` (binary),  
+        - `from` (binary),  
+        - `body` (binary)  
 
 ## Running commands
 Commands must be registered and then run using module `mongoose_commands`
