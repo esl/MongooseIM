@@ -144,7 +144,9 @@
 -type caller() :: admin | binary() | user.
 -type action() :: create | read | update | delete. %% just basic CRUD; sending a mesage is 'create'
 
--type typedef() :: integer | binary | float. %% most basic primitives, string is a binary
+-type typedef() :: [typedef_basic()] | typedef_basic().
+
+-type typedef_basic() :: integer | binary | float. %% most basic primitives, string is a binary
 
 -type argspec() :: typedef()
                   | {atom(), typedef()} %% a named argument
