@@ -88,11 +88,13 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 
             `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`
 
-  * `mongoose_api_admin` -  REST API for admin commands. It expects credentials in the form of {Username, Password}
-    in module options. If they're not provided, authorization is disabled.
-        Example:
-            `{"localhost", "/api", mongoose_api_admin, [{"ala", "makotaipsa"}]}`
-   Exposes all mongoose_commands.
+  * `mongoose_api_admin` -  REST API for admin commands. Exposes all mongoose_commands. 
+    			    It expects one optional argument:  
+      * Credentials: `{auth, {Username, Password}}`.  
+        If they're not provided, authorization is disabled.  
+        Example:  
+            `{"localhost", "/api", mongoose_api_admin, [{auth, {"ala", "makotaipsa"}}]}`
+   
     `mongoose_api_client` - REST API for client side commands.
      Exposes all mongoose_commands marked as "user".
         Example declaration:
