@@ -4,6 +4,8 @@ JWT authentication backend can verify JSON Web Tokens provided by the clients.
 A wide range of signature algorithms is supported, including those using public key cryptography.
 Not only the signature is checked, but also the validity of `exp` (expired token is rejected), `iat` (token must be issued in the past) and `nbf` (token might be invalid *yet*) parameters.
 
+Requires SASL PLAIN method.
+
 ## Configuration options
 
 * **jwt_secret_source**

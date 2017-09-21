@@ -1,6 +1,10 @@
 ## Overview
 
-TODO
+An LDAP authentication module.
+It provides read-only abstraction over LDAP directory.
+User credentials are verified by performing LDAP bind with username and password provided by a client.
+
+Requires SASL PLAIN method.
 
 ## Configuration options
 
