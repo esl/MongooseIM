@@ -99,6 +99,25 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Default:** `{outgoing_s2s_options, [ipv4, ipv6], 10000}.`
     * **Family values:** `inet4`/`ipv4`, `inet6`/`ipv6`
 
+* **s2s_shared** (global)
+    * **Description:** S2S shared secret used in [Server Dialback](https://xmpp.org/extensions/xep-0220.html) extension.
+    * **Syntax:** `{s2s_shared, <<"shared secret">>}`.
+    * **Default:** 10 strong random bytes, hex-encoded.
+
+* **s2s_dns_options** (local)
+    * **Description:** Parameters used in DNS lookups for outgoing S2S connections.
+    * **Syntax:** `{s2s_dns_options, [{Opt, Val}, ...]}.`
+    * **Supported options**
+        * `timeout` (integer, seconds, default: 10) - A timeout for DNS lookup.
+        * `retries` (integer, default: 2) - How many DNS lookups will be attempted.
+    * **Example:** `{s2s_dns_options, [{timeout, 30}, {retries, 1}]}.`
+
+* **s2s_max_retry_delay** (local)
+    * **Description:** How many seconds MIM node should wait until next attempt to connect to remote XMPP cluster.
+    * **Syntax:** `{s2s_max_retry_delay, Delay}.`
+    * **Default:** 300
+    * **Example:** `{s2s_max_retry_delay, 30}.`
+
 ### Session backend
 
 * **sm_backend** (global)
@@ -107,65 +126,65 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Redis:** `{redis, [{pool_size, Size}, {worker_config, [{host, "Host"}, {port, Port}]}]}}`
 
 ### LDAP Connection
-- **ldap_servers**
+* **ldap_servers**
     * **Description:** List of IP addresses or DNS names of your LDAP servers.
     * **Values:** `[Servers, ...]`
     * **Default:**  no default value. This option is required when setting up an LDAP connection.
 
-- **ldap_encrypt**
+* **ldap_encrypt**
     * **Description:** Enable connection encryption with your LDAP server.
         The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
     * **Values:** `none`, `tls`
     * **Default:** `none`
 
-- **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. 
+* **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. 
     When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
     When `soft` is enabled ejabberd proceeds even if the check fails. 
     `False` means no checks are performed.
     * **Values:** `soft`, `hard`, `false`
     * **Default:** `false`
 
-- **ldap_tls_cacertfile**
+* **ldap_tls_cacertfile**
     * **Description:** Path to a file containing PEM encoded CA certificates.
     * **Values:** Path
     * **Default:** This option is needed (and required) when TLS verification is enabled.
 
-- **ldap_tls_depth**
+* **ldap_tls_depth**
     * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
          i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
          Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
     * **Values:** Integer
     * **Default:** 1
 
-- **ldap_port**
+* **ldap_port**
     * **Description:** Port to connect to your LDAP server.
     * **Values:** Integer
     * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
 
-- **ldap_rootdn**
+* **ldap_rootdn**
     * **Description:** Bind DN
     * **Values:** String
     * **Default:** empty string which is `anonymous connection`
 
-- **ldap_password**
+* **ldap_password**
     * **Description:** Bind password
     * **Values:** String
     * **Default:** empty string
 
-- **ldap_deref_aliases**
+* **ldap_deref_aliases**
     * **Description:** Whether or not to dereference aliases
     * **Values:** `never`, `always`, `finding`, `searching`
     * **Default:** `never`
 
 ### Authentication
 
-- **auth_method** (local)
+* **auth_method** (local)
     * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
     * **Valid values:** `internal` (Mnesia), `odbc`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`
     * **Warning:** `external`, `jwt` and `ldap` work only with `PLAIN` SASL mechanism.
     * **Examples:** `odbc`, `[internal, anonymous]`
 
-- **auth_opts** (local)
+* **auth_opts** (local)
     * **Description:** Provides different parameters that will be applied to a choosen authentication method.
                        `auth_password_format` and `auth_scram_iterations` are common to `http`, `odbc`, `internal` and `riak`.
 
@@ -184,21 +203,35 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
         * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
         
-- `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `ejabberd.cfg` file.
+* `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `ejabberd.cfg` file.
 
-- **sasl_mechanisms** (local)
+* **sasl_mechanisms** (local)
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
-    * **Warning:** This list is still filtered by auth backends capabilities, e.g. LDAP authentication requires a password provided via SALS PLAIN.
+    * **Warning:** This list is still filtered by auth backends capabilities, e.g. LDAP authentication requires a password provided via SASL PLAIN.
     * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth`
     * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth]`
     * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_anonymous, cyrsasl_scram]`
 
-### Database setup
+* **extauth_instances** (local)
+    * **Description:** Specifies a number of workers serving external authentication requests.
+    * **Syntax:** `{extauth_instances, Count}.`
+    * **Default:** 1
 
-#### Connection pools
+### RDMBS connection setup
+
+The following options can be used to configure RDMBS connection pools.
+To set the options for all connection pools, put them on the top level of the configuration file.
+To set them for an individual pool, put them inside the `Options` list in a pool specification.
+Setting `odbc_server` is mandatory if connection details are not provided in pool tuples directly.
+
+*Note*: `odbc` prefixes may be misleading. The options apply to all kinds of RDBMS connections, not only pure ODBC.
+
+Please remember that SQL databases require creating a schema.
+See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
 
 * **pool** (multi, local)
-    * **Description:** Declares a named pool of connections to the database. At least one pool is required to connect to an SQL database.
+    * **Description:** Declares a named pool of connections to the database.
+    At least one pool is required to connect to an SQL database.
     * **Syntax:** `{pool, odbc, PoolName}.` or `{pool, odbc, PoolName, Options}.`
     * **Examples:** `{pool, odbc, default}.`
 
@@ -207,33 +240,112 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Syntax:** `{odbc_pool, PoolName}`
     * **Default:** `default`
 
-#### Connection setup
-
-The following options can be used to configure a connection pool. To set the options for all connection pools, put them on the top level of the configuration file. To set them for an individual pool, put them inside the `Options` list in a pool specification. Setting `odbc_server` is mandatory.
-
-*Note*: `odbc` prefixes may be misleading. The options apply to all kinds of DB connections, not only pure ODBC.
+* **odbc_pool_size** (local)
+    * **Description:** How many DB client workers should be started per each domain.
+    * **Syntax:** `{odbc_pool_size, Size}`.
+    * **Default:** 10
 
 * **odbc_server** (local)
     * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
     * **Syntax:** `{odbc_server, {Type, Host, Port, DBName, Username, Password}}.`
+    * **Default:** `undefined`
 
 * **pgsql_users_number_estimate** (local)
-    * **Description:** PostgreSQL's internal structure can make the row counting slow. Enabling this option uses alternative query to `SELECT COUNT`, that might be not as accurate but is always fast.
-
-* **odbc_pool_size** (local)
-    * **Description:** How many DB client workers should be started per each domain.
-    * **Default:** 10
+    * **Description:** PostgreSQL's internal structure can make the row counting slow.
+    Enabling this option uses alternative query to `SELECT COUNT`, that might be not as accurate but is always fast.
+    * **Syntax:** `{pgsql_users_number_estimate, false | true}`
+    * **Default:** `false`
 
 * **odbc_keepalive_interval** (local)
     * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
-    This option should be used to ensure that database connections are
-    restarted after they became broken (e.g. due to a database restart or a load
-    balancer dropping connections). Currently, not every network related error
-    returned from a database driver to a regular query will imply a connection
-    restart.
+    This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections).
+    Currently, not every network related error returned from a database driver to a regular query will imply a connection restart.
+    * **Syntax:** `{odbc_keepalive_interval, IntervalSeconds}.`
+    * **Example:** `{odbc_keepalive_interval, 30}.`
+    * **Default:** `undefined`
 
-You should remember that SQL databases require creating a schema.
-See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
+* **odbc_server_type** (local)
+    * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_odbc_user` uses different query for `mssql`).
+    * **Syntax:** `{odbc_server_type, Type}`
+    * **Supported values:** `mssql`, `generic`
+    * **Default:** `generic`
+
+
+### Riak connection setup
+
+Only one Riak connection pool can exist per each supported XMPP host.
+It is configured with single tuple.
+
+* **riak_server** (local)
+    * **Description:** Declares a Riak connection pool with provided options.
+    Autmatic reconnect and keepalive features are always enabled in the driver.
+    * **Syntax:** `{riak_server, OptionList}.`
+    * **Options:**
+        * **pool_size** - A positive integer.
+        * **address** - A string with IP or hostname.
+        * **port** - A positive integer.
+    * **Example:** `{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}]}.`
+
+### Cassandra connection setup
+
+Cassandra connection pools are defined in a manner similar to RDBMS ones, but with a slightly different syntax.
+All pools are grouped in `cassandra_servers` tuple and per-pool connection parameters can be provided.
+If they are not present - defaults are used (connection to `localhost:9042` with 1 worker).
+
+* **cassandra_servers** (local)
+    * **Description:** Declares Cassandra connection pool(s) with provided options.
+    * **Syntax:** `{cassandra_servers, [ PoolDefinition1, PoolDefinition2, ... ]}`
+
+#### Pool definition
+
+* **Syntax:** `{PoolName, WorkerCount, ConnectionParamsList}`
+* **Elements:**
+    * **PoolName** (atom) - A unique identifier used by modules that make requests to Cassandra.
+    * **WorkerCount** (positive integer) - How many connections should be open to every node in Cassandra cluster.
+    Cassandra database layer creates `4 * WorkerCount` workers as a intermediary between the caller and DB driver.
+    * **ConnectionParamsList**
+
+#### Connection parameters
+
+* **servers** - A list of servers in Cassandra cluster in `{HostnameOrIP, Port}` format.
+* **keyspace** - A name of keyspace to use in queries executed in this pool.
+* You can find a full list in `cqerl` [documentation](https://github.com/matehat/cqerl#all-modes).
+
+#### Example
+
+```
+{cassandra_servers,
+ [
+  {default, 100,
+   [
+    {servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}] },
+    {keyspace, "big_mongooseim"}
+   ]}
+ ]}.
+```
+
+### Outgoing HTTP connections
+
+The `http_connections` option configures a list of named pools of outgoing HTTP connections that may be used by various modules. Each of the pools has a name (atom) and a list of options:
+
+* **Syntax:** `{http_connections, [{PoolName1, PoolOptions1}, {PoolName2, PoolOptions2}, ...]}.`
+
+Following pool options are recognized - all of them are optional.
+
+* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
+* `{pool_size, Number}` - positive integer, default: `20` - number of workers in the connection pool.
+* `{max_overflow, Number}` - non-negative integer, default: `5` - maximum number of extra workers that can be allocated when the whole pool is busy.
+* `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
+* `{pool_timeout, TimeoutValue}` - non-negative integer, default: `200` - maximum number of milliseconds to wait for an available worker from the pool.
+* `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
+
+**Example:**
+```
+{http_connections, [{conn1, [{server, "http://my.server:8080"},
+                             {pool_size, 50},
+                             {path_prefix, "/my/path/"}]}
+                   ]}.
+```
 
 ### Traffic shapers
 
@@ -268,8 +380,6 @@ See [Database backends configuration](./advanced-configuration/database-backends
         * `{server_glob, UR}` - like `_regexp` variant but with `sh` syntax
         * `{resource_glob, UR}` - like `_regexp` variant but with `sh` syntax
         * `{node_glob, UR}` - like `_regexp` variant but with `sh` syntax
-        * `{shared_group, G}` - check if the user is in a shared group `G` in the domain specified by the module executing the check
-        * `{shared_group, G, H}`- check if the user is in shared group `G` in domain `H`
 
 ### Access rules
 
@@ -279,6 +389,15 @@ See [Database backends configuration](./advanced-configuration/database-backends
 
 * **registration_timeout** (local)
     * **Description:** Limits the registration frequency from a single IP. Valid values are `infinity` or a number of seconds.
+
+* **mongooseimctl_access_commands** (local)
+    * **Description:** Defines access rules to chosen `mongooseimctl` commands.
+    * **Syntax:** `{mongooseimctl_access_commands, [Rule1, Rule2, ...]}.`
+    * **Rule syntax:** `{AccessRule, Commands, ArgumentRestrictions}`
+        * `AccessRule` - A name of a rule defined with `acl` config key.
+        * `Commands` - A list of command names (e.g. `["restart", "stop"]`) or `all`.
+        * `ArgumentRestrictions` - A list of permitted argument values (e.g. `[{domain, "localhost"}]`).
+    * **Example:** `{mongooseimctl_access_commands, [{local, ["join_cluster"], [{node, "mongooseim@prime"}]}]}.`
 
 ### Default language
 
@@ -291,6 +410,18 @@ See [Database backends configuration](./advanced-configuration/database-backends
 * **all_metrics_are_global** (local)
     * **Description:** When enabled, all per-host metrics are merged into global equivalents. It means it is no longer possible to view individual host1, host2, host3, ... metrics, only sums are available. This option significantly reduces CPU and (especially) memory footprint in setups with exceptionally many domains (thousands, tens of thousands).
     * **Default:** `false`
+
+* **routing_modules** (local)
+    * **Description:** Provides an ordered list of modules used for routing messages. If one of the modules accepts packet for processing, the remaining ones are not called.
+    * **Syntax:** `{routing_modules, ModulesList}.`
+    * **Valid modules:**
+        * `mongoose_router_global` - Calls `filter_packet` hook.
+        * `mongoose_router_localdomain` - Routes packets addressed to a domain supported by the local cluster.
+        * `mongoose_router_external_localnode` - Delivers packet to an XMPP component connected to the node, which processes the request.
+        * `mongoose_router_external` - Delivers packet to an XMPP component connected to the local cluster.
+        * `ejabberd_s2s` - Forwards a packet to another XMPP cluster over XMPP Federation.
+    * **Default:** `[mongoose_router_global, mongoose_router_localdomain, mongoose_router_external_localnode, mongoose_router_external, ejabberd_s2s]`
+    * **Example:** `{routing_modules, [mongoose_router_global, mongoose_router_localdomain]}.`
 
 ### Modules
 
@@ -306,34 +437,11 @@ The `host_config` allows configuring most options separately for specific domain
 * **host_config** (multi, local)
     * **Syntax:** `{host_config, Domain, [ {{add, modules}, [{mod_some, Opts}]}, {access, c2s, [{deny, local}]}, ... ]}.`
 
-### Outgoing HTTP connections
-
-The `http_connections` option configures a list of named pools of outgoing HTTP connections that may be used by various modules. Each of the pools has a name (atom) and a list of options:
-
-* **Syntax:** `{http_connections, [{PoolName1, PoolOptions1}, {PoolName2, PoolOptions2}, ...]}.`
-
-Following pool options are recognized - all of them are optional.
-
-* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
-* `{pool_size, Number}` - positive integer, default: `20` - number of workers in the connection pool.
-* `{max_overflow, Number}` - non-negative integer, default: `5` - maximum number of extra workers that can be allocated when the whole pool is busy.
-* `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
-* `{pool_timeout, TimeoutValue}` - non-negative integer, default: `200` - maximum number of milliseconds to wait for an available worker from the pool.
-* `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
-
-**Example:**
-```
-{http_connections, [{conn1, [{server, "http://my.server:8080"},
-                             {pool_size, 50},
-                             {path_prefix, "/my/path/"}]}
-                   ]}.
-```
-
 # vm.args
 
 This file contains parameters passed directly to the Erlang VM. To configure it, go to `[MongooseIM root]/rel/files/`.
 
-Let's explore the default options/
+Let's explore the default options.
 
 ## Options
 
@@ -342,7 +450,7 @@ Let's explore the default options/
 * `+K` - Enables kernel polling. It improves the stability when a large number of sockets is opened, but some systems might benefit from disabling it. Might be a subject of individual load testing.
 * `+A 5` - Sets the asynchronous threads number. Async threads improve I/O operations efficiency by relieving scheduler threads of IO waits.
 * `+P 10000000` - Process count limit. This is a maximum allowed number of processes running per node. In general, it should exceed the tripled estimated online user count.
-* `-env ERL_MAX_PORTS 250000` - Open port count. This is a maximum allowed number of ports opened per node. In general, it should exceed the tripled estimated online user count. Keep in mind that increasing this number also increases the memory usage by a constant amount, so finding the right balance for it is crucial for every project.
+* `-env ERL_MAX_PORTS 250000` - Open port count. This is a maximum allowed number of ports opened per node. In general, it should exceed the tripled estimated online user count. Keep in mind that increasing this number also increases the memory usage by a constant amount, so finding the right balance for it is important for every project.
 * `-env ERL_FULLSWEEP_AFTER 2` - affects garbage collection. Reduces memory consumption (forces often full g.c.) at the expense of CPU usage.
 * `-sasl sasl_error_logger false` - MongooseIM's solution for logging is Lager, so SASL error logger is disabled.
 
@@ -351,25 +459,22 @@ Let's explore the default options/
 A file with Erlang application configuration. To configure it, go to `[MongooseIM root]/rel/files/`.
 By default only the following applications can be found there:
 
-* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information.
-   
-    Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) 
-   and date formatting (`date`). Ignore the log level parameters - they are overridden with the value in `ejabberd.cfg`.
-
-* `ejabberd` - set `keep_lager_intact` parameter to `true` when you want to use `lager` log level parameters from `app.config`. 
-    Missing value or`false` for this parameter means overriding the log levels with the value in `ejabberd.cfg`.
-
-* `ssl` only `session_lifetime` parameter is specified in this file. 
-    Its default value is **600s**. 
-    This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
-
+* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information. Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) and date formatting (`date`). Ignore the log level parameters - by defaultthey are overridden with the value in `ejabberd.cfg`.
+* `ejabberd`
+    * `keep_lager_intact` (default: `false`) - set it to `true` when you want to keep `lager` log level parameters from `app.config`. `false` means overriding the log levels with the value in `ejabberd.cfg`.
+    * `config` (default: `"etc/ejabberd.cfg"`) - path to MongooseIM config file.
+* `ssl`
+    * `session_lifetime` (default specified in the file: `600` seconds) - This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
 
 # Configuring TLS: Certificates & Keys
 
 TLS is configured in one of two ways: some modules need a private key and certificate (chain) in __separate__ files, while others need both in a __single__ file. This is because recent additions use OTP's `ssl` library, while older modules use `p1_tls`, respectively.
 
-* Client-to-server connections need both in the __same__ `.pem` file (find more information under *Options* in *Basic Configuration Overview* and *Listener Modules*)
-* Server-to-server connections need both in the __same__ `.pem` file (find more information under Listening Ports in *Advanced Configuration Overview*)
-* BOSH & Web Sockets use Cowboy, which uses OTP's `ssl` module like all our HTTPS endpoints, so they need them in __separate__ files (find more information in *Listener Modules*)
+* Client-to-server connections need both in the __same__ `.pem` file
+* Server-to-server connections need both in the __same__ `.pem` file
+* BOSH, WebSockets and REST APIs need them in __separate__ files
 
-When the private key and certificate (chain) need to be in the same file, it should suffice to concatenate them.
+In order to create private key & certificate bundle, you may simply concatenate them.
+
+More information about configuring TLS for these endpoints is available in [Listener modules](advanced-configuration/Listener-modules.md) page.
+
