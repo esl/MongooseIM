@@ -13,7 +13,7 @@ There are no options to be provided, therefore the following entry in config fil
 ```
 
 ## Commands
-This file consists of commands definitions (in a form described [here](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/).
+This file consists of [commands definitions](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/).
 This module defines following commands (along with functions necessary for them to run):
 + `create_muc_light_room`  
 Creates a MUC Light room.  
@@ -46,5 +46,4 @@ Sends a message to a MUC Light room.
         - `body` (binary)  
 
 ## Running commands
-Commands must be registered and then run using module `mongoose_commands`
-as described [here](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/).
+Commands must be [registered and then run](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/) using module `mongoose_commands`.
