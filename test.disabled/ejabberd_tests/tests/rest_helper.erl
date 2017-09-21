@@ -152,7 +152,7 @@ fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
 
 -spec get_port(role()) -> Port :: integer().
 get_port(Role) -> 
-    Listeners = apply_on_mim1(ejabberd_config, get_local_option, [listen]),
+    Listeners = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen]),
     [{PortIpNet, ejabberd_cowboy, _Opts}] = lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),
     case PortIpNet of
         {Port, _Host, _Net} -> Port;
@@ -162,7 +162,7 @@ get_port(Role) ->
 
 -spec get_ssl_status(role()) -> boolean().
 get_ssl_status(Role) ->
-    Listeners = apply_on_mim1(ejabberd_config, get_local_option, [listen]),
+    Listeners = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen]),
     [{_PortIpNet, _Module, Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
     lists:keymember(ssl, 1, Opts).
 
@@ -170,21 +170,21 @@ get_ssl_status(Role) ->
 % with new options.
 -spec change_admin_creds({User :: binary(), Password :: binary()}) -> 'ok' | 'error'.
 change_admin_creds(Creds) ->
-    stop_listener(admin),
+    stop_admin_listener(),
     {ok, _} =  start_admin_listener(Creds).
 
--spec stop_listener(role()) -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-stop_listener(Role) ->
-    Listeners = apply_on_mim1(ejabberd_config, get_local_option, [listen]),
-    [{PortIpNet, Module, _Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
-    apply_on_mim1(ejabberd_listener, stop_listener, [PortIpNet, Module]).
+-spec stop_admin_listener() -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
+stop_admin_listener() ->
+    Listeners = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen]),
+    [{PortIpNet, Module, _Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
+    escalus_ejabberd:rpc(ejabberd_listener, stop_listener, [PortIpNet, Module]).
 
 -spec start_admin_listener(Creds :: {binary(), binary()}) -> {'error', pid()} | {'ok', _}.
 start_admin_listener(Creds) ->
-    Listeners = apply_on_mim1(ejabberd_config, get_local_option, [listen]),
+    Listeners = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen]),
     [{PortIpNet, Module, Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
     NewOpts = insert_creds(Opts, Creds),
-    apply_on_mim1(ejabberd_listener, start_listener, [PortIpNet, Module, NewOpts]).
+    escalus_ejabberd:rpc(ejabberd_listener, start_listener, [PortIpNet, Module, NewOpts]).
 
 insert_creds(Opts, Creds) ->
     Modules = proplists:get_value(modules, Opts),
@@ -215,11 +215,6 @@ is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, client) ->
     ModulesTokens = lists:map(fun({_, _Path, Mod, _}) -> string:tokens(atom_to_list(Mod), "_"); (_) -> [] end, ModulesConfs),
     lists:any(fun(["mongoose", "client", "api" | _T]) -> true; (_) -> false end, ModulesTokens);
 is_roles_config(_, _) -> false.
-
-% @doc Applies a function on a mim1. Waits 5000 ms for response.
-apply_on_mim1(M, F, A) ->
-    rpc:call('mongooseim@localhost', M, F, A, 5000).
-
 
 mapfromlist(L) ->
     Nl = lists:keymap(fun(B) -> binary_to_existing_atom(B, utf8) end, 1, L),
