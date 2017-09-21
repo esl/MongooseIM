@@ -169,19 +169,19 @@ stop(Host) ->
 amp_failed_event(Packet, From) ->
     mod_amp:check_packet(Packet, From, offline_failed).
 
-handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
+handle_offline_msg(Acc, #offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     {LUser, LServer} = US,
     Msgs = receive_all(US, [Msg]),
     MaxOfflineMsgs = get_max_user_messages(AccessMaxOfflineMsgs, LUser, LServer),
     Len = length(Msgs),
     case is_message_count_threshold_reached(MaxOfflineMsgs, LUser, LServer, Len) of
         false ->
-            write_messages(LUser, LServer, Msgs);
+            write_messages(Acc, LUser, LServer, Msgs);
         true ->
-            discard_warn_sender(Msgs)
+            discard_warn_sender(Acc, Msgs)
     end.
 
-write_messages(LUser, LServer, Msgs) ->
+write_messages(Acc, LUser, LServer, Msgs) ->
     case mod_offline_backend:write_messages(LUser, LServer, Msgs) of
         ok ->
             [mod_amp:check_packet(Packet, From, archived)
@@ -190,7 +190,7 @@ write_messages(LUser, LServer, Msgs) ->
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
                 [LUser, LServer, Reason]),
-            discard_warn_sender(Msgs)
+            discard_warn_sender(Acc, Msgs)
     end.
 
 -spec is_message_count_threshold_reached(integer(), ejabberd:luser(),
@@ -311,10 +311,9 @@ handle_cast(Msg, State) ->
 handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info} = Msg, State) ->
     NewPoppers = monitored_map:handle_info(Msg, State#state.message_poppers),
     {noreply, State#state{message_poppers = NewPoppers}};
-handle_info(Msg = #offline_msg{us = US},
+handle_info({Acc, Msg = #offline_msg{us = US}},
             State = #state{access_max_user_messages = AccessMaxOfflineMsgs}) ->
-    ?DEPRECATED, % it should receive and pass on an accumulator -> kzemek
-    handle_offline_msg(Msg, AccessMaxOfflineMsgs),
+    handle_offline_msg(Acc, Msg, AccessMaxOfflineMsgs),
     case monitored_map:find(US, State#state.message_poppers) of
         {ok, Pid} ->
             Pid ! new_offline_messages;
@@ -364,15 +363,15 @@ add_feature(_, Feature) ->
 %% in the offline storage (f.e. messages of type error or groupchat)
 %% #rh
 inspect_packet(Acc, From, To, Packet) ->
-    case check_event_chatstates(From, To, Packet) of
+    case check_event_chatstates(Acc, From, To, Packet) of
         true ->
-            store_packet(From, To, Packet),
-            {stop, Acc};
+            Acc1 = store_packet(Acc, From, To, Packet),
+            {stop, Acc1};
         false ->
             Acc
     end.
 
-store_packet(From, To = #jid{luser = LUser, lserver = LServer},
+store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
              Packet = #xmlel{children = Els}) ->
     TimeStamp =
     case exml_query:subelement(Packet, <<"delay">>) of
@@ -395,11 +394,11 @@ store_packet(From, To = #jid{luser = LUser, lserver = LServer},
              from = From,
              to = To,
              packet = jlib:remove_delay_tags(Packet)},
-    Pid ! Msg,
-    ok.
+    Pid ! {Acc, Msg},
+    mongoose_acc:put(stored_offlne, true, Acc).
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
-check_event_chatstates(From, To, Packet) ->
+check_event_chatstates(Acc, From, To, Packet) ->
     #xmlel{children = Els} = Packet,
     case find_x_event_chatstates(Els, {false, false, false}) of
         %% There wasn't any x:event or chatstates subelements
@@ -414,17 +413,17 @@ check_event_chatstates(From, To, Packet) ->
             false;
         %% There was an x:event element, and maybe also other stuff
         {El, _, _} when El /= false ->
-            inspect_xevent(From, To, Packet, El)
+            inspect_xevent(Acc, From, To, Packet, El)
     end.
 
-inspect_xevent(From, To, Packet, XEvent) ->
+inspect_xevent(Acc, From, To, Packet, XEvent) ->
     case exml_query:subelement(XEvent, <<"id">>) of
         undefined ->
             case exml_query:subelement(XEvent, <<"offline">>) of
                 undefined ->
                     true;
                 _ ->
-                    ejabberd_router:route(To, From, patch_offline_message(Packet)),
+                    ejabberd_router:route(To, From, Acc, patch_offline_message(Packet)),
                     true
             end;
         _ ->
@@ -551,7 +550,7 @@ remove_user(User, Server) ->
     mod_offline_backend:remove_user(User, Server).
 
 %% Warn senders that their messages have been discarded:
-discard_warn_sender(Msgs) ->
+discard_warn_sender(Acc, Msgs) ->
     lists:foreach(
       fun(#offline_msg{from=From, to=To, packet=Packet}) ->
               ErrText = <<"Your contact offline message queue is full."
@@ -560,7 +559,7 @@ discard_warn_sender(Msgs) ->
               amp_failed_event(Packet, From),
               Err = jlib:make_error_reply(
                       Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
-              ejabberd_router:route(To, From, Err)
+              ejabberd_router:route(To, From, Acc, Err)
       end, Msgs).
 
 fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
