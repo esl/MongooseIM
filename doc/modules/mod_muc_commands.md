@@ -17,16 +17,16 @@ This module defines following commands (along with functions necessary for them 
 + `create_muc_room`  
 Creates a MUC room.  
     Args:  
-          - `host` (binary) - that's what we normally term the XMPP  
-          - `name`  (binary) - room name  
-          - `owner` (binary) - the XMPP entity that would normally request an instant MUC room  
-          - `nick` (binary)  
+        - `host` (binary) - that's what we normally term the XMPP  
+        - `name`  (binary) - room name  
+        - `owner` (binary) - the XMPP entity that would normally request an instant MUC room  
+        - `nick` (binary)  
 + `kick_user_from_room`  
 Kick a user from a MUC room (on behalf of a moderator).  
     Args:  
-          - `host` (binary),  
-          - `name` (binary),  
-          - `nick` (binary),   
+        - `host` (binary),  
+        - `name` (binary),  
+        - `nick` (binary),   
 + `invite_to_muc_room`  
 Sends a MUC room invite from one user to another.  
     Args:  
