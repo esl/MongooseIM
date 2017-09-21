@@ -1,12 +1,12 @@
 # MongooseIM's light multi-user chat commands set
 
 ## Purpose
-This is a set of commands, which provide actions connected with multi-user chat (light) features.
+This is a set of commands, providing actions connected with multi-user chat (light) features.
 It is currently used to provide commands used for exposing REST API for managing rooms.
 
 ## Configuration
 This module contains command definitions which are loaded when the module is activated.
-There are no options to be provided, therefore the following entry in config file is sufficient:
+There are no options to be provided, therefore the following entry in the config file is sufficient:
 
 ```
 {mod_muc_light_commands, []}
@@ -46,4 +46,4 @@ Sends a message to a MUC Light room.
         - `body` (binary)  
 
 ## Running commands
-Commands must be [registered and then run](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/) using module `mongoose_commands`.
+Commands must be [registered and then run](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/) using the module `mongoose_commands`.
