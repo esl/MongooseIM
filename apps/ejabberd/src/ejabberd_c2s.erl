@@ -945,8 +945,8 @@ session_established({xmlstreamelement, El}, StateData) ->
                                               from => jid:to_binary(FromJID),
                                               to_jid => ToJID,
                                               to => To}),
-            Acc1 = mod_amp:check_packet(Acc, FromJID, initial_check),
-            case mongoose_acc:get(amp_check_result, Acc1, ok) of
+            Acc1 = ejabberd_hooks:run_fold(c2s_preprocessing_hook, Server, Acc, [NewState]),
+            case mongoose_acc:get(result, Acc1, undefined) of
                 drop -> fsm_next_state(session_established, NewState);
                 _ -> process_outgoing_stanza(Acc1, NewState)
             end
