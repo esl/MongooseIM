@@ -1,9 +1,17 @@
 %%%-------------------------------------------------------------------
+%%% @doc
+%%% This module encapsulates a data type which will is instantiated when stanza
+%%% enters the system and is passed all the way along processing chain.
+%%% Its interface is map-like, and you can put there whatever you want, bearing in mind two things:
+%%% 1. It is read-only, you can't change value once you wrote it (accumulator is to accumulate)
+%%% 2. Whatever you put will be removed before the acc is sent to another c2s process
 %%%
-%%% This module encapsulates a data type which will initially be passed to
-%%% hookhandlers as accumulator, and later will be passed all the way along
-%%% processing chain.
-%%%
+%%% There are three caveats to the above:
+%%% 1. Although you can not put to an existing key, you can append as many times as you like
+%%% 2. A special key 'result' is writeable and is meant to be used to get return value from hook calls
+%%% 3. If you want to pass something to another c2s process you can use add_prop/3 - values
+%%%    put there are not stripped.
+%%% @end
 %%%-------------------------------------------------------------------
 -module(mongoose_acc).
 -author("bartek").
@@ -13,6 +21,7 @@
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).
+-export([add_prop/3, get_prop/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
 -export([strip/1, strip/2, record_sending/4, record_sending/6]).
 -export([dump/1, to_binary/1]).
@@ -27,13 +36,6 @@
 %%% its interface is map-like but implementation might change
 %%% it is passed along many times, and relatively rarely read or written to
 %%% might be worth reimplementing as binary
-
-%%%%% devel API %%%%%
-
-%%% Eventually, we'll call initialise when a stanza enters MongooseIM and terminate
-%%% when it leaves. During development we can call both in arbitrary places, provided that
-%%% the code which is executed between them is rewritten. We will proceed by moving
-%%% both points further apart until they reach their respective ends of processing chain.
 
 dump(Acc) ->
     dump(Acc, lists:sort(maps:keys(Acc))).
@@ -165,6 +167,15 @@ append(Key, Val, P) ->
 remove(Key, Accumulator) ->
     maps:remove(Key, Accumulator).
 
+%% @doc adds a persistent property to an accumulator
+-spec add_prop(atom(), any(), t()) -> t().
+add_prop(Key, Value, Acc) ->
+    append(persistent_properties, {Key, Value}, Acc).
+
+-spec get_prop(atom(), t()) -> any().
+get_prop(Key, Acc) ->
+    proplists:get_value(Key, get(persistent_properties, Acc, [])).
+
 %% @doc Make sure the acc has certain keys - some of them require expensive computations and
 %% are therefore not calculated upon instantiation, this func is saying "I will need these,
 %% please prepare them for me"
@@ -181,7 +192,10 @@ require(Key, Acc) ->
     require([Key], Acc).
 
 %% @doc Convert the acc before routing it out to another c2s process - remove everything except
-%% the very bare minimum (all caches, records etc)
+%% the very bare minimum
+%% We get rid of all caches, traces etc.
+%% There is a special key "persistent_properties" which is also kept, use add_prop to store
+%% persistent stuff you want to pass between processes there.
 -spec strip(t()) -> t().
 strip(Acc) ->
     strip(Acc, get(element, Acc)).
@@ -190,14 +204,13 @@ strip(Acc) ->
 -spec strip(t(), xmlel()) -> t().
 strip(Acc, El) ->
     Acc1 = from_element(El),
-%%    Ats = [name, type, attrs, from, from_jid, to, to_jid, ref, timestamp],
     Attributes = [ref, timestamp],
     NewAcc = lists:foldl(fun(Attrib, AccIn) ->
                            Val = maps:get(Attrib, Acc),
                            maps:put(Attrib, Val, AccIn)
                        end,
                        Acc1, Attributes),
-    OptionalAttributes = [from, from_jid, to, to_jid],
+    OptionalAttributes = [from, from_jid, to, to_jid, persistent_properties],
     lists:foldl(fun(Attrib, AccIn) ->
                     case maps:get(Attrib, Acc, undefined) of
                         undefined -> AccIn;

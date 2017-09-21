@@ -52,6 +52,16 @@ For mass updates (multiple key at once) consider using `mongoose_acc:update/2`, 
 slightly more efficient. Be aware, however, that it will not warn you if you
 overwrite an existing key.
 
+## Stripping and "persistence"
+
+Accumulator is used mostly to cache values for reuse within a c2s process; when it goes out to somewhere else it is stripped of all its attrributes except some used for tracing (ref, timestamp).
+If you want it to carry some values along with it use a dedicated api for setting "persistent" properties:
+```
+Acc2 = mongoose_acc:add_prop(myprop, 123, Acc1),
+V = mongoose_acc:get_prop(myprop, Acc2).
+```
+
+
 ## Entry points
 
 The stanza enters MongooseIM in the following places:
