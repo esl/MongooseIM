@@ -1,7 +1,7 @@
-# MongooseIM's light multi-user chat commands set
+# MongooseIM's multi-user chat light commands set
 
 ## Purpose
-This is a set of commands, providing actions connected with multi-user chat (light) features.
+This is a set of commands, providing actions connected with multi-user chat light features.
 It is currently used to provide commands used for exposing REST API for managing rooms.
 
 ## Configuration
