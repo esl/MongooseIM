@@ -23,13 +23,13 @@ If you are using **Ubuntu**, all `/etc/pam.d/common-session*` files should inclu
 
 ### `vm.args` file
 
-This file is located in `REL_ROOT/etc/vm.args` where `REL_ROOT` is the path
-to MonoogseIM release (ie. `_build/prod/rel/mongooseim` if you build MongooseIM from source).
+This file is located in `REL_ROOT/etc/vm.args` where `REL_ROOT` is the path to a MonoogseIM release
+(ie. `_build/prod/rel/mongooseim` if you build MongooseIM from source).
 This file contains erlang options used when starting the VM.
 
 When using an SSL/TLS connection we advise to increase `ERL_MAX_PORTS` to `350000`.
 This value specifies how many ports (files, drivers, sockets etc) can be used by Erlang VM.
-Be cautious - it preallocates some structures inside the VM and will have impact on memory usage.
+Be cautious - it preallocates some structures inside the VM and will have impact on the memory usage.
 We suggest 350000 for 100 k users when using an SSL/TLS connection or 250000 in other cases.
 
 To check how memory consumption changes depending on `ERL_MAX_PORTS`, use the following command:
@@ -57,7 +57,7 @@ Epmd keeps track of which erlang node is using which ports on the local machine.
 
 Checklist:
 
-- working directory `rel/mongooseim` (root of MongooseIM release or installation)
+- working directory `rel/mongooseim` (root of a MongooseIM release or installation)
 - the same cookie across all nodes (`vm.args` `-setcookie` parameter)
 - each node should be able to ping other nodes using its sname
    (ex. `net_adm:ping('mongoose@localhost')`)
@@ -93,8 +93,8 @@ Successful output may look like the following:
 You have successfully joined the node mongooseim2@localhost to the cluster with node member mongooseim@localhost
 ```
 
-In order to skip the question you can use `-f` which will perform the action without any warning and interaction.
-
+In order to skip the question you can add option `-f` which will perform the action
+without displaying the warning and waiting for the confirmation.
 
 ### Leaving cluster
 
@@ -106,7 +106,7 @@ mongooseimctl leave_cluster
 
 It only makes sense to use it if the node is the part of a cluster, e.g `join_cluster` was called from that node before.
 
-Similarly to `join_cluster` a warning and a question will be displayed unless option `-f` is added to the command.
+Similarly to `join_cluster` a warning and a question will be displayed unless the option `-f` is added to the command.
 
 The successful output from the above command may look like the following:
 
@@ -122,14 +122,14 @@ mongooseimctl remove_from_cluster RemoteNodeName
 
 where `RemoteNodeName` is a name of the node that we'd like to remove from our cluster.
 This command could be useful when the node is dead and not responding and we'd like to remove it remotely.
-The successful output from above command may look like the following:
+The successful output from the above command may look like the following:
 
 `The node mongooseim2@localhost has been removed from the cluster`
 
 ### Cluster status
 
-To see if a newly added node is properly clustered or to see how the cluster looks like,
-the following commands can be useful (on any running node in the cluster).
+You can use the following commands on any of the running nodes to examine the cluster
+or to see if a newly added node is properly clustered:
 
 ```bash
 mongooseimctl mnesia info | grep "running db nodes"
@@ -154,8 +154,8 @@ This does not necessarily indicate that they are down but might be a symptom of 
 
 ### Elastic Load Balancer (ELB)
 
-When using ELB pleas be advised that some worm-up time maybe needed before
-the load balancer works efficiently for big load.
+When using ELB please be advised that some worm-up time may be needed before
+the load balancer works efficiently for a big load.
 
 ### Software load balancer
 
