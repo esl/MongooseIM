@@ -1,7 +1,7 @@
 # MongooseIM's multi-user chat commands set
 
 ## Purpose
-This is a set of commands, providing actions connected with multi-user chat features.
+This is a set of commands, providing actions related to multi-user chat features.
 
 ## Configuration
 This module contains command definitions which are loaded when the module is activated.
