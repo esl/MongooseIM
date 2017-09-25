@@ -2,7 +2,7 @@
 
 ## Purpose
 This is a set of commands, providing actions related to multi-user chat light features.
-It is currently used to provide commands used for exposing REST API for managing rooms.
+It is currently used to expose the part of REST API responsible for managing rooms.
 
 ## Configuration
 This module contains command definitions which are loaded when the module is activated.
