@@ -12,7 +12,7 @@ There are no options to be provided, therefore the following entry in the config
 ```
 
 ## Commands
-This file consists of [commands definitions](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/).
+This file consists of [commands definitions](modules/mod_commands/).
 Following commands (along with functions necessary for them to run) are defined:
 + `create_muc_room`  
 Creates a MUC room.  
@@ -44,4 +44,4 @@ Sends a message to a MUC room from a given room.
         - `body` (binary)  
 
 ## Running commands
-Commands must be [registered and then run](http://mongooseim.readthedocs.io/en/latest/modules/mod_commands/) using the module `mongoose_commands`.
+Commands must be [registered and then run](modules/mod_commands/) using the module `mongoose_commands`.
