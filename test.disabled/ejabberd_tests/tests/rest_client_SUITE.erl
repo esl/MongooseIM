@@ -756,6 +756,16 @@ add_contact_and_be_invited(Config) ->
     ),
     ok.
 
+is_subscription_remove(User) ->
+    IsSubscriptionRemove = fun(El) ->
+                Sub = exml_query:paths(El, [{element, <<"query">>},
+                                            {element, <<"item">>},
+                                            {attr, <<"subscription">>}]),
+                Sub == [<<"remove">>]
+                end,
+    escalus:assert(IsSubscriptionRemove, escalus:wait_for_stanza(User)).
+
+
 
 add_and_remove(Config) ->
     escalus:fresh_story(
@@ -778,13 +788,7 @@ add_and_remove(Config) ->
             % Bob's roster is empty again
             {?OK, R3} = gett("/contacts", BCred),
             [] = decode_maplist(R3),
-            IsSubscriptionRemove = fun(El) ->
-                Sub = exml_query:paths(El, [{element, <<"query">>},
-                                            {element, <<"item">>},
-                                            {attr, <<"subscription">>}]),
-                Sub == [<<"remove">>]
-                end,
-            escalus:assert(IsSubscriptionRemove, escalus:wait_for_stanza(Bob)),
+            is_subscription_remove(Bob),
             ok
         end
     ),
@@ -800,9 +804,6 @@ add_and_remove_some_contacts_properly(Config) ->
             lists:foreach(fun(AddContact) -> 
                                   add_contact_check_roster_push(AddContact, {bob, Bob}) end,
                          [Alice, Kate, Carol]),
-            % Check Bob's roster now
-            {?OK, R2} = gett("/contacts", BCred),
-            Result = decode_maplist(R2),
             AliceJID = escalus_utils:jid_to_lower(
                 escalus_client:short_jid(Alice)),
             KateJID = escalus_utils:jid_to_lower(
@@ -812,26 +813,18 @@ add_and_remove_some_contacts_properly(Config) ->
             AliceContact = create_contact(AliceJID),
             KateContact = create_contact(KateJID),
             CarolContact = create_contact(CarolJID),
-            true = lists:member(AliceContact, Result),
-            true = lists:member(KateContact, Result),
-            true = lists:member(CarolContact, Result),
             % delete Alice and Kate
             Body = jiffy:encode(#{<<"to_delete">> => [AliceJID, KateJID]}),
             {?OK, {[{<<"not_deleted">>,[]}]}} = delete("/contacts", BCred, Body),
             % Bob's roster consists now of only Carol
             {?OK, R4} = gett("/contacts", BCred),
             [CarolContact] = decode_maplist(R4),
-            IsSubscriptionRemove = fun(El) ->
-                Sub = exml_query:paths(El, [{element, <<"query">>},
-                                            {element, <<"item">>},
-                                            {attr, <<"subscription">>}]),
-                Sub == [<<"remove">>]
-                end,
-            escalus:assert(IsSubscriptionRemove, escalus:wait_for_stanza(Bob)),
+            is_subscription_remove(Bob),
             ok
         end
     ),
     ok.
+
 
 add_and_remove_some_contacts_with_nonexisting(Config) ->
     escalus:fresh_story(
@@ -842,9 +835,6 @@ add_and_remove_some_contacts_with_nonexisting(Config) ->
             lists:foreach(fun(AddContact) -> 
                                   add_contact_check_roster_push(AddContact, {bob, Bob}) end,
                          [Alice, Kate]),
-            % Check Bob's roster now
-            {?OK, R2} = gett("/contacts", BCred),
-            Result = decode_maplist(R2),
             AliceJID = escalus_utils:jid_to_lower(
                 escalus_client:short_jid(Alice)),
             KateJID = escalus_utils:jid_to_lower(
@@ -854,23 +844,13 @@ add_and_remove_some_contacts_with_nonexisting(Config) ->
             AliceContact = create_contact(AliceJID),
             KateContact = create_contact(KateJID),
             CarolContact = create_contact(CarolJID),
-            % Carol has not been added
-            true = lists:member(AliceContact, Result),
-            true = lists:member(KateContact, Result),
-            false = lists:member(CarolContact, Result),
             % delete Alice, Kate and Carol (who is absent)
             Body = jiffy:encode(#{<<"to_delete">> => [AliceJID, KateJID, CarolJID]}),
             {?OK, {[{<<"not_deleted">>,[CarolJID]}]}} = delete("/contacts", BCred, Body),
             % Bob's roster is empty now
             {?OK, R4} = gett("/contacts", BCred),
             [] = decode_maplist(R4),
-            IsSubscriptionRemove = fun(El) ->
-                Sub = exml_query:paths(El, [{element, <<"query">>},
-                                            {element, <<"item">>},
-                                            {attr, <<"subscription">>}]),
-                Sub == [<<"remove">>]
-                end,
-            escalus:assert(IsSubscriptionRemove, escalus:wait_for_stanza(Bob)),
+            is_subscription_remove(Bob),
             ok
         end
     ),
