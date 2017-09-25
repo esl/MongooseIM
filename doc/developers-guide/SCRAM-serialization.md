@@ -12,7 +12,7 @@ Developers can use this information to create advanced endpoints for `ejabberd_a
 * `<salt>` - Base64-encoded Salt
 * `<iteration count>` - Iteration Count formatted as a human-readable integer
 
-In order to learn more about the meaning of Stored Key, Server Key, Salt and Iteration Count, please check [the SCRAM specification](https://tools.ietf.org/html/rfc5802).
+In order to learn more about the meaning of the Stored Key, Server Key, Salt and Iteration Count, please check [the SCRAM specification](https://tools.ietf.org/html/rfc5802).
 
 ### Example
 

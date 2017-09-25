@@ -18,7 +18,7 @@ The functionality is defined via two top-level options:
 ### Patterns
 
 This sections describes all possible ACL patterns.
-Some of them use `re` syntax for regular expressions and some accept `glob` syntax.
+Some of them use the `re` syntax for regular expressions and some accept the `glob` syntax.
 
 * [`re` definitions](http://erlang.org/doc/man/re.html#id253353)
 * [`glob` definitions](https://en.wikipedia.org/wiki/Glob_(programming))
@@ -100,7 +100,7 @@ To do so we need to set:<br/>
 `{acl, admin, {user, "admin"}}.`, then `{access, register, [{deny, admin}, {allow, all}]}.`
 * `{access, max_user_offline_messages, [{5000, admin}, {100, all}]}`.<br/>
 This rule is used in `mod_offline`, it determines `mod_offline`'s storage limit.
-For users defined in the admin ACL (for example `{acl, admin, {user, "pawel", "localhost"}}`) the size is 5000 messages, while the size for normal user is 10.
+For users defined in the admin ACL (for example `{acl, admin, {user, "pawel", "localhost"}}`) the size is 5000 messages, while the size for a normal user is 10.
 
 
 # Priority: global vs host access lists

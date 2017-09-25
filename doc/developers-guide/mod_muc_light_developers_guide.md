@@ -27,25 +27,25 @@ All source files can be found in `apps/ejabberd/src`.
   Not recommended for production systems (less efficient than modern codec and requires more round-trips).
 
 * `mod_muc_light_codec_modern.erl`
-  An implementation of modern MUC Light protocol, described in the XEP.
+  An implementation of a modern MUC Light protocol, described in the XEP.
   Supports all MUC Light features.
 
 * `mod_muc_light_commands.erl`
   MUC Light-related commands.
-  They are registered in `mongoose_commands` module, so they are available via REST API.
+  They are registered in the `mongoose_commands` module, so they are available via the REST API.
 
 * `mod_muc_light_db.erl`
   A behaviour implemented by database backends for the MUC Light extension.
 
 * `mod_muc_light_db_mnesia.erl`
-  Mnesia backend for this extension.
+  A Mnesia backend for this extension.
   Uses transactions for room metadata updates (configuration and affiliation list) and dirty reads whenever possible.
 
 * `mod_muc_light_db_odbc.erl`
-  SQL backend for `mod_muc_light`.
-  `create_room`, `destroy_room`, `remove_user`, `set_config`, `modify_aff_users` execute at least one query in single transaction.
+  A SQL backend for `mod_muc_light`.
+  `create_room`, `destroy_room`, `remove_user`, `set_config`, `modify_aff_users` execute at least one query in a single transaction.
   `room_exists`, `get_user_rooms`, `get_user_rooms_count`, `get_config`, `get_blocking`, `set_blocking`, `get_aff_users` execute only one query per function call.
-  `get_info` executes 3 `SELECT` queries, not protected by transaction.
+  `get_info` executes 3 `SELECT` queries, not protected by a transaction.
 
 * `mod_muc_light_db_odbc_sql.erl`
   SQL queries for `mod_muc_light_db_odbc.erl`.

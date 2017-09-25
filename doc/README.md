@@ -104,7 +104,7 @@ The MongooseIM platform documentation:
     * [How to: Set up Fennec (TURN/STUN server) and see how it works (a.k.a. ICE demo)](user-guide/ICE_tutorial.md)
 * Platform:
     * [Roadmap](Roadmap.md)
-    * [Contributions to ecosystem](Contributions.md)
+    * [Contributions to the ecosystem](Contributions.md)
     * [Differentiators](Differentiators.md)
     * [History](History.md)
 * Configuration

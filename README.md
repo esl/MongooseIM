@@ -105,8 +105,9 @@ The MongooseIM platform documentation:
     * [How to build](doc/user-guide/How-to-build.md) from source code
 * Platform:
     * [Roadmap](doc/Roadmap.md)
-    * [Contributions](doc/Contributions.md)
+    * [Contributions to the ecosystem](doc/Contributions.md)
     * [Differentiators](doc/Differentiators.md)
+    * [History](History.md)
 * Configuration
     * [Basic configuration](doc/Basic-configuration.md)
     * [Advanced configuration](doc/Advanced-configuration.md)

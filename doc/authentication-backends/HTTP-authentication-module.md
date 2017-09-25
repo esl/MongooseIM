@@ -47,7 +47,7 @@ When SCRAM is enabled, the passwords sent to the auth service are serialised and
 It is transparent when MongooseIM is responsible for all DB operations such as password setting, account creation etc.
 
 The service CAN perform the (de)serialization of SCRAM-encoded passwords.
-You can find more details in the [SCRAM serialization](../developers-guide/SCRAM-serialization.md) page.
+You can find more details on the [SCRAM serialization](../developers-guide/SCRAM-serialization.md) page.
 
 ## Authentication service API
 

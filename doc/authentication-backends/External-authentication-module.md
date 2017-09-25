@@ -1,13 +1,13 @@
 ## Overview
 
-This backend delegates authentication to an external script.
+This backend delegates the authentication to an external script.
 
-Requires SASL PLAIN method.
+Requires the SASL PLAIN method.
 
 ## Script API specification
 
-All "commands" sent from Erlang VM to the script are prefixed with 2-byte length, MSB first.
-It is expected from a script to return responses in the same format.
+All "commands" sent from Erlang VM to the script are prefixed with a 2-byte unsigned integer (command length), MSB first.
+The script is expected to return responses in the same format.
 
 Currently only 2 response packets are supported:
 

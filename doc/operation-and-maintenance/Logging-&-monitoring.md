@@ -40,7 +40,7 @@ For more advanced processing and analysis of logs, including gathering logs from
 
 WombatOAM is an operations and maintenance framework for Erlang based systems.
 Its Web Dashboard displays this data in an aggregated manner.
-What is more, WombatOAM provides interfaces to feed the data to other OAM tools such as Graphite, Nagios or Zabbix.
+Additionally, WombatOAM provides interfaces to feed the data to other OAM tools such as Graphite, Nagios or Zabbix.
 
 For more information see: [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html).
 
@@ -144,8 +144,8 @@ Then, if you configure your MongooseIM to send Exometer reports to that IP addre
 
 ### Run graphite in Docker - alternative method
 
-If one of these steps above doesn't work for you (e.g. they may be incompatible with your Docker on Mac), please try a less advanced alternative.
-It doesn't require docker machine and will expose Graphite ports on localhost, instead of using a new route.
+If one of these steps doesn't work for you (e.g. they may be incompatible with your Docker on Mac), please try a less advanced alternative.
+It doesn't require a docker machine and will expose Graphite ports on localhost, instead of using a new route.
 
 Start a container with Graphite:
 

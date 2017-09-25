@@ -28,7 +28,9 @@ Significantly extends the `mongooseimctl` script capabilities.
 Implements a subset of [XEP-0079: Advanced Message Processing](http://xmpp.org/extensions/xep-0079.html) functionality, that enables entities to request, and servers to perform advanced processing of XMPP message stanzas, including reliable data transport, time-sensitive delivery, and expiration of transient messages.
 
 ### [mod_auth_token](../modules/mod_auth_token.md)
-A module used by SASL X-OAUTH mechanism. It provides an API to manage [custom OAuth tokens](../open-extensions/token-reconnection.md). It requires [mod_keystore](../modules/mod_keystore.md) as an actual key database.
+A module used by SASL X-OAUTH mechanism.
+It provides an API to manage [custom OAuth tokens](../open-extensions/token-reconnection.md).
+It requires [mod_keystore](../modules/mod_keystore.md) as an actual key database.
 
 ### [mod_aws_sns](../modules/mod_aws_sns.md)
 Allows sending online/offline notifications, chat and groupchat messages as events to [Amazon Simple Notification Service](https://aws.amazon.com/sns/).
@@ -40,7 +42,9 @@ Implements [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html
 Allows users to connect to MongooseIM using BOSH (Bidirectional-streams Over Synchronous HTTP), the HTTP long-polling technique described in [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html) and [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html).
 
 ### [mod_caps](../modules/mod_caps.md)
-Implements [XEP-0115 Entity Capabilities](https://xmpp.org/extensions/xep-0115.html). It queries clients for their supported functionalities and caches them in Mnesia. This module tightly cooperates with [mod_pubsub](../modules/mod_pubsub.md) in order to deliver [PEP](https://xmpp.org/extensions/xep-0163.html) events to user's subscribers.
+Implements [XEP-0115 Entity Capabilities](https://xmpp.org/extensions/xep-0115.html).
+It queries clients for their supported functionalities and caches them in Mnesia.
+This module tightly cooperates with [mod_pubsub](../modules/mod_pubsub.md) in order to deliver [PEP](https://xmpp.org/extensions/xep-0163.html) events to user's subscribers.
 
 ### [mod_carboncopy](../modules/mod_carboncopy.md)
 Implements [XEP-0280: Message Carbons](http://xmpp.org/extensions/xep-0280.html), in order to keep all IM clients for a user engaged in a real-time conversation, by carbon-copying all inbound and outbound messages to all interested resources (Full JIDs).
@@ -50,7 +54,7 @@ A central gateway providing access to a subset of MongooseIM functions by channe
 Commands defined there are currently accessible via REST API.
 
 ### [mod_csi](../modules/mod_csi.md)
-Enables [XEP-0352: Client State Indication](http://xmpp.org/extensions/xep-0352.html) functionality.
+Enables the [XEP-0352: Client State Indication](http://xmpp.org/extensions/xep-0352.html) functionality.
 
 ### [mod_disco](../modules/mod_disco.md)
 Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.html) for discovering information (capabilities, protocols, features) about other XMPP entities.
@@ -63,7 +67,7 @@ This applies to situations such as sending messages or presences to mobile/SMS/e
 Implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html) for coordinating with an XMPP server to upload files via HTTP and receive URLs that can be shared in messages.
 
 ### [mod_keystore](../modules/mod_keystore.md)
-Serves as storage for crypto keys for `mod_auth_token`.
+Serves as a storage for crypto keys for `mod_auth_token`.
 
 ### [mod_last](../modules/mod_last.md)
 Implements [XEP-0012: Last Activity)](http://xmpp.org/extensions/xep-0012.html) for communicating information about the last activity associated with an XMPP entity (most recent presence information from an offline contact).
@@ -76,7 +80,7 @@ Implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/xep-0045.html
 It is tightly coupled with user presence in chat rooms.
 
 ### [mod_muc_commands](../modules/mod_muc_commands.md)
-Provides `mod_muc`-related `mongoose_commands`, accessible via client REST API.
+Provides `mod_muc` related `mongoose_commands`, accessible via the client REST API.
 
 ### [mod_muc_log](../modules/mod_muc_log.md)
 Implements a logging subsystem for [mod_muc].
@@ -116,7 +120,7 @@ Implements [XEP-0077: In-Band Registration)](http://xmpp.org/extensions/xep-0077
 This does not provide a solution to the forgotten password use case via SMS or email.
 
 ### [mod_revproxy](../modules/mod_revproxy.md)
-With this extension, MongooseIM server may server as reverse proxy.
+With this extension, MongooseIM server may serve as reverse proxy.
 
 ### [mod_roster](../modules/mod_roster.md)
 Roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html).
