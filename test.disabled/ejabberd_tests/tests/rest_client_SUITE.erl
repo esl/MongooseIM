@@ -816,8 +816,8 @@ add_and_remove_some_contacts_properly(Config) ->
             true = lists:member(KateContact, Result),
             true = lists:member(CarolContact, Result),
             % delete Alice and Kate
-            Body = binary_to_list(AliceJID) ++ "," ++ binary_to_list(KateJID),
-            {?OK, {[{<<"not_deleted">>,[]}]}} = delete("/contacts", BCred, list_to_binary(Body)),
+            Body = jiffy:encode(#{<<"to_delete">> => [AliceJID, KateJID]}),
+            {?OK, {[{<<"not_deleted">>,[]}]}} = delete("/contacts", BCred, Body),
             % Bob's roster consists now of only Carol
             {?OK, R4} = gett("/contacts", BCred),
             [CarolContact] = decode_maplist(R4),
@@ -859,8 +859,8 @@ add_and_remove_some_contacts_with_nonexisting(Config) ->
             true = lists:member(KateContact, Result),
             false = lists:member(CarolContact, Result),
             % delete Alice, Kate and Carol (who is absent)
-            Body = binary_to_list(AliceJID) ++ "," ++ binary_to_list(KateJID) ++ "," ++ binary_to_list(CarolJID),
-            {?OK, {[{<<"not_deleted">>,[CarolJID]}]}} = delete("/contacts", BCred, list_to_binary(Body)),
+            Body = jiffy:encode(#{<<"to_delete">> => [AliceJID, KateJID, CarolJID]}),
+            {?OK, {[{<<"not_deleted">>,[CarolJID]}]}} = delete("/contacts", BCred, Body),
             % Bob's roster is empty now
             {?OK, R4} = gett("/contacts", BCred),
             [] = decode_maplist(R4),

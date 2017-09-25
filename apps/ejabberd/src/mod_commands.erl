@@ -296,18 +296,20 @@ delete_contacts(Caller, ToDelete) ->
 
 maybe_delete_contacts(_, [], NotDeleted) -> NotDeleted;
 maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
-    case {jid_exists(Caller, H), delete_contact(Caller, H)} of
-        {_, error} ->
-            maybe_delete_contacts(Caller, T, NotDeleted ++ [H]);
-        {false, _} ->
-            maybe_delete_contacts(Caller, T, NotDeleted ++ [H]);
-        {true, ok} ->
-            maybe_delete_contacts(Caller, T, NotDeleted)
+    case delete_contact(Caller, H) of
+        ok ->
+            maybe_delete_contacts(Caller, T, NotDeleted);
+        error ->
+            maybe_delete_contacts(Caller, T, NotDeleted ++ [H])
     end.
 
 delete_contact(Caller, JabberID) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:remove_from_roster(CJid, JabberID).
+    case jid_exists(Caller, JabberID) of
+        false -> error;
+        true ->
+            mod_roster:remove_from_roster(CJid, JabberID)
+    end.
 
 -spec jid_exists(binary(), binary()) -> boolean().
 jid_exists(CJid, Jid) ->

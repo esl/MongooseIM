@@ -85,11 +85,11 @@ from_json(Req, #{jid := Caller} = State) ->
 delete_resource(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
     {Jid, Req2} = cowboy_req:binding(jid, Req),
-    case kind_of_deletion(Jid, CJid) of
-        single ->
-            handle_single_deletion(CJid, Jid, Req2, State);
-        multiple ->
-            handle_multiple_deletion(CJid, get_requested_contacts(Req2), Req2, State)
+    case Jid of
+        undefined ->
+            handle_multiple_deletion(CJid, get_requested_contacts(Req2), Req2, State);
+        _ ->
+            handle_single_deletion(CJid, Jid, Req2, State)
     end.
 
 % @doc Decides if a request applies to multiple or single deletion.
@@ -133,9 +133,8 @@ serve_failure({error, ErrorType, Msg}, Req, State) ->
 
 get_requested_contacts(Req) ->
     Body = get_whole_body(Req, <<"">>),
-    BodyString = binary_to_list(Body),
-    Tokens = string:tokens(BodyString, ","),
-    lists:map(fun list_to_binary/1, Tokens).
+    #{<<"to_delete">> :=  ResultJids} = jiffy:decode(Body, [return_maps]),
+    ResultJids.
 
 get_whole_body(Req, Acc) ->
     case cowboy_req:body(Req) of
