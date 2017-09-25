@@ -89,7 +89,7 @@ Implements a logging subsystem for [mod_muc].
 Implements [XEP Multi-User Chat Light](https://github.com/xsf/xeps/pull/118).
 
 ### [mod_muc_light_commands](../modules/mod_muc_light_commands.md)
-Provides `mod_muc_light`-related `mongoose_commands`, accessible via client REST API.
+Provides `mod_muc_light` related `mongoose_commands`, accessible via client REST API.
 
 ### [mod_offline](../modules/mod_offline.md)
 Provides an offline messages storage that is compliant with [XEP-0160: Best Practices for Handling Offline Messages)](http://xmpp.org/extensions/xep-0160.html).
