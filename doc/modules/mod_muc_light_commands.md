@@ -13,7 +13,7 @@ There are no options to be provided, therefore the following entry in the config
 ```
 
 ## Commands
-This file consists of [commands definitions](mod_commands/).
+This file consists of [commands definitions](mod_commands.md).
 Following commands (along with functions necessary for them to run) are defined:
 + `create_muc_light_room`  
 Creates a MUC Light room.  
@@ -46,4 +46,4 @@ Sends a message to a MUC Light room.
         - `body` (binary)  
 
 ## Running commands
-Commands must be [registered and then run](mod_commands/) using the module `mongoose_commands`.
+Commands must be [registered and then run](mod_commands.md) using the module `mongoose_commands`.
