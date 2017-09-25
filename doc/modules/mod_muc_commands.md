@@ -28,7 +28,7 @@ Kick a user from a MUC room (on behalf of a moderator).
         - `name` (binary)  
         - `nick` (binary)   
 + `invite_to_muc_room`  
-Sends a MUC room invite from one user to another.  
+Sends a MUC room invite (direct) from one user to another.  
     Args:  
         - `host` (binary)  
         - `name` (binary)  
