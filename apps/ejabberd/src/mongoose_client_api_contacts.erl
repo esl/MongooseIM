@@ -92,14 +92,6 @@ delete_resource(Req, #{jid := Caller} = State) ->
             handle_single_deletion(CJid, Jid, Req2, State)
     end.
 
-% @doc Decides if a request applies to multiple or single deletion.
-% Checks if a jid of a certain user was specified in the PATH.
-% For multiple deletion the list of jids is specified in body.
-kind_of_deletion(undefined, _CallerJid) ->
-    multiple;
-kind_of_deletion(_Jid, _CallerJid) ->
-    single.
-
 handle_multiple_deletion(CJid, ToDelete, Req, State) ->
     case handle_request(<<"DELETE">>, ToDelete, undefined, CJid) of
         {ok, NotDeleted} ->
