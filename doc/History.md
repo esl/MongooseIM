@@ -9,7 +9,7 @@ The change was introduced in 0.1.0 proto-MongooseIM release and 3.0.0-alpha-X se
 This opened the door for achieving higher performance, lower latency and introducing other subsequent improvements building up to a plaform we are truly proud of.
 
 
-### 2012: Fully independent project
+### 2012-2015: Fully independent project growing fast
 
 The next steps were achieving full OTP and `rebar` compliance, removal of obsolete and/or rarely used modules, reduction of the runtime memory consumption and functional test coverage. 
 [MongooseIM 1.0.0](https://github.com/esl/MongooseIM/releases/tag/1.0.0) was released on July 10th of 2012.
@@ -33,7 +33,7 @@ The MongooseIM platform components were:
 * Jayme by Inaka for iOS in Swift
 
 
-### 2017: Platform expansion
+### 2017: Platform expansion and strengthening
 
 We also introduced some MongooseIM platform components that are independent of the XMPP server.
 So far the list includes:
