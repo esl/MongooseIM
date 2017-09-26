@@ -1,10 +1,10 @@
 # Accumulators
 
-XMPP stanza processing starts in the `ejabberd_c2s` module, which receives the stanza from a socket.
+XMPP stanza processing starts in the `ejabberd_c2s` module, which receives the stanza from a socket, or in `ejabberd_s2s_in` which receives stanzas from other MIM clusters.
 The stanza is processed and eventually it and/or other messages are sent out, either to the original sender, to another c2s process within the same MongooseIM installation, or to another XMPP server.
 
-At the beginning of the main processing chain, an accumulator is created containing the stanza and other values.
-It is then passed through all the stages, until it reaches the end of its life.
+At the beginning of the main processing chain an accumulator is created containing the stanza and other values.
+It is then passed through all the stages until it reaches the end of its life.
 Throughout the process it is the very same accumulator; it is therefore possible to store a value in it on one stage of the processing and retrieve the same value later on.
 
 The main assumption is that whatever the MongooseIM does, it is always triggered by a stanza entering the system, one way or another (with an exeption for REST methods and mongooseimctl, that should have their own methods of creating and processing an accumulator).
@@ -38,12 +38,12 @@ Cmd = mongoose_acc:get(command, Acc1)
 
 You can set whatever attributes you want, but treat them as read-only - an accumulator is meant
 to accumulate results and carry them forward with it, not to introduced a semi-mutable data structure.
-If you put a value to a key which already exists it will work, but will also produce a
-warning.
+If you put a value to a key which already exists it will work, at least as of today, but will also produce a warning.
+Some day it may stop working, you have been warned.
 
 If you need to store multiple values under the same key, then either:
 * use mongoose_acc:append/3
-* or generate a unique key for each use
+* or generate a unique derivative key for each use
 
 There is one exception: if you really must treat an acc to carry just one value back from a call,
 use a key `result`, this is not monitored.
@@ -86,11 +86,11 @@ Many of the MongooseIM functionalities are implemented in submodules which attac
 When it comes to the accumulators, the following rules apply:
 
 * when using `run_fold` there are only a few cases in which something else should be passed as the accumulator.
- This is the case when for example the handlers are supposed to modify the state (the state should be the accumulator).
+ This is the case when for example handlers are supposed to modify the state (the state should be the accumulator).
  Your handlers should stash their results in the acc, so that you can extract what you need and pass the modified acc on.
 * avoid passing superfluous arguments to handlers - e.g. a `Server` in hook args is redundant since it is already present in the accumulator.
 * do not use `run` - it is against the main design principles.
- All handlers have been rewritten so that they accept an acc as the first arg. 
+ Handlers have been rewritten so that they accept an acc as the first arg.
  If you use `run_fold` you have to provide an accumulator, if you use `run` an empty accumulator is created and passed to the handlers.
  Note that `run` is deprecated now and at some point will be removed.
 

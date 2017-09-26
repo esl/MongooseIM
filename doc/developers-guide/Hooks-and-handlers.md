@@ -58,7 +58,7 @@ In between the XMPP domain (`StateData#state.server`) and handler arguments the 
 All handlers attached to the hook have to accept a list as a first argument and also return a list - possibly the same list
 plus one or more items.
 
-Note, that `ejabberd_hooks:run/3` and `ejabberd_hooks:run_fold/4` **are not interchangeable**.
+Note that `ejabberd_hooks:run/3` and `ejabberd_hooks:run_fold/4` **are not interchangeable**.
 You must decide whether the hook is to return some value or only carry out an action when designing it.
 
 #### Sidenote: Folds
@@ -86,9 +86,14 @@ The right way to use hooks is therefore:
 
 * create a handler which takes and returns an accumulator
 * take an accumulator if available, or instantiate a new one
-* call hooks giving your acc as the argument
+* call run_fold giving your acc as the accumulator, plus some extra arguments as needed
 * take return value from the acc the hook call returned
 * pass the modified accumulator on
+
+Handlers should store their return values in the accumulator; there are three ways to do it:
+* if it is a one-off value which is to be discarded later use `mongoose_acc:put(result, Value, Acc)`
+* if the value is to be passed on to be reused within the user's session use `mongoose_acc:put(Key, Value, Acc)`
+* if the value should be passed on to the recipient's session use `mongoose_acc:add_prop(Key, Value, Acc)`
 
 A real life example, then, with regard to `mod_offline` is the `resend_offline_messages_hook` run in `ejabberd_c2s`:
 
