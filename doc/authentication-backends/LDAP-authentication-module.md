@@ -28,10 +28,7 @@ Requires the SASL PLAIN method.
     * **Description:** An LDAP filter.
     Please, do not forget to close the brackets and do not use superfluous whitespaces.
     Also do not use the `ldap_uidattr` attribute in the filter because it will be substituted in the LDAP filter automatically.
-    * **Values:** String. For example:
-
-                                      (&(objectClass=shadowAccount)(memberOf=Jabber Users))
-
+    * **Values:** String. For example: `(&(objectClass=shadowAccount)(memberOf=Jabber Users))`
     * **Default:** `undefined`
 
 * **ldap_dn_filter:**
@@ -40,18 +37,17 @@ Requires the SASL PLAIN method.
     This is useful when you are unable to define all filter rules in the `ldap_filter`.
     You can define `%u`, `%d`, `%s` and `%D` pattern variables in the filter: `%u` is replaced by a user’s part of a JID, `%d` is replaced by the corresponding domain (virtual host), all `%s` variables are consecutively replaced by values of `FilterAttrs` attributes and `%D` is replaced by the Distinguished Name.
     Since this filter makes additional LDAP lookups, use it only as the last resort: try to define all filter rules in ldap_filter if possible.
-    * **Values:** `{Filter, [FilterAttributes]}`. For example:
-
-                              (&(name=%s)(owner=%D)(user=%u@%d))": ["sn"]
-
+    * **Values:** `{Filter, [FilterAttributes]}`. For example: `(&(name=%s)(owner=%D)(user=%u@%d))": ["sn"]`
     * **Default:** `undefined`
 
 * **ldap_local_filter:**
     * **Description:** If you can’t use the `ldap_filter` due to performance reasons (the LDAP server has many users registered), you can use this local filter.
     The local filter checks an attribute in MongooseIM, not in LDAP, so this limits the load on the LDAP directory.
     * **Values:** `Filter`. Example values:
-
-                              {ldap_local_filter, {notequal, {"accountStatus",["disabled"]}}}.
-                              {ldap_local_filter, {equal, {"accountStatus",["enabled"]}}}.
-                              {ldap_local_filter, undefined}.
+    ```
+    {ldap_local_filter, {notequal, {"accountStatus",["disabled"]}}}.
+    {ldap_local_filter, {equal, {"accountStatus",["enabled"]}}}.
+    {ldap_local_filter, undefined}.
+    ```
     * **Default:** `undefined`
+

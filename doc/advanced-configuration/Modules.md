@@ -120,7 +120,7 @@ Implements [XEP-0077: In-Band Registration)](http://xmpp.org/extensions/xep-0077
 This does not provide a solution to the forgotten password use case via SMS or email.
 
 ### [mod_revproxy](../modules/mod_revproxy.md)
-With this extension, MongooseIM server may serve as reverse proxy.
+With this extension, MongooseIM may serve as a reverse proxy.
 
 ### [mod_roster](../modules/mod_roster.md)
 Roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html).
