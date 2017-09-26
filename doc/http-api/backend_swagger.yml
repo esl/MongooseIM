@@ -288,9 +288,14 @@ paths:
           name: contact
           required: true
           schema:
+            title: addcontact
+            type: object
             properties:
               jid:
                 type: string
+                format: JID
+                description: Contact's jid
+                example: "alice@wonderlant.lit"
       responses:
         204:
           description: "The user was added to a contacts list."
