@@ -5,11 +5,11 @@ The products and services offered by the MongooseIM Platform allow businesses an
 
 ## Current state of the MongooseIM platform
 
-The following components are all part of the MongooseIM platform, not only the core XMPP/REST messaging server.
+The following components build up the MongooseIM platform, and not only the XMPP/REST server at its core.
 
 ### Backend/server components:
 
-* [MongooseIM](https://github.com/esl/MongooseIM): core MongooseIM server, real-time XMPP/REST messaging cluster
+* [MongooseIM](https://github.com/esl/MongooseIM): the core server, real-time XMPP/REST messaging cluster
 * [MongoosePush](https://github.com/esl/MongoosePush): open source Push notifications server in Elixir
 * [MongooseICE](https://github.com/esl/Fennec): open source ICE/STUN/TURN server in Elixir
 * [exml](https://github.com/esl/exml): XML library
@@ -50,14 +50,14 @@ Please contact us and tell us about what features and improvements do you see as
 
 ### MongooseIM 3.x: planetary scale
 
-#### MongooseIM 3.0.x: real-time planetary scale (2018Q1)
+#### MongooseIM 3.0.x: real-time geoclustering (2018Q1)
 
 * Cluster intercontinental geo-distribution for real-time content
 * SASL 2.0
 * [XEP-0376: Pubsub Account Management](https://xmpp.org/extensions/xep-0376.html)
 * Contributions to ecosystem
 
-#### MongooseIM 3.1.x:  (2018Q2)
+#### MongooseIM 3.1.x: archive geoclustering (2018Q2)
 
 * Intercontinental geo-distribution for message archive
 * Inbox
