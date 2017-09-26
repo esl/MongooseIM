@@ -10,7 +10,7 @@ The following components are a part of the MongooseIM platform, not only the XMP
 New components:
 
 * [MongoosePush](https://github.com/esl/MongoosePush): open source Push notifications server in Elixir
-* [MongooseICE](https://github.com/esl/Fennec): open source ICE/STUN/TURN server in Elixir
+* [MongooseICE](https://github.com/esl/MongooseICE): open source ICE/STUN/TURN server in Elixir
 * [Mangosta Android](https://github.com/esl/mangosta-android): chat and social client, sample app
 * [Mangosta iOS](https://github.com/esl/mangosta-ios): chat and social client, sample app
 * Mangosta Web? Mangosta Laptop (Windows, macOS, Linux)? Strophe.js? Stanza.io? React Native?
