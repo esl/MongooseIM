@@ -3,7 +3,7 @@
 ### File descriptors
 
 To handle large traffic, some of the system variables need to be tuned.
-Number one on that list is the maximum number of file descriptors which by default is set to 1024.
+Number one on that list is the maximum number of file descriptors which often is set to 1024.
 Each MongooseIM connection consumes ~1 file descriptor, so the default value will not suffice for larger installations - when it is exceeded, emfile errors will appear in logs.
 
 To check the current limit execute: `ulimit -n`.
@@ -23,9 +23,9 @@ If you are using **Ubuntu**, all `/etc/pam.d/common-session*` files should inclu
 
 ### `vm.args` file
 
-This file is located in `REL_ROOT/etc/vm.args` where `REL_ROOT` is the path to a MonoogseIM release
-(ie. `_build/prod/rel/mongooseim` if you build MongooseIM from source).
 This file contains erlang options used when starting the VM.
+It is located in `REL_ROOT/etc/vm.args` where `REL_ROOT` is the path to a MonoogseIM release
+(ie. `_build/prod/rel/mongooseim` if you build MongooseIM from source).
 
 When using an SSL/TLS connection we advise to increase `ERL_MAX_PORTS` to `350000`.
 This value specifies how many ports (files, drivers, sockets etc) can be used by Erlang VM.
