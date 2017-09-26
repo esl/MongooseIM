@@ -17,13 +17,17 @@
 all() ->
     [smoke,
      {group, reload_local},
+     {group, odbc_pools},
      split_config].
 
 groups() ->
     [{reload_local, [], [coalesce_multiple_local_config_options,
                          add_a_module,
                          delete_a_module,
-                         reload_a_module]}].
+                         reload_a_module]},
+     {odbc_pools, [], [odbc_server_no_pools,
+                          odbc_server_pools]}
+    ].
 
 init_per_suite(Config) ->
     Config.
@@ -42,6 +46,24 @@ end_per_testcase(_TestCase, _Config) ->
 %%
 %% Tests
 %%
+
+odbc_server_no_pools(Config) ->
+    FileName = get_ejabberd_cfg(Config, "ejabberd.odbc_no_pools.cfg"),
+    try ejabberd_config:load_file(FileName) of
+        _ -> ct:fail(success_without_pools)
+    catch
+        exit:Reason ->
+            ?eq(Reason, no_odbc_pools)
+    end.
+
+odbc_server_pools(Config) ->
+    FileName = get_ejabberd_cfg(Config, "ejabberd.odbc_pools.cfg"),
+    try ejabberd_config:load_file(FileName) of
+        _ -> ok
+    catch
+        _:_ ->
+            ct:fail(failed_with_pools)
+    end.
 
 smoke(Config) ->
     % when
@@ -145,6 +167,10 @@ is_empty(_) -> false.
 %%
 %% Helpers
 %%
+
+get_ejabberd_cfg(Config, Name) ->
+    DataDir = proplists:get_value(data_dir, Config),
+    filename:join([DataDir, Name]).
 
 start_ejabberd_with_config(Config, ConfigFile) ->
     use_config_file(Config, ConfigFile),
