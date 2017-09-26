@@ -27,7 +27,7 @@ The video player in this tutorial is available only as an Android application.
 * RaspberryPi or any other device that is able to [run Elixir code][Elixir]. Oh, and also has [ffmpeg] installed.
 We are going to use use RaspberryPi 3, to give this tutorial a hint of IoT.
 * At least one machine with a public IPv4 address.
-It is necessary, because both [MongooseIM] and [MongooseICE](https://github.com/esl/fennec) servers need to be accessible by all devices that are used in this demo system.
+It is necessary, because both [MongooseIM] and [MongooseICE](https://github.com/esl/MongooseICE) servers need to be accessible by all devices that are used in this demo system.
 You could use a private, local IP address, but then you would need to ensure that your phone and the RaspberryPi are behind some kind of a NAT relative to this IP address.
 
 > Note: the demo will probably work without the NAT, but then there is no point in setting up a TURN server.
@@ -39,7 +39,7 @@ We are going to use 2 VPS (Virtual Private Server) that are located somewhere fa
 This is the architecture of the system we are building:
 ![ICE example architecture][ice_architecture]
 
-As we know by now, [MongooseIM] is bound to *2.2.2.2*/*myxmpp.com* and [MongooseICE](https://github.com/esl/fennec) to *1.1.1.1*.
+As we know by now, [MongooseIM] is bound to *2.2.2.2*/*myxmpp.com* and [MongooseICE](https://github.com/esl/MongooseICE) to *1.1.1.1*.
 We also have a RaspberryPi that is connected to a private network (so is behind some NAT) and an Android phone that is connected to an LTE network and also is behind the carrier's NAT.
 
 #### ICE notes
@@ -181,7 +181,7 @@ ICEDemo.start_movie(opts)
 ```
 
 The first 3 options are all about connecting to the XMPP server - we use "*movie@myxmpp.com*" user that we created earlier.
-Next 3 options are about connecting to the [MongooseICE](https://github.com/esl/fennec) server. 
+Next 3 options are about connecting to the [MongooseICE](https://github.com/esl/MongooseICE) server. 
 Those are similar to ones we set in [Mangosta-Android].
 The last one points to the video file that will be streamed on request. 
 This file has to be raw, H.264-encoded, video-only file.
@@ -201,7 +201,7 @@ In order to do that, we have to click the "*New video stream*" button as shown o
 
 Hopefully, now you can see the video on your own screen.
 
-[MongooseICE]: https://github.com/esl/fennec
+[MongooseICE]: https://github.com/esl/MongooseICE
 [MongooseIM]: https://github.com/esl/MongooseIM
 [Mangosta-Android]: https://github.com/esl/mangosta-android
 [mangosta_ice_demo]: https://github.com/esl/mangosta-android/tree/ice_demo_kt
