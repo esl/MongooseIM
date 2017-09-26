@@ -19,7 +19,7 @@ To activate those commands, put modules you need into the ejabberd.cfg file:
 
 ```
 
-You also have to hook `mongoose_api_admin` module to an http endpoint:
+You also have to hook `mongoose_api_admin` module to an HTTP endpoint:
 
 ```
   { {8088, "127.0.0.1"} , ejabberd_cowboy, [

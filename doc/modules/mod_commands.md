@@ -6,7 +6,7 @@ This is a basic set of administration and client commands.
 Our goal is to provide a consistent, easy to use API for MongooseIM.
 Both backend and client commands provide enough information to allow auto-generating access methods.
 We currently use it in our admin and client REST API interface.
-In the future it may replace the current mongooseimctl implementation.
+In the future it may replace the current `mongooseimctl` implementation.
 
 
 ## Configuration
@@ -24,7 +24,7 @@ The module contains a list of command definitions.
 Each definition contains the following entries:
 
 * name (uniquely identifies the command)
-* category (used for listing commands and for generating urls for REST API)
+* category (used for listing commands and for generating URLs for REST API)
 * subcategory (optional)
 * desc (a brief description)
 * module, function (what is called when the command is executed)
@@ -66,9 +66,9 @@ or
 mongoose_commands:execute(<<"alice@wonderland.lit">>, list_contacts)
 ```
 
-and it will return a list of jids. REST API would expose this command as
+and it will return a list of JIDs. REST API would expose this command as
 ```
 http://localhost/api/contacts % use GET, since it is 'read'
 ```
-and return a json list of strings. Since this is a user command, REST would expose it on the "client"
+and return a JSON list of strings. Since this is a user command, REST would expose it on the "client"
 interface and require authorisation headers.
