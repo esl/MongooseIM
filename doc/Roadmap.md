@@ -5,19 +5,19 @@ The products and services offered by the MongooseIM Platform allow businesses an
 
 ## Current state of the MongooseIM platform
 
-The following components are a part of the MongooseIM platform, not only the XMPP/REST messaging server.
+The following components are all part of the MongooseIM platform, not only the core XMPP/REST messaging server.
 
-Backend/server components:
+### Backend/server components:
 
+* [MongooseIM](https://github.com/esl/MongooseIM): core MongooseIM server, real-time XMPP/REST messaging cluster
 * [MongoosePush](https://github.com/esl/MongoosePush): open source Push notifications server in Elixir
 * [MongooseICE](https://github.com/esl/Fennec): open source ICE/STUN/TURN server in Elixir
-* [MongooseIM](https://github.com/esl/MongooseIM): MongooseIM XMPP/REST messaging cluster
 * [exml](https://github.com/esl/exml): XML library
 * [escalus](https://github.com/esl/escalus): Erlang XMPP client
 * [amoc](https://github.com/esl/amoc): A Murder Of Crows, load injector
 * [Tide/CLT](http://tide.erlang-solutions.com/): Continuous Load Testing platform
 
-Frontend/client components:
+### Frontend/client components:
 
 * [Smack](https://github.com/igniterealtime/Smack): open source, third party library for Android
 * [XMPPFramework](https://github.com/robbiehanson/XMPPFramework): open source, third party library for iOS
@@ -33,7 +33,9 @@ This means that while we are pretty confident with the plan for the near future,
 We are excited about the vision we have come up with, but want to improve it based on your ideas.
 Please contact us and tell us about what features and improvements do you see as valuable in your project.
 
-## MongooseIM 2.1.x: platform expansion, mobile focus, highly technical (2017Q2-Q3)
+### MongooseIM 2.x: Platform
+
+#### MongooseIM 2.1.x: platform expansion, mobile focus (2017Q2-Q3)
 
 * Flexible push notifications architecture:
     * [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) **NEW**
@@ -46,14 +48,16 @@ Please contact us and tell us about what features and improvements do you see as
 * Basic one-to-one VoIP (NAT traversal and media relaying with ICE/STUN/TURN server)
 * Contributions to ecosystem
 
-## MongooseIM 3.0.x: real-time planetary scale (2018Q1)
+### MongooseIM 3.x: planetary scale
+
+#### MongooseIM 3.0.x: real-time planetary scale (2018Q1)
 
 * Cluster intercontinental geo-distribution for real-time content
 * SASL 2.0
 * [XEP-0376: Pubsub Account Management](https://xmpp.org/extensions/xep-0376.html)
 * Contributions to ecosystem
 
-## MongooseIM 3.1.x:  (2018Q2)
+#### MongooseIM 3.1.x:  (2018Q2)
 
 * Intercontinental geo-distribution for message archive
 * Inbox
@@ -61,7 +65,9 @@ Please contact us and tell us about what features and improvements do you see as
 * [XEP-0379: Pre-Authenticated Roster Subscription](https://xmpp.org/extensions/xep-0379.html)
 * Contributions to the ecosystem
 
-## MongooseIM 4.0.x: chatbots and IoT (2018S2)
+### MongooseIM 4.x: reconnecting bots and humans
+
+#### MongooseIM 4.0.x: chatbots and IoT (2018S2)
 
 * Conversational model:
     * In-chat forms (quick replies), for bots and humans: new ProtoXEP, sample implementations on server and clients
@@ -74,7 +80,7 @@ Please contact us and tell us about what features and improvements do you see as
     * Cloud/fog focus
 * Contributions? [XEP-xxxx: Explicit Message Encryption](https://xmpp.org/extensions/inbox/eme.html)?
 
-## MongooseIM 4.1.x: social (2018S2)
+#### MongooseIM 4.1.x: social (2018S2)
 
 * Social networking improvements
 * Stories
@@ -86,7 +92,6 @@ Please contact us and tell us about what features and improvements do you see as
 * Mangosta Web
 * Mangosta desktop/laptop (Windows, macOS, Linux)
 * Contributions to Strophe.js and Stanza.io
-
 
 ## Contribute to our roadmap
 
