@@ -16,14 +16,14 @@ There are no options to be provided, therefore the following entry in the config
 This file consists of [commands definitions](mod_commands.md).
 Following commands (along with functions necessary for them to run) are defined:
 + `create_muc_light_room`  
-Creates a MUC Light room.  
+Create a MUC Light room with unique username part in JID.
     Args:  
         - `domain` (binary)  
         - `name`  (binary)  
         - `owner` (binary)  
         - `subject` (binary)  
 + `create_identifiable_muc_light_room`  
-Updates a MUC Light room.  
+Creates a MUC Light room with user-provided username part in JID.
     Args:  
         - `domain` (binary)  
         - `id` (binary)  
