@@ -264,7 +264,7 @@ check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
     ShortJID = escalus_client:short_jid(UserToExecuteDelete),
     Path = <<"/muc-lights",$/,Domain/binary,$/,
              RoomNameToDelete/binary,$/,ShortJID/binary,$/,"management">>,
-    rest_helper:delete(Path).
+    rest_helper:delete(admin, Path).
 
 %%--------------------------------------------------------------------
 %% Constants
