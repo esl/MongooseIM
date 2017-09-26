@@ -14,6 +14,7 @@
     post/3,
     putt/3,
     delete/2,
+    delete/3,
     maybe_enable_mam/3,
     maybe_disable_mam/2,
     maybe_skip_mam_test_cases/3,
@@ -102,6 +103,10 @@ putt(Path, Body, Cred) ->
 
 delete(Path, Cred) ->
     make_request({<<"DELETE">>, Cred}, Path).
+
+delete(Path, Cred, Body) ->
+    make_request({<<"DELETE">>, Cred}, Path, Body).
+
 
 
 make_request(Method, Path) ->

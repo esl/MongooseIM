@@ -254,6 +254,28 @@ paths:
       responses:
         204:
           description: "The user was added to a contact list."
+    delete:
+      tags:
+        - Contacts
+      description: Removes a list of users
+      parameters:
+        - in: body
+          name: contacts
+          schema:
+            properties:
+              to_delete:
+                type: array
+                items:
+                  type: string
+      responses:
+        200:
+          description: Returns a list of not deleted users
+          schema:
+            properties:
+              not_deleted:
+                type: array
+                items:
+                  type: string
   /contacts/{contact}:
     put:
       description: "Manage subscription"
