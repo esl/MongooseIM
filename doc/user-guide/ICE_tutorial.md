@@ -97,15 +97,15 @@ For that we are going to use the star of this tutorial - [MongooseICE](https://g
 The whole documentation that describes all options and deployment methods, can be found on the [project's github page](https://github.com/esl/MongooseICE).
 Let's get to it! (this command assumes that we are on the server for [MongooseICE](https://github.com/esl/MongooseICE) and that it has Docker installed):
 ```bash
-docker run -it --net=host -e "FENNEC_UDP_RELAY_IP=1.1.1.1" -e "FENNEC_STUN_SECRET=secret" -e "FENNEC_UDP_REALM=myrelay" mongooseim/fennec:0.3.0
+docker run -it --net=host -e "MONGOOSEICE_UDP_RELAY_IP=1.1.1.1" -e "MONGOOSEICE_STUN_SECRET=secret" -e "MONGOOSEICE_UDP_REALM=myrelay" mongooseim/mongooseice:0.4.0
 ```
 
 This command starts the [MongooseICE](https://github.com/esl/MongooseICE) server in the Docker container, attaching its virtual network interface to the network interface of the host machine the Docker deamon is running on.
 There are three important configuration options we have to set via environment variables:
-* **FENNEC\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on. 
+* **MONGOOSEICE\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on. 
  This should be set to public IPv4 address.
-* **FENNEC\_STUN\_SECRET** - This is a secret password that TURN clients need to provide to connect to this server.
-* **FENNEC\_UDP\_REALM** - This is just a name for your TURN relay.
+* **MONGOOSEICE\_STUN\_SECRET** - This is a secret password that TURN clients need to provide to connect to this server.
+* **MONGOOSEICE\_UDP\_REALM** - This is just a name for your TURN relay.
 
 And that's it! [MongooseICE](https://github.com/esl/MongooseICE) is now ready to roll!
 
@@ -135,9 +135,9 @@ The process is shown on the screenshots below.
 On the "*Configure ICE*" screen we have to setup 5 fields:
 * **TURN server address** - IPv4 address of our [MongooseICE](https://github.com/esl/MongooseICE)
 * **TURN Server port** - since we did not set the port while configuring [MongooseICE](https://github.com/esl/MongooseICE) it uses a default one - **3478**
-* **TURN Realm** - Realm name we have set via *FENNEC\_UDP\_REALM* variable. In our case it's "*myrelay*".
+* **TURN Realm** - Realm name we have set via *MONGOOSEICE\_UDP\_REALM* variable. In our case it's "*myrelay*".
 * **TURN username** - Current version of [MongooseICE](https://github.com/esl/MongooseICE) ignores this, so you may leave it as is.
-* **TURN password** - The password that we have set via *FENNEC\_STUN\_SECRET* variable. In out case it's "*secret*"
+* **TURN password** - The password that we have set via *MONGOOSEICE\_STUN\_SECRET* variable. In out case it's "*secret*"
 
 And that would be all. 
 Now you can click "*TEST CONNECTEION*" to, well..., test the connection.
