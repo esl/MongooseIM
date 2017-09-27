@@ -100,8 +100,8 @@ The MongooseIM platform documentation:
     * [Release/Installation configuration](user-guide/release_config.md)
     * [High-level Architecture](user-guide/MongooseIM-High-level-Architecture.md) from single to multiple node setup to multi-datacenter
     * [How to build](user-guide/How-to-build.md) from source code
-    * [How to set up Push Notifications with MongoosePush](user-guide/Push-notifications.md)
-    * [How to set up MongooseICE (ICE/TURN/STUN server)](user-guide/ICE-STUN-TURN-tutorial.md)
+    * [How to: Set up MongoosePush](user-guide/Push-notifications.md)
+    * [How to: Set up MongooseICE](user-guide/ICE_tutorial.md)
 * Platform:
     * [Roadmap](Roadmap.md)
     * [Contributions to the ecosystem](Contributions.md)
