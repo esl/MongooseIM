@@ -11,7 +11,7 @@ The following components build up the MongooseIM platform, and not only the XMPP
 
 * [MongooseIM](https://github.com/esl/MongooseIM): the core server, real-time XMPP/REST messaging cluster
 * [MongoosePush](https://github.com/esl/MongoosePush): open source Push notifications server in Elixir
-* [MongooseICE](https://github.com/esl/Fennec): open source ICE/STUN/TURN server in Elixir
+* [MongooseICE](https://github.com/esl/MongooseICE): open source ICE/STUN/TURN server in Elixir
 * [exml](https://github.com/esl/exml): XML library
 * [escalus](https://github.com/esl/escalus): Erlang XMPP client
 * [amoc](https://github.com/esl/amoc): A Murder Of Crows, load injector
@@ -23,6 +23,7 @@ The following components build up the MongooseIM platform, and not only the XMPP
 * [XMPPFramework](https://github.com/robbiehanson/XMPPFramework): open source, third party library for iOS
 * [Mangosta Android](https://github.com/esl/mangosta-android): chat and social client, sample app
 * [Mangosta iOS](https://github.com/esl/mangosta-ios): chat and social client, sample app
+* Mangosta Web? Mangosta Laptop (Windows, macOS, Linux)? Strophe.js? Stanza.io? React Native?
 
 ## Roadmap
 

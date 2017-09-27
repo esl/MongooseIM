@@ -63,9 +63,9 @@ XML parsing library in Erlang
 
 Apache license 2.0
 
-### ICE (STUN/TURN) server
+### MongooseICE: ICE (STUN/TURN) server
 
-See [MongooseICE](https://github.com/esl/Fennec) on GitHub for more details.
+See [MongooseICE](https://github.com/esl/MongooseICE) on GitHub for more details.
 
 ### MongoosePush: Push notifications server (APNS/FCM)
 
