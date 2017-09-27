@@ -229,8 +229,9 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
 %% -----------------------------------------------------------------------
 %% XML
 
--spec maybe_add_arcid_elems(To :: binary(), MessID :: binary(), Packet :: jlib:xmlel(),
-                               AddArchived :: boolean(), AddStanzaid :: boolean()) ->
+-spec maybe_add_arcid_elems(To :: ejabberd:simple_jid()  | ejabberd:jid(),
+                            MessID :: binary(), Packet :: jlib:xmlel(),
+                            AddArchived :: boolean(), AddStanzaid :: boolean()) ->
           AlteredPacket :: jlib:xmlel().
 maybe_add_arcid_elems(To, MessID, Packet, AddArchived, AddStanzaid) ->
     BareTo = jid:to_binary(jid:to_bare(To)),
