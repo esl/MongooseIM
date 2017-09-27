@@ -54,7 +54,7 @@ commands() ->
     [
      [{name, create_muc_light_room},
       {category, <<"muc-lights">>},
-      {desc, <<"Create a MUC Light room.">>},
+      {desc, <<"Create a MUC Light room with unique username part in JID.">>},
       {module, ?MODULE},
       {function, create_unique_room},
       {action, create},
@@ -72,7 +72,7 @@ commands() ->
 
      [{name, create_identifiable_muc_light_room},
       {category, <<"muc-lights">>},
-      {desc, <<"Update a MUC Light room.">>},
+      {desc, <<"Create a MUC Light room with user-provided username part in JID">>},
       {module, ?MODULE},
       {function, create_identifiable_room},
       {action, update},
