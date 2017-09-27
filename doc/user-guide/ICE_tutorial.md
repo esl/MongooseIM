@@ -44,10 +44,10 @@ We also have a RaspberryPi that is connected to a private network (so is behind 
 
 #### ICE notes
 
-The end result of this tutorial not only uses [MongooseICE](https://github.com/esl/fennec) and [MongooseIM] servers but also uses custom version of [Mangosta-Android] and [DemoStreamerICE].
-Both projects are custom modified and custom made respectively in order to showcase the video streaming using the data relay capabilities provided by [MongooseICE](https://github.com/esl/fennec).
+The end result of this tutorial not only uses [MongooseICE](https://github.com/esl/MongooseICE) and [MongooseIM] servers but also uses custom version of [Mangosta-Android] and [DemoStreamerICE].
+Both projects are custom modified and custom made respectively in order to showcase the video streaming using the data relay capabilities provided by [MongooseICE](https://github.com/esl/MongooseICE).
 The streaming itself, along with the signalling protocol, were prepared only for the case of this demo and **are not a part of the platform**.
-Those components exist only to visualize what can be achieved with [MongooseICE](https://github.com/esl/fennec) and what can be built on top of it.
+Those components exist only to visualize what can be achieved with [MongooseICE](https://github.com/esl/MongooseICE) and what can be built on top of it.
 
 ### Setting up MongooseIM (signalling)
 
@@ -90,24 +90,24 @@ As you can see here, we have created those two users, both with the password *xm
 ### Setting up MongooseICE (TURN/STUN server)
 
 Now, since [MongooseIM] handles the signalling, we need the TURN relay and the STUN server to send peer-to-peer data.
-For that we are going to use the star of this tutorial - [MongooseICE](https://github.com/esl/fennec).
+For that we are going to use the star of this tutorial - [MongooseICE](https://github.com/esl/MongooseICE).
 
 #### How to get and configure
 
-The whole documentation that describes all options and deployment methods, can be found on the (project's github page)[https://github.com/esl/fennec].
-Let's get to it! (this command assumes that we are on the server for [MongooseICE](https://github.com/esl/fennec) and that it has Docker installed):
+The whole documentation that describes all options and deployment methods, can be found on the (project's github page)[https://github.com/esl/MongooseICE].
+Let's get to it! (this command assumes that we are on the server for [MongooseICE](https://github.com/esl/MongooseICE) and that it has Docker installed):
 ```bash
 docker run -it --net=host -e "FENNEC_UDP_RELAY_IP=1.1.1.1" -e "FENNEC_STUN_SECRET=secret" -e "FENNEC_UDP_REALM=myrelay" mongooseim/fennec:0.3.0
 ```
 
-This command starts the [MongooseICE](https://github.com/esl/fennec) server in the Docker container, attaching its virtual network interface to the network interface of the host machine the Docker deamon is running on.
+This command starts the [MongooseICE](https://github.com/esl/MongooseICE) server in the Docker container, attaching its virtual network interface to the network interface of the host machine the Docker deamon is running on.
 There are three important configuration options we have to set via environment variables:
-* **FENNEC\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/fennec) provides data relay on. 
+* **FENNEC\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on. 
  This should be set to public IPv4 address.
 * **FENNEC\_STUN\_SECRET** - This is a secret password that TURN clients need to provide to connect to this server.
 * **FENNEC\_UDP\_REALM** - This is just a name for your TURN relay.
 
-And that's it! [MongooseICE](https://github.com/esl/fennec) is now ready to roll!
+And that's it! [MongooseICE](https://github.com/esl/MongooseICE) is now ready to roll!
 
 ### Setting up Mangosta-Android
 #### How to get and install
@@ -125,7 +125,7 @@ In order to do that, just enter the JID you have created for the phone (*phone@m
 
 <img src="ICE_tutorial/mangosta_login.png" width="25%">
 
-After we log in, we can start setting up the connection to the [MongooseICE](https://github.com/esl/fennec) server we set up before. 
+After we log in, we can start setting up the connection to the [MongooseICE](https://github.com/esl/MongooseICE) server we set up before. 
 The process is shown on the screenshots below.
 
 <img src="mangosta_ice_settings_1.png" width="30%">
@@ -133,10 +133,10 @@ The process is shown on the screenshots below.
 <img alt="Mangosta save ICE settings" src="mangosta_ice_settings_3.png" width="30%">
 
 On the "*Configure ICE*" screen we have to setup 5 fields:
-* **TURN server address** - IPv4 address of our [MongooseICE](https://github.com/esl/fennec)
-* **TURN Server port** - since we did not set the port while configuring [MongooseICE](https://github.com/esl/fennec) it uses a default one - **3478**
+* **TURN server address** - IPv4 address of our [MongooseICE](https://github.com/esl/MongooseICE)
+* **TURN Server port** - since we did not set the port while configuring [MongooseICE](https://github.com/esl/MongooseICE) it uses a default one - **3478**
 * **TURN Realm** - Realm name we have set via *FENNEC\_UDP\_REALM* variable. In our case it's "*myrelay*".
-* **TURN username** - Current version of [MongooseICE](https://github.com/esl/fennec) ignores this, so you may leave it as is.
+* **TURN username** - Current version of [MongooseICE](https://github.com/esl/MongooseICE) ignores this, so you may leave it as is.
 * **TURN password** - The password that we have set via *FENNEC\_STUN\_SECRET* variable. In out case it's "*secret*"
 
 And that would be all. 
