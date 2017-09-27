@@ -1,10 +1,8 @@
 # Entity Capabilities Module
 
 ## Purpose
-This module provides a presence-based mechanism 
-for exchanging information about entity capabilities
-as defined in [XEP-0115](https://xmpp.org/extensions/xep-0115.html).
-It requests and caches Entity Capabilities from clients.
+This module provides a presence-based mechanism for exchanging information about entity capabilities as defined in [XEP-0115](https://xmpp.org/extensions/xep-0115.html). Additionally, it filters out PEP messages that recipient declared (in announced caps) being not capable of handling.  
+It is not this module's responsibility to intercept and answer to disco requests routed between clients.
 
 ## Configuration
 This module expects two optional arguments that apply to [cache tab](https://github.com/processone/cache_tab):
