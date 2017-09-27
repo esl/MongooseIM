@@ -25,14 +25,15 @@ For now `odbc` backend has very limited support for this feature, while `cassand
 ### Options
 
 * **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak` and `cassandra` are supported.
-* **add_archived_element** (boolean, default: `false`) - Add `<archived/>` element from MAM v0.2.
+* **add_archived_element** (boolean, default: `false`) - Add `<archived/>` element from MAM v0.2. **Be aware:** The element is going to be deprecated in one of future releases so it's not recommended to enable this option.
+* **no_stanzaid_element** (boolean, default: `false`) - Do not add `<stanza-id/>` element from MAM v0.6.
 * **is_archivable_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
  **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain.
 * **archive_chat_markers** (boolean, default: `false`) - If set to true, XEP-0333 chat markers will be archived. See more details [here](#archiving-chat-markers)
 * **pm** (list | `false`, default: `[]`) - Override options for archivization of one-to-one messages. If the value of this option is `false`, one-to-one message archive is disabled.
 * **muc** (list | `false`, default: `false`) - Override options for archivization of group chat messages. If the value of this option is `false`, group chat message archive is disabled.
 
-**backend**, **add_archived_element** and **is_archivable_message** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
+**backend**, **add_archived_element**, **no_stanzaid_element** and **is_archivable_message** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
 
 #### PM-specific options
 
@@ -147,7 +148,7 @@ You can change the default settings using extra parameters:
 {mod_mam_meta, [
         {backend, odbc},
 
-        {add_archived_element, true},
+        {no_stanzaid_element, true},
 
         {pm, [{user_prefs_store, odbc}]},
         {muc, [
