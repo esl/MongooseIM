@@ -7,13 +7,14 @@
     assert_notinlist/2,
     decode_maplist/1,
     gett/2,
-    post/3,
-    putt/3,
-    delete/2,
     gett/3,
+    post/3,
     post/4,
+    putt/3,
     putt/4,
+    delete/2,
     delete/3,
+    delete/4,
     maybe_enable_mam/3,
     maybe_disable_mam/2,
     maybe_skip_mam_test_cases/3,
@@ -105,6 +106,10 @@ putt(Role, Path, Body, Cred) ->
 
 delete(Role, Path, Cred) ->
     make_request(Role, {<<"DELETE">>, Cred}, Path).
+
+delete(Role, Path, Cred, Body) ->
+    make_request(Role, {<<"DELETE">>, Cred}, Path, Body).
+
 
 
 make_request(Role, Method, Path) ->

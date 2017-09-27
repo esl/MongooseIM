@@ -513,11 +513,11 @@ paths:
       - $ref: '#/parameters/hostName'
       - $ref: '#/parameters/roomName'
       - user: owner
-          in: path
-          description: User's JID (f.e. alice@wonderland.lit)
-          required: true
-          type: string
-          format: JID
+        in: path
+        description: User's JID (f.e. alice@wonderland.lit)
+        required: true
+        type: string
+        format: JID
     delete:
       tags:
         - "MUC-light management"

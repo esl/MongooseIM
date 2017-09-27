@@ -15,6 +15,7 @@
          add_contact/2,
          add_contact/3,
          add_contact/4,
+         delete_contacts/2,
          delete_contact/2,
          subscription/3,
          set_subscription/3,
@@ -161,6 +162,18 @@ commands() ->
       {result, ok}
      ],
      [
+      {name, delete_contacts},
+      {category, <<"contacts">>},
+      {subcategory, <<"multiple">>},
+      {desc, <<"Remove provided contacts from roster">>},
+      {module, ?MODULE},
+      {function, delete_contacts},
+      {action, delete},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jids, [binary]}]},
+      {result,  []}
+     ],
+     [
       {name, send_message},
       {category, <<"messages">>},
       {desc, <<"Send chat message from to">>},
@@ -278,9 +291,31 @@ add_contact(Caller, JabberID, Name, Groups) ->
     CJid = jid:from_binary(Caller),
     mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
 
+delete_contacts(Caller, ToDelete) ->
+    maybe_delete_contacts(Caller, ToDelete, []).
+
+maybe_delete_contacts(_, [], NotDeleted) -> NotDeleted;
+maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
+    case delete_contact(Caller, H) of
+        ok ->
+            maybe_delete_contacts(Caller, T, NotDeleted);
+        error ->
+            maybe_delete_contacts(Caller, T, NotDeleted ++ [H])
+    end.
+
 delete_contact(Caller, JabberID) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:remove_from_roster(CJid, JabberID).
+    case jid_exists(Caller, JabberID) of
+        false -> error;
+        true ->
+            mod_roster:remove_from_roster(CJid, JabberID)
+    end.
+
+-spec jid_exists(binary(), binary()) -> boolean().
+jid_exists(CJid, Jid) ->
+    FJid = jid:from_binary(CJid),
+    Res = mod_roster:get_roster_entry(FJid#jid.luser, FJid#jid.lserver, Jid),
+    Res =/= does_not_exist.
 
 registered_commands() ->
     [#{name => mongoose_commands:name(C),
