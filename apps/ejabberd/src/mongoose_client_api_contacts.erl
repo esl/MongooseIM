@@ -112,7 +112,7 @@ handle_request_and_respond(Method, Jid, Action, CJid, Req, State) ->
         not_found ->
             {ok, Req2} = cowboy_req:reply(404, Req),
             {halt, Req2, State}
-    end
+    end.
 
 serve_failure(not_implemented, Req, State) ->
     {ok, Req2} = cowboy_req:reply(501, Req),
