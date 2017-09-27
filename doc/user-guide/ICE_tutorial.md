@@ -140,7 +140,7 @@ On the "*Configure ICE*" screen we have to setup 5 fields:
 * **TURN password** - The password that we have set via *MONGOOSEICE\_STUN\_SECRET* variable. In out case it's "*secret*"
 
 And that would be all. 
-Now you can click "*TEST CONNECTEION*" to, well..., test the connection.
+Now you can click "*TEST CONNECTION*" to, well..., test the connection.
 If everything works, you can "*SAVE*" the settings. 
 Now your [Mangosta-Android] is ready to play streamed video, but we still need the source...
 
