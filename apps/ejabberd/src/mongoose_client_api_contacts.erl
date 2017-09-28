@@ -70,16 +70,7 @@ from_json(Req, #{jid := Caller} = State) ->
               J -> J
           end,
     Action = maps:get(<<"action">>, JSONData, undefined),
-    case handle_request(Method, to_binary(Jid), Action, CJid) of
-        ok ->
-            {true, Req2, State};
-        not_implemented ->
-            {ok, Req3} = cowboy_req:reply(501, Req2),
-            {halt, Req3, State};
-        not_found ->
-            {ok, Req3} = cowboy_req:reply(404, Req2),
-            {halt, Req3, State}
-    end.
+    handle_request_and_respond(Method, Jid, Action, CJid, Req2, State).
 
 %% @doc Called for a method of type "DELETE"
 delete_resource(Req, #{jid := Caller} = State) ->
@@ -111,6 +102,17 @@ handle_single_deletion(CJid, ToDelete, Req, State) ->
             serve_failure(Other, Req, State)
     end.
 
+handle_request_and_respond(Method, Jid, Action, CJid, Req, State) ->
+    case handle_request(Method, to_binary(Jid), Action, CJid) of
+        ok ->
+            {true, Req, State};
+        not_implemented ->
+            {ok, Req2} = cowboy_req:reply(501, Req),
+            {halt, Req2, State};
+        not_found ->
+            {ok, Req2} = cowboy_req:reply(404, Req),
+            {halt, Req2, State}
+    end.
 
 serve_failure(not_implemented, Req, State) ->
     {ok, Req2} = cowboy_req:reply(501, Req),

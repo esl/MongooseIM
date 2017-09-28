@@ -94,7 +94,7 @@ create_unique_room(Config) ->
                   owner => escalus_client:short_jid(Alice),
                   subject => <<"Lewis Carol">>
                 },
-        {{<<"201">>, _}, _} = rest_helper:post(Path, Body),
+        {{<<"201">>, _}, _} = rest_helper:post(admin, Path, Body),
         [Item] = get_disco_rooms(Alice),
         MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
@@ -113,7 +113,7 @@ create_identifiable_room(Config) ->
                 },
         {{<<"201">>, _},
          <<"just_some_id", $@, MUCLightDomain/binary>>
-        } = rest_helper:putt(Path, Body),
+        } = rest_helper:putt(admin, Path, Body),
         [Item] = get_disco_rooms(Alice),
         MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
@@ -140,7 +140,7 @@ invite_to_room(Config) ->
         Body = #{ sender => escalus_client:short_jid(Alice),
                   recipient => escalus_client:short_jid(Bob)
                 },
-        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         %% XMPP: Bob recieves his affiliation information.
         member_is_affiliated(escalus:wait_for_stanza(Bob), Bob),
         %% XMPP: Alice recieves Bob's affiliation infromation.
@@ -168,7 +168,7 @@ send_message_to_room(Config) ->
         Body = #{ from => escalus_client:short_jid(Alice),
                   body => Text
                 },
-        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         %% XMPP: Both Bob and Kate see the message.
         [ see_message_from_user(U, Alice, Text) || U <- [Bob, Kate] ]
     end).
@@ -264,7 +264,7 @@ check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
     ShortJID = escalus_client:short_jid(UserToExecuteDelete),
     Path = <<"/muc-lights",$/,Domain/binary,$/,
              RoomNameToDelete/binary,$/,ShortJID/binary,$/,"management">>,
-    rest_helper:delete(Path).
+    rest_helper:delete(admin, Path).
 
 %%--------------------------------------------------------------------
 %% Constants
