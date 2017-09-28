@@ -47,7 +47,7 @@ It queries clients for their supported functionalities and caches them in Mnesia
 This module tightly cooperates with [mod_pubsub](../modules/mod_pubsub.md) in order to deliver [PEP](https://xmpp.org/extensions/xep-0163.html) events to user's subscribers.
 
 ### [mod_carboncopy](../modules/mod_carboncopy.md)
-Implements [XEP-0280: Message Carbons](http://xmpp.org/extensions/xep-0280.html), in order to keep all IM clients for a user engaged in a real-time conversation, by carbon-copying all inbound and outbound messages to all interested resources (Full JIDs).
+Implements [XEP-0280: Message Carbons](http://xmpp.org/extensions/xep-0280.html) in order to keep all IM clients for a user engaged in a real-time conversation by carbon-copying all inbound and outbound messages to all interested resources (Full JIDs).
 
 ### [mod_commands](../modules/mod_commands.md)
 A central gateway providing access to a subset of MongooseIM functions by channels other than XMPP.
@@ -107,7 +107,7 @@ This module implements [XEP-0016: Privacy Lists)](http://xmpp.org/extensions/xep
 Implements [XEP-0049 (Private XML Storage)](http://xmpp.org/extensions/xep-0049.html) to store and query private user data in XML format.
 
 ### [mod_pubsub](../modules/mod_pubsub.md)
-This extension implements [XEP-0060 (Publish-Subscribe)](http://www.xmpp.org/extensions/xep-0060.html). It is a pluggable implementation, that uses behaviours provided by `node_*.erl` and `nodetree_*.erl` modules.
+This extension implements [XEP-0060 (Publish-Subscribe)](http://www.xmpp.org/extensions/xep-0060.html). It is a pluggable implementation using behaviours provided by `node_*.erl` and `nodetree_*.erl` modules.
 
 ### [mod_push](../modules/mod_push.md)
 Implements [XEP-0357 Push Notifiactions](https://xmpp.org/extensions/xep-0357.html) to provide push notifications to clients that are temporary unavailable.

@@ -3,7 +3,7 @@
 JWT authentication backend can verify JSON Web Tokens provided by the clients.
 A wide range of signature algorithms is supported, including those using public key cryptography.
 
-The module checks the signature and also the validity of the following parameters:
+The module checks the signature and validity of the following parameters:
 
 * `exp` - an expired token is rejected,
 * `iat` - a token must be issued in the past,
@@ -14,8 +14,8 @@ Requires the SASL PLAIN method.
 ## Configuration options
 
 * **jwt_secret_source**
-    * **Description:** A path to a file or an environment variable, which contents will be used as a JWT secret.
-    * **Warning:** A direct path to a file is read only once during startup, a path in the environment variable is read on every auth request.
+    * **Description:** A path to a file or an environment variable, which will be used as a JWT secret.
+    * **Warning:** Please note that while a direct path to a file is read only once during startup, a path in the environment variable is read on every auth request.
     * **Value:** string, e.g. `/etc/secrets/jwt` or `{env, "env-variable-name"}`
     * **Default:** none, either `jwt_secret_source` or `jwt_secret` must be set
 

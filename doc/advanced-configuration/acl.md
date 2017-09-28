@@ -95,7 +95,8 @@ To do so, we need to specify a tuple like the following:
 As an example we can discuss 2 rules which are present in the default config file:
 
 * `{access, register, [{allow, all}]}`.<br/>
-This rule is used while registering a new user, the example above has no restrictions, but we might want to block certain JIDs, `admin` JID for instance.
+This rule is used while registering a new user.
+The example above has no restrictions, but we might want to block certain JIDs, `admin` JID for instance.
 To do so we need to set:<br/>
 `{acl, admin, {user, "admin"}}.`, then `{access, register, [{deny, admin}, {allow, all}]}.`
 * `{access, max_user_offline_messages, [{5000, admin}, {100, all}]}`.<br/>
@@ -106,7 +107,7 @@ For users defined in the admin ACL (for example `{acl, admin, {user, "pawel", "l
 # Priority: global vs host access lists
 
 By default, both ACL and access elements are "global", so they apply to all domains available on the server.
-However using the `host_config` option, we are able to override the rules for a particular domain.
+However, using the `host_config` option, we are able to override the rules for a particular domain.
 
 ```
 %%  Define specific Access Rules in a virtual host.

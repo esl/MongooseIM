@@ -32,11 +32,11 @@ Requires the SASL PLAIN method.
     * **Default:** `undefined`
 
 * **ldap_dn_filter:**
-    * **Description:**  This filter is applied on the results returned by the main filter.
+    * **Description:**  This filter is applied to the results returned by the main filter.
     It performs an additional LDAP lookup to provide the complete result.
     This is useful when you are unable to define all filter rules in the `ldap_filter`.
     You can define `%u`, `%d`, `%s` and `%D` pattern variables in the filter: `%u` is replaced by a user’s part of a JID, `%d` is replaced by the corresponding domain (virtual host), all `%s` variables are consecutively replaced by values of `FilterAttrs` attributes and `%D` is replaced by the Distinguished Name.
-    Since this filter makes additional LDAP lookups, use it only as the last resort: try to define all filter rules in ldap_filter if possible.
+    Since this filter makes additional LDAP lookups, use it only as the last resort; try to define all filter rules in ldap_filter if possible.
     * **Values:** `{Filter, [FilterAttributes]}`. For example: `(&(name=%s)(owner=%D)(user=%u@%d))": ["sn"]`
     * **Default:** `undefined`
 
