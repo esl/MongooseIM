@@ -1,5 +1,6 @@
 ### Module Description
 This module enables support for the Amazon SNS service. Currently there are 3 available notifications:
+
 * **user presence changed** - Carries the user id (bare jid by default) and a boolean field corresponding to the current user online status.
 * **private message sent** - Carries the user ids (both sender and receiver) along with the message body.
 * **group message sent** - Carries the user id and the room id (bare jids by default) along with the message body.
