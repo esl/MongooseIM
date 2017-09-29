@@ -16,11 +16,11 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 
 ### Configuration
 
-* `certfile` (string, optional, no default value) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
-* `starttls` (optional, default: disabled) - Enables StartTLS support; requires `certfile`.
-* `starttls_required` (optional, default: disabled) - enforces StartTLS usage.
+* `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
+* `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
+* `starttls_required` (default: disabled) - enforces StartTLS usage.
 * `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/)); the limit can be disabled with an atom 'unlimited'.
-* `ciphers` (string, optional, default: as of OpenSSL 1.0.0 it's `ALL:!aNULL:!eNULL` [(source)](https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
+* `ciphers` (string, default: as of OpenSSL 1.0.0 it's `ALL:!aNULL:!eNULL` [(source)](https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
  Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
 * `access` (atom, default: `c2s`) - Access Rule to use for C2S connections.
 * `c2s_shaper` (atom, default: `c2s_shaper`) - Connection shaper to use for incoming C2S stanzas.
@@ -30,7 +30,7 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 * `protocol_options` List of supported SSL protocols, default "no_sslv3".
  It also accepts "no_tlsv1" and "no_tlsv1_1"
-* `dhfile` (string, optional, no default value) - Path to the Diffie Hellman parameter file
+* `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
 
 ## HTTP-based services (BOSH, WebSocket, REST): `ejabberd_cowboy`
 
