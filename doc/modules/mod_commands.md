@@ -72,3 +72,4 @@ http://localhost/api/contacts % use GET, since it is 'read'
 ```
 and return a JSON list of strings. Since this is a user command, REST would expose it on the "client"
 interface and require authorisation headers.
+

@@ -103,10 +103,13 @@ The MongooseIM platform documentation:
     * [Release/Installation configuration](doc/user-guide/release_config.md)
     * [High-level Architecture](doc/user-guide/MongooseIM-High-level-Architecture.md) from single to multiple node setup to multi-datacenter
     * [How to build](doc/user-guide/How-to-build.md) from source code
+    * [How to: Set up MongoosePush](user-guide/Push-notifications.md)
+    * [How to: Set up MongooseICE](user-guide/ICE_tutorial.md)
 * Platform:
     * [Roadmap](doc/Roadmap.md)
-    * [Contributions](doc/Contributions.md)
+    * [Contributions to the ecosystem](doc/Contributions.md)
     * [Differentiators](doc/Differentiators.md)
+    * [History](History.md)
 * Configuration
     * [Basic configuration](doc/Basic-configuration.md)
     * [Advanced configuration](doc/Advanced-configuration.md)
