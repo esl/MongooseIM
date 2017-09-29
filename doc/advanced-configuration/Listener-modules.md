@@ -104,7 +104,7 @@ Packets are forwarded to them based on the protocol.
 This mechanism is transparent to actual handlers so the path sharing does not require any additional code.
 
 Example: If you wish, you can use BOSH and WS XMPP handlers (mod_bosh, mod_websockets) on a single port and a URL without any code modifications.
-The routing layer allows working with both - WebSocket connections and services connecting over HTTP.
+
 
 
 Here's an example of its configuration (added to ejabberd_cowboy modules list described above):
