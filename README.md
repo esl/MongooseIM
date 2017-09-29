@@ -103,7 +103,7 @@ The MongooseIM platform documentation:
     * [Release/Installation configuration](doc/user-guide/release_config.md)
     * [High-level Architecture](doc/user-guide/MongooseIM-High-level-Architecture.md) from single to multiple node setup to multi-datacenter
 * How to
-    * [Build from source code](doc/user-guide/How-to-build.md)
+    * [Build MongooseIM from source code](doc/user-guide/How-to-build.md)
     * [Set up MongoosePush](user-guide/Push-notifications.md)
     * [Set up MongooseICE](user-guide/ICE_tutorial.md)
 * Platform:
