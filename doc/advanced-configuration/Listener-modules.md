@@ -106,7 +106,6 @@ This mechanism is transparent to actual handlers so the path sharing does not re
 Example: If you wish, you can use BOSH and WS XMPP handlers (mod_bosh, mod_websockets) on a single port and a URL without any code modifications.
 
 
-
 Here's an example of its configuration (added to ejabberd_cowboy modules list described above):
 
 ```Erlang
