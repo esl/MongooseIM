@@ -11,9 +11,9 @@
     * over HTTP(S) long-polling (BOSH) as defined in
     [XEP-0124](http://xmpp.org/extensions/xep-0124.html) and
     [XEP-0206](http://xmpp.org/extensions/xep-0206.html)
-    * [REST API](../REST-API.md)
+    * [REST API](../rest-api/Client-frontend.md)
 * Server/backend connections:
-    * [REST API](/http-api/http-administration-api-documentation/)
+    * [REST API](../rest-api/Administration-backend.md)
 * Configurable database backends:
     * Transient:
         * Mnesia
