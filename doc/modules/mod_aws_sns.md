@@ -13,7 +13,7 @@ Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn
 
 * **presence_updates_topic** (string, default: unset) - Defines Amazon SNS Topic for presence change notifications. Remove this option to disable those notifications.
 * **pm_messages_topic** (string, default: unset) - Defines Amazon SNS Topic for private messages notifications. Remove this option to disable those notifications.
-* **token_muc_messages_topic** (string, default: unset) - Defines Amazon SNS Topic for group messages notifications. Remove this option to disable those notifications.
+* **muc_messages_topic** (string, default: unset) - Defines Amazon SNS Topic for group messages notifications. Remove this option to disable those notifications.
 * **plugin_module** (atom, default: 'mod_aws_sns_defaults') - Sets a callback module used for creating user's GUID used in notifications (from user's JID) and for defining custom attributes attached to a published SNS message.
 * **muc_host** (string, default: "conference.@HOST@") - Messages from this MUC host will be sent to the set SNS topic for MUCs.
 * **sns_host** (string, default: unset) - URL to the Amazon SNS service. The URL may be in [virtual host form][aws-virtual-host], and for AWS needs to point at a specific regional endpoint. The scheme, port and path specified in the URL will be used to publish notifications via HTTP POST method.
