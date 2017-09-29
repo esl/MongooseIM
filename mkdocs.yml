@@ -38,9 +38,9 @@ pages:
       - 'MUC light': 'open-extensions/muc_light.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
   - 'REST API'
-      - 'Client/frontend': 'REST-API.md'
-      - 'Metrics backend': 'developers-guide/REST-interface-to-metrics.md'
-      - 'Administration backend': 'http-api/http-administration-api-documentation.md'
+      - 'Client/frontend': 'rest-api/Client-frontend.md'
+      - 'Metrics backend': 'rest-api/Metrics-backend.md'
+      - 'Administration backend': 'rest-api/Administration-backend.md'
   - 'Modules':
       - 'mod_adhoc': 'modules/mod_adhoc.md'
       - 'mod_admin_extra': 'modules/mod_admin_extra.md'
