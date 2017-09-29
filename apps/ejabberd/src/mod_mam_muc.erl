@@ -54,6 +54,7 @@
 -export([archive_message/8]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
+-export([set_params/1]).
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -67,8 +68,7 @@
 
 %% XML
 -import(mod_mam_utils,
-        [add_arcid_elems/3,
-         replace_archived_elem/3,
+        [maybe_add_arcid_elems/5,
          replace_x_user_element/4,
          delete_x_user_element/1,
          packet_to_x_user_jid/1,
@@ -160,6 +160,13 @@ archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam_muc starting", []),
+    case gen_mod:get_opt(add_archived_element, Opts, undefined) of
+        undefined -> ok;
+        _ ->
+            ?WARNING_MSG("Archived element is going to be deprecated in one of future releases."
+                        " It is not recommended to use it."
+                        " Consider using a <stanza-id/> element instead", [])
+    end,
     compile_params_module(Opts),
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
@@ -240,14 +247,14 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
             Result = archive_message(Host, MessID, ArcID,
                                      RoomJID, SrcJID, SrcJID, incoming, Packet1),
             %% Packet2 goes to archive, Packet to other users
-            case {Result, add_archived_element()} of
-                {ok, true} ->
-                    BareRoomJID = jid:to_binary(RoomJID),
-                    add_arcid_elems(BareRoomJID,
-                                          mess_id_to_external_binary(MessID),
-                                          Packet);
-                {ok, false} -> Packet;
-                {{error, _}, _} -> Packet
+            case Result of
+                ok ->
+                    maybe_add_arcid_elems(RoomJID,
+                                             mess_id_to_external_binary(MessID),
+                                             Packet,
+                                             add_archived_element(),
+                                             add_stanzaid_element());
+                {error, _} -> Packet
             end;
         false -> Packet
     end.
@@ -857,12 +864,23 @@ params_helper(Params) ->
           "-module(mod_mam_muc_params).~n"
           "-compile(export_all).~n"
           "add_archived_element() -> ~p.~n"
-          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n",
+          "add_stanzaid_element() -> not ~p.~n"
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
+          "params() -> ~p.~n",
           [proplists:get_bool(add_archived_element, Params),
-           IsArchivableModule, IsArchivableFunction]),
+           proplists:get_bool(no_stanzaid_element, Params),
+           IsArchivableModule, IsArchivableFunction,
+           Params]),
     binary_to_list(iolist_to_binary(Format)).
+
+set_params(Params) ->
+    compile_params_module(Params).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().
 add_archived_element() ->
     mod_mam_muc_params:add_archived_element().
+
+-spec add_stanzaid_element() -> boolean().
+add_stanzaid_element() ->
+    mod_mam_muc_params:add_stanzaid_element().

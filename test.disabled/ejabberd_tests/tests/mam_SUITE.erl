@@ -26,7 +26,15 @@
          end_per_testcase/2]).
 
 %% Tests
--export([mam_service_discovery/1,
+-export([no_elements/1,
+         only_stanzaid/1,
+         only_archived/1,
+         both_elements/1,
+         muc_no_elements/1,
+         muc_both_elements/1,
+         muc_only_stanzaid/1,
+         muc_only_archived/1,
+         mam_service_discovery/1,
          muc_service_discovery/1,
          simple_archive_request/1,
          text_search_query_fails_if_disabled/1,
@@ -263,7 +271,8 @@ is_skipped(_, _) ->
 
 
 basic_groups() ->
-    [{mam_all, [parallel],
+    [
+     {mam_all, [parallel],
            [{mam_metrics, [], mam_metrics_cases()},
             {mam02, [parallel], mam_cases() ++ [querying_for_all_messages_with_jid]},
             {mam03, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
@@ -272,6 +281,7 @@ basic_groups() ->
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {mam_purge, [parallel], mam_purge_cases()},
+            {configurable_archiveid, [], configurable_archiveid_cases()},
             {rsm_all, [parallel],
              [{rsm02,      [parallel], rsm_cases()},
               {rsm03,      [parallel], rsm_cases()},
@@ -286,6 +296,7 @@ basic_groups() ->
             {muc03, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases()},
+            {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm02, [parallel], muc_rsm_cases()},
               {muc_rsm03, [parallel], muc_rsm_cases()},
@@ -369,6 +380,20 @@ muc_cases() ->
 
 muc_stanzaid_cases() ->
     [muc_message_with_archived_and_stanzaid].
+
+muc_configurable_archiveid_cases() ->
+    [
+     muc_no_elements,
+     muc_both_elements,
+     muc_only_stanzaid,
+     muc_only_archived
+    ].
+
+configurable_archiveid_cases() ->
+    [no_elements,
+     only_stanzaid,
+     only_archived,
+     both_elements].
 
 muc_light_cases() ->
     [
@@ -528,6 +553,10 @@ init_per_group(muc04, Config) ->
 init_per_group(muc06, Config) ->
     [{props, mam06_props()}, {with_rsm, true}|Config];
 
+init_per_group(muc_configurable_archiveid, Config) ->
+    Config ++ [{params_backup, rpc_apply(mod_mam_muc_params, params, [])}];
+init_per_group(configurable_archiveid, Config) ->
+    [{params_backup, rpc_apply(mod_mam_params, params, [])} | Config];
 
 init_per_group(muc_rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),
@@ -572,6 +601,14 @@ end_per_group(G, Config) when G == rsm_all; G == mam_purge; G == nostore;
     G == muc06; G == mam06;
     G == archived; G == mam_metrics ->
       Config;
+end_per_group(muc_configurable_archiveid, Config) ->
+    ParamsB = proplists:get_value(params_backup, Config),
+    rpc_apply(mod_mam_muc, set_params, [ParamsB]),
+    Config;
+end_per_group(configurable_archiveid, Config) ->
+    ParamsB = proplists:get_value(params_backup, Config),
+    rpc_apply(mod_mam, overwrite_params, [ParamsB]),
+    Config;
 end_per_group(muc_rsm_all, Config) ->
     destroy_room(Config);
 end_per_group(Group, Config) ->
@@ -828,6 +865,46 @@ init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
 init_per_testcase(C=muc_archive_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=muc_no_elements, Config) ->
+    rpc_apply(mod_mam_muc, set_params,
+              [ [no_stanzaid_element] ]),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=muc_both_elements, Config) ->
+    rpc_apply(mod_mam_muc, set_params,
+              [ [add_archived_element] ]),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=muc_only_stanzaid, Config) ->
+    rpc_apply(mod_mam_muc, set_params,
+              [ [] ]),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=muc_only_archived, Config) ->
+    rpc_apply(mod_mam_muc, set_params,
+              [ [no_stanzaid_element, add_archived_element] ]),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=no_elements, Config) ->
+    rpc_apply(mod_mam, overwrite_params,
+              [ [no_stanzaid_element] ]),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=both_elements, Config) ->
+    rpc_apply(mod_mam, overwrite_params,
+              [ [add_archived_element] ]),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=only_stanzaid, Config) ->
+    rpc_apply(mod_mam, overwrite_params,
+              [ [] ]),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=only_archived, Config) ->
+    rpc_apply(mod_mam, overwrite_params,
+              [ [no_stanzaid_element, add_archived_element] ]),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_message_with_archived_and_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
@@ -948,6 +1025,22 @@ end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
 end_per_testcase(C=muc_message_with_archived_and_stanzaid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_no_elements, Config) ->
+    timer:sleep(50),
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_both_elements, Config) ->
+    timer:sleep(50),
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_only_stanzaid, Config) ->
+    timer:sleep(50),
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_only_archived, Config) ->
+    timer:sleep(50),
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
 end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
     {value, {_, OrigVal}, Config1} = lists:keytake(archive_groupchats_backup, 1, Config0),
     true = escalus_ejabberd:rpc(gen_mod, set_module_opt,
@@ -1031,6 +1124,105 @@ delete_delimiter("_" ++ Tail) ->
 %%--------------------------------------------------------------------
 %% Adhoc tests
 %%--------------------------------------------------------------------
+
+% @doc Helper function, sends an example message to a user and checks
+% if archive id elements are defined or not
+send_and_check_archive_elements(Config, Archived, Stanzaid) ->
+    F = fun(Alice, Bob) ->
+        %% Archive must be empty.
+        %% Alice sends "OH, HAI!" to Bob.
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+        %% Bob receives a message.
+        BobMsg = escalus:wait_for_stanza(Bob),
+        case exml_query:subelement(BobMsg, <<"archived">>) of
+                undefined ->
+                    ?assert_equal(Archived, false);
+                _ ->
+                    ?assert_equal(Archived, true)
+        end,
+        case exml_query:subelement(BobMsg, <<"stanza-id">>) of
+                   undefined ->
+                       ?assert_equal(Stanzaid, false);
+                   _ ->
+                       ?assert_equal(Stanzaid, true)
+        end,
+        ok
+        end,
+    %% Made fresh in init_per_testcase
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+% @doc Helper function, sends an example message to a room and checks
+% if archive id elements are defined or not
+muc_send_and_check_archive_elements(Config, Archived, Stanzaid) ->
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi, Bob!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice sends another message to Bob.
+        %% The message is not archived by the room.
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
+
+        %% Alice sends to the chat room.
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+
+        %% Bob received the message "Hi, Bob!".
+        %% This message will be archived (by alicesroom@localhost).
+        %% User's archive is disabled (i.e. bob@localhost).
+        BobMsg = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, BobMsg),
+        case exml_query:subelement(BobMsg, <<"archived">>) of
+                undefined ->
+                    ?assert_equal(Archived, false);
+                _ ->
+                    ?assert_equal(Archived, true)
+        end,
+        case exml_query:subelement(BobMsg, <<"stanza-id">>) of
+                   undefined ->
+                       ?assert_equal(Stanzaid, false);
+                   _ ->
+                       ?assert_equal(Stanzaid, true)
+               end,
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+%% Archive id elements should be present when config says so
+muc_no_elements(Config) ->
+    muc_send_and_check_archive_elements(Config, false, false).
+
+muc_both_elements(Config) ->
+    muc_send_and_check_archive_elements(Config, true, true).
+
+muc_only_stanzaid(Config) ->
+    muc_send_and_check_archive_elements(Config, false, true).
+
+muc_only_archived(Config) ->
+    muc_send_and_check_archive_elements(Config, true, false).
+
+no_elements(Config) ->
+    send_and_check_archive_elements(Config, false, false).
+
+both_elements(Config) ->
+    send_and_check_archive_elements(Config, true, true).
+
+only_stanzaid(Config) ->
+    send_and_check_archive_elements(Config, false, true).
+
+only_archived(Config) ->
+    send_and_check_archive_elements(Config, true, false).
+
+
 
 %% Querying the archive for messages
 simple_archive_request(Config) ->
