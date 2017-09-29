@@ -29,7 +29,7 @@ pages:
       - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'Extension Modules': 'advanced-configuration/Modules.md'
       - 'ACL': 'advanced-configuration/acl.md'
-  - 'Authentication backends'
+  - 'Authentication backends':
       - 'External Authentication Module': 'authentication-backends/External-authentication-module.md'
       - 'HTTP Authentication Module': 'authentication-backends/HTTP-authentication-module.md'
       - 'JWT Authentication Module': 'authentication-backends/JWT-authentication-module.md'
