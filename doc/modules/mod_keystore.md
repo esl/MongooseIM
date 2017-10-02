@@ -41,17 +41,6 @@ The module public API is hook-based:
 ejabberd_hooks:run_fold(get_key, Domain, [], [{KeyName, Domain}]).
 ```
 
-However, a local function hiding the hook call might come in handy:
-
-```erlang
--spec get_key(Domain, KeyName) -> Result when
-      Domain :: ejabberd:server(),
-      KeyName :: mod_keystore:key_name(),
-      Result :: mod_keystore:key_list().
-get_key(Domain, KeyName) ->
-    ejabberd_hooks:run_fold(get_key, Domain, [], [{KeyName, Domain}]).
-```
-
 ### Example Configuration
 
 
