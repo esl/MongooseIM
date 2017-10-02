@@ -9,7 +9,7 @@ WebSockets and BOSH, MongooseIM provides parts of its functionality over a REST 
 Please see the [Authentication](#authentication) section for more details.
 1. We advise that this API is served over HTTPS.
 1. User registration has to be done via other methods (f.e. using the
-[REST API for backend services](rest-api/Administration-backend.md)).
+[REST API for backend services](Administration-backend.md)).
 1. The relevant endpoint has to be configured on the server side.
 See the [configuration section](#configuration).
 1. A list of provided actions is documented with Swagger.
@@ -53,7 +53,7 @@ REST API functionalities are enabled and exposed on the given paths.
 By default the REST API is exposed on port 8089 but this can be changed to whatever is more convenient.
 
 For more details about possible `ejabberd_cowboy` configuration parameters please
-see the relevant documentation in [Listener modules](advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy).
+see the relevant documentation in [Listener modules](../advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy).
 
 ## OpenAPI specifications
 
