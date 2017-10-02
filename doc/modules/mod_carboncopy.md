@@ -56,7 +56,7 @@ For an Erlang-based test suite, please see [/esl/ejabberd_tests/blob/master/test
 
 ### Options
 
-None.
+* **iqdisc** (default: no_queue)
 
 ### Example Configuration
 ` {mod_carboncopy, []} `
