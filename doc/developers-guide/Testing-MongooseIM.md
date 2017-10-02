@@ -1,3 +1,22 @@
+# Unit tests (a.k.a. "small tests")
+
+These are test suites aimed at testing various modules and libraries standalone, without launching a MongooseIM instance.
+Very useful for developing/debugging libraries.
+
+Test suites are located in `apps/ejabberd/tests/` directory.
+To run all of them, do `./rebar3 ct`; to run just a selected suite, do `./rebar3 ct SUITE=my_selected_SUITE`.
+Rebar recompiles all the code automatically, there is no need for a separate compilation step.
+
+If you get no output, means that all tests passed and summary log is stored in ct.log.
+If anything fails the summary log is printed out on stdout.
+
+Detailed test results in a nice HTML format are saved in
+```
+_build/test/logs/ct_run.[something][datetime]/
+```
+
+# End-to-end tests (a.k.a. "big tests")
+
 ## TL;DR
 
 In shell #1:
@@ -64,11 +83,10 @@ make -C test.disabled/ejabberd_tests quicktest
 Start a new tmux and paste the commands.
 
 
-## Step by step breakdown
+## Step-by-step breakdown
 
-`make devrel` builds required server nodes:
-These are preconfigured for breadth of features and compatible with as many test suites as possible.
-There are four of them:
+`make devrel` builds four server nodes, preconfigured for breadth of features and compatible with as many test suites as possible.
+
 - `$MONGOOSEIM/_build/mim1/rel`, for most test SUITEs
 - `$MONGOOSEIM/_build/mim*/rel`, in order to test cluster-related commands;;
 - `$MONGOOSEIM/_build/fed1/rel`, in order to test XMPP federation (server to server communication, S2S).
@@ -114,31 +132,48 @@ cd $MONGOOSEIM/test/ejabberd_tests/
 make quicktest TESTSPEC=my-feature.spec
 ```
 
-It's customary to create a per-feature (or per-project, if you're cloning away) `.spec` file and only enable the suites / test groups you want to test - this speeds up the iteration cycle by not testing the parts of the system that you know have not changed.
-It's worth running `default.spec` once in a while to check for regressions, though.
+Developers usually create a per-feature (or per-project, if you're cloning away) `.spec` file and only enable the suites / test groups they want to test - this speeds up the development cycle by not testing parts of the system that are not being changed.
+It's worth running `default.spec` once in a while to check for regressions.
 
-Have a look into the `default.spec` file to see how to pick only the interesting tests to run.
+Consult the `default.spec` file to see how to run only selected tests/groups/cases.
 
-If you're sure that none of the test dependencies have changed and you only edited the test suites, it's possible to speed up the tests by skipping the Rebar dependency and compilation checks by providing `PREPARE=` (i.e. an empty value):
+If you're sure that none of the test dependencies have changed and you only edited the test suites and/or MongooseIM code, it's possible to speed up the tests by skipping the Rebar dependency and compilation checks by providing `PREPARE=` (i.e. an empty value):
 
 ```sh
 make quicktest PREPARE=
 ```
 
-Have a look inside the `Makefile` to see how it works.
+Consult the `test.disabled/ejabberd_tests/Makefile` to see how it works.
 
-### Reloading node(s) code
+### Applying code changes
 
-When working on a feature or a bug fix, often you modify the code and check if it works as expected. 
-In order to change the code on dev nodes that are already generated (`mim*` and `fed*`), recompile the code for a specific node.
-For example to update the code on `mim1` node, all you have to do is:
+When working on a feature or a bug fix you often modify the code and check if it works as expected.
+In order to change the code on dev nodes that are already generated (`mim*` and `fed*`) recompile the code for a specific node.
+For example, to update the code on `mim1` node all you have to do is:
 ```sh
 ./rebar3 as mim1 compile
 ```
 
-A similar command applies to other nodes, the important thing here is rebar3's profile.
+A similar command applies to other nodes, the important thing being rebar3's profile.
 
-When the above command finishes, the code can be reloaded on the server by:
-1. loading new module(s) in the node's shell, f.e. `l(mongoose_riak)`
-1. restarting the node
+When the above command finishes the code can be reloaded on the server by either reloading changed module(s) in the node's shell, e.g. `l(mongoose_riak)`, or restarting the node.
 
+### Reading test reports
+
+When finished, test engine writes detailed html reports into a directory:
+
+```
+test.disabled/ejabberd_tests/ct_report/ct_run.[gobbledygook][datetime]/
+```
+
+Each run is saved into a new directory. This snippet:
+
+```
+#!/bin/bash
+
+lst=$(ls -rt ct_report | grep ct_run | tail -n 1)
+rm ct_report/lastrun
+ln -s $lst ct_report/lastrun
+```
+
+can be of some help.
