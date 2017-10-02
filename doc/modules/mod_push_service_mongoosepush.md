@@ -25,7 +25,8 @@ It must be defined in `http_connections` setting.
 ### Options
 
 * **pool_name** (atom, required) - name of the pool to use (as defined in http_connections)
-* **api_version** (string, default: `v1`) - REST API version to be used. Currently only `v1` is supported
+* **api_version** (string, default: `v2`) - REST API version to be used.
+* **max_http_connections** (integer, default: 100) - the maximum amount of concurrent http connections
 
 ### Example configuration
 
