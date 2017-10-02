@@ -104,6 +104,13 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 ### HTTP module: `mod_cowboy`
 
 This module provides an additional routing layer on top of HTTP(s) or WS(S) protocols.
+It allows other HTTP/WS modules to coexist under the same URL on the single port.
+Packets are forwarded to them based on the protocol.
+This mechanism is transparent to actual handlers so the path sharing does not require any additional code.
+
+Example: If you wish, you can use BOSH and WS XMPP handlers (mod_bosh, mod_websockets) on a single port and a URL without any code modifications.
+
+
 Here's an example of its configuration (added to ejabberd_cowboy modules list described above):
 
 ```Erlang
