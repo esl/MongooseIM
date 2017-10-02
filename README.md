@@ -123,9 +123,9 @@ The MongooseIM platform documentation:
     * [MUC light](doc/open-extensions/muc_light.md)
     * [Token-based reconnection](doc/open-extensions/token-reconnection.md)
 * REST API
-    * [Client/frontend](rest-api/Client-frontend.md)
-    * [Metrics backend](rest-api/Metrics-backend.md)
-    * [Administration backend](rest-api/Administration-backend.md)
+    * [Client/frontend](doc/rest-api/Client-frontend.md)
+    * [Metrics backend](doc/rest-api/Metrics-backend.md)
+    * [Administration backend](doc/rest-api/Administration-backend.md)
 * Operation and maintenance
     * [Cluster management considerations](doc/operation-and-maintenance/Cluster-management-considerations.md)
     * [Cluster configuration and node management](doc/operation-and-maintenance/Cluster-configuration-and-node-management.md)
