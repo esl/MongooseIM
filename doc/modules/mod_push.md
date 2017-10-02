@@ -28,10 +28,10 @@ callback returns `true`.
 -spec should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> boolean().
 ```
 
-* `sender_id/3` - allows modifying `last-message-sender` field, which ultimately becomes a `title` of the delivered push notification.
+* `sender_id/2` - allows modifying `last-message-sender` field, which ultimately becomes a `title` of the delivered push notification.
 
 ```
--spec sender_id(Host :: ejabberd:server(), From :: ejabberd:jid(), Packet :: jlib:xmlel()).
+-spec sender_id(From :: ejabberd:jid(), Packet :: jlib:xmlel()) -> SenderId :: binary().
 ```
 
 ### Example configuration
