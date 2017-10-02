@@ -23,10 +23,10 @@ The following options can be set in the `auth_opts` tuple in `rel/files/ejabberd
 * `host` (mandatory, `string`) - consists of protocol, hostname (or IP) and port (optional). Examples:
     * `{host, "http://localhost:12000"}`
     * `{host, "https://10.20.30.40"}`
-* `connection_pool_size` (optional, `integer`, default: 10) - the number of connections open to auth service
-* `connection_opts` (optional, default: `[]`) - extra options for hackers: http://erlang.org/doc/man/gen_tcp.html#type-connect_option
-* `basic_auth` (optional, default: `""`) - HTTP Basic Authentication in format `"username:password"`; auth service doesn't have to require authentication for HTTP auth to work
-* `path_prefix` (optional, default: `"/"`) - a path prefix to be inserted between `host` and method name; must be terminated with `/`
+* `connection_pool_size` (`integer`, default: 10) - the number of connections open to auth service
+* `connection_opts` (default: `[]`) - extra options for hackers: http://erlang.org/doc/man/gen_tcp.html#type-connect_option
+* `basic_auth` (default: `""`) - HTTP Basic Authentication in format `"username:password"`; auth service doesn't have to require authentication for HTTP auth to work
+* `path_prefix` (default: `"/"`) - a path prefix to be inserted between `host` and method name; must be terminated with `/`
 
 #### Example
 
