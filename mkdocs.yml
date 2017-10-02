@@ -14,9 +14,10 @@ pages:
       - 'Getting started': 'user-guide/Getting-started.md'
       - 'Release/Installation configuration': 'user-guide/release_config.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
-      - 'How to build MongooseIM':  'user-guide/How-to-build.md'
-      - 'How to set up Push Notifications with MongoosePush': 'user-guide/Push-notifications.md'
-      - 'How to set up MongooseICE (ICE/TURN/STUN server)': 'user-guide/ICE_tutorial.md'
+  - How to:
+      - 'Build MongooseIM from source code': 'user-guide/How-to-build.md'
+      - 'Set up MongoosePush': 'user-guide/Push-notifications.md'
+      - 'Set up MongooseICE': 'user-guide/ICE_tutorial.md'
   - Platform:
       - 'Roadmap': 'Roadmap.md'
       - 'Contributions to ecosystem': 'Contributions.md'
