@@ -154,7 +154,7 @@ This does not necessarily indicate that they are down but might be a symptom of 
 
 ### Elastic Load Balancer (ELB)
 
-When using ELB please be advised that some worm-up time may be needed before
+When using ELB please be advised that some warm-up time may be needed before
 the load balancer works efficiently for a big load.
 
 ### Software load balancer
