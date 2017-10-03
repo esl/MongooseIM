@@ -491,21 +491,20 @@ backup_mnesia(Path) ->
                                    | {'ok', []}
                                    | {'table_not_exists', io_lib:chars()}.
 restore_mnesia(Path) ->
+    ErrorString=lists:flatten( io_lib:format("Can't restore backup from ~p at node ~p: ",
+                                             [filename:absname(Path), node()])),
     case ejabberd_admin:restore(Path) of
         {atomic, _} ->
             {ok, ""};
-        {error, Reason} ->
-            String = io_lib:format("Can't restore backup from ~p at node ~p: ~p",
-                                   [filename:absname(Path), node(), Reason]),
-            {cannot_restore, String};
         {aborted, {no_exists, Table}} ->
-            String = io_lib:format("Can't restore backup from ~p at node ~p: Table ~p does not exist.",
-                                   [filename:absname(Path), node(), Table]),
+            String = io_lib:format("~sTable ~p does not exist.", [ErrorString, Table]),
             {table_not_exists, String};
         {aborted, enoent} ->
-            String = io_lib:format("Can't restore backup from ~p at node ~p: File not found.",
-                                   [filename:absname(Path), node()]),
-            {file_not_found, String}
+            String = ErrorString ++ "File not found.",
+            {file_not_found, String};
+        {aborted, Reason} ->
+            String = io_lib:format("~s~p", [ErrorString, Reason]),
+            {cannot_restore, String}
     end.
 
 %% @doc Mnesia database restore

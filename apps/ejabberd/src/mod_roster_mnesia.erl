@@ -103,7 +103,7 @@ get_roster_entry_t(LUser, LServer, LJID, full) ->
 
 get_subscription_lists(_, LUser, LServer) ->
     US = {LUser, LServer},
-    case mnesia:dirty_index_read(roster, US, #roster.us) of
+    case catch mnesia:dirty_index_read(roster, US, #roster.us) of
         Items when is_list(Items) -> Items;
         _ -> []
     end.

@@ -195,7 +195,6 @@ key({From, To}, StreamID) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    update_tables(),
     mnesia:create_table(s2s, [{ram_copies, [node()]}, {type, bag},
                               {attributes, record_info(fields, s2s)}]),
     mnesia:add_table_copy(s2s, node(), ram_copies),
@@ -525,34 +524,6 @@ incoming_s2s_number() ->
 outgoing_s2s_number() ->
     length(supervisor:which_children(ejabberd_s2s_out_sup)).
 
-
-%%%----------------------------------------------------------------------
-%%% Update Mnesia tables
-
-update_tables() ->
-    case catch mnesia:table_info(s2s, type) of
-        bag ->
-            ok;
-        {'EXIT', _} ->
-            ok;
-        _ ->
-            mnesia:delete_table(s2s)
-    end,
-    case catch mnesia:table_info(s2s, attributes) of
-        [fromto, pid, key] ->
-            mnesia:transform_table(s2s, ignore, [fromto, pid]),
-            mnesia:clear_table(s2s);
-        [fromto, pid] ->
-            ok;
-        {'EXIT', _} ->
-            ok
-    end,
-    case lists:member(local_s2s, mnesia:system_info(tables)) of
-        true ->
-            mnesia:delete_table(local_s2s);
-        false ->
-            ok
-    end.
 
 %% Check if host is in blacklist or white list
 allow_host(MyServer, S2SHost) ->

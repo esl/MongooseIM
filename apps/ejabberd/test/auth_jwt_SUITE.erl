@@ -51,17 +51,12 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    case list_to_integer(erlang:system_info(otp_release)) of
-        Release when Release < 18 ->
-            {skip, "jwerl need recent crypto features"};
-        _ ->
-            application:ensure_all_started(stringprep),
-            Self = self(),
-            ETSProcess = spawn(fun() -> ets_owner(Self) end),
-            wait_for_ets(),
-            meck_config(Config),
-            [{ets_process, ETSProcess} | Config]
-    end.
+    application:ensure_all_started(stringprep),
+    Self = self(),
+    ETSProcess = spawn(fun() -> ets_owner(Self) end),
+    wait_for_ets(),
+    meck_config(Config),
+    [{ets_process, ETSProcess} | Config].
 
 end_per_suite(Config) ->
     meck_cleanup(),

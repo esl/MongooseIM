@@ -12,7 +12,7 @@ MongooseIM is supported on Mac OS X 10.6.8 and later. Before you can compile and
 
 * GNU Make and GCC (the GNU Compiler Collection). To ensure that these are available, you can install the Command Line Tools for Xcode, available via Xcode or from the Apple Developer website.
 * Git – `brew install git`
-* Erlang/OTP 17.5 or higher – `brew install erlang`
+* Erlang/OTP 18.3 or higher – `brew install erlang`
 
 An easy way to install some of the packages is by using a package manager, such as [Homebrew](http://brew.sh) – the Homebrew commands are provided here.
 

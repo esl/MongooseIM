@@ -49,10 +49,10 @@ status() ->
 
 maybe_register_mech(MechFeature, Module, MechName) ->
     case crypto:info_fips() of
-        disabled ->
-            do_register(MechFeature, Module, MechName);
+        enabled ->
+            ok;
         _ ->
-            ok
+            do_register(MechFeature, Module, MechName)
     end.
 
 -endif.

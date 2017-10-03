@@ -50,7 +50,7 @@ start(Host, Opts) ->
     ?INFO_MSG("mod_push_service starting on host ~p", [Host]),
 
     MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
-    wpool:start_sup_pool(pool_name(Host, wpool), [{workers, MaxHTTPConnections}]),
+    wpool_sup:start_pool(pool_name(Host, wpool), [{workers, MaxHTTPConnections}]),
 
     %% Hooks
     ejabberd_hooks:add(push_notifications, Host, ?MODULE, push_notifications, 10),
@@ -60,7 +60,7 @@ start(Host, Opts) ->
 -spec stop(Host :: ejabberd:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(push_notifications, Host, ?MODULE, push_notifications, 10),
-    wpool:stop_pool(pool_name(Host, wpool)),
+    wpool_sup:stop_pool(pool_name(Host, wpool)),
 
     ok.
 

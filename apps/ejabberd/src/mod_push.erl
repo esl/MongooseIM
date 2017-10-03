@@ -62,8 +62,8 @@
 start(Host, Opts) ->
     ?INFO_MSG("mod_push starting on host ~p", [Host]),
 
-    {ok, _} = wpool:start_sup_pool(gen_mod:get_module_proc(Host, ?MODULE),
-                                   gen_mod:get_opt(wpool, Opts, [])),
+    {ok, _} = wpool_sup:start_pool(gen_mod:get_module_proc(Host, ?MODULE),
+                                    gen_mod:get_opt(wpool, Opts, [])),
 
     gen_mod:start_backend_module(?MODULE, Opts, []),
     mod_push_backend:init(Host, Opts),
@@ -89,7 +89,7 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PUSH),
     mod_disco:unregister_feature(Host, ?NS_PUSH),
 
-    wpool:stop_pool(gen_mod:get_module_proc(Host, ?MODULE)),
+    wpool_sup:stop_pool(gen_mod:get_module_proc(Host, ?MODULE)),
 
     ok.
 
