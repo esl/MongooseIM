@@ -10,7 +10,7 @@ Currently known incompatible features are:
 
 ## Requirements
 
-### build Erlang/OTP FIPS support
+### Build Erlang/OTP with FIPS support
 
 Make sure the option `--enable-fips` is specified for `configure` command.
 If you want to use a different OpenSSL than the default one, specify the option `--with-ssl=PATH_TO_YOUR_OPENSSL` as well.
