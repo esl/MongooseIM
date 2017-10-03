@@ -18,7 +18,7 @@ all nodes at the same location (the location where MongooseIM expects its config
 ### Non-reloadable options
 The following options' changes will be silently ignored:
 * domain_certfile
-* s2s
+* s2s_*
 * all_metrics_are_global
-* odbc
-* ldap (tough can be changed, it can't be disabled/enabled)
+* odbc_*
+* ldap_* (though can be changed, it can't be disabled/enabled)
