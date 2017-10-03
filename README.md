@@ -7,7 +7,7 @@ Designed for enterprise, it is fault-tolerant, can utilise the resources of mult
 
 MongooseIM can accept client sessions over vanilla XMPP, REST API and SSE, as well as Websockets, and BOSH (HTTP long-polling).
 
-The MongooseIM platform includes several server-side (backend and client-side (frontend) components.
+The MongooseIM platform includes several server-side (backend) and client-side (frontend) components.
 We provide a test suite, metrics, a load testing platform, and a monitoring server.
 We recommend third-party, open source client libraries for XMPP and REST API.
 
