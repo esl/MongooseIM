@@ -1,32 +1,34 @@
+# MongooseIM's REST API for frontend or client
+
 In addition to the regular XMPP connection methods such as TCP (with TLS/STARTTLS),
 WebSockets and BOSH, MongooseIM provides parts of its functionality over a REST API.
 
-### Assumptions
+## Assumptions
 
 1. Every request has to be authenticated.
 Please see the [Authentication](#authentication) section for more details.
 1. We advise that this API is served over HTTPS.
 1. User registration has to be done via other methods (f.e. using the
-[REST API for backend services](http-api/http-administration-api-documentation.md)).
+[REST API for backend services](Administration-backend.md)).
 1. The relevant endpoint has to be configured on the server side.
 See the [configuration section](#configuration).
 1. A list of provided actions is documented with Swagger.
 See the beatiful [specification](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true).
 
-### Authentication
+## Authentication
 
 The only possible authentication method for the time being is *Basic Authentication*.
 The *userid* part is user's *bare JID* and the password is the same as that used to
 register the user's account.
 
-#### Bare JID
+### Bare JID
 
 To ilustrate what bare JIDs are, let's assume your MongooseIM server's hostname is
 *wonderland.com* and the user is *alice*.
 In this case the bare JID for her is just: *alice@wonderland.com*.
 This value should be used as the *userid* in the Basic Authentication method for all the REST API calls.
 
-### Configuration
+## Configuration
 
 In order to enable the REST API, the following configuration should be added to the
 *listen* section in *ejabberd.cfg* file.
@@ -51,13 +53,16 @@ REST API functionalities are enabled and exposed on the given paths.
 By default the REST API is exposed on port 8089 but this can be changed to whatever is more convenient.
 
 For more details about possible `ejabberd_cowboy` configuration parameters please
-see the relevant documentation in [Listener modules](advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy)
+see the relevant documentation in the [Listener modules](../advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy).
 
-### Specification
+## OpenAPI specifications
 
 See the beautiful [Swagger documentation](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true) for more information.
 
 [![Swagger](http://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true)
+
+<iframe src="http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true"
+height="800" width="800" style="margin-left: -45px;" id="swagger-ui-iframe"></iframe>
 
 <script>
 
@@ -69,9 +74,6 @@ $(document).ready(function() {
     $('a[href$="swagger/index.html?client=true"]').attr('href', finalURL)
     $('#swagger-ui-iframe').attr('src', finalURL)
   }
-
-
 })
 
 </script>
-

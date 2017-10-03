@@ -123,18 +123,19 @@ The MongooseIM platform documentation:
 * MongooseIM open XMPP extensions:
     * [MUC light](doc/open-extensions/muc_light.md)
     * [Token-based reconnection](doc/open-extensions/token-reconnection.md)
-* [REST API for client developers](doc/REST-API.md)
+* REST API
+    * [Client/frontend](doc/rest-api/Client-frontend.md)
+    * [Metrics backend](doc/rest-api/Metrics-backend.md)
+    * [Administration backend](doc/rest-api/Administration-backend.md)
 * Operation and maintenance
     * [Cluster management considerations](doc/operation-and-maintenance/Cluster-management-considerations.md)
     * [Cluster configuration and node management](doc/operation-and-maintenance/Cluster-configuration-and-node-management.md)
     * [Logging & monitoring](doc/operation-and-maintenance/Logging-&-monitoring.md)
     * [Reloading configuration on a running system](doc/operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
     * [Metrics](doc/operation-and-maintenance/Mongoose-metrics.md)
-    * [HTTP Administration API](doc/http-api/http-administration-api-documentation.md)
     * [Distribution over TLS](doc/operation-and-maintenance/tls-distribution.md)
 * Server developer guide
     * [Testing MongooseIM](doc/developers-guide/Testing-MongooseIM.md)
-    * [REST Interface to Metrics](doc/developers-guide/REST-interface-to-metrics.md)
     * [Hooks and handlers](doc/developers-guide/Hooks-and-handlers.md)
     * [Hooks description](doc/developers-guide/hooks_description.md)
     * [Stanza routing](doc/developers-guide/message_routing.md)

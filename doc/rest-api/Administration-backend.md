@@ -1,4 +1,4 @@
-# MongooseIM's HTTP Administration API
+# MongooseIM's REST API for backend administration
 
 ## Configuration
 
@@ -31,9 +31,11 @@ You also have to hook `mongoose_api_admin` module to an HTTP endpoint:
   ]},
 ```
 
-## API
+## OpenAPI specifications
 
-Find the beautiful Swagger documentation below or under [this link](http://mongooseim.readthedocs.io/en/latest/swagger/index.html)
+Read the beautiful [Swagger documentation](http://mongooseim.readthedocs.io/en/latest/swagger/index.html) for more information.
+
+[![Swagger](http://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](http://mongooseim.readthedocs.io/en/latest/swagger/index.html)
 
 <iframe src="http://mongooseim.readthedocs.io/en/latest/swagger/index.html"
 height="800" width="800" style="margin-left: -45px;" id="swagger-ui-iframe"></iframe>
@@ -42,14 +44,12 @@ height="800" width="800" style="margin-left: -45px;" id="swagger-ui-iframe"></if
 
 $(document).ready(function() {
   if (window.location.host.match("readthedocs")){
-    path = window.location.pathname.match("(.*)/http-api/http-administration-api-documentation")[1]
+    path = window.location.pathname.match("(.*)/rest-api/Administration-backend")[1]
     url = window.location.protocol + "//" + window.location.hostname
     finalURL = url + path + "/swagger/index.html"
     $('a[href$="swagger/index.html"]').attr('href', finalURL)
     $('#swagger-ui-iframe').attr('src', finalURL)
   }
-
-
 })
 
 </script>
