@@ -285,19 +285,17 @@ paths:
         - "Contacts"
       parameters:
         - in: body
-          name: user
-          required: true
-          schema:
-            properties:
-              jid:
-                type: string
-        - in: body
           name: contact
           required: true
           schema:
+            title: addcontact
+            type: object
             properties:
               jid:
                 type: string
+                format: JID
+                description: Contact's jid
+                example: "alice@wonderlant.lit"
       responses:
         204:
           description: "The user was added to a contacts list."
@@ -349,9 +347,9 @@ paths:
         required: true
         type: string
     put:
-      description: "An administrative action to set roster entries and two-way subscriptions. 
+      description: "An administrative action to set roster entries and two-way subscriptions.
       There are two possible actions: 'connect' sets roster entries and performs subsciption in both ways, thus
-      effectively connecting the two users; 'disconnect' removes them from each other's roster. 
+      effectively connecting the two users; 'disconnect' removes them from each other's roster.
       The operation involves many stages and is not atomic (can succeed partially)."
       tags:
         - "Contacts"
@@ -404,9 +402,6 @@ paths:
           schema:
             title: roomName
             type: string
-  /muc-lights/{XMPPHost}:
-    parameters:
-      - $ref: '#/parameters/hostName'
     put:
       tags:
         - "MUC-light management"
@@ -513,6 +508,23 @@ paths:
       responses:
         204:
           description: Message was sent to the MUC Light room
+  /muc-lights/{XMPPHost}/{roomName}/{user}/management:
+    parameters:
+      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/roomName'
+      - user: owner
+        in: path
+        description: User's JID (f.e. alice@wonderland.lit)
+        required: true
+        type: string
+        format: JID
+    delete:
+      tags:
+        - "MUC-light management"
+      description: Delete a MUC-light room.
+      responses:
+        204:
+          description: The MUC-light room was deleted.
   /mucs/{XMPPHost}:
     parameters:
       - $ref: '#/parameters/hostName'
@@ -678,7 +690,7 @@ definitions:
       ask:
         type: string
         description: |
-          Tells whether one of us has asked the other for subscription to presence info and is waiting for approval. 
+          Tells whether one of us has asked the other for subscription to presence info and is waiting for approval.
           Possible states:
           * none
           * out - I asked the contact and am waiting for his approval

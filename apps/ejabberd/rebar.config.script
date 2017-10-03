@@ -11,67 +11,18 @@ Setenv = fun(Key, Val) ->
     os:putenv(Key, Append(Cur, Val))
 end,
 
-GetFullVer = fun() ->
-    Path = filename:join([code:root_dir(), "releases",
-                          erlang:system_info(otp_release),
-                          "OTP_VERSION"]),
-    {ok, BinString} = file:read_file(Path),
-    case re:replace(BinString, <<"\\s+">>, "", [global]) of
-        Version when is_binary(Version) ->
-            Version;
-        [Version | _] ->
-            Version
-    end
-end,
-
-SysVersion = lists:map(fun erlang:list_to_integer/1,
-               string:tokens(erlang:system_info(version), ".")),
-
-DisableCoverage = fun(Config) ->
-    Opts = [{cover_enabled, false},
-            {cover_print_enabled, false},
-            {cover_export_enabled, false}],
-    lists:foldl(fun({Key, _}=Tuple, Acc) ->
-                        lists:keyreplace(Key, 1, Acc, Tuple)
-                end, Config, Opts)
-end,
-
-MaybeDisableCoverage = fun(Config) ->
-    case erlang:system_info(otp_release) of
-        "17" ->
-           case catch GetFullVer() of
-                <<"17.5",_/binary>> -> % This is 17.5 where cover was fixed
-                    Config;
-                _ ->
-                    io:format("disabling coverage for OTP 17.0 to 17.4~n"),
-                    DisableCoverage(Config)
-           end;
-        _ ->
-           Config
-    end
-end,
-
 MaybeFIPSSupport = fun(Config) ->
     code:ensure_loaded(crypto),
     case erlang:function_exported(crypto, info_fips, 0) of
         false ->
             Config;
         _ ->
-            io:format("compiling with FIPS mode enabled"),
+            io:format("compiling with FIPS mode enabled~n"),
             {erl_opts, ErlOpts} = lists:keyfind(erl_opts, 1, Config),
             NewErlOpts = [{d, fips_mode} | ErlOpts],
             lists:keyreplace(erl_opts, 1, Config, {erl_opts, NewErlOpts})
     end
 end,
 
-MaybeErtsExitSupport = fun(Config) ->
-    ExitFlag = case SysVersion >= [7, 3] of
-        true -> "-DHAS_ERTS_EXIT";
-        _ -> ""
-    end,
-    true = Setenv("CFLAGS", ExitFlag),
-    Config
-end,
-
 lists:foldl(fun(Fun, Cfg) -> Fun(Cfg) end, CONFIG,
-    [MaybeDisableCoverage, MaybeFIPSSupport, MaybeErtsExitSupport]).
+    [MaybeFIPSSupport]).

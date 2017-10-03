@@ -2,9 +2,13 @@
 
 <img align="left" src="doc/MongooseIM_logo.png" alt="MongooseIM platform's logo" />
 
-MongooseIM is robust and efficient XMPP platform aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
+MongooseIM is a robust and efficient XMPP platform aimed at large installations. 
+Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or VM. 
 
-The MongooseIM platform comes with server-side components and client libraries. We provide a test suite and a monitoring server. We recommand third-party, open source client libraries for XMPP and REST API.
+MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
+
+The MongooseIM platform includes server-side components and client libraries. 
+We provide a test suite and a monitoring server. We recommend third-party, open source client libraries for XMPP and REST API.
 
 The most important links:
 
@@ -14,7 +18,7 @@ The most important links:
 
 It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) and [Inaka](http://inaka.net/).
 
-[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
+[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
 <img src="doc/mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
@@ -22,8 +26,7 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) an
 
 For a quick start just download:
 
-* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html)
-that suits your platform (Ubuntu, Debian, CentOS, and macOS)
+* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html) that suit your platform (Ubuntu, Debian, CentOS, and macOS)
 * The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): [https://hub.docker.com/r/mongooseim/mongooseim/](https://hub.docker.com/r/mongooseim/mongooseim/) (source code repository: [https://github.com/esl/mongooseim-docker](https://github.com/esl/mongooseim-docker))
 
 ## Public testing
@@ -32,6 +35,8 @@ Check out our test results:
 
 * Continuous integration: [https://travis-ci.org/esl/MongooseIM](https://travis-ci.org/esl/MongooseIM)
 * Code coverage: [https://coveralls.io/github/esl/MongooseIM](https://coveralls.io/github/esl/MongooseIM)
+* Load test history:  
+  ![Load test history](http://tide.erlang-solutions.com/charts/bidaily_last_year.png)
 * Stay tuned... more soon!
 
 ## MongooseIM platform components
@@ -52,11 +57,11 @@ We offer a set of server-side components:
 
 ### Client-side components
 
-* XMPP client libraries: we recommend the following client libraries:
+* XMPP client libraries - we recommend the following client libraries:
     * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
     * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
     * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io), [Strophe.js](https://github.com/strophe/strophejs)
-* REST API client libraries: we recommend following client libraries:
+* REST API client libraries - we recommend following client libraries:
     * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
     * Android, Java: [Retrofit](https://github.com/square/retrofit)
 
@@ -76,8 +81,9 @@ Suggestions, questions, thoughts? Contact us directly:
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
 
 * [http://mongooseim.readthedocs.org/en/latest/](http://mongooseim.readthedocs.org/en/latest/)
-* [release 2.0.0](http://mongooseim.readthedocs.org/en/2.0.0/)
+* [release 2.0.1](http://mongooseim.readthedocs.org/en/2.0.1/)
 * Older versions:
+    * [release 2.0.0](http://mongooseim.readthedocs.org/en/2.0.0/)
     * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
     * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
     * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
@@ -96,11 +102,15 @@ The MongooseIM platform documentation:
         * Use the main administration script, `mongooseimctl`
     * [Release/Installation configuration](doc/user-guide/release_config.md)
     * [High-level Architecture](doc/user-guide/MongooseIM-High-level-Architecture.md) from single to multiple node setup to multi-datacenter
-    * [How to build](doc/user-guide/How-to-build.md) from source code
+* How to
+    * [Build MongooseIM from source code](doc/user-guide/How-to-build.md)
+    * [Set up MongoosePush](doc/user-guide/Push-notifications.md)
+    * [Set up MongooseICE](doc/user-guide/ICE_tutorial.md)
 * Platform:
     * [Roadmap](doc/Roadmap.md)
-    * [Contributions](doc/Contributions.md)
+    * [Contributions to the ecosystem](doc/Contributions.md)
     * [Differentiators](doc/Differentiators.md)
+    * [History](History.md)
 * Configuration
     * [Basic configuration](doc/Basic-configuration.md)
     * [Advanced configuration](doc/Advanced-configuration.md)
@@ -121,6 +131,7 @@ The MongooseIM platform documentation:
     * [Reloading configuration on a running system](doc/operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
     * [Metrics](doc/operation-and-maintenance/Mongoose-metrics.md)
     * [HTTP Administration API](doc/http-api/http-administration-api-documentation.md)
+    * [Distribution over TLS](doc/operation-and-maintenance/tls-distribution.md)
 * Server developer guide
     * [Testing MongooseIM](doc/developers-guide/Testing-MongooseIM.md)
     * [REST Interface to Metrics](doc/developers-guide/REST-interface-to-metrics.md)

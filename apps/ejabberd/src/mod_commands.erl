@@ -15,6 +15,7 @@
          add_contact/2,
          add_contact/3,
          add_contact/4,
+         delete_contacts/2,
          delete_contact/2,
          subscription/3,
          set_subscription/3,
@@ -161,6 +162,18 @@ commands() ->
       {result, ok}
      ],
      [
+      {name, delete_contacts},
+      {category, <<"contacts">>},
+      {subcategory, <<"multiple">>},
+      {desc, <<"Remove provided contacts from roster">>},
+      {module, ?MODULE},
+      {function, delete_contacts},
+      {action, delete},
+      {security_policy, [user]},
+      {args, [{caller, binary}, {jids, [binary]}]},
+      {result,  []}
+     ],
+     [
       {name, send_message},
       {category, <<"messages">>},
       {desc, <<"Send chat message from to">>},
@@ -278,9 +291,31 @@ add_contact(Caller, JabberID, Name, Groups) ->
     CJid = jid:from_binary(Caller),
     mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
 
+delete_contacts(Caller, ToDelete) ->
+    maybe_delete_contacts(Caller, ToDelete, []).
+
+maybe_delete_contacts(_, [], NotDeleted) -> NotDeleted;
+maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
+    case delete_contact(Caller, H) of
+        ok ->
+            maybe_delete_contacts(Caller, T, NotDeleted);
+        error ->
+            maybe_delete_contacts(Caller, T, NotDeleted ++ [H])
+    end.
+
 delete_contact(Caller, JabberID) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:remove_from_roster(CJid, JabberID).
+    case jid_exists(Caller, JabberID) of
+        false -> error;
+        true ->
+            mod_roster:remove_from_roster(CJid, JabberID)
+    end.
+
+-spec jid_exists(binary(), binary()) -> boolean().
+jid_exists(CJid, Jid) ->
+    FJid = jid:from_binary(CJid),
+    Res = mod_roster:get_roster_entry(FJid#jid.luser, FJid#jid.lserver, Jid),
+    Res =/= does_not_exist.
 
 registered_commands() ->
     [#{name => mongoose_commands:name(C),
@@ -333,23 +368,20 @@ lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
     lookup_recent_messages(ArcJID, jid:from_binary(With), Before, Limit);
 lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     Host = ArcJID#jid.server,
-    ArcID = mod_mam:archive_id(Host, ArcJID#jid.user),
-    Borders = undefined,
-    RSM = #rsm_in{direction = before, id = undefined}, % last msgs
-    Start = undefined,
-    End = Before * 1000000,
-    Now = p1_time_compat:os_system_time(micro_seconds),
-    WithJID = WithJID,
-    SearchText = undefined,
-    PageSize = Limit,
-    LimitPassed = false,
-    MaxResultLimit = 1,
-    IsSimple = true,
-    R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
-                                [Host, ArcID, ArcJID, RSM, Borders,
-                                 Start, End, Now, WithJID, SearchText,
-                                 PageSize, LimitPassed, MaxResultLimit,
-                                 IsSimple]),
+    Params = #{archive_id => mod_mam:archive_id(Host, ArcJID#jid.user),
+               owner_jid => ArcJID,
+               borders => undefined,
+               rsm => #rsm_in{direction = before, id = undefined}, % last msgs
+               start_ts => undefined,
+               end_ts => Before * 1000000,
+               now => p1_time_compat:os_system_time(micro_seconds),
+               with_jid => WithJID,
+               search_text => undefined,
+               page_size => Limit,
+               limit_passed => false,
+               max_result_limit => 1,
+               is_simple => true},
+    R = mod_mam:lookup_messages(Host, Params),
     {ok, {_, _, L}} = R,
     L.
 

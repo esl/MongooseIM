@@ -10,9 +10,11 @@ Since you've gotten this far, we assume you're already familiar with Erlang synt
 
 # ejabberd.cfg
 
-This file consists of multiple erlang tuples terminated with a period. To configure it, go to `[MongooseIM root]/rel/files/`.
+This file consists of multiple erlang tuples terminated with a period.
+In order to configure it, go to `[MongooseIM repo root]/rel/files/` (if you're building from source) or `[MongooseIM install root]/etc/` if you're using a pre-built version.
 
-The tuple order is important, unless the no `host_config` option is set. Retaining the default layout is recommended so that the experienced MongooseIM users can smoothly traverse the file.
+The tuple order is important, unless no `host_config` option is set.
+Retaining the default layout is recommended so that the experienced MongooseIM users can smoothly traverse the file.
 
 `ejabberd.cfg` is full of useful comments and in most cases they should be sufficient help in changing the configuration.
 
@@ -24,7 +26,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 * "global" options are shared by all cluster nodes and all domains.
 
-* "multi" options can be declared multiple times in a row, e.g. one per domain.
+* Options labeled as "multi" (in this page) can be declared multiple times in a row, e.g. one per domain.
 
 * Section names below correspond with the ones in the file.
 
@@ -74,6 +76,7 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
 
 * **domain_certfile** (multi, global)
     * **Description:** Overrides common certificates with new ones specific for chosen XMPP domains.
+                       Applies to S2S and C2S connections.
     * **Syntax:** `{domain_certfile, "example.com", "/path/to/example.com.pem"}.`
 
 * **s2s_default_policy** (local)
@@ -96,6 +99,25 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Default:** `{outgoing_s2s_options, [ipv4, ipv6], 10000}.`
     * **Family values:** `inet4`/`ipv4`, `inet6`/`ipv6`
 
+* **s2s_shared** (global)
+    * **Description:** S2S shared secret used in [Server Dialback](https://xmpp.org/extensions/xep-0220.html) extension.
+    * **Syntax:** `{s2s_shared, <<"shared secret">>}`.
+    * **Default:** 10 strong random bytes, hex-encoded.
+
+* **s2s_dns_options** (local)
+    * **Description:** Parameters used in DNS lookups for outgoing S2S connections.
+    * **Syntax:** `{s2s_dns_options, [{Opt, Val}, ...]}.`
+    * **Supported options**
+        * `timeout` (integer, seconds, default: 10) - A timeout for DNS lookup.
+        * `retries` (integer, default: 2) - How many DNS lookups will be attempted.
+    * **Example:** `{s2s_dns_options, [{timeout, 30}, {retries, 1}]}.`
+
+* **s2s_max_retry_delay** (local)
+    * **Description:** How many seconds MIM node should wait until next attempt to connect to remote XMPP cluster.
+    * **Syntax:** `{s2s_max_retry_delay, Delay}.`
+    * **Default:** 300
+    * **Example:** `{s2s_max_retry_delay, 30}.`
+
 ### Session backend
 
 * **sm_backend** (global)
@@ -104,151 +126,112 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Redis:** `{redis, [{pool_size, Size}, {worker_config, [{host, "Host"}, {port, Port}]}]}}`
 
 ### LDAP Connection
-- **ldap_servers**
+* **ldap_servers**
     * **Description:** List of IP addresses or DNS names of your LDAP servers.
     * **Values:** `[Servers, ...]`
     * **Default:**  no default value. This option is required when setting up an LDAP connection.
 
-- **ldap_encrypt**
+* **ldap_encrypt**
     * **Description:** Enable connection encryption with your LDAP server.
         The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
     * **Values:** `none`, `tls`
     * **Default:** `none`
 
-- **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. 
+* **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. 
     When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
     When `soft` is enabled ejabberd proceeds even if the check fails. 
     `False` means no checks are performed.
     * **Values:** `soft`, `hard`, `false`
     * **Default:** `false`
 
-- **ldap_tls_cacertfile**
+* **ldap_tls_cacertfile**
     * **Description:** Path to a file containing PEM encoded CA certificates.
     * **Values:** Path
     * **Default:** This option is needed (and required) when TLS verification is enabled.
 
-- **ldap_tls_depth**
+* **ldap_tls_depth**
     * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
          i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
          Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
     * **Values:** Integer
     * **Default:** 1
 
-- **ldap_port**
+* **ldap_port**
     * **Description:** Port to connect to your LDAP server.
     * **Values:** Integer
     * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
 
-- **ldap_rootdn**
+* **ldap_rootdn**
     * **Description:** Bind DN
     * **Values:** String
     * **Default:** empty string which is `anonymous connection`
 
-- **ldap_password**
+* **ldap_password**
     * **Description:** Bind password
     * **Values:** String
     * **Default:** empty string
 
-- **ldap_deref_aliases**
+* **ldap_deref_aliases**
     * **Description:** Whether or not to dereference aliases
     * **Values:** `never`, `always`, `finding`, `searching`
     * **Default:** `never`
 
 ### Authentication
 
-- **auth_method** (local)
+* **auth_method** (local)
     * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
     * **Valid values:** `internal` (Mnesia), `odbc`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`
     * **Warning:** `external`, `jwt` and `ldap` work only with `PLAIN` SASL mechanism.
     * **Examples:** `odbc`, `[internal, anonymous]`
 
-- **auth_opts** (local)
-    * **Description:** Provides different parameters that will be applied to a choosen authentication method. Those parameters are:
+* **auth_opts** (local)
+    * **Description:** Provides different parameters that will be applied to a choosen authentication method.
+                       `auth_password_format` and `auth_scram_iterations` are common to `http`, `odbc`, `internal` and `riak`.
 
-        * **auth_password_format** (local)
+        * **auth_password_format**
              * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
              * **Values:** `plain`, `scram`
              * **Default:** `plain` (for compatibility reasons, might change soon)
 
-        * **auth_scram_iterations** (local)
+        * **auth_scram_iterations**
              * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
              * **Default:** 4096
 
-        * **ext_auth_script** (local)
-             * **Description:** Path to the authentication script used by the `external` auth module. Script API specification can be found in the [[External authentication script]].
-
-        * **jwt_secret_source** (local)
-            * **Description:** A path to a file or environment variable, which contents will be used as a JWT secret.
-            * **Warning:** A direct path to a file is read only once during startup, a path in the environment variable is read on every auth request.
-            * **Value:** string, e.g. `/etc/secrets/jwt` or `{env, "env-variable-name"}`
-            * **Default:** none, either `jwt_secret_source` or `jwt_secret` must be set
+        * [`external` backend options](authentication-backends/External-authentication-module.md#configuration-options)
         
-        * **jwt_secret** (local)
-            * **Description:** A binary with a JWT secret. This options is ignored and overwritten, if `jwt_secret_source` is defined.
-            * **Value:** binary
-            * **Default:** none (either `jwt_secret_source` or `jwt_secret` must be set)
+        * [`http` backend options](authentication-backends/HTTP-authentication-module.md#configuration-options)
+
+        * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
         
-        * **jwt_algorithm** (local)
-            * **Description:** A name of the algorithm used to sign JWT.
-            * **Valid values:** `"HS256", "RS256", "ES256", "HS386", "RS386", "ES386", "HS512", "RS512", "ES512"`
-            * **Default:** none, it's a mandatory option
-        
-        * **jwt_username_key** (local)
-            * **Description:** A JWT key that contains username to verify.
-            * **Value:** atom
-            * **Default:** none, it's a mandatory option
+* `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `ejabberd.cfg` file.
 
-- **LDAP-related options**
-    * **ldap_base:**
-        * **Description:**  LDAP base directory which stores users accounts.
-        * **Values:** String
-        * **Default:** This option is required
+* **sasl_mechanisms** (local)
+    * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
+    * **Warning:** This list is still filtered by auth backends capabilities, e.g. LDAP authentication requires a password provided via SASL PLAIN.
+    * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth`
+    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth]`
+    * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_anonymous, cyrsasl_scram]`
 
-    * **ldap_uids:**
-        * **Description:**  LDAP attribute which holds a list of attributes to use as alternatives for getting the JID.
-       The attributes are of the form: `[{ldap_uidattr}]` or `[{ldap_uidattr, ldap_uidattr_format}]`. You can use as many comma separated attributes as needed.
-        * **Values** `[ ldap_uidattr | {ldap_uidattr: ldap_uidattr_format} ]`
-        The values for `ldap_uidattr` and `ldap_uidattr_format` are described as follow:
-             * **ldap_uidattr:** LDAP attribute which holds the user’s part of a JID. The default value is `uid`
-             * **ldap_uidattr_format:**  Format of the `ldap_uidattr` variable. The format must contain one and only one pattern variable `%u` which will be replaced by the user’s part of a JID. For example, `%u@example.org`. The default value is `%u`.
-        * **Default**  `[{uid, %u}]`
+* **extauth_instances** (local)
+    * **Description:** Specifies a number of workers serving external authentication requests.
+    * **Syntax:** `{extauth_instances, Count}.`
+    * **Default:** 1
 
-    * **ldap_filter:**
-        * **Description:** LDAP filter. Please, do not forget to close brackets and do not use superfluous whitespaces.
-        Also you must not use `ldap_uidattr` attribute in filter because this attribute will be substituted in LDAP filter automatically.
-        * **Values:** String. For example:
+### RDMBS connection setup
 
-                                          (&(objectClass=shadowAccount)(memberOf=Jabber Users))
+The following options can be used to configure RDMBS connection pools.
+To set the options for all connection pools, put them on the top level of the configuration file.
+To set them for an individual pool, put them inside the `Options` list in a pool specification.
+Setting `odbc_server` is mandatory if connection details are not provided in pool tuples directly.
 
-        * **Default:** `undefined`
+*Note*: `odbc` prefixes may be misleading. The options apply to all kinds of RDBMS connections, not only pure ODBC.
 
-    * **ldap_dn_filter:**
-        * **Description:**  This filter is applied on the results returned by the main filter.
-        This filter performs additional LDAP lookup to make the complete result. This is useful when you are unable to define all filter rules in ldap_filter.
-        You can define `%u`, `%d`, `%s` and `%D` pattern variables in the filter: `%u` is replaced by a user’s part of a JID, `%d` is replaced by the corresponding domain (virtual host), all `%s` variables are consecutively replaced by values of FilterAttrs attributes and `%D` is replaced by Distinguished Name.
-        Since this filter makes additional LDAP lookups, use it only as the last resort: try to define all filter rules in ldap_filter if possible.
-        * **Values:** `{Filter, [FilterAttributes]}`. For example:
-
-                                  (&(name=%s)(owner=%D)(user=%u@%d))": ["sn"]
-
-        * **Default:** `undefined`
-
-    * **ldap_local_filter:**
-        * **Description:** If you can’t use ldap_filter due to performance reasons (the LDAP server has many users registered), you can use this local filter.
-        The local filter checks an attribute in MongooseIM, not in LDAP, so this limits the load on the LDAP directory.
-        * **Values:** `Filter`. Example values:
-
-                                  {ldap_local_filter, {notequal, {"accountStatus",["disabled"]}}}.
-                                  {ldap_local_filter, {equal, {"accountStatus",["enabled"]}}}.
-                                  {ldap_local_filter, undefined}.
-        * **Default:** `undefined`
-
-### Database setup
-
-#### Connection pools
+Please remember that SQL databases require creating a schema.
+See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
 
 * **pool** (multi, local)
-    * **Description:** Declares a named pool of connections to the database. At least one pool is required to connect to an SQL database.
+    * **Description:** Declares a named pool of connections to the database.
+    At least one pool is required to connect to an SQL database.
     * **Syntax:** `{pool, odbc, PoolName}.` or `{pool, odbc, PoolName, Options}.`
     * **Examples:** `{pool, odbc, default}.`
 
@@ -257,102 +240,89 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
     * **Syntax:** `{odbc_pool, PoolName}`
     * **Default:** `default`
 
-#### Connection setup
-
-The following options can be used to configure a connection pool. To set the options for all connection pools, put them on the top level of the configuration file. To set them for an individual pool, put them inside the `Options` list in a pool specification. Setting `odbc_server` is mandatory.
-
-*Note*: `odbc` prefixes may be misleading. The options apply to all kinds of DB connections, not only pure ODBC.
+* **odbc_pool_size** (local)
+    * **Description:** How many DB client workers should be started per each domain.
+    * **Syntax:** `{odbc_pool_size, Size}`.
+    * **Default:** 10
 
 * **odbc_server** (local)
     * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
     * **Syntax:** `{odbc_server, {Type, Host, Port, DBName, Username, Password}}.`
+    * **Default:** `undefined`
 
 * **pgsql_users_number_estimate** (local)
-    * **Description:** PostgreSQL's internal structure can make the row counting slow. Enabling this option uses alternative query to `SELECT COUNT`, that might be not as accurate but is always fast.
-
-* **odbc_pool_size** (local)
-    * **Description:** How many DB client workers should be started per each domain.
-    * **Default:** 10
+    * **Description:** PostgreSQL's internal structure can make the row counting slow.
+    Enabling this option uses alternative query to `SELECT COUNT`, that might be not as accurate but is always fast.
+    * **Syntax:** `{pgsql_users_number_estimate, false | true}`
+    * **Default:** `false`
 
 * **odbc_keepalive_interval** (local)
     * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
-    This option should be used to ensure that database connections are
-    restarted after they became broken (e.g. due to a database restart or a load
-    balancer dropping connections). Currently, not every network related error
-    returned from a database driver to a regular query will imply a connection
-    restart.
+    This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections).
+    Currently, not every network related error returned from a database driver to a regular query will imply a connection restart.
+    * **Syntax:** `{odbc_keepalive_interval, IntervalSeconds}.`
+    * **Example:** `{odbc_keepalive_interval, 30}.`
+    * **Default:** `undefined`
 
-You should remember that SQL databases require creating a schema.
-See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
+* **odbc_server_type** (local)
+    * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_odbc_user` uses different query for `mssql`).
+    * **Syntax:** `{odbc_server_type, Type}`
+    * **Supported values:** `mssql`, `generic`
+    * **Default:** `generic`
 
-### Traffic shapers
 
-* **shaper** (mutli, global)
-    * **Description:** Define a class of a shaper which is a mechanism for limiting traffic to prevent DoS attack or calming down too noisy clients.
-    * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
+### Riak connection setup
 
-* **max_fsm_queue** (local)
-    * **Description:** When enabled, will terminate certain processes (e.g. client handlers) that exceed message limit, to prevent resource exhaustion. This option is set for all the listeners but can be overridden for particular `ejabberd_s2s` or `ejabberd_service` listeners in their configurations. **Use with caution!**
-    * **Syntax:** `{max_fsm_queue, MaxFsmQueueLength}`
+Only one Riak connection pool can exist per each supported XMPP host.
+It is configured with single tuple.
 
-### Access control lists
+* **riak_server** (local)
+    * **Description:** Declares a Riak connection pool with provided options.
+    Autmatic reconnect and keepalive features are always enabled in the driver.
+    * **Syntax:** `{riak_server, OptionList}.`
+    * **Options:**
+        * **pool_size** - A positive integer.
+        * **address** - A string with IP or hostname.
+        * **port** - A positive integer.
+    * **Example:** `{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}]}.`
 
-* **acl** (multi)
-    * **Description:** Define access control list class.
-    * **Syntax:** `{acl, AtomName, Definition}`
-    * **Regexp format:** Syntax for `_regexp` can be found in [Erlang documentation](http://www.erlang.org/doc/man/re.html) - it's based on AWK syntax. For `_glob` use `sh` regexp syntax.
-    * **Valid definitions:**
-        * `all`
-        * `{user, U}` - check if the username equals `U` and the domain either equals the one specified by the module executing the check or (if the module does a `global` check) is on the served domains list (`hosts` option) 
-        * `{user, U, S}` - check if the username equals `U` and the domain equals `S`
-        * `{server, S}` - check if the domain equals `S`
-        * `{resource, R}` - check if the resource equals `R`
-        * `{user_regexp, UR}` - perform a regular expression `UR` check on the username and check the server name like in `user`
-        * `{user_regexp, UR, S}` - perform a regular expression `UR` check on the username and check if the domain equals `S`
-        * `{server_regexp, SR}` - perform a regular expression `SR` check on a domain
-        * `{resource_regexp, RR}` - perform a regular expression `SR` check on a resource
-        * `{node_regexp, UR, SR}` - username must match `UR` and domain must match `SR`
-        * `{user_glob, UR}` - like `_regexp` variant but with `sh` syntax
-        * `{server_glob, UR}` - like `_regexp` variant but with `sh` syntax
-        * `{resource_glob, UR}` - like `_regexp` variant but with `sh` syntax
-        * `{node_glob, UR}` - like `_regexp` variant but with `sh` syntax
-        * `{shared_group, G}` - check if the user is in a shared group `G` in the domain specified by the module executing the check
-        * `{shared_group, G, H}`- check if the user is in shared group `G` in domain `H`
+### Cassandra connection setup
 
-### Access rules
+Cassandra connection pools are defined in a manner similar to RDBMS ones, but with a slightly different syntax.
+All pools are grouped in `cassandra_servers` tuple and per-pool connection parameters can be provided.
+If they are not present - defaults are used (connection to `localhost:9042` with 1 worker).
 
-* **access** (multi, global)
-    * **Description:** Define an access rule for internal checks. The configuration file contains all built-in ones with proper comments.
-    * **Syntax:** `{access, AtomName, [{Value, AclName}]}`
+* **cassandra_servers** (local)
+    * **Description:** Declares Cassandra connection pool(s) with provided options.
+    * **Syntax:** `{cassandra_servers, [ PoolDefinition1, PoolDefinition2, ... ]}`
 
-* **registration_timeout** (local)
-    * **Description:** Limits the registration frequency from a single IP. Valid values are `infinity` or a number of seconds.
+#### Pool definition
 
-### Default language
+* **Syntax:** `{PoolName, WorkerCount, ConnectionParamsList}`
+* **Elements:**
+    * **PoolName** (atom) - A unique identifier used by modules that make requests to Cassandra.
+    * **WorkerCount** (positive integer) - How many connections should be open to every node in Cassandra cluster.
+    Cassandra database layer creates `4 * WorkerCount` workers as a intermediary between the caller and DB driver.
+    * **ConnectionParamsList**
 
-* **language** (global)
-    * **Description:** Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls apps/ejabberd/priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
-    * **Default:** `en`
+#### Connection parameters
 
-### Miscellaneous
+* **servers** - A list of servers in Cassandra cluster in `{HostnameOrIP, Port}` format.
+* **keyspace** - A name of keyspace to use in queries executed in this pool.
+* You can find a full list in `cqerl` [documentation](https://github.com/matehat/cqerl#all-modes).
 
-* **all_metrics_are_global** (local)
-    * **Description:** When enabled, all per-host metrics are merged into global equivalents. It means it is no longer possible to view individual host1, host2, host3, ... metrics, only sums are available. This option significantly reduces CPU and (especially) memory footprint in setups with exceptionally many domains (thousands, tens of thousands).
-    * **Default:** `false`
+#### Example
 
-### Modules
-
-For a specific configuration, please refer to [Modules](advanced-configuration/Modules.md) page.
-
-* **modules** (local)
-    * **Description:** List of enabled modules with their options.
-
-### Per-domain configuration
-
-The `host_config` allows configuring most options separately for specific domains served by the cluster. It is best to put `host_config` tuple right after the global section it overrides/complements or even at the end of `ejabberd.cfg`.
-
-* **host_config** (multi, local)
-    * **Syntax:** `{host_config, Domain, [ {{add, modules}, [{mod_some, Opts}]}, {access, c2s, [{deny, local}]}, ... ]}.`
+```
+{cassandra_servers,
+ [
+  {default, 100,
+   [
+    {servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}] },
+    {keyspace, "big_mongooseim"}
+   ]}
+ ]}.
+```
 
 ### Outgoing HTTP connections
 
@@ -377,11 +347,101 @@ Following pool options are recognized - all of them are optional.
                    ]}.
 ```
 
+### Traffic shapers
+
+* **shaper** (mutli, global)
+    * **Description:** Define a class of a shaper which is a mechanism for limiting traffic to prevent DoS attack or calming down too noisy clients.
+    * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
+
+* **max_fsm_queue** (local)
+    * **Description:** When enabled, will terminate certain processes (e.g. client handlers) that exceed message limit, to prevent resource exhaustion.
+                       This option is set for C2S, outgoing S2S and component connections and can be overridden for particular `ejabberd_s2s` or `ejabberd_service` listeners in their configurations.
+                       **Use with caution!**
+    * **Syntax:** `{max_fsm_queue, MaxFsmQueueLength}`
+
+### Access control lists
+
+* **acl** (multi)
+    * **Description:** Define access control list class.
+    * **Syntax:** `{acl, AtomName, Definition}`
+    * **Regexp format:** Syntax for `_regexp` can be found in [Erlang documentation](http://www.erlang.org/doc/man/re.html) - it's based on AWK syntax. For `_glob` use `sh` regexp syntax.
+    * **Valid definitions:**
+        * `all`
+        * `{user, U}` - check if the username equals `U` and the domain either equals the one specified by the module executing the check or (if the module does a `global` check) is on the served domains list (`hosts` option) 
+        * `{user, U, S}` - check if the username equals `U` and the domain equals `S`
+        * `{server, S}` - check if the domain equals `S`
+        * `{resource, R}` - check if the resource equals `R`
+        * `{user_regexp, UR}` - perform a regular expression `UR` check on the username and check the server name like in `user`
+        * `{user_regexp, UR, S}` - perform a regular expression `UR` check on the username and check if the domain equals `S`
+        * `{server_regexp, SR}` - perform a regular expression `SR` check on a domain
+        * `{resource_regexp, RR}` - perform a regular expression `SR` check on a resource
+        * `{node_regexp, UR, SR}` - username must match `UR` and domain must match `SR`
+        * `{user_glob, UR}` - like `_regexp` variant but with `sh` syntax
+        * `{server_glob, UR}` - like `_regexp` variant but with `sh` syntax
+        * `{resource_glob, UR}` - like `_regexp` variant but with `sh` syntax
+        * `{node_glob, UR}` - like `_regexp` variant but with `sh` syntax
+
+### Access rules
+
+* **access** (multi, global)
+    * **Description:** Define an access rule for internal checks. The configuration file contains all built-in ones with proper comments.
+    * **Syntax:** `{access, AtomName, [{Value, AclName}]}`
+
+* **registration_timeout** (local)
+    * **Description:** Limits the registration frequency from a single IP. Valid values are `infinity` or a number of seconds.
+
+* **mongooseimctl_access_commands** (local)
+    * **Description:** Defines access rules to chosen `mongooseimctl` commands.
+    * **Syntax:** `{mongooseimctl_access_commands, [Rule1, Rule2, ...]}.`
+    * **Rule syntax:** `{AccessRule, Commands, ArgumentRestrictions}`
+        * `AccessRule` - A name of a rule defined with `acl` config key.
+        * `Commands` - A list of command names (e.g. `["restart", "stop"]`) or `all`.
+        * `ArgumentRestrictions` - A list of permitted argument values (e.g. `[{domain, "localhost"}]`).
+    * **Example:** `{mongooseimctl_access_commands, [{local, ["join_cluster"], [{node, "mongooseim@prime"}]}]}.`
+
+### Default language
+
+* **language** (global)
+    * **Description:** Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls apps/ejabberd/priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
+    * **Default:** `en`
+
+### Miscellaneous
+
+* **all_metrics_are_global** (local)
+    * **Description:** When enabled, all per-host metrics are merged into global equivalents. It means it is no longer possible to view individual host1, host2, host3, ... metrics, only sums are available. This option significantly reduces CPU and (especially) memory footprint in setups with exceptionally many domains (thousands, tens of thousands).
+    * **Default:** `false`
+
+* **routing_modules** (local)
+    * **Description:** Provides an ordered list of modules used for routing messages. If one of the modules accepts packet for processing, the remaining ones are not called.
+    * **Syntax:** `{routing_modules, ModulesList}.`
+    * **Valid modules:**
+        * `mongoose_router_global` - Calls `filter_packet` hook.
+        * `mongoose_router_localdomain` - Routes packets addressed to a domain supported by the local cluster.
+        * `mongoose_router_external_localnode` - Delivers packet to an XMPP component connected to the node, which processes the request.
+        * `mongoose_router_external` - Delivers packet to an XMPP component connected to the local cluster.
+        * `ejabberd_s2s` - Forwards a packet to another XMPP cluster over XMPP Federation.
+    * **Default:** `[mongoose_router_global, mongoose_router_localdomain, mongoose_router_external_localnode, mongoose_router_external, ejabberd_s2s]`
+    * **Example:** `{routing_modules, [mongoose_router_global, mongoose_router_localdomain]}.`
+
+### Modules
+
+For a specific configuration, please refer to [Modules](advanced-configuration/Modules.md) page.
+
+* **modules** (local)
+    * **Description:** List of enabled modules with their options.
+
+### Per-domain configuration
+
+The `host_config` allows configuring most options separately for specific domains served by the cluster. It is best to put `host_config` tuple right after the global section it overrides/complements or even at the end of `ejabberd.cfg`.
+
+* **host_config** (multi, local)
+    * **Syntax:** `{host_config, Domain, [ {{add, modules}, [{mod_some, Opts}]}, {access, c2s, [{deny, local}]}, ... ]}.`
+
 # vm.args
 
 This file contains parameters passed directly to the Erlang VM. To configure it, go to `[MongooseIM root]/rel/files/`.
 
-Let's explore the default options/
+Let's explore the default options.
 
 ## Options
 
@@ -390,7 +450,7 @@ Let's explore the default options/
 * `+K` - Enables kernel polling. It improves the stability when a large number of sockets is opened, but some systems might benefit from disabling it. Might be a subject of individual load testing.
 * `+A 5` - Sets the asynchronous threads number. Async threads improve I/O operations efficiency by relieving scheduler threads of IO waits.
 * `+P 10000000` - Process count limit. This is a maximum allowed number of processes running per node. In general, it should exceed the tripled estimated online user count.
-* `-env ERL_MAX_PORTS 250000` - Open port count. This is a maximum allowed number of ports opened per node. In general, it should exceed the tripled estimated online user count. Keep in mind that increasing this number also increases the memory usage by a constant amount, so finding the right balance for it is crucial for every project.
+* `-env ERL_MAX_PORTS 250000` - Open port count. This is a maximum allowed number of ports opened per node. In general, it should exceed the tripled estimated online user count. Keep in mind that increasing this number also increases the memory usage by a constant amount, so finding the right balance for it is important for every project.
 * `-env ERL_FULLSWEEP_AFTER 2` - affects garbage collection. Reduces memory consumption (forces often full g.c.) at the expense of CPU usage.
 * `-sasl sasl_error_logger false` - MongooseIM's solution for logging is Lager, so SASL error logger is disabled.
 
@@ -399,25 +459,22 @@ Let's explore the default options/
 A file with Erlang application configuration. To configure it, go to `[MongooseIM root]/rel/files/`.
 By default only the following applications can be found there:
 
-* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information.
-   
-    Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) 
-   and date formatting (`date`). Ignore the log level parameters - they are overridden with the value in `ejabberd.cfg`.
-
-* `ejabberd` - set `keep_lager_intact` parameter to `true` when you want to use `lager` log level parameters from `app.config`. 
-    Missing value or`false` for this parameter means overriding the log levels with the value in `ejabberd.cfg`.
-
-* `ssl` only `session_lifetime` parameter is specified in this file. 
-    Its default value is **600s**. 
-    This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
-
+* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information. Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) and date formatting (`date`). Ignore the log level parameters - by defaultthey are overridden with the value in `ejabberd.cfg`.
+* `ejabberd`
+    * `keep_lager_intact` (default: `false`) - set it to `true` when you want to keep `lager` log level parameters from `app.config`. `false` means overriding the log levels with the value in `ejabberd.cfg`.
+    * `config` (default: `"etc/ejabberd.cfg"`) - path to MongooseIM config file.
+* `ssl`
+    * `session_lifetime` (default specified in the file: `600` seconds) - This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
 
 # Configuring TLS: Certificates & Keys
 
 TLS is configured in one of two ways: some modules need a private key and certificate (chain) in __separate__ files, while others need both in a __single__ file. This is because recent additions use OTP's `ssl` library, while older modules use `p1_tls`, respectively.
 
-* Client-to-server connections need both in the __same__ `.pem` file (find more information under *Options* in *Basic Configuration Overview* and *Listener Modules*)
-* Server-to-server connections need both in the __same__ `.pem` file (find more information under Listening Ports in *Advanced Configuration Overview*)
-* BOSH & Web Sockets use Cowboy, which uses OTP's `ssl` module like all our HTTPS endpoints, so they need them in __separate__ files (find more information in *Listener Modules*)
+* Client-to-server connections need both in the __same__ `.pem` file
+* Server-to-server connections need both in the __same__ `.pem` file
+* BOSH, WebSockets and REST APIs need them in __separate__ files
 
-When the private key and certificate (chain) need to be in the same file, it should suffice to concatenate them.
+In order to create private key & certificate bundle, you may simply concatenate them.
+
+More information about configuring TLS for these endpoints is available in [Listener modules](advanced-configuration/Listener-modules.md) page.
+

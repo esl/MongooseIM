@@ -32,20 +32,26 @@
 %%--------------------------------------------------------------------
 
 all() ->
-
-    [{group, positive}].
+    [{group, positive},
+     {group, negative}].
 
 groups() ->
-
-    [{positive, [parallel], success_response()}].
+    [{positive, [parallel], success_response()},
+     {negative, [parallel], negative_response()}].
 
 success_response() ->
-
     [create_unique_room,
      create_identifiable_room,
      invite_to_room,
-     send_message_to_room].
+     send_message_to_room,
+     delete_room_by_owner
+    ].
 
+negative_response() ->
+    [delete_room_by_non_owner,
+     delete_non_existent_room,
+     delete_room_without_having_a_membership
+    ].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -88,7 +94,7 @@ create_unique_room(Config) ->
                   owner => escalus_client:short_jid(Alice),
                   subject => <<"Lewis Carol">>
                 },
-        {{<<"201">>, _}, _} = rest_helper:post(Path, Body),
+        {{<<"201">>, _}, _} = rest_helper:post(admin, Path, Body),
         [Item] = get_disco_rooms(Alice),
         MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
@@ -107,7 +113,7 @@ create_identifiable_room(Config) ->
                 },
         {{<<"201">>, _},
          <<"just_some_id", $@, MUCLightDomain/binary>>
-        } = rest_helper:putt(Path, Body),
+        } = rest_helper:putt(admin, Path, Body),
         [Item] = get_disco_rooms(Alice),
         MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
@@ -134,7 +140,7 @@ invite_to_room(Config) ->
         Body = #{ sender => escalus_client:short_jid(Alice),
                   recipient => escalus_client:short_jid(Bob)
                 },
-        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         %% XMPP: Bob recieves his affiliation information.
         member_is_affiliated(escalus:wait_for_stanza(Bob), Bob),
         %% XMPP: Alice recieves Bob's affiliation infromation.
@@ -162,10 +168,51 @@ send_message_to_room(Config) ->
         Body = #{ from => escalus_client:short_jid(Alice),
                   body => Text
                 },
-        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         %% XMPP: Both Bob and Kate see the message.
         [ see_message_from_user(U, Alice, Text) || U <- [Bob, Kate] ]
     end).
+
+delete_room_by_owner(Config) ->
+    RoomName = <<"wonderland">>,
+    escalus:fresh_story(Config,
+                        [{alice, 1}, {bob, 1}, {kate, 1}],
+                        fun(Alice, Bob, Kate)->
+                                {{<<"204">>, <<"No Content">>}, <<"">>} =
+                                    check_delete_room(Config, RoomName, RoomName,
+                                                      Alice, [Bob, Kate], Alice)
+                        end).
+
+delete_room_by_non_owner(Config) ->
+    RoomName = <<"wonderland">>,
+    escalus:fresh_story(Config,
+                        [{alice, 1}, {bob, 1}, {kate, 1}],
+                        fun(Alice, Bob, Kate)->
+                                {{<<"403">>, <<"Forbidden">>},
+                                 <<"Command not available for this user">>} = 
+                                    check_delete_room(Config, RoomName, RoomName,
+                                                      Alice, [Bob, Kate], Bob)
+                        end).
+
+delete_non_existent_room(Config) ->
+    RoomName = <<"wonderland">>,
+    escalus:fresh_story(Config,
+                        [{alice, 1}, {bob, 1}, {kate, 1}],
+                        fun(Alice, Bob, Kate)->
+                                {{<<"500">>, _}, _} =
+                                    check_delete_room(Config, RoomName, <<"some_non_existent_room">>,
+                                                      Alice, [Bob, Kate], Alice)
+                        end).
+
+delete_room_without_having_a_membership(Config) ->
+    RoomName = <<"wonderland">>,
+    escalus:fresh_story(Config,
+                        [{alice, 1}, {bob, 1}, {kate, 1}],
+                        fun(Alice, Bob, Kate)->
+                                {{<<"500">>, _}, _} =
+                                    check_delete_room(Config, RoomName, RoomName,
+                                                      Alice, [Bob], Kate)
+                        end).
 
 
 %%--------------------------------------------------------------------
@@ -206,6 +253,18 @@ member_is_affiliated(Stanza, User) ->
     MemberJID = escalus_utils:jid_to_lower(escalus_utils:get_short_jid(User)),
     Data = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"user">>}, cdata]),
     MemberJID == Data.
+
+check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
+                  RoomMembers, UserToExecuteDelete) ->
+    Domain = <<"localhost">>,
+    escalus:send(RoomOwner, stanza_create_room(undefined,
+                                           [{<<"roomname">>, RoomNameToCreate}],
+                                           [{Member, member} || Member <- RoomMembers])),
+    [escalus:wait_for_stanza(Member) || Member <- [RoomOwner] ++ RoomMembers],
+    ShortJID = escalus_client:short_jid(UserToExecuteDelete),
+    Path = <<"/muc-lights",$/,Domain/binary,$/,
+             RoomNameToDelete/binary,$/,ShortJID/binary,$/,"management">>,
+    rest_helper:delete(admin, Path).
 
 %%--------------------------------------------------------------------
 %% Constants

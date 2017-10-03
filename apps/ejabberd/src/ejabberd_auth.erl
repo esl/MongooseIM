@@ -533,7 +533,8 @@ do_remove_user(LUser, LServer) ->
 %% @doc Try to remove user if the provided password is correct.
 %% The removal is attempted in each auth method provided:
 %% when one returns 'ok' the loop stops;
-%% if no method returns 'ok' then it returns the error message indicated by the last method attempted.
+%% if no method returns 'ok' then it returns the error message
+%% indicated by the last method attempted.
 -spec remove_user(User :: ejabberd:user(),
                   Server :: ejabberd:server(),
                   Password :: binary()
@@ -564,22 +565,12 @@ entropy(IOList) ->
     case binary_to_list(iolist_to_binary(IOList)) of
         "" ->
             0.0;
-        S ->
+        InputList ->
             Set = lists:foldl(
-                    fun(C, [Digit, Printable, LowLetter, HiLetter, Other]) ->
-                            if C >= $a, C =< $z ->
-                                    [Digit, Printable, 26, HiLetter, Other];
-                               C >= $0, C =< $9 ->
-                                    [9, Printable, LowLetter, HiLetter, Other];
-                               C >= $A, C =< $Z ->
-                                    [Digit, Printable, LowLetter, 26, Other];
-                               C >= 16#21, C =< 16#7e ->
-                                    [Digit, 33, LowLetter, HiLetter, Other];
-                               true ->
-                                    [Digit, Printable, LowLetter, HiLetter, 128]
-                            end
-                    end, [0, 0, 0, 0, 0], S),
-            length(S) * math:log(lists:sum(Set))/math:log(2)
+                    fun(IOContent, Acc) ->
+                            get_type_information(IOContent, Acc)
+                    end, [0, 0, 0, 0, 0], InputList),
+            length(InputList) * math:log(lists:sum(Set))/math:log(2)
     end.
 
 %%%----------------------------------------------------------------------
@@ -600,12 +591,12 @@ auth_modules() ->
 -spec auth_modules(Server :: ejabberd:lserver()) -> [authmodule()].
 auth_modules(LServer) ->
     Method = ejabberd_config:get_local_option({auth_method, LServer}),
-    Methods = if
-                  Method == undefined -> [];
-                  is_list(Method) -> Method;
-                  is_atom(Method) -> [Method]
-              end,
+    Methods = get_auth_method_as_a_list(Method),
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- Methods].
+
+get_auth_method_as_a_list(undefined) -> [];
+get_auth_method_as_a_list(AuthMethod) when is_list(AuthMethod) -> AuthMethod;
+get_auth_method_as_a_list(AuthMethod) when is_atom(AuthMethod) -> [AuthMethod].
 
 ensure_metrics(Host) ->
     Metrics = [authorize, check_password, try_register, does_user_exist],
@@ -631,13 +622,29 @@ authorize_with_check_password(Module, Creds) ->
     Password  = mongoose_credentials:get(Creds, password),
     Digest    = mongoose_credentials:get(Creds, digest, undefined),
     DigestGen = mongoose_credentials:get(Creds, digest_gen, undefined),
-    Args = if
-               Digest /= undefined andalso DigestGen /= undefined ->
+    Args = case {Digest, DigestGen} of
+               _ when Digest /= undefined andalso DigestGen /= undefined ->
                    [LUser, LServer, Password, Digest, DigestGen];
-               Digest == undefined orelse DigestGen == undefined ->
+               _  ->
                    [LUser, LServer, Password]
            end,
     case erlang:apply(Module, check_password, Args) of
         true -> {ok, mongoose_credentials:set(Creds, auth_module, Module)};
         false -> {error, not_authorized}
     end.
+
+-spec get_type_information(integer(), list()) -> list().
+get_type_information(IOContent, [Digit, Printable, _, HiLetter, Other])
+  when IOContent >= $a andalso IOContent =< $z ->
+    [Digit, Printable, 26, HiLetter, Other];
+get_type_information(IOContent, [_, Printable, LowLetter, HiLetter, Other])
+  when IOContent >= $0 andalso IOContent =< $9 ->
+    [9, Printable, LowLetter, HiLetter, Other];
+get_type_information(IOContent, [Digit, Printable, LowLetter, _, Other])
+  when IOContent >= $A andalso IOContent =< $Z ->
+    [Digit, Printable, LowLetter, 26, Other];
+get_type_information(IOContent, [Digit, _, LowLetter, HiLetter, Other])
+  when IOContent >= 16#21 andalso IOContent =< 16#7e ->
+    [Digit, 33, LowLetter, HiLetter, Other];
+get_type_information(_IOContent, [Digit, Printable, LowLetter, HiLetter, _Other]) ->
+    [Digit, Printable, LowLetter, HiLetter, 128].

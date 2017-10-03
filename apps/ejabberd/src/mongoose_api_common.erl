@@ -76,7 +76,10 @@
          parse_request_body/1,
          get_allowed_methods/1,
          process_request/4,
-         reload_dispatches/1]).
+         reload_dispatches/1,
+         get_auth_details/1,
+         is_known_auth_method/1,
+         make_unauthorized_response/2]).
 
 
 %% @doc Reload all ejabberd_cowboy listeners.
@@ -250,6 +253,8 @@ convert_arg(float, Binary) when is_binary(Binary) ->
     binary_to_float(Binary);
 convert_arg(float, Float) when is_float(Float) ->
     Float;
+convert_arg([Type], List) when is_list(List) ->
+    [ convert_arg(Type, Item) || Item <- List ];
 convert_arg(_, _Binary) ->
     throw({error, bad_type}).
 
@@ -351,3 +356,15 @@ method_to_action(<<"POST">>) -> create;
 method_to_action(<<"PUT">>) -> update;
 method_to_action(<<"DELETE">>) -> delete.
 
+%%--------------------------------------------------------------------
+%% Authorization
+%%--------------------------------------------------------------------
+
+get_auth_details(Req) ->
+    cowboy_req:parse_header(<<"authorization">>, Req).
+
+is_known_auth_method(<<"basic">>) -> true;
+is_known_auth_method(_) -> false.
+
+make_unauthorized_response(Req, State) ->
+    {{false, <<"Basic realm=\"mongooseim\"">>}, Req, State}.

@@ -144,7 +144,9 @@
 -type caller() :: admin | binary() | user.
 -type action() :: create | read | update | delete. %% just basic CRUD; sending a mesage is 'create'
 
--type typedef() :: integer | binary | float. %% most basic primitives, string is a binary
+-type typedef() :: [typedef_basic()] | typedef_basic().
+
+-type typedef_basic() :: integer | binary | float. %% most basic primitives, string is a binary
 
 -type argspec() :: typedef()
                   | {atom(), typedef()} %% a named argument
@@ -397,6 +399,8 @@ check_and_execute(Caller, Command, Args) ->
     % run command
     Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, Args),
     case Res of
+        {error, not_allowed} ->
+            throw(permission_denied);
         {error, E} ->
             throw({func_returned_error, E});
         _ ->
@@ -422,6 +426,8 @@ check_type({_Name, binary}, Value) when is_binary(Value) ->
     true;
 check_type({_Name, integer}, Value) when is_integer(Value) ->
     true;
+check_type({_Name, [_] = LSpec}, Value) when is_list(Value) ->
+    check_type(LSpec, Value);
 check_type(Spec, Value) when is_tuple(Spec) and not is_tuple(Value) ->
     th("~p is not a tuple", [Value]);
 check_type(Spec, Value) when is_tuple(Spec) ->

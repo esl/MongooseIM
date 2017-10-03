@@ -60,8 +60,9 @@ mech_step(Creds, ClientIn) ->
                     {ok, Result};
                 {error, not_authorized} ->
                     {error, <<"not-authorized">>, User};
-                {error, R} ->
-                    ?DEBUG("authorize error: ~p", [R]),
+                {error, {no_auth_modules, _}} ->
+                    {error, <<"not-authorized">>, User};
+                {error, _} ->
                     {error, <<"internal-error">>}
             end;
         _ ->

@@ -4,7 +4,8 @@ This module as a backend of [mod_event_pusher] that enables forwarding certain e
 
 ## How it works
 
-The module registers a hook every time a user sends a message. When the hook is triggered, the module:
+The module adds a handler to a `user_send_packet` hook which is triggered every time a user sends anything.
+When the hook is triggered, the module:
 
 * checks whether http_notification is enabled (the `host` param is set)
 * runs a callback module's `should_make_req/3` function to see if a notification should be sent

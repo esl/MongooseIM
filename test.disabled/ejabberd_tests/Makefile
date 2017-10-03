@@ -35,11 +35,11 @@ endif
 
 test_clean: get-deps
 	rm -rf tests/*.beam
-	make test
+	$(MAKE) test
 
 cover_test_clean: get-deps
 	rm -rf tests/*.beam
-	make cover_test
+	$(MAKE) cover_test
 
 quicktest: $(PREPARE)
 	erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
@@ -53,13 +53,13 @@ post_cover:
 	@rm $(SUBDIR_ERL_FILES_IN_SRCDIR)
 
 cover_quicktest: pre_cover
-	make do_cover_quicktest; STATUS=$$?; make post_cover; exit $$STATUS
+	$(MAKE) do_cover_quicktest; STATUS=$$?; $(MAKE) post_cover; exit $$STATUS
 
 cover_test_preset: pre_cover
-	make do_cover_test_preset; STATUS=$$?; make post_cover; exit $$STATUS
+	$(MAKE) do_cover_test_preset; STATUS=$$?; $(MAKE) post_cover; exit $$STATUS
 
 cover_test: pre_cover
-	make do_cover_test; STATUS=$$?; make post_cover; exit $$STATUS
+	$(MAKE) do_cover_test; STATUS=$$?; $(MAKE) post_cover; exit $$STATUS
 
 do_cover_quicktest: $(PREPARE)
 	erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \

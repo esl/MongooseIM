@@ -19,6 +19,8 @@ Currently, the module supports only the S3 backend using [AWS Signature Version 
 #### S3 backend options
 
 * **bucket_url** (string, default: unset) - A complete URL pointing at the used bucket. The URL may be in [virtual host form][aws-virtual-host], and for AWS needs to point at a specific regional endpoint for the bucket. The scheme, port and path specified in the URL will be used to create `PUT` URLs for slots, e.g. specifying a value of `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix"` will result in `PUT` URLs of form `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix/<RANDOM_TOKEN>/<FILENAME>?<AUTHENTICATION_PARAMETERS>"`.
+* **add_acl** (boolean, default: `true`) - If `true`, adds `x-amz-acl=public-read` parameter to the PUT request.
+This allows users to read the uploaded files even if the bucket is private.
 * **region** (string, default: unset) - The [AWS region][aws-region] to use for requests.
 * **access_key_id** (string, default: unset) - [ID of the access key][aws-keys] to use for authorization.
 * **secret_access_key** (string, default: unset) - [Secret access key][aws-keys] to use for authorization.

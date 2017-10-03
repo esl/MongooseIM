@@ -24,8 +24,8 @@
          rest_init/2,
          options/2,
          content_types_accepted/2,
-         delete_resource/2]).
-
+         delete_resource/2,
+         is_authorized/2]).
 %% local callbacks
 -export([to_json/2, from_json/2]).
 -include("mongoose_api.hrl").
@@ -39,6 +39,8 @@
                               process_request/4,
                               parse_request_body/1]).
 
+-type credentials() :: {Username :: binary(), Password :: binary()} | any.
+
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
 %%--------------------------------------------------------------------
@@ -47,12 +49,12 @@
 %% Returns list of all available http paths.
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
     ejabberd_cowboy:implemented_result().
-cowboy_router_paths(Base, _Opts) ->
+cowboy_router_paths(Base, Opts) ->
     ejabberd_hooks:add(register_command, global, mongoose_api_common, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, mongoose_api_common, reload_dispatches, 50),
         try
             Commands = mongoose_commands:list(admin),
-            [handler_path(Base, Command) || Command <- Commands]
+            [handler_path(Base, Command, Opts) || Command <- Commands]
         catch
             _:Err ->
                 ?ERROR_MSG("Error occured when getting the commands list: ~p~n~p",
@@ -71,10 +73,12 @@ rest_init(Req, Opts) ->
     {Bindings, Req1} = cowboy_req:bindings(Req),
     CommandCategory = proplists:get_value(command_category, Opts),
     CommandSubCategory = proplists:get_value(command_subcategory, Opts),
+    Auth = proplists:get_value(auth, Opts, any),
     State = #http_api_state{allowed_methods = mongoose_api_common:get_allowed_methods(admin),
                             bindings = Bindings,
                             command_category = CommandCategory,
-                            command_subcategory = CommandSubCategory},
+                            command_subcategory = CommandSubCategory,
+                            auth = Auth},
     options(Req1, State).
 
 options(Req, State) ->
@@ -110,6 +114,41 @@ delete_resource(Req, #http_api_state{command_category = Category, bindings = B} 
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     process_request(<<"DELETE">>, Command, Req, State).
 
+
+%%--------------------------------------------------------------------
+%% Authorization
+%%--------------------------------------------------------------------
+
+% @doc Cowboy callback
+is_authorized(Req, State) ->
+    ControlCreds = get_control_creds(State),
+    {ok, AuthDetails, Req2} = mongoose_api_common:get_auth_details(Req),
+    case authorize(ControlCreds, AuthDetails) of
+        true ->
+            {true, Req2, State};
+        false ->
+            mongoose_api_common:make_unauthorized_response(Req2, State)
+    end.
+
+-spec authorize(credentials(), {credentials(), binary()}) -> boolean().
+authorize(any, _) -> true;
+authorize(_, undefined) -> false;
+authorize(ControlCreds, {AuthMethod, Creds}) ->
+    compare_creds(ControlCreds, Creds) andalso
+        mongoose_api_common:is_known_auth_method(AuthMethod).
+
+% @doc Checks if credentials are the same (if control creds are 'any'
+% it is equal to everything).
+-spec compare_creds(credentials(), credentials() | undefined) -> boolean().
+compare_creds({UserControl, PassControl}, {User, Pass}) ->
+    UserControl == User andalso
+    PassControl == Pass;
+compare_creds(any, undefined) -> true;
+compare_creds(_, _) -> false.
+
+get_control_creds(#http_api_state{auth = Creds}) ->
+    Creds.
+
 %%--------------------------------------------------------------------
 %% Internal funs
 %%--------------------------------------------------------------------
@@ -141,10 +180,11 @@ from_json(Req, #http_api_state{command_category = Category,
             end
     end.
 
--spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:route().
-handler_path(Base, Command) ->
+-spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t(), [{atom(), term()}]) ->
+    ejabberd_cowboy:route().
+handler_path(Base, Command, ExtraOpts) ->
     {[Base, mongoose_api_common:create_admin_url_path(Command)],
         ?MODULE, [{command_category, mongoose_commands:category(Command)},
-                  {command_subcategory, mongoose_commands:subcategory(Command)}]}.
+                  {command_subcategory, mongoose_commands:subcategory(Command)} | ExtraOpts]}.
 
 

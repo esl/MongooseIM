@@ -32,6 +32,7 @@
 -export([route/3,
          route/4,
          route_error/4,
+         route_error_reply/4,
          register_route/2,
          register_routes/2,
          unregister_route/1,
@@ -125,6 +126,13 @@ route_error(From, To, Acc, ErrPacket) ->
         true ->
             Acc
     end.
+
+-spec route_error_reply(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), exml:element()) ->
+    mongoose_acc:t().
+route_error_reply(From, To, Acc, Error) ->
+    ErrorReply = jlib:make_error_reply(Acc, Error),
+    route_error(From, To, Acc, ErrorReply).
+
 
 -spec register_components([Domain :: domain()],
                           Handler :: mongoose_packet_handler:t()) -> ok | {error, any()}.

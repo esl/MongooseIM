@@ -82,12 +82,12 @@ backup_config_file(Node, Config) ->
     {ok, _} = call_fun(Node, file, copy, [current_config_path(Node, Config),
                                           backup_config_path(Node, Config)]).
 
--spec restore_config_file(ct_config()) -> ct_config().
+-spec restore_config_file(ct_config()) -> 'ok'.
 restore_config_file(Config) ->
     Node = ct:get_config({hosts, mim, node}),
     restore_config_file(Node, Config).
 
--spec restore_config_file(node(), ct_config()) -> ct_config().
+-spec restore_config_file(node(), ct_config()) -> 'ok'.
 restore_config_file(Node, Config) ->
     ok = call_fun(Node, file, rename, [backup_config_path(Node, Config),
                                        current_config_path(Node, Config)]).

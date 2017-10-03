@@ -26,6 +26,7 @@ all() -> [
           creates_slot_with_given_expiration_time,
           signs_url_with_expected_content_type_if_given,
           provides_and_signs_acl,
+          does_not_provide_acl_when_disabled,
           parses_bucket_url_with_custom_port,
           parses_unicode_bucket_url,
           parses_bucket_url_with_path,
@@ -116,6 +117,22 @@ provides_and_signs_acl(_Config) ->
                  lists:keyfind(<<"x-amz-acl">>, 1, Queries)),
 
     ?assertEqual({<<"X-Amz-Signature">>, <<"public-read">>},
+                 lists:keyfind(<<"X-Amz-Signature">>, 1, Queries)),
+
+    meck:unload(aws_signature_v4).
+
+does_not_provide_acl_when_disabled(_Config) ->
+    meck:expect(aws_signature_v4, sign,
+                fun
+                    (_, _, QS, _, _, _, _, _) ->
+                       maps:get(<<"x-amz-acl">>, QS, <<"noquery">>)
+               end),
+
+    Opts = with_s3_opts(#{add_acl => false}),
+    {PutUrl, _} = create_slot(#{opts => Opts}),
+    Queries = parse_url(PutUrl, queries),
+    ?assertEqual(false, lists:keyfind(<<"x-amz-acl">>, 1, Queries)),
+    ?assertEqual({<<"X-Amz-Signature">>, <<"noquery">>},
                  lists:keyfind(<<"X-Amz-Signature">>, 1, Queries)),
 
     meck:unload(aws_signature_v4).

@@ -94,23 +94,14 @@ init_per_suite(Config0) ->
                                                    ?DEFAULT_MONGOOSE_PUSH_PORT)}
     ]]),
 
-    SSLAppVersion = proplists:get_value(ssl_app, ssl:versions()),
-    [SSLMajorVersion | _] = string:tokens(SSLAppVersion, "."),
-    ct:pal("SSL Version ~p", [{SSLAppVersion, SSLMajorVersion}]),
-    case list_to_integer(SSLMajorVersion) >= 7 of
-        true ->
-            try
-                %% Connect only to test if MongoosePush is available
-                PushPortStr = getenv("MONGOOSE_PUSH_PORT", ?DEFAULT_MONGOOSE_PUSH_PORT),
-                {ok, _} = gen_tcp:connect("localhost", list_to_integer(PushPortStr), []),
-                escalus:init_per_suite(Config)
-            catch
-                _:_ ->
-                    {skip,  "MongoosePush is not available"}
-            end;
-        false ->
-            {skip,  "This test suite requires Erlang's SSL 7.0+ that is available in"
-                    "Erlang/OTP 18.0+"}
+    try
+        %% Connect only to test if MongoosePush is available
+        PushPortStr = getenv("MONGOOSE_PUSH_PORT", ?DEFAULT_MONGOOSE_PUSH_PORT),
+        {ok, _} = gen_tcp:connect("localhost", list_to_integer(PushPortStr), []),
+        escalus:init_per_suite(Config)
+    catch
+        _:_ ->
+            {skip,  "MongoosePush is not available"}
     end.
 
 

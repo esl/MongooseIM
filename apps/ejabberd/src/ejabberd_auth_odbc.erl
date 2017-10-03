@@ -328,7 +328,8 @@ prepare_password(Server, Password) ->
     end.
 
 scram_passwords(Server, ScramIterationCount) ->
-    scram_passwords(Server, ?DEFAULT_SCRAMMIFY_COUNT, ?DEFAULT_SCRAMMIFY_INTERVAL, ScramIterationCount).
+    scram_passwords(Server, ?DEFAULT_SCRAMMIFY_COUNT,
+                    ?DEFAULT_SCRAMMIFY_INTERVAL, ScramIterationCount).
 
 scram_passwords(Server, Count, Interval, ScramIterationCount) ->
     LServer = jid:nameprep(Server),
@@ -349,15 +350,21 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
             ?INFO_MSG("Scramming ~p users...", [length(Results)]),
             lists:foreach(
               fun({Username, Password}) ->
-                      Scrammed = prepare_scrammed_password(ScramIterationCount, Password),
-                      case catch rdbms_queries:set_password_t(LServer, Username, Scrammed) of
-                          {atomic, ok} -> ok;
-                          Other -> ?ERROR_MSG("Could not scrammify user ~s@~s because: ~p", [Username, LServer, Other])
-                      end
+                      ScrammedPassword = prepare_scrammed_password(ScramIterationCount,
+                                                                   Password),
+                      write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword)
               end, Results),
             ?INFO_MSG("Scrammed. Waiting for ~pms", [Interval]),
             timer:sleep(Interval),
             scram_passwords1(LServer, Count, Interval, ScramIterationCount);
         Other ->
             ?ERROR_MSG("Interrupted scramming because: ~p", [Other])
+    end.
+
+write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword) ->
+    case catch rdbms_queries:set_password_t(LServer, Username,
+                                            ScrammedPassword) of
+        {atomic, ok} -> ok;
+        Other -> ?ERROR_MSG("Could not scrammify user ~s@~s because: ~p",
+                            [Username, LServer, Other])
     end.

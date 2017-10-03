@@ -37,10 +37,6 @@ set_cors_headers(Origin, Req) ->
 set_cors_header({Header, Value}, Req) ->
     cowboy_req:set_resp_header(Header, Value, Req).
 
-is_authorized(Req, State) ->
-    {Method, Req1} = cowboy_req:method(Req),
-    maybe_authorize(Method, Req1, State).
-
 allowed_methods(Req, State) ->
     {[<<"OPTIONS">>, <<"GET">>], Req, State}.
 
@@ -55,39 +51,53 @@ options(Req, State) ->
 to_json(Req, User) ->
     {<<"{}">>, Req, User}.
 
-maybe_authorize(<<"OPTIONS">>, Req, State) ->
-    {true, Req, State};
-maybe_authorize(_, Req, State) ->
-    Auth = cowboy_req:parse_header(<<"authorization">>, Req),
-    case Auth of
-        {ok, undefined, _} ->
-            make_unauthorized_response(Req, State);
-        {ok, AuthDetails, Req2} ->
-            do_authorize(AuthDetails, Req2, State)
+%%--------------------------------------------------------------------
+%% Authorization
+%%--------------------------------------------------------------------
+
+% @doc cowboy callback
+is_authorized(Req, State) ->
+    {HTTPMethod, Req2} = cowboy_req:method(Req),
+    {ok, AuthDetails, Req3} = mongoose_api_common:get_auth_details(Req2),
+    case AuthDetails == undefined of
+        true ->
+            mongoose_api_common:make_unauthorized_response(Req3, State);
+        false ->
+            authorize(AuthDetails, HTTPMethod, Req3, State)
     end.
 
-do_authorize({<<"basic">>, {User, Password}}, Req, State) ->
-    case jid:from_binary(User) of
-        error ->
-            make_unauthorized_response(Req, State);
-        JID ->
-            do_check_password(User, JID, Password, Req, State)
-    end;
-do_authorize(_, Req, State) ->
-    make_unauthorized_response(Req, State).
+authorize({AuthMethod, Creds} = AuthDetails, HTTPMethod, Req, State) ->
+    case do_authorize(AuthDetails, HTTPMethod) of
+        noauth ->
+            {true, Req, State};
+        true ->
+            {User, _} = Creds,
+            {true, Req, State#{user => User, jid => jid:from_binary(User)}};
+        false ->
+            mongoose_api_common:make_unauthorized_response(Req, State)
+    end.
 
-do_check_password(RawUser, #jid{luser = User, lserver = Server} = JID,
-                  Password, Req, State) ->
+do_authorize({AuthMethod, Creds}, HTTPMethod) ->
+    case is_noauth_http_method(HTTPMethod) of
+        true ->
+            noauth;
+        false ->
+            check_password(Creds) andalso
+            mongoose_api_common:is_known_auth_method(AuthMethod)
+    end.
+
+check_password(undefined) -> false;
+check_password({User, Password}) ->
+    #jid{luser = RawUser, lserver = Server} = jid:from_binary(User),
     Creds0 = mongoose_credentials:new(Server),
-    Creds1 = mongoose_credentials:set(Creds0, username, User),
+    Creds1 = mongoose_credentials:set(Creds0, username, RawUser),
     Creds2 = mongoose_credentials:set(Creds1, password, Password),
     case ejabberd_auth:authorize(Creds2) of
-        {ok, _} ->
-            {true, Req, State#{user => RawUser, jid => JID}};
-        _ ->
-            make_unauthorized_response(Req, State)
+        {ok, _} -> true;
+        _ -> false
     end.
 
-make_unauthorized_response(Req, State) ->
-    {{false, <<"Basic realm=\"mongooseim\"">>}, Req, State}.
+% Constraints
+is_noauth_http_method(<<"OPTIONS">>) -> true;
+is_noauth_http_method(_) -> false.
 

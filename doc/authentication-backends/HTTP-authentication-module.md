@@ -1,4 +1,3 @@
-
 ## Overview
 
 The purpose of this module is to connect with an external REST API and delegate the authentication operations to it whenever possible.
@@ -24,14 +23,21 @@ The following options can be set in the `auth_opts` tuple in `rel/files/ejabberd
 * `host` (mandatory, `string`) - consists of protocol, hostname (or IP) and port (optional). Examples:
     * `{host, "http://localhost:12000"}`
     * `{host, "https://10.20.30.40"}`
-* `connection_pool_size` (optional, `integer`, default: 10) - the number of connections open to auth service
-* `connection_opts` (optional, default: `[]`) - extra options for hackers: http://erlang.org/doc/man/gen_tcp.html#type-connect_option
-* `basic_auth` (optional, default: `""`) - HTTP Basic Authentication in format `"username:password"`; auth service doesn't have to require authentication for HTTP auth to work
-* `path_prefix` (optional, default: `"/"`) - a path prefix to be inserted between `host` and method name; must be terminated with `/`
+* `connection_pool_size` (`integer`, default: 10) - the number of connections open to auth service
+* `connection_opts` (default: `[]`) - extra options for hackers: http://erlang.org/doc/man/gen_tcp.html#type-connect_option
+* `basic_auth` (default: `""`) - HTTP Basic Authentication in format `"username:password"`; auth service doesn't have to require authentication for HTTP auth to work
+* `path_prefix` (default: `"/"`) - a path prefix to be inserted between `host` and method name; must be terminated with `/`
 
-Example:
-`TODO`
+#### Example
 
+```
+{auth_opts, [
+             {host, "https://auth.mydomain.com:12345"},
+             {connection_pool_size, 5},
+             {basic_auth, "mongooseim:DzviNQw3qyGJDrJDu+ClyA"},
+             {path_prefix, "mimservice/"}
+            ]}.
+```
 
 ## SCRAM support
 
@@ -40,7 +46,8 @@ When SCRAM is enabled, the passwords sent to the auth service are serialised and
 
 It is transparent when MongooseIM is responsible for all DB operations such as password setting, account creation etc.
 
-The service CAN perform the (de)serialisation of SCRAM-encoded passwords, using a format that will be described in the near future in a separate document.
+The service CAN perform the (de)serialization of SCRAM-encoded passwords.
+You can find more details on the [SCRAM serialization](../developers-guide/SCRAM-serialization.md) page.
 
 ## Authentication service API
 
@@ -147,30 +154,30 @@ A body can be missing in the first data chunk read from a socket, leading to str
 
 ### Authentication service API recipes
 
-Below are some examples of the auth service APIs and MongooseIM-side configuration along with use cases.
+Below you can find some examples of the auth service APIs and MongooseIM-side configuration along with use cases.
 
 #### System using a common, custom auth token
 
 An Auth token is provided as a password.
 
 * **Service implements:** `check_password`, `user_exists`
-* **MongooseIM config:** `password format`: `plain`, `mod_register` disabled
+* **MongooseIM config:** `password_format`: `plain`, `mod_register` disabled
 * **Client side:** MUST NOT use `DIGEST-MD5` mechanism; use `PLAIN`
 
 #### Central database of plaintext passwords
 
 * **Service implements:** `check_password`, `get_password`, `user_exists`
-* **MongooseIM config:** `password format`: `plain`, `mod_register` disabled
+* **MongooseIM config:** `password_format`: `plain`, `mod_register` disabled
 * **Client side:** May use any available auth method
 
 #### Central database able to process SCRAM
 
 * **Service implements:** `get_password`, `user_exists`
-* **MongooseIM config:** `password format`: `scram`, `mod_register` disabled
+* **MongooseIM config:** `password_format`: `scram`, `mod_register` disabled
 * **Client side:** May use any available auth method
 
 #### Godlike MongooseIM
 
 * **Service implements:** all methods
-* **MongooseIM config:** `password format`: `scram` (recommended) or `plain`, `mod_register` enabled
+* **MongooseIM config:** `password_format`: `scram` (recommended) or `plain`, `mod_register` enabled
 * **Client side:** May use any available auth method

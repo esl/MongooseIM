@@ -42,13 +42,14 @@ allow_missing_post(Req, State) ->
 
 from_json(Req, #{user := User,
                  role_in_room := owner,
-                 jid := #jid{lserver = Server}} = State) ->
+                 jid := #jid{lserver = Server},
+                 room_id := RoomID} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
     JSONData = jiffy:decode(Body, [return_maps]),
     #{<<"user">> := UserToInvite} = JSONData,
-    {RoomId, Req3} = cowboy_req:binding(id, Req2),
-    mod_muc_light_commands:change_affiliation(Server, RoomId, User, UserToInvite, <<"member">>),
-    {true, Req3, State};
+    mod_muc_light_commands:change_affiliation(Server, RoomID, User,
+                                              UserToInvite, <<"member">>),
+    {true, Req2, State};
 from_json(Req, State) ->
     mongoose_client_api_rooms:forbidden_request(Req, State).
 
@@ -62,14 +63,13 @@ delete_resource(Req, #{user := User} = State) ->
     {UserToRemove, Req2} = cowboy_req:binding(user, Req),
     case UserToRemove of
         User ->
-            remove_user_from_room(User, User, Req2, State);
+            remove_user_from_room(User, User, Req, State);
         _ ->
             mongoose_client_api_rooms:forbidden_request(Req2, State)
     end.
 
 remove_user_from_room(Remover, Target, Req,
-                      #{jid := #jid{lserver = Server}} = State) ->
-    {RoomId, Req2} = cowboy_req:binding(id, Req),
-    mod_muc_light_commands:change_affiliation(Server, RoomId, Remover, Target, <<"none">>),
-    {true, Req2, State}.
+                      #{jid := #jid{lserver = Server}, room_id := RoomID} = State) ->
+    mod_muc_light_commands:change_affiliation(Server, RoomID, Remover, Target, <<"none">>),
+    {true, Req, State}.
 
