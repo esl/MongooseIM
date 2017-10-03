@@ -2,12 +2,14 @@
 
 <img align="left" src="MongooseIM_logo.png" alt="MongooseIM platform's logo" />
 
-MongooseIM is a robust and efficient XMPP platform aimed at large installations. 
-Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or VM. 
-MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
+MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations. 
+Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or VM.
 
-The MongooseIM platform includes server-side components and client libraries. 
-We provide a test suite and a monitoring server. We recommend third-party, open source client libraries for XMPP and REST API.
+MongooseIM can accept client sessions over vanilla XMPP, REST API and SSE, as well as Websockets, and BOSH (HTTP long-polling).
+
+The MongooseIM platform includes several server-side (backend and client-side (frontend) components.
+We provide a test suite, metrics, a load testing platform, and a monitoring server.
+We recommend third-party, open source client libraries for XMPP and REST API.
 
 The most important links:
 
