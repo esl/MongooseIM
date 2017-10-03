@@ -82,8 +82,7 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
             `{"_", "/ws-xmpp", mod_websockets, []}`
 
     * <i>(OBSOLETE)</i> `mongoose_api` - REST API for accessing internal MongooseIM metrics.
-        Please refer to [REST interface to metrics](../rest-api/Metrics-backend.md)
-        for more information.
+        Please refer to the [REST interface to metrics](../rest-api/Metrics-backend.md) page for more information.
 	Default declaration:
 
             `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`
