@@ -1,7 +1,7 @@
 swagger: '2.0'
 info:
   version: "1.0.0"
-  title: "MongooseIM's REST Control API"
+  title: "MongooseIM's REST API for backend administration"
   description: |
     Explore MongooseIM features using our REST API.
 
@@ -24,7 +24,7 @@ paths:
     get:
       description: Lists the available commands for administering MongooseIM.
       tags:
-        - "commands"
+        - "Commands"
       responses:
         200:
           description: A list of information on all the commands that are currently available.
@@ -49,7 +49,7 @@ paths:
     get:
       description: Retrieves a list of users registered under the given XMPP hostname.
       tags:
-        - "user management"
+        - "User management"
       responses:
         200:
           description: A list of users registered under the given XMPP hostname
@@ -64,7 +64,7 @@ paths:
               format: JID
     post:
       tags:
-        - "user management"
+        - "User management"
       parameters:
         - name: Credentials
           in: body
@@ -98,7 +98,7 @@ paths:
         type: string
     put:
       tags:
-        - "user management"
+        - "User management"
       parameters:
         - name: password
           in: body
@@ -115,7 +115,7 @@ paths:
           description: Password has been changed
     delete:
       tags:
-        - "user management"
+        - "User management"
       description: Cancel a user's registration under the given domain.
       responses:
         204:
@@ -128,7 +128,7 @@ paths:
       - $ref: '#/parameters/hostName'
     get:
       tags:
-        - "session management"
+        - "Session management"
       description: Retrieve a list of sessions.
       responses:
         200:
@@ -159,7 +159,7 @@ paths:
         type: string
     delete:
       tags:
-        - "session management"
+        - "Session management"
       description: Terminate this session (connection).
       responses:
         204:
@@ -170,7 +170,7 @@ paths:
   /messages:
     post:
       tags:
-        - "one-to-one messages"
+        - "One-to-one messages"
       parameters:
         - name: message
           in: body
@@ -201,7 +201,7 @@ paths:
   /messages/{owner}:
     get:
       tags:
-        - "one-to-one messages"
+        - "One-to-one messages"
       parameters:
         - name: owner
           in: path
@@ -230,7 +230,7 @@ paths:
   /messages/{owner}/{with}:
     get:
       tags:
-        - "one-to-one messages"
+        - "One-to-one messages"
       parameters:
         - name: owner
           in: path
