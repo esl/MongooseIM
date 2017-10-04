@@ -4,10 +4,7 @@
 
 
 test_save_acc(#{type := <<"chat">>} = Acc, _State) ->
-    random:seed(erlang:phash2([node()]),
-                erlang:monotonic_time(),
-                erlang:unique_integer()),
-    Rand = random:uniform(),
+    Rand = rand:uniform(),
     Acc1 = mongoose_acc:add_prop(random_prop, Rand, Acc),
     Acc2 = mongoose_acc:put(should_be_stripped, 123, Acc1),
     Data = {mongoose_acc:get(ref, Acc2), mongoose_acc:get(timestamp, Acc2), Rand},
