@@ -146,6 +146,7 @@ Dividing `one` value by 60 provides an average per-second value over last minute
 | `[global, data, xmpp, received, encrypted_size]` | histogram | A size (in bytes) of a received stanza before decryption. |
 | `[global, data, xmpp, sent, encrypted_size]` | histogram | A size (in bytes) of a stanza after encryption. |
 | `[global, data, dist]` | function | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections` |
+| `[global, data, odbc, PoolName]` | function | For every ODBC pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
 
 ### Backend metrics
 
@@ -162,6 +163,10 @@ Besides these, following authentication metrics are always available:
 These are **total** times of respective operations.
 One operation usually requires only a single call to an auth backend but sometimes with e.g. 3 backends configured, the operation may fail for first 2 backends.
 In such case, these metrics will be updated with a combined time of 2 failed and 1 successful request.
+
+Additionaly, RDMBS layer in MongooseIM exposes one more metric, if RDBMS is configured:
+
+* `[global, backends, mongoose_rdbms, query]` - An execution time of a "not prepared" query by a DB driver.
 
 ### VM metrics
 
