@@ -20,7 +20,7 @@
         * Redis
     * Persistent:
         * RDBMS: MySQL, PostgreSQL, generic ODBC
-        * NOSQL: Riak KV
+        * NOSQL: Riak KV, Cassandra
 * Integration with third-party services
     * [Amazon Simple Notification Service](../modules/mod_aws_sns.md)
 
@@ -85,3 +85,11 @@
 | ------------- | ------------- |
 |[MUC Light](../open-extensions/muc_light.md)|`mod_muc_light`|
 |[Token-based reconnection](../open-extensions/token-reconnection.md)|`mod_auth_token`, `mod_keystore`|
+
+## Integration with other platform components
+
+### MongoosePUSH
+MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush). For more details visit push notification [user guide](user-guide/Push-notifications.md).
+
+### MongooseICE
+One can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE). To get started, we recommend going through [this tutorial](user-guide/ICE_tutorial.md).
