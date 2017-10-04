@@ -33,6 +33,7 @@ all() ->
      {group, mod_global_distrib},
      {group, cluster_restart},
      {group, start_checks},
+     {group, invalidation},
      {group, multi_connection}
     ].
 
@@ -57,6 +58,11 @@ groups() ->
      {start_checks, [],
       [
        test_error_on_wrong_hosts
+      ]},
+     {invalidation, [],
+      [
+       % TODO: Add checks for other cache updates
+       refresh_nodes
       ]},
      {multi_connection, [shuffle],
       [
@@ -94,6 +100,13 @@ init_per_group(start_checks, Config) ->
     Config;
 init_per_group(multi_connection, Config) ->
     init_per_group(generic_group, [{extra_config, [{num_of_connections, 100}]} | Config]);
+init_per_group(invalidation, Config) ->
+    Config1 = init_per_group(invalidation_generic, Config),
+    NodesKey = rpc(europe_node, mod_global_distrib_mapping_redis, nodes_key, []),
+    NodeBin = <<"fake_node@localhost">>,
+    EjdSupChildren = rpc(europe_node, supervisor, which_children, [ejabberd_sup]),
+    {_, MapperPid, _ , _} = lists:keyfind(mod_global_distrib_redis_refresher, 1, EjdSupChildren),
+    [{mapper_pid, MapperPid}, {nodes_key, NodesKey}, {node_to_expire, NodeBin} | Config1];
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
@@ -135,6 +148,10 @@ init_per_group(_, Config0) ->
 
 end_per_group(start_checks, Config) ->
     Config;
+end_per_group(invalidation, Config) ->
+    redis_rpc(europe_node, [<<"HDEL">>, ?config(nodes_key, Config),
+                            ?config(node_to_expire, Config)]),
+    end_per_group(invalidation_generic, Config);
 end_per_group(_, Config) ->
     lists:foreach(
       fun({NodeName, _, _}) ->
@@ -438,6 +455,15 @@ test_error_on_wrong_hosts(_Config) ->
     Result = rpc(europe_node, gen_mod, start_module, [<<"localhost">>, mod_global_distrib, Opts]),
     ?assertMatch({badrpc, {'EXIT', {"no_such_host is not a member of the host list", _}}}, Result).
 
+refresh_nodes(Config) ->
+    NodesKey = ?config(nodes_key, Config),
+    NodeBin = ?config(node_to_expire, Config),
+    redis_rpc(europe_node, [<<"HSET">>, NodesKey, NodeBin, <<"0">>]),
+    MapperPid = ?config(mapper_pid, Config),
+    MapperPid ! refresh,
+    timer:sleep(1000),
+    {ok, undefined} = redis_rpc(europe_node, [<<"HGET">>, NodesKey, NodeBin]).
+
 test_in_order_messages_on_multiple_connections(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
@@ -526,6 +552,10 @@ get_hosts() ->
 rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
     ct_rpc:call(Node, M, F, A).
+
+redis_rpc(NodeName, Cmd) ->
+    Worker = rpc(NodeName, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
+    {ok, _} = rpc(NodeName, eredis, q, [Worker, Cmd]).
 
 connect_from_spec(UserSpec, Config) ->
     {ok, User} = escalus_client:start(Config, UserSpec, <<"res1">>),
