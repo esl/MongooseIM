@@ -10,7 +10,6 @@ Configure MAM with different storage backends:
 * Riak KV (NOSQL)
 * Cassandra (NOSQL)
 
-
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
 #### Full Text Search
@@ -159,3 +158,9 @@ You can change the default settings using extra parameters:
               ]}
        ]}.
 ```
+
+### Backend metrics
+
+* `[global, backends, mod_mam, lookup]` - A time of archive lookup operation.
+* `[global, backends, mod_mam, archive]` - A time of saving one message in the archive.
+

@@ -44,3 +44,8 @@ This allows users to read the uploaded files even if the bucket is private.
              ]}
        ]}.
 ```
+
+### Backend metrics
+
+* `[global, backends, mod_http_upload, create_slot]` - How long it took to allocate an upload slot.
+

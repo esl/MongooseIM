@@ -67,3 +67,18 @@ Valid config field types are:
              {default_config, [{"roomname", "The Room"}, {"display-lines", 30}]}
             ]},
 ```
+
+### Backend metrics
+
+* `[global, backends, mod_muc_light, create_room]` - A time to store new room data in a DB.
+* `[global, backends, mod_muc_light, destroy_room]` - A time to remove room data from a DB.
+* `[global, backends, mod_muc_light, room_exists]` - A time to check if a room exists in a DB.
+* `[global, backends, mod_muc_light, get_user_rooms]` - A time to get a list of rooms from a DB, where a user is a participant.
+* `[global, backends, mod_muc_light, remove_user]` - A time to remove all MUC Light related user data from a DB.
+* `[global, backends, mod_muc_light, get_config]` - A time to get room config from a DB.
+* `[global, backends, mod_muc_light, set_config]` - A time to set room config in a DB.
+* `[global, backends, mod_muc_light, get_blocking]` - A time to retrieve blocking data from a DB.
+* `[global, backends, mod_muc_light, set_blocking]` - A time to set blocking data in a DB.
+* `[global, backends, mod_muc_light, get_aff_users]` - A time to get an affiliated users list from a DB.
+* `[global, backends, mod_muc_light, modify_aff_users]` - A time to update affiliations in a room in a DB.
+

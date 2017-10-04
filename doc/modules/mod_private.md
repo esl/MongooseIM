@@ -13,3 +13,9 @@ first error.
 ```
 {mod_private, []}
 ```
+
+### Backend metrics
+
+* `[global, backends, mod_private, multi_get_data]` - A time to fetch XML data from a DB.
+* `[global, backends, mod_private, multi_set_data]` - A time to store XML data in a DB.
+

@@ -12,3 +12,9 @@ Although `mod_offline` may be sufficient in some cases, it is preferable to use 
 ```
 {mod_offline, [{access_max_user_messages, max_user_offline_messages}]},
 ```
+
+### Backend metrics
+
+* `[global, backends, mod_offline, pop_messages]` - A time to fetch and delete offline messages for a user in a DB.
+* `[global, backends, mod_offline, write_messages]` - A time to write new offline messages to a user in a DB.
+
