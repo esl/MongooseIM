@@ -16,9 +16,9 @@ The prerequisite is that the modified config file must be available on
 all nodes at the same location (the location where MongooseIM expects its config file).
 
 ### Non-reloadable options
-The following options' changes will be silently ignored:
+Some options require restarting the server in order to be reloaded.
+The following options' changes will be ignored when using `mongooseimctl` tool:
 * domain_certfile
 * s2s_*
 * all_metrics_are_global
 * odbc_*
-* ldap_* (though can be changed, it can't be disabled/enabled)
