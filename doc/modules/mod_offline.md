@@ -19,6 +19,6 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[global, backends, mod_offline, pop_messages]` | histogram | Time to fetch and delete offline messages for a user in a DB. |
-| `[global, backends, mod_offline, write_messages]` | histogram | Time to write new offline messages to a user in a DB. |
+| `[global, backends, mod_offline, pop_messages]` | histogram | Time it takes to fetch and delete offline messages for a user in a DB. |
+| `[global, backends, mod_offline, write_messages]` | histogram | Time it takes to write new offline messages to a user in a DB. |
 

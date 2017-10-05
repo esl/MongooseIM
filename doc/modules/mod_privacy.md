@@ -15,10 +15,10 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[global, backends, mod_privacy, get_privacy_list]` | histogram | Time to retrieve a specific privacy list from a DB. |
-| `[global, backends, mod_privacy, get_list_names]` | histogram | Time to fetch names of user's privacy lists from a DB. |
-| `[global, backends, mod_privacy, get_default_list]` | histogram | Time to get a default privacy list for a user from a DB. |
-| `[global, backends, mod_privacy, set_default_list]` | histogram | Time to set a default list's name for a user in a DB. |
-| `[global, backends, mod_privacy, forget_default_list*]` | histogram | Time to remove default list's name for a user in a DB. |
-| `[global, backends, mod_privacy, remove_privacy_list*]` | histogram | Time to delete a privacy list from a DB. |
-| `[global, backends, mod_privacy, replace_privacy_lis*t]` | histogram | Time to update (replace) a privacy list in a DB. |
+| `[global, backends, mod_privacy, get_privacy_list]` | histogram | Time it takes to retrieve a specific privacy list from a DB. |
+| `[global, backends, mod_privacy, get_list_names]` | histogram | Time it takes to fetch names of user's privacy lists from a DB. |
+| `[global, backends, mod_privacy, get_default_list]` | histogram | Time it takes to get a default privacy list for a user from a DB. |
+| `[global, backends, mod_privacy, set_default_list]` | histogram | Time it takes to set a default list's name for a user in a DB. |
+| `[global, backends, mod_privacy, forget_default_list*]` | histogram | Time it takes to remove default list's name for a user in a DB. |
+| `[global, backends, mod_privacy, remove_privacy_list*]` | histogram | Time it takes to delete a privacy list from a DB. |
+| `[global, backends, mod_privacy, replace_privacy_lis*t]` | histogram | Time it takes to update (replace) a privacy list in a DB. |

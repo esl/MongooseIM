@@ -38,7 +38,7 @@ It is actually a one-element proplist: `[{value, N}]`.
 It is similiar to a `value` type but consists of two properties:
 
 * `value`
-* `ms_since_reset` - Time in milliseconds elapsed from last metric update.
+* `ms_since_reset` - Time in milliseconds elapsed from the last metric update.
 
 **Example:** `[{value, 12}, {ms_since_reset, 91761}]`
 
@@ -51,7 +51,7 @@ You can find the lists of keys in metrics descriptions.
 
 ### `histogram`
 
-A histogram collects values over sliding window of 60s and exposes following stats:
+A histogram collects values over a sliding window of 60s and exposes the following stats:
 
 * `n` - A number of samples.
 * `mean` - An arithmetic mean.
@@ -67,7 +67,7 @@ A histogram collects values over sliding window of 60s and exposes following sta
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
 | `[Host, adhoc_local_commands]` | spiral | An adhoc command is executed in `ejabberd_local` context. |
-| `[Host, adhoc_sm_commands]` | spiral | And adhoc command is executed in `ejabberd_sm` context. |
+| `[Host, adhoc_sm_commands]` | spiral | An adhoc command is executed in `ejabberd_sm` context. |
 | `[Host, adhoc_local_items]` | spiral | A list of available adhoc commands is requested via Disco protocol in `ejabberd_local` context. |
 | `[Host, adhoc_sm_items]` | spiral | A list of available adhoc commands is requested via Disco protocol in `ejabberd_sm` context. |
 | `[Host, anonymous_purge_hook]` | spiral | An anonymous user disconnects. |
@@ -132,7 +132,7 @@ A histogram collects values over sliding window of 60s and exposes following sta
 | `[Host, xmppErrorMessage]` | spiral | An `error` message is sent to a client. |
 | `[Host, xmppErrorPresence]` | spiral | An `error` presence is sent to a client. |
 | `[Host, xmppErrorTotal]` | spiral | A stanza with `error` type is routed. |
-| `[Host, xmppMessageBounced]` | spiral | A `service-unavailable` error is sent, because message recipient if offline. |
+| `[Host, xmppMessageBounced]` | spiral | A `service-unavailable` error is sent, because the message recipient if offline. |
 | `[Host, xmppIqSent]` | spiral | An IQ is sent by a client. |
 | `[Host, xmppMessageSent]` | spiral | A message is sent by a client |
 | `[Host, xmppPresenceSent]` | spiral | A presence is sent by a client. |
