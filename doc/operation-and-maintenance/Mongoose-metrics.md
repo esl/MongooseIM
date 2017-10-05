@@ -64,14 +64,12 @@ A histogram collects values over a sliding window of 60s and exposes the followi
 
 ### Hook metrics
 
+There are more hooks metrics than enumerated in this table, because they are automatically created for every new hook.
+It means that it is more feasible to maintain a list of most relevant or useful items, rather than keep this the table fully in sync with the code.
+
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[Host, adhoc_local_commands]` | spiral | An adhoc command is executed in `ejabberd_local` context. |
-| `[Host, adhoc_sm_commands]` | spiral | An adhoc command is executed in `ejabberd_sm` context. |
-| `[Host, adhoc_local_items]` | spiral | A list of available adhoc commands is requested via Disco protocol in `ejabberd_local` context. |
-| `[Host, adhoc_sm_items]` | spiral | A list of available adhoc commands is requested via Disco protocol in `ejabberd_sm` context. |
 | `[Host, anonymous_purge_hook]` | spiral | An anonymous user disconnects. |
-| `[Host, c2s_stream_features]` | spiral | Stream features are collected and sent. |
 | `[Host, c2s_unauthenticated_iq]` | spiral | An IQ sent from a user to a server without authentication. |
 | `[Host, disco_info]` | spiral | An information about the server has been requested via Disco protocol. |
 | `[Host, disco_local_features]` | spiral | A list of server features is gathered. |
@@ -80,17 +78,12 @@ A histogram collects values over a sliding window of 60s and exposes the followi
 | `[Host, disco_sm_features]` | spiral | A list of user's features is gathered. |
 | `[Host, disco_sm_identity]` | spiral | A list of user's identities is gathered. |
 | `[Host, disco_sm_items]` | spiral | A list of user's items is gathered. |
-| `[Host, host_config_update]` | spiral | When a config update is being performed and there is a change in the ldap configuratio.n |
-| `[Host, local_send_to_resource_hook]` | spiral | A stanza is sent to a server's resource (e.g. `localhost/watchdogs`) |
 | `[Host, mam_lookup_messages]` | spiral | An archive lookup is performed. |
 | `[Host, offline_message_hook]` | spiral | A message was sent to an offline user. (Except for "error", "headline" and "groupchat" message types.) |
 | `[Host, offline_groupchat_message_hook]` | spiral | A groupchat message was sent to an offline user. |
-| `[Host, privacy_get_user_list]` | spiral | User's default privacy list is fetched. |
 | `[Host, privacy_updated_list]` | spiral | User's privacy list is updated. |
 | `[Host, resend_offline_messages_hook]` | spiral | A list of offline messages is gathered for delivery to a user's new connection. |
-| `[Host, roster_get_jid_info]` | spiral | An information about specific roster entry status is fetched. |
 | `[Host, roster_get_subscription_lists]` |  spiral | Presence subscription lists (based on which presence updates are broadcasted) are gathered. |
-| `[Host, roster_get_versioning_feature]` |  spiral | Roster versioning support is checked. |
 | `[Host, roster_in_subscription]` | spiral | A presence with subscription update is processed. |
 | `[Host, roster_out_subscription]` | spiral | A presence with subscription update is received from a client. |
 | `[Host, sm_broadcast]` | spiral | A stanza is broadcasted to all of user's resources. |
