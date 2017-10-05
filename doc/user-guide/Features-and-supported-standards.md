@@ -77,7 +77,8 @@
 |0352|[Client State Indication](http://www.xmpp.org/extensions/xep-0352.html)|`mod_csi`|
 |0357|[Push Notifications](http://www.xmpp.org/extensions/xep-0357.html)|`mod_push`|
 |0363|[HTTP File Upload](https://xmpp.org/extensions/xep-0363.html)|`mod_http_upload`|
-|0375|[XMPP Advanced Server 2016](http://www.xmpp.org/extensions/xep-0375.html) (without 0369: Mediated Information eXchange)||
+|0375|[XMPP Advanced Server 2017](https://xmpp.org/extensions/xep-0387.html) (without 0369: Mediated Information eXchange)|
+|0384|[OMEMO Encryption](https://xmpp.org/extensions/xep-0384.html) (MongooseIM supports PEP, which is required by this extension)||
 
 ## Supported Open Extensions
 
@@ -89,7 +90,7 @@
 ## Integration with other platform components
 
 ### MongoosePUSH
-MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush). For more details visit push notification [user guide](user-guide/Push-notifications.md).
+MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush). For more details visit the push notification [user guide](user-guide/Push-notifications.md).
 
 ### MongooseICE
-One can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE). To get started, we recommend going through [this tutorial](user-guide/ICE_tutorial.md).
+You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE). To get started, we recommend going through [this tutorial](user-guide/ICE_tutorial.md).
