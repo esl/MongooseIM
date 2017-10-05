@@ -55,53 +55,53 @@ Example response:
 
 Returns ```200 OK``` and two elements:
 
-* "hosts" A list of XMPP host names available on the server.
-* "metrics" - A list of per-host metrics.
-* "global" A list of global metrics.
+* `hosts` - A list of XMPP host names available on the server.
+* `metrics` - A list of per-host metrics.
+* `global` - A list of global metrics.
 
 ### GET /api/metrics/all
 
 Returns ```200 OK``` and an element:
 
-* "metrics" - A list of aggregated (sum of all domains) per-host metrics with their values.
+* `metrics` - A list of aggregated (sum of all domains) per-host metrics with their values.
 
 ### GET /api/metrics/all/:metric
 
 On success returns ```200 OK``` and an element:
 
-* "metric" - An aggregated (sum of all domains) per-host metric.
+* `metric` - An aggregated (sum of all domains) per-host metric.
 
-Returns ```404 Not Found``` when metric `:metric` couldn't been found.
+Returns ```404 Not Found``` when metric `:metric` doesn't exist.
 
 ### GET /api/metrics/host/:host
 
 On success returns ```200 OK``` and an element:
 
-* "metrics" - A list of per-host metrics and their values for host `:host`.
+* `metrics` - A list of per-host metrics and their values for host `:host`.
 
-Returns ```404 Not Found``` when host :host couldn't been found.
+Returns ```404 Not Found``` when host `:host` doesn't exist.
 
 ### GET /api/metrics/host/:host/:metric
 
 On success returns ```200 OK``` and an element:
 
-* "metric" - A per-host metric `:metric` and its value for host `:host`.
+* `metric` - A per-host metric `:metric` and its value for host `:host`.
 
-Returns ```404 Not Found``` when the pair (host :host, metric :metric) couldn't been found.
+Returns ```404 Not Found``` when the pair (host `:host`, metric `:metric`) doesn't exist.
 
 ### GET /api/metrics/global
 
 On success returns ```200 OK``` and an element:
 
-* "metrics" - A list of all global metrics and their values.
+* `metrics` - A list of all global metrics and their values.
 
 ### GET /api/metrics/global/:metric
 
 On success returns ```200 OK``` and an element:
 
-* "metric" A global metric `:metric` and its value.
+* `metric` - A global metric `:metric` and its value.
 
-Returns ```404 Not Found``` when metric :metric couldn't been found.
+Returns ```404 Not Found``` when metric `:metric` doesn't exist.
 
 ## collectd integration
 
