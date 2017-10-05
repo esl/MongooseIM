@@ -64,8 +64,8 @@ A histogram collects values over a sliding window of 60s and exposes the followi
 
 ### Hook metrics
 
-There are more hooks metrics than enumerated in this table, because they are automatically created for every new hook.
-It means that it is more feasible to maintain a list of most relevant or useful items, rather than keep this the table fully in sync with the code.
+There are more hook metrics than what is listed in this table, because they are automatically created for every new hook.
+As a result it makes more sense to maintain a list of the most relevant or useful items, rather than keeping this table fully in sync with the code.
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
