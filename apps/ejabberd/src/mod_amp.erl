@@ -12,6 +12,7 @@
          check_packet/3,
          add_local_features/5,
          add_stream_feature/2,
+         run_initial_check/2,
          amp_check_packet/3,
          strip_amp_el_from_request/1
         ]).
@@ -19,6 +20,7 @@
 -include_lib("ejabberd/include/amp.hrl").
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
+-include_lib("ejabberd/src/ejabberd_c2s.hrl").
 
 -define(AMP_FEATURE,
         #xmlel{name = <<"amp">>, attrs = [{<<"xmlns">>, ?NS_AMP_FEATURE}]}).
@@ -36,11 +38,24 @@ stop(Host) ->
 hooks(Host) ->
     [{c2s_stream_features, Host, ?MODULE, add_stream_feature, 50},
      {disco_local_features, Host, ?MODULE, add_local_features, 99},
+     {c2s_preprocessing_hook, Host, ?MODULE, run_initial_check, 10},
      {amp_check_packet, Host, ?MODULE, amp_check_packet, 10},
      {amp_verify_support, Host, ?AMP_RESOLVER, verify_support, 10},
      {amp_check_condition, Host, ?AMP_RESOLVER, check_condition, 10},
      {amp_determine_strategy, Host, ?AMP_STRATEGY, determine_strategy, 10}].
 %% Business API
+
+
+-spec run_initial_check(mongoose_acc:t(), ejabberd_c2s:state()) -> mongoose_acc:t().
+run_initial_check(#{result := drop} = Acc, _C2SState) ->
+    Acc;
+run_initial_check(Acc, _C2SState) ->
+    Acc1 = mod_amp:check_packet(Acc, mongoose_acc:get(from_jid, Acc), initial_check),
+    case mongoose_acc:get(amp_check_result, Acc1, ok) of
+        drop -> mongoose_acc:put(result, drop, Acc1);
+        _ -> Acc1
+    end.
+
 
 -spec check_packet(mongoose_acc:t() | exml:element(), amp_event()) ->
     mongoose_acc:t() | exml:element() | drop.

@@ -33,10 +33,10 @@
 %% API
 -export([start_link/0]).
 
--export([process_packet/4,
-         route_iq/4,
+-export([process_packet/5,
          route_iq/5,
-         process_iq_reply/3,
+         route_iq/6,
+         process_iq_reply/4,
          register_iq_handler/4,
          register_iq_handler/5,
          register_host/1,
@@ -46,7 +46,6 @@
          unregister_host/1,
          unregister_iq_response_handler/2,
          refresh_iq_handlers/0,
-         bounce_resource_packet/3,
          bounce_resource_packet/4
         ]).
 
@@ -58,8 +57,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
-%% xmpp_router callback
--export([do_route/3]).
+-export([do_route/4]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -88,49 +86,45 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
--spec process_iq(From :: ejabberd:jid(),
+-spec process_iq(Acc :: mongoose_acc:t(),
+                 From :: ejabberd:jid(),
                  To :: ejabberd:jid(),
-                 Acc :: mongoose_acc:t()
+                 El :: xmlel()
                  ) -> 'nothing' | 'ok' | 'todo' | pid()
                     | {'error', 'lager_not_running'} | {'process_iq', _, _, _}.
-process_iq(From, To, Acc0) ->
+process_iq(Acc0, From, To, El) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),
     IQ = mongoose_acc:get(iq_query_info, Acc),
-    El = mongoose_acc:get(element, Acc),
-    case IQ of
-        #iq{xmlns = XMLNS} ->
-            Host = To#jid.lserver,
-            case ets:lookup(?IQTABLE, {XMLNS, Host}) of
-                [{_, Module, Function}] ->
-                    ResIQ = Module:Function(From, To, IQ),
-                    if
-                        ResIQ /= ignore ->
-                            ejabberd_router:route(
-                              To, From, jlib:iq_to_xml(ResIQ));
-                        true ->
-                            ok
-                    end;
-                [{_, Module, Function, Opts}] ->
-                    gen_iq_handler:handle(Host, Module, Function, Opts,
-                                          From, To, IQ);
-                [] ->
-                    Err = jlib:make_error_reply(
-                        Acc, ?ERR_FEATURE_NOT_IMPLEMENTED),
-                    ejabberd_router:route(To, From, Err)
+    process_iq(IQ, Acc, From, To, El).
+
+process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
+    Host = To#jid.lserver,
+    case ets:lookup(?IQTABLE, {XMLNS, Host}) of
+        [{_, Module, Function}] ->
+            case Module:Function(From, To, IQ) of
+                ignore -> ok;
+                ResIQ -> ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ))
             end;
-        reply ->
-            IQReply = jlib:iq_query_or_response_info(El),
-            process_iq_reply(From, To, IQReply);
-        _ ->
-            Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
-            ejabberd_router:route(To, From, Acc, Err),
-            ok
-    end.
+        [{_, Module, Function, Opts}] ->
+            gen_iq_handler:handle(Host, Module, Function, Opts,
+                                  From, To, Acc, IQ);
+        [] ->
+            ejabberd_router:route_error_reply(To, From, Acc, ?ERR_FEATURE_NOT_IMPLEMENTED)
+    end;
+process_iq(reply, Acc, From, To, El) ->
+    IQReply = jlib:iq_query_or_response_info(El),
+    process_iq_reply(From, To, Acc, IQReply);
+process_iq(_, Acc, From, To, El) ->
+    Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
+    ejabberd_router:route(To, From, Acc, Err),
+    ok.
 
 -spec process_iq_reply(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
+                       mongoose_acc:t(),
                        IQ :: ejabberd:iq() ) -> 'nothing' | 'ok'.
-process_iq_reply(From, To, #iq{id = ID} = IQ) ->
+process_iq_reply(From, To, _Acc, #iq{id = ID} = IQ) ->
+    % this is used only by mod_ping, doesn't make sense to rewrite it further
     case get_iq_callback(ID) of
         {ok, undefined, Function} ->
             Function(IQ),
@@ -143,34 +137,36 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
     end.
 
 
--spec process_packet(From :: jid(), To :: jid(), Packet :: mongoose_acc:t(),
+-spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(), El :: xmlel(),
                      Extra :: any()) ->
     ok | {error, lager_not_running}.
-process_packet(From, To, Packet, _Extra) ->
-    case (catch do_route(From, To, Packet)) of
+process_packet(Acc, From, To, El, _Extra) ->
+    case (catch do_route(Acc, From, To, El)) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p "
                        "reason=~p packet=~ts stack_trace=~p",
                        [jid:to_binary(From), jid:to_binary(To),
-                        ?MODULE, Reason, mongoose_acc:to_binary(Packet),
+                        ?MODULE, Reason, mongoose_acc:to_binary(Acc),
                         erlang:get_stacktrace()]);
         _ -> ok
     end.
 
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
+               Acc :: mongoose_acc:t(),
                IQ :: ejabberd:iq(),
                F :: fun()) -> mongoose_acc:t().
-route_iq(From, To, IQ, F) ->
-    route_iq(From, To, IQ, F, undefined).
+route_iq(From, To, Acc, IQ, F) ->
+    route_iq(From, To, Acc, IQ, F, undefined).
 
 
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
+               Acc :: mongoose_acc:t(),
                IQ :: ejabberd:iq(),
                F :: fun(),
                Timeout :: undefined | integer()) -> mongoose_acc:t().
-route_iq(From, To, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
+route_iq(From, To, Acc, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
     Packet = case Type == set orelse Type == get of
                 true ->
                      ID = list_to_binary(randoms:get_string()),
@@ -180,7 +176,7 @@ route_iq(From, To, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
                 false ->
                      jlib:iq_to_xml(IQ)
              end,
-    ejabberd_router:route(From, To, Packet).
+    ejabberd_router:route(From, To, Acc, Packet).
 
 register_iq_response_handler(Host, ID, Module, Function) ->
     register_iq_response_handler(Host, ID, Module, Function, undefined).
@@ -232,21 +228,14 @@ unregister_iq_handler(Host, XMLNS) ->
 refresh_iq_handlers() ->
     ejabberd_local ! refresh_iq_handlers.
 
-%% #rh
--spec bounce_resource_packet(Acc:: map(), From :: ejabberd:jid(),
-    To :: ejabberd:jid(),
-    Packet :: jlib:xmlel()) -> {'stop', map()}.
-bounce_resource_packet(Acc, From, To, Packet) ->
-    bounce_resource_packet(From, To, Packet),
-    {stop, Acc}.
-
--spec bounce_resource_packet(From :: ejabberd:jid(),
+-spec bounce_resource_packet(Acc:: mongoose_acc:t(),
+                             From :: ejabberd:jid(),
                              To :: ejabberd:jid(),
-                             Packet :: jlib:xmlel()) -> 'stop'.
-bounce_resource_packet(From, To, Packet) ->
-    Err = jlib:make_error_reply(Packet, ?ERR_ITEM_NOT_FOUND),
+                             El :: jlib:xmlel()) -> {'stop', mongoose_acc:t()}.
+bounce_resource_packet(Acc, From, To, El) ->
+    Err = jlib:make_error_reply(El, ?ERR_ITEM_NOT_FOUND),
     ejabberd_router:route(To, From, Err),
-    stop.
+    {stop, Acc}.
 
 -spec register_host(Host :: ejabberd:server()) -> ok.
 register_host(Host) ->
@@ -334,8 +323,8 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({route, From, To, Packet}, State) ->
-    process_packet(From, To, Packet, undefined),
+handle_info({route, Acc, From, To, El}, State) ->
+    process_packet(Acc, From, To, El, undefined),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(?IQTABLE, {{XMLNS, Host}, Module, Function}),
@@ -395,30 +384,32 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
--spec do_route(From :: ejabberd:jid(),
+-spec do_route(Acc :: mongoose_acc:t(),
+               From :: ejabberd:jid(),
                To :: ejabberd:jid(),
-               Packet :: mongoose_acc:t()) -> 'ok'.
-do_route(From, To, Packet) ->
+               El :: mongoose_acc:t()) -> 'ok'.
+do_route(Acc, From, To, El) ->
     ?DEBUG("local route~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
-           [From, To, Packet, 8]),
+           [From, To, El, 8]),
     case directed_to(To) of
         user ->
-            ejabberd_sm:route(From, To, Packet);
+            ejabberd_sm:route(From, To, Acc, El);
         server ->
-            case mongoose_acc:get(name, Packet) of
+            case mongoose_acc:get(name, Acc) of
                 <<"iq">> ->
-                    process_iq(From, To, Packet);
+                    process_iq(Acc, From, To, El);
                 _ ->
                     ok
             end;
         local_resource ->
-            case mongoose_acc:get(type, Packet) of
+            case mongoose_acc:get(type, Acc) of
                 <<"error">> -> ok;
                 <<"result">> -> ok;
                 _ ->
-                    ejabberd_hooks:run(local_send_to_resource_hook,
-                        To#jid.lserver,
-                        [From, To, Packet])
+                    ejabberd_hooks:run_fold(local_send_to_resource_hook,
+                                            To#jid.lserver,
+                                            Acc,
+                                            [From, To, El])
             end
     end.
 

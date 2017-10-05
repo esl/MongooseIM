@@ -65,18 +65,16 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
     Key = {cached_privacy_check, Server, User, FromBin, ToBin, Name, Type, Dir},
     case mongoose_acc:get(Key, Acc, undefined) of
         undefined ->
-%%            Packet = mongoose_acc:get(to_send, Acc),
             Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,
                                            Server,
-                                           mongoose_acc:put(privacy_check, allow, Acc),
+                                           mongoose_acc:put(result, allow, Acc),
                                            [User,
                                             Server,
                                             PrivacyList,
                                             {From, To, Name, Type},
                                             Dir]),
-            Res = mongoose_acc:get(privacy_check, Acc1),
-            Acc2 = mongoose_acc:remove(privacy_check, Acc1),
-            {mongoose_acc:put(Key, Res, Acc2), Res};
+            Res = mongoose_acc:get(result, Acc1),
+            {mongoose_acc:put(Key, Res, Acc1), Res};
         Res ->
             {Acc, Res}
     end.

@@ -15,7 +15,7 @@
 -export([clean_tokens/2]).
 
 %% gen_iq_handler handlers
--export([process_iq/3]).
+-export([process_iq/4]).
 
 %% Public API
 -export([authenticate/1,
@@ -243,14 +243,15 @@ is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
                true
     end.
 
--spec process_iq(jid(), jid(), iq()) -> iq() | error().
-process_iq(From, To, #iq{xmlns = ?NS_ESL_TOKEN_AUTH} = IQ) ->
-    case lists:member(From#jid.lserver, ?MYHOSTS) of
+-spec process_iq(jid(), mongoose_acc:t(), jid(), iq()) -> {mongoose_acc:t(), iq()} | error().
+process_iq(From, To, Acc, #iq{xmlns = ?NS_ESL_TOKEN_AUTH} = IQ) ->
+    IQResp = case lists:member(From#jid.lserver, ?MYHOSTS) of
         true -> process_local_iq(From, To, IQ);
         false -> iq_error(IQ, [?ERR_ITEM_NOT_FOUND])
-    end;
-process_iq(_From, _To, #iq{} = IQ) ->
-    iq_error(IQ, [?ERR_BAD_REQUEST]).
+    end,
+    {Acc, IQResp};
+process_iq(_From, _To, Acc, #iq{} = IQ) ->
+    {Acc, iq_error(IQ, [?ERR_BAD_REQUEST])}.
 
 process_local_iq(From, _To, IQ) ->
     try create_token_response(From, IQ) of

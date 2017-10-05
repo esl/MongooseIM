@@ -77,13 +77,15 @@ strip(_C) ->
     Acc2 = mongoose_acc:require([command, xmlns], Acc1),
     ?assertEqual(mongoose_acc:get(xmlns, Acc2), <<"urn:ietf:params:xml:ns:xmpp-session">>),
     ?assertEqual(mongoose_acc:get(type, Acc2), <<"set">>),
-    Acc4 = mongoose_acc:put(to_send, another_iq_stanza(), Acc2),
-    Ref = mongoose_acc:get(ref, Acc4),
-    NAcc = mongoose_acc:strip(Acc4),
-    ?assertEqual(mongoose_acc:get(type, NAcc), <<"pet">>),
+    ?assertEqual(undefined, mongoose_acc:get_prop(ppp, Acc2)),
+    Acc3 = mongoose_acc:add_prop(ppp, 997, Acc2),
+    ?assertEqual(997, mongoose_acc:get_prop(ppp, Acc3)),
+    Ref = mongoose_acc:get(ref, Acc3),
+    NAcc = mongoose_acc:strip(Acc3),
     ?assertEqual(mongoose_acc:get(xmlns, NAcc, niema), niema),
     ?assertEqual(mongoose_acc:get(to_jid, NAcc), <<"tyjid">>),
-    ?assertEqual(mongoose_acc:get(ref, NAcc, ref), Ref).
+    ?assertEqual(mongoose_acc:get(ref, NAcc, ref), Ref),
+    ?assertEqual(997, mongoose_acc:get_prop(ppp, NAcc)).
 
 
 sample_stanza() ->

@@ -2,7 +2,7 @@
 -module(mod_muc_iq).
 
 -export([start_link/0,
-         process_iq/4,
+         process_iq/5,
          register_iq_handler/5,
          unregister_iq_handler/2]).
 
@@ -35,13 +35,13 @@ start_link() ->
 
 %% @doc Handle custom IQ.
 %% Called from mod_muc_room.
--spec process_iq(ejabberd:server(), ejabberd:jid(), ejabberd:jid(),
+-spec process_iq(ejabberd:server(), ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(),
         ejabberd:iq()) -> error | ignore.
-process_iq(Host, From, RoomJID, IQ = #iq{xmlns = XMLNS}) ->
+process_iq(Host, From, RoomJID, Acc, IQ = #iq{xmlns = XMLNS}) ->
     case ets:lookup(tbl_name(), {XMLNS, Host}) of
         [{_, Module, Function, Opts}] ->
             gen_iq_handler:handle(Host, Module, Function, Opts, From,
-                                  RoomJID, IQ),
+                                  RoomJID, Acc, IQ),
             ignore;
         [] -> error
     end.

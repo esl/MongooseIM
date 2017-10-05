@@ -69,21 +69,22 @@ commands() ->
 -spec private_get(ejabberd:user(), ejabberd:server(), binary(), binary()) ->
     {error, string()} | string().
 private_get(Username, Host, Element, Ns) ->
+    Acc = mongoose_acc:new(),
     case ejabberd_auth:is_user_exists(Username, Host) of
         true ->
-            do_private_get(Username, Host, Element, Ns);
+            do_private_get(Acc, Username, Host, Element, Ns);
         false ->
             {error, io_lib:format("User ~s@~s does not exist", [Username, Host])}
     end.
 
-do_private_get(Username, Host, Element, Ns) ->
+do_private_get(Acc, Username, Host, Element, Ns) ->
     From = jid:make(Username, Host, <<"">>),
     To = jid:make(Username, Host, <<"">>),
     IQ = {iq, <<"">>, get, ?NS_PRIVATE, <<"">>,
           #xmlel{ name = <<"query">>,
                   attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
                   children = [#xmlel{ name = Element, attrs = [{<<"xmlns">>, Ns}]}] } },
-    ResIq = mod_private:process_sm_iq(From, To, IQ),
+    {_, ResIq} = mod_private:process_sm_iq(From, To, Acc, IQ),
     [#xmlel{ name = <<"query">>,
              attrs = [{<<"xmlns">>, <<"jabber:iq:private">>}],
              children = [SubEl] }] = ResIq#iq.sub_el,
@@ -104,14 +105,15 @@ private_set(Username, Host, ElementString) ->
 
 
 private_set2(Username, Host, Xml) ->
+    Acc = mongoose_acc:new(),
     case ejabberd_auth:is_user_exists(Username, Host) of
         true ->
-            do_private_set2(Username, Host, Xml);
+            do_private_set2(Acc, Username, Host, Xml);
         false ->
             {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [Username, Host])}
     end.
 
-do_private_set2(Username, Host, Xml) ->
+do_private_set2(Acc, Username, Host, Xml) ->
     case is_private_module_loaded(Host) of
         true ->
             From = jid:make(Username, Host, <<"">>),
@@ -120,7 +122,7 @@ do_private_set2(Username, Host, Xml) ->
                   #xmlel{ name = <<"query">>,
                           attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
                           children = [Xml]}},
-            mod_private:process_sm_iq(From, To, IQ),
+            mod_private:process_sm_iq(From, To, Acc, IQ),
             {ok, ""};
         false ->
             {not_loaded, io_lib:format("Module mod_private is not loaded on host ~s", [Host])}

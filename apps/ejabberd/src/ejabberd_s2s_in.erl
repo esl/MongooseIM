@@ -52,8 +52,6 @@
 -define(PKIXIMPLICIT, 'OTP-PUB-KEY').
 -include("XmppAddr.hrl").
 
--define(DICT, dict).
-
 -record(state, {socket,
                 sockmod               :: ejabberd:sockmod(),
                 streamid              :: binary(),
@@ -66,7 +64,7 @@
                 server                :: ejabberd:server() | undefined,
                 authenticated = false :: boolean(),
                 auth_domain           :: binary() | undefined,
-                connections = ?DICT:new(),
+                connections = dict:new(),
                 timer                 :: reference()
               }).
 -type state() :: #state{}.
@@ -415,7 +413,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                     ejabberd_s2s_out:start(LTo, LFrom,
                                            {verify, self(),
                                             Key, StateData#state.streamid}),
-                    Conns = ?DICT:store({LFrom, LTo}, wait_for_verification,
+                    Conns = dict:store({LFrom, LTo}, wait_for_verification,
                                         StateData#state.connections),
                     change_shaper(StateData, LTo, jid:make(<<"">>, LFrom, <<"">>)),
                     {next_state,
@@ -446,60 +444,15 @@ stream_established({xmlstreamelement, El}, StateData) ->
             {next_state, stream_established, StateData#state{timer = Timer}};
         _ ->
             NewEl = jlib:remove_attr(<<"xmlns">>, El),
-            #xmlel{name = Name, attrs = Attrs} = NewEl,
-            From_s = xml:get_attr_s(<<"from">>, Attrs),
-            From = jid:from_binary(From_s),
-            To_s = xml:get_attr_s(<<"to">>, Attrs),
-            To = jid:from_binary(To_s),
-            if
-                (To /= error) and (From /= error) ->
-                    LFrom = From#jid.lserver,
-                    LTo = To#jid.lserver,
-                    if
-                        StateData#state.authenticated ->
-                            case (LFrom == StateData#state.auth_domain)
-                                andalso
-                                lists:member(
-                                  LTo,
-                                  ejabberd_router:dirty_get_all_domains()) of
-                                true ->
-                                    if ((Name == <<"iq">>) or
-                                        (Name == <<"message">>) or
-                                        (Name == <<"presence">>)) ->
-                                            ejabberd_hooks:run(
-                                              s2s_receive_packet,
-                                              LTo,
-                                              [From, To, NewEl]),
-                                            ejabberd_router:route(
-                                              From, To, NewEl);
-                                       true ->
-                                            error
-                                    end;
-                                false ->
-                                    error
-                            end;
-                        true ->
-                            case ?DICT:find({LFrom, LTo},
-                                            StateData#state.connections) of
-                                {ok, established} ->
-                                    if ((Name == <<"iq">>) or
-                                        (Name == <<"message">>) or
-                                        (Name == <<"presence">>)) ->
-                                            ejabberd_hooks:run(
-                                              s2s_receive_packet,
-                                              LTo,
-                                              [From, To, NewEl]),
-                                            ejabberd_router:route(
-                                              From, To, NewEl);
-                                       true ->
-                                            error
-                                    end;
-                                _ ->
-                                    error
-                            end
-                    end;
-                true ->
-                    error
+            #xmlel{attrs = Attrs} = NewEl,
+            FromS = xml:get_attr_s(<<"from">>, Attrs),
+            From = jid:from_binary(FromS),
+            ToS = xml:get_attr_s(<<"to">>, Attrs),
+            To = jid:from_binary(ToS),
+            case {From, To} of
+                {error, _} -> ok;
+                {_, error} -> ok;
+                _ -> route_incoming_stanza(From, To, NewEl, StateData)
             end,
             ejabberd_hooks:run(s2s_loop_debug, [{xmlstreamelement, El}]),
             {next_state, stream_established, StateData#state{timer = Timer}}
@@ -513,7 +466,7 @@ stream_established({valid, From, To}, StateData) ->
     LFrom = jid:nameprep(From),
     LTo = jid:nameprep(To),
     NSD = StateData#state{
-            connections = ?DICT:store({LFrom, LTo}, established,
+            connections = dict:store({LFrom, LTo}, established,
                                       StateData#state.connections)},
     {next_state, stream_established, NSD};
 stream_established({invalid, From, To}, StateData) ->
@@ -525,7 +478,7 @@ stream_established({invalid, From, To}, StateData) ->
     LFrom = jid:nameprep(From),
     LTo = jid:nameprep(To),
     NSD = StateData#state{
-            connections = ?DICT:erase({LFrom, LTo},
+            connections = dict:erase({LFrom, LTo},
                                       StateData#state.connections)},
     {next_state, stream_established, NSD};
 stream_established({xmlstreamend, _Name}, StateData) ->
@@ -539,6 +492,58 @@ stream_established(timeout, StateData) ->
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
 
+-spec route_incoming_stanza(From :: jid(), To :: jid(), El :: xmlel(), StateData :: state()) ->
+    mongoose_acc:t() | error.
+route_incoming_stanza(From, To, El, StateData) ->
+    LFrom = From#jid.lserver,
+    LTo = To#jid.lserver,
+    #xmlel{name = Name} = El,
+    Acc = mongoose_acc:from_element(El, From, To),
+    case is_s2s_authenticated(LFrom, LTo, StateData) of
+        true ->
+            route_stanza(Name, Acc);
+        false ->
+            case is_s2s_connected(LFrom, LTo, StateData) of
+                true ->
+                    route_stanza(Name, Acc);
+                false ->
+                    error
+            end
+    end.
+
+is_s2s_authenticated(_, _, #state{authenticated = false}) ->
+    false;
+is_s2s_authenticated(LFrom, LTo, #state{auth_domain = LFrom}) ->
+    lists:member(LTo, ejabberd_router:dirty_get_all_domains());
+is_s2s_authenticated(_, _, _) ->
+    false.
+
+is_s2s_connected(LFrom, LTo, StateData) ->
+    case dict:find({LFrom, LTo}, StateData#state.connections) of
+        {ok, established} ->
+            true;
+        _ ->
+            false
+    end.
+
+-spec route_stanza(binary(), mongoose_acc:t()) -> mongoose_acc:t().
+route_stanza(<<"iq">>, Acc) ->
+    route_stanza(Acc);
+route_stanza(<<"message">>, Acc) ->
+    route_stanza(Acc);
+route_stanza(<<"presence">>, Acc) ->
+    route_stanza(Acc);
+route_stanza(_, _Acc) ->
+    error.
+
+-spec route_stanza(mongoose_acc:t()) -> mongoose_acc:t().
+route_stanza(Acc) ->
+    From = mongoose_acc:get(from_jid, Acc),
+    To = mongoose_acc:get(to_jid, Acc),
+    LTo = To#jid.lserver,
+    Acc1 = ejabberd_hooks:run_fold(s2s_receive_packet,
+                                   LTo, Acc, []),
+    ejabberd_router:route(From, To, Acc1).
 
 %%----------------------------------------------------------------------
 %% Func: StateName/3

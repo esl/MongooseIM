@@ -25,7 +25,7 @@
 -export([start/2, stop/1]).
 
 %% Hooks and IQ handlers
--export([iq_handler/3,
+-export([iq_handler/4,
          handle_publish_response/4,
          filter_packet/1,
          remove_user/3]).
@@ -121,7 +121,7 @@ filter_packet({From, To = #jid{lserver = Host}, Acc, Packet}) ->
         true ->
             case mod_push_plugin:should_publish(Host, From, To, Packet) of
                 true ->
-                    publish_message(From, To, Packet);
+                    publish_message(From, To, Acc, Packet);
                 false ->
                     skip
             end;
@@ -130,12 +130,13 @@ filter_packet({From, To = #jid{lserver = Host}, Acc, Packet}) ->
     end,
     {From, To, Acc, Packet}.
 
--spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
-                        ejabberd:iq() | ignore.
-iq_handler(_From, _To, IQ = #iq{type = get, sub_el = SubEl}) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-iq_handler(From, _To, IQ = #iq{type = set, sub_el = Request}) ->
-    case parse_request(Request) of
+-spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
+                 IQ :: ejabberd:iq()) ->
+    {mongoose_acc:t(), ejabberd:iq() | ignore}.
+iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
+    Res = case parse_request(Request) of
         {enable, BarePubsubJID, Node, FormFields} ->
             ok = mod_push_backend:enable(jid:to_bare(From), BarePubsubJID, Node, FormFields),
             IQ#iq{type = result, sub_el = []};
@@ -144,7 +145,8 @@ iq_handler(From, _To, IQ = #iq{type = set, sub_el = Request}) ->
             IQ#iq{type = result, sub_el = []};
         bad_request ->
             IQ#iq{type = error, sub_el = [Request, ?ERR_BAD_REQUEST]}
-    end.
+    end,
+    {Acc, Res}.
 
 
 %%--------------------------------------------------------------------
@@ -167,8 +169,9 @@ handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error}) ->
 %% Module API
 %%--------------------------------------------------------------------
 
--spec publish_message(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> ok.
-publish_message(From, To = #jid{lserver = Host}, Packet) ->
+-spec publish_message(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
+    Packet :: jlib:xmlel()) -> ok.
+publish_message(From, To = #jid{lserver = Host}, Acc, Packet) ->
     ?DEBUG("Handle push notification ~p", [{From, To, Packet}]),
 
     BareRecipient = jid:to_bare(To),
@@ -181,7 +184,7 @@ publish_message(From, To = #jid{lserver = Host}, Packet) ->
                           cast(Host, handle_publish_response,
                                [BareRecipient, PubsubJID, Node, Response])
                   end,
-              cast(Host, ejabberd_local, route_iq, [To, PubsubJID, Stanza, ResponseHandler])
+              cast(Host, ejabberd_local, route_iq, [To, PubsubJID, Acc, Stanza, ResponseHandler])
       end, Services),
 
     ok.

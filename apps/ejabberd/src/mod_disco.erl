@@ -32,13 +32,13 @@
 
 -export([start/2,
          stop/1,
-         process_local_iq_items/3,
-         process_local_iq_info/3,
+         process_local_iq_items/4,
+         process_local_iq_info/4,
          get_local_identity/5,
          get_local_features/5,
          get_local_services/5,
-         process_sm_iq_items/3,
-         process_sm_iq_info/3,
+         process_sm_iq_items/4,
+         process_sm_iq_info/4,
          get_sm_identity/5,
          get_sm_features/5,
          get_sm_items/5,
@@ -152,10 +152,11 @@ unregister_extra_domain(Host, Domain) ->
     ets:delete(disco_extra_domains, {Domain, Host}).
 
 
--spec process_local_iq_items(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
-process_local_iq_items(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_local_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+-spec process_local_iq_items(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
+    {mongoose_acc:t(), ejabberd:iq()}.
+process_local_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     Host = To#jid.lserver,
 
@@ -165,18 +166,19 @@ process_local_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = 
                                  [From, To, Node, Lang]) of
         {result, Items} ->
             ANode = make_node_attr(Node),
-            IQ#iq{type = result,
+            {Acc, IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                   children = Items}]};
+                                   children = Items}]}};
         {error, Error} ->
-            IQ#iq{type = error, sub_el = [SubEl, Error]}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
--spec process_local_iq_info(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
-process_local_iq_info(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_local_iq_info(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+-spec process_local_iq_info(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
+    {mongoose_acc:t(), ejabberd:iq()}.
+process_local_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     Host = To#jid.lserver,
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     Identity = ejabberd_hooks:run_fold(disco_local_identity,
@@ -191,14 +193,14 @@ process_local_iq_info(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = I
                                  [From, To, Node, Lang]) of
         {result, Features} ->
             ANode = make_node_attr(Node),
-            IQ#iq{type = result,
+            {Acc, IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
                                    children = Identity ++
                                    Info ++
-                                   features_to_xml(Features)}]};
+                                   features_to_xml(Features)}]}};
         {error, Error} ->
-            IQ#iq{type = error, sub_el = [SubEl, Error]}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
 -spec get_local_identity(Acc :: [jlib:xmlel()],
@@ -311,10 +313,11 @@ check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec process_sm_iq_items(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
-process_sm_iq_items(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_sm_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+-spec process_sm_iq_items(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
+    {string(), ejabberd:iq()}.
+process_sm_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     case is_presence_subscribed(From, To) of
         true ->
             Host = To#jid.lserver,
@@ -325,15 +328,15 @@ process_sm_iq_items(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ)
                                          [From, To, Node, Lang]) of
                 {result, Items} ->
                     ANode = make_node_attr(Node),
-                    IQ#iq{type = result,
+                    {Acc, IQ#iq{type = result,
                           sub_el = [#xmlel{name = <<"query">>,
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                           children = Items}]};
+                                           children = Items}]}};
                 {error, Error} ->
-                    IQ#iq{type = error, sub_el = [SubEl, Error]}
+                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
         false ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}}
     end.
 
 
@@ -384,10 +387,11 @@ is_presence_subscribed(#jid{luser=User, lserver=Server}, #jid{luser=LUser, lserv
     orelse User == LUser andalso Server == LServer.
 
 
--spec process_sm_iq_info(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
-process_sm_iq_info(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_sm_iq_info(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+-spec process_sm_iq_info(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
+    {mongoose_acc:t(), ejabberd:iq()}.
+process_sm_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     case is_presence_subscribed(From, To) of
         true ->
             Host = To#jid.lserver,
@@ -402,16 +406,16 @@ process_sm_iq_info(From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) 
                                          [From, To, Node, Lang]) of
                 {result, Features} ->
                     ANode = make_node_attr(Node),
-                    IQ#iq{type = result,
+                    {Acc, IQ#iq{type = result,
                           sub_el = [#xmlel{name = <<"query">>,
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
                                            children = Identity ++
-                                           features_to_xml(Features)}]};
+                                           features_to_xml(Features)}]}};
                 {error, Error} ->
-                    IQ#iq{type = error, sub_el = [SubEl, Error]}
+                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
         false ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}}
     end.
 
 

@@ -46,7 +46,7 @@
 -export([start/2, stop/1]).
 
 %% ejabberd handlers
--export([process_mam_iq/3,
+-export([process_mam_iq/4,
          user_send_packet/4,
          remove_user/3,
          filter_packet/1,
@@ -255,11 +255,11 @@ stop(Host) ->
 %% to the user on their bare JID (i.e. `From.luser'),
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
--spec process_mam_iq(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                     IQ :: ejabberd:iq()) -> ejabberd:iq() | ignore.
-process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
+-spec process_mam_iq(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
+                     IQ :: ejabberd:iq()) -> {mongoose_acc:t(), ejabberd:iq() | ignore}.
+process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
     Action = iq_action(IQ),
-    case is_action_allowed(Action, From, To) of
+    Res = case is_action_allowed(Action, From, To) of
         true  ->
             case wait_shaper(Host, Action, From) of
                 ok ->
@@ -276,7 +276,8 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
             ejabberd_hooks:run(mam_drop_iq, Host,
                                [Host, To, IQ, Action, action_not_allowed]),
             return_action_not_allowed_error_iq(IQ)
-    end.
+    end,
+    {Acc, Res}.
 
 
 %% @doc Handle an outgoing message.

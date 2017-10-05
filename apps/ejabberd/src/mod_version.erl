@@ -5,7 +5,7 @@
 -include("jlib.hrl").
 -include("ejabberd.hrl").
 
--export([start/2, stop/1, process_iq/3]).
+-export([start/2, stop/1, process_iq/4]).
 
 -xep([{xep, 92}, {version, "1.1"}]).
 
@@ -21,13 +21,13 @@ stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_VERSION),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_VERSION).
 
--spec process_iq(jid(), jid(), iq()) -> iq().
-process_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_iq(From, _To, #iq{type = get} = IQ) ->
+-spec process_iq(jid(), jid(), mongoose_acc:t(), iq()) -> {mongoose_acc:t(), iq()}.
+process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+process_iq(From, _To, Acc, #iq{type = get} = IQ) ->
     {Name, Version} = mongoose_info(),
     Host = From#jid.lserver,
-    IQ#iq{type = result,
+    {Acc, IQ#iq{type = result,
           sub_el =
           [#xmlel{name = <<"query">>,
                   attrs = [{<<"xmlns">>, ?NS_VERSION}],
@@ -36,7 +36,7 @@ process_iq(From, _To, #iq{type = get} = IQ) ->
                           children =[#xmlcdata{content = Name}]},
                    #xmlel{name = <<"version">>, attrs = [],
                           children =[#xmlcdata{content = Version}]}
-                  ] ++ add_os_info(Host)}]}.
+                  ] ++ add_os_info(Host)}]}}.
 
 -spec add_os_info(binary()) -> [exml:element()] | [].
 add_os_info(Host) ->

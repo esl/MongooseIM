@@ -46,7 +46,7 @@
 
 %% ejabberd room handlers
 -export([filter_room_packet/2,
-         room_process_mam_iq/3,
+         room_process_mam_iq/4,
          forget_room/2,
          forget_room/3]).
 
@@ -265,11 +265,11 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
 %% to the user on their bare JID (i.e. `From.luser'),
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
--spec room_process_mam_iq(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                          IQ :: ejabberd:iq()) -> ejabberd:iq() | 'ignore'.
-room_process_mam_iq(From = #jid{lserver = Host}, To, IQ) ->
+-spec room_process_mam_iq(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
+                          IQ :: ejabberd:iq()) -> {mongoose_acc:t(), ejabberd:iq() | 'ignore'}.
+room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
     Action = iq_action(IQ),
-    case is_action_allowed(Action, From, To) of
+    Res = case is_action_allowed(Action, From, To) of
         true ->
             case wait_shaper(Host, Action, From) of
                 ok ->
@@ -281,7 +281,8 @@ room_process_mam_iq(From = #jid{lserver = Host}, To, IQ) ->
                     return_max_delay_reached_error_iq(IQ)
             end;
         false -> return_action_not_allowed_error_iq(IQ)
-    end.
+    end,
+    {Acc, Res}.
 
 
 %% #rh

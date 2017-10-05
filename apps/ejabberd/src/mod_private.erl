@@ -31,7 +31,7 @@
 
 -export([start/2,
          stop/1,
-         process_sm_iq/3,
+         process_sm_iq/4,
          remove_user/3,
          remove_user/2]).
 
@@ -101,11 +101,12 @@ remove_user(User, Server) ->
 process_sm_iq(
         From = #jid{luser = LUser, lserver = LServer},
         To   = #jid{},
+        Acc,
         IQ   = #iq{type = Type, sub_el = SubElem = #xmlel{children = Elems}}) ->
     IsKnown = lists:member(LServer, ?MYHOSTS),
     IsEqual = compare_bare_jids(From, To),
     Strategy = choose_strategy(IsKnown, IsEqual, Type),
-    case Strategy of
+    Res = case Strategy of
         get ->
             NS2XML = to_map(Elems),
             XMLs = mod_private_backend:multi_get_data(LUser, LServer, NS2XML),
@@ -129,7 +130,8 @@ process_sm_iq(
             error_iq(IQ, ?ERR_NOT_ALLOWED);
         forbidden ->
             error_iq(IQ, ?ERR_FORBIDDEN)
-    end.
+    end,
+    {Acc, Res}.
 
 %% ------------------------------------------------------------------
 %% Helpers

@@ -7,7 +7,7 @@
 -module(mod_time).
 -author('ludwik.bukowski@erlang-solutions.com').
 -behaviour(gen_mod).
--export([start/2, stop/1, process_local_iq/3]).
+-export([start/2, stop/1, process_local_iq/4]).
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -xep([{xep, 202}, {version, "2.0"}]).
@@ -26,12 +26,12 @@ stop(Host) ->
                                      ?NS_TIME).
 
 
-process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+process_local_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
 
-process_local_iq(_From, _To, #iq{type = get} = IQ) ->
+process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
     {UTC, TZODiff} = calculate_time(),
-    IQ#iq{type = result,
+    R = IQ#iq{type = result,
           sub_el =
           [#xmlel{name = <<"time">>,
                   attrs = [{<<"xmlns">>, ?NS_TIME}],
@@ -40,7 +40,8 @@ process_local_iq(_From, _To, #iq{type = get} = IQ) ->
                           children = [#xmlcdata{content = iolist_to_binary(TZODiff)}]},
                    #xmlel{name = <<"utc">>, attrs = [],
                           children =
-                          [#xmlcdata{content = UTC}]}]}]}.
+                          [#xmlcdata{content = UTC}]}]}]},
+    {Acc, R}.
 
 %% Internals
 calculate_time() ->

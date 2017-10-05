@@ -203,8 +203,7 @@ broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type) ->
             Acc;
         UserJID ->
             Bcast = {blocking, UserList, Type, Changed},
-            Acc1 = mongoose_acc:put(to_send, Bcast, Acc),
-            ejabberd_sm:route(UserJID, UserJID, {broadcast, Acc1})
+            ejabberd_sm:route(UserJID, UserJID, Acc, {broadcast, Bcast})
     end.
 
 blocking_query_response(Lst) ->

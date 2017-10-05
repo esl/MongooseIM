@@ -31,8 +31,8 @@
 
 -export([start/2,
          stop/1,
-         process_local_iq/3,
-         process_sm_iq/3
+         process_local_iq/4,
+         process_sm_iq/4
         ]).
 
 -include("ejabberd.hrl").
@@ -53,23 +53,24 @@ stop(Host) ->
 
 
 process_local_iq(#jid{user = User, server = Server, resource = Resource}, _To,
-                 #iq{type = 'get', sub_el = _SubEl} = IQ) ->
-    get_ip({User, Server, Resource}, IQ);
+                 Acc, #iq{type = 'get', sub_el = _SubEl} = IQ) ->
+    {Acc, get_ip({User, Server, Resource}, IQ)};
 
-process_local_iq(_From, _To, #iq{type = 'set', sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}.
+process_local_iq(_From, _To, Acc, #iq{type = 'set', sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}}.
 
 
 process_sm_iq(#jid{user = User, server = Server, resource = Resource},
               #jid{user = User, server = Server},
+              Acc,
               #iq{type = 'get', sub_el = _SubEl} = IQ) ->
-    get_ip({User, Server, Resource}, IQ);
+    {Acc, get_ip({User, Server, Resource}, IQ)};
 
-process_sm_iq(_From, _To, #iq{type = 'get', sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]};
+process_sm_iq(_From, _To, Acc, #iq{type = 'get', sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}};
 
-process_sm_iq(_From, _To, #iq{type = 'set', sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}.
+process_sm_iq(_From, _To, Acc, #iq{type = 'set', sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}}.
 
 get_ip({User, Server, Resource},
        #iq{sub_el = #xmlel{} = SubEl} = IQ) ->

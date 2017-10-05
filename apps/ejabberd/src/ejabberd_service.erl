@@ -51,7 +51,7 @@
          print_state/1]).
 
 %% packet handler callback
--export([process_packet/4]).
+-export([process_packet/5]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -137,9 +137,10 @@ socket_type() ->
 %%% mongoose_packet_handler callback
 %%%----------------------------------------------------------------------
 
--spec process_packet(From :: jid(), To :: jid(), Acc :: mongoose_acc:t(), Pid :: pid()) -> any().
-process_packet(From, To, Acc, Pid) ->
-    Pid ! {route, From, To, mongoose_acc:strip(Acc)}.
+-spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
+    El :: xmlel(), Pid :: pid()) -> any().
+process_packet(Acc, From, To, El, Pid) ->
+    Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm

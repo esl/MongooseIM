@@ -1,9 +1,17 @@
 %%%-------------------------------------------------------------------
+%%% @doc
+%%% This module encapsulates a data type which will is instantiated when stanza
+%%% enters the system and is passed all the way along processing chain.
+%%% Its interface is map-like, and you can put there whatever you want, bearing in mind two things:
+%%% 1. It is read-only, you can't change value once you wrote it (accumulator is to accumulate)
+%%% 2. Whatever you put will be removed before the acc is sent to another c2s process
 %%%
-%%% This module encapsulates a data type which will initially be passed to
-%%% hookhandlers as accumulator, and later will be passed all the way along
-%%% processing chain.
-%%%
+%%% There are three caveats to the above:
+%%% 1. Although you can not put to an existing key, you can append as many times as you like
+%%% 2. A special key 'result' is writeable and is meant to be used to get return value from hook calls
+%%% 3. If you want to pass something to another c2s process you can use add_prop/3 - values
+%%%    put there are not stripped.
+%%% @end
 %%%-------------------------------------------------------------------
 -module(mongoose_acc).
 -author("bartek").
@@ -13,9 +21,10 @@
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).
+-export([add_prop/3, get_prop/2]).
 -export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
--export([strip/1, record_sending/4, record_sending/6]).
--export([initialise/3, terminate/3, terminate/4, dump/1, to_binary/1]).
+-export([strip/1, strip/2, record_sending/4, record_sending/6]).
+-export([dump/1, to_binary/1]).
 -export([to_element/1]).
 -export_type([t/0]).
 -export([from_element/3]).
@@ -27,25 +36,6 @@
 %%% its interface is map-like but implementation might change
 %%% it is passed along many times, and relatively rarely read or written to
 %%% might be worth reimplementing as binary
-
-%%%%% devel API %%%%%
-
-%%% Eventually, we'll call initialise when a stanza enters MongooseIM and terminate
-%%% when it leaves. During development we can call both in arbitrary places, provided that
-%%% the code which is executed between them is rewritten. We will proceed by moving
-%%% both points further apart until they reach their respective ends of processing chain.
-
-initialise(El, _F, _L) ->
-%%    ?ERROR_MSG("AAA initialise accumulator ~p ~p", [F, L]),
-    from_element(El).
-
-terminate(M, _F, _L) ->
-%%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
-    get(element, M).
-
-terminate(M, received, _F, _L) ->
-%%    ?ERROR_MSG("ZZZ terminate accumulator ~p ~p", [F, L]),
-    get(to_send, M, get(element, M, undefined)).
 
 dump(Acc) ->
     dump(Acc, lists:sort(maps:keys(Acc))).
@@ -63,7 +53,11 @@ to_binary(Acc) ->
     % replacement to exml:to_binary, for error logging
     case is_acc(Acc) of
         true ->
-            exml:to_binary(get(to_send, Acc));
+            El = get(element, Acc),
+            case El of
+                #xmlel{} -> exml:to_binary(El);
+                _ -> list_to_binary(io_lib:format("~p", [El]))
+            end;
         false ->
             list_to_binary(io_lib:format("~p", [Acc]))
     end.
@@ -80,7 +74,7 @@ is_acc(_) ->
 -spec to_element(xmlel() | t()) -> xmlel().
 to_element(A) ->
     case is_acc(A) of
-        true -> get(to_send, A, get(element, A, undefined));
+        true -> get(element, A, undefined);
         false -> A
     end.
 
@@ -96,15 +90,26 @@ from_kv(K, V) ->
     M = maps:put(K, V, #{}),
     maps:put(mongoose_acc, true, M).
 
--spec from_element(xmlel()) -> t().
-from_element(El) ->
-    #xmlel{name = Name, attrs = Attrs} = El,
+%% @doc This one has an alternative form because normally an acc carries an xml element, as
+%% received from client, but sometimes messages are generated internally (broadcast) by sm
+%% and sent to c2s
+-spec from_element(xmlel() | iq() | tuple()) -> t().
+from_element(#xmlel{name = Name, attrs = Attrs} = El) ->
     Type = exml_query:attr(El, <<"type">>, undefined),
     #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
         timestamp => os:timestamp(), ref => make_ref()
-        }.
+        };
+from_element(#iq{type = Type} = El) ->
+    #{element => El, mongoose_acc => true, name => <<"iq">>, type => Type,
+        timestamp => os:timestamp(), ref => make_ref()
+    };
+from_element(El) when is_tuple(El) ->
+    Name = <<"broadcast">>,
+    Type = element(1, El),
+    % ref and timestamp will be filled in by strip/2
+    #{element => El, name => Name, type => Type, mongoose_acc => true}.
 
--spec from_element(xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
+-spec from_element(xmlel() | iq(), ejabberd:jid(), ejabberd:jid()) -> t().
 from_element(El, From, To) ->
     Acc = from_element(El),
     M = #{from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)},
@@ -125,18 +130,29 @@ put(from_jid, Val, Acc) ->
     % deprecated functions
     A = maps:put(from_jid, Val, Acc),
     maps:put(from, jid:to_binary(Val), A);
+put(result, Val, Acc) ->
+    maps:put(result, Val, Acc);
 put(Key, Val, Acc) ->
+    % check whether we are replacing existing value (warning now, later it will become
+    % read-only; accumulator is for accumulating)
+    case maps:is_key(Key, Acc) of
+        true ->
+%%            ?WARNING_MSG("Overwriting existing key \"~p\" in accumulator,"
+%%                         "are you sure you have to do it?",
+%%                         [Key]);
+            ok;
+        false ->
+            ok
+    end,
     maps:put(Key, Val, Acc).
 
 -spec get(any()|[any()], t()) -> any().
-get(to_send, Acc) ->
-    get(to_send, Acc, get(element, Acc));
+get(send_result, Acc) ->
+    hd(maps:get(send_result, Acc));
 get(Key, P) ->
     maps:get(Key, P).
 
 -spec get(any(), t(), any()) -> any().
-get(to_send, P, Default) ->
-    maps:get(to_send, P, maps:get(element, P, Default));
 get(Key, P, Default) ->
     maps:get(Key, P, Default).
 
@@ -148,6 +164,15 @@ append(Key, Val, P) ->
 -spec remove(Key :: any(), Accumulator :: t()) -> t().
 remove(Key, Accumulator) ->
     maps:remove(Key, Accumulator).
+
+%% @doc adds a persistent property to an accumulator
+-spec add_prop(atom(), any(), t()) -> t().
+add_prop(Key, Value, Acc) ->
+    append(persistent_properties, {Key, Value}, Acc).
+
+-spec get_prop(atom(), t()) -> any().
+get_prop(Key, Acc) ->
+    proplists:get_value(Key, get(persistent_properties, Acc, [])).
 
 %% @doc Make sure the acc has certain keys - some of them require expensive computations and
 %% are therefore not calculated upon instantiation, this func is saying "I will need these,
@@ -165,23 +190,29 @@ require(Key, Acc) ->
     require([Key], Acc).
 
 %% @doc Convert the acc before routing it out to another c2s process - remove everything except
-%% the very bare minimum (all caches, records etc), replace element with to_send
+%% the very bare minimum
+%% We get rid of all caches, traces etc.
+%% There is a special key "persistent_properties" which is also kept, use add_prop to store
+%% persistent stuff you want to pass between processes there.
 -spec strip(t()) -> t().
 strip(Acc) ->
-    El = get(to_send, Acc),
+    strip(Acc, get(element, Acc)).
+
+%% @doc alt version in case we want to replace the xmlel we are sending
+-spec strip(t(), xmlel()) -> t().
+strip(Acc, El) ->
     Acc1 = from_element(El),
-%%    Ats = [name, type, attrs, from, from_jid, to, to_jid, ref, timestamp],
-    Attributes = [from, from_jid, ref, timestamp],
+    Attributes = [ref, timestamp],
     NewAcc = lists:foldl(fun(Attrib, AccIn) ->
-                           Val = mongoose_acc:get(Attrib, Acc),
-                           mongoose_acc:put(Attrib, Val, AccIn)
+                           Val = maps:get(Attrib, Acc),
+                           maps:put(Attrib, Val, AccIn)
                        end,
                        Acc1, Attributes),
-    OptionalAttributes = [to, to_jid],
+    OptionalAttributes = [from, from_jid, to, to_jid, persistent_properties],
     lists:foldl(fun(Attrib, AccIn) ->
-                    case mongoose_acc:get(Attrib, Acc, undefined) of
+                    case maps:get(Attrib, Acc, undefined) of
                         undefined -> AccIn;
-                        Val -> mongoose_acc:put(Attrib, Val, AccIn)
+                        Val -> maps:put(Attrib, Val, AccIn)
                     end
                 end,
         NewAcc, OptionalAttributes).
@@ -195,7 +226,7 @@ record_sending(Acc, Stanza, Module, Result) ->
     record_sending(Acc, none, none, Stanza, Module, Result).
 -spec record_sending(t(), jid()|none, jid()|none, xmlel(), atom(), any()) -> t().
 record_sending(Acc, _From, _To, _Stanza, _Module, Result) ->
-    mongoose_acc:put(send_result, Result, Acc).
+    mongoose_acc:append(send_result, Result, Acc).
 
 %%%%% internal %%%%%
 

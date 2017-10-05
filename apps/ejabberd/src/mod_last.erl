@@ -34,8 +34,8 @@
 -export([
          start/2,
          stop/1,
-         process_local_iq/3,
-         process_sm_iq/3,
+         process_local_iq/4,
+         process_sm_iq/4,
          on_presence_update/5,
          store_last_info/4,
          get_last_info/2,
@@ -108,23 +108,23 @@ stop(Host) ->
 %%%
 %%% Uptime of ejabberd node
 %%%
--spec process_local_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
-        -> ejabberd:iq().
-process_local_iq(_From, _To,
+-spec process_local_iq(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq())
+        -> {mongoose_acc:t(), ejabberd:iq()}.
+process_local_iq(_From, _To, Acc,
     #iq{type = Type, sub_el = SubEl} = IQ) ->
     case Type of
         set ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
         get ->
             Sec = get_node_uptime(),
-            IQ#iq{type = result,
+            {Acc, IQ#iq{type = result,
                 sub_el =
                 [#xmlel{name = <<"query">>,
                     attrs =
                     [{<<"xmlns">>, ?NS_LAST},
                         {<<"seconds">>,
                             integer_to_binary(Sec)}],
-                    children = []}]}
+                    children = []}]}}
     end.
 
 -spec get_node_uptime() -> non_neg_integer().
@@ -143,10 +143,11 @@ now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
 %%%
 %%% Serve queries about user last online
 %%%
--spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
-process_sm_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-process_sm_iq(From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
+-spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
+    {mongoose_acc:t(), ejabberd:iq()}.
+process_sm_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     User = To#jid.luser,
     Server = To#jid.lserver,
     {Subscription, _Groups} =
@@ -161,17 +162,12 @@ process_sm_iq(From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
             UserListRecord = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
                                                      #userlist{}, [User, Server]),
             ?TEMPORARY,
-            Packet = #xmlel{name = <<"presence">>,
-                            attrs = [],
-                            children = []},
-            Acc = mongoose_acc:from_map(#{name => <<"iq">>, type => get, attrs => [],
-                                          element => Packet}),
-            {_, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
+            {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
                                                              UserListRecord, To, From,
                                                              out),
-            make_response(IQ, SubEl, User, Server, Res);
+            {Acc1, make_response(IQ, SubEl, User, Server, Res)};
         false ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}}
     end.
 
 -spec make_response(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],

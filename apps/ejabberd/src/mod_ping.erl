@@ -49,7 +49,7 @@
          handle_info/2, code_change/3]).
 
 %% Hook callbacks
--export([iq_ping/3,
+-export([iq_ping/4,
          user_online/4,
          user_offline/5,
          user_send/4,
@@ -186,7 +186,8 @@ handle_info({timeout, _TRef, {ping, JID}},
                 gen_server:cast(Pid, {iq_pong, JID, Response})
         end,
     From = jid:make(<<"">>, State#state.host, <<"">>),
-    ejabberd_local:route_iq(From, JID, IQ, F, PingReqTimeout),
+    Acc = mongoose_acc:from_element(IQ, From, JID),
+    ejabberd_local:route_iq(From, JID, Acc, IQ, F, PingReqTimeout),
     Timers = add_timer(JID, State#state.ping_interval, State#state.timers),
     {noreply, State#state{timers = Timers}};
 handle_info(_Info, State) ->
@@ -198,12 +199,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 %% Hook callbacks
 %%====================================================================
-iq_ping(_From, _To, #iq{type = Type, sub_el = SubEl} = IQ) ->
+iq_ping(_From, _To, Acc, #iq{type = Type, sub_el = SubEl} = IQ) ->
     case {Type, SubEl} of
         {get, #xmlel{name = <<"ping">>}} ->
-            IQ#iq{type = result, sub_el = []};
+            {Acc, IQ#iq{type = result, sub_el = []}};
         _ ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_FEATURE_NOT_IMPLEMENTED]}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_FEATURE_NOT_IMPLEMENTED]}}
     end.
 
 user_online(Acc, _SID, JID, _Info) ->
