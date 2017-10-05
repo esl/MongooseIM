@@ -41,7 +41,8 @@ The extra level of indirection introduced by this call gives the flexibility to 
 
 ### Getting results from handlers
 
-Hook handlers are called by "folding", meaning iterating over the list of handlers passing them a set of arguments and some initial value which gets modified and returned by every handler.
+Hook handlers are called by "folding".
+This means that each handler on a list is passed a set of arguments and an initial value that it then modifies, returns and hands over to the next handler in line.
 
 A simple example would look like this:
 
@@ -53,9 +54,8 @@ ListOfSomething = ejabberd_hooks:run_fold(a_certain_hook,
                                            StateData#state.server])
 ```
 
+The initial value of the accumulator being passed through the sequence of handlers (in this case an empty list `[]`) is inserted between the XMPP domain `StateData#state.server` and handler arguments.
 In between the XMPP domain (`StateData#state.server`) and handler arguments is the initial value of the accumulator being passed through the sequence of handlers is inserted - in this case an empty list (`[]`).
-All handlers attached to this hook have to accept a list as a first argument and also return a list - possibly the same list
-plus one or more items.
 
 #### Sidenote: Folds
 
@@ -66,8 +66,8 @@ If you haven't encountered the term _fold_ before, think of it as _reduce_ (like
 
 ### Using accumulators
 
-MongooseIM uses a dedicated data structure to accumulate results(see ["Accumulators"](accumulators.md)).
-This data structure is implemented in `mongoose_acc` module, which has a map-like interface: it has `get/2`, `get/3`, `put/3` etc.
+MongooseIM uses a dedicated data structure to accumulate results (see ["Accumulators"](accumulators.md)).
+This data structure is implemented in the `mongoose_acc` module, which has a map-like interface: it has `get/2`, `get/3`, `put/3` etc.
 It is instantiated with an incoming stanza, passed along throughout the processing chain, supplied to and returned from hook calls, and terminated when stanza is leaving MongooseIM.
 If hook handlers are supposed to return some value they put it into the accumulator.
 
@@ -80,7 +80,7 @@ The right way to use hooks is therefore:
 * pass the modified accumulator on
 
 Handlers should store their return values in the accumulator; there are three ways to do it:
-* if it is a one-off value whch doesn't need to be passed on along with the accumulator (can be overwritten any time), `mongoose_acc:put(result, Value, Acc)`
+* if it is a one-off value whch doesn't need to be passed on along with the accumulator (can be overwritten any time), use `mongoose_acc:put(result, Value, Acc)`
 * if the value is to be passed on to be reused within the user's session use `mongoose_acc:put(Key, Value, Acc)`
 * if the value should be passed on to the recipient's session, pubsub node etc. use `mongoose_acc:add_prop(Key, Value, Acc)`
 
@@ -97,14 +97,14 @@ Rs = mongoose_acc:get(offline_messages, Acc1, []),
 
 ### Sidenote: something deprecated
 
-Occassionally you may find in the MongooseIM source code some calls to `ejabberd_hooks:run/3`.
+Occassionally you may find some calls to `ejabberd_hooks:run/3` in the MongooseIM source code.
 Under the hood it calls the same handlers with an empty accumulator.
 This is deprecated and some day will be removed.
 
 ### Error handling in hooks
 
 Hooks are meant to decouple modules; in other words, the caller signals that some event took place or that it intends to use a certain feature or a set of features, but how and if those features are implemented is beyond its interest.
-Hooks don't therefore use the "let it crash" approach. Instead it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
+Fro that reason hook don't use the "let it crash" approach. Instead it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
 
 In practical terms: if a handler throws an error the hook machine logs a message and proceeds to the next handler with unmodified accumulator.
 If there is no handlers registered for a given hook, the `run_fold` call has simply no effect.

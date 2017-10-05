@@ -3,15 +3,15 @@
 XMPP stanza processing starts in the `ejabberd_c2s` module, which receives the stanza from a socket, or in `ejabberd_s2s_in` which receives stanzas from federated XMPP clusters.
 The stanza is processed and eventually it and/or other messages are sent out, either to the original sender, to another c2s process within the same MongooseIM installation, or to another XMPP server.
 
-At the beginning of the main processing chain an accumulator is created containing the original stanza, some values extracted from stanza and additional info:
+At the beginning of the main processing chain an accumulator is created containing the original stanza, some values extracted from the stanza and additional info:
 
 * ref - a unique reference of the acc, useful for tracing
 * timestamp - current time
 * element - the original stanza
 * name - <<"message">>, <<"presence">> or <<"iq">>
 * type - e.g. <<"set">> (in iq)
-* attrs - attributs of the root xml element of stanza
-* from, to - full jids of sender and recipient in binary form
+* attrs - attributs of the root xml element of the stanza
+* from, to - full jids of the sender and recipient in binary form
 * from_jid, to_jid - same as #jid{} records.
 
 It is then passed through all the stages until it reaches the end of its life.
@@ -71,8 +71,9 @@ Acc2 = mongoose_acc:add_prop(myprop, 123, Acc1),
 V = mongoose_acc:get_prop(myprop, Acc2).
 ```
 
-The rationale behind stripping an accumulator is that many values store in it are context-dependend.
-For example, `user` and `server` refer to the owner of the c2s process, in another one user will be different (and sometimes server).
+The rationale behind stripping an accumulator is that many values stored in it are context-dependend.
+For example, in a c2s process `user` and `server` refer to the owner of the process.
+When an accumulator goes from the sender's process to the c2s of the recipient, the `user` attribute (and sometime the `server`) has to change.
 There are also many cached values which are not valid anymore when user changes.
 Thus, we remove everything except some tracing parameters (ref, timestamp), original sender and recipient, and those properties which were explicitly declared as "persistent" (by calling `mongoose_acc:add_prop/3`).
 
@@ -117,7 +118,8 @@ The notion of an exit point is a bit vague, because sending a stanza out of Mong
 A single stanza entering the system creates an acc, but then may result in multiple stanzas going out - for example changing a privacy list triggers presence updates and a roster push.
 It is in fact hard to determine when the process has really been finished.
 The approach is to pass along one acc and, when something is just about to be sent out, either send a text and return the acc or pass on a clone of the acc and return the original one.
-This gives us an option to record a fact that a stanza has been sent out: every sending function calls `mongoose_acc:record_sending`, which gives you an opportunity to consult `send_result` key to check what send attempts have been made and with what effect.
+This gives us an option to record a fact that a stanza has been sent out.
+Every sending function calls `mongoose_acc:record_sending`, which gives you an opportunity to later consult the `send_result` key to check what send attempts have been made and with what effect.
 When the last stanza in the whole process is leaving the system we have a complete record of what we have sent in the meantime.
 
 An 'exit point' is where we call a function sending something out of the system and, if all goes well, returning the original accumulator possibly with an additional track record of what's just been done.
