@@ -177,3 +177,20 @@ ln -s $lst ct_report/lastrun
 ```
 
 can be of some help.
+
+## Advanced topics
+
+There are many more options available.
+One of them is sequentially testing a number of preset configuration - we do it every day on Travis, testing MongooseIM with various OTP versions and database backends.
+Put together, we have eight preset configuration.
+
+If you want to dig deeper, consult `.travis.yml` and `tools/travis-test.sh`, everything we do is there.
+
+## Load testing
+
+Apart from CI, we do also CLT (Continuous Load Testing).
+We have our own load testing infrastructure, called Tide, which is triggered after every successful test run, and gives us a feedback whether we are making MongooseIM faster or slower.
+
+Test results are publicly available on the [Hello Tide!](http://tide.erlang-solutions.com/public) page.
+
+
