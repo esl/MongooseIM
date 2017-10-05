@@ -14,8 +14,12 @@ first error.
 {mod_private, []}
 ```
 
-### Backend metrics
+### Metrics
 
-* `[global, backends, mod_private, multi_get_data]` - A time to fetch XML data from a DB.
-* `[global, backends, mod_private, multi_set_data]` - A time to store XML data in a DB.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[global, backends, mod_private, multi_get_data]` | histogram | Time to fetch XML data from a DB. |
+| `[global, backends, mod_private, multi_set_data]` | histogram | Time to store XML data in a DB. |
 

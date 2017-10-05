@@ -13,8 +13,12 @@ Use with caution, as it was observed that a user disconnect spike might result i
 
 ` {mod_last, []} `
 
-### Backend metrics
+### Metrics
 
-* `[global, backends, mod_last, get_last]` - A time to fetch the timestamp from DB.
-* `[global, backends, mod_last, set_last_info]` - A time to store the timestamp in DB.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[global, backends, mod_last, get_last]` | histogram | Time to fetch the timestamp from DB. |
+| `[global, backends, mod_last, set_last_info]` | histogram | Time to store the timestamp in DB. |
 

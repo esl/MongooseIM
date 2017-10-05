@@ -33,9 +33,12 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
              ]}
 ```
 
-### Backend metrics
+### Metrics
 
-* `[global, backends, mod_vcard, set_vcard]` - A time to set a vCard in a DB.
-* `[global, backends, mod_vcard, get_vcard]` - A time to fetch a specific vCard from a DB.
-* `[global, backends, mod_vcard, search]` - A time to perform a vCard search in a DB.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[global, backends, mod_vcard, set_vcard]` | histogram | Time to set a vCard in a DB. |
+| `[global, backends, mod_vcard, get_vcard]` | histogram | Time to fetch a specific vCard from a DB. |
+| `[global, backends, mod_vcard, search]` | histogram | Time to perform a vCard search in a DB. |

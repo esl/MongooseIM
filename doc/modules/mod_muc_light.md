@@ -68,17 +68,21 @@ Valid config field types are:
             ]},
 ```
 
-### Backend metrics
+### Metrics
 
-* `[global, backends, mod_muc_light, create_room]` - A time to store new room data in a DB.
-* `[global, backends, mod_muc_light, destroy_room]` - A time to remove room data from a DB.
-* `[global, backends, mod_muc_light, room_exists]` - A time to check if a room exists in a DB.
-* `[global, backends, mod_muc_light, get_user_rooms]` - A time to get a list of rooms from a DB, where a user is a participant.
-* `[global, backends, mod_muc_light, remove_user]` - A time to remove all MUC Light related user data from a DB.
-* `[global, backends, mod_muc_light, get_config]` - A time to get room config from a DB.
-* `[global, backends, mod_muc_light, set_config]` - A time to set room config in a DB.
-* `[global, backends, mod_muc_light, get_blocking]` - A time to retrieve blocking data from a DB.
-* `[global, backends, mod_muc_light, set_blocking]` - A time to set blocking data in a DB.
-* `[global, backends, mod_muc_light, get_aff_users]` - A time to get an affiliated users list from a DB.
-* `[global, backends, mod_muc_light, modify_aff_users]` - A time to update affiliations in a room in a DB.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[global, backends, mod_muc_light, create_room]` | histogram | Time to store new room data in a DB. |
+| `[global, backends, mod_muc_light, destroy_room]` | histogram | Time to remove room data from a DB. |
+| `[global, backends, mod_muc_light, room_exists]` | histogram | Time to check if a room exists in a DB. |
+| `[global, backends, mod_muc_light, get_user_rooms]` | histogram | Time to get a list of rooms from a DB, where a user is a participant. |
+| `[global, backends, mod_muc_light, remove_user]` | histogram | Time to remove all MUC Light related user data from a DB. |
+| `[global, backends, mod_muc_light, get_config]` | histogram | Time to get room config from a DB. |
+| `[global, backends, mod_muc_light, set_config]` | histogram | Time to set room config in a DB. |
+| `[global, backends, mod_muc_light, get_blocking]` | histogram | Time to retrieve blocking data from a DB. |
+| `[global, backends, mod_muc_light, set_blocking]` | histogram | Time to set blocking data in a DB. |
+| `[global, backends, mod_muc_light, get_aff_users]` | histogram | Time to get an affiliated users list from a DB. |
+| `[global, backends, mod_muc_light, modify_aff_users]` | histogram | Time to update affiliations in a room in a DB. |
 

@@ -159,8 +159,33 @@ You can change the default settings using extra parameters:
        ]}.
 ```
 
-### Backend metrics
+### Metrics
 
-* `[global, backends, mod_mam, lookup]` - A time of archive lookup operation.
-* `[global, backends, mod_mam, archive]` - A time of saving one message in the archive.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[Host, modMamArchiveRemoved]` | spiral | User's entire archive is removed. |
+| `[Host, modMamArchived]` | spiral | A message is stored in user's archive. |
+| `[Host, modMamDropped]` | spiral | A message couldn't be enqueued due to an overloaded async worker. |
+| `[Host, modMamDropped2]` | spiral | A message couldn't be stored in the DB (and got dropped). |
+| `[Host, modMamDroppedIQ]` | spiral | MAM IQ has been dropped due to: high query frequency/invalid syntax or type. |
+| `[Host, modMamFlushed]` | spiral | Message was stored in a DB asynchronously. |
+| `[Host, modMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result. |
+| `[Host, modMamLookups]` | spiral | A MAM lookup is performed. |
+| `[Host, modMamSinglePurges]` | spiral | A single purge request is processed by MAM. |
+| `[Host, modMamMultiplePurges]` | spiral | A bulk purge request is processed by MAM. |
+| `[Host, modMamPrefsGets]` | spiral | Archiving preferences have been requested by a client. |
+| `[Host, modMamPrefsSets]` | spiral | Archiving preferences have been updated by a client. |
+| `[Host, modMucMamArchiveRemoved]` | spiral | Room's entire archive is removed. |
+| `[Host, modMucMamArchived]` | spiral | A message is stored in room's archive. |
+| `[Host, modMucMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result from MUC room. |
+| `[Host, modMucMamLookups]` | spiral | A MAM lookup in MUC room is performed. |
+| `[Host, modMucMamSinglePurges]` | spiral | A single purge request for MUC room is processed by MAM. |
+| `[Host, modMucMamMultiplePurges]` | spiral | A bulk purge request for MUC room is processed by MAM. |
+| `[Host, modMucMamPrefsGets]` | spiral | MUC archiving preferences have been requested by a client. |
+| `[Host, modMucMamPrefsSets]` | spiral | MUC archiving preferences have been updated by a client. |
+| `[Host, mod_mam_odbc_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
+| `[Host, backends, mod_mam, lookup]` | histogram | Time of archive lookup operation. |
+| `[Host, backends, mod_mam, archive]` | histogram | Time of saving one message in the archive. |
 

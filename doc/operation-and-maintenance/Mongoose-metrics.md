@@ -14,21 +14,58 @@ All metrics are divided into the following groups:
 * Global metrics: Metrics common for all XMPP hosts.
     * Data metrics.
     These are misc. metrics related to data transfers (e.g. sent and received stanza size statistics).
-    * Backend metrics.
-    Histograms with timings of calls to various backends.
     * VM metrics. Basic Erlang VM statistics.
+* Backend metrics: Histograms with timings of calls to various backends.
 
-### What does `spiral` mean?
+## Metrics types
+
+### `spiral`
 
 This kind of metric provides 2 values: `total` event count (e.g. stanzas processed) and a value in 60s window (`one` value).
 Dividing `one` value by 60 provides an average per-second value over last minute.
+
+**Example:** `[{total, 1000}, {one, 20}]`
+
+### `value`
+
+A simple value.
+It is actually a one-element proplist: `[{value, N}]`.
+
+**Example:** `[{value, 256}]`
+
+### `gauge`
+
+It is similiar to a `value` type but consists of two properties:
+
+* `value`
+* `ms_since_reset` - Time in milliseconds elapsed from last metric update.
+
+**Example:** `[{value, 12}, {ms_since_reset, 91761}]`
+
+### `proplist`
+
+A metric which is a nonstandard proplist.
+You can find the lists of keys in metrics descriptions.
+
+**Example:** `[{total,295941736}, {processes_used,263766824}, {atom_used,640435}, {binary,1513152}, {ets,3942592}, {system,32182072}]`
+
+### `histogram`
+
+A histogram collects values over sliding window of 60s and exposes following stats:
+
+* `n` - A number of samples.
+* `mean` - An arithmetic mean.
+* `min`
+* `max`
+* `median`
+* `50`, `75`, `90`, `95`, `99`, `999` - 50th, 75th, 90th, 95th, 99th and 99.9th percentile
 
 ## Per host metrics
 
 ### Hook metrics
 
 | Name | Type | Description (when it gets incremented) |
-| ---- | ---- | ----------------------------------- |
+| ---- | ---- | -------------------------------------- |
 | `[Host, adhoc_local_commands]` | spiral | An adhoc command is executed in `ejabberd_local` context. |
 | `[Host, adhoc_sm_commands]` | spiral | And adhoc command is executed in `ejabberd_sm` context. |
 | `[Host, adhoc_local_items]` | spiral | A list of available adhoc commands is requested via Disco protocol in `ejabberd_local` context. |
@@ -37,8 +74,8 @@ Dividing `one` value by 60 provides an average per-second value over last minute
 | `[Host, c2s_stream_features]` | spiral | Stream features are collected and sent. |
 | `[Host, c2s_unauthenticated_iq]` | spiral | An IQ sent from a user to a server without authentication. |
 | `[Host, disco_info]` | spiral | An information about the server has been requested via Disco protocol. |
-| `[Host, disco_local_features]` | spiral | A list of server's features is gathered. |
-| `[Host, disco_local_identity]` | spiral | A server's identities list is gathered. |
+| `[Host, disco_local_features]` | spiral | A list of server features is gathered. |
+| `[Host, disco_local_identity]` | spiral | A list of server identities is gathered. |
 | `[Host, disco_local_items]` | spiral | A list of server's items (e.g. services) is gathered. |
 | `[Host, disco_sm_features]` | spiral | A list of user's features is gathered. |
 | `[Host, disco_sm_identity]` | spiral | A list of user's identities is gathered. |
@@ -59,52 +96,33 @@ Dividing `one` value by 60 provides an average per-second value over last minute
 | `[Host, sm_broadcast]` | spiral | A stanza is broadcasted to all of user's resources. |
 | `[Host, unset_presence_hook]` | spiral | A user disconnects or sends an `unavailable` presence. |
 
-### Message Archive Management metrics
+### Presences & rosters
 
 | Name | Type | Description (when it gets incremented) |
-| ---- | ---- | ----------------------------------- |
-| `[Host, modMamArchiveRemoved]` | spiral | User's entire archive is removed. |
-| `[Host, modMamArchived]` | spiral | A message is stored in user's archive. |
-| `[Host, modMamDropped]` | spiral | A message couldn't be enqueued due to overloaded async worker. |
-| `[Host, modMamDropped2]` | spiral | A message couldn't be stored in the DB (and got dropped). |
-| `[Host, modMamDroppedIQ]` | spiral | MAM IQ has been dropped due to: high query frequency/invalid syntax or type. |
-| `[Host, modMamFlushed]` | spiral | Message was stored to DB asynchronously. |
-| `[Host, modMamForwarded]` | spiral | A message is sent to a client as a part of MAM query result. |
-| `[Host, modMamLookups]` | spiral | A MAM lookup is performed. |
-| `[Host, modMamSinglePurges]` | spiral | A single purge request is processed by MAM. |
-| `[Host, modMamMultiplePurges]` | spiral | A bulk purge request is processed by MAM. |
-| `[Host, modMamPrefsGets]` | spiral | Archiving preferences have been requested by a client. |
-| `[Host, modMamPrefsSets]` | spiral | Archiving preferences have been updated by a client. |
-| `[Host, modMucMamArchiveRemoved]` | spiral | Room's entire archive is removed. |
-| `[Host, modMucMamArchived]` | spiral | A message is stored in room's archive. |
-| `[Host, modMucMamForwarded]` | spiral | A message is sent to a client as a part of MAM query result from MUC room. |
-| `[Host, modMucMamLookups]` | spiral | A MAM lookup in MUC room is performed. |
-| `[Host, modMucMamSinglePurges]` | spiral | A single purge request for MUC room is processed by MAM. |
-| `[Host, modMucMamMultiplePurges]` | spiral | A bulk purge request for MUC room is processed by MAM. |
-| `[Host, modMucMamPrefsGets]` | spiral | MUC archiving preferences have been requested by a client. |
-| `[Host, modMucMamPrefsSets]` | spiral | MUC archiving preferences have been updated by a client. |
-
-### Other
-
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | ----------------------------------- |
-| `[Host, modCSIInactive]` | spiral | A client becomes inactive. ([Client State Indication](https://xmpp.org/extensions/xep-0352.html)) |
-| `[Host, modCSIActive]` | spiral | A client becomes active. ([Client State Indication](https://xmpp.org/extensions/xep-0352.html)) |
-| `[Host, modPresenceSubscriptions]` | spiral | Presence subscriptions is processed. |
+| ---- | ---- | -------------------------------------- |
+| `[Host, modPresenceSubscriptions]` | spiral | Presence subscription is processed. |
 | `[Host, modPresenceUnsubscriptions]` | spiral | Presence unsubscription is processed. |
+| `[Host, modRosterGets]` | spiral | User's roster is fetched. |
+| `[Host, modRosterPush]` | spiral | A roster update is pushed to a single session. |
+| `[Host, modRosterSets]` | spiral | User's roster is updated. |
+
+### Privacy lists
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
 | `[Host, modPrivacyGets]` | spiral | IQ privacy `get` is processed. |
 | `[Host, modPrivacyPush]` | spiral | Privacy list update is sent to a single session. |
 | `[Host, modPrivacySets]` | spiral | IQ privacy `set` is processed. |
 | `[Host, modPrivacySetsActive]` | spiral | Active privacy list is changed. |
 | `[Host, modPrivacySetsDefault]` | spiral | Default privacy list is changed. |
-| `[Host, modPrivacyStanzaAll]` | spiral | A packet is checked against privacy list. |
+| `[Host, modPrivacyStanzaAll]` | spiral | A packet is checked against the privacy list. |
 | `[Host, modPrivacyStanzaDenied]` | spiral | Privacy list check resulted in `deny`. |
 | `[Host, modPrivacyStanzaBlocked]` | spiral | Privacy list check resulted in `block`. |
-| `[Host, modRegisterCount]` | spiral | A user registers via `mod_register` module. |
-| `[Host, modUnregisterCount]` | spiral | A user unregisters via `mod_register` module. |
-| `[Host, modRosterGets]` | spiral | User's roster is fetched. |
-| `[Host, modRosterPush]` | spiral | A roster update is pushed to a single session. |
-| `[Host, modRosterSets]` | spiral | User's roster is updated. |
+
+### Other
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
 | `[Host, sessionAuthAnonymous]` | spiral | A client authenticates anonymously. |
 | `[Host, sessionAuthFails]` | spiral | A client failed to authenticate. |
 | `[Host, sessionCount]` | counter | Number of active sessions. |
@@ -126,14 +144,36 @@ Dividing `one` value by 60 provides an average per-second value over last minute
 | `[Host, xmppStanzaCount]` | spiral | A stanza is sent to a client. |
 | `[Host, xmppStanzaDropped]` | spiral | A stanza is dropped due to an AMP rule or a `filter_packet` processing flow. |
 
+### Extension-specific metrics
+
+Metrics specific to an extension, e.g. Message Archive Management, are described in respective module documentation pages.
+
+Below you can find a list of all modules, for which at least one metric is defined.
+
+* [`mod_csi`](../modules/mod_csi.md)
+* [`mod_http_notification`](../modules/mod_http_notification.md)
+* [`mod_http_upload`](../modules/mod_http_upload.md)
+* [`mod_last`](../modules/mod_last.md)
+* [`mod_mam`](../modules/mod_mam.md)
+* [`mod_muc`](../modules/mod_muc.md)
+* [`mod_muc_light`](../modules/mod_muc_light.md)
+* [`mod_offline`](../modules/mod_offline.md)
+* [`mod_privacy`](../modules/mod_privacy.md)
+* [`mod_private`](../modules/mod_private.md)
+* [`mod_register`](../modules/mod_register.md)
+* [`mod_roster`](../modules/mod_roster.md)
+* [`mod_vcard`](../modules/mod_vcard.md)
+
 ## Global metrics
 
 | Name | Type | Description (when it gets incremented) |
-| ---- | ---- | ----------------------------------- |
+| ---- | ---- | -------------------------------------- |
+| `[global, routingErrors]` | spiral | It is not possible to route a stanza (all routing handlers failed). |
 | `[global, nodeSessionCount]` | value | A number of sessions connected to a given MongooseIM node. |
 | `[global, totalSessionCount]` | value | A number of sessions connected to a MongooseIM cluster. |
 | `[global, uniqueSessionCount]` | value | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
-| `[global nodeUpTime]` | value | A node uptime. |
+| `[global, cache, unique_sessions_number]` | gauge | A cached value of `uniqueSessionCount`. It is automatically updated when a unique session count is calculated. |
+| `[global nodeUpTime]` | value | Node uptime. |
 
 ### Data metrics
 
@@ -145,33 +185,33 @@ Dividing `one` value by 60 provides an average per-second value over last minute
 | `[global, data, xmpp, sent, compressed_size]` | histogram | A size (in bytes) of a stanza after compression. |
 | `[global, data, xmpp, received, encrypted_size]` | histogram | A size (in bytes) of a received stanza before decryption. |
 | `[global, data, xmpp, sent, encrypted_size]` | histogram | A size (in bytes) of a stanza after encryption. |
-| `[global, data, dist]` | function | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections` |
-| `[global, data, odbc, PoolName]` | function | For every ODBC pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
+| `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections` |
+| `[global, data, odbc, PoolName]` | proplist | For every ODBC pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
 
-### Backend metrics
+### VM metrics
+
+| Metric name | Type | Description |
+| ----------- | ---- | ----------- |
+| `[global, erlang, memory]` | proplist | A proplist with `total`, `processes_used`, `atom_used`, `binary`, `ets` and `system` memory stats. |
+| `[global, erlang, system_info]` | proplist | A proplist with `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_limit` stats. |
+
+## Backend metrics
 
 Some extension modules expose histograms with timings of calls made to their backends.
 Please check the documentation of modules that are enabled in your config file, in order to learn if they provide them.
 
 Besides these, following authentication metrics are always available:
 
-* `[global, backends, auth, authorize]`
-* `[global, backends, auth, check_password]`
-* `[global, backends, auth, try_register]`
-* `[global, backends, auth, does_user_exist]`
+* `[Host, backends, auth, authorize]`
+* `[Host, backends, auth, check_password]`
+* `[Host, backends, auth, try_register]`
+* `[Host, backends, auth, does_user_exist]`
 
 These are **total** times of respective operations.
 One operation usually requires only a single call to an auth backend but sometimes with e.g. 3 backends configured, the operation may fail for first 2 backends.
-In such case, these metrics will be updated with a combined time of 2 failed and 1 successful request.
+In such case, these metrics will be updated with combined time of 2 failed and 1 successful request.
 
 Additionaly, RDMBS layer in MongooseIM exposes one more metric, if RDBMS is configured:
 
-* `[global, backends, mongoose_rdbms, query]` - An execution time of a "not prepared" query by a DB driver.
-
-### VM metrics
-
-| Metric name | Type | Description |
-| ----------- | ---- | ----------- |
-| `[global, erlang, memory]` | function | A proplist with `total`, `processes_used`, `atom_used`, `binary`, `ets` and `system` memory stats. |
-| `[global, erlang, system_info]` | function | A proplist with `port_count`, `port_limit`, `process_count`, `process_limit`, `ets_limit` stats. |
+* `[global, backends, mongoose_rdbms, query]` - Execution time of a "not prepared" query by a DB driver.
 
