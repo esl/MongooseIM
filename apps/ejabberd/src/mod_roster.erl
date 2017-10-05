@@ -165,8 +165,7 @@ start(Host, Opts) ->
                    get_subscription_lists,
                    roster_subscribe_t,
                    update_roster_t,
-                   del_roster_t,
-                   read_subscription_and_groups
+                   del_roster_t
                    ],
     gen_mod:start_backend_module(?MODULE, Opts, TrackedFuns),
     mod_roster_backend:init(Host, Opts),

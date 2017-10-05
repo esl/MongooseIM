@@ -32,3 +32,13 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
               {host, "directory.example.com"}
              ]}
 ```
+
+### Metrics
+
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[global, backends, mod_vcard, set_vcard]` | histogram | Time it takes to set a vCard in a DB. |
+| `[global, backends, mod_vcard, get_vcard]` | histogram | Time it takes to fetch a specific vCard from a DB. |
+| `[global, backends, mod_vcard, search]` | histogram | Time it takes to perform a vCard search in a DB. |

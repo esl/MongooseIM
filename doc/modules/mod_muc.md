@@ -137,3 +137,15 @@ If the server returns something else, an error presence will be sent back to the
 ]}.
 
 ```
+
+### Metrics
+
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[global, mod_muc, deep_hibernations]` | spiral | A room process is stopped (applies only to persistent rooms). |
+| `[global, mod_muc, process_recreations]` | spiral | A room process is recreated from a persisted state. |
+| `[global, mod_muc, hibernations]` | spiral | A room process becomes hibernated (garbage collected and put in wait state). |
+| `[global, mod_muc, hibernated_rooms]` | value | How many rooms are in hibernated state. Does not include rooms in "deep hibernation". |
+| `[global, mod_muc, online_rooms]` | value | How many rooms have running processes (includes rooms in a hibernated state). |
