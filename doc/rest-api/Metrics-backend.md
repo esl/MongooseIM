@@ -1,8 +1,11 @@
 ## Introduction
 
-To expose MongooseIM metrics, an adequate endpoint must be included in the Cowboy HTTP listener section.
+**Warning:** This API is considered obsolete.
+Please use WombatOAM for monitoring or one of the [exometer reporters](../operation-and-maintenance/Logging-&-monitoring.md#monitoring) and your favourite statistics service.
 
-Here's how it can look:
+To expose MongooseIM metrics, an adequate endpoint must be included in the [Cowboy HTTP listener](../advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy) section.
+
+Here's an example:
 ```
 ...
 { {5288, "127.0.0.1"}, ejabberd_cowboy, [
@@ -14,15 +17,17 @@ Here's how it can look:
 ...
 ```
 
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
 ### Security notice
 
-An auth mechanism for the HTTP API has not yet been made available.
+An auth mechanism is available only for the new administration API.
 That's why we recommend to expose this API only using a private interface or a port hidden behind a firewall to limit the access to the API.
 The above configuration starts the API only on a loopback interface.
 
 ## Response format
 
-Currently the web-service responses are composed in a JSON format with a root element containing one or more attributes as response elements.
+The responses are composed in a JSON format with a root element containing one or more attributes as response elements.
 
 Example response:
 
@@ -34,44 +39,13 @@ Example response:
             "xmppErrorIq",
             "xmppPresenceReceived",
             "xmppMessageBounced",
-            "xmppPresenceSent",
-            "modRegisterCount",
-            "xmppIqReceived",
-            "modPrivacyStanzaBlocked",
-            "modPrivacySetsDefault",
-            "xmppStanzaCount",
-            "xmppStanzaSent",
-            "xmppStanzaDropped",
-            "xmppStanzaReceived",
-            "xmppMessageSent",
-            "xmppIqSent",
-            "xmppMessageReceived",
-            "xmppErrorBadRequest",
-            "sessionCount",
-            "modUnregisterCount",
-            "xmppIqTimeouts",
-            "sessionAuthAnonymous",
-            "modPresenceSubscriptions",
-            "modRosterGets",
-            "sessionSuccessfulLogins",
-            "modPresenceUnsubscriptions",
-            "sessionLogouts",
-            "modPrivacyGets",
-            "modRosterSets",
-            "modPrivacySets",
-            "sessionAuthFails",
-            "modPrivacyStanzaAll",
-            "xmppErrorTotal",
-            "xmppErrorMessage",
-            "xmppErrorPresence",
-            "modPrivacySetsActive",
-            "modPrivacyPush",
-            "modRosterPush"
+            (...)
         ],
         "global": [
             "nodeSessionCount",
             "totalSessionCount",
-            "uniqueSessionCount"
+            "uniqueSessionCount",
+            (...)
         ]
     }
 
@@ -81,28 +55,29 @@ Example response:
 
 Returns ```200 OK``` and two elements:
 
-* "hosts" containing a list of XMPP host names available on the server,
-* "metrics" containing a list of metrics available on the server.
+* "hosts" A list of XMPP host names available on the server.
+* "metrics" - A list of per-host metrics.
+* "global" A list of global metrics.
 
 ### GET /api/metrics/all
 
 Returns ```200 OK``` and an element:
 
-* "metrics" containing a list of summed metrics for all server hosts.
+* "metrics" - A list of aggregated (sum of all domains) per-host metrics with their values.
 
 ### GET /api/metrics/all/:metric
 
 On success returns ```200 OK``` and an element:
 
-* "metric" containing a metric :metric that summs up values for all server hosts.
+* "metric" - An aggregated (sum of all domains) per-host metric.
 
-Returns ```404 Not Found``` when metric :metric couldn't been found.
+Returns ```404 Not Found``` when metric `:metric` couldn't been found.
 
 ### GET /api/metrics/host/:host
 
 On success returns ```200 OK``` and an element:
 
-* "metrics" containing a list of metric values for host :host.
+* "metrics" - A list of per-host metrics and their values for host `:host`.
 
 Returns ```404 Not Found``` when host :host couldn't been found.
 
@@ -110,7 +85,7 @@ Returns ```404 Not Found``` when host :host couldn't been found.
 
 On success returns ```200 OK``` and an element:
 
-* "metric" containing a metric :metric value for host :host.
+* "metric" - A per-host metric `:metric` and its value for host `:host`.
 
 Returns ```404 Not Found``` when the pair (host :host, metric :metric) couldn't been found.
 
@@ -118,16 +93,15 @@ Returns ```404 Not Found``` when the pair (host :host, metric :metric) couldn't 
 
 On success returns ```200 OK``` and an element:
 
-* "metrics" containing all global metrics.
+* "metrics" - A list of all global metrics and their values.
 
 ### GET /api/metrics/global/:metric
 
 On success returns ```200 OK``` and an element:
 
-* "metric" containing a global metric :metric.
+* "metric" A global metric `:metric` and its value.
 
 Returns ```404 Not Found``` when metric :metric couldn't been found.
-
 
 ## collectd integration
 
