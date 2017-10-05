@@ -2,13 +2,14 @@
 
 <img align="left" src="doc/MongooseIM_logo.png" alt="MongooseIM platform's logo" />
 
-MongooseIM is a robust and efficient XMPP platform aimed at large installations. 
-Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or VM. 
+MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations. 
+Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or VM.
 
-MongooseIM can accept client sessions over vanilla XMPP, Websockets, HTTP long-polling (a.k.a. BOSH), and a REST API.
+MongooseIM can accept client sessions over vanilla XMPP, REST API and SSE, as well as Websockets, and BOSH (HTTP long-polling).
 
-The MongooseIM platform includes server-side components and client libraries. 
-We provide a test suite and a monitoring server. We recommend third-party, open source client libraries for XMPP and REST API.
+The MongooseIM platform includes several server-side (backend) and client-side (frontend) components.
+We provide a test suite, metrics, a load testing platform, and a monitoring server.
+We recommend third-party, open source client libraries for XMPP and REST API.
 
 The most important links:
 
@@ -16,7 +17,7 @@ The most important links:
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
 * Documentation: [http://mongooseim.readthedocs.org/](http://mongooseim.readthedocs.org/)
 
-It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/) and [Inaka](http://inaka.net/).
+It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/).
 
 [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
