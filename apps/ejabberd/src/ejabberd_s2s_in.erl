@@ -210,17 +210,20 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     _Else ->
                         []
                 end,
-            StartTLS = if
-                           StateData#state.tls_enabled ->
-                               [];
-                           (not StateData#state.tls_enabled) and (not StateData#state.tls_required) ->
-                              [#xmlel{name = <<"starttls">>,
-                                      attrs = [{<<"xmlns">>, ?NS_TLS}]}];
-                           (not StateData#state.tls_enabled) and StateData#state.tls_required ->
-                              [#xmlel{name = <<"starttls">>,
-                                      attrs = [{<<"xmlns">>, ?NS_TLS}],
-                                      children = [#xmlel{name = <<"required">>}]}]
-                       end,
+            StartTLS =
+                case StateData of
+                    StateData when StateData#state.tls_enabled ->
+                        [];
+                    StateData when (not StateData#state.tls_enabled) and
+                                   (not StateData#state.tls_required) ->
+                        [#xmlel{name = <<"starttls">>,
+                                attrs = [{<<"xmlns">>, ?NS_TLS}]}];
+                    StateData when (not StateData#state.tls_enabled) and
+                                   StateData#state.tls_required ->
+                        [#xmlel{name = <<"starttls">>,
+                                attrs = [{<<"xmlns">>, ?NS_TLS}],
+                                children = [#xmlel{name = <<"required">>}]}]
+                end,
             case SASL of
                 {error_cert_verif, CertVerifyResult, Certificate} ->
                     CertError = fast_tls:get_cert_verify_string(CertVerifyResult, Certificate),
@@ -675,11 +678,7 @@ get_cert_domains(Cert) ->
         lists:flatmap(
           fun(#'Extension'{extnID = ?'id-ce-subjectAltName',
                            extnValue = Val}) ->
-                  BVal = if
-                             is_list(Val) -> list_to_binary(Val);
-                             is_binary(Val) -> Val;
-                             true -> Val
-                         end,
+                  BVal = convert_extnval_to_bin(Val),
                   DSAN = ?PKIXIMPLICIT:decode('SubjectAltName', BVal),
                   get_ld_or_pcld_from_decoded_dsan(DSAN);
              (_) ->
@@ -844,3 +843,8 @@ get_ld_from_jid(#jid{luser = <<"">>,
     [LD];
 get_ld_from_jid(_) ->
     [].
+
+convert_extnval_to_bin(Val) when is_list(Val) ->
+    list_to_binary(Val);
+convert_extnval_to_bin(Val) ->
+    Val.
