@@ -214,3 +214,292 @@ You just need to be able to answer:
 “What’s a Stream?”.
 If you can answer all that, you are WAY better than me when I started.
 
+## First steps: installing the XMPPFramework library
+
+Let’s create a brand new Xcode project and install the library.
+In this tutorial we are going to be using `Swift 3`.
+The easiest way to integrate XMPPFramework to the project is using [CocoaPods](https://cocoapods.org/).
+
+Let’s create our `Podfile` using the `pod init` command in the folder where our `.xcodeproj` lives.
+There are thousands of forks but the maintained one is the original: `robbiehanson/XMPPFramework`.
+
+So let’s add the `pod` to our `Podfile` and remember to uncomment the `use_frameworks!`.
+
+```
+use_frameworks!
+
+target 'CrazyMessages' do
+    pod 'XMPPFramework', :git=> 'git@github.com:robbiehanson/XMPPFramework.git', :branch => 'master'
+end
+``` 
+
+Then `pod install` and `CocoaPods` is going to do its magic and create a `.xcworkspace` with the library integrated.
+Now we just need to `import XMPPFramework` in the files we want to use the library and that’s it.
+
+## Starting to build our Instant Messaging app
+
+The most important thing in an XMPP application is the stream,
+that’s where we are going to “write” our stanzas, so we need an object that is going to hold it.
+We are going to create an `XMPPController` class with an `XMPPStream`:
+
+```
+import Foundation
+import XMPPFramework
+
+class XMPPController: NSObject {
+    var xmppStream: XMPPStream
+
+    init() {
+        self.xmppStream = XMPPStream()  
+    }
+
+}
+``` 
+
+We are dealing with a highly asynchronous library here.
+For every action we are going to have a response some time in the future.
+To handle this `XMPPFramework` defines the `XMPPStreamDelegate`.
+So implementing that delegate is going to help us answer lots of different questions like:
+“How do I know when XMPP has successfully connected?”,
+“How do I know if I’m correctly authenticated?”,
+“How do I know if I received a message?”.
+`XMPPStreamDelegate` is your friend!
+
+So we have our `XMPPController` and our `XMPPStream`,
+what do we need to do now?
+Configure our stream with the `hostName`, `port` and `ourJID`.
+To provide all this info to the controller
+we are going to make some changes to the `init` to be able to receive all these parameters:
+
+```
+enum XMPPControllerError: Error {
+    case wrongUserJID
+}
+
+class XMPPController: NSObject {
+    var xmppStream: XMPPStream
+
+    let hostName: String
+    let userJID: XMPPJID
+    let hostPort: UInt16
+    let password: String
+
+    init(hostName: String, userJIDString: String, hostPort: UInt16 = 5222, password: String) throws {
+        guard let userJID = XMPPJID(string: userJIDString) else {
+            throw XMPPControllerError.wrongUserJID
+        }
+
+        self.hostName = hostName
+        self.userJID = userJID
+        self.hostPort = hostPort
+        self.password = password
+
+        // Stream Configuration
+        self.xmppStream = XMPPStream()
+        self.xmppStream.hostName = hostName
+        self.xmppStream.hostPort = hostPort
+        self.xmppStream.startTLSPolicy = XMPPStreamStartTLSPolicy.allowed
+        self.xmppStream.myJID = userJID
+
+        super.init()
+
+        self.xmppStream.addDelegate(self, delegateQueue: DispatchQueue.main)
+    }
+}
+```
+
+Our next step is going to actually connect to a server and authenticate using our `userJID` and `password`,
+so we are adding a `connect` method to our `XMPPController`.
+
+```
+func connect() {
+    if !self.xmppStream.isDisconnected() {
+        return
+    }
+
+   try! self.xmppStream.connect(withTimeout: XMPPStreamTimeoutNone)
+}
+```
+
+But how do we know we have successfully connected to the server?
+As I said earlier, we need to check for a suitable delegate method from `XMPPStreamDelegate`.
+After we connect to the server we need to authenticate so we are going to do the following:
+
+```
+extension XMPPController: XMPPStreamDelegate {
+
+    func xmppStreamDidConnect(_ stream: XMPPStream!) {
+        print("Stream: Connected")
+        try! stream.authenticate(withPassword: self.password)
+    }
+
+    func xmppStreamDidAuthenticate(_ sender: XMPPStream!) {
+        self.xmppStream.send(XMPPPresence())
+        print("Stream: Authenticated")
+    }
+}
+```
+
+We need to test this.
+Let’s just create an instance of `XMPPController` in the `AppDelegate` to test how it works:
+
+```
+try! self.xmppController = XMPPController(hostName: "host.com",
+                                     userJIDString: "user@host.com",
+                                          password: "password")
+self.xmppController.connect()
+```
+
+If everything goes fine we should see two messages in the logs but of course that’s not happening,
+we missed something.
+We never told to our `xmppStream` who was the delegate object!
+We need to add the following line after the `super.init()`
+
+```
+self.xmppStream.addDelegate(self, delegateQueue: DispatchQueue.main)
+```
+
+If we run the app again:
+
+```
+Stream: Connected
+Stream: Authenticated
+```
+
+Success! We have our own `XMPPController` with a fully functional and authenticated stream!
+
+Something that may catch your attention is how we are setting our delegate, we are not doing:
+
+```
+self.xmppStream.delegate = self
+```
+
+Why not?
+Because we can “broadcast” the events to multiple delegates,
+we can have 10 different objects implementing those methods.
+Also we can tell what’s the thread where we want to receive that call,
+in the previous example we want it in the main thread.
+
+## Getting a Log In
+
+Our app is super ugly, let’s put on some makeup!
+We have nothing but an `XMPPController` and a hardcoded call in the `AppDelegate`.
+I’m going to create a `ViewController` that is going to be presented modally as soon as the app starts,
+that `ViewController` will have the neccesary fields/info to log in to the server.
+
+I’m going to create a `LogInViewControllerDelegate` that is going to tell to our `ViewController`
+that the `Log in` button was pressed and that’s it.
+In that delegate implementation we are going to create our `XMPPController`, add the `ViewControlleras` delegate of the `XMPPStream` and connect!
+
+```
+extension ViewController: LogInViewControllerDelegate {
+
+    func didTouchLogIn(sender: LogInViewController, userJID: String, userPassword: String, server: String) {
+        self.logInViewController = sender
+
+        do {
+            try self.xmppController = XMPPController(hostName: server,
+                                                     userJIDString: userJID,
+                                                     password: userPassword)
+            self.xmppController.xmppStream.addDelegate(self, delegateQueue: DispatchQueue.main)
+            self.xmppController.connect()
+        } catch {
+            sender.showErrorMessage(message: "Something went wrong")
+        }
+    }
+}
+```
+
+Why are we adding `ViewController` as a delegate of `XMPPStream` if our `XMPPController` alreay has that delegate implemented?
+Because we need to know if this connection and authentication was successfull or notin our `ViewController`
+so we are able to dismiss the `LogInViewController` or show an error message if something failed.
+This is why being able to add multiple delegates is so useful.
+
+So as I said I’m going to make `ViewController` to comform to the `XMPPStreamDelegate`:
+
+```
+extension ViewController: XMPPStreamDelegate {
+
+    func xmppStreamDidAuthenticate(_ sender: XMPPStream!) {
+        self.logInViewController?.dismiss(animated: true, completion: nil)
+    }
+
+    func xmppStream(_ sender: XMPPStream!, didNotAuthenticate error: DDXMLElement!) {
+        self.logInViewController?.showErrorMessage(message: "Wrong password or username")
+    }
+
+}
+```
+
+And that’s it! Our app can log in to our server as I’m showing here:
+
+## Logging!
+
+We’ve been talking a lot about XMPP, stanzas and streams… but is there a way I can see the stream?
+Yes SR! XMPPFramework got us covered!
+
+XMPPFramework ships with [CocoaLumberJack](https://github.com/CocoaLumberjack/CocoaLumberjack),
+a pretty well known logging framework.
+We just need to configure it, set the logging level we want and that’s it.
+Logs are going to start showing up!
+
+### Configuring CocoaLumberjack
+
+This is a really simple task,
+you just need to add to your `func application(application: UIApplication, didFinishLaunchingWithOptions ...` method the following line (remember to `import CocoaLumberjack`):
+
+```
+DDLog.add(DDTTYLogger.sharedInstance(), with: DDLogLevel.all)
+```
+
+I’m not going to paste here all the connection process log
+because it makes no sense to try to understand what’s going on at this stage of our learning.
+But I think showing what some stanzas look like is a good idea.
+To do this I’m going to be sending messages from [Adium](https://adium.im/).
+
+I’m going to send this `<message/>`:
+
+```xml
+<message to="test.user@erlang-solutions.com">
+    <body>This is a message sent from Adium!</body>
+</message>
+```
+
+Let’s see how it looks like when it reaches our app:
+
+```xml
+<message xmlns="jabber:client" from="iamadium@erlang-solutions.com/MacBook-Air" to="test.user@erlang-solutions.com">
+   <body>This is a message sent from Adium!</body>
+</message>
+```
+
+Let’s send a `<presence/>` from Adium:
+
+```xml
+<presence>
+    <status>On vacation</status>
+</presence>
+```
+
+We are receiving:
+
+```xml
+<presence xmlns="jabber:client" from="iamadium@erlang-solutions.com/MacBook-Air" to="test.user@erlang-solutions.com">
+   <status>On vacation</status>
+</presence>
+```
+
+No doubts at all right? We send something and we receive it on the other end! That’s it!
+
+## Test Time!
+
+I want to be sure that you are understanding and following everything
+and not just copy and pasting from a tutorial (as I usually do 🙊).
+So if you are able to answer these questions you are on a good track!
+
+* Why am I sending a presence after successfully authenticating? What happens if I don’t send it?
+* What happens if I write a wrong server URL in the Log In form? How do I fix this problem if there is a problem…
+* How do I detect if suddenly the stream is disconnected from the server? (maybe a network outage?)
+* How do I detect if the user/password was wrong?
+
+If you need help leave a message!
