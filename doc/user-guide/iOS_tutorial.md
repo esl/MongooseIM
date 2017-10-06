@@ -86,6 +86,8 @@ It is the address to where we are going to send our stanzas.
 
 This is how a JID looks like:
 
+![This is how a JID looks like](./content_jid.png)
+
 * **localpart**: This is your username.
 * **domainpart**: Server name where the **localpart** resides.
 * **resourcepart**: This is optional, and it identifies a particular client for the user. For example: I can be logged in with `andres@erlang-solutions.com` on my iPhone, on my Android and on my mac at the same time… So all these will be the same **localpart** + **domainpart** but different **resourcepart**
@@ -432,6 +434,8 @@ extension ViewController: XMPPStreamDelegate {
 ```
 
 And that’s it! Our app can log in to our server as I’m showing here:
+
+![App connecting and authenticating](./content_login.gif)
 
 ## Logging!
 
