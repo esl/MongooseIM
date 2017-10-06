@@ -48,8 +48,6 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include_lib("public_key/include/public_key.hrl").
--define(PKIXEXPLICIT, 'OTP-PUB-KEY').
--define(PKIXIMPLICIT, 'OTP-PUB-KEY').
 -include("XmppAddr.hrl").
 
 -record(state, {socket,
@@ -74,6 +72,7 @@
 -type fsm_return() :: {'stop', Reason :: 'normal', state()}
                     | {'next_state', statename(), state()}
                     | {'next_state', statename(), state(), Timeout :: integer()}.
+-type certificate() :: #'Certificate'{}.
 %-define(DBGFSM, true).
 
 -ifdef(DBGFSM).
@@ -150,16 +149,17 @@ init([{SockMod, Socket}, Opts]) ->
                  {value, {_, S}} -> S;
                  _ -> none
              end,
-    {StartTLS, TLSRequired, TLSCertverify} = case ejabberd_config:get_local_option(s2s_use_starttls) of
-             UseTls when (UseTls==undefined) or (UseTls==false) ->
-                 {false, false, false};
-             UseTls when (UseTls==true) or (UseTls==optional) ->
-                 {true, false, false};
-             required ->
-                 {true, true, false};
-             required_trusted ->
-                 {true, true, true}
-         end,
+    {StartTLS, TLSRequired, TLSCertverify} =
+        case ejabberd_config:get_local_option(s2s_use_starttls) of
+            UseTls when (UseTls==undefined) or (UseTls==false) ->
+                {false, false, false};
+            UseTls when (UseTls==true) or (UseTls==optional) ->
+                {true, false, false};
+            required ->
+                {true, true, false};
+            required_trusted ->
+                {true, true, true}
+        end,
     TLSOpts1 = case ejabberd_config:get_local_option(s2s_certfile) of
                   undefined ->
                       [];
@@ -267,7 +267,8 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?STREAM_HEADER(<<"">>))/binary, (?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(?STREAM_HEADER(<<"">>))/binary, (?INVALID_XML_ERR)/binary,
+                (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
@@ -656,7 +657,7 @@ is_key_packet(_) ->
     false.
 
 
--spec get_cert_domains(#'Certificate'{}) ->  [any()].
+-spec get_cert_domains(certificate()) ->  [any()].
 get_cert_domains(Cert) ->
     {rdnSequence, Subject} =
         (Cert#'Certificate'.tbsCertificate)#'TBSCertificate'.subject,
@@ -665,7 +666,7 @@ get_cert_domains(Cert) ->
     lists:flatmap(
       fun(#'AttributeTypeAndValue'{type = ?'id-at-commonName',
                                    value = Val}) ->
-              case ?PKIXEXPLICIT:decode('X520CommonName', Val) of
+              case 'OTP-PUB-KEY':decode('X520CommonName', Val) of
                   {ok, {_, D1}} ->
                       D = convert_decoded_cn(D1),
                       get_ld_from_decoded_cn(D);
@@ -679,7 +680,7 @@ get_cert_domains(Cert) ->
           fun(#'Extension'{extnID = ?'id-ce-subjectAltName',
                            extnValue = Val}) ->
                   BVal = convert_extnval_to_bin(Val),
-                  DSAN = ?PKIXIMPLICIT:decode('SubjectAltName', BVal),
+                  DSAN = 'OTP-PUB-KEY':decode('SubjectAltName', BVal),
                   get_ld_or_pcld_from_decoded_dsan(DSAN);
              (_) ->
                   []
