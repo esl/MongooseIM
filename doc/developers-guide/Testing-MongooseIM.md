@@ -178,6 +178,19 @@ ln -s $lst ct_report/lastrun
 
 can be of some help.
 
+## Checking coverage
+
+If you want to check how much of the code is covered by tests, run:
+
+```
+make cover_quicktest
+```
+
+Remember: to run this, no matter which tests you want to run, you need all mim nodes (mim1, mim2 and mim3) up and running, otherwise test will crash.
+
+This command will recompile and reload code on dev nodes with coverage enabled and run test suites as defined in the spec.
+Coverage statistics will be available in `test.disabled/ejabberd_tests/ct_report/cover.html` and `coverage` subdirectory.
+
 ## Advanced topics
 
 There are many more options available.
