@@ -383,7 +383,8 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                 {<<"valid">>, Enabled, Required} when (Enabled==true) or (Required==false) ->
                     send_queue(StateData, StateData#state.queue),
                     ?INFO_MSG("Connection established: ~s -> ~s with TLS=~p",
-                              [StateData#state.myname, StateData#state.server, StateData#state.tls_enabled]),
+                              [StateData#state.myname, StateData#state.server,
+                               StateData#state.tls_enabled]),
                     ejabberd_hooks:run(s2s_connect_hook,
                                        [StateData#state.myname,
                                         StateData#state.server]),
@@ -460,7 +461,7 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                   end, {false, false, false}, Els),
             case {SASLEXT, StartTLS, StartTLSRequired, StateData} of
                 {SASLEXT, StartTLS, _, StateData} when (not SASLEXT) and (not StartTLS) and
-                StateData#state.authenticated ->
+                                                       StateData#state.authenticated ->
                     send_queue(StateData, StateData#state.queue),
                     ?INFO_MSG("Connection established: ~s -> ~s",
                               [StateData#state.myname, StateData#state.server]),
@@ -470,23 +471,25 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                     {next_state, stream_established,
                      StateData#state{queue = queue:new()}};
                 {SASLEXT, _, _, StateData} when SASLEXT and StateData#state.try_auth and
-                (StateData#state.new /= false) ->
+                                                (StateData#state.new /= false) ->
                     send_element(StateData,
                                   #xmlel{name = <<"auth">>,
                                          attrs = [{<<"xmlns">>, ?NS_SASL},
                                                   {<<"mechanism">>, <<"EXTERNAL">>}],
-                                          children = [#xmlcdata{content = jlib:encode_base64(
-                                                                            StateData#state.myname)}]}),
+                                          children =
+                                             [#xmlcdata{content = jlib:encode_base64(
+                                                                    StateData#state.myname)}]}),
                      {next_state, wait_for_auth_result,
                       StateData#state{try_auth = false}, ?FSMTIMEOUT};
                 {_, StartTLS, _, StateData} when StartTLS and StateData#state.tls and
-                  (not StateData#state.tls_enabled) ->
+                                                 (not StateData#state.tls_enabled) ->
                      send_element(StateData,
                                   #xmlel{name = <<"starttls">>,
                                          attrs = [{<<"xmlns">>, ?NS_TLS}]}),
                      {next_state, wait_for_starttls_proceed, StateData,
                       ?FSMTIMEOUT};
-                 {_, _, StartTLSRequired, StateData} when StartTLSRequired and (not StateData#state.tls) ->
+                 {_, _, StartTLSRequired, StateData} when StartTLSRequired and
+                                                          (not StateData#state.tls) ->
                      ?DEBUG("restarted: ~p", [{StateData#state.myname,
                                                StateData#state.server}]),
                      ejabberd_socket:close(StateData#state.socket),
@@ -832,7 +835,8 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
     end;
 handle_info({timeout, Timer, _}, wait_before_retry,
             #state{timer = Timer} = StateData) ->
-    ?INFO_MSG("Reconnect delay expired: Will now retry to connect to ~s when needed.", [StateData#state.server]),
+    ?INFO_MSG("Reconnect delay expired: Will now retry to connect to ~s when needed.",
+              [StateData#state.server]),
     {stop, normal, StateData};
 handle_info({timeout, Timer, _}, _StateName,
             #state{timer = Timer} = StateData) ->
