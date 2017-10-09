@@ -458,8 +458,8 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                      (_, Acc) ->
                           Acc
                   end, {false, false, false}, Els),
-            if
-                (not SASLEXT) and (not StartTLS) and
+            case {SASLEXT, StartTLS, StartTLSRequired, StateData} of
+                {SASLEXT, StartTLS, _, StateData} when (not SASLEXT) and (not StartTLS) and
                 StateData#state.authenticated ->
                     send_queue(StateData, StateData#state.queue),
                     ?INFO_MSG("Connection established: ~s -> ~s",
@@ -469,7 +469,7 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                                         StateData#state.server]),
                     {next_state, stream_established,
                      StateData#state{queue = queue:new()}};
-                SASLEXT and StateData#state.try_auth and
+                {SASLEXT, _, _, StateData} when SASLEXT and StateData#state.try_auth and
                 (StateData#state.new /= false) ->
                     send_element(StateData,
                                   #xmlel{name = <<"auth">>,
@@ -479,23 +479,23 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                                                                             StateData#state.myname)}]}),
                      {next_state, wait_for_auth_result,
                       StateData#state{try_auth = false}, ?FSMTIMEOUT};
-                 StartTLS and StateData#state.tls and
+                {_, StartTLS, _, StateData} when StartTLS and StateData#state.tls and
                   (not StateData#state.tls_enabled) ->
                      send_element(StateData,
                                   #xmlel{name = <<"starttls">>,
                                          attrs = [{<<"xmlns">>, ?NS_TLS}]}),
                      {next_state, wait_for_starttls_proceed, StateData,
                       ?FSMTIMEOUT};
-                 StartTLSRequired and (not StateData#state.tls) ->
+                 {_, _, StartTLSRequired, StateData} when StartTLSRequired and (not StateData#state.tls) ->
                      ?DEBUG("restarted: ~p", [{StateData#state.myname,
                                                StateData#state.server}]),
                      ejabberd_socket:close(StateData#state.socket),
                      {next_state, reopen_socket,
                       StateData#state{socket = undefined,
                                       use_v10 = false}, ?FSMTIMEOUT};
-                 StateData#state.db_enabled ->
+                 {_, _, _, StateData} when StateData#state.db_enabled ->
                      send_db_request(StateData);
-                 true ->
+                 _Else ->
                      ?DEBUG("restarted: ~p", [{StateData#state.myname,
                                                StateData#state.server}]),
                      % TODO: clear message queue
