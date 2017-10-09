@@ -409,26 +409,8 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                     {next_state, NextState, StateData,
                      get_timeout_interval(NextState)};
                 {Pid, _Key, _SID} ->
-                    case Type of
-                        <<"valid">> ->
-                            p1_fsm:send_event(
-                              Pid, {valid,
-                                    StateData#state.server,
-                                    StateData#state.myname});
-                        _ ->
-                            p1_fsm:send_event(
-                              Pid, {invalid,
-                                    StateData#state.server,
-                                    StateData#state.myname})
-                    end,
-                    if
-                        StateData#state.verify == false ->
-                            {stop, normal, StateData};
-                        true ->
-                            NextState = wait_for_validation,
-                            {next_state, NextState, StateData,
-                             get_timeout_interval(NextState)}
-                    end
+                    send_event(Type, Pid, StateData),
+                    get_response(StateData)
             end;
         _ ->
             {next_state, wait_for_validation, StateData, ?FSMTIMEOUT*3}
@@ -467,36 +449,12 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
             {SASLEXT, StartTLS, StartTLSRequired} =
                 lists:foldl(
                   fun(#xmlel{name = <<"mechanisms">>, attrs = Attrs1,
-                             children = Els1} = _El1,
-                      {_SEXT, STLS, STLSReq} = Acc) ->
-                          case xml:get_attr_s(<<"xmlns">>, Attrs1) of
-                              ?NS_SASL ->
-                                  NewSEXT =
-                                      lists:any(
-                                        fun(#xmlel{name = <<"mechanism">>,
-                                                   children = Els2}) ->
-                                                case xml:get_cdata(Els2) of
-                                                    <<"EXTERNAL">> -> true;
-                                                    _ -> false
-                                                end;
-                                           (_) -> false
-                                        end, Els1),
-                                  {NewSEXT, STLS, STLSReq};
-                              _ ->
-                                  Acc
-                          end;
-                     (#xmlel{name = <<"starttls">>, attrs = Attrs1} = El1,
-                      {SEXT, _STLS, _STLSReq} = Acc) ->
-                          case xml:get_attr_s(<<"xmlns">>, Attrs1) of
-                              ?NS_TLS ->
-                                  Req = case xml:get_subtag(El1, <<"required">>) of
-                                            #xmlel{} -> true;
-                                            false -> false
-                                        end,
-                                  {SEXT, true, Req};
-                              _ ->
-                                  Acc
-                          end;
+                             children = Els1} = _El1, Acc) ->
+                          Attr =  xml:get_attr_s(<<"xmlns">>, Attrs1),
+                          get_acc_with_new_sext(Attr, Els1, Acc);
+                     (#xmlel{name = <<"starttls">>, attrs = Attrs1} = El1, Acc) ->
+                          Attr = xml:get_attr_s(<<"xmlns">>, Attrs1),
+                          get_acc_with_new_req(Attr, El1, Acc);
                      (_, Acc) ->
                           Acc
                   end, {false, false, false}, Els),
@@ -643,23 +601,8 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                     ?DEBUG("starttls: ~p", [{StateData#state.myname,
                                              StateData#state.server}]),
                     Socket = StateData#state.socket,
-                    TLSOpts = case ejabberd_config:get_local_option(
-                                     {domain_certfile,
-                                      binary_to_list(StateData#state.myname)}) of
-                                  undefined ->
-                                      StateData#state.tls_options;
-                                  CertFile ->
-                                      [{certfile, CertFile} |
-                                       lists:keydelete(
-                                         certfile, 1,
-                                         StateData#state.tls_options)]
-                              end,
-                    TLSOpts2 = case ejabberd_config:get_local_option(s2s_ciphers) of
-                                       undefined ->
-                                               TLSOpts;
-                                       Ciphers ->
-                                               [{ciphers, Ciphers} | TLSOpts]
-                               end,
+                    TLSOpts = get_tls_opts_with_certfile(StateData),
+                    TLSOpts2 = get_tls_opts_with_ciphers(TLSOpts),
                     TLSSocket = ejabberd_socket:starttls(Socket, TLSOpts2),
                     NewStateData = StateData#state{socket = TLSSocket,
                                                    streamid = new_id(),
@@ -741,18 +684,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
             ?DEBUG("recv verify: ~p", [{VFrom, VTo, VId, VType}]),
             case StateData#state.verify of
                 {VPid, _VKey, _SID} ->
-                    case VType of
-                        <<"valid">> ->
-                            p1_fsm:send_event(
-                              VPid, {valid,
-                                     StateData#state.server,
-                                     StateData#state.myname});
-                        _ ->
-                            p1_fsm:send_event(
-                              VPid, {invalid,
-                                     StateData#state.server,
-                                     StateData#state.myname})
-                    end;
+                    send_event(VType, VPid, StateData);
                 _ ->
                     ok
             end;
@@ -1106,23 +1038,14 @@ get_addr_port(Server) ->
             %% Probabilities are not exactly proportional to weights
             %% for simplicity (higher weigths are overvalued)
             random:seed(randoms:good_seed()),
-            case (catch lists:map(
-                          fun({Priority, Weight, Port, Host}) ->
-                                  N = case Weight of
-                                          0 -> 0;
-                                          _ -> (Weight + 1) * random:uniform()
-                                      end,
-                                  {Priority * 65536 - N, Host, Port}
-                          end, AddrList)) of
+            case (catch lists:map(fun calc_addr_index/1, AddrList)) of
                 {'EXIT', _Reason} ->
                     [{Server, outgoing_s2s_port()}];
                 SortedList ->
-                    List = lists:map(
-                             fun({_, Host, Port}) ->
-                                     {Host, Port}
-                             end, lists:keysort(1, SortedList)),
-                    ?DEBUG("srv lookup of '~s': ~p~n", [Server, List]),
-                    List
+                    List = lists:keysort(1, SortedList),
+                    List2 = remove_addr_index(List),
+                    ?DEBUG("srv lookup of '~s': ~p~n", [Server, List2]),
+                    List2
             end
     end.
 
@@ -1363,3 +1286,79 @@ do_get_predefined_addresses({List, Port}) when is_list(List), is_integer(Port) -
     do_get_predefined_addresses({Addr, Port});
 do_get_predefined_addresses(List) when is_list(List) ->
     do_get_predefined_addresses({List, outgoing_s2s_port()}).
+
+send_event(<<"valid">>, Pid, StateData) ->
+    p1_fsm:send_event(
+      Pid, {valid,
+            StateData#state.server,
+            StateData#state.myname});
+send_event(_, Pid, StateData) ->
+    p1_fsm:send_event(
+      Pid, {invalid,
+            StateData#state.server,
+            StateData#state.myname}).
+
+get_response(StateData = #state{verify = false}) ->
+    {stop, normal, StateData};
+get_response(StateData) ->
+    NextState = wait_for_validation,
+    {next_state, NextState, StateData,
+     get_timeout_interval(NextState)}.
+
+get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->
+    NewSEXT =
+        lists:any(
+          fun(#xmlel{name = <<"mechanism">>,
+                     children = Els2}) ->
+                  case xml:get_cdata(Els2) of
+                      <<"EXTERNAL">> -> true;
+                      _ -> false
+                  end;
+             (_) -> false
+          end, Els1),
+    {NewSEXT, STLS, STLSReq};
+get_acc_with_new_sext(_, _, Acc) ->
+    Acc.
+
+get_acc_with_new_req(?NS_TLS, El1, {SEXT, _STLS, _STLSReq}) ->
+    Req = case xml:get_subtag(El1, <<"required">>) of
+              #xmlel{} -> true;
+              false -> false
+          end,
+    {SEXT, true, Req};
+get_acc_with_new_req(_, _, Acc) ->
+    Acc.
+
+get_tls_opts_with_certfile(StateData) ->
+    case ejabberd_config:get_local_option(
+           {domain_certfile,
+            binary_to_list(StateData#state.myname)}) of
+        undefined ->
+            StateData#state.tls_options;
+        CertFile ->
+            [{certfile, CertFile} |
+             lists:keydelete(
+               certfile, 1,
+               StateData#state.tls_options)]
+    end.
+
+get_tls_opts_with_ciphers(TLSOpts) ->
+    case ejabberd_config:get_local_option(s2s_ciphers) of
+        undefined ->
+            TLSOpts;
+        Ciphers ->
+            [{ciphers, Ciphers} | TLSOpts]
+    end.
+
+calc_addr_index({Priority, Weight, Port, Host}) ->
+    N = case Weight of
+            0 -> 0;
+            _ -> (Weight + 1) * random:uniform()
+        end,
+    {Priority * 65536 - N, Host, Port}.
+
+remove_addr_index(List) ->
+    lists:map(
+      fun({_, Host, Port}) ->
+              {Host, Port}
+      end, List).
