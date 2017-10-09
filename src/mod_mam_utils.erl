@@ -70,7 +70,7 @@
 -export([success_sql_query/2, success_sql_execute/3]).
 
 %% Deprecations
--export([maybe_add_deprecation_cooldown_ets/0,
+-export([start_depracation_reminder/0,
          maybe_log_deprecation_error/0]).
 
 %% Other
@@ -988,11 +988,10 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
     %% Otherwise either TotalCount or Offset is undefined because of optimizations.
     false.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% -----------------------------------------------------------------------
 %% Deprecation of MAM v0.2
-%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-maybe_add_deprecation_cooldown_ets() ->
+start_depracation_reminder() ->
     case ets:info(mam_v02_deprecation) of
         undefined ->
             ets:new(mam_v02_deprecation, [{read_concurrency, true}, named_table, public]),
@@ -1019,15 +1018,14 @@ did_cooldown_elapse(LastLogged) ->
     Now = os:timestamp(),
     timer:now_diff(Now, LastLogged) > deprecate_error_cooldown_time().
 
-
 deprecate_archived_element_message() ->
-    ?ERROR_MSG("Archived element is going to be deprecated in one of future releases."
+    ?ERROR_MSG("Archived element is going to be deprecated in release 3.0.0."
                 " It is not recommended to use it."
                 " Consider using a <stanza-id/> element instead", []),
     ok.
 
 % @doc Returns the amount of seconds after which next <archived/>
-% element will be accompanied by an error
+% element will be accompanied by an error.
 % Set to 6 hours.
 -spec deprecate_error_cooldown_time() -> unix_timestamp().
 deprecate_error_cooldown_time() -> 6 * 21600000000.
