@@ -95,6 +95,11 @@
         [mess_id_to_external_binary/1,
          is_last_page/4]).
 
+%% Deprecations
+-import(mod_mam_utils,
+        [maybe_add_deprecation_cooldown_ets/0,
+         maybe_log_deprecation_error/0]).
+
 %% ejabberd
 -import(mod_mam_utils,
         [send_message/3,
@@ -193,9 +198,8 @@ start(Host, Opts) ->
     case gen_mod:get_opt(add_archived_element, Opts, undefined) of
         undefined -> ok;
         _ ->
-            ?WARNING_MSG("Archived element is going to be deprecated in one of future releases."
-                         " It is not recommended to use it."
-                         " Consider using a <stanza-id/> element instead", [])
+            maybe_add_deprecation_cooldown_ets(),
+            maybe_log_deprecation_error()
     end,
 
     compile_params_module(Opts),
