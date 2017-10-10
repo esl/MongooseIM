@@ -90,11 +90,6 @@
         [mess_id_to_external_binary/1,
          is_last_page/4]).
 
-%% Deprecations
- -import(mod_mam_utils,
-         [start_deprecation_reminder/0,
-          maybe_log_deprecation_error/0]).
-
 %% ejabberd
 -import(mod_mam_utils,
         [send_message/3]).
@@ -168,8 +163,7 @@ start(Host, Opts) ->
     case gen_mod:get_opt(add_archived_element, Opts, undefined) of
         undefined -> ok;
         _ ->
-            start_deprecation_reminder(),
-            maybe_log_deprecation_error()
+            mongoose_deprecations:log(mam02_archived)
     end,
     compile_params_module(Opts),
     %% MUC host.

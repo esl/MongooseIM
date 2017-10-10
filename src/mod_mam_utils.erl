@@ -69,10 +69,6 @@
 %% SQL
 -export([success_sql_query/2, success_sql_execute/3]).
 
-%% Deprecations
--export([start_deprecation_reminder/0,
-         maybe_log_deprecation_error/0]).
-
 %% Other
 -export([maybe_integer/2,
          maybe_min/2,
@@ -241,7 +237,7 @@ maybe_add_arcid_elems(To, MessID, Packet, AddArchived, AddStanzaid) ->
     BareTo = jid:to_binary(jid:to_bare(To)),
     WithArchived = case AddArchived of
                        true ->
-                           maybe_log_deprecation_error(),
+                           mongoose_deprecations:log(mam02_archived),
                            replace_arcid_elem(<<"archived">>, BareTo, MessID, Packet);
                        _ -> Packet
                    end,
@@ -987,49 +983,6 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
     %%     it's not possible case: the page is bigger then page size.
     %% Otherwise either TotalCount or Offset is undefined because of optimizations.
     false.
-
-%% -----------------------------------------------------------------------
-%% Deprecation of MAM v0.2
-
-start_deprecation_reminder() ->
-    case ets:info(mam_v02_deprecation) of
-        undefined ->
-            ets:new(mam_v02_deprecation, [{read_concurrency, true}, named_table, public]),
-            ets:insert(mam_v02_deprecation, {last_logged, not_logged});
-        _ ->
-            ets:setopts(mam_v02_deprecation, {heir, self(), none})
-    end,
-    ok.
-
-maybe_log_deprecation_error() ->
-    [{last_logged, Timestamp}] = ets:lookup(mam_v02_deprecation, last_logged),
-    case did_cooldown_elapse(Timestamp) of
-        true ->
-            deprecate_archived_element_message(),
-            ets:insert(mam_v02_deprecation, {last_logged, os:timestamp()});
-        false ->
-            ok
-    end,
-    ok.
-
--spec did_cooldown_elapse(unix_timestamp()) -> boolean().
-did_cooldown_elapse(not_logged) -> true;
-did_cooldown_elapse(LastLogged) ->
-    Now = os:timestamp(),
-    timer:now_diff(Now, LastLogged) > deprecate_error_cooldown_time().
-
-deprecate_archived_element_message() ->
-    ?ERROR_MSG("Archived element is going to be deprecated in release 3.0.0."
-                " It is not recommended to use it."
-                " Consider using a <stanza-id/> element instead", []),
-    ok.
-
-% @doc Returns the amount of seconds after which next <archived/>
-% element will be accompanied by an error.
-% Set to 6 hours.
--spec deprecate_error_cooldown_time() -> unix_timestamp().
-deprecate_error_cooldown_time() -> 6 * 21600000000.
-
 
 %% -----------------------------------------------------------------------
 %% Ejabberd
