@@ -70,7 +70,7 @@
 -export([success_sql_query/2, success_sql_execute/3]).
 
 %% Deprecations
--export([start_depracation_reminder/0,
+-export([start_deprecation_reminder/0,
          maybe_log_deprecation_error/0]).
 
 %% Other
@@ -991,7 +991,7 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
 %% -----------------------------------------------------------------------
 %% Deprecation of MAM v0.2
 
-start_depracation_reminder() ->
+start_deprecation_reminder() ->
     case ets:info(mam_v02_deprecation) of
         undefined ->
             ets:new(mam_v02_deprecation, [{read_concurrency, true}, named_table, public]),

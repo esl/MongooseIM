@@ -92,7 +92,7 @@
 
 %% Deprecations
  -import(mod_mam_utils,
-         [start_depracation_reminder/0,
+         [start_deprecation_reminder/0,
           maybe_log_deprecation_error/0]).
 
 %% ejabberd
@@ -168,7 +168,7 @@ start(Host, Opts) ->
     case gen_mod:get_opt(add_archived_element, Opts, undefined) of
         undefined -> ok;
         _ ->
-            start_depracation_reminder(),
+            start_deprecation_reminder(),
             maybe_log_deprecation_error()
     end,
     compile_params_module(Opts),
