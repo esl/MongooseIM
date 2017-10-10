@@ -2,7 +2,7 @@
 %% File    : mongoose_deprecations.erl
 %% Author  : Dominik Stanaszek <dominik.stanaszek@erlang-solutions.com>
 %% Purpose : More generic deprecation handling
-%% Created : 24 Jan 2017
+%% Created : 10 Oct 2017
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% @doc This module is responsible for initialising
 %% and stopping stuff needed to handle different deprecation
