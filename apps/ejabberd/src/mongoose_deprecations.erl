@@ -85,7 +85,7 @@ maybe_log_mamv02_deprecation_error() ->
     end,
     ok.
 
--spec did_cooldown_elapse(unix_timestamp()) -> boolean().
+-spec did_cooldown_elapse(unix_timestamp() | 'not_logged') -> boolean().
 did_cooldown_elapse(not_logged) -> true;
 did_cooldown_elapse(LastLogged) ->
     Now = os:timestamp(),
