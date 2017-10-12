@@ -459,53 +459,7 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                      (_, Acc) ->
                           Acc
                   end, {false, false, false}, Els),
-            case {SASLEXT, StartTLS, StartTLSRequired, StateData} of
-                {SASLEXT, StartTLS, _, StateData} when (not SASLEXT) and (not StartTLS) and
-                                                       StateData#state.authenticated ->
-                    send_queue(StateData, StateData#state.queue),
-                    ?INFO_MSG("Connection established: ~s -> ~s",
-                              [StateData#state.myname, StateData#state.server]),
-                    ejabberd_hooks:run(s2s_connect_hook,
-                                       [StateData#state.myname,
-                                        StateData#state.server]),
-                    {next_state, stream_established,
-                     StateData#state{queue = queue:new()}};
-                {SASLEXT, _, _, StateData} when SASLEXT and StateData#state.try_auth and
-                                                (StateData#state.new /= false) ->
-                    send_element(StateData,
-                                  #xmlel{name = <<"auth">>,
-                                         attrs = [{<<"xmlns">>, ?NS_SASL},
-                                                  {<<"mechanism">>, <<"EXTERNAL">>}],
-                                          children =
-                                             [#xmlcdata{content = jlib:encode_base64(
-                                                                    StateData#state.myname)}]}),
-                     {next_state, wait_for_auth_result,
-                      StateData#state{try_auth = false}, ?FSMTIMEOUT};
-                {_, StartTLS, _, StateData} when StartTLS and StateData#state.tls and
-                                                 (not StateData#state.tls_enabled) ->
-                     send_element(StateData,
-                                  #xmlel{name = <<"starttls">>,
-                                         attrs = [{<<"xmlns">>, ?NS_TLS}]}),
-                     {next_state, wait_for_starttls_proceed, StateData,
-                      ?FSMTIMEOUT};
-                 {_, _, StartTLSRequired, StateData} when StartTLSRequired and
-                                                          (not StateData#state.tls) ->
-                     ?DEBUG("restarted: ~p", [{StateData#state.myname,
-                                               StateData#state.server}]),
-                     ejabberd_socket:close(StateData#state.socket),
-                     {next_state, reopen_socket,
-                      StateData#state{socket = undefined,
-                                      use_v10 = false}, ?FSMTIMEOUT};
-                 {_, _, _, StateData} when StateData#state.db_enabled ->
-                     send_db_request(StateData);
-                 _Else ->
-                     ?DEBUG("restarted: ~p", [{StateData#state.myname,
-                                               StateData#state.server}]),
-                     % TODO: clear message queue
-                     ejabberd_socket:close(StateData#state.socket),
-                     {next_state, reopen_socket, StateData#state{socket = undefined,
-                                                                 use_v10 = false}, ?FSMTIMEOUT}
-            end;
+            try_establish_conn({SASLEXT, StartTLS, StartTLSRequired, StateData});
         _ ->
             send_text(StateData,
                       <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
@@ -1366,3 +1320,46 @@ remove_addr_index(List) ->
       fun({_, Host, Port}) ->
               {Host, Port}
       end, List).
+
+try_establish_conn({false, false, _, StateData = #state{authenticated = true}}) ->
+    send_queue(StateData, StateData#state.queue),
+    ?INFO_MSG("Connection established: ~s -> ~s",
+              [StateData#state.myname, StateData#state.server]),
+    ejabberd_hooks:run(s2s_connect_hook,
+                       [StateData#state.myname,
+                        StateData#state.server]),
+    {next_state, stream_established,
+     StateData#state{queue = queue:new()}};
+try_establish_conn({true, _, _, StateData = #state{try_auth = true, new = New}}) when
+    New /= false ->
+    send_element(StateData,
+                 #xmlel{name = <<"auth">>,
+                        attrs = [{<<"xmlns">>, ?NS_SASL},
+                                 {<<"mechanism">>, <<"EXTERNAL">>}],
+                        children =
+                            [#xmlcdata{content = jlib:encode_base64(
+                                                   StateData#state.myname)}]}),
+    {next_state, wait_for_auth_result,
+     StateData#state{try_auth = false}, ?FSMTIMEOUT};
+try_establish_conn({_, true, _, StateData = #state{tls = true, tls_enabled = false}}) ->
+    send_element(StateData,
+                 #xmlel{name = <<"starttls">>,
+                        attrs = [{<<"xmlns">>, ?NS_TLS}]}),
+    {next_state, wait_for_starttls_proceed, StateData,
+     ?FSMTIMEOUT};
+try_establish_conn({_, _, true, StateData = #state{tls = false}}) ->
+    ?DEBUG("restarted: ~p", [{StateData#state.myname,
+                              StateData#state.server}]),
+    ejabberd_socket:close(StateData#state.socket),
+    {next_state, reopen_socket,
+     StateData#state{socket = undefined,
+                     use_v10 = false}, ?FSMTIMEOUT};
+try_establish_conn({_, _, _, StateData = #state{db_enabled = true}}) ->
+    send_db_request(StateData);
+try_establish_conn({_, _, _, StateData}) ->
+    ?DEBUG("restarted: ~p", [{StateData#state.myname,
+                              StateData#state.server}]),
+    % TODO: clear message queue
+    ejabberd_socket:close(StateData#state.socket),
+    {next_state, reopen_socket, StateData#state{socket = undefined,
+                                                use_v10 = false}, ?FSMTIMEOUT}.

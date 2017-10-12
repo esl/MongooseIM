@@ -149,17 +149,8 @@ init([{SockMod, Socket}, Opts]) ->
                  {value, {_, S}} -> S;
                  _ -> none
              end,
-    {StartTLS, TLSRequired, TLSCertverify} =
-        case ejabberd_config:get_local_option(s2s_use_starttls) of
-            UseTls when (UseTls==undefined) or (UseTls==false) ->
-                {false, false, false};
-            UseTls when (UseTls==true) or (UseTls==optional) ->
-                {true, false, false};
-            required ->
-                {true, true, false};
-            required_trusted ->
-                {true, true, true}
-        end,
+    UseTLS = ejabberd_config:get_local_option(s2s_use_starttls),
+    {StartTLS, TLSRequired, TLSCertverify} = get_tls_params(UseTLS),
     TLSOpts1 = case ejabberd_config:get_local_option(s2s_certfile) of
                   undefined ->
                       [];
@@ -210,20 +201,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     _Else ->
                         []
                 end,
-            StartTLS =
-                case StateData of
-                    StateData when StateData#state.tls_enabled ->
-                        [];
-                    StateData when (not StateData#state.tls_enabled) and
-                                   (not StateData#state.tls_required) ->
-                        [#xmlel{name = <<"starttls">>,
-                                attrs = [{<<"xmlns">>, ?NS_TLS}]}];
-                    StateData when (not StateData#state.tls_enabled) and
-                                   StateData#state.tls_required ->
-                        [#xmlel{name = <<"starttls">>,
-                                attrs = [{<<"xmlns">>, ?NS_TLS}],
-                                children = [#xmlel{name = <<"required">>}]}]
-                end,
+            StartTLS = get_tls_xmlel(StateData),
             case SASL of
                 {error_cert_verif, CertVerifyResult, Certificate} ->
                     CertError = fast_tls:get_cert_verify_string(CertVerifyResult, Certificate),
@@ -681,7 +659,7 @@ get_cert_domains(Cert) ->
                            extnValue = Val}) ->
                   BVal = convert_extnval_to_bin(Val),
                   DSAN = 'OTP-PUB-KEY':decode('SubjectAltName', BVal),
-                  get_ld_or_pcld_from_decoded_dsan(DSAN);
+                  get_lserver_from_decoded_extnval(DSAN);
              (_) ->
                   []
           end, Extensions).
@@ -804,7 +782,7 @@ get_ld_from_decoded_cn(D) ->
             []
     end.
 
-get_ld_or_pcld_from_decoded_dsan({ok, SANs}) ->
+get_lserver_from_decoded_extnval({ok, SANs}) ->
     lists:flatmap(
       fun({otherName,
            #'AnotherName'{'type-id' = ?'id-on-xmppAddr',
@@ -818,7 +796,7 @@ get_ld_or_pcld_from_decoded_dsan({ok, SANs}) ->
          (_) ->
               []
       end, SANs);
-get_ld_or_pcld_from_decoded_dsan(_) ->
+get_lserver_from_decoded_extnval(_) ->
     [].
 
 get_pcld_from_decoded_xmpp_addr({ok, D}) when is_binary(D) ->
@@ -849,3 +827,26 @@ convert_extnval_to_bin(Val) when is_list(Val) ->
     list_to_binary(Val);
 convert_extnval_to_bin(Val) ->
     Val.
+
+get_tls_params(undefined) ->
+    {false, false, false};
+get_tls_params(false) ->
+    {false, false, false};
+get_tls_params(true) ->
+    {true, false, false};
+get_tls_params(optional) ->
+    {true, false, false};
+get_tls_params(required) ->
+    {true, true, false};
+get_tls_params(required_trusted) ->
+    {true, true, true}.
+
+get_tls_xmlel(#state{tls_enabled = true}) ->
+    [];
+get_tls_xmlel(#state{tls_enabled = false, tls_required = false}) ->
+    [#xmlel{name = <<"starttls">>,
+            attrs = [{<<"xmlns">>, ?NS_TLS}]}];
+get_tls_xmlel(#state{tls_enabled = false, tls_required = true}) ->
+    [#xmlel{name = <<"starttls">>,
+            attrs = [{<<"xmlns">>, ?NS_TLS}],
+            children = [#xmlel{name = <<"required">>}]}].
