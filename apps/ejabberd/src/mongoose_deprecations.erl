@@ -93,7 +93,7 @@ did_cooldown_elapse(LastLogged) ->
 
 -spec deprecate_archived_element_message() -> ok.
 deprecate_archived_element_message() ->
-    ?ERROR_MSG("Archived element is going to be deprecated in release 3.0.0."
+    ?ERROR_MSG("<archived/> element is going to be removed in release 3.0.0"
                " It is not recommended to use it."
                " Consider using a <stanza-id/> element instead", []).
 
