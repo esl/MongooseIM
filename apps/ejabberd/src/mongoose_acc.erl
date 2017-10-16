@@ -202,7 +202,7 @@ strip(Acc) ->
                            mongoose_acc:put(Attrib, Val, AccIn)
                        end,
                        Acc1, Attributes),
-    OptionalAttributes = [to, to_jid],
+    OptionalAttributes = [to, to_jid, global_distrib],
     lists:foldl(fun(Attrib, AccIn) ->
                     case mongoose_acc:get(Attrib, Acc, undefined) of
                         undefined -> AccIn;

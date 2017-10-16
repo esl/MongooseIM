@@ -77,16 +77,6 @@ terminate(_Reason, _State) ->
 -spec do_work(Data :: binary()) -> any().
 do_work(Data) ->
     {From, To, Acc} = erlang:binary_to_term(Data),
-    maybe_update_mapping(From, Acc),
+    mod_global_distrib_utils:maybe_update_mapping(From, Acc),
     ejabberd_router:route(From, To, Acc).
-
--spec maybe_update_mapping(From :: jid(), mongoose_acc:t()) -> any().
-maybe_update_mapping(_From, #{name := <<"presence">>, type := <<"unavailable">>}) ->
-    ok;
-maybe_update_mapping(From, Acc) ->
-    Origin = mod_global_distrib:get_metadata(Acc, origin),
-    case mod_global_distrib_mapping:for_jid(From) of
-        error -> mod_global_distrib_mapping:insert_for_jid(From, Origin);
-        _ -> ok
-    end.
 

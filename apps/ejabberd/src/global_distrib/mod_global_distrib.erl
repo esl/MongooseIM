@@ -163,6 +163,11 @@ stop() ->
     ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_reroute, 99).
 
 -spec lookup_recipients_host(jid(), binary(), binary()) -> {ok, binary()} | error.
+lookup_recipients_host(#jid{luser = <<>>, lserver = LServer}, LocalHost, GlobalHost)
+  when LServer == LocalHost; LServer == GlobalHost ->
+    {ok, LocalHost};
+lookup_recipients_host(#jid{luser = <<>>, lserver = HostAddressedTo}, _LocalHost, _GlobalHost) ->
+    mod_global_distrib_mapping:for_domain(HostAddressedTo);
 lookup_recipients_host(#jid{lserver = HostAddressedTo} = To, LocalHost, GlobalHost) ->
     case HostAddressedTo of
         LocalHost -> {ok, LocalHost};

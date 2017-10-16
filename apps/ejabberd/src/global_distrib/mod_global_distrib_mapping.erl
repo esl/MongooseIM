@@ -29,7 +29,8 @@
 -export([start/2, stop/1, deps/2]).
 -export([for_domain/1, insert_for_domain/1, delete_for_domain/1, all_domains/0]).
 -export([for_jid/1, insert_for_jid/1, insert_for_jid/2, delete_for_jid/1, clear_cache/1]).
--export([register_subhost/2, unregister_subhost/2, user_present/2, user_not_present/5]).
+-export([register_subhost/2, unregister_subhost/2, packet_to_component/3,
+         user_present/2, user_not_present/5]).
 -export([endpoints/1]).
 
 %%--------------------------------------------------------------------
@@ -150,6 +151,13 @@ user_not_present(Acc, User, Host, Resource, _Status) ->
     delete_for_jid(UserJid),
     Acc.
 
+-spec packet_to_component(Acc :: mongoose_acc:t(),
+                          From :: ejabberd:jid(),
+                          To :: ejabberd:jid()) -> mongoose_acc:t().
+packet_to_component(Acc, From, _To) ->
+    mod_global_distrib_utils:maybe_update_mapping(From, Acc),
+    Acc.
+
 -spec register_subhost(any(), SubHost :: binary()) -> ok.
 register_subhost(_, SubHost) ->
     IsSubhostOf =
@@ -196,6 +204,7 @@ start() ->
 
     ejabberd_hooks:add(register_subhost, global, ?MODULE, register_subhost, 90),
     ejabberd_hooks:add(unregister_subhost, global, ?MODULE, unregister_subhost, 90),
+    ejabberd_hooks:add(packet_to_component, global, ?MODULE, packet_to_component, 90),
     ejabberd_hooks:add(user_available_hook, Host, ?MODULE, user_present, 90),
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
 
@@ -212,6 +221,7 @@ stop() ->
 
     ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
     ejabberd_hooks:delete(user_available_hook, Host, ?MODULE, user_present, 90),
+    ejabberd_hooks:delete(packet_to_component, global, ?MODULE, packet_to_component, 90),
     ejabberd_hooks:delete(unregister_subhost, global, ?MODULE, unregister_subhost, 90),
     ejabberd_hooks:delete(register_subhost, global, ?MODULE, register_subhost, 90),
 

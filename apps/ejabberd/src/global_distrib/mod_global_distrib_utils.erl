@@ -20,9 +20,12 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--export([start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
+-export([
+         start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
          create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1,
-         binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2]).
+         binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2,
+         maybe_update_mapping/2
+        ]).
 
 -type endpoint() :: {inet:ip_address(), inet:port_number()}.
 
@@ -167,6 +170,16 @@ recipient_to_worker_key({_, GlobalHost, _} = Jid, GlobalHost) ->
     jid:to_binary(Jid);
 recipient_to_worker_key({_, Domain, _}, _GlobalHost) ->
     Domain.
+
+-spec maybe_update_mapping(From :: jid(), mongoose_acc:t()) -> any().
+maybe_update_mapping(_From, #{name := <<"presence">>, type := <<"unavailable">>}) ->
+    ok;
+maybe_update_mapping(From, Acc) ->
+    Origin = mod_global_distrib:get_metadata(Acc, origin),
+    case mod_global_distrib_mapping:for_jid(From) of
+        error -> mod_global_distrib_mapping:insert_for_jid(From, Origin);
+        _ -> ok
+    end.
 
 %%--------------------------------------------------------------------
 %% Helpers
