@@ -98,7 +98,7 @@ opt(Key) ->
 -spec choose_endpoint(Server :: ejabberd:lserver()) -> mod_global_distrib_utils:endpoint().
 choose_endpoint(Server) ->
     {ok, Endpoints} = endpoints(Server),
-    N = random:uniform(length(Endpoints)),
+    N = rand:uniform(length(Endpoints)),
     lists:nth(N, Endpoints).
 
 -spec endpoints(Server :: ejabberd:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
