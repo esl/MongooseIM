@@ -72,10 +72,10 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 
     * `mod_websockets` - Websocket connections as defined in [RFC 7395](https://tools.ietf.org/html/rfc7395).
     You can pass optional parameters:
-        * `{timeout, Val}` - the time after which an inactive user is disconnected.
-        * `{ping_rate, Val}` - the Ping rate points to the time between pings sent by server.
+        * `{timeout, Val}` (positive integer, optional, default: infinity) - the time after which an inactive user is disconnected.
+        * `{ping_rate, Val}` (positive integer, optional, default: none) - the Ping rate points to the time between pings sent by server.
 	 By declaring this field you enable server-side pinging.
-        * `{ejabberd_service, Params}` - this enables external component connections over WebSockets.
+        * `{ejabberd_service, Params}` (default: []) - this enables external component connections over WebSockets.
 	 See the [ejabberd_service](#ejabberd_service) section for more details how to configure it.
 
         Default declaration:
