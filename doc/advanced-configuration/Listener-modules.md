@@ -16,7 +16,7 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 
 ### Configuration
 
-* `certfile` (string, no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
+* `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain.
 * `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
 * `starttls_required` (optional, default: disabled) - enforces StartTLS usage.
 * `tls` (optional, default: disabled) - enables the old SSL connection.
