@@ -69,7 +69,7 @@ init_per_testcase(_, Config) ->
     meck_db(DbType),
     Config.
 
-end_per_testcase(T, Config) when T =:= does_backoff_icrease,
+end_per_testcase(T, Config) when T =:= does_backoff_increase,
                                  T =:= does_backoff_exceed ->
     Db = ?config(db_type, Config),
     meck_connection_error_unload(Db),
