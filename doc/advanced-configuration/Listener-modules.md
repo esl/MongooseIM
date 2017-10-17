@@ -18,8 +18,8 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 
 * `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain.
 * `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
-* `starttls_required` (optional, default: disabled) - enforces StartTLS usage.
-* `tls` (optional, default: disabled) - enables the old SSL connection.
+* `starttls_required` (default: disabled) - enforces StartTLS usage.
+* `tls` (default: disabled) - enables the old SSL connection.
 * `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/)); the limit can be disabled with an atom 'unlimited'.
 * `ciphers` (string, default: as of OpenSSL 1.0.2 it's `ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2` [(source)](https://www.openssl.org/docs/man1.0.2/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
  Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
@@ -72,8 +72,8 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 
     * `mod_websockets` - Websocket connections as defined in [RFC 7395](https://tools.ietf.org/html/rfc7395).
     You can pass optional parameters:
-        * `{timeout, Val}` (positive integer, optional, default: infinity) - the time after which an inactive user is disconnected.
-        * `{ping_rate, Val}` (positive integer, optional, default: none) - the Ping rate points to the time between pings sent by server.
+        * `{timeout, Val}` (positive integer, default: infinity) - the time after which an inactive user is disconnected.
+        * `{ping_rate, Val}` (positive integer, default: none) - the Ping rate points to the time between pings sent by server.
 	 By declaring this field you enable server-side pinging.
         * `{ejabberd_service, Params}` (default: []) - this enables external component connections over WebSockets.
 	 See the [ejabberd_service](#ejabberd_service) section for more details how to configure it.
@@ -91,13 +91,17 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
   * `mongoose_api_admin` -  REST API for admin commands. Exposes all mongoose_commands. 
     			    It expects one optional argument:  
       * Credentials: `{auth, {Username, Password}}`.  
-        If they're not provided, authorization is disabled.  
-        Example:  
+        If they're not provided, authorization is disabled.
+
+     Example:
+
             `{"localhost", "/api", mongoose_api_admin, [{auth, {"ala", "makotaipsa"}}]}`
    
   * `mongoose_api_client` - REST API for client side commands.
      Exposes all mongoose_commands marked as "user".
-        Example:
+
+     Example:
+
             `{"localhost", "/api/contacts/{:jid}", mongoose_api_client_contacts, []}`
 
 ### HTTP module: `mod_cowboy`
@@ -141,7 +145,7 @@ Please refer to the [Advanced configuration](../Advanced-configuration.md) for m
 
 ### Configuration
 
-* `shaper` (atom, default: `s2s_shaper`) - Connection shaper to use for incoming S2S data.
+* `shaper` (atom, default: `none`) - Connection shaper to use for incoming S2S data.
 * `max_stanza_size` (positive integer, default: 131072) - Maximum allowed incoming stanza size.
  **Warning:** this limit is checked **after** input data parsing, so it does not apply to the input data size itself.
 * `protocol_options` List of supported SSL protocols, default "no_sslv3".
@@ -166,6 +170,6 @@ According to ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/x
 
 ### Custom extension to the protocol
 
-In order to register a component for all virtual hosts served by the server (listed in global variable `hosts), the component must add the attribute `is_subdomain="true"`to the opening stream element.
+In order to register a component for all virtual hosts served by the server (listed in global variable hosts), the component must add the attribute `is_subdomain="true"` to the opening stream element.
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
 The `is_subdomain` attribute is optional and the default behaviour is as described in the XEP.
