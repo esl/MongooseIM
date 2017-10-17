@@ -95,10 +95,9 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
         Example:  
             `{"localhost", "/api", mongoose_api_admin, [{auth, {"ala", "makotaipsa"}}]}`
    
-    `mongoose_api_client` - REST API for client side commands.
+  * `mongoose_api_client` - REST API for client side commands.
      Exposes all mongoose_commands marked as "user".
-        Example declaration:
-
+        Example:
             `{"localhost", "/api/contacts/{:jid}", mongoose_api_client_contacts, []}`
 
 ### HTTP module: `mod_cowboy`
