@@ -21,54 +21,66 @@ suite() ->
 
 all() -> [{group, Group} || Group <- enabled_group_names()].
 
+groups() ->
+    lists:flatmap(fun group_spec/1, subgroups()).
+
 enabled_group_names() ->
     [basic, offline] ++
     case mongoose_helper:is_rdbms_enabled(domain()) of
-        true -> [mam];
+        true -> [mam_odbc];
         false -> []
     end.
 
-groups() ->
-    Gs = ([{basic, [parallel], [{group, G} || G <- subgroup_names()] ++ basic_test_cases()},
-           {mam, [], [{group, mam_success},
-                      {group, mam_failure}]},
-           {mam_success, [], [{group, G} || G <- subgroup_names()]},
-           {mam_failure, [], [{group, G} || G <- subgroup_names()]},
-           {offline, [], [{group, offline_success},
-                          {group, offline_failure}]},
-           {offline_success, [], [{group, G} || G <- subgroup_names()]},
-           {offline_failure, [], [{group, G} || G <- subgroup_names()]}
-          ] ++
-          [{G, [parallel, shuffle], notify_deliver_test_cases()}
-           || G <- notify_deliver_group_names()] ++
-          [{G, [parallel, shuffle], error_deliver_test_cases()}
-           || G <- error_deliver_group_names()] ++
-          [{G, [parallel, shuffle], drop_deliver_test_cases()}
-           || G <- drop_deliver_group_names()]),
-    ct_helper:repeat_all_until_all_ok(Gs).
+group_spec({Group, []}) ->
+    [{Group, [parallel], test_cases(Group)}];
+group_spec({Group, SubGroups}) ->
+    [{Group, [{group, SubG} || SubG <- SubGroups]}
+     | [{SubG, [parallel], test_cases(SubG)} || SubG <- SubGroups]].
 
+test_cases(Group) ->
+    lists:flatmap(fun({TC, Confs}) -> [TC || _ <- Confs] end, maps:to_list(conf(Group))).
 
-subgroup_names() -> notify_deliver_group_names() ++
-                    error_deliver_group_names() ++
-                    drop_deliver_group_names().
+conf(Group) ->
+    maps:from_list(
+      lists:append([with_empty_conf(basic_test_cases(Group)),
+                    with_deliver_rule_conf(notify, notify_deliver_test_cases()),
+                    with_deliver_rule_conf(drop, drop_deliver_test_cases()),
+                    with_deliver_rule_conf(error, error_deliver_test_cases())])).
 
-notify_deliver_group_names() ->
-    [notify_deliver_none,
-     notify_deliver_direct,
-     notify_deliver_stored,
-     notify_deliver_none_direct_stored].
+with_empty_conf(Cases) ->
+    [{TC, [[]]} || TC <- Cases].
 
-error_deliver_group_names() ->
-    [error_deliver_none,
-     error_deliver_direct,
-     error_deliver_stored,
-     error_deliver_none_direct_stored].
+with_deliver_rule_conf(Action, Cases) ->
+    [{TC, deliver_rule_conf(Action)} || TC <- Cases].
 
-drop_deliver_group_names() ->
-    [drop_deliver_none,
-     drop_deliver_direct,
-     drop_deliver_stored,
-     drop_deliver_none_direct_stored].
+basic_test_cases(basic) -> basic_test_cases();
+basic_test_cases(_Group) -> [].
+
+supergroup(Group) ->
+    proplists:get_value(Group, [{SubG, G} || {G, SubGroups} <- subgroups(), SubG <- SubGroups]).
+
+subgroups(Group) ->
+    proplists:get_value(Group, subgroups()).
+
+subgroups() ->
+    [{basic, []},
+     {mam_odbc, [mam_odbc_success, mam_odbc_failure]},
+     {offline, [offline_success, offline_failure]}].
+
+flat_groups() ->
+    [basic].
+
+deliver_rule_conf(Action) ->
+    [
+     [{rules, [{deliver, direct, Action}]}],
+     [{rules, [{deliver, stored, Action}]}],
+     [{rules, [{deliver, none, Action}]}],
+     [{rules, [{deliver, direct, Action},
+               {deliver, stored, Action},
+               {deliver, none, Action}]}]
+    ].
+
+%% Test case list, each test has to be listed exactly once
 
 basic_test_cases() ->
     [initial_service_discovery_test,
@@ -104,11 +116,17 @@ drop_deliver_test_cases() ->
      drop_deliver_to_offline_user_test,
      drop_deliver_to_stranger_test].
 
-init_per_suite(C) ->
+%% Setup and teardown
+
+init_per_suite(Config) ->
     rpc(mim(), ejabberd_config, add_local_option, [{{s2s_host, <<"not a jid">>}, domain()}, deny]),
-    escalus:init_per_suite(C).
+    ConfigWithHooks = [{ct_hooks, [{multiple_config_cth, fun conf/1}]} | Config],
+    setup_meck(suite),
+    escalus:init_per_suite(ConfigWithHooks).
+
 end_per_suite(C) ->
     rpc(mim(), ejabberd_config, del_local_option, [{{s2s_host, <<"not a jid">>}, domain()}]),
+    teardown_meck(suite),
     escalus_fresh:clean(),
     escalus:end_per_suite(C).
 
@@ -119,14 +137,14 @@ init_per_group(GroupName, Config) ->
     setup_meck(GroupName),
     save_offline_status(GroupName, ConfigWithRules).
 
-setup_meck(mam_failure) ->
+setup_meck(mam_odbc_failure) ->
     ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 10, {error, simulated}]);
 setup_meck(offline_failure) ->
     ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 3, {error, simulated}]);
 setup_meck(_) -> ok.
 
-save_offline_status(mam_success, Config) -> [{offline_storage, mam} | Config];
-save_offline_status(mam_failure, Config) -> [{offline_storage, mam_failure} | Config];
+save_offline_status(mam_odbc_success, Config) -> [{offline_storage, mam} | Config];
+save_offline_status(mam_odbc_failure, Config) -> [{offline_storage, mam_failure} | Config];
 save_offline_status(offline_success, Config) -> [{offline_storage, offline} | Config];
 save_offline_status(offline_failure, Config) -> [{offline_storage, offline_failure} | Config];
 save_offline_status(basic, Config) -> [{offline_storage, none} | Config];
@@ -136,7 +154,7 @@ end_per_group(GroupName, Config) ->
     teardown_meck(GroupName),
     dynamic_modules:restore_modules(domain(), Config).
 
-teardown_meck(G) when G == mam_failure;
+teardown_meck(G) when G == mam_odbc_failure;
                       G == offline_failure ->
     rpc(mim(), meck, unload, []);
 teardown_meck(_) -> ok.
@@ -144,11 +162,13 @@ teardown_meck(_) -> ok.
 init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
 end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 
+%% Test cases
+
 initial_service_discovery_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
-              escalus_client:send(Alice, disco_info(Config)),
+              escalus_client:send(Alice, disco_info()),
               Response = escalus_client:wait_for_stanza(Alice),
               escalus:assert(has_feature, [ns_amp()], Response)
       end).
@@ -163,7 +183,7 @@ actions_and_conditions_discovery_test(Config) ->
                   <<"http://jabber.org/protocol/amp?condition=deliver">>,
                   <<"http://jabber.org/protocol/amp?condition=match-resource">>
                   ],
-          escalus_client:send(Alice, disco_info_amp_node(Config)),
+          escalus_client:send(Alice, disco_info_amp_node()),
           Response = escalus_client:wait_for_stanza(Alice),
           assert_has_features(Response, Args)
       end).
@@ -748,12 +768,11 @@ client_receives_notification(Client, IntendedRecipient, Rule) ->
     Msg = escalus_client:wait_for_stanza(Client),
     assert_notification(Client, IntendedRecipient, Msg, Rule).
 
-disco_info(Config) ->
-    Server = ct:get_config({hosts, mim, domain}),
-    escalus_stanza:disco_info(Server).
-disco_info_amp_node(Config) ->
-    Server = ct:get_config({hosts, mim, domain}),
-    escalus_stanza:disco_info(Server, ns_amp()).
+disco_info() ->
+    escalus_stanza:disco_info(domain()).
+
+disco_info_amp_node() ->
+    escalus_stanza:disco_info(domain(), ns_amp()).
 
 assert_amp_error(Client, Response, Rules, AmpErrorKind) when is_list(Rules) ->
     ClientJID = escalus_client:full_jid(Client),
@@ -921,12 +940,10 @@ is_module_loaded(Mod) ->
 
 required_modules(basic) ->
     mam_modules(off) ++ offline_modules(off);
-required_modules(mam) ->
+required_modules(mam_odbc) ->
     mam_modules(on) ++ offline_modules(off);
 required_modules(offline) ->
     mam_modules(off) ++ offline_modules(on);
-required_modules(mam_and_offline) ->
-    mam_modules(on) ++ offline_modules(on);
 required_modules(_) ->
     [].
 
