@@ -1,6 +1,6 @@
 # MongooseIM platform
 
-<img align="left" src="MongooseIM_logo.png" alt="MongooseIM platform's logo" />
+<img align="left" src="MongooseIM_logo.png" alt="MongooseIM platform's logo" style="padding-right: 20px;"/>
 
 MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations. 
 Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or VM.
@@ -42,7 +42,7 @@ Check out our test results:
 
 ## MongooseIM platform components
 
-<img src="/MongooseIM_Platform_components.png " alt="MongooseIM platform schema" />
+<img src="MongooseIM_Platform_components.png" alt="MongooseIM platform schema" />
 
 ### Server-side components
 
