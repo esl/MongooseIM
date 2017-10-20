@@ -75,8 +75,9 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_group(message, Config) ->
-    remove_handler(c2s_preprocessing_hook, test_preprocess, 50),
+    remove_handler(c2s_preprocessing_hook, test_save_acc, 50),
     remove_handler(filter_local_packet, test_check_acc, 50),
+    remove_handler(user_receive_packet, test_check_final_acc, 50),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
