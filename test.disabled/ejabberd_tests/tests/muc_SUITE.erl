@@ -83,7 +83,8 @@ all() -> [
         {group, room_management},
         {group, http_auth_no_server},
         {group, http_auth},
-        {group, hibernation}
+        {group, hibernation},
+        {group, registration}
         ].
 
 groups() -> [
@@ -238,6 +239,10 @@ groups() -> [
                 create_instant_http_password_protected_room,
                 deny_creation_of_http_password_protected_room,
                 deny_creation_of_http_password_protected_room_wrong_password
+                ]},
+        {registration, [], [
+                registration_query_service,
+                registration_request_service
                 ]}
         ].
 
@@ -410,7 +415,7 @@ init_per_testcase(CaseName =no_history, Config) ->
 %init_per_testcase(CaseName =deny_entry_locked_room, Config) ->
 %    escalus:init_per_testcase(CaseName, Config);
 
-init_per_testcase(CaseName =registration_request, Config) ->
+init_per_testcase(CaseName =registration_request_room, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
@@ -480,7 +485,7 @@ end_per_testcase(CaseName =no_history, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
 
-end_per_testcase(CaseName =registration_request, Config) ->
+end_per_testcase(CaseName =registration_request_room, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
 
@@ -2599,16 +2604,98 @@ one2one_chat_to_muc(Config) ->
         escalus_assert:has_no_stanzas(Eve)
     end).
 
+registration_query_service(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(_Alice,  Bob) ->
+        escalus:send(Bob, escalus_stanza:to(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?MUC_HOST)),
+   	    Resp = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_iq_result, Resp),
+        % assert the response instructs to submit a nick
+        Field = exml_query:path(Resp, [{element, <<"query">>}, {element, <<"x">>}, {element, <<"field">>}]),
+        ?assert_equal(<<"text-single">>, exml_query:path(Field, [{attr, <<"type">>}])),
+        ?assert_equal(<<"nick">>, exml_query:path(Field, [{attr, <<"var">>}])),
+        ok
+    end).
 
-%%Examples 66-76
-%%Registartion feature is not implemented
-%%TODO: create a differend goruop for the registration test cases (they will fail)
-%registration_request(Config) ->
+query_register_nick(Nick) ->
+    [
+        #xmlel{name = <<"x">>,
+               attrs = [{<<"xmlns">>, <<"jabber:x:data">>}, {<<"type">>, <<"submit">>}],
+               children = [
+                   #xmlel{name = <<"field">>,
+                          attrs = [{<<"type">>, <<"text-single">>}, {<<"var">>, <<"nick">>}],
+                          children = [
+                              #xmlel{name = <<"value">>,
+                                     children = [#xmlcdata{content = Nick}]}]}
+               ]}
+    ].
+
+
+stanza_register_nick(Nick, To) ->
+    Req = escalus_stanza:iq_set(<<"jabber:iq:register">>,
+                                query_register_nick(Nick)),
+    case To of
+        ?MUC_HOST ->
+            escalus_stanza:to(Req, To);
+        Room ->
+            stanza_to_room(Req, Room);
+        {Room, Nick} ->
+            stanza_to_room(Req, Room, Nick)
+    end.
+
+try_register_nick(From, Nick, To) ->
+    escalus:send(From, stanza_register_nick(Nick, To)),
+    escalus:wait_for_stanza(From).
+
+assert_registration_response(Resp) ->
+    escalus:assert(is_iq_result, Resp),
+    ?assert_equal(<<"jabber:iq:register">>,
+                  exml_query:path(Resp, [{element, <<"query">>}, {attr, <<"xmlns">>}])).
+
+
+registration_request_service(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,  Bob) ->
+        Resp = try_register_nick(Bob, <<"bylekto">>, ?MUC_HOST),
+        assert_registration_response(Resp),
+        % try again
+        Resp1 = try_register_nick(Bob, <<"bylekto">>, ?MUC_HOST),
+        assert_registration_response(Resp1),
+        % but for Alice it should fail
+        Resp2 = try_register_nick(Alice, <<"bylekto">>, ?MUC_HOST),
+        escalus:assert(is_iq_error, Resp2),
+        ok
+    end).
+
+%%registration_request(Config) ->
+%%    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(_Alice,  Bob) ->
+%%        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
+%%        print_next_message(Bob)
+%%                                                  end).
+%%%
+%%Example 67
+%registration_request_non_existent_room(Config) ->
 %    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(_Alice,  Bob) ->
-%        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
-%   	    print_next_message(Bob)
+%        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), <<"non-existent-room">>)),
+%        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], escalus:wait_for_stanza(Bob))
 %    end).
 %
+%stanza_reserved_nickname_request() ->
+%     escalus_stanza:iq(<<"get">>, [#xmlel{
+%        name = <<"query">>,
+%        attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/disco#info">>}, {<<"node">>, <<"x-roomuser-item">>}],
+%        children = []
+%     }]).
+%
+%%Example 77-78
+%%Not implemented - the 'node' element is ignored
+%reserved_nickname_request(Config) ->
+%    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(_Alice,  Bob) ->
+%        %escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
+%  	    %print_next_message(Bob)
+%        print(stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config))),
+%        escalus:send(Bob, (stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config)))),
+%        print_next_message(Bob)
+%    end).
+
 %%Example 67
 %registration_request_no_room(Config) ->
 %    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(_Alice,  Bob) ->

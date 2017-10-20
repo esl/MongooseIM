@@ -971,22 +971,24 @@ iq_set_register_info_t(Host, LUS, <<>>) ->
             ok
     end;
 iq_set_register_info_t(Host, LUS, Nick) ->
-    Allow =
-    case mnesia:select(muc_registered,
-                       [{#muc_registered{us_host = '$1', nick = Nick, _ = '_'},
-                         [{'==', {element, 2, '$1'}, Host}],
-                         ['$_']}]) of
-        [] ->
-            true;
-        [#muc_registered{us_host = {U, _Host}}] ->
-            U == LUS
-    end,
-    case Allow of
-        true ->
-            mnesia:write(#muc_registered{us_host = {LUS, Host}, nick = Nick}),
-            ok;
-        false ->
-            false
+    fun() ->
+        Allow =
+        case mnesia:select(muc_registered,
+                           [{#muc_registered{us_host = '$1', nick = Nick, _ = '_'},
+                             [{'==', {element, 2, '$1'}, Host}],
+                             ['$_']}]) of
+            [] ->
+                true;
+            [#muc_registered{us_host = {U, _Host}}] ->
+                U == LUS
+        end,
+        case Allow of
+            true ->
+                mnesia:write(#muc_registered{us_host = {LUS, Host}, nick = Nick}),
+                ok;
+            false ->
+                false
+        end
     end.
 
 -spec process_iq_register_set(ejabberd:server(), jid(), exml:element(), ejabberd:lang()) ->
