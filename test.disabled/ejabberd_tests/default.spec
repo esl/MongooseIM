@@ -11,6 +11,7 @@
 %% do not remove below SUITE if testing mongoose
 {suites, "tests", mongoose_sanity_checks_SUITE}.
 
+{suites, "tests", acc_e2e_SUITE}.
 {suites, "tests", adhoc_SUITE}.
 {suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.

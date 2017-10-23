@@ -1,7 +1,7 @@
 -module(acc_test_helper).
--compile(export_all).
 -author("bartek").
 
+-compile(export_all).
 
 test_save_acc(#{type := <<"chat">>} = Acc, _State) ->
     Rand = rand:uniform(),
@@ -45,4 +45,11 @@ check_acc(_Acc) -> ok.
 check_acc(Acc, stripped) ->
     undefined = mongoose_acc:get(should_be_stripped, Acc, undefined),
     check_acc(Acc).
+
+alter_message({From, To, Acc, Packet}) ->
+    % Not using #xmlel as it causes some strange error in dynamic compilation
+    {xmlel, PName, PAttrs, PCh} = Packet,
+    NewBody = {xmlel, <<"body">>, [], [{xmlcdata, <<"bye">> }]},
+    PCh2 = lists:keyreplace(<<"body">>, 2, PCh, NewBody),
+    {From, To, Acc, {xmlel, PName, PAttrs, PCh2}}.
 

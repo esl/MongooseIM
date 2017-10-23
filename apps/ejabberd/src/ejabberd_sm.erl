@@ -789,7 +789,7 @@ route_message(From, To, Acc, Packet) ->
               %% positive
               fun({Prio, Pid}) when Prio == Priority ->
                  %% we will lose message if PID is not alive
-                      Pid ! {route, From, To, mongoose_acc:strip(Acc)};
+                      Pid ! {route, From, To, mongoose_acc:strip(Acc, Packet)};
                  %% Ignore other priority:
                  ({_Prio, _Pid}) ->
                       ok

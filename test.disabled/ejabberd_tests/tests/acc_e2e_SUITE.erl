@@ -36,12 +36,13 @@ all() ->
 
 groups() ->
     [
-        {message, [parallel], message_test_cases()}
+        {message, [], message_test_cases()}
     ].
 
 message_test_cases() ->
     [
-        one_message
+        one_message,
+        message_altered_by_filter_local_packet_hook
     ].
 
 suite() ->
@@ -74,15 +75,22 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_group(message, Config) ->
-    remove_handler(c2s_preprocessing_hook, test_preprocess, 50),
+    remove_handler(c2s_preprocessing_hook, test_save_acc, 50),
     remove_handler(filter_local_packet, test_check_acc, 50),
+    remove_handler(user_receive_packet, test_check_final_acc, 50),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
+init_per_testcase(message_altered_by_filter_local_packet_hook = CN, Config) ->
+    add_handler(filter_local_packet, alter_message, 60),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(message_altered_by_filter_local_packet_hook = CN, Config) ->
+    remove_handler(filter_local_packet, alter_message, 60),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -99,6 +107,19 @@ one_message(Config) ->
             R = escalus_client:wait_for_stanza(Bob),
             % hook handlers break something if test does not pass so it should fail somewhere here
             escalus:assert(is_chat_message, [<<"hej">>], R),
+            ok
+        end).
+
+message_altered_by_filter_local_packet_hook(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            M = escalus_stanza:chat_to(escalus_client:short_jid(Bob), <<"hi">>),
+            escalus:send(Alice, M),
+            R = escalus_client:wait_for_stanza(Bob),
+            % filter_local_packet alters packet to be delivered
+            % and mongoose_acc:strip must respect it
+            escalus:assert(is_chat_message, [<<"bye">>], R),
             ok
         end).
 
