@@ -34,8 +34,7 @@ groups() ->
 
 tests() ->
     [keepalive_interval,
-     does_backoff_exceed,
-     does_backoff_increase,
+     does_backoff_increase_to_a_point,
      keepalive_exit].
 
 init_per_group(odbc, Config) ->
@@ -51,13 +50,7 @@ init_per_group(Group, Config) ->
 end_per_group(_, Config) ->
     Config.
 
-init_per_testcase(does_backoff_exceed, Config) ->
-    DbType = ?config(db_type, Config),
-    meck_config(DbType, ?KEEPALIVE_INTERVAL, ?MAX_INTERVAL),
-    meck_db(DbType),
-    meck_connection_error(DbType),
-    Config;
-init_per_testcase(does_backoff_increase, Config) ->
+init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     DbType = ?config(db_type, Config),
     meck_config(DbType, 2, 10),
     meck_db(DbType),
@@ -69,13 +62,13 @@ init_per_testcase(_, Config) ->
     meck_db(DbType),
     Config.
 
-end_per_testcase(T, Config) when T =:= does_backoff_increase,
-                                 T =:= does_backoff_exceed ->
+end_per_testcase(does_backoff_increase_to_a_point, Config) ->
     Db = ?config(db_type, Config),
     meck_connection_error_unload(Db),
     meck_unload(Db),
     Config;
-end_per_testcase(_, Config) ->
+end_per_testcase(T, Config) ->
+    ct:log("End per testcase for: ~p~n", [T]),
     meck_unload(?config(db_type, Config)),
     Config.
 
@@ -102,17 +95,9 @@ keepalive_exit(Config) ->
         ct:fail(no_down_message)
     end.
 
-%% 5 retries. Max retry 1 and is 1 as well.
-%% 5 times one second.
-%% Proccess should die after 5 seconds. No longer.
-does_backoff_exceed(Config) ->
-    {Time, {error, _}} = timer:tc(gen_server, start, [mongoose_rdbms, default, []]),
-    ct:log("Time: ~p~n", [Time]),
-    ?assert(Time < 5100 * 1000).
-
 %% 5 retries. Max retry 10. Iniitial retry 2.
 %% We should get a sequence: 2 -> 4 -> 10 -> 10 -> 10.
-does_backoff_increase(Config) ->
+does_backoff_increase_to_a_point(Config) ->
     meck_rand(),    % move to init per testcase
     {error, _} = gen_server:start(mongoose_rdbms, default, []),
     % We expect to have 2 at the begininng, then values up to 10 and 10 three times in total
@@ -192,7 +177,7 @@ meck_connection_error_unload(pgsql) ->
 meck_connection_error_unload(odbc) ->
     meck:unload(odbc);
 meck_connection_error_unload(mysql) ->
-    meck:delete(mongoose_rdbms_msql, connect, 2),
+    meck:delete(mongoose_rdbms_mysql, connect, 2),
     meck:unload(mongoose_rdbms_mysql).
 
 
