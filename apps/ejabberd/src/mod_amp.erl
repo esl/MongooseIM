@@ -151,8 +151,11 @@ process_amp_rules(Packet, From, Event, Rules) ->
             send_error_and_drop(Packet, From, ValidationError, InvalidRule);
         [] ->
             Strategy = determine_strategy(Packet, From, Event),
-            ApplyResult = fold_apply_rules(Packet, From, Strategy, ValidRules),
-            take_action(Packet, From, Event, ApplyResult)
+            RulesWithResults = apply_rules(fun(Rule) ->
+                                                   resolve_condition(From, Strategy, Event, Rule)
+                                           end, ValidRules),
+            PacketResult = take_action(Packet, From, RulesWithResults),
+            return_result(PacketResult, Packet, RulesWithResults)
     end.
 
 %% @doc ejabberd_hooks helpers
@@ -166,39 +169,42 @@ determine_strategy(Packet, From, Event) ->
     ejabberd_hooks:run_fold(amp_determine_strategy, host(From),
                             amp_strategy:null_strategy(), [From, To, Packet, Event]).
 
--spec fold_apply_rules(exml:element(), jid(), amp_strategy(), [amp_rule()]) ->
-                              no_match | {matched | undecided, amp_rule()}.
-fold_apply_rules(_, _, _, []) -> 'no_match';
-fold_apply_rules(Packet, From, Strategy, [Rule|Rest]) ->
-    case resolve_condition(From, Strategy, Rule) of
-        no_match -> fold_apply_rules(Packet, From, Strategy, Rest);
-        Status -> {Status, Rule}
+apply_rules(F, Rules) ->
+    [Rule#amp_rule{result = F(Rule)} || Rule <- Rules].
+
+-spec resolve_condition(jid(), amp_strategy(), amp_event(), amp_rule()) -> amp_match_result().
+resolve_condition(From, Strategy, Event, Rule) ->
+    Result = ejabberd_hooks:run_fold
+               (amp_check_condition, host(From), no_match,
+                [Strategy, Rule]),
+    match_undecided_for_final_event(Rule, Event, Result).
+
+match_undecided_for_final_event(#amp_rule{condition = deliver}, Event, undecided)
+  when Event =:= delivered;
+       Event =:= delivery_failed -> match;
+match_undecided_for_final_event(_, _, Result) -> Result.
+
+take_action(Packet, From, Rules) ->
+    case find(fun(#amp_rule{result = Result}) -> Result =:= match end, Rules) of
+        not_found -> pass;
+        {found, Rule} -> take_action_for_matched_rule(Packet, From, Rule)
     end.
 
--spec resolve_condition(jid(), amp_strategy(), amp_rule()) -> amp_match_result().
-resolve_condition(From, Strategy, Rule) ->
-    ejabberd_hooks:run_fold
-      (amp_check_condition, host(From), no_match,
-       [Strategy, Rule]).
+return_result(drop, _Packet, _Rules) -> drop;
+return_result(pass, Packet, Rules) ->
+    update_rules(Packet, lists:filter(fun(#amp_rule{result = Result}) ->
+                                              Result =:= undecided
+                                      end, Rules)).
 
--spec take_action(exml:element(),
-                  jid(),
-                  amp_event(),
-                  no_match | {matched | undecided, amp_rule()}) ->
-    exml:element() | drop.
-take_action(Packet, _From, initial_check, no_match) ->
-    amp:strip_amp_el(Packet);
-take_action(Packet, From, _, {match, Rule}) ->
-    take_action_for_matched_rule(Packet, From, Rule);
-take_action(Packet, _From, _, _) ->
-    Packet.
+update_rules(Packet, []) -> amp:strip_amp_el(Packet);
+update_rules(Packet, Rules) -> amp:update_rules(Packet, Rules).
 
--spec take_action_for_matched_rule(exml:element(), jid(), amp_rule()) -> exml:element() | drop.
+-spec take_action_for_matched_rule(exml:element(), jid(), amp_rule()) -> pass | drop.
 take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule) ->
     Host = host(From),
     reply_to_sender(Rule, server_jid(From), From, Packet),
     ejabberd_hooks:run(amp_notify_action_triggered, Host, [Host]),
-    amp:strip_amp_el(Packet);
+    pass;
 take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule) ->
     send_error_and_drop(Packet, From, 'undefined-condition', Rule);
 take_action_for_matched_rule(Packet, From, #amp_rule{action = drop}) ->
@@ -251,4 +257,11 @@ message_target(El) ->
     case exml_query:attr(El, <<"to">>) of
         undefined -> undefined;
         J -> jid:from_binary(J)
+    end.
+
+find(_Pred, []) -> not_found;
+find(Pred, [H|T]) ->
+    case Pred(H) of
+        true -> {found, H};
+        false -> find(Pred, T)
     end.

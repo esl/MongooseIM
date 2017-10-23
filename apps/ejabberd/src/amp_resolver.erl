@@ -37,12 +37,8 @@ resolve(#amp_strategy{deliver = Values}, #amp_rule{condition = deliver, value = 
         true -> undecided;
         false -> no_match
     end;
-resolve(#amp_strategy{deliver = Values}, #amp_rule{condition = deliver, value = Value, action = Action})
-  when is_list(Values), Action == drop orelse Action == error, Value /= none ->
-    case lists:member(Value, Values) of
-        true -> match;
-        false -> no_match
-    end;
+resolve(#amp_strategy{deliver = [Value | _]}, #amp_rule{condition = deliver, value = Value, action = Action})
+  when Action == drop orelse Action == error -> match;
 resolve(#amp_strategy{'match-resource' = Value}, #amp_rule{condition = 'match-resource', value = any})
   when Value /= undefined -> match;
 resolve(#amp_strategy{'match-resource' = Value}, #amp_rule{condition = 'match-resource', value = Value}) ->

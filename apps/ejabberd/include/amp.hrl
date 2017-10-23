@@ -4,6 +4,8 @@
 %% @copyright 2014 Erlang Solutions, Ltd.
 %% This work was sponsored by Grindr LLC
 
+-include_lib("exml/include/exml.hrl").
+
 -define(NS_AMP, <<"http://jabber.org/protocol/amp">>).
 -define(NS_AMP_FEATURE, <<"http://jabber.org/feature/amp">>).
 
@@ -11,7 +13,9 @@
 -record(amp_rule, {
           condition :: amp_condition(),
           value     :: amp_value(),
-          action    :: amp_action()
+          action    :: amp_action(),
+          element   :: #xmlel{} | undefined,
+          result    :: amp_match_result() | undefined
          }).
 
 %% @doc This includes all well-formed but nonsensical rules, like:
