@@ -30,7 +30,7 @@
 -export([for_domain/1, insert_for_domain/1, delete_for_domain/1, all_domains/0]).
 -export([for_jid/1, insert_for_jid/1, insert_for_jid/2, delete_for_jid/1, clear_cache/1]).
 -export([register_subhost/2, unregister_subhost/2, packet_to_component/3,
-         user_present/2, user_not_present/5]).
+         session_opened/4, session_closed/5]).
 -export([endpoints/1]).
 
 %%--------------------------------------------------------------------
@@ -136,18 +136,19 @@ deps(Host, Opts) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec user_present(mongoose_acc:t(), UserJID :: jid()) -> mongoose_acc:t().
-user_present(Acc, #jid{} = UserJid) ->
+-spec session_opened(mongoose_acc:t(), ejabberd_sm:sid(), UserJID :: jid(), Info :: list()) ->
+    mongoose_acc:t().
+session_opened(Acc, _SID, UserJid, _Info) ->
     insert_for_jid(UserJid),
     Acc.
 
--spec user_not_present(mongoose_acc:t(),
-                       User     :: ejabberd:luser(),
-                       Server   :: ejabberd:lserver(),
-                       Resource :: ejabberd:lresource(),
-                       _Status :: any()) -> mongoose_acc:t().
-user_not_present(Acc, User, Host, Resource, _Status) ->
-    UserJid = {User, Host, Resource},
+-spec session_closed(mongoose_acc:t(),
+                     ejabberd_sm:sid(),
+                     UserJID :: jid(),
+                     Info :: list(),
+                     _Status :: any()) ->
+    mongoose_acc:t().
+session_closed(Acc, _SID, UserJid, _Info, _Reason) ->
     delete_for_jid(UserJid),
     Acc.
 
@@ -205,8 +206,8 @@ start() ->
     ejabberd_hooks:add(register_subhost, global, ?MODULE, register_subhost, 90),
     ejabberd_hooks:add(unregister_subhost, global, ?MODULE, unregister_subhost, 90),
     ejabberd_hooks:add(packet_to_component, global, ?MODULE, packet_to_component, 90),
-    ejabberd_hooks:add(user_available_hook, Host, ?MODULE, user_present, 90),
-    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
+    ejabberd_hooks:add(sm_register_connection_hook, Host, ?MODULE, session_opened, 90),
+    ejabberd_hooks:add(sm_remove_connection_hook, Host, ?MODULE, session_closed, 90),
 
     ets_cache:new(?DOMAIN_TAB, [{cache_missed, CacheMissed}, {life_time, DomainLifetime}]),
     ets_cache:new(?JID_TAB, [{cache_missed, CacheMissed}, {life_time, JidLifetime},
@@ -219,8 +220,8 @@ stop() ->
     ets_cache:delete(?JID_TAB),
     ets_cache:delete(?DOMAIN_TAB),
 
-    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, user_not_present, 90),
-    ejabberd_hooks:delete(user_available_hook, Host, ?MODULE, user_present, 90),
+    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, session_closed, 90),
+    ejabberd_hooks:delete(sm_register_connection_hook, Host, ?MODULE, session_opened, 90),
     ejabberd_hooks:delete(packet_to_component, global, ?MODULE, packet_to_component, 90),
     ejabberd_hooks:delete(unregister_subhost, global, ?MODULE, unregister_subhost, 90),
     ejabberd_hooks:delete(register_subhost, global, ?MODULE, register_subhost, 90),

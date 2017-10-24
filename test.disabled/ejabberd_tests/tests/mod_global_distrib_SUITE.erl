@@ -41,6 +41,7 @@ groups() ->
     [{mod_global_distrib, [shuffle],
       [
        test_pm_between_users_at_different_locations,
+       test_pm_between_users_before_available_presence,
        test_muc_conversation_on_one_host,
        test_component_disconnect,
        test_component_on_one_host,
@@ -129,7 +130,7 @@ init_per_group(_, Config0) ->
                       [<<"localhost">>, [{mod_global_distrib, Opts}]]),
                   rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_offline]),
                   ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
-                  rpc(NodeName, mod_stream_management, set_resume_timeout, [1]),
+                  true = rpc(NodeName, mod_stream_management, set_resume_timeout, [1]),
 
                   EjdSupChildren = rpc(NodeName, supervisor, which_children, [ejabberd_sup]),
                   {_, MapperPid, _ , _} = lists:keyfind(
@@ -216,25 +217,32 @@ generic_end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 test_pm_between_users_at_different_locations(Config) ->
-    escalus:fresh_story(
-      Config, [{alice, 1}, {eve, 1}],
-      fun(Alice, Eve) ->
-              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
-              escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
+    escalus:fresh_story(Config, [{alice, 1}, {eve, 1}], fun test_two_way_pm/2).
 
-              FromAlice = escalus_client:wait_for_stanza(Eve),
-              FromEve = escalus_client:wait_for_stanza(Alice),
+test_pm_between_users_before_available_presence(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {eve, 1}]),
+    {ok, Alice} = escalus_client:start(Config1, alice, <<"res1">>),
+    {ok, Eve} = escalus_client:start(Config1, eve, <<"res1">>),
 
-              AliceJid = escalus_client:full_jid(Alice),
-              EveJid = escalus_client:full_jid(Eve),
+    test_two_way_pm(Alice, Eve),
 
-              escalus:assert(is_chat_message_from_to, [AliceJid, EveJid, <<"Hi from Europe1!">>],
-                             FromAlice),
-              escalus:assert(is_chat_message_from_to, [EveJid, AliceJid, <<"Hi from Asia!">>],
-                             FromEve),
+    escalus_client:stop(Alice),
+    escalus_client:stop(Eve).
 
-              escalus_connection:stop(Eve)
-      end).
+test_two_way_pm(Alice, Eve) ->
+    escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
+    escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
+
+    FromAlice = escalus_client:wait_for_stanza(Eve),
+    FromEve = escalus_client:wait_for_stanza(Alice),
+
+    AliceJid = escalus_client:full_jid(Alice),
+    EveJid = escalus_client:full_jid(Eve),
+
+    escalus:assert(is_chat_message_from_to, [AliceJid, EveJid, <<"Hi from Europe1!">>],
+                   FromAlice),
+    escalus:assert(is_chat_message_from_to, [EveJid, AliceJid, <<"Hi from Asia!">>],
+                   FromEve).
 
 test_muc_conversation_on_one_host(Config0) ->
     AliceSpec = muc_SUITE:given_fresh_spec(Config0, alice),
@@ -440,7 +448,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
 
               FirstFromAlice = escalus_client:wait_for_stanza(NewEve, timer:seconds(10)),
-              SecondFromAlice = escalus_client:wait_for_stanza(NewEve),
+              SecondFromAlice = escalus_client:wait_for_stanza(NewEve, timer:seconds(10)),
               AgainFromEve = escalus_client:wait_for_stanza(Alice),
 
               [FromAlice, AgainFromAlice] = order_by_seqnum([FirstFromAlice, SecondFromAlice]),
