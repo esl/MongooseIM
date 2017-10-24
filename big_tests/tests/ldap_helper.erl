@@ -17,7 +17,7 @@
                 ufilter = <<"">>       :: binary(),
                 sfilter = <<"">>       :: binary(),
                 lfilter                :: {any(), any()},
-                deref_aliases = never  :: never | searching | finding | always,
+                deref = never  :: never | searching | finding | always,
                 dn_filter              :: binary(),
                 dn_filter_attrs = []   :: [binary()]}).
 

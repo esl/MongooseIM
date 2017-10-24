@@ -374,7 +374,7 @@ search_internal(State, Data) ->
     ReportedAttrs = State#state.search_reported_attrs,
     Op = State#state.search_operator,
     Filter = eldap:'and'([SearchFilter, eldap_utils:make_filter(Data, UIDs, Op)]),
-    E = eldap_pool_search(EldapID, Base, Filter, State#state.deref, ReportedAttrs, error),
+    E = eldap_pool_search(EldapID, Base, Filter, State#state.deref, ReportedAttrs, []),
     case E of
       error ->
         error;
@@ -384,9 +384,11 @@ search_internal(State, Data) ->
      end.
 
 limited_results(E, Limit) when length(E) > Limit ->
-        lists:nthtail(Limit, E);
+  lists:nthtail(Limit, E);
+limited_results(E, _) when not is_list(E) ->
+  [E];
 limited_results(E, _) ->
-  E.
+   E.
 
 search_items(Entries, State) ->
     lists:flatmap(fun(#eldap_entry{attributes = Attrs}) -> attrs_to_item_xml(Attrs, State) end,

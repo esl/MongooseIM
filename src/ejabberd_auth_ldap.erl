@@ -315,7 +315,7 @@ get_vh_registered_users_ldap(LServer) ->
                                  [{base, State#state.base},
                                   {filter, EldapFilter},
                                   {timeout, ?LDAP_SEARCH_TIMEOUT},
-                                  {deref_aliases, State#state.deref},
+                                  {deref, State#state.deref},
                                   {attributes, ResAttrs}]) of
               #eldap_search_result{entries = Entries} ->
                   get_users_from_ldap_entries(Entries, UIDs, LServer, State);
