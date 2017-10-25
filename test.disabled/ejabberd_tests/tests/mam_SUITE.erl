@@ -104,6 +104,19 @@
          archive_chat_markers/1,
          dont_archive_chat_markers/1]).
 
+%% Test cases for "complete" attribute
+%% see complete_flag_cases
+-export([before_complete_false_last5/1]).
+-export([before_complete_false_before10/1]).
+-export([before_complete_true_before2/1]).
+-export([before_complete_true_before5/1]).
+-export([before_complete_true_before6/1]).
+-export([after_complete_true_after10/1]).
+-export([after_complete_true_after11/1]).
+-export([after_complete_false_after9/1]).
+-export([after_complete_false_first_page/1]).
+-export([after_complete_false_after2/1]).
+
 -import(muc_helper,
         [muc_host/0,
          room_address/1, room_address/2,
@@ -155,6 +168,7 @@
          make_iso_time/1,
          stanza_date_range_archive_request_not_empty/3,
          respond_iq/1,
+         respond_fin/1,
          get_prop/2,
          stanza_retrieve_form_fields/2,
          stanza_limit_archive_request/1,
@@ -284,7 +298,7 @@ basic_groups() ->
             {configurable_archiveid, [], configurable_archiveid_cases()},
             {rsm_all, [parallel],
              [{rsm02,      [parallel], rsm_cases()},
-              {rsm03,      [parallel], rsm_cases()},
+              {rsm03,      [parallel], rsm_cases() ++ complete_flag_cases()},
               {rsm04,      [parallel], rsm_cases()},
               {with_rsm02, [parallel], with_rsm_cases()},
               {with_rsm03, [parallel], with_rsm_cases()},
@@ -431,6 +445,19 @@ rsm_cases() ->
        pagination_first25_opt_count_all,
        pagination_last25_opt_count_all,
        pagination_offset5_opt_count_all].
+
+complete_flag_cases() ->
+    [before_complete_false_last5,
+     before_complete_false_before10,
+     before_complete_true_before2,
+     before_complete_true_before5,
+     before_complete_true_before6,
+     after_complete_true_after10,
+     after_complete_true_after11,
+     after_complete_false_after9,
+     after_complete_false_first_page,
+     after_complete_false_after2
+    ].
 
 prefs_cases() ->
     [prefs_set_request,
@@ -2803,3 +2830,129 @@ then_pm_message_is_received(Receiver, Body) ->
     escalus:assert(is_chat_message, [Body], escalus:wait_for_stanza(Receiver)).
 
 
+
+%% Test cases for "complete" attribute
+%% see complete_flag_cases
+%% -----------------------------------------------
+
+before_complete_false_last5(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        %% Get messages: 11,12,13,14,15
+        RSM = #rsm_in{max=5, direction=before},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"last5">>, RSM)),
+               wait_for_complete_respond(P, Alice, <<"false">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+before_complete_false_before10(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get messages: 5,6,7,8,9
+        RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config)},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"before10">>, RSM)),
+        wait_for_complete_respond(P, Alice, <<"false">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+before_complete_true_before2(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get messages: 1
+        RSM = #rsm_in{max=5, direction=before, id=message_id(2, Config)},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"before2">>, RSM)),
+        wait_for_complete_respond(P, Alice, <<"true">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+before_complete_true_before6(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get messages: 1,2,3,4,5
+        RSM = #rsm_in{max=5, direction=before, id=message_id(6, Config)},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"before6">>, RSM)),
+        wait_for_complete_respond(P, Alice, <<"true">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+before_complete_true_before5(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get messages: 1,2,3,4
+        RSM = #rsm_in{max=5, direction=before, id=message_id(5, Config)},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"before5">>, RSM)),
+        wait_for_complete_respond(P, Alice, <<"true">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+after_complete_true_after10(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        %% Get messages: 11,12,13,14,15
+        RSM = #rsm_in{max=5, direction='after', id=message_id(10, Config)},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"after10">>, RSM)),
+        wait_for_complete_respond(P, Alice, <<"true">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+after_complete_true_after11(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        %% Get messages: 12,13,14,15
+        RSM = #rsm_in{max=5, direction='after', id=message_id(10, Config)},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"after11">>, RSM)),
+        wait_for_complete_respond(P, Alice, <<"true">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+after_complete_false_after9(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get messages: 10,11,12,13,14
+        RSM = #rsm_in{max=5, direction='after', id=message_id(9, Config)},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"after9">>, RSM)),
+        wait_for_complete_respond(P, Alice, <<"false">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+after_complete_false_first_page(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get messages: 1,2,3,4,5
+        RSM = #rsm_in{max=5, direction='after'},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"firstpage">>, RSM)),
+        wait_for_complete_respond(P, Alice, <<"false">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+after_complete_false_after2(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get messages: 3,4,5,6,7
+        RSM = #rsm_in{max=5, direction='after', id=message_id(2, Config)},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"after2">>, RSM)),
+        wait_for_complete_respond(P, Alice, <<"false">>)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+
+%% --------- complete attribute helpers ----------
+
+wait_for_complete_respond(P, Alice, Expected) ->
+    Result = wait_archive_respond(P, Alice),
+    Fin = respond_fin(Result),
+    Complete = exml_query:attr(Fin, <<"complete">>, <<"false">>),
+    ?assert_equal({complete, Expected}, {complete, Complete}).
