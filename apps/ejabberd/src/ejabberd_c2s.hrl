@@ -57,7 +57,7 @@
                 privacy_list = #userlist{} :: mongoose_privacy:userlist(),
                 conn = unknown,
                 auth_module     :: ejabberd_auth:authmodule(),
-                ip              :: inet:ip_address() | undefined,
+                ip              :: {inet:ip_address(), inet:port_number()} | undefined,
                 aux_fields = [] :: [{aux_key(), aux_value()}],
                 lang            :: ejabberd:lang(),
                 stream_mgmt = false,
