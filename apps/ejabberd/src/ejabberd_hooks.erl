@@ -188,16 +188,20 @@ handle_call({add, Hook, Host, Module, Function, Seq}, _From, State) ->
     Reply = case ets:lookup(hooks, {Hook, Host}) of
                 [{_, Ls}] ->
                     El = {Seq, Module, Function},
-                    case lists:member(El, Ls) of
-                        true ->
+                    Res = proplists:lookup(El, Ls),
+                    case Res of
+                        {El, Counter} ->
+                            NewLs = lists:keyreplace(El, 1, Ls, {El, Counter + 1}),
+                            ets:insert(hooks, {{Hook, Host}, NewLs}),
                             ok;
-                        false ->
-                            NewLs = lists:merge(Ls, [El]),
+                        none ->
+                            NEl = {{Seq, Module, Function}, 1},
+                            NewLs = lists:merge(Ls, [NEl]),
                             ets:insert(hooks, {{Hook, Host}, NewLs}),
                             ok
                     end;
                 [] ->
-                    NewLs = [{Seq, Module, Function}],
+                    NewLs = [{{Seq, Module, Function}, 1}],
                     ets:insert(hooks, {{Hook, Host}, NewLs}),
                     mongoose_metrics:create_generic_hook_metric(Host, Hook),
                     ok
@@ -207,9 +211,19 @@ handle_call({add, Hook, Host, Module, Function, Seq}, _From, State) ->
 handle_call({delete, Hook, Host, Module, Function, Seq}, _From, State) ->
     Reply = case ets:lookup(hooks, {Hook, Host}) of
                 [{_, Ls}] ->
-                    NewLs = lists:delete({Seq, Module, Function}, Ls),
-                    ets:insert(hooks, {{Hook, Host}, NewLs}),
-                    ok;
+                    El = {Seq, Module, Function},
+                    Res = proplists:lookup(El, Ls),
+                    case Res of
+                        none -> ok;
+                        {El, 1} ->
+                            NewLs = lists:keydelete(El, 1, Ls),
+                            ets:insert(hooks, {{Hook, Host}, NewLs}),
+                            ok;
+                        {El, Counter} ->
+                            NewLs=lists:keyreplace(El, 1, Ls, {El, Counter - 1}),
+                            ets:insert(hooks, {{Hook, Host}, NewLs}),
+                            ok
+                    end;
                 [] ->
                     ok
             end,
@@ -256,7 +270,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 run_fold1([], _Hook, Val, _Args) ->
     Val;
-run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
+run_fold1([{{_Seq, Module, Function}, _} | Ls], Hook, Val, Args) ->
     Res = hook_apply_function(Module, Function, Hook, Val, Args),
     case Res of
         {'EXIT', Reason} ->

@@ -8,6 +8,7 @@ all() ->
       a_module_fun_can_be_added,
       a_fun_can_be_removed,
       a_module_fun_can_be_removed,
+      a_module_fun_can_be_added_and_removed_many_times,
 
       hooks_run_launches_nullary_fun,
       hooks_run_launches_unary_fun,
@@ -57,6 +58,22 @@ a_module_fun_can_be_added(_) ->
 
     % then
     [{{test_run_hook,<<"localhost">>}, [{1,hook_mod,fun_a}]}] = get_hooks().
+
+a_module_fun_can_be_added_and_removed_many_times(_) ->
+    given_hooks_started(),
+    given_module(hook_mod, fun_a, fun(_) -> ok end),
+
+    % add twice, delete once
+    ejabberd_hooks:add(test_run_hook, ?HOST, hook_mod, fun_a, 1),
+    ejabberd_hooks:add(test_run_hook, ?HOST, hook_mod, fun_a, 1),
+    ejabberd_hooks:delete(test_run_hook, ?HOST, hook_mod, fun_a, 1),
+
+    % there is one
+    [{{test_run_hook,<<"localhost">>}, [{1,hook_mod,fun_a}]}] = get_hooks(),
+    % delete again, it is gone
+    ejabberd_hooks:delete(test_run_hook, ?HOST, hook_mod, fun_a, 1),
+    [{{test_run_hook,<<"localhost">>}, []}] = get_hooks(),
+    ok.
 
 
 a_fun_can_be_removed(_) ->
@@ -281,4 +298,4 @@ given_fun(ModName, FunName, Fun) ->
 
 
 get_hooks() ->
-    ets:tab2list(hooks).
+    lists:map(fun({Hook, Ls}) -> {Hook, proplists:get_keys(Ls)} end, ets:tab2list(hooks)).
