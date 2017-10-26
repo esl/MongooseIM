@@ -238,7 +238,7 @@ find_ldap_user(User, State) ->
     VCardAttrs = State#state.vcard_map_attrs,
     case eldap_filter:parse(RFC2254Filter, [{<<"%u">>, User}]) of
       {ok, EldapFilter} ->
-        eldap_pool_search(EldapID, Base, EldapFilter, State#state.deref, VCardAttrs, false);
+        hd(eldap_pool_search(EldapID, Base, EldapFilter, State#state.deref, VCardAttrs, false));
       _ -> false
     end.
 
@@ -374,7 +374,7 @@ search_internal(State, Data) ->
     ReportedAttrs = State#state.search_reported_attrs,
     Op = State#state.search_operator,
     Filter = eldap:'and'([SearchFilter, eldap_utils:make_filter(Data, UIDs, Op)]),
-    E = eldap_pool_search(EldapID, Base, Filter, State#state.deref, ReportedAttrs, []),
+    E = eldap_pool_search(EldapID, Base, Filter, State#state.deref, ReportedAttrs, error),
     case E of
       error ->
         error;
