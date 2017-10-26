@@ -208,7 +208,7 @@ strip(Acc, El) ->
                            maps:put(Attrib, Val, AccIn)
                        end,
                        Acc1, Attributes),
-    OptionalAttributes = [from, from_jid, to, to_jid, persistent_properties],
+    OptionalAttributes = [from, from_jid, to, to_jid, amp_state, persistent_properties],
     lists:foldl(fun(Attrib, AccIn) ->
                     case maps:get(Attrib, Acc, undefined) of
                         undefined -> AccIn;

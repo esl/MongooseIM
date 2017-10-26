@@ -822,8 +822,7 @@ route_message_by_type(_, From, To, Acc, Packet) ->
                         Acc,
                         [From, To, Packet]);
                 false ->
-                    ejabberd_hooks:run_fold(failed_to_store_message,
-                        LServer, Packet, [From]),
+                    ejabberd_hooks:run_fold(failed_to_store_message, LServer, Acc, []),
                     ok
             end;
         _ ->

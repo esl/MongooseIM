@@ -1311,8 +1311,8 @@ response_negative(<<"iq">>, deny, From, To, Acc) ->
     IqType = mongoose_acc:get(type, Acc),
     response_iq_deny(IqType, From, To, Acc);
 response_negative(<<"message">>, deny, From, To, Acc) ->
-    mod_amp:check_packet(Acc, From, delivery_failed),
-    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Acc);
+    Acc1 = mod_amp:check_packet(Acc, delivery_failed),
+    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Acc1);
 response_negative(_, _, _, _, Acc) ->
     Acc.
 
@@ -1750,23 +1750,22 @@ send_trailer(StateData) ->
 -spec send_and_maybe_buffer_stanza(mongoose_acc:t(), packet(), state()) ->
     {ok | resume, mongoose_acc:t(), state()}.
 send_and_maybe_buffer_stanza(Acc, {J1, J2, El}, State)->
-    % to be removed
     {SendResult, BufferedStateData} =
-        send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State),
-    mod_amp:check_packet(El, result_to_amp_event(SendResult)),
+        send_and_maybe_buffer_stanza({J1, J2, El}, State),
+    Acc1 = mod_amp:check_packet(Acc, result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
-            Res = (catch maybe_send_ack_request(Acc, BufferedStateData)),
+            Res = (catch maybe_send_ack_request(Acc1, BufferedStateData)),
             case mongoose_acc:is_acc(Res) of
                 true ->
                     {ok, Res, BufferedStateData};
                 _ ->
                     ?DEBUG("Send ack request error: ~p, try enter resume session", [Res]),
-                    {resume, Acc, BufferedStateData}
+                    {resume, Acc1, BufferedStateData}
             end;
         _ ->
             ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
-            {resume, Acc, BufferedStateData}
+            {resume, Acc1, BufferedStateData}
     end.
 
 result_to_amp_event(ok) -> delivered;
