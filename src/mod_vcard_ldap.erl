@@ -248,7 +248,7 @@ eldap_pool_search(EldapID, Base, EldapFilter, Deref, Attrs, NoResultRes) ->
       {deref, Deref},
       {attributes, Attrs}])
   of
-    #eldap_search_result{entries = [E | _]} -> E;
+    #eldap_search_result{entries = E} -> E;
     _ ->
       NoResultRes
   end.
