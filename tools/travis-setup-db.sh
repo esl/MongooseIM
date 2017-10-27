@@ -8,7 +8,13 @@ source tools/travis-common-vars.sh
 
 SQLDIR=${BASE}/apps/ejabberd/priv
 
+PGSQL_TEMP_DIR=/tmp/pgsql
+
+PGSQL_ODBC_CERT_DIR=~/.postgresql
+
 TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
+
+SSLDIR=${BASE}/${TOOLS}/ssl
 
 if [ $DB = 'mysql' ]; then
     echo "Configuring mysql"
@@ -22,11 +28,22 @@ if [ $DB = 'mysql' ]; then
         -p 3306:3306 --name=mongooseim-mysql mysql
 
 elif [ $DB = 'pgsql' ]; then
-    echo "Configuring postgres"
-    psql -U postgres -c "CREATE ROLE ejabberd PASSWORD '${TRAVIS_DB_PASSWORD}' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;"
-    psql -U postgres -c "CREATE DATABASE ejabberd;"
-    echo "Creating schema"
-    psql -U postgres -q -d ejabberd -f ${SQLDIR}/pg.sql
+    echo "Configuring postgres with SSL"
+    sudo service postgresql stop || echo "Failed to stop psql"
+    mkdir ${PGSQL_TEMP_DIR}
+    cp ${SSLDIR}/fake_cert.pem ${PGSQL_TEMP_DIR}/.
+    cp ${SSLDIR}/fake_key.pem ${PGSQL_TEMP_DIR}/.
+    cp ${SQLDIR}/postgresql.conf ${PGSQL_TEMP_DIR}/.
+    cp ${SQLDIR}/pg_hba.conf ${PGSQL_TEMP_DIR}/.
+    cp ${SQLDIR}/pg.sql ${PGSQL_TEMP_DIR}/.
+    docker run -d \
+           -e PGSQL_TEMP_DIR=${PGSQL_TEMP_DIR} \
+           -e TRAVIS_DB_PASSWORD=${TRAVIS_DB_PASSWORD} \
+           -v ${PGSQL_TEMP_DIR}:${PGSQL_TEMP_DIR} \
+           -v ${BASE}/${TOOLS}/docker-setup-postgres.sh:/docker-entrypoint-initdb.d/docker-setup-postgres.sh \
+           -p 5432:5432 --name=mongooseim-psql postgres
+    mkdir ${PGSQL_ODBC_CERT_DIR} || echo "PGSQL odbc cert dir already exists"
+    cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
     cat > ~/.odbc.ini << EOL
 [ejabberd-pgsql]
 Driver               = PostgreSQL Unicode
@@ -35,6 +52,7 @@ Port                 = 5432
 Database             = ejabberd
 Username             = ejabberd
 Password             = ${TRAVIS_DB_PASSWORD}
+sslmode              = verify-full
 Protocol             = 9.3.5
 Debug                = 1
 ByteaAsLongVarBinary = 1
