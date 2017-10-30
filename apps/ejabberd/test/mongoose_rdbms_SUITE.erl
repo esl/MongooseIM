@@ -162,7 +162,6 @@ meck_db(pgsql) ->
                    (_Ref, [<<"SELECT", _/binary>>])  -> {ok, [], [{1}]} end).
 
 meck_connection_error(pgsql) ->
-    meck:delete(epgsql, connect, 1),
     meck:expect(epgsql, connect, fun(_) -> connection_error end);
 meck_connection_error(odbc) ->
     meck:delete(odbc, connect, 2),
