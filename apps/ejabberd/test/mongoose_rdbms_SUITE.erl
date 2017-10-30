@@ -55,6 +55,7 @@ init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     meck_config(DbType, 2, 10),
     meck_db(DbType),
     meck_connection_error(DbType),
+    meck_rand(),
     Config;
 init_per_testcase(_, Config) ->
     DbType = ?config(db_type, Config),
@@ -63,12 +64,12 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(does_backoff_increase_to_a_point, Config) ->
+    meck_unload_rand(),
     Db = ?config(db_type, Config),
     meck_connection_error_unload(Db),
     meck_config_and_db_unload(Db),
     Config;
-end_per_testcase(T, Config) ->
-    ct:log("End per testcase for: ~p~n", [T]),
+end_per_testcase(_, Config) ->
     meck_config_and_db_unload(?config(db_type, Config)),
     Config.
 
@@ -98,11 +99,9 @@ keepalive_exit(Config) ->
 %% 5 retries. Max retry 10. Iniitial retry 2.
 %% We should get a sequence: 2 -> 4 -> 10 -> 10 -> 10.
 does_backoff_increase_to_a_point(Config) ->
-    meck_rand(),    % move to init per testcase
     {error, _} = gen_server:start(mongoose_rdbms, default, []),
     % We expect to have 2 at the begininng, then values up to 10 and 10 three times in total
-    receive_backoffs(2, 10, 3),
-    meck_unload_rand(). % move to end per testcase
+    receive_backoffs(2, 10, 3).
 
 receive_backoffs(InitialValue, MaxValue, MaxCount) ->
     receive_backoffs(InitialValue, MaxValue, MaxCount, 0).
@@ -115,7 +114,7 @@ receive_backoffs(ExpectedVal, MaxValue, MaxCountExpected, MaxCount) ->
             receive_backoffs(MaxValue, MaxValue, MaxCountExpected, MaxCount + 1);
         {backoff, ExpectedVal} ->
             receive_backoffs(min(ExpectedVal * ExpectedVal, MaxValue), MaxValue, MaxCountExpected, MaxCount)
-    after 5000 -> % Lower this
+    after 200 -> % Lower this
             ct:fail(no_backoff)
     end.
 
