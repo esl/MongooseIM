@@ -65,11 +65,11 @@ init_per_testcase(_, Config) ->
 end_per_testcase(does_backoff_increase_to_a_point, Config) ->
     Db = ?config(db_type, Config),
     meck_connection_error_unload(Db),
-    meck_unload(Db),
+    meck_config_and_db_unload(Db),
     Config;
 end_per_testcase(T, Config) ->
     ct:log("End per testcase for: ~p~n", [T]),
-    meck_unload(?config(db_type, Config)),
+    meck_config_and_db_unload(?config(db_type, Config)),
     Config.
 
 %% Test cases
@@ -193,7 +193,7 @@ meck_error(pgsql) ->
     meck:expect(epgsql, squery,
                 fun(_Ref, _Query) -> {error, {error, 2, 3, 4, <<"connection broken">>, 5}} end).
 
-meck_unload(DbType) ->
+meck_config_and_db_unload(DbType) ->
     meck:unload(ejabberd_config),
     meck:unload(mongoose_rdbms_sup),
     do_meck_unload(DbType).
