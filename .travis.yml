@@ -35,9 +35,9 @@ after_failure:
 #        - ./rebar3 coveralls send
 #        - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ]; then tools/travis-build-and-push-docker.sh; fi
 
-#after_script:
-#        - sudo pip install awscli --ignore-installed six
-#        - if [ $TRAVIS_SECURE_ENV_VARS == 'true' ]; then tools/travis-upload-to-s3.sh; fi
+after_script:
+        - sudo pip install awscli --ignore-installed six
+        - if [ $TRAVIS_SECURE_ENV_VARS == 'true' ]; then tools/travis-upload-to-s3.sh; fi
 
 services:
         - redis-server
