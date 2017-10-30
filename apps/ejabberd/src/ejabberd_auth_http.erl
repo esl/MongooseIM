@@ -147,7 +147,7 @@ get_vh_registered_users_number(_Server) ->
 get_vh_registered_users_number(_Server, _Opts) ->
     0.
 
--spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passwordlike() | false.
+-spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {error, _} ->
@@ -305,7 +305,7 @@ check_scram_password(OriginalPassword, GotPassword, Digest, DigestGen) ->
             false
     end.
 
--spec convert_scram_to_tuple(binary()) -> ejabberd_auth:passwordlike() | false.
+-spec convert_scram_to_tuple(binary()) -> ejabberd_auth:passterm() | false.
 convert_scram_to_tuple(Password) ->
     case scram:deserialize(Password) of
         {ok, #scram{} = Scram} ->
