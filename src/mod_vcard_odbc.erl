@@ -68,7 +68,7 @@ get_vcard(LUser, LServer) ->
                     {ok, [VCARD]}
             end;
         {selected, []} ->
-            {error, ?ERR_SERVICE_UNAVAILABLE}
+            {error, ?ERR_ITEM_NOT_FOUND}
     end.
 
 set_vcard(User, VHost, VCard, VCardSearch) ->
