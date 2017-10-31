@@ -2665,7 +2665,7 @@ registration_request_service(Config) ->
         ok
     end).
 
-%%registration_request(Config) ->
+%%registration_request_room(Config) ->
 %%    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(_Alice,  Bob) ->
 %%        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
 %%        print_next_message(Bob)
@@ -2702,13 +2702,6 @@ registration_request_service(Config) ->
 %        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), <<"non-existent-room">>)),
 %        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], escalus:wait_for_stanza(Bob))
 %    end).
-%
-%stanza_reserved_nickname_request() ->
-%     escalus_stanza:iq(<<"get">>, [#xmlel{
-%        name = <<"query">>,
-%        attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/disco#info">>}, {<<"node">>, <<"x-roomuser-item">>}],
-%        children = []
-%     }]).
 %
 %%Example 77-78
 %%Not implemented - the 'node' element is ignored
