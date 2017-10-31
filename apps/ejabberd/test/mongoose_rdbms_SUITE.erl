@@ -66,7 +66,6 @@ init_per_testcase(_, Config) ->
 end_per_testcase(does_backoff_increase_to_a_point, Config) ->
     meck_unload_rand(),
     Db = ?config(db_type, Config),
-    meck_connection_error_unload(Db),
     meck_config_and_db_unload(Db),
     Config;
 end_per_testcase(_, Config) ->
@@ -164,19 +163,9 @@ meck_db(pgsql) ->
 meck_connection_error(pgsql) ->
     meck:expect(epgsql, connect, fun(_) -> connection_error end);
 meck_connection_error(odbc) ->
-    meck:delete(odbc, connect, 2),
     meck:expect(odbc, connect, fun(_, _) -> connection_error end);
 meck_connection_error(mysql) ->
-    meck:delete(mongoose_rdbms_mysql, connect, 2),
     meck:expect(mongoose_rdbms_mysql, connect, fun(_, _) -> {error, connection_error} end).
-
-meck_connection_error_unload(pgsql) ->
-    meck:unload(epgsql);
-meck_connection_error_unload(odbc) ->
-    meck:unload(odbc);
-meck_connection_error_unload(mysql) ->
-    meck:delete(mongoose_rdbms_mysql, connect, 2),
-    meck:unload(mongoose_rdbms_mysql).
 
 
 meck_error(odbc) ->
@@ -199,6 +188,7 @@ meck_config_and_db_unload(DbType) ->
 do_meck_unload(odbc) ->
     meck:unload(odbc);
 do_meck_unload(mysql) ->
+    meck:unload(mongoose_rdbms_mysql),
     meck:unload(mysql);
 do_meck_unload(pgsql) ->
     meck:unload(epgsql).
