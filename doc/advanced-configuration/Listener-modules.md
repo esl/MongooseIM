@@ -16,10 +16,10 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 
 ### Configuration
 
-* `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain.
+* `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending private key after that.
 * `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
 * `starttls_required` (default: disabled) - enforces StartTLS usage.
-* `tls` (default: disabled) - enables the old SSL connection.
+* `tls` (default: disabled) - enables the old-style SSL connection type (legacy). In this case clients must initiate a TLS session immediately after connecting, before beginning the normal XML stream
 * `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/)); the limit can be disabled with an atom 'unlimited'.
 * `ciphers` (string, default: as of OpenSSL 1.0.2 it's `ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2` [(source)](https://www.openssl.org/docs/man1.0.2/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
  Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
@@ -161,7 +161,7 @@ Interface for XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp
 ### Configuration
 
 * `access` (atom, default: `all`) - Access Rule to use for incoming component connections.
-* `password` (string) - with this password the service is protected
+* `password` (string) - the service is protected with this password
 * `shaper_rule` (atom, default: `none`) - Connection shaper to use for incoming component traffic.
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from the component
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
