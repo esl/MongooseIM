@@ -270,6 +270,34 @@ See [Database backends configuration](./advanced-configuration/database-backends
     * **Supported values:** `mssql`, `generic`
     * **Default:** `generic`
 
+#### PostgreSQL SSL connections
+
+In order to establish a secure connection with a PostgreSQL database additional options must be passed in aforementioned `odbc_server` tuple.
+Here is the proper syntax:
+
+`{odbc_server, {Type, Host, Port, DBName, Username, Password, SSL}`
+
+* **SSL**
+    * **Description:** Specifies general options for SSL connection.
+    * **Syntax:** `[SSLMode, SSLOpts]`
+
+* **SSLMode**
+    * **Description:** Specifies a mode of SSL connection. Modes express how much the PostgreSQL driver carries about security of the connections.
+    For more information click [here](https://github.com/epgsql/epgsql).
+    * **Syntax:** `{ssl, Mode}`
+    * **Supported values:** `false`, `true`, `required`
+
+* **SSLOpts**
+    * **Description:** Specifies SSL connection options.
+    * **Syntax:** `{ssl_opts, [Opt]}`
+    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
+
+##### Example configuration
+
+An example configuration can look as follows:
+
+`{odbc_server, {pgsql, "localhost", "username", "database", "pass",
+               [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}`
 
 ### Riak connection setup
 
