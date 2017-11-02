@@ -82,7 +82,7 @@ mech_step(#state{step = 3, nonce = Nonce} = State, ClientIn) ->
                 true ->
                     AuthzId = xml:get_attr_s(<<"authzid">>, KeyVals),
                     LServer = mongoose_credentials:lserver(State#state.creds),
-                    case ejabberd_auth:get_password_with_authmodule(UserName, LServer) of
+                    case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
                         {false, _} ->
                             {error, <<"not-authorized">>, UserName};
                         {Passwd, AuthModule} ->

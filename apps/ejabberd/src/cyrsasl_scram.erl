@@ -77,7 +77,7 @@ mech_step(#state{step = 2} = State, ClientIn) ->
                                 {$r, ClientNonce} ->
                                     Creds = State#state.creds,
                                     LServer = mongoose_credentials:lserver(Creds),
-                                    case ejabberd_auth:get_password_with_authmodule(UserName, LServer) of
+                                    case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
                                         {false, _} -> {error, <<"not-authorized">>, UserName};
                                         {Ret, AuthModule} ->
                                             {StoredKey, ServerKey, Salt, IterationCount} =
