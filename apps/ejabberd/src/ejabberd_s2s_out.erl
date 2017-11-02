@@ -413,7 +413,7 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                     send_event(Type, Pid, StateData),
                     NextState = wait_for_validation,
                     {next_state, NextState, StateData,
-                     get_timeout_interval(NextState)}.
+                     get_timeout_interval(NextState)}
 
             end;
         _ ->
