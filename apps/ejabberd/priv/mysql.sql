@@ -212,7 +212,8 @@ CREATE TABLE mam_message(
   search_body text,
   PRIMARY KEY (user_id, id),
   INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id)
-)  ENGINE=InnoDB
+)  CHARACTER SET utf8
+   ENGINE=InnoDB
    PARTITION BY HASH(user_id)
    PARTITIONS 32;
 -- Partition is selected based on MOD(user_id, 32)
@@ -300,4 +301,3 @@ CREATE TABLE muc_light_blocking(
 );
 
 CREATE INDEX i_muc_light_blocking USING HASH ON muc_light_blocking(luser, lserver);
-

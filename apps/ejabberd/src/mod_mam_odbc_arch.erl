@@ -257,7 +257,8 @@ prepare_message(Host, MessID, UserID, LocJID = #jid{}, RemJID = #jid{lresource =
     SSrcJID = jid_to_stored_binary(Host, LocJID, SrcJID),
     SDir = encode_direction(Dir),
     Data = packet_to_stored_binary(Host, Packet),
-    TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
+    TextBody0 = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
+    TextBody = unicode:characters_to_binary(TextBody0),
     [MessID, UserID, SBareRemJID, RemLResource, SDir, SSrcJID, Data, TextBody].
 
 -spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
@@ -757,4 +758,3 @@ db_jid_codec(Host) ->
 -spec db_message_codec(ejabberd:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
-
