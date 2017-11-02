@@ -411,7 +411,10 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                      get_timeout_interval(NextState)};
                 {Pid, _Key, _SID} ->
                     send_event(Type, Pid, StateData),
-                    get_response(StateData)
+                    NextState = wait_for_validation,
+                    {next_state, NextState, StateData,
+                     get_timeout_interval(NextState)}.
+
             end;
         _ ->
             {next_state, wait_for_validation, StateData, ?FSMTIMEOUT*3}
@@ -455,11 +458,11 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                           get_acc_with_new_sext(Attr, Els1, Acc);
                      (#xmlel{name = <<"starttls">>, attrs = Attrs1} = El1, Acc) ->
                           Attr = xml:get_attr_s(<<"xmlns">>, Attrs1),
-                          get_acc_with_new_req(Attr, El1, Acc);
+                          get_acc_with_new_tls(Attr, El1, Acc);
                      (_, Acc) ->
                           Acc
                   end, {false, false, false}, Els),
-            try_establish_conn({SASLEXT, StartTLS, StartTLSRequired, StateData});
+            handle_parsed_features({SASLEXT, StartTLS, StartTLSRequired, StateData});
         _ ->
             send_text(StateData,
                       <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
@@ -1256,13 +1259,6 @@ send_event(_, Pid, StateData) ->
             StateData#state.server,
             StateData#state.myname}).
 
-get_response(StateData = #state{verify = false}) ->
-    {stop, normal, StateData};
-get_response(StateData) ->
-    NextState = wait_for_validation,
-    {next_state, NextState, StateData,
-     get_timeout_interval(NextState)}.
-
 get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->
     NewSEXT =
         lists:any(
@@ -1278,13 +1274,13 @@ get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->
 get_acc_with_new_sext(_, _, Acc) ->
     Acc.
 
-get_acc_with_new_req(?NS_TLS, El1, {SEXT, _STLS, _STLSReq}) ->
+get_acc_with_new_tls(?NS_TLS, El1, {SEXT, _STLS, _STLSReq}) ->
     Req = case xml:get_subtag(El1, <<"required">>) of
               #xmlel{} -> true;
               false -> false
           end,
     {SEXT, true, Req};
-get_acc_with_new_req(_, _, Acc) ->
+get_acc_with_new_tls(_, _, Acc) ->
     Acc.
 
 get_tls_opts_with_certfile(StateData) ->
@@ -1321,7 +1317,7 @@ remove_addr_index(List) ->
               {Host, Port}
       end, List).
 
-try_establish_conn({false, false, _, StateData = #state{authenticated = true}}) ->
+handle_parsed_features({false, false, _, StateData = #state{authenticated = true}}) ->
     send_queue(StateData, StateData#state.queue),
     ?INFO_MSG("Connection established: ~s -> ~s",
               [StateData#state.myname, StateData#state.server]),
@@ -1330,7 +1326,7 @@ try_establish_conn({false, false, _, StateData = #state{authenticated = true}}) 
                         StateData#state.server]),
     {next_state, stream_established,
      StateData#state{queue = queue:new()}};
-try_establish_conn({true, _, _, StateData = #state{try_auth = true, new = New}}) when
+handle_parsed_features({true, _, _, StateData = #state{try_auth = true, new = New}}) when
     New /= false ->
     send_element(StateData,
                  #xmlel{name = <<"auth">>,
@@ -1341,22 +1337,22 @@ try_establish_conn({true, _, _, StateData = #state{try_auth = true, new = New}})
                                                    StateData#state.myname)}]}),
     {next_state, wait_for_auth_result,
      StateData#state{try_auth = false}, ?FSMTIMEOUT};
-try_establish_conn({_, true, _, StateData = #state{tls = true, tls_enabled = false}}) ->
+handle_parsed_features({_, true, _, StateData = #state{tls = true, tls_enabled = false}}) ->
     send_element(StateData,
                  #xmlel{name = <<"starttls">>,
                         attrs = [{<<"xmlns">>, ?NS_TLS}]}),
     {next_state, wait_for_starttls_proceed, StateData,
      ?FSMTIMEOUT};
-try_establish_conn({_, _, true, StateData = #state{tls = false}}) ->
+handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->
     ?DEBUG("restarted: ~p", [{StateData#state.myname,
                               StateData#state.server}]),
     ejabberd_socket:close(StateData#state.socket),
     {next_state, reopen_socket,
      StateData#state{socket = undefined,
                      use_v10 = false}, ?FSMTIMEOUT};
-try_establish_conn({_, _, _, StateData = #state{db_enabled = true}}) ->
+handle_parsed_features({_, _, _, StateData = #state{db_enabled = true}}) ->
     send_db_request(StateData);
-try_establish_conn({_, _, _, StateData}) ->
+handle_parsed_features({_, _, _, StateData}) ->
     ?DEBUG("restarted: ~p", [{StateData#state.myname,
                               StateData#state.server}]),
     % TODO: clear message queue

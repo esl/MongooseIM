@@ -195,9 +195,9 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             SASL =
                 case StateData#state.tls_enabled of
                     true ->
-                        get_sasl(StateData#state.sockmod,
-                                 StateData#state.socket,
-                                 StateData#state.tls_certverify);
+                        verify_cert_and_get_sasl(StateData#state.sockmod,
+                                                 StateData#state.socket,
+                                                 StateData#state.tls_certverify);
                     _Else ->
                         []
                 end,
@@ -647,7 +647,7 @@ get_cert_domains(Cert) ->
               case 'OTP-PUB-KEY':decode('X520CommonName', Val) of
                   {ok, {_, D1}} ->
                       D = convert_decoded_cn(D1),
-                      get_ld_from_decoded_cn(D);
+                      get_lserver_from_decoded_cn(D);
                   _ ->
                       []
               end;
@@ -699,7 +699,7 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
             false
     end.
 
-get_sasl(SockMod, Socket, TLSCertverify) ->
+verify_cert_and_get_sasl(SockMod, Socket, TLSCertverify) ->
     case SockMod:get_peer_certificate(Socket) of
         {ok, Cert} ->
             case SockMod:get_verify_result(Socket) of
@@ -770,9 +770,9 @@ convert_decoded_cn(Val) when is_binary(Val) ->
 convert_decoded_cn(_) ->
     error.
 
-get_ld_from_decoded_cn(error) ->
+get_lserver_from_decoded_cn(error) ->
     [];
-get_ld_from_decoded_cn(D) ->
+get_lserver_from_decoded_cn(D) ->
     case jid:from_binary(D) of
         #jid{luser = <<"">>,
              lserver = LD,
@@ -789,17 +789,17 @@ get_lserver_from_decoded_extnval({ok, SANs}) ->
                           value = XmppAddr
                          }}) ->
               D = 'XmppAddr':decode('XmppAddr', XmppAddr),
-              get_pcld_from_decoded_xmpp_addr(D);
+              get_idna_lserver_from_decoded_xmpp_addr(D);
          ({dNSName, D}) when is_list(D) ->
               JID = jid:from_binary(list_to_binary(D)),
-              get_ld_from_jid(JID);
+              get_lserver_from_jid(JID);
          (_) ->
               []
       end, SANs);
 get_lserver_from_decoded_extnval(_) ->
     [].
 
-get_pcld_from_decoded_xmpp_addr({ok, D}) when is_binary(D) ->
+get_idna_lserver_from_decoded_xmpp_addr({ok, D}) when is_binary(D) ->
     case jid:from_binary(D) of
         #jid{luser = <<"">>,
              lserver = LD,
@@ -813,14 +813,14 @@ get_pcld_from_decoded_xmpp_addr({ok, D}) when is_binary(D) ->
         _ ->
             []
     end;
-get_pcld_from_decoded_xmpp_addr(_) ->
+get_idna_lserver_from_decoded_xmpp_addr(_) ->
     [].
 
-get_ld_from_jid(#jid{luser = <<"">>,
+get_lserver_from_jid(#jid{luser = <<"">>,
                      lserver = LD,
                      lresource = <<"">>}) ->
     [LD];
-get_ld_from_jid(_) ->
+get_lserver_from_jid(_) ->
     [].
 
 convert_extnval_to_bin(Val) when is_list(Val) ->
