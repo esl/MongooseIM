@@ -366,7 +366,6 @@ is_fresh_enough(TimeStampLast, CacheTime) ->
 
 %% @doc Code copied from mod_configure.erl
 %% Code copied from web/ejabberd_web_admin.erl
-%% TODO: Update time format to XEP-0202: Entity Time
 -spec get_last_access(User :: ejabberd:user(),
                       Server :: ejabberd:server()
                       ) -> online | never | mod_last_required | integer().
