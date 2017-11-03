@@ -90,7 +90,7 @@
 ## Integration with other platform components
 
 ### MongoosePUSH
-MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush). For more details visit the push notification [user guide](user-guide/Push-notifications.md).
+MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush). For more details visit the push notification [user guide](Push-notifications.md).
 
 ### MongooseICE
-You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE). To get started, we recommend going through [this tutorial](user-guide/ICE_tutorial.md).
+You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE). To get started, we recommend going through [this tutorial](ICE_tutorial.md).

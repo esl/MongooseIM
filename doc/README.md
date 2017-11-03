@@ -107,7 +107,7 @@ The MongooseIM platform documentation:
     * [Build MongooseIM from source code](user-guide/How-to-build.md)
     * [Set up MongoosePush](user-guide/Push-notifications.md)
     * [Set up MongooseICE](user-guide/ICE_tutorial.md)
-    * [Build an iOS messaging app](doc/user-guide/iOS_tutorial.md)
+    * [Build an iOS messaging app](user-guide/iOS_tutorial.md)
 * Platform:
     * [Roadmap](Roadmap.md)
     * [Contributions to the ecosystem](Contributions.md)
