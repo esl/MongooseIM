@@ -69,6 +69,16 @@ execute(Connection, StatementRef, Params, _Timeout) ->
 db_opts({mysql, Server, DB, User, Pass}) ->
     db_opts({mysql, Server, ?MYSQL_PORT, DB, User, Pass});
 db_opts({mysql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
+    get_db_basic_opts({Server, Port, DB, User, Pass});
+db_opts({mysql, Server, DB, User, Pass, SSLConnOpts}) ->
+    db_opts({mysql, Server, ?MYSQL_PORT, DB, User, Pass, SSLConnOpts});
+db_opts({mysql, Server, Port, DB, User, Pass, SSLConnOpts})
+  when is_integer(Port) ->
+    DBBasicOpts = get_db_basic_opts({Server, Port, DB, User, Pass}),
+    extend_db_opts_with_ssl(DBBasicOpts, SSLConnOpts).
+
+-spec get_db_basic_opts(Settings :: term()) -> [term()].
+get_db_basic_opts({Server, Port, DB, User, Pass}) ->
     [
      {host, Server},
      {port, Port},
@@ -77,6 +87,10 @@ db_opts({mysql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
      {database, DB},
      {found_rows, true}
     ].
+
+-spec extend_db_opts_with_ssl(Opts :: [term()], SSLConnOpts :: [term()]) -> [term()].
+extend_db_opts_with_ssl(Opts, SSLConnOpts) ->
+    Opts ++ [{ssl, SSLConnOpts}].
 
 %% @doc Convert MySQL query result to Erlang ODBC result formalism
 -spec mysql_to_odbc(mysql:query_result(), Conn :: term()) -> mongoose_rdbms:query_result().
