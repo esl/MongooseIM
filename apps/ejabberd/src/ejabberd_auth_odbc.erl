@@ -223,7 +223,7 @@ get_vh_registered_users_number(LServer, Opts) ->
     end.
 
 
--spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passwordlike() | false.
+-spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
     Username = mongoose_rdbms:escape(LUser),
     case catch rdbms_queries:get_password(LServer, Username) of

@@ -44,7 +44,7 @@
          get_vh_registered_users_number/2,
          get_password/2,
          get_password_s/2,
-         get_password_with_authmodule/2,
+         get_passterm_with_authmodule/2,
          is_user_exists/2,
          is_user_exists_in_other_modules/3,
          remove_user/2,
@@ -64,11 +64,10 @@
 -include("ejabberd.hrl").
 
 -export_type([authmodule/0,
-              passwordlike/0]).
+              passterm/0]).
 
 -type authmodule() :: module().
-%% TODO: TBH this name smells.
--type passwordlike() :: binary() | scram:scram_tuple().
+-type passterm() :: binary() | scram:scram_tuple().
 
 -define(METRIC(Name), [backends, auth, Name]).
 
@@ -428,18 +427,18 @@ do_get_password_s(LUser, LServer) ->
         end, <<"">>, auth_modules(LServer)).
 
 %% @doc Get the password(like thing) of the user and the auth module.
--spec get_password_with_authmodule(ejabberd:user(), ejabberd:server()) -> R when
-      R :: {passwordlike(), authmodule()}
+-spec get_passterm_with_authmodule(ejabberd:user(), ejabberd:server()) -> R when
+      R :: {passterm(), authmodule()}
          | {'false', 'none'}.
-get_password_with_authmodule(User, Server) ->
+get_passterm_with_authmodule(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    do_get_password_with_authmodule(LUser, LServer).
+    do_get_passterm_with_authmodule(LUser, LServer).
 
-do_get_password_with_authmodule(LUser, LServer)
+do_get_passterm_with_authmodule(LUser, LServer)
     when LUser =:= error; LServer =:= error ->
     {false, none};
-do_get_password_with_authmodule(LUser, LServer) ->
+do_get_passterm_with_authmodule(LUser, LServer) ->
     lists:foldl(
         fun(M, {false, _}) ->
             {M:get_password(LUser, LServer), M};
