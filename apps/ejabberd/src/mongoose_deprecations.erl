@@ -22,7 +22,7 @@
 -define(DEPRECATION_TAB, deprecations).         % ETS table name
 -define(DEFAULT_COOLDOWN_HOURS, 6).             % default cooldown time
 
--type deprecation_tag() :: atom().
+-type deprecation_tag() :: atom().              % Specifies the deprecation
 -type log_level() :: warning | error.
 -type unix_timestamp() :: mod_mam:unix_timestamp().
 
@@ -31,16 +31,22 @@
 %%% Public API
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% @doc Should be called before using the module. Sets everything
+%% needed up
 -spec start() -> ok.
 start() ->
     prepare_ets(),
     ok.
 
+%% @doc Used after using the module, when we won't log deprecation
+%% messages again.
 -spec stop() -> ok.
 stop() ->
     destroy_ets(),
     ok.
 
+%% @doc Should be used to log deprecation messages. It logs
+%% keeping proper frequency.
 -spec log(deprecation_tag(), string()) -> ok.
 log(Tag, Msg) ->
     maybe_log(Tag, Msg, error).
