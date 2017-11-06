@@ -48,8 +48,6 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include_lib("public_key/include/public_key.hrl").
--define(PKIXEXPLICIT, 'OTP-PUB-KEY').
--define(PKIXIMPLICIT, 'OTP-PUB-KEY').
 -include("XmppAddr.hrl").
 
 -record(state, {socket,
@@ -74,6 +72,7 @@
 -type fsm_return() :: {'stop', Reason :: 'normal', state()}
                     | {'next_state', statename(), state()}
                     | {'next_state', statename(), state(), Timeout :: integer()}.
+-type certificate() :: #'Certificate'{}.
 %-define(DBGFSM, true).
 
 -ifdef(DBGFSM).
@@ -150,16 +149,8 @@ init([{SockMod, Socket}, Opts]) ->
                  {value, {_, S}} -> S;
                  _ -> none
              end,
-    {StartTLS, TLSRequired, TLSCertverify} = case ejabberd_config:get_local_option(s2s_use_starttls) of
-             UseTls when (UseTls==undefined) or (UseTls==false) ->
-                 {false, false, false};
-             UseTls when (UseTls==true) or (UseTls==optional) ->
-                 {true, false, false};
-             required ->
-                 {true, true, false};
-             required_trusted ->
-                 {true, true, true}
-         end,
+    UseTLS = ejabberd_config:get_local_option(s2s_use_starttls),
+    {StartTLS, TLSRequired, TLSCertverify} = get_tls_params(UseTLS),
     TLSOpts1 = case ejabberd_config:get_local_option(s2s_certfile) of
                   undefined ->
                       [];
@@ -202,40 +193,15 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
               StateData#state.tls and (not StateData#state.authenticated) ->
             send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
             SASL =
-                if
-                    StateData#state.tls_enabled ->
-                        case (StateData#state.sockmod):get_peer_certificate(
-                               StateData#state.socket) of
-                            {ok, Cert} ->
-                                case (StateData#state.sockmod):get_verify_result(StateData#state.socket) of
-                                    0 ->
-                                        [#xmlel{name = <<"mechanisms">>,
-                                                attrs = [{<<"xmlns">>, ?NS_SASL}],
-                                                children = [#xmlel{name = <<"mechanism">>,
-                                                                   children = [#xmlcdata{content = <<"EXTERNAL">>}]}]}];
-                                    CertVerifyRes ->
-                                        case StateData#state.tls_certverify of
-                                            true -> {error_cert_verif, CertVerifyRes, Cert};
-                                            false -> []
-                                        end
-                                end;
-                            error ->
-                                []
-                        end;
+                case StateData#state.tls_enabled of
                     true ->
+                        verify_cert_and_get_sasl(StateData#state.sockmod,
+                                                 StateData#state.socket,
+                                                 StateData#state.tls_certverify);
+                    _Else ->
                         []
                 end,
-            StartTLS = if
-                           StateData#state.tls_enabled ->
-                               [];
-                           (not StateData#state.tls_enabled) and (not StateData#state.tls_required) ->
-                              [#xmlel{name = <<"starttls">>,
-                                      attrs = [{<<"xmlns">>, ?NS_TLS}]}];
-                           (not StateData#state.tls_enabled) and StateData#state.tls_required ->
-                              [#xmlel{name = <<"starttls">>,
-                                      attrs = [{<<"xmlns">>, ?NS_TLS}],
-                                      children = [#xmlel{name = <<"required">>}]}]
-                       end,
+            StartTLS = get_tls_xmlel(StateData),
             case SASL of
                 {error_cert_verif, CertVerifyResult, Certificate} ->
                     CertError = fast_tls:get_cert_verify_string(CertVerifyResult, Certificate),
@@ -279,7 +245,8 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?STREAM_HEADER(<<"">>))/binary, (?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(?STREAM_HEADER(<<"">>))/binary, (?INVALID_XML_ERR)/binary,
+                (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
@@ -328,53 +295,11 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                 <<"EXTERNAL">> ->
                     Auth = jlib:decode_base64(xml:get_cdata(Els)),
                     AuthDomain = jid:nameprep(Auth),
-                    AuthRes =
-                        case (StateData#state.sockmod):get_peer_certificate(
-                               StateData#state.socket) of
-                            {ok, Cert} ->
-                                case (StateData#state.sockmod):get_verify_result(
-                                       StateData#state.socket) of
-                                    0 ->
-                                        case AuthDomain of
-                                            error ->
-                                                false;
-                                            _ ->
-                                                case ejabberd_s2s:domain_utf8_to_ascii(AuthDomain) of
-                                                    false ->
-                                                        false;
-                                                    PCAuthDomain ->
-                                                        lists:any(
-                                                          fun(D) ->
-                                                                  match_domain(
-                                                                    PCAuthDomain, D)
-                                                          end, get_cert_domains(Cert))
-                                                end
-                                        end;
-                                    _ ->
-                                        false
-                                end;
-                            error ->
-                                false
-                        end,
-                    if
-                        AuthRes ->
-                            send_element(StateData,
-                                          #xmlel{name = <<"success">>,
-                                                 attrs = [{<<"xmlns">>, ?NS_SASL}]}),
-                             ?DEBUG("(~w) Accepted s2s authentication for ~s",
-                                       [StateData#state.socket, AuthDomain]),
-                             {next_state, wait_for_stream,
-                              StateData#state{streamid = new_id(),
-                                              authenticated = true,
-                                              auth_domain = AuthDomain
-                                             }};
-                        true ->
-                            send_element(StateData,
-                                         #xmlel{name = <<"failure">>,
-                                                attrs = [{<<"xmlns">>, ?NS_SASL}]}),
-                            send_text(StateData, ?STREAM_TRAILER),
-                            {stop, normal, StateData}
-                    end;
+                    CertData = (StateData#state.sockmod):get_peer_certificate(
+                                 StateData#state.socket),
+                    AuthRes = get_auth_res(CertData, AuthDomain,
+                                                    StateData),
+                    handle_auth_res(AuthRes, AuthDomain, StateData);
                 _ ->
                     send_element(StateData,
                                  #xmlel{name = <<"failure">>,
@@ -710,7 +635,7 @@ is_key_packet(_) ->
     false.
 
 
--spec get_cert_domains(#'Certificate'{}) ->  [any()].
+-spec get_cert_domains(certificate()) ->  [any()].
 get_cert_domains(Cert) ->
     {rdnSequence, Subject} =
         (Cert#'Certificate'.tbsCertificate)#'TBSCertificate'.subject,
@@ -719,26 +644,10 @@ get_cert_domains(Cert) ->
     lists:flatmap(
       fun(#'AttributeTypeAndValue'{type = ?'id-at-commonName',
                                    value = Val}) ->
-              case ?PKIXEXPLICIT:decode('X520CommonName', Val) of
+              case 'OTP-PUB-KEY':decode('X520CommonName', Val) of
                   {ok, {_, D1}} ->
-                      D = if
-                              is_list(D1) -> list_to_binary(D1);
-                              is_binary(D1) -> D1;
-                              true -> error
-                          end,
-                      if
-                          D /= error ->
-                              case jid:from_binary(D) of
-                                  #jid{luser = <<"">>,
-                                       lserver = LD,
-                                       lresource = <<"">>} ->
-                                      [LD];
-                                  _ ->
-                                      []
-                              end;
-                          true ->
-                              []
-                      end;
+                      D = convert_decoded_cn(D1),
+                      get_lserver_from_decoded_cn(D);
                   _ ->
                       []
               end;
@@ -748,52 +657,9 @@ get_cert_domains(Cert) ->
         lists:flatmap(
           fun(#'Extension'{extnID = ?'id-ce-subjectAltName',
                            extnValue = Val}) ->
-                  BVal = if
-                             is_list(Val) -> list_to_binary(Val);
-                             is_binary(Val) -> Val;
-                             true -> Val
-                         end,
-                  case ?PKIXIMPLICIT:decode('SubjectAltName', BVal) of
-                      {ok, SANs} ->
-                          lists:flatmap(
-                            fun({otherName,
-                                 #'AnotherName'{'type-id' = ?'id-on-xmppAddr',
-                                                value = XmppAddr
-                                               }}) ->
-                                    case 'XmppAddr':decode(
-                                           'XmppAddr', XmppAddr) of
-                                        {ok, D} when is_binary(D) ->
-                                            case jid:from_binary(D) of
-                                                #jid{luser = <<"">>,
-                                                     lserver = LD,
-                                                     lresource = <<"">>} ->
-                                                    case ejabberd_s2s:domain_utf8_to_ascii(LD) of
-                                                        false ->
-                                                            [];
-                                                        PCLD ->
-                                                            [PCLD]
-                                                    end;
-                                                _ ->
-                                                    []
-                                            end;
-                                        _ ->
-                                            []
-                                    end;
-                               ({dNSName, D}) when is_list(D) ->
-                                    case jid:from_binary(list_to_binary(D)) of
-                                        #jid{luser = <<"">>,
-                                             lserver = LD,
-                                             lresource = <<"">>} ->
-                                            [LD];
-                                        _ ->
-                                            []
-                                    end;
-                               (_) ->
-                                    []
-                            end, SANs);
-                      _ ->
-                          []
-                  end;
+                  BVal = convert_extnval_to_bin(Val),
+                  DSAN = 'OTP-PUB-KEY':decode('SubjectAltName', BVal),
+                  get_lserver_from_decoded_extnval(DSAN);
              (_) ->
                   []
           end, Extensions).
@@ -832,3 +698,155 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
         false ->
             false
     end.
+
+verify_cert_and_get_sasl(SockMod, Socket, TLSCertverify) ->
+    case SockMod:get_peer_certificate(Socket) of
+        {ok, Cert} ->
+            case SockMod:get_verify_result(Socket) of
+                0 ->
+                    [#xmlel{name = <<"mechanisms">>,
+                            attrs = [{<<"xmlns">>, ?NS_SASL}],
+                            children = [#xmlel{name = <<"mechanism">>,
+                                               children = [#xmlcdata{content = <<"EXTERNAL">>}]}]}];
+                CertVerifyRes ->
+                    check_sasl_tls_certveify(TLSCertverify, CertVerifyRes, Cert)
+            end;
+        error ->
+            []
+    end.
+
+check_sasl_tls_certveify(true, CertVerifyRes, Cert) ->
+    {error_cert_verif, CertVerifyRes, Cert};
+check_sasl_tls_certveify(false, _, _) ->
+    [].
+
+get_auth_res({ok, Cert}, AuthDomain, StateData) ->
+    case (StateData#state.sockmod):get_verify_result(
+           StateData#state.socket) of
+        0 ->
+            check_auth_domain(AuthDomain, Cert);
+        _ ->
+            false
+    end;
+get_auth_res(_, _, _) ->
+    false.
+
+check_auth_domain(error, _) ->
+    false;
+check_auth_domain(AuthDomain, Cert) ->
+    case ejabberd_s2s:domain_utf8_to_ascii(AuthDomain) of
+        false ->
+            false;
+        PCAuthDomain ->
+            lists:any(
+              fun(D) ->
+                      match_domain(
+                        PCAuthDomain, D)
+              end, get_cert_domains(Cert))
+    end.
+
+handle_auth_res(true, AuthDomain, StateData) ->
+    send_element(StateData,
+                 #xmlel{name = <<"success">>,
+                        attrs = [{<<"xmlns">>, ?NS_SASL}]}),
+    ?DEBUG("(~w) Accepted s2s authentication for ~s",
+           [StateData#state.socket, AuthDomain]),
+    {next_state, wait_for_stream,
+     StateData#state{streamid = new_id(),
+                     authenticated = true,
+                     auth_domain = AuthDomain
+                    }};
+handle_auth_res(_, _, StateData) ->
+    send_element(StateData,
+                 #xmlel{name = <<"failure">>,
+                        attrs = [{<<"xmlns">>, ?NS_SASL}]}),
+    send_text(StateData, ?STREAM_TRAILER),
+    {stop, normal, StateData}.
+
+convert_decoded_cn(Val) when is_list(Val) ->
+    list_to_binary(Val);
+convert_decoded_cn(Val) when is_binary(Val) ->
+    Val;
+convert_decoded_cn(_) ->
+    error.
+
+get_lserver_from_decoded_cn(error) ->
+    [];
+get_lserver_from_decoded_cn(D) ->
+    case jid:from_binary(D) of
+        #jid{luser = <<"">>,
+             lserver = LD,
+             lresource = <<"">>} ->
+            [LD];
+        _ ->
+            []
+    end.
+
+get_lserver_from_decoded_extnval({ok, SANs}) ->
+    lists:flatmap(
+      fun({otherName,
+           #'AnotherName'{'type-id' = ?'id-on-xmppAddr',
+                          value = XmppAddr
+                         }}) ->
+              D = 'XmppAddr':decode('XmppAddr', XmppAddr),
+              get_idna_lserver_from_decoded_xmpp_addr(D);
+         ({dNSName, D}) when is_list(D) ->
+              JID = jid:from_binary(list_to_binary(D)),
+              get_lserver_from_jid(JID);
+         (_) ->
+              []
+      end, SANs);
+get_lserver_from_decoded_extnval(_) ->
+    [].
+
+get_idna_lserver_from_decoded_xmpp_addr({ok, D}) when is_binary(D) ->
+    case jid:from_binary(D) of
+        #jid{luser = <<"">>,
+             lserver = LD,
+             lresource = <<"">>} ->
+            case ejabberd_s2s:domain_utf8_to_ascii(LD) of
+                false ->
+                    [];
+                PCLD ->
+                    [PCLD]
+            end;
+        _ ->
+            []
+    end;
+get_idna_lserver_from_decoded_xmpp_addr(_) ->
+    [].
+
+get_lserver_from_jid(#jid{luser = <<"">>,
+                     lserver = LD,
+                     lresource = <<"">>}) ->
+    [LD];
+get_lserver_from_jid(_) ->
+    [].
+
+convert_extnval_to_bin(Val) when is_list(Val) ->
+    list_to_binary(Val);
+convert_extnval_to_bin(Val) ->
+    Val.
+
+get_tls_params(undefined) ->
+    {false, false, false};
+get_tls_params(false) ->
+    {false, false, false};
+get_tls_params(true) ->
+    {true, false, false};
+get_tls_params(optional) ->
+    {true, false, false};
+get_tls_params(required) ->
+    {true, true, false};
+get_tls_params(required_trusted) ->
+    {true, true, true}.
+
+get_tls_xmlel(#state{tls_enabled = true}) ->
+    [];
+get_tls_xmlel(#state{tls_enabled = false, tls_required = false}) ->
+    [#xmlel{name = <<"starttls">>,
+            attrs = [{<<"xmlns">>, ?NS_TLS}]}];
+get_tls_xmlel(#state{tls_enabled = false, tls_required = true}) ->
+    [#xmlel{name = <<"starttls">>,
+            attrs = [{<<"xmlns">>, ?NS_TLS}],
+            children = [#xmlel{name = <<"required">>}]}].
