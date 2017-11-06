@@ -10,7 +10,9 @@ SQLDIR=${BASE}/apps/ejabberd/priv
 
 PGSQL_CONF_DIR=${BASE}/${TOOLS}/db_configs/postgres
 
-PGSQL_TEMP_DIR=/tmp/pgsql
+SQL_TEMP_DIR=/tmp/sql
+
+MYSQL_CONF_DIR=/etc/mysql/conf.d
 
 PGSQL_ODBC_CERT_DIR=~/.postgresql
 
@@ -21,27 +23,34 @@ SSLDIR=${BASE}/${TOOLS}/ssl
 if [ $DB = 'mysql' ]; then
     echo "Configuring mysql"
     sudo service mysql stop || echo "Failed to stop mysql"
+    mkdir ${SQL_TEMP_DIR}
+    cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
+    openssl rsa -in ${SSLDIR}/fake_key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
     docker run -d \
+        -e SQL_TEMP_DIR=${SQL_TEMP_DIR} \
         -e MYSQL_ROOT_PASSWORD=secret \
         -e MYSQL_DATABASE=ejabberd \
         -e MYSQL_USER=ejabberd \
         -e MYSQL_PASSWORD=$TRAVIS_DB_PASSWORD \
+        -v ${SQLDIR}/mysql.cnf:${MYSQL_CONF_DIR}/mysql.cnf:ro \
         -v ${SQLDIR}/mysql.sql:/docker-entrypoint-initdb.d/mysql.sql:ro \
+        -v ${BASE}/${TOOLS}/docker-setup-mysql.sh:/docker-entrypoint-initdb.d/docker-setup-mysql.sh \
+        -v ${SQL_TEMP_DIR}:${SQL_TEMP_DIR} \
         -p 3306:3306 --name=mongooseim-mysql mysql
 
 elif [ $DB = 'pgsql' ]; then
     echo "Configuring postgres with SSL"
     sudo service postgresql stop || echo "Failed to stop psql"
-    mkdir ${PGSQL_TEMP_DIR}
-    cp ${SSLDIR}/fake_cert.pem ${PGSQL_TEMP_DIR}/.
-    cp ${SSLDIR}/fake_key.pem ${PGSQL_TEMP_DIR}/.
-    cp ${PGSQL_CONF_DIR}/postgresql.conf ${PGSQL_TEMP_DIR}/.
-    cp ${PGSQL_CONF_DIR}/pg_hba.conf ${PGSQL_TEMP_DIR}/.
-    cp ${SQLDIR}/pg.sql ${PGSQL_TEMP_DIR}/.
+    mkdir ${SQL_TEMP_DIR}
+    cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
+    cp ${SSLDIR}/fake_key.pem ${SQL_TEMP_DIR}/.
+    cp ${PGSQL_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
+    cp ${PGSQL_CONF_DIR}/pg_hba.conf ${SQL_TEMP_DIR}/.
+    cp ${SQLDIR}/pg.sql ${SQL_TEMP_DIR}/.
     docker run -d \
-           -e PGSQL_TEMP_DIR=${PGSQL_TEMP_DIR} \
+           -e SQL_TEMP_DIR=${SQL_TEMP_DIR} \
            -e TRAVIS_DB_PASSWORD=${TRAVIS_DB_PASSWORD} \
-           -v ${PGSQL_TEMP_DIR}:${PGSQL_TEMP_DIR} \
+           -v ${SQL_TEMP_DIR}:${SQL_TEMP_DIR} \
            -v ${BASE}/${TOOLS}/docker-setup-postgres.sh:/docker-entrypoint-initdb.d/docker-setup-postgres.sh \
            -p 5432:5432 --name=mongooseim-pgsql postgres
     mkdir ${PGSQL_ODBC_CERT_DIR} || echo "PGSQL odbc cert dir already exists"
