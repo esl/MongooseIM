@@ -19,7 +19,6 @@
 
 -include("ejabberd.hrl").
 
--define(DEPRECATIONS, [mam02]).                 % List of deprecation tags
 -define(DEPRECATION_TAB, deprecations).         % ETS table name
 -define(DEFAULT_COOLDOWN_HOURS, 6).             % default cooldown time
 
@@ -56,20 +55,14 @@ log(Tag, Msg, Lvl) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-%% @doc In `deprecation` table there will be tags
-%% as keys (indicating certain deprecation) and as
-%% values:
-%%      * 'not_logged' - this deprecation has not been
-%%                       logged yet
-%%      * unix_timestamp - timestamp of last logged
-%%                         deprecation message
+%% @doc Deprecation table will hold pairs in form:
+%%      {deprecation_tag(), unix_timestamp()}
+%% and will indicate at what (unix) time last deprecation
+%% warining was logged concerning a deprecation connected to
+%% the deprecation tag specified in a key
 -spec prepare_ets() -> ok.
 prepare_ets() ->
     ets:new(?DEPRECATION_TAB, [{read_concurrency, true}, named_table, public]),
-    lists:foreach(fun(Tag) ->
-                        ets:insert(?DEPRECATION_TAB, {Tag, not_logged})
-                  end,
-                  ?DEPRECATIONS),
     ok.
 
 -spec destroy_ets() -> ok.
@@ -79,7 +72,12 @@ destroy_ets() ->
 
 -spec maybe_log(deprecation_tag(), string(), log_level()) -> ok.
 maybe_log(Tag, Msg, Lvl) ->
-    [{Tag, Timestamp}] = ets:lookup(?DEPRECATION_TAB, Tag),
+    Timestamp = case ets:lookup(?DEPRECATION_TAB, Tag) of
+                             [] ->
+                               not_logged;
+                             [{Tag, LastLogged}] ->
+                                 LastLogged
+                         end,
     case did_cooldown_elapse(Timestamp) of
         true ->
             log_lvl(Msg, Lvl),
