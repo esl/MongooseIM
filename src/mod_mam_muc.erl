@@ -163,7 +163,9 @@ start(Host, Opts) ->
     case gen_mod:get_opt(add_archived_element, Opts, undefined) of
         undefined -> ok;
         _ ->
-            mongoose_deprecations:log(mam02_archived)
+            mongoose_deprecations:log(mam02, "<archived/> element is going to be removed in release 3.0.0"
+                                             " It is not recommended to use it."
+                                             " Consider using a <stanza-id/> element instead")
     end,
     compile_params_module(Opts),
     %% MUC host.

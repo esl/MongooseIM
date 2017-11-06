@@ -8,77 +8,82 @@
 %% and stopping stuff needed to handle different deprecation
 %% warinings as well as for exposing API for loging these
 %% deprecations.
+%% It checks whether a specific deprecation warning is not exceeding
+%% given frequency of logging.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(mongoose_deprecations).
 -author("dominik.stanaszek@erlang-solutions.com").
 
--export([start/0, stop/0, log/1, log/2]).
+-export([start/0, stop/0, log/2, log/3]).
 
 -include("ejabberd.hrl").
 
--type deprecation() :: atom().
+-define(DEPRECATIONS, [mam02]).                 % List of deprecation tags
+-define(DEPRECATION_TAB, deprecations).         % ETS table name
+-define(DEFAULT_COOLDOWN_HOURS, 6).             % default cooldown time
+
+-type deprecation_tag() :: atom().
 -type log_level() :: warning | error.
+-type unix_timestamp() :: mod_mam:unix_timestamp().
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Public API
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -spec start() -> ok.
 start() ->
-    start_mam02_reminder(),
+    prepare_ets(),
     ok.
 
 -spec stop() -> ok.
 stop() ->
-    stop_mam02_reminder(),
+    destroy_ets(),
     ok.
 
-%% @doc Performs a log specific for a deprecation
-%% which is passed as an atom.
-%% It can also log a custom string.
-%% Logs as ERROR message.
--spec log(deprecation() | string()) -> ok.
-log(mam02_archived) ->
-    maybe_log_mamv02_deprecation_error();
-log(DeprMsg) ->
-    log(DeprMsg, error).
+-spec log(deprecation_tag(), string()) -> ok.
+log(Tag, Msg) ->
+    maybe_log(Tag, Msg, error).
 
-%% @doc The same as `log/1` but you can specify
-%% a log level on the second argument.
-%% It's either `error` or `warining`.
--spec log(string(), log_level()) -> ok.
-log(DeprMsg, error) ->
-    ?ERROR_MSG(DeprMsg, []);
-log(DeprMsg, warning) ->
-    ?WARNING_MSG(DeprMsg, []).
+-spec log(deprecation_tag(), string(), log_level()) -> ok.
+log(Tag, Msg, Lvl) ->
+    maybe_log(Tag, Msg, Lvl).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%% MAM v0.2 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% @doc These functions handle a system of reminding that mam v0.2
-%% element `</archived>` is going to be deprecated. Logs each time
-%% this element is added to a stanza but not more frequently than once
-%% per some period of time.
+%%% Private functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--type unix_timestamp() :: mod_mam:unix_timestamp().
 
--define(DEPRECATION_TAB, mam_v02_deprecation).
--define(COOLDOWN_HOURS, 6).
 
--spec start_mam02_reminder() -> ok.
-start_mam02_reminder() ->
+%% @doc In `deprecation` table there will be tags
+%% as keys (indicating certain deprecation) and as
+%% values:
+%%      * 'not_logged' - this deprecation has not been
+%%                       logged yet
+%%      * unix_timestamp - timestamp of last logged
+%%                         deprecation message
+-spec prepare_ets() -> ok.
+prepare_ets() ->
     ets:new(?DEPRECATION_TAB, [{read_concurrency, true}, named_table, public]),
-    ets:insert(?DEPRECATION_TAB, {last_logged, not_logged}),
+    lists:foreach(fun(Tag) ->
+                        ets:insert(?DEPRECATION_TAB, {Tag, not_logged})
+                  end,
+                  ?DEPRECATIONS),
     ok.
 
--spec stop_mam02_reminder() -> ok.
-stop_mam02_reminder() ->
+-spec destroy_ets() -> ok.
+destroy_ets() ->
     ets:delete(?DEPRECATION_TAB),
     ok.
 
--spec maybe_log_mamv02_deprecation_error() -> ok.
-maybe_log_mamv02_deprecation_error() ->
-    [{last_logged, Timestamp}] = ets:lookup(?DEPRECATION_TAB, last_logged),
+-spec maybe_log(deprecation_tag(), string(), log_level()) -> ok.
+maybe_log(Tag, Msg, Lvl) ->
+    [{Tag, Timestamp}] = ets:lookup(?DEPRECATION_TAB, Tag),
     case did_cooldown_elapse(Timestamp) of
         true ->
-            deprecate_archived_element_message(),
-            ets:insert(?DEPRECATION_TAB, {last_logged, os:timestamp()}),
+            log_lvl(Msg, Lvl),
+            ets:insert(?DEPRECATION_TAB, {Tag, os:timestamp()}),
             ok;
         false ->
             ok
@@ -89,13 +94,16 @@ maybe_log_mamv02_deprecation_error() ->
 did_cooldown_elapse(not_logged) -> true;
 did_cooldown_elapse(LastLogged) ->
     Now = os:timestamp(),
-    timer:now_diff(Now, LastLogged) > deprecate_error_cooldown_time().
+    timer:now_diff(Now, LastLogged) > default_cooldown().
 
--spec deprecate_archived_element_message() -> ok.
-deprecate_archived_element_message() ->
-    ?ERROR_MSG("<archived/> element is going to be removed in release 3.0.0"
-               " It is not recommended to use it."
-               " Consider using a <stanza-id/> element instead", []).
+-spec default_cooldown() -> unix_timestamp().
+default_cooldown() -> ?DEFAULT_COOLDOWN_HOURS * 21600000000.
 
- -spec deprecate_error_cooldown_time() -> unix_timestamp().
- deprecate_error_cooldown_time() -> ?COOLDOWN_HOURS * 21600000000.
+
+-spec log_lvl(string(), log_level()) -> ok.
+log_lvl(Msg, error) ->
+    ?ERROR_MSG(Msg, []);
+log_lvl(Msg, warning) ->
+    ?WARNING_MSG(Msg, []).
+
+
