@@ -1,14 +1,14 @@
 # Unit tests (a.k.a. "small tests")
 
-These are test suites aimed at testing various modules and libraries standalone, without launching a MongooseIM instance.
-Very useful for developing/debugging libraries.
+These test suites are aimed at testing various modules and libraries standalone, without launching a MongooseIM instance.
+They are very useful for developing/debugging libraries.
 
-Test suites are located in `apps/ejabberd/tests/` directory.
-To run all of them, do `./rebar3 ct`; to run just a selected suite, do `./rebar3 ct SUITE=my_selected_SUITE`.
+The test suites are located in `apps/ejabberd/tests/` directory.
+To run all of them, use `./rebar3 ct`; to run just a selected suite, use `./rebar3 ct SUITE=my_selected_SUITE`.
 Rebar recompiles all the code automatically, there is no need for a separate compilation step.
 
-If you get no output, means that all tests passed and summary log is stored in ct.log.
-If anything fails the summary log is printed out on stdout.
+If all the tests pass, you wll get no output and summary log will be available in ct.log.
+If any of the tests fail the summary log is printed to stdout.
 
 Detailed test results in a nice HTML format are saved in
 ```
@@ -85,7 +85,7 @@ Start a new tmux and paste the commands.
 
 ## Step-by-step breakdown
 
-`make devrel` builds four server nodes, preconfigured for breadth of features and compatible with as many test suites as possible.
+`make devrel` builds four server nodes, preconfigured for a wide range of features covered by end-to-end tests.
 
 - `$MONGOOSEIM/_build/mim1/rel`, for most test SUITEs
 - `$MONGOOSEIM/_build/mim*/rel`, in order to test cluster-related commands;;
@@ -132,7 +132,8 @@ cd $MONGOOSEIM/test/ejabberd_tests/
 make quicktest TESTSPEC=my-feature.spec
 ```
 
-Developers usually create a per-feature (or per-project, if you're cloning away) `.spec` file and only enable the suites / test groups they want to test - this speeds up the development cycle by not testing parts of the system that are not being changed.
+To speed up the development cycle, developers usually create a `.spec` file for each feature (or each project, if you're cloning away) and only enable the suites / test groups they are working on.
+The allows testing only the parts of the system that are actually being changed.
 It's worth running `default.spec` once in a while to check for regressions.
 
 Consult the `default.spec` file to see how to run only selected tests/groups/cases.
@@ -156,11 +157,11 @@ For example, to update the code on `mim1` node all you have to do is:
 
 A similar command applies to other nodes, the important thing being rebar3's profile.
 
-When the above command finishes the code can be reloaded on the server by either reloading changed module(s) in the node's shell, e.g. `l(mongoose_riak)`, or restarting the node.
+When the above command finishes, the code can be reloaded on the server by either reloading changed module(s) in the node's shell, e.g. `l(mongoose_riak)`, or restarting the node.
 
 ### Reading test reports
 
-When finished, test engine writes detailed html reports into a directory:
+When finished, the test engine writes detailed html reports into a directory:
 
 ```
 test.disabled/ejabberd_tests/ct_report/ct_run.[gobbledygook][datetime]/
@@ -186,23 +187,23 @@ If you want to check how much of the code is covered by tests, run:
 make cover_quicktest
 ```
 
-Remember: to run this, no matter which tests you want to run, you need all mim nodes (mim1, mim2 and mim3) up and running, otherwise test will crash.
+Note: You need all the mim nodes (mim1, mim2 and mim3) up and running, even if you only run some of the tests. If any of the nodes is down, the test will crash.
 
-This command will recompile and reload code on dev nodes with coverage enabled and run test suites as defined in the spec.
+This command will recompile and reload the code on dev nodes with coverage enabled and run test suites as defined in the spec.
 Coverage statistics will be available in `test.disabled/ejabberd_tests/ct_report/cover.html` and `coverage` subdirectory.
 
 ## Advanced topics
 
 There are many more options available.
 One of them is sequentially testing a number of preset configuration - we do it every day on Travis, testing MongooseIM with various OTP versions and database backends.
-Put together, we have eight preset configuration.
+Altogether, we have eight preset configuration.
 
 If you want to dig deeper, consult `.travis.yml` and `tools/travis-test.sh`, everything we do is there.
 
 ## Load testing
 
-Apart from CI, we do also CLT (Continuous Load Testing).
-We have our own load testing infrastructure, called Tide, which is triggered after every successful test run, and gives us a feedback whether we are making MongooseIM faster or slower.
+Alongside CI, we do also CLT (Continuous Load Testing).
+We have our own load testing infrastructure, called Tide, which is triggered after every successful test run, and gives us a feedback on changes to MongooseIM performance.
 
 Test results are publicly available on the [Hello Tide!](http://tide.erlang-solutions.com/public) page.
 
