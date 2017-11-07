@@ -25,7 +25,8 @@
 
 -record(state, {
           socket :: mod_global_distrib_transport:t(),
-          host :: atom()
+          host :: atom(),
+          peer :: tuple() | unknown
          }).
 
 -export([start_link/1]).
@@ -40,16 +41,26 @@ start_link(Server) ->
     gen_server:start_link(?MODULE, Server, []).
 
 init(Server) ->
+    process_flag(trap_exit, true),
     {Addr, Port} = choose_endpoint(Server),
     MetricServer = mod_global_distrib_utils:binary_to_metric_atom(Server),
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_MESSAGES_SENT(MetricServer), spiral),
-    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_SEND_QUEUE_TIME(MetricServer), histogram),
+    mod_global_distrib_utils:ensure_metric(
+      ?GLOBAL_DISTRIB_SEND_QUEUE_TIME(MetricServer), histogram),
+    mod_global_distrib_utils:ensure_metric(
+      ?GLOBAL_DISTRIB_OUTGOING_ESTABLISHED(MetricServer), spiral),
+    mod_global_distrib_utils:ensure_metric(
+      ?GLOBAL_DISTRIB_OUTGOING_ERRORED(MetricServer), spiral),
+    mod_global_distrib_utils:ensure_metric(
+      ?GLOBAL_DISTRIB_OUTGOING_CLOSED(MetricServer), spiral),
     try
         {ok, RawSocket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
         {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, [connect | opt(tls_opts)]),
         ok = mod_global_distrib_transport:send(Socket, <<(byte_size(Server)):32, Server/binary>>),
         mod_global_distrib_transport:setopts(Socket, [{active, once}]),
-        {ok, #state{socket = Socket, host = MetricServer}}
+        mongoose_metrics:update(global, ?GLOBAL_DISTRIB_OUTGOING_ESTABLISHED(MetricServer), 1),
+        {ok, #state{socket = Socket, host = MetricServer,
+                    peer = mod_global_distrib_transport:peername(Socket)}}
     catch
         error:{badmatch, Reason} ->
             ?ERROR_MSG("Connection to ~p failed: ~p", [{Addr, Port}, Reason]),
@@ -66,8 +77,14 @@ handle_cast({data, Stamp, Data}, #state{socket = Socket, host = ToHost} = State)
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_SEND_QUEUE_TIME(ToHost), QueueTimeUS),
     ClockTime = p1_time_compat:system_time(micro_seconds),
     Annotated = <<(byte_size(Data) + 8):32, ClockTime:64, Data/binary>>,
-    ok = mod_global_distrib_transport:send(Socket, Annotated),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_SENT(ToHost), 1),
+    case mod_global_distrib_transport:send(Socket, Annotated) of
+        ok ->
+            mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_SENT(ToHost), 1);
+        Error ->
+            ?ERROR_MSG("event=cant_send_global_distrib_packet,reason='~p',packet='~p'",
+                       [Error, Data]),
+            error(Error)
+    end,
     {noreply, State}.
 
 handle_info({tcp, _Socket, RawData}, #state{socket = Socket} = State) ->
@@ -75,16 +92,23 @@ handle_info({tcp, _Socket, RawData}, #state{socket = Socket} = State) ->
     %% Feeding data to drive the TLS state machine (in case of TLS connection)
     {ok, _} = mod_global_distrib_transport:recv_data(Socket, RawData),
     {noreply, State};
-handle_info({tcp_closed, _}, #state{socket = Socket} = State) ->
-    mod_global_distrib_transport:close(Socket),
+handle_info({tcp_closed, _}, State) ->
     {stop, normal, State};
+handle_info({tcp_error, _Socket, Reason}, State) ->
+    ?ERROR_MSG("event=outgoing_global_distrib_socket_error,reason='~p',peer='~p'",
+               [Reason, State#state.peer]),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_OUTGOING_ERRORED(State#state.host), 1),
+    {stop, {error, Reason}, State};
 handle_info(_, State) ->
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-terminate(_Reason, _State) ->
+terminate(_Reason, State) ->
+    ?WARNING_MSG("event=outgoing_global_distrib_socket_closed,peer='~p'", [State#state.peer]),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_OUTGOING_CLOSED(State#state.host), 1),
+    catch mod_global_distrib_transport:close(State#state.socket),
     ignore.
 
 %%--------------------------------------------------------------------

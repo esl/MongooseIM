@@ -33,7 +33,8 @@
     socket :: mod_global_distrib_transport:t(),
     waiting_for :: header | non_neg_integer(),
     buffer = <<>> :: binary(),
-    host :: undefined | atom()
+    host :: undefined | atom(),
+    peer :: tuple() | unknown
 }).
 
 -type state() :: #state{}.
@@ -67,10 +68,14 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 init({Ref, RawSocket, _Opts}) ->
+    process_flag(trap_exit, true),
     ok = ranch:accept_ack(Ref),
     {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, opt(tls_opts)),
     ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
-    gen_server:enter_loop(?MODULE, [], #state{socket = Socket, waiting_for = header}).
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_ESTABLISHED, 1),
+    State = #state{socket = Socket, waiting_for = header,
+                   peer = mod_global_distrib_transport:peername(Socket)},
+    gen_server:enter_loop(?MODULE, [], State).
 
 %%--------------------------------------------------------------------
 %% gen_server API
@@ -81,9 +86,13 @@ handle_info({tcp, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = 
     {ok, Data} = mod_global_distrib_transport:recv_data(Socket, RawData),
     NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
     {noreply, NewState};
-handle_info({tcp_closed, _Socket}, #state{socket = Socket} = State) ->
-    mod_global_distrib_transport:close(Socket),
+handle_info({tcp_closed, _Socket}, State) ->
     {stop, normal, State};
+handle_info({tcp_error, _Socket, Reason}, State) ->
+    ?ERROR_MSG("event=incoming_global_distrib_socket_error,reason='~p',peer='~p'",
+               [Reason, State#state.peer]),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_ERRORED(State#state.host), 1),
+    {stop, {error, Reason}, State};
 handle_info(Msg, State) ->
     ?WARNING_MSG("Received unknown message ~p", [Msg]),
     {noreply, State}.
@@ -97,7 +106,10 @@ handle_call(_Message, _From, _State) ->
 code_change(_Version, State, _Extra) ->
     {ok, State}.
 
-terminate(_Reason, _State) ->
+terminate(_Reason, State) ->
+    ?WARNING_MSG("event=incoming_global_distrib_socket_closed,peer='~p'", [State#state.peer]),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_CLOSED(State#state.host), 1),
+    catch mod_global_distrib_transport:close(State#state.socket),
     ignore.
 
 %%--------------------------------------------------------------------
@@ -108,6 +120,9 @@ terminate(_Reason, _State) ->
 start() ->
     opt(tls_opts), %% Check for required tls_opts
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, histogram),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_INCOMING_ESTABLISHED, spiral),
+    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_INCOMING_ERRORED(undefined), spiral),
+    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_INCOMING_CLOSED(undefined), spiral),
     ChildMod = mod_global_distrib_worker_sup,
     Child = {ChildMod, {ChildMod, start_link, []}, permanent, 10000, supervisor, [ChildMod]},
     {ok, _}= supervisor:start_child(ejabberd_sup, Child),
@@ -130,7 +145,14 @@ handle_data(BinHost, State = #state{host = undefined}) ->
     Host = mod_global_distrib_utils:binary_to_metric_atom(BinHost),
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_MESSAGES_RECEIVED(Host), spiral),
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_TRANSFER_TIME(Host), histogram),
+    mod_global_distrib_utils:ensure_metric(
+      ?GLOBAL_DISTRIB_INCOMING_FIRST_PACKET(Host), spiral),
+    mod_global_distrib_utils:ensure_metric(
+      ?GLOBAL_DISTRIB_INCOMING_ERRORED(Host), spiral),
+    mod_global_distrib_utils:ensure_metric(
+      ?GLOBAL_DISTRIB_INCOMING_CLOSED(Host), spiral),
     mongoose_metrics:init_subscriptions(),
+    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_FIRST_PACKET(Host), 1),
     State#state{host = Host};
 handle_data(Data, State = #state{host = Host}) ->
     <<ClockTime:64, BinFromSize:16, _/binary>> = Data,

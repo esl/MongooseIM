@@ -125,11 +125,17 @@ init(RefreshAfter) ->
     {ok, RefreshAfter}.
 
 handle_info(refresh, RefreshAfter) ->
+    ?INFO_MSG("event=refreshing_hosts", []),
     refresh_hosts(),
+    ?INFO_MSG("event=refreshing_nodes", []),
     refresh_nodes(),
+    ?INFO_MSG("event=refreshing_jids", []),
     refresh_jids(),
+    ?INFO_MSG("event=refreshing_endpoints", []),
     refresh_endpoints(),
+    ?INFO_MSG("event=refreshing_domains", []),
     refresh_domains(),
+    ?INFO_MSG("event=refreshing_done,next_refresh_in=~p", [RefreshAfter]),
     erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
     {noreply, RefreshAfter}.
 
@@ -139,7 +145,14 @@ handle_info(refresh, RefreshAfter) ->
 
 -spec q(Args :: list()) -> {ok, term()}.
 q(Args) ->
-    {ok, _} = eredis:q(wpool_pool:best_worker(?MODULE), Args).
+    case eredis:q(wpool_pool:best_worker(?MODULE), Args) of
+        {ok, _} = OKRes ->
+            OKRes;
+        Error ->
+            ?ERROR_MSG("event=redis_query_error,query='~p',error='~p'",
+                       [Args, Error]),
+            error(Error)
+    end.
 
 -spec nodes_key() -> binary().
 nodes_key() ->

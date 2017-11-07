@@ -24,7 +24,7 @@
 
 -type t() :: #?MODULE{}.
 
--export([wrap/2, setopts/2, recv_data/2, close/1, send/2]).
+-export([wrap/2, setopts/2, recv_data/2, close/1, send/2, peername/1]).
 -export_types([t/0]).
 
 %%--------------------------------------------------------------------
@@ -66,4 +66,15 @@ send(#?MODULE{transport = gen_tcp, socket = Socket}, Data) ->
     gen_tcp:send(Socket, Data);
 send(#?MODULE{transport = fast_tls, socket = Socket}, Data) ->
     fast_tls:send(Socket, Data).
+
+-spec peername(t()) -> {inet:ip_address(), inet:port_number()} | unknown.
+peername(#?MODULE{transport = gen_tcp, socket = Socket}) ->
+    normalize_peername(inet:peername(Socket));
+peername(#?MODULE{transport = fast_tls, socket = Socket}) ->
+    normalize_peername(fast_tls:peername(Socket)).
+
+-spec normalize_peername({ok, {inet:ip_address(), inet:port_number()}} | any()) ->
+    {inet:ip_address(), inet:port_number()} | unknown.
+normalize_peername({ok, {IP, Port}}) when is_tuple(IP), is_integer(Port) -> {IP, Port};
+normalize_peername(_Other) -> unknown.
 

@@ -21,6 +21,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("global_distrib_metrics.hrl").
 
 -export([deps/2, start/2, stop/1, get_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3,
          maybe_reroute/1]).
@@ -80,16 +81,18 @@ maybe_reroute({From, To, Acc0} = FPacket) ->
             ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost, [From, To]),
             ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter",
                    [get_metadata(Acc, id), jid:to_binary(From), jid:to_binary(To)]),
+            mongoose_metrics:update(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL,
+                                    get_metadata(Acc, ttl)),
             {From, To, Acc};
 
         {ok, TargetHost} ->
             ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost, [From, To]),
             case get_metadata(Acc, ttl) of
                 0 ->
-                    ?DEBUG("Recipient of global message id=~s from=~s to=~s found at "
-                           "~s, but TTL=0. Routing locally.",
+                    ?INFO_MSG("event=ttl_zero,id=~s,from=~s,to=~s,found_at=~s",
                            [get_metadata(Acc, id), jid:to_binary(From),
                             jid:to_binary(To), TargetHost]),
+                    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
                     FPacket;
                 TTL ->
                     ?DEBUG("Rerouting global message id=~s from=~s to=~s to ~s (TTL: ~B)",
@@ -156,6 +159,8 @@ deps(Opts) ->
 
 -spec start() -> any().
 start() ->
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, histogram),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, spiral),
     ejabberd_hooks:add(filter_packet, global, ?MODULE, maybe_reroute, 99).
 
 -spec stop() -> any().

@@ -22,6 +22,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("global_distrib_metrics.hrl").
 
 -define(MESSAGE_STORE, mod_global_distrib_bounce_message_store).
 -define(MS_BY_TARGET, mod_global_distrib_bounce_message_store_by_target).
@@ -29,6 +30,7 @@
 -export([start_link/0, start/2, stop/1]).
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
 -export([maybe_store_message/1, reroute_messages/3]).
+-export([bounce_queue_size/0]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -87,11 +89,20 @@ maybe_store_message({From, To, Acc0} = FPacket) ->
     LocalHost = opt(local_host),
     case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost}, opt(max_retries)) of
         0 ->
+            Id = mod_global_distrib:get_metadata(Acc0, id),
+            FromBin = jid:to_binary(From),
+            ToBin = jid:to_binary(To),
             ?DEBUG("Not storing global message id=~s from=~s to=~s as bounce_ttl=0",
-                   [mod_global_distrib:get_metadata(Acc0, id),
-                    jid:to_binary(From), jid:to_binary(To)]),
+                   [Id, FromBin, ToBin]),
+            case To#jid.luser of
+                <<>> -> % It's a component!
+                    ?ERROR_MSG("event=message_to_component_ttl_zero,id=~s,from=~s,to=~s",
+                               [Id, FromBin, ToBin]);
+                _ ->
+                    nothing_to_log
+            end,
+            mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
             FPacket;
-
         OldTTL ->
             ?DEBUG("Storing global message id=~s from=~s to=~s to "
                    "resend after ~B ms (bounce_ttl=~B)",
@@ -127,6 +138,17 @@ reroute_messages(Acc, From, To) ->
     Acc.
 
 %%--------------------------------------------------------------------
+%% API for metrics
+%%--------------------------------------------------------------------
+
+-spec bounce_queue_size() -> non_neg_integer().
+bounce_queue_size() ->
+    case ets:info(?MESSAGE_STORE, size) of
+        undefined -> 0;
+        Value -> Value
+    end.
+
+%%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
@@ -135,6 +157,9 @@ start() ->
     Host = opt(global_host),
     mod_global_distrib_utils:create_ets(?MESSAGE_STORE, ordered_set),
     mod_global_distrib_utils:create_ets(?MS_BY_TARGET, bag),
+    EvalDef = {[{l, [{t, [value, {v, 'Value'}]}]}],[value]},
+    QueueSizeDef = {function, ?MODULE, bounce_queue_size, [], eval, EvalDef},
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, QueueSizeDef),
     ejabberd_hooks:add(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
     ejabberd_hooks:add(mod_global_distrib_known_recipient, Host, ?MODULE, reroute_messages, 80),
     ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},

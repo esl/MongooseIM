@@ -70,17 +70,28 @@ In the example above, the message from **U2** would be temporarily stored at **D
 
 Global distribution modules expose several per-datacenter metrics that can be used to monitor health of the system. All metrics begin with **global.mod_global_distrib** prefix:
 
-* **outgoing.messages.<host>**: number of cross-datacenter messages sent by this cluster to a given host.
-* **incoming.messages.<host>**: number of cross-datacenter messages received by this cluster from a given host.
-* **incoming.transfer_time.<host>** *[us]*: time elapsed between sending and receiving the message over the network from a given host.
+* `outgoing.messages.<host>`: number of cross-datacenter messages sent by this cluster to a given host.
+* `incoming.messages.<host>`: number of cross-datacenter messages received by this cluster from a given host.
+* `incoming.transfer_time.<host>` *[us]*: time elapsed between sending and receiving the message over the network from a given host.
   The duration is calculated using wall clock times on sender and receiver node.
-* **outgoing.queue_time.<host>** *[us]*: time elapsed while message waits in queue of sender connection to a given host.
+* `outgoing.queue_time.<host>` *[us]*: time elapsed while message waits in queue of sender connection to a given host.
   High value of this metric may be remedied by increasing the number of connections to other hosts.
-* **incoming.queue_time** *[us]*: time elapsed while message waits in routing worker's queue.
+* `incoming.queue_time` *[us]*: time elapsed while message waits in routing worker's queue.
   This value is not reported per-host as routing workers are bound to the sender's JID.
-* **mapping_fetch_time** *[us]*: time spent on fetching an entry from the session table, cached or otherwise.
-* **mapping_fetches**: number of fetches of session table entries, cached or otherwise.
-* **mapping_cache_misses**: number of fetches of session table entries that hit the database.
+* `incoming.established`: incremented when a new connection is established from another cluster.
+  At this point the origin domain of the cluster is not known, so this metric is common for all of them.
+* `incoming.first_packet.<host>`: incremented when a receiver process gets first packet from remote cluster and learns its local domain.
+* `incoming.closed.<host>`: incremented when an incoming connection gets closed.
+* `incoming.errored.<host>`: incremented when an incoming connection gets closed with an error.
+* `outgoing.established.<host>`: incremented when an outgoing connection is established.
+* `outgoing.closed.<host>`: incremented when an outgoing connection gets closed.
+* `outgoing.errored.<host>`: incremented when an outgoing connection gets closed with an error.
+* `mapping_fetch_time` *[us]*: time spent on fetching an entry from the session table, cached or otherwise.
+* `mapping_fetches`: number of fetches of session table entries, cached or otherwise.
+* `mapping_cache_misses`: number of fetches of session table entries that hit the database.
+* `delivered_with_ttl`: A histogram of packets' TTL values recorded when the global routing layer decides to route them locally (but not due to TTL = 0).
+* `stop_ttl_zero`: A number of packets that weren't processed by global routing due to TTL=0.
+* `bounce_queue_size`: a number of messages enqueued for rerouting (the value of this metric is individual per MongooseIM node!).
 
 ### Notes
 
