@@ -16,6 +16,7 @@
 -author("dominik.stanaszek@erlang-solutions.com").
 
 -export([start/0, stop/0, log/2, log/3]).
+-export([default_cooldown/0]).
 
 -include("ejabberd.hrl").
 
@@ -35,6 +36,7 @@
 %% needed up
 -spec start() -> ok.
 start() ->
+    io:format("STARTING DEPRECATIONS~n", []),
     prepare_ets(),
     ok.
 
@@ -46,15 +48,23 @@ stop() ->
     ok.
 
 %% @doc Should be used to log deprecation messages. It logs
-%% keeping proper frequency.
+%% keeping proper frequency. Opts can be:
+%%      * cooldown - the minimal interval (in milliseconds)
+%%                   to be held between logs. Default: 6 hours
+%%                   It is internally represented in microseconds
+%%                   but API requires milliseconds.
+%%      * log_level - 'warning' or 'error'
+-spec log(deprecation_tag(), string(), proplists:proplist()) -> ok.
+log(Tag, Msg, Opts) ->
+    Cooldown = milliseconds_to_microseconds(
+                 proplists:get_value(cooldown, Opts, default_cooldown())
+                ),
+    LogLvl = proplists:get_value(log_level, Opts, default_log_lvl()),
+    maybe_log(Tag, Msg, LogLvl, Cooldown).
+
 -spec log(deprecation_tag(), string()) -> ok.
 log(Tag, Msg) ->
-    maybe_log(Tag, Msg, error).
-
--spec log(deprecation_tag(), string(), log_level()) -> ok.
-log(Tag, Msg, Lvl) ->
-    maybe_log(Tag, Msg, Lvl).
-
+    log(Tag, Msg, []).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Private functions
@@ -76,17 +86,17 @@ destroy_ets() ->
     ets:delete(?DEPRECATION_TAB),
     ok.
 
--spec maybe_log(deprecation_tag(), string(), log_level()) -> ok.
-maybe_log(Tag, Msg, Lvl) ->
+-spec maybe_log(deprecation_tag(), string(), log_level(), unix_timestamp()) -> ok.
+maybe_log(Tag, Msg, Lvl, Cooldown) ->
     Timestamp = case ets:lookup(?DEPRECATION_TAB, Tag) of
                              [] ->
-                               not_logged;
+                                not_logged;
                              [{Tag, LastLogged}] ->
                                  LastLogged
                          end,
-    case did_cooldown_elapse(Timestamp) of
+    case did_cooldown_elapse(Timestamp, Cooldown) of
         true ->
-            log_lvl(Msg, Lvl),
+            log_with_lvl(Msg, Lvl),
             ets:insert(?DEPRECATION_TAB, {Tag, os:timestamp()}),
             ok;
         false ->
@@ -94,20 +104,27 @@ maybe_log(Tag, Msg, Lvl) ->
     end,
     ok.
 
--spec did_cooldown_elapse(unix_timestamp() | 'not_logged') -> boolean().
-did_cooldown_elapse(not_logged) -> true;
-did_cooldown_elapse(LastLogged) ->
+-spec did_cooldown_elapse(unix_timestamp() | 'not_logged', unix_timestamp()) -> boolean().
+did_cooldown_elapse(not_logged, _) -> true;
+did_cooldown_elapse(LastLogged, Cooldown) ->
     Now = os:timestamp(),
-    timer:now_diff(Now, LastLogged) > default_cooldown().
+    E = timer:now_diff(Now, LastLogged) > Cooldown,
+    io:format("Now = ~p~nLast logged = ~p~nCooldown = ~p~nelapsed? = ~p~n",
+               [Now, LastLogged, Cooldown, E]),
+    E.
 
 -spec default_cooldown() -> unix_timestamp().
-default_cooldown() -> ?DEFAULT_COOLDOWN_HOURS * 21600000000.
+default_cooldown() -> ?DEFAULT_COOLDOWN_HOURS * 3600000000.
 
+-spec default_log_lvl() -> log_level().
+default_log_lvl() -> error.
 
--spec log_lvl(string(), log_level()) -> ok.
-log_lvl(Msg, error) ->
+-spec log_with_lvl(string(), log_level()) -> ok.
+log_with_lvl(Msg, error) ->
     ?ERROR_MSG(Msg, []);
-log_lvl(Msg, warning) ->
+log_with_lvl(Msg, warning) ->
     ?WARNING_MSG(Msg, []).
 
-
+-spec milliseconds_to_microseconds(Milliseconds :: integer()) 
+        -> unix_timestamp().
+milliseconds_to_microseconds(N) -> N * 1000.
