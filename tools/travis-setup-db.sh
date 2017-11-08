@@ -41,7 +41,7 @@ elif [ $DB = 'pgsql' ]; then
            -e TRAVIS_DB_PASSWORD=${TRAVIS_DB_PASSWORD} \
            -v ${PGSQL_TEMP_DIR}:${PGSQL_TEMP_DIR} \
            -v ${BASE}/${TOOLS}/docker-setup-postgres.sh:/docker-entrypoint-initdb.d/docker-setup-postgres.sh \
-           -p 5432:5432 --name=mongooseim-psql postgres
+           -p 5432:5432 --name=mongooseim-pgsql postgres
     mkdir ${PGSQL_ODBC_CERT_DIR} || echo "PGSQL odbc cert dir already exists"
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
     cat > ~/.odbc.ini << EOL
