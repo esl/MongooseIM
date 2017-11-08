@@ -14,20 +14,12 @@
 all() ->
     [
         check_too_fast_pace
-%        check_ok_pace,
-%        check_changing_pace
+        check_ok_pace,
+        check_changing_pace,
+        different_tags_get_logged_always
     ].
 
 init_per_suite(C) ->
-    meck:new(lager, []),
-    Self = self(),
-    meck:expect(lager, log, fun(lager_event, _, _, ?LOG_MSG, _) ->   %% TODO check if it makes it fail. Does it send ad all?
-                                                                     %% it's not logging anything
-                                    ct:log("sending"),
-                                     Self ! logged;
-                                (_, _, _, _, _) -> 
-                                    ct:log("sending2"),
-                                    ok end),
     C.
     
 end_per_suite(C) ->
@@ -35,6 +27,7 @@ end_per_suite(C) ->
     C.
 
 init_per_testcase(_, C) ->
+    mock_log_with_lvl(self()),
     mongoose_deprecations:start(),
     C.
 
@@ -42,8 +35,11 @@ end_per_testcase(_, C) ->
     mongoose_deprecations:stop(),
     C.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Test cases
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 check_too_fast_pace(Config) ->
-    ct:print("Tabs: ~p~n", [ets:all()]),
     mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
     mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
     mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
@@ -68,18 +64,43 @@ check_changing_pace(_Config) ->
     mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
     assert_n_logged(3).
 
+%% Even the same message can be logged with any frequency when tags
+%% are different
+different_tags_get_logged_always(_Config) ->
+    mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
+    mongoose_deprecations:log(some_tag1, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
+    mongoose_deprecations:log(some_tag2, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
+    assert_n_logged(3).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Helpers
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 assert_n_logged(0) ->
     receive
-        logged ->
+        {logged, {Msg, Lvl}} ->
+            ct:log("LOGGED: ~p~n", [Lvl]),
             ct:fail(too_many_logged)
     after ?TEST_COOLDOWN * 3 ->
               ok
     end;
 assert_n_logged(N) ->
     receive
-        logged ->
+        M ->
+            ct:log("got: ~p~n", [M]),
+            ok;
+        {logged, {Msg, Lvl}} ->
+            ct:log("LOGGED: ~p~n", [Lvl]),
             assert_n_logged(N - 1)
-    after ?TEST_COOLDOWN * 3 ->
+    after ?TEST_COOLDOWN * 3 + 2000 -> % delete 2000 afterwards
               ct:fail(too_little_logged)
     end.
 
+% we need to send log lvl back - we will test its correctness as well
+mock_log_with_lvl(Pid) ->
+    meck:new(mongoose_deprecations, [passthrough]),
+    ct:log("Preparing log mock... will send to ~p", [Pid]),
+    meck:expect(mongoose_deprecations, log_with_lvl, fun(Msg, Lvl) ->
+                                    ct:log("sending"),
+                                    Pid ! {logged, {Msg, Lvl}},
+                                    ok end).

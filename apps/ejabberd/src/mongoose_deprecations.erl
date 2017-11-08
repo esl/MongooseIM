@@ -16,7 +16,13 @@
 -author("dominik.stanaszek@erlang-solutions.com").
 
 -export([start/0, stop/0, log/2, log/3]).
--export([default_cooldown/0]).
+
+%% Test API
+%% We use this function to keep track of when it's called in the test.
+%% That's also why when we use it we call it with module name.
+-ifdef(TEST).
+-export([log_with_lvl/2]).
+-endif.
 
 -include("ejabberd.hrl").
 
@@ -36,7 +42,6 @@
 %% needed up
 -spec start() -> ok.
 start() ->
-    io:format("STARTING DEPRECATIONS~n", []),
     prepare_ets(),
     ok.
 
@@ -96,7 +101,7 @@ maybe_log(Tag, Msg, Lvl, Cooldown) ->
                          end,
     case did_cooldown_elapse(Timestamp, Cooldown) of
         true ->
-            log_with_lvl(Msg, Lvl),
+            ?MODULE:log_with_lvl(Msg, Lvl),     % ?MODULE let meck umock it
             ets:insert(?DEPRECATION_TAB, {Tag, os:timestamp()}),
             ok;
         false ->
@@ -104,14 +109,12 @@ maybe_log(Tag, Msg, Lvl, Cooldown) ->
     end,
     ok.
 
--spec did_cooldown_elapse(unix_timestamp() | 'not_logged', unix_timestamp()) -> boolean().
+-spec did_cooldown_elapse(unix_timestamp() | 'not_logged', unix_timestamp())
+        -> boolean().
 did_cooldown_elapse(not_logged, _) -> true;
 did_cooldown_elapse(LastLogged, Cooldown) ->
     Now = os:timestamp(),
-    E = timer:now_diff(Now, LastLogged) > Cooldown,
-    io:format("Now = ~p~nLast logged = ~p~nCooldown = ~p~nelapsed? = ~p~n",
-               [Now, LastLogged, Cooldown, E]),
-    E.
+    timer:now_diff(Now, LastLogged) > Cooldown.
 
 -spec default_cooldown() -> unix_timestamp().
 default_cooldown() -> ?DEFAULT_COOLDOWN_HOURS * 3600000000.
