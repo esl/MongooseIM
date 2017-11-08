@@ -604,7 +604,7 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
                                              (SockMod == fast_tls)) ->
-          check_compression_auth(El, wait_for_feature_before_auth, StateData);
+          check_compression_method(El, wait_for_feature_before_auth, StateData);
         _ ->
           terminate_when_tls_required_but_not_enabled(TLSRequired, TLSEnabled,
                                                       StateData, El)
@@ -777,21 +777,11 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
                                              (SockMod == fast_tls)) ->
-            check_compression_auth(El, NextState, StateData);
+            check_compression_method(El, NextState, StateData);
         _ ->
             process_unauthenticated_stanza(StateData, El),
             fsm_next_state(NextState, StateData)
 
-    end.
-
-check_compression_auth(El, NextState, StateData) ->
-    Auth = StateData#state.authenticated,
-    case Auth of
-        false ->
-            send_element(StateData, compress_setup_failed()),
-            fsm_next_state(NextState, StateData);
-        _ ->
-            check_compression_method(El, NextState, StateData)
     end.
 
 check_compression_method(El, NextState, StateData) ->
@@ -3310,4 +3300,3 @@ setup_accum(Acc, StateData) ->
     User = StateData#state.user,
     Server = StateData#state.server,
     mongoose_acc:update(Acc, #{server => Server, user => User}).
-
