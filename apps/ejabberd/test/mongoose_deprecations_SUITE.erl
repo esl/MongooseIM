@@ -1,7 +1,5 @@
 -module(mongoose_deprecations_SUITE).
 
--include_lib("exml/include/exml.hrl").
--include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 

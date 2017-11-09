@@ -102,8 +102,7 @@ maybe_log(Tag, Msg, Lvl, Cooldown) ->
             ok;
         false ->
             ok
-    end,
-    ok.
+    end.
 
 -spec did_cooldown_elapse(unix_timestamp() | 'not_logged', unix_timestamp())
         -> boolean().
