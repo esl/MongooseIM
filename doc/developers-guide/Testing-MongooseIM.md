@@ -195,7 +195,7 @@ Coverage statistics will be available in `test.disabled/ejabberd_tests/ct_report
 ## Advanced topics
 
 There are many more options available.
-One of them is sequentially testing a number of preset configuration - we do it every day on Travis, testing MongooseIM with various OTP versions and database backends.
+One of them is sequentially testing a number of preset configurations - we do it every day on Travis, testing MongooseIM with various OTP versions and database backends.
 Altogether, we have eight preset configuration.
 
 If you want to dig deeper, consult `.travis.yml` and `tools/travis-test.sh`, everything we do is there.
