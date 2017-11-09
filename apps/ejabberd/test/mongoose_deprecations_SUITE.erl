@@ -7,8 +7,8 @@
 
 -compile([export_all]).
 
--define(TEST_COOLDOWN, 400).    % ms
--define(COOLDOWN_EPS, 10).      % ms, must be much smaller than TEST_COOLDOWN
+-define(TEST_COOLDOWN, 50).    % ms
+-define(COOLDOWN_EPS, 3).      % ms, must be much smaller than TEST_COOLDOWN
 -define(LOG_MSG, "hey, deprecated!").
 
 all() ->
