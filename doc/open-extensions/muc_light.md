@@ -18,7 +18,7 @@ Here are some high-level features required from a new variant of MUC
 1. The message sent in the room is always broadcasted to every occupant.
 1. The full occupant list is always available to all occupants.
 1. The occupant is always visible on the list, even if they do not have any resources online.
-1. Occupants can only have two affiliations: owner and member.
+1. Occupants can only have two tions: owner and member.
 1. There MUST be at most one owner in the room (the service can choose to treat all users equally).
 1. If the room becomes empty, it is destroyed.
 1. Occupants cannot hide behind nicks. Their real bare JID is always visible to everyone
@@ -932,6 +932,7 @@ The notifications contain a list of items. The item list may be different from t
 
 **Affiliations change request**
 
+User crone1 sends a request to set these example affiliations
 ```xml
 <iq from='crone1@shakespeare.lit/desktop'
     id='member1'
@@ -945,6 +946,9 @@ The notifications contain a list of items. The item list may be different from t
 </iq>
 ```
 
+Now each user (including crone1 who requested changes) will get an update.
+
+As you can see, affiliations have changed accordingly to crone1's request.
 ```xml
 <message from='coven@muclight.shakespeare.lit'
          to='crone1@shakespeare.lit'
@@ -961,7 +965,7 @@ The notifications contain a list of items. The item list may be different from t
     <body></body>
 </message>
 ```
-
+Because hag66 was not a user of this room before, he only receives **his own affiliation** and **no prev-version** element.
 ```xml
 <message from='coven@muclight.shakespeare.lit'
          to='hag66@shakespeare.lit'
@@ -991,7 +995,7 @@ The notifications contain a list of items. The item list may be different from t
     <body></body>
 </message>
 ```
-
+hag88 has been kicked off the room and therefore gets only his own affiliation change of type 'none'
 ```xml
 <message from='coven@muclight.shakespeare.lit'
          to='hag88@shakespeare.lit'
@@ -1004,6 +1008,7 @@ The notifications contain a list of items. The item list may be different from t
 </message>
 ```
 
+crone1 gets the result iq after the change
 ```xml
 <iq to='crone1@shakespeare.lit/desktop'
     id='member1'
