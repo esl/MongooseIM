@@ -18,7 +18,7 @@ Here are some high-level features required from a new variant of MUC
 1. The message sent in the room is always broadcasted to every occupant.
 1. The full occupant list is always available to all occupants.
 1. The occupant is always visible on the list, even if they do not have any resources online.
-1. Occupants can only have two tions: owner and member.
+1. Occupants can only have two affiliations: owner and member.
 1. There MUST be at most one owner in the room (the service can choose to treat all users equally).
 1. If the room becomes empty, it is destroyed.
 1. Occupants cannot hide behind nicks. Their real bare JID is always visible to everyone
