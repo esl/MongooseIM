@@ -334,6 +334,32 @@ It is configured with single tuple.
         * **port** - A positive integer.
     * **Example:** `{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}]}.`
 
+#### Riak SSL connection setup
+
+Using SSL for Riak connection requires passing extra options to the
+aforementioned `riak_server` tuple.
+
+Here is the proper syntax:
+
+`{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}, Credentials, CACert]}.`
+
+* **Credentials**
+    * **Description:** Specifies credentials to use to connect to the database.
+    * **Syntax:** `{credentials, User, Password}`
+    * **Supported values** `User` and `Password` are strings with a database username and password respectively.
+
+* **CACert**
+    * **Description:** Specifies a path to the CA certificate that was used to sign the database certificates.
+    * **Syntax:** `{cacertfile, Path}`
+    * **Supported values** `Path` is a string with a path to the CA certificate file.
+
+##### Example configuration
+
+An example configuration can look as follows:
+
+`{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087},
+               {credentials, "username", "pass"}, {cacertfile, "path/to/cacert.pem"}]}.`
+
 ### Cassandra connection setup
 
 Cassandra connection pools are defined in a manner similar to RDBMS ones, but with a slightly different syntax.
