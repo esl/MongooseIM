@@ -18,11 +18,7 @@
 -export([start/0, stop/0, log/2, log/3]).
 
 %% Test API
-%% We use this function to keep track of when it's called in the test.
-%% That's also why when we use it we call it with module name.
--ifdef(TEST).
 -export([log_with_lvl/2]).
--endif.
 
 -include("ejabberd.hrl").
 
@@ -101,7 +97,7 @@ maybe_log(Tag, Msg, Lvl, Cooldown) ->
                          end,
     case did_cooldown_elapse(Timestamp, Cooldown) of
         true ->
-            ?MODULE:log_with_lvl(Msg, Lvl),     % ?MODULE let meck umock it
+            ?MODULE:log_with_lvl(Msg, Lvl),     % ?MODULE lets meck mock it
             ets:insert(?DEPRECATION_TAB, {Tag, os:timestamp()}),
             ok;
         false ->
