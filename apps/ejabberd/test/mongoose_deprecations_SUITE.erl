@@ -13,10 +13,12 @@
 
 all() ->
     [
-        check_too_fast_pace
+        check_too_fast_pace,
         check_ok_pace,
         check_changing_pace,
-        different_tags_get_logged_always
+        different_tags_get_logged_always,
+        specified_lvl_logged_default_stays,
+        default_lvl_is_error
     ].
 
 init_per_suite(C) ->
@@ -70,7 +72,34 @@ different_tags_get_logged_always(_Config) ->
     mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
     mongoose_deprecations:log(some_tag1, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
     mongoose_deprecations:log(some_tag2, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
-    assert_n_logged(3).
+
+default_lvl_is_error(_Config) ->
+    mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
+    timer:sleep(?TEST_COOLDOWN + ?COOLDOWN_EPS),
+    mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
+    timer:sleep(?TEST_COOLDOWN + ?COOLDOWN_EPS),
+    mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
+    {ok, [error, error, error]} = assert_n_logged(3),
+    ok.
+
+% One can specify the level error on warning. It does not affect the default
+% level.
+specified_lvl_logged_default_stays(_Config) ->
+    mongoose_deprecations:log(some_tag, ?LOG_MSG, 
+                              [{cooldown, ?TEST_COOLDOWN},
+                               {log_level, warning}]),
+    timer:sleep(?TEST_COOLDOWN + ?COOLDOWN_EPS),
+    mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
+    timer:sleep(?TEST_COOLDOWN + ?COOLDOWN_EPS),
+    mongoose_deprecations:log(some_tag, ?LOG_MSG, 
+                              [{cooldown, ?TEST_COOLDOWN},
+                               {log_level, warning}]),
+    timer:sleep(?TEST_COOLDOWN + ?COOLDOWN_EPS),
+    mongoose_deprecations:log(some_tag, ?LOG_MSG, [{cooldown, ?TEST_COOLDOWN}]),
+    {ok, [warning, error, warning, error]} = assert_n_logged(4),
+    ok.
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Helpers
