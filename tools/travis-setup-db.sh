@@ -8,6 +8,8 @@ source tools/travis-common-vars.sh
 
 SQLDIR=${BASE}/apps/ejabberd/priv
 
+PGSQL_CONF_DIR=${BASE}/${TOOLS}/db_configs/postgres
+
 PGSQL_TEMP_DIR=/tmp/pgsql
 
 PGSQL_ODBC_CERT_DIR=~/.postgresql
@@ -33,8 +35,8 @@ elif [ $DB = 'pgsql' ]; then
     mkdir ${PGSQL_TEMP_DIR}
     cp ${SSLDIR}/fake_cert.pem ${PGSQL_TEMP_DIR}/.
     cp ${SSLDIR}/fake_key.pem ${PGSQL_TEMP_DIR}/.
-    cp ${SQLDIR}/postgresql.conf ${PGSQL_TEMP_DIR}/.
-    cp ${SQLDIR}/pg_hba.conf ${PGSQL_TEMP_DIR}/.
+    cp ${PGSQL_CONF_DIR}/postgresql.conf ${PGSQL_TEMP_DIR}/.
+    cp ${PGSQL_CONF_DIR}/pg_hba.conf ${PGSQL_TEMP_DIR}/.
     cp ${SQLDIR}/pg.sql ${PGSQL_TEMP_DIR}/.
     docker run -d \
            -e PGSQL_TEMP_DIR=${PGSQL_TEMP_DIR} \
