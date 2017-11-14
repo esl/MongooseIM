@@ -36,9 +36,9 @@ Check out our test results:
 
 * Continuous integration: [https://travis-ci.org/esl/MongooseIM](https://travis-ci.org/esl/MongooseIM)
 * Code coverage: [https://coveralls.io/github/esl/MongooseIM](https://coveralls.io/github/esl/MongooseIM)
-* Continuous Load Testing: [http://tide.erlang-solutions.com/](http://tide.erlang-solutions.com/)
+* Continuous Load Testing: [https://tide.erlang-solutions.com/](https://tide.erlang-solutions.com/)
 * Load test history:  
-  ![Load test history](http://tide.erlang-solutions.com/charts/bidaily_last_year.png)
+  ![Load test history](https://tide.erlang-solutions.com/charts/bidaily_last_year.png)
 
 ## MongooseIM platform components
 
