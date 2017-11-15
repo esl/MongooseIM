@@ -1,4 +1,4 @@
-#bin/bash
+#!/bin/bash
 
 PGSQLDIR=/var/lib/postgresql/data
 
