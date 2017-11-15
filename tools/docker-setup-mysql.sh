@@ -1,4 +1,4 @@
-#bin/bash
+#!/bin/bash
 
 MYSQLDIR=/var/lib/mysql
 
