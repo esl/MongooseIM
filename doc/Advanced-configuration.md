@@ -275,7 +275,7 @@ See [Database backends configuration](./advanced-configuration/database-backends
 In order to establish a secure connection with a PostgreSQL database additional options must be passed in aforementioned `odbc_server` tuple.
 Here is the proper syntax:
 
-`{odbc_server, {Type, Host, Port, DBName, Username, Password, SSL}`
+`{odbc_server, {Type, Host, Port, DBName, Username, Password, SSL}}.`
 
 * **SSL**
     * **Description:** Specifies general options for SSL connection.
@@ -297,7 +297,7 @@ Here is the proper syntax:
 An example configuration can look as follows:
 
 `{odbc_server, {pgsql, "localhost", "username", "database", "pass",
-               [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}`
+               [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}.`
 
 ### Riak connection setup
 
