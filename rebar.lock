@@ -42,7 +42,7 @@
  {<<"eini">>,{pkg,<<"eini">>,<<"1.2.4">>},1},
  {<<"epgsql">>,
   {git,"git://github.com/epgsql/epgsql.git",
-       {ref,"3652aa9c0a7cb58beb4736cdbdfa0dc4f7eafa20"}},
+       {ref,"84b2821b25b63f6153686cbabc7e7ea8374692f5"}},
   0},
  {<<"erlcloud">>,
   {git,"git://github.com/erlcloud/erlcloud.git",

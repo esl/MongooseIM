@@ -74,6 +74,15 @@ execute(Connection, StatementRef, Params, _Timeout) ->
 db_opts({pgsql, Server, DB, User, Pass}) ->
     db_opts({pgsql, Server, ?PGSQL_PORT, DB, User, Pass});
 db_opts({pgsql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
+    get_db_basic_opts({Server, Port, DB, User, Pass});
+db_opts({pgsql, Server, DB, User, Pass, SSLConnOpts}) ->
+    db_opts({pgsql, Server, ?PGSQL_PORT, DB, User, Pass, SSLConnOpts});
+db_opts({pgsql, Server, Port, DB, User, Pass, SSLConnOpts}) when is_integer(Port) ->
+    DBBasicOpts = get_db_basic_opts({Server, Port, DB, User, Pass}),
+    extend_db_opts_with_ssl(DBBasicOpts, SSLConnOpts).
+
+-spec get_db_basic_opts(Settings :: term()) -> [term()].
+get_db_basic_opts({Server, Port, DB, User, Pass}) ->
     [
      {host, Server},
      {port, Port},
@@ -81,6 +90,10 @@ db_opts({pgsql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
      {username, User},
      {password, Pass}
     ].
+
+-spec extend_db_opts_with_ssl(Opts :: [term()], SSLConnOpts :: [term()]) -> [term()].
+extend_db_opts_with_ssl(Opts, SSLConnOpts) ->
+    Opts ++ SSLConnOpts.
 
 -spec pgsql_to_odbc(epgsql:reply(term())) -> mongoose_rdbms:query_result().
 pgsql_to_odbc(Items) when is_list(Items) ->
