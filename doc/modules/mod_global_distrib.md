@@ -41,8 +41,10 @@ Each node listens on preconfigured endpoints, where each node in a datacenter ca
 The endpoints are shared between all datacenters.
 If a node becomes unavailable, its endpoint entries in the database will expire and will be readded once the node comes back online.
 
-Connections between nodes in distinct datacenters are opened on the first request and then maintained indefinitely.
-Each connection to a remote datacenter C connects to a randomly selected endpoint of C's nodes; the endpoint will be sampled again in the event of reconnection.
+Connections between nodes in distinct datacenters are opened on the first request and then maintained as long as the destination endpoint is present in Redis.
+When a node needs to connect to a remote cluster, specified number of connections are opened to every endpoint reported by that datacenter.
+Global distribution features automatic rebalancing feature that will "disable" connections when their respective endpoints disappear from Redis.
+In case when a new endpoint is recongnised, a new pool of connections is created.
 Whenever a node receives a message that is determined (by consulting the session table) to be destined for another datacenter, the routing procedure in the current datacenter is interrupted, the message is transported to the other datacenter via the dedicated connections, and the routing procedure is restarted there by a dedicated (but potentially short lived) worker process bound to the sender's JID (or subdomain if the sender's JIDs does not belong to the globally distributed domain).
 Client's process binds itself to a connection to a remote datacenter on first use, and henceforth always uses this connection to route messages directed to this datacenter.
 This - along with the dedicated worker process on the receiver's side - ensures that simple cross-datacenter messages between two entities are delivered in their sending order.
@@ -116,7 +118,11 @@ Global distribution modules expose several per-datacenter metrics that can be us
 * **endpoints** (list, default: `[{LocalHost, 5555}]`): A list of `{Host, Port}` tuples on which the server will listen for connections.
   `Host` can be given as a hostname, in which case it will be resolved to an IP address before first on module start.
   The endpoint list will be shared with other datacenters via the replicated backend.
-* **num_of_connections** (integer, default: `1`): Number of outgoing connections that will be established from the current node to each other XMPP cluster sharing the global domain.
+* **connections_per_endpoint** (integer, default: `1`): Number of outgoing connections that will be established from the current node to each endpoint assigned to a remote domain.
+* **endpoint_refresh_interval** (seconds, default: `60`): An interval between remote endpoint list refresh (and connection rebalancing).
+  A separate timer is maintained for every remote domain.
+* **disabled_gc_interval** (seconds, default: `60`): An interval between disabled endpoints "garbage collection".
+  It means that disabled endpoints are periodically verified and if Global Distribution detects that connections is no longer alive, the connection pool is closed completely.
 * **tls_opts** (list, required): Options for TLS connections passed to the `fast_tls` driver.
   May be set to `false`, in which case all data will be sent via standard TCP connections.
   Otherwise, they should at least include `certfile` and `cafile` options. 

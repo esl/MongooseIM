@@ -266,7 +266,7 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
     end,
 
     FinalPendingEndpoints = PendingEndpoints ++ NPendingEndpoints,
-    
+
     ?INFO_MSG("event=endpoints_update_scheduled,server='~s',new_changes=~p,pending_changes=~p",
               [Server, length(NPendingEndpoints), length(FinalPendingEndpoints)]),
     State#state{ pending_endpoints = FinalPendingEndpoints }.

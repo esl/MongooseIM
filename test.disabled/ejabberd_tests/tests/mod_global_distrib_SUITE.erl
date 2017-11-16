@@ -662,7 +662,7 @@ enable_new_endpoint_on_refresh(Config) ->
     get_connection(europe_node1, <<"fed1">>),
 
     {Enabled1, _Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"fed1">>),
-    
+
     NewEndpoint = enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
 
     {Enabled2, _Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"fed1">>),
@@ -677,11 +677,11 @@ disable_endpoint_on_refresh(Config) ->
     enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
 
     get_connection(europe_node1, <<"fed1">>),
-    
+
     {Enabled1, Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"fed1">>),
     [_, _] = Enabled1,
     [] = Disabled1,
-    
+
     hide_extra_endpoint(asia_node),
     trigger_rebalance(europe_node1, <<"fed1">>),
 
@@ -724,7 +724,7 @@ closed_connection_is_removed_from_disabled(_Config) ->
     trigger_rebalance(europe_node1, <<"fed1">>),
 
     {[], [_], [_]} = get_outgoing_connections(europe_node1, <<"fed1">>),
-    
+
     % Will drop connections and prevent them from reconnecting
     restart_receiver(asia_node, [listen_endpoint(10001)]),
 
