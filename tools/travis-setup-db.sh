@@ -12,7 +12,9 @@ PGSQL_CONF_DIR=${BASE}/${TOOLS}/db_configs/postgres
 
 SQL_TEMP_DIR=/tmp/sql
 
-MYSQL_CONF_DIR=/etc/mysql/conf.d
+MYSQL_CONF_DIR=${BASE}/${TOOLS}/db_configs/mysql
+
+MYSQL_DIR=/etc/mysql/conf.d
 
 PGSQL_ODBC_CERT_DIR=~/.postgresql
 
@@ -32,7 +34,7 @@ if [ $DB = 'mysql' ]; then
         -e MYSQL_DATABASE=ejabberd \
         -e MYSQL_USER=ejabberd \
         -e MYSQL_PASSWORD=$TRAVIS_DB_PASSWORD \
-        -v ${SQLDIR}/mysql.cnf:${MYSQL_CONF_DIR}/mysql.cnf:ro \
+        -v ${MYSQL_CONF_DIR}/mysql.cnf:${MYSQL_DIR}/mysql.cnf:ro \
         -v ${SQLDIR}/mysql.sql:/docker-entrypoint-initdb.d/mysql.sql:ro \
         -v ${BASE}/${TOOLS}/docker-setup-mysql.sh:/docker-entrypoint-initdb.d/docker-setup-mysql.sh \
         -v ${SQL_TEMP_DIR}:${SQL_TEMP_DIR} \
