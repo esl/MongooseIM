@@ -248,25 +248,6 @@
              sub_el       :: [jlib:xmlel()] | jlib:xmlel()
             }).
 
--record(rsm_in, {max         :: non_neg_integer() | undefined | error,
-                 direction   :: before | aft | undefined,
-                %% id is empty, if cdata does not exist
-                 id          :: binary() | integer() | undefined,
-                 index       :: non_neg_integer() | undefined | error
-                }).
-
--record(mam_borders, {after_id  :: non_neg_integer() | undefined,
-                      before_id :: non_neg_integer() | undefined,
-                      from_id   :: non_neg_integer() | undefined,
-                      to_id     :: non_neg_integer() | undefined
-                     }).
-
--record(rsm_out, {count :: non_neg_integer() | undefined,
-                  index :: non_neg_integer() | undefined,
-                  first :: binary() | undefined,
-                  last  :: binary() | undefined
-                 }).
-
 -type iq() :: #iq{}.
 -type jid() :: #jid{}.
 -type ljid() :: {ejabberd:luser(), ejabberd:lserver(), ejabberd:lresource()}.
