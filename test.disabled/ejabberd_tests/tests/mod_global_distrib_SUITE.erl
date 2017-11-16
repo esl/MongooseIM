@@ -34,7 +34,8 @@ all() ->
      {group, cluster_restart},
      {group, start_checks},
      {group, invalidation},
-     {group, multi_connection}
+     {group, multi_connection},
+     {group, rebalancing}
     ].
 
 groups() ->
@@ -73,7 +74,15 @@ groups() ->
        test_muc_conversation_history,
        test_in_order_messages_on_multiple_connections_with_bounce,
        test_messages_bounced_in_order
-      ]}].
+      ]},
+     {rebalancing, [shuffle],
+      [
+       enable_new_endpoint_on_refresh,
+       disable_endpoint_on_refresh,
+       wait_for_connection,
+       closed_connection_is_removed_from_disabled
+      ]}
+    ].
 
 suite() ->
     [{require, europe_node1, {hosts, mim, node}},
@@ -94,7 +103,7 @@ init_per_suite(Config) ->
             CertPath = canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
             CACertPath = canonicalize_path(filename:join(CertDir, "cacert.pem")),
             escalus:init_per_suite([{certfile, CertPath}, {cafile, CACertPath},
-                                    {extra_config, []} | Config]);
+                                    {extra_config, []}, {redis_extra_config, []} | Config]);
         _ ->
             {skip, "Cannot connect to Redis server on 127.0.0.1 6379"}
     end.
@@ -106,23 +115,32 @@ end_per_suite(Config) ->
 init_per_group(start_checks, Config) ->
     Config;
 init_per_group(multi_connection, Config) ->
-    init_per_group(generic_group, [{extra_config, [{num_of_connections, 100}]} | Config]);
+    ExtraConfig = [{connections_per_endpoint, 100}],
+    init_per_group(multi_connection_generic, [{extra_config, ExtraConfig} | Config]);
 init_per_group(invalidation, Config) ->
     Config1 = init_per_group(invalidation_generic, Config),
     NodeBin = <<"fake_node@localhost">>,
     [{node_to_expire, NodeBin} | Config1];
+init_per_group(rebalancing, Config) ->
+    %% We need to prevent automatic refreshes, because they may interfere with tests
+    %% and we need early disabled garbage collection to check its validity
+    ExtraConfig = [{endpoint_refresh_interval, 3600},
+                   {disabled_gc_interval, 1}],
+    RedisExtraConfig = [{refresh_after, 3600}],
+    init_per_group(rebalancing_generic, [{extra_config, ExtraConfig},
+                                         {redis_extra_config, RedisExtraConfig} | Config]);
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
                   Opts = [{local_host, LocalHost},
                           {global_host, "localhost"},
-                          {endpoints, [{{127, 0, 0, 1}, ReceiverPort}]},
+                          {endpoints, [listen_endpoint(ReceiverPort)]},
                           {tls_opts, [
                                       {certfile, ?config(certfile, Config1)},
                                       {cafile, ?config(cafile, Config1)}
                                      ]},
-                          {redis, [{port, 6379}]}
+                          {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]}
                           | ?config(extra_config, Config1)],
 
                   OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
@@ -190,6 +208,13 @@ end_per_testcase(CaseName, Config)
 end_per_testcase(test_update_senders_host_by_ejd_service = CN, Config) ->
     refresh_node(europe_node1, Config),
     generic_end_per_testcase(CN, Config);
+end_per_testcase(CN, Config) when CN == enable_new_endpoint_on_refresh;
+                                  CN == disable_endpoint_on_refresh;
+                                  CN == wait_for_connection;
+                                  CN == closed_connection_is_removed_from_disabled ->
+    restart_receiver(asia_node),
+    refresh_mappings(asia_node, Config),
+    generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     generic_end_per_testcase(CaseName, Config).
 
@@ -197,11 +222,11 @@ generic_end_per_testcase(CaseName, Config) ->
     lists:foreach(
       fun({NodeName, _, _}) ->
               Node = ct:get_config(NodeName),
-              SupRef = {mod_global_distrib_sender, Node},
+              SupRef = {mod_global_distrib_outgoing_conns_sup, Node},
               try
                   OutgoingConns = supervisor:which_children(SupRef),
-                  lists:foreach(fun({_Id, Pid, _, _}) ->
-                                        supervisor:terminate_child(SupRef, Pid)
+                  lists:foreach(fun({Id, _, _, _}) ->
+                                        supervisor:terminate_child(SupRef, Id)
                                 end, OutgoingConns),
                   [] = supervisor:which_children(SupRef)
               catch
@@ -497,9 +522,7 @@ refresh_nodes(Config) ->
     NodesKey = ?config(nodes_key, Config),
     NodeBin = ?config(node_to_expire, Config),
     redis_query(europe_node1, [<<"HSET">>, NodesKey, NodeBin, <<"0">>]),
-    MapperPid = ?config({mapper_pid, europe_node1}, Config),
-    MapperPid ! refresh,
-    timer:sleep(1000),
+    refresh_mappings(europe_node1, Config),
     {ok, undefined} = redis_query(europe_node1, [<<"HGET">>, NodesKey, NodeBin]).
 
 test_in_order_messages_on_multiple_connections(Config) ->
@@ -633,6 +656,80 @@ test_update_senders_host_by_ejd_service(Config) ->
               {ok, <<"fed1">>} = rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid])
       end).
 
+%% -------------------------------- Rebalancing --------------------------------
+
+enable_new_endpoint_on_refresh(Config) ->
+    get_connection(europe_node1, <<"fed1">>),
+
+    {Enabled1, _Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"fed1">>),
+    
+    NewEndpoint = enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
+
+    {Enabled2, _Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"fed1">>),
+
+    %% One new pool and one new endpoint
+    [NewEndpoint] = Pools2 -- Pools1,
+    [] = Pools1 -- Pools2,
+    [NewEndpoint] = Enabled2 -- Enabled1,
+    [] = Enabled1 -- Enabled2.
+
+disable_endpoint_on_refresh(Config) ->
+    enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
+
+    get_connection(europe_node1, <<"fed1">>),
+    
+    {Enabled1, Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"fed1">>),
+    [_, _] = Enabled1,
+    [] = Disabled1,
+    
+    hide_extra_endpoint(asia_node),
+    trigger_rebalance(europe_node1, <<"fed1">>),
+
+    {Enabled2, Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"fed1">>),
+
+    %% 2 pools open even after disable
+    [] = Pools1 -- Pools2,
+    [] = Pools2 -- Pools1,
+    %% NewEndpoint is no longer enabled
+    [] = Enabled2 -- Enabled1,
+    [NewEndpoint] = Enabled1 -- Enabled2,
+    %% NewEndpoint is now disabled
+    [] = Disabled1,
+    [NewEndpoint] = Disabled2.
+
+wait_for_connection(Config) ->
+    set_endpoints(asia_node, []),
+
+    spawn_connection_getter(europe_node1),
+
+    receive
+        Unexpected1 -> error({unexpected, Unexpected1})
+    after
+        2000 -> ok
+    end,
+
+    refresh_mappings(asia_node, Config),
+    trigger_rebalance(europe_node1, <<"fed1">>),
+
+    receive
+        Conn when is_pid(Conn) -> ok;
+        Unexpected2 -> error({unexpected, Unexpected2})
+    after
+        5000 -> error(timeout)
+    end.
+
+closed_connection_is_removed_from_disabled(_Config) ->
+    get_connection(europe_node1, <<"fed1">>),
+    set_endpoints(asia_node, []),
+    trigger_rebalance(europe_node1, <<"fed1">>),
+
+    {[], [_], [_]} = get_outgoing_connections(europe_node1, <<"fed1">>),
+    
+    % Will drop connections and prevent them from reconnecting
+    restart_receiver(asia_node, [listen_endpoint(10001)]),
+
+    wait_until(fun() -> get_outgoing_connections(europe_node1, <<"fed1">>) end,
+               {[], [], []}, 5, 1000).
 
 %%--------------------------------------------------------------------
 %% Test helpers
@@ -644,6 +741,12 @@ get_hosts() ->
      {europe_node2, "localhost.bis", 6666},
      {asia_node, "fed1", 7777}
     ].
+
+listen_endpoint(NodeName) when is_atom(NodeName) ->
+    {_, _, Port} = lists:keyfind(NodeName, 1, get_hosts()),
+    listen_endpoint(Port);
+listen_endpoint(Port) ->
+    {{127, 0, 0, 1}, Port}.
 
 rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
@@ -660,7 +763,7 @@ wait_until(Fun, ExpectedValue, AttemptsLeft, SleepTime, History) when AttemptsLe
             ok;
         OtherValue ->
             timer:sleep(SleepTime),
-            wait_until(Fun, ExpectedValue, AttemptsLeft, SleepTime, [OtherValue | History])
+            wait_until(Fun, ExpectedValue, AttemptsLeft - 1, SleepTime, [OtherValue | History])
     end.
 
 hide_node(NodeName, Config) ->
@@ -743,3 +846,61 @@ jids(Client) ->
 redis_query(Node, Query) ->
     RedisWorker = rpc(Node, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
     rpc(Node, eredis, q, [RedisWorker, Query]).
+
+%% ------------------------------- rebalancing helpers -----------------------------------
+
+spawn_connection_getter(SenderNode) ->
+    TestPid = self(),
+    spawn(fun() ->
+                  Conn = get_connection(SenderNode, <<"fed1">>),
+                  TestPid ! Conn
+          end).
+
+enable_extra_endpoint(ListenNode, SenderNode, Port, Config) ->
+    OriginalEndpoint = listen_endpoint(ListenNode),
+    NewEndpoint = {{127, 0, 0, 1}, Port},
+
+    restart_receiver(ListenNode, [NewEndpoint, OriginalEndpoint]),
+    refresh_mappings(ListenNode, Config),
+    trigger_rebalance(SenderNode, <<"fed1">>),
+
+    NewEndpoint.
+
+get_connection(SenderNode, ToDomain) ->
+    rpc(SenderNode, mod_global_distrib_outgoing_conns_sup, get_connection, [ToDomain]).
+
+hide_extra_endpoint(ListenNode) ->
+    set_endpoints(ListenNode, [listen_endpoint(ListenNode)]).
+
+set_endpoints(ListenNode, Endpoints) ->
+    {ok, _} = rpc(ListenNode, mod_global_distrib_mapping_redis, set_endpoints, [Endpoints]).
+
+get_outgoing_connections(NodeName, DestinationDomain) ->
+    Supervisor = rpc(NodeName, mod_global_distrib_utils, server_to_sup_name, [DestinationDomain]),
+    Manager = rpc(NodeName, mod_global_distrib_utils, server_to_mgr_name, [DestinationDomain]),
+    Enabled = rpc(NodeName, mod_global_distrib_server_mgr,
+                  get_enabled_endpoints, [DestinationDomain]),
+    Disabled = rpc(NodeName, mod_global_distrib_server_mgr,
+                   get_disabled_endpoints, [DestinationDomain]),
+    PoolsChildren = rpc(NodeName, supervisor, which_children, [Supervisor]),
+    Pools = [ Id || {Id, _Child, _Type, _Modules} <- PoolsChildren, Id /= Manager ],
+    {Enabled, Disabled, Pools}.
+
+restart_receiver(NodeName) ->
+    restart_receiver(NodeName, [listen_endpoint(NodeName)]).
+
+restart_receiver(NodeName, NewEndpoints) ->
+    OldOpts = rpc(NodeName, gen_mod, get_module_opts,
+                  [<<"localhost">>, mod_global_distrib_receiver]),
+    NewOpts = lists:keyreplace(endpoints, 1, OldOpts, {endpoints, NewEndpoints}),
+    ok = rpc(NodeName, gen_mod, reload_module,
+             [<<"localhost">>, mod_global_distrib_receiver, NewOpts]).
+
+refresh_mappings(NodeName, Config) ->
+    ?config({mapper_pid, NodeName}, Config) ! refresh,
+    timer:sleep(1000).
+
+trigger_rebalance(NodeName, DestinationDomain) ->
+    rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
+    timer:sleep(1000).
+

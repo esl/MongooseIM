@@ -32,7 +32,7 @@
 -export([init/1, handle_info/2]).
 
 %% Only for debug & tests!
--export([nodes_key/0]).
+-export([nodes_key/0, set_endpoints/1]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -270,8 +270,12 @@ refresh_jid(Jid) ->
 
 -spec refresh_endpoints() -> any().
 refresh_endpoints() ->
+    set_endpoints(mod_global_distrib_receiver:endpoints()).
+
+-spec set_endpoints(Endpoints :: [mod_global_distrib_utils:endpoint()]) -> any().
+set_endpoints(Endpoints) ->
     EndpointsKey = endpoints_key(),
-    BinEndpoints = lists:map(fun endpoint_to_binary/1, mod_global_distrib_receiver:endpoints()),
+    BinEndpoints = lists:map(fun endpoint_to_binary/1, Endpoints),
     refresh_set(EndpointsKey, BinEndpoints).
 
 -spec endpoint_to_binary(mod_global_distrib_utils:endpoint()) -> binary().

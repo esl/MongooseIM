@@ -220,7 +220,7 @@ stop() ->
     ets_cache:delete(?JID_TAB),
     ets_cache:delete(?DOMAIN_TAB),
 
-    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, session_closed, 90),
+    ejabberd_hooks:delete(sm_remove_connection_hook, Host, ?MODULE, session_closed, 90),
     ejabberd_hooks:delete(sm_register_connection_hook, Host, ?MODULE, session_opened, 90),
     ejabberd_hooks:delete(packet_to_component, global, ?MODULE, packet_to_component, 90),
     ejabberd_hooks:delete(unregister_subhost, global, ?MODULE, unregister_subhost, 90),

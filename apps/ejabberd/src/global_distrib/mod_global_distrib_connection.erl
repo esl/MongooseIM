@@ -29,20 +29,20 @@
           peer :: tuple() | unknown
          }).
 
--export([start_link/1]).
+-export([start_link/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3, terminate/2]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
--spec start_link(Server :: ejabberd:lserver()) -> {ok, pid()} | {error, any()}.
-start_link(Server) ->
-    gen_server:start_link(?MODULE, Server, []).
+-spec start_link(Endpoint :: mod_global_distrib_utils:endpoint(),
+                 Server :: ejabberd:lserver()) -> {ok, pid()} | {error, any()}.
+start_link(Endpoint, Server) ->
+    gen_server:start_link(?MODULE, [Endpoint, Server], []).
 
-init(Server) ->
+init([{Addr, Port}, Server]) ->
     process_flag(trap_exit, true),
-    {Addr, Port} = choose_endpoint(Server),
     MetricServer = mod_global_distrib_utils:binary_to_metric_atom(Server),
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_MESSAGES_SENT(MetricServer), spiral),
     mod_global_distrib_utils:ensure_metric(
@@ -119,17 +119,3 @@ terminate(_Reason, State) ->
 opt(Key) ->
     mod_global_distrib_utils:opt(mod_global_distrib_sender, Key).
 
--spec choose_endpoint(Server :: ejabberd:lserver()) -> mod_global_distrib_utils:endpoint().
-choose_endpoint(Server) ->
-    {ok, Endpoints} = endpoints(Server),
-    N = rand:uniform(length(Endpoints)),
-    lists:nth(N, Endpoints).
-
--spec endpoints(Server :: ejabberd:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
-endpoints(Server) ->
-    case ejabberd_config:get_local_option({global_distrib_addr, Server}) of
-        undefined -> mod_global_distrib_mapping:endpoints(Server);
-        Endpoints ->
-            ResolvedEndpoints = mod_global_distrib_utils:resolve_endpoints(Endpoints),
-            {ok, ResolvedEndpoints}
-    end.

@@ -24,7 +24,7 @@
          start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
          create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1,
          binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2,
-         maybe_update_mapping/2
+         server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2
         ]).
 
 -type endpoint() :: {inet:ip_address(), inet:port_number()}.
@@ -150,11 +150,11 @@ create_ets(Name, Type) ->
 -spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
                                [endpoint()].
 resolve_endpoints(Endpoints) ->
-    lists:map(
+    lists:flatmap(
       fun({Addr, Port}) ->
-              case to_ip_tuple(Addr) of
-                  {ok, IpAddr} ->
-                      {IpAddr, Port};
+              case to_ip_tuples(Addr) of
+                  {ok, IpAddrs} ->
+                      [{IpAddr, Port} || IpAddr <- IpAddrs];
                   {error, {Reasonv6, Reasonv4}} ->
                       ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
                                  [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),
@@ -170,6 +170,14 @@ recipient_to_worker_key({_, GlobalHost, _} = Jid, GlobalHost) ->
     jid:to_binary(Jid);
 recipient_to_worker_key({_, Domain, _}, _GlobalHost) ->
     Domain.
+
+-spec server_to_mgr_name(Server :: ejabberd:lserver()) -> atom().
+server_to_mgr_name(Server) ->
+    gen_mod:get_module_proc(Server, mod_global_distrib_server_mgr).
+
+-spec server_to_sup_name(Server :: ejabberd:lserver()) -> atom().
+server_to_sup_name(Server) ->
+    gen_mod:get_module_proc(Server, mod_global_distrib_server_sup).
 
 -spec maybe_update_mapping(From :: jid(), mongoose_acc:t()) -> any().
 maybe_update_mapping(_From, #{name := <<"presence">>, type := <<"unavailable">>}) ->
@@ -206,14 +214,14 @@ translate_opt(Opt) when is_list(Opt) ->
 translate_opt(Opt) ->
     Opt.
 
--spec to_ip_tuple(Addr :: inet:ip_address() | string()) ->
-                         {ok, inet:ip_address()} | {error, {V6 :: atom(), V4 :: atom()}}.
-to_ip_tuple(Addr) ->
-    case inet:getaddr(Addr, inet6) of
-        {ok, Av6} -> {ok, Av6};
+-spec to_ip_tuples(Addr :: inet:ip_address() | string()) ->
+                         {ok, [inet:ip_address()]} | {error, {V6 :: atom(), V4 :: atom()}}.
+to_ip_tuples(Addr) ->
+    case inet:getaddrs(Addr, inet6) of
+        {ok, Av6s} -> {ok, Av6s};
         {error, Reasonv6} ->
-            case inet:getaddr(Addr, inet) of
-                {ok, Av4} -> {ok, Av4};
+            case inet:getaddrs(Addr, inet) of
+                {ok, Av4s} -> {ok, Av4s};
                 {error, Reasonv4} -> {error, {Reasonv6, Reasonv4}}
             end
     end.
