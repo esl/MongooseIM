@@ -44,6 +44,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("mongoose_rsm.hrl").
 
 
 %% ----------------------------------------------------------------------

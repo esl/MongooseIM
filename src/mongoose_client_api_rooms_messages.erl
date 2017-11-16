@@ -15,6 +15,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
 
 init(_Transport, _Req, _Opts) ->

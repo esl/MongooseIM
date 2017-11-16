@@ -41,6 +41,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
+-include("mongoose_rsm.hrl").
 
 %% gen_mod handlers
 -export([start/2, stop/1]).

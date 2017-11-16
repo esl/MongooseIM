@@ -27,6 +27,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 
 start() ->
     mongoose_commands:register(commands()).

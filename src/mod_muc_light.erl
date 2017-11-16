@@ -48,6 +48,7 @@
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 -include("mod_roster.hrl").
+-include("mongoose_rsm.hrl").
 
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).

@@ -68,6 +68,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 
 -export_type([access/0,
              room/0,

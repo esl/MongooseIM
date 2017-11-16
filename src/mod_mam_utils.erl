@@ -116,6 +116,9 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("mod_mam.hrl").
+-include("mongoose_rsm.hrl").
+
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
 
 %% Constants

@@ -64,6 +64,7 @@
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
 -include("jlib.hrl").
 -include("ejabberd.hrl").
+-include("mongoose_rsm.hrl").
 
 %% Stream types defined in exml/include/exml_stream.hrl
 -type xmlstreamstart()  :: #xmlstreamstart{}.
@@ -75,6 +76,9 @@
 -type xmlch() :: xmlel() | xmlcdata(). % (XML ch)ild
 
 -type binary_pair() :: {binary(), binary()}.
+
+-type rsm_in() :: #rsm_in{}.
+-type rsm_out() :: #rsm_out{}.
 
 -export_type([xmlel/0, xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
               binary_pair/0,

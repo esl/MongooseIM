@@ -24,6 +24,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 
 %% API
 -export([start/2,
