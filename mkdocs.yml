@@ -7,7 +7,7 @@ extra_css: ["custom.css"]
 extra_javascript: []
 
 pages:
-  - Home: 'index.md'
+  - Home: 'start.md'
   - User Guide:
       - 'Features and supported standards': 'user-guide/Features-and-supported-standards.md'
       - 'Get to know MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
