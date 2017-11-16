@@ -534,7 +534,7 @@ purge_single_message(_Result, _Host, MessID, _RoomID, RoomJID, _Now) ->
                               Start, End, Now, WithNick) ->
                                      ok when
       Host :: server_host(), _RoomID :: user_id(),
-      RoomJID :: jid(), Borders :: mam_borders(),
+      RoomJID :: jid(), Borders :: mod_mam:borders(),
       Start :: unix_timestamp()  | undefined,
       End :: unix_timestamp()  | undefined,
       Now :: unix_timestamp(),

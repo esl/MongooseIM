@@ -538,7 +538,7 @@ calc_count(Host, Filter) ->
 
 
 %% @doc prepare_filter/5
--spec prepare_filter(RoomID :: mod_mam:archive_id(), Borders :: mam_borders() | undefined,
+-spec prepare_filter(RoomID :: mod_mam:archive_id(), Borders :: mod_mam:borders() | undefined,
                      Start :: unix_timestamp() | undefined, End :: unix_timestamp() | undefined,
                      WithJID :: jid() | undefined, SearchText :: string() | undefined) -> filter().
 prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText) ->
