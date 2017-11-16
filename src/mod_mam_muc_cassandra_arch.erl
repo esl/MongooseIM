@@ -785,7 +785,7 @@ filter_to_cql() ->
       Filter :: filter(),
       PageSize :: non_neg_integer(),
       TotalCount :: non_neg_integer(),
-      RSM :: rsm_in() | undefined,
+      RSM :: jlib:rsm_in() | undefined,
       Offset :: non_neg_integer().
 %% Requesting the Last Page in a Result Set
 calc_offset(_W, _RoomJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->

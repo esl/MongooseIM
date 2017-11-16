@@ -909,7 +909,7 @@ calculate_msg_id_borders(Borders, Start, End) ->
     {apply_start_border(Borders, StartID),
      apply_end_border(Borders, EndID)}.
 
--spec calculate_msg_id_borders(rsm_in() | undefined,
+-spec calculate_msg_id_borders(jlib:rsm_in() | undefined,
                                mod_mam:borders() | undefined,
                                mod_mam:unix_timestamp() | undefined,
                                mod_mam:unix_timestamp() | undefined) -> R when

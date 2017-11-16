@@ -256,7 +256,4 @@
 
 -type xmlel() :: #xmlel{}.
 
--type rsm_in() :: #rsm_in{}.
--type rsm_out() :: #rsm_out{}.
-
 -endif.

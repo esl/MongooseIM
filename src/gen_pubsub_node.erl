@@ -200,11 +200,11 @@
         PresenceSubscription :: boolean(),
         RosterGroup :: boolean(),
         SubId :: subId(),
-        RSM :: none | rsm_in()) ->
-    {result, {[pubsubItem()], none | rsm_out()}} | {error, xmlel()}.
+        RSM :: none | jlib:rsm_in()) ->
+    {result, {[pubsubItem()], none | jlib:rsm_out()}} | {error, xmlel()}.
 
--callback get_items(NodeIdx :: nodeIdx(), From :: jid(), RSM :: none | rsm_in()) ->
-    {result, {[pubsubItem()], none | rsm_out()}}.
+-callback get_items(NodeIdx :: nodeIdx(), From :: jid(), RSM :: none | jlib:rsm_in()) ->
+    {result, {[pubsubItem()], none | jlib:rsm_out()}}.
 
 -callback get_item(NodeIdx :: nodeIdx(),
         ItemId :: itemId(),

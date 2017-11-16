@@ -1158,7 +1158,7 @@ iq_disco_info(Host, SNode, From, Lang) ->
         Host   :: mod_pubsub:host(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           From   :: jid(),
-          Rsm    :: none | rsm_in())
+          Rsm    :: none | jlib:rsm_in())
         -> {result, [xmlel()]} | {error, term()}.
 iq_disco_items(Host, <<>>, From, _RSM) ->
     {result,
@@ -2460,7 +2460,7 @@ purge_node_transaction(Host, Owner, #pubsub_node{options = Options, type = Type,
                 SubId :: mod_pubsub:subId(),
                 SMaxItems :: binary(),
                 ItemIds :: [mod_pubsub:itemId()],
-                Rsm :: none | rsm_in()) -> {result, [xmlel(), ...]} | {error, xmlel()}.
+                Rsm :: none | jlib:rsm_in()) -> {result, [xmlel(), ...]} | {error, xmlel()}.
 get_items(Host, Node, From, SubId, <<>>, ItemIds, RSM) ->
     MaxItems = case get_max_items_node(Host) of
                    undefined -> ?MAXITEMS;

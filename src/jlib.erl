@@ -428,7 +428,7 @@ rsm_decode(#xmlel{}=SubEl) ->
     end.
 
 
--spec rsm_parse_element(xmlel(), rsm_in()) -> rsm_in().
+-spec rsm_parse_element(xmlel(), jlib:rsm_in()) -> jlib:rsm_in().
 rsm_parse_element(#xmlel{name = <<"max">>, attrs = []}=Elem, RsmIn) ->
     CountStr = xml:get_tag_cdata(Elem),
     {Count, _} = string:to_integer(binary_to_list(CountStr)),
@@ -448,7 +448,7 @@ rsm_parse_element(_, RsmIn)->
     RsmIn.
 
 
--spec rsm_encode('none' | rsm_out()) -> [xmlel()].
+-spec rsm_encode('none' | jlib:rsm_out()) -> [xmlel()].
 rsm_encode(none)->
     [];
 rsm_encode(RsmOut)->
@@ -456,7 +456,7 @@ rsm_encode(RsmOut)->
             children = lists:reverse(rsm_encode_out(RsmOut))}].
 
 
--spec rsm_encode_out(rsm_out()) -> [xmlel()].
+-spec rsm_encode_out(jlib:rsm_out()) -> [xmlel()].
 rsm_encode_out(#rsm_out{count=Count, index=Index, first=First, last=Last})->
     El = rsm_encode_first(First, Index, []),
     El2 = rsm_encode_last(Last, El),
