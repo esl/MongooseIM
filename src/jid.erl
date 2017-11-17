@@ -42,25 +42,22 @@
 -spec make(User :: ejabberd:user(), Server :: ejabberd:server(),
            Resource :: ejabberd:resource()) ->
     ejabberd:jid()  | error.
+
 make(User, Server, Resource) ->
-    case nodeprep(User) of
-        error -> error;
-        LUser ->
-            case nameprep(Server) of
-                error -> error;
-                LServer ->
-                    case resourceprep(Resource) of
-                        error -> error;
-                        LResource ->
-                            #jid{user = User,
-                                 server = Server,
-                                 resource = Resource,
-                                 luser = LUser,
-                                 lserver = LServer,
-                                 lresource = LResource}
-                    end
-            end
-    end.
+  case {nodeprep(User), nameprep(Server), resourceprep(Resource)} of
+    {LUser, LServer, LResource} when LUser /= error, LServer /= error, LResource /= error ->
+        build_jid(User, Server, Resource, LUser, LServer, LResource);
+    _Error ->
+        error
+  end.
+
+build_jid(User, Server, Resource, LUser, LServer, LResource) ->
+        #jid{user = User,
+            server = Server,
+            resource = Resource,
+            luser = LUser,
+            lserver = LServer,
+            lresource = LResource}.
 
 -spec make(ejabberd:simple_jid()) ->  ejabberd:jid()  | error.
 make({User, Server, Resource}) ->
@@ -176,9 +173,9 @@ is_nodename(J) ->
 -spec nodeprep(ejabberd:user()) -> 'error' | ejabberd:lserver().
 nodeprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
     R = stringprep:nodeprep(S),
-    if
-        size(R) < ?SANE_LIMIT -> R;
-        true -> error
+    case size(R) < ?SANE_LIMIT of
+        true -> R;
+        false -> error
     end;
 nodeprep(_) ->
     error.
@@ -187,9 +184,9 @@ nodeprep(_) ->
 -spec nameprep(ejabberd:server()) -> 'error' | ejabberd:luser().
 nameprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
     R = stringprep:nameprep(S),
-    if
-        size(R) < ?SANE_LIMIT -> R;
-        true -> error
+    case size(R) < ?SANE_LIMIT of
+        true -> R;
+        false -> error
     end;
 nameprep(_) ->
     error.
@@ -199,38 +196,30 @@ nameprep(_) ->
     'error' | ejabberd:lresource().
 resourceprep(S) when size(S) < ?SANE_LIMIT ->
     R = stringprep:resourceprep(S),
-    if
-        size(R) < ?SANE_LIMIT -> R;
-        true -> error
+    case size(R) < ?SANE_LIMIT of
+        true -> R;
+        false -> error
     end;
 resourceprep(_) ->
     error.
-
 
 -spec to_lower(JID :: ejabberd:simple_jid() | ejabberd:jid()) ->
     error | ejabberd:simple_jid().
 to_lower(#jid{luser = U, lserver = S, lresource = R}) ->
     {U, S, R};
 to_lower({U, S, R}) ->
-    case jid:nodeprep(U) of
-        error -> error;
-        LUser ->
-            case jid:nameprep(S) of
-                error -> error;
-                LServer ->
-                    case jid:resourceprep(R) of
-                        error -> error;
-                        LResource ->
-                            {LUser, LServer, LResource}
-                    end
-            end
+    case {nodeprep(U), nameprep(S), resourceprep(R)}   of
+      {LUser, LServer, LResource} when  LUser /= error, LServer /= error, LResource /= error ->
+          {LUser, LServer, LResource};
+        _Error ->
+                error
     end.
 
 -spec to_lus(JID :: ejabberd:jid()) -> error | ejabberd:simple_bare_jid().
 to_lus(#jid{luser = U, lserver = S}) ->
     {U, S}.
 
--spec to_bare(ejabberd:simple_jid()  | ejabberd:jid()) -> 
+-spec to_bare(ejabberd:simple_jid()  | ejabberd:jid()) ->
                  ejabberd:simple_jid()  | ejabberd:jid().
 to_bare(#jid{} = JID) ->
     JID#jid{resource = <<>>, lresource = <<>>};
@@ -239,7 +228,7 @@ to_bare({U, S, _R}) ->
 
 
 -spec replace_resource(ejabberd:jid(), ejabberd:resource()) ->
-                          error  | ejabberd:jid().
+  error  | ejabberd:jid().
 replace_resource(JID, Resource) ->
     case resourceprep(Resource) of
         error -> error;

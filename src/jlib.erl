@@ -267,67 +267,69 @@ iq_query_info(El) ->
 iq_query_or_response_info(El) ->
     iq_info_internal(El, any).
 
-
 -spec iq_info_internal(xmlel(), Filter :: 'any' | 'request') ->
-                                'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
+  'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
 iq_info_internal(#xmlel{name = Name, attrs = Attrs,
-                        children = Els}, Filter) when Name == <<"iq">> ->
-    %% Filter is either request or any.  If it is request, any replies
-    %% are converted to the atom reply.
-    ID = xml:get_attr_s(<<"id">>, Attrs),
-    Type = xml:get_attr_s(<<"type">>, Attrs),
-    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-    {Type1, Class} = case Type of
-                         <<"set">> -> {set, request};
-                         <<"get">> -> {get, request};
-                         <<"result">> -> {result, reply};
-                         <<"error">> -> {error, reply};
-                         _ -> {invalid, invalid}
-                     end,
-    if
-        Type1 == invalid ->
-            invalid;
-        Class == request; Filter == any ->
-            %% The iq record is a bit strange.  The sub_el field is an
-            %% XML tuple for requests, but a list of XML tuples for
-            %% responses.
-            FilteredEls = xml:remove_cdata(Els),
-            {XMLNS, SubEl} =
-                case {Class, FilteredEls} of
-                    {request, [#xmlel{attrs = Attrs2}]} ->
-                        {xml:get_attr_s(<<"xmlns">>, Attrs2),
-                         hd(FilteredEls)};
-                    {reply, _} ->
-                        %% Find the namespace of the first non-error
-                        %% element, if there is one.
-                        NonErrorEls = [El ||
-                                          #xmlel{name = SubName} = El
-                                              <- FilteredEls,
-                                          SubName /= <<"error">>],
-                        {case NonErrorEls of
-                             [NonErrorEl] ->
-                                 xml:get_tag_attr_s(<<"xmlns">>, NonErrorEl);
-                             _ ->
-                                 <<>>
-                         end,
-                         FilteredEls};
-                    _ ->
-                        {<<>>, []}
-                end,
-            if XMLNS == <<>>, Class == request ->
-                    invalid;
-               true ->
-                    #iq{id = ID,
-                        type = Type1,
-                        xmlns = XMLNS,
-                        lang = Lang,
-                        sub_el = SubEl}
-            end;
-        Class == reply, Filter /= any ->
-            reply
-    end;
+  children = Els}, Filter) when Name == <<"iq">> ->
+  %% Filter is either request or any.  If it is request, any replies
+  %% are converted to the atom reply.
+  ID = xml:get_attr_s(<<"id">>, Attrs),
+  Type = xml:get_attr_s(<<"type">>, Attrs),
+  Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+  {Type1, Class} = case Type of
+                     <<"set">> -> {set, request};
+                     <<"get">> -> {get, request};
+                     <<"result">> -> {result, reply};
+                     <<"error">> -> {error, reply};
+                     _ -> {invalid, invalid}
+                   end,
+  case {Type1, Class, Filter} of
+    {Type1, Class, Filter} when Type1 == invalid ->
+      invalid;
+    {Type1, Class, Filter} when Type1 /= invalid, Class == request; Filter == any ->
+      %% The iq record is a bit strange.  The sub_el field is an
+      %% XML tuple for requests, but a list of XML tuples for
+      %% responses.
+      FilteredEls = xml:remove_cdata(Els),
+      {XMLNS, SubEl} =
+        case {Class, FilteredEls} of
+          {request, [#xmlel{attrs = Attrs2}]} ->
+            {xml:get_attr_s(<<"xmlns">>, Attrs2),
+              hd(FilteredEls)};
+          {reply, _} ->
+            %% Find the namespace of the first non-error
+            %% element, if there is one.
+            NonErrorEls = [El ||
+              #xmlel{name = SubName} = El
+                <- FilteredEls,
+              SubName /= <<"error">>],
+            {case NonErrorEls of
+               [NonErrorEl] ->
+                 xml:get_tag_attr_s(<<"xmlns">>, NonErrorEl);
+               _ ->
+                 <<>>
+             end,
+              FilteredEls};
+          _ ->
+            {<<>>, []}
+        end,
+      case {XMLNS, Class} of
+        {XMLNS, Class} when XMLNS /=<<>>, Class /= request ->
+          invalid;
+        {XMLNS, Class} when XMLNS ==<<>>, Class == request ->
+          #iq{id = ID,
+            type = Type1,
+            xmlns = XMLNS,
+            lang = Lang,
+            sub_el = SubEl}
+      end,
+      case {Class, Filter} of
+        {Class, Filter} when Class == reply, Filter /= any ->
+          reply
+      end
+  end;
 iq_info_internal(_, _) ->
-    not_iq.
+  not_iq.
 
 -spec iq_type_to_binary(set|get|result|error) -> invalid | binary().
 iq_type_to_binary(set) -> <<"set">>;
@@ -339,12 +341,12 @@ iq_type_to_binary(_) -> invalid.
 
 -spec iq_to_xml(ejabberd:iq()) -> xmlel().
 iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) ->
-    if
-        ID /= "" ->
+    case ID of
+      ID when ID /= "" ->
             #xmlel{name = <<"iq">>,
                    attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
                    children = sub_el_to_els(SubEl)};
-        true ->
+      ID when ID == "" ->
             #xmlel{name = <<"iq">>,
                    attrs = [{<<"type">>, iq_type_to_binary(Type)}],
                    children = sub_el_to_els(SubEl)}
@@ -415,7 +417,7 @@ parse_xdata_values([_ | Els], Res) ->
     parse_xdata_values(Els, Res).
 
 
--spec rsm_decode(xmlel() | iq()) -> 'none' | #rsm_in{}.
+-spec rsm_decode(xmlel() | iq()) -> 'none' | rsm_in().
 rsm_decode(#iq{sub_el=SubEl})->
     rsm_decode(SubEl);
 rsm_decode(#xmlel{}=SubEl) ->
@@ -502,11 +504,11 @@ i2b(I) when is_integer(I) -> list_to_binary(integer_to_list(I)).
 %% Minutes = integer()
 -spec timestamp_to_iso(calendar:datetime() | datetime_micro(), tz()) -> {string(), io_lib:chars()}.
 timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second, Micro}}, Timezone) ->
-    Timestamp_string =
+    TimestampString =
         lists:flatten(
           io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~6..0w",
                         [Year, Month, Day, Hour, Minute, Second, Micro])),
-    Timezone_string =
+    TimezoneString =
         case Timezone of
             utc -> "Z";
             {Sign, {TZh, TZm}} ->
@@ -518,13 +520,13 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second, Micro}}, Timezone) 
                        end,
                 io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh), TZm])
         end,
-    {Timestamp_string, Timezone_string};
+    {TimestampString, TimezoneString};
 timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
-    Timestamp_string =
+    TimestampString =
         lists:flatten(
           io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w",
                         [Year, Month, Day, Hour, Minute, Second])),
-    Timezone_string =
+    TimezoneString =
         case Timezone of
             utc -> "Z";
             {Sign, {TZh, TZm}} ->
@@ -536,21 +538,33 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
                        end,
                 io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh), TZm])
         end,
-    {Timestamp_string, Timezone_string}.
+    {TimestampString, TimezoneString}.
 
 -spec timestamp_to_xml(DateTime :: calendar:datetime() | datetime_micro(),
                        Timezone :: tz(),
                        FromJID :: ejabberd:simple_jid() | ejabberd:jid(),
                        Desc :: iodata()) -> xmlel().
 timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
-    {T_string, Tz_string} = timestamp_to_iso(DateTime, Timezone),
+    {TString, TzString} = timestamp_to_iso(DateTime, Timezone),
     Text = [#xmlcdata{content = Desc}],
     From = jid:to_binary(FromJID),
     #xmlel{name = <<"delay">>,
            attrs = [{<<"xmlns">>, ?NS_DELAY},
                     {<<"from">>, From},
-                    {<<"stamp">>, list_to_binary(T_string ++ Tz_string)}],
+                    {<<"stamp">>, list_to_binary(TString ++ TzString)}],
            children = Text}.
+
+-spec timestamp_to_mam_xml(DateTime :: calendar:datetime(),
+                           Timezone :: tz(),
+                           QueryId :: any(),
+                           MessageUID :: binary()) -> xmlel().
+timestamp_to_mam_xml(DateTime, Timezone, QueryID, MessageUID) ->
+    {TString, TzString} = timestamp_to_iso(DateTime, Timezone),
+    #xmlel{name = <<"delay">>,
+           attrs = [{<<"xmlns">>, ?NS_DELAY},
+                    {<<"stamp">>, list_to_binary(TString ++ TzString)},
+                    {<<"id">>, MessageUID}] ++
+                   [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>]}.
 
 
 -spec now_to_utc_string(erlang:timestamp()) -> string().
@@ -668,11 +682,11 @@ check_list(List) ->
     lists:mapfoldl(
       fun({L, N}, B)->
               V = list_to_integer(L),
-              if
-                  (V >= 0) and (V =< N) ->
-                      {V, B};
-                  true ->
-                      {false, false}
+              case (V) of
+                (V) when V >= 0, V =< N ->
+                    {V, B};
+                (V) when V < 0, V > N ->
+                    {false, false}
               end
       end, true, List).
 
@@ -781,7 +795,7 @@ ip_to_list(IP) ->
    , Type :: binary()
    , Condition :: binary()
    , SpecTag :: binary()
-   , SpecNs :: binary() | undefined) -> #xmlel{}.
+   , SpecNs :: binary() | undefined) -> xmlel().
 stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
     Er = stanza_error(Code, Type, Condition),
     Spec = #xmlel{ name = SpecTag, attrs = [{<<"xmlns">>, SpecNs}]},
@@ -789,9 +803,10 @@ stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
     Er#xmlel{children = NCh}.
 
 %% TODO: remove<<"code" attribute (currently it used for backward-compatibility)
+
 -spec stanza_error( Code :: binary()
                  , Type :: binary()
-                 , Condition :: binary() | undefined) -> #xmlel{}.
+                 , Condition :: binary() | undefined) -> xmlel().
 stanza_error(Code, Type, Condition) ->
   #xmlel{ name = <<"error">>
        , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
@@ -804,7 +819,7 @@ stanza_error(Code, Type, Condition) ->
                   , Type :: binary()
                   , Condition :: binary()
                   , Lang :: ejabberd:lang()
-                  , Text :: binary()) -> #xmlel{}.
+                  , Text :: binary()) -> xmlel().
 stanza_errort(Code, Type, Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"error">>
@@ -818,7 +833,7 @@ stanza_errort(Code, Type, Condition, Lang, Text) ->
                              }]
         }.
 
--spec stream_error(Condition :: binary()) -> #xmlel{}.
+-spec stream_error(Condition :: binary()) -> xmlel().
 stream_error(Condition) ->
   #xmlel{ name = <<"stream:error">>
        , children = [ #xmlel{ name = Condition
@@ -829,7 +844,7 @@ stream_error(Condition) ->
 
 -spec stream_errort( Condition :: binary()
                   , Lang :: ejabberd:lang()
-                  , Text :: binary()) -> #xmlel{}.
+                  , Text :: binary()) -> xmlel().
 stream_errort(Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"stream:error">>
