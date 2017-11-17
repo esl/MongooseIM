@@ -39,6 +39,7 @@
     status_list/2, status_list/1,
     connected_users_info/0,
     connected_users_info/1,
+    get_presence/2,
     set_presence/7,
     user_sessions_info/2
     ]).
@@ -155,7 +156,25 @@ commands() ->
                            module = ?MODULE, function = user_sessions_info,
                            args = [{user, binary}, {host, binary}],
                            result = {user_sessions_info, SessionDisplay}},
-
+        #ejabberd_commands{name = get_presence, tags = [session],
+                           desc = "Retrieve the resource with highest priority, "
+                                  "and its presence (show and status message) "
+                                  "for a given user.",
+                           longdesc = "The 'jid' value contains the user jid "
+                                      "with resource.\nThe 'show' value contains "
+                                      "the user presence flag. It can take "
+                                      "limited values:\n - available\n - chat "
+                                      "(Free for chat)\n - away\n - dnd (Do "
+                                      "not disturb)\n - xa (Not available, "
+                                      "extended away)\n - unavailable (Not "
+                                      "connected)\n\n'status' is a free text "
+                                      "defined by the user client.",
+                           module = ?MODULE, function = get_presence,
+                           args = [{user, binary}, {server, binary}],
+                           result = {presence,
+                                      {tuple,
+                                       [{jid, string}, {show, string},
+                                        {status, string}]}}},
         #ejabberd_commands{name = set_presence,
                            tags = [session],
                            desc = "Set presence of a session",
@@ -268,6 +287,20 @@ connected_users_info(Host) ->
         _ -> ejabberd_sm:get_vh_session_list(Host)
     end,
     lists:map(fun format_user_info/1, USRIs).
+
+
+get_presence(User, Server) ->
+    Pids = [ejabberd_sm:get_session_pid(User, Server, Resource)
+        || Resource <- ejabberd_sm:get_user_resources(User, Server)],
+    OnlinePids = [Pid || Pid <- Pids, Pid=/=none],
+    case OnlinePids of
+    [] ->
+        {<<User/binary, $@, Server/binary>>, <<"unavailable">>, <<"">>};
+    [SessionPid|_] ->
+        {_User, Resource, Show, Status} = ejabberd_c2s:get_presence(SessionPid),
+        FullJID = <<User/binary, $@, Server/binary, $/, Resource/binary>>,
+        {FullJID, Show, Status}
+    end.
 
 
 -spec set_presence(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
