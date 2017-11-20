@@ -194,22 +194,59 @@ get_odbc_stats(ODBCWorkers) ->
     PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
     [{workers, length(ODBCConnections)} | merge_stats(PortStats)].
 
-get_port_from_odbc_connection({{ok, DB, Pid}, WorkerPid}) when DB =:= mysql ->
-    element(2, erlang:process_info(Pid, links)) -- [WorkerPid];
-get_port_from_odbc_connection({{ok, DB, Pid}, _WorkerPid}) when DB =:= pgsql ->
-    ProcStatus = sys:get_status(Pid),
-    get_port_from_proc_status(ProcStatus);
+get_port_from_odbc_connection({{ok, DB, Pid}, _WorkerPid}) when DB =:= mysql;
+                                                                DB =:= pgsql ->
+    ProcState = sys:get_state(Pid),
+    get_port_from_proc_state(DB, ProcState);
 get_port_from_odbc_connection({{ok, odbc, Pid}, WorkerPid}) ->
     Links = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
     [Port || Port <- Links, is_port(Port), {name, "tcp_inet"} == erlang:port_info(Port, name)];
 get_port_from_odbc_connection(_) ->
     undefined.
 
-get_port_from_proc_status({_, _, _, Status}) ->
-    Misc = lists:nth(5, Status),
-    {_, [{_, State}]} = lists:nth(3, Misc),
-    {_, SockInfo, _} = element(3, State),
-    element(2, SockInfo).
+%% @doc Gets a socket from mysql/epgsql library Gen_server state
+get_port_from_proc_state(mysql, State) ->
+    %% -record(state, {server_version, connection_id, socket, sockmod, ssl_opts,
+    %%                 host, port, user, password, log_warnings,
+    %%                 ping_timeout,
+    %%                 query_timeout, query_cache_time,
+    %%                 affected_rows = 0, status = 0, warning_count = 0, insert_id = 0,
+    %%                 transaction_level = 0, ping_ref = undefined,
+    %%                 stmts = dict:new(), query_cache = empty, cap_found_rows = false}).
+    SockInfo = element(4, State),
+    get_port_from_sock(SockInfo);
+get_port_from_proc_state(pgsql, State) ->
+    %% -record(state, {mod,
+    %%                 sock,
+    %%                 data = <<>>,
+    %%                 backend,
+    %%                 handler,
+    %%                 codec,
+    %%                 queue = queue:new(),
+    %%                 async,
+    %%                 parameters = [],
+    %%                 types = [],
+    %%                 columns = [],
+    %%                 rows = [],
+    %%                 results = [],
+    %%                 batch = [],
+    %%                 sync_required,
+    %%                 txstatus,
+    %%                 complete_status :: undefined | atom() | {atom(), integer()},
+    %%                 repl_last_received_lsn,
+    %%                 repl_last_flushed_lsn,
+    %%                 repl_last_applied_lsn,
+    %%                 repl_feedback_required,
+    %%                 repl_cbmodule,
+    %%                 repl_cbstate,
+    %%                 repl_receiver}).
+    SockInfo = element(3, State),
+    get_port_from_sock(SockInfo).
+
+get_port_from_sock({sslsocket, {_, Port, _, _}, _}) ->
+    Port;
+get_port_from_sock(Port) ->
+    Port.
 
 merge_stats(Stats) ->
     OrdDict = lists:foldl(fun(Stat, Acc) ->
