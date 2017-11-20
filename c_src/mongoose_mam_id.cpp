@@ -26,11 +26,11 @@ static std::atomic<std::uint_fast64_t> counter{ 0 };
 extern "C" {
 static ERL_NIF_TERM next_unique(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    unsigned long long_candidate;
-    if (!enif_get_uint64(env, argv[0], &long_candidate))
+    ErlNifUInt64 given_candidate;
+    if (!enif_get_uint64(env, argv[0], &given_candidate))
         return enif_make_badarg(env);
 
-    std::uint_fast64_t candidate = long_candidate;
+    std::uint_fast64_t candidate = static_cast<std::uint_fast64_t>(given_candidate);
     std::uint_fast64_t current = candidate - 1;
 
     while (!counter.compare_exchange_weak(current, candidate, std::memory_order_relaxed))
