@@ -1011,7 +1011,7 @@ Because `hag66` was not a member of this room before, they only receive **their 
 </message>
 ```
 
-`hag88` has been kicked oout of the room and therefore gets only their own affiliation change of type 'none'.
+`hag88` has been kicked out of the room and therefore gets only their own affiliation change of type 'none'.
 
 ```xml
 <message from='coven@muclight.shakespeare.lit'
