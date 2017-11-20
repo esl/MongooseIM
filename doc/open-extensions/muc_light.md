@@ -932,7 +932,16 @@ The notifications contain a list of items. The item list may be different from t
 
 **Affiliations change request**
 
-User crone1 sends a request to set these example affiliations
+Let's assume room `coven` with following members:
+
+* `crone1` - `owner`
+* `hag77` - `member`
+* `hag88` - `member`
+
+`hag66` is not in the room yet.
+
+User `crone1` wants to promote `hag77` to owner status, add `hag66` to a room and kick `hag88` from a room.
+
 ```xml
 <iq from='crone1@shakespeare.lit/desktop'
     id='member1'
@@ -946,9 +955,11 @@ User crone1 sends a request to set these example affiliations
 </iq>
 ```
 
-Now each user (including crone1 who requested changes) will get an update.
+Now each user will receive an update.
+As you can see, affiliations have changed accordingly to `crone1` request.
+However, this request implies one more update.
+Since `hag77` has been promoted to a new owner, `crone1` is automatically degraded to `member`.
 
-As you can see, affiliations have changed accordingly to crone1's request.
 ```xml
 <message from='coven@muclight.shakespeare.lit'
          to='crone1@shakespeare.lit'
@@ -965,7 +976,9 @@ As you can see, affiliations have changed accordingly to crone1's request.
     <body></body>
 </message>
 ```
-Because hag66 was not a user of this room before, he only receives **his own affiliation** and **no prev-version** element.
+
+Because `hag66` was not a user of this room before, they only receive **their own affiliation** and **no prev-version** element.
+
 ```xml
 <message from='coven@muclight.shakespeare.lit'
          to='hag66@shakespeare.lit'
@@ -978,6 +991,8 @@ Because hag66 was not a user of this room before, he only receives **his own aff
     <body></body>
 </message>
 ```
+
+`hag77` receives ordinary update, just like `crone1`.
 
 ```xml
 <message from='coven@muclight.shakespeare.lit'
@@ -995,7 +1010,9 @@ Because hag66 was not a user of this room before, he only receives **his own aff
     <body></body>
 </message>
 ```
-hag88 has been kicked off the room and therefore gets only his own affiliation change of type 'none'
+
+`hag88` has been kicked off the room and therefore gets only their own affiliation change of type 'none'.
+
 ```xml
 <message from='coven@muclight.shakespeare.lit'
          to='hag88@shakespeare.lit'
@@ -1008,7 +1025,7 @@ hag88 has been kicked off the room and therefore gets only his own affiliation c
 </message>
 ```
 
-crone1 gets the result iq after the change
+`crone1` gets the result IQ after the change.
 ```xml
 <iq to='crone1@shakespeare.lit/desktop'
     id='member1'
