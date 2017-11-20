@@ -932,7 +932,7 @@ The notifications contain a list of items. The item list may be different from t
 
 **Affiliations change request**
 
-Let's assume room `coven` with following members:
+Let's consider a room `coven` with following members:
 
 * `crone1` - `owner`
 * `hag77` - `member`
@@ -940,7 +940,7 @@ Let's assume room `coven` with following members:
 
 `hag66` is not in the room yet.
 
-User `crone1` wants to promote `hag77` to owner status, add `hag66` to a room and kick `hag88` from a room.
+User `crone1` wants to add `hag66` to the room, kick `hag88` out and make `hag77` the room owner.
 
 ```xml
 <iq from='crone1@shakespeare.lit/desktop'
@@ -977,7 +977,7 @@ Since `hag77` has been promoted to a new owner, `crone1` is automatically degrad
 </message>
 ```
 
-Because `hag66` was not a user of this room before, they only receive **their own affiliation** and **no prev-version** element.
+Because `hag66` was not a member of this room before, they only receive **their own affiliation** and **no prev-version** element.
 
 ```xml
 <message from='coven@muclight.shakespeare.lit'
@@ -992,7 +992,7 @@ Because `hag66` was not a user of this room before, they only receive **their ow
 </message>
 ```
 
-`hag77` receives ordinary update, just like `crone1`.
+`hag77` receives an ordinary update, just like `crone1`.
 
 ```xml
 <message from='coven@muclight.shakespeare.lit'
@@ -1011,7 +1011,7 @@ Because `hag66` was not a user of this room before, they only receive **their ow
 </message>
 ```
 
-`hag88` has been kicked off the room and therefore gets only their own affiliation change of type 'none'.
+`hag88` has been kicked oout of the room and therefore gets only their own affiliation change of type 'none'.
 
 ```xml
 <message from='coven@muclight.shakespeare.lit'
