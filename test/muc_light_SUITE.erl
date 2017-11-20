@@ -6,6 +6,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include("mod_muc_light.hrl").
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 
 -define(DOMAIN, <<"localhost">>).
 
