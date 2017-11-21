@@ -55,11 +55,17 @@ start() ->
         undefined ->
             ignore;
         RiakOpts ->
-            {_, RiakAddr} = lists:keyfind(address, 1, RiakOpts),
-            {_, RiakPort} = lists:keyfind(port, 1, RiakOpts),
-            Workers = proplists:get_value(pool_size, RiakOpts, 20),
+            {_, RiakAddr} = get_riak_opt(address, RiakOpts),
+            {_, RiakPort} = get_riak_opt(port, RiakOpts),
+            {_, Workers} = get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
+            SecurityOptsKeys = [credentials, cacertfile],
+            SecurityOpts = [get_riak_opt(OptKey, RiakOpts) ||
+                               OptKey <- SecurityOptsKeys],
             RiakPBOpts = [auto_reconnect, keepalive],
-            mongoose_riak_sup:start(Workers, RiakAddr, RiakPort, RiakPBOpts)
+            RiakPBOptsExceeded =
+                maybe_add_additional_opts(RiakPBOpts, SecurityOpts),
+            mongoose_riak_sup:start(Workers, RiakAddr, RiakPort,
+                                    RiakPBOptsExceeded)
     end.
 
 -spec stop() -> _.
@@ -192,3 +198,26 @@ call_riak(F, ArgsIn) ->
     Worker = get_worker(),
     Args = [Worker | ArgsIn],
     apply(riakc_pb_socket, F, Args).
+
+%% @doc Gets a particular option from `Opts`. They're expressed as a list
+%% of tuples where the first element is `OptKey`. If provided `OptKey` doesn't
+%% exist the `Default` is returned.
+-spec get_riak_opt(OptKey :: atom(), Opts :: [tuple()], Default :: tuple()) ->
+                                   tuple().
+get_riak_opt(OptKey, Opts, Default) ->
+    Opt = get_riak_opt(OptKey, Opts),
+    verify_if_riak_opt_exists(Opt, Default).
+
+get_riak_opt(OptKey, Opts) ->
+    lists:keyfind(OptKey, 1, Opts).
+
+verify_if_riak_opt_exists(false, Default) -> Default;
+verify_if_riak_opt_exists(Opt, _) -> Opt.
+
+%% @docs Merges `AdditionalOpts` into `Opts` if a particular additional option
+%% exists.
+-spec maybe_add_additional_opts(Opts :: [term()],
+                                   AdditionalOpts :: [tuple()]) -> [term()].
+maybe_add_additional_opts(Opts, AdditionalOpts) ->
+    Opts2 = [verify_if_riak_opt_exists(Opt, []) || Opt <- AdditionalOpts],
+    lists:flatten(Opts ++ Opts2).
