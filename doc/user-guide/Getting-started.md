@@ -7,23 +7,53 @@ You can either compile everything from the source code or install binaries from 
 
 Check out our tutorial [How to build MongooseIM from source code](How-to-build.md) for an introduction to compiling, building and testing MongooseIM.
 
-### Install from DMG
+### Install from package
 
-Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) page of Erlang Solution website, and download the version of MongooseIM you want.
+Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) page of Erlang Solution website, and download the version of MongooseIM you want. The following sections describe the installation process for different operating systems.
+
+#### Mac Os
+
 Once the DMG is downloaded, double click it and the contents of the package will open.
 Double click the .pkg file and follow the instructions of the installation wizard.
 
+#### Ubuntu
 
-## Running MongooseIM
+Once the deb file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
 
 ```bash
-$ cd _build/prod/rel/mongooseim/bin # assuming you are in the MongooseIM directory
-$ ./mongooseim start # start the MongooseIM server
-$ ./mongooseim ping  # if the response is `pong`, the server is running
-$ ./mongooseim debug # connect to the console of the live MongooseIM node
+$ sudo dpkg -i mongooseim_2.1.0-1~ubuntu~artful_amd64.deb
 ```
 
-Alternatively, you can also run the server in the interactive mode: `./mongooseim live`
+#### CentOS
+
+An ODBC driver must be installed on your machine to unpack and install from rpm packages. Enter the following command in a terminal window to install the latest unixODBC driver:
+```bash
+$ sudo yum install unixODBC
+```
+Once the rpm file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
+```bash
+$ sudo rpm -i mongooseim_2.1.0-1~centos~7_amd64.rpm
+```
+
+## Running MongooseIM installed from package
+
+The following command will start the MongooseIM server:
+```bash
+$ mongooseimctl start
+```
+The following command shows the status of a started MongooseIM server
+```bash
+$ mongooseimctl status
+```
+Use the following command to stop the MongooseIM server:
+```bash
+$ mongooseimctl stop
+```
+
+Alternatively, you can also run the server in the interactive mode:
+```bash
+$ mongooseimctl live
+```
 
 
 ## Registering a user
@@ -40,7 +70,7 @@ mongooseimctl register user domain password
 
 ## Connecting with an XMPP client
 
-### Adium
+### Adium (Mac OS)
 
 1. Launch Adium. If the Adium Setup Assistant opens, close it.
 2. In the **Adium** menu, select **Preferences**, and then select the **Accounts** tab.
@@ -55,6 +85,22 @@ After registration, the user will connect automatically.
 
 Registered users wishing to add an existing account to Adium should enter the MongooseIM server’s IP address in the **Connect Server** field on the **Options** tab.
 
+### Pidgin (Ubuntu & CentOS)
+
+1. 	Launch Pidgin.
+2. 	Click the Add button to configure your account.
+3. 	In the **Basic** tab choose **XMPP** as protocol,
+		then enter Username, Domain and Password and click **Add**.
+		After Registration the user will connect automatically.
+
+### Gajim (Ubuntu & CentOS)
+
+The following steps assumes that you have already registered a user on the MongooseIM server, see section **Registering a user** above.
+1. Launch Gajim. Ignore window about Plugin updates.
+2. Go to Edit -> Accounts.
+3. Click Add in the left part of the window and select **I already have an account I want to use**, click Forward
+4. Enter user, domain and password for the already registered account, click Forward and then Finish.
+5. Close the Account window.
 
 ## Domains
 
