@@ -131,7 +131,7 @@ stop_pm(Host) ->
         true ->
             ok;
         false ->
-            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50)
+            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50)
     end,
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
