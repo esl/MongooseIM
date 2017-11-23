@@ -8,19 +8,15 @@ source tools/travis-common-vars.sh
 
 MIM_PRIV_DIR=${BASE}/priv
 
-PGSQL_CONF_DIR=${BASE}/${TOOLS}/db_configs/postgres
+DB_CONF_DIR=${BASE}/${TOOLS}/db_configs/$DB
 
 SQL_TEMP_DIR=/tmp/sql
-
-MYSQL_CONF_DIR=${BASE}/${TOOLS}/db_configs/mysql
 
 MYSQL_DIR=/etc/mysql/conf.d
 
 PGSQL_ODBC_CERT_DIR=~/.postgresql
 
 RIAK_DIR=/etc/riak
-
-RIAK_CONF_DIR=${BASE}/${TOOLS}/db_configs/riak
 
 TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
 
@@ -38,7 +34,7 @@ if [ $DB = 'mysql' ]; then
         -e MYSQL_DATABASE=ejabberd \
         -e MYSQL_USER=ejabberd \
         -e MYSQL_PASSWORD=$TRAVIS_DB_PASSWORD \
-        -v ${MYSQL_CONF_DIR}/mysql.cnf:${MYSQL_DIR}/mysql.cnf:ro \
+        -v ${DB_CONF_DIR}/mysql.cnf:${MYSQL_DIR}/mysql.cnf:ro \
         -v ${MIM_PRIV_DIR}/mysql.sql:/docker-entrypoint-initdb.d/mysql.sql:ro \
         -v ${BASE}/${TOOLS}/docker-setup-mysql.sh:/docker-entrypoint-initdb.d/docker-setup-mysql.sh \
         -v ${SQL_TEMP_DIR}:${SQL_TEMP_DIR} \
@@ -50,8 +46,8 @@ elif [ $DB = 'pgsql' ]; then
     mkdir ${SQL_TEMP_DIR}
     cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
     cp ${SSLDIR}/fake_key.pem ${SQL_TEMP_DIR}/.
-    cp ${PGSQL_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
-    cp ${PGSQL_CONF_DIR}/pg_hba.conf ${SQL_TEMP_DIR}/.
+    cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
+    cp ${DB_CONF_DIR}/pg_hba.conf ${SQL_TEMP_DIR}/.
     cp ${MIM_PRIV_DIR}/pg.sql ${SQL_TEMP_DIR}/.
     docker run -d \
            -e SQL_TEMP_DIR=${SQL_TEMP_DIR} \
@@ -80,19 +76,39 @@ elif [ $DB = 'riak' ]; then
     sudo cp ${SSLDIR}/fake_cert.pem ${RIAK_DIR}/cert.pem
     sudo cp ${SSLDIR}/fake_key.pem ${RIAK_DIR}/key.pem
     sudo cp ${SSLDIR}/ca/cacert.pem ${RIAK_DIR}/cacertfile.pem
-    sudo cp ${RIAK_CONF_DIR}/advanced.config ${RIAK_DIR}/advanced.config
-    sudo cp ${RIAK_CONF_DIR}/riak.conf ${RIAK_DIR}/riak.conf
+    sudo cp ${DB_CONF_DIR}/advanced.config ${RIAK_DIR}/advanced.config
+    sudo cp ${DB_CONF_DIR}/riak.conf ${RIAK_DIR}/riak.conf
     sudo service riak restart
     echo "Setup Riak"
     sudo tools/setup_riak $TRAVIS_DB_PASSWORD
 
 elif [ $DB = 'cassandra' ]; then
-    docker run -d -p 9042:9042 -e MAX_HEAP_SIZE=128M -e HEAP_NEWSIZE=64M --name=cassandra cassandra:${CASSANDRA_VERSION}
+    docker image pull cassandra:${CASSANDRA_VERSION}
+
+    opts="$(docker inspect -f '{{range .Config.Entrypoint}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
+    opts+="$(docker inspect -f '{{range .Config.Cmd}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
+    readarray -t -s 1 init_opts <<< "$opts"
+    echo -e "cassandra startup cmd:\n\t${init_opts[@]}"
+
+    docker_entry="${DB_CONF_DIR}/docker_entry.sh"
+
+    docker run -d -p 9042:9042                   \
+               -e MAX_HEAP_SIZE=128M             \
+               -e HEAP_NEWSIZE=64M               \
+               -v "${SSLDIR}:/ssl:ro"            \
+               -v "${docker_entry}:/entry.sh:ro" \
+               --name=cassandra                  \
+               --entrypoint "/entry.sh"          \
+               cassandra:${CASSANDRA_VERSION}    \
+               "${init_opts[@]}"
+
     tools/wait_for_service.sh cassandra 9042 || docker logs cassandra
 
     # Deleted --rm on travis for speedup
-    docker run -it -v "$(pwd)/priv/cassandra.cql:/cassandra.cql:ro" \
-        --link cassandra:cassandra \
-        cassandra:${CASSANDRA_VERSION} \
-        sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" -f /cassandra.cql'
+    docker run -it -e SSL_CERTFILE=/cacert.pem                  \
+               -v "${SSLDIR}/ca/cacert.pem:/cacert.pem:ro"      \
+               -v "$(pwd)/priv/cassandra.cql:/cassandra.cql:ro" \
+               --link cassandra:cassandra                       \
+               cassandra:${CASSANDRA_VERSION}                   \
+               sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" --ssl -f /cassandra.cql'
 fi
