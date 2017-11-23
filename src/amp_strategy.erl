@@ -8,9 +8,9 @@
 -export([determine_strategy/5,
          null_strategy/0]).
 
--include_lib("ejabberd/include/amp.hrl").
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("amp.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 
 -spec determine_strategy(amp_strategy(), jid() | undefined, jid() | undefined, #xmlel{}, amp_event()) ->
                                 amp_strategy().

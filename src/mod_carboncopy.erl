@@ -52,8 +52,8 @@
 -define(CC_KEY, 'cc').
 -define(CC_DISABLED, undefined).
 
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 
 -type classification() :: 'ignore' | 'forward'.
 

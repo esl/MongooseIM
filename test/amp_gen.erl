@@ -2,7 +2,7 @@
 %% Generators for XEP-0079 models
 -compile([export_all]).
 
--include_lib("ejabberd/include/amp.hrl").
+-include("amp.hrl").
 -include_lib("proper/include/proper.hrl").
 
 strategy() ->

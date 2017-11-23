@@ -10,7 +10,7 @@
 -author("bartek").
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("ejabberd/src/ejabberd_c2s.hrl").
+-include("ejabberd_c2s.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("mod_roster.hrl").
 -compile([export_all]).

@@ -101,9 +101,9 @@
          is_jid_in_user_roster/2]).
 
 
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
--include_lib("ejabberd/include/amp.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
+-include("amp.hrl").
 -include_lib("exml/include/exml.hrl").
 
 %% ----------------------------------------------------------------------

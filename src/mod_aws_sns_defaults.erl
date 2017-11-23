@@ -14,7 +14,7 @@
 
 -behavior(mod_aws_sns).
 
--include_lib("ejabberd/include/jlib.hrl").
+-include("jlib.hrl").
 
 %%%===================================================================
 %%% Exports

@@ -13,8 +13,8 @@
 -behavior(mod_push_plugin).
 -author('rafal.slota@erlang-solutions.com').
 
--include_lib("ejabberd/include/jlib.hrl").
--include_lib("ejabberd/include/ejabberd.hrl").
+-include("jlib.hrl").
+-include("ejabberd.hrl").
 
 %% Callback API
 -export([should_publish/3, sender_id/2]).

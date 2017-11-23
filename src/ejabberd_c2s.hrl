@@ -1,4 +1,4 @@
--include_lib("ejabberd/include/mod_privacy.hrl").
+-include("mod_privacy.hrl").
 
 -define(STREAM_MGMT_H_MAX, (1 bsl 32 - 1)).
 -define(STREAM_MGMT_CACHE_MAX, 100).

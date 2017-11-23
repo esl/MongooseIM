@@ -19,7 +19,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--include_lib("ejabberd/include/mod_revproxy.hrl").
+-include("mod_revproxy.hrl").
 
 -import(ejabberd_helper, [start_ejabberd/1,
                           stop_ejabberd/0,

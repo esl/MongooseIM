@@ -6,9 +6,9 @@
          verify_support/2
         ]).
 
--include_lib("ejabberd/include/amp.hrl").
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("amp.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 
 -spec verify_support(any(), amp_rules()) -> [ amp_rule_support() ].
 verify_support(HookAcc, Rules) ->

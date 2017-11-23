@@ -5,8 +5,8 @@
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("ejabberd/include/ejabberd_commands.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("ejabberd_commands.hrl").
+-include("jlib.hrl").
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 

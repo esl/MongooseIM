@@ -17,10 +17,10 @@
          strip_amp_el_from_request/1
         ]).
 
--include_lib("ejabberd/include/amp.hrl").
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
--include_lib("ejabberd/src/ejabberd_c2s.hrl").
+-include("amp.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
+-include("ejabberd_c2s.hrl").
 
 -define(AMP_FEATURE,
         #xmlel{name = <<"amp">>, attrs = [{<<"xmlns">>, ?NS_AMP_FEATURE}]}).

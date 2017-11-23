@@ -16,8 +16,8 @@
 -module(mongoose_cassandra).
 -author('rafal.slota@erlang-solutions.com').
 
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 -include_lib("cqerl/include/cqerl.hrl").
 
 -define(READ_TIMEOUT, timer:minutes(1)).

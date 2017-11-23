@@ -15,8 +15,8 @@
 
 -behavior(gen_mod).
 
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 
 -callback user_guid(UserJID :: ejabberd:jid()) -> mod_aws_sns:user_guid().

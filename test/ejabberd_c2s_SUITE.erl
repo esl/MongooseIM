@@ -1,6 +1,6 @@
 -module(ejabberd_c2s_SUITE).
 -include_lib("eunit/include/eunit.hrl").
--include_lib("ejabberd/src/ejabberd_c2s.hrl").
+-include("ejabberd_c2s.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -compile([export_all]).
 

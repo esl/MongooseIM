@@ -41,8 +41,8 @@
         [apply_start_border/2,
          apply_end_border/2]).
 
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
 

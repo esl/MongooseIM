@@ -5,7 +5,7 @@
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("ejabberd/include/ejabberd_commands.hrl").
+-include("ejabberd_commands.hrl").
 
 -define(PORT, 5288).
 -define(HOST, "localhost").

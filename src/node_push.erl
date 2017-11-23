@@ -13,9 +13,9 @@
 -author('rafal.slota@erlang-solutions.com').
 -behaviour(gen_pubsub_node).
 
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
--include_lib("ejabberd/include/pubsub.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
+-include("pubsub.hrl").
 
 -export([init/3, terminate/2, options/0, features/0,
          create_node_permission/6, create_node/2, delete_node/1,

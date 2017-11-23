@@ -8,7 +8,7 @@
 
 -compile([export_all]).
 
--include_lib("ejabberd/include/amp.hrl").
+-include("amp.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").

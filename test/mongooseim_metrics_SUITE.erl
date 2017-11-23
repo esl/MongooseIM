@@ -3,7 +3,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("jlib.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 -compile([export_all]).

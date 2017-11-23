@@ -5,9 +5,9 @@
 %% @copyright 2014 Erlang Solutions, Ltd.
 %% This work was sponsored by Grindr LLC
 
--include_lib("ejabberd/include/amp.hrl").
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("amp.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 
 -export([extract_requested_rules/1,
          make_response/3,
