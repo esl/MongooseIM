@@ -11,7 +11,7 @@ Check out our tutorial [How to build MongooseIM from source code](How-to-build.m
 
 Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) page of Erlang Solution website, and download the version of MongooseIM you want. The following sections describe the installation process for different operating systems.
 
-#### Mac Os
+#### Mac
 
 Once the DMG is downloaded, double click it and the contents of the package will open.
 Double click the .pkg file and follow the instructions of the installation wizard.
@@ -70,7 +70,7 @@ mongooseimctl register user domain password
 
 ## Connecting with an XMPP client
 
-### Adium (Mac OS)
+### Adium (Mac)
 
 1. Launch Adium. If the Adium Setup Assistant opens, close it.
 2. In the **Adium** menu, select **Preferences**, and then select the **Accounts** tab.
@@ -87,11 +87,9 @@ Registered users wishing to add an existing account to Adium should enter the Mo
 
 ### Pidgin (Ubuntu & CentOS)
 
-1. 	Launch Pidgin.
-2. 	Click the Add button to configure your account.
-3. 	In the **Basic** tab choose **XMPP** as protocol,
-		then enter Username, Domain and Password and click **Add**.
-		After Registration the user will connect automatically.
+1. Launch Pidgin.
+2. Click the Add button to configure your account.
+3. In the **Basic** tab choose **XMPP** as protocol, then enter Username, Domain and Password and click **Add**. After Registration the user will connect automatically.
 
 ### Gajim (Ubuntu & CentOS)
 
