@@ -6,7 +6,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_odbc_arch).
 %% Use few separate tables.
-%% Check `apps/ejabberd/priv/mysql-part.sql' for schema.
+%% Check `priv/mysql-part.sql' for schema.
 
 %% ----------------------------------------------------------------------
 %% Exports

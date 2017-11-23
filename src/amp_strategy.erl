@@ -55,7 +55,7 @@ deliver_strategy(_, delivered) -> [direct].
 %% and therefore no rules with match-resource set could possibly yield true.
 %% Conversely, the 'any' strategy is not a valid server-side strategy:
 %% the server will either match the exact resource, or not. (See match_res_any CT test)
-%% in apps/ejabberd/test/amp_resolver_SUITE.erl
+%% in test/amp_resolver_SUITE.erl
 %%
 match_resource_strategy({offline, []})            -> undefined;
 match_resource_strategy({offline, [_|_ManyRes]})  -> other;

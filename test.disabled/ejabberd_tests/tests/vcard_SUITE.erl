@@ -29,7 +29,7 @@
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("../../../apps/ejabberd/include/jlib.hrl").
+-include_lib("../../../include/jlib.hrl").
 
 %% Element CData
 -define(EL(Element, Name), exml_query:path(Element, [{element, Name}])).

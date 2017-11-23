@@ -27,7 +27,7 @@ cat > ${CT_REPORTS}/index.html << EOL
 <html>
   <head></head>
   <body>
-    <p><a href="small/index.html">Small tests (apps/ejabberd/test)</a></p>
+    <p><a href="small/index.html">Small tests (test/)</a></p>
     <p><a href="big/index.html">Big tests (test.disabled/ejabberd_tests)</a></p>
   </body>
 </html>

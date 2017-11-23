@@ -209,11 +209,7 @@ call(Node, M, F, A) ->
     end.
 
 get_apps() ->
-    case file:list_dir(?ROOT_DIR ++ "/apps/") of
-        {ok, Filenames} -> lists:map(fun list_to_atom/1, Filenames);
-        {error, _Reason} -> error("ejabberd parent project not found (expected apps in ../../apps)")
-    end.
-
+    [mongooseim].
 
 prepare_cover(Test, true) ->
     io:format("Preparing cover~n"),

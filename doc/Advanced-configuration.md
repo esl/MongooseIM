@@ -1,10 +1,10 @@
 For advanced configuration use the following files:
 
-* `ejabberd.cfg` for pure MongooseIM settings, 
+* `ejabberd.cfg` for pure MongooseIM settings,
 
-* `vm.args` to affect the Erlang VM behaviour (performance tuning, node name), 
+* `vm.args` to affect the Erlang VM behaviour (performance tuning, node name),
 
-* `app.config` to change low-level logging parameters and settings of other Erlang applications. 
+* `app.config` to change low-level logging parameters and settings of other Erlang applications.
 
 Since you've gotten this far, we assume you're already familiar with Erlang syntax.
 
@@ -137,9 +137,9 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Values:** `none`, `tls`
     * **Default:** `none`
 
-* **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. 
+* **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled.
     When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
-    When `soft` is enabled ejabberd proceeds even if the check fails. 
+    When `soft` is enabled ejabberd proceeds even if the check fails.
     `False` means no checks are performed.
     * **Values:** `soft`, `hard`, `false`
     * **Default:** `false`
@@ -198,11 +198,11 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
              * **Default:** 4096
 
         * [`external` backend options](authentication-backends/External-authentication-module.md#configuration-options)
-        
+
         * [`http` backend options](authentication-backends/HTTP-authentication-module.md#configuration-options)
 
         * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
-        
+
 * `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `ejabberd.cfg` file.
 
 * **sasl_mechanisms** (local)
@@ -441,7 +441,7 @@ Following pool options are recognized - all of them are optional.
     * **Regexp format:** Syntax for `_regexp` can be found in [Erlang documentation](http://www.erlang.org/doc/man/re.html) - it's based on AWK syntax. For `_glob` use `sh` regexp syntax.
     * **Valid definitions:**
         * `all`
-        * `{user, U}` - check if the username equals `U` and the domain either equals the one specified by the module executing the check or (if the module does a `global` check) is on the served domains list (`hosts` option) 
+        * `{user, U}` - check if the username equals `U` and the domain either equals the one specified by the module executing the check or (if the module does a `global` check) is on the served domains list (`hosts` option)
         * `{user, U, S}` - check if the username equals `U` and the domain equals `S`
         * `{server, S}` - check if the domain equals `S`
         * `{resource, R}` - check if the resource equals `R`
@@ -476,7 +476,7 @@ Following pool options are recognized - all of them are optional.
 ### Default language
 
 * **language** (global)
-    * **Description:** Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls apps/ejabberd/priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
+    * **Description:** Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
     * **Default:** `en`
 
 ### Miscellaneous

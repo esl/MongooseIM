@@ -17,7 +17,7 @@ username     = "admin"
 password     = "zabbix"
 hostname     = "Zabbix Server"
 ejabberd_hrl = os.path.join(os.path.dirname(__file__),
-                            "../apps/ejabberd/include/EJABBERD-MIB.hrl")
+                            "../include/EJABBERD-MIB.hrl")
 
 # don't touch below (unless u know what u r doin)
 
@@ -55,7 +55,7 @@ def add_counter(key, oid, description=None):
                        'key_' : key,
                        'type' : '4',  # SNMPv2
                        'value_type' : value_type,
-                       'snmp_port' : '50910', 
+                       'snmp_port' : '50910',
                        'snmp_oid' : oid,
                        'snmp_community' : 'public' })
 

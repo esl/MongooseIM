@@ -33,7 +33,7 @@ then
 else
     PROVISIONING_SQL_FILENAME="pg.sql"
     # start script from pipeline root folder!
-    PROVISIONING_SQL_PATH="apps/ejabberd/priv"
+    PROVISIONING_SQL_PATH="priv"
 fi
 
 PROVISIONING_SQL_FULLFILENAME=${PROVISIONING_SQL_PATH}/${PROVISIONING_SQL_FILENAME}

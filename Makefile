@@ -4,9 +4,8 @@ SILENCE_COVER =  | grep -v "logs.*\\.coverdata"
 SILENCE_COVER += | grep -v "Analysis includes data from imported files"
 SILENCE_COVER += | grep -v "WARNING: Deleting data for module"
 LOG_SILENCE_COVER=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log $(SILENCE_COVER); exit 1))
-EJABBERD_DIR = apps/ejabberd
 XEP_TOOL = tools/xep_tool
-EJD_EBIN = $(EJABBERD_DIR)/ebin
+EBIN = ebin
 DEVNODES = mim1 mim2 mim3 fed1
 
 # Top-level targets aka user interface
@@ -21,7 +20,7 @@ clean:
 	-rm rel/vars.config
 
 ct:
-	@(if [ "$(SUITE)" ]; then ./rebar3 ct --dir apps/ejabberd/test --suite $(SUITE) ;\
+	@(if [ "$(SUITE)" ]; then ./rebar3 ct --dir test --suite $(SUITE) ;\
 		else ./rebar3 ct ; fi) > $(LOG_SILENCE_COVER)
 
 rel: certs configure.out rel/vars.config
@@ -71,7 +70,7 @@ tools/ssl/fake_dh_server.pem:
 	cd tools/ssl && $(MAKE)
 
 xeplist: escript
-	escript $(XEP_TOOL)/xep_tool.escript markdown $(EJD_EBIN)
+	escript $(XEP_TOOL)/xep_tool.escript markdown $(EBIN)
 
 install: configure.out rel
 	@. ./configure.out && tools/install
