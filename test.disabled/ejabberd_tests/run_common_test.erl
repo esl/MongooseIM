@@ -194,8 +194,8 @@ enable_preset_on_node(Node, PresetVars, HostVars) ->
                           end, Default, PresetVars),
     NewCfgFile = bbmustache:render(Template, NewVars, [{key_type, atom}]),
     ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
-    call(Node, application, stop, [ejabberd]),
-    call(Node, application, start, [ejabberd]),
+    call(Node, application, stop, [mongooseim]),
+    call(Node, application, start, [mongooseim]),
     ok.
 
 call(Node, M, F, A) ->

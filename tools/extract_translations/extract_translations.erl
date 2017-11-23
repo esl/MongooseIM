@@ -118,7 +118,7 @@ parse_form(Dir, File, Form, Used) ->
 	_ ->
 	    ok
     end.
-	    
+
 process_string(_Dir, _File, _Line, "", _Used) ->
     ok;
 
@@ -226,8 +226,8 @@ print_usage() ->
 print_po_header(File) ->
     MsgProps = get_msg_header_props(File),
     {Language, [LastT | AddT]} = prepare_props(MsgProps),
-    application:load(ejabberd),
-    {ok, Version} = application:get_key(ejabberd, vsn),
+    application:load(mongooseim),
+    {ok, Version} = application:get_key(mongooseim, vsn),
     print_po_header(Version, Language, LastT, AddT).
 
 get_msg_header_props(File) ->
