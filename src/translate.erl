@@ -58,7 +58,7 @@ translate(Lang, Msg) ->
 lang_files_directory() ->
     case os:getenv("EJABBERD_MSGS_PATH") of
         false ->
-            case code:priv_dir(ejabberd) of
+            case code:priv_dir(mongooseim) of
                 {error, _} -> ?MSGS_DIR;
                 Path -> Path
             end;

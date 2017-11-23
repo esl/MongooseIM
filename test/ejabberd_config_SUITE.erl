@@ -69,7 +69,7 @@ smoke(Config) ->
     % when
     start_ejabberd_with_config(Config, "ejabberd.default.cfg"),
     % then
-    ?assert(lists:keymember(ejabberd, 1, application:which_applications())),
+    ?assert(lists:keymember(mongooseim, 1, application:which_applications())),
     % cleanup
     ok = stop_ejabberd().
 
@@ -124,8 +124,8 @@ split_config(Config) ->
     % given
     given_vhost_config_split_into_multiple_files(Config),
     % when
-    application:load(ejabberd),
-    application:set_env(ejabberd, config, suite_priv(Config, "etc/ejabberd.cfg")),
+    application:load(mongooseim),
+    application:set_env(mongooseim, config, suite_priv(Config, "etc/ejabberd.cfg")),
     {ok, _} = start_ejabberd(Config),
     % then
     then_vhost_config_works(Config),

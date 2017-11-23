@@ -77,16 +77,16 @@
              ]).
 
 start() ->
-    application:ensure_all_started(ejabberd).
+    application:ensure_all_started(mongooseim).
 
 stop() ->
-    application:stop(ejabberd).
+    application:stop(mongooseim).
 
 -spec get_so_path() -> binary() | string().
 get_so_path() ->
     case os:getenv("EJABBERD_SO_PATH") of
         false ->
-            case code:priv_dir(ejabberd) of
+            case code:priv_dir(mongooseim) of
                 {error, _} ->
                     ".";
                 Path ->

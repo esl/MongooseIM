@@ -16,14 +16,14 @@ start_ejabberd(_Config) ->
 
 -spec stop_ejabberd() -> 'ok' | {error, any()}.
 stop_ejabberd() ->
-    application:stop(ejabberd).
+    application:stop(mongooseim).
 
 -spec use_config_file(any(), file:name_all()) -> ok.
 use_config_file(Config, ConfigFile) ->
-    application:load(ejabberd),
+    application:load(mongooseim),
     DataDir = proplists:get_value(data_dir, Config),
     ConfigPath = filename:join([DataDir, ConfigFile]),
-    application:set_env(ejabberd, config, ConfigPath).
+    application:set_env(mongooseim, config, ConfigPath).
 
 -spec start_ejabberd_with_config(any(), file:name_all()) -> ok.
 start_ejabberd_with_config(Config, ConfigFile) ->

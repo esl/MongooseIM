@@ -195,7 +195,7 @@ delete_pid_file() ->
 
 init_log() ->
     ejabberd_loglevel:init(),
-    case application:get_env(ejabberd, keep_lager_intact, false) of
+    case application:get_env(mongooseim, keep_lager_intact, false) of
         true ->
             skip;
         false ->

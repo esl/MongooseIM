@@ -50,8 +50,7 @@ add_os_info(Host) ->
 
 -spec mongoose_info() -> {binary(), binary()}.
 mongoose_info() ->
-    {ok, EjdMimVsn} = application:get_key(ejabberd, vsn), %returns 2.1.8+mim-*
-    Version = string:sub_string(EjdMimVsn, 11),
+    {ok, Version} = application:get_key(mongooseim, vsn),
     {<<"MongooseIM">>, list_to_binary(Version)}.
 
 -spec os_info() -> binary().

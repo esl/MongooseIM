@@ -86,7 +86,7 @@ tcp_start_stop_reload(C) ->
     %% start server
     copy(data(C, "ejabberd.basic.cfg"), data(C, "ejabberd.cfg")),
     ejabberd_helper:start_ejabberd_with_config(C, "ejabberd.cfg"),
-    ?assert(lists:keymember(ejabberd, 1, application:which_applications())),
+    ?assert(lists:keymember(mongooseim, 1, application:which_applications())),
     %% make sure all ports are open
     lists:map(fun assert_open/1, ?DEFAULT_PORTS),
     %% stop listeners, now they should be closed

@@ -171,7 +171,7 @@ get_ejabberd_config_path() ->
                           Path
                   end,
 
-    application:get_env(ejabberd, config, DefaultPath).
+    application:get_env(mongooseim, config, DefaultPath).
 
 %% @doc Load the ejabberd configuration file.
 %% It also includes additional configuration files and replaces macros.
