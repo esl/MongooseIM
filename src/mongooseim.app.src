@@ -2,7 +2,7 @@
 
 {application, mongooseim,
  [{description, "MongooseIM"},
-  {vsn, {cmd, "/tools/generate_vsn.sh"}},
+  {vsn, {cmd, "tools/generate_vsn.sh"}},
   {modules, []},
   {registered, [
                ]},
