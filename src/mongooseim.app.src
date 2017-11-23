@@ -1,8 +1,8 @@
 %% $Id$
 
-{application, ejabberd,
- [{description, "ejabberd"},
-  {vsn, {cmd, "echo 2.1.8+mim-`../../tools/generate_vsn.sh`"}},
+{application, mongooseim,
+ [{description, "MongooseIM"},
+  {vsn, {cmd, "/tools/generate_vsn.sh"}},
   {modules, []},
   {registered, [
                ]},
