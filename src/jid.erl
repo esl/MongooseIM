@@ -44,12 +44,24 @@
     ejabberd:jid()  | error.
 
 make(User, Server, Resource) ->
-  case {nodeprep(User), nameprep(Server), resourceprep(Resource)} of
-    {LUser, LServer, LResource} when LUser /= error, LServer /= error, LResource /= error ->
-        build_jid(User, Server, Resource, LUser, LServer, LResource);
-    _Error ->
-        error
-  end.
+    case nodeprep(User) of
+        error -> error;
+        LUser ->
+            case nameprep(Server) of
+                error -> error;
+                LServer ->
+                    case resourceprep(Resource) of
+                        error -> error;
+                        LResource ->
+                            #jid{user = User,
+                                server = Server,
+                                resource = Resource,
+                                luser = LUser,
+                                lserver = LServer,
+                                lresource = LResource}
+                    end
+            end
+    end.
 
 build_jid(User, Server, Resource, LUser, LServer, LResource) ->
         #jid{user = User,
