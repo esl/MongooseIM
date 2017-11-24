@@ -690,11 +690,10 @@ check_list(List) ->
             case V of
                 V when V >= 0, V =< N ->
                     {V, B};
-                V when V < 0, V > N ->
+                _V ->
                     {false, false}
             end
         end, true, List).
-
 
 %%
 %% Base64 stuff (based on httpd_util.erl)
