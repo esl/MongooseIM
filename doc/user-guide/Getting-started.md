@@ -9,7 +9,7 @@ Check out our tutorial [How to build MongooseIM from source code](How-to-build.m
 
 ### Install from package
 
-Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) page of Erlang Solution website, and download the version of MongooseIM you want. The following sections describe the installation process for different operating systems.
+Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) section of the Erlang Solution website, and choose the version of MongooseIM you want. The following sections describe the installation process for different operating systems.
 
 #### Mac
 
@@ -41,7 +41,7 @@ The following command will start the MongooseIM server:
 ```bash
 $ mongooseimctl start
 ```
-The following command shows the status of a started MongooseIM server
+The following command shows the status of a started MongooseIM server:
 ```bash
 $ mongooseimctl status
 ```
@@ -94,10 +94,10 @@ Registered users wishing to add an existing account to Adium should enter the Mo
 ### Gajim (Ubuntu & CentOS)
 
 The following steps assumes that you have already registered a user on the MongooseIM server, see section **Registering a user** above.
-1. Launch Gajim. Ignore window about Plugin updates.
+1. Launch Gajim. Ignore the window with Plugin updates.
 2. Go to Edit -> Accounts.
 3. Click Add in the left part of the window and select **I already have an account I want to use**, click Forward
-4. Enter user, domain and password for the already registered account, click Forward and then Finish.
+4. Enter the user, domain and password for the already registered account, click Forward and then Finish.
 5. Close the Account window.
 
 ## Domains
