@@ -289,49 +289,47 @@ iq_info_internal(#xmlel{name = Name, attrs = Attrs,
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     {Type1, Class} = make_reply_from_type(Type),
     case {Type1, Class, Filter} of
-        {invalid, _Class, _Filter} ->
+        {invalid, _, _} ->
             invalid;
-        {Type1, request, any} ->
+        {_, Class, Filter} when Class == request; Filter == any ->
             %% The iq record is a bit strange.  The sub_el field is an
             %% XML tuple for requests, but a list of XML tuples for
             %% responses.
             FilteredEls = xml:remove_cdata(Els),
-            {XMLNS, SubEl} = case {Class, FilteredEls} of
-                                {request, [#xmlel{attrs = Attrs2}]} ->
-                                    {xml:get_attr_s(<<"xmlns">>, Attrs2),
-                                    hd(FilteredEls)};
-                                {reply, _} ->
-                                    %% Find the namespace of the first non-error
-                                    %% %% element, if there is one.
-                                    NonErrorEls = [El ||
-                                    #xmlel{name = SubName} = El
-                                    <- FilteredEls,
-                                    SubName /= <<"error">>],
-                                    {case NonErrorEls of
-                                        [NonErrorEl] ->
-                                            xml:get_tag_attr_s(<<"xmlns">>, NonErrorEl);
-                                        _ ->
-                                            <<>>
-                                    end,
-                                    FilteredEls};
-                                _ ->
-                                    {<<>>, []}
-                            end,
+            {XMLNS, SubEl} =
+                case {Class, FilteredEls} of
+                    {request, [#xmlel{attrs = Attrs2}]} ->
+                        {xml:get_attr_s(<<"xmlns">>, Attrs2),
+                            hd(FilteredEls)};
+                    {reply, _} ->
+                        %% Find the namespace of the first non-error
+                        %% element, if there is one.
+                        NonErrorEls = [El ||
+                                        #xmlel{name = SubName} = El
+                                            <- FilteredEls,
+                                        SubName /= <<"error">>],
+                        {case NonErrorEls of
+                             [NonErrorEl] ->
+                                 xml:get_tag_attr_s(<<"xmlns">>, NonErrorEl);
+                             _ ->
+                                 <<>>
+                         end,
+                            FilteredEls};
+                    _ ->
+                        {<<>>, []}
+                end,
             case {XMLNS, Class} of
                 {<<>>, request} ->
+                    invalid;
+                _ ->
                     #iq{id = ID,
                         type = Type1,
                         xmlns = XMLNS,
                         lang = Lang,
-                        sub_el = SubEl};
-                {_XMLNS, _CLASS} ->
-                    invalid
-            end,
-            case {Class, Filter} of
-                {reply, request} ->
-                    %% Assumes Filter only takes 'any' or 'request'
-                    reply
-            end
+                        sub_el = SubEl}
+            end;
+        {_, reply, _} ->
+            reply
     end;
 iq_info_internal(_, _) ->
     not_iq.
