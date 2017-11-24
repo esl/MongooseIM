@@ -19,7 +19,7 @@
 -spec join(node()) -> ok.
 join(ClusterMember) ->
     ?INFO_MSG("join ~p", [ClusterMember]),
-    with_app_stopped(ejabberd,
+    with_app_stopped(mongooseim,
                      fun () ->
                              check_networking(ClusterMember),
                              unsafe_join(node(), ClusterMember)
@@ -33,7 +33,7 @@ join(ClusterMember) ->
 -spec leave() -> ok.
 leave() ->
     ?INFO_MSG("leave", []),
-    with_app_stopped(ejabberd,
+    with_app_stopped(mongooseim,
                      fun () ->
                              catch mnesia:stop(),
                              detach_nodes(mnesia_nodes()),
