@@ -281,61 +281,60 @@ make_reply_from_type(Type) ->
 -spec iq_info_internal(xmlel(), Filter :: 'any' | 'request') ->
   'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
 iq_info_internal(#xmlel{name = Name, attrs = Attrs,
-  children = Els}, Filter) when Name == <<"iq">> ->
-  %% Filter is either request or any.  If it is request, any replies
-  %% are converted to the atom reply.
-  ID = xml:get_attr_s(<<"id">>, Attrs),
-  Type = xml:get_attr_s(<<"type">>, Attrs),
-  Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-  {Type1, Class} = make_reply_from_type(Type),
-  case {Type1, Class, Filter} of
-    {invalid, _Class, _Filter} ->
-      invalid;
-    {Type1, request, any} ->
-      %% The iq record is a bit strange.  The sub_el field is an
-      %% XML tuple for requests, but a list of XML tuples for
-      %% responses.
-      FilteredEls = xml:remove_cdata(Els),
-      {XMLNS, SubEl} =
-        case {Class, FilteredEls} of
-          {request, [#xmlel{attrs = Attrs2}]} ->
-            {xml:get_attr_s(<<"xmlns">>, Attrs2),
-              hd(FilteredEls)};
-          {reply, _} ->
-            %% Find the namespace of the first non-error
-            %% element, if there is one.
-            NonErrorEls = [El ||
-              #xmlel{name = SubName} = El
-                <- FilteredEls,
-              SubName /= <<"error">>],
-            {case NonErrorEls of
-               [NonErrorEl] ->
-                 xml:get_tag_attr_s(<<"xmlns">>, NonErrorEl);
-               _ ->
-                 <<>>
-             end,
-              FilteredEls};
-          _ ->
-            {<<>>, []}
-        end,
-      case {XMLNS, Class} of
-        {<<>>, request} ->
-          #iq{id = ID,
-            type = Type1,
-            xmlns = XMLNS,
-            lang = Lang,
-            sub_el = SubEl};
-        {_XMLNS, _CLASS} ->
-          invalid
-      end,
-      case {Class, Filter} of
-        {reply, request} ->
-          %% Assumes Filter only takes 'any' or 'request'
-          reply
-      end
-  end;
+    children = Els}, Filter) when Name == <<"iq">> ->
+    %% Filter is either request or any.  If it is request, any replies
+    %% are converted to the atom reply.
+    ID = xml:get_attr_s(<<"id">>, Attrs),
+    Type = xml:get_attr_s(<<"type">>, Attrs),
+    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+    {Type1, Class} = make_reply_from_type(Type),
+    case {Type1, Class, Filter} of
+        {invalid, _Class, _Filter} ->
+            invalid;
+        {Type1, request, any} ->
+            %% The iq record is a bit strange.  The sub_el field is an
+            %% XML tuple for requests, but a list of XML tuples for
+            %% responses.
+            FilteredEls = xml:remove_cdata(Els),
+            {XMLNS, SubEl} = case {Class, FilteredEls} of
+                                {request, [#xmlel{attrs = Attrs2}]} ->
+                                    {xml:get_attr_s(<<"xmlns">>, Attrs2),
+                                    hd(FilteredEls)};
+                                {reply, _} ->
+                                    %% Find the namespace of the first non-error
+                                    %% %% element, if there is one.
+                                    NonErrorEls = [El ||
+                                    #xmlel{name = SubName} = El
+                                    <- FilteredEls,
+                                    SubName /= <<"error">>],
+                                    {case NonErrorEls of
+                                        [NonErrorEl] ->
+                                            xml:get_tag_attr_s(<<"xmlns">>, NonErrorEl);
+                                        _ ->
+                                            <<>>
+                                    end,
+                                    FilteredEls};
+                                _ ->
+                                    {<<>>, []}
+                            end,
+            case {XMLNS, Class} of
+                {<<>>, request} ->
+                    #iq{id = ID,
+                        type = Type1,
+                        xmlns = XMLNS,
+                        lang = Lang,
+                        sub_el = SubEl};
+                {_XMLNS, _CLASS} ->
+                    invalid
+            end,
+            case {Class, Filter} of
+                {reply, request} ->
+                    %% Assumes Filter only takes 'any' or 'request'
+                    reply
+            end
+    end;
 iq_info_internal(_, _) ->
-  not_iq.
+    not_iq.
 
 -spec iq_type_to_binary(set|get|result|error) -> invalid | binary().
 iq_type_to_binary(set) -> <<"set">>;
@@ -348,14 +347,14 @@ iq_type_to_binary(_) -> invalid.
 -spec iq_to_xml(ejabberd:iq()) -> xmlel().
 iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) ->
     case ID of
-      ID when ID /= "" ->
+        "" ->
             #xmlel{name = <<"iq">>,
-                   attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
-                   children = sub_el_to_els(SubEl)};
-      ID when ID == "" ->
+                attrs = [{<<"type">>, iq_type_to_binary(Type)}],
+                children = sub_el_to_els(SubEl)};
+        _Other ->
             #xmlel{name = <<"iq">>,
-                   attrs = [{<<"type">>, iq_type_to_binary(Type)}],
-                   children = sub_el_to_els(SubEl)}
+                attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
+                children = sub_el_to_els(SubEl)}
     end.
 
 
@@ -683,18 +682,18 @@ parse_time1(Time) ->
 
 
 -spec check_list([{nonempty_string(), 12 | 24 | 60}, ...]) ->
-                                  {['false' | non_neg_integer(), ...], _}.
+    {['false' | non_neg_integer(), ...], _}.
 check_list(List) ->
     lists:mapfoldl(
-      fun({L, N}, B)->
-              V = list_to_integer(L),
-              case (V) of
-                (V) when V >= 0, V =< N ->
+        fun({L, N}, B)->
+            V = list_to_integer(L),
+            case V of
+                V when V >= 0, V =< N ->
                     {V, B};
-                (V) when V < 0, V > N ->
+                V when V < 0, V > N ->
                     {false, false}
-              end
-      end, true, List).
+            end
+        end, true, List).
 
 
 %%

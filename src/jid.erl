@@ -209,10 +209,10 @@ to_lower(#jid{luser = U, lserver = S, lresource = R}) ->
     {U, S, R};
 to_lower({U, S, R}) ->
     case {nodeprep(U), nameprep(S), resourceprep(R)}   of
-      {LUser, LServer, LResource} when  LUser /= error, LServer /= error, LResource /= error ->
-          {LUser, LServer, LResource};
-        _Error ->
-                error
+      {LUser, LServer, LResource} when LUser /= error, LServer /= error, LResource /= error ->
+        {LUser, LServer, LResource};
+      _Error ->
+        error
     end.
 
 -spec to_lus(JID :: ejabberd:jid()) -> error | ejabberd:simple_bare_jid().
