@@ -267,6 +267,17 @@ iq_query_info(El) ->
 iq_query_or_response_info(El) ->
     iq_info_internal(El, any).
 
+%% Not sure about this function name
+-spec make_reply_from_type(binary()) -> {atom(), atom()}.
+make_reply_from_type(Type) ->
+  case Type of
+    <<"set">> -> {set, request};
+    <<"get">> -> {get, request};
+    <<"result">> -> {result, reply};
+    <<"error">> -> {error, reply};
+    _ -> {invalid, invalid}
+  end.
+
 -spec iq_info_internal(xmlel(), Filter :: 'any' | 'request') ->
   'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
 iq_info_internal(#xmlel{name = Name, attrs = Attrs,
@@ -276,17 +287,11 @@ iq_info_internal(#xmlel{name = Name, attrs = Attrs,
   ID = xml:get_attr_s(<<"id">>, Attrs),
   Type = xml:get_attr_s(<<"type">>, Attrs),
   Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-  {Type1, Class} = case Type of
-                     <<"set">> -> {set, request};
-                     <<"get">> -> {get, request};
-                     <<"result">> -> {result, reply};
-                     <<"error">> -> {error, reply};
-                     _ -> {invalid, invalid}
-                   end,
+  {Type1, Class} = make_reply_from_type(Type),
   case {Type1, Class, Filter} of
-    {Type1, Class, Filter} when Type1 == invalid ->
+    {invalid, _Class, _Filter} ->
       invalid;
-    {Type1, Class, Filter} when Type1 /= invalid, Class == request; Filter == any ->
+    {Type1, request, any} ->
       %% The iq record is a bit strange.  The sub_el field is an
       %% XML tuple for requests, but a list of XML tuples for
       %% responses.
@@ -314,17 +319,18 @@ iq_info_internal(#xmlel{name = Name, attrs = Attrs,
             {<<>>, []}
         end,
       case {XMLNS, Class} of
-        {XMLNS, Class} when XMLNS /=<<>>, Class /= request ->
-          invalid;
-        {XMLNS, Class} when XMLNS ==<<>>, Class == request ->
+        {<<>>, request} ->
           #iq{id = ID,
             type = Type1,
             xmlns = XMLNS,
             lang = Lang,
-            sub_el = SubEl}
+            sub_el = SubEl};
+        {_XMLNS, _CLASS} ->
+          invalid
       end,
       case {Class, Filter} of
-        {Class, Filter} when Class == reply, Filter /= any ->
+        {reply, request} ->
+          %% Assumes Filter only takes 'any' or 'request'
           reply
       end
   end;
