@@ -23,7 +23,6 @@ init_per_suite(C) ->
     C.
     
 end_per_suite(C) ->
-    meck:unload(),
     C.
 
 init_per_testcase(_, C) ->
