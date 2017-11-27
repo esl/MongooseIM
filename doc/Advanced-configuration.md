@@ -138,8 +138,8 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Default:** `none`
 
 * **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled.
-    When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
-    When `soft` is enabled ejabberd proceeds even if the check fails.
+    When `hard` is enabled mongooseim doesn’t proceed if a certificate is invalid.
+    When `soft` is enabled mongooseim proceeds even if the check fails.
     `False` means no checks are performed.
     * **Values:** `soft`, `hard`, `false`
     * **Default:** `false`
