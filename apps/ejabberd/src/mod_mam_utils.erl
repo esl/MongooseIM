@@ -80,7 +80,7 @@
          calculate_msg_id_borders/3,
          calculate_msg_id_borders/4,
          maybe_encode_compact_uuid/2,
-         is_last_page/4]).
+         is_last_page/5]).
 
 %% Ejabberd
 -export([send_message/3,
@@ -963,11 +963,21 @@ maybe_previous_id(X) ->
     X - 1.
 
 
--spec is_last_page(PageSize, TotalCount, Offset, MessageRows) -> boolean() when
+-spec is_last_page(PageSize, TotalCount, Offset, MessageRows, RSM) ->
+        boolean() when
     PageSize    :: non_neg_integer(),
     TotalCount  :: non_neg_integer()|undefined,
     Offset      :: non_neg_integer()|undefined,
-    MessageRows :: list().
+    MessageRows :: list(),
+    RSM         :: map().
+is_last_page(PageSize, TotalCount, Offset, MessageRows, Params) ->
+    case maps:get(ordering_direction, Params, forward) of
+        forward ->
+            is_last_page(PageSize, TotalCount, Offset, MessageRows);
+        backward ->
+            Offset =:= 0
+   end.
+
 is_last_page(PageSize, _TotalCount, _Offset, MessageRows)
     when length(MessageRows) < PageSize ->
     true;

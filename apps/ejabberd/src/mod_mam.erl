@@ -93,7 +93,7 @@
 %% Other
 -import(mod_mam_utils,
         [mess_id_to_external_binary/1,
-         is_last_page/4]).
+         is_last_page/5]).
 
 %% ejabberd
 -import(mod_mam_utils,
@@ -549,7 +549,7 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
                 end, MessageRows),
 
             %% Make fin message
-            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows, Params),
             IsStable = true,
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
             FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl, QueryID),
@@ -572,7 +572,7 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
                 end, MessageRows),
 
             %% Make fin iq
-            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows, Params),
             IsStable = true,
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
             FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),

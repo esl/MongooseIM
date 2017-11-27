@@ -126,15 +126,19 @@ form_to_lookup_params(QueryEl) ->
     is_simple => mod_mam_utils:form_decode_optimizations(QueryEl)}.
 
 common_lookup_params(QueryEl) ->
+    RSM = mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
     Limit = mam_iq:elem_to_limit(QueryEl),
     #{now => p1_time_compat:system_time(micro_seconds),
-      rsm => mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
+      rsm => RSM,
       max_result_limit => mod_mam_params:max_result_limit(),
       page_size => min(mod_mam_params:max_result_limit(),
                        mod_mam_utils:maybe_integer(Limit, mod_mam_params:default_result_limit())),
-      limit_passed => Limit =/= <<>>}.
+      limit_passed => Limit =/= <<>>,
+      ordering_direction => ordering_direction(RSM)}.
 
 lookup_params_with_archive_details(Params, ArcID, ArcJID) ->
     Params#{archive_id => ArcID,
             owner_jid => ArcJID}.
 
+ordering_direction(#rsm_in{direction = before}) -> backward;
+ordering_direction(_) -> forward.
