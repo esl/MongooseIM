@@ -106,13 +106,13 @@ To use your system’s domain name instead of localhost, edit the MongooseIM con
 Find and replace the line:
 
 ```erlang
-{hosts ["localhost"] }.
+{hosts, ["localhost"] }.
 ```
 
 using your own hostname, for example:
 
 ```erlang
-{hosts ["example.org"] }.
+{hosts, ["example.org"] }.
 ```
 
 Save the configuration file and restart the MongooseIM server.
