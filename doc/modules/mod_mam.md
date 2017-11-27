@@ -153,7 +153,7 @@ You can change the default settings using extra parameters:
         {muc, [
                {host, "muc.example.com"},
                {odbc_message_format, simple},
-               {async_writer, false}
+               {async_writer, false},
                {user_prefs_store, mnesia}
               ]}
        ]}.
