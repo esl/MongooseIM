@@ -7,12 +7,16 @@ To compile MongooseIM you need:
 *   GNU Make
 *   GCC
 *   Libexpat 1.95 or higher
+    * CentOS: expat-devel
+    * Ubuntu: libexpat-dev
 *   Erlang/OTP 18.3 or higher
 *   Reltool 0.6.6 or higher
 *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption
+    * CentOS: openssl-devel
+    * Ubuntu: libssl-dev
 *   Zlib 1.2.3 or higher for Stream Compression support (XEP-0138). Optional.
 
-## Compiling on UNIX-like systems
+## Compiling on \*nix systems
 
 To compile MongooseIM, go to the main repo directory `$REPO` and execute the command (`$` stands for the shell prompt):
 
@@ -70,4 +74,3 @@ which will generate releases `mim1`, `mim2`, `mim3`, `fed1` in `$REPO/_build/` a
 To run the tests (from project's root directory, i.e. `$REPO`):
 
     $ tools/travis-test
-
