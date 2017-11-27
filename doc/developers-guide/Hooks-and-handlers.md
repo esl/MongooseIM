@@ -1,6 +1,6 @@
 # Hooks, handlers and accumulators
 
-The hooks and handlers mechanism is one of the core architectural features of MongooseIM. 
+The hooks and handlers mechanism is one of the core architectural features of MongooseIM.
 It allows for loose coupling between components of the system by calling only those which are available and configured to be used at runtime.
 
 It can be thought of as a simple eventing mechanism notifying about certain things happening in the server.
@@ -277,7 +277,7 @@ At the end, you can see a printout of an accumulator with some debugging info.
 To cut the long story short:
 
 ```erlang
--module(testhooks).
+-module(mod_hook_example).
 -author("bartek").
 
 -behaviour(gen_mod).
@@ -345,47 +345,34 @@ never_run_handler(Acc, Number) ->
 The module is intended to be used from the shell for educational purposes:
 
 ```erlang
-(ejabberd@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
+(mongooseim@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 false
-(ejabberd@localhost)2> gen_mod:start_module(<<"localhost">>, mod_hook_example, [no_opts]).
+(mongooseim@localhost)2> gen_mod:start_module(<<"localhost">>, mod_hook_example, [no_opts]).
 ok
-(ejabberd@localhost)3> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
+(mongooseim@localhost)3> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 true
-(ejabberd@localhost)4> ejabberd_loglevel:set_custom(mod_hook_example, 4).
-{module,ejabberd_logger}
-(ejabberd@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
+(mongooseim@localhost)4> ejabberd_loglevel:set_custom(mod_hook_example, 4).
+[{{lager_file_backend,"ejabberd.log"},ok},
+ {lager_console_backend,ok}]
+(mongooseim@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
 ok
-(ejabberd@localhost)6>
-=INFO REPORT==== 30-Oct-2013::15:33:36 ===
-I(<0.47.0>:mod_hook_example:51) : First handler
-value: 5
-argument: 2
-will return: 7
-
-=INFO REPORT==== 30-Oct-2013::15:33:36 ===
-I(<0.47.0>:mod_hook_example:61) : Stopping handler
+(mongooseim@localhost)6> 2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:first_handler:41 First handler
+  value: 5
+  argument: 2
+  will return: 7
+2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:stopping_handler:51 Stopping handler
   value: 7
   argument: 2
-  will return: {stop,9}
+  will return: 9
+2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:run_custom_hook:35 Final hook result: 9
+2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:run_custom_hook:36 Returned accumulator: #{mongoose_acc => true,ref => #Ref<0.2751102611.732692481.234656>,timestamp => {1511,441448,119842},value => 9}
 
-=INFO REPORT==== 30-Oct-2013::15:33:36 ===
-I(<0.47.0>:mod_hook_example:31) : Final hook result: 9
-I(<0.47.0>:mod_hook_example:32) : Returned accumulator: #{handlers_run => [{custom_new_hook,testhooks,first_handler}],
-                                                          hooks_run => [custom_new_hook],
-                                                          mongoose_acc => true,
-                                                          value => 9}
-
-(ejabberd@localhost)6> mod_hook_example:run_custom_hook(<<"another-domain">>).
+(mongooseim@localhost)6> mod_hook_example:run_custom_hook(<<"another-domain">>).
 ok
-(ejabberd@localhost)7>
-=INFO REPORT==== 30-Oct-2013::15:33:41 ===
-I(<0.47.0>:mod_hook_example:45) : Final hook result: 5
-I(<0.47.0>:mod_hook_example:46) : Returned accumulator: #{handlers_run => [{custom_new_hook,testhooks,first_handler}],
-                                                          hooks_run => [custom_new_hook],
-                                                          mongoose_acc => true,
-                                                          value => 9}
+(mongooseim@localhost)7> 2017-11-23 13:51:38.251 [info] <0.757.0>@mod_hook_example:run_custom_hook:35 Final hook result: 5
+2017-11-23 13:51:38.251 [info] <0.757.0>@mod_hook_example:run_custom_hook:36 Returned accumulator: #{mongoose_acc => true,ref => #Ref<0.2751102611.732692481.234676>,timestamp => {1511,441498,251466},value => 5}
 
-(ejabberd@localhost)7> gen_mod:stop_module(<<"localhost">>, mod_hook_example).
+(mongooseim@localhost)7> gen_mod:stop_module(<<"localhost">>, mod_hook_example).
 {atomic,ok}
-(ejabberd@localhost)8>
+(mongooseim@localhost)8>
 ```
