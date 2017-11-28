@@ -301,3 +301,20 @@ CREATE TABLE muc_light_blocking(
 
 CREATE INDEX i_muc_light_blocking USING HASH ON muc_light_blocking(luser, lserver);
 
+CREATE TABLE muc_room (
+    name        VARCHAR(250) NOT NULL,
+    -- According to RFC 1035 the length of a FQDN is limited to 255 characters
+    host        VARCHAR(250) CHARACTER SET ASCII NOT NULL,
+    opts        mediumtext   NOT NULL,
+    created_at  timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(host, name)
+)  ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE TABLE muc_registered(
+    jid        VARCHAR(250) NOT NULL,
+    host       VARCHAR(250) NOT NULL,
+    nick       VARCHAR(250) NOT NULL,
+    created_at timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(host, jid)
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE UNIQUE INDEX i_muc_registered_host_nick USING BTREE ON muc_registered(host(75), nick(75));

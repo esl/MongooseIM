@@ -42,6 +42,7 @@
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
 -define(WAIT_TIME, 1500).
+-define(WAIT_TIMEOUT, 10000).
 
 -define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
@@ -83,7 +84,9 @@ all() -> [
         {group, room_management},
         {group, http_auth_no_server},
         {group, http_auth},
-        {group, hibernation}
+        {group, hibernation},
+        {group, register},
+        {group, register_over_s2s}
         ].
 
 groups() -> [
@@ -98,7 +101,8 @@ groups() -> [
                                         stopped_members_only_room_process_invitations_correctly,
                                         room_with_participants_is_not_stopped,
                                         room_with_only_owner_is_stopped,
-                                        deep_hibernation_metrics_are_updated
+                                        deep_hibernation_metrics_are_updated,
+                                        can_found_in_db_when_stopped
                                        ]},
         {disco, [parallel], [
                 disco_service,
@@ -238,8 +242,18 @@ groups() -> [
                 create_instant_http_password_protected_room,
                 deny_creation_of_http_password_protected_room,
                 deny_creation_of_http_password_protected_room_wrong_password
-                ]}
+                ]},
+        {register, [parallel], register_cases()},
+        {register_over_s2s, [parallel], register_cases()}
         ].
+
+register_cases() ->
+    [user_asks_for_registration_form,
+     user_submits_registration_form,
+     user_submits_registration_form_twice,
+     user_changes_nick,
+     user_unregisters_nick,
+     user_unregisters_nick_twice].
 
 rsm_cases() ->
       [pagination_first5,
@@ -249,7 +263,7 @@ rsm_cases() ->
        pagination_empty_rset].
 
 suite() ->
-    escalus:suite().
+    s2s_helper:suite(escalus:suite()).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -321,6 +335,12 @@ init_per_group(hibernation, Config) ->
             ok
     end,
     Config;
+init_per_group(register_over_s2s, Config) ->
+    Config1 = s2s_helper:init_s2s(Config, false),
+    Config2 = s2s_helper:configure_s2s(both_plain, Config1),
+    [{_,AliceSpec2}|Others] = escalus:get_users([alice2, bob, kate]),
+    Users = [{alice,AliceSpec2}|Others],
+    escalus:create_users(Config2, Users);
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
@@ -376,6 +396,9 @@ end_per_group(hibernation, Config) ->
             ok
     end,
     Config;
+end_per_group(register_over_s2s, Config) ->
+    s2s_helper:end_s2s(Config),
+    escalus:delete_users(Config, escalus:get_users([alice2, bob, kate]));
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
@@ -2600,6 +2623,83 @@ one2one_chat_to_muc(Config) ->
     end).
 
 
+%%--------------------------------------------------------------------
+%% Registration at a server
+%%--------------------------------------------------------------------
+
+%% You send the register IQ to room jid.
+%% But in MongooseIM you need to send it to "muc@host".
+user_asks_for_registration_form(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+		?assert_equal(<<>>, get_nick(Alice))
+    end).
+
+%% Example 71. User Submits Registration Form
+%% You send the register IQ to room jid "muc@host/room".
+%% But in MongooseIM you need to send it to "muc@host".
+user_submits_registration_form(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Nick = fresh_nick_name(<<"thirdwitch">>),
+		set_nick(Alice, Nick),
+		?assert_equal(Nick, get_nick(Alice))
+    end).
+
+user_submits_registration_form_over_s2s(Config) ->
+    escalus:fresh_story(Config, [{alice2, 1}], fun(Alice) ->
+        Nick = fresh_nick_name(<<"thirdwitch">>),
+		set_nick(Alice, Nick),
+		?assert_equal(Nick, get_nick(Alice))
+    end).
+
+user_submits_registration_form_twice(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Nick = fresh_nick_name(<<"thirdwitch">>),
+		set_nick(Alice, Nick),
+		?assert_equal(Nick, get_nick(Alice)),
+
+		set_nick(Alice, Nick),
+		?assert_equal(Nick, get_nick(Alice))
+    end).
+
+user_changes_nick(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Nick1 = fresh_nick_name(<<"thirdwitch1">>),
+        Nick2 = fresh_nick_name(<<"thirdwitch2">>),
+		set_nick(Alice, Nick1),
+		?assert_equal(Nick1, get_nick(Alice)),
+
+		set_nick(Alice, Nick2),
+		?assert_equal(Nick2, get_nick(Alice))
+    end).
+
+user_unregisters_nick(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Nick = fresh_nick_name(<<"thirdwitch1">>),
+		set_nick(Alice, Nick),
+		?assert_equal(Nick, get_nick(Alice)),
+
+		unset_nick(Alice),
+		?assert_equal(<<>>, get_nick(Alice))
+    end).
+
+user_unregisters_nick_twice(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Nick = fresh_nick_name(<<"thirdwitch1">>),
+		set_nick(Alice, Nick),
+		?assert_equal(Nick, get_nick(Alice)),
+
+		unset_nick(Alice),
+		?assert_equal(<<>>, get_nick(Alice)),
+
+		unset_nick(Alice),
+		?assert_equal(<<>>, get_nick(Alice))
+    end).
+
+
+%%--------------------------------------------------------------------
+%% Registration in a room
+%%--------------------------------------------------------------------
+
 %%Examples 66-76
 %%Registartion feature is not implemented
 %%TODO: create a differend goruop for the registration test cases (they will fail)
@@ -3944,7 +4044,7 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
         ct:sleep(timer:seconds(1)),
 
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
-        Presence = escalus:wait_for_stanza(Bob),
+        Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
         ct:print("~p", [Presence]),
         MessageWithSubject = escalus:wait_for_stanza(Bob),
         ct:print("~p", [MessageWithSubject]),
@@ -3998,7 +4098,7 @@ stopped_members_only_room_process_invitations_correctly(Config) ->
         Stanza2 = stanza_set_affiliations(RoomName,
                                           [{escalus_client:short_jid(Kate), <<"member">>}]),
         escalus:send(Alice, Stanza2),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice, ?WAIT_TIMEOUT)),
         is_invitation(escalus:wait_for_stanza(Kate)),
 
         ok
@@ -4027,6 +4127,19 @@ room_with_only_owner_is_stopped(Config) ->
 
         Unavailable = escalus:wait_for_stanza(Alice),
         escalus:assert(is_presence_with_type, [<<"unavailable">>], Unavailable)
+    end),
+
+    destroy_room(muc_host(), RoomName),
+    forget_room(muc_host(), RoomName).
+
+can_found_in_db_when_stopped(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        {ok, _, Pid} = given_fresh_room_is_hibernated(
+                         Alice, RoomName, [{persistentroom, true}]),
+        true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+        {ok, _} = escalus_ejabberd:rpc(mod_muc, restore_room,
+                                       [domain(), muc_host(), RoomName])
     end),
 
     destroy_room(muc_host(), RoomName),
@@ -4167,7 +4280,7 @@ wait_for_mam_result(RoomName, Client, Msg) ->
              {data_form, true}],
     QueryStanza = mam_helper:stanza_archive_request(Props, <<"q1">>),
     escalus:send(Client, muc_helper:stanza_to_room(QueryStanza, RoomName)),
-    S = escalus:wait_for_stanza(Client),
+    S = escalus:wait_for_stanza(Client, ?WAIT_TIMEOUT),
     M = exml_query:path(S, [{element, <<"result">>},
                             {element, <<"forwarded">>},
                             {element, <<"message">>}]),
@@ -4684,6 +4797,41 @@ stanza_get_services(Config) ->
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), <<"to">>,
         ct:get_config({hosts, mim, domain})).
 
+get_nick_form_iq() ->
+    NS = <<"jabber:iq:register">>,
+    GetIQ = escalus_stanza:iq_get(<<"jabber:iq:register">>, []),
+    escalus_stanza:to(GetIQ, ?MUC_HOST).
+
+change_nick_form_iq(Nick) ->
+    NS = <<"jabber:iq:register">>,
+    NickField = form_field({<<"nick">>, Nick, <<"text-single">>}),
+    Form = stanza_form([NickField], NS),
+    SetIQ = escalus_stanza:iq_set(NS, [Form]),
+    escalus_stanza:to(SetIQ, ?MUC_HOST).
+
+remove_nick_form_iq() ->
+    NS = <<"jabber:iq:register">>,
+    RemoveEl = #xmlel{name = <<"remove">>},
+    SetIQ = escalus_stanza:iq_set(NS, [RemoveEl]),
+    escalus_stanza:to(SetIQ, ?MUC_HOST).
+
+set_nick(User, Nick) ->
+	escalus:send(User, change_nick_form_iq(Nick)),
+	ResultIQ = escalus:wait_for_stanza(User),
+	escalus:assert(is_iq_result, ResultIQ).
+
+unset_nick(User) ->
+	escalus:send(User, remove_nick_form_iq()),
+	ResultIQ = escalus:wait_for_stanza(User),
+	escalus:assert(is_iq_result, ResultIQ).
+
+get_nick(User) ->
+    escalus:send(User, get_nick_form_iq()),
+    ResultIQ = escalus:wait_for_stanza(User),
+    escalus:assert(is_iq_result, ResultIQ),
+    true = form_has_field(<<"nick">>, ResultIQ),
+    form_field_value(<<"nick">>, ResultIQ).
+
 %%--------------------------------------------------------------------
 %% Helpers (assertions)
 %%--------------------------------------------------------------------
@@ -4702,6 +4850,23 @@ is_message_form(Stanza) ->
 is_form(Stanza) ->
     exml_query:path(Stanza,[{element, <<"query">>}, {element,<<"x">>},
         {attr, <<"xmlns">>}]) =:= ?NS_DATA_FORMS.
+
+form_has_field(VarName, Stanza) ->
+    Path = [{element, <<"query">>},
+            {element, <<"x">>},
+            {element, <<"field">>},
+            {attr, <<"var">>}],
+    Vars = exml_query:paths(Stanza, Path),
+    lists:member(VarName, Vars).
+
+form_field_value(VarName, Stanza) ->
+    Path = [{element, <<"query">>},
+            {element, <<"x">>},
+            {element, <<"field">>}],
+    Fields = exml_query:paths(Stanza, Path),
+    hd([exml_query:path(Field, [{element, <<"value">>}, cdata])
+        || Field <- Fields,
+        exml_query:attr(Field, <<"var">>) == VarName]).
 
 is_groupchat_message(Stanza) ->
     escalus_pred:is_message(Stanza) andalso
@@ -4953,3 +5118,9 @@ fresh_room_name(Username) ->
 
 fresh_room_name() ->
     fresh_room_name(base16:encode(crypto:strong_rand_bytes(5))).
+
+fresh_nick_name(Prefix) ->
+    <<Prefix/binary, (fresh_nick_name())/binary>>.
+
+fresh_nick_name() ->
+    fresh_room_name(base16:encode(crypto:rand_bytes(5))).

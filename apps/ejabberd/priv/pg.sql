@@ -286,3 +286,20 @@ CREATE TABLE muc_light_blocking(
 );
 
 CREATE INDEX i_muc_light_blocking ON muc_light_blocking (luser, lserver);
+
+CREATE TABLE muc_room (
+    name VARCHAR(250) NOT NULL,
+    host VARCHAR(250) NOT NULL,
+    opts text NOT NULL,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(host, name)
+);
+
+CREATE TABLE muc_registered (
+    jid text NOT NULL,
+    host text NOT NULL,
+    nick text NOT NULL,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(host, jid)
+);
+CREATE UNIQUE INDEX i_muc_registered_host_nick ON muc_registered(host, nick);
