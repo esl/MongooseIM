@@ -3,6 +3,8 @@
 XMPP stanza processing starts in the `ejabberd_c2s` module, which receives the stanza from a socket, or in `ejabberd_s2s_in` which receives stanzas from federated XMPP clusters.
 The stanza is processed and eventually it and/or other messages are sent out, either to the original sender, to another c2s process within the same MongooseIM installation, or to another XMPP server.
 
+![Accumulators basic routing](Accumulators%20basic%20routing.png)
+
 At the beginning of the main processing chain an accumulator is created containing the original stanza, some values extracted from the stanza and additional info:
 
 * ref - a unique reference of the acc, useful for tracing
