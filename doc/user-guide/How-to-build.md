@@ -16,6 +16,35 @@ To compile MongooseIM you need:
     * Ubuntu: libssl-dev
 *   Zlib 1.2.3 or higher for Stream Compression support (XEP-0138). Optional.
 
+## Compiling on macOS
+
+MongooseIM is supported on Mac OS X / macOS 10.6.8 and later.
+Before you can compile and run MongooseIM, you will need to install the following packages:
+
+* C and C++ compiler
+* Git
+* Erlang/OTP 18.3 or higher
+* OpenSSL
+
+We recommend using [Homebrew](http://brew.sh) to manage packages on your Mac.
+With Homebrew installed, getting all dependencies is a matter of running the following commands:
+
+```bash
+$ xcode-select --install # install compilation tools
+$ brew install git erlang openssl
+```
+
+Additionally you'll need to export some environment variables to point the compiler to OpenSSL
+installed with Homebrew:
+
+```bash
+$ export LDFLAGS="-L/usr/local/opt/openssl/lib -undefined dynamic_lookup $LDFLAGS"
+$ export CXXFLAGS="-I/usr/local/opt/openssl/include $CXXFLAGS"
+$ export CFLAGS="-I/usr/local/opt/openssl/include $CFLAGS"
+```
+
+After you've done this, follow the steps from the [Compiling on *nix systems](#compiling-on-42nix-systems) section.
+
 ## Compiling on \*nix systems
 
 To compile MongooseIM, go to the main repo directory `$REPO` and execute the command (`$` stands for the shell prompt):
