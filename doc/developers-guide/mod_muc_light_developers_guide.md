@@ -10,7 +10,7 @@ All source files can be found in `src/`.
 
 * `mod_muc_light.erl`
   Main module.
-  It implements `gen_mod` behaviour.
+  It implements the `gen_mod` behaviour.
   It subscribes to some essential hooks and exports several functions, mostly callbacks.
   It handles integration with `mod_disco`, `mod_privacy` and `mod_roster`.
   All operations that take place outside the room (including the room creation) are implemented here.
@@ -22,8 +22,8 @@ All source files can be found in `src/`.
 
 * `mod_muc_light_codec_legacy.erl`
   An implementation of XEP-0045 compatibility mode.
-  Note that while, some parts of the legacy mode are implemented directly in `mod_muc_light.erl`, the stanza translation takes place here.
-  It does not utilise the full potential of the MUC Light extension but allows using the standard MUC implementation in XMPP client libraries for prototyping or transition phase.
+  Note, that while some parts of the legacy mode are implemented directly in `mod_muc_light.erl`, the stanza translation takes place here.
+  It does not utilise the full potential of the MUC Light extension but allows using the standard MUC implementation in XMPP client libraries for prototyping or the transition phase.
   Not recommended for production systems (less efficient than modern codec and requires more round-trips).
 
 * `mod_muc_light_codec_modern.erl`
@@ -82,7 +82,7 @@ Hooks handled by this extension
 * `remove_user` handled by `mod_muc_light:remove_user/2` - Triggers DB cleanup of all data related to the removed user.
  Includes a broadcast of a notification about user removal from occupied rooms.
 
-* `disco_local_items` handled by `mod_muc_light:get_muc_service/5` - Adds MUC service item to the Disco result.
+* `disco_local_items` handled by `mod_muc_light:get_muc_service/5` - Adds a MUC service item to the Disco result.
  Uses either a MUC Light or a classic MUC namespace when the legacy mode is enabled.
 
 * `roster_get` handled by `mod_muc_light:add_rooms_to_roster/2` - Injects room items to the user's roster.
