@@ -676,8 +676,8 @@ push_roster_all(Config) ->
                 AliceJid = escalus_client:short_jid(Alice),
                 escalus:assert(roster_contains, [AliceJid], Roster2),
 
-                escalus:send(Alice, escalus_stanza:roster_remove_contact(bob)), % cleanup
-                escalus:send(Bob, escalus_stanza:roster_remove_contact(alice)) % cleanup
+                escalus:send_and_wait(Alice, escalus_stanza:roster_remove_contact(bob)), % cleanup
+                escalus:send_and_wait(Bob, escalus_stanza:roster_remove_contact(alice)) % cleanup
         end).
 
 push_roster_alltoall(Config) ->

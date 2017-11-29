@@ -108,7 +108,7 @@ When you develop a new feature, the speed of iterating is crucial to maintain th
 In  `$MONGOOSEIM/test.disabled/ejabberd_tests/` we have:
 
 ```
-$ tree test/ejabberd_tests/ -L 1 -F
+$ tree test.diabled/ejabberd_tests/ -L 1 -F
 test/ejabberd_tests/
 ├── Makefile
 ├── README.md

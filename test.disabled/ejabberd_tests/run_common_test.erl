@@ -194,8 +194,8 @@ enable_preset_on_node(Node, PresetVars, HostVars) ->
                           end, Default, PresetVars),
     NewCfgFile = bbmustache:render(Template, NewVars, [{key_type, atom}]),
     ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
-    call(Node, application, stop, [ejabberd]),
-    call(Node, application, start, [ejabberd]),
+    call(Node, application, stop, [mongooseim]),
+    call(Node, application, start, [mongooseim]),
     ok.
 
 call(Node, M, F, A) ->
@@ -209,11 +209,7 @@ call(Node, M, F, A) ->
     end.
 
 get_apps() ->
-    case file:list_dir(?ROOT_DIR ++ "/apps/") of
-        {ok, Filenames} -> lists:map(fun list_to_atom/1, Filenames);
-        {error, _Reason} -> error("ejabberd parent project not found (expected apps in ../../apps)")
-    end.
-
+    [mongooseim].
 
 prepare_cover(Test, true) ->
     io:format("Preparing cover~n"),

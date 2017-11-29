@@ -80,7 +80,7 @@ init_per_testcase(CaseName, Config0) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config),
     ejabberd_node_utils:restore_config_file(Config),
-    ejabberd_node_utils:restart_application(ejabberd).
+    ejabberd_node_utils:restart_application(mongooseim).
 
 %%--------------------------------------------------------------------
 %% Tests

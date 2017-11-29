@@ -6,7 +6,7 @@ echo $DB
 
 source tools/travis-common-vars.sh
 
-MIM_PRIV_DIR=${BASE}/apps/ejabberd/priv
+MIM_PRIV_DIR=${BASE}/priv
 
 PGSQL_CONF_DIR=${BASE}/${TOOLS}/db_configs/postgres
 
@@ -91,7 +91,7 @@ elif [ $DB = 'cassandra' ]; then
     tools/wait_for_service.sh cassandra 9042 || docker logs cassandra
 
     # Deleted --rm on travis for speedup
-    docker run -it -v "$(pwd)/apps/ejabberd/priv/cassandra.cql:/cassandra.cql:ro" \
+    docker run -it -v "$(pwd)/priv/cassandra.cql:/cassandra.cql:ro" \
         --link cassandra:cassandra \
         cassandra:${CASSANDRA_VERSION} \
         sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" -f /cassandra.cql'
