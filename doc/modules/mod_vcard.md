@@ -6,7 +6,7 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 * `iqdisc` (default: `one_queue`)
 * `host` (string, default: `"vjud.@HOST@"`): Domain of the vCard User Directory, used for searching.
  `@HOST@` is replaced with the domain(s) supported by the cluster.
-* `search` (boolean, default: `true`): Enables/disables the domain set in previous option.
+* `search` (boolean, default: `true`): Enables/disables the domain set in the previous option.
  `false` makes searching for users impossible.
 * `backend` (atom, default: `mnesia`): vCard storage backend.
  Valid values are `ldap`, `odbc`, `riak` and `mnesia`.

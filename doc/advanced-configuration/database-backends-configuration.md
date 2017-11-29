@@ -37,7 +37,7 @@ Transient data:
 Persistent Data:
 
 * RDBMS/ODBC - MongooseIM has a strong backend support for relational databases.
- Considering the [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) that usually guarantees both availability and consistency which is a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
+ Reliable and battle proven, they a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Never loose your data.
 
 * Riak KV - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution.
