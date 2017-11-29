@@ -44,7 +44,6 @@
          parse_xdata_submit/1,
          parse_xdata_fields/1,
          timestamp_to_xml/4,
-         timestamp_to_mam_xml/4,
          timestamp_to_iso/2,
          now_to_utc_binary/1,
          now_to_utc_string/1,
@@ -553,18 +552,6 @@ timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
                     {<<"stamp">>, list_to_binary(T_string ++ Tz_string)}],
            children = Text}.
 
-
--spec timestamp_to_mam_xml(DateTime :: calendar:datetime(),
-                           Timezone :: tz(),
-                           QueryId :: any(),
-                           MessageUID :: binary()) -> xmlel().
-timestamp_to_mam_xml(DateTime, Timezone, QueryID, MessageUID) ->
-    {T_string, Tz_string} = timestamp_to_iso(DateTime, Timezone),
-    #xmlel{name = <<"delay">>,
-           attrs = [{<<"xmlns">>, ?NS_DELAY},
-                    {<<"stamp">>, list_to_binary(T_string ++ Tz_string)},
-                    {<<"id">>, MessageUID}] ++
-                   [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>]}.
 
 -spec now_to_utc_string(erlang:timestamp()) -> string().
 now_to_utc_string({MegaSecs, Secs, MicroSecs}) ->
