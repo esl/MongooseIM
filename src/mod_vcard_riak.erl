@@ -65,7 +65,7 @@ get_vcard(LUser, LServer) ->
                     {error, ?ERR_SERVICE_UNAVAILABLE}
             end;
         {error, notfound} ->
-            {error, ?ERR_SERVICE_UNAVAILABLE};
+            {error, ?ERR_ITEM_NOT_FOUND};
         Other ->
             Other
     end.
