@@ -2,8 +2,8 @@
 # You can add personal rules in your file .git/info/exclude
 tools/*.tar.gz
 tools/*.pyc
-apps/*/src/#*
-apps/*/src/.#*
+src/#*
+src/.#*
 test/.#*
 test/#*
 test/tests/.#
@@ -49,8 +49,7 @@ src/config.log
 src/ejabberd.init
 src/ejabberdctl.example
 src/eldap_filter_yecc.erl
-doc
-apps/*/logs
+logs
 include/XmppAddr.hrl
 include/EJABBERD-MIB.hrl
 priv/mibs/EJABBERD-MIB.bin

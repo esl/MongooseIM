@@ -56,6 +56,7 @@ pages:
       - 'Hooks description': 'developers-guide/hooks_description.md'
       - 'Stanza routing': 'developers-guide/message_routing.md'
       - 'Accumulators':  'developers-guide/accumulators.md'
+      - 'Moving to single app project structure': 'developers-guide/Moving-to-single-app-project-structure.md'
       - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
       - 'mod_muc_light developers doc': 'developers-guide/mod_muc_light_developers_guide.md'
       - 'SCRAM serialization format': 'developers-guide/SCRAM-serialization.md'
