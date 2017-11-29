@@ -267,26 +267,33 @@ iq_query_info(El) ->
 iq_query_or_response_info(El) ->
     iq_info_internal(El, any).
 
-%% Not sure about this function name
 -spec make_reply_from_type(binary()) -> {atom(), atom()}.
-make_reply_from_type(Type) ->
-  case Type of
-    <<"set">> -> {set, request};
-    <<"get">> -> {get, request};
-    <<"result">> -> {result, reply};
-    <<"error">> -> {error, reply};
-    _ -> {invalid, invalid}
-  end.
+make_reply_from_type(<<"set">>) ->
+    {set, request};
+make_reply_from_type(<<"get">>) ->
+    {get, request};
+make_reply_from_type(<<"result">>) ->
+    {result, reply};
+make_reply_from_type(<<"error">>) ->
+    {error, reply};
+make_reply_from_type(_) ->
+    {invalid, invalid}.
+
+-spec extract_xmlns([xmlel()]) -> binary().
+extract_xmlns([Element]) ->
+    xml:get_tag_attr_s(<<"xmlns">>, Element);
+extract_xmlns(_) ->
+    <<>>.
 
 -spec iq_info_internal(xmlel(), Filter :: 'any' | 'request') ->
   'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
 iq_info_internal(#xmlel{name = Name, attrs = Attrs,
-    children = Els}, Filter) when Name == <<"iq">> ->
+                        children = Els} = Element, Filter) when Name == <<"iq">> ->
     %% Filter is either request or any.  If it is request, any replies
     %% are converted to the atom reply.
-    ID = xml:get_attr_s(<<"id">>, Attrs),
-    Type = xml:get_attr_s(<<"type">>, Attrs),
-    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+    ID = exml_query:attr(Element, <<"id">>),
+    Type = exml_query:attr(Element, <<"type">>),
+    Lang = exml_query:attr( Element, <<"xml:lang">>),
     {Type1, Class} = make_reply_from_type(Type),
     case {Type1, Class, Filter} of
         {invalid, _, _} ->
@@ -308,13 +315,7 @@ iq_info_internal(#xmlel{name = Name, attrs = Attrs,
                                         #xmlel{name = SubName} = El
                                             <- FilteredEls,
                                         SubName /= <<"error">>],
-                        {case NonErrorEls of
-                             [NonErrorEl] ->
-                                 xml:get_tag_attr_s(<<"xmlns">>, NonErrorEl);
-                             _ ->
-                                 <<>>
-                         end,
-                            FilteredEls};
+                        {extract_xmlns(NonErrorEls), FilteredEls};
                     _ ->
                         {<<>>, []}
                 end,
@@ -341,20 +342,15 @@ iq_type_to_binary(result) -> <<"result">>;
 iq_type_to_binary(error) -> <<"error">>;
 iq_type_to_binary(_) -> invalid.
 
-
 -spec iq_to_xml(ejabberd:iq()) -> xmlel().
+iq_to_xml(#iq{id = "", type = Type, sub_el = SubEl}) ->
+    #xmlel{name = <<"iq">>,
+        attrs = [{<<"type">>, iq_type_to_binary(Type)}],
+        children = sub_el_to_els(SubEl)};
 iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) ->
-    case ID of
-        "" ->
-            #xmlel{name = <<"iq">>,
-                attrs = [{<<"type">>, iq_type_to_binary(Type)}],
-                children = sub_el_to_els(SubEl)};
-        _Other ->
-            #xmlel{name = <<"iq">>,
-                attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
-                children = sub_el_to_els(SubEl)}
-    end.
-
+    #xmlel{name = <<"iq">>,
+        attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
+        children = sub_el_to_els(SubEl)}.
 
 %% @doc Convert `#iq.sub_el' back to `#xmlel.children'.
 %% @end
@@ -556,19 +552,6 @@ timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
                     {<<"from">>, From},
                     {<<"stamp">>, list_to_binary(TString ++ TzString)}],
            children = Text}.
-
--spec timestamp_to_mam_xml(DateTime :: calendar:datetime(),
-                           Timezone :: tz(),
-                           QueryId :: any(),
-                           MessageUID :: binary()) -> xmlel().
-timestamp_to_mam_xml(DateTime, Timezone, QueryID, MessageUID) ->
-    {TString, TzString} = timestamp_to_iso(DateTime, Timezone),
-    #xmlel{name = <<"delay">>,
-           attrs = [{<<"xmlns">>, ?NS_DELAY},
-                    {<<"stamp">>, list_to_binary(TString ++ TzString)},
-                    {<<"id">>, MessageUID}] ++
-                   [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>]}.
-
 
 -spec now_to_utc_string(erlang:timestamp()) -> string().
 now_to_utc_string({MegaSecs, Secs, MicroSecs}) ->

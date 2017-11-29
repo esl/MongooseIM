@@ -42,34 +42,25 @@
 -spec make(User :: ejabberd:user(), Server :: ejabberd:server(),
            Resource :: ejabberd:resource()) ->
     ejabberd:jid()  | error.
-
 make(User, Server, Resource) ->
-    case nodeprep(User) of
-        error -> error;
-        LUser ->
-            case nameprep(Server) of
-                error -> error;
-                LServer ->
-                    case resourceprep(Resource) of
-                        error -> error;
-                        LResource ->
-                            #jid{user = User,
-                                server = Server,
-                                resource = Resource,
-                                luser = LUser,
-                                lserver = LServer,
-                                lresource = LResource}
-                    end
-            end
-    end.
+    make_nodeprep(nodeprep(User), Server, Resource, {User, Server, Resource}).
 
-build_jid(User, Server, Resource, LUser, LServer, LResource) ->
-        #jid{user = User,
-            server = Server,
-            resource = Resource,
-            luser = LUser,
-            lserver = LServer,
-            lresource = LResource}.
+make_nodeprep(error, _, _, _) -> error;
+make_nodeprep(LUser,  Server, Resource, T) ->
+    make_nameprep(LUser, nameprep(Server), Resource, T).
+
+make_nameprep(_, error, _, _) -> error;
+make_nameprep(LUser,  LServer, Resource, T) ->
+    make_resourceprep(LUser, LServer, resourceprep(Resource), T).
+
+make_resourceprep(_, _, error, _) -> error;
+make_resourceprep(LUser,  LServer, LResource, {User, Server, Resource}) ->
+    #jid{user = User,
+        server = Server,
+        resource = Resource,
+        luser = LUser,
+        lserver = LServer,
+        lresource = LResource}.
 
 -spec make(ejabberd:simple_jid()) ->  ejabberd:jid()  | error.
 make({User, Server, Resource}) ->
@@ -104,13 +95,9 @@ are_bare_equal(#jid{luser = LUser, lserver = LServer},
 are_bare_equal(_, _) ->
     false.
 
-
-
-
 -spec from_binary(binary()) ->  error  | ejabberd:jid().
 from_binary(J) ->
     binary_to_jid1(J, []).
-
 
 -spec binary_to_jid1(binary(), [byte()]) -> 'error' | ejabberd:jid().
 binary_to_jid1(<<$@, _J/binary>>, []) ->
@@ -182,36 +169,31 @@ is_nodename(<<>>) ->
 is_nodename(J) ->
     nodeprep(J) /= error.
 
+-spec validate_binary_size(binary()) -> binary() | error.
+validate_binary_size(R) when size(R) < ?SANE_LIMIT ->
+    R;
+validate_binary_size(_) ->
+    error.
+
 -spec nodeprep(ejabberd:user()) -> 'error' | ejabberd:lserver().
 nodeprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
     R = stringprep:nodeprep(S),
-    case size(R) < ?SANE_LIMIT of
-        true -> R;
-        false -> error
-    end;
+    validate_binary_size(R);
 nodeprep(_) ->
     error.
-
 
 -spec nameprep(ejabberd:server()) -> 'error' | ejabberd:luser().
 nameprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
     R = stringprep:nameprep(S),
-    case size(R) < ?SANE_LIMIT of
-        true -> R;
-        false -> error
-    end;
+    validate_binary_size(R);
 nameprep(_) ->
     error.
-
 
 -spec resourceprep(ejabberd:resource()) ->
     'error' | ejabberd:lresource().
 resourceprep(S) when size(S) < ?SANE_LIMIT ->
     R = stringprep:resourceprep(S),
-    case size(R) < ?SANE_LIMIT of
-        true -> R;
-        false -> error
-    end;
+    validate_binary_size(R);
 resourceprep(_) ->
     error.
 
@@ -220,7 +202,7 @@ resourceprep(_) ->
 to_lower(#jid{luser = U, lserver = S, lresource = R}) ->
     {U, S, R};
 to_lower({U, S, R}) ->
-    case {nodeprep(U), nameprep(S), resourceprep(R)}   of
+    case {jid:nodeprep(U), jid:nameprep(S), jid:resourceprep(R)}  of
       {LUser, LServer, LResource} when LUser /= error, LServer /= error, LResource /= error ->
         {LUser, LServer, LResource};
       _Error ->
