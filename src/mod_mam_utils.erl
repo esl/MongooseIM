@@ -365,7 +365,9 @@ is_valid_message_type(_, _, _) -> false.
 
 is_valid_message(_Mod, _Dir, Packet) ->
     Body       = exml_query:subelement(Packet, <<"body">>, false),
-    ChatMarker = should_check_chat_markers() andalso has_chat_marker(Packet),
+    ChatMarker = exml_query:attr(Packet, <<"type">>) =/= <<"groupchat">>
+                 andalso should_check_chat_markers()
+                 andalso has_chat_marker(Packet),
     %% Used in MAM
     Result     = exml_query:subelement(Packet, <<"result">>, false),
     %% Used in mod_offline

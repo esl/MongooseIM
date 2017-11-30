@@ -636,18 +636,21 @@ init_modules(BackendType, muc_light, Config) ->
 init_modules(cassandra, muc_all, Config) ->
     init_module(host(), mod_mam_muc_cassandra_arch, []),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
+    true = rpc_apply(code, delete, [mod_mam_params]);
     Config;
 init_modules(odbc, muc_all, Config) ->
     init_module(host(), mod_mam_odbc_arch, [muc]),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
+    true = rpc_apply(code, delete, [mod_mam_params]);
     Config;
 init_modules(odbc_simple, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [muc, simple]),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
+    true = rpc_apply(code, delete, [mod_mam_params]);
     Config;
 init_modules(odbc_async_pool, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
@@ -655,12 +658,14 @@ init_modules(odbc_async_pool, muc_all, Config) ->
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
+    true = rpc_apply(code, delete, [mod_mam_params]);
     Config;
 init_modules(odbc_mnesia, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
+    true = rpc_apply(code, delete, [mod_mam_params]);
     Config;
 init_modules(odbc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
@@ -668,6 +673,7 @@ init_modules(odbc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
+    true = rpc_apply(code, delete, [mod_mam_params]);
     Config;
 init_modules(odbc_async_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
@@ -676,6 +682,7 @@ init_modules(odbc_async_cache, muc_all, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
+    true = rpc_apply(code, delete, [mod_mam_params]);
     Config;
 init_modules(odbc_mnesia_muc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
@@ -683,6 +690,7 @@ init_modules(odbc_mnesia_muc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
+    true = rpc_apply(code, delete, [mod_mam_params]);
     Config;
 init_modules(odbc_mnesia_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
@@ -690,6 +698,7 @@ init_modules(odbc_mnesia_cache, muc_all, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
+    true = rpc_apply(code, delete, [mod_mam_params]);
     Config;
 init_modules(odbc, C, Config) ->
     init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
