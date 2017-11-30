@@ -83,6 +83,7 @@ After previous changes, lots of tests fail, mostly because we changed the applic
 - `application:stop`
 - `application:ensure_all_started`
 - `code:priv_dir`
+- `application:which_applications`
 
 Those function are also called via RPC from big test suites. A good method to find them all is to
 search using `application.*ej` regex.

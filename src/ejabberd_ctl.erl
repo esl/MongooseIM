@@ -905,16 +905,10 @@ format_usage_tuple([ElementDef | ElementsDef], Indentation) ->
 
 get_mongoose_status() ->
     case lists:keyfind(mongooseim, 1, application:which_applications()) of
-        false -> get_ejabberd_status();
+        false ->
+            not_running;
         {_, _, Version} ->
             {running, mongooseim, Version}
-    end.
-
-get_ejabberd_status() ->
-    case lists:keyfind(ejabberd, 1, application:which_applications()) of
-        false -> not_running;
-        {_, _, "2.1.8+mim-" ++ Version} ->
-            {running, ejabberd, Version}
     end.
 
 get_uptime() ->

@@ -133,7 +133,7 @@ start_module(Host, Module, Opts0) ->
                                       [Module, Host, Opts, Class, Reason,
                                        erlang:get_stacktrace()]),
             ?CRITICAL_MSG(ErrorText, []),
-            case is_app_running(ejabberd) of
+            case is_app_running(mongooseim) of
                 true ->
                     erlang:raise(Class, Reason, erlang:get_stacktrace());
                 false ->
