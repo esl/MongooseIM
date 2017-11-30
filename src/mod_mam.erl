@@ -916,7 +916,7 @@ params_helper(Params) ->
           "-compile(export_all).~n"
           "add_archived_element() -> ~p.~n"
           "add_stanzaid_element() -> not ~p.~n"
-          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet, archive_chat_markers()).~n"
           "archive_chat_markers() -> ~p.~n"
           "default_result_limit() -> ~p.~n"
           "max_result_limit() -> ~p.~n"

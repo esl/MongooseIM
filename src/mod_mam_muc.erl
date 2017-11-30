@@ -866,7 +866,7 @@ params_helper(Params) ->
           "-compile(export_all).~n"
           "add_archived_element() -> ~p.~n"
           "add_stanzaid_element() -> not ~p.~n"
-          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet, false).~n" %false as we don't support chat markers for groupchats
           "params() -> ~p.~n",
           [proplists:get_bool(add_archived_element, Params),
            proplists:get_bool(no_stanzaid_element, Params),
