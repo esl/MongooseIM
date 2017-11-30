@@ -402,13 +402,6 @@ If they are not present - defaults are used (connection to `localhost:9042` with
 
 In order to establish a secure connection to Cassandra you must make some changes in the MongooseIM and Cassandra configuration files.
 
-##### Create MongooseIM keyspace
-This will prepare Cassandra for connection from MongooseIM. Make sure Cassandra is running, open a new terminal window and enter the following commands:
-```
-$ cqlsh
-$ cqlsh> source '$REPO/priv/casssandra.cql';
-```
-
 ##### Create server keystore
 Follow [this](https://docs.datastax.com/en/cassandra/3.0/cassandra/configuration/secureSSLCertWithCA.html) guide if you need to create certificate files.
 
@@ -427,7 +420,7 @@ Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
 ```
 {cassandra_servers, [{default, [{ssl, [{verify, verify_none}]}]}]}.
 ```
-Save the changes and rebuild MongooseIM.
+Save the changes and restart MongooseIM.
 
 ##### Testing the connection
 
