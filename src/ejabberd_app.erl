@@ -56,6 +56,7 @@ start(normal, _Args) ->
     ejabberd_config:start(),
     ejabberd_check:config(),
     connect_nodes(),
+    mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
     ejabberd_rdbms:start(),
     mongoose_riak:start(),
@@ -79,6 +80,7 @@ start(_, _) ->
 %% This function is called when an application is about to be stopped,
 %% before shutting down the processes of the application.
 prep_stop(State) ->
+    mongoose_deprecations:stop(),
     ejabberd_listener:stop_listeners(),
     stop_modules(),
     mongoose_subhosts:stop(),

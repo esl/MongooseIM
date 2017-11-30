@@ -237,6 +237,9 @@ maybe_add_arcid_elems(To, MessID, Packet, AddArchived, AddStanzaid) ->
     BareTo = jid:to_binary(jid:to_bare(To)),
     WithArchived = case AddArchived of
                        true ->
+                           mongoose_deprecations:log(mam02, "<archived/> element is going to be removed in release 3.0.0"
+                                                            " It is not recommended to use it."
+                                                            " Consider using a <stanza-id/> element instead"),
                            replace_arcid_elem(<<"archived">>, BareTo, MessID, Packet);
                        _ -> Packet
                    end,
@@ -982,7 +985,6 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
     %%     it's not possible case: the page is bigger then page size.
     %% Otherwise either TotalCount or Offset is undefined because of optimizations.
     false.
-
 
 %% -----------------------------------------------------------------------
 %% Ejabberd
