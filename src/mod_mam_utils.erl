@@ -31,7 +31,7 @@
          packet_to_x_user_jid/1,
          get_one_of_path/2,
          get_one_of_path/3,
-         is_archivable_message/3,
+         is_archivable_message/4,
          wrap_message/6,
          wrap_message/7,
          result_set/4,
