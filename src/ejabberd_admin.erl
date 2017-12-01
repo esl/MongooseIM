@@ -275,17 +275,17 @@ do_leave_cluster() ->
     end.
 
 
--spec status() -> {'ejabberd_not_running', io_lib:chars()} | {'ok', io_lib:chars()}.
+-spec status() -> {'mongooseim_not_running', io_lib:chars()} | {'ok', io_lib:chars()}.
 status() ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
     String1 = io_lib:format("The node ~p is ~p. Status: ~p",
                             [node(), InternalStatus, ProvidedStatus]),
     {Is_running, String2} =
-        case lists:keysearch(ejabberd, 1, application:which_applications()) of
+        case lists:keysearch(mongooseim, 1, application:which_applications()) of
             false ->
-                {ejabberd_not_running, "ejabberd is not running in that node."};
+                {mongooseim_not_running, "mongooseim is not running in that node."};
             {value, {_, _, Version}} ->
-                {ok, io_lib:format("ejabberd ~s is running in that node", [Version])}
+                {ok, io_lib:format("mongooseim ~s is running in that node", [Version])}
         end,
     {Is_running, String1 ++ String2}.
 
