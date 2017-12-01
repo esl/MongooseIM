@@ -30,6 +30,8 @@
 -export([start/0,
          start/1,
          stop/1,
+         set_generic_opt/3,
+         get_generic_opt/3,
          authorize/1,
          set_password/3,
          check_password/3,
@@ -100,6 +102,30 @@ plain_password_required(Server) ->
       fun(M) ->
               M:plain_password_required()
       end, auth_modules(Server)).
+
+-spec set_generic_opt(Host :: ejabberd:server(),
+                      Opt :: atom(),
+                      KVs :: [tuple()]) ->  {atomic|aborted, _}.
+set_generic_opt(Host, Opt, KVs) ->
+    OldGenericOpt = ejabberd_config:get_local_option(Opt, Host),
+    AccFunc = fun({K, V}, Acc) ->
+                  lists:keystore(K, 1, Acc, {K, V})
+              end,
+    NewGenericOpt = lists:foldl(AccFunc, OldGenericOpt, KVs),
+    ejabberd_config:add_local_option({Opt, Host}, NewGenericOpt).
+
+get_generic_opt(Host, Opt, Key) ->
+    case ejabberd_config:get_local_option(Opt, Host) of
+        undefined ->
+            undefined;
+        AuthOpts ->
+            case lists:keyfind(Key, 1, AuthOpts) of
+                {Key, Value} ->
+                    Value;
+                false ->
+                    undefined
+            end
+    end.
 
 store_type(Server) ->
     lists:foldl(

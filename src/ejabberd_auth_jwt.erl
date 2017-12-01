@@ -62,8 +62,12 @@ start(Host) ->
     true = is_atom(UsernameKey) andalso UsernameKey /= undefined,
 
     JWTSecret = get_jwt_secret(Host),
-    set_auth_opts(Host, [{jwt_secret, JWTSecret},
-                         {jwt_algorithm, list_to_binary(get_auth_opt(Host, jwt_algorithm))}]),
+    %set_auth_opts(Host, [{jwt_secret, JWTSecret},
+    %                     {jwt_algorithm, list_to_binary(get_auth_opt(Host, jwt_algorithm))}]),
+    ejabberd_auth:set_generic_opt(Host,
+                                  auth_opts,
+                                  [{jwt_secret, JWTSecret},
+                                  {jwt_algorithm, list_to_binary(get_auth_opt(Host, jwt_algorithm))}]),
     ok.
 
 -spec stop(Host :: ejabberd:server()) -> ok.
@@ -220,17 +224,18 @@ get_jwt_secret(Host) ->
     end.
 
 get_auth_opt(Host, Key) ->
-    case ejabberd_config:get_local_option(auth_opts, Host) of
-        undefined ->
-            undefined;
-        AuthOpts ->
-            case lists:keyfind(Key, 1, AuthOpts) of
-                {Key, Value} ->
-                    Value;
-                false ->
-                    undefined
-            end
-    end.
+    ejabberd_auth:get_generic_opt(Host, auth_opts, Key).
+  %% case ejabberd_config:get_local_option(auth_opts, Host) of
+  %%     undefined ->
+  %%         undefined;
+  %%     AuthOpts ->
+  %%         case lists:keyfind(Key, 1, AuthOpts) of
+  %%             {Key, Value} ->
+  %%                 Value;
+  %%             false ->
+  %%                 undefined
+  %%         end
+  %% end.
 
 %% This function will store new auth_opts for specific host.
 %% If auth_opts for Host are fetched from global setting,
