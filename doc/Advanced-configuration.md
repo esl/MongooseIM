@@ -247,7 +247,7 @@ See [Database backends configuration](./advanced-configuration/database-backends
 
 * **odbc_server** (local)
     * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
-    * **Syntax:** `{odbc_server, {Type, Host, Port, DBName, Username, Password}}.`
+    * **Syntax:** `{odbc_server, {Type, Host, Port, DBName, Username, Password}}.` **or** `{odbc_server, "<ODBC connection string>"}`
     * **Default:** `undefined`
 
 * **pgsql_users_number_estimate** (local)
@@ -267,8 +267,8 @@ See [Database backends configuration](./advanced-configuration/database-backends
 * **odbc_server_type** (local)
     * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_odbc_user` uses different query for `mssql`).
     * **Syntax:** `{odbc_server_type, Type}`
-    * **Supported values:** `mssql`, `generic`
-    * **Default:** `generic`
+    * **Supported values:** `mssql`, `pgsql` or `undefined`
+    * **Default:** `undefined`
 
 ### MySQL and PostgreSQL SSL connection setup
 
@@ -318,6 +318,31 @@ An example configuration can look as follows:
 
 `{odbc_server, {pgsql, "localhost", "username", "database", "pass",
                [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}.`
+
+### ODBC SSL connection setup
+
+If you've configured MongooseIM to use an ODBC driver, i.e. you've provided an ODBC connection string to `odbc_server` option, e.g.
+
+```erlang
+{odbc_server, "DSN=mydb"}.
+```
+
+then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
+
+To enable SSL connection the `sslmode` option needs to be set to `verify-full`.
+Additionally, you can provide the path to the CA certificate using the `sslrootcert` option.
+
+#### Example ~/.odbc.ini configuration
+
+```
+[mydb]
+Driver      = ...
+ServerName  = ...
+Port        = ...
+...
+sslmode     = verify-full
+sslrootcert = /path/to/ca/cert
+```
 
 ### Riak connection setup
 
