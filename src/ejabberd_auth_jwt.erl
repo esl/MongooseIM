@@ -58,16 +58,15 @@
 
 -spec start(Host :: ejabberd:server()) -> ok.
 start(Host) ->
-    UsernameKey = get_auth_opt(Host, jwt_username_key),
+    UsernameKey = ejabberd_auth:get_jwt_username_key(Host),
     true = is_atom(UsernameKey) andalso UsernameKey /= undefined,
 
-    JWTSecret = get_jwt_secret(Host),
-    %set_auth_opts(Host, [{jwt_secret, JWTSecret},
-    %                     {jwt_algorithm, list_to_binary(get_auth_opt(Host, jwt_algorithm))}]),
-    ejabberd_auth:set_generic_opt(Host,
+    JWTSecret = ejabberd_auth:get_jwt_secret(Host),
+    JWTAlgorithm = ejabberd_auth:get_jwt_algorithm(Host),
+    ejabberd_auth:set_generic_opts(Host,
                                   auth_opts,
                                   [{jwt_secret, JWTSecret},
-                                  {jwt_algorithm, list_to_binary(get_auth_opt(Host, jwt_algorithm))}]),
+                                  {jwt_algorithm, list_to_binary(JWTAlgorithm)}]),
     ok.
 
 -spec stop(Host :: ejabberd:server()) -> ok.
@@ -86,14 +85,14 @@ authorize(Creds) ->
                      LServer :: ejabberd:lserver(),
                      Password :: binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
-    Key = case get_auth_opt(LServer, jwt_secret) of
+    Key = case ejabberd_auth:get_jwt_secret(LServer) of
               Key1 when is_binary(Key1) -> Key1;
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
-    Options = #{key => Key, alg => get_auth_opt(LServer, jwt_algorithm)},
+    Options = #{key => Key, alg => ejabberd_auth:get_jwt_algorithm(LServer)},
     case jwerl:verify(Password, Options) of
         {ok, TokenData} ->
-            UserKey = get_auth_opt(LServer, jwt_username_key),
+            UserKey = ejabberd_auth:get_jwt_username_key(LServer),
             case maps:find(UserKey, TokenData) of
                 {ok, LUser} ->
                     %% Login username matches $token_user_key in TokenData
@@ -210,43 +209,20 @@ remove_user(_LUser, _LServer, _Password) ->
 
 % A direct path to a file is read only once during startup,
 % a path in environment variable is read on every auth request.
-get_jwt_secret(Host) ->
-    case {get_auth_opt(Host, jwt_secret_source), get_auth_opt(Host, jwt_secret)} of
-        {undefined, JWTSecret0} when is_list(JWTSecret0) ->
-            list_to_binary(JWTSecret0);
-        {undefined, JWTSecret0} when is_binary(JWTSecret0) ->
-            JWTSecret0;
-        {{env, _} = Env, _} ->
-            Env;
-        {JWTSecretPath, _} when is_list(JWTSecretPath) ->
-            {ok, JWTSecretBin} = file:read_file(JWTSecretPath),
-            JWTSecretBin
-    end.
+%get_jwt_secret(Host) ->
+ %  JWTSource = ejabberd_auth:get_generic_opt(Host, auth_opts, jwt_secret_source),
+ %  JWTSecret = ejabberd_auth:get_generic_opt(Host, auth_opts, jwt_secret),
 
-get_auth_opt(Host, Key) ->
-    ejabberd_auth:get_generic_opt(Host, auth_opts, Key).
-  %% case ejabberd_config:get_local_option(auth_opts, Host) of
-  %%     undefined ->
-  %%         undefined;
-  %%     AuthOpts ->
-  %%         case lists:keyfind(Key, 1, AuthOpts) of
-  %%             {Key, Value} ->
-  %%                 Value;
-  %%             false ->
-  %%                 undefined
-  %%         end
-  %% end.
+ %  case {JWTSource, JWTSecret} of
+ %      {undefined, JWTSecret0} when is_list(JWTSecret0) ->
+ %          list_to_binary(JWTSecret0);
+ %      {undefined, JWTSecret0} when is_binary(JWTSecret0) ->
+ %          JWTSecret0;
+ %      {{env, _} = Env, _} ->
+ %          Env;
+ %      {JWTSecretPath, _} when is_list(JWTSecretPath) ->
+ %          {ok, JWTSecretBin} = file:read_file(JWTSecretPath),
+ %          JWTSecretBin
+ %  end.
 
-%% This function will store new auth_opts for specific host.
-%% If auth_opts for Host are fetched from global setting,
-%% the new values will be available for get_local_option calls
-%% but not for get_global_option.
-%% Also, options in `KVs` will get overwritten and the remaining ones are copied.
-%% TODO: Replace with generic functions in ejabberd_auth.
-set_auth_opts(Host, KVs) ->
-    AuthOpts = ejabberd_config:get_local_option(auth_opts, Host),
-    AuthOpts1 = lists:foldl(fun({Key, Value}, Acc) ->
-                                    lists:keystore(Key, 1, Acc, {Key, Value})
-                            end, AuthOpts, KVs),
-    ejabberd_config:add_local_option({auth_opts, Host}, AuthOpts1).
 

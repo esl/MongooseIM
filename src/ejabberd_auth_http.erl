@@ -42,8 +42,8 @@
 
 -spec start(binary()) -> ok.
 start(Host) ->
-    AuthOpts = ejabberd_config:get_local_option(auth_opts, Host),
-    {_, AuthHost} = lists:keyfind(host, 1, AuthOpts),
+    AuthOpts = ejabberd_auth:get_generic_opt(Host, auth_opts),
+    AuthHost = ejabberd_auth:get_host(Host),
     PoolSize = proplists:get_value(connection_pool_size, AuthOpts, 10),
     Opts = proplists:get_value(connection_opts, AuthOpts, []),
     ChildMods = [fusco],
@@ -58,13 +58,15 @@ start(Host) ->
     ok.
 
 
--spec store_type(binary()) -> plain | scram.
+-spec store_type(binary()) -> plain | external | scram.
 store_type(Server) ->
     case scram:enabled(Server) of
         false ->
-            case is_external(Server) of
-                true -> external;
-                _ -> plain
+            case ejabberd_auth:get_generic_opt(Server, auth_opts, is_external) of
+                true ->
+                    external;
+                _ ->
+                    plain
             end;
         true -> scram
     end.
@@ -219,21 +221,12 @@ remove_user_req(LUser, LServer, Password, Method) ->
 make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
     {error, invalid_jid};
 make_req(Method, Path, LUser, LServer, Password) ->
-    AuthOpts = ejabberd_config:get_local_option(auth_opts, LServer),
-    PathPrefix = case lists:keyfind(path_prefix, 1, AuthOpts) of
-                     {_, Prefix} -> ejabberd_binary:string_to_binary(Prefix);
-                     false -> <<"/">>
-                 end,
+    PathPrefix = ejabberd_auth:get_path_prefix(LServer),
     LUserE = list_to_binary(http_uri:encode(binary_to_list(LUser))),
     LServerE = list_to_binary(http_uri:encode(binary_to_list(LServer))),
     PasswordE = list_to_binary(http_uri:encode(binary_to_list(Password))),
     Query = <<"user=", LUserE/binary, "&server=", LServerE/binary, "&pass=", PasswordE/binary>>,
-    Header = case lists:keyfind(basic_auth, 1, AuthOpts) of
-                 {_, BasicAuth} ->
-                     BasicAuth64 = base64:encode(BasicAuth),
-                     [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}];
-                 _ -> []
-             end,
+    Header = ejabberd_auth:get_basic_auth_header(LServer),
     Connection = cuesport:get_worker(existing_pool_name(LServer)),
 
     ?DEBUG("Making request '~s' for user ~s@~s...", [Path, LUser, LServer]),
@@ -287,14 +280,6 @@ stop(Host) ->
     supervisor:terminate_child(ejabberd_sup, Id),
     supervisor:delete_child(ejabberd_sup, Id),
     ok.
-
-is_external(Host) ->
-    case ejabberd_config:get_local_option(auth_opts, Host) of
-        undefined ->
-            false;
-        AuthOpts ->
-            {is_external, true} == lists:keyfind(is_external, 1, AuthOpts)
-    end.
 
 -spec check_scram_password(binary(), binary(), binary(), fun()) -> boolean().
 check_scram_password(OriginalPassword, GotPassword, Digest, DigestGen) ->

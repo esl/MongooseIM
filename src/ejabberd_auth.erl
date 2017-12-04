@@ -30,8 +30,16 @@
 -export([start/0,
          start/1,
          stop/1,
-         set_generic_opt/3,
+         set_generic_opts/3,
+         get_generic_opt/2,
          get_generic_opt/3,
+         get_jwt_username_key/1,
+         get_jwt_algorithm/1,
+         get_jwt_secret/1,
+         get_host/1,
+         get_extauth_program/1,
+         get_path_prefix/1,
+         get_basic_auth_header/1,
          authorize/1,
          set_password/3,
          check_password/3,
@@ -103,28 +111,76 @@ plain_password_required(Server) ->
               M:plain_password_required()
       end, auth_modules(Server)).
 
--spec set_generic_opt(Host :: ejabberd:server(),
+-spec set_generic_opts(Host :: ejabberd:server(),
                       Opt :: atom(),
                       KVs :: [tuple()]) ->  {atomic|aborted, _}.
-set_generic_opt(Host, Opt, KVs) ->
-    OldGenericOpt = ejabberd_config:get_local_option(Opt, Host),
+set_generic_opts(Host, Opt, KVs) ->
+    OldOpts = ejabberd_config:get_local_option(Opt, Host),
     AccFunc = fun({K, V}, Acc) ->
                   lists:keystore(K, 1, Acc, {K, V})
               end,
-    NewGenericOpt = lists:foldl(AccFunc, OldGenericOpt, KVs),
-    ejabberd_config:add_local_option({Opt, Host}, NewGenericOpt).
+    NewOpts = lists:foldl(AccFunc, OldOpts, KVs),
+    ejabberd_config:add_local_option({Opt, Host}, NewOpts).
 
+-spec get_generic_opt(Host :: ejabberd:server(),
+                      Opt :: atom(),
+                      Key :: ejabberd:key()) -> undefined | ejabberd:value().
+get_generic_opt(Host, Opt) ->
+    ejabberd_config:get_local_option(Opt, Host).
 get_generic_opt(Host, Opt, Key) ->
-    case ejabberd_config:get_local_option(Opt, Host) of
+    case get_generic_opt(Host, Opt) of
         undefined ->
             undefined;
-        AuthOpts ->
-            case lists:keyfind(Key, 1, AuthOpts) of
+        Opts ->
+            case lists:keyfind(Key, 1, Opts) of
                 {Key, Value} ->
                     Value;
                 false ->
                     undefined
             end
+    end.
+
+get_basic_auth_header(Host) ->
+    Basic = get_generic_opt(Host, auth_opts, basic_auth),
+    case Basic of
+        undefined -> [];
+        BasicAuth ->
+            BasicAuth64 = base64:encode(BasicAuth),
+            [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}]
+    end.
+
+get_path_prefix(Host) ->
+    case get_generic_opt(Host, auth_opts, path_prefix) of
+        undefined -> <<"/">>;
+        Prefix -> ejabberd_binary:string_to_binary(Prefix)
+    end.
+
+get_host(Host) ->
+    get_generic_opt(Host, auth_opts, host).
+
+get_extauth_program(Host) ->
+    get_generic_opt(Host, auth_opts, extauth_program).
+
+get_jwt_username_key(Host) ->
+    get_generic_opt(Host, auth_opts, jwt_username_key).
+
+get_jwt_algorithm(Host) ->
+    get_generic_opt(Host, auth_opts, jwt_algorithm).
+
+get_jwt_secret(Host) ->
+    JWTSource = get_generic_opt(Host, auth_opts, jwt_secret_source),
+    JWTSecret = get_generic_opt(Host, auth_opts, jwt_secret),
+
+    case {JWTSource, JWTSecret} of
+        {undefined, JWTSecret0} when is_list(JWTSecret0) ->
+            list_to_binary(JWTSecret0);
+        {undefined, JWTSecret0} when is_binary(JWTSecret0) ->
+            JWTSecret0;
+        {{env, _} = Env, _} ->
+            Env;
+        {JWTSecretPath, _} when is_list(JWTSecretPath) ->
+            {ok, JWTSecretBin} = file:read_file(JWTSecretPath),
+            JWTSecretBin
     end.
 
 store_type(Server) ->
