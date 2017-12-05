@@ -416,11 +416,25 @@ client_encryption_options:
 Save the changes and restart Cassandra.
 
 ##### Enable MongooseIM to connect with SSL
+A secure connection can be established with both self-signed and CA-signed certificates.
+
+###### Self-signed certificate
+
 Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
 ```
 {cassandra_servers, [{default, [{ssl, [{verify, verify_none}]}]}]}.
 ```
 Save the changes and restart MongooseIM.
+
+###### CA-signed certificate
+
+Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
+```
+{cassandra_servers, [{default, [{ssl, [{cacertfile,
+                                        "$CRTS/rootCA.pem"},
+                                        {verify, verify_peer}]}]}]}.
+```
+Where `$CRTS` is the path to the directory containing the certificate. Save the changes and restart MongooseIM.
 
 ##### Testing the connection
 
