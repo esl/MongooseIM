@@ -263,6 +263,16 @@ This will create bucket types, search schemas and indexes required for storing t
 You should also configure Riak in the `ejabberd.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
+## Cassandra
+
+**Setup**
+
+This will prepare Cassandra for connection from MongooseIM. Make sure Cassandra is running, open a new terminal window and enter the following commands:
+```
+$ cqlsh
+$ cqlsh> source '$REPO/priv/casssandra.cql';
+```
+
 ## Redis
 
 **Can be used for:**

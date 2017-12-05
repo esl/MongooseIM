@@ -423,6 +423,68 @@ If they are not present - defaults are used (connection to `localhost:9042` with
  ]}.
 ```
 
+#### SSL connection setup
+
+In order to establish a secure connection to Cassandra you must make some changes in the MongooseIM and Cassandra configuration files.
+
+##### Create server keystore
+Follow [this](https://docs.datastax.com/en/cassandra/3.0/cassandra/configuration/secureSSLCertWithCA.html) guide if you need to create certificate files.
+
+##### Change the Cassandra configuration file
+Find `client_encryption_options` in `cassandra.yaml` and make these changes:
+```
+client_encryption_options:
+    enabled: true
+    keystore: /your_certificate_directory/server.keystore
+    keystore_password: your_password
+```
+Save the changes and restart Cassandra.
+
+##### Enable MongooseIM to connect with SSL
+An SSL connection can be established with both self-signed and CA-signed certificates.
+
+###### Self-signed certificate
+
+Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
+```
+{cassandra_servers, [{default, [{ssl, [{verify, verify_none}]}]}]}.
+```
+Save the changes and restart MongooseIM.
+
+###### CA-signed certificate
+
+Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
+```
+{cassandra_servers, [{default, [{ssl, [{cacertfile,
+                                        "/path/to/rootCA.pem"},
+                                        {verify, verify_peer}]}]}]}.
+```
+Save the changes and restart MongooseIM.
+
+##### Testing the connection
+
+Make sure Cassandra is running and then run MongooseIM in live mode:
+ ```
+ $ ./mongooseim live
+ $ (mongooseim@localhost)1> cqerl:get_client(default).
+ {ok,{<0.474.0>,#Ref<0.160699839.1270874114.234457>}}
+ $ (mongooseim@localhost)2> sys:get_state(pid(0,474,0)).
+ {live,{client_state,cqerl_auth_plain_handler,undefined,
+                    undefined,
+                    {"localhost",9042},
+                    ssl,
+                    {sslsocket,{gen_tcp,#Port<0.8458>,tls_connection,undefined},
+                               <0.475.0>},
+                    undefined,mongooseim,infinity,<<>>,undefined,
+                    [...],
+                    {[],[]},
+                    [0,1,2,3,4,5,6,7,8,9,10,11|...],
+                    [],hash,
+                    {{"localhost",9042},
+                     [...]}}}
+ ```
+If no errors occurred and your output is similar to the one above then your MongooseIM and Cassandra nodes can communicate over SSL.
+
 ### Outgoing HTTP connections
 
 The `http_connections` option configures a list of named pools of outgoing HTTP connections that may be used by various modules. Each of the pools has a name (atom) and a list of options:
@@ -576,4 +638,3 @@ TLS is configured in one of two ways: some modules need a private key and certif
 In order to create private key & certificate bundle, you may simply concatenate them.
 
 More information about configuring TLS for these endpoints is available in [Listener modules](advanced-configuration/Listener-modules.md) page.
-
