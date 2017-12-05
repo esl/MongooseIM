@@ -31,7 +31,7 @@
          packet_to_x_user_jid/1,
          get_one_of_path/2,
          get_one_of_path/3,
-         is_archivable_message/3,
+         is_archivable_message/4,
          wrap_message/6,
          wrap_message/7,
          result_set/4,
@@ -349,12 +349,12 @@ get_one_of_path(_Elem, [], Def) ->
 %% rather than state changes such as Chat State Notifications, would be archived.
 %% @end
 -spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
-                            Packet :: jlib:xmlel()) -> boolean().
-is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
+                            Packet :: jlib:xmlel(), boolean()) -> boolean().
+is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}, ArchiveChatMarkers) ->
     Type = exml_query:attr(Packet, <<"type">>, <<"normal">>),
     is_valid_message_type(Mod, Dir, Type) andalso
-        is_valid_message(Mod, Dir, Packet);
-is_archivable_message(_, _, _) ->
+        is_valid_message(Mod, Dir, Packet, ArchiveChatMarkers);
+is_archivable_message(_, _, _, _) ->
     false.
 
 is_valid_message_type(_, _, <<"normal">>) -> true;
@@ -363,9 +363,10 @@ is_valid_message_type(_, incoming, <<"groupchat">>) -> true;
 is_valid_message_type(_, _, <<"error">>) -> false;
 is_valid_message_type(_, _, _) -> false.
 
-is_valid_message(_Mod, _Dir, Packet) ->
+is_valid_message(_Mod, _Dir, Packet, ArchiveChatMarkers) ->
     Body       = exml_query:subelement(Packet, <<"body">>, false),
-    ChatMarker = should_check_chat_markers() andalso has_chat_marker(Packet),
+    ChatMarker = ArchiveChatMarkers
+                 andalso has_chat_marker(Packet),
     %% Used in MAM
     Result     = exml_query:subelement(Packet, <<"result">>, false),
     %% Used in mod_offline
@@ -380,9 +381,6 @@ is_valid_message_children(_,     _,     false, false, false) -> true;
 %% Forwarded by MAM message or delivered by mod_offline
 %% See mam_SUITE:offline_message for a test case
 is_valid_message_children(_,     _,     _,    _,     _    ) -> false.
-
-should_check_chat_markers() ->
-    mod_mam_params:archive_chat_markers().
 
 has_chat_marker(Packet) ->
     case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of

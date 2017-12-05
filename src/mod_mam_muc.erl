@@ -460,7 +460,8 @@ handle_lookup_messages(
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    Params0 = mam_iq:query_to_lookup_params(QueryEl),
+    Params0 = mam_iq:query_to_lookup_params(QueryEl, mod_mam_muc_params:max_result_limit(),
+					   mod_mam_muc_params:default_result_limit()),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     case lookup_messages(Host, Params) of
         {error, 'policy-violation'} ->
@@ -500,7 +501,8 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    Params0 = mam_iq:form_to_lookup_params(QueryEl),
+    Params0 = mam_iq:form_to_lookup_params(QueryEl, mod_mam_muc_params:max_result_limit(),
+					   mod_mam_muc_params:default_result_limit()),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     PageSize = maps:get(page_size, Params),
     case lookup_messages(Host, Params) of
@@ -866,11 +868,15 @@ params_helper(Params) ->
           "-compile(export_all).~n"
           "add_archived_element() -> ~p.~n"
           "add_stanzaid_element() -> not ~p.~n"
-          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet).~n"
+          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet, false).~n" %false as we don't support chat markers for groupchats
+          "default_result_limit() -> ~p.~n"
+          "max_result_limit() -> ~p.~n"
           "params() -> ~p.~n",
           [proplists:get_bool(add_archived_element, Params),
            proplists:get_bool(no_stanzaid_element, Params),
            IsArchivableModule, IsArchivableFunction,
+	   proplists:get_value(default_result_limit, Params, 50),
+	   proplists:get_value(max_result_limit, Params, 50),
            Params]),
     binary_to_list(iolist_to_binary(Format)).
 

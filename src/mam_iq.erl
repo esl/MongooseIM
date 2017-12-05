@@ -5,12 +5,12 @@
 -export([elem_to_end_microseconds/1]).
 -export([elem_to_with_jid/1]).
 -export([elem_to_limit/1]).
--export([query_to_lookup_params/1]).
+-export([query_to_lookup_params/3]).
 
 -export([form_to_start_microseconds/1]).
 -export([form_to_end_microseconds/1]).
 -export([form_to_with_jid/1]).
--export([form_to_lookup_params/1]).
+-export([form_to_lookup_params/3]).
 
 -export([lookup_params_with_archive_details/3]).
 
@@ -82,8 +82,8 @@ maybe_jid(<<>>) ->
 maybe_jid(JID) when is_binary(JID) ->
     jid:from_binary(JID).
 
-query_to_lookup_params(QueryEl) ->
-    Params0 = common_lookup_params(QueryEl),
+query_to_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
+    Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
     Params0#{
       %% Filtering by date.
       %% Start :: integer() | undefined
@@ -95,8 +95,8 @@ query_to_lookup_params(QueryEl) ->
     borders => mod_mam_utils:borders_decode(QueryEl),
     is_simple => mod_mam_utils:decode_optimizations(QueryEl)}.
 
-form_to_lookup_params(QueryEl) ->
-    Params0 = common_lookup_params(QueryEl),
+form_to_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
+    Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
     Params0#{
       %% Filtering by date.
       %% Start :: integer() | undefined
@@ -125,13 +125,13 @@ form_to_lookup_params(QueryEl) ->
     %% Same for mod_mam_muc.
     is_simple => mod_mam_utils:form_decode_optimizations(QueryEl)}.
 
-common_lookup_params(QueryEl) ->
+common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
     Limit = mam_iq:elem_to_limit(QueryEl),
     #{now => p1_time_compat:system_time(micro_seconds),
       rsm => mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
-      max_result_limit => mod_mam_params:max_result_limit(),
-      page_size => min(mod_mam_params:max_result_limit(),
-                       mod_mam_utils:maybe_integer(Limit, mod_mam_params:default_result_limit())),
+      max_result_limit => MaxResultLimit,
+      page_size => min(MaxResultLimit,
+                       mod_mam_utils:maybe_integer(Limit, DefaultResultLimit)),
       limit_passed => Limit =/= <<>>}.
 
 lookup_params_with_archive_details(Params, ArcID, ArcJID) ->
