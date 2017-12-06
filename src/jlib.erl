@@ -343,13 +343,13 @@ iq_type_to_binary(error) -> <<"error">>;
 iq_type_to_binary(_) -> invalid.
 
 -spec iq_to_xml(ejabberd:iq()) -> xmlel().
-iq_to_xml(#iq{id = "", type = Type, sub_el = SubEl}) ->
-    #xmlel{name = <<"iq">>,
-        attrs = [{<<"type">>, iq_type_to_binary(Type)}],
-        children = sub_el_to_els(SubEl)};
-iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) ->
+iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) when ID /= "" ->
     #xmlel{name = <<"iq">>,
         attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
+        children = sub_el_to_els(SubEl)};
+iq_to_xml(#iq{type = Type, sub_el = SubEl}) ->
+    #xmlel{name = <<"iq">>,
+        attrs = [{<<"type">>, iq_type_to_binary(Type)}],
         children = sub_el_to_els(SubEl)}.
 
 %% @doc Convert `#iq.sub_el' back to `#xmlel.children'.
