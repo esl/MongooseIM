@@ -288,12 +288,12 @@ extract_xmlns(_) ->
 -spec iq_info_internal(xmlel(), Filter :: 'any' | 'request') ->
   'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
 iq_info_internal(#xmlel{name = Name, attrs = Attrs,
-                        children = Els} = Element, Filter) when Name == <<"iq">> ->
+                        children = Els}, Filter) when Name == <<"iq">> ->
     %% Filter is either request or any.  If it is request, any replies
     %% are converted to the atom reply.
-    ID = exml_query:attr(Element, <<"id">>),
-    Type = exml_query:attr(Element, <<"type">>),
-    Lang = exml_query:attr( Element, <<"xml:lang">>),
+    ID = xml:get_attr_s(<<"id">>, Attrs),
+    Type = xml:get_attr_s(<<"type">>, Attrs),
+    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     {Type1, Class} = make_reply_from_type(Type),
     case {Type1, Class, Filter} of
         {invalid, _, _} ->
