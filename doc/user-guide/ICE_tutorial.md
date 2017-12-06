@@ -192,7 +192,7 @@ With this configuration, our RaspberryPi is ready to stream!
 #### Playing the video
 
 Now we finally can get out phone and start streaming the video!
-In order to do that, we have to click the "*New video stream*" button as shown on the screenshoots below, enter the JID of the RaspberryPi and confirm with the "*Stream!*" button.
+In order to do that, we have to click the "*New video stream*" button as shown on the screenshots below, enter the JID of the RaspberryPi and confirm with the "*Stream!*" button.
 
 
 <img alt="Mangosta start streaming" src="mangosta_start_stream_1.png" width="30%">
