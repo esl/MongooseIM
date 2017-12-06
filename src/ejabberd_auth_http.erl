@@ -42,10 +42,9 @@
 
 -spec start(binary()) -> ok.
 start(Host) ->
-    AuthOpts = ejabberd_auth:get_generic_opt(Host, auth_opts),
-    AuthHost = ejabberd_auth:get_host(Host),
-    PoolSize = proplists:get_value(connection_pool_size, AuthOpts, 10),
-    Opts = proplists:get_value(connection_opts, AuthOpts, []),
+    AuthHost = ejabberd_auth:get_opt(Host, host),
+    PoolSize = ejabberd_auth:get_opt(Host, connection_pool_size, 10),
+    Opts = ejabberd_auth:get_opt(Host, connection_opts, []),
     ChildMods = [fusco],
     ChildMF = {fusco, start_link},
     ChildArgs = {for_all, [AuthHost, Opts]},
@@ -62,7 +61,7 @@ start(Host) ->
 store_type(Server) ->
     case scram:enabled(Server) of
         false ->
-            case ejabberd_auth:get_generic_opt(Server, auth_opts, is_external) of
+            case ejabberd_auth:get_opt(Server, is_external) of
                 true ->
                     external;
                 _ ->
@@ -221,12 +220,23 @@ remove_user_req(LUser, LServer, Password, Method) ->
 make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
     {error, invalid_jid};
 make_req(Method, Path, LUser, LServer, Password) ->
-    PathPrefix = ejabberd_auth:get_path_prefix(LServer),
+    PathPrefix = case ejabberd_auth:get_opt(LServer, path_prefix) of
+                     undefined ->
+                         <<"/">>;
+                     Prefix ->
+                         ejabberd_binary:string_to_binary(Prefix)
+                 end,
     LUserE = list_to_binary(http_uri:encode(binary_to_list(LUser))),
     LServerE = list_to_binary(http_uri:encode(binary_to_list(LServer))),
     PasswordE = list_to_binary(http_uri:encode(binary_to_list(Password))),
     Query = <<"user=", LUserE/binary, "&server=", LServerE/binary, "&pass=", PasswordE/binary>>,
-    Header = ejabberd_auth:get_basic_auth_header(LServer),
+    Header =  case ejabberd_auth:get_opt(LServer, basic_auth) of
+                  undefined ->
+                      [];
+                  BasicAuth ->
+                      BasicAuth64 = base64:encode(BasicAuth),
+                      [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}]
+              end,
     Connection = cuesport:get_worker(existing_pool_name(LServer)),
 
     ?DEBUG("Making request '~s' for user ~s@~s...", [Path, LUser, LServer]),

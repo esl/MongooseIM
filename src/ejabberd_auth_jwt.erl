@@ -58,15 +58,14 @@
 
 -spec start(Host :: ejabberd:server()) -> ok.
 start(Host) ->
-    UsernameKey = ejabberd_auth:get_jwt_username_key(Host),
+    UsernameKey = ejabberd_auth:get_opt(Host, jwt_username_key),
     true = is_atom(UsernameKey) andalso UsernameKey /= undefined,
 
-    JWTSecret = ejabberd_auth:get_jwt_secret(Host),
-    JWTAlgorithm = ejabberd_auth:get_jwt_algorithm(Host),
-    ejabberd_auth:set_generic_opts(Host,
-                                  auth_opts,
-                                  [{jwt_secret, JWTSecret},
-                                  {jwt_algorithm, list_to_binary(JWTAlgorithm)}]),
+    JWTSecret = get_jwt_secret(Host),
+    JWTAlgorithm = ejabberd_auth:get_opt(Host, jwt_algorithm),
+    ejabberd_auth:set_opts(Host,
+                           [{jwt_secret, JWTSecret},
+                           {jwt_algorithm, list_to_binary(JWTAlgorithm)}]),
     ok.
 
 -spec stop(Host :: ejabberd:server()) -> ok.
@@ -85,14 +84,14 @@ authorize(Creds) ->
                      LServer :: ejabberd:lserver(),
                      Password :: binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
-    Key = case ejabberd_auth:get_jwt_secret(LServer) of
+    Key = case ejabberd_auth:get_opt(LServer, jwt_secret) of
               Key1 when is_binary(Key1) -> Key1;
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
-    Options = #{key => Key, alg => ejabberd_auth:get_jwt_algorithm(LServer)},
+    Options = #{key => Key, alg => ejabberd_auth:get_opt(LServer, jwt_algorithm)},
     case jwerl:verify(Password, Options) of
         {ok, TokenData} ->
-            UserKey = ejabberd_auth:get_jwt_username_key(LServer),
+            UserKey = ejabberd_auth:get_opt(LServer, jwt_username_key),
             case maps:find(UserKey, TokenData) of
                 {ok, LUser} ->
                     %% Login username matches $token_user_key in TokenData
@@ -209,20 +208,20 @@ remove_user(_LUser, _LServer, _Password) ->
 
 % A direct path to a file is read only once during startup,
 % a path in environment variable is read on every auth request.
-%get_jwt_secret(Host) ->
- %  JWTSource = ejabberd_auth:get_generic_opt(Host, auth_opts, jwt_secret_source),
- %  JWTSecret = ejabberd_auth:get_generic_opt(Host, auth_opts, jwt_secret),
+get_jwt_secret(Host) ->
+   JWTSource = ejabberd_auth:get_opt(Host, jwt_secret_source),
+   JWTSecret = ejabberd_auth:get_opt(Host, jwt_secret),
 
- %  case {JWTSource, JWTSecret} of
- %      {undefined, JWTSecret0} when is_list(JWTSecret0) ->
- %          list_to_binary(JWTSecret0);
- %      {undefined, JWTSecret0} when is_binary(JWTSecret0) ->
- %          JWTSecret0;
- %      {{env, _} = Env, _} ->
- %          Env;
- %      {JWTSecretPath, _} when is_list(JWTSecretPath) ->
- %          {ok, JWTSecretBin} = file:read_file(JWTSecretPath),
- %          JWTSecretBin
- %  end.
+   case {JWTSource, JWTSecret} of
+       {undefined, JWTSecret0} when is_list(JWTSecret0) ->
+           list_to_binary(JWTSecret0);
+       {undefined, JWTSecret0} when is_binary(JWTSecret0) ->
+           JWTSecret0;
+       {{env, _} = Env, _} ->
+           Env;
+       {JWTSecretPath, _} when is_list(JWTSecretPath) ->
+           {ok, JWTSecretBin} = file:read_file(JWTSecretPath),
+           JWTSecretBin
+   end.
 
 

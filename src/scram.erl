@@ -111,22 +111,18 @@ hi_round(Password, UPrev, IterationCount) ->
 
 
 enabled(Host) ->
-    case ejabberd_auth:get_generic_opt(Host, auth_opts, password_format) of
+    case ejabberd_auth:get_opt(Host, password_format) of
         scram ->
             true;
         _ ->
             false
     end.
 
+%% This function is exported and used from other modules
 iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
 
 iterations(Host) ->
-    case ejabberd_auth:get_generic_opt(Host, auth_opts, scram_iterations) of
-        undefined ->
-            iterations();
-        Operations ->
-            Operations
-    end.
+    ejabberd_auth:get_opt(Host, scram_iterations, ?SCRAM_DEFAULT_ITERATION_COUNT).
 
 password_to_scram(Password) ->
     password_to_scram(Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
@@ -154,8 +150,8 @@ serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
                      salt = Salt, iterationcount = IterationCount})->
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
-       StoredKey/binary, $,,ServerKey/binary,
-       $,,Salt/binary, $,,IterationCountBin/binary>>.
+       StoredKey/binary, $,, ServerKey/binary,
+       $,, Salt/binary, $,, IterationCountBin/binary>>.
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     case catch binary:split(Serialized, <<",">>, [global]) of

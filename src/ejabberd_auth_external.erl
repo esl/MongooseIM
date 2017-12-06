@@ -59,7 +59,7 @@
 
 -spec start(Host :: ejabberd:server()) -> 'ok'.
 start(Host) ->
-    ExtauthProgram = ejabberd_auth:get_extauth_program(Host),
+    ExtauthProgram = ejabberd_auth:get_opt(Host, extauth_program),
     extauth:start(Host, ExtauthProgram),
     case check_cache_last_options(Host) of
         cache ->
