@@ -132,7 +132,7 @@ The process is shown on the screenshots below.
 <img alt="Mangosta test ICE connection" src="mangosta_ice_settings_2.png" width="30%">
 <img alt="Mangosta save ICE settings" src="mangosta_ice_settings_3.png" width="30%">
 
-On the "*Configure ICE*" screen we have to set up 5 fields:
+On the "*Configure ICE*" screen we have to set 5 fields up:
 * **TURN server address** - IPv4 address of our [MongooseICE](https://github.com/esl/MongooseICE)
 * **TURN Server port** - since we did not set the port while configuring [MongooseICE](https://github.com/esl/MongooseICE) it uses a default one - **3478**
 * **TURN Realm** - Realm name we have set via *MONGOOSEICE\_UDP\_REALM* variable. In our case it's "*myrelay*".
