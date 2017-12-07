@@ -111,25 +111,13 @@ hi_round(Password, UPrev, IterationCount) ->
 
 
 enabled(Host) ->
-    case ejabberd_config:get_local_option(auth_opts, Host) of
-        undefined ->
-            false;
-        AuthOpts ->
-            {password_format, scram} == lists:keyfind(password_format, 1, AuthOpts)
-    end.
+    ejabberd_auth:get_opt(Host, password_format) == scram.
 
+%% This function is exported and used from other modules
 iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
 
 iterations(Host) ->
-    case ejabberd_config:get_local_option(auth_opts, Host) of
-        undefined ->
-            iterations();
-        AuthOpts ->
-            case lists:keyfind(scram_iterations, 1, AuthOpts) of
-                false -> iterations();
-                {_, Iterations} -> Iterations
-            end
-    end.
+    ejabberd_auth:get_opt(Host, scram_iterations, ?SCRAM_DEFAULT_ITERATION_COUNT).
 
 password_to_scram(Password) ->
     password_to_scram(Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
@@ -157,8 +145,8 @@ serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
                      salt = Salt, iterationcount = IterationCount})->
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
-       StoredKey/binary, $,,ServerKey/binary,
-       $,,Salt/binary, $,,IterationCountBin/binary>>.
+       StoredKey/binary, $,, ServerKey/binary,
+       $,, Salt/binary, $,, IterationCountBin/binary>>.
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     case catch binary:split(Serialized, <<",">>, [global]) of
