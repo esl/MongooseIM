@@ -111,12 +111,7 @@ hi_round(Password, UPrev, IterationCount) ->
 
 
 enabled(Host) ->
-    case ejabberd_auth:get_opt(Host, password_format) of
-        scram ->
-            true;
-        _ ->
-            false
-    end.
+    ejabberd_auth:get_opt(Host, password_format) == scram.
 
 %% This function is exported and used from other modules
 iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
