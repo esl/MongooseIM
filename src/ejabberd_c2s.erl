@@ -2352,19 +2352,24 @@ process_privacy_iq(Acc0, To, StateData) ->
     IQ = mongoose_acc:get(iq_query_info, Acc),
     Acc1 = mongoose_acc:put(iq, IQ, Acc),
     From = mongoose_acc:get(from_jid, Acc1),
-    #iq{type = Type, sub_el = SubEl} = IQ,
-    {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
-    Res = mongoose_acc:get(iq_result, Acc2, {error, ?ERR_FEATURE_NOT_IMPLEMENTED}),
-    IQRes = case Res of
-                {result, Result} ->
-                    IQ#iq{type = result, sub_el = Result};
-                {result, Result, _} ->
-                    IQ#iq{type = result, sub_el = Result};
-                {error, Error} ->
-                    IQ#iq{type = error, sub_el = [SubEl, Error]}
-            end,
-    Acc3 = ejabberd_router:route(To, From, Acc2, jlib:iq_to_xml(IQRes)),
-    {Acc3, NewStateData}.
+    case is_record(IQ, iq) of
+        true ->
+            #iq{type = Type, sub_el = SubEl} = IQ,
+            {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
+            Res = mongoose_acc:get(iq_result, Acc2, {error, ?ERR_FEATURE_NOT_IMPLEMENTED}),
+            IQRes = case Res of
+                        {result, Result} ->
+                            IQ#iq{type = result, sub_el = Result};
+                        {result, Result, _} ->
+                            IQ#iq{type = result, sub_el = Result};
+                        {error, Error} ->
+                            IQ#iq{type = error, sub_el = [SubEl, Error]}
+                    end,
+            Acc3 = ejabberd_router:route(To, From, Acc2, jlib:iq_to_xml(IQRes)),
+            {Acc3, NewStateData};
+        _ ->
+            {Acc0, StateData}
+    end.
 
 -spec process_privacy_iq(Acc :: mongoose_acc:t(),
                          Type :: get | set,
