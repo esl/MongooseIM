@@ -4,8 +4,8 @@
 -behaviour(mod_event_pusher).
 
 -include("mod_event_pusher_events.hrl").
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 
 -callback user_guid(UserJID :: ejabberd:jid()) -> user_guid().

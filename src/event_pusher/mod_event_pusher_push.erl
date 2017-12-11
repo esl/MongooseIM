@@ -16,8 +16,8 @@
 -xep([{xep, 357}, {version, "0.2.1"}]).
 
 -include("mod_event_pusher_events.hrl").
--include_lib("ejabberd/include/ejabberd.hrl").
--include_lib("ejabberd/include/jlib.hrl").
+-include("ejabberd.hrl").
+-include("jlib.hrl").
 
 %%--------------------------------------------------------------------
 %% Exports
