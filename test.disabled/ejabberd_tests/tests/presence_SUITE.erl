@@ -34,6 +34,8 @@ all() ->
 groups() ->
     [{presence, [sequence], [available,
                              available_direct,
+                             available_direct_then_unavailable,
+                             available_direct_then_disconnect,
                              additions,
                              invisible_presence]},
      {presence_priority, [sequence], [negative_priority_presence]},
@@ -89,8 +91,7 @@ end_per_testcase(unsubscribe, Config) ->
 end_per_testcase(VersionCases, Config)
       when VersionCases =:= versioning; VersionCases =:= versioning_no_store ->
     restore_versioning(Config),
-    end_rosters_remove(Config),
-    escalus:end_per_testcase(versioning, Config);
+    end_rosters_remove(Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -123,6 +124,40 @@ available_direct(Config) ->
         escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Alice, Received)
 
+        end).
+
+available_direct_then_unavailable(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        %% given Alice has sent direct presence to Bob
+        escalus:send(Alice, escalus_stanza:presence_direct(Bob, <<"available">>)),
+        Received1 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, Received1),
+        escalus_assert:is_stanza_from(Alice, Received1),
+
+        %% when Alice sends presence unavailable
+        escalus:send(Alice, escalus_stanza:presence(<<"unavailable">>)),
+
+        %% then Bob receives presence unavailable
+        Received2 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, Received2),
+        escalus_assert:is_stanza_from(Alice, Received2)
+        end).
+
+available_direct_then_disconnect(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        %% given Alice has sent direct presence to Bob
+        escalus:send(Alice, escalus_stanza:presence_direct(Bob, <<"available">>)),
+        Received1 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, Received1),
+        escalus_assert:is_stanza_from(Alice, Received1),
+
+        %% when Alice suddenly disconnects
+        escalus_client:kill_connection(Config, Alice),
+
+        %% then Bob receives presence unavailable
+        Received2 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence, Received2),
+        escalus_assert:is_stanza_from(Alice, Received2)
         end).
 
 additions(Config) ->
@@ -270,7 +305,13 @@ remove_contact(Config) ->
 
         %% remove contact
         escalus:send(Alice, escalus_stanza:roster_remove_contact(Bob)),
-        escalus:assert_many([is_roster_set, is_iq_result],
+        IsSubscriptionRemove = fun(El) ->
+            Sub = exml_query:paths(El, [{element, <<"query">>},
+                                  {element, <<"item">>},
+                                  {attr, <<"subscription">>}]),
+            Sub == [<<"remove">>]
+            end,
+        escalus:assert_many([IsSubscriptionRemove, is_iq_result],
                             escalus:wait_for_stanzas(Alice, 2)),
 
         %% check roster
@@ -464,7 +505,7 @@ subscribe_relog(Config) ->
                 end
             ], Stanzas),
 
-        escalus_client:stop(NewBob),
+        escalus_client:stop(Config, NewBob),
 
         escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"unsubscribed">>))
 
@@ -606,11 +647,11 @@ remove_roster(Config, UserSpec) ->
     Mods = escalus_ejabberd:rpc(gen_mod, loaded_modules, [Server]),
     case lists:member(mod_roster, Mods) of
         true ->
-            ok = escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]);
+            escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]);
         false ->
             case lists:member(mod_roster_odbc, Mods) of
                 true ->
-                    ok = escalus_ejabberd:rpc(mod_roster_odbc, remove_user, [Username, Server]);
+                    escalus_ejabberd:rpc(mod_roster_odbc, remove_user, [Username, Server]);
                 false ->
                     throw(roster_not_loaded)
             end

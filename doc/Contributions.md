@@ -31,7 +31,7 @@ Available on: [igniterealtime/Smack](https://github.com/igniterealtime/Smack)
 
 ### Movim
 
-Available on: [movim/movim](https://github.com/movim/movim)
+See [movim/movim](https://github.com/movim/movim) on GitHub for more details.
 
 * Docker image for Movim: https://github.com/esl/movim-docker
 
@@ -39,7 +39,7 @@ Available on: [movim/movim](https://github.com/movim/movim)
 
 ### escalus
 
-Available on: [esl/escalus](https://github.com/esl/escalus)
+See [esl/escalus](https://github.com/esl/escalus) on GitHub for more details.
 
 An XMPP client library in Erlang for conveniently testing XMPP servers
 
@@ -47,7 +47,7 @@ Apache license 2.0
 
 ### amoc
 
-Available on: [esl/amoc](https://github.com/esl/amoc)
+See [esl/amoc](https://github.com/esl/amoc) on GitHub for more details.
 
 amoc is a simple tool for running massively parallel XMPP tests
 
@@ -57,19 +57,19 @@ Note: amoc stands for "A Murder of Crows"
 
 ### exml
 
-Available on: [esl/exml](https://github.com/esl/exml)
+See [esl/exml](https://github.com/esl/exml) on GitHub for more details.
 
 XML parsing library in Erlang
 
 Apache license 2.0
 
-### ICE (STUN/TURN) server
+### MongooseICE: ICE (STUN/TURN) server
 
-Please contact us.
+See [MongooseICE](https://github.com/esl/MongooseICE) on GitHub for more details.
 
 ### MongoosePush: Push notifications server (APNS/FCM)
 
-Available on: [MongoosePush](https://github.com/esl/MongoosePush)
+See [MongoosePush](https://github.com/esl/MongoosePush) on GitHub for more details.
 
 ## Open standards
 

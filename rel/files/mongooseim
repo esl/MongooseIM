@@ -11,7 +11,7 @@ RUNNER_LOG_DIR={{mongooseim_log_dir}}
 PIPE_DIR=/tmp/mongooseim_pipe_`whoami`/
 RUNNER_USER={{mongooseim_runner_user}}
 
-EJABBERD_SO_PATH=`ls -dt $RUNNER_BASE_DIR/lib/ejabberd-2.1.8*/priv/lib | head -1`
+EJABBERD_SO_PATH=`ls -dt $RUNNER_BASE_DIR/lib/mongooseim-*/priv/lib | head -1`
 EJABBERD_CONFIG_PATH=$RUNNER_ETC_DIR/ejabberd.cfg
 export EJABBERD_SO_PATH
 export EJABBERD_CONFIG_PATH
@@ -188,14 +188,13 @@ case "$1" in
         ;;
 
     version)
-        MIM=`ls $RUNNER_BASE_DIR/lib/mongooseim*/ebin/mongooseim.app | head -1`
         if [ $# == 2 ] && [ $2 == '--simple' ]
         then
-            $NODETOOL version $MIM
+            cat $RUNNER_BASE_DIR/priv/VERSION
         else
-            cat $RUNNER_BASE_DIR/lib/mongooseim*/priv/logo.txt
+            cat $RUNNER_BASE_DIR/priv/logo.txt
             echo -n "MongooseIM version "
-            $NODETOOL version $MIM
+            cat $RUNNER_BASE_DIR/priv/VERSION
         fi
         ;;
     *)

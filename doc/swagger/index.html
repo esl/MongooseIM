@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Swagger UI</title>
+  <title>MongooseIM REST API</title>
   <link rel="icon" type="image/png" href="images/favicon-32x32.png" sizes="32x32" />
   <link rel="icon" type="image/png" href="images/favicon-16x16.png" sizes="16x16" />
   <link href='css/typography.css' media='screen' rel='stylesheet' type='text/css'/>
@@ -33,11 +33,11 @@
       var make_spec_url = function(CurrentLocation, SpecFile){
         var path = CurrentLocation.pathname.match("(.*)/swagger/index.html")[1]
         var url = CurrentLocation.protocol + "//" + CurrentLocation.hostname
-        return url + path + "/http-api/" + SpecFile
+        return url + path + "/rest-api/" + SpecFile
       }
 
       var make_backup_spec_url = function(SpecFile) {
-          return "https://raw.githubusercontent.com/esl/MongooseIM/master/doc/http-api/" + SpecFile
+          return "https://raw.githubusercontent.com/esl/MongooseIM/master/doc/rest-api/" + SpecFile
       }
 
       var determine_client_mode = function(Search) {
@@ -51,9 +51,9 @@
       var backend_or_client_spec = function(CurrentLocation) {
 	var clientMode = determine_client_mode(CurrentLocation.search)
         if (clientMode) {
-	  return "client_swagger.yml"
+	  return "Client-frontend_swagger.yml"
 	} else{
-	  return "backend_swagger.yml"
+	  return "Administration-backend_swagger.yml"
 	}
       }
 

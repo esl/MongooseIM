@@ -1,88 +1,131 @@
 ## Installation
 
-### Getting started with MongooseIM on Mac OS X
+In this short guide we will set MongooseIM up and get your users chatting right away.
+You can either compile everything from the source code or install binaries from a package.
 
-This short guide will show you how to compile MongooseIM from source code or install binaries from a DMG image on Mac OS X, and get users chatting right away.
+### Install from source code
 
-#### Install from source code
+Check out our tutorial [How to build MongooseIM from source code](How-to-build.md) for an introduction to compiling, building and testing MongooseIM.
 
-##### Prerequisites for source code installation
+### Install from package
 
-MongooseIM is supported on Mac OS X 10.6.8 and later. Before you can compile and run MongooseIM, you also need the following to be installed on your system:
+Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) section of the Erlang Solution website, and choose the version of MongooseIM you want. The following sections describe the installation process for different operating systems.
 
-* GNU Make and GCC (the GNU Compiler Collection). To ensure that these are available, you can install the Command Line Tools for Xcode, available via Xcode or from the Apple Developer website.
-* Git – `brew install git`
-* Erlang/OTP 17.5 or higher – `brew install erlang`
+#### Mac
 
-An easy way to install some of the packages is by using a package manager, such as [Homebrew](http://brew.sh) – the Homebrew commands are provided here.
+Once the DMG is downloaded, double click it and the contents of the package will open.
+Double click the .pkg file and follow the instructions of the installation wizard.
+
+#### Ubuntu
+
+Once the deb file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
+
+```bash
+$ sudo dpkg -i mongooseim_2.1.0-1~ubuntu~artful_amd64.deb
+```
+
+#### CentOS
+
+An ODBC driver must be installed on your machine to unpack and install from rpm packages. Enter the following command in a terminal window to install the latest unixODBC driver:
+```bash
+$ sudo yum install unixODBC
+```
+Once the rpm file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
+```bash
+$ sudo rpm -i mongooseim_2.1.0-1~centos~7_amd64.rpm
+```
+
+## Running MongooseIM installed from package
+
+The following command will start the MongooseIM server:
+```bash
+$ mongooseimctl start
+```
+The following command shows the status of a started MongooseIM server:
+```bash
+$ mongooseimctl status
+```
+Use the following command to stop the MongooseIM server:
+```bash
+$ mongooseimctl stop
+```
+
+Alternatively, you can also run the server in the interactive mode:
+```bash
+$ mongooseimctl live
+```
 
 
-##### Build and install from source code
+## Registering a user
 
-To build and install MongooseIM from source code, do the following:
+The default XMPP domain served by MongooseIM right after installation is `localhost`.
+Users on a different computer can register using the server’s IP address.
 
-1. Clone the Git repository:  `git clone https://github.com/esl/MongooseIM.git`
-2. Go to your MongooseIM directory.
-3. Run the following command: `make rel`.
+You can register a user with the `mongooseimctl` utility.
+The following command registers the user `user@domain` using password `password`.
 
-For more advanced release generation and installation please see [Release/Installation configuration](release_config.md)
+```
+mongooseimctl register user domain password
+```
 
+## Connecting with an XMPP client
 
-#### Install from DMG
-
-Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) page of Erlang Solution website, and download the version of MongooseIM you want.
-Once the DMG is downloaded, double click on it, it will open the content.
-Double click on the .pkg file, it will fire an installation wizard.
-Just follow the instructions.
-
-
-#### Running MongooseIM
-
-* From your MongooseIM directory, go to the release directory:  `cd _build/prod/rel/mongooseim`
-* To start the MongooseIM server, run the following command:  `bin/mongooseim start`
-* To verify that MongooseIM is running, enter the following:  `bin/mongooseim ping`<br \>If the response is `pong`, then MongooseIM is running.
-* To connect to the MongooseIM console after starting the server:  `bin/mongooseim debug`
-* Alternatively, you can also run the server in interactive mode:  `bin/mongooseim live`
-
-
-#### Registering a user
-
-The default XMPP domain served by MongooseIM right after installation is `localhost`. Users on a different computer can register using the server’s IP address.
-
-You can register a user with the `mongooseimctl` utility:
-`mongooseimctl register user domain password`
-
-For example:
-`mongooseimctl register user1 localhost GJ9TuHq8`
-
-
-##### Adium
+### Adium (Mac)
 
 1. Launch Adium. If the Adium Setup Assistant opens, close it.
 2. In the **Adium** menu, select **Preferences**, and then select the **Accounts** tab.
 3. Click the **+** button and select **XMPP (Jabber)**.
 4. Enter a Jabber ID (for example, “user1@localhost”) and password, and then click **Register New Account**.
 5. In the **Server** field, enter the following:
-	* Users registering on the computer on which MongooseIM is running: `localhost`
-	* Users registering from a different computer: the MongooseIM server’s IP address
+	* users registering on the computer on which MongooseIM is running: `localhost`,
+	* users registering from a different computer: the MongooseIM server’s IP address.
 6. Click **Request New Account**.
 
 After registration, the user will connect automatically.
 
 Registered users wishing to add an existing account to Adium should enter the MongooseIM server’s IP address in the **Connect Server** field on the **Options** tab.
 
+### Pidgin (Ubuntu & CentOS)
 
-#### Domains
+1. Launch Pidgin.
+2. Click the Add button to configure your account.
+3. In the **Basic** tab choose **XMPP** as protocol, then enter Username, Domain and Password and click **Add**. After Registration the user will connect automatically.
 
-To use your system’s domain name instead of localhost, edit the following MongooseIM configuration file: `$REPO/_build/prod/rel/mongooseim/etc/ejabberd.cfg` (where `$REPO` is the repository root).
-Find the line that contains the following: `{hosts ["localhost"] }.` Replace localhost with your domain name, for example: `{hosts, ["example.org"] }`.
+### Gajim (Ubuntu & CentOS)
+
+The following steps assumes that you have already registered a user on the MongooseIM server, see section **Registering a user** above.
+1. Launch Gajim. Ignore the window with Plugin updates.
+2. Go to Edit -> Accounts.
+3. Click Add in the left part of the window and select **I already have an account I want to use**, click Forward
+4. Enter the user, domain and password for the already registered account, click Forward and then Finish.
+5. Close the Account window.
+
+## Domains
+
+To use your system’s domain name instead of localhost, edit the MongooseIM configuration file: `MongooseIM/_build/prod/rel/mongooseim/etc/ejabberd.cfg`.
+Find and replace the line:
+
+```erlang
+{hosts, ["localhost"] }.
+```
+
+using your own hostname, for example:
+
+```erlang
+{hosts, ["example.org"] }.
+```
+
 Save the configuration file and restart the MongooseIM server.
-A user’s Jabber ID will then use the domain instead of localhost, for example: `user1@example.org`
+A user's Jabber ID will then contain the new domain instead of localhost, for example: `user1@example.org`.
+Note that existing user accounts will not be automatically migrated to the new domain.
 
 You can also configure multiple domains for one server:
-`{hosts, ["example1.org", "example2.org"] }.`
+
+```erlang
+{hosts, ["example1.org", "example2.org"] }.
+```
 
 
-#### Get chatting!
+## Get chatting!
 
-Users that are registered on your server can now add their accounts in a chat application like Adium (specifying either the server’s IP address or domain name), add each other as contacts, and start chatting.
+Users that are registered on your server can now add their accounts in a chat application like Adium (specifying either the server’s IP address or domain name), add each other as contacts, and start chatting!

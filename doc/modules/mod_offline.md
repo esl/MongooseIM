@@ -6,14 +6,19 @@ Although `mod_offline` may be sufficient in some cases, it is preferable to use 
 
 ### Options
 * `access_max_user_messages` (atom, default: `max_user_offline_messages`): Access Rule to use for limiting the storage size per user.
-* `backend` (atom, default: `mnesia`): Storage backend. Currently only `mnesia`, `odbc` and `odbc_legacy` are supported. 
- `odbc` uses a new table in SQL named `offline_message` and `odbc_legacy` uses `spool` table. 
- For new installations, use `odbc`. 
- `odbc_legacy` should be used only for deployments dated before Feb 2014, (most likely they only have `spool`). 
- The main difference between them is that the new one uses the `blob` data type and old one uses `text`. 
- As of now no differences in performance between the two have been documented.
+* `backend` (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `odbc` and `riak` are supported. 
 
 ### Example Configuration
 ```
 {mod_offline, [{access_max_user_messages, max_user_offline_messages}]},
 ```
+
+### Metrics
+
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[global, backends, mod_offline, pop_messages]` | histogram | Time it takes to fetch and delete offline messages for a user in a DB. |
+| `[global, backends, mod_offline, write_messages]` | histogram | Time it takes to write new offline messages to a user in a DB. |
+

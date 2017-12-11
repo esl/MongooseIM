@@ -89,7 +89,7 @@ receive_presences(Config) ->
         escalus_assert:is_stanza_from(Bob,ReceivedA),
 
         no_stanzas([Alice]),
-        escalus_client:stop(Bob)
+        escalus_client:stop(Config, Bob)
     end).
 
 get_contacts(Config) ->

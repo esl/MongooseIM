@@ -1,0 +1,550 @@
+swagger: '2.0'
+info:
+  version: "0.1.1"
+  title: "MongooseIM's client REST API"
+  description: |
+    Explore MongooseIM features using our REST API.
+
+    Please keep in mind that:
+    * All users are represented by **bare JIDs** (Jabber Identifiers such as **alice@wonderland.com**).
+     This is to ensure integration between the **REST API** users and regular **XMPP** users.
+    * All requests requiring a room ID (i.e. most of the requests fired at `/room` endpoint) accept either
+     a bare room ID (e.g. `656c6f656c6f`) or a room JID (e.g. `656c6f656c6f@muclight.somedomain.com`).
+     The host part of the room JID must be the host name of a MUC light service running in user's domain.
+    * All requests require authentication.
+    This is to make sure the server can identify who sent the request and if it comes from an authorized user.
+    Currently the only supported method is **Basic Auth**.
+
+basePath: /api
+schemes:
+  - http
+produces:
+  - application/json
+consumes:
+  - application/json
+host: "localhost:8089"
+paths:
+  /messages:
+    post:
+      description: Sends a message to a user.
+      tags:
+        - "One-to-one messages"
+      parameters:
+        - in: body
+          name: message
+          description: The message to be sent.
+          required: true
+          schema:
+            $ref: '#/definitions/SendMessage'
+      responses:
+        200:
+          description: Message was successfully sent.
+          schema:
+            $ref: '#/definitions/ResourceID'
+    get:
+      description: Returns all recent messages sent to and received from other users.
+      tags:
+        - "One-to-one messages"
+      parameters:
+        - $ref: '#/parameters/messagesLimit'
+        - $ref: '#/parameters/beforeGuard'
+      responses:
+        200:
+          description: Messages
+          schema:
+            title: Messages
+            type: array
+            items:
+              $ref: '#/definitions/RecvMessage'
+
+  /messages/{with}:
+    get:
+      description: |
+        Returns all recent messages sent to and received from a specific user.
+      tags:
+        - "One-to-one messages"
+      parameters:
+        - name: with
+          type: string
+          description: |
+            JID of the user with whom the messages were exchanged.
+            Example: **alice@wonderland.com**.
+          in: path
+          required: true
+        - $ref: '#/parameters/messagesLimit'
+        - $ref: '#/parameters/beforeGuard'
+      responses:
+        200:
+          description: Successful response.
+          schema:
+            title: Messages
+            type: array
+            items:
+              $ref: '#/definitions/RecvMessage'
+  /rooms:
+    post:
+      description: Creates a room.
+      tags:
+        - "Rooms"
+      parameters:
+        - in: body
+          name: room
+          required: true
+          schema:
+            $ref: '#/definitions/CreateRoomBody'
+      responses:
+        200:
+          description: The room was successfully created.
+          schema:
+            $ref: '#/definitions/ResourceID'
+    get:
+      description: "Returns a list of rooms to which the user has subscribed."
+      tags:
+        - "Rooms"
+      responses:
+        200:
+          description: "List of rooms."
+          schema:
+            title: Rooms
+            type: array
+            items:
+              $ref: '#/definitions/RoomShortDetails'
+  /rooms/{id}:
+    get:
+      description: "Returns room's details."
+      tags:
+        - "Rooms"
+      parameters:
+        - $ref: '#/parameters/roomID'
+      responses:
+        200:
+          description: Successful response
+          schema:
+            $ref: '#/definitions/RoomDetails'
+        404:
+          description: When there is no room with the given ID.
+        403:
+          description: |
+            When the authenticated user is not allowed to read the room's details.
+    put:
+      description: Creates a room with the given ID.
+      tags:
+        - "Rooms"
+      parameters:
+        - $ref: '#/parameters/roomID'
+        - in: body
+          name: room
+          required: true
+          schema:
+            $ref: '#/definitions/CreateRoomBody'
+      responses:
+        201:
+          description: A room with the given ID was successfully created.
+          schema:
+            $ref: '#/definitions/ResourceID'
+  /rooms/{id}/users:
+    post:
+      description: "Adds a user to a room."
+      tags:
+        - "Rooms"
+      parameters:
+        - $ref: '#/parameters/roomID'
+        - in: body
+          name: participant
+          required: true
+          schema:
+            $ref: "#/definitions/Invitee"
+      responses:
+        204:
+          description: User was successfully added to the room.
+        404:
+          description: When there is no room with the given ID.
+        403:
+          description: |
+            When the authenticated user is not allowed to add users to the room.
+  /rooms/{id}/users/{user}:
+    delete:
+      description: |
+        Removes a user from the room.
+        The owner can remove any user.
+        The occupant can also use this method, but can only remove themself.
+      tags:
+        - "Rooms"
+      parameters:
+        - $ref: '#/parameters/roomID'
+        - in: path
+          name: user
+          required: true
+          type: string
+          description: |
+            The JID (ex: alice@wonderalnd.com) of user to remove
+      responses:
+        204:
+          description: User was successfully removed from the room.
+        404:
+          description: When there is no room with the given ID.
+        403:
+          description: |
+            When the authenticated user is not allowed to add users to the room.
+  /rooms/{id}/messages:
+    parameters:
+      - $ref: '#/parameters/roomID'
+    post:
+      description: Send a message to a room.
+      tags:
+        - "Rooms"
+      parameters:
+        - in: body
+          name: message
+          required: true
+          schema:
+            $ref: '#/definitions/SendRoomMessage'
+      responses:
+        200:
+          description: Message was sent, ID returned in the body.
+          schema:
+            $ref: "#/definitions/ResourceID"
+        404:
+          description: When there is no room with a given ID.
+        403:
+          description: |
+            When the authenticated user is not allowed to send messages to the room.
+    get:
+      description: Gets room's messages from the archive.
+      tags:
+        - "Rooms"
+      parameters:
+        - $ref: '#/parameters/messagesLimit'
+        - $ref: '#/parameters/beforeGuard'
+      responses:
+        200:
+          description: Lists of messages in the room's archive.
+          schema:
+            $ref: "#/definitions/RecvRoomMessage"
+        404:
+          description: When there is no room with a given ID.
+        403:
+          description: |
+            When the authenticated user is not allowed to read room's details.
+  /contacts:
+    get:
+      description: "Returns all contacts from the user's roster"
+      tags:
+        - "Contacts"
+      responses:
+        200:
+          description: "Contacts"
+          schema:
+            title: Contacts
+            type: array
+            items:
+              $ref: '#/definitions/ContactDetails'
+    post:
+      description: "Adds a user to a contact list."
+      tags:
+        - "Contacts"
+      parameters:
+        - in: body
+          name: contact
+          required: true
+          schema:
+            properties:
+              jid:
+                type: string
+      responses:
+        204:
+          description: "The user was added to a contact list."
+    delete:
+      tags:
+        - Contacts
+      description: Removes a list of users
+      parameters:
+        - in: body
+          name: contacts
+          schema:
+            properties:
+              to_delete:
+                type: array
+                items:
+                  type: string
+      responses:
+        200:
+          description: Returns a list of not deleted users
+          schema:
+            properties:
+              not_deleted:
+                type: array
+                items:
+                  type: string
+  /contacts/{contact}:
+    put:
+      description: "Manage subscription"
+      tags:
+        - "Contacts"
+      parameters:
+        - in: path
+          name: contact
+          required: true
+          type: string
+        - in: body
+          name: action
+          required: true
+          schema:
+            type: string
+            enum: ["invite", "accept"]
+      responses:
+        204:
+          description: "A subscription request was sent to the contact
+          with value 'subscribe' or 'subscribed' (it may and may not change
+          the 'subscription' and 'ask' states, depending what they were)"
+        404:
+          description: "The contact is not in the user's roster"
+    delete:
+      description: "Removes contact"
+      tags:
+        - "Contacts"
+      parameters:
+        - in: path
+          name: contact
+          required: true
+          type: string
+      responses:
+        204:
+          description: "The contact was successfully deleted."
+        404:
+          description: "There was no such contact."
+  /sse:
+    get:
+      summary: |
+        WARNING: Do not try to use this endpoint from this page. Swagger does not understand SSE.
+      description: |
+        Opens an SSE (https://www.html5rocks.com/en/tutorials/eventsource/basics/) connection to retrieve updates from the server.
+        The simplest way to test this endpoint is a `curl` command.
+
+        We recommend the following libraries to consume the events:
+        * iOS - https://github.com/inaka/EventSource
+        * Erlang/Elixir - https://github.com/inaka/shotgun
+
+        Currently there are two different types of events the server can send to the client:
+        * message - regular one-to-one message
+            ```JSON
+            {"to":"alice@wonderland.lit",
+             "timestamp":1477550892082343,
+             "id":"36891c7f-cd3d-4e90-9295-5f450d66ae09",
+             "from":"rabbit@wonderland.lit",
+             "body":"Test message over SSE"}
+             ```
+        * room.message - this type cover 2 different kinds of messages from room:
+           * messages - a message sent from participant to the room
+             ```JSON
+             {"type":"message",
+              "timestamp":1483609513435964,
+              "room":"1483-609513-293487",
+              "id":"9746c6d5-e014-4391-b559-b5581ee8e43b",
+              "from":"alice@wonderland.lit",
+              "body":"Hi all!"}
+             ```
+           * notifications - an event sent by the room when a new participant subscribes or leaves the room
+             ```JSON
+             {"user":"rabbit@wonderland.lit",
+              "type":"affiliation",
+              "timestamp":1483609513429864,
+              "room":"1483-609513-295321",
+              "id":"e3e110a6-44ae-45ab-97e3-7ace25f52e53",
+              "from":"1483-609513-295321@muclight.wonderland.lit",
+              "affiliation":"member"}
+             ```
+        For more details please refer to the [rooms API specifications](#/Rooms)
+      tags:
+        - "Server Sent Events"
+      produces:
+        - "text/event-stream"
+      responses:
+        default:
+          description: "Stream of events sent by the server"
+        403:
+          description: |
+            When the authenticated user is not allowed to receive events from the server.
+
+security:
+  - mongoose_basic_auth: []
+securityDefinitions:
+  mongoose_basic_auth:
+    type: basic
+    description: |
+      Log in using your userid (users's bare JID - F.e. alice@wonderland.com) and password.
+parameters:
+  roomID:
+    in: path
+    name: id
+    required: true
+    type: string
+    description: The ID of a room
+  messagesLimit:
+    in: query
+    name: limit
+    description: |
+      Specifies the maximum number of messages to be returned.
+      Default value is 50.
+    type: integer
+  beforeGuard:
+    in: query
+    name: before
+    description: |
+      The timestamp in milliseconds.
+      If set, only messages before this date will be returned.
+    type: integer
+    format: int64
+
+definitions:
+  ResourceID:
+    properties:
+      id:
+        type: string
+  SendMessage:
+    properties:
+      to:
+        $ref: '#/definitions/JID'
+      body:
+        example: "Hello Alice!"
+        type: string
+  RecvMessage:
+    properties:
+      to:
+        type: string
+        example: 'alice@wonderland.lit'
+        description: The message recipient's bare JID.
+      from:
+        type: string
+        example: 'rabbit@wonderland.lit'
+        description: The message sender's bare JID.
+      timestamp:
+        type: integer
+        format: int64
+        description: Unix timestamp in milliseconds when the message was sent.
+        example: 1478258324908
+      id:
+        type: string
+        example: "a5b13c5a-48d0-4f34-95d3-01e31bad742a"
+      body:
+        type: string
+        description: Message content.
+        example: "Hello Alice!"
+  CreateRoomBody:
+    properties:
+      subject:
+        $ref: '#/definitions/RoomSubject'
+      name:
+        $ref: '#/definitions/RoomName'
+  RoomDetails:
+    properties:
+      subject:
+        $ref: '#/definitions/RoomSubject'
+      name:
+        $ref: '#/definitions/RoomName'
+      participants:
+        type: array
+        items:
+          $ref: "#/definitions/Participant"
+  RoomShortDetails:
+    properties:
+      id:
+        type: string
+        description: Room's ID.
+      subject:
+        $ref: '#/definitions/RoomSubject'
+      name:
+        $ref: '#/definitions/RoomName'
+  Participant:
+    properties:
+      user:
+        $ref: '#/definitions/JID'
+      role:
+        $ref: "#/definitions/RoomRole"
+  Invitee:
+    properties:
+      user:
+        $ref: '#/definitions/JID'
+  RoomRole:
+    type: string
+    enum: ["owner", "member"]
+    description: The role of the user in a given room (can be 'owner' or 'member').
+  SendRoomMessage:
+    properties:
+      body:
+        type: string
+  RecvRoomMessage:
+    properties:
+      type:
+        type: string
+        description: |
+          The type of a message, possible values are:
+          "message" for regular message
+          "affiliation" for affiliation changes.
+        enum: ["message", "affiliation"]
+      from:
+        type: string
+        description: |
+          The JID of message sender. In case of a regular message sent by room's participant
+          the JID will be a full JID with the sender's bare JID as a resource part of room's JID.
+      id:
+        type: string
+        description: The ID of a message.
+      timestamp:
+        type: integer
+        format: int64
+        description: Unix timestamp in miliseconds.
+      body:
+        type: string
+        description: |
+          The message body.
+          Present only if the type is "message".
+      user:
+        type: string
+        description: |
+          JID of a user, whom affiliation changed.
+          Present only if the type is "affiliation".
+      affiliation:
+        type: string
+        description: |
+          The new affiliation of a user in the room.
+          Present only if the type is "affiliation".
+  JID:
+    type: string
+    example: "alice@wonderland.lit"
+    description: |
+      This is the user's JID (Jabber ID) which consist of username and server parts.
+      Example: alice@wonderland.com
+  RoomSubject:
+    type: string
+    example: Only important things
+    description: The subject of the room
+  RoomName:
+    type: string
+    example: Important room
+    description: The room's name
+  ContactDetails:
+    properties:
+      jid:
+        type: string
+        example: 'alice@wonderland.lit'
+        description: The message recipient's bare JID.
+      subscription:
+        type: string
+        description: |
+          Subscription state of me vs contact; there are four possible state:
+          * none
+          * to - I receive updates about the contact's presence
+          * from - the contact receives updates about my presence
+          * both
+        enum: ["none", "to", "from", "both"]
+      ask:
+        type: string
+        description: |
+          Tells whether one of us has asked the other for subscription to presence info and
+          is waiting for approval. Possible states:
+          * none
+          * out - I asked the contact and am waiting for his approval
+          * in - my contact asked me, it is up to me to decide
+          * both
+        enum: ["none", "in", "out", "both"]

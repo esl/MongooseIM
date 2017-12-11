@@ -1,6 +1,6 @@
-# Hooks and handlers
+# Hooks, handlers and accumulators
 
-The hooks and handlers mechanism is one of the core architectural features of MongooseIM. 
+The hooks and handlers mechanism is one of the core architectural features of MongooseIM.
 It allows for loose coupling between components of the system by calling only those which are available and configured to be used at runtime.
 
 It can be thought of as a simple eventing mechanism notifying about certain things happening in the server.
@@ -12,6 +12,8 @@ To focus our attention, we'll analyze `mod_offline` which is responsible for sto
 [xep-0203]: http://xmpp.org/extensions/xep-0203.html
 
 ## Running a hook
+
+### Basic usage
 
 `ejabberd_sm` (ejabberd/MongooseIM session manager) is the module discovering whether the recipient of a message is available or not.
 That's where storing the message for later delivery takes place.
@@ -26,16 +28,86 @@ I.e. if `mod_offline` was not available, the code would simply crash; if it was 
 To avoid that coupling and also to enable other ([possibly yet to be written](#sidenote-yet-to-be-written)) code to carry out some action at this particular moment, `ejabberd_sm` instead calls:
 
 ```erlang
-ejabberd_hooks:run(offline_message_hook, LServer,
-                   [From, To, Packet])
+Acc1 = ejabberd_hooks:run_fold(offline_message_hook,
+                               LServer,
+                               Acc,
+                               [From, To, Packet])
 ```
 
 The extra level of indirection introduced by this call gives the flexibility to determine at runtime what code actually gets run at this point.
-`offline_message_hook` is just the name of the hook (in other words of the event that is being signalled); 
-`From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly; 
+`offline_message_hook` is just the name of the hook (in other words of the event that is being signalled);
+`From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly;
 `LServer` is [the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
 
-So how does this runtime configuration actually look like?
+### Getting results from handlers
+
+Hook handlers are called by "folding".
+This means that each handler on a list is passed a set of arguments and an initial value that it then modifies, returns and hands over to the next handler in line.
+
+A simple example would look like this:
+
+```erlang
+ListOfSomething = ejabberd_hooks:run_fold(a_certain_hook,
+                                          StateData#state.server,
+                                          [],
+                                          [StateData#state.user,
+                                           StateData#state.server])
+```
+
+The initial value of the accumulator being passed through the sequence of handlers (in this case an empty list `[]`) is inserted between the XMPP domain `StateData#state.server` and handler arguments.
+In between the XMPP domain (`StateData#state.server`) and handler arguments is the initial value of the accumulator being passed through the sequence of handlers is inserted - in this case an empty list (`[]`).
+
+#### Sidenote: Folds
+
+If you haven't encountered the term _fold_ before, think of it as _reduce_ (like `Array.reduce`) in Ruby-speak, roughly equivalent to the Reduce step in MapReduce, sometimes called _accumulate_, _aggregate_ or _compress_.
+[See Wikipedia for more.][wiki:fold]
+
+[wiki:fold]: http://en.wikipedia.org/wiki/Fold_%28higher-order_function%29
+
+### Using accumulators
+
+MongooseIM uses a dedicated data structure to accumulate results (see ["Accumulators"](accumulators.md)).
+This data structure is implemented in the `mongoose_acc` module, which has a map-like interface: it has `get/2`, `get/3`, `put/3` etc.
+It is instantiated with an incoming stanza, passed along throughout the processing chain, supplied to and returned from hook calls, and terminated when stanza is leaving MongooseIM.
+If hook handlers are supposed to return some value they put it into the accumulator.
+
+The right way to use hooks is therefore:
+
+* create a handler which takes and returns an accumulator
+* take an accumulator if available, or instantiate a new one
+* call run_fold giving your acc as the accumulator, plus some extra arguments as needed
+* take return value from the acc the hook call returned
+* pass the modified accumulator on
+
+Handlers should store their return values in the accumulator; there are three ways to do it:
+* if it is a one-off value whch doesn't need to be passed on along with the accumulator (can be overwritten any time), use `mongoose_acc:put(result, Value, Acc)`
+* if the value is to be passed on to be reused within the user's session use `mongoose_acc:put(Key, Value, Acc)`
+* if the value should be passed on to the recipient's session, pubsub node etc. use `mongoose_acc:add_prop(Key, Value, Acc)`
+
+A real life example, then, with regard to `mod_offline` is the `resend_offline_messages_hook` run in `ejabberd_c2s`:
+
+```erlang
+Acc1 = ejabberd_hooks:run_fold(resend_offline_messages_hook,
+                               StateData#state.server,
+                               Acc,
+                               [StateData#state.user, StateData#state.server]),
+Rs = mongoose_acc:get(offline_messages, Acc1, []),
+
+```
+
+### Sidenote: something deprecated
+
+Occassionally you may find some calls to `ejabberd_hooks:run/3` in the MongooseIM source code.
+Under the hood it calls the same handlers with an empty accumulator.
+This is deprecated and some day will be removed.
+
+### Error handling in hooks
+
+Hooks are meant to decouple modules; in other words, the caller signals that some event took place or that it intends to use a certain feature or a set of features, but how and if those features are implemented is beyond its interest.
+Fro that reason hook don't use the "let it crash" approach. Instead it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
+
+In practical terms: if a handler throws an error the hook machine logs a message and proceeds to the next handler with unmodified accumulator.
+If there is no handlers registered for a given hook, the `run_fold` call has simply no effect.
 
 ### Sidenote: Code yet to be written
 
@@ -69,9 +141,9 @@ ejabberd_hooks:add(offline_message_hook, Host,
 
 It's clearly visible that the handler is added to `offline_message_hook`.
 
-`Host` corresponds to `LServer` used in the aforementioned call to `ejabberd_hooks:run`, i.e. it's the XMPP domain for which the handler is to be executed.
+`Host` corresponds to `LServer` used in the aforementioned call to `ejabberd_hooks:run_fold`, i.e. it's the XMPP domain for which the handler is to be executed.
 
-The handler itself is specified as a module-function pair; the arity of the function is neither specified at registration nor verified when calling the handler, so be careful to pass the appropriate number of arguments to `ejabberd_hooks:run` - otherwise the handler will crash.
+The handler itself is specified as a module-function pair; the arity of the function is neither specified at registration nor verified when calling the handler, so be careful to pass the appropriate number of arguments to `ejabberd_hooks:run_fold` - otherwise the handler will crash.
 
 Multiple handlers may be registered for the same hook.
 The last argument, 50, is the sequence number of this handler in the handler chain.
@@ -91,97 +163,53 @@ ejabberd_hooks:delete(offline_message_hook, Host,
 
 The arguments are exactly the same as passed to `ejabberd_hooks:add/5`.
 
-## How to get results from handlers?
-
-Apart from being able to notify the rest of the system that some event has happened by running a hook with `ejabberd_hooks:run/3`, it's also possible to [fold](#sidenote-folds) over a sequence of handlers with `ejabberd_hooks:run_fold/4`.
-Like an ordinary `lists:foldl/3`, `ejabberd_hooks:run_fold/4` also requires an initial value to be passed to the function.
-
-An example with regard to `mod_offline` is the `resend_offline_messages_hook` run in `ejabberd_c2s`:
-
-```erlang
-ejabberd_hooks:run_fold(resend_offline_messages_hook,
-                        StateData#state.server,
-                        [],
-                        [StateData#state.user,
-                         StateData#state.server])
-```
-
-In between the XMPP domain (`StateData#state.server`) and handler arguments the initial value of the accumulator being passed through the sequence of handlers is inserted - in this case an empty list (`[]`).
-
-Note, that `ejabberd_hooks:run/3` and `ejabberd_hooks:run_fold/4` **are not interchangeable**.
-You must decide whether the hook is to return some value or only carry out an action when designing it.
 
 ### Sidenote: Metrics
 
-Every time a hook is run via `ejabberd_hooks:run/3` or `ejabberd_hooks:run_fold/4`, a corresponding metric of the same name in the same host is updated by one.
-There are some exceptions though as some metrics where implemented before the generic hook metrics.
+Every time a hook is run, a corresponding metric of the same name in the same host is incremented by one.
+There are some exceptions though as some metrics were implemented before the generic hook metrics.
 List of hooks not updating generic metrics can be found in the `mongoose_metrics:hook_to_name/1` function.
 Such skipped hooks update metrics defined in the `mongoose_metrics_hooks` module.
 
-### Sidenote: Folds
-
-If you haven't encountered the term _fold_ before, think of it as _reduce_ (like `Array.reduce`) in Ruby-speak, roughly equivalent to the Reduce step in MapReduce, sometimes called _accumulate_, _aggregate_ or _compress_.
-[See Wikipedia for more.][wiki:fold]
-
-[wiki:fold]: http://en.wikipedia.org/wiki/Fold_%28higher-order_function%29
-
 ## Writing handlers
 
-Depending on whether a handler is to be folded over or not, its signature varies slightly.
-Let's compare `store_packet/3` and `get_sm_features/5`:
+The signature of a handler has to follow three rules:
+
+* correct arity (the numer of args passed to `run_fold` + 1)
+* the first arg is a mongoose_acc
+* returns mongoose_acc
+
+Let's look at this example, from MongooseIM codebase:
 
 ```erlang
-store_packet(From, To, Packet) ->
-    Type = xml:get_tag_attr_s(<<"type">>, Packet),
-    if
-        (Type /= <<"error">>) and (Type /= <<"groupchat">>) and
-        (Type /= <<"headline">>) ->
-            case check_event_chatstates(From, To, Packet) of
-                true ->
-                    #jid{luser = LUser, lserver = LServer} = To,
-                    TimeStamp = erlang:timestamp(),
-                    {xmlelement, _Name, _Attrs, Els} = Packet,
-                    Expire = find_x_expire(TimeStamp, Els),
-                    gen_mod:get_module_proc(To#jid.lserver, ?PROCNAME)
-                        ! #offline_msg{us = {LUser, LServer},
-                                       timestamp = TimeStamp,
-                                       expire = Expire,
-                                       from = From,
-                                       to = To,
-                                       packet = Packet},
-                    stop;
-                _ ->
-                    ok
-            end;
-        true ->
-            ok
+
+process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
+    MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
+    case {mod_muc_light_codec_backend:decode(From, To, IQ),
+          gen_mod:get_module_opt_by_subhost(MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
+        {{ok, {get, #blocking{} = Blocking}}, true} ->
+            Items = mod_muc_light_db_backend:get_blocking(jid:to_lus(From), MUCHost),
+            mod_muc_light_codec_backend:encode(
+              {get, Blocking#blocking{ items = Items }}, From, jid:to_lus(To),
+              fun(_, _, Packet) -> put(encode_res, Packet) end),
+            #xmlel{ children = ResponseChildren } = erase(encode_res),
+            Result = {result, ResponseChildren},
+            {stop, mongoose_acc:put(iq_result, Result, Acc)};
+        {{ok, {get, #blocking{}}}, false} ->
+            Result = {error, ?ERR_BAD_REQUEST},
+            {stop, mongoose_acc:put(iq_result, Result, Acc)};
+        _ ->
+            Result = {error, ?ERR_BAD_REQUEST},
+            mongoose_acc:put(iq_result, Result, Acc)
     end.
-
-
-get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [?NS_FEATURE_MSGOFFLINE]};
-
-get_sm_features(_Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
-    %% override all lesser features...
-    {result, []};
-
-get_sm_features(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
 ```
 
-`store_packet/3` is not folded over - the arity of the handler matches exactly the number of arguments passed to `ejabberd_hooks:run/3`.
+As seen in this example, a handler receives an accumulator, puts some value into it and returns it
+for further processing.
 
-That's not the case with `get_sm_features/5` which is folded over - the extra parameter (inserted before the actual hook arguments) is the accumulator value passed through the sequence of all handlers.
-As seen in the example, a handler might either adjust the passed in value, overwrite it completely or just pass unmodified.
-
-There's also one important feature to note: `store_packet/3` returns the atom `stop` once it delegates storing the message to the relevant process.
-This skips calling the latter actions in the handler sequence.
-
-The same can be achieved for handlers returning a value by returning `stop` (then `ejabberd_hooks:run_fold/4` returns `stopped`) or `{stop, NewVal}` (then `ejabberd_hooks:run_fold/4` returns `NewVal`).
+There's also one important feature to note: in some cases our handler returns a tuple  `{stop, Acc}`.
+This skips calling the latter actions in the handler sequence, while the call to `run_fold` returns the Acc.
+If a handler returns just an atom `stop`, then all later actions are skipped and `run_fold` returns `stopped`.
 
 Watch out! Different handlers may be registered for the same hook - the priority mechanism orders their execution.
 If a handler returns `stop` but runs early in the handler chain, it may prevent some other handler from running at all!
@@ -194,80 +222,14 @@ Always ensure what handlers are registered for a given hook (`grep` is your frie
 The following command should give you a list of all the hooks available in MongooseIM (and some garbage filtering out automatically isn't worth the effort):
 
 ```bash
-$ find ejabberd/src/ -name '*.erl' -print | xargs ./find-hooks.awk \
+$ find src/ -name '*.erl' -print | xargs ./find-hooks.awk \
 > | sort | uniq
 # ... snip out the ~5 lines of garbage ...
 adhoc_local_commands
 adhoc_local_items
-adhoc_sm_commands
-adhoc_sm_items
-anonymous_purge_hook
-c2s_broadcast_recipients
-c2s_loop_debug
-c2s_presence_in
-c2s_stream_features
-c2s_unauthenticated_iq
-c2s_update_presence
-callbacks
-caps_update
-check_bl_c2s
-disco_info
-disco_local_features
-disco_local_identity
-disco_local_items
-disco_sm_features
-disco_sm_identity
-disco_sm_items
-ejabberd_ctl_process
-filter_packet
-find_s2s_bridge
-forbidden_session_hook
-handler # that's garbage too
-http_request_debug
-local_send_to_resource_hook
-message_sent_to_user
-offline_message_hook
-presence_probe_hook
-privacy_check_packet
-privacy_get_user_list
-privacy_iq_get
-privacy_iq_set
-privacy_updated_list
-pubsub_create_node
-pubsub_delete_node
-pubsub_publish_item
-register_user
-remove_user
-reopen_log_hook
-resend_offline_messages_hook
-resend_subscription_requests_hook
-roster_get
-roster_get_jid_info
-roster_get_subscription_lists
-roster_get_versioning_feature
-roster_groups
-roster_in_subscription
-roster_out_subscription
-roster_process_item
-s2s_allow_host
-s2s_connect_hook
-s2s_loop_debug
-s2s_stream_features
-set_presence_hook
-sm_register_connection_hook
-sm_remove_connection_hook
-unset_presence_hook
-user_available_hook
-user_ping_timeout
-user_receive_packet
-user_send_packet
-vcard_set
-webadmin_menu_host
-webadmin_menu_hostnode
-webadmin_menu_main
-webadmin_menu_node
-webadmin_page_host
-webadmin_user
+...
+...
+...
 webadmin_user_parse_query
 ```
 
@@ -310,12 +272,17 @@ The handlers are run sequentially using disparate priorities and passing over an
 One of the handlers stops the handler execution chain prematurely by returning `{stop, NewVal}`.
 It's also possible to try out what happens when the same hook is run with different XMPP domains by passing an argument to `run_custom_hook/1` - we'll see that the handlers are registered for a particular domain only.
 
+At the end, you can see a printout of an accumulator with some debugging info.
+
 To cut the long story short:
 
 ```erlang
 -module(mod_hook_example).
+-author("bartek").
 
 -behaviour(gen_mod).
+
+-include("ejabberd.hrl").
 
 %% API
 -export([run_custom_hook/1]).
@@ -329,8 +296,6 @@ To cut the long story short:
          stopping_handler/2,
          never_run_handler/2]).
 
--include("ejabberd.hrl").
-
 start(Host, _Opts) ->
     ejabberd_hooks:add(custom_new_hook, Host, ?MODULE, first_handler, 25),
     ejabberd_hooks:add(custom_new_hook, Host, ?MODULE, stopping_handler, 50),
@@ -342,71 +307,72 @@ stop(Host) ->
     ejabberd_hooks:delete(custom_new_hook, Host, ?MODULE, never_run_handler, 75).
 
 run_custom_hook(Host) ->
-    Result = ejabberd_hooks:run_fold(custom_new_hook, Host, 5, [2]),
-    ?INFO_MSG("Final hook result: ~p", [Result]).
+    Acc = mongoose_acc:new(),
+    Acc1 = mongoose_acc:put(value, 5, Acc),
+    ResultAcc = ejabberd_hooks:run_fold(custom_new_hook, Host, Acc1, [2]),
+    ResultValue = mongoose_acc:get(value, ResultAcc),
+    ?INFO_MSG("Final hook result: ~p", [ResultValue]),
+    ?INFO_MSG("Returned accumulator: ~p", [ResultAcc]).
 
 first_handler(Acc, Number) ->
-    Result = Acc + Number,
+    V0 = mongoose_acc:get(value, Acc),
+    Result = V0 + Number,
     ?INFO_MSG("First handler~n"
-              "  accumulator: ~p~n"
-              "  argument: ~p~n"
-              "  will return: ~p",
-             [Acc, Number, Result]),
-    Result.
+    "  value: ~p~n"
+    "  argument: ~p~n"
+    "  will return: ~p",
+        [V0, Number, Result]),
+    mongoose_acc:put(value, Result, Acc).
 
 stopping_handler(Acc, Number) ->
-    Result = {stop, Acc + Number},
+    V0 = mongoose_acc:get(value, Acc),
+    Result = V0 + Number,
     ?INFO_MSG("Stopping handler~n"
-              "  accumulator: ~p~n"
-              "  argument: ~p~n"
-              "  will return: ~p",
-             [Acc, Number, Result]),
-    Result.
+    "  value: ~p~n"
+    "  argument: ~p~n"
+    "  will return: ~p",
+        [V0, Number, Result]),
+    {stop, mongoose_acc:put(value, Result, Acc)}.
 
 never_run_handler(Acc, Number) ->
     ?INFO_MSG("This hook won't run as it's registered with a priority bigger "
-              "than that of stopping_handler/2 is. "
-              "It doesn't matter what it returns. "
-              "This text should never get printed.", []),
+    "than that of stopping_handler/2 is. "
+    "It doesn't matter what it returns. "
+    "This text should never get printed.", []),
     Acc * Number.
 ```
 
 The module is intended to be used from the shell for educational purposes:
 
 ```erlang
-(ejabberd@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
+(mongooseim@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 false
-(ejabberd@localhost)2> gen_mod:start_module(<<"localhost">>, mod_hook_example, [no_opts]).
+(mongooseim@localhost)2> gen_mod:start_module(<<"localhost">>, mod_hook_example, [no_opts]).
 ok
-(ejabberd@localhost)3> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
+(mongooseim@localhost)3> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 true
-(ejabberd@localhost)4> ejabberd_loglevel:set_custom(mod_hook_example, 4).
-{module,ejabberd_logger}
-(ejabberd@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
+(mongooseim@localhost)4> ejabberd_loglevel:set_custom(mod_hook_example, 4).
+[{{lager_file_backend,"ejabberd.log"},ok},
+ {lager_console_backend,ok}]
+(mongooseim@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
 ok
-(ejabberd@localhost)6>
-=INFO REPORT==== 30-Oct-2013::15:33:36 ===
-I(<0.47.0>:mod_hook_example:35) : First handler
-accumulator: 5
-argument: 2
-will return: 7
-
-=INFO REPORT==== 30-Oct-2013::15:33:36 ===
-I(<0.47.0>:mod_hook_example:44) : Stopping handler
-  accumulator: 7
+(mongooseim@localhost)6> 2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:first_handler:41 First handler
+  value: 5
   argument: 2
-  will return: {stop,9}
+  will return: 7
+2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:stopping_handler:51 Stopping handler
+  value: 7
+  argument: 2
+  will return: 9
+2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:run_custom_hook:35 Final hook result: 9
+2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:run_custom_hook:36 Returned accumulator: #{mongoose_acc => true,ref => #Ref<0.2751102611.732692481.234656>,timestamp => {1511,441448,119842},value => 9}
 
-=INFO REPORT==== 30-Oct-2013::15:33:36 ===
-I(<0.47.0>:mod_hook_example:31) : Final hook result: 9
-
-(ejabberd@localhost)6> mod_hook_example:run_custom_hook(<<"another-domain">>).
+(mongooseim@localhost)6> mod_hook_example:run_custom_hook(<<"another-domain">>).
 ok
-(ejabberd@localhost)7>
-=INFO REPORT==== 30-Oct-2013::15:33:41 ===
-I(<0.47.0>:mod_hook_example:31) : Final hook result: 5
+(mongooseim@localhost)7> 2017-11-23 13:51:38.251 [info] <0.757.0>@mod_hook_example:run_custom_hook:35 Final hook result: 5
+2017-11-23 13:51:38.251 [info] <0.757.0>@mod_hook_example:run_custom_hook:36 Returned accumulator: #{mongoose_acc => true,ref => #Ref<0.2751102611.732692481.234676>,timestamp => {1511,441498,251466},value => 5}
 
-(ejabberd@localhost)7> gen_mod:stop_module(<<"localhost">>, mod_hook_example).
+(mongooseim@localhost)7> gen_mod:stop_module(<<"localhost">>, mod_hook_example).
 {atomic,ok}
-(ejabberd@localhost)8>
+(mongooseim@localhost)8>
 ```

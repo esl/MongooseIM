@@ -404,7 +404,9 @@ log_one_scram(Config) ->
 
 
 log_non_existent_plain(Config) ->
-    {auth_failed, _, _} = log_non_existent(Config).
+    {auth_failed, _, Xmlel} = log_non_existent(Config),
+    #xmlel{name = <<"failure">>} = Xmlel,
+    #xmlel{} = exml_query:subelement(Xmlel, <<"not-authorized">>).
 
 log_non_existent_digest(Config) ->
     R = log_non_existent([{escalus_auth_method, <<"DIGEST-MD5">>} | Config]),
@@ -447,7 +449,7 @@ messages_story(Config) ->
 message_zlib_limit(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         [{_, Spec}] = escalus_users:get_users([hacker]),
-        {ok, Hacker, _Spec2, _Features} = escalus_connection:start(Spec),
+        {ok, Hacker, _Features} = escalus_connection:start(Spec),
 
         ManySpaces = [ 32 || _N <- lists:seq(1, 10*1024) ],
 
@@ -490,7 +492,7 @@ do_legacy_auth(Spec, Function) ->
              {legacy_stream_helper, Function}
             ],
     %% ok, now do the plan from above
-    {ok, Conn, _, _} = escalus_connection:start(Spec, Steps),
+    {ok, Conn, _} = escalus_connection:start(Spec, Steps),
     escalus_connection:stop(Conn).
 
 

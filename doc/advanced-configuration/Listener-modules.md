@@ -16,11 +16,11 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 
 ### Configuration
 
-* `certfile` (string, optional, no default value) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
-* `starttls` (optional, default: disabled) - Enables StartTLS support; requires `certfile`.
-* `starttls_required` (optional, default: disabled) - enforces StartTLS usage.
+* `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
+* `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
+* `starttls_required` (default: disabled) - enforces StartTLS usage.
 * `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/)); the limit can be disabled with an atom 'unlimited'.
-* `ciphers` (string, optional, default: as of OpenSSL 1.0.0 it's `ALL:!aNULL:!eNULL` [(source)](https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
+* `ciphers` (string, default: as of OpenSSL 1.0.0 it's `ALL:!aNULL:!eNULL` [(source)](https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
  Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
 * `access` (atom, default: `c2s`) - Access Rule to use for C2S connections.
 * `c2s_shaper` (atom, default: `c2s_shaper`) - Connection shaper to use for incoming C2S stanzas.
@@ -30,7 +30,7 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 * `protocol_options` List of supported SSL protocols, default "no_sslv3".
  It also accepts "no_tlsv1" and "no_tlsv1_1"
-* `dhfile` (string, optional, no default value) - Path to the Diffie Hellman parameter file
+* `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
 
 ## HTTP-based services (BOSH, WebSocket, REST): `ejabberd_cowboy`
 
@@ -41,11 +41,11 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 
 ### Configuration
 
-* `ip` (IP tuple, optional, default: `{0,0,0,0}`) - IP address to bind to.
-* `num_acceptors` (positive integer, optional, default: 100) - Number of acceptors.
-* `transport_options` (proplist, optional, default: []) - Ranch-specific transport options.
+* `ip` (IP tuple, default: `{0,0,0,0}`) - IP address to bind to.
+* `num_acceptors` (positive integer, default: 100) - Number of acceptors.
+* `transport_options` (proplist, default: []) - Ranch-specific transport options.
  See [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.2/manual/ranch/#_opt).
-* `protocol_options` (proplist, optional, default: []) - Protocol configuration options for Cowboy.
+* `protocol_options` (proplist, default: []) - Protocol configuration options for Cowboy.
  See [Cowboy protocol manual](https://ninenines.eu/docs/en/cowboy/1.0/manual/cowboy_protocol/)
 * `ssl` (list of ssl options, required for https, no default value) - If specified, https will be used.
  Accepts all ranch_ssl options that don't take fun() parameters.
@@ -82,23 +82,34 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
             `{"_", "/ws-xmpp", mod_websockets, []}`
 
     * <i>(OBSOLETE)</i> `mongoose_api` - REST API for accessing internal MongooseIM metrics.
-        Please refer to [REST interface to metrics](../developers-guide/REST-interface-to-metrics.md)
-        for more information.
+        Please refer to the [REST interface to metrics](../rest-api/Metrics-backend.md) page for more information.
 	Default declaration:
 
             `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`
 
-  * `mongoose_api_admin` -  REST API for admin commands.
-   Exposes all mongoose_commands.
+  * `mongoose_api_admin` -  REST API for admin commands. Exposes all mongoose_commands. 
+    			    It expects one optional argument:  
+      * Credentials: `{auth, {Username, Password}}`.  
+        If they're not provided, authorization is disabled.  
+        Example:  
+            `{"localhost", "/api", mongoose_api_admin, [{auth, {"ala", "makotaipsa"}}]}`
+   
     `mongoose_api_client` - REST API for client side commands.
      Exposes all mongoose_commands marked as "user".
         Example declaration:
 
-            `{"localhost", "/api", mongoose_api_admin, []}`
+            `{"localhost", "/api/contacts/{:jid}", mongoose_api_client_contacts, []}`
 
 ### HTTP module: `mod_cowboy`
 
 This module provides an additional routing layer on top of HTTP(s) or WS(S) protocols.
+It allows other HTTP/WS modules to coexist under the same URL on the single port.
+Packets are forwarded to them based on the protocol.
+This mechanism is transparent to actual handlers so the path sharing does not require any additional code.
+
+Example: If you wish, you can use BOSH and WS XMPP handlers (mod_bosh, mod_websockets) on a single port and a URL without any code modifications.
+
+
 Here's an example of its configuration (added to ejabberd_cowboy modules list described above):
 
 ```Erlang
@@ -135,7 +146,7 @@ Please refer to the [Advanced configuration](../Advanced-configuration.md) for m
  **Warning:** this limit is checked **after** input data parsing, so it does not apply to the input data size itself.
 * `protocol_options` List of supported SSL protocols, default "no_sslv3".
  It also accepts "no_tlsv1" and "no_tlsv1_1"
-* `dhfile` (string, optional, no default value) - Path to the Diffie Hellman parameter file
+* `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
 
 ## XMPP components: `ejabberd_service`
 

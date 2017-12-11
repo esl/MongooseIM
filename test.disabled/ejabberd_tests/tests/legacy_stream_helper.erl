@@ -2,10 +2,10 @@
 
 -export([stream_start/1]).
 -export([stream_start_pre_xmpp_1_0/1]).
--export([start_stream_pre_xmpp_1_0/3]).
--export([failed_legacy_auth/3]).
--export([legacy_auth_digest/3]).
--export([legacy_auth_plain/3]).
+-export([start_stream_pre_xmpp_1_0/2]).
+-export([failed_legacy_auth/2]).
+-export([legacy_auth_digest/2]).
+-export([legacy_auth_plain/2]).
 
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -35,14 +35,14 @@ default_context(To) ->
      {to, To},
      {stream_ns, ?NS_XMPP}].
 
-start_stream_pre_xmpp_1_0(Conn, Props, UnusedFeatures) ->
+start_stream_pre_xmpp_1_0(Conn = #client{props = Props}, UnusedFeatures) ->
     escalus:send(Conn, stream_start_pre_xmpp_1_0(escalus_users:get_server([], Props))),
     #xmlstreamstart{attrs = StreamAttrs} = StreamStart = escalus:wait_for_stanza(Conn),
     escalus:assert(is_stream_start, StreamStart),
     {<<"id">>, StreamID} = lists:keyfind(<<"id">>, 1, StreamAttrs),
-    {Conn, [{stream_id, StreamID} | Props], UnusedFeatures}.
+    {Conn#client{props = [{stream_id, StreamID} | Props]}, UnusedFeatures}.
 
-failed_legacy_auth(Conn, Props, UnusedFeatures) ->
+failed_legacy_auth(Conn = #client{props = Props}, UnusedFeatures) ->
     {stream_id, StreamID} = lists:keyfind(stream_id, 1, Props),
     [Username, _, Password] = escalus_users:get_usp([], Props),
     Digest = list_to_binary(generate_digest(StreamID, Password)),
@@ -52,9 +52,9 @@ failed_legacy_auth(Conn, Props, UnusedFeatures) ->
     %% This is the success case - we want to assert the error case.
     %% And the error case is achived by sending req without resource
     escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response),
-    {Conn, Props, UnusedFeatures}.
+    {Conn, UnusedFeatures}.
 
-legacy_auth_digest(Conn, Props, UnusedFeatures) ->
+legacy_auth_digest(Conn = #client{props = Props}, UnusedFeatures) ->
     {stream_id, StreamID} = lists:keyfind(stream_id, 1, Props),
     [Username, _, Password] = escalus_users:get_usp([], Props),
     Digest = list_to_binary(generate_digest(StreamID, Password)),
@@ -63,16 +63,16 @@ legacy_auth_digest(Conn, Props, UnusedFeatures) ->
     escalus:send(Conn, AuthReq),
     Response = escalus:wait_for_stanza(Conn),
     escalus:assert(is_iq_result, [AuthReq], Response),
-    {Conn, Props, UnusedFeatures}.
+    {Conn, UnusedFeatures}.
 
-legacy_auth_plain(Conn, Props, UnusedFeatures) ->
+legacy_auth_plain(Conn = #client{props = Props}, UnusedFeatures) ->
     [Username, _, Password] = escalus_users:get_usp([], Props),
     AuthReq = escalus_stanza:iq_set(?NS_AUTH,
                                     [username(Username), password(Password), res(<<"res">>)]),
     escalus:send(Conn, AuthReq),
     Response = escalus:wait_for_stanza(Conn),
     escalus:assert(is_iq_result, [AuthReq], Response),
-    {Conn, Props, UnusedFeatures}.
+    {Conn, UnusedFeatures}.
 
 res(Res) when is_binary(Res) ->
     #xmlel{name = <<"resource">>,

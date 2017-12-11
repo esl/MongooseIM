@@ -6,24 +6,28 @@
     assert_inlist/2,
     assert_notinlist/2,
     decode_maplist/1,
-    gett/1,
-    post/2,
-    putt/2,
-    delete/1,
     gett/2,
+    gett/3,
     post/3,
+    post/4,
     putt/3,
+    putt/4,
     delete/2,
+    delete/3,
+    delete/4,
     maybe_enable_mam/3,
     maybe_disable_mam/2,
     maybe_skip_mam_test_cases/3,
     fill_archive/2,
     fill_room_archive/2,
-    make_timestamp/2
+    make_timestamp/2,
+    change_admin_creds/1
 ]).
 
 -define(PATHPREFIX, <<"/api">>).
 
+
+-type role() :: admin | client.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -78,42 +82,46 @@ assert_notinmaplist([K|Keys], Map, L, Orig) ->
     assert_notinmaplist(Keys, Map, Nl, Orig).
 
 
-gett(Path) ->
-    make_request(<<"GET">>, Path).
+gett(Role, Path) ->
+    make_request(Role, <<"GET">>, Path).
 
-post(Path, Body) ->
-    make_request(<<"POST">>, Path, Body).
+post(Role, Path, Body) ->
+    make_request(Role, <<"POST">>, Path, Body).
 
-putt(Path, Body) ->
-    make_request(<<"PUT">>, Path, Body).
+putt(Role, Path, Body) ->
+    make_request(Role, <<"PUT">>, Path, Body).
 
-delete(Path) ->
-    make_request(<<"DELETE">>, Path).
+delete(Role, Path) ->
+    make_request(Role, <<"DELETE">>, Path).
 
--spec gett(Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
-gett(Path, Cred) ->
-    make_request({<<"GET">>, Cred}, Path).
+-spec gett(role(), Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
+gett(Role, Path, Cred) ->
+    make_request(Role, {<<"GET">>, Cred}, Path).
 
-post(Path, Body, Cred) ->
-    make_request({<<"POST">>, Cred}, Path, Body).
+post(Role, Path, Body, Cred) ->
+    make_request(Role, {<<"POST">>, Cred}, Path, Body).
 
-putt(Path, Body, Cred) ->
-    make_request({<<"PUT">>, Cred}, Path, Body).
+putt(Role, Path, Body, Cred) ->
+    make_request(Role, {<<"PUT">>, Cred}, Path, Body).
 
-delete(Path, Cred) ->
-    make_request({<<"DELETE">>, Cred}, Path).
+delete(Role, Path, Cred) ->
+    make_request(Role, {<<"DELETE">>, Cred}, Path).
+
+delete(Role, Path, Cred, Body) ->
+    make_request(Role, {<<"DELETE">>, Cred}, Path, Body).
 
 
-make_request(Method, Path) ->
-    make_request(Method, Path, <<"">>).
 
-make_request(Method, Path, ReqBody) when is_map(ReqBody) ->
-    make_request(Method, Path, jiffy:encode(ReqBody));
-make_request(Method, Path, ReqBody) when not is_binary(Path) ->
-    make_request(Method, list_to_binary(Path), ReqBody);
-make_request(Method, Path, ReqBody) ->
+make_request(Role, Method, Path) ->
+    make_request(Role, Method, Path, <<"">>).
+
+make_request(Role, Method, Path, ReqBody) when is_map(ReqBody) ->
+    make_request(Role, Method, Path, jiffy:encode(ReqBody));
+make_request(Role, Method, Path, ReqBody) when not is_binary(Path) ->
+    make_request(Role, Method, list_to_binary(Path), ReqBody);
+make_request(Role, Method, Path, ReqBody) ->
     CPath = <<?PATHPREFIX/binary, Path/binary>>,
-    {Code, RespBody} = case fusco_request(Method, CPath, ReqBody) of
+    {Code, RespBody} = case fusco_request(Role, Method, CPath, ReqBody) of
                            {RCode, _, Body, _, _} ->
                                {RCode, Body};
                            {RCode, _, Body, _, _, _} ->
@@ -132,13 +140,13 @@ decode(RespBody) ->
     end.
 
 %% a request specyfying credentials is directed to client http listener
-fusco_request({Method, {User, Password}}, Path, Body) ->
+fusco_request(Role, {Method, {User, Password}}, Path, Body) ->
     Basic = list_to_binary("basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
     Headers = [{<<"authorization">>, Basic}],
-    fusco_request(Method, Path, Body, Headers, 8089, true);
+    fusco_request(Method, Path, Body, Headers, get_port(Role), get_ssl_status(Role));
 %% without them it is for admin (secure) interface
-fusco_request(Method, Path, Body) ->
-    fusco_request(Method, Path, Body, [], 8088, false).
+fusco_request(Role, Method, Path, Body) ->
+    fusco_request(Method, Path, Body, [], get_port(Role), get_ssl_status(Role)).
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
@@ -146,6 +154,72 @@ fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
     fusco_cp:stop(Client),
     Result.
+
+-spec get_port(role()) -> Port :: integer().
+get_port(Role) -> 
+    Listeners = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen]),
+    [{PortIpNet, ejabberd_cowboy, _Opts}] = lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),
+    case PortIpNet of
+        {Port, _Host, _Net} -> Port;
+        {Port, _Host} -> Port;
+        Port -> Port
+    end.
+
+-spec get_ssl_status(role()) -> boolean().
+get_ssl_status(Role) ->
+    Listeners = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen]),
+    [{_PortIpNet, _Module, Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
+    lists:keymember(ssl, 1, Opts).
+
+% @doc Changes the control credentials for admin by restarting the listener
+% with new options.
+-spec change_admin_creds({User :: binary(), Password :: binary()}) -> 'ok' | 'error'.
+change_admin_creds(Creds) ->
+    stop_admin_listener(),
+    {ok, _} =  start_admin_listener(Creds).
+
+-spec stop_admin_listener() -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
+stop_admin_listener() ->
+    Listeners = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen]),
+    [{PortIpNet, Module, _Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
+    escalus_ejabberd:rpc(ejabberd_listener, stop_listener, [PortIpNet, Module]).
+
+-spec start_admin_listener(Creds :: {binary(), binary()}) -> {'error', pid()} | {'ok', _}.
+start_admin_listener(Creds) ->
+    Listeners = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen]),
+    [{PortIpNet, Module, Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
+    NewOpts = insert_creds(Opts, Creds),
+    escalus_ejabberd:rpc(ejabberd_listener, start_listener, [PortIpNet, Module, NewOpts]).
+
+insert_creds(Opts, Creds) ->
+    Modules = proplists:get_value(modules, Opts),
+    {Host, Path, mongoose_api_admin, PathOpts} = lists:keyfind(mongoose_api_admin, 3, Modules),
+    NewPathOpts = inject_creds_to_opts(PathOpts, Creds),
+    NewModules = lists:keyreplace(mongoose_api_admin, 3, Modules, {Host, Path, mongoose_api_admin,  NewPathOpts}),
+    lists:keyreplace(modules, 1, Opts, {modules, NewModules}).
+
+inject_creds_to_opts(PathOpts, any) ->
+    lists:keydelete(auth, 1, PathOpts);
+inject_creds_to_opts(PathOpts, Creds) ->
+    case lists:keymember(auth, 1, PathOpts) of
+	    true -> 
+	        lists:keyreplace(auth, 1, PathOpts, {auth, Creds});
+	    false ->
+	        lists:append(PathOpts, [{auth, Creds}])
+    end.
+
+% @doc Checks whether a config for a port is an admin or client one.
+% This is determined based on modules used. If there is any mongoose_api_admin module used,
+% it is admin config. If not and there is at least one mongoose_api_client* module used,
+% it's clients.
+is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, admin) ->
+    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
+    lists:any(fun({_, _Path,  Mod, _Args}) -> Mod == mongoose_api_admin; (_) -> false  end, Modules);
+is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, client) ->
+    {value, {modules, ModulesConfs}} = lists:keysearch(modules, 1, Opts),
+    ModulesTokens = lists:map(fun({_, _Path, Mod, _}) -> string:tokens(atom_to_list(Mod), "_"); (_) -> [] end, ModulesConfs),
+    lists:any(fun(["mongoose", "client", "api" | _T]) -> true; (_) -> false end, ModulesTokens);
+is_roles_config(_, _) -> false.
 
 mapfromlist(L) ->
     Nl = lists:keymap(fun(B) -> binary_to_existing_atom(B, utf8) end, 1, L),

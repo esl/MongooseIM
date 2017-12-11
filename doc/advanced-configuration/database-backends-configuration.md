@@ -1,17 +1,17 @@
 # Database Backends
 
-MongooseIM can work with several databases, both RDBMS (SQL) and NOSQL ones. 
-Some of them require extra work before they can be used. 
-For example the SQL databases require defining a schema. 
+MongooseIM can work with several databases, both RDBMS (SQL) and NOSQL ones.
+Some of them require extra work before they can be used.
+For example the SQL databases require defining a schema.
 MongooseIM is tested with TravisCI, so the travis scripts can be used as a reference.
 
 # A Brief Overview
 
 Data in MongooseIM is either transient or persistent:
 
-* **transient**: volatile data changing often, such as session data, stream management data, and other in-memory data. 
+* **transient**: volatile data changing often, such as session data, stream management data, and other in-memory data.
  These don't need any backup, since after a potential failure, they will naturally rebuild as clients reconnect.
-* **persistent**: long-lived data, such as roster items, credentials, and chat archives. 
+* **persistent**: long-lived data, such as roster items, credentials, and chat archives.
  These absolutely need regular and tested backups.
 
 # Choosing a database for MongooseIM
@@ -28,19 +28,19 @@ Transient data:
  Sooner or later a migration will be needed which may be painful.
  It is possible to store all data in Mnesia, but only for testing purposes, not for any serious deployments.
 
-* Redis - A fantastic choice for storing live data. 
- It's highly scalable and it can be easily shared by multiple MongooseIM nodes. 
- Additionally, Redis' great performance makes it an excellent choice for storing `user session` data. 
+* Redis - A fantastic choice for storing live data.
+ It's highly scalable and it can be easily shared by multiple MongooseIM nodes.
+ Additionally, Redis' great performance makes it an excellent choice for storing `user session` data.
  We recommend caution, since it has not yet been widely tested in production.
 
 
 Persistent Data:
 
-* RDBMS/ODBC - MongooseIM has a strong backend support for relational databases. 
- Considering the [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) that usually guarantees both availability and consistency which is a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`. 
+* RDBMS/ODBC - MongooseIM has a strong backend support for relational databases.
+ Reliable and battle proven, they are a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Never loose your data.
 
-* Riak KV - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution. 
+* Riak KV - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution.
  It offers high availability and fault tolerance which is excatly what you need for your distributed MongooseIM architecture.
  Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Erlang Solutions commercially supports Riak KV.
@@ -61,7 +61,7 @@ Persistent Data:
 
 **Setup**
 
-The schema files can be found in the `apps/ejabberd/priv` directory. 
+The schema files can be found in the `priv` directory.
 The default schema is defined in the `mysql.sql` file.
 
 You can use the following command to apply it on localhost:
@@ -88,7 +88,7 @@ Please refer to the [Advanced configuration/Database setup](../Advanced-configur
 
 **Setup**
 
-The schema files can be found in the `apps/ejabberd/priv` directory. 
+The schema files can be found in the `priv` directory.
 The default schema is defined in the `pg.sql` file.
 
 You can use the following command to apply it on localhost:
@@ -127,7 +127,7 @@ You can configure MongooseIM appropriately by using the following command (assum
 
 You also need FreeTDS (an ODBC driver for MSSQL) installed in your system.
 
-Then you need to configure the ODBC and FreeTDS drivers. 
+Then you need to configure the ODBC and FreeTDS drivers.
 You can find an example configuration for CentOS, given that unixODBC and freetds packages have been installed.
 
 Add your database (``mongooseim`` here) to the ``/etc/odbc.ini`` file:
@@ -262,6 +262,16 @@ This will create bucket types, search schemas and indexes required for storing t
 
 You should also configure Riak in the `ejabberd.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
+
+## Cassandra
+
+**Setup**
+
+This will prepare Cassandra for connection from MongooseIM. Make sure Cassandra is running, open a new terminal window and enter the following commands:
+```
+$ cqlsh
+$ cqlsh> source '$REPO/priv/casssandra.cql';
+```
 
 ## Redis
 

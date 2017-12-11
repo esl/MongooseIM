@@ -13,8 +13,8 @@ For the purpose of this document, we classify changesets/pull requests as:
 We strive for Inaka's superb [guidelines](https://github.com/inaka/erlang_guidelines).
 
 MongooseIM has an extensive test suite.
-Find **unit** (white box) tests under `/apps/ejabberd/test` and **functional** (black box) tests under `/test/ejabberd_tests/tests`.
-It's important that tests are comprehendable: consider any preconditions, the test itself, and any postconditions that must hold.
+Find **unit** (white box) tests under `test/` and **functional** (black box) tests under `test.disabled/ejabberd_tests/tests`.
+It's important that tests are comprehensible: consider any preconditions, the test itself, and any postconditions that must hold.
 Inspect the existing test suites to see how _we_ make these clear.
 
 Write type specifications and function signatures because they're remarkably helpful when it comes to reading the source.

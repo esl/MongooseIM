@@ -33,7 +33,8 @@ all() ->
      {group, token_revocation},
      {group, provision_token},
      {group, commands},
-     {group, cleanup}
+     {group, cleanup},
+     {group, sasl_mechanisms}
     ].
 
 groups() ->
@@ -43,7 +44,9 @@ groups() ->
      {provision_token, [], [provision_token_login]},
      {commands, [], [revoke_token_cmd_when_no_token,
                      revoke_token_cmd]},
-     {cleanup, [], [token_removed_on_user_removal]}
+     {cleanup, [], [token_removed_on_user_removal]},
+     {sasl_mechanisms, [], [check_for_oauth_with_mod_auth_token_not_loaded,
+                            check_for_oauth_with_mod_auth_token_loaded]}
     ].
 
 token_login_tests() ->
@@ -86,7 +89,7 @@ init_per_suite(Config0) ->
                         { {validity_period, refresh}, {1, days} }],
             dynamic_modules:start(Host, mod_keystore, KeyStoreOpts),
             dynamic_modules:start(Host, mod_auth_token, AuthOpts),
-            escalus:init_per_suite(Config);
+            escalus:init_per_suite([{auth_opts, AuthOpts} | Config]);
         false ->
             {skip, "PostgreSQL not available - check env configuration"}
     end.
@@ -118,13 +121,24 @@ end_per_group(_GroupName, Config) ->
     set_store_password(plain),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
-init_per_testcase(CaseName, Config0) ->
+init_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded = CaseName, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:stop(Host, mod_auth_token),
+    init_per_testcase(generic, Config);
+init_per_testcase(CaseName, Config) ->
     clean_token_db(),
-    escalus:init_per_testcase(CaseName, Config0).
+    escalus:init_per_testcase(CaseName, Config).
 
+
+end_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded = CaseName, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    AuthOpts = proplists:get_value(auth_opts, Config),
+    dynamic_modules:start(Host, mod_auth_token, AuthOpts),
+    end_per_testcase(generic, Config);
 end_per_testcase(CaseName, Config) ->
     clean_token_db(),
     escalus:end_per_testcase(CaseName, Config).
+
 
 %%
 %% Tests
@@ -142,7 +156,7 @@ token_login_failure(Config, User, Token) ->
     %% when
     Result = login_with_token(Config, User, Token),
     % then
-    {{auth_failed, _}, _, _} = Result.
+    {{auth_failed, _}, _} = Result.
 
 get_revoked_token(Config, UserName) ->
     BJID = escalus_users:get_jid(Config, UserName),
@@ -200,19 +214,19 @@ login_with_other_users_token(Config) ->
                  stream_features,
                  maybe_use_ssl,
                  authenticate,
-                 fun (Alice, Props, Features) ->
+                 fun (Alice = #client{props = Props}, Features) ->
                          escalus:send(Alice, escalus_stanza:bind(<<"test-resource">>)),
                          BindReply = escalus_connection:get_stanza(Alice, bind_reply),
-                         {Alice, [{bind_reply, BindReply} | Props], Features}
+                         {Alice#client{props = [{bind_reply, BindReply} | Props]}, Features}
                  end],
-    {ok, _, Props, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    {ok, #client{props = Props}, _} = escalus_connection:start(AliceSpec, ConnSteps),
     %% then the server recognizes us as the other user
     LoggedInAs = extract_bound_jid(proplists:get_value(bind_reply, Props)),
     true = escalus_utils:get_username(LoggedInAs) /= escalus_users:get_username(Config, AliceSpec).
 
 login_with_malformed_token(Config) ->
     %% given
-    MalformedToken = <<"malformed ", (crypto:rand_bytes(64))/bytes>>,
+    MalformedToken = <<"malformed ", (crypto:strong_rand_bytes(64))/bytes>>,
     %% when / then
     token_login_failure(Config, bob, MalformedToken).
 
@@ -225,7 +239,7 @@ login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
                  maybe_use_compression
                 ],
 
-    {ok, ClientConnection, Props, _Features} = escalus_connection:start(BobSpec, ConnSteps),
+    {ok, ClientConnection = #client{props = Props}, _Features} = escalus_connection:start(BobSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, RefreshToken}),
     AuthResultToken = (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
     ok.
@@ -233,17 +247,15 @@ login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
 %% users logs in using access token he obtained in previous session (stream has been
 %% already reset)
 login_access_token_impl(Config, {AccessToken, _RefreshToken}) ->
-    {{ok, _ }, ClientConnection, Props2} = login_with_token(Config, bob, AccessToken),
+    {{ok, Props}, ClientConnection} = login_with_token(Config, bob, AccessToken),
     escalus_connection:reset_parser(ClientConnection),
-    {Props3, []} = escalus_session:start_stream(ClientConnection, Props2),
-    NewFeatures = escalus_session:stream_features(ClientConnection, Props3, []),
+    ClientConn1 = escalus_session:start_stream(ClientConnection#client{props = Props}),
+    {ClientConn1, _} = escalus_session:stream_features(ClientConn1, []),
     %todo: create step out of above lines
-    {NewClientConnection, Props4, NewFeatures2} =
-        escalus_session:bind(ClientConnection, Props3, NewFeatures),
-    {NewClientConnection2, _Props5, _NewFeatures3} =
-        escalus_session:session(NewClientConnection, Props4, NewFeatures2),
-    escalus:send(NewClientConnection2, escalus_stanza:presence(<<"available">>)),
-    escalus:assert(is_presence, escalus:wait_for_stanza(NewClientConnection2)).
+    ClientConn2 = escalus_session:bind(ClientConn1),
+    ClientConn3 = escalus_session:session(ClientConn2),
+    escalus:send(ClientConn3, escalus_stanza:presence(<<"available">>)),
+    escalus:assert(is_presence, escalus:wait_for_stanza(ClientConn3)).
 
 login_with_token(Config, User, Token) ->
     UserSpec = escalus_users:get_userspec(Config, User),
@@ -251,10 +263,10 @@ login_with_token(Config, User, Token) ->
                  stream_features,
                  maybe_use_ssl,
                  maybe_use_compression],
-    {ok, ClientConnection, Props, _Features} = escalus_connection:start(UserSpec, ConnSteps),
+    {ok, ClientConnection = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, Token}),
     AuthResult = (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
-    {AuthResult, ClientConnection, Props2}.
+    {AuthResult, ClientConnection}.
 
 token_revocation_test(Config) ->
     %% given
@@ -309,11 +321,33 @@ provision_token_login(Config) ->
     ProvisionToken = make_provision_token(Config, bob, VCard),
     UserSpec = user_authenticating_with_token(Config, bob, ProvisionToken),
     %% when logging in with provision token
-    {ok, Conn, _, _} = escalus_connection:start(UserSpec),
+    {ok, Conn, _} = escalus_connection:start(UserSpec),
     escalus:send(Conn, escalus_stanza:vcard_request()),
     %% then user's vcard is placed into the database on login
     Result = escalus:wait_for_stanza(Conn),
     VCard = exml_query:subelement(Result, <<"vCard">>).
+
+
+check_for_oauth_with_mod_auth_token_not_loaded(Config) ->
+    AliceSpec = escalus_users:get_userspec(Config, alice),
+    ConnSteps = [start_stream,
+                 stream_features,
+                 maybe_use_ssl,
+                 maybe_use_compression],
+    {ok, _, Features} = escalus_connection:start(AliceSpec, ConnSteps),
+    false = lists:member(<<"X-OAUTH">>, proplists:get_value(sasl_mechanisms,
+                                                           Features, [])).
+
+check_for_oauth_with_mod_auth_token_loaded(Config) ->
+    AliceSpec = escalus_users:get_userspec(Config, alice),
+    ConnSteps = [start_stream,
+                 stream_features,
+                 maybe_use_ssl,
+                 maybe_use_compression],
+    {ok, _, Features} = escalus_connection:start(AliceSpec, ConnSteps),
+    true = lists:member(<<"X-OAUTH">>, proplists:get_value(sasl_mechanisms,
+                                                           Features, [])).
+
 
 %%
 %% Helpers

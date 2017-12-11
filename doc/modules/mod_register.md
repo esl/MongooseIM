@@ -26,6 +26,15 @@ Deny registration from network 10.20.0.0 with mask 255.255.0.0.
 {mod_register, [{deny, "10.20.0.0/16"}]}
 ```
 
+### Metrics
+
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[Host, modRegisterCount]` | spiral | A user registers via `mod_register` module. |
+| `[Host, modUnregisterCount]` | spiral | A user unregisters via `mod_register` module. |
+
 ### Entropy calculation algorithm
 
 ```
@@ -50,3 +59,4 @@ Where `X` is initially set to 0 and certain values are added if at least one of 
 * `CamelCase`: ~51.3
 * `lowUP1#:`: ~45.9
 * `lowUP1#❤`: ~78
+

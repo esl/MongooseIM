@@ -145,7 +145,7 @@ dropped_client_doesnt_create_duplicate_carbons(Config) ->
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
               Msg = escalus_stanza:chat_to(Bob, <<"And pious action">>),
-              given_client_logs_out(Alice2),
+              given_client_logs_out(Config, Alice2),
               _Pres = escalus_client:wait_for_stanza(Alice1),
 
               escalus_client:send(Alice1, Msg),
@@ -247,8 +247,8 @@ carbons_get_enabled(ClientOrClients) ->
 %% Internal helpers
 %%
 
-given_client_logs_out(Client) ->
-    escalus_client:stop(Client),
+given_client_logs_out(Config, Client) ->
+    escalus_client:stop(Config, Client),
     timer:sleep(300).
 
 %% Wrapper around escalus:story. Returns PropEr result.

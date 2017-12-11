@@ -55,6 +55,11 @@ mam04_props() ->
      {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
      {mam_ns, mam_ns_binary_v04()}].
 
+mam06_props() ->
+     [{data_form, true},                 %% send data forms
+     {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
+     {mam_ns, mam_ns_binary_v06()}].   
+
 respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
     Messages.
 
@@ -187,7 +192,8 @@ nick(User) -> escalus_utils:get_username(User).
 mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
-namespaces() -> [mam_ns_binary(), mam_ns_binary_v03(), mam_ns_binary_v04()].
+mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
+namespaces() -> [mam_ns_binary(), mam_ns_binary_v03(), mam_ns_binary_v04(), mam_ns_binary_v06()].
 muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
 stanza_purge_single_message(MessId) ->
@@ -433,15 +439,15 @@ is_same_message_text(Stanza, Raw) ->
         Msg :: #forwarded_message{}, AffUsersChanges :: [{escalus:client(), binary()}],
         IsCreate :: boolean()) -> [].
 verify_archived_muc_light_aff_msg(Msg, AffUsersChanges, IsCreate) ->
-    BinAffUsersChanges = muc_light_SUITE:bin_aff_users(AffUsersChanges),
+    BinAffUsersChanges = muc_light_helper:bin_aff_users(AffUsersChanges),
     [X] = Msg#forwarded_message.message_xs,
-    ProperNS = muc_light_SUITE:ns_muc_light_affiliations(),
+    ProperNS = muc_light_helper:ns_muc_light_affiliations(),
     ProperNS = exml_query:attr(X, <<"xmlns">>),
     undefined = exml_query:subelement(X, <<"prev-version">>),
     Version = exml_query:path(X, [{element, <<"version">>}, cdata]),
     true = IsCreate orelse is_binary(Version),
     Items = exml_query:subelements(X, <<"user">>),
-    muc_light_SUITE:verify_aff_users(Items, BinAffUsersChanges).
+    muc_light_helper:verify_aff_users(Items, BinAffUsersChanges).
 
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
@@ -983,7 +989,7 @@ generate_msgs_for_day(Day, OwnerJID, OtherUsers) ->
      || RemoteJID <- OtherUsers].
 
 generate_msg_for_date_user(Owner, Remote, DateTime) ->
-    generate_msg_for_date_user(Owner, Remote, DateTime, base16:encode(crypto:rand_bytes(4))).
+    generate_msg_for_date_user(Owner, Remote, DateTime, base16:encode(crypto:strong_rand_bytes(4))).
 
 generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime, Content) ->
     MicrosecDateTime = datetime_to_microseconds(DateTime),

@@ -1,4 +1,102 @@
-# [2.1.0beta1] -  2017-03-28
+# [MongooseIM 2.1.0](https://github.com/esl/MongooseIM/releases/tag/2.1.0) - 2017-10-24
+
+## Added
+
+- OTP 20 compatibility (#1430)
+- Message Archive Management v0.6 support (#1442, #1471)
+- Final stage of Mongoose Accumulators implementation (#1398, #1512)
+- REST API: MUC Light rooms can be created with a specified username part (#1387)
+- REST API: MUC Light rooms can be addressed with a bare JID (not only with their usernames) (#1417)
+- REST API: MUC Light rooms can be destroyed (#1461)
+- MAM can be configured to archive [XEP-0333 Chat Markers](https://xmpp.org/extensions/xep-0333.html) (#1377)
+- `mod_http_upload_s3` can be configured to skip the ACL header (so MIM can integrate with Minio) (#1415)
+- Administration REST API can be protected with the Basic HTTP Authentication (#1453)
+- More configuration options for JWT authentication backend (#1321)
+- (Un)Subscribing to many hooks with a single function call (#1376, #1426)
+- New `ejabberd_router:route_error_reply/4` function (#1427)
+- `mongoose_commands`  can accept lists of elements as an argument (#1465)
+
+## Changed
+
+- Switched back to strictly monotonous MAM message IDs (#1372)
+- MongooseIM will not start if the ODBC connection is configured but no ODBC pools are defined (#1455)
+- SASL X-OAUTH mechanism is not advertised if `mod_auth_token` is not enabled (#1450)
+- `ejabberd_auth:authorize/1` is now used for authorisation in client REST API (#1409)
+- DNS lookup is not performed for the S2S connection if the host is already defined in the configuration (#1314)
+
+## Fixed
+
+- Fix RDMBS backoff calculation (#1394)
+- URL escaping and reporting in `mod_http_upload` (#1391)
+- Fixed Unicode support in the MAM full text search with a Riak backend (#1407)
+- Authentication crash with SASL PLAIN and an invalid password (#1433)
+- Random crashes in tests (#1374, #1428)
+- `mongooseim version` command was broken (#1457)
+
+## Other
+
+- Documentation fixes and improvements (#1373, #1380, #1382, #1385, #1396, #1399, #1402, #1408, #1416, #1418, #1434, #1441, #1445, #1451, #1456, #1468, #1469, #1472, #1475, #1477, #1480, #1482, #1483, #1484, #1485, #1486, #1487, #1488, #1489, #1490, #1492, #1493, #1494, #1495, #1496, #1498, #1499, #1501, #1502, #1503, #1504, #1506, #1507, #1508, #1532, #1534)
+- First stage of `mod_mam` and its submodules' refactoring (#1381)
+- Tests improvements and refactoring (#1383, #1388)
+- Improved coverage check (#1397)
+- Build system & scripts improvements (#1412, #1422, #1448)
+- Code & style improvements (#1454)
+- Updated dependency: `cqerl` (#1447)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222017-07-04..2017-10-23%22%20sort%3Acreated-asc%20)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222017-07-04..2017-10-23%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2017-07-04&to=2017-10-23&type=c)
+
+Special thanks to our contributors: @Beisenbek, @benkard, @deadjdona, @fblackburn1 !
+
+# [MongooseIM 2.1.0beta2](https://github.com/esl/MongooseIM/releases/tag/2.1.0beta2) - 2017-07-06
+
+## Added
+- Roster management in client REST API (#1286)
+- Silent push notifications (#1287)
+- RSM support in `mod_vcard` (#978)
+- MAM can be configured to archive (or not) groupchat messages in private archives (#1294)
+- New command in `mongooseimctl` (#1256)
+- Extended `mod_roster` backends' API (#1302)
+- A warning is logged, when a module links to caller process on startup (#1247)
+
+## Changed
+
+- `now()` calls have been replaced with alternatives in `p1_time_compat` (#1246)
+- Stanza size limit is now checked while parsing the stanza (#1285)
+- `mongoose_acc` extended lifespan; supported by more hooks. (#1211, #1306)
+- `crypto:rand_bytes/1` calls have been replaced with `crypto:strong_rand_bytes/1` (#1348)
+
+## Fixed
+
+- Improved error handling in C2S (#1264)
+- MAM + MUC Light integration (#1270)
+- Push nodes discovery and handling in `mod_pubsub` (#1272)
+- BOSH interleaving logic (#1289)
+- Error presence handling in MUC (#1307)
+- Race condition between `mod_caps` and PEP (#1301)
+- Minor bugs in Service Discovery (#1303)
+
+## Other
+
+- Expanded, better tests and improved coverage (#645, #1241, #1278, #1291)
+- Ensured OTP 19.3 support. (#1251)
+- Configuration improvement (#1296, #1299)
+- Refactored many modules to satisfy our coding standards. (#1254, #1259)
+- Many improvements and fixes in MongooseIM documentation. (#1242, #1243, #1253, #1260, #1261, #1262, #1271, #1279, #1282, #1284, #1288, #1292, #1293, #1295, #1297, #1298, #1303, #1304, #1310, #1318, #1319, #1320, #1323, #1324, #1326, #1332, #1333, #1334, #1336, #1345)
+- Build improvements and fixes (#1258, #1266, #1300, #1309, #1315, #1335, #1355)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222017-03-29..2017-07-03%22%20sort%3Acreated-asc%20)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222017-03-29..2017-07-03%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2017-03-29&to=2017-07-03&type=c)
+
+Special thanks to our contributors: @astro @strugee @msantos @daniel-e @deadjdona !
+
+# [MongooseIM 2.1.0beta1](https://github.com/esl/MongooseIM/releases/tag/2.1.0beta1) -  2017-03-28
 
 ## Added
 - full text search in [XEP-0313: MAM](http://xmpp.org/extensions/xep-0313.html): #1136
@@ -13,7 +111,7 @@
 - Erlang distribution over TLS #1228
 - JSON Web Token authentication #977
 
-## Chnanged
+## Changed
 
 - build system to [rebar3](http://www.rebar3.org/) #1033
 - hooks implementation

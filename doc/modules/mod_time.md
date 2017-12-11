@@ -6,7 +6,7 @@ Protocol is described under [XEP-0202: Entity Time](http://www.xmpp.org/extensio
 
 ### Options
 
-* `iqdisc`
+* `iqdisc` (default: `one_queue`)
 
 ### Example Configuration
 

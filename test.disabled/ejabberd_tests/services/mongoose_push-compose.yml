@@ -1,7 +1,7 @@
 version: '2.1'
 services:
   fcm-mock:
-    image: rslota/fcm-http2-mock-server
+    image: rslota/fcm-http2-mock-server:working
     expose:
       - "443"
     ports:

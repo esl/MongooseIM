@@ -28,7 +28,8 @@ all() ->
 
 groups() ->
     [{parallel, [parallel], parallel_test_cases()},
-     {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()}
+     {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
+     {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]}
     ].
 
 parallel_test_cases() ->
@@ -57,7 +58,6 @@ parallel_test_cases() ->
 parallel_manual_ack_test_cases() ->
     [client_acks_more_than_sent,
      too_many_unacked_stanzas,
-     preserve_order,
      resend_unacked_after_resume_timeout,
      resume_session_state_send_message,
      resume_session_state_stop_c2s,
@@ -86,6 +86,9 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(NewConfig1).
 
+init_per_group(manual_ack_freq_long_session_timeout, Config) ->
+    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
+    escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(parallel_manual_ack_freq_1, Config) ->
     true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
     escalus_ejabberd:rpc(?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
@@ -93,7 +96,9 @@ init_per_group(parallel_manual_ack_freq_1, Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
-
+end_per_group(manual_ack_freq_long_session_timeout, Config) ->
+    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [never]),
+    Config;
 end_per_group(parallel_manual_ack, Config) ->
     true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [never]),
     escalus_ejabberd:rpc(?MOD_SM, set_resume_timeout, [600]),
@@ -119,20 +124,20 @@ end_per_testcase(CaseName, Config) ->
 
 server_announces_sm(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
-    {ok, _, Props, Features} = escalus_connection:start(AliceSpec,
-                                                        [start_stream]),
+    {ok, #client{props = Props}, Features} = escalus_connection:start(AliceSpec,
+                                                                      [start_stream]),
     true = escalus_session:can_use_stream_management(Props, Features).
 
 
 server_enables_sm_before_session(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_enable_stream_mgmt(after_bind),
-    {ok, _, _, _} = escalus_connection:start(AliceSpec, Steps).
+    {ok, _, _} = escalus_connection:start(AliceSpec, Steps).
 
 server_enables_sm_after_session(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_enable_stream_mgmt(after_session),
-    {ok, _, _, _} = escalus_connection:start(AliceSpec, Steps).
+    {ok, _, _} = escalus_connection:start(AliceSpec, Steps).
 
 server_returns_failed_after_start(Config) ->
     server_returns_failed(Config, []).
@@ -144,12 +149,12 @@ server_enables_resumption(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
     %% Assert matches {ok, _, _, _}
     Steps = connection_steps_to_enable_stream_resumption(),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
     escalus_connection:stop(Alice).
 
 server_returns_failed(Config, ConnActions) ->
     AliceSpec = given_fresh_spec(Config, alice),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
+    {ok, Alice, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
                                                   stream_features,
                                                   maybe_use_ssl]
@@ -162,7 +167,7 @@ server_returns_failed(Config, ConnActions) ->
 basic_ack(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_enable_stream_mgmt(after_session),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
     escalus_connection:send(Alice, escalus_stanza:roster_get()),
     escalus:assert(is_roster_result,
                    escalus_connection:get_stanza(Alice, roster_result)),
@@ -176,7 +181,7 @@ basic_ack(Config) ->
 h_ok_before_session(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_enable_stream_mgmt(after_bind),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
+    {ok, Alice, _} = escalus_connection:start(AliceSpec,
                                                  Steps),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
     escalus:assert(is_sm_ack, [0],
@@ -188,7 +193,7 @@ h_ok_before_session(Config) ->
 h_ok_after_session_enabled_before_session(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_enable_stream_mgmt(after_bind) ++ [session],
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
     escalus:assert(is_sm_ack, [1],
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
@@ -199,7 +204,7 @@ h_ok_after_session_enabled_before_session(Config) ->
 h_ok_after_session_enabled_after_session(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_enable_stream_mgmt(after_session),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
     escalus_connection:send(Alice, escalus_stanza:roster_get()),
     escalus:assert(is_roster_result,
                    escalus_connection:get_stanza(Alice, roster_result)),
@@ -233,7 +238,7 @@ h_ok_after_a_chat(ConfigIn) ->
 
 client_acks_more_than_sent(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
-    {ok, Alice, _Props, _} = escalus_connection:start(AliceSpec),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec),
     escalus:send(Alice, escalus_stanza:sm_ack(5)),
     escalus:assert(is_stream_error, [<<"policy-violation">>,
                                      <<"h attribute too big">>],
@@ -292,7 +297,7 @@ server_requests_ack_freq_2(Config) ->
 server_requests_ack_after_session(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_enable_stream_mgmt(after_bind) ++ [session],
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, stream_mgmt_req)).
 
 
@@ -301,7 +306,7 @@ resend_more_offline_messages_than_buffer_size(Config) ->
 
     %% connect bob and alice
     BobSpec = given_fresh_spec(Config, bob),
-    {ok, Bob, _, _} = escalus_connection:start(BobSpec),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
     escalus_connection:send(Bob, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Bob, presence),
     AliceSpec = given_fresh_spec(Config, alice),
@@ -313,7 +318,7 @@ resend_more_offline_messages_than_buffer_size(Config) ->
      || I <- lists:seq(1, MessagesToSend)],
 
     % connect alice who wants to receive all messages from offline storage
-    {ok, Alice, _Props, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_management]),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_management]),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
 
     escalus:wait_for_stanzas(Alice, MessagesToSend * 2), %messages and ack requests
@@ -347,10 +352,12 @@ resend_unacked_on_reconnection(Config) ->
         %% Alice disconnects without acking the messages.
     escalus_connection:stop(Alice),
     escalus_connection:stop(Bob),
+    wait_until_disconnected(AliceSpec0, 1000),
+
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
     AliceSpec = [{manual_ack, true} | AliceSpec0],
-    {ok, NewAlice, _, _} = escalus_connection:start(AliceSpec),
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
     OfflineMsgs = [escalus_connection:get_stanza(NewAlice, {msg, I})
                    || I <- lists:seq(1, length(Messages))],
@@ -365,12 +372,12 @@ preserve_order(Config) ->
 
     %% connect bob and alice
     BobSpec = given_fresh_spec(Config, bob),
-    {ok, Bob, _, _} = escalus_connection:start(BobSpec),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
     escalus_connection:send(Bob, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Bob, presence),
 
     AliceSpec = given_fresh_spec(Config, alice),
-    {ok, Alice, _Props, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
 
@@ -378,12 +385,13 @@ preserve_order(Config) ->
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"1">>)),
 
     %% kill alice connection
-    kill_connection(Alice),
-    %ct:sleep(300),
+    escalus_connection:kill(Alice),
+    wait_until_disconnected(AliceSpec, 1000),
+
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"2">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"3">>)),
 
-    {ok, NewAlice, _, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:enable_sm([resume])),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"4">>)),
@@ -395,7 +403,7 @@ preserve_order(Config) ->
     receive_all_ordered(NewAlice,1),
 
     % replace connection
-    {ok, NewAlice2, _, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    {ok, NewAlice2, _} = escalus_connection:start(AliceSpec, ConnSteps),
     % allow messages to go to the offline storage
     ct:sleep(1000),
 
@@ -428,12 +436,12 @@ resend_unacked_after_resume_timeout(Config) ->
 
     %% connect bob and alice
     BobSpec = given_fresh_spec(Config, bob),
-    {ok, Bob, _, _} = escalus_connection:start(BobSpec),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
     escalus_connection:send(Bob, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Bob, presence),
 
     AliceSpec = given_fresh_spec(Config, alice),
-    {ok, Alice, _Props, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
 
@@ -441,7 +449,8 @@ resend_unacked_after_resume_timeout(Config) ->
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-1">>)),
     %% kill alice connection
-    kill_connection(Alice),
+    escalus_connection:kill(Alice),
+
     U = proplists:get_value(username, AliceSpec),
     S = proplists:get_value(server, AliceSpec),
     1 = length(escalus_ejabberd:rpc(ejabberd_sm, get_user_resources, [U, S])),
@@ -451,7 +460,7 @@ resend_unacked_after_resume_timeout(Config) ->
     0 = length(escalus_ejabberd:rpc(ejabberd_sm, get_user_resources, [U, S])),
 
     %% alice come back and receives unacked message
-    {ok, NewAlice, _, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
 
     Stanzas =[escalus_connection:get_stanza(NewAlice, msg),
@@ -462,7 +471,7 @@ resend_unacked_after_resume_timeout(Config) ->
                                  Stanzas),
 
     escalus_connection:stop(Bob),
-    escalus_connection:stop(Alice).
+    escalus_connection:stop(NewAlice).
 
 resume_session_state_send_message(Config) ->
     ConnSteps = connection_steps_to_session(),
@@ -470,12 +479,12 @@ resume_session_state_send_message(Config) ->
     %% connect bob and alice
 
     BobSpec = given_fresh_spec(Config, bob),
-    {ok, Bob, _, _} = escalus_connection:start(BobSpec),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
     escalus_connection:send(Bob, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Bob, presence),
 
     AliceSpec = given_fresh_spec(Config, alice),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
 
@@ -483,7 +492,7 @@ resume_session_state_send_message(Config) ->
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-1">>)),
     %% kill alice connection
-    kill_connection(Alice),
+    escalus_connection:kill(Alice),
     ct:sleep(1000), %% alice should be in resume_session_state
 
     U = proplists:get_value(username, AliceSpec),
@@ -495,7 +504,7 @@ resume_session_state_send_message(Config) ->
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-3">>)),
 
     %% alice comes back and receives unacked message
-    {ok, NewAlice, _, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
 
     Stanzas = [escalus_connection:get_stanza(NewAlice, msg) || _ <- lists:seq(1,4) ],
@@ -515,12 +524,12 @@ resume_session_state_stop_c2s(Config) ->
 
     %% connect bob and alice
     BobSpec = given_fresh_spec(Config, bob),
-    {ok, Bob, _, _} = escalus_connection:start(BobSpec, ConnSteps),
+    {ok, Bob, _} = escalus_connection:start(BobSpec, ConnSteps),
     escalus_connection:send(Bob, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Bob, presence),
 
     AliceSpec = given_fresh_spec(Config, alice),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
 
@@ -528,7 +537,7 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-1">>)),
 
     % kill alice connection
-    kill_connection(Alice),
+    escalus_connection:kill(Alice),
     ct:sleep(1000), %% alice should be in resume_session_state
     % session should be  alive
     U = proplists:get_value(username, AliceSpec),
@@ -540,7 +549,7 @@ resume_session_state_stop_c2s(Config) ->
     ct:sleep(1000), %% c2s should be in resume_session_state
 
     %% alice comes back and receives unacked message
-    {ok, NewAlice, _, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
 
     Stanzas = [escalus_connection:get_stanza(NewAlice, msg),
@@ -572,20 +581,20 @@ wait_for_resumption(Config) ->
                  | given_fresh_spec(Config, alice)],
     {Bob, _} = given_fresh_user(Config, bob),
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
-    {C2SPid, _} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
+    {C2SPid, _} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages),
     %% Ensure the c2s process is waiting for resumption.
     assert_no_offline_msgs(AliceSpec),
-    assert_c2s_state(C2SPid, resume_session).
+    wait_for_c2s_state_change(C2SPid, session_established, resume_session).
 
 resume_session(Config) ->
     AliceSpec = [{manual_ack, true}
                  | given_fresh_spec(Config, alice)],
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
-        {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
+        {_, SMID} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages),
         %% Resume the session.
         Steps = connection_steps_to_stream_resumption(SMID, 2),
-        {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+        {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
         NDiscarded = discard_vcard_update(Alice),
         %% Alice receives the unacked messages from the previous
         %% interrupted session.
@@ -604,10 +613,10 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
 
-        {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
+        {_, SMID} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages),
         %% Resume the session.
         Steps = connection_steps_to_authenticate(),
-        {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+        {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
         Resumed = try_to_resume_stream(Alice, SMID, 30),
         escalus:assert(is_stream_error, [<<"policy-violation">>,
                                          <<"h attribute too big">>], Resumed),
@@ -623,7 +632,7 @@ resume_session_with_wrong_sid_returns_item_not_found(Config) ->
 resume_session_with_wrong_namespace_is_a_noop(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_authenticate(),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
     #xmlel{attrs = Attrs} = Resume = escalus_stanza:resume(<<"doesnt_matter">>, 4),
     Attrs2 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, <<"not-stream-mgnt">>}),
     escalus_connection:send(Alice, Resume#xmlel{attrs = Attrs2}),
@@ -641,7 +650,7 @@ resume_dead_session_results_in_item_not_found(Config) ->
 session_resumption_expects_item_not_found(Config, SMID) ->
     AliceSpec = given_fresh_spec(Config, alice),
     Steps = connection_steps_to_authenticate(),
-    {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
     Resumed = try_to_resume_stream(Alice, SMID, 2),
     escalus:assert(is_sm_failed, [<<"item-not-found">>], Resumed),
     [] = get_user_resources(AliceSpec),
@@ -673,19 +682,19 @@ connection_steps_to_stream_resumption(SMID, H) ->
     connection_steps_to_authenticate() ++ [mk_resume_stream(SMID, H)].
 
 mk_resume_stream(SMID, PrevH) ->
-    fun (Conn, Props, Features) ->
+    fun (Conn = #client{props = Props}, Features) ->
             Resumed = try_to_resume_stream(Conn, SMID, PrevH),
             true = escalus_pred:is_sm_resumed(SMID, Resumed),
-            {Conn, [{smid, SMID} | Props], Features}
+            {Conn#client{props = [{smid, SMID} | Props]}, Features}
     end.
 
 try_to_resume_stream(Conn, SMID, PrevH) ->
     escalus_connection:send(Conn, escalus_stanza:resume(SMID, PrevH)),
     escalus_connection:get_stanza(Conn, get_resumed).
 
-buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
+buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages) ->
     Steps = connection_steps_to_enable_stream_resumption(),
-    {ok, Alice, Props, _} = escalus_connection:start(AliceSpec, Steps),
+    {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
     JID = get_bjid(Props),
     InitialPresence = setattr(escalus_stanza:presence(<<"available">>),
                               <<"id">>, <<"presence1">>),
@@ -706,7 +715,7 @@ buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
     [escalus:assert(is_chat_message, [Msg], Stanza)
      || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
     %% Alice's connection is violently terminated.
-    kill_connection(Alice),
+    escalus_client:kill_connection(Config, Alice),
     {C2SPid, proplists:get_value(smid, Props)}.
 
 aggressively_pipelined_resume(Config) ->
@@ -714,9 +723,9 @@ aggressively_pipelined_resume(Config) ->
                  | given_fresh_spec(Config, alice)],
     UnackedMessages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
-        {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, UnackedMessages),
+        {_, SMID} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, UnackedMessages),
         %% Resume the session.
-        {ok, Alice, _} = escalus_connection:connect(AliceSpec),
+        Alice = escalus_connection:connect(AliceSpec),
 
         Username = proplists:get_value(username, AliceSpec),
         Password = proplists:get_value(password, AliceSpec),
@@ -744,7 +753,7 @@ discard_offline_messages(Config, UserName) ->
 
 discard_offline_messages(Config, UserName, H) when is_atom(UserName) ->
     Spec = escalus_users:get_options(Config, UserName),
-    {ok, User, _, _} = escalus_connection:start(Spec),
+    {ok, User, _} = escalus_connection:start(Spec),
     escalus_connection:send(User, escalus_stanza:presence(<<"available">>)),
     discard_offline_messages(Config, User, H);
 discard_offline_messages(Config, User, H) ->
@@ -791,16 +800,41 @@ assert_no_offline_msgs(Spec) ->
 assert_no_offline_msgs() ->
     0 = mongoose_helper:total_offline_messages().
 
+wait_for_c2s_state_change(C2SPid, StateName, NewStateName) ->
+    wait_for_c2s_state_change(C2SPid, StateName, NewStateName, 5000).
 
+wait_for_c2s_state_change(C2SPid, StateName, NewStateName, TimeLeft) when TimeLeft =< 0 ->
+    error({c2s_state_change_timeout, C2SPid, StateName, NewStateName});
+wait_for_c2s_state_change(C2SPid, StateName, NewStateName, TimeLeft) ->
+    case get_c2s_state(C2SPid) of
+        StateName ->
+            timer:sleep(100),
+            wait_for_c2s_state_change(C2SPid, StateName, NewStateName, TimeLeft - 100);
+        NewStateName ->
+            ok
+    end.
 
-assert_c2s_state(C2SPid, StateName) when is_pid(C2SPid) ->
+assert_c2s_state(C2SPid, StateName) ->
+    StateName = get_c2s_state(C2SPid).
+
+get_c2s_state(C2SPid) when is_pid(C2SPid) ->
     SysStatus = escalus_ejabberd:rpc(sys, get_status, [C2SPid]),
-    StateName = extract_state_name(SysStatus).
+    extract_state_name(SysStatus).
 
 extract_state_name(SysStatus) ->
     {status, _Pid, {module, _},
      [_, _, _, _, [_, {data, FSMData} | _]]} = SysStatus,
     proplists:get_value("StateName", FSMData).
+
+wait_until_disconnected(UserSpec, Timeout) when Timeout =< 0 ->
+    error({disconnect_timeout, UserSpec});
+wait_until_disconnected(UserSpec, Timeout) ->
+    case get_user_resources(UserSpec) of
+        [] -> ok;
+        [_|_] ->
+            ct:sleep(200),
+            wait_until_disconnected(UserSpec, Timeout - 200)
+    end.
 
 get_session_pid(UserSpec, Resource) ->
     {U, S} = get_us_from_spec(UserSpec),
@@ -832,19 +866,6 @@ clear_session_table() ->
 clear_sm_session_table() ->
     escalus_ejabberd:rpc(mnesia, clear_table, [sm_session]).
 
-kill_connection(#client{module = escalus_tcp, ssl = SSL,
-                           socket = Socket} = Conn) ->
-    %% Ugly, but there's no API for killing the connection
-    %% without sending </stream:stream>.
-    case SSL of
-        true ->
-            ssl:close(Socket);
-        false ->
-            gen_tcp:close(Socket)
-    end,
-    %% There might be open zlib streams left...
-    catch escalus_connection:stop(Conn).
-
 is_chat(Content) ->
     fun(Stanza) -> escalus_pred:is_chat_message(Content, Stanza) end.
 
@@ -862,7 +883,7 @@ given_fresh_user(Config, UserName) ->
     given_fresh_user_with_spec(Spec).
 
 given_fresh_user_with_spec(Spec) ->
-    {ok, User, Props, _} = escalus_connection:start(Spec),
+    {ok, User = #client{props = Props}, _} = escalus_connection:start(Spec),
     escalus:send(User, escalus_stanza:presence(<<"available">>)),
     escalus:wait_for_stanza(User),
     JID = get_bjid(Props),

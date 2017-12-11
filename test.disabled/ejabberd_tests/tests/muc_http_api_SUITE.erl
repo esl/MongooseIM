@@ -92,7 +92,7 @@ create_room(Config) ->
         Body = #{name => Name,
                  owner => escalus_client:short_jid(Alice),
                  nick => <<"ali">>},
-        {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"201">>, _}, Name} = rest_helper:post(admin, Path, Body),
         %% Service acknowledges room creation (10.1.1 Ex. 154), then
         %% (presumably 7.2.16) sends room subject, finally the IQ
         %% result of the IQ request (10.1.2) for an instant room. The
@@ -112,7 +112,7 @@ invite_online_user_to_room(Config) ->
         Body = #{sender => escalus_client:short_jid(Alice),
                  recipient => escalus_client:short_jid(Bob),
                  reason => Reason},
-        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         Stanza = escalus:wait_for_stanza(Bob),
         is_direct_invitation(Stanza),
         direct_invite_has_reason(Stanza, Reason)
@@ -137,7 +137,7 @@ send_message_to_room(Config) ->
                  body => Message},
         %% The HTTP call in question. Notice: status 200 because no
         %% resource is created.
-        {{<<"204">>, _}, <<"">>} = rest_helper:post(Path, Body),
+        {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         Got = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, Got),
         Message = exml_query:path(Got, [{element, <<"body">>}, cdata])
@@ -176,7 +176,7 @@ kick_user_from_room(Config) ->
         escalus:wait_for_stanza(Alice),
         escalus:wait_for_stanza(Bob),
         %% The HTTP call in question.
-        {{<<"204">>, _}, <<"">>} = rest_helper:delete(Path),
+        {{<<"204">>, _}, <<"">>} = rest_helper:delete(admin, Path),
         BobRoomAddress = muc_helper:room_address(Name, <<"bobcat">>),
         %% Bob finds out he's been kicked.
         KickedStanza = escalus:wait_for_stanza(Bob),
@@ -206,8 +206,8 @@ multiparty_multiprotocol(Config) ->
             %% XMPP: Bob does not see a MUC room called 'wonderland'.
             false = user_sees_room(Bob, Room),
             %% HTTP: create a room on Alice's behalf.
-            {{<<"201">>, _}, <<"">>} =
-                rest_helper:post(MUCPath,
+            {{<<"201">>, _}, Room} =
+                rest_helper:post(admin, MUCPath,
                                  #{name => Room,
                                    owner => escalus_client:short_jid(Alice),
                                    nick => <<"ali">>}),
@@ -217,13 +217,13 @@ multiparty_multiprotocol(Config) ->
             true = user_sees_room(Kate, Room),
             %% HTTP: Alice invites Bob to the MUC room.
             {{<<"204">>, _}, <<"">>} =
-                rest_helper:post(RoomInvitePath,
+                rest_helper:post(admin, RoomInvitePath,
                                  invite_body(Alice, Bob, Reason)),
             %% XMPP: Bob recieves the invite to the MUC room.
             Room = wait_for_invite(Bob, Reason),
             %% HTTP: Alice invites Kate to the MUC room.
             {{<<"204">>, _}, <<"">>} =
-                rest_helper:post(RoomInvitePath,
+                rest_helper:post(admin, RoomInvitePath,
                                  invite_body(Alice, Kate, Reason)),
             %% XMPP: kate recieves the invite to the MUC room.
             Room = wait_for_invite(Kate, Reason),
@@ -248,7 +248,7 @@ multiparty_multiprotocol(Config) ->
             [ escalus:wait_for_stanza(User) || User <- [Alice, Bob] ],
             %% HTTP: Alice sends a message to the room.
             {{<<"204">>, _}, <<"">>} =
-                rest_helper:post(MessagePath,
+                rest_helper:post(admin, MessagePath,
                                  #{from => escalus_client:short_jid(Alice),
                                    body => Message}),
             %% XMPP: All three recieve the message sent to the MUC room.

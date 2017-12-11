@@ -257,12 +257,17 @@ suite() ->
 
 
 init_per_suite(Config) ->
+    Config2 = escalus:init_per_suite(Config),
+    Config3 = dynamic_modules:save_modules(domain(), Config2),
     load_muc(muc_host()),
-    escalus:init_per_suite(Config).
+    mongoose_helper:ensure_muc_clean(),
+    Config3.
 
 end_per_suite(Config) ->
-    unload_muc(),
     escalus_fresh:clean(),
+    mongoose_helper:ensure_muc_clean(),
+    unload_muc(),
+    dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(moderator, Config) ->
@@ -286,6 +291,7 @@ init_per_group(disco, Config) ->
         [{persistent, true}]);
 
 init_per_group(disco_rsm, Config) ->
+    mongoose_helper:ensure_muc_clean(),
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
@@ -4925,7 +4931,7 @@ connect_fresh_alice(Config) ->
     connect_fresh_user(AliceSpec).
 
 connect_fresh_user(Spec) ->
-    {ok, User, _, _} = escalus_connection:start(Spec),
+    {ok, User, _} = escalus_connection:start(Spec),
     escalus:send(User, escalus_stanza:presence(<<"available">>)),
     escalus:wait_for_stanza(User),
     Username = proplists:get_value(username, Spec),
@@ -4946,4 +4952,4 @@ fresh_room_name(Username) ->
     escalus_utils:jid_to_lower(<<"room-", Username/binary>>).
 
 fresh_room_name() ->
-    fresh_room_name(base16:encode(crypto:rand_bytes(5))).
+    fresh_room_name(base16:encode(crypto:strong_rand_bytes(5))).

@@ -11,6 +11,7 @@
 %% do not remove below SUITE if testing mongoose
 {suites, "tests", mongoose_sanity_checks_SUITE}.
 
+{suites, "tests", acc_e2e_SUITE}.
 {suites, "tests", adhoc_SUITE}.
 {suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.
@@ -74,7 +75,10 @@
 %% * log suite start/end events in the MongooseIM console
 %% * ensure preset value is passed to ct Config
 %% * check server's purity after SUITE
-{ct_hooks, [ct_tty_hook, ct_mongoose_hook, ct_progress_hook]}.
+{ct_hooks, [ct_tty_hook, ct_mongoose_hook, ct_progress_hook,
+            {ct_mongoose_log_hook, [ejabberd_node, ejabberd_cookie]},
+            {ct_mongoose_log_hook, [ejabberd2_node, ejabberd_cookie]}
+           ]}.
 
 %% To enable printing group and case enters on server side
 %%{ct_hooks, [{ct_mongoose_hook, [print_group, print_case]}]}.

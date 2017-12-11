@@ -64,20 +64,6 @@
          block_user/1,
          blocking_disabled/1
         ]).
--export([ % for mam_SUITE
-         ns_muc_light_affiliations/0,
-         stanza_create_room/3,
-         room2/0,
-         clear_db/0,
-         verify_aff_bcast/2,
-         room_bin_jid/1,
-         gc_message_verify_fun/3,
-         aff_msg_verify_fun/1,
-         stanza_aff_set/2,
-         bin_aff_users/1,
-         verify_aff_users/2,
-         create_room/6
-        ]).
 
 -export([all/0, groups/0, suite/0,
          init_per_suite/1, end_per_suite/1,
@@ -86,19 +72,29 @@
 
 -import(escalus_ejabberd, [rpc/3]).
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
+-import(muc_light_helper, [
+                           bin_aff_users/1,
+                           aff_msg_verify_fun/1,
+                           gc_message_verify_fun/3,
+                           lbin/1,
+                           room_bin_jid/1,
+                           verify_aff_bcast/2,
+                           verify_aff_bcast/3,
+                           verify_aff_users/2,
+                           kv_el/2,
+                           to_lus/2,
+                           stanza_create_room/3,
+                           create_room/6,
+                           stanza_aff_set/2,
+                           default_config/0
+                          ]).
+
+-include("muc_light.hrl").
 
 -define(ROOM, <<"testroom">>).
 -define(ROOM2, <<"testroom2">>).
 
 -define(MUCHOST, <<"muclight.localhost">>).
-
--define(NS_MUC_LIGHT, <<"urn:xmpp:muclight:0">>).
--define(NS_MUC_LIGHT_CONFIGURATION, <<"urn:xmpp:muclight:0#configuration">>).
--define(NS_MUC_LIGHT_AFFILIATIONS, <<"urn:xmpp:muclight:0#affiliations">>).
--define(NS_MUC_LIGHT_INFO, <<"urn:xmpp:muclight:0#info">>).
--define(NS_MUC_LIGHT_BLOCKING, <<"urn:xmpp:muclight:0#blocking">>).
--define(NS_MUC_LIGHT_CREATE, <<"urn:xmpp:muclight:0#create">>).
--define(NS_MUC_LIGHT_DESTROY, <<"urn:xmpp:muclight:0#destroy">>).
 
 -define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
 -define(BACKEND, mod_muc_light_db_backend).
@@ -196,11 +192,12 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Backend = case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
+    Host = ct:get_config({hosts, mim, domain}),
+    Backend = case mongoose_helper:is_odbc_enabled(Host) of
                   true -> odbc;
                   false -> mnesia
               end,
-    dynamic_modules:start(<<"localhost">>, mod_muc_light,
+    dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(?MUCHOST)},
                            {backend, Backend},
                            {rooms_in_rosters, true}]),
@@ -208,9 +205,10 @@ init_per_suite(Config) ->
     escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike, carol])).
 
 end_per_suite(Config) ->
-    clear_db(),
+    Host = ct:get_config({hosts, mim, domain}),
+    muc_light_helper:clear_db(),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
-    dynamic_modules:stop(<<"localhost">>, mod_muc_light),
+    dynamic_modules:stop(Host, mod_muc_light),
     escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
@@ -265,20 +263,8 @@ end_per_testcase(CaseName, Config) ->
         true -> set_custom_config(standard_config_schema(), standard_default_config());
         _ -> ok
     end,
-    clear_db(),
+    muc_light_helper:clear_db(),
     escalus:end_per_testcase(CaseName, Config).
-
-%% ---------------------- Helpers ----------------------
-
-create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
-    DefaultConfig = default_config(),
-    RoomUS = {RoomU, MUCHost},
-    AffUsers = [{to_lus(Owner, Config), owner}
-                | [ {to_lus(Member, Config), member} || Member <- Members ]],
-    {ok, _RoomUS} = rpc(?BACKEND, create_room, [RoomUS, DefaultConfig, AffUsers, Version]).
-
-clear_db() ->
-    rpc(?BACKEND, force_clear, []).
 
 %%--------------------------------------------------------------------
 %% MUC light tests
@@ -937,22 +923,6 @@ stanza_blocking_set(BlocklistChanges) ->
              || {What, Action, Who} <- BlocklistChanges],
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_BLOCKING, Items), ?MUCHOST).
 
--spec stanza_create_room(RoomNode :: binary() | undefined, InitConfig :: [{binary(), binary()}],
-                         InitOccupants :: ct_aff_users()) -> xmlel().
-stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
-    ToBinJID = case RoomNode of
-                     undefined -> ?MUCHOST;
-                     _ -> <<RoomNode/binary, $@, (?MUCHOST)/binary>>
-                 end,
-    ConfigItem = #xmlel{ name = <<"configuration">>,
-                         children = [ kv_el(K, V) || {K, V} <- InitConfig ] },
-    OccupantsItems = [ #xmlel{ name = <<"user">>,
-                               attrs = [{<<"affiliation">>, BinAff}],
-                               children = [#xmlcdata{ content = BinJID }] }
-                       || {BinJID, BinAff} <- bin_aff_users(InitOccupants) ],
-    OccupantsItem = #xmlel{ name = <<"occupants">>, children = OccupantsItems },
-    escalus_stanza:to(escalus_stanza:iq_set(
-                        ?NS_MUC_LIGHT_CREATE, [ConfigItem, OccupantsItem]), ToBinJID).
 
 -spec stanza_destroy_room(Room :: binary()) -> xmlel().
 stanza_destroy_room(Room) ->
@@ -963,14 +933,6 @@ stanza_config_set(Room, ConfigChanges) ->
     Items = [ kv_el(Key, Value) || {Key, Value} <- ConfigChanges],
     escalus_stanza:to(
       escalus_stanza:iq_set(?NS_MUC_LIGHT_CONFIGURATION, Items), room_bin_jid(Room)).
-
--spec stanza_aff_set(Room :: binary(), AffUsers :: ct_aff_users()) -> xmlel().
-stanza_aff_set(Room, AffUsers) ->
-    Items = [#xmlel{ name = <<"user">>, attrs = [{<<"affiliation">>, AffBin}],
-                     children = [#xmlcdata{ content = UserBin }] }
-             || {UserBin, AffBin} <- bin_aff_users(AffUsers)],
-    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_AFFILIATIONS, Items), room_bin_jid(Room)).
-
 %%--------------------------------------------------------------------
 %% Verifiers
 %%--------------------------------------------------------------------
@@ -999,33 +961,6 @@ disco_items_verify_fun(JidList) ->
         SortedResult = SortedExptected
     end.
 
-verify_aff_bcast(CurrentOccupants, AffUsersChanges) ->
-    verify_aff_bcast(CurrentOccupants, AffUsersChanges, []).
-
-verify_aff_bcast(CurrentOccupants, AffUsersChanges, ExtraNSs) ->
-    foreach_recipient(
-      [ User || {User, _} <- CurrentOccupants ], aff_msg_verify_fun(AffUsersChanges)),
-    lists:foreach(
-      fun({Leaver, none}) ->
-              Incoming = escalus:wait_for_stanza(Leaver),
-              %% This notification must come from the room bare JID
-              [_, ?MUCHOST] = binary:split(exml_query:attr(Incoming, <<"from">>), <<"@">>),
-              {[X], []} = lists:foldl(
-                            fun(XEl, {XAcc, NSAcc}) ->
-                                    XMLNS = exml_query:attr(XEl, <<"xmlns">>),
-                                    case lists:member(XMLNS, NSAcc) of
-                                        true -> {XAcc, lists:delete(XMLNS, NSAcc)};
-                                        false -> {[XEl | XAcc], NSAcc}
-                                    end
-                            end, {[], ExtraNSs}, exml_query:subelements(Incoming, <<"x">>)),
-              ?NS_MUC_LIGHT_AFFILIATIONS = exml_query:attr(X, <<"xmlns">>),
-              [Item] = exml_query:subelements(X, <<"user">>),
-              <<"none">> = exml_query:attr(Item, <<"affiliation">>),
-              LeaverJIDBin = lbin(escalus_client:short_jid(Leaver)),
-              LeaverJIDBin = exml_query:cdata(Item);
-         (_) ->
-              ignore
-      end, AffUsersChanges).
 
 -spec verify_no_stanzas(Users :: [escalus:client()]) -> ok.
 verify_no_stanzas(Users) ->
@@ -1040,35 +975,9 @@ verify_config(ConfigRoot, Config) ->
       fun({Key, Val}) ->
               Val = exml_query:path(ConfigRoot, [{element, Key}, cdata])
       end, Config).
-
--spec verify_aff_users(Items :: [xmlel()], BinAffUsers :: [{binary(), binary()}]) -> [].
-verify_aff_users(Items, BinAffUsers) ->
-    true = (length(Items) == length(BinAffUsers)),
-    [] = lists:foldl(
-           fun(Item, AffAcc) ->
-                   JID = exml_query:cdata(Item),
-                   Aff = exml_query:attr(Item, <<"affiliation">>),
-                   verify_keytake(lists:keytake(JID, 1, AffAcc), JID, Aff, AffAcc)
-           end, BinAffUsers, Items).
-
--spec verify_keytake(Result :: {value, Item :: tuple(), Acc :: list()}, JID :: binary(),
-                     Aff :: binary(), AffAcc :: list()) -> list().
-verify_keytake({value, {_, Aff}, NewAffAcc}, _JID, Aff, _AffAcc) -> NewAffAcc.
-
 %%--------------------------------------------------------------------
 %% Verification funs generators
 %%--------------------------------------------------------------------
-
--spec gc_message_verify_fun(Room :: binary(), MsgText :: binary(), Id :: binary()) -> verify_fun().
-gc_message_verify_fun(Room, MsgText, Id) ->
-    fun(Incoming) ->
-            escalus:assert(is_groupchat_message, [MsgText], Incoming),
-            [RoomBareJID, FromNick] = binary:split(exml_query:attr(Incoming, <<"from">>), <<"/">>),
-            [Room, ?MUCHOST] = binary:split(RoomBareJID, <<"@">>),
-            [_] = binary:split(FromNick, <<"/">>), % nick is bare JID
-            Id = exml_query:attr(Incoming, <<"id">>)
-    end.
-
 -spec config_msg_verify_fun(RoomConfig :: [{binary(), binary()}]) -> verify_fun().
 config_msg_verify_fun(RoomConfig) ->
     fun(Incoming) ->
@@ -1105,28 +1014,6 @@ aff_iq_verify_fun(AffUsers, Version) ->
             verify_aff_users(Items, BinAffUsers)
     end.
 
--spec aff_msg_verify_fun(AffUsersChanges :: ct_aff_users()) -> verify_fun().
-aff_msg_verify_fun(AffUsersChanges) ->
-    BinAffUsersChanges = bin_aff_users(AffUsersChanges),
-    fun(Incoming) ->
-            [X] = exml_query:subelements(Incoming, <<"x">>),
-            ?NS_MUC_LIGHT_AFFILIATIONS = exml_query:attr(X, <<"xmlns">>),
-            PrevVersion = exml_query:path(X, [{element, <<"prev-version">>}, cdata]),
-            Version = exml_query:path(X, [{element, <<"version">>}, cdata]),
-            [Item | RItems] = Items = exml_query:subelements(X, <<"user">>),
-            [ToBin | _] = binary:split(exml_query:attr(Incoming, <<"to">>), <<"/">>),
-            true = is_binary(Version),
-            true = Version =/= PrevVersion,
-            case {ToBin == exml_query:cdata(Item), RItems} of
-                {true, []} ->
-                    {_, ProperAff} = lists:keyfind(ToBin, 1, BinAffUsersChanges),
-                    ProperAff = exml_query:attr(Item, <<"affiliation">>);
-                _ ->
-                    true = is_binary(PrevVersion),
-                    verify_aff_users(Items, BinAffUsersChanges)
-            end
-    end.
-
 -spec info_iq_verify_fun(AffUsers :: ct_aff_users(), Version :: binary(),
                          ConfigKVBin :: [{binary(), binary()}]) -> verify_fun().
 info_iq_verify_fun(AffUsers, Version, ConfigKVBin) ->
@@ -1160,26 +1047,6 @@ ver(Int) ->
 version_el(Version) ->
     #xmlel{ name = <<"version">>, children = [#xmlcdata{ content = Version }] }.
 
--spec kv_el(K :: binary(), V :: binary()) -> xmlel().
-kv_el(K, V) ->
-    #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
-
--spec bin_aff_users(AffUsers :: ct_aff_users()) -> [{LBinJID :: binary(), AffBin :: binary()}].
-bin_aff_users(AffUsers) ->
-    [ {lbin(escalus_client:short_jid(User)), list_to_binary(atom_to_list(Aff))}
-      || {User, Aff} <- AffUsers ].
-
--spec room_bin_jid(Room :: binary()) -> binary().
-room_bin_jid(Room) -> <<Room/binary, $@, (?MUCHOST)/binary>>.
-
--spec to_lus(Config :: list(), UserAtom :: atom()) -> {binary(), binary()}.
-to_lus(UserAtom, Config) ->
-    {lbin(escalus_users:get_username(Config, UserAtom)),
-     lbin(escalus_users:get_server(Config, UserAtom))}.
-
--spec lbin(Bin :: binary()) -> binary().
-lbin(Bin) -> list_to_binary(string:to_lower(binary_to_list(Bin))).
-
 -spec assert_process_memory_not_growing(pid(), integer(), integer()) -> any().
 assert_process_memory_not_growing(_, _, Counter) when Counter > 4 ->
     throw({memory_consumption_is_growing});
@@ -1195,9 +1062,6 @@ assert_process_memory_not_growing(Pid, OldMemory, Counter) ->
                      Counter + 1
                  end,
   assert_process_memory_not_growing(Pid, Memory, NewCounter).
-
--spec default_config() -> list().
-default_config() -> rpc(mod_muc_light, default_config, [?MUCHOST]).
 
 -spec standard_default_config() -> list().
 standard_default_config() -> rpc(mod_muc_light, standard_default_config, []).
@@ -1236,14 +1100,6 @@ set_custom_config(RawSchema, RawDefaultConfig) ->
 -spec set_mod_config(K :: atom(), V :: any()) -> ok.
 set_mod_config(K, V) ->
     true = rpc(gen_mod, set_module_opt_by_subhost, [?MUCHOST, mod_muc_light, K, V]).
-
--spec ns_muc_light_affiliations() -> binary().
-ns_muc_light_affiliations() ->
-    ?NS_MUC_LIGHT_AFFILIATIONS.
-
--spec room2() -> binary().
-room2() ->
-    ?ROOM2.
 
 domain() ->
     ct:get_config({hosts, mim, domain}).

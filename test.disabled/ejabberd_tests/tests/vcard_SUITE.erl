@@ -29,7 +29,7 @@
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("../../../apps/ejabberd/include/jlib.hrl").
+-include_lib("../../../include/jlib.hrl").
 
 %% Element CData
 -define(EL(Element, Name), exml_query:path(Element, [{element, Name}])).
@@ -221,9 +221,10 @@ retrieve_own_card(Config) ->
 
 
 
-%% If no vCard exists or the user does not exist, the server MUST
-%% return a stanza error, which SHOULD be either
-%% <service-unavailable/> or <item-not-found/>
+%% If no vCard exists, the server MUST return a stanza error 
+%% (which SHOULD be <item-not-found/>) or an IQ-result 
+%% containing an empty <vCard/> element.
+%% We return <item-not-found/>
 user_doesnt_exist(Config) ->
     escalus:story(
       Config, [{alice, 1}],
@@ -234,7 +235,7 @@ user_doesnt_exist(Config) ->
                         escalus_stanza:vcard_request(BadJID)),
           case
           escalus_pred:is_error(<<"cancel">>,
-              <<"service-unavailable">>,
+              <<"item-not-found">>,
               Res) of
               true ->
                   ok;
@@ -1292,7 +1293,7 @@ get_all_vcards() ->
        {<<"ROLE">>, <<"Patron Saint">>},
        {<<"DESC">>, <<"active">>},
        {<<"URL">>, <<"http://john.doe/">>},
-       %{<<"PHOTO">>, crypto:rand_bytes(10)},
+       %{<<"PHOTO">>, crypto:strong_rand_bytes(10)},
        {<<"EMAIL">>,
         [{<<"USERID">>, <<"alice@mail.example.com">>}]},
        {<<"N">>,

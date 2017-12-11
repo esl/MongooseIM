@@ -80,7 +80,7 @@ init_per_testcase(CaseName, Config0) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config),
     ejabberd_node_utils:restore_config_file(Config),
-    ejabberd_node_utils:restart_application(ejabberd).
+    ejabberd_node_utils:restart_application(mongooseim).
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -168,7 +168,7 @@ delete_user_in_initial_domain(User, Config) ->
 
 connect_user(User, Config) ->
     UserSpec = escalus_users:get_userspec(Config, User),
-    {ok, Conn, _, _} = escalus_connection:start(UserSpec),
+    {ok, Conn, _} = escalus_connection:start(UserSpec),
     Conn.
 
 get_user_domain(User) ->

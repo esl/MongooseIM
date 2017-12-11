@@ -1,3 +1,22 @@
+# Unit tests (a.k.a. "small tests")
+
+These test suites are aimed at testing various modules and libraries standalone, without launching a MongooseIM instance.
+They are very useful for developing/debugging libraries.
+
+The test suites are located in `apps/ejabberd/tests/` directory.
+To run all of them, use `./rebar3 ct`; to run just a selected suite, use `./rebar3 ct SUITE=my_selected_SUITE`.
+Rebar recompiles all the code automatically, there is no need for a separate compilation step.
+
+If all the tests pass, you wll get no output and summary log will be available in ct.log.
+If any of the tests fail the summary log is printed to stdout.
+
+Detailed test results in a nice HTML format are saved in
+```
+_build/test/logs/ct_run.[something][datetime]/
+```
+
+# End-to-end tests (a.k.a. "big tests")
+
 ## TL;DR
 
 In shell #1:
@@ -11,28 +30,28 @@ $ make devrel
 In shell #2:
 
 ```sh
-$ cd $MONGOOSEIM/_build/mim1/rel
+$ cd $MONGOOSEIM/_build/mim1/rel/mongooseim
 $ ./bin/mongooseimctl live
 ```
 
 In shell #3:
 
 ```sh
-$ cd $MONGOOSEIM/_build/mim2/rel
+$ cd $MONGOOSEIM/_build/mim2/rel/mongooseim
 $ ./bin/mongooseimctl live
 ```
 
 In shell #4:
 
 ```sh
-$ cd $MONGOOSEIM/_build/mim3/rel
+$ cd $MONGOOSEIM/_build/mim3/rel/mongooseim
 $ ./bin/mongooseimctl live
 ```
 
 In shell #5:
 
 ```sh
-$ cd $MONGOOSEIM/_build/fed1/rel
+$ cd $MONGOOSEIM/_build/fed1/rel/mongooseim
 $ ./bin/mongooseimctl live
 ```
 
@@ -45,11 +64,29 @@ $ make quicktest
 
 Wait for the tests to finish and celebrate (or wallow in despair and grief)!
 
-## Step by step breakdown
+One-liner alternative for tmux users:
 
-`make devrel` builds required server nodes:
-These are preconfigured for breadth of features and compatible with as many test suites as possible.
-There are four of them:
+```sh
+./rebar3 compile
+make devrel
+tmux new-window -n mim1 '_build/mim1/rel/mongooseim/bin/mongooseimctl live'
+tmux new-window -n mim2 '_build/mim2/rel/mongooseim/bin/mongooseimctl live'
+tmux new-window -n mim3 '_build/mim3/rel/mongooseim/bin/mongooseimctl live'
+tmux new-window -n fed1 '_build/fed1/rel/mongooseim/bin/mongooseimctl live'
+_build/mim1/rel/mongooseim/bin/mongooseimctl started
+_build/mim2/rel/mongooseim/bin/mongooseimctl started
+_build/mim3/rel/mongooseim/bin/mongooseimctl started
+_build/fed1/rel/mongooseim/bin/mongooseimctl started
+make -C test.disabled/ejabberd_tests quicktest
+```
+
+Start a new tmux and paste the commands.
+
+
+## Step-by-step breakdown
+
+`make devrel` builds four server nodes, preconfigured for a wide range of features covered by end-to-end tests.
+
 - `$MONGOOSEIM/_build/mim1/rel`, for most test SUITEs
 - `$MONGOOSEIM/_build/mim*/rel`, in order to test cluster-related commands;;
 - `$MONGOOSEIM/_build/fed1/rel`, in order to test XMPP federation (server to server communication, S2S).
@@ -71,7 +108,7 @@ When you develop a new feature, the speed of iterating is crucial to maintain th
 In  `$MONGOOSEIM/test.disabled/ejabberd_tests/` we have:
 
 ```
-$ tree test/ejabberd_tests/ -L 1 -F
+$ tree test.diabled/ejabberd_tests/ -L 1 -F
 test/ejabberd_tests/
 ├── Makefile
 ├── README.md
@@ -95,31 +132,79 @@ cd $MONGOOSEIM/test/ejabberd_tests/
 make quicktest TESTSPEC=my-feature.spec
 ```
 
-It's customary to create a per-feature (or per-project, if you're cloning away) `.spec` file and only enable the suites / test groups you want to test - this speeds up the iteration cycle by not testing the parts of the system that you know have not changed.
-It's worth running `default.spec` once in a while to check for regressions, though.
+To speed up the development cycle, developers usually create a `.spec` file for each feature (or each project, if you're cloning away) and only enable the suites / test groups they are working on.
+The allows testing only the parts of the system that are actually being changed.
+It's worth running `default.spec` once in a while to check for regressions.
 
-Have a look into the `default.spec` file to see how to pick only the interesting tests to run.
+Consult the `default.spec` file to see how to run only selected tests/groups/cases.
 
-If you're sure that none of the test dependencies have changed and you only edited the test suites, it's possible to speed up the tests by skipping the Rebar dependency and compilation checks by providing `PREPARE=` (i.e. an empty value):
+If you're sure that none of the test dependencies have changed and you only edited the test suites and/or MongooseIM code, it's possible to speed up the tests by skipping the Rebar dependency and compilation checks by providing `PREPARE=` (i.e. an empty value):
 
 ```sh
 make quicktest PREPARE=
 ```
 
-Have a look inside the `Makefile` to see how it works.
+Consult the `test.disabled/ejabberd_tests/Makefile` to see how it works.
 
-### Reloading node(s) code
+### Applying code changes
 
-When working on a feature or a bug fix, often you modify the code and check if it works as expected. 
-In order to change the code on dev nodes that are already generated (`mim*` and `fed*`), recompile the code for a specific node.
-For example to update the code on `mim1` node, all you have to do is:
+When working on a feature or a bug fix you often modify the code and check if it works as expected.
+In order to change the code on dev nodes that are already generated (`mim*` and `fed*`) recompile the code for a specific node.
+For example, to update the code on `mim1` node all you have to do is:
 ```sh
 ./rebar3 as mim1 compile
 ```
 
-A similar command applies to other nodes, the important thing here is rebar3's profile.
+A similar command applies to other nodes, the important thing being rebar3's profile.
 
-When the above command finishes, the code can be reloaded on the server by:
-1. loading new module(s) in the node's shell, f.e. `l(mongoose_riak)`
-1. restarting the node
+When the above command finishes, the code can be reloaded on the server by either reloading changed module(s) in the node's shell, e.g. `l(mongoose_riak)`, or restarting the node.
+
+### Reading test reports
+
+When finished, the test engine writes detailed html reports into a directory:
+
+```
+test.disabled/ejabberd_tests/ct_report/ct_run.[gobbledygook][datetime]/
+```
+
+Each run is saved into a new directory. This snippet:
+
+```
+#!/bin/bash
+
+lst=$(ls -rt ct_report | grep ct_run | tail -n 1)
+rm ct_report/lastrun
+ln -s $lst ct_report/lastrun
+```
+
+can be of some help.
+
+## Checking coverage
+
+If you want to check how much of the code is covered by tests, run:
+
+```
+make cover_quicktest
+```
+
+Note: You need all the mim nodes (mim1, mim2 and mim3) up and running, even if you only run some of the tests. If any of the nodes is down, the test will crash.
+
+This command will recompile and reload the code on dev nodes with coverage enabled and run test suites as defined in the spec.
+Coverage statistics will be available in `test.disabled/ejabberd_tests/ct_report/cover.html` and `coverage` subdirectory.
+
+## Advanced topics
+
+There are many more options available.
+One of them is sequentially testing a number of preset configurations - we do it every day on Travis, testing MongooseIM with various OTP versions and database backends.
+Altogether, we have eight preset configuration.
+
+If you want to dig deeper, consult `.travis.yml` and `tools/travis-test.sh`, everything we do is there.
+
+## Load testing
+
+Alongside CI, we do also CLT (Continuous Load Testing).
+We have our own load testing infrastructure, called Tide, which is triggered after every successful test run, and gives us a feedback on changes to MongooseIM performance.
+
+Test results are publicly available on the [Hello Tide!](http://tide.erlang-solutions.com/public) page.
+
 
