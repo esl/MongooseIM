@@ -22,6 +22,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -define(SLEEP_TIME, 50).
+-define(NS_PRIVACY,     <<"jabber:iq:privacy">>).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -71,7 +72,8 @@ blocking_test_cases() ->
      block_jid_message_but_not_presence,
      newly_blocked_presense_jid_by_new_list,
      newly_blocked_presense_jid_by_list_change,
-     newly_blocked_presence_not_notify_self
+     newly_blocked_presence_not_notify_self,
+     send_iq_with_privacy_ns
     ].
 
 allowing_test_cases() ->
@@ -629,6 +631,34 @@ version_iq(Type, From, To) ->
     Req1 = escalus_stanza:to(Req, To),
     Req2= escalus_stanza:from(Req1, From),
     Req2.
+
+send_iq_with_privacy_ns(Config) ->
+    %% Will send iq with blocking namespace with type result and error
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        QueryWithPrivacyNS = escalus_stanza:query_el(?NS_PRIVACY, []),
+        BobJid = escalus_utils:get_short_jid(Bob),
+        IQError = escalus_stanza:iq(BobJid, <<"error">>, [QueryWithPrivacyNS]),
+        %% After sending the following IQ the server used to crash
+        %% The iq is ignored now and can not be checked for existence
+        escalus:send(Alice, IQError),
+        %% Check server still available by sending msg
+        ChatMsg1 = escalus_stanza:chat_to(Bob, <<"Hi, Bob">>),
+        escalus:send(Alice, ChatMsg1),
+        escalus:assert(is_chat_message,
+                       [<<"Hi, Bob">>],
+                       escalus:wait_for_stanza(Bob)),
+
+        IQResult = escalus_stanza:iq(BobJid, <<"result">>, [QueryWithPrivacyNS]),
+        %% After sending the following IQthe server used to crash
+        %% The iq is ignored now and can not be checked for existence
+        escalus:send(Alice, IQResult),
+        %% Check server still available by sending msg
+        ChatMsg2 = escalus_stanza:chat_to(Alice, <<"Hi, Alice">>),
+        escalus:send(Bob, ChatMsg2),
+        escalus:assert(is_chat_message,
+                       [<<"Hi, Alice">>],
+                       escalus:wait_for_stanza(Alice))
+    end).
 
 block_jid_iq(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->

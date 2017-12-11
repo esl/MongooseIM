@@ -2349,12 +2349,10 @@ get_priority_from_presence(PresencePacket) ->
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
 process_privacy_iq(Acc0, To, StateData) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),
-    IQ = mongoose_acc:get(iq_query_info, Acc),
-    Acc1 = mongoose_acc:put(iq, IQ, Acc),
-    From = mongoose_acc:get(from_jid, Acc1),
-    case is_record(IQ, iq) of
-        true ->
-            #iq{type = Type, sub_el = SubEl} = IQ,
+    case mongoose_acc:get(iq_query_info, Acc) of
+        #iq{type = Type, sub_el = SubEl} = IQ ->
+            Acc1 = mongoose_acc:put(iq, IQ, Acc),
+            From = mongoose_acc:get(from_jid, Acc1),
             {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
             Res = mongoose_acc:get(iq_result, Acc2, {error, ?ERR_FEATURE_NOT_IMPLEMENTED}),
             IQRes = case Res of
