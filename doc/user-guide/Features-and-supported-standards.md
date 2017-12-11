@@ -11,16 +11,16 @@
     * over HTTP(S) long-polling (BOSH) as defined in
     [XEP-0124](http://xmpp.org/extensions/xep-0124.html) and
     [XEP-0206](http://xmpp.org/extensions/xep-0206.html)
-    * [REST API](../REST-API.md)
+    * [REST API](../rest-api/Client-frontend.md)
 * Server/backend connections:
-    * [REST API](/http-api/http-administration-api-documentation/)
+    * [REST API](../rest-api/Administration-backend.md)
 * Configurable database backends:
     * Transient:
         * Mnesia
         * Redis
     * Persistent:
         * RDBMS: MySQL, PostgreSQL, generic ODBC
-        * NOSQL: Riak KV
+        * NOSQL: Riak KV, Cassandra
 * Integration with third-party services
     * [Amazon Simple Notification Service](../modules/mod_aws_sns.md)
 
@@ -77,7 +77,8 @@
 |0352|[Client State Indication](http://www.xmpp.org/extensions/xep-0352.html)|`mod_csi`|
 |0357|[Push Notifications](http://www.xmpp.org/extensions/xep-0357.html)|`mod_push`|
 |0363|[HTTP File Upload](https://xmpp.org/extensions/xep-0363.html)|`mod_http_upload`|
-|0375|[XMPP Advanced Server 2016](http://www.xmpp.org/extensions/xep-0375.html) (without 0369: Mediated Information eXchange)||
+|0375|[XMPP Advanced Server 2017](https://xmpp.org/extensions/xep-0387.html) (without 0369: Mediated Information eXchange)|
+|0384|[OMEMO Encryption](https://xmpp.org/extensions/xep-0384.html) (MongooseIM supports PEP, which is required by this extension)||
 
 ## Supported Open Extensions
 
@@ -85,3 +86,11 @@
 | ------------- | ------------- |
 |[MUC Light](../open-extensions/muc_light.md)|`mod_muc_light`|
 |[Token-based reconnection](../open-extensions/token-reconnection.md)|`mod_auth_token`, `mod_keystore`|
+
+## Integration with other platform components
+
+### MongoosePUSH
+MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush). For more details visit the push notification [user guide](Push-notifications.md).
+
+### MongooseICE
+You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE). To get started, we recommend going through [this tutorial](ICE_tutorial.md).

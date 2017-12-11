@@ -1,0 +1,4 @@
+[mysqld]
+ssl=1
+ssl-cert=fake_cert.pem
+ssl-key=fake_key.pem

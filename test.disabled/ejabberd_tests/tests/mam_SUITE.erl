@@ -616,6 +616,7 @@ end_per_group(Group, Config) ->
     B = basic_group(Group),
     Config1 = end_state(C, B, Config),
     Config2 = end_modules(C, B, Config1),
+    purge_params_modules(),
     escalus_fresh:clean(),
     delete_users(Config2).
 
@@ -1072,6 +1073,12 @@ stop_module(Host, Mod) ->
 just_stop_module(Host, Mod) ->
     {atomic, ok} = rpc_apply(gen_mod, stop_module, [Host, Mod]),
     ok.
+
+purge_params_modules() ->
+    rpc_apply(code, delete, [mod_mam_params]),
+    rpc_apply(code, purge, [mod_mam_params]),
+    rpc_apply(code, delete, [mod_mam_muc_params]),
+    rpc_apply(code, purge, [mod_mam_muc_params]).
 
 %%--------------------------------------------------------------------
 %% Group name helpers
@@ -1578,7 +1585,7 @@ message_with_stanzaid_and_archived(Config) ->
 
         %% Bob receives a message.
         Msg = escalus:wait_for_stanza(Bob),
-        
+
         ArcArchived = exml_query:subelement(Msg, <<"archived">>),
         ArcStanzaid = exml_query:subelement(Msg, <<"stanza-id">>),
         %% JID of the archive (i.e. where the client would send queries to)
@@ -1832,10 +1839,10 @@ muc_message_with_archived_and_stanzaid(Config) ->
         %% Attribute giving the message's UID within the archive.
         IdArchived  = exml_query:attr(ArcArchived, <<"id">>),
         IdStanzaid  = exml_query:attr(ArcStanzaid, <<"id">>),
-	
+
         ?assert_equal(ByArchived, ByStanzaid),
         ?assert_equal(IdArchived, IdStanzaid),
-	
+
 	%% stanza-id has a namespace 'urn:xmpp:sid:0'
 	Xmlns = exml_query:attr(ArcStanzaid, <<"xmlns">>),
 	?assert_equal(Xmlns, <<"urn:xmpp:sid:0">>),

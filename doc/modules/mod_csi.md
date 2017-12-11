@@ -17,3 +17,11 @@ The implementation in MongooseIM will simply buffer all packets (up to a configu
   {mod_csi, [{buffer_max, 40}]},
 ```
 
+### Metrics
+
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[Host, modCSIInactive]` | spiral | A client becomes inactive. |
+| `[Host, modCSIActive]` | spiral | A client becomes active. |

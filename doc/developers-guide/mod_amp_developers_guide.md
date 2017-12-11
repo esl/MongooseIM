@@ -6,35 +6,35 @@ This is a quick, introductory guide for developers wishing to extend `mod_amp` o
 Source Files, Headers and Tests
 -------------------------------
 
-  * `apps/ejabberd/include/amp.hrl`  
+  * `include/amp.hrl`
     This header file contains the amp XML namespace and the types used by mod_amp: `amp_rule()` and `amp_strategy()` are the top-level points of interest.
 
-  * `apps/ejabberd/src/mod_amp.erl`  
+  * `src/mod_amp.erl`
     This module is responsible for plugging in all the other components. 
     It's main driving function is `filter_packet`. 
     After determining that a given message contains amp rules, the module proceeds by determining its strategy for the message and comparing it against the rules.
     The server may return an error at multiple points in its work-flow. 
     This is signaled by calling the function `send_error_and_drop/3` or `send_errors_and_drop/2`.
 
-  * `apps/ejabberd/src/amp.erl`  
+  * `src/amp.erl`
     This module is responsible for parsing rules from incoming elements and serializing server responses in the proper format.
     `binaries_to_rule/3` can return either a proper `amp_rule()`, or an `amp_invalid_rule()`, which does not contain sensible values, but can be used by the server to create an appropriate error message.
 
-  * `apps/ejabberd/test/amp_SUITE.erl`  
+  * `test/amp_SUITE.erl`
     Tests for the API functions exported by `amp.erl`
 
-  * `apps/ejabberd/src/amp_strategy.erl`  
+  * `src/amp_strategy.erl`
     This module is where the server-side hook for determining a default action for a given message is performed. 
     Calls to `ejabberd_sm` are made here.
 
-  * `apps/ejabberd/src/amp_resolver.erl`  
+  * `src/amp_resolver.erl`
     This module models the resolution of amp rules, given a certain strategy. 
     Also, the function verify_rule_support is hard-coded here to return an `unsupported-` type error for unsupported rule actions and values.
 
-  * `apps/ejabberd/test/amp_resolver_SUITE.erl`  
+  * `test/amp_resolver_SUITE.erl`
     These tests verify that the `amp_resolver:check_condition/4` hook works as intended, i.e: that the rules which would be triggered given a particular server-side strategy actually do get triggered, and that all others get rejected.
 
-  * `apps/ejabberd/test/amp_gen.erl`  
+  * `test/amp_gen.erl`
     This module contains PropEr generators for server-side strategies, as well as valid and invalid amp rules. 
     Used in both test suites.
 

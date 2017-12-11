@@ -78,7 +78,7 @@ summaries_dir() {
 
 run_small_tests() {
   echo "############################"
-  echo "Running small tests (apps/ejabberd/tests)"
+  echo "Running small tests (test/)"
   echo "############################"
   echo "Add option -s false to skip embeded common tests"
   make ct

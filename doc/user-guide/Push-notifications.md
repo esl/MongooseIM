@@ -80,7 +80,7 @@ This module acts as a bridge between [mod_pubsub][] that receives notifications 
 }]}.
 
 {mod_push_service_mongoosepush, [
-    {pool_name, mongoose_push_http}
+    {pool_name, mongoose_push_http},
     {api_version, "v2"}
 ]}.
 ```
@@ -88,7 +88,7 @@ This module acts as a bridge between [mod_pubsub][] that receives notifications 
 First, we create the HTTP pool for communicating with [MongoosePush][].
 Here, we assume that [MongoosePush][] will be available on the localhost on port 8443 which is the default one.
 Next we enable [mod_push_service_mongoosepush][].
-First option is the name of the HTTP pool to use and the second one is the version of [MongoosePush][]'s API (currently only "_v1_" is supported).
+First option is the name of the HTTP pool to use and the second one is the version of [MongoosePush][]'s API (currently only "_v2_" is supported).
 
 And that's it, we've just completed the entire MongooseIM configuration.
 All we need to do now is to set up [MongoosePush][].

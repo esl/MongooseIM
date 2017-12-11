@@ -2,7 +2,7 @@
 
 -compile([export_all]).
 
--include("../apps/ejabberd/include/mod_privacy.hrl").
+-include("../include/mod_privacy.hrl").
 
 -define(MAX_ORDER, 5).
 -define(MAX_LIST_SIZE, 5).
@@ -71,7 +71,7 @@ make_list_item(Type, UserPrefix, UserHost, UserCount) ->
                 false -> RandBool()
             end end,
         BlockBy = RandBlockBy(),
-        {listitem, BlockBy, RandValue(BlockBy), 
+        {listitem, BlockBy, RandValue(BlockBy),
             RandAction(),
             RandOrder(),
             MatchAll,

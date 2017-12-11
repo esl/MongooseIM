@@ -18,7 +18,7 @@ ERTS_VSN=${START_ERL% *}
 ERTS_PATH=$EJABBERD_DIR/erts-$ERTS_VSN/bin
 ERL=$ERTS_PATH/erl
 EPMD=$ERTS_PATH/epmd
-EJABBERD_EBIN_PATH=$EJABBERD_DIR/lib/ejabberd-*/ebin/
+EJABBERD_EBIN_PATH=$EJABBERD_DIR/lib/mongooseim-*/ebin/
 
 COOKIE_ARG=`grep -e '^-setcookie' $EJABBERD_VMARGS_PATH`
 if [ -z "$COOKIE_ARG" ]; then

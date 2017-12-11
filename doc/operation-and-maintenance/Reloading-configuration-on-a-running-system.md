@@ -14,3 +14,11 @@ It's available as a safety mechanism for the rare case of a cluster-global reloa
 on all nodes of the cluster.
 The prerequisite is that the modified config file must be available on
 all nodes at the same location (the location where MongooseIM expects its config file).
+
+### Non-reloadable options
+Some options require restarting the server in order to be reloaded.
+The following options' changes will be ignored when using `mongooseimctl` tool:
+* domain_certfile
+* s2s_*
+* all_metrics_are_global
+* odbc_*

@@ -8,27 +8,28 @@ extra_javascript: []
 
 pages:
   - Home: 'index.md'
-  - User Guide:
+  - User guide:
+      - 'ABCs of MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
+      - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
       - 'Features and supported standards': 'user-guide/Features-and-supported-standards.md'
-      - 'Get to know MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
       - 'Getting started': 'user-guide/Getting-started.md'
       - 'Release/Installation configuration': 'user-guide/release_config.md'
-      - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
-  - How to:
-      - 'Build MongooseIM from source code': 'user-guide/How-to-build.md'
-      - 'Set up MongoosePush': 'user-guide/Push-notifications.md'
-      - 'Set up MongooseICE': 'user-guide/ICE_tutorial.md'
+  - Tutorials:
+      - 'How to Build MongooseIM from source code': 'user-guide/How-to-build.md'
+      - 'How to Set up MongoosePush': 'user-guide/Push-notifications.md'
+      - 'How to Set up MongooseICE': 'user-guide/ICE_tutorial.md'
+      - 'How to Build an iOS messaging app': 'user-guide/iOS_tutorial.md'
   - Platform:
       - 'Roadmap': 'Roadmap.md'
       - 'Contributions to ecosystem': 'Contributions.md'
       - 'Differentiators': 'Differentiators.md'
       - 'History': 'History.md'
-  - 'Basic Configuration': 'Basic-configuration.md'
-  - 'Advanced Configuration':
-      - 'Top-level options': 'Advanced-configuration.md'
+  - 'Configuration':
+      - 'Basic Configuration': 'Basic-configuration.md'
+      - 'Advanced Configuration': 'Advanced-configuration.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
-      - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'Extension Modules': 'advanced-configuration/Modules.md'
+      - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'ACL': 'advanced-configuration/acl.md'
   - 'Authentication backends':
       - 'External Authentication Module': 'authentication-backends/External-authentication-module.md'
@@ -38,8 +39,30 @@ pages:
   - 'MongooseIM open XMPP extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
-  - 'REST API for client developers': 'REST-API.md'
-  - 'Modules':
+  - 'REST API':
+      - 'Client/frontend': 'rest-api/Client-frontend.md'
+      - 'Metrics backend': 'rest-api/Metrics-backend.md'
+      - 'Administration backend': 'rest-api/Administration-backend.md'  
+  - 'Operation and maintenance':
+      - 'Cluster management considerations': 'operation-and-maintenance/Cluster-management-considerations.md'
+      - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
+      - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
+      - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
+      - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
+      - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
+  - "Developer's guide":
+      - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
+      - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
+      - 'Hooks description': 'developers-guide/hooks_description.md'
+      - 'Stanza routing': 'developers-guide/message_routing.md'
+      - 'Accumulators':  'developers-guide/accumulators.md'
+      - 'Moving to single app project structure': 'developers-guide/Moving-to-single-app-project-structure.md'
+      - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
+      - 'mod_muc_light developers doc': 'developers-guide/mod_muc_light_developers_guide.md'
+      - 'SCRAM serialization format': 'developers-guide/SCRAM-serialization.md'
+      - 'xep-tool usage': 'developers-guide/xep_tool.md'
+      - 'FIPS mode': 'developers-guide/OpenSSL-and-FIPS.md'
+  - 'Module index':
       - 'mod_adhoc': 'modules/mod_adhoc.md'
       - 'mod_admin_extra': 'modules/mod_admin_extra.md'
       - 'mod_amp': 'modules/mod_amp.md'
@@ -81,23 +104,3 @@ pages:
       - 'mod_time': 'modules/mod_time.md'
       - 'mod_vcard': 'modules/mod_vcard.md'
       - 'mod_version': 'modules/mod_version.md'
-  - 'Operation and maintenance':
-      - 'Cluster management considerations': 'operation-and-maintenance/Cluster-management-considerations.md'
-      - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
-      - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
-      - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
-      - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
-      - 'HTTP Administration API': 'http-api/http-administration-api-documentation.md'
-      - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
-  - "Developer's guide":
-      - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
-      - 'REST interface to metrics': 'developers-guide/REST-interface-to-metrics.md'
-      - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
-      - 'Hooks description': 'developers-guide/hooks_description.md'
-      - 'Stanza routing': 'developers-guide/message_routing.md'
-      - 'Accumulators':  'developers-guide/accumulators.md'
-      - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
-      - 'mod_muc_light developers doc': 'developers-guide/mod_muc_light_developers_guide.md'
-      - 'SCRAM serialization format': 'developers-guide/SCRAM-serialization.md'
-      - 'xep-tool usage': 'developers-guide/xep_tool.md'
-      - 'FIPS mode': 'developers-guide/OpenSSL-and-FIPS.md'
