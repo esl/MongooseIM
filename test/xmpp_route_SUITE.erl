@@ -20,14 +20,13 @@ init_per_suite(C) ->
            (_) ->
             undefined
         end),
-    {ok, _} = application:ensure_all_started(exometer),
+    {ok, _} = application:ensure_all_started(exometer_core),
     ejabberd_router:start_link(),
     C.
 
 end_per_suite(_C) ->
     mnesia:stop(),
     mnesia:delete_schema([node()]),
-    application:stop(exometer),
     application:stop(exometer_core),
     ok.
 
@@ -98,4 +97,3 @@ verify(L) ->
         ?assertEqual(L, []),
         ct:pal("all messages routed correctly")
     end.
-

@@ -52,7 +52,7 @@ init_per_testcase(codec_calls, Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     application:ensure_all_started(stringprep),
-    application:ensure_all_started(exometer),
+    application:ensure_all_started(exometer_core),
     ets:new(local_config, [named_table]),
     ejabberd_hooks:start_link(),
     ejabberd_router:start_link(),
@@ -72,7 +72,6 @@ end_per_testcase(codec_calls, Config) ->
     mnesia:stop(),
     mongoose_subhosts:stop(),
     mnesia:delete_schema([node()]),
-    application:stop(exometer),
     application:stop(exometer_core),
     Config;
 end_per_testcase(_, Config) ->

@@ -171,7 +171,7 @@ name_by_all_metrics_are_global(Host, Name) ->
     pick_by_all_metrics_are_global([global | Name], [Host | Name]).
 
 get_report_interval() ->
-    application:get_env(exometer, mongooseim_report_interval,
+    application:get_env(exometer_core, mongooseim_report_interval,
                         ?DEFAULT_REPORT_INTERVAL).
 
 -spec do_create_generic_hook_metric(Host :: ejabberd:lserver() | global, Metric :: list()) ->
