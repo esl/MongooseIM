@@ -47,3 +47,4 @@ cp test.disabled/ejabberd_tests/*.log ${LOG_DIR_ROOT}
 
 aws s3 sync --quiet ${CT_REPORTS} s3://mongooseim-ct-results/${CT_REPORTS}
 
+env

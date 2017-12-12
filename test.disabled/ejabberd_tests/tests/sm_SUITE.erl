@@ -337,16 +337,25 @@ resend_more_offline_messages_than_buffer_size(Config) ->
     escalus_connection:stop(Alice),
     escalus_connection:stop(Bob).
 
+send_and_log(From, To, Msg) ->
+    ct:log("sending msg: ~p~n", [Msg]),
+    escalus:send(From, escalus_stanza:chat_to(To, Msg)).
+
 resend_unacked_on_reconnection(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
-    {Bob, _} = given_fresh_user(Config, bob),
+    {Bob, BobSpec0} = given_fresh_user(Config, bob),
+    ct:log("Bob: ~p~nBob Spec: ~p~n", [Bob, BobSpec0]),
     {Alice, AliceSpec0} = given_fresh_user(Config, alice),
+    ct:log("Alice: ~p~nAlice Spec: ~p~n", [Alice, AliceSpec0]),
         discard_vcard_update(Alice),
         %% Bob sends some messages to Alice.
-        [escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg))
+        [send_and_log(Bob, Alice, Msg)
          || Msg <- Messages],
         %% Alice receives the messages.
-        Stanzas = escalus:wait_for_stanzas(Alice, length(Messages)),
+        Stanzas0 = escalus:wait_for_stanzas(Alice, length(Messages) + 10),
+        Stanzas = lists:sublist(Stanzas0, length(Messages)),
+        ct:log("up to 13 stanzas that came at all: ~p~n", [Stanzas]),
+        ct:log("stanzas that should be messages ~p~n", [Stanzas]),
         [escalus:assert(is_chat_message, [Msg], Stanza)
          || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
         %% Alice disconnects without acking the messages.
