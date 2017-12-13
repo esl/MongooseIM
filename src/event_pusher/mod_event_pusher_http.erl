@@ -1,11 +1,11 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_http_notification.erl
+%%% File    : mod_event_pusher_http.erl
 %%% Author  : Baibossynv Valery <baibossynov.valery@gmail.com>
 %%% Purpose : Message passing via http
 %%% Created : 16 Dec 2015 by Baibossynv Valery <baibossynov.valery@gmail.com>
 %%%----------------------------------------------------------------------
 
--module(mod_event_pusher_http_notification).
+-module(mod_event_pusher_http).
 -author("baibossynov.valery@gmail.com").
 
 -behaviour(gen_mod).
@@ -53,7 +53,7 @@ push_event(_, _Event) ->
 %%%===================================================================
 
 get_callback_module() ->
-    gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, mod_http_notification_default).
+    gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, mod_event_pusher_http_defaults).
 
 make_req(Host, Sender, Receiver, Message) ->
     Path = fix_path(list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH))),

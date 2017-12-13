@@ -9,8 +9,8 @@
 %%% Default plugin module for mod_push. This module allows for some dynamic customizations.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_push_plugin_default).
--behavior(mod_push_plugin).
+-module(mod_event_pusher_push_plugin_defaults).
+-behavior(mod_event_pusher_push_plugin).
 -author('rafal.slota@erlang-solutions.com').
 
 -include("jlib.hrl").

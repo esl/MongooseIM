@@ -16,7 +16,7 @@
         {region, "eu-west-1"},
         {account_id, "123456789012"},
         {sns_host, "sns.eu-west-1.amazonaws.com"},
-        {plugin_module, mod_aws_sns_defaults},
+        {plugin_module, mod_event_pusher_sns_defaults},
         {presence_updates_topic, "user_presence_updated-dev-1"},
         {pm_messages_topic, "user_message_sent-dev-1"},
         {muc_messages_topic, "user_messagegroup_sent-dev-1"},

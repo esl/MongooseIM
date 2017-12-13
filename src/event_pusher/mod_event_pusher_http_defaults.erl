@@ -1,14 +1,14 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_http_notification_default.erl
+%%% File    : mod_event_pusher_http_defaults.erl
 %%% Author  : Baibossynv Valery <baibossynov.valery@gmail.com>
 %%% Purpose : Message passing via http
 %%% Created : 23 Feb 2075 by Piotr Nosek
 %%%----------------------------------------------------------------------
 
--module(mod_http_notification_default).
+-module(mod_event_pusher_http_defaults).
 -author("baibossynov.valery@gmail.com").
 
--behaviour(mod_event_pusher_http_notification).
+-behaviour(mod_event_pusher_http).
 
 %% API
 -export([should_make_req/3]).
@@ -26,4 +26,3 @@ should_make_req(<<"chat">>, Body, _From, _To) when Body /= <<"">> ->
     true;
 should_make_req(_, _, _, _) ->
     false.
-

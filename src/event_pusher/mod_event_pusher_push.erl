@@ -105,7 +105,7 @@ push_event(_, _) ->
     ok.
 
 do_push_event(Host, #chat_event{from = From, to = To, packet = Packet}) ->
-    mod_push_plugin:should_publish(Host, From, To, Packet) andalso
+    mod_event_pusher_push_plugin:should_publish(Host, From, To, Packet) andalso
         publish_message(From, To, Packet).
 
 %% Hook 'remove_user'
@@ -242,7 +242,7 @@ push_notification_iq(Host, From, Packet, Node, Form) ->
         [
          {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
          {<<"message-count">>, <<"1">>},
-         {<<"last-message-sender">>, mod_push_plugin:sender_id(Host, From, Packet)},
+         {<<"last-message-sender">>, mod_event_pusher_push_plugin:sender_id(Host, From, Packet)},
          {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
         ],
 

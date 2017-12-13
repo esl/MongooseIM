@@ -23,7 +23,7 @@
 -include("mod_event_pusher_events.hrl").
 
 -export([start/2, stop/1]).
--export([user_send_packet/4, filter_packet/1, user_present/2, user_not_present/5]).
+-export([user_send_packet/4, filter_local_packet/1, user_present/2, user_not_present/5]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -41,12 +41,12 @@ stop(Host) ->
 %% Hook callbacks
 %%--------------------------------------------------------------------
 
--spec filter_packet(drop) -> drop;
-                   (RoutingData) -> RoutingData
-                                        when RoutingData :: {jid(), jid(), mongoose_acc:t()}.
-filter_packet(drop) ->
+-spec filter_local_packet(drop) -> drop;
+                         (RoutingData) -> RoutingData
+                                              when RoutingData :: {jid(), jid(), mongoose_acc:t()}.
+filter_local_packet(drop) ->
     drop;
-filter_packet({From, To = #jid{lserver = Host}, Acc, Packet}) ->
+filter_local_packet({From, To = #jid{lserver = Host}, Acc, Packet}) ->
     case chat_type(Acc) of
         false -> skip;
         Type ->
@@ -100,7 +100,7 @@ chat_type(Acc) ->
 -spec hooks(Host :: ejabberd:server()) -> [ejabberd_hooks:hook()].
 hooks(Host) ->
     [
-     {filter_local_packet, Host, ?MODULE, filter_packet, 90},
+     {filter_local_packet, Host, ?MODULE, filter_local_packet, 90},
      {unset_presence_hook, Host, ?MODULE, user_not_present, 90},
      {user_available_hook, Host, ?MODULE, user_present, 90},
      {user_send_packet, Host, ?MODULE, user_send_packet, 90},

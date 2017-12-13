@@ -211,21 +211,21 @@ opt(Host, Option, Default) ->
 
 -spec user_guid(Host :: ejabberd:lserver(), UserJID :: ejabberd:jid()) -> user_guid().
 user_guid(Host, UserJID) ->
-    PluginModule = opt(Host, plugin_module, mod_aws_sns_defaults),
+    PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:user_guid(UserJID).
 
 -spec message_attributes(Host :: ejabberd:lserver(), TopicARN :: topic_arn(),
                          UserJID :: ejabberd:jid(), IsOnline :: boolean()) ->
                                 attributes().
 message_attributes(Host, TopicARN, UserJID, IsOnline) ->
-    PluginModule = opt(Host, plugin_module, mod_aws_sns_defaults),
+    PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:message_attributes(TopicARN, UserJID, IsOnline).
 
 -spec message_attributes(Host :: ejabberd:lserver(), TopicARN :: topic_arn(),
                          From :: ejabberd:jid(), To :: ejabberd:jid(), MessageType :: pm | muc,
                          Packet :: jlib:xmlel()) -> attributes().
 message_attributes(Host, TopicARN, From, To, MessageType, Packet) ->
-    PluginModule = opt(Host, plugin_module, mod_aws_sns_defaults),
+    PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:message_attributes(TopicARN, From, To, MessageType, Packet).
 
 -spec calc_backoff_time(Host :: ejabberd:lserver(), integer()) -> integer().

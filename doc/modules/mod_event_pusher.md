@@ -4,7 +4,7 @@ It defines a single hook, `push_event/3` that forwards the event to all register
 Each backend decides how and if to handle the event in its `push_event/2` implementation.
 
 The events are standardized as records that can be found in `mod_event_pusher_events.hrl` file.
-Common events like user presence change (offline and online), chat and groupchat messages (incoming and outgoing) are already hooked up to the frontend via `mod_event_pusher_hook_translator` that translates various hooks into specific calls of the `push_event/3` hook.
+Common events like user presence change (offline and online), chat and groupchat messages (incoming and outgoing) are already hooked up to the frontend via `mod_event_pusher_hook_translator` which is a proxy between various hooks and `push_event/3` hook handler.
 
 ### Options
 

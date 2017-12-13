@@ -9,7 +9,7 @@
 %%% Plugin module defining default custom behaviour for AWS SNS notifications.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_aws_sns_defaults).
+-module(mod_event_pusher_sns_defaults).
 -author("Rafal Slota").
 
 -behavior(mod_event_pusher_sns).
