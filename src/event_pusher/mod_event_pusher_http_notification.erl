@@ -44,7 +44,9 @@ push_event(_, #chat_event{direction = in, from = From, to = To, packet = Packet}
             make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
         _ ->
             ok
-    end.
+    end;
+push_event(_, _Event) ->
+    ok.
 
 %%%===================================================================
 %%% Internal functions
