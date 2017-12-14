@@ -49,4 +49,4 @@ callback returns `true`.
 ]}
 ```
 
-[mod_event_pusher]: ./mod_event_pusher/
+[mod_event_pusher]: ./mod_event_pusher.md

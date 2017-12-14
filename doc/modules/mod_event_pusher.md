@@ -31,6 +31,6 @@ Refer to their specific documentation to learn more about their function and con
 ]}
 ```
 
-[sns]: ./mod_aws_sns/
-[push]: ./mod_push/
-[http_notification]: ./mod_http_notification/
+[sns]: ./mod_aws_sns.md
+[push]: ./mod_push.md
+[http_notification]: ./mod_http_notification.md

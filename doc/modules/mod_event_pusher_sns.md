@@ -56,4 +56,4 @@ Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn
 ]}
 ```
 
-[mod_event_pusher]: ./mod_event_pusher
+[mod_event_pusher]: ./mod_event_pusher.md

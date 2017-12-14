@@ -56,4 +56,4 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | `[Host, mod_http_notifications, failed]` | spiral | An HTTP notification failed. |
 | `[Host, mod_http_notifications, response_time]` | histogram | Does not include timings of failed requests. |
 
-[mod_event_pusher]: ./mod_event_pusher
+[mod_event_pusher]: ./mod_event_pusher.md
