@@ -46,6 +46,9 @@
          room_jid_to_pid/1,
          default_host/0]).
 
+%% For testing purposes only
+-export([load_permanent_rooms/6]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).

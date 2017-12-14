@@ -67,23 +67,48 @@
         items :: [#xmlel{}]
         }).
 
+-define(assertReceivedMatch(Expect), ?assertReceivedMatch(Expect, timer:seconds(5))).
+
+-define(assertReceivedMatch(Expect, Timeout),
+    ((fun() ->
+        receive
+            Expect = __Result__ -> __Result__
+        after
+            Timeout ->
+                __Reason__ =
+                    receive
+                        __Result__ -> __Result__
+                    after
+                        0 -> timeout
+                    end,
+
+                __Args__ = [{module, ?MODULE},
+                    {line, ?LINE},
+                    {expected, (??Expect)},
+                    {value, __Reason__}],
+                ct:print("assertReceivedMatch_failed: ~p~n", [__Args__]),
+                erlang:error({assertReceivedMatch_failed, __Args__})
+        end
+      end)())).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() -> [
-        {group, disco},
-        {group, disco_rsm},
-        {group, moderator},
-        {group, admin},
-        {group, admin_membersonly},
-        {group, occupant},
-        {group, owner},
-        {group, owner_no_parallel},
-        {group, room_management},
-        {group, http_auth_no_server},
-        {group, http_auth},
-        {group, hibernation}
+       %% {group, disco},
+       %% {group, disco_rsm},
+       %% {group, moderator},
+       %% {group, admin},
+       %% {group, admin_membersonly},
+       %% {group, occupant},
+       %% {group, owner},
+       %% {group, owner_no_parallel},
+       %% {group, room_management},
+       %% {group, http_auth_no_server},
+       %% {group, http_auth},
+       %% {group, hibernation},
+          {group, room_registration}
         ].
 
 groups() -> [
@@ -238,7 +263,10 @@ groups() -> [
                 create_instant_http_password_protected_room,
                 deny_creation_of_http_password_protected_room,
                 deny_creation_of_http_password_protected_room_wrong_password
-                ]}
+                ]},
+        {room_registration, [parallel], [
+                load_permanent_rooms
+               ]}
         ].
 
 rsm_cases() ->
@@ -269,6 +297,52 @@ end_per_suite(Config) ->
     unload_muc(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
+
+meck_room_start() ->
+    %% Start meck for start/8
+    escalus_ejabberd:rpc(meck, expect, [mod_muc_room, start,
+        fun(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
+            mod_muc_room:register_room(Host, Room, fakepid),
+            meck:passthrough([Host,
+                ServerHost,
+                Access,
+                Room,
+                HistorySize,
+                RoomShaper,
+                HttpAuthPool,
+                Opts])
+        end]),
+
+    %% Start meck for start/10
+    escalus_ejabberd:rpc(meck, expect, [mod_muc_room, start,
+        fun(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
+            Creator, Nick, DefRoomOpts) ->
+            mod_muc_room:register_room(Host, Room, fakepid),
+            meck:passthrough([Host,
+                ServerHost,
+                Access,
+                Room,
+                HistorySize,
+                RoomShaper,
+                HttpAuthPool,
+                Creator,
+                Nick,
+                DefRoomOpts])
+        end]).
+
+meck_room_route() ->
+    TestCasePid = self(),
+    escalus_ejabberd:rpc(meck, expect, [mod_muc_room, route,
+        fun(fakepid, _From, _ToNick, _Acc, Packet) ->
+                TestCasePid ! {room_got, Packet}
+        end]).
+
+init_per_group(room_registration, Config) ->
+
+    escalus_ejabberd:rpc(meck, new, [mod_muc_room, [no_link, passthrough]]),
+    meck_room_start(),
+    meck_room_route(),
+    escalus_fresh:create_users(Config, [{bob, 1}, {alice, 1}]);
 
 init_per_group(moderator, Config) ->
     RoomOpts = [{persistent, true}, {allow_change_subj, false},
@@ -344,6 +418,9 @@ handle_http_auth(Req) ->
     Headers = #{<<"content-type">> => <<"application/json">>},
     cowboy_req:reply(200, Headers, Resp, Req).
 
+end_per_group(room_registration, Config) ->
+    escalus_ejabberd:rpc(meck, unload, []),
+    escalus:delete_users(Config, escalus:get_users([bob, alice]));
 end_per_group(admin_membersonly, Config) ->
     destroy_room(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
@@ -4286,6 +4363,19 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
              last = Last,
              count = Count}.
 
+%%--------------------------------------------------------------------
+%%  Room registration use cases
+%%  Tests for race condition that occurs when multiple users
+%%  attempt to start and/or register the same room at the same time
+%%--------------------------------------------------------------------
+load_permanent_rooms(Config) ->
+    start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
+    receive
+        {got_room, Packet} ->
+            Packet;
+        Other ->
+            {error, Other}
+    end.
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
