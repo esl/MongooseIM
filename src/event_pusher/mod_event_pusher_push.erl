@@ -43,12 +43,12 @@
 
 -callback init(Host :: ejabberd:server(), Opts :: list()) -> ok.
 -callback enable(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
-                 Node :: mod_push:pubsub_node(), Form :: mod_push:form()) ->
+                 Node :: pubsub_node(), Form :: form()) ->
     ok | {error, Reason :: term()}.
 -callback disable(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
-                  Node :: mod_push:pubsub_node()) -> ok | {error, Reason :: term()}.
+                  Node :: pubsub_node()) -> ok | {error, Reason :: term()}.
 -callback get_publish_services(User :: ejabberd:jid()) ->
-    {ok, [{PubSub :: ejabberd:jid(), Node :: mod_push:node(), Form :: mod_push:form()}]} |
+    {ok, [{PubSub :: ejabberd:jid(), Node :: node(), Form :: form()}]} |
     {error, Reason :: term()}.
 
 %% Types
@@ -62,7 +62,7 @@
 
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
-    ?INFO_MSG("mod_push starting on host ~p", [Host]),
+    ?INFO_MSG("mod_event_pusher_push starting on host ~p", [Host]),
 
     {ok, _} = wpool_sup:start_pool(gen_mod:get_module_proc(Host, ?MODULE),
                                    gen_mod:get_opt(wpool, Opts, [])),

@@ -15,7 +15,7 @@
 
 %% @doc This function determines whether to send http notification or not.
 %% Can be reconfigured by creating a custom module implementing should_make_req/3
-%% and adding it to mod_http_notification settings as {callback_module}
+%% and adding it to mod_event_pusher_http settings as {callback_module}
 %% Default behaviour is to send all chat messages with non-empty body.
 should_make_req(Packet, From, To) ->
     Type = exml_query:attr(Packet, <<"type">>, <<>>),

@@ -6,7 +6,8 @@
 %%% @end
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% Default plugin module for mod_push. This module allows for some dynamic customizations.
+%%% Default plugin module for mod_event_pusher_push.
+%%% This module allows for some dynamic customizations.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_push_plugin_defaults).

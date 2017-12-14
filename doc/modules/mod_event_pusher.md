@@ -25,12 +25,12 @@ Refer to their specific documentation to learn more about their function and con
         {push, [
             {backend, mnesia},
             {wpool, [{workers, 200}]},
-            {plugin_module, mod_push_plugin_default}
+            {plugin_module, mod_event_pusher_push_plugin_defaults}
         ]}
     ]}
 ]}
 ```
 
-[sns]: ./mod_aws_sns.md
-[push]: ./mod_push.md
-[http_notification]: ./mod_http_notification.md
+[sns]: ./mod_event_pusher_sns.md
+[push]: ./mod_event_pusher_push.md
+[http_notification]: ./mod_event_pusher_http.md

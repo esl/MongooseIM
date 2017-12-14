@@ -3,7 +3,7 @@
 MongooseIM by default collects many metrics showing the user behaviour and general system statistics.
 They are managed by [exometer](https://github.com/Feuerlabs/exometer).
 MongooseIM uses [ESL's fork of this project](https://github.com/esl/exometer/tree/1.2.1-patched).
- 
+
 All metrics are divided into the following groups:
 
 * Per host metrics: Gathered separately for every XMPP host supported by the cluster.
@@ -144,7 +144,7 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 Below you can find a list of all modules, for which at least one metric is defined.
 
 * [`mod_csi`](../modules/mod_csi.md)
-* [`mod_http_notification`](../modules/mod_http_notification.md)
+* [`mod_event_pusher_http`](../modules/mod_event_pusher_http.md)
 * [`mod_http_upload`](../modules/mod_http_upload.md)
 * [`mod_last`](../modules/mod_last.md)
 * [`mod_mam`](../modules/mod_mam.md)
@@ -207,4 +207,3 @@ In such case, these metrics will be updated with combined time of 2 failed and 1
 Additionaly, RDMBS layer in MongooseIM exposes one more metric, if RDBMS is configured:
 
 * `[global, backends, mongoose_rdbms, query]` - Execution time of a "not prepared" query by a DB driver.
-

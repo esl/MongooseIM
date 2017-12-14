@@ -6,7 +6,8 @@
 %%% @end
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% Plugin behaviour module for mod_push. This module defines API for some dynamic customizations.
+%%% Plugin behaviour module for mod_event_pusher_push.
+%%% This module defines API for some dynamic customizations.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_push_plugin).

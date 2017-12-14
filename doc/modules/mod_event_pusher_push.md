@@ -14,12 +14,12 @@ This module implements [XEP-0357: Push Notifications](https://xmpp.org/extension
  Currently only `mnesia` may be used.
 * **wpool** (list, default: `[]`) - List of options that will be passed to the `worker_pool` library that handles all the requests.
  Please refer to the [Project Site](https://github.com/inaka/worker_pool) for more details.
-* **plugin_module** (atom, default: `mod_push_plugin_default`) - module implementing `mod_push_plugin` behaviour,
+* **plugin_module** (atom, default: `mod_event_pusher_push_plugin_defaults`) - module implementing `mod_event_pusher_push_plugin` behaviour,
   used for dynamic configuration of push notifications. Read more about it [here](#plugin-module)
 
 ### Plugin module
 
-A plugin module handles dynamic configuration of push notifications. It implements `mod_push_plugin` behaviour which
+A plugin module handles dynamic configuration of push notifications. It implements `mod_event_pusher_push_plugin` behaviour which
 requires two callbacks:
 
 * `should_publish/3` - callback used for filtering push notifications. A push notification is triggered for given a message only if this
@@ -43,7 +43,7 @@ callback returns `true`.
         {push, [
             {backend, mnesia},
             {wpool, [{workers, 200}]},
-            {plugin_module, mod_push_plugin_default}
+            {plugin_module, mod_event_pusher_push_plugin_default}
         ]}
     ]}
 ]}
