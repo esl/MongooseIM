@@ -341,6 +341,11 @@ send_and_log(From, To, Msg) ->
     ct:log("sending msg: ~p~n", [Msg]),
     escalus:send(From, escalus_stanza:chat_to(To, Msg)).
 
+assert_and_log(Msg, Stanza) ->
+    ct:log("asserting Msg: ~n~p~n to Stanza:~n~p~n", [Msg, Stanza]),
+    escalus:assert(is_chat_message, [Msg], Stanza).
+
+
 resend_unacked_on_reconnection(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     {Bob, BobSpec0} = given_fresh_user(Config, bob),
@@ -356,21 +361,25 @@ resend_unacked_on_reconnection(Config) ->
         Stanzas = lists:sublist(Stanzas0, length(Messages)),
         ct:log("up to 13 stanzas that came at all: ~p~n", [Stanzas]),
         ct:log("stanzas that should be messages ~p~n", [Stanzas]),
-        [escalus:assert(is_chat_message, [Msg], Stanza)
-         || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
+        ct:log("zipped list: ~p~n", [lists:zip(Messages, Stanzas)]),
+        [assert_and_log(Msg, Stanza) || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
         %% Alice disconnects without acking the messages.
     escalus_connection:stop(Alice),
     escalus_connection:stop(Bob),
     wait_until_disconnected(AliceSpec0, 1000),
+
+    ct:log("--------", []),
 
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
     AliceSpec = [{manual_ack, true} | AliceSpec0],
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    OfflineMsgs = [escalus_connection:get_stanza(NewAlice, {msg, I})
-                   || I <- lists:seq(1, length(Messages))],
-    [escalus:assert(is_chat_message, [Msg], Stanza)
+    StanzasNewAlice0 = escalus:wait_for_stanzas(NewAlice, length(Messages) + 10),
+    OfflineMsgs = lists:sublist(StanzasNewAlice0, length(Messages)),
+    ct:log("up to 13 stanzas that came at all: ~p~n", [StanzasNewAlice0]),
+    ct:log("OfflineMsgs: ~n~p~n", [OfflineMsgs]),
+    [assert_and_log(Msg, Stanza)
      || {Msg, Stanza} <- lists:zip(Messages, OfflineMsgs)],
     %% Alice acks the delayed messages so they won't go again
     %% to the offline store.
