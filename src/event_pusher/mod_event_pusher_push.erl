@@ -48,7 +48,7 @@
 -callback disable(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
                   Node :: pubsub_node()) -> ok | {error, Reason :: term()}.
 -callback get_publish_services(User :: ejabberd:jid()) ->
-    {ok, [{PubSub :: ejabberd:jid(), Node :: node(), Form :: form()}]} |
+    {ok, [{PubSub :: ejabberd:jid(), Node :: pubsub_node(), Form :: form()}]} |
     {error, Reason :: term()}.
 
 %% Types

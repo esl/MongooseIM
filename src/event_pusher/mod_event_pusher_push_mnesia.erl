@@ -86,7 +86,8 @@ disable(User, PubsubJID, Node) ->
 
 
 -spec get_publish_services(User :: ejabberd:jid()) ->
-                                  {ok, [{PubSub :: ejabberd:jid(), Node :: mod_event_pusher_push:node(),
+                                  {ok, [{PubSub :: ejabberd:jid(),
+                                         Node :: mod_event_pusher_push:pubsub_node(),
                                          Form :: mod_event_pusher_push:form()}]} |
                                   {error, Reason :: term()}.
 get_publish_services(User) ->
