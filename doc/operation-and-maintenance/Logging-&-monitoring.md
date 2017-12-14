@@ -62,9 +62,8 @@ The file sits next to the `ejabberd.cfg` file in the `rel/files` and `_REL_DIR_/
 Below you can find a sample configuration.
 It shows setting up a reporter connecting to graphite running on localhost.
 
-You can see an additional option not listed in the Exometer docs - `mongooseim_report_interval`.
-That option sets the metrics resolution: how often Exometer gathers and sends metrics through reporters.
-By default that is 60 seconds.
+You can see an additional option not listed in the Exometer docs - `mongooseim_report_interval`, which sets the metrics' resolution, i.e. how often Exometer gathers and sends metrics through reporters.
+By default, the resolution is set to 60 seconds.
 
 ```erl
 ...
