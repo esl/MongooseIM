@@ -21,7 +21,7 @@ init_per_suite(C) ->
            (_) ->
                 undefined
         end),
-    application:ensure_all_started(exometer),
+    application:ensure_all_started(exometer_core),
     ejabberd_router:start_link(),
     C.
 
@@ -79,4 +79,3 @@ registering_with_local(_C) ->
 
 process_packet(_From, _To, _Packet, _Extra) ->
     exit(process_packet_called).
-

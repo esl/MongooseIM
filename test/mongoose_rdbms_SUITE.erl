@@ -19,12 +19,11 @@ all() ->
      {group, pgsql}].
 
 init_per_suite(Config) ->
-    application:ensure_all_started(exometer),
+    application:ensure_all_started(exometer_core),
     Config.
 
 end_per_suite(_Config) ->
     meck:unload(),
-    application:stop(exometer),
     application:stop(exometer_core).
 
 groups() ->

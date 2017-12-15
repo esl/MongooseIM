@@ -29,8 +29,8 @@ end_per_suite(C) ->
     C.
 
 init_per_group(Group, C) ->
-    application:load(exometer),
-    application:set_env(exometer, mongooseim_report_interval, 1000),
+    application:load(exometer_core),
+    application:set_env(exometer_core, mongooseim_report_interval, 1000),
     {Port, Socket} = carbon_cache_server:start(1, 0),
     Sup = spawn(fun() ->
                         mim_ct_sup:start_link(ejabberd_sup),
@@ -56,9 +56,9 @@ init_per_group(Group, C) ->
                         end
                 end),
     Reporters = get_reporters_cfg(Port),
-    application:set_env(exometer, report, Reporters),
+    application:set_env(exometer_core, report, Reporters),
     PortServer = carbon_cache_server:wait_for_accepting(),
-    {ok, _Apps} = application:ensure_all_started(exometer),
+    {ok, _Apps} = application:ensure_all_started(exometer_core),
     setup_meck(Group),
     exometer:new([carbon, packets], spiral),
     [{carbon_port, Port}, {test_sup, Sup}, {carbon_server, PortServer}, {carbon_socket, Socket} | C].
@@ -71,7 +71,6 @@ end_per_group(Name, C) ->
     CarbonSocket = ?config(carbon_socket, C),
     gen_tcp:close(CarbonSocket),
     meck:unload(),
-    application:stop(exometer),
     application:stop(exometer_core),
     C.
 
@@ -111,4 +110,3 @@ get_reporters_cfg(Port) ->
                                              {api_key, ""}
                                             ]}
                 ]}].
-
