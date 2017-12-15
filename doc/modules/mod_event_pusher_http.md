@@ -17,7 +17,7 @@ By default it uses the function in `mod_event_pusher_http` itself, which ships a
 
 ## Prerequisites
 
-This module uses a connection pool created by mongoose_http_client. It must be defined in `http_connections` settings.
+This module uses a connection pool created by mongoose_http_client. It must be defined in the `http_connections` settings.
 
 ## Options
 

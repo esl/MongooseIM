@@ -92,7 +92,7 @@ user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
     end,
     ok.
 
-%% @doc Handles packet and if needed publishes SNS notification
+%% @doc Handles the packet and if needed publishes an SNS notification
 -spec handle_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
                     Packet :: jlib:xmlel()) -> ok | skip.
 handle_packet(From = #jid{lserver = Host}, To, Packet) ->
@@ -117,7 +117,7 @@ handle_packet(From = #jid{lserver = Host}, To, Packet) ->
             async_publish(Host, TopicARN, Content, Attributes)
     end.
 
-%% @doc Start publish process notification to AWS SNS service. Content should be valid JSON term
+%% @doc Start publish process notification to AWS SNS service. Content should be a valid JSON term
 -spec async_publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
               attributes()) -> ok.
 async_publish(Host, TopicARN, Content, Attributes) ->
@@ -126,7 +126,7 @@ async_publish(Host, TopicARN, Content, Attributes) ->
                {?MODULE, try_publish, [Host, TopicARN, Content, Attributes, Retry]},
                available_worker).
 
-%% @doc Publish notification to AWS SNS service. Content should be valid JSON term
+%% @doc Publish notification to AWS SNS service. Content should be a valid JSON term
 -spec try_publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
               attributes(), TryCount :: integer()) -> MessageId :: string() | dropped | scheduled.
 try_publish(Host, TopicARN, Content, _Attributes, Retry) when Retry < 0 ->
@@ -148,7 +148,7 @@ try_publish(Host, TopicARN, Content, Attributes, Retry) ->
             scheduled
     end.
 
-%% @doc Publish notification to AWS SNS service. Content should be valid JSON term
+%% @doc Publish notification to AWS SNS service. Content should be a valid JSON term
 -spec publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
               attributes()) -> MessageId :: string().
 publish(Host, TopicARN, Content, Attributes) ->

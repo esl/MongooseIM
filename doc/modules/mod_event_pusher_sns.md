@@ -6,16 +6,16 @@ This module is a backend of [mod_event_pusher] that enables support for the Amaz
 * **private message sent** - Carries the user ids (both sender and receiver) along with the message body.
 * **group message sent** - Carries the user id and the room id (bare jids by default) along with the message body.
 
-All those notifications are sent as a JSON string to Amazon SNS along with custom MessageAttributes (see http://docs.aws.amazon.com/sns/latest/api/API_Publish.html). MessageAttributes can be specified via a plugin module (more details in *Options* section).
+All these notifications are sent as a JSON string to Amazon SNS along with custom MessageAttributes (see http://docs.aws.amazon.com/sns/latest/api/API_Publish.html). MessageAttributes can be specified via a plugin module (more details in *Options* section).
 
-Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn]) are constructed as `arn:aws:sns:{region}:{account_id}:{topic}` where `{region}` and `{account_id}` are substituted with corresponding values from configuration options. `{topic}` is pulled from configuration option `presence_updates_topic`, `pm_messages_topic` or `muc_messages_topic` based on notification type.
+Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn]) are constructed as `arn:aws:sns:{region}:{account_id}:{topic}` where `{region}` and `{account_id}` are substituted with corresponding values from configuration options. `{topic}` is pulled from configuration option `presence_updates_topic`, `pm_messages_topic` or `muc_messages_topic` based on the notification type.
 
 
 ### Options
 
-* **presence_updates_topic** (string, default: unset) - Defines Amazon SNS Topic for presence change notifications. Remove this option to disable those notifications.
-* **pm_messages_topic** (string, default: unset) - Defines Amazon SNS Topic for private messages notifications. Remove this option to disable those notifications.
-* **muc_messages_topic** (string, default: unset) - Defines Amazon SNS Topic for group messages notifications. Remove this option to disable those notifications.
+* **presence_updates_topic** (string, default: unset) - Defines Amazon SNS Topic for presence change notifications. Remove this option to disable these notifications.
+* **pm_messages_topic** (string, default: unset) - Defines Amazon SNS Topic for private message notifications. Remove this option to disable these notifications.
+* **muc_messages_topic** (string, default: unset) - Defines Amazon SNS Topic for group message notifications. Remove this option to disable these notifications.
 * **plugin_module** (atom, default: 'mod_event_pusher_sns_defaults') - Sets a callback module used for creating user's GUID used in notifications (from user's JID) and for defining custom attributes attached to a published SNS message.
 * **muc_host** (string, default: "conference.@HOST@") - Messages from this MUC host will be sent to the set SNS topic for MUCs.
 * **sns_host** (string, default: unset) - URL to the Amazon SNS service. The URL may be in [virtual host form][aws-virtual-host], and for AWS needs to point at a specific regional endpoint. The scheme, port and path specified in the URL will be used to publish notifications via HTTP POST method.

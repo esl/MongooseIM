@@ -74,7 +74,7 @@ Also, it's important to note, that the first node type on the `plugins` list, wi
 
 ##### [mod_push_service_mongoosepush][]
 
-This module acts as a bridge between [mod_pubsub][] that receives notifications from [mod_event_pusher_push][] and passes those to [MongoosePush][] which sends them to _FCM_ and/or _APNS_. To enable this module type in your configuration:
+This module acts as a bridge between [mod_pubsub][] that receives notifications from [mod_event_pusher_push][] and passes them to [MongoosePush][], which sends them to _FCM_ and/or _APNS_. To enable this module type in your configuration:
 
 ```Erlang
 {http_connections, [{mongoose_push_http,
@@ -173,7 +173,7 @@ After this step, you need to have the `pubsub` host (here `pubsub.mypubsub.com`)
 
 ### Enabling push notifications
 
-The next and the last step is to enable push notifications on the server that handles your messages (and have [mod_event_pusher_push][] enabled).
+The next and the last step is to enable push notifications on the server that handles your messages (and has [mod_event_pusher_push][] enabled).
 Let's assume this server**** is available under the `mychat.com` domain.
 
 To enable push notifications in the simplest configuration, just send the following stanza:
