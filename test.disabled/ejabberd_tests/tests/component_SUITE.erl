@@ -317,8 +317,8 @@ clear_on_node_down(Config) ->
     cluster_commands_SUITE:stop_node(ejabberd_node_utils:mim(), Config),
     cluster_commands_SUITE:start_node(ejabberd_node_utils:mim(), Config),
 
-    {Comp, _, _} = connect_component(CompOpts),
-    ok = escalus_connection:stop(Comp).
+    {Comp, Addr, _} = connect_component(CompOpts),
+    disconnect_component(Comp, Addr).
 
 do_chat_with_component(Alice, ClusterGuy, Component1) ->
     {Comp, Addr, Name} = Component1,

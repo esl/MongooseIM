@@ -47,8 +47,8 @@ handle_call({data, Stamp, Data}, From, State) ->
     gen_server:reply(From, ok),
     handle_cast({data, Stamp, Data}, State).
 
-handle_cast({route, {From, To, Acc}}, State) ->
-    ejabberd_router:route(From, To, Acc),
+handle_cast({route, {From, To, Acc, Packet}}, State) ->
+    ejabberd_router:route(From, To, Acc, Packet),
     {noreply, State, ?TIMEOUT};
 handle_cast({data, Host, TransferTime, Stamp, Data}, State) ->
     QueueTimeNative = p1_time_compat:monotonic_time() - Stamp,
@@ -76,7 +76,6 @@ terminate(_Reason, _State) ->
 
 -spec do_work(Data :: binary()) -> any().
 do_work(Data) ->
-    {From, To, Acc} = erlang:binary_to_term(Data),
+    {From, To, Acc, Packet} = erlang:binary_to_term(Data),
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
-    ejabberd_router:route(From, To, Acc).
-
+    ejabberd_router:route(From, To, Acc, Packet).

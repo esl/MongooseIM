@@ -16,8 +16,8 @@
 send(Server, Packet) when is_binary(Server) ->
     Worker = get_process_for(Server),
     send(Worker, Packet);
-send(Worker, {From, _To, _Acc} = Packet) ->
-    BinPacket = term_to_binary(Packet),
+send(Worker, {From, _To, _Acc, _Packet} = FPacket) ->
+    BinPacket = term_to_binary(FPacket),
     BinFrom = mod_global_distrib_utils:recipient_to_worker_key(From, opt(global_host)),
     Data = <<(byte_size(BinFrom)):16, BinFrom/binary, BinPacket/binary>>,
     Stamp = erlang:monotonic_time(),
@@ -70,4 +70,3 @@ get_process_for(Server) ->
 -spec opt(Key :: atom()) -> term().
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
-

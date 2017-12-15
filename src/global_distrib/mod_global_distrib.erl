@@ -72,7 +72,7 @@ remove_metadata(Acc, Key) ->
 -spec maybe_reroute(drop) -> drop;
                    ({jid(), jid(), mongoose_acc:t()}) -> drop | {jid(), jid(), mongoose_acc:t()}.
 maybe_reroute(drop) -> drop;
-maybe_reroute({From, To, Acc0} = FPacket) ->
+maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
     Acc = maybe_initialize_metadata(Acc0),
     LocalHost = opt(local_host),
     GlobalHost = opt(global_host),
@@ -83,7 +83,7 @@ maybe_reroute({From, To, Acc0} = FPacket) ->
                    [get_metadata(Acc, id), jid:to_binary(From), jid:to_binary(To)]),
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL,
                                     get_metadata(Acc, ttl)),
-            {From, To, Acc};
+            {From, To, Acc, Packet};
 
         {ok, TargetHost} ->
             ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost, [From, To]),
@@ -100,7 +100,7 @@ maybe_reroute({From, To, Acc0} = FPacket) ->
                             jid:to_binary(To), TargetHost, TTL]),
                     Acc1 = put_metadata(Acc, ttl, TTL - 1),
                     Worker = get_bound_connection(TargetHost),
-                    mod_global_distrib_sender:send(Worker, {From, To, Acc1}),
+                    mod_global_distrib_sender:send(Worker, {From, To, Acc1, Packet}),
                     drop
             end;
 
@@ -109,7 +109,7 @@ maybe_reroute({From, To, Acc0} = FPacket) ->
                    "user not found in the routing table",
                    [get_metadata(Acc, id), jid:to_binary(From), jid:to_binary(To)]),
             ejabberd_hooks:run_fold(mod_global_distrib_unknown_recipient,
-                                    GlobalHost, {From, To, Acc}, [])
+                                    GlobalHost, {From, To, Acc, Packet}, [])
     end.
 
 %%--------------------------------------------------------------------

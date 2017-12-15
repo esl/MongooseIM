@@ -20,7 +20,7 @@ else
 TLS_DIST_OPTS :=
 endif
 
-COMMON_OPTS := -sname test -setcookie ejabberd \
+COMMON_OPTS := -sname test -setcookie ejabberd -hidden \
                $(TLS_DIST_OPTS) \
                -pa `pwd`/tests \
                    `pwd`/ebin \

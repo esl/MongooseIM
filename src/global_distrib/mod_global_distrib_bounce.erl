@@ -85,7 +85,7 @@ terminate(_Reason, _State) ->
                          ({jid(), jid(), mongoose_acc:t()}) ->
                                  drop | {jid(), jid(), mongoose_acc:t()}.
 maybe_store_message(drop) -> drop;
-maybe_store_message({From, To, Acc0} = FPacket) ->
+maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
     LocalHost = opt(local_host),
     case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost}, opt(max_retries)) of
         0 ->
@@ -112,7 +112,7 @@ maybe_store_message({From, To, Acc0} = FPacket) ->
                     OldTTL]),
             Acc = mod_global_distrib:put_metadata(Acc0, {bounce_ttl, LocalHost}, OldTTL - 1),
             ResendAt = p1_time_compat:monotonic_time() + opt(resend_after),
-            do_insert_in_store(ResendAt, {From, To, Acc}),
+            do_insert_in_store(ResendAt, {From, To, Acc, Packet}),
             drop
     end.
 
@@ -134,7 +134,7 @@ reroute_messages(Acc, From, To) ->
             ?DEBUG("Routing ~B previously stored messages addressed from ~s to ~s",
                    [length(StoredMessages), jid:to_binary(From), jid:to_binary(To)])
     end,
-    [ejabberd_router:route(F, T, A) || {F, T, A} <- StoredMessages],
+    [ejabberd_router:route(F, T, A, P) || {F, T, A, P} <- StoredMessages],
     Acc.
 
 %%--------------------------------------------------------------------
@@ -175,11 +175,11 @@ stop() ->
     ets:delete(?MS_BY_TARGET),
     ets:delete(?MESSAGE_STORE).
 
-add_index(ResendAt, {From, To, _Acc} = FPacket) ->
+add_index(ResendAt, {From, To, _Acc, _Packet} = FPacket) ->
     Key = get_index_key(From, To),
     ets:insert(?MS_BY_TARGET, {Key, {ResendAt, FPacket}}).
 
-delete_index(ResendAt, {From, To, _Acc} = FPacket) ->
+delete_index(ResendAt, {From, To, _Acc, _Packet} = FPacket) ->
     Key = get_index_key(From, To),
     ets:delete_object(?MS_BY_TARGET, {Key, {ResendAt, FPacket}}).
 
@@ -198,7 +198,7 @@ resend_messages(Now) ->
     case ets:first(?MESSAGE_STORE) of
         Key when is_integer(Key) andalso Key < Now ->
             case ets:take(?MESSAGE_STORE, Key) of
-                [{Key, {From, To, _Acc} = FPacket}] ->
+                [{Key, {From, To, _Acc, _Packet} = FPacket}] ->
                     delete_index(Key, FPacket),
                     mod_global_distrib_mapping:clear_cache(To),
                     WorkerKey = mod_global_distrib_utils:recipient_to_worker_key(From, opt(global_host)),

@@ -251,8 +251,8 @@ test_pm_between_users_before_available_presence(Config) ->
 
     test_two_way_pm(Alice, Eve),
 
-    escalus_client:stop(Alice),
-    escalus_client:stop(Eve).
+    escalus_client:stop(Config1, Alice),
+    escalus_client:stop(Config1, Eve).
 
 test_two_way_pm(Alice, Eve) ->
     escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
@@ -375,7 +375,7 @@ test_component_disconnect(Config) ->
                        {port, 8888}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
-    ok = escalus_connection:stop(Comp),
+    component_SUITE:disconnect_component(Comp, Addr),
 
     Story = fun(User) ->
                     escalus:send(User, escalus_stanza:chat_to(Addr, <<"Hi!">>)),
@@ -394,9 +394,9 @@ test_location_disconnect(Config) ->
 
                   escalus_client:wait_for_stanza(Eve),
 
-                  ok = rpc(asia_node, application, stop, [ejabberd]),
-                  %% TODO: Stopping ejabberd alone should probably stop connections too
-                  ok = rpc(asia_node, application, stop, [ranch]), 
+                  ok = rpc(asia_node, application, stop, [mongooseim]),
+                  %% TODO: Stopping mongooseim alone should probably stop connections too
+                  ok = rpc(asia_node, application, stop, [ranch]),
 
                   escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi again!">>)),
                   Error = escalus:wait_for_stanza(Alice),
@@ -404,7 +404,7 @@ test_location_disconnect(Config) ->
           end)
     after
         rpc(asia_node, application, start, [ranch]),
-        rpc(asia_node, application, start, [ejabberd])
+        rpc(asia_node, application, start, [mongooseim])
     end.
 
 test_pm_with_disconnection_on_other_server(Config) ->
@@ -458,8 +458,8 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               StepsWithSM = [start_stream, stream_features, maybe_use_ssl,
                              authenticate, bind, session, stream_resumption],
 
-              {ok, Eve0, Eve0Props, _} = escalus_connection:start(EveSpec, StepsWithSM),
-              Eve = Eve0#client{jid = sm_SUITE:get_bjid(Eve0Props)},
+              {ok, Eve0, _} = escalus_connection:start(EveSpec, StepsWithSM),
+              Eve = Eve0#client{jid = sm_SUITE:get_bjid(EveSpec)},
               escalus_story:send_initial_presence(Eve),
               escalus_client:wait_for_stanza(Eve),
 
@@ -504,11 +504,11 @@ test_component_unregister(_Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, _Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
+    {Comp, Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
     ?assertMatch({ok, _}, rpc(europe_node1, mod_global_distrib_mapping, for_domain,
                               [<<"test_service.localhost">>])),
 
-    ok = escalus_connection:stop(Comp),
+    component_SUITE:disconnect_component(Comp, Addr),
 
     ?assertEqual(error, rpc(europe_node1, mod_global_distrib_mapping, for_domain,
                             [<<"test_service.localhost">>])).
@@ -610,7 +610,7 @@ test_update_senders_host(Config) ->
 
               escalus:send(Alice, escalus_stanza:chat_to(Eve, <<"hi">>)),
               escalus:wait_for_stanza(Eve),
-              
+
               {ok, <<"localhost.bis">>}
               = rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])
       end).
@@ -648,10 +648,10 @@ test_update_senders_host_by_ejd_service(Config) ->
               %%       as it may collide with this test.
 
               hide_node(europe_node1, Config),
-              
+
               escalus:send(Eve, escalus_stanza:chat_to(Addr, <<"hi">>)),
               escalus:wait_for_stanza(Comp),
-              
+
               {ok, <<"fed1">>} = rpc(europe_node1, mod_global_distrib_mapping, for_jid, [EveJid]),
               {ok, <<"fed1">>} = rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid])
       end).
@@ -903,4 +903,3 @@ refresh_mappings(NodeName, Config) ->
 trigger_rebalance(NodeName, DestinationDomain) ->
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
     timer:sleep(1000).
-
