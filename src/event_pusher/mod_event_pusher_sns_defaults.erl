@@ -9,10 +9,10 @@
 %%% Plugin module defining default custom behaviour for AWS SNS notifications.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_aws_sns_defaults).
+-module(mod_event_pusher_sns_defaults).
 -author("Rafal Slota").
 
--behavior(mod_aws_sns).
+-behavior(mod_event_pusher_sns).
 
 -include("jlib.hrl").
 
@@ -26,23 +26,23 @@
 %% -------------------------------------------------------------------
 %% @doc Returns user's GUID for SNS notification based on his JID.
 %% -------------------------------------------------------------------
--spec user_guid(UserJID :: ejabberd:jid()) -> mod_aws_sns:user_guid().
+-spec user_guid(UserJID :: ejabberd:jid()) -> mod_event_pusher_sns:user_guid().
 user_guid(#jid{} = UserJID) ->
     jid:to_binary(jid:to_lower(jid:to_bare(UserJID))).
 
 %% -------------------------------------------------------------------
 %% @doc Returns SNS Message Attributes for presence change notification.
 %% -------------------------------------------------------------------
--spec message_attributes(TopicARN :: mod_aws_sns:topic_arn(), UserJID :: ejabberd:jid(),
-                         IsOnline :: boolean()) -> mod_aws_sns:attributes().
+-spec message_attributes(TopicARN :: mod_event_pusher_sns:topic_arn(), UserJID :: ejabberd:jid(),
+                         IsOnline :: boolean()) -> mod_event_pusher_sns:attributes().
 message_attributes(_TopicARN, _UserJID, _IsOnline) ->
     #{}.
 
 %% -------------------------------------------------------------------
 %% @doc Returns SNS Message Attributes for message notification.
 %% -------------------------------------------------------------------
--spec message_attributes(TopicARN :: mod_aws_sns:topic_arn(), From :: ejabberd:jid(),
+-spec message_attributes(TopicARN :: mod_event_pusher_sns:topic_arn(), From :: ejabberd:jid(),
                          To :: ejabberd:jid(), MessageType :: pm | muc, Packet :: jlib:xmlel()) ->
-    mod_aws_sns:attributes().
+    mod_event_pusher_sns:attributes().
 message_attributes(_TopicARN, _From, _To, _MessageType, _Packet) ->
     #{}.

@@ -53,8 +53,11 @@
 
 -include("ejabberd.hrl").
 
+-type hook() :: {atom(), ejabberd:server() | global, module(), fun() | atom(), integer()}.
 
 -record(state, {}).
+
+-export_type([hook/0]).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -82,8 +85,6 @@ add(Hook, Host, Function, Seq) when is_function(Function) ->
           Seq :: integer()) -> ok.
 add(Hook, Host, Module, Function, Seq) ->
     gen_server:call(ejabberd_hooks, {add, Hook, Host, Module, Function, Seq}).
-
--type hook() :: {atom(), ejabberd:server() | global, module(), fun() | atom(), integer()}.
 
 -spec add([hook()]) -> ok.
 add(Hooks) when is_list(Hooks) ->

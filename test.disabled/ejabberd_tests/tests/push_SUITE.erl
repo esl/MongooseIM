@@ -89,36 +89,34 @@ end_per_suite(Config) ->
 
 init_per_group(disco, Config) ->
     escalus:create_users(Config, escalus:get_users([alice]));
-init_per_group(muclight_msg_notifications, Config) ->
+init_per_group(muclight_msg_notifications, Config0) ->
     Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Host, mod_push, ?PUSH_OPTS),
-    dynamic_modules:start(Host, mod_muc_light,
-                          [{host, binary_to_list(?MUCHOST)},
-                           {backend, mnesia},
-                           {rooms_in_rosters, true}]),
+    Config = init_per_group(generic_group, Config0),
+    dynamic_modules:ensure_modules(Host, [{mod_muc_light,
+                                           [{host, binary_to_list(?MUCHOST)},
+                                            {backend, mnesia},
+                                            {rooms_in_rosters, true}]}]),
     rpc(mod_muc_light_db_backend, force_clear, []),
     Config;
 init_per_group(_, Config0) ->
-    Config = [{push_config, ?PUSH_OPTS} | Config0],
+    Config1 = [{push_config, ?PUSH_OPTS} | Config0],
     Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Host, mod_push, ?PUSH_OPTS),
+    Config = dynamic_modules:save_modules(Host, Config1),
+    dynamic_modules:ensure_modules(Host, [{mod_push, ?PUSH_OPTS}]),
     Config.
 
 end_per_group(disco, Config) ->
     Config;
-end_per_group(muclight_msg_notifications, _Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Host, mod_push),
-    dynamic_modules:stop(Host, mod_muc_light);
 end_per_group(_, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Host, mod_push),
+    dynamic_modules:restore_modules(Host, Config),
     Config.
 
 init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Host, mod_push, ?PUSH_OPTS),
-    escalus:init_per_testcase(CaseName, Config);
+    OldModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
+    rpc(gen_mod_deps, start_modules, [Host, [{mod_push, ?PUSH_OPTS}]]),
+    escalus:init_per_testcase(CaseName, [{old_modules, OldModules} | Config]);
 init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config0) ->
@@ -130,7 +128,9 @@ init_per_testcase(CaseName, Config0) ->
 
 end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Host, mod_push),
+    OldModules = ?config(old_modules, Config),
+    CurrentModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
+    rpc(gen_mod_deps, replace_modules, [Host, CurrentModules, OldModules]),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:end_per_testcase(CaseName, Config);

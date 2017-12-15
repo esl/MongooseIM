@@ -1,24 +1,23 @@
 ## Module description
 
-This module enables forwarding certain events (messages, presence, etc.) via HTTP to external services such as push (by mobile, email or SMS), big data, or analytics services.
+This module is a backend of [mod_event_pusher] that enables forwarding certain events (messages, presence, etc.) via HTTP to external services such as push (by mobile, email or SMS), big data, or analytics services.
 
 ### How it works
 
-The module adds a handler to a `user_send_packet` hook which is triggered every time a user sends anything.
+The module hooks on all packets sent by connected users.
 When the hook is triggered, the module:
 
-* checks whether http_notification is enabled (the `host` param is set)
 * runs a callback module's `should_make_req/3` function to see if a notification should be sent
 * sends a POST request composed of `{Host::binary(), Sender::binary(), Receiver::binary(), Message::binary()}` to the http notification server
 
 ### Callback module
 
 To find out what should be sent to the HTTP server, MongooseIM calls `Mod:should_make_req(Packet::xmlel(), From::jid(), To::jid())`.
-By default it uses the function in mod_http_notification itself, which ships all non-empty chat messages and nothing else. The module can be substituted here, the method should return `true | false`.
+By default it uses the function in `mod_event_pusher_http` itself, which ships all non-empty chat messages and nothing else. The module can be substituted here, the method should return `true | false`.
 
 ## Prerequisites
 
-This module uses a connection pool created by mongoose_http_client. It must be defined in `http_connections` settings.
+This module uses a connection pool created by mongoose_http_client. It must be defined in the `http_connections` settings.
 
 ## Options
 
@@ -32,13 +31,24 @@ This module uses a connection pool created by mongoose_http_client. It must be d
                              {pool_size, 50}, {path_prefix, "/webservice"}]}
                    ]}.`
 
-  `{mod_http_notification, [{pool_name, http_pool}, {path, "/notifications"}]}`
+```erlang
+{mod_event_pusher, [
+    {backends, [
+        {http, [
+            {pool_name, http_pool},
+            {path, "/notifications"}
+        ]}
+    ]}
+]}
+```
 
 Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
 
 ## Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md** page.
+
+> **Warning:** the metrics' names may change once the deprecated `mod_http_notification` is removed from MongooseIM.
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
@@ -46,3 +56,4 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | `[Host, mod_http_notifications, failed]` | spiral | An HTTP notification failed. |
 | `[Host, mod_http_notifications, response_time]` | histogram | Does not include timings of failed requests. |
 
+[mod_event_pusher]: ./mod_event_pusher.md

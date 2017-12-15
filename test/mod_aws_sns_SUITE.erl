@@ -3,6 +3,7 @@
 -compile([export_all]).
 
 -include("jlib.hrl").
+-include("mod_event_pusher_events.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -13,7 +14,7 @@
                              {region, "eu-west-1"},
                              {account_id, "251423380551"},
                              {sns_host, "sns.eu-west-1.amazonaws.com"},
-                             {plugin_module, mod_aws_sns_defaults},
+                             {plugin_module, mod_event_pusher_sns_defaults},
                              {presence_updates_topic, "user_presence_updated-dev-1"},
                              {pm_messages_topic, "user_message_sent-dev-1"},
                              {muc_messages_topic, "user_messagegroup_sent-dev-1"}
@@ -143,15 +144,19 @@ end_per_testcase(_, Config) ->
 
 send_packet_callback(Config, Type, Body) ->
     Packet = message(Config, Type, Body),
-    mod_aws_sns:user_send_packet(#{},
-      ?config(sender, Config), ?config(recipient, Config), Packet).
+    Sender = #jid{lserver = Host} = ?config(sender, Config),
+    Recipient = ?config(recipient, Config),
+    mod_event_pusher_sns:push_event(Host, #chat_event{type = chat, direction = in,
+                                                      from = Sender, to = Recipient,
+                                                      packet = Packet}).
 
 user_present_callback(Config) ->
-    mod_aws_sns:user_present(#{}, ?config(sender, Config)).
+    Jid = #jid{lserver = Host} = ?config(sender, Config),
+    mod_event_pusher_sns:push_event(Host, #user_status_event{jid = Jid, status = online}).
 
 user_not_present_callback(Config) ->
-    #jid{luser = User, lserver = Host, lresource = Resource} = ?config(sender, Config),
-    mod_aws_sns:user_not_present(#{}, User, Host, Resource, "mod_aws_sns_SUITE_status").
+    Jid = #jid{lserver = Host} = ?config(sender, Config),
+    mod_event_pusher_sns:push_event(Host, #user_status_event{jid = Jid, status = offline}).
 
 %% Helpers
 
