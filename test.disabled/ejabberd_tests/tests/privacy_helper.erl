@@ -17,7 +17,9 @@
          gets_error/2,
          gets_error/3,
          is_privacy_list_push/1,
-         is_presence_error/1]).
+         is_presence_error/1,
+         does_user_process_crash/4,
+         does_user_process_crash/5]).
 
 gets_error(Who, Type) ->
     gets_error(Who, <<"cancel">>, Type).
@@ -247,3 +249,16 @@ list_content(<<"deny_3_items">>, JID) -> [
         escalus_stanza:privacy_list_jid_item(<<"3">>, <<"deny">>,
                                              <<"john@localhost">>, [])
     ].
+
+%% Sends IQ reply and checks if user process still alive
+does_user_process_crash(From, To, Type, Children) ->
+    does_user_process_crash(From, To, Type, Children, <<"Hello stranger">>).
+does_user_process_crash(From, To, Type, Children, Message) ->
+    ToShortJid = escalus_utils:get_short_jid(To),
+    IQWithType = escalus_stanza:iq(ToShortJid, Type, [Children]),
+    escalus:send(From, IQWithType),
+    ChatMsg = escalus_stanza:chat_to(ToShortJid, Message),
+    escalus:send(From, ChatMsg),
+    escalus:assert(is_chat_message,
+                   [Message],
+                   escalus:wait_for_stanza(To)).

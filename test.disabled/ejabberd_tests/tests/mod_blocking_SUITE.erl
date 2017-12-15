@@ -21,7 +21,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--define(NS_BLOCKING,     <<"urn:xmpp:blocking">>).
+-include_lib("escalus/include/escalus_xmlns.hrl").
 
 -define(SLEEP_TIME, 50).
 
@@ -68,7 +68,8 @@ effect_test_cases() ->
         messages_from_unblocked_user_arrive_again,
         messages_from_any_blocked_resource_dont_arrive,
         blocking_doesnt_interfere,
-        blocking_propagates_to_resources
+        blocking_propagates_to_resources,
+        iq_reply_doesnt_crash_user_process
     ].
 
 offline_test_cases() ->
@@ -285,6 +286,25 @@ blocking_propagates_to_resources(Config) ->
             message_is_not_delivered(User2, [User1a], <<"hau!">>),
             message_is_not_delivered(User2, [User1b], <<"miau!">>)
         end).
+
+iq_reply_doesnt_crash_user_process(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+
+        QueryWithBlockingNS = escalus_stanza:query_el(?NS_BLOCKING, []),
+        %% Send IQ reply with blocking ns
+        %% Send message to check user process still alive
+        privacy_helper:does_user_process_crash(Alice,
+            Bob,
+            <<"error">>,
+            QueryWithBlockingNS,
+            <<"Hello, Bob">>),
+
+        privacy_helper:does_user_process_crash(Bob,
+            Alice,
+            <<"result">>,
+            QueryWithBlockingNS,
+            <<"Hello, Alice">>)
+    end).
 
 messages_after_relogin(Config) ->
     %% given
