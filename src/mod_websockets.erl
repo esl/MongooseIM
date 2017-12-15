@@ -245,7 +245,7 @@ get_sockmod(_SocketData) ->
     ?MODULE.
 
 close(#websocket{pid = Pid}) ->
-    Pid ! close.
+    Pid ! stop.
 
 -spec peername(socket()) -> mongoose_transport:peername_return().
 peername(#websocket{peername = PeerName}) ->
