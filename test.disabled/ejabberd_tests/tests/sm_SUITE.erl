@@ -373,6 +373,7 @@ resend_unacked_on_reconnection(Config) ->
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
     AliceSpec = [{manual_ack, true} | AliceSpec0],
+    ct:log("AliceSpecs: ~p~n", [AliceSpec]),
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
     StanzasNewAlice0 = escalus:wait_for_stanzas(NewAlice, length(Messages) + 10),
@@ -901,7 +902,9 @@ given_fresh_user(Config, UserName) ->
     given_fresh_user_with_spec(Spec).
 
 given_fresh_user_with_spec(Spec) ->
-    {ok, User = #client{props = Props}, _} = escalus_connection:start(Spec),
+    {ok, User = #client{props = Props}, _} = escalus_connection:start(Spec, [start_stream,stream_features,maybe_use_ssl,authenticate,
+                                                                             maybe_use_compression,bind,session,maybe_stream_resumption,
+                                                                             maybe_use_carbons]),
     escalus:send(User, escalus_stanza:presence(<<"available">>)),
     escalus:wait_for_stanza(User),
     JID = get_bjid(Props),
