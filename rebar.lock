@@ -59,7 +59,7 @@
   0},
  {<<"fast_tls">>,
   {git,"git://github.com/processone/fast_tls.git",
-       {ref,"ff634a5dabd64a5e2d5e606cb3e6b7c5cf8aa7d9"}},
+       {ref,"a2b2154d11280becbf3077e62f7b5621d52b54fd"}},
   0},
  {<<"folsom">>,{pkg,<<"folsom">>,<<"0.8.5">>},1},
  {<<"fusco">>,
