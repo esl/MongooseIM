@@ -20,6 +20,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 
 -define(SLEEP_TIME, 50).
 
@@ -71,7 +72,8 @@ blocking_test_cases() ->
      block_jid_message_but_not_presence,
      newly_blocked_presense_jid_by_new_list,
      newly_blocked_presense_jid_by_list_change,
-     newly_blocked_presence_not_notify_self
+     newly_blocked_presence_not_notify_self,
+     iq_reply_doesnt_crash_user_process
     ].
 
 allowing_test_cases() ->
@@ -629,6 +631,25 @@ version_iq(Type, From, To) ->
     Req1 = escalus_stanza:to(Req, To),
     Req2= escalus_stanza:from(Req1, From),
     Req2.
+
+iq_reply_doesnt_crash_user_process(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+
+        QueryWithPrivacyNS = escalus_stanza:query_el(?NS_PRIVACY, []),
+        %% Send IQ reply with privacy ns
+        %% Send message to check user process still alive
+        privacy_helper:does_user_process_crash(Alice,
+            Bob,
+            <<"error">>,
+            QueryWithPrivacyNS,
+            <<"Hello, Bob">>),
+
+        privacy_helper:does_user_process_crash(Bob,
+            Alice,
+            <<"result">>,
+            QueryWithPrivacyNS,
+            <<"Hello, Alice">>)
+    end).
 
 block_jid_iq(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->

@@ -42,7 +42,7 @@ pages:
   - 'REST API':
       - 'Client/frontend': 'rest-api/Client-frontend.md'
       - 'Metrics backend': 'rest-api/Metrics-backend.md'
-      - 'Administration backend': 'rest-api/Administration-backend.md'  
+      - 'Administration backend': 'rest-api/Administration-backend.md'
   - 'Operation and maintenance':
       - 'Cluster management considerations': 'operation-and-maintenance/Cluster-management-considerations.md'
       - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
@@ -67,8 +67,6 @@ pages:
       - 'mod_admin_extra': 'modules/mod_admin_extra.md'
       - 'mod_amp': 'modules/mod_amp.md'
       - 'mod_auth_token': 'modules/mod_auth_token.md'
-      - 'mod_aws_sns': 'modules/mod_aws_sns.md'
-      - 'mod_auth_token': 'modules/mod_auth_token.md'
       - 'mod_blocking': 'modules/mod_blocking.md'
       - 'mod_bosh': 'modules/mod_bosh.md'
       - 'mod_caps': 'modules/mod_caps.md'
@@ -77,7 +75,11 @@ pages:
       - 'mod_csi': 'modules/mod_csi.md'
       - 'mod_disco': 'modules/mod_disco.md'
       - 'mod_global_distrib': 'modules/mod_global_distrib.md'
-      - 'mod_http_notification': 'modules/mod_http_notification.md'
+      - 'mod_event_pusher':
+          - 'mod_event_pusher': 'modules/mod_event_pusher.md'
+          - 'HTTP backend': 'modules/mod_event_pusher_http.md'
+          - 'Push backend': 'modules/mod_event_pusher_push.md'
+          - 'SNS backend': 'modules/mod_event_pusher_sns.md'
       - 'mod_http_upload': 'modules/mod_http_upload.md'
       - 'mod_keystore': 'modules/mod_keystore.md'
       - 'mod_last': 'modules/mod_last.md'
@@ -93,7 +95,6 @@ pages:
       - 'mod_privacy': 'modules/mod_privacy.md'
       - 'mod_private': 'modules/mod_private.md'
       - 'mod_pubsub': 'modules/mod_pubsub.md'
-      - 'mod_push': 'modules/mod_push.md'
       - 'mod_push_service_mongoosepush': 'modules/mod_push_service_mongoosepush.md'
       - 'mod_register': 'modules/mod_register.md'
       - 'mod_revproxy': 'modules/mod_revproxy.md'

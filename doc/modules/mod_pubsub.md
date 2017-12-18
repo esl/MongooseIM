@@ -29,7 +29,7 @@ Such caching might speed up pubsub's performance and can increase the number of 
 E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of `node_pep` when the specified namespace is used.
 * `default_node_config` ([{Key, Value}, ...]): Overrides the default node configuration, regradless of the node plugin.
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
-* `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata. 
+* `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata.
  This effectively makes them an owner of this item.
 
 ### Example Configuration
@@ -98,8 +98,7 @@ Every node takes a place in a tree and is either a collection node (and have onl
 
 #### `<<"push">>`
 
-Special node type that may be used as a target node for [XEP-0357 (Push Notifications)](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_push`). 
-For each published notification, a hook `push_notification` is run. 
-You may enable as many modules that support this hook (all module with `mod_push_service_*` name prefix) as you like (see for example `mod_push_service_mongoosepush`). 
+Special node type that may be used as a target node for [XEP-0357 (Push Notifications)](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_event_pusher_push`).
+For each published notification, a hook `push_notification` is run.
+You may enable as many modules that support this hook (all module with `mod_push_service_*` name prefix) as you like (see for example `mod_push_service_mongoosepush`).
 This node type **requires** `publish-options` with at least `device_id` and `service` fields supplied.
-
