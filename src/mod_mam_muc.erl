@@ -56,7 +56,9 @@
 -export([archive_id_int/2]).
 -export([set_params/1]).
 -export([handle_set_message_form/3]).
+-export([handle_lookup_result/4]).
 -export([send_messages_and_iq_result/4]).
+-export([send_messages_and_fin_message/4]).
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -431,41 +433,50 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
 -spec handle_set_message_form(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
                               IQ :: ejabberd:iq()) ->
                                      ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
-handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
-                        IQ = #iq{xmlns = MamNs, sub_el = QueryEl}) ->
+handle_set_message_form(#jid{} = From, #jid{} = ArcJID, IQ) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
-    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     ExtraParamsModule = gen_mod:get_module_opt(Host, ?MODULE, extra_lookup_params, undefined),
     Params0 = mam_iq:form_to_lookup_params(IQ, mod_mam_muc_params:max_result_limit(),
                                            mod_mam_muc_params:default_result_limit(),
                                            ExtraParamsModule),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
-    PageSize = maps:get(page_size, Params),
-    case lookup_messages(Host, Params) of
+    Result = lookup_messages(Host, Params),
+    handle_lookup_result(Result, From, IQ, Params).
+
+-spec handle_lookup_result({ok, mod_mam:lookup_result()} | {error, term()}, ejabberd:jid(),
+                           ejabberd:iq(), map()) ->
+    ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
+handle_lookup_result(Result, From, IQ, #{owner_jid := ArcJID} = Params) ->
+    case Result of
         {error, Reason} ->
             report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
-        {ok, {TotalCount, Offset, MessageRows}} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
-            ResIQ = IQ#iq{type = result, sub_el = []},
-            %% Server accepts the query
-            ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
-
-            {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
-                                                         QueryID, MessageRows, true),
-
-            %% Make fin message
-            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
-            IsStable = true,
-            ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-            FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl, QueryID),
-            ejabberd_sm:route(ArcJID, From, FinMsg),
-
-            %% IQ was sent above
+        {ok, Res} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
+            send_messages_and_fin_message(Res, From, IQ, Params),
             ignore;
-        {ok, Result} ->
-            send_messages_and_iq_result(Result, From, IQ, Params)
+        {ok, Res} ->
+            send_messages_and_iq_result(Res, From, IQ, Params)
     end.
+
+send_messages_and_fin_message({TotalCount, Offset, MessageRows}, From,
+                              #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
+                              #{owner_jid := ArcJID, page_size := PageSize}) ->
+    %% send IQ result
+    ResIQ = IQ#iq{type = result, sub_el = []},
+    ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
+
+    %% forward archived messages
+    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
+    {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
+                                                 QueryID, MessageRows, true),
+
+    %% send fin message
+    IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+    IsStable = true,
+    ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+    FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl, QueryID),
+    ejabberd_sm:route(ArcJID, From, FinMsg).
 
 send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From,
                             #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
