@@ -350,7 +350,10 @@ resend_unacked_on_reconnection(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     {Bob, BobSpec0} = given_fresh_user(Config, bob),
     ct:log("Bob: ~p~nBob Spec: ~p~n", [Bob, BobSpec0]),
-    {Alice, AliceSpec0} = given_fresh_user(Config, alice),
+    ConnectionSteps = [start_stream,stream_features,maybe_use_ssl,authenticate,
+                       maybe_use_compression,bind,session,maybe_stream_resumption,
+                       maybe_use_carbons],
+    {Alice, AliceSpec0} = given_fresh_user([{connection_steps, ConnectionSteps} | Config], alice),
     ct:log("Alice: ~p~nAlice Spec: ~p~n", [Alice, AliceSpec0]),
         discard_vcard_update(Alice),
         %% Bob sends some messages to Alice.
@@ -899,12 +902,17 @@ given_fresh_spec(Config, User) ->
 
 given_fresh_user(Config, UserName) ->
     Spec = given_fresh_spec(Config, UserName),
-    given_fresh_user_with_spec(Spec).
+    case proplists:is_defined(connection_steps, Config) of
+        true ->
+            Spec2 = [{connection_steps, proplists:get_value(connection_steps, Config)} | Spec];
+        false ->
+            Spec2 = Spec
+    end,
+    ct:log("Spec2: ~p~n", [Spec2]),
+    given_fresh_user_with_spec(Spec2).
 
 given_fresh_user_with_spec(Spec) ->
-    {ok, User = #client{props = Props}, _} = escalus_connection:start(Spec, [start_stream,stream_features,maybe_use_ssl,authenticate,
-                                                                             maybe_use_compression,bind,session,maybe_stream_resumption,
-                                                                             maybe_use_carbons]),
+    {ok, User = #client{props = Props}, _} = escalus_connection:start(Spec),
     escalus:send(User, escalus_stanza:presence(<<"available">>)),
     escalus:wait_for_stanza(User),
     JID = get_bjid(Props),
