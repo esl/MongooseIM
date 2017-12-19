@@ -116,18 +116,18 @@
 %%--------------------------------------------------------------------
 
 all() -> [
-       %% {group, disco},
-       %% {group, disco_rsm},
-       %% {group, moderator},
-       %% {group, admin},
-       %% {group, admin_membersonly},
-       %% {group, occupant},
-       %% {group, owner},
-       %% {group, owner_no_parallel},
-       %% {group, room_management},
-       %% {group, http_auth_no_server},
-       %% {group, http_auth},
-       %% {group, hibernation},
+          {group, disco},
+          {group, disco_rsm},
+          {group, moderator},
+          {group, admin},
+          {group, admin_membersonly},
+          {group, occupant},
+          {group, owner},
+          {group, owner_no_parallel},
+          {group, room_management},
+          {group, http_auth_no_server},
+          {group, http_auth},
+          {group, hibernation},
           {group, room_registration}
         ].
 

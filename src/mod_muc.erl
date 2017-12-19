@@ -554,9 +554,6 @@ route_presence_to_nonexistent_room(Room, From, To, Acc, Packet,
                                        HistorySize, RoomShaper, HttpAuthPool,
                                        From, Nick, DefRoomOpts),
             handle_room_registration(Host, Room, Pid);
-            %register_room(Host, Room, Pid),
-            %mod_muc_room:route(Pid, From, Nick, Acc, Packet),
-            %ok;
         false ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Room creation is denied by service policy">>,
@@ -586,9 +583,6 @@ route_packet_to_nonexistent_room(Room, From, To, _Acc, Packet,
                                            Room, HistorySize,
                                            RoomShaper, HttpAuthPool, Opts),
             handle_room_registration(Host, Room, Pid)
-            %{_, _, Nick} = jid:to_lower(To),
-            %register_room(Host, Room, Pid),
-            %mod_muc_room:route(Pid, From, Nick, Acc, Packet)
     end.
 
 -spec route_by_nick(room(), from_to_packet(), state()) -> 'ok' | pid().
