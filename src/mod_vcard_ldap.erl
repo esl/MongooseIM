@@ -39,7 +39,7 @@
 -export([init/1, handle_info/2, handle_call/3,
          handle_cast/2,  code_change/3, terminate/2]).
 
--export([start_link/2,  transform_module_options/1]).
+-export([start_link/2]).
 
 %% mod_vcards callbacks
 -export([init/2,
@@ -474,7 +474,7 @@ parse_options(Host, Opts) ->
     VCardMap = eldap_utils:get_mod_opt(ldap_vcard_map, Opts,
                                fun(Ls) ->
                                        lists:map(
-                                         fun({S, [{P, L}]}) ->
+                                         fun({S, P, L}) ->
                                                  {iolist_to_binary(S),
                                                   iolist_to_binary(P),
                                                   [iolist_to_binary(E)
@@ -497,21 +497,15 @@ parse_options(Host, Opts) ->
     VCardMapAttrs = lists:usort(lists:append([A
                                               || {_, _, A} <- VCardMap])
                                   ++ UIDAttrs),
-    SearchReportedAttrs = lists:usort(lists:flatmap(fun ({_,
-                                                          N}) ->
-                                                            case
-                                                              lists:keysearch(N,
-                                                                              1,
-                                                                              VCardMap)
-                                                                of
-                                                              {value,
-                                                               {_, _, L}} ->
-                                                                  L;
-                                                              _ -> []
-                                                            end
-                                                    end,
-                                                    SearchReported)
-                                        ++ UIDAttrs),
+    SearchReportedAttrs = lists:usort(lists:flatmap(
+                                        fun ({_, N}) ->
+                                          case lists:keysearch(N, 1, VCardMap) of
+                                            {value, {_, _, L}} ->
+                                              L;
+                                            _ -> []
+                                          end
+                                        end,
+                                        SearchReported) ++ UIDAttrs),
     SearchOperatorFun = fun
         ('or') -> 'or';
         (_)    -> 'and'
@@ -539,20 +533,6 @@ parse_options(Host, Opts) ->
            search_reported_attrs = SearchReportedAttrs,
            search_operator = SearchOperator,
            matches = Matches}.
-
-transform_module_options(Opts) ->
-    lists:map(
-      fun({ldap_vcard_map, Map}) ->
-              NewMap = lists:map(
-                         fun({Field, Pattern, Attrs}) ->
-                                 {Field, [{Pattern, Attrs}]};
-                            (Opt) ->
-                                 Opt
-                         end, Map),
-              {ldap_vcard_map, NewMap};
-         (Opt) ->
-              Opt
-      end, Opts).
 
 check_filter(F) ->
     NewF = iolist_to_binary(F),
