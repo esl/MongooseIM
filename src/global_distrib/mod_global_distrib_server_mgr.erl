@@ -1,4 +1,20 @@
+%%==============================================================================
+%% Copyright 2017 Erlang Solutions Ltd.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%==============================================================================
 -module(mod_global_distrib_server_mgr).
+-author('piotr.nosek@erlang-solutions.com').
 
 -include("ejabberd.hrl").
 
@@ -29,7 +45,7 @@
           supervisor :: pid(),
           enabled :: [endpoint_info()],
           disabled :: [endpoint_info()],
-          pending_endpoints :: [{enable | disable, endpoint_info()}],
+          pending_endpoints :: [{enable | disable, endpoint()}],
           pending_gets :: queue:queue(tuple()),
           refresh_interval :: pos_integer(),
           gc_interval :: pos_integer()
@@ -140,7 +156,7 @@ handle_info(process_pending_get, #state{ pending_gets = PendingGets,
     NState =
     case queue:out(PendingGets) of
         {{value, From}, NewPendingGets} ->
-            Connection = pick_connection(Enabled), 
+            Connection = pick_connection(Enabled),
             gen_server:reply(From, Connection),
 
             NState0 = State#state{ pending_gets = NewPendingGets },
@@ -243,12 +259,15 @@ maybe_schedule_process_endpoint(_) ->
     self() ! process_pending_endpoint.
 
 -spec maybe_schedule_process_get(state()) -> any().
-maybe_schedule_process_get(#state{ pending_gets = [] }) ->
-    nop;
-maybe_schedule_process_get(#state{ enabled = Enabled } ) when Enabled /= [] ->
-    self() ! process_pending_get.
+maybe_schedule_process_get(#state{ pending_gets = PendingGets, enabled = Enabled }) ->
+    case PendingGets == queue:new() of
+        true -> nop;
+        false ->
+            Enabled =/= [] orelse error(enabled_is_empty),
+            self() ! process_pending_get
+    end.
 
--spec pick_connection(Enabled :: [endpoint_pid_tuple()]) -> pid().
+-spec pick_connection(Enabled :: [endpoint_info()]) -> pid().
 pick_connection(Enabled) ->
     #endpoint_info{ conn_pool_ref = PoolRef } = lists:nth(rand:uniform(length(Enabled)), Enabled),
     cpool:get_connection(PoolRef).
@@ -330,4 +349,3 @@ stop_disabled(Endpoint, State) ->
             ?ERROR_MSG("event=cannot_close_disabled_connection,endpoint='~p',error='~p'",
                        [Endpoint, Error])
     end.
-

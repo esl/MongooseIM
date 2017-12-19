@@ -43,9 +43,9 @@ start_link(Name) ->
 init(_) ->
     {ok, state, ?TIMEOUT}.
 
-handle_call({data, Stamp, Data}, From, State) ->
+handle_call({data, Host, TransferTime, Stamp, Data}, From, State) ->
     gen_server:reply(From, ok),
-    handle_cast({data, Stamp, Data}, State).
+    handle_cast({data, Host, TransferTime, Stamp, Data}, State).
 
 handle_cast({route, {From, To, Acc, Packet}}, State) ->
     ejabberd_router:route(From, To, Acc, Packet),

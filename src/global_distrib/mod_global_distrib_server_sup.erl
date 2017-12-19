@@ -1,4 +1,20 @@
+%%==============================================================================
+%% Copyright 2017 Erlang Solutions Ltd.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%==============================================================================
 -module(mod_global_distrib_server_sup).
+-author('piotr.nosek@erlang-solutions.com').
 
 -behaviour(supervisor).
 
@@ -74,4 +90,3 @@ init([Server]) ->
 -spec endpoint_to_atom(mod_global_distrib_utils:endpoint()) -> atom().
 endpoint_to_atom({IP, Port}) ->
     list_to_atom(inet:ntoa(IP) ++ "_" ++ integer_to_list(Port)).
-
