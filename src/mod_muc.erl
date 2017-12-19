@@ -47,7 +47,7 @@
          default_host/0]).
 
 %% For testing purposes only
--export([load_permanent_rooms/6]).
+-export([load_permanent_rooms/6, register_room/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -131,7 +131,7 @@
 
 -type state() :: #state{}.
 
--export_type([muc_room/0, muc_registered/0]).
+-export_type([muc_room/0, muc_registered/0, muc_online_room/0]).
 
 -define(PROCNAME, ejabberd_mod_muc).
 
@@ -376,7 +376,7 @@ handle_call({create_instant, Room, From, Nick, Opts},
                   Room, HistorySize,
                   RoomShaper, HttpAuthPool, From,
           Nick, [{instant, true}|NewOpts]),
-    register_room(Host, Room, Pid),
+    handle_room_registration(Host, Room, Pid),
     {reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -395,14 +395,6 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 
-handle_info({route, From, To, Acc}, State) ->
-    case catch process_packet(Acc, From, To, mongoose_acc:get(element, Acc), State) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p", [Reason]);
-        _ ->
-            ok
-    end,
-    {noreply, State};
 handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
     clean_table_from_bad_node(Node),
     {noreply, State};
@@ -513,18 +505,26 @@ process_packet(Acc, From, To, El, #state{
 route_to_room(<<>>, {_, To, _Acc, _} = Routed, State) ->
     {_, _, Nick} = jid:to_lower(To),
     route_by_nick(Nick, Routed, State);
-route_to_room(Room, {From, To, Acc, Packet} = Routed, #state{host=Host} = State) ->
+route_to_room(Room, Routed, #state{host=Host} = State) ->
     case mnesia:dirty_read(muc_online_room, {Room, Host}) of
         [] ->
-            route_to_nonexistent_room(Room, Routed, State);
+            case route_to_nonexistent_room(Room, Routed, State) of
+                ok ->
+                    ok;
+                Pid ->
+                    route_to_online_room(Pid, Routed)
+            end;
         [R] ->
             Pid = R#muc_online_room.pid,
-            ?DEBUG("MUC: send to process ~p~n", [Pid]),
-            {_, _, Nick} = jid:to_lower(To),
-            mod_muc_room:route(Pid, From, Nick, Acc, Packet),
-            ok
+            route_to_online_room(Pid, Routed)
     end.
 
+route_to_online_room(Pid, Routed) ->
+    ?DEBUG("MUC: send to process ~p~n", [Pid]),
+    {From, To, Acc, Packet} = Routed,
+    {_, _, Nick} = jid:to_lower(To),
+    mod_muc_room:route(Pid, From, Nick, Acc, Packet),
+    ok.
 
 -spec route_to_nonexistent_room(room(), from_to_packet(), state()) -> 'ok'.
 route_to_nonexistent_room(Room, {From, To, Acc, Packet}, State) ->
@@ -553,9 +553,10 @@ route_presence_to_nonexistent_room(Room, From, To, Acc, Packet,
             {ok, Pid} = start_new_room(Host, ServerHost, Access, Room,
                                        HistorySize, RoomShaper, HttpAuthPool,
                                        From, Nick, DefRoomOpts),
-            register_room(Host, Room, Pid),
-            mod_muc_room:route(Pid, From, Nick, Acc, Packet),
-            ok;
+            handle_room_registration(Host, Room, Pid);
+            %register_room(Host, Room, Pid),
+            %mod_muc_room:route(Pid, From, Nick, Acc, Packet),
+            %ok;
         false ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Room creation is denied by service policy">>,
@@ -564,7 +565,7 @@ route_presence_to_nonexistent_room(Room, From, To, Acc, Packet,
             ejabberd_router:route(To, From, Acc, Err)
     end.
 
-route_packet_to_nonexistent_room(Room, From, To, Acc, Packet,
+route_packet_to_nonexistent_room(Room, From, To, _Acc, Packet,
                                  #state{server_host = ServerHost,
                                         host = Host,
                                         access = Access} = State) ->
@@ -584,9 +585,10 @@ route_packet_to_nonexistent_room(Room, From, To, Acc, Packet,
             {ok, Pid} = mod_muc_room:start(Host, ServerHost, Access,
                                            Room, HistorySize,
                                            RoomShaper, HttpAuthPool, Opts),
-            {_, _, Nick} = jid:to_lower(To),
-            register_room(Host, Room, Pid),
-            mod_muc_room:route(Pid, From, Nick, Acc, Packet)
+            handle_room_registration(Host, Room, Pid)
+            %{_, _, Nick} = jid:to_lower(To),
+            %register_room(Host, Room, Pid),
+            %mod_muc_room:route(Pid, From, Nick, Acc, Packet)
     end.
 
 -spec route_by_nick(room(), from_to_packet(), state()) -> 'ok' | pid().
@@ -694,7 +696,6 @@ check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
             false
     end.
 
-
 -spec load_permanent_rooms(Host :: ejabberd:server(), Srv :: ejabberd:server(),
         Access :: access(), HistorySize :: 'undefined' | integer(),
         RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool()) -> 'ok'.
@@ -713,21 +714,17 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
     lists:foreach(
       fun(R) ->
               {Room, Host} = R#muc_room.name_host,
-              case mnesia:dirty_read(muc_online_room, {Room, Host}) of
-                  [] ->
-                      {ok, Pid} = mod_muc_room:start(
-                                    Host,
-                                    ServerHost,
-                                    Access,
-                                    Room,
-                                    HistorySize,
-                                    RoomShaper,
-                                    HttpAuthPool,
-                                    R#muc_room.opts),
-                      register_room(Host, Room, Pid);
-                  _ ->
-                      ok
-              end
+              {ok, Pid} = mod_muc_room:start(
+                  Host,
+                  ServerHost,
+                  Access,
+                  Room,
+                  HistorySize,
+                  RoomShaper,
+                  HttpAuthPool,
+                  R#muc_room.opts),
+              handle_room_registration(Host, Room, Pid)
+
       end, RoomsToLoad).
 
 -spec start_new_room(Host :: 'undefined' | ejabberd:server(),
@@ -755,13 +752,25 @@ start_new_room(Host, ServerHost, Access, Room,
                                RoomShaper, HttpAuthPool, Opts)
     end.
 
+handle_room_registration(Host, Room, Pid) ->
+    case register_room(Host, Room, Pid) of
+        {_, ok} ->
+            ok;
+        {_, {exists, OldPid}} ->
+            exit(Pid, normal),
+            OldPid
+    end.
 
 -spec register_room('undefined' | ejabberd:server(), room(),
                     'undefined' | pid()) -> {'aborted', _} | {'atomic', _}.
 register_room(Host, Room, Pid) ->
     F = fun() ->
-                mnesia:write(#muc_online_room{name_host = {Room, Host},
-                                              pid = Pid})
+            case mnesia:read(muc_online_room,  {Room, Host}, write) of
+                [] ->
+                    mnesia:write(#muc_online_room{name_host = {Room, Host}, pid = Pid});
+                [R] ->
+                    {exists, R#muc_online_room.pid}
+            end
         end,
     mnesia:transaction(F).
 
