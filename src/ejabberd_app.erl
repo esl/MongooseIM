@@ -71,7 +71,7 @@ start(normal, _Args) ->
     mongoose_metrics:init(),
     ejabberd_listener:start_listeners(),
     ejabberd_admin:start(),
-    ?INFO_MSG("ejabberd ~s is started in the node ~p", [?VERSION, node()]),
+    ?INFO_MSG("ejabberd ~s is started in the node ~p", [?MONGOOSE_VERSION, node()]),
     Sup;
 start(_, _) ->
     {error, badarg}.
@@ -91,7 +91,7 @@ prep_stop(State) ->
 
 %% All the processes were killed when this function is called
 stop(_State) ->
-    ?INFO_MSG("ejabberd ~s is stopped in the node ~p", [?VERSION, node()]),
+    ?INFO_MSG("ejabberd ~s is stopped in the node ~p", [?MONGOOSE_VERSION, node()]),
     delete_pid_file(),
     %%ejabberd_debug:stop(),
     ok.
