@@ -542,8 +542,6 @@ meck_room_route() ->
     TestCasePid = self(),
     ok = escalus_ejabberd:rpc(meck, expect, [mod_muc_room, route,
         fun(Pid, _From, _ToNick, _Acc, _Packet) ->
-            io:format("From ~p: ", [self()]),
-            io:format("Routing to ~p ~n ", [Pid]),
             TestCasePid ! Pid
         end]).
 
@@ -4434,8 +4432,9 @@ load_already_registered_permanent_rooms(Config) ->
          end,
     {atomic, ok} = escalus_ejabberd:rpc(mnesia, transaction, [F1]),
 
+    % Load permanent rooms and let it sink in
     escalus_ejabberd:rpc(mod_muc, load_permanent_rooms , [Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool]),
-
+    timer:sleep(?WAIT_TIME),
     %% Read online room
     F2 = fun()->
              mnesia:read(muc_online_room, {Room, Host}, write)
