@@ -4421,8 +4421,8 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
 %%--------------------------------------------------------------------
 load_already_registered_permanent_rooms(Config) ->
     Room = <<"testroom1">>,
-    Host = muc_host(),
-    ServerHost = muc_host(),
+    Host = <<"localhost">>,
+    ServerHost = <<"localhost">>,
     Access = none,
     HistorySize = 10,
     RoomShaper = none,

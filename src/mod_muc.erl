@@ -509,10 +509,10 @@ route_to_room(Room, Routed, #state{host=Host} = State) ->
     case mnesia:dirty_read(muc_online_room, {Room, Host}) of
         [] ->
             case route_to_nonexistent_room(Room, Routed, State) of
-                ok ->
-                    ok;
-                Pid ->
-                    route_to_online_room(Pid, Routed)
+                {ok, NewPid} ->
+                    route_to_online_room(NewPid, Routed);
+                {exists, OldPid} ->
+                    route_to_online_room(OldPid, Routed)
             end;
         [R] ->
             Pid = R#muc_online_room.pid,
@@ -749,10 +749,10 @@ start_new_room(Host, ServerHost, Access, Room,
 handle_room_registration(Host, Room, Pid) ->
     case register_room(Host, Room, Pid) of
         {_, ok} ->
-            ok;
+            {ok, Pid};
         {_, {exists, OldPid}} ->
             exit(Pid, normal),
-            OldPid
+            {exists, OldPid}
     end.
 
 -spec register_room('undefined' | ejabberd:server(), room(),
