@@ -876,6 +876,8 @@ set_endpoints(ListenNode, Endpoints) ->
     {ok, _} = rpc(ListenNode, mod_global_distrib_mapping_redis, set_endpoints, [Endpoints]).
 
 get_outgoing_connections(NodeName, DestinationDomain) ->
+    ct:sleep(1000),
+
     Supervisor = rpc(NodeName, mod_global_distrib_utils, server_to_sup_name, [DestinationDomain]),
     Manager = rpc(NodeName, mod_global_distrib_utils, server_to_mgr_name, [DestinationDomain]),
     Enabled = rpc(NodeName, mod_global_distrib_server_mgr,
