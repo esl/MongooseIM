@@ -1,4 +1,7 @@
 ### Module Description
+
+> **Experimental:** we welcome suggestions and bug reports but do not recommend enabling `mod_global_distrib` on a production service.
+
 This module enables global distribution of a single XMPP domain.
 With `mod_global_distrib`, multiple distinct MongooseIM clusters can share a single domain name and route messages to the specific datacenter where the recipient is available.
 
@@ -125,7 +128,7 @@ Global distribution modules expose several per-datacenter metrics that can be us
   It means that disabled endpoints are periodically verified and if Global Distribution detects that connections is no longer alive, the connection pool is closed completely.
 * **tls_opts** (list, required): Options for TLS connections passed to the `fast_tls` driver.
   May be set to `false`, in which case all data will be sent via standard TCP connections.
-  Otherwise, they should at least include `certfile` and `cafile` options. 
+  Otherwise, they should at least include `certfile` and `cafile` options.
 
 #### Redis session storage options
 
