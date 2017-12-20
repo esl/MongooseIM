@@ -16,7 +16,7 @@ This extension requires the client application to authenticate to the XMPP serve
 
 After that, the following authentications may be done using X-OAUTH SASL mechanism with a token obtained from the server.
 
-To enable the feature, modules `mod_auth_token` and `mod_keystore` have to be enabled on the server. For more details regarding the configuration see [mod_auth_token documentation](../modules/mod_auth_token) and [mod_keystore](module/mod_keystore).
+To enable the feature, modules `mod_auth_token` and `mod_keystore` have to be enabled on the server. For more details regarding the configuration see [mod_auth_token documentation](../modules/mod_auth_token/) and [mod_keystore](../modules/mod_keystore/).
 
 # Token types
 
