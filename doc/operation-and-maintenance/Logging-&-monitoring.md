@@ -1,7 +1,7 @@
 ## Logs
 
 We strongly recommend storing logs in one centralized place when working in a clustered environment.
-MongooseIM uses Lager - the logging framework. 
+MongooseIM uses Lager - the logging framework.
 Its backend can be easily replaced; the `syslog` backend is included by default in MongooseIM.
 
 
@@ -14,10 +14,10 @@ To activate the syslog backend you have to edit `rel/files/app.config` and uncom
 
 Remember to provide a parameter list to make your lager syslog backend running:
 
-* The first parameter is a string to tag all the syslog messages with. 
+* The first parameter is a string to tag all the syslog messages with.
  The default is `mongooseim`.
 * The second one is the facility to log to (see the syslog documentation).
-* The last parameter is the lager level at which the backend accepts messages. 
+* The last parameter is the lager level at which the backend accepts messages.
  In our case it's `info`.
 
 Depending on the system platform you use, remember also to add the appropriate line in the syslog config file:
@@ -32,7 +32,7 @@ Example log (e.g `tail -f /var/log/mongooseim.log`):
 
 ### Further / multiserver integration
 
-For more advanced processing and analysis of logs, including gathering logs from multiple machines, you can use one of the many available systems (e.g. logstash/elasticsearch/kibana, graylog, splunk), which collect data from the syslog and are beyond the scope of this documentation. 
+For more advanced processing and analysis of logs, including gathering logs from multiple machines, you can use one of the many available systems (e.g. logstash/elasticsearch/kibana, graylog, splunk), which collect data from the syslog and are beyond the scope of this documentation.
 
 ## Monitoring
 
@@ -52,33 +52,22 @@ To monitor MongooseIM during load testing, we recommend the following open sourc
 - [collectd](http://collectd.org/) is a daemon running on the monitored nodes capturing data related to CPU and Memory usage, IO etc.
 
 
-### Built-in Exometer reporters
+### Plug-in Exometer reporters
 
-MongooseIM uses the Exometer libary for collecting the metrics. 
-Exometer has many build-in reporters that can send metrics to external services like:
-
-* graphite
-* amqp
-* statsd
-* snmp
-* opentsdb
-
+MongooseIM uses [a fork of Exometer library](https://github.com/esl/exometer_core) for collecting metrics.
+Exometer has many plug-in reporters that can send metrics to external services. We maintain [exometer_report_graphite](https://github.com/esl/exometer_report_graphite) and [exometer_report_statsd](https://github.com/esl/exometer_report_statsd) for Graphite and StatsD respectively.
 It is possible to enable them in MoongooseIM via the `app.config` file.
 The file sits next to the `ejabberd.cfg` file in the `rel/files` and `_REL_DIR_/etc` directories.
-For more details, please visit the Exometer's project page: [Exometer](https://github.com/Feuerlabs/exometer).
 
-**Note that we are using the 1.2.1 version with our patches.**
-
-Below you can find a sample configuration. 
+Below you can find a sample configuration.
 It shows setting up a reporter connecting to graphite running on localhost.
 
-You can see an additional option not listed in the Exometer docs - `mongooseim_report_interval`.
-That option sets the metrics resolution: how often Exometer gathers and sends metrics through reporters. 
-By default that is 60 seconds.
+You can see an additional option not listed in the Exometer docs - `mongooseim_report_interval`, which sets the metrics' resolution, i.e. how often Exometer gathers and sends metrics through reporters.
+By default, the resolution is set to 60 seconds.
 
 ```erl
 ...
-{exometer, [
+{exometer_core, [
     {mongooseim_report_interval, 60000}, %% 60 seconds
     {report, [
         {reporters, [
@@ -152,4 +141,3 @@ Start a container with Graphite:
     $ docker run -d --name graphite --restart=always -p 80:80 -p 2003-2004:2003-2004 -p 2023-2024:2023-2024 -p 8125:8125/udp -p 8126:8126 hopsoft/graphite-statsd
 
 Now do the "Verification" part from previous subsection. There is one difference: you need to replace every occurrence of `172.17.0.2` with `localhost`.
-

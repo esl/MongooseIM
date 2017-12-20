@@ -1,8 +1,0 @@
-%% Dummy application resource file so that ejabberd may be used as a rebar
-%% dependency in other erlang applications.
-{application,mongooseim,
-             [{description,"MongooseIM"},
-              {vsn, {cmd,"tools/generate_vsn.sh"}},
-              {modules,[]},
-              {registered,[]},
-              {applications,[]}]}.

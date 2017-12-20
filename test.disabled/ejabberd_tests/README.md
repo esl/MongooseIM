@@ -27,7 +27,7 @@ Of course TESTSPEC and ADD_OPTS can be specified at the same time:
 
 ## Testing various server configurations
 
-It is possible to run tests for various ejabberd configurations.  
+It is possible to run tests for various ejabberd configurations.
 In order to do this define configuration variables in `test.config` file, for example:
 
 ```
@@ -40,7 +40,7 @@ In order to do this define configuration variables in `test.config` file, for ex
         {auth_method, "internal"}]}
     ]}.
 ```
-For each configuration the given variables merged with values from `node1_vars.config` 
+For each configuration the given variables merged with values from `node1_vars.config`
 will be overlaid with the original `ejabberd.cfg` file and ejabberd will be restarted.
 
 
@@ -68,12 +68,12 @@ setup_ejabberd_node(Config0) ->
     ejabberd_node_utils:backup_config_file(Config1),
     assert_cert_file_exists(),
     make_ejabberd_node_require_starttls(Config1),
-    ejabberd_node_utils:restart_application(ejabberd),
+    ejabberd_node_utils:restart_application(mongooseim),
     Config1.
 
 restore_ejabberd_node(Config) ->
     ejabberd_node_utils:restore_config_file(Config),
-    ejabberd_node_utils:restart_application(ejabberd).
+    ejabberd_node_utils:restart_application(mongooseim).
 
 assert_cert_file_exists() ->
     ejabberd_node_utils:file_exists(?CERT_FILE) orelse

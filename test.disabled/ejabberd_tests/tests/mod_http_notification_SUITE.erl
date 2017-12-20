@@ -22,7 +22,7 @@ all() ->
     [
         {group, mod_http_notification_tests},
         {group, mod_http_notification_tests_with_prefix}
-        ].
+    ].
 
 all_tests() ->
     [simple_message, simple_message_no_listener, simple_message_failing_listener].
@@ -35,21 +35,20 @@ groups() ->
 suite() ->
     escalus:suite().
 
-set_worker() ->
-    set_modules([{worker_timeout, 500}, {host, "http://localhost:8000"}]),
-    ok.
+set_worker(Config) ->
+    set_modules(Config, [{worker_timeout, 500}, {host, "http://localhost:8000"}]).
 
-set_worker(Prefix) ->
-    set_modules([{worker_timeout, 500}, {host, "http://localhost:8000"}, {path, Prefix}]),
-    ok.
+set_worker(Config, Prefix) ->
+    set_modules(Config, [{worker_timeout, 500}, {host, "http://localhost:8000"}, {path, Prefix}]).
 
-set_modules(Opts) ->
+set_modules(Config0, Opts) ->
+    Config = dynamic_modules:save_modules(host(), Config0),
     ejabberd_node_utils:call_fun(mongoose_http_client, start, [[]]),
     ejabberd_node_utils:call_fun(mongoose_http_client,
         start_pool,
         [http_pool, [{server, "http://localhost:8000"}]]),
-    dynamic_modules:start(host(), mod_http_notification, Opts),
-    ok.
+    dynamic_modules:ensure_modules(host(), [{mod_http_notification, Opts}]),
+    Config.
 
 host() -> ct:get_config({hosts, mim, domain}).
 
@@ -62,16 +61,14 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(mod_http_notification_tests, Config) ->
-    set_worker(),
-    Config;
+    set_worker(Config);
 init_per_group(mod_http_notification_tests_with_prefix, Config) ->
-    set_worker("/prefix"),
-    Config.
+    set_worker(Config, "/prefix").
 
 end_per_group(_GroupName, Config) ->
-    dynamic_modules:stop(host(), mod_http_notification),
     ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [http_pool]),
     ejabberd_node_utils:call_fun(mongoose_http_client, stop, []),
+    dynamic_modules:restore_modules(host(), Config),
     ok.
 
 init_per_testcase(CaseName, Config) ->
@@ -81,10 +78,6 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     http_helper:stop(),
     escalus:end_per_testcase(CaseName, Config).
-
-start_mod_http_notification(Opts) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Domain, mod_http_notification, Opts).
 
 start_http_listener(simple_message, Prefix) ->
     Pid = self(),

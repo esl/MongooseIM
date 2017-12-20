@@ -1,10 +1,10 @@
 For advanced configuration use the following files:
 
-* `ejabberd.cfg` for pure MongooseIM settings, 
+* `ejabberd.cfg` for pure MongooseIM settings,
 
-* `vm.args` to affect the Erlang VM behaviour (performance tuning, node name), 
+* `vm.args` to affect the Erlang VM behaviour (performance tuning, node name),
 
-* `app.config` to change low-level logging parameters and settings of other Erlang applications. 
+* `app.config` to change low-level logging parameters and settings of other Erlang applications.
 
 Since you've gotten this far, we assume you're already familiar with Erlang syntax.
 
@@ -137,9 +137,9 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Values:** `none`, `tls`
     * **Default:** `none`
 
-* **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled. 
-    When `hard` is enabled ejabberd doesn’t proceed if a certificate is invalid.
-    When `soft` is enabled ejabberd proceeds even if the check fails. 
+* **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled.
+    When `hard` is enabled mongooseim doesn’t proceed if a certificate is invalid.
+    When `soft` is enabled mongooseim proceeds even if the check fails.
     `False` means no checks are performed.
     * **Values:** `soft`, `hard`, `false`
     * **Default:** `false`
@@ -198,11 +198,11 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
              * **Default:** 4096
 
         * [`external` backend options](authentication-backends/External-authentication-module.md#configuration-options)
-        
+
         * [`http` backend options](authentication-backends/HTTP-authentication-module.md#configuration-options)
 
         * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
-        
+
 * `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `ejabberd.cfg` file.
 
 * **sasl_mechanisms** (local)
@@ -247,7 +247,7 @@ See [Database backends configuration](./advanced-configuration/database-backends
 
 * **odbc_server** (local)
     * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
-    * **Syntax:** `{odbc_server, {Type, Host, Port, DBName, Username, Password}}.`
+    * **Syntax:** `{odbc_server, {Type, Host, Port, DBName, Username, Password}}.` **or** `{odbc_server, "<ODBC connection string>"}`
     * **Default:** `undefined`
 
 * **pgsql_users_number_estimate** (local)
@@ -267,9 +267,82 @@ See [Database backends configuration](./advanced-configuration/database-backends
 * **odbc_server_type** (local)
     * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_odbc_user` uses different query for `mssql`).
     * **Syntax:** `{odbc_server_type, Type}`
-    * **Supported values:** `mssql`, `generic`
-    * **Default:** `generic`
+    * **Supported values:** `mssql`, `pgsql` or `undefined`
+    * **Default:** `undefined`
 
+### MySQL and PostgreSQL SSL connection setup
+
+In order to establish a secure connection with a database additional options must be passed in aforementioned `odbc_server` tuple.
+Here is the proper syntax:
+
+`{odbc_server, {Type, Host, Port, DBName, Username, Password, SSL}}.`
+
+#### MySQL
+
+SSL configuration options for MySQL:
+
+* **SSL**
+    * **Description:** Specifies SSL connection options.
+    * **Syntax:** `[Opt]`
+    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
+
+##### Example configuration
+
+An example configuration can look as follows:
+
+`{odbc_server, {mysql, "localhost", "username", "database", "pass",
+               [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}}`
+
+#### PostgreSQL
+
+SSL configuration options for PGSQL:
+
+* **SSL**
+    * **Description:** Specifies general options for SSL connection.
+    * **Syntax:** `[SSLMode, SSLOpts]`
+
+* **SSLMode**
+    * **Description:** Specifies a mode of SSL connection. Mode expresses how much the PostgreSQL driver carries about security of the connections.
+    For more information click [here](https://github.com/epgsql/epgsql).
+    * **Syntax:** `{ssl, Mode}`
+    * **Supported values:** `false`, `true`, `required`
+
+* **SSLOpts**
+    * **Description:** Specifies SSL connection options.
+    * **Syntax:** `{ssl_opts, [Opt]}`
+    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
+
+##### Example configuration
+
+An example configuration can look as follows:
+
+`{odbc_server, {pgsql, "localhost", "username", "database", "pass",
+               [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}.`
+
+### ODBC SSL connection setup
+
+If you've configured MongooseIM to use an ODBC driver, i.e. you've provided an ODBC connection string to `odbc_server` option, e.g.
+
+```erlang
+{odbc_server, "DSN=mydb"}.
+```
+
+then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
+
+To enable SSL connection the `sslmode` option needs to be set to `verify-full`.
+Additionally, you can provide the path to the CA certificate using the `sslrootcert` option.
+
+#### Example ~/.odbc.ini configuration
+
+```
+[mydb]
+Driver      = ...
+ServerName  = ...
+Port        = ...
+...
+sslmode     = verify-full
+sslrootcert = /path/to/ca/cert
+```
 
 ### Riak connection setup
 
@@ -285,6 +358,32 @@ It is configured with single tuple.
         * **address** - A string with IP or hostname.
         * **port** - A positive integer.
     * **Example:** `{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}]}.`
+
+#### Riak SSL connection setup
+
+Using SSL for Riak connection requires passing extra options to the
+aforementioned `riak_server` tuple.
+
+Here is the proper syntax:
+
+`{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}, Credentials, CACert]}.`
+
+* **Credentials**
+    * **Description:** Specifies credentials to use to connect to the database.
+    * **Syntax:** `{credentials, User, Password}`
+    * **Supported values** `User` and `Password` are strings with a database username and password respectively.
+
+* **CACert**
+    * **Description:** Specifies a path to the CA certificate that was used to sign the database certificates.
+    * **Syntax:** `{cacertfile, Path}`
+    * **Supported values** `Path` is a string with a path to the CA certificate file.
+
+##### Example configuration
+
+An example configuration can look as follows:
+
+`{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087},
+               {credentials, "username", "pass"}, {cacertfile, "path/to/cacert.pem"}]}.`
 
 ### Cassandra connection setup
 
@@ -323,6 +422,68 @@ If they are not present - defaults are used (connection to `localhost:9042` with
    ]}
  ]}.
 ```
+
+#### SSL connection setup
+
+In order to establish a secure connection to Cassandra you must make some changes in the MongooseIM and Cassandra configuration files.
+
+##### Create server keystore
+Follow [this](https://docs.datastax.com/en/cassandra/3.0/cassandra/configuration/secureSSLCertWithCA.html) guide if you need to create certificate files.
+
+##### Change the Cassandra configuration file
+Find `client_encryption_options` in `cassandra.yaml` and make these changes:
+```
+client_encryption_options:
+    enabled: true
+    keystore: /your_certificate_directory/server.keystore
+    keystore_password: your_password
+```
+Save the changes and restart Cassandra.
+
+##### Enable MongooseIM to connect with SSL
+An SSL connection can be established with both self-signed and CA-signed certificates.
+
+###### Self-signed certificate
+
+Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
+```
+{cassandra_servers, [{default, [{ssl, [{verify, verify_none}]}]}]}.
+```
+Save the changes and restart MongooseIM.
+
+###### CA-signed certificate
+
+Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
+```
+{cassandra_servers, [{default, [{ssl, [{cacertfile,
+                                        "/path/to/rootCA.pem"},
+                                        {verify, verify_peer}]}]}]}.
+```
+Save the changes and restart MongooseIM.
+
+##### Testing the connection
+
+Make sure Cassandra is running and then run MongooseIM in live mode:
+ ```
+ $ ./mongooseim live
+ $ (mongooseim@localhost)1> cqerl:get_client(default).
+ {ok,{<0.474.0>,#Ref<0.160699839.1270874114.234457>}}
+ $ (mongooseim@localhost)2> sys:get_state(pid(0,474,0)).
+ {live,{client_state,cqerl_auth_plain_handler,undefined,
+                    undefined,
+                    {"localhost",9042},
+                    ssl,
+                    {sslsocket,{gen_tcp,#Port<0.8458>,tls_connection,undefined},
+                               <0.475.0>},
+                    undefined,mongooseim,infinity,<<>>,undefined,
+                    [...],
+                    {[],[]},
+                    [0,1,2,3,4,5,6,7,8,9,10,11|...],
+                    [],hash,
+                    {{"localhost",9042},
+                     [...]}}}
+ ```
+If no errors occurred and your output is similar to the one above then your MongooseIM and Cassandra nodes can communicate over SSL.
 
 ### Outgoing HTTP connections
 
@@ -367,7 +528,7 @@ Following pool options are recognized - all of them are optional.
     * **Regexp format:** Syntax for `_regexp` can be found in [Erlang documentation](http://www.erlang.org/doc/man/re.html) - it's based on AWK syntax. For `_glob` use `sh` regexp syntax.
     * **Valid definitions:**
         * `all`
-        * `{user, U}` - check if the username equals `U` and the domain either equals the one specified by the module executing the check or (if the module does a `global` check) is on the served domains list (`hosts` option) 
+        * `{user, U}` - check if the username equals `U` and the domain either equals the one specified by the module executing the check or (if the module does a `global` check) is on the served domains list (`hosts` option)
         * `{user, U, S}` - check if the username equals `U` and the domain equals `S`
         * `{server, S}` - check if the domain equals `S`
         * `{resource, R}` - check if the resource equals `R`
@@ -402,7 +563,7 @@ Following pool options are recognized - all of them are optional.
 ### Default language
 
 * **language** (global)
-    * **Description:** Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls apps/ejabberd/priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
+    * **Description:** Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
     * **Default:** `en`
 
 ### Miscellaneous
@@ -477,4 +638,3 @@ TLS is configured in one of two ways: some modules need a private key and certif
 In order to create private key & certificate bundle, you may simply concatenate them.
 
 More information about configuring TLS for these endpoints is available in [Listener modules](advanced-configuration/Listener-modules.md) page.
-

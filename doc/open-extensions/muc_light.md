@@ -932,6 +932,16 @@ The notifications contain a list of items. The item list may be different from t
 
 **Affiliations change request**
 
+Let's consider a room `coven` with following members:
+
+* `crone1` - `owner`
+* `hag77` - `member`
+* `hag88` - `member`
+
+`hag66` is not in the room yet.
+
+User `crone1` wants to add `hag66` to the room, kick `hag88` out and make `hag77` the room owner.
+
 ```xml
 <iq from='crone1@shakespeare.lit/desktop'
     id='member1'
@@ -944,6 +954,11 @@ The notifications contain a list of items. The item list may be different from t
     </query>
 </iq>
 ```
+
+Now each user will receive an update.
+As you can see, affiliations have changed accordingly to `crone1` request.
+However, this request implies one more update.
+Since `hag77` has been promoted to a new owner, `crone1` is automatically degraded to `member`.
 
 ```xml
 <message from='coven@muclight.shakespeare.lit'
@@ -962,6 +977,8 @@ The notifications contain a list of items. The item list may be different from t
 </message>
 ```
 
+Because `hag66` was not a member of this room before, they only receive **their own affiliation** and **no prev-version** element.
+
 ```xml
 <message from='coven@muclight.shakespeare.lit'
          to='hag66@shakespeare.lit'
@@ -974,6 +991,8 @@ The notifications contain a list of items. The item list may be different from t
     <body></body>
 </message>
 ```
+
+`hag77` receives an ordinary update, just like `crone1`.
 
 ```xml
 <message from='coven@muclight.shakespeare.lit'
@@ -992,6 +1011,8 @@ The notifications contain a list of items. The item list may be different from t
 </message>
 ```
 
+`hag88` has been kicked out of the room and therefore gets only their own affiliation change of type 'none'.
+
 ```xml
 <message from='coven@muclight.shakespeare.lit'
          to='hag88@shakespeare.lit'
@@ -1004,6 +1025,7 @@ The notifications contain a list of items. The item list may be different from t
 </message>
 ```
 
+`crone1` gets the result IQ after the change.
 ```xml
 <iq to='crone1@shakespeare.lit/desktop'
     id='member1'

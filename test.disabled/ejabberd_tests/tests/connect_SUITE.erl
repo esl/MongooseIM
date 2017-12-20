@@ -105,11 +105,11 @@ init_per_group(c2s_noproc, Config) ->
 init_per_group(starttls, Config) ->
     config_ejabberd_node_tls(Config,
                              fun mk_value_for_starttls_required_config_pattern/0),
-    ejabberd_node_utils:restart_application(ejabberd),
+    ejabberd_node_utils:restart_application(mongooseim),
     Config;
 init_per_group(tls, Config) ->
     config_ejabberd_node_tls(Config, fun mk_value_for_tls_config_pattern/0),
-    ejabberd_node_utils:restart_application(ejabberd),
+    ejabberd_node_utils:restart_application(mongooseim),
     Users = proplists:get_value(escalus_users, Config, []),
     JoeSpec = lists:keydelete(starttls, 1, proplists:get_value(?SECURE_USER, Users)),
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
@@ -118,7 +118,7 @@ init_per_group(tls, Config) ->
     [{c2s_port, 5222} | Config2];
 init_per_group(feature_order, Config) ->
     config_ejabberd_node_tls(Config, fun mk_value_for_compression_config_pattern/0),
-    ejabberd_node_utils:restart_application(ejabberd),
+    ejabberd_node_utils:restart_application(mongooseim),
     Config;
 init_per_group(_, Config) ->
     Config.
@@ -553,7 +553,7 @@ openssl_client_can_use_cipher(Cipher, Port) ->
 
 restore_ejabberd_node(Config) ->
     ejabberd_node_utils:restore_config_file(Config),
-    ejabberd_node_utils:restart_application(ejabberd).
+    ejabberd_node_utils:restart_application(mongooseim).
 
 assert_cert_file_exists() ->
     ejabberd_node_utils:file_exists(?CERT_FILE) orelse
