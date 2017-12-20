@@ -37,6 +37,7 @@
          room_address/1,
          room_address/2]).
 
+
 -define(MUC_HOST, <<"muc.localhost">>).
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 -define(PASSWORD, <<"pa5sw0rd">>).
@@ -77,15 +78,6 @@
         last  :: binary() | undefined,
         items :: [#xmlel{}]
         }).
-
-%%-record(muc_online_room, {name_host,
-%%    pid
-%%}).
-%%
-%%-record(muc_room, {
-%%    name_host,
-%%    opts
-%%}).
 
 -define(assertReceivedMatch(Expect), ?assertReceivedMatch(Expect, timer:seconds(5))).
 
@@ -285,10 +277,10 @@ groups() -> [
                 deny_creation_of_http_password_protected_room_wrong_password
                 ]},
         {room_registration, [], [
-                load_permanent_rooms,
-                create_room,
-                process_presence,
-                process_message
+                load_already_registered_permanent_rooms,
+                create_already_registered_room,
+                check_presence_route_to_offline_room,
+                check_message_route_to_offline_room
                ]}
         ].
 
@@ -443,20 +435,20 @@ end_per_group(_GroupName, Config) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-init_per_testcase(CaseName = load_permanent_rooms, Config) ->
+init_per_testcase(CaseName = load_already_registered_permanent_rooms, Config) ->
     ok = escalus_ejabberd:rpc(meck, new, [mod_muc_room, [no_link, passthrough]]),
     meck_room_start(),
     escalus:init_per_testcase(CaseName, Config);
-init_per_testcase(CaseName = create_room, Config) ->
+init_per_testcase(CaseName = create_already_registered_room, Config) ->
     ok = escalus_ejabberd:rpc(meck, new, [mod_muc_room, [no_link, passthrough]]),
     meck_room_start(),
     escalus:init_per_testcase(CaseName, Config);
-init_per_testcase(CaseName = process_presence, Config) ->
+init_per_testcase(CaseName = check_presence_route_to_offline_room, Config) ->
     ok = escalus_ejabberd:rpc(meck, new, [mod_muc_room, [no_link, passthrough]]),
     meck_room_start(),
     meck_room_route(),
     escalus:init_per_testcase(CaseName, Config);
-init_per_testcase(CaseName = process_message, Config) ->
+init_per_testcase(CaseName = check_message_route_to_offline_room, Config) ->
     ok = escalus_ejabberd:rpc(meck, new, [mod_muc_room, [no_link, passthrough]]),
     meck_room_start(),
     meck_room_route(),
@@ -583,16 +575,16 @@ get_group_name(Config) ->
 %    destroy_room(Config),
 %    escalus:end_per_testcase(CaseName, Config);
 
-end_per_testcase(CaseName = load_permanent_rooms, Config) ->
+end_per_testcase(CaseName = load_already_registered_permanent_rooms, Config) ->
     escalus_ejabberd:rpc(meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
-end_per_testcase(CaseName = create_room, Config) ->
+end_per_testcase(CaseName = create_already_registered_room, Config) ->
     escalus_ejabberd:rpc(meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
-end_per_testcase(CaseName = process_presence, Config) ->
+end_per_testcase(CaseName = check_presence_route_to_offline_room, Config) ->
     escalus_ejabberd:rpc(meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
-end_per_testcase(CaseName = process_message, Config) ->
+end_per_testcase(CaseName = check_message_route_to_offline_room, Config) ->
     escalus_ejabberd:rpc(meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
 
@@ -4427,7 +4419,7 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
 %%  Tests for race condition that occurs when multiple users
 %%  attempt to start and/or register the same room at the same time
 %%--------------------------------------------------------------------
-load_permanent_rooms(Config) ->
+load_already_registered_permanent_rooms(Config) ->
     Room = <<"testroom1">>,
     Host = muc_host(),
     ServerHost = muc_host(),
@@ -4454,7 +4446,7 @@ load_permanent_rooms(Config) ->
     %% Check if the pid in the DB matches the fake pid
     ?FAKEPID = R#muc_online_room.pid.
 
-create_room(Config) ->
+create_already_registered_room(Config) ->
         Room = <<"testroom2">>,
         Host = muc_host(),
 
@@ -4472,7 +4464,7 @@ create_room(Config) ->
         %% Check if the registered pid matches the fake pid
         ?FAKEPID = Record#muc_online_room.pid.
 
-process_presence(Config) ->
+check_presence_route_to_offline_room(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         Room = <<"testroom3">>,
         %% Send a presence to a nonexistent room
@@ -4481,7 +4473,7 @@ process_presence(Config) ->
         ?assertReceivedMatch(fakepid, 3000)
     end).
 
-process_message(Config) ->
+check_message_route_to_offline_room(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         Room = <<"testroom4">>,
         Host = muc_host(),
