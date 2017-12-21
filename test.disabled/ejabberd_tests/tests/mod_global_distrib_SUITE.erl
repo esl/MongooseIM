@@ -719,9 +719,12 @@ wait_for_connection(Config) ->
     end.
 
 closed_connection_is_removed_from_disabled(_Config) ->
-    get_connection(europe_node1, <<"fed1">>),
-    set_endpoints(asia_node, []),
-    trigger_rebalance(europe_node1, <<"fed1">>),
+    Result = get_connection(europe_node1, <<"fed1">>),
+    ct:print("get_connection: ~p", [Result]),
+    Result2 = set_endpoints(asia_node, []),
+    ct:print("set_endpoints: ~p", [Result2]),
+    Result3 = trigger_rebalance(europe_node1, <<"fed1">>),
+    ct:print("trigger_rebalance: ~p", [Result3]),
 
     {[], [_], [_]} = get_outgoing_connections(europe_node1, <<"fed1">>),
 
@@ -876,8 +879,6 @@ set_endpoints(ListenNode, Endpoints) ->
     {ok, _} = rpc(ListenNode, mod_global_distrib_mapping_redis, set_endpoints, [Endpoints]).
 
 get_outgoing_connections(NodeName, DestinationDomain) ->
-    ct:sleep(1000),
-
     Supervisor = rpc(NodeName, mod_global_distrib_utils, server_to_sup_name, [DestinationDomain]),
     Manager = rpc(NodeName, mod_global_distrib_utils, server_to_mgr_name, [DestinationDomain]),
     Enabled = rpc(NodeName, mod_global_distrib_server_mgr,
@@ -903,5 +904,6 @@ refresh_mappings(NodeName, Config) ->
     timer:sleep(1000).
 
 trigger_rebalance(NodeName, DestinationDomain) ->
-    rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
-    timer:sleep(1000).
+    R = rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
+    timer:sleep(1000),
+    R.
