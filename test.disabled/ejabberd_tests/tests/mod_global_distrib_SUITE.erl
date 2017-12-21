@@ -895,6 +895,7 @@ restart_receiver(NodeName) ->
 restart_receiver(NodeName, NewEndpoints) ->
     OldOpts = rpc(NodeName, gen_mod, get_module_opts,
                   [<<"localhost">>, mod_global_distrib_receiver]),
+    ct:print("OldOpts: ~p", [OldOpts]),
     NewOpts = lists:keyreplace(endpoints, 1, OldOpts, {endpoints, NewEndpoints}),
     ok = rpc(NodeName, gen_mod, reload_module,
              [<<"localhost">>, mod_global_distrib_receiver, NewOpts]).
