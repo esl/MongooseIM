@@ -73,7 +73,7 @@
 |0270|[XMPP Advanced Server 2010](http://xmpp.org/extensions/xep-0270.html)||
 |0279|[Server IP Check](http://xmpp.org/extensions/xep-0279.html)|`mod_sic`|
 |0280|[Message Carbons](http://xmpp.org/extensions/xep-0280.html)|`mod_carboncopy`|
-|0313|[Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.2.html)|`mod_mam`| <!-- xeps are named like xep-0313-0.1.html, -0.2.html, etc. in attic. xep-tool page refers to 0.2 version -->
+|0313|[Message Archive Management](http://xmpp.org/extensions/xep-0313.html)|`mod_mam`|
 |0352|[Client State Indication](http://www.xmpp.org/extensions/xep-0352.html)|`mod_csi`|
 |0357|[Push Notifications](http://www.xmpp.org/extensions/xep-0357.html)|`mod_event_pusher_push`|
 |0363|[HTTP File Upload](https://xmpp.org/extensions/xep-0363.html)|`mod_http_upload`|
