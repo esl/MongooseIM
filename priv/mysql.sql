@@ -17,21 +17,25 @@
 -- 02111-1307 USA
 --
 
--- Needs MySQL (at least 4.0.x) with innodb back-end
+-- Needs MySQL (at least 5.5.14) with innodb back-end
+-- See the MongooseIM documentation for how to configure
+-- MySQL versions 5.5.14 to 5.7.6 to use this schema
 
 CREATE TABLE users (
     username varchar(250) PRIMARY KEY,
     password text NOT NULL,
     pass_details text,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 
 CREATE TABLE last (
     username varchar(250) PRIMARY KEY,
     seconds int NOT NULL,
     state text NOT NULl
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE INDEX i_last_seconds ON last(seconds);
 
@@ -47,7 +51,8 @@ CREATE TABLE rosterusers (
     subscribe text NOT NULL,
     type text,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE UNIQUE INDEX i_rosteru_user_jid ON rosterusers(username(75), jid(75));
 CREATE INDEX i_rosteru_username ON rosterusers(username);
@@ -57,7 +62,8 @@ CREATE TABLE rostergroups (
     username varchar(250) NOT NULL,
     jid varchar(250) NOT NULL,
     grp text NOT NULL
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE INDEX pk_rosterg_user_jid ON rostergroups(username(75), jid(75));
 
@@ -68,7 +74,8 @@ CREATE TABLE vcard (
     vcard mediumtext NOT NULL,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (username, server)
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 
 CREATE TABLE vcard_search (
@@ -98,7 +105,8 @@ CREATE TABLE vcard_search (
     orgunit text NOT NULL,
     lorgunit varchar(250) NOT NULL,
     PRIMARY KEY (lusername, server)
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE INDEX i_vcard_search_server    ON vcard_search(server);
 CREATE INDEX i_vcard_search_lfn       ON vcard_search(lfn);
@@ -116,7 +124,8 @@ CREATE INDEX i_vcard_search_lorgunit  ON vcard_search(lorgunit);
 CREATE TABLE privacy_default_list (
     username varchar(250) PRIMARY KEY,
     name varchar(250) NOT NULL
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE privacy_list (
     username varchar(250) NOT NULL,
@@ -124,7 +133,8 @@ CREATE TABLE privacy_list (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (username(75), name(75))
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE privacy_list_data (
     id bigint,
@@ -138,14 +148,16 @@ CREATE TABLE privacy_list_data (
     match_presence_in boolean NOT NULL,
     match_presence_out boolean NOT NULL,
     PRIMARY KEY (id, ord)
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE private_storage (
     username varchar(250) NOT NULL,
     namespace varchar(250) NOT NULL,
     data text NOT NULL,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE INDEX i_private_storage_username USING BTREE ON private_storage(username);
 CREATE UNIQUE INDEX i_private_storage_username_namespace USING BTREE ON private_storage(username(75), namespace(75));
@@ -154,7 +166,8 @@ CREATE UNIQUE INDEX i_private_storage_username_namespace USING BTREE ON private_
 CREATE TABLE roster_version (
     username varchar(250) PRIMARY KEY,
     version text NOT NULL
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 -- To update from 1.x:
 -- ALTER TABLE rosterusers ADD COLUMN askmessage text AFTER ask;
@@ -212,9 +225,11 @@ CREATE TABLE mam_message(
   search_body text,
   PRIMARY KEY (user_id, id),
   INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id)
-)  ENGINE=InnoDB
-   PARTITION BY HASH(user_id)
-   PARTITIONS 32;
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC
+  ENGINE=InnoDB
+  PARTITION BY HASH(user_id)
+  PARTITIONS 32;
 -- Partition is selected based on MOD(user_id, 32)
 -- See for more information
 -- http://dev.mysql.com/doc/refman/5.1/en/partitioning-hash.html
@@ -229,7 +244,8 @@ CREATE TABLE mam_config(
   -- R - roster (only for remote_jid == "")
   behaviour ENUM('A', 'N', 'R') NOT NULL,
   PRIMARY KEY (user_id, remote_jid)
-);
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE mam_server_user(
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -237,7 +253,8 @@ CREATE TABLE mam_server_user(
   user_name varchar(250) CHARACTER SET binary NOT NULL,
   PRIMARY KEY(id) USING HASH,
   CONSTRAINT uc_mam_server_user_name UNIQUE USING HASH (server, user_name)
-);
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE mam_muc_message(
   -- Message UID
@@ -250,7 +267,8 @@ CREATE TABLE mam_muc_message(
   message blob NOT NULL,
   search_body text,
   PRIMARY KEY (room_id, id)
-);
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE offline_message(
   id BIGINT UNSIGNED        NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -260,7 +278,8 @@ CREATE TABLE offline_message(
   username  varchar(250)    NOT NULL,
   from_jid  varchar(250)    NOT NULL,
   packet    blob            NOT NULL
-);
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 CREATE INDEX i_offline_message USING BTREE ON offline_message(server, username, id);
 
 CREATE TABLE muc_light_rooms(
@@ -270,7 +289,8 @@ CREATE TABLE muc_light_rooms(
     version VARCHAR(20)     NOT NULL,
     PRIMARY KEY (lserver, luser),
     UNIQUE KEY k_id USING HASH (id)
-);
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE INDEX i_muc_light_rooms USING HASH ON muc_light_rooms(id);
 
@@ -279,7 +299,8 @@ CREATE TABLE muc_light_occupants(
     luser VARCHAR(250)      NOT NULL,
     lserver VARCHAR(250)    NOT NULL,
     aff TINYINT UNSIGNED    NOT NULL
-);
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE INDEX i_muc_light_occupants_id USING HASH ON muc_light_occupants(room_id);
 CREATE INDEX i_muc_light_occupants_us USING HASH ON muc_light_occupants(lserver, luser);
@@ -288,7 +309,8 @@ CREATE TABLE muc_light_config(
     room_id BIGINT UNSIGNED NOT NULL REFERENCES muc_light_rooms(id),
     opt VARCHAR(100)        NOT NULL,
     val VARCHAR(250)        NOT NULL
-);
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE INDEX i_muc_light_config USING HASH ON muc_light_config(room_id);
 
@@ -297,7 +319,8 @@ CREATE TABLE muc_light_blocking(
     lserver VARCHAR(250)    NOT NULL,
     what TINYINT UNSIGNED   NOT NULL,
     who VARCHAR(500)        NOT NULL
-);
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE INDEX i_muc_light_blocking USING HASH ON muc_light_blocking(luser, lserver);
 
