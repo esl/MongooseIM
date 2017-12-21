@@ -80,10 +80,12 @@
          calculate_msg_id_borders/3,
          calculate_msg_id_borders/4,
          maybe_encode_compact_uuid/2,
-         is_last_page/4]).
+         is_last_page/4,
+         wait_shaper/3]).
 
 %% Ejabberd
 -export([send_message/3,
+         maybe_set_client_xmlns/2,
          is_jid_in_user_roster/2]).
 
 %-define(MAM_INLINE_UTILS, true).
@@ -983,6 +985,31 @@ is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
     %%     it's not possible case: the page is bigger then page size.
     %% Otherwise either TotalCount or Offset is undefined because of optimizations.
     false.
+
+-spec maybe_set_client_xmlns(boolean(), exml:element()) -> exml:element().
+maybe_set_client_xmlns(true, Packet) ->
+    xml:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, Packet);
+maybe_set_client_xmlns(false, Packet) ->
+    Packet.
+
+
+-spec action_to_shaper_name(mam_iq:action()) -> atom().
+action_to_shaper_name(Action) ->
+    list_to_atom(atom_to_list(Action) ++ "_shaper").
+
+-spec action_to_global_shaper_name(mam_iq:action()) -> atom().
+action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
+
+
+-spec wait_shaper(ejabberd:server(), mam_iq:action(), ejabberd:jid()) ->
+    'ok' | {'error', 'max_delay_reached'}.
+wait_shaper(Host, Action, From) ->
+    case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of
+        ok ->
+            shaper_srv:wait(Host, action_to_global_shaper_name(Action), global, 1);
+        Err ->
+            Err
+    end.
 
 %% -----------------------------------------------------------------------
 %% Ejabberd
