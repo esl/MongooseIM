@@ -19,7 +19,7 @@ Because access to the session table is very frequent, its entries are additional
 
 To preserve consistency between database instances, all data is stored with a set expiration time and is periodically refreshed.
 Each node of each cluster is responsible for refreshing its own data.
-Thus, in an event of a netsplit datacenters will have their information about other datacenter's users expire, as those users are now unreachable; but once the connection is reestablished, the data will be replicated again as datacenters refresh their entries.
+Thus, in an event of a netsplit, datacenters' information about unreachable datacenters' users will expire, as those users are now unreachable; but once the connection is reestablished, the data will be replicated again as datacenters refresh their entries.
 Additionally, to prevent edge cases where an incoming message is received and replied to before the datacenter learns about the sender's host, an incoming message also carries information about its origin which may be used to temporarily update the local routing table.
 
 ##### Redis entries
@@ -47,7 +47,7 @@ If a node becomes unavailable, its endpoint entries in the database will expire 
 Connections between nodes in distinct datacenters are opened on the first request and then maintained as long as the destination endpoint is present in Redis.
 When a node needs to connect to a remote cluster, specified number of connections are opened to every endpoint reported by that datacenter.
 Global distribution features automatic rebalancing feature that will "disable" connections when their respective endpoints disappear from Redis.
-In case when a new endpoint is recongnised, a new pool of connections is created.
+A new pool of connections is created each time a new endpoint is recognised.
 Whenever a node receives a message that is determined (by consulting the session table) to be destined for another datacenter, the routing procedure in the current datacenter is interrupted, the message is transported to the other datacenter via the dedicated connections, and the routing procedure is restarted there by a dedicated (but potentially short lived) worker process bound to the sender's JID (or subdomain if the sender's JIDs does not belong to the globally distributed domain).
 Client's process binds itself to a connection to a remote datacenter on first use, and henceforth always uses this connection to route messages directed to this datacenter.
 This - along with the dedicated worker process on the receiver's side - ensures that simple cross-datacenter messages between two entities are delivered in their sending order.
@@ -79,13 +79,13 @@ Global distribution modules expose several per-datacenter metrics that can be us
 * `incoming.messages.<host>`: number of cross-datacenter messages received by this cluster from a given host.
 * `incoming.transfer_time.<host>` *[us]*: time elapsed between sending and receiving the message over the network from a given host.
   The duration is calculated using wall clock times on sender and receiver node.
-* `outgoing.queue_time.<host>` *[us]*: time elapsed while message waits in queue of sender connection to a given host.
+* `outgoing.queue_time.<host>` *[us]*: time elapsed while message waits in a queue of a sender's connection to a given host.
   High value of this metric may be remedied by increasing the number of connections to other hosts.
 * `incoming.queue_time` *[us]*: time elapsed while message waits in routing worker's queue.
   This value is not reported per-host as routing workers are bound to the sender's JID.
 * `incoming.established`: incremented when a new connection is established from another cluster.
   At this point the origin domain of the cluster is not known, so this metric is common for all of them.
-* `incoming.first_packet.<host>`: incremented when a receiver process gets first packet from remote cluster and learns its local domain.
+* `incoming.first_packet.<host>`: incremented when a receiver process gets the first packet from a remote cluster and learns its local domain.
 * `incoming.closed.<host>`: incremented when an incoming connection gets closed.
 * `incoming.errored.<host>`: incremented when an incoming connection gets closed with an error.
 * `outgoing.established.<host>`: incremented when an outgoing connection is established.
