@@ -526,7 +526,7 @@ route_to_online_room(Pid, Routed) ->
     mod_muc_room:route(Pid, From, Nick, Acc, Packet),
     ok.
 
--spec route_to_nonexistent_room(room(), from_to_packet(), state()) -> 'ok'.
+-spec route_to_nonexistent_room(room(), from_to_packet(), state()) -> 'ok' | {_, pid()}.
 route_to_nonexistent_room(Room, {From, To, Acc, Packet}, State) ->
     #xmlel{name = Name, attrs = Attrs} = Packet,
     Type = xml:get_attr_s(<<"type">>, Attrs),
