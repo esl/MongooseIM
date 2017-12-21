@@ -18,7 +18,7 @@
 --
 
 -- Needs MySQL (at least 5.5.14) with innodb back-end
--- See the MongooseIM documentation for how to configure
+-- See the MongooseIM Database Backends documentation for how to configure
 -- MySQL versions 5.5.14 to 5.7.6 to use this schema
 
 CREATE TABLE users (
@@ -33,6 +33,7 @@ CREATE TABLE users (
 CREATE TABLE last (
     username varchar(250) PRIMARY KEY,
     seconds int NOT NULL,
+
     state text NOT NULl
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
