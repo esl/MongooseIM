@@ -645,7 +645,7 @@ parse_form(Fields) when is_list(Fields) ->
 start_publish_listener(CaseName, Config) ->
     TestCasePid = self(),
     Handler = rpc(mongoose_packet_handler, new, [?MODULE, TestCasePid]),
-    ok = rpc(ejabberd_router, register_route, [atom_to_binary(CaseName, utf8), Handler]),
+    rpc(ejabberd_router, register_route, [atom_to_binary(CaseName, utf8), Handler]),
 
     Config.
 

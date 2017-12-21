@@ -20,7 +20,7 @@ else
 TLS_DIST_OPTS :=
 endif
 
-COMMON_OPTS := -sname test -setcookie ejabberd \
+COMMON_OPTS := -sname test -setcookie ejabberd -hidden \
                $(TLS_DIST_OPTS) \
                -pa `pwd`/tests \
                    `pwd`/ebin \
@@ -108,6 +108,7 @@ priv/ssl/fake_cert.pem priv/ssl/fake_key.pem priv/ssl/cacert.pem: \
   ../../tools/ssl/ca/cacert.pem
 	mkdir -p $(@D)
 	cp $^ $(@D)/
+	cat priv/ssl/fake_key.pem >> priv/ssl/fake_cert.pem
 
 console: $(PREPARE)
 	erl $(COMMON_OPTS) $(ADD_OPTS)

@@ -22,7 +22,12 @@ init_per_suite(C) ->
                 undefined
         end),
     application:ensure_all_started(exometer_core),
+    ejabberd_hooks:start_link(),
     ejabberd_router:start_link(),
+    C.
+
+init_per_testcase(_, C) ->
+    ejabberd_hooks:start_link(),
     C.
 
 end_per_suite(_C) ->
@@ -40,6 +45,7 @@ registering(_C) ->
     ok.
 
 registering_with_local(_C) ->
+    ejabberd_hooks:start_link(),
     Dom = <<"aaa.bbb.com">>,
     ThisNode = node(),
     AnotherNode = 'another@nohost',

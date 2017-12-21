@@ -72,6 +72,9 @@ This applies to situations such as sending messages or presences to mobile/SMS/e
 ### [mod_http_upload](../modules/mod_http_upload.md)
 Implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html) for coordinating with an XMPP server to upload files via HTTP and receive URLs that can be shared in messages.
 
+### [mod_global_distrib](../modules/mod_global_distrib.md)
+Enables sharing a single XMPP domain between distinct datacenters (**experimental**).
+
 ### [mod_keystore](../modules/mod_keystore.md)
 Serves as a storage for crypto keys for `mod_auth_token`.
 

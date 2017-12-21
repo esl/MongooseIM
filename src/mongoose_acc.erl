@@ -22,7 +22,7 @@
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).
 -export([add_prop/3, get_prop/2]).
--export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
+-export([from_element/1, from_map/1, update_element/4, update/2, is_acc/1, require/2]).
 -export([strip/1, strip/2, record_sending/4, record_sending/6]).
 -export([dump/1, to_binary/1]).
 -export([to_element/1]).
@@ -119,6 +119,10 @@ from_element(El, From, To) ->
 from_map(M) ->
     maps:put(mongoose_acc, true, M).
 
+-spec update_element(t(), xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
+update_element(Acc, Element, From, To) ->
+    update(Acc, from_element(Element, From, To)).
+
 -spec update(t(), map() | t()) -> t().
 update(Acc, M) ->
     maps:merge(Acc, M).
@@ -208,7 +212,7 @@ strip(Acc, El) ->
                            maps:put(Attrib, Val, AccIn)
                        end,
                        Acc1, Attributes),
-    OptionalAttributes = [from, from_jid, to, to_jid, persistent_properties],
+    OptionalAttributes = [from, from_jid, to, to_jid, persistent_properties, global_distrib],
     lists:foldl(fun(Attrib, AccIn) ->
                     case maps:get(Attrib, Acc, undefined) of
                         undefined -> AccIn;
@@ -271,4 +275,3 @@ read_children(Acc, [#xmlel{} = Chld|Tail]) ->
     end;
 read_children(Acc, [_|Tail]) ->
     read_children(Acc, Tail).
-

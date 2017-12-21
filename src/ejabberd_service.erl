@@ -362,12 +362,12 @@ handle_info({route, From, To, Acc}, StateName, StateData) ->
     Packet = mongoose_acc:get(element, Acc),
     case acl:match_rule(global, StateData#state.access, From) of
         allow ->
-           #xmlel{name =Name, attrs = Attrs, children = Els} = Packet,
-           Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
-                                               jid:to_binary(To),
-                                               Attrs),
-           Text = exml:to_binary(#xmlel{name = Name, attrs = Attrs2, children = Els}),
-           send_text(StateData, Text);
+            ejabberd_hooks:run_fold(packet_to_component, global, Acc, [From, To]),
+            Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
+                                                jid:to_binary(To),
+                                                Packet#xmlel.attrs),
+            Text = exml:to_binary(Packet#xmlel{ attrs = Attrs2 }),
+            send_text(StateData, Text);
         deny ->
             ejabberd_router:route_error_reply(To, From, Acc, ?ERR_NOT_ALLOWED)
     end,
