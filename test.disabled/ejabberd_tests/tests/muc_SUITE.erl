@@ -21,6 +21,8 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("assert_received_match.hrl").
+-include("../../../src/mod_muc.hrl").
 
 -import(muc_helper,
         [load_muc/1,
@@ -37,7 +39,6 @@
          room_address/1,
          room_address/2]).
 
-
 -define(MUC_HOST, <<"muc.localhost">>).
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 -define(PASSWORD, <<"pa5sw0rd">>).
@@ -45,15 +46,6 @@
 -define(WAIT_TIME, 1500).
 
 -define(FAKEPID, fakepid).
-
--record(muc_room, {
-    name_host,
-    opts
-}).
-
--record(muc_online_room, {name_host,
-    pid
-}).
 
 -define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
@@ -78,30 +70,6 @@
         last  :: binary() | undefined,
         items :: [#xmlel{}]
         }).
-
--define(assertReceivedMatch(Expect), ?assertReceivedMatch(Expect, timer:seconds(5))).
-
--define(assertReceivedMatch(Expect, Timeout),
-    ((fun() ->
-        receive
-            Expect = __Result__ -> __Result__
-        after
-            Timeout ->
-                __Reason__ =
-                    receive
-                        __Result__ -> __Result__
-                    after
-                        0 -> timeout
-                    end,
-
-                __Args__ = [{module, ?MODULE},
-                    {line, ?LINE},
-                    {expected, (??Expect)},
-                    {value, __Reason__}],
-                ct:print("assertReceivedMatch_failed: ~p~n", [__Args__]),
-                erlang:error({assertReceivedMatch_failed, __Args__})
-        end
-      end)())).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -317,7 +285,7 @@ end_per_suite(Config) ->
 
 
 init_per_group(room_registration, Config) ->
-    escalus_fresh:create_users(Config, [{alice, 1},{bob, 1}]);
+    escalus_fresh:create_users(Config, [{alice, 1}]);
 
 init_per_group(moderator, Config) ->
     RoomOpts = [{persistent, true}, {allow_change_subj, false},
@@ -524,6 +492,7 @@ meck_room_start() ->
 
     escalus_ejabberd:rpc(meck, expect, [mod_muc_room, start,
         fun(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts) ->
+
             mod_muc:register_room(Host, Room, ?FAKEPID),
             meck:passthrough([Host,
                 ServerHost,
@@ -4432,44 +4401,41 @@ load_already_registered_permanent_rooms(Config) ->
          end,
     {atomic, ok} = escalus_ejabberd:rpc(mnesia, transaction, [F1]),
 
-    % Load permanent rooms and let it sink in
+    % Load permanent rooms
     escalus_ejabberd:rpc(mod_muc, load_permanent_rooms , [Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool]),
-    timer:sleep(?WAIT_TIME),
+
     %% Read online room
     F2 = fun()->
              mnesia:read(muc_online_room, {Room, Host}, write)
          end,
     {_, [R]} = escalus_ejabberd:rpc(mnesia, transaction, [F2]),
-    timer:sleep(?WAIT_TIME),
 
     %% Check if the pid in the DB matches the fake pid
-    ?FAKEPID = R#muc_online_room.pid.
+    ?assert_equal(?FAKEPID, R#muc_online_room.pid).
 
 create_already_registered_room(Config) ->
-        Room = <<"testroom2">>,
-        Host = muc_host(),
+    Room = <<"testroom2">>,
+    Host = muc_host(),
+    %% Start a room
+    [Alice | _] = ?config(escalus_users, Config),
 
-        %% Start a room
-        [Alice | _] = ?config(escalus_users, Config),
-        start_room(Config, Alice, Room, <<"aliceroom">>, default),
+    %% Function is mecked to register the room before it is started
+    start_room(Config, Alice, Room, <<"aliceroom">>, default),
+    %% Read the room
+    F = fun() ->
+        mnesia:read(muc_online_room, {Room, Host}, write)
+        end,
+    {_, [Record]} = escalus_ejabberd:rpc(mnesia, transaction, [F]),
 
-        %% Read the room
-        F = fun() ->
-                mnesia:read(muc_online_room, {Room, Host}, write)
-            end,
-        {_, [Record]} = escalus_ejabberd:rpc(mnesia, transaction, [F]),
-
-        timer:sleep(?WAIT_TIME),
-        %% Check if the registered pid matches the fake pid
-        ?FAKEPID = Record#muc_online_room.pid.
+    ?assert_equal(?FAKEPID, Record#muc_online_room.pid).
 
 check_presence_route_to_offline_room(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         Room = <<"testroom3">>,
         %% Send a presence to a nonexistent room
         escalus:send(Alice, stanza_groupchat_enter_room_no_nick(Room)),
-        timer:sleep(?WAIT_TIME),
-        ?assertReceivedMatch(fakepid, 3000)
+
+        ?assertReceivedMatch(?FAKEPID, 3000)
     end).
 
 check_message_route_to_offline_room(Config) ->
@@ -4480,10 +4446,11 @@ check_message_route_to_offline_room(Config) ->
                 mnesia:write(#muc_room{name_host = {Room, Host}, opts = []})
             end,
         {atomic, ok} = escalus_ejabberd:rpc(mnesia, transaction, [F]),
+
         %% Send a message to an offline permanent room
         escalus:send(Alice, stanza_room_subject(Room, <<"Subject line">>)),
-        timer:sleep(?WAIT_TIME),
-        ?assertReceivedMatch(fakepid, 3000)
+
+        ?assertReceivedMatch(?FAKEPID, 3000)
     end).
 
 %%--------------------------------------------------------------------

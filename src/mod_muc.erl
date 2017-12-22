@@ -68,7 +68,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
-
+-include("mod_muc.hrl").
 
 -export_type([access/0,
              room/0,
@@ -82,36 +82,17 @@
 -type affiliation() :: admin | owner | member | outcast | none.
 -type room() :: binary().
 -type nick() :: binary().
--type room_host() :: ejabberd:simple_bare_jid().
 -type packet() :: jlib:xmlel().
 -type from_to_packet() ::
         {From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
          Packet :: packet()}.
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 
--record(muc_room, {
-          name_host,
-          opts
-         }).
-
--type muc_room() :: #muc_room{
-                       name_host    :: room_host(),
-                       opts         :: list()
-                      }.
-
--record(muc_online_room, {name_host,
-                          pid
-                         }).
-
--type muc_online_room() :: #muc_online_room{
-                              name_host :: room_host(),
-                              pid       :: pid()
-                             }.
 
 -record(muc_registered, {
-          us_host,
-          nick
-         }).
+    us_host,
+    nick
+}).
 
 -type muc_registered() :: #muc_registered{
                              us_host    :: ejabberd:literal_jid(),
@@ -131,7 +112,7 @@
 
 -type state() :: #state{}.
 
--export_type([muc_room/0, muc_registered/0, muc_online_room/0]).
+-export_type([muc_room/0, muc_registered/0]).
 
 -define(PROCNAME, ejabberd_mod_muc).
 
@@ -523,8 +504,7 @@ route_to_online_room(Pid, Routed) ->
     ?DEBUG("MUC: send to process ~p~n", [Pid]),
     {From, To, Acc, Packet} = Routed,
     {_, _, Nick} = jid:to_lower(To),
-    mod_muc_room:route(Pid, From, Nick, Acc, Packet),
-    ok.
+    ok = mod_muc_room:route(Pid, From, Nick, Acc, Packet).
 
 -spec route_to_nonexistent_room(room(), from_to_packet(), state()) -> 'ok' | {_, pid()}.
 route_to_nonexistent_room(Room, {From, To, Acc, Packet}, State) ->
