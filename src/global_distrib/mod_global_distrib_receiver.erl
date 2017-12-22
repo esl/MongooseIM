@@ -186,10 +186,15 @@ start_listeners() ->
 -spec start_listener(mod_global_distrib_utils:endpoint()) -> any().
 start_listener({Addr, Port} = Ref) ->
     ?INFO_MSG("Starting listener on ~s:~b", [inet:ntoa(Addr), Port]),
-    {ok, _} = ranch:start_listener(Ref, 10, ranch_tcp, [{ip, Addr}, {port, Port}],
-                                   ?MODULE, []).
+    case ranch:start_listener(Ref, 10, ranch_tcp, [{ip, Addr}, {port, Port}], ?MODULE, []) of
+        {ok, _} -> ok;
+        {error, eaddrinuse} ->
+            ?ERROR_MSG("Failed to start listener on ~s:~b: address in use. Will retry in 1 second.",
+                       [inet:ntoa(Addr), Port]),
+            timer:sleep(1000),
+            start_listener(Ref)
+    end.
 
 -spec stop_listeners() -> any().
 stop_listeners() ->
     lists:foreach(fun ranch:stop_listener/1, endpoints()).
-
