@@ -411,8 +411,8 @@ test_pm_with_disconnection_on_other_server(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
-              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
               escalus_connection:stop(Eve),
+              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
               FromAliceBounce = escalus_client:wait_for_stanza(Alice),
               escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], FromAliceBounce)
       end).
@@ -428,13 +428,14 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
               escalus_connection:stop(Eve),
 
+              FromEve = escalus_client:wait_for_stanza(Alice),
+
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
               NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe1!">>)),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi again from Asia!">>)),
 
-              FromEve = escalus_client:wait_for_stanza(Alice),
               FirstFromAlice = escalus_client:wait_for_stanza(NewEve),
               AgainFromEve = escalus_client:wait_for_stanza(Alice),
               SecondFromAlice = escalus_client:wait_for_stanza(NewEve),
