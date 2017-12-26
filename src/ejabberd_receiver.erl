@@ -51,6 +51,7 @@
                 shaper_state,
                 c2s_pid,
                 max_stanza_size,
+                stanza_chunk_size,
                 parser,
                 timeout}).
 -type state() :: #state{}.
@@ -123,6 +124,7 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
                 sock_mod = SockMod,
                 shaper_state = ShaperState,
                 max_stanza_size = MaxStanzaSize,
+                stanza_chunk_size = 0,
                 timeout = Timeout}}.
 
 %%--------------------------------------------------------------------
@@ -313,25 +315,31 @@ process_data([Element|Els], #state{c2s_pid = C2SPid} = State)
 %% Data processing for connectors receivind data as string.
 process_data(Data, #state{parser = Parser,
                           shaper_state = ShaperState,
+                          stanza_chunk_size = ChunkSize,
                           c2s_pid = C2SPid} = State) ->
     ?DEBUG("Received XML on stream = \"~s\"", [Data]),
     Size = size(Data),
-    mongoose_metrics:update(global,
-                              [data, xmpp, received, xml_stanza_size], Size),
-
     maybe_run_keep_alive_hook(Size, State),
     {C2SEvents, NewParser} =
         case exml_stream:parse(Parser, Data) of
             {ok, NParser, Elems} -> {[wrap_if_xmlel(E) || E <- Elems], NParser};
             {error, Reason} -> {[{xmlstreamerror, Reason}], Parser}
         end,
+    NewChunkSize = update_stanza_size(C2SEvents, ChunkSize, Size),
     {NewShaperState, Pause} = shaper:update(ShaperState, Size),
     [gen_fsm:send_event(C2SPid, Event) || Event <- C2SEvents],
     maybe_pause(Pause, State),
-    State#state{parser = NewParser, shaper_state = NewShaperState}.
+    State#state{parser = NewParser, shaper_state = NewShaperState, stanza_chunk_size = NewChunkSize}.
 
 wrap_if_xmlel(#xmlel{} = E) -> {xmlstreamelement, E};
 wrap_if_xmlel(E) -> E.
+
+update_stanza_size([_|_], ChunkSize, Size) ->
+    mongoose_metrics:update(global,
+                            [data, xmpp, received, xml_stanza_size], ChunkSize + Size),
+    0;
+update_stanza_size(_, ChunkSize, Size) ->
+    ChunkSize + Size.
 
 maybe_pause(_, #state{c2s_pid = undefined}) ->
     ok;
