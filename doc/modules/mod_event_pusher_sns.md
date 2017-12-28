@@ -56,4 +56,43 @@ Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn
 ]}
 ```
 
+## JSON Schema examples
+The different kinds of notifications deliver slightly different messages. The messages are delivered in a JSON format.
+#### Presence updates
+
+The JSON format for a presence update notification is:
+```JSON
+{
+    "user_id": "alice0.61585@localhost",
+    "present": true
+}
+```
+
+for presence updates to online/ available and:
+    
+```JSON
+{
+    "user_id": "alice0.61585@localhost",
+    "present": false
+}
+```
+for presence updates to offline/ unavailable.
+#### Sent messages
+The JSON format for a private message notification is:
+```JSON
+{
+    "to_user_id": "bob0.61585@localhost",
+    "message": "Hello, Bob",
+    "from_user_id": "alice0.61585@localhost"
+}
+```
+The notification is similar for group messages except that the `to_user_id` is the recipient room jid. For example:
+```JSON
+{
+    "to_user_id": "muc_publish@muc.localhost",
+    "message": "Hi, Everyone!",
+    "from_user_id": "bob0.315045@localhost"
+}
+```
+
 [mod_event_pusher]: ./mod_event_pusher.md
