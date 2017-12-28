@@ -44,6 +44,20 @@ This module uses a connection pool created by mongoose_http_client. It must be d
 
 Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
 
+## Payload format
+The HTTP event pusher sends a POST request with Content-Type `application/x-www-form-urlencoded`. The form has the following fields:
+* `author`: lower case username of the user who authored the message
+* `server`: . lower case name of the server from where the message originates
+* `receiver`: lower case username of the user who the message is for
+* `message`: message text
+
+### Example
+Below is an example of what the body of an HTTP POST request can look like:
+```bash
+"author=alice&server=localhost&receiver=bob&message=Hi, Bob!"
+```
+
+
 ## Metrics
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md** page.
