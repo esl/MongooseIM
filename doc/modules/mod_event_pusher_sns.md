@@ -60,7 +60,7 @@ Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn
 The different kinds of notifications deliver slightly different messages. The messages are delivered in a JSON format.
 #### Presence updates
 
-The JSON format for a presence update notification is:
+The JSON format for an online presence update notification is:
 ```JSON
 {
     "user_id": "alice0.61585@localhost",
@@ -68,7 +68,7 @@ The JSON format for a presence update notification is:
 }
 ```
 
-for presence updates to online/ available and:
+For offline presence updates the `present` boolean value is set to false:
     
 ```JSON
 {
@@ -76,7 +76,6 @@ for presence updates to online/ available and:
     "present": false
 }
 ```
-for presence updates to offline/ unavailable.
 #### Sent messages
 The JSON format for a private message notification is:
 ```JSON
