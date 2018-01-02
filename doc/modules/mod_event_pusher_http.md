@@ -46,17 +46,18 @@ Notifications will be POSTed to `http://localhost:8000/webservice/notifications`
 
 ## Payload format
 The HTTP event pusher sends a POST request with Content-Type `application/x-www-form-urlencoded`. The form has the following fields:
-* `author`: lower case username of the user who authored the message
-* `server`: . lower case name of the server from where the message originates
-* `receiver`: lower case username of the user who the message is for
-* `message`: message text
+* `author`: username of the user who authored the message
+* `server`: name of the server from where the message originates
+* `receiver`: username of the user who the message is for
+* `message`: content of `<body>` element of the message
+
+The contents of the author, server and receiver fields are processed by `stringprep`. As a result, these values are all lower case.
 
 ### Example
 Below is an example of what the body of an HTTP POST request can look like:
 ```bash
 "author=alice&server=localhost&receiver=bob&message=Hi, Bob!"
 ```
-
 
 ## Metrics
 

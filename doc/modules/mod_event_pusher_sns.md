@@ -85,7 +85,7 @@ The JSON format for a private message notification is:
     "from_user_id": "alice0.61585@localhost"
 }
 ```
-The notification is similar for group messages except that the `to_user_id` is the recipient room jid. For example:
+The notification is similar for group messages except that the `to_user_id` is the recipient room JID. For example:
 ```JSON
 {
     "to_user_id": "muc_publish@muc.localhost",
