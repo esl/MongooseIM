@@ -21,6 +21,7 @@ init_per_suite(C) ->
             undefined
         end),
     {ok, _} = application:ensure_all_started(exometer_core),
+    ejabberd_hooks:start_link(),
     ejabberd_router:start_link(),
     C.
 

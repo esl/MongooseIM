@@ -52,6 +52,7 @@
         ]).
 
 -export([start_link/0]).
+-export([routes_cleanup_on_nodedown/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -178,7 +179,8 @@ do_register_component({LDomain, _}, Handler, Node) ->
             mnesia:write(external_component_global, ComponentGlobal, write),
             NDomain = {LDomain, Node},
             Component = #external_component{domain = NDomain, handler = Handler, node = Node},
-            mnesia:write(Component);
+            mnesia:write(Component),
+            ejabberd_hooks:run(register_subhost, [LDomain]);
         _ -> mnesia:abort(route_already_exists)
     end.
 
@@ -255,7 +257,9 @@ do_unregister_component({LDomain, _}, Node) ->
         Comp ->
             ok = mnesia:delete_object(external_component_global, Comp, write)
     end,
-    ok = mnesia:delete({external_component, {LDomain, Node}}).
+    ok = mnesia:delete({external_component, {LDomain, Node}}),
+    ejabberd_hooks:run(unregister_subhost, [LDomain]),
+    ok.
 
 -spec unregister_component(Domain :: domain()) -> {atomic, ok}.
 unregister_component(Domain) ->
@@ -293,14 +297,16 @@ register_routes(Domains, Handler) ->
 register_route_to_ldomain(error, Domain, _) ->
     erlang:error({invalid_domain, Domain});
 register_route_to_ldomain(LDomain, _, Handler) ->
-    mnesia:dirty_write(#route{domain = LDomain, handler = Handler}).
+    mnesia:dirty_write(#route{domain = LDomain, handler = Handler}),
+    ejabberd_hooks:run(register_subhost, [LDomain]).
 
 unregister_route(Domain) ->
     case jid:nameprep(Domain) of
         error ->
             erlang:error({invalid_domain, Domain});
         LDomain ->
-            mnesia:dirty_delete(route, LDomain)
+            mnesia:dirty_delete(route, LDomain),
+            ejabberd_hooks:run(unregister_subhost, [LDomain])
     end.
 
 unregister_routes(Domains) ->
@@ -349,6 +355,7 @@ init([]) ->
     mnesia:add_table_copy(external_component_global, node(), ram_copies),
     compile_routing_module(),
     mongoose_metrics:ensure_metric(global, routingErrors, spiral),
+    ejabberd_hooks:add(node_cleanup, global, ?MODULE, routes_cleanup_on_nodedown, 90),
 
     {ok, #state{}}.
 
@@ -395,6 +402,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
+    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, routes_cleanup_on_nodedown, 90),
     ok.
 
 %%--------------------------------------------------------------------
@@ -502,3 +510,9 @@ update_tables() ->
             ok
     end.
 
+-spec routes_cleanup_on_nodedown(mongoose_acc:t(), node()) -> mongoose_acc:t().
+routes_cleanup_on_nodedown(Acc, Node) ->
+    Entries = mnesia:dirty_match_object(external_component_global,
+                                        #external_component{node = Node, _ = '_'}),
+    [mnesia:dirty_delete_object(external_component_global, Entry) || Entry <- Entries],
+    Acc.

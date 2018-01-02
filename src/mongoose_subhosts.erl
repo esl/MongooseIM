@@ -47,6 +47,7 @@ stop() ->
 -spec 'register'(Host :: ejabberd:server(), SubHost :: ejabberd:server()) ->
     ok | {error, exists}.
 register(Host, SubHost) ->
+    ejabberd_hooks:run(register_subhost, [SubHost]),
     case ets:insert_new(?TAB, #subhost_mapping{ subhost = SubHost, host = Host }) of
         true -> ok;
         false -> {error, exists}
@@ -54,6 +55,10 @@ register(Host, SubHost) ->
 
 -spec 'unregister'(SubHost :: ejabberd:server()) -> true.
 unregister(SubHost) ->
+    case get_host(SubHost) of
+        {ok, Host} -> ejabberd_hooks:run(unregister_subhost, [SubHost]);
+        _ -> ok
+    end,
     ets:delete(?TAB, SubHost).
 
 -spec get_host(SubHost :: ejabberd:server()) -> {ok, ejabberd:server()} | undefined.
@@ -62,4 +67,3 @@ get_host(SubHost) ->
         [#subhost_mapping{ host = Host }] -> {ok, Host};
         [] -> undefined
     end.
-
