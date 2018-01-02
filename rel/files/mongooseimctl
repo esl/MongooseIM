@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 RUNNER_SCRIPT_DIR={{{mongooseim_script_dir}}}
 RUNNER_BASE_DIR="${RUNNER_SCRIPT_DIR%/*}"
