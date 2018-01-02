@@ -41,7 +41,6 @@ allowed_methods(Req, State) ->
 
 resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
     {RoomIDOrJID, Req2} = cowboy_req:binding(id, Req),
-    MUCLightDomain = muc_light_domain(Server),
     case RoomIDOrJID of
         undefined ->
             {Method, Req3} = cowboy_req:method(Req2),
@@ -53,8 +52,8 @@ resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
             end;
         _ ->
             case validate_room_id(RoomIDOrJID, Server) of
-                {ok, RoomID} ->
-                    does_room_exist(RoomID, MUCLightDomain, Req2, State);
+                {ok, RoomID, RoomHost} ->
+                    does_room_exist(RoomID, RoomHost, Req2, State);
                 _ ->
                     bad_request(Req2, State)
             end
@@ -150,15 +149,29 @@ determine_role(US, Users) ->
             Role
     end.
 
--spec validate_room_id(RoomIDOrJID :: binary(), Server :: binary()) ->
-    {ok, RoomID :: binary()} | error.
-validate_room_id(RoomIDOrJID, Server) ->
-    MUCLightDomain = muc_light_domain(Server),
+-spec validate_room_id(RoomIDOrJID :: binary() | term(), Server :: binary()) ->
+    {ok, RoomID :: binary(), RoomHost :: binary()} | error.
+validate_room_id(RoomIDOrJID, Server) when is_binary(RoomIDOrJID) ->
     case jid:from_binary(RoomIDOrJID) of
         #jid{luser = <<>>, lserver = RoomID, lresource = <<>>} ->
-            {ok, RoomID};
-        #jid{luser = RoomID, lserver = MUCLightDomain, lresource = <<>>} ->
-            {ok, RoomID};
+            DefaultMucLightDomain = muc_light_domain(Server),
+            {ok, RoomID, DefaultMucLightDomain};
+        #jid{luser = RoomID, lserver = RoomHost, lresource = <<>>} ->
+            case validate_room_host(RoomHost) of
+              ok ->
+                {ok, RoomID, RoomHost};
+              error ->
+                error
+            end;
+        _ ->
+            error
+    end.
+
+-spec validate_room_host(binary()) -> ok | error.
+validate_room_host(RoomHost) ->
+    case ejabberd_router:dirty_get_route_handler_module(RoomHost) of
+        {ok, mod_muc_light} ->
+            ok;
         _ ->
             error
     end.

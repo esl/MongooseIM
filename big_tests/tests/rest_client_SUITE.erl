@@ -64,7 +64,12 @@ muc_test_cases() ->
       room_is_not_created_with_jid_not_matching_hostname,
       room_can_be_fetched_by_jid,
       messages_can_be_sent_and_fetched_by_room_jid,
-      user_can_be_added_and_removed_by_room_jid
+      user_can_be_added_and_removed_by_room_jid,
+      room_cant_be_created_given_jid_in_a_non_muc_light_domain,
+      user_cant_be_invited_given_room_jid_in_a_non_muc_light_domain,
+      user_cant_be_removed_given_room_jid_in_a_non_muc_light_domain,
+      message_cant_be_sent_given_room_jid_in_a_non_muc_light_domain,
+      messages_cant_be_read_given_room_jid_in_a_non_muc_light_domain
      ].
 
 roster_test_cases() ->
@@ -83,7 +88,9 @@ init_per_suite(C) ->
     dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(MUCLightHost)},
                            {rooms_in_rosters, true}]),
-    [{muc_light_host, MUCLightHost} | escalus:init_per_suite(C1)].
+    NonMUCLightHost = <<"nonmuclight.", Host/binary>>, % register!
+    [{muc_light_host, MUCLightHost},
+     {non_muc_light_host, NonMUCLightHost} | escalus:init_per_suite(C1)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -387,6 +394,63 @@ user_can_be_added_and_removed_by_room_jid(Config) ->
         ?assertEqual(<<"204">>, Status)
     end).
 
+room_cant_be_created_given_jid_in_a_non_muc_light_domain(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"some_id">>,
+        RoomJID = <<RoomID/binary, "@", (?config(non_muc_light_host, Config))/binary>>,
+        Creds = credentials({alice, Alice}),
+
+        {{Status, _}, _} = create_room_with_id_request(Creds,
+                                                       <<"some_name">>,
+                                                       <<"some subject">>,
+                                                       RoomJID),
+        ?assertEqual(<<"400">>, Status)
+    end).
+
+user_cant_be_invited_given_room_jid_in_a_non_muc_light_domain(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = given_new_room({alice, Alice}),
+        RoomJID = <<RoomID/binary, "@", (?config(non_muc_light_host, Config))/binary>>,
+        Creds = credentials({alice, Alice}),
+
+        {{Status, _}, _} =  invite_to_room({alice, Alice}, RoomJID, <<"auser@domain.com">>),
+
+        ?assertEqual(<<"400">>, Status)
+    end).
+
+user_cant_be_removed_given_room_jid_in_a_non_muc_light_domain(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room({alice, Alice}),
+        RoomJID = <<RoomID/binary, "@", (?config(non_muc_light_host, Config))/binary>>,
+        Creds = credentials({alice, Alice}),
+
+        {{Status, _}, _} =  remove_user_from_a_room({alice, Alice}, RoomJID, Bob),
+
+        ?assertEqual(<<"400">>, Status)
+    end).
+
+message_cant_be_sent_given_room_jid_in_a_non_muc_light_domain(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room({alice, Alice}),
+        RoomJID = <<RoomID/binary, "@", (?config(non_muc_light_host, Config))/binary>>,
+        Creds = credentials({alice, Alice}),
+
+        {{Status, _}, _} =  send_message_to_room({alice, Alice}, RoomJID),
+
+        ?assertEqual(<<"400">>, Status)
+    end).
+
+messages_cant_be_read_given_room_jid_in_a_non_muc_light_domain(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room({alice, Alice}),
+        RoomJID = <<RoomID/binary, "@", (?config(non_muc_light_host, Config))/binary>>,
+        Creds = credentials({alice, Alice}),
+
+        {{Status, _}, _} =  get_room_messages({alice, Alice}, RoomJID),
+
+        ?assertEqual(<<"400">>, Status)
+    end).
+
 assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
     escalus:assert(is_chat_message, [maps:get(body, RecvMsg)], GenMsg),
     ok.
@@ -413,15 +477,12 @@ wait_for_room_msg(Msg, User) ->
     Stanza = escalus:wait_for_stanza(User),
     escalus:assert(is_groupchat_message, [maps:get(body, Msg)], Stanza).
 
-given_message_sent_to_room(RoomID, Sender) ->
-    {UserJID, _} = Creds = credentials(Sender),
-    Path = <<"/rooms/", RoomID/binary, "/messages">>,
-    Body = #{body => <<"Hi all!">>},
-    {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(client, Path, Body, Creds),
+given_message_sent_to_room(RoomID, {_, ClientOrSpec} = Sender) ->
+    Body = <<"Hi all!">>,
+    {{<<"200">>, <<"OK">>}, {Result}} = send_message_to_room(Sender, RoomID, Body),
     MsgId = proplists:get_value(<<"id">>, Result),
     true = is_binary(MsgId),
-
-    Body#{id => MsgId, from => UserJID}.
+    #{body => Body, id => MsgId, from => user_jid(ClientOrSpec)}.
 
 given_new_room_with_users(Owner, Users) ->
     RoomID = given_new_room(Owner),
@@ -501,6 +562,14 @@ get_messages(MeCreds, Other, Before, Count) ->
                              "&limit=", integer_to_list(Count)]),
     get_messages(GetPath, MeCreds).
 
+send_message_to_room(Client, RoomID) ->
+    send_message_to_room(Client, RoomID, <<"Hi all!">>).
+
+send_message_to_room(Client, RoomID, Body) ->
+    {UserJID, _} = Creds = credentials(Client),
+    Path = <<"/rooms/", RoomID/binary, "/messages">>,
+    Payload = #{body => Body},
+    rest_helper:post(client, Path, Payload, Creds).
 
 get_room_messages(Client, RoomID, Count) ->
     get_room_messages(Client, RoomID, Count, undefined).
