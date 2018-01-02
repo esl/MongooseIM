@@ -63,16 +63,16 @@ The different kinds of notifications deliver slightly different messages. The me
 The JSON format for an online presence update notification is:
 ```JSON
 {
-    "user_id": "alice0.61585@localhost",
+    "user_id": "alice@localhost",
     "present": true
 }
 ```
 
-For offline presence updates the `present` boolean value is set to false:
+For offline presence updates, the `present` boolean value is set to false:
     
 ```JSON
 {
-    "user_id": "alice0.61585@localhost",
+    "user_id": "alice@localhost",
     "present": false
 }
 ```
@@ -80,9 +80,9 @@ For offline presence updates the `present` boolean value is set to false:
 The JSON format for a private message notification is:
 ```JSON
 {
-    "to_user_id": "bob0.61585@localhost",
+    "to_user_id": "bob@localhost",
     "message": "Hello, Bob",
-    "from_user_id": "alice0.61585@localhost"
+    "from_user_id": "alice@localhost"
 }
 ```
 The notification is similar for group messages except that the `to_user_id` is the recipient room JID. For example:
@@ -90,7 +90,7 @@ The notification is similar for group messages except that the `to_user_id` is t
 {
     "to_user_id": "muc_publish@muc.localhost",
     "message": "Hi, Everyone!",
-    "from_user_id": "bob0.315045@localhost"
+    "from_user_id": "bob@localhost"
 }
 ```
 
