@@ -253,7 +253,7 @@ given_client_logs_out(Config, Client) ->
 
 %% Wrapper around escalus:story. Returns PropEr result.
 true_story(Config, UserSpecs, TestFun) ->
-    try   escalus:fresh_story(Config, UserSpecs, TestFun), true
+    try   escalus_fresh:story_with_client_list(Config, UserSpecs, TestFun), true
     catch E ->
               {error, E}
     end.
