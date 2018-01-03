@@ -74,6 +74,16 @@ mysql -h localhost -u user -p mongooseim < mysql.sql
 You should also configure MySQL database in the `ejabberd.cfg` file.
 Please refer to the [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
+**Version notice**
+
+The required minimum version of MySQL is `5.5.14`. If you are using a version `5.7.6` or older, add the following options to your MySQL configuration file:
+
+```bash
+innodb_large_prefix=ON
+innodb_file_format=BARRACUDA
+innodb_file_format_max=BARRACUDA
+```
+
 ## PostgreSQL
 
 **Can be used for:**
