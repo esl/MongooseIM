@@ -68,7 +68,6 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
--include("mod_muc.hrl").
 
 -export_type([access/0,
              room/0,
@@ -82,12 +81,32 @@
 -type affiliation() :: admin | owner | member | outcast | none.
 -type room() :: binary().
 -type nick() :: binary().
+-type room_host() :: ejabberd:simple_bare_jid().
 -type packet() :: jlib:xmlel().
 -type from_to_packet() ::
         {From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
          Packet :: packet()}.
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 
+-record(muc_room, {
+    name_host,
+    opts
+}).
+
+-type muc_room() :: #muc_room{
+    name_host    :: room_host(),
+    opts         :: list()
+}.
+
+-record(muc_online_room, {
+    name_host,
+    pid
+}).
+
+-type muc_online_room() :: #muc_online_room{
+    name_host :: room_host(),
+    pid       :: pid()
+}.
 
 -record(muc_registered, {
     us_host,
@@ -357,7 +376,7 @@ handle_call({create_instant, Room, From, Nick, Opts},
                   Room, HistorySize,
                   RoomShaper, HttpAuthPool, From,
           Nick, [{instant, true}|NewOpts]),
-    handle_room_registration(Host, Room, Pid),
+    register_room_or_stop_if_duplicate(Host, Room, Pid),
     {reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -489,35 +508,34 @@ route_to_room(<<>>, {_, To, _Acc, _} = Routed, State) ->
 route_to_room(Room, Routed, #state{host=Host} = State) ->
     case mnesia:dirty_read(muc_online_room, {Room, Host}) of
         [] ->
-            case route_to_nonexistent_room(Room, Routed, State) of
-                {ok, NewPid} ->
-                    route_to_online_room(NewPid, Routed);
-                {exists, OldPid} ->
-                    route_to_online_room(OldPid, Routed)
+            case get_registered_room_or_route_error(Room, Routed, State) of
+                {ok, Pid} ->
+                    route_to_online_room(Pid, Routed);
+                {route_error, _ErrText} ->
+                    ok
             end;
         [R] ->
             Pid = R#muc_online_room.pid,
             route_to_online_room(Pid, Routed)
     end.
 
-route_to_online_room(Pid, Routed) ->
+route_to_online_room(Pid, {From, To, Acc, Packet}) ->
     ?DEBUG("MUC: send to process ~p~n", [Pid]),
-    {From, To, Acc, Packet} = Routed,
     {_, _, Nick} = jid:to_lower(To),
     ok = mod_muc_room:route(Pid, From, Nick, Acc, Packet).
 
--spec route_to_nonexistent_room(room(), from_to_packet(), state()) -> 'ok' | {_, pid()}.
-route_to_nonexistent_room(Room, {From, To, Acc, Packet}, State) ->
+-spec get_registered_room_or_route_error(room(), from_to_packet(), state()) -> 'ok' | {_, pid()}.
+get_registered_room_or_route_error(Room, {From, To, Acc, Packet}, State) ->
     #xmlel{name = Name, attrs = Attrs} = Packet,
     Type = xml:get_attr_s(<<"type">>, Attrs),
     case {Name, Type} of
         {<<"presence">>, <<>>} ->
-            route_presence_to_nonexistent_room(Room, From, To, Acc, Packet, State);
+            get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet, State);
         _ ->
-            route_packet_to_nonexistent_room(Room, From, To, Acc, Packet, State)
+            get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet, State)
     end.
 
-route_presence_to_nonexistent_room(Room, From, To, Acc, Packet,
+get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
                                    #state{server_host = ServerHost,
                                           host = Host,
                                           access = Access} = State) ->
@@ -533,16 +551,17 @@ route_presence_to_nonexistent_room(Room, From, To, Acc, Packet,
             {ok, Pid} = start_new_room(Host, ServerHost, Access, Room,
                                        HistorySize, RoomShaper, HttpAuthPool,
                                        From, Nick, DefRoomOpts),
-            handle_room_registration(Host, Room, Pid);
+            register_room_or_stop_if_duplicate(Host, Room, Pid);
         false ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Room creation is denied by service policy">>,
             Err = jlib:make_error_reply(
                     Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
-            ejabberd_router:route(To, From, Acc, Err)
+            ejabberd_router:route(To, From, Acc, Err),
+            {route_error, ErrText}
     end.
 
-route_packet_to_nonexistent_room(Room, From, To, _Acc, Packet,
+get_registered_room_or_route_error_from_packet(Room, From, To, _Acc, Packet,
                                  #state{server_host = ServerHost,
                                         host = Host,
                                         access = Access} = State) ->
@@ -553,7 +572,8 @@ route_packet_to_nonexistent_room(Room, From, To, _Acc, Packet,
             ErrText = <<"Conference room does not exist">>,
             Err = jlib:make_error_reply(
                     Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
-            ejabberd_router:route(To, From, Err);
+            ejabberd_router:route(To, From, Err),
+            {route_error, ErrText};
         Opts ->
             ?DEBUG("MUC: restore room '~s'~n", [Room]),
             #state{history_size = HistorySize,
@@ -562,7 +582,7 @@ route_packet_to_nonexistent_room(Room, From, To, _Acc, Packet,
             {ok, Pid} = mod_muc_room:start(Host, ServerHost, Access,
                                            Room, HistorySize,
                                            RoomShaper, HttpAuthPool, Opts),
-            handle_room_registration(Host, Room, Pid)
+            register_room_or_stop_if_duplicate(Host, Room, Pid)
     end.
 
 -spec route_by_nick(room(), from_to_packet(), state()) -> 'ok' | pid().
@@ -697,7 +717,7 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
                   RoomShaper,
                   HttpAuthPool,
                   R#muc_room.opts),
-              handle_room_registration(Host, Room, Pid)
+          register_room_or_stop_if_duplicate(Host, Room, Pid)
 
       end, RoomsToLoad).
 
@@ -726,13 +746,13 @@ start_new_room(Host, ServerHost, Access, Room,
                                RoomShaper, HttpAuthPool, Opts)
     end.
 
-handle_room_registration(Host, Room, Pid) ->
+register_room_or_stop_if_duplicate(Host, Room, Pid) ->
     case register_room(Host, Room, Pid) of
         {_, ok} ->
             {ok, Pid};
         {_, {exists, OldPid}} ->
-            exit(Pid, normal),
-            {exists, OldPid}
+            mod_muc_room:stop(Pid),
+            {ok, OldPid}
     end.
 
 -spec register_room('undefined' | ejabberd:server(), room(),
