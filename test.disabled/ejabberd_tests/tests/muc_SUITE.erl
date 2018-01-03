@@ -21,6 +21,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("assert_received_match.hrl").
 
 -import(muc_helper,
         [load_muc/1,
@@ -42,6 +43,8 @@
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
 -define(WAIT_TIME, 1500).
+
+-define(FAKEPID, fakepid).
 
 -define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
@@ -72,18 +75,19 @@
 %%--------------------------------------------------------------------
 
 all() -> [
-        {group, disco},
-        {group, disco_rsm},
-        {group, moderator},
-        {group, admin},
-        {group, admin_membersonly},
-        {group, occupant},
-        {group, owner},
-        {group, owner_no_parallel},
-        {group, room_management},
-        {group, http_auth_no_server},
-        {group, http_auth},
-        {group, hibernation}
+          {group, disco},
+          {group, disco_rsm},
+          {group, moderator},
+          {group, admin},
+          {group, admin_membersonly},
+          {group, occupant},
+          {group, owner},
+          {group, owner_no_parallel},
+          {group, room_management},
+          {group, http_auth_no_server},
+          {group, http_auth},
+          {group, hibernation},
+          {group, room_registration_race_condition}
         ].
 
 groups() -> [
@@ -238,7 +242,13 @@ groups() -> [
                 create_instant_http_password_protected_room,
                 deny_creation_of_http_password_protected_room,
                 deny_creation_of_http_password_protected_room_wrong_password
-                ]}
+                ]},
+        {room_registration_race_condition, [], [
+                load_already_registered_permanent_rooms,
+                create_already_registered_room,
+                check_presence_route_to_offline_room,
+                check_message_route_to_offline_room
+               ]}
         ].
 
 rsm_cases() ->
@@ -257,11 +267,13 @@ suite() ->
 
 
 init_per_suite(Config) ->
+    %% For mocking with unnamed functions
+    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
+    escalus_ejabberd:rpc(code, load_binary, [?MODULE, Filename, Binary]),
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(domain(), Config2),
     load_muc(muc_host()),
-    mongoose_helper:ensure_muc_clean(),
-    Config3.
+    mongoose_helper:ensure_muc_clean(), Config3.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -269,6 +281,10 @@ end_per_suite(Config) ->
     unload_muc(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
+
+
+init_per_group(room_registration_race_condition, Config) ->
+    escalus_fresh:create_users(Config, [{alice, 1}]);
 
 init_per_group(moderator, Config) ->
     RoomOpts = [{persistent, true}, {allow_change_subj, false},
@@ -344,6 +360,10 @@ handle_http_auth(Req) ->
     Headers = #{<<"content-type">> => <<"application/json">>},
     cowboy_req:reply(200, Headers, Resp, Req).
 
+end_per_group(room_registration_race_condition, Config) ->
+    escalus_ejabberd:rpc(meck, unload, []),
+    escalus:delete_users(Config, escalus:get_users([bob, alice]));
+
 end_per_group(admin_membersonly, Config) ->
     destroy_room(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
@@ -381,6 +401,25 @@ end_per_group(_GroupName, Config) ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
+
+init_per_testcase(CaseName = load_already_registered_permanent_rooms, Config) ->
+    ok = escalus_ejabberd:rpc(meck, new, [mod_muc_room, [no_link, passthrough]]),
+    meck_room_start(),
+    escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(CaseName = create_already_registered_room, Config) ->
+    ok = escalus_ejabberd:rpc(meck, new, [mod_muc_room, [no_link, passthrough]]),
+    meck_room_start(),
+    escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(CaseName = check_presence_route_to_offline_room, Config) ->
+    ok = escalus_ejabberd:rpc(meck, new, [mod_muc_room, [no_link, passthrough]]),
+    meck_room_start(),
+    meck_room_route(),
+    escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(CaseName = check_message_route_to_offline_room, Config) ->
+    ok = escalus_ejabberd:rpc(meck, new, [mod_muc_room, [no_link, passthrough]]),
+    meck_room_start(),
+    meck_room_route(),
+    escalus:init_per_testcase(CaseName, Config);
 
 init_per_testcase(CaseName =send_non_anonymous_history, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
@@ -432,6 +471,45 @@ init_per_testcase(CaseName, ConfigIn) ->
     Config = maybe_create_unique_room(ConfigIn),
     escalus:init_per_testcase(CaseName, Config).
 
+%% Meck will register a fake room right before a 'real' room is started
+meck_room_start() ->
+    escalus_ejabberd:rpc(meck, expect, [mod_muc_room, start,
+        fun(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
+            mod_muc:register_room(Host, Room, ?FAKEPID),
+            meck:passthrough([Host,
+                ServerHost,
+                Access,
+                Room,
+                HistorySize,
+                RoomShaper,
+                HttpAuthPool,
+                Opts])
+        end]),
+
+    escalus_ejabberd:rpc(meck, expect, [mod_muc_room, start,
+        fun(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts) ->
+
+            mod_muc:register_room(Host, Room, ?FAKEPID),
+            meck:passthrough([Host,
+                ServerHost,
+                Access,
+                Room,
+                HistorySize,
+                RoomShaper,
+                HttpAuthPool,
+                Creator,
+                Nick,
+                DefRoomOpts])
+        end]).
+
+%% Meck will forward all calls to route to the test case instead
+meck_room_route() ->
+    TestCasePid = self(),
+    ok = escalus_ejabberd:rpc(meck, expect, [mod_muc_room, route,
+        fun(Pid, _From, _ToNick, _Acc, _Packet) ->
+            TestCasePid ! Pid
+        end]).
+
 maybe_create_unique_room(Config) ->
     case should_create_fresh_room(Config) of
         true ->
@@ -459,6 +537,19 @@ get_group_name(Config) ->
 %end_per_testcase(CaseName =deny_entry_locked_room, Config) ->
 %    destroy_room(Config),
 %    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = load_already_registered_permanent_rooms, Config) ->
+    escalus_ejabberd:rpc(meck, unload, []),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = create_already_registered_room, Config) ->
+    escalus_ejabberd:rpc(meck, unload, []),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = check_presence_route_to_offline_room, Config) ->
+    escalus_ejabberd:rpc(meck, unload, []),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = check_message_route_to_offline_room, Config) ->
+    escalus_ejabberd:rpc(meck, unload, []),
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =send_non_anonymous_history, Config) ->
     destroy_room(Config),
@@ -4285,6 +4376,70 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
              index = Index,
              last = Last,
              count = Count}.
+
+%%--------------------------------------------------------------------
+%%  Room registration use cases
+%%  Tests for race condition that occurs when multiple users
+%%  attempt to start and/or register the same room at the same time
+%%--------------------------------------------------------------------
+load_already_registered_permanent_rooms(_Config) ->
+    Room = <<"testroom1">>,
+    Host = <<"localhost">>,
+    ServerHost = <<"localhost">>,
+    Access = none,
+    HistorySize = 10,
+    RoomShaper = none,
+    HttpAuthPool = none,
+
+    %% Write a permanent room
+    {atomic, ok} = escalus_ejabberd:rpc(mod_muc,store_room,[Host, Room, []]),
+
+    % Load permanent rooms
+    escalus_ejabberd:rpc(mod_muc, load_permanent_rooms , [Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool]),
+
+    %% Read online room
+    RoomJID = escalus_ejabberd:rpc(jid,make,[Room,Host,<<>>]),
+    {ok, Pid} = escalus_ejabberd:rpc(mod_muc,room_jid_to_pid,[RoomJID]),
+
+    %% Check if the pid read from mnesia matches the fake pid
+    ?assert_equal(?FAKEPID, Pid).
+
+create_already_registered_room(Config) ->
+    Room = <<"testroom2">>,
+    Host = muc_host(),
+    %% Start a room
+    [Alice | _] = ?config(escalus_users, Config),
+
+    %% Function has been mecked to register the room before it is started
+    start_room(Config, Alice, Room, <<"aliceroom">>, default),
+    %% Read the room
+    RoomJID = escalus_ejabberd:rpc(jid,make,[Room,Host,<<>>]),
+    {ok, Pid} = escalus_ejabberd:rpc(mod_muc, room_jid_to_pid, [RoomJID]),
+    %% Check that the stored pid is the same as the mecked pid
+    ?assert_equal(?FAKEPID, Pid).
+
+check_presence_route_to_offline_room(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+        Room = <<"testroom3">>,
+        %% Send a presence to a nonexistent room
+        escalus:send(Alice, stanza_groupchat_enter_room_no_nick(Room)),
+
+        %% Check that we receive the mecked pid instead of a real one
+        ?assertReceivedMatch(?FAKEPID, 3000)
+    end).
+
+check_message_route_to_offline_room(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+        Room = <<"testroom4">>,
+        Host = muc_host(),
+        {atomic, ok} = escalus_ejabberd:rpc(mod_muc,store_room,[Host, Room, []]),
+
+        %% Send a message to an offline permanent room
+        escalus:send(Alice, stanza_room_subject(Room, <<"Subject line">>)),
+
+        %% Check that we receive the mecked pid instead of a real one
+        ?assertReceivedMatch(?FAKEPID, 3000)
+    end).
 
 %%--------------------------------------------------------------------
 %% Helpers

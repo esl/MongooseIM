@@ -6,6 +6,8 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-include("assert_received_match.hrl").
+
 -define(MUC_HOST, <<"muc.localhost">>).
 -define(NS_HTTP_UPLOAD, <<"urn:xmpp:http:upload">>).
 -define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
@@ -30,31 +32,6 @@
     attributes,
     config
 }).
-
--define(assertReceivedMatch(Expect), ?assertReceivedMatch(Expect, timer:seconds(5))).
-
--define(assertReceivedMatch(Expect, Timeout),
-    ((fun() ->
-        receive
-            Expect = __Result__ -> __Result__
-        after
-            Timeout ->
-                __Reason__ =
-                    receive
-                        __Result__ -> __Result__
-                    after
-                        0 -> timeout
-                    end,
-
-                __Args__ = [{module, ?MODULE},
-                            {line, ?LINE},
-                            {expected, (??Expect)},
-                            {value, __Reason__}],
-                ct:print("assertReceivedMatch_failed: ~p~n", [__Args__]),
-                erlang:error({assertReceivedMatch_failed, __Args__})
-        end
-      end)())).
-
 
 %%--------------------------------------------------------------------
 %% Suite configuration

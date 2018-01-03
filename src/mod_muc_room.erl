@@ -34,7 +34,8 @@
          start_link/8,
          start/10,
          start/8,
-         route/5]).
+         route/5,
+         stop/1]).
 
 %% API exports
 -export([get_room_users/1,
@@ -187,6 +188,9 @@ start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool
                        [Host, ServerHost, Access, Room, HistorySize,
                         RoomShaper, HttpAuthPool, Opts],
                        ?FSMOPTS).
+
+stop(Pid) ->
+    gen_fsm:stop(Pid).
 
 -spec get_room_users(RoomJID :: ejabberd:jid()) -> {ok, [user()]}
                                                  | {error, not_found}.
