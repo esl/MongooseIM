@@ -459,7 +459,7 @@ configure_ldap_vcards(Config) ->
            {ldap_filter,"(objectClass=inetOrgPerson)"},
            {ldap_base,"ou=Users,dc=esl,dc=com"},
            {ldap_search_fields, [{"Full Name","cn"},{"User","uid"}]},
-           {ldap_vcard_map,[{"FN",[{"%s",["cn"]}]}]}],
+           {ldap_vcard_map,[{"FN","%s",["cn"]}]}],
     dynamic_modules:start(Domain, mod_vcard, Cfg),
     [{mod_vcard, CurrentVcardConfig} | Config].
 
