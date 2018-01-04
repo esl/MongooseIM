@@ -285,7 +285,7 @@ password_can_be_changed(Config) ->
     {?NOCONTENT, _} = putt(admin, "/users/localhost/bob",
                            #{newpass => <<"niemakrolika">>}),
     % he logs with his alternative password
-    escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
+    escalus:story(Config, [{bob_altpass, 1}], fun(#client{} = _Bob) ->
         ignore
     end),
     % we can't log with regular passwd anymore
