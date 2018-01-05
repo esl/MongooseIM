@@ -52,6 +52,7 @@
          set_opt/3,
          get_module_opt/4,
          set_module_opt/4,
+         set_module_opts/3,
          get_module_opts/2,
          get_opt_subhost/3,
          get_opt_subhost/4,
@@ -302,6 +303,20 @@ set_module_opt(Host, Module, Opt, Value) ->
                                {#ejabberd_module.opts, Updated})
     end.
 
+%% @doc Non-atomic! You have been warned.
+-spec set_module_opts(ejabberd:server(), module(), _Opts) -> boolean().
+set_module_opts(Host, Module, Opts0) ->
+    Opts = proplists:unfold(Opts0),
+    Key = {Module, Host},
+    OptsList = ets:lookup(ejabberd_modules, Key),
+    case OptsList of
+        [] ->
+            false;
+        [#ejabberd_module{opts = _Opts}] ->
+            ets:update_element(ejabberd_modules, Key,
+                               {#ejabberd_module.opts, Opts})
+    end.
+
 -spec set_module_opt_by_subhost(
         SubHost :: ejabberd:server(),
         Module :: module(),
@@ -345,7 +360,8 @@ loaded_modules_with_opts(Host) ->
 
 -spec set_module_opts_mnesia(ejabberd:server(), module(), [any()]
                             ) -> {'aborted', _} | {'atomic', _}.
-set_module_opts_mnesia(Host, Module, Opts) ->
+set_module_opts_mnesia(Host, Module, Opts0) ->
+    Opts = proplists:unfold(Opts0),
     Modules = case ejabberd_config:get_local_option({modules, Host}) of
         undefined ->
             [];

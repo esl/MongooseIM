@@ -69,6 +69,10 @@
 %% SQL
 -export([success_sql_query/2, success_sql_execute/3]).
 
+%% Params
+-export([param/4, call_is_archivable_message/4,
+         add_archived_element/2, add_stanzaid_element/2]).
+
 %% Other
 -export([maybe_integer/2,
          maybe_min/2,
@@ -1062,3 +1066,30 @@ error_on_sql_error(_HostOrConn, _Query, Result) ->
 -spec wrapper_id() -> binary().
 wrapper_id() ->
     uuid:uuid_to_string(uuid:get_v4(), binary_standard).
+
+param(Module, Host, Opt, Default) ->
+    gen_mod:get_module_opt(Host, Module, Opt, Default).
+
+call_is_archivable_message(Module, Host, Dir, Packet) ->
+    {IsArchivableModule, IsArchivableFunction} =
+        case param(Module, Host, is_archivable_message, undefined) of
+            undefined ->
+                case param(Module, Host, is_complete_message, undefined) of
+                    undefined -> {mod_mam_utils, is_archivable_message};
+                    OldStyleMod -> {OldStyleMod, is_complete_message}
+                end;
+
+            Mod -> {Mod, is_archivable_message}
+        end,
+    ArchiveChatMarkers = param(Module, Host, archive_chat_markers, false),
+    erlang:apply(IsArchivableModule, IsArchivableFunction,
+                 [Module, Dir, Packet, ArchiveChatMarkers]).
+
+%% @doc Enable support for `<archived/>' element from MAM v0.2
+%% -spec add_archived_element(Host :: ejabberd:lserver()) -> boolean().
+add_archived_element(Module, Host) ->
+    param(Module, Host, add_archived_element, false).
+
+%% -spec add_stanzaid_element(Host :: ejabberd:lserver()) -> boolean().
+add_stanzaid_element(Module, Host) ->
+    not param(Module, Host, no_stanzaid_element, false).

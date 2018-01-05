@@ -58,10 +58,6 @@
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
-%% for feature (escalus) tests
--export([set_params/1]).
--export([overwrite_params/1]).
-
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -197,7 +193,6 @@ start(Host, Opts) ->
                                              " Consider using a <stanza-id/> element instead")
     end,
 
-    compile_params_module(Opts),
     ejabberd_users:start(Host),
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
@@ -320,8 +315,8 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
                 case process_incoming_packet(From, To, PacketWithoutAmp) of
                     undefined -> {mam_failed, Packet};
                     MessID -> {archived, maybe_add_arcid_elems(To, MessID, Packet,
-                                                                 add_archived_element(),
-                                                                 add_stanzaid_element())}
+                                                               add_archived_element(LServer),
+                                                               add_stanzaid_element(LServer))}
                 end
         end,
     Acc1 = mongoose_acc:put(element, PacketAfterArchive, Acc),
@@ -440,9 +435,9 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    ExtraParamsModule = gen_mod:get_module_opt(Host, ?MODULE, extra_lookup_params, undefined),
-    Params0 = mam_iq:query_to_lookup_params(IQ, mod_mam_params:max_result_limit(),
-                                            mod_mam_params:default_result_limit(),
+    ExtraParamsModule = param(Host, extra_lookup_params, undefined),
+    Params0 = mam_iq:query_to_lookup_params(IQ, param(Host, max_result_limit, 50),
+                                            param(Host, default_result_limit, 50),
                                             ExtraParamsModule),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     case lookup_messages(Host, Params) of
@@ -474,9 +469,9 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    ExtraParamsModule = gen_mod:get_module_opt(Host, ?MODULE, extra_lookup_params, undefined),
-    Params0 = mam_iq:form_to_lookup_params(IQ, mod_mam_params:max_result_limit(),
-                                           mod_mam_params:default_result_limit(),
+    ExtraParamsModule = param(Host, extra_lookup_params, undefined),
+    Params0 = mam_iq:form_to_lookup_params(IQ, param(Host, max_result_limit, 50),
+                                           param(Host, default_result_limit, 50),
                                            ExtraParamsModule),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     PageSize = maps:get(page_size, Params),
@@ -569,7 +564,7 @@ handle_purge_single_message(ArcJID=#jid{},
 determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        FromJID, ToJID, Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
-    ShouldBeStored = mod_mam_params:is_archivable_message(?MODULE, incoming, Packet)
+    ShouldBeStored = is_archivable_message(LServer, incoming, Packet)
         andalso is_interesting(ToJID, FromJID)
         andalso ejabberd_auth:is_user_exists(LUser, LServer),
     case ShouldBeStored of
@@ -587,7 +582,7 @@ handle_package(Dir, ReturnMessID,
                RemJID = #jid{},
                SrcJID = #jid{}, Packet) ->
     Host = server_host(LocJID),
-    case mod_mam_params:is_archivable_message(?MODULE, Dir, Packet)
+    case is_archivable_message(Host, Dir, Packet)
          andalso should_archive_if_groupchat(Host, exml_query:attr(Packet, <<"type">>)) of
         true ->
             ArcID = archive_id_int(Host, LocJID),
@@ -822,59 +817,14 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver=LServer, luser=LUser}, IQ) 
 %% ----------------------------------------------------------------------
 %% Dynamic params module
 
-%% compile_params_module([
-%%      {add_archived_element, boolean()}
-%%      ])
-compile_params_module(Params) ->
-    CodeStr = params_helper(Params),
-    {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_params.erl", Code).
+param(Host, Opt, Default) ->
+    mod_mam_utils:param(?MODULE, Host, Opt, Default).
 
-params_helper(Params) ->
-    %% Try is_complete_message opt for backwards compatibility
-    {IsArchivableModule, IsArchivableFunction} =
-        case proplists:get_value(is_archivable_message, Params) of
-            undefined ->
-                case proplists:get_value(is_complete_message, Params) of
-                    undefined -> {mod_mam_utils, is_archivable_message};
-                    OldStyleMod -> {OldStyleMod, is_complete_message}
-                end;
+is_archivable_message(Host, Dir, Packet) ->
+    mod_mam_utils:call_is_archivable_message(?MODULE, Host, Dir, Packet).
 
-            Mod -> {Mod, is_archivable_message}
-        end,
+add_archived_element(Host) ->
+    mod_mam_utils:add_archived_element(?MODULE, Host).
 
-    Format =
-        io_lib:format(
-          "-module(mod_mam_params).~n"
-          "-compile(export_all).~n"
-          "add_archived_element() -> ~p.~n"
-          "add_stanzaid_element() -> not ~p.~n"
-          "is_archivable_message(Mod, Dir, Packet) -> ~p:~p(Mod, Dir, Packet, archive_chat_markers()).~n"
-          "archive_chat_markers() -> ~p.~n"
-          "default_result_limit() -> ~p.~n"
-          "max_result_limit() -> ~p.~n"
-          "params() -> ~p.~n",
-          [proplists:get_bool(add_archived_element, Params),
-           proplists:get_bool(no_stanzaid_element, Params),
-           IsArchivableModule, IsArchivableFunction,
-           proplists:get_bool(archive_chat_markers, Params),
-           proplists:get_value(default_result_limit, Params, 50),
-           proplists:get_value(max_result_limit, Params, 50),
-           Params
-          ]),
-    binary_to_list(iolist_to_binary(Format)).
-
-set_params(Params) ->
-    compile_params_module(Params ++ mod_mam_params:params()).
-
-overwrite_params(Params) ->
-    compile_params_module(Params).
-
-%% @doc Enable support for `<archived/>' element from MAM v0.2
--spec add_archived_element() -> boolean().
-add_archived_element() ->
-    mod_mam_params:add_archived_element().
-
--spec add_stanzaid_element() -> boolean().
-add_stanzaid_element() ->
-    mod_mam_params:add_stanzaid_element().
+add_stanzaid_element(Host) ->
+    mod_mam_utils:add_stanzaid_element(?MODULE, Host).
