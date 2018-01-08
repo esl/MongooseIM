@@ -95,7 +95,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    case {rpc(europe_node1, eredis, start_link, []), rpc(europe_node1, eredis, start_link, [])} of
+    case {rpc(europe_node1, eredis, start_link, []), rpc(asia_node, eredis, start_link, [])} of
         {{ok, _}, {ok, _}} ->
             ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
 
