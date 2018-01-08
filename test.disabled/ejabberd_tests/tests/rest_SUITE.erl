@@ -278,14 +278,16 @@ messages_can_be_paginated(Config) ->
 
 password_can_be_changed(Config) ->
     % bob logs in with his regular password
-    escalus:story(Config, [{bob, 1}], fun(_Bob) ->
+    escalus:story(Config, [{bob, 1}], fun(#client{} = _Bob) ->
         skip
     end),
     % we change password
+    NewPass = <<"niemakrolika">>,
     {?NOCONTENT, _} = putt(admin, "/users/localhost/bob",
-                           #{newpass => <<"niemakrolika">>}),
+                           #{newpass => NewPass}),
     % he logs with his alternative password
-    escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
+    ConfigWithBobsAltPass = escalus_users:update_userspec(Config, bob, password, NewPass),
+    escalus:story(ConfigWithBobsAltPass, [{bob, 1}], fun(#client{} = _Bob) ->
         ignore
     end),
     % we can't log with regular passwd anymore
@@ -298,7 +300,7 @@ password_can_be_changed(Config) ->
     {?NOCONTENT, _} = putt(admin, "/users/localhost/bob",
                            #{newpass => <<"makrolika">>}),
     % now he logs again with the regular one
-    escalus:story(Config, [{bob, 1}], fun(_Bob) ->
+    escalus:story(Config, [{bob, 1}], fun(#client{} = _Bob) ->
         just_dont_do_anything
     end),
     ok.
