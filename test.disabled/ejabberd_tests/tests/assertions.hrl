@@ -1,3 +1,8 @@
+-define(assert_equal(E, V), (
+    [ct:fail("assert_equal( ~p, ~p) failed~n\tExpected ~p~n\tValue ~p~n",
+        [??E, ??V, (E), (V)])
+        || (E) =/= (V)]
+)).
 -define(assertReceivedMatch(Expect), ?assertReceivedMatch(Expect, timer:seconds(5))).
 -define(assertReceivedMatch(Expect, Timeout),
     ((fun() ->

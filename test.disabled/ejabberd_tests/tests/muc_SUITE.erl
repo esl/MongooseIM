@@ -21,7 +21,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
--include("assert_received_match.hrl").
+-include("assertions.hrl").
 
 -import(muc_helper,
         [load_muc/1,
@@ -49,11 +49,6 @@
 -define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
 
--define(assert_equal(E, V), (
-    [ct:fail("assert_equal( ~p, ~p) failed~n\tExpected ~p~n\tValue ~p~n",
-             [??E, ??V, (E), (V)])
-     || (E) =/= (V)]
-    )).
 
 -record(rsm_in, {
         max :: non_neg_integer() | undefined,

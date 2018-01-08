@@ -12,7 +12,7 @@
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
-
+-include("assertions.hrl").
 
 %%%===================================================================
 %%% Suite configuration
@@ -25,7 +25,7 @@ all() ->
     ].
 
 all_tests() ->
-    [simple_message, simple_message_no_listener, simple_message_failing_listener].
+    [simple_message, simple_message_no_listener, simple_message_failing_listener, proper_http_message_encode_decode].
 
 groups() ->
     [{mod_http_notification_tests, [sequence], all_tests()},
@@ -79,6 +79,10 @@ end_per_testcase(CaseName, Config) ->
     http_helper:stop(),
     escalus:end_per_testcase(CaseName, Config).
 
+start_http_listener(proper_http_message_encode_decode, Prefix) ->
+    Pid = self(),
+    http_helper:start(8000, Prefix, fun(Req) -> process_notification(Req, Pid) end);
+
 start_http_listener(simple_message, Prefix) ->
     Pid = self(),
     http_helper:start(8000, Prefix, fun(Req) -> process_notification(Req, Pid) end);
@@ -97,12 +101,41 @@ process_notification(Req, Pid) ->
 %%% offline tests
 %%%===================================================================
 
+
+proper_http_message_encode_decode(Config) ->
+    %%escape (&) with %26 inside messages.
+    Receiver= <<"bob">>,
+    Message = <<"Hi Test!&escape=Hello">>,
+    Sender = <<"alice">>,
+    Server = escalus_users:get_host(Config, alice),
+    BobJid = escalus_users:get_jid(Config, bob),
+
+    escalus:story(Config, [{alice, 1}],
+        fun(Alice) -> escalus:send(Alice, escalus_stanza:chat_to(BobJid, Message)) end),
+
+    Bob = login_send_presence(Config, bob),
+
+    escalus:wait_for_stanzas(Bob, 2),
+    Body = receive
+               {got_http_request, Bin} ->
+                   Bin
+           end,
+    %% decode %26 to (&) inside message
+    Decoded = escalus_ejabberd:rpc(cow_uri, urldecode, [Body]),
+    ExpectedMessage = <<"author=",Sender/binary,
+                      "&server=",Server/binary,
+                      "&receiver=",Receiver/binary,
+                      "&message=",Message/binary>>,
+    ?assert_equal(ExpectedMessage, Decoded),
+    escalus_client:stop(Config, Bob).
+
 simple_message(Config) ->
     %% we expect one notification message
-    do_simple_message(Config, <<"Hi, Simple!">>),
+    do_simple_message(Config, <<"Hi, Simple">>),
     %% fail if we didn't receive http notification
     Body = receive
-               {got_http_request, Bin} -> Bin
+               {got_http_request, Bin} ->
+                   Bin
            after 2000 ->
                    error(missing_request)
            end,
