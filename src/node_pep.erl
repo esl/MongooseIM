@@ -28,7 +28,7 @@
 -behaviour(gen_pubsub_node).
 -author('christophe.romain@process-one.net').
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("pubsub.hrl").
 -include("jlib.hrl").
 

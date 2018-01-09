@@ -44,7 +44,7 @@
 
 -export([config_change/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
 

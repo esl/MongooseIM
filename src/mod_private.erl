@@ -35,7 +35,7 @@
          remove_user/3,
          remove_user/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -xep([{xep, 49}, {version, "1.2"}]).
 

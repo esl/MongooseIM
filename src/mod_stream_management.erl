@@ -23,7 +23,7 @@
 -export([register_smid/2,
          get_sid/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(sm_session, {smid, sid}).

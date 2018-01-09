@@ -6,7 +6,7 @@
 %%%-------------------------------------------------------------------
 -module(shaper_srv).
 -behaviour(gen_server).
--include_lib("ejabberd.hrl").
+-include_lib("mongoose.hrl").
 -define(SERVER, ?MODULE).
 
 %% ------------------------------------------------------------------

@@ -53,7 +53,7 @@
 
 -export([registrator_proc/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 
 start() ->

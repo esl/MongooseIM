@@ -15,7 +15,7 @@
 %%==============================================================================
 -module(mongoose_api_metrics).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% mongoose_api callbacks
 -export([prefix/0,

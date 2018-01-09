@@ -75,7 +75,7 @@
 %% internal usage
 -export([get_db_info/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -type pool() :: atom().
 -export_type([pool/0]).

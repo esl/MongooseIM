@@ -6,7 +6,7 @@
 
 -export([join/1, leave/0, remove_from_cluster/1, is_node_alive/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %%
 %% API

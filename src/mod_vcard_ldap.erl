@@ -51,7 +51,7 @@
          search_reported_fields/2]).
 
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("eldap.hrl").
 -include("mod_vcard.hrl").
 -include("jlib.hrl").

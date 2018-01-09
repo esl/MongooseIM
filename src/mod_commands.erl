@@ -25,7 +25,7 @@
          send_message/3
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 

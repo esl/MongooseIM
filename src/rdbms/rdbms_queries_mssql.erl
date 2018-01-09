@@ -24,7 +24,7 @@
 -module(rdbms_queries_mssql).
 -author("michal.piotrowski").
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([begin_trans/0,

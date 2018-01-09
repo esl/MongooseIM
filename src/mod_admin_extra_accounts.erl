@@ -40,7 +40,7 @@
     check_account/2,
     check_password/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 
 %%%

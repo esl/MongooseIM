@@ -64,7 +64,7 @@
 -export([check_password/3,
          check_password/5]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -record(anonymous, {us  :: ejabberd:simple_bare_jid(),
                     sid :: ejabberd_sm:sid()

@@ -28,7 +28,7 @@
 
 -author('stephen.roettger@googlemail.com').
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% External exports
 %% ejabberd doesn't implement SASLPREP, so we use the similar RESOURCEPREP instead
@@ -58,7 +58,9 @@
 -type scram_tuple() :: { StoredKey :: binary(), ServerKey :: binary(),
                          Salt :: binary(), Iterations :: non_neg_integer() }.
 
--export_type([scram_tuple/0]).
+-type scram() :: #scram{}.
+
+-export_type([scram_tuple/0, scram/0]).
 
 -define(SALT_LENGTH, 16).
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).

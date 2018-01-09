@@ -38,7 +38,7 @@
 -behaviour(gen_mod).
 -behaviour(gen_server).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 -include("mongoose_rsm.hrl").

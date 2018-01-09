@@ -51,7 +51,7 @@
 -export([check_password/3,
          check_password/5]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %%%----------------------------------------------------------------------
 %%% API

@@ -45,7 +45,7 @@
 -behaviour(mod_last).
 
 -include("mod_last.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(TIMESTAMP_IDX, {integer_index, "timestamp"}).
 

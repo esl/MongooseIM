@@ -31,7 +31,7 @@
 %% For testing and debugging
 -export([get_session_socket/1, store_session/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").

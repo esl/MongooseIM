@@ -23,7 +23,7 @@
          multi_get_data/3,
          remove_user/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -spec init(ejabberd:lserver(), list()) -> ok.

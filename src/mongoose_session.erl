@@ -1,7 +1,7 @@
 -module(mongoose_session).
 -export([merge_info/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -spec merge_info(#session{}, #session{}) -> #session{}.
 merge_info(New, Old) ->

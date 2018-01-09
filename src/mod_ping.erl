@@ -30,7 +30,7 @@
 -behavior(gen_mod).
 -behavior(gen_server).
 -xep([{xep, 199}, {version, "2.0"}]).
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -define(SUPERVISOR, ejabberd_sup).

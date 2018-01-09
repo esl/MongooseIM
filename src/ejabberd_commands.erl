@@ -200,7 +200,7 @@
         ]).
 
 -include("ejabberd_commands.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% Allowed types for arguments are integer, string, tuple and list.
 -type atype() :: integer | string | binary | {tuple, [aterm()]} | {list, aterm()}.

@@ -63,7 +63,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("mongoose_rsm.hrl").
 
 %% Stream types defined in exml/include/exml_stream.hrl

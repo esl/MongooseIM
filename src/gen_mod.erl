@@ -66,7 +66,7 @@
          is_loaded/2,
          get_deps/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -record(ejabberd_module, {
           module_host, % {module(), ejabberd:server()},

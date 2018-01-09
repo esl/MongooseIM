@@ -28,7 +28,7 @@
 -author('alexey@process-one.net').
 
 -export([start/0, start_pool/1, stop_pool/1, pools/0]).
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -spec start() -> 'ok' | {'error', 'lager_not_running'}.
 start() ->

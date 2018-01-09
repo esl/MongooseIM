@@ -15,7 +15,7 @@
 -behaviour(mod_last).
 
 -include("mod_last.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([init/2,

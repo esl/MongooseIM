@@ -6,7 +6,7 @@
          clean_tokens/1]).
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% Assumption: all sequence numbers less than the current valid one
 %%             are not valid.

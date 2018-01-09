@@ -32,7 +32,7 @@
 -export([remove_user/2]).
 -export([count_offline_messages/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_offline.hrl").
 -include_lib("riakc/include/riakc.hrl").

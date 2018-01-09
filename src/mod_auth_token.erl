@@ -2,7 +2,7 @@
 
 -behavior(gen_mod).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include("mod_auth_token.hrl").

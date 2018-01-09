@@ -37,7 +37,7 @@
          try_register/5,
          process_iq/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 start(Host, Opts) ->

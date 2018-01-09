@@ -36,7 +36,7 @@
          get_path_s/2,
          replace_tag_attr/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -type xmlel_or_cdata() :: jlib:xmlch().

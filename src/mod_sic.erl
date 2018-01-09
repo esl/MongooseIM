@@ -35,7 +35,7 @@
          process_sm_iq/4
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -define(NS_SIC, <<"urn:xmpp:sic:1">>).

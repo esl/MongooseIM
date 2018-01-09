@@ -31,7 +31,7 @@
 -xep([{xep, 78}, {version, "2.5"}]).
 -behaviour(cyrsasl).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 start(_Opts) ->
     cyrsasl:register_mechanism(<<"PLAIN">>, ?MODULE, plain),

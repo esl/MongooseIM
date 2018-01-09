@@ -30,7 +30,7 @@
 %% Callbacks
 -export([participant_limit_check/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 

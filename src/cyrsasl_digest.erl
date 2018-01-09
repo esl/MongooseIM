@@ -32,7 +32,7 @@
          mech_new/2,
          mech_step/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -behaviour(cyrsasl).
 

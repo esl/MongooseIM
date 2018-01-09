@@ -55,7 +55,7 @@
          get_local_config/0,
          get_host_local_config/0]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
 

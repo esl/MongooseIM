@@ -59,7 +59,7 @@
 %% ejabberd API
 -export([get_info_s2s_connections/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").
 

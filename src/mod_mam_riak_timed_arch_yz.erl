@@ -22,7 +22,7 @@
 -callback decode(binary()) -> term().
 
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 

@@ -3,7 +3,7 @@
 -behaviour(gen_mod).
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export([start/2, stop/1, process_iq/4]).
 

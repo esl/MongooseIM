@@ -29,7 +29,7 @@
 %% local callbacks
 -export([to_json/2, from_json/2]).
 -include("mongoose_api.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -import(mongoose_api_common, [error_response/3,
                               error_response/4,

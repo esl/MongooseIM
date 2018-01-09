@@ -9,7 +9,7 @@
 -module(mongoose_api_common).
 -author("ludwikbukowski").
 -include("mongoose_api.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 %%
 %% @doc MongooseIM REST API backend
 %%

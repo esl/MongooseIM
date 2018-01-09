@@ -10,7 +10,7 @@
 %%%-------------------------------------------------------------------
 -module(xmpp_router).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 

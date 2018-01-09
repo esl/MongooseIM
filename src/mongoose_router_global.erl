@@ -10,7 +10,7 @@
 
 -behaviour(xmpp_router).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% xmpp_router callback
 -export([filter/4, route/4]).

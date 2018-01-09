@@ -40,7 +40,7 @@
          get_option/2
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(DEFAULT_POOL_NAME, default).
 -define(DEFAULT_POOL_SIZE, 10).

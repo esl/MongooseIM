@@ -27,7 +27,7 @@
 
 -define(SERVER, ?MODULE).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %%%===================================================================
 %%% API functions

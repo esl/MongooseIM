@@ -34,7 +34,7 @@
          match_rule/3,
          match_rule/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export_type([rule/0, host/0]).
 

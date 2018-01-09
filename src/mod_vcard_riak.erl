@@ -25,7 +25,7 @@
          search_fields/1,
          search_reported_fields/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 -include_lib("riakc/include/riakc.hrl").

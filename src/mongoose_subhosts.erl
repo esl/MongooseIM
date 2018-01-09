@@ -7,7 +7,7 @@
 
 -module(mongoose_subhosts).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export([
          init/0,

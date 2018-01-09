@@ -16,7 +16,7 @@
 
 -module(gen_mod_deps).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -type gen_mod_params() :: proplists:proplist().
 -type gen_mod_list() :: [{module(), gen_mod_params()}].

@@ -30,7 +30,7 @@
 -export([delete_room/3]).
 
 -include("mod_muc_light.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 

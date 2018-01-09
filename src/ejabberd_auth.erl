@@ -64,7 +64,7 @@
 %% Library functions for reuse in ejabberd_auth_* modules
 -export([authorize_with_check_password/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export_type([authmodule/0,
               passterm/0]).

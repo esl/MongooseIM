@@ -72,7 +72,7 @@
 -export([do_filter/3]).
 -export([do_route/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_privacy.hrl").
@@ -90,6 +90,8 @@
                       priority :: priority(),
                       info     :: list()
                      }.
+
+-type sm_session() :: #session{}.
 
 %% Session representation as 4-tuple.
 -type ses_tuple() :: {USR :: ejabberd:simple_jid(),

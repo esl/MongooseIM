@@ -61,7 +61,7 @@
          terminate/3,
          print_state/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_c2s.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").

@@ -34,7 +34,7 @@
 -export([filter_out_prevented/3]).
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("mod_muc_light.hrl").
 
 -type user_defined_schema_item() :: FieldName :: string()

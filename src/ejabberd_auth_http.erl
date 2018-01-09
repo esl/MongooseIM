@@ -32,7 +32,7 @@
 -export([check_password/3,
          check_password/5]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -type http_error_atom() :: conflict | not_found | not_authorized | not_allowed.
 

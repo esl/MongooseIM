@@ -13,7 +13,7 @@
 %% API
 -export([decode/3, encode/4, encode_error/5]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 

@@ -53,7 +53,7 @@
 %% for test cases
 -export([delete_caps/1, make_disco_hash/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -include("jlib.hrl").
 

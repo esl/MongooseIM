@@ -28,7 +28,7 @@
 
 -export([libs/0, config/0]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 
 -compile([export_all]).

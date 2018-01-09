@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_sm_redis).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -behavior(ejabberd_gen_sm).
 -export([start/1,

@@ -37,7 +37,7 @@
          remove_user/3,
          is_user_exists/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(INIT_TIMEOUT, 60000). % Timeout is in milliseconds: 60 seconds == 60000
 -define(CALL_TIMEOUT, 10000). % Timeout is in milliseconds: 10 seconds == 10000

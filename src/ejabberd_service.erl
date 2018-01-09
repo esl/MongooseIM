@@ -53,7 +53,7 @@
 %% packet handler callback
 -export([process_packet/5]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(state, {socket,

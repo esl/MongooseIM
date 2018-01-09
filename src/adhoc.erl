@@ -32,7 +32,7 @@
          produce_response/4,
          produce_response/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("adhoc.hrl").
 

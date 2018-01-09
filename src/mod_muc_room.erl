@@ -54,7 +54,7 @@
          terminate/3,
          code_change/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
 

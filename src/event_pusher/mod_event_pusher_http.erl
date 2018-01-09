@@ -19,7 +19,7 @@
 %% API
 -export([start/2, stop/1, push_event/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -define(DEFAULT_POOL_NAME, http_pool).

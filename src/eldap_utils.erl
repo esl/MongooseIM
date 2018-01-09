@@ -44,7 +44,7 @@
          uids_domain_subst/2,
          singleton_value/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("eldap.hrl").
 
 %% @doc Generate an 'or' LDAP query on one or several attributes

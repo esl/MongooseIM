@@ -10,7 +10,7 @@
 
 -behaviour(xmpp_router).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 %% xmpp_router callback

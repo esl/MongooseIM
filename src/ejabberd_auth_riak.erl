@@ -17,7 +17,7 @@
 
 -behaviour(ejabberd_gen_auth).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([start/1,
@@ -249,7 +249,7 @@ extract_password(Map) ->
             Password
     end.
 
--spec maybe_extract_scram_password({ok, binary()} | error) -> scram() | false.
+-spec maybe_extract_scram_password({ok, binary()} | error) -> scram:scram() | false.
 maybe_extract_scram_password({ok, ScramSerialised}) ->
     case scram:deserialize(ScramSerialised) of
         {ok, Scram} ->

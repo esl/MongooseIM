@@ -59,7 +59,7 @@
 
 -export([do_route/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(state, {}).

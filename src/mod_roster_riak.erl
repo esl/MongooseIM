@@ -11,7 +11,7 @@
 
 -include("mod_roster.hrl").
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -behaviour(mod_roster).
 

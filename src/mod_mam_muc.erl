@@ -99,7 +99,7 @@
         [send_message/3]).
 
 
--include_lib("ejabberd.hrl").
+-include_lib("mongoose.hrl").
 -include_lib("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 

@@ -34,7 +34,7 @@
          server_start/3,
          server_step/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -record(sasl_mechanism, {
           mechanism,

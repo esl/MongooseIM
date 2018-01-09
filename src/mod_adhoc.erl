@@ -41,7 +41,7 @@
          ping_item/4,
          ping_command/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("adhoc.hrl").
 

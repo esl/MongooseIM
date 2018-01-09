@@ -12,7 +12,7 @@
 -export([from_json/2]).
 -export([delete_resource/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 

@@ -17,7 +17,7 @@
 -author("bartek").
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).

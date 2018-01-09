@@ -34,7 +34,7 @@
     stats/1, stats/2
     ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 
 %%%

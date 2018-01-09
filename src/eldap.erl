@@ -65,7 +65,7 @@
 
 -behaviour(gen_fsm).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% External exports
 -export([start_link/1, start_link/6]).

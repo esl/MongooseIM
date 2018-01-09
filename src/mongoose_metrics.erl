@@ -15,7 +15,7 @@
 %%==============================================================================
 -module(mongoose_metrics).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("mongoose_metrics_definitions.hrl").
 
 %% API

@@ -107,7 +107,7 @@
 
 -module(mongoose_commands).
 -author("bartlomiej.gorny@erlang-solutions.com").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(mongoose_command,

@@ -8,7 +8,7 @@
 -author('ludwik.bukowski@erlang-solutions.com').
 -behaviour(gen_mod).
 -export([start/2, stop/1, process_local_iq/4]).
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -xep([{xep, 202}, {version, "2.0"}]).
 -xep([{xep, 82}, {version, "1.1"}]).

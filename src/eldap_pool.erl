@@ -32,7 +32,7 @@
 -export([start_link/7, stop/1, bind/3, search/2, delete/2, add/3,
          modify_passwd/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %%====================================================================
 %% API

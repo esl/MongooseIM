@@ -1,6 +1,6 @@
 -module(mongoose_fips).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export([notify/0]).
 -export([status/0]).

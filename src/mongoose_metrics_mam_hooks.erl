@@ -7,7 +7,7 @@
 %%%-------------------------------------------------------------------
 -module(mongoose_metrics_mam_hooks).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([get_hooks/1]).

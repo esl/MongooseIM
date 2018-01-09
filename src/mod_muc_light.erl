@@ -44,7 +44,7 @@
 -module(mod_muc_light).
 -author('piotr.nosek@erlang-solutions.com').
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 -include("mod_roster.hrl").

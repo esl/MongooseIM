@@ -19,7 +19,7 @@
               key_name/0,
               raw_key/0]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("mod_keystore.hrl").
 
 -define(DEFAULT_RAM_KEY_SIZE, 2048).

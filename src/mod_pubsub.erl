@@ -54,7 +54,7 @@
 -xep([{xep, 248}, {version, "0.2"}]).
 -xep([{xep, 277}, {version, "0.6.1"}]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("adhoc.hrl").
 -include("jlib.hrl").
 -include("pubsub.hrl").
@@ -1252,7 +1252,7 @@ iq_get_vcard(Lang) ->
     [#xmlel{name = <<"FN">>, attrs = [],
             children = [#xmlcdata{content = <<"ejabberd/mod_pubsub">>}]},
      #xmlel{name = <<"URL">>, attrs = [],
-            children = [#xmlcdata{content = ?EJABBERD_URI}]},
+            children = [#xmlcdata{content = ?MONGOOSE_URI}]},
      #xmlel{name = <<"DESC">>, attrs = [],
             children = [#xmlcdata{content = Desc}]}].
 

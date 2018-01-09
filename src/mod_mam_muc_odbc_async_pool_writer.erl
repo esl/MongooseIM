@@ -32,7 +32,7 @@
 -define(PER_MESSAGE_FLUSH_TIME, [?MODULE, per_message_flush_time]).
 -define(DEFAULT_POOL_SIZE, 32).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -type packet() :: any().

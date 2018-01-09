@@ -51,7 +51,7 @@
 -export([add/1,
          delete/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -type hook() :: {atom(), ejabberd:server() | global, module(), fun() | atom(), integer()}.
 

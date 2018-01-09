@@ -10,7 +10,7 @@
 -module(mongoose_privacy).
 -author("bartek").
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include_lib("jlib.hrl").
 -include("mod_privacy.hrl").
 

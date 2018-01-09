@@ -45,7 +45,7 @@
          handle_info/3,
          terminate/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("public_key/include/public_key.hrl").
 -include("XmppAddr.hrl").

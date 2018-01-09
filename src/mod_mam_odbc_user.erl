@@ -17,7 +17,7 @@
 -export([archive_id/3,
          remove_archive/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 %% ----------------------------------------------------------------------

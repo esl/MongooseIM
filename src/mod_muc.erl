@@ -66,7 +66,7 @@
 -export([online_rooms_number/0]).
 -export([hibernated_rooms_number/0]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
@@ -1039,7 +1039,7 @@ process_register(_, _, _Host, _From, _Lang, _XEl) ->
 iq_get_vcard(Lang) ->
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_muc">>}]},
-     #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?EJABBERD_URI}]},
+     #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?MONGOOSE_URI}]},
      #xmlel{name = <<"DESC">>,
             children = [#xmlcdata{content =
                                   <<(translate:translate(Lang, <<"ejabberd MUC module">>))/binary,

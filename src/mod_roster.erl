@@ -68,7 +68,7 @@
 
 -export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
 

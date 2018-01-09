@@ -10,7 +10,7 @@
 
 -behavior(ejabberd_gen_sm).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export([start/1,
          get_sessions/0,

@@ -19,7 +19,7 @@
 
 -export([serialize/1, deserialize/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include_lib("exml/include/exml.hrl").
 
 %%--------------------------------------------------------------------

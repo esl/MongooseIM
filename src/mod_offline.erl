@@ -57,7 +57,7 @@
 %% helpers to be used from backend moudules
 -export([is_expired_message/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("amp.hrl").
 -include("mod_offline.hrl").

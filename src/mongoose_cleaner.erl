@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(NODE_CLEANUP_LOCK(Node), {node_cleanup_lock, Node}).
 -define(SERVER, ?MODULE).

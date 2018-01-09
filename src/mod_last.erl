@@ -44,7 +44,7 @@
          session_cleanup/5
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -include("jlib.hrl").
 

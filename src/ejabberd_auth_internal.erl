@@ -53,7 +53,7 @@
 -export([check_password/3,
          check_password/5]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -record(passwd, {us, password}).
 
@@ -349,7 +349,7 @@ remove_user(LUser, LServer, Password) ->
     end.
 
 -spec delete_scram_password(tuple(), ejabberd:lserver(),
-                           binary(), scram()) ->
+                           binary(), scram:scram()) ->
                                    ok | not_allowed.
 delete_scram_password(US, LServer, Password, Scram) ->
     case scram:check_password(Password, Scram) of
@@ -393,7 +393,7 @@ write_passwd(#passwd{} = Passwd) ->
 write_counter(#reg_users_counter{} = Counter) ->
     mnesia:write(Counter).
 
--spec get_scram(ejabberd:lserver(), binary()) -> scram() | binary().
+-spec get_scram(ejabberd:lserver(), binary()) -> scram:scram() | binary().
 get_scram(LServer, Password) ->
     case scram:enabled(LServer) and is_binary(Password) of
         true ->

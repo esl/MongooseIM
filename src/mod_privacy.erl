@@ -40,7 +40,7 @@
          remove_user/3,
          updated_list/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 

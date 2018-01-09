@@ -50,7 +50,7 @@
          register_subhost/2,
          unregister_subhost/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -type feature() :: any().
