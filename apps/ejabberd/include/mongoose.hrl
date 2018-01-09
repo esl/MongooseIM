@@ -37,8 +37,6 @@
 %% Logging mechanism
 -include("mongoose_logger.hrl").
 
--record(external_component, {domain, handler, node}).
-
 -define(DEPRECATED,
     ok).
 %%    lager:error("Deprecated call", [])).

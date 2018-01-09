@@ -13,6 +13,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("external_component.hrl").
 
 %% xmpp_router callback
 -export([filter/4, route/4]).
