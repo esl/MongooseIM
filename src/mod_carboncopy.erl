@@ -54,6 +54,8 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include_lib("ejabberd/include/session.hrl").
+
 
 -type classification() :: 'ignore' | 'forward'.
 

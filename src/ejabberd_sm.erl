@@ -76,6 +76,7 @@
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_privacy.hrl").
+-include("session.hrl").
 
 -record(state, {}).
 -type state() :: #state{}.

@@ -9,6 +9,7 @@
 -module(ejabberd_sm_redis).
 
 -include("mongoose.hrl").
+-include("session.hrl").
 
 -behavior(ejabberd_gen_sm).
 -export([start/1,

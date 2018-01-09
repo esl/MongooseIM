@@ -4,6 +4,7 @@
 
 -include("ejabberd_c2s.hrl").
 -include("ejabberd.hrl").
+-include_lib("ejabberd/include/session.hrl").
 -compile([export_all]).
 
 

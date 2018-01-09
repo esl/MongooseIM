@@ -2,6 +2,7 @@
 -export([merge_info/2]).
 
 -include("mongoose.hrl").
+-include("session.hrl").
 
 -spec merge_info(#session{}, #session{}) -> #session{}.
 merge_info(New, Old) ->

@@ -37,13 +37,6 @@
 %% Logging mechanism
 -include("mongoose_logger.hrl").
 
--record(session, {sid,
-                  usr,
-                  us,
-                  priority,
-                  info
-                 }).
-
 -record(route, {
           domain :: binary(),
           handler :: mongoose_packet_handler:t()
