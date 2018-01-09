@@ -60,6 +60,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("route.hrl").
 
 -record(state, {}).
 
