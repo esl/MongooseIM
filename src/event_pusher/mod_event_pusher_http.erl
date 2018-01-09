@@ -38,7 +38,7 @@ stop(_Host) ->
 
 push_event(_, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
     Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
-    Mod = get_callback_module(To#jid.lserver),
+    Mod = get_callback_module(From#jid.lserver),
     case Mod:should_make_req(Packet, From, To) of
         true ->
             make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
