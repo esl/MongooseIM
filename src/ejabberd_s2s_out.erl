@@ -205,7 +205,7 @@ init([From, Server, Type]) ->
                             start_connection(self()),
                             {false, {Pid, Key, SID}}
                     end,
-    Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {ok, open_socket, #state{use_v10 = UseV10,
                              tls = TLS,
                              tls_required = TLSRequired,
@@ -757,14 +757,14 @@ handle_info({send_text, Text}, StateName, StateData) ->
     ?ERROR_MSG("{s2s_out:send_text, Text}: ~p~n", [{send_text, Text}]), % is it ever called?
     send_text(StateData, Text),
     cancel_timer(StateData#state.timer),
-    Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {next_state, StateName, StateData#state{timer = Timer},
      get_timeout_interval(StateName)};
 handle_info({send_element, Acc, El}, StateName, StateData) ->
     case StateName of
         stream_established ->
             cancel_timer(StateData#state.timer),
-            Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+            Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
             send_element(StateData, El),
             {next_state, StateName, StateData#state{timer = Timer}};
         %% In this state we bounce all message: We are waiting before

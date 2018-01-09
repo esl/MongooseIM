@@ -46,7 +46,8 @@
          allow_host/2,
          incoming_s2s_number/0,
          outgoing_s2s_number/0,
-         domain_utf8_to_ascii/1
+         domain_utf8_to_ascii/1,
+         timeout/0
         ]).
 
 %% Hooks callbacks
@@ -483,6 +484,8 @@ parent_domains(<<_, Rest/binary>>, Acc) ->
 send_element(Pid, Acc, El) ->
     Pid ! {send_element, Acc, El}.
 
+timeout() ->
+    600000.
 %%--------------------------------------------------------------------
 %% Function: domain_utf8_to_ascii(Domain) -> binary() | false
 %% Description: Converts a UTF-8 domain to ASCII (IDNA)

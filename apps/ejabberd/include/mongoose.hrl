@@ -31,8 +31,6 @@
 
 -define(MONGOOSE_URI, <<"https://www.erlang-solutions.com/products/mongooseim.html">>).
 
--define(S2STIMEOUT, 600000).
-
 %%-define(DBGFSM, true).
 
 %% ---------------------------------

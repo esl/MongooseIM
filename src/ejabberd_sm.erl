@@ -91,8 +91,6 @@
                       info     :: list()
                      }.
 
--type sm_session() :: #session{}.
-
 %% Session representation as 4-tuple.
 -type ses_tuple() :: {USR :: ejabberd:simple_jid(),
                       Sid :: ejabberd_sm:sid(),
@@ -308,7 +306,7 @@ get_session(User, Server, Resource) ->
              Session#session.priority,
              Session#session.info}
     end.
--spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [sm_session()].
+-spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [session()].
 get_raw_sessions(User, Server) ->
     clean_session_list(
       ejabberd_gen_sm:get_sessions(sm_backend(), jid:nodeprep(User), jid:nameprep(Server))).

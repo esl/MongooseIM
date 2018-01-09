@@ -163,7 +163,7 @@ init([{SockMod, Socket}, Opts]) ->
                                (_) -> false
                             end, Opts),
     TLSOpts = lists:append(TLSOpts1, TLSOpts2),
-    Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,
             sockmod = SockMod,
@@ -323,7 +323,7 @@ wait_for_feature_request(closed, StateData) ->
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
     cancel_timer(StateData#state.timer),
-    Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     case is_key_packet(El) of
         {key, To, From, Id, Key} ->
             ?DEBUG("GET KEY: ~p", [{To, From, Id, Key}]),
