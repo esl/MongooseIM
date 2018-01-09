@@ -29,6 +29,7 @@
 -author('stephen.roettger@googlemail.com').
 
 -include("mongoose.hrl").
+-include("scram.hrl").
 
 %% External exports
 %% ejabberd doesn't implement SASLPREP, so we use the similar RESOURCEPREP instead

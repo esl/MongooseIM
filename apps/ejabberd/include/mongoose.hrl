@@ -44,12 +44,6 @@
                   info
                  }).
 
--record(scram,
-        {storedkey = <<"">>,
-         serverkey = <<"">>,
-         salt = <<"">>,
-         iterationcount = 0 :: integer()}).
-
 -record(route, {
           domain :: binary(),
           handler :: mongoose_packet_handler:t()

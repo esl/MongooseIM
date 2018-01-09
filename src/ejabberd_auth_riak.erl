@@ -18,6 +18,7 @@
 -behaviour(ejabberd_gen_auth).
 
 -include("mongoose.hrl").
+-include("scram.hrl").
 
 %% API
 -export([start/1,

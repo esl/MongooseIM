@@ -54,6 +54,7 @@
          check_password/5]).
 
 -include("mongoose.hrl").
+-include("scram.hrl").
 
 -record(passwd, {us, password}).
 

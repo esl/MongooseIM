@@ -33,6 +33,7 @@
          check_password/5]).
 
 -include("mongoose.hrl").
+-include("scram.hrl").
 
 -type http_error_atom() :: conflict | not_found | not_authorized | not_allowed.
 

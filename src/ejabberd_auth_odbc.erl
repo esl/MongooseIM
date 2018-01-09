@@ -54,6 +54,7 @@
 -export([scram_passwords/2, scram_passwords/4]).
 
 -include("mongoose.hrl").
+-include("scram.hrl").
 
 -define(DEFAULT_SCRAMMIFY_COUNT, 10000).
 -define(DEFAULT_SCRAMMIFY_INTERVAL, 1000).
