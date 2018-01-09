@@ -13,7 +13,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("mod_privacy.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(ALICE, jid:from_binary(<<"alice@localhost">>)).
 -define(BOB, jid:from_binary(<<"bob@localhost">>)).

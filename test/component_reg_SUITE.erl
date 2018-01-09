@@ -3,7 +3,7 @@
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("../include/ejabberd.hrl").
+-include_lib("../include/mongoose.hrl").
 
 
 all() ->

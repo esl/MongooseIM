@@ -1,6 +1,7 @@
 -module(ejabberd_sm_SUITE).
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
+
 -include("ejabberd_c2s.hrl").
 -include("ejabberd.hrl").
 -compile([export_all]).
