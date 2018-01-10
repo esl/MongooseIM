@@ -38,7 +38,7 @@ stop(_Host) ->
 
 push_event(_, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
     Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
-    Mod = get_callback_module(),
+    Mod = get_callback_module(From#jid.lserver),
     case Mod:should_make_req(Packet, From, To) of
         true ->
             make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
@@ -52,8 +52,8 @@ push_event(_, _Event) ->
 %%% Internal functions
 %%%===================================================================
 
-get_callback_module() ->
-    gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, mod_event_pusher_http_defaults).
+get_callback_module(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, callback_module, mod_event_pusher_http_defaults).
 
 make_req(Host, Sender, Receiver, Message) ->
     Path = fix_path(list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH))),
