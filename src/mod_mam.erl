@@ -788,7 +788,7 @@ return_purge_not_found_error_iq(IQ) ->
 -spec return_max_delay_reached_error_iq(ejabberd:iq()) -> ejabberd:iq().
 return_max_delay_reached_error_iq(IQ) ->
     %% Message not found.
-    ErrorEl = ?ERRT_RESOURCE_CONSTRAINT(
+    ErrorEl = mongoose_xmpp_errors:resource_constraint(
                  <<"en">>, <<"The action is cancelled because of flooding.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 

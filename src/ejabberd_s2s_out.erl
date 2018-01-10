@@ -131,13 +131,13 @@
 -define(STREAM_TRAILER, <<"</stream:stream>">>).
 
 -define(INVALID_NAMESPACE_ERR,
-        exml:to_binary(?SERR_INVALID_NAMESPACE)).
+        exml:to_binary(mongoose_xmpp_errors:invalid_namespace())).
 
 -define(HOST_UNKNOWN_ERR,
-        exml:to_binary(?SERR_HOST_UNKNOWN)).
+        exml:to_binary(mongoose_xmpp_errors:host_unknown())).
 
 -define(INVALID_XML_ERR,
-        exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
+        exml:to_binary(mongoose_xmpp_errors:xml_not_well_formed())).
 
 -define(SOCKET_DEFAULT_RESULT, {error, badarg}).
 
@@ -465,7 +465,7 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
             handle_parsed_features({SASLEXT, StartTLS, StartTLSRequired, StateData});
         _ ->
             send_text(StateData,
-                      <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                      <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
                       (?STREAM_TRAILER)/binary>>),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                       [StateData#state.myname, StateData#state.server]),
@@ -506,7 +506,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                     }, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                              <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -522,7 +522,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                              <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -530,7 +530,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
             end;
         _ ->
             send_text(StateData,
-                      <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                      <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
                               (?STREAM_TRAILER)/binary>>),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                       [StateData#state.myname, StateData#state.server]),
@@ -577,7 +577,7 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                     {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                              <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),

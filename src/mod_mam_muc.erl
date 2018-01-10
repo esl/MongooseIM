@@ -695,7 +695,7 @@ return_error_iq(IQ, timeout) ->
 return_error_iq(IQ, not_implemented) ->
     {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented()]}};
 return_error_iq(IQ, missing_with_jid) ->
-    Error =  ?ERRT_BAD_REQUEST(<<"en">>,
+    Error =  mongoose_xmpp_errors:bad_request(<<"en">>,
                                <<"Limited set of queries allowed in the conversation mode.",
                                  "Missing with_jid filter">>),
     {error, bad_request, IQ#iq{type = error, sub_el = [Error]}};
@@ -729,7 +729,7 @@ return_purge_not_found_error_iq(IQ) ->
 -spec return_max_delay_reached_error_iq(ejabberd:iq()) -> ejabberd:iq().
 return_max_delay_reached_error_iq(IQ) ->
     %% Message not found.
-    ErrorEl = ?ERRT_RESOURCE_CONSTRAINT(
+    ErrorEl = mongoose_xmpp_errors:resource_constraint(
                  <<"en">>, <<"The action is cancelled because of flooding.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 

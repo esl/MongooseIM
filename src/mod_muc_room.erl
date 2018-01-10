@@ -319,7 +319,7 @@ locked_error({route, From, ToNick, Acc, #xmlel{attrs = Attrs} = Packet},
     ?INFO_MSG("Wrong stanza: ~p", [Packet]),
     ErrText = <<"This room is locked">>,
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-    Err = jlib:make_error_reply(Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid,
                                                ToNick),
                           From, Acc, Err),
@@ -366,13 +366,13 @@ locked_state_process_owner_iq(From, Query, Lang, set, StateData) ->
                  true ->
                      process_iq_owner(From, set, Lang, Query, StateData);
                  false ->
-                     {error, ?ERRT_ITEM_NOT_FOUND(Lang, <<"Query not allowed">>)}
+                     {error, mongoose_xmpp_errors:item_not_found(Lang, <<"Query not allowed">>)}
              end,
     {Result, normal_state};
 locked_state_process_owner_iq(From, Query, Lang, get, StateData) ->
     {process_iq_owner(From, get, Lang, Query, StateData), locked_state};
 locked_state_process_owner_iq(_From, _Query, Lang, _Type, _StateData) ->
-    {{error, ?ERRT_ITEM_NOT_FOUND(Lang, <<"Wrong type">>)}, locked_state}.
+    {{error, mongoose_xmpp_errors:item_not_found(Lang, <<"Wrong type">>)}, locked_state}.
 
 
 %% @doc Destroy room / confirm instant room / configure room
@@ -387,7 +387,7 @@ locked_state({route, From, _ToNick, Acc,
                 locked_state_process_owner_iq(From, Query, Lang, IQ#iq.type, StateData);
             false ->
                 ErrText = <<"This room is locked">>,
-                {{error, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)}, locked_state}
+                {{error, mongoose_xmpp_errors:item_not_found(Lang, ErrText)}, locked_state}
         end,
     MkQueryResult = fun(Res) ->
                         IQ#iq{type = result,
@@ -853,7 +853,7 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
             end;
         false ->
             ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
             ejabberd_router:route(StateData#state.jid, From, Err),
             next_normal_state(StateData)
     end.
@@ -893,9 +893,9 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
 
 change_subject_error(From, FromNick, Packet, Lang, StateData) ->
     Err = case (StateData#state.config)#config.allow_change_subj of
-              true -> ?ERRT_FORBIDDEN(Lang, <<"Only moderators and participants are allowed"
+              true -> mongoose_xmpp_errors:forbidden(Lang, <<"Only moderators and participants are allowed"
                                               " to change the subject in this room">>);
-              _ -> ?ERRT_FORBIDDEN(Lang, <<"Only moderators are allowed"
+              _ -> mongoose_xmpp_errors:forbidden(Lang, <<"Only moderators are allowed"
                                            " to change the subject in this room">>)
           end,
     ejabberd_router:route(jid:replace_resource(StateData#state.jid,
@@ -1092,15 +1092,15 @@ process_presence_nick_change(From, Nick, Packet, Lang, StateData) ->
     case choose_nick_change_strategy(From, Nick, StateData) of
         not_allowed_visitor ->
             ErrText = <<"Visitors are not allowed to change their nicknames in this room">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         conflict_use ->
             ErrText = <<"That nickname is already in use by another occupant">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:conflict(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         conflict_registered ->
             ErrText = <<"That nickname is registered by another person">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:conflict(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         allowed ->
             change_nick(From, Nick, StateData)
@@ -1126,7 +1126,7 @@ handle_new_user(From, Nick = <<>>, _Packet, StateData, Attrs) ->
     ErrText = <<"No nickname">>,
     Error =jlib:make_error_reply(
                 #xmlel{name = <<"presence">>},
-                ?ERRT_JID_MALFORMED(Lang, ErrText)),
+                mongoose_xmpp_errors:jid_malformed(Lang, ErrText)),
     %ejabberd_route(From, To, Packet),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Error),
     StateData;
@@ -1841,30 +1841,30 @@ add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet, StateDa
             route_error(Nick, From, Err, StateData);
         user_banned ->
             ErrText = <<"You have been banned from this room">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         require_membership ->
             ErrText = <<"Membership is required to enter this room">>,
             Err = jlib:make_error_reply(
-                Packet, ?ERRT_REGISTRATION_REQUIRED(Lang, ErrText)),
+                Packet, mongoose_xmpp_errors:registration_required(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         conflict_use ->
             ErrText = <<"That nickname is already in use by another occupant">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:conflict(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         conflict_registered ->
             ErrText = <<"That nickname is registered by another person">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:conflict(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         require_password ->
             ErrText = <<"A password is required to enter this room">>,
             Err = jlib:make_error_reply(
-                Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
+                Packet, mongoose_xmpp_errors:not_authorized(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         invalid_password ->
             ErrText = <<"Incorrect password">>,
             Err = jlib:make_error_reply(
-                Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
+                Packet, mongoose_xmpp_errors:not_authorized(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         http_auth ->
             Password = extract_password(Els),
@@ -1933,12 +1933,12 @@ decode_json_auth_response(Body) ->
 
 reply_not_authorized(From, Nick, Packet, StateData, ErrText) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Packet#xmlel.attrs),
-    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_authorized(Lang, ErrText)),
     route_error(Nick, From, Err, StateData).
 
 reply_service_unavailable(From, Nick, Packet, StateData, ErrText) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Packet#xmlel.attrs),
-    Err = jlib:make_error_reply(Packet, ?ERRT_SERVICE_UNAVAILABLE(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
     route_error(Nick, From, Err, StateData).
 
 do_add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet,
@@ -2664,10 +2664,10 @@ process_iq_admin(From, get, Lang, SubEl, StateData) ->
                     {result, Items, StateData};
                 {_, {role, _}} ->
                     ErrText = <<"Moderator privileges required">>,
-                    {error, ?ERRT_FORBIDDEN(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:forbidden(Lang, ErrText)};
                 {_, {affiliation, _}} ->
                     ErrText = <<"Administrator privileges required">>,
-                    {error, ?ERRT_FORBIDDEN(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:forbidden(Lang, ErrText)};
                 {_, Error} ->
                     Error
             end
@@ -2879,7 +2879,7 @@ get_affected_jid(Attrs, Lang, StateData) ->
                 error ->
                     ErrText = <<(translate:translate(Lang, <<"Jabber ID ">>))/binary,
                                 S/binary, (translate:translate(Lang, <<" is invalid">>))/binary>>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
                 J ->
                     {value, J}
             end;
@@ -2889,7 +2889,7 @@ get_affected_jid(Attrs, Lang, StateData) ->
                     ErrText
                     = <<(translate:translate(Lang, <<"Nickname ">>))/binary, N/binary,
                         (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
                 [FirstSessionJid | _RestOfSessions] ->
                     {value, FirstSessionJid}
             end;
@@ -2963,7 +2963,7 @@ which_property_changed(Attrs, Lang) ->
                 {'EXIT', _} ->
                     ErrText1 = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
                                  BAffiliation/binary>>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText1)};
+                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText1)};
                 Affiliation ->
                     {affiliation, Affiliation}
             end;
@@ -2972,7 +2972,7 @@ which_property_changed(Attrs, Lang) ->
                 {'EXIT', _} ->
                     ErrText1 = <<(translate:translate(Lang, <<"Invalid role ">>))/binary,
                                  BRole/binary>>,
-                    {error, ?ERRT_BAD_REQUEST(Lang, ErrText1)};
+                    {error, mongoose_xmpp_errors:bad_request(Lang, ErrText1)};
                 Role ->
                     {role, Role}
             end
@@ -3213,7 +3213,7 @@ process_iq_owner(From, Type, Lang, SubEl, StateData) ->
             process_authorized_iq_owner(From, Type, Lang, SubEl, StateData);
         _ ->
             ErrText = <<"Owner privileges required">>,
-            {error, ?ERRT_FORBIDDEN(Lang, ErrText)}
+            {error, mongoose_xmpp_errors:forbidden(Lang, ErrText)}
     end.
 
 -spec process_authorized_iq_owner(ejabberd:jid(), get | set, ejabberd:lang(),
@@ -3252,7 +3252,7 @@ process_authorized_iq_owner(From, get, Lang, SubEl, StateData) ->
                 {'EXIT', _} ->
                     InvAffT = translate:translate(Lang, <<"Invalid affiliation ">>),
                     ErrText = <<InvAffT/binary, BAffiliation/binary>>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
                 Affiliation ->
                     Items = items_with_affiliation(Affiliation, StateData),
                     {result, Items, StateData}
@@ -4287,7 +4287,7 @@ send_error_only_occupants(What, Packet, Lang, RoomJID, From)
   when is_binary(What) ->
     ErrText = <<"Only occupants are allowed to send ",
                 What/bytes, " to the conference">>,
-    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
     ejabberd_router:route(RoomJID, From, Err).
 
 
@@ -4369,7 +4369,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
           MessageShaperInterval} of
         {true, _, _} ->
             ErrText = <<"Traffic rate limit is exceeded">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
             ejabberd_router:route(StateData#state.jid, From, Err),
             StateData;
         {false, true, 0} ->
@@ -4419,7 +4419,7 @@ route_message(#routed_message{allowed = true, type = <<"chat">>, from = From, pa
     lang = Lang}, StateData) ->
     ErrText = <<"It is not allowed to send private messages to the conference">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
     ejabberd_router:route(
         StateData#state.jid,
         From, Err),
@@ -4441,7 +4441,7 @@ route_message(#routed_message{allowed = true, type = Type, from = From,
 route_message(#routed_message{allowed = true, from = From, packet = Packet,
                               lang = Lang}, StateData) ->
     ErrText = <<"Improper message type">>,
-    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
     ejabberd_router:route(StateData#state.jid,
                           From, Err),
     StateData;
@@ -4615,7 +4615,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     lang = Lang, nick = ToNick}, StateData) ->
     ErrText = <<"It is not allowed to send private messages of type groupchat">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_BAD_REQUEST(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:bad_request(Lang, ErrText)),
     ejabberd_router:route(
         jid:replace_resource(
        StateData#state.jid,
@@ -4627,7 +4627,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     lang = Lang, nick = ToNick, jid = false}, StateData) ->
     ErrText = <<"Recipient is not in the conference room">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
     ejabberd_router:route(
         jid:replace_resource(
        StateData#state.jid,
@@ -4654,7 +4654,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = f
     lang = Lang, nick = ToNick}, StateData) ->
     ErrText = <<"It is not allowed to send private messages">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
     ejabberd_router:route(
         jid:replace_resource(StateData#state.jid, ToNick), From, Err),
     StateData.
@@ -4668,7 +4668,7 @@ route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, _, _}, jid = f
     packet = Packet, lang = Lang, from = From, nick = ToNick}, StateData) ->
     ErrText = <<"Recipient is not in the conference room">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
     ejabberd_router:route(
         jid:replace_resource(
        StateData#state.jid, ToNick),
@@ -4693,7 +4693,7 @@ route_nick_iq(#routed_nick_iq{packet = Packet, lang = Lang, nick = ToNick,
                               from = From}, StateData) ->
     ErrText = <<"Queries to the conference members are "
                 "not allowed in this room">>,
-    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
     RouteFrom = jid:replace_resource(StateData#state.jid, ToNick),
     ejabberd_router:route(RouteFrom, From, Err).
 

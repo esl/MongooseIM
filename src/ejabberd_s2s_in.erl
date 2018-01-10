@@ -102,16 +102,16 @@
 -define(STREAM_TRAILER, <<"</stream:stream>">>).
 
 -define(INVALID_NAMESPACE_ERR,
-        exml:to_binary(?SERR_INVALID_NAMESPACE)).
+        exml:to_binary(mongoose_xmpp_errors:invalid_namespace())).
 
 -define(HOST_UNKNOWN_ERR,
-        exml:to_binary(?SERR_HOST_UNKNOWN)).
+        exml:to_binary(mongoose_xmpp_errors:host_unknown())).
 
 -define(INVALID_FROM_ERR,
-        exml:to_binary(?SERR_INVALID_FROM)).
+        exml:to_binary(mongoose_xmpp_errors:invalid_from())).
 
 -define(INVALID_XML_ERR,
-        exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
+        exml:to_binary(mongoose_xmpp_errors:xml_not_well_formed())).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -209,7 +209,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)",
                       [StateData#state.server, RemoteServer, CertError]),
                     send_text(StateData, exml:to_binary(
-                                ?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
+                                mongoose_xmpp_errors:policy_violation(<<"en">>, CertError))),
                     {atomic, Pid} = ejabberd_s2s:find_connection(
                                       jid:make(<<"">>, Server, <<"">>),
                                       jid:make(<<"">>, RemoteServer, <<"">>)),

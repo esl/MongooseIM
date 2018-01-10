@@ -110,11 +110,11 @@
        ).
 
 -define(INVALID_XML_ERR,
-        exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
+        exml:to_binary(mongoose_xmpp_errors:xml_not_well_formed())).
 -define(INVALID_NS_ERR,
-        exml:to_binary(?SERR_INVALID_NAMESPACE)).
+        exml:to_binary(mongoose_xmpp_errors:invalid_namespace())).
 -define(CONFLICT_ERR,
-        exml:to_binary(?SERR_CONFLICT)).
+        exml:to_binary(mongoose_xmpp_errors:stream_conflict())).
 
 %%%----------------------------------------------------------------------
 %%% API

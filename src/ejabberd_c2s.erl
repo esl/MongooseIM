@@ -474,7 +474,7 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
             _Acc1 = send_element(Acc, Res, StateData),
             fsm_next_state(wait_for_auth, StateData);
         {auth, _ID, set, {_U, _P, _D, <<>>}} ->
-            Err = jlib:make_error_reply(El, ?ERR_AUTH_NO_RESOURCE_PROVIDED(StateData#state.lang)),
+            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:auth:auth_no_resource_provided(StateData#state.lang)),
             _Acc1 = send_element(Acc, Err, StateData),
             fsm_next_state(wait_for_auth, StateData);
         {auth, _ID, set, {U, P, D, R}} ->
@@ -840,7 +840,7 @@ do_open_session(Acc, JID, StateData) ->
         {resume, Acc1, NStateData} ->
             case maybe_enter_resume_session(NStateData) of
                 {stop, normal, NextStateData} -> % error, resume not possible
-                    c2s_stream_error(?SERR_INTERNAL_SERVER_ERROR, NextStateData),
+                    c2s_stream_error(mongoose_xmpp_errors:stream_internal_server_error(), NextStateData),
                     {stop, Acc1, NStateData};
                 {_, _, NextStateData, _} ->
                     do_open_session_common(Acc1, JID, NextStateData)
@@ -1147,7 +1147,7 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
     maybe_send_element_safe(StateData,
-                            ?SERRT_CONFLICT(Lang, <<"Replaced by new connection">>)),
+                            mongoose_xmpp_errors:stream_conflict(Lang, <<"Replaced by new connection">>)),
     maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 handle_info(new_offline_messages, session_established,
@@ -1162,11 +1162,11 @@ handle_info(system_shutdown, StateName, StateData) ->
     case StateName of
         wait_for_stream ->
             send_header(StateData, ?MYNAME, <<"1.0">>, <<"en">>),
-            send_element(StateData, ?SERR_SYSTEM_SHUTDOWN),
+            send_element(StateData, mongoose_xmpp_errors:system_shutdown()),
             send_trailer(StateData),
             ok;
         _ ->
-            send_element(StateData, ?SERR_SYSTEM_SHUTDOWN),
+            send_element(StateData, mongoose_xmpp_errors:system_shutdown()),
             send_trailer(StateData),
             ok
     end,
@@ -1432,7 +1432,7 @@ handle_routed_broadcast(Acc, _, StateData) ->
     any().
 handle_broadcast_result(Acc, {exit, ErrorMessage}, _StateName, StateData) ->
     Lang = StateData#state.lang,
-    send_element(Acc, ?SERRT_CONFLICT(Lang, ErrorMessage), StateData),
+    send_element(Acc, mongoose_xmpp_errors:stream_conflict(Lang, ErrorMessage), StateData),
     send_trailer(StateData),
     {stop, normal, StateData};
 handle_broadcast_result(Acc, {send_new, From, To, Stanza, NewState}, StateName, _StateData) ->

@@ -59,7 +59,7 @@ make_error_elem({error, item_not_found}) ->
 make_error_elem({error, conflict}) ->
     mongoose_xmpp_errors:conflict();
 make_error_elem({error, bad_request, Text}) ->
-    ?ERRT_BAD_REQUEST(<<"en">>, iolist_to_binary(Text));
+    mongoose_xmpp_errors:bad_request(<<"en">>, iolist_to_binary(Text));
 make_error_elem({error, feature_not_implemented}) ->
     mongoose_xmpp_errors:feature_not_implemented();
 make_error_elem({error, internal_server_error}) ->

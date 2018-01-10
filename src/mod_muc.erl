@@ -498,7 +498,7 @@ process_packet(Acc, From, To, El, #state{
             Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
             ErrText = <<"Access denied by service policy">>,
             ejabberd_router:route_error_reply(To, From, Acc,
-                                              ?ERRT_FORBIDDEN(Lang, ErrText))
+                                              mongoose_xmpp_errors:forbidden(Lang, ErrText))
     end.
 
 
@@ -557,7 +557,7 @@ get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Room creation is denied by service policy">>,
             Err = jlib:make_error_reply(
-                    Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
+                    Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
             ejabberd_router:route(To, From, Acc, Err),
             {route_error, ErrText}
     end.
@@ -572,7 +572,7 @@ get_registered_room_or_route_error_from_packet(Room, From, To, _Acc, Packet,
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Conference room does not exist">>,
             Err = jlib:make_error_reply(
-                    Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+                    Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
             ejabberd_router:route(To, From, Err),
             {route_error, ErrText};
         Opts ->
@@ -671,7 +671,7 @@ route_by_type(<<"message">>, {From, To, _Acc, Packet},
                 _ ->
                     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
                     ErrTxt = <<"Only service administrators are allowed to send service messages">>,
-                    Err = ?ERRT_FORBIDDEN(Lang, ErrTxt),
+                    Err = mongoose_xmpp_errors:forbidden(Lang, ErrTxt),
                     ErrorReply = jlib:make_error_reply(Packet, Err),
                     ejabberd_router:route(To, From, ErrorReply)
             end
@@ -965,7 +965,7 @@ iq_set_register_info(Host, From, Nick, Lang) ->
             {result, []};
         {atomic, false} ->
             ErrText = <<"That nickname is registered by another person">>,
-            {error, ?ERRT_CONFLICT(Lang, ErrText)};
+            {error, mongoose_xmpp_errors:conflict(Lang, ErrText)};
         _ ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
@@ -1029,7 +1029,7 @@ process_register(?NS_XDATA, <<"submit">>, Host, From, Lang, XEl) ->
                     iq_set_register_info(Host, From, Nick, Lang);
                 _ ->
                     ErrText = <<"You must fill in field \"Nickname\" in the form">>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)}
+                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}
             end
     end;
 process_register(_, _, _Host, _From, _Lang, _XEl) ->
