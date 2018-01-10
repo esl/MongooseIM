@@ -139,8 +139,8 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
 handle_call({starttls, TLSSocket}, _From, State) ->
     StateAfterReset = reset_parser(State),
     NewState = StateAfterReset#state{socket = TLSSocket,
-                                 sock_mod = fast_tls},
-    case fast_tls:recv_data(TLSSocket, <<"">>) of
+                                     sock_mod = ejabberd_tls},
+    case ejabberd_tls:recv_data(TLSSocket, <<"">>) of
         {ok, TLSData} ->
             {reply, ok, process_data(TLSData, NewState), ?HIBERNATE_TIMEOUT};
         {error, _Reason} ->
@@ -197,10 +197,10 @@ handle_info({Tag, _TCPSocket, Data},
        sock_mod = SockMod} = State)
   when (Tag == tcp) or (Tag == ssl) ->
     case SockMod of
-        fast_tls ->
+        ejabberd_tls ->
             mongoose_metrics:update(global,
                             [data, xmpp, received, encrypted_size], size(Data)),
-            case fast_tls:recv_data(Socket, Data) of
+            case ejabberd_tls:recv_data(Socket, Data) of
                 {ok, TLSData} ->
                     {noreply, process_data(TLSData, State),
                     ?HIBERNATE_TIMEOUT};
