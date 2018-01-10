@@ -79,7 +79,7 @@ stop(Host) ->
                  IQ :: ejabberd:iq()) ->
     {mongoose_acc:t(), ejabberd:iq() | ignore}.
 iq_handler(_From, _To, Acc, IQ = #iq{type = set, sub_el = SubEl}) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     Res = case parse_request(Request) of
@@ -102,7 +102,7 @@ iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_e
             end;
 
         bad_request ->
-            IQ#iq{type = error, sub_el = [Request, ?ERR_BAD_REQUEST]}
+            IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
     end,
     {Acc, Res}.
 
@@ -217,7 +217,7 @@ file_too_large_error(MaxFileSize, Namespace) ->
     FileTooLargeEl = #xmlel{name = <<"file-too-large">>,
                             attrs = [{<<"xmlns">>, Namespace}],
                             children = [MaxSizeEl]},
-    Error0 = ?ERR_NOT_ACCEPTABLE,
+    Error0 = mongoose_xmpp_errors:not_acceptable(),
     Error0#xmlel{children = [FileTooLargeEl | Error0#xmlel.children]}.
 
 

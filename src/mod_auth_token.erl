@@ -247,18 +247,18 @@ is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
 process_iq(From, To, Acc, #iq{xmlns = ?NS_ESL_TOKEN_AUTH} = IQ) ->
     IQResp = case lists:member(From#jid.lserver, ?MYHOSTS) of
         true -> process_local_iq(From, To, IQ);
-        false -> iq_error(IQ, [?ERR_ITEM_NOT_FOUND])
+        false -> iq_error(IQ, [mongoose_xmpp_errors:item_not_found()])
     end,
     {Acc, IQResp};
 process_iq(_From, _To, Acc, #iq{} = IQ) ->
-    {Acc, iq_error(IQ, [?ERR_BAD_REQUEST])}.
+    {Acc, iq_error(IQ, [mongoose_xmpp_errors:bad_request()])}.
 
 process_local_iq(From, _To, IQ) ->
     try create_token_response(From, IQ) of
         #iq{} = Response -> Response;
         {error, Reason} -> iq_error(IQ, [Reason])
     catch
-        _:_ -> iq_error(IQ, [?ERR_INTERNAL_SERVER_ERROR])
+        _:_ -> iq_error(IQ, [mongoose_xmpp_errors:internal_server_error()])
     end.
 
 iq_error(IQ, SubElements) when is_list(SubElements) ->
@@ -272,7 +272,7 @@ create_token_response(From, IQ) ->
                                    attrs = [{<<"xmlns">>, ?NS_ESL_TOKEN_AUTH}],
                                    children = [token_to_xmlel(AccessToken),
                                                token_to_xmlel(RefreshToken)]}]};
-        {_, _} -> {error, ?ERR_INTERNAL_SERVER_ERROR}
+        {_, _} -> {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
 -spec datetime_to_seconds(calendar:datetime()) -> non_neg_integer().

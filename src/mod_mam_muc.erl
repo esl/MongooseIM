@@ -691,16 +691,16 @@ handle_error_iq(_Host, _To, _Action, IQ) ->
 return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
-    {error, timeout, IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]}};
+    {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable()]}};
 return_error_iq(IQ, not_implemented) ->
-    {error, not_implemented, IQ#iq{type = error, sub_el = [?ERR_FEATURE_NOT_IMPLEMENTED]}};
+    {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented()]}};
 return_error_iq(IQ, missing_with_jid) ->
     Error =  ?ERRT_BAD_REQUEST(<<"en">>,
                                <<"Limited set of queries allowed in the conversation mode.",
                                  "Missing with_jid filter">>),
     {error, bad_request, IQ#iq{type = error, sub_el = [Error]}};
 return_error_iq(IQ, Reason) ->
-    {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.
+    {error, Reason, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:internal_server_error()]}}.
 
 -spec return_action_not_allowed_error_iq(ejabberd:iq()) -> ejabberd:iq().
 return_action_not_allowed_error_iq(IQ) ->

@@ -27,7 +27,7 @@ stop(Host) ->
 
 
 process_local_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 
 process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
     {UTC, TZODiff} = calculate_time(),

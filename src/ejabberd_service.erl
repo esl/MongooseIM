@@ -287,7 +287,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
             ejabberd_router:route(FromJID, ToJID, NewEl);
        true ->
             ?INFO_MSG("Not valid Name (~p) or error in FromJID (~p) or ToJID (~p)~n", [Name, FromJID, ToJID]),
-            Err = jlib:make_error_reply(NewEl, ?ERR_BAD_REQUEST),
+            Err = jlib:make_error_reply(NewEl, mongoose_xmpp_errors:bad_request()),
             send_element(StateData, Err),
             error
     end,
@@ -369,7 +369,7 @@ handle_info({route, From, To, Acc}, StateName, StateData) ->
             Text = exml:to_binary(Packet#xmlel{ attrs = Attrs2 }),
             send_text(StateData, Text);
         deny ->
-            ejabberd_router:route_error_reply(To, From, Acc, ?ERR_NOT_ALLOWED)
+            ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:not_allowed())
     end,
     {next_state, StateName, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)

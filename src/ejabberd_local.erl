@@ -109,13 +109,13 @@ process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
             gen_iq_handler:handle(Host, Module, Function, Opts,
                                   From, To, Acc, IQ);
         [] ->
-            ejabberd_router:route_error_reply(To, From, Acc, ?ERR_FEATURE_NOT_IMPLEMENTED)
+            ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:feature_not_implemented())
     end;
 process_iq(reply, Acc, From, To, El) ->
     IQReply = jlib:iq_query_or_response_info(El),
     process_iq_reply(From, To, Acc, IQReply);
 process_iq(_, Acc, From, To, El) ->
-    Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
+    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
     ejabberd_router:route(To, From, Acc, Err),
     ok.
 
@@ -233,7 +233,7 @@ refresh_iq_handlers() ->
                              To :: ejabberd:jid(),
                              El :: jlib:xmlel()) -> {'stop', mongoose_acc:t()}.
 bounce_resource_packet(Acc, From, To, El) ->
-    Err = jlib:make_error_reply(El, ?ERR_ITEM_NOT_FOUND),
+    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:item_not_found()),
     ejabberd_router:route(To, From, Err),
     {stop, Acc}.
 

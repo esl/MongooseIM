@@ -120,7 +120,7 @@ remove_user(Acc, LUser, LServer) ->
 -spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
                  IQ :: ejabberd:iq()) -> {mongoose_acc:t(), ejabberd:iq()}.
 iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
     Res = case parse_request(Request) of
               {enable, BarePubsubJID, Node, FormFields} ->
@@ -132,7 +132,7 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
                          jid:to_bare(From), BarePubsubJID, Node),
                   IQ#iq{type = result, sub_el = []};
               bad_request ->
-                  IQ#iq{type = error, sub_el = [Request, ?ERR_BAD_REQUEST]}
+                  IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
           end,
     {Acc, Res}.
 

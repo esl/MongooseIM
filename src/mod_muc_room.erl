@@ -1837,7 +1837,7 @@ add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet, StateDa
     case choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) of
         limit_reached ->
             % max user reached and user is not admin or owner
-            Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE_WAIT),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:service_unavailable_wait()),
             route_error(Nick, From, Err, StateData);
         user_banned ->
             ErrText = <<"You have been banned from this room">>,
@@ -2649,7 +2649,7 @@ process_iq_admin(From, set, Lang, SubEl, StateData) ->
 process_iq_admin(From, get, Lang, SubEl, StateData) ->
     case xml:get_subtag(SubEl, <<"item">>) of
         false ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         Item ->
             FAffiliation = get_affiliation(From, StateData),
             FRole = get_role(From, StateData),
@@ -2678,15 +2678,15 @@ process_iq_admin(From, get, Lang, SubEl, StateData) ->
 extract_role_or_affiliation(Item) ->
     case {xml:get_tag_attr(<<"role">>, Item), xml:get_tag_attr(<<"affiliation">>, Item)} of
         {false, false} ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         {false, {value, BAffiliation}} ->
             case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
                 Affiliation -> {affiliation, Affiliation}
             end;
         {{value, BRole}, _} ->
             case catch binary_to_role(BRole) of
-                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
                 Role -> {role, Role}
             end
     end.
@@ -2866,7 +2866,7 @@ find_changed_items(UJID, UAffiliation, URole,
             Err
     end;
 find_changed_items(_UJID, _UAffiliation, _URole, _Items, _Lang, _StateData, _Res) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 -spec get_affected_jid(Attrs :: [{binary(), binary()}],
                        Lang :: ejabberd:lang(),
@@ -2894,7 +2894,7 @@ get_affected_jid(Attrs, Lang, StateData) ->
                     {value, FirstSessionJid}
             end;
         _ ->
-            {error, ?ERR_BAD_REQUEST}
+            {error, mongoose_xmpp_errors:bad_request()}
     end.
 
 -spec check_changed_item(jid(), mod_muc:affiliation(), mod_muc:role(), jid(), exml:element(),
@@ -2919,7 +2919,7 @@ check_changed_item(UJID, UAffiliation, URole, JID, #xmlel{ attrs = Attrs } = Ite
                                               Items, Lang, StateData, Res);
                 true -> find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData,
                                            [{JID, role, Role, decode_reason(Item)} | Res]);
-                _ -> {error, ?ERR_NOT_ALLOWED}
+                _ -> {error, mongoose_xmpp_errors:not_allowed()}
             end;
         {affiliation, Affiliation} ->
             ServiceAf = get_service_affiliation(JID, StateData),
@@ -2939,8 +2939,8 @@ check_changed_item(UJID, UAffiliation, URole, JID, #xmlel{ attrs = Attrs } = Ite
                 true -> find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData,
                                            [{jid:to_bare(JID), affiliation,
                                              Affiliation, decode_reason(Item)} | Res]);
-                cancel -> {error, ?ERR_NOT_ALLOWED};
-                false -> {error, ?ERR_FORBIDDEN}
+                cancel -> {error, mongoose_xmpp_errors:not_allowed()};
+                false -> {error, mongoose_xmpp_errors:forbidden()}
             end;
         Err -> Err
     end.
@@ -2957,7 +2957,7 @@ is_owner(UJID, StateData) ->
 which_property_changed(Attrs, Lang) ->
     case {xml:get_attr(<<"role">>, Attrs), xml:get_attr(<<"affiliation">>, Attrs)} of
         {false, false} ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         {false, {value, BAffiliation}} ->
             case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
@@ -3233,7 +3233,7 @@ process_authorized_iq_owner(From, set, Lang, SubEl, StateData) ->
                 {?NS_XDATA, <<"submit">>} ->
                     process_authorized_submit_owner(From, XEl, StateData);
                 _ ->
-                    {error, ?ERR_BAD_REQUEST}
+                    {error, mongoose_xmpp_errors:bad_request()}
             end;
         [#xmlel{name = <<"destroy">>} = SubEl1] ->
             ?INFO_MSG("Destroyed MUC room ~s by the owner ~s",
@@ -3271,7 +3271,7 @@ process_authorized_submit_owner(From, XEl, StateData) ->
          andalso is_allowed_room_name_desc_limits(XEl, StateData)
          andalso is_password_settings_correct(XEl, StateData) of
         true -> set_config(XEl, StateData);
-        false -> {error, ?ERR_NOT_ACCEPTABLE}
+        false -> {error, mongoose_xmpp_errors:not_acceptable()}
     end.
 
 -spec is_allowed_log_change(jlib:xmlel(), state(), ejabberd:jid()) -> boolean().
@@ -3566,7 +3566,7 @@ set_config(XEl, StateData) ->
     XData = jlib:parse_xdata_submit(XEl),
     case XData of
         invalid ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         _ ->
             case set_xoption(XData, StateData#state.config) of
                 #config{} = Config ->
@@ -3613,7 +3613,7 @@ notify_config_change_and_get_type(_, _, _, _, _StateData) ->
         <<"false">> -> set_xoption(Opts, Config#config{Opt = false});
         <<"1">> -> set_xoption(Opts, Config#config{Opt = true});
         <<"true">> -> set_xoption(Opts, Config#config{Opt = true});
-        _ -> {error, ?ERR_BAD_REQUEST}
+        _ -> {error, mongoose_xmpp_errors:bad_request()}
     end).
 
 -define(SET_NAT_XOPT(Opt, Val),
@@ -3622,7 +3622,7 @@ notify_config_change_and_get_type(_, _, _, _, _StateData) ->
                I > 0 ->
         set_xoption(Opts, Config#config{Opt = I});
         _ ->
-        {error, ?ERR_BAD_REQUEST}
+        {error, mongoose_xmpp_errors:bad_request()}
     end).
 
 -define(SET_XOPT(Opt, Val),
@@ -3674,7 +3674,7 @@ set_xoption([{<<"muc#roomconfig_whois">>, [Val]} | Opts], Config) ->
     <<"anyone">> ->
         ?SET_XOPT(anonymous, false);
     _ ->
-        {error, ?ERR_BAD_REQUEST}
+        {error, mongoose_xmpp_errors:bad_request()}
     end;
 set_xoption([{<<"muc#roomconfig_maxusers">>, [Val]} | Opts], Config) ->
     case Val of
@@ -3696,7 +3696,7 @@ set_xoption([{<<"FORM_TYPE">>, _} | Opts], Config) ->
     %% Ignore our FORM_TYPE
     set_xoption(Opts, Config);
 set_xoption([_ | _Opts], _Config) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 
 -spec change_config(config(), state()) -> {'result', [], state()}.
@@ -3902,7 +3902,7 @@ config_opt_to_feature(Opt, Fiftrue, Fiffalse) ->
                             state()) -> {'error', jlib:xmlel()}
                                       | {'result', [jlib:xmlel(), ...], state()}.
 process_iq_disco_info(_From, set, _Lang, _StateData) ->
-    {error, ?ERR_NOT_ALLOWED};
+    {error, mongoose_xmpp_errors:not_allowed()};
 process_iq_disco_info(_From, get, Lang, StateData) ->
     Config = StateData#state.config,
     {result, [#xmlel{name = <<"identity">>,
@@ -3961,7 +3961,7 @@ iq_disco_info_extras(Lang, StateData) ->
                             state()) -> {'error', jlib:xmlel()}
                                       | {'result', [jlib:xmlel()], state()}.
 process_iq_disco_items(_From, set, _Lang, _StateData) ->
-    {error, ?ERR_NOT_ALLOWED};
+    {error, mongoose_xmpp_errors:not_allowed()};
 process_iq_disco_items(From, get, _Lang, StateData) ->
     case (StateData#state.config)#config.public_list of
     true ->
@@ -3971,7 +3971,7 @@ process_iq_disco_items(From, get, _Lang, StateData) ->
         true ->
             {result, get_mucroom_disco_items(StateData), StateData};
         _ ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
         end
     end.
 
@@ -4042,17 +4042,17 @@ check_voice_approval(From, [#xmlel{name = <<"x">>,
     case Items of
         [_Form, _Role] ->
             case catch binary_to_role(BRole) of
-                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
                 _ -> {form, BRole}
             end;
         _ ->
             case {get_role(From, StateData),
                   get_field(<<"muc#request_allow">>, Items),
                   get_field(<<"muc#roomnick">>, Items)} of
-                {moderator, <<"true">>, false} -> {error, ?ERR_BAD_REQUEST};
+                {moderator, <<"true">>, false} -> {error, mongoose_xmpp_errors:bad_request()};
                 {moderator, <<"true">>, RoomNick} -> {role, BRole, RoomNick};
                 {moderator, _, _} -> ok;
-                _ -> {error, ?ERR_NOT_ALLOWED}
+                _ -> {error, mongoose_xmpp_errors:not_allowed()}
             end
     end.
 
@@ -4095,7 +4095,7 @@ unsafe_check_invitation(FromJID, Els, Lang,
                 orelse (FAffiliation == owner),
     case CanInvite of
         false ->
-            throw({error, ?ERR_FORBIDDEN});
+            throw({error, mongoose_xmpp_errors:forbidden()});
         true ->
             InviteEls = find_invite_elems(Els),
             %% Decode all JIDs first, so we fail early if any JID is invalid.
@@ -4138,7 +4138,7 @@ create_invite(FromJID, InviteEl, Lang, StateData) ->
 -spec decode_destination_jid(jlib:xmlel()) -> ejabberd:jid().
 decode_destination_jid(InviteEl) ->
     case jid:from_binary(xml:get_tag_attr_s(<<"to">>, InviteEl)) of
-      error -> throw({error, ?ERR_JID_MALFORMED});
+      error -> throw({error, mongoose_xmpp_errors:jid_malformed()});
       JID   -> JID
     end.
 
@@ -4151,7 +4151,7 @@ find_invite_elems(Els) ->
         ?NS_MUC_USER ->
             ok;
         _ ->
-            throw({error, ?ERR_BAD_REQUEST})
+            throw({error, mongoose_xmpp_errors:bad_request()})
         end,
 
         InviteEls =
@@ -4160,10 +4160,10 @@ find_invite_elems(Els) ->
             [_|_] ->
                 InviteEls;
             _ ->
-                throw({error, ?ERR_BAD_REQUEST})
+                throw({error, mongoose_xmpp_errors:bad_request()})
         end;
     _ ->
-        throw({error, ?ERR_BAD_REQUEST})
+        throw({error, mongoose_xmpp_errors:bad_request()})
     end.
 
 
@@ -4500,7 +4500,7 @@ route_voice_approval({role, BRole, Nick}, From, Packet, Lang, StateData) ->
     end;
 route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
     ejabberd_router:route(StateData#state.jid, From,
-                          jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST)),
+                          jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request())),
     StateData.
 
 
@@ -4561,7 +4561,7 @@ route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
     case mod_muc_iq:process_iq(Host, From, RoomJID, Acc, IQ) of
         ignore -> ok;
         error ->
-            Err = jlib:make_error_reply(Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
             ejabberd_router:route(RoomJID, From, Acc, Err)
     end,
     {ok, StateData};
@@ -4569,7 +4569,7 @@ route_iq(_Acc, #routed_iq{iq = reply}, StateData) ->
     {ok, StateData};
 route_iq(Acc, #routed_iq{packet = Packet, from = From}, StateData) ->
     Err = jlib:make_error_reply(
-        Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+        Packet, mongoose_xmpp_errors:feature_not_implemented()),
     ejabberd_router:route(StateData#state.jid, From, Acc, Err),
     {ok, StateData}.
 

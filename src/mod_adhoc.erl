@@ -235,7 +235,7 @@ process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
                 ignore ->
                     ignore;
                 empty ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_ITEM_NOT_FOUND]};
+                    IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:item_not_found()]};
                 {error, Error} ->
                     IQ#iq{type = error, sub_el = [SubEl, Error]};
                 Command ->
@@ -280,7 +280,7 @@ ping_command(_Acc, _From, _To,
                               status = completed,
                               notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
         false ->
-            {error, ?ERR_BAD_REQUEST}
+            {error, mongoose_xmpp_errors:bad_request()}
     end;
 ping_command(Acc, _From, _To, _Request) ->
     Acc.

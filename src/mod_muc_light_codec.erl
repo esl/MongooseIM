@@ -51,21 +51,21 @@ encode_error(ErrMsg, ExtraChildren, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
 
 -spec make_error_elem(tuple()) -> jlib:xmlel().
 make_error_elem({error, not_allowed}) ->
-    ?ERR_NOT_ALLOWED;
+    mongoose_xmpp_errors:not_allowed();
 make_error_elem({error, bad_request}) ->
-    ?ERR_BAD_REQUEST;
+    mongoose_xmpp_errors:bad_request();
 make_error_elem({error, item_not_found}) ->
-    ?ERR_ITEM_NOT_FOUND;
+    mongoose_xmpp_errors:item_not_found();
 make_error_elem({error, conflict}) ->
-    ?ERR_CONFLICT;
+    mongoose_xmpp_errors:conflict();
 make_error_elem({error, bad_request, Text}) ->
     ?ERRT_BAD_REQUEST(<<"en">>, iolist_to_binary(Text));
 make_error_elem({error, feature_not_implemented}) ->
-    ?ERR_FEATURE_NOT_IMPLEMENTED;
+    mongoose_xmpp_errors:feature_not_implemented();
 make_error_elem({error, internal_server_error}) ->
-    ?ERR_INTERNAL_SERVER_ERROR;
+    mongoose_xmpp_errors:internal_server_error();
 make_error_elem({error, registration_required}) ->
-    ?ERR_REGISTRATION_REQUIRED;
+    mongoose_xmpp_errors:registration_required();
 make_error_elem({error, _}) ->
-    ?ERR_BAD_REQUEST.
+    mongoose_xmpp_errors:bad_request().
 

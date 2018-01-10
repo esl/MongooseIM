@@ -114,7 +114,7 @@ process_local_iq(_From, _To, Acc,
     #iq{type = Type, sub_el = SubEl} = IQ) ->
     case Type of
         set ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
         get ->
             Sec = get_node_uptime(),
             {Acc, IQ#iq{type = result,
@@ -146,7 +146,7 @@ now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
 -spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
     {mongoose_acc:t(), ejabberd:iq()}.
 process_sm_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     User = To#jid.luser,
     Server = To#jid.lserver,
@@ -167,23 +167,23 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
                                                              out),
             {Acc1, make_response(IQ, SubEl, User, Server, Res)};
         false ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}
     end.
 
 -spec make_response(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],
                     ejabberd:luser(), ejabberd:lserver(), allow | deny) -> ejabberd:iq().
 make_response(IQ, SubEl, _, _, deny) ->
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]};
+    IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]};
 make_response(IQ, SubEl, LUser, LServer, allow) ->
     case ejabberd_sm:get_user_resources(LUser, LServer) of
         [] ->
             case get_last(LUser, LServer) of
                 {error, _Reason} ->
                     IQ#iq{type = error,
-                        sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]};
+                        sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]};
                 not_found ->
                     IQ#iq{type = error,
-                        sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]};
+                        sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]};
                 {ok, TimeStamp, Status} ->
                     TimeStamp2 = now_to_seconds(p1_time_compat:timestamp()),
                     Sec = TimeStamp2 - TimeStamp,

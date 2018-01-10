@@ -598,7 +598,7 @@ route_by_nick(_Nick, {From, To, Acc, Packet}, _State) ->
         <<"result">> ->
             ok;
         _ ->
-            Err = jlib:make_error_reply(Packet, ?ERR_ITEM_NOT_FOUND),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
             ejabberd_router:route(To, From, Acc, Err)
     end.
 
@@ -651,7 +651,7 @@ route_by_type(<<"iq">>, {From, To, _Acc, Packet}, #state{host = Host} = State) -
                                         children = [iq_get_unique(From)]}]},
            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{} ->
-            Err = jlib:make_error_reply(Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
             ejabberd_router:route(To, From, Err);
         _ ->
             ok
@@ -967,7 +967,7 @@ iq_set_register_info(Host, From, Nick, Lang) ->
             ErrText = <<"That nickname is registered by another person">>,
             {error, ?ERRT_CONFLICT(Lang, ErrText)};
         _ ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
 -spec iq_set_register_info_t(Host :: ejabberd:server(), LUS :: ejabberd:simple_bare_jid(),
@@ -1007,7 +1007,7 @@ process_iq_register_set(Host, From, #xmlel{ children = Els } = SubEl, Lang) ->
                                      xml:get_tag_attr_s(<<"type">>, XEl),
                                      Host, From, Lang, XEl);
                 _ ->
-                    {error, ?ERR_BAD_REQUEST}
+                    {error, mongoose_xmpp_errors:bad_request()}
             end;
         _ ->
             iq_set_register_info(Host, From, <<>>, Lang)
@@ -1022,7 +1022,7 @@ process_register(?NS_XDATA, <<"submit">>, Host, From, Lang, XEl) ->
     XData = jlib:parse_xdata_submit(XEl),
     case XData of
         invalid ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         _ ->
             case lists:keysearch(<<"nick">>, 1, XData) of
                 {value, {_, [Nick]}} when Nick /= <<>> ->
@@ -1033,7 +1033,7 @@ process_register(?NS_XDATA, <<"submit">>, Host, From, Lang, XEl) ->
             end
     end;
 process_register(_, _, _Host, _From, _Lang, _XEl) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 -spec iq_get_vcard(ejabberd:lang()) -> [jlib:xmlel(), ...].
 iq_get_vcard(Lang) ->

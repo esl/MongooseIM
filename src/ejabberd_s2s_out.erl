@@ -770,7 +770,7 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
         %% In this state we bounce all message: We are waiting before
         %% trying to reconnect
         wait_before_retry ->
-            bounce_element(Acc, El, ?ERR_REMOTE_SERVER_NOT_FOUND),
+            bounce_element(Acc, El, mongoose_xmpp_errors:remote_server_not_found()),
             {next_state, StateName, StateData};
         relay_to_bridge ->
             %% In this state we relay all outbound messages
@@ -780,7 +780,7 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
             case catch Mod:Fun(El) of
                 {'EXIT', Reason} ->
                     ?ERROR_MSG("Error while relaying to bridge: ~p", [Reason]),
-                    bounce_element(Acc, El, ?ERR_INTERNAL_SERVER_ERROR),
+                    bounce_element(Acc, El, mongoose_xmpp_errors:internal_server_error()),
                     wait_before_reconnect(StateData);
                 _ ->
                     {next_state, StateName, StateData}
@@ -821,8 +821,8 @@ terminate(Reason, StateName, StateData) ->
               {StateData#state.myname, StateData#state.server}, self())
     end,
     %% bounce queue manage by process and Erlang message queue
-    bounce_queue(StateData#state.queue, ?ERR_REMOTE_SERVER_NOT_FOUND),
-    bounce_messages(?ERR_REMOTE_SERVER_NOT_FOUND),
+    bounce_queue(StateData#state.queue, mongoose_xmpp_errors:remote_server_not_found()),
+    bounce_messages(mongoose_xmpp_errors:remote_server_not_found()),
     case StateData#state.socket of
         undefined ->
             ok;
@@ -1156,8 +1156,8 @@ get_timeout_interval(StateName) ->
 -spec wait_before_reconnect(state()) -> fsm_return().
 wait_before_reconnect(StateData) ->
     %% bounce queue manage by process and Erlang message queue
-    bounce_queue(StateData#state.queue, ?ERR_REMOTE_SERVER_NOT_FOUND),
-    bounce_messages(?ERR_REMOTE_SERVER_NOT_FOUND),
+    bounce_queue(StateData#state.queue, mongoose_xmpp_errors:remote_server_not_found()),
+    bounce_messages(mongoose_xmpp_errors:remote_server_not_found()),
     cancel_timer(StateData#state.timer),
     Delay = case StateData#state.delay_to_retry of
                 undefined_delay ->

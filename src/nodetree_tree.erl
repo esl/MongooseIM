@@ -78,13 +78,13 @@ get_node(Host, Node, _From) ->
 get_node(Host, Node) ->
     case catch mnesia:read({pubsub_node, {Host, Node}}) of
         [Record] when is_record(Record, pubsub_node) -> Record;
-        _ -> {error, ?ERR_ITEM_NOT_FOUND}
+        _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_node(Nidx) ->
     case catch mnesia:index_read(pubsub_node, Nidx, #pubsub_node.id) of
         [Record] when is_record(Record, pubsub_node) -> Record;
-        _ -> {error, ?ERR_ITEM_NOT_FOUND}
+        _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_nodes(Host, _From) ->
@@ -159,10 +159,10 @@ create_node(Host, Node, Type, Owner, Options, Parents) ->
                             options = Options}),
                     {ok, Nidx};
                 false ->
-                    {error, ?ERR_FORBIDDEN}
+                    {error, mongoose_xmpp_errors:forbidden()}
             end;
         _ ->
-            {error, ?ERR_CONFLICT}
+            {error, mongoose_xmpp_errors:conflict()}
     end.
 
 check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->

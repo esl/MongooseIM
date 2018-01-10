@@ -155,7 +155,7 @@ unregister_extra_domain(Host, Domain) ->
 -spec process_local_iq_items(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
     {mongoose_acc:t(), ejabberd:iq()}.
 process_local_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     Host = To#jid.lserver,
@@ -177,7 +177,7 @@ process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubE
 -spec process_local_iq_info(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
     {mongoose_acc:t(), ejabberd:iq()}.
 process_local_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     Host = To#jid.lserver,
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
@@ -237,7 +237,7 @@ get_local_features(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
         {result, _Features} ->
             Acc;
         empty ->
-            {error, ?ERR_ITEM_NOT_FOUND}
+            {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 
@@ -285,7 +285,7 @@ get_local_services(Acc, _From, To, <<>>, _Lang) ->
 get_local_services({result, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_services(empty, _From, _To, _Node, _Lang) ->
-    {error, ?ERR_ITEM_NOT_FOUND}.
+    {error, mongoose_xmpp_errors:item_not_found()}.
 
 
 -type route() :: binary().
@@ -316,7 +316,7 @@ check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
 -spec process_sm_iq_items(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
     {string(), ejabberd:iq()}.
 process_sm_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     case is_presence_subscribed(From, To) of
         true ->
@@ -336,7 +336,7 @@ process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} 
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
         false ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
     end.
 
 
@@ -368,9 +368,9 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
     #jid{luser = LTo, lserver = LSTo} = To,
     case {LFrom, LSFrom} of
         {LTo, LSTo} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         _ ->
-            {error, ?ERR_NOT_ALLOWED}
+            {error, mongoose_xmpp_errors:not_allowed()}
     end.
 
 
@@ -390,7 +390,7 @@ is_presence_subscribed(#jid{luser=User, lserver=Server}, #jid{luser=LUser, lserv
 -spec process_sm_iq_info(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
     {mongoose_acc:t(), ejabberd:iq()}.
 process_sm_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     case is_presence_subscribed(From, To) of
         true ->
@@ -415,7 +415,7 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
         false ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]}}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
     end.
 
 
@@ -445,9 +445,9 @@ get_sm_features(empty, From, To, _Node, _Lang) ->
     #jid{luser = LTo, lserver = LSTo} = To,
     case {LFrom, LSFrom} of
         {LTo, LSTo} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         _ ->
-            {error, ?ERR_NOT_ALLOWED}
+            {error, mongoose_xmpp_errors:not_allowed()}
     end;
 get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.

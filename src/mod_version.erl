@@ -23,7 +23,7 @@ stop(Host) ->
 
 -spec process_iq(jid(), jid(), mongoose_acc:t(), iq()) -> {mongoose_acc:t(), iq()}.
 process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_iq(From, _To, Acc, #iq{type = get} = IQ) ->
     {Name, Version} = mongoose_info(),
     Host = From#jid.lserver,

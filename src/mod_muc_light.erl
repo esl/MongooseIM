@@ -359,10 +359,10 @@ process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList)
             Result = {result, ResponseChildren},
             {stop, mongoose_acc:put(iq_result, Result, Acc)};
         {{ok, {get, #blocking{}}}, false} ->
-            Result = {error, ?ERR_BAD_REQUEST},
+            Result = {error, mongoose_xmpp_errors:bad_request()},
             {stop, mongoose_acc:put(iq_result, Result, Acc)};
         _ ->
-            Result = {error, ?ERR_BAD_REQUEST},
+            Result = {error, mongoose_xmpp_errors:bad_request()},
             mongoose_acc:put(iq_result, Result, Acc)
     end.
 
@@ -378,7 +378,7 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
             ConditionFun = fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end,
             case lists:any(ConditionFun, Items) of
                 true ->
-                    {stop, mongoose_acc:put(iq_result, {error, ?ERR_BAD_REQUEST}, Acc)};
+                    {stop, mongoose_acc:put(iq_result, {error, mongoose_xmpp_errors:bad_request()}, Acc)};
                 false ->
                     ok = mod_muc_light_db_backend:set_blocking(jid:to_lus(From), MUCHost, Items),
                     mod_muc_light_codec_backend:encode(Blocking, From, jid:to_lus(To), RouteFun),
@@ -386,9 +386,9 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
                     {stop, mongoose_acc:put(iq_result, {result, ResponseChildren}, Acc)}
             end;
         {{ok, {set, #blocking{}}}, false} ->
-            {stop, mongoose_acc:put(iq_result, {error, ?ERR_BAD_REQUEST}, Acc)};
+            {stop, mongoose_acc:put(iq_result, {error, mongoose_xmpp_errors:bad_request()}, Acc)};
         _ ->
-            mongoose_acc:put(iq_result, {error, ?ERR_BAD_REQUEST}, Acc)
+            mongoose_acc:put(iq_result, {error, mongoose_xmpp_errors:bad_request()}, Acc)
     end.
 
 -spec is_room_owner(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) -> boolean().

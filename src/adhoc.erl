@@ -65,7 +65,7 @@ parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}
                    xdata = XData,
                    others = Others};
 parse_request(_) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 %% @doc Borrowed from mod_vcard.erl
 -spec find_xdata_el(jlib:xmlel()) -> false | jlib:xmlel().

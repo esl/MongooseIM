@@ -231,7 +231,7 @@ val_xfield(digest, [Val]) -> xopt_to_bool(Val);
 val_xfield(digest_frequency, [Val]) ->
     case catch binary_to_integer(Val) of
         N when is_integer(N) -> N;
-        _ -> {error, ?ERR_NOT_ACCEPTABLE}
+        _ -> {error, mongoose_xmpp_errors:not_acceptable()}
     end;
 val_xfield(expire, [Val]) -> jlib:datetime_binary_to_timestamp(Val);
 val_xfield(include_body, [Val]) -> xopt_to_bool(Val);
@@ -242,7 +242,7 @@ val_xfield(subscription_depth, [<<"all">>]) -> all;
 val_xfield(subscription_depth, [Depth]) ->
     case catch binary_to_integer(Depth) of
         N when is_integer(N) -> N;
-        _ -> {error, ?ERR_NOT_ACCEPTABLE}
+        _ -> {error, mongoose_xmpp_errors:not_acceptable()}
     end.
 
 %% Convert XForm booleans to Erlang booleans.
@@ -250,7 +250,7 @@ xopt_to_bool(<<"0">>) -> false;
 xopt_to_bool(<<"1">>) -> true;
 xopt_to_bool(<<"false">>) -> false;
 xopt_to_bool(<<"true">>) -> true;
-xopt_to_bool(_) -> {error, ?ERR_NOT_ACCEPTABLE}.
+xopt_to_bool(_) -> {error, mongoose_xmpp_errors:not_acceptable()}.
 
 -spec get_option_xfield(
           Lang :: binary(),

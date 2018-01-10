@@ -217,7 +217,7 @@ process_iq(From, To, Acc, IQ) ->
         true ->
             process_local_iq(From, To, Acc, IQ);
         _ ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_ITEM_NOT_FOUND]}
+            IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:item_not_found()]}
     end.
 
 process_local_iq(From, To, Acc, #iq{type = Type} = IQ) ->
@@ -296,7 +296,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
     catch
         _:_ ->
             IQ#iq{type = error,
-                  sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
+                  sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]}
     end.
 
 get_user_roster_based_on_version({value, RequestedVersion}, true, true,

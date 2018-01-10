@@ -505,7 +505,7 @@ maybe_legacy_auth(error, Acc, El, StateData, U, _P, _D, R) ->
     ?INFO_MSG("(~w) Forbidden legacy authentication for "
               "username '~s' with resource '~s'",
               [StateData#state.socket, U, R]),
-    Err = jlib:make_error_reply(El, ?ERR_JID_MALFORMED),
+    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:jid_malformed()),
     Acc1 = send_element(Acc, Err, StateData),
     {wait, Acc1, StateData};
 maybe_legacy_auth(JID, Acc, El, StateData, U, P, D, R) ->
@@ -515,7 +515,7 @@ maybe_legacy_auth(JID, Acc, El, StateData, U, P, D, R) ->
         _ ->
             ?INFO_MSG("(~w) Forbidden legacy authentication for ~s",
                       [StateData#state.socket, jid:to_binary(JID)]),
-            Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
+            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:not_allowed()),
             send_element(StateData, Err),
             Acc1 = send_element(Acc, Err, StateData),
             {wait, Acc1, StateData}
@@ -531,7 +531,7 @@ do_legacy_auth(JID, Acc, El, StateData, U, P, D, R) ->
             ?INFO_MSG("(~w) Failed legacy authentication for ~s from IP ~s (~w)",
                       [StateData#state.socket,
                        jid:to_binary(JID), jlib:ip_to_list(IP), IP]),
-            Err = jlib:make_error_reply(El, ?ERR_NOT_AUTHORIZED),
+            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:not_authorized()),
             Acc1 = ejabberd_hooks:run_fold(auth_failed, StateData#state.server, Acc,
                                            [U, StateData#state.server]),
             Acc2 = send_element(Acc1, Err, StateData),
@@ -688,7 +688,7 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
                 end,
             case R of
                 error ->
-                    Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
+                    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
                     send_element(StateData, Err),
                     fsm_next_state(wait_for_feature_after_auth, StateData);
                 _ ->
@@ -823,7 +823,7 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
             ?INFO_MSG("(~w) Forbidden session for ~s",
                       [StateData#state.socket,
                        jid:to_binary(JID)]),
-            Err = jlib:make_error_reply(Acc1, ?ERR_NOT_ALLOWED),
+            Err = jlib:make_error_reply(Acc1, mongoose_xmpp_errors:not_allowed()),
             Acc2 = send_element(Acc1, Err, StateData),
             {wait, Acc2, StateData}
     end.
@@ -993,7 +993,7 @@ process_outgoing_stanza(Acc, error, _Name, StateData) ->
         <<"error">> -> StateData;
         <<"result">> -> StateData;
         _ ->
-            Err = jlib:make_error_reply(Acc, ?ERR_JID_MALFORMED),
+            Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:jid_malformed()),
             send_element(Acc, Err, StateData),
             StateData
     end;
@@ -1306,20 +1306,20 @@ preprocess_and_ship(Acc, From, To, El, StateData) ->
     ship_to_local_user(Acc2, {From, To, FixedEl}, StateData).
 
 response_negative(<<"iq">>, forbidden, From, To, Acc) ->
-    send_back_error(?ERR_FORBIDDEN, From, To, Acc);
+    send_back_error(mongoose_xmpp_errors:forbidden(), From, To, Acc);
 response_negative(<<"iq">>, deny, From, To, Acc) ->
     IqType = mongoose_acc:get(type, Acc),
     response_iq_deny(IqType, From, To, Acc);
 response_negative(<<"message">>, deny, From, To, Acc) ->
     mod_amp:check_packet(Acc, From, delivery_failed),
-    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Acc);
+    send_back_error(mongoose_xmpp_errors:service_unavailable(), From, To, Acc);
 response_negative(_, _, _, _, Acc) ->
     Acc.
 
 response_iq_deny(<<"get">>, From, To, Acc) ->
-    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Acc);
+    send_back_error(mongoose_xmpp_errors:service_unavailable(), From, To, Acc);
 response_iq_deny(<<"set">>, From, To, Acc) ->
-    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Acc);
+    send_back_error(mongoose_xmpp_errors:service_unavailable(), From, To, Acc);
 response_iq_deny(_, _, _, Acc) ->
     Acc.
 
@@ -2137,10 +2137,10 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
     Packet = mongoose_acc:get(element, Acc1),
     case Res of
        deny ->
-           Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_CANCEL),
+           Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable_cancel()),
            ejabberd_router:route(To, From, Acc1, Err);
        block ->
-           Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_BLOCKED),
+           Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable_blocked()),
            ejabberd_router:route(To, From, Acc1, Err);
        allow ->
            ejabberd_router:route(FromRoute, To, Acc1, Packet)
@@ -2354,7 +2354,7 @@ process_privacy_iq(Acc0, To, StateData) ->
             Acc1 = mongoose_acc:put(iq, IQ, Acc),
             From = mongoose_acc:get(from_jid, Acc1),
             {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
-            Res = mongoose_acc:get(iq_result, Acc2, {error, ?ERR_FEATURE_NOT_IMPLEMENTED}),
+            Res = mongoose_acc:get(iq_result, Acc2, {error, mongoose_xmpp_errors:feature_not_implemented()}),
             IQRes = case Res of
                         {result, Result} ->
                             IQ#iq{type = result, sub_el = Result};
@@ -2497,7 +2497,7 @@ process_unauthenticated_stanza(StateData, El) ->
                     % The only reasonable IQ's here are auth and register IQ's
                     % They contain secrets, so don't include subelements to response
                     ResIQ = IQ#iq{type = error,
-                                  sub_el = [?ERR_SERVICE_UNAVAILABLE]},
+                                  sub_el = [mongoose_xmpp_errors:service_unavailable()]},
                     Res1 = jlib:replace_from_to(
                              jid:make(<<>>, StateData#state.server, <<>>),
                              jid:make(<<>>, <<>>, <<>>),

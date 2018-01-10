@@ -62,10 +62,10 @@ get_vcard(LUser, LServer) ->
                     {ok, [XMLEl]};
                 {error, Reason} ->
                     ?WARNING_MSG("not sending bad vcard reason=~p, xml=~n~p", [Reason, XMLBin]),
-                    {error, ?ERR_SERVICE_UNAVAILABLE}
+                    {error, mongoose_xmpp_errors:service_unavailable()}
             end;
         {error, notfound} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         Other ->
             Other
     end.
