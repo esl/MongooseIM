@@ -37,7 +37,7 @@
              type         :: atom(),
              xmlns = <<>> :: binary(),
              lang = <<>>  :: ejabberd:lang(),
-             sub_el       :: [jlib:xmlel()] | jlib:xmlel()
+             sub_el       :: [exml:element()] | exml:element()
             }).
 
 -type iq() :: #iq{}.
