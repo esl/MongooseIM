@@ -44,6 +44,4 @@
 -type jid() :: #jid{}.
 -type ljid() :: {ejabberd:luser(), ejabberd:lserver(), ejabberd:lresource()}.
 
--type xmlel() :: #xmlel{}.
-
 -endif.
