@@ -474,7 +474,7 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
             _Acc1 = send_element(Acc, Res, StateData),
             fsm_next_state(wait_for_auth, StateData);
         {auth, _ID, set, {_U, _P, _D, <<>>}} ->
-            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:auth:auth_no_resource_provided(StateData#state.lang)),
+            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:auth_no_resource_provided(StateData#state.lang)),
             _Acc1 = send_element(Acc, Err, StateData),
             fsm_next_state(wait_for_auth, StateData);
         {auth, _ID, set, {U, P, D, R}} ->
