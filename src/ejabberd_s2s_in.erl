@@ -189,8 +189,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                 end,
             StartTLS = get_tls_xmlel(StateData),
             case SASL of
-                {error_cert_verif, CertVerifyResult, Certificate} ->
-                    CertError = fast_tls:get_cert_verify_string(CertVerifyResult, Certificate),
+                {error_cert_verif, CertError} ->
                     RemoteServer = xml:get_attr_s(<<"from">>, Attrs),
                     ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)",
                       [StateData#state.server, RemoteServer, CertError]),
@@ -283,8 +282,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                     AuthDomain = jid:nameprep(Auth),
                     CertData = (StateData#state.sockmod):get_peer_certificate(
                                  StateData#state.socket),
-                    AuthRes = get_auth_res(CertData, AuthDomain,
-                                                    StateData),
+                    AuthRes = check_auth_domain(AuthDomain, CertData),
                     handle_auth_res(AuthRes, AuthDomain, StateData);
                 _ ->
                     send_element(StateData,
@@ -687,39 +685,24 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
 
 verify_cert_and_get_sasl(SockMod, Socket, TLSCertverify) ->
     case SockMod:get_peer_certificate(Socket) of
-        {ok, Cert} ->
-            case SockMod:get_verify_result(Socket) of
-                0 ->
-                    [#xmlel{name = <<"mechanisms">>,
-                            attrs = [{<<"xmlns">>, ?NS_SASL}],
-                            children = [#xmlel{name = <<"mechanism">>,
-                                               children = [#xmlcdata{content = <<"EXTERNAL">>}]}]}];
-                CertVerifyRes ->
-                    check_sasl_tls_certveify(TLSCertverify, CertVerifyRes, Cert)
-            end;
-        error ->
-            []
+        {ok, _} ->
+            [#xmlel{name = <<"mechanisms">>,
+                    attrs = [{<<"xmlns">>, ?NS_SASL}],
+                    children = [#xmlel{name = <<"mechanism">>,
+                                       children = [#xmlcdata{content = <<"EXTERNAL">>}]}]}];
+        {bad_cert, CertVerifyRes} ->
+            check_sasl_tls_certveify(TLSCertverify, CertVerifyRes);
+        no_peer_cert -> []
     end.
 
-check_sasl_tls_certveify(true, CertVerifyRes, Cert) ->
-    {error_cert_verif, CertVerifyRes, Cert};
-check_sasl_tls_certveify(false, _, _) ->
+check_sasl_tls_certveify(true, CertVerifyRes) ->
+    {error_cert_verif, CertVerifyRes};
+check_sasl_tls_certveify(false, _) ->
     [].
-
-get_auth_res({ok, Cert}, AuthDomain, StateData) ->
-    case (StateData#state.sockmod):get_verify_result(
-           StateData#state.socket) of
-        0 ->
-            check_auth_domain(AuthDomain, Cert);
-        _ ->
-            false
-    end;
-get_auth_res(_, _, _) ->
-    false.
 
 check_auth_domain(error, _) ->
     false;
-check_auth_domain(AuthDomain, Cert) ->
+check_auth_domain(AuthDomain, {ok, Cert}) ->
     case ejabberd_s2s:domain_utf8_to_ascii(AuthDomain) of
         false ->
             false;
@@ -729,7 +712,9 @@ check_auth_domain(AuthDomain, Cert) ->
                       match_domain(
                         PCAuthDomain, D)
               end, get_cert_domains(Cert))
-    end.
+    end;
+check_auth_domain(_, _) ->
+    false.
 
 handle_auth_res(true, AuthDomain, StateData) ->
     send_element(StateData,

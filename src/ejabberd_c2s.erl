@@ -185,6 +185,7 @@ init([{SockMod, Socket}, Opts]) ->
                     ({ciphers, _}) -> true;
                     ({protocol_options, _}) -> true;
                     ({dhfile, _}) -> true;
+                    ({tls_module, _}) -> true;
                     (_) -> false
                  end, Opts),
     TLSOpts = [verify_none | TLSOpts1],
@@ -400,7 +401,7 @@ can_use_tls(SockMod, TLS, TLSEnabled) ->
 
 can_use_zlib_compression(Zlib, SockMod) ->
     Zlib andalso ( (SockMod == gen_tcp) orelse
-                   (SockMod == fast_tls) ).
+                   (SockMod == ejabberd_tls) ).
 
 compression_zlib() ->
     #xmlel{name = <<"compression">>,
@@ -603,7 +604,7 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
                                           });
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
-                                             (SockMod == fast_tls)) ->
+                                             (SockMod == ejabberd_tls)) ->
           check_compression_auth(El, wait_for_feature_before_auth, StateData);
         _ ->
           terminate_when_tls_required_but_not_enabled(TLSRequired, TLSEnabled,
@@ -776,7 +777,7 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
-                                             (SockMod == fast_tls)) ->
+                                             (SockMod == ejabberd_tls)) ->
             check_compression_auth(El, NextState, StateData);
         _ ->
             process_unauthenticated_stanza(StateData, El),
@@ -1824,11 +1825,11 @@ get_auth_tags([], U, P, D, R) ->
 get_conn_type(StateData) ->
     case (StateData#state.sockmod):get_sockmod(StateData#state.socket) of
         gen_tcp -> c2s;
-        fast_tls -> c2s_tls;
+        ejabberd_tls -> c2s_tls;
         ejabberd_zlib ->
             case ejabberd_zlib:get_sockmod((StateData#state.socket)#socket_state.socket) of
                 gen_tcp -> c2s_compressed;
-                fast_tls -> c2s_compressed_tls
+                ejabberd_tls -> c2s_compressed_tls
             end;
         ejabberd_http_poll -> http_poll;
         ejabberd_http_bind -> http_bind;

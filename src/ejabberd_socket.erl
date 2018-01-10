@@ -42,9 +42,9 @@
          monitor/1,
          get_sockmod/1,
          get_peer_certificate/1,
-         get_verify_result/1,
          close/1,
-         sockname/1, peername/1]).
+         sockname/1,
+         peername/1]).
 
 -include("mongoose.hrl").
 
@@ -157,7 +157,7 @@ connect(Addr, Port, Opts, Timeout) ->
     end.
 
 
--spec tcp_to_tls(inet:socket(), list()) -> fast_tls:tls_socket().
+-spec tcp_to_tls(inet:socket(), list()) -> ejabberd_tls:tls_socket().
 tcp_to_tls(InetSock, TLSOpts) ->
     SanitizedTLSOpts = case lists:keyfind(protocol_options, 1, TLSOpts) of
         false -> TLSOpts;
@@ -165,15 +165,14 @@ tcp_to_tls(InetSock, TLSOpts) ->
             NewProtoOpts = {protocol_options, string:join(ProtoOpts, "|")},
             lists:keyreplace(protocol_options, 1, TLSOpts, NewProtoOpts)
     end,
-    {ok, TLSSocket} = fast_tls:tcp_to_tls(InetSock, SanitizedTLSOpts),
-    TLSSocket.
+    ejabberd_tls:tcp_to_tls(InetSock, SanitizedTLSOpts).
 
 
 -spec starttls(socket_state(), list()) -> socket_state().
 starttls(SocketData, TLSOpts) ->
     TLSSocket = tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
-    SocketData#socket_state{socket = TLSSocket, sockmod = fast_tls}.
+    SocketData#socket_state{socket = TLSSocket, sockmod = ejabberd_tls}.
 
 
 -spec starttls(socket_state(), _, _) -> socket_state().
@@ -181,7 +180,7 @@ starttls(SocketData, TLSOpts, Data) ->
     TLSSocket = tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
     send(SocketData, Data),
-    SocketData#socket_state{socket = TLSSocket, sockmod = fast_tls}.
+    SocketData#socket_state{socket = TLSSocket, sockmod = ejabberd_tls}.
 
 -spec compress(socket_state(), integer(), _) -> socket_state().
 compress(SocketData, InflateSizeLimit, Data) ->
@@ -241,12 +240,7 @@ get_sockmod(SocketData) ->
 
 -spec get_peer_certificate(socket_state()) -> 'error' | {'ok', _}.
 get_peer_certificate(SocketData) ->
-    fast_tls:get_peer_certificate(SocketData#socket_state.socket).
-
-
--spec get_verify_result(socket_state()) -> byte().
-get_verify_result(SocketData) ->
-    fast_tls:get_verify_result(SocketData#socket_state.socket).
+    ejabberd_tls:get_peer_certificate(SocketData#socket_state.socket).
 
 
 -spec close(socket_state()) -> ok.
