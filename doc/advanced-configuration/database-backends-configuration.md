@@ -76,7 +76,7 @@ Please refer to the [Advanced configuration/Database setup](../Advanced-configur
 
 **Version notice**
 
-The required minimum version of MySQL is `5.5.14`. For versions `5.7.6` or older, add the following options to your MySQL configuration file:
+The required minimum version of MySQL is `5.5.14`. For versions `5.7.8` and older, add the following options to your MySQL configuration file:
 
 ```bash
 innodb_large_prefix=true
@@ -84,7 +84,7 @@ innodb_file_format=BARRACUDA
 innodb_file_format_max=BARRACUDA
 innodb_file_per_table=true
 ```
-
+For versions `5.7.9` and later, all of the above options are set correctly by default.
 ## PostgreSQL
 
 **Can be used for:**
