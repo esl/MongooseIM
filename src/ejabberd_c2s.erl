@@ -186,6 +186,7 @@ init([{SockMod, Socket}, Opts]) ->
                     ({protocol_options, _}) -> true;
                     ({dhfile, _}) -> true;
                     ({tls_module, _}) -> true;
+                    ({ssl_options, _}) -> true;
                     (_) -> false
                  end, Opts),
     TLSOpts = [verify_none | TLSOpts1],
