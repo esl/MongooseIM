@@ -36,7 +36,7 @@ start_link() ->
 %% @doc Handle custom IQ.
 %% Called from mod_muc_room.
 -spec process_iq(ejabberd:server(), ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(),
-        ejabberd:iq()) -> error | ignore.
+        jlib:iq()) -> error | ignore.
 process_iq(Host, From, RoomJID, Acc, IQ = #iq{xmlns = XMLNS}) ->
     case ets:lookup(tbl_name(), {XMLNS, Host}) of
         [{_, Module, Function, Opts}] ->

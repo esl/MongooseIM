@@ -53,21 +53,21 @@
 -callback options() -> nodeOptions().
 
 -callback set_node(PubsubNode :: pubsubNode()) ->
-    ok | {result, NodeIdx::nodeIdx()} | {error, xmlel()}.
+    ok | {result, NodeIdx::nodeIdx()} | {error, exml:element()}.
 
 -callback get_node(Host :: host(), NodeId :: nodeId(), From :: jid()) ->
-    pubsubNode() | {error, xmlel()}.
+    pubsubNode() | {error, exml:element()}.
 
--callback get_node(Host :: host(), NodeId :: nodeId()) -> pubsubNode() | {error, xmlel()}.
+-callback get_node(Host :: host(), NodeId :: nodeId()) -> pubsubNode() | {error, exml:element()}.
 
--callback get_node(NodeIdx :: nodeIdx()) -> pubsubNode() | {error, xmlel()}.
+-callback get_node(NodeIdx :: nodeIdx()) -> pubsubNode() | {error, exml:element()}.
 
 -callback get_nodes(Host :: host(), From :: jid()) -> [pubsubNode()].
 
 -callback get_nodes(Host :: host()) -> [pubsubNode()].
 
 -callback get_parentnodes(Host :: host(), NodeId :: nodeId(), From :: jid()) ->
-    [pubsubNode()] | {error, xmlel()}.
+    [pubsubNode()] | {error, exml:element()}.
 
 -callback get_parentnodes_tree(Host :: host(), NodeId :: nodeId(), From :: jid()) ->
     [{0, [pubsubNode(), ...]}].
@@ -82,7 +82,7 @@
                       Owner :: jid(),
                       Options :: nodeOptions(),
                       Parents :: [nodeId()]) ->
-    {ok, NodeIdx::nodeIdx()} | {error, xmlel()} | {error, {virtual, {host(), nodeId()}}}.
+    {ok, NodeIdx::nodeIdx()} | {error, exml:element()} | {error, {virtual, {host(), nodeId()}}}.
 
 -callback delete_node(Host :: host(), NodeId :: nodeId()) -> [pubsubNode()].
 

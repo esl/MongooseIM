@@ -118,7 +118,7 @@
 -type row_batch() :: {TotalCount :: non_neg_integer(),
                       Offset :: non_neg_integer(),
                       MessageRows :: [row()]}.
--type row() :: {mod_mam:message_id(), ejabberd:jid(), jlib:xmlel()}.
+-type row() :: {mod_mam:message_id(), ejabberd:jid(), exml:element()}.
 
 -export_type([row/0, row_batch/0]).
 
@@ -263,7 +263,7 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
 -spec room_process_mam_iq(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
-                          IQ :: ejabberd:iq()) -> {mongoose_acc:t(), ejabberd:iq() | 'ignore'}.
+                          IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq() | 'ignore'}.
 room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
     Action = mam_iq:action(IQ),
     Res = case is_action_allowed(Action, From, To) of
@@ -337,10 +337,9 @@ is_user_identity_hidden(User, Room) ->
 can_access_room(User, Room) ->
     ejabberd_hooks:run_fold(can_access_room, Room#jid.lserver, false, [Room, User]).
 
-
--spec handle_mam_iq(mam_iq:action(), From :: ejabberd:jid(), ejabberd:jid(),
-                    ejabberd:iq()) ->
-                           ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_mam_iq('mam_get_prefs', From :: ejabberd:jid(), ejabberd:jid(),
+                    jlib:iq()) ->
+                           jlib:iq() | {error, any(), jlib:iq()}.
 handle_mam_iq(Action, From, To, IQ) ->
     case Action of
         mam_get_prefs ->
@@ -359,8 +358,8 @@ handle_mam_iq(Action, From, To, IQ) ->
             handle_purge_multiple_messages(To, IQ)
     end.
 
--spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) ->
-                              ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_set_prefs(ejabberd:jid(), jlib:iq()) ->
+                              jlib:iq() | {error, any(), jlib:iq()}.
 handle_set_prefs(ArcJID = #jid{},
                  IQ = #iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
@@ -379,8 +378,8 @@ handle_set_prefs_result({error, Reason},
     return_error_iq(IQ, Reason).
 
 
--spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) ->
-                              ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_get_prefs(ejabberd:jid(), jlib:iq()) ->
+                              jlib:iq() | {error, any(), jlib:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
@@ -397,7 +396,7 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 
 
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
-                             IQ :: ejabberd:iq()) -> ejabberd:iq() | {error, any(), ejabberd:iq()}.
+                             IQ :: jlib:iq()) -> jlib:iq() | {error, any(), jlib:iq()}.
 handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
                        #iq{xmlns = MamNs, sub_el = QueryEl} = IQ) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
@@ -431,8 +430,8 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
 
 
 -spec handle_set_message_form(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
-                              IQ :: ejabberd:iq()) ->
-                                     ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
+                              IQ :: jlib:iq()) ->
+                                  jlib:iq() | ignore | {error, term(), jlib:iq()}.
 handle_set_message_form(#jid{} = From, #jid{} = ArcJID, IQ) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
@@ -507,15 +506,16 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
      || Row <- MessageRows],
     {FirstMessID, LastMessID}.
 
--spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
-                                     ejabberd:iq().
+
+-spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), jlib:iq()) ->
+                                     jlib:iq().
 handle_get_message_form(_From = #jid{lserver = Host}, _ArcJID = #jid{}, IQ = #iq{}) ->
     return_message_form_iq(Host, IQ).
 
 
 %% @doc Purging multiple messages.
--spec handle_purge_multiple_messages(ejabberd:jid(), ejabberd:iq()) ->
-                                            ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_purge_multiple_messages(ejabberd:jid(), jlib:iq()) ->
+                                            jlib:iq() | {error, any(), jlib:iq()}.
 handle_purge_multiple_messages(ArcJID = #jid{},
                                IQ = #iq{sub_el = PurgeEl}) ->
     Now = p1_time_compat:system_time(micro_seconds),
@@ -534,8 +534,8 @@ handle_purge_multiple_messages(ArcJID = #jid{},
     return_purge_multiple_message_iq(IQ, Res).
 
 
--spec handle_purge_single_message(ejabberd:jid(), ejabberd:iq()) ->
-                                         ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_purge_single_message(ejabberd:jid(), jlib:iq()) ->
+                                         jlib:iq() | {error, any(), jlib:iq()}.
 handle_purge_single_message(ArcJID = #jid{},
                             IQ = #iq{sub_el = PurgeEl}) ->
     Now = p1_time_compat:system_time(micro_seconds),
@@ -647,7 +647,7 @@ purge_multiple_messages(Host, ArcID, ArcJID, Borders,
 %% Helpers
 
 -spec message_row_to_xml(binary(), jid(), boolean(), boolean(), row(), binary() | undefined) ->
-                                jlib:xmlel().
+                                exml:element().
 message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID, SrcJID, Packet}, QueryID) ->
 
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
@@ -702,7 +702,7 @@ return_error_iq(IQ, missing_with_jid) ->
 return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:internal_server_error()]}}.
 
--spec return_action_not_allowed_error_iq(ejabberd:iq()) -> ejabberd:iq().
+-spec return_action_not_allowed_error_iq(jlib:iq()) -> jlib:iq().
 return_action_not_allowed_error_iq(IQ) ->
     ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"not-allowed">>,
                                  <<"en">>, <<"The action is not allowed.">>),
@@ -713,11 +713,11 @@ return_purge_multiple_message_iq(IQ, ok) ->
 return_purge_multiple_message_iq(IQ, {error, Reason}) ->
     return_error_iq(IQ, Reason).
 
--spec return_purge_success(ejabberd:iq()) -> ejabberd:iq().
+-spec return_purge_success(jlib:iq()) -> jlib:iq().
 return_purge_success(IQ) ->
     IQ#iq{type = result, sub_el = []}.
 
--spec return_purge_not_found_error_iq(ejabberd:iq()) -> ejabberd:iq().
+-spec return_purge_not_found_error_iq(jlib:iq()) -> jlib:iq().
 return_purge_not_found_error_iq(IQ) ->
     %% Message not found.
     ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"item-not-found">>, <<"en">>,
@@ -726,7 +726,7 @@ return_purge_not_found_error_iq(IQ) ->
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 
--spec return_max_delay_reached_error_iq(ejabberd:iq()) -> ejabberd:iq().
+-spec return_max_delay_reached_error_iq(jlib:iq()) -> jlib:iq().
 return_max_delay_reached_error_iq(IQ) ->
     %% Message not found.
     ErrorEl = mongoose_xmpp_errors:resource_constraint(
@@ -734,11 +734,11 @@ return_max_delay_reached_error_iq(IQ) ->
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 
--spec return_purge_single_message_iq(ejabberd:iq(),
+-spec return_purge_single_message_iq(jlib:iq(),
                                      ok  | {error, 'not-found'}
                                      | {error, Reason :: term()}) ->
-                                            ejabberd:iq()
-                                                | {error, any(), ejabberd:iq()}.
+                                            jlib:iq()
+                                                | {error, any(), jlib:iq()}.
 return_purge_single_message_iq(IQ, ok) ->
     return_purge_success(IQ);
 return_purge_single_message_iq(IQ, {error, 'not-found'}) ->

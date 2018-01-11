@@ -25,7 +25,7 @@
                         node :: ejabberd:server(),
                         session_id :: binary(),
                         action :: binary(),
-                        xdata :: jlib:xmlel() | false,
+                        xdata :: exml:element() | false,
                         others
                        }).
 
@@ -36,7 +36,7 @@
                          default_action = <<>> :: binary(),
                          actions = [],
                          notes = [] :: [tuple()],
-                         elements = [] :: [jlib:xmlel()]
+                         elements = [] :: [exml:element()]
                         }).
 
 -endif.

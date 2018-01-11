@@ -1,13 +1,12 @@
 %%%-------------------------------------------------------------------
-%%% @author alex
-%%% @copyright (C) 2018, <COMPANY>
+%%% @author Alex
 %%% @doc
 %%% The functions in this module were previously defined as macros in jlib.hrl
 %%% @end
-%%% Created : 10. Jan 2018 09:58
+%%% Created : 10. Jan 2018
 %%%-------------------------------------------------------------------
 -module(mongoose_xmpp_errors).
--author("alex").
+-author("Alex").
 
 
 -compile([export_all]).

@@ -367,7 +367,7 @@ push_roster_item(LU, LS, R, U, S, Action) ->
     ejabberd_router:route(LJID, LJID, ResIQ).
 
 -spec build_roster_item(ejabberd:user(), ejabberd:server(), push_action()
-                       ) -> jlib:xmlel().
+                       ) -> exml:element().
 build_roster_item(U, S, {add, Nick, Subs, Group}) ->
     #xmlel{ name = <<"item">>,
        attrs = [{<<"jid">>, jid:to_binary(jid:make(U, S, <<"">>))},
@@ -381,7 +381,7 @@ build_roster_item(U, S, remove) ->
                 {<<"subscription">>, <<"remove">>}]}.
 
 
--spec build_iq_roster_push(jlib:xmlcdata() | jlib:xmlel()) -> jlib:xmlel().
+-spec build_iq_roster_push(jlib:xmlcdata() | exml:element()) -> exml:element().
 build_iq_roster_push(Item) ->
     #xmlel{ name = <<"iq">>,
            attrs = [{<<"type">>, <<"set">>}, {<<"id">>, <<"push">>}],

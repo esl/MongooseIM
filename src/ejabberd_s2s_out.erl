@@ -848,11 +848,11 @@ send_text(StateData, Text) ->
     ejabberd_socket:send(StateData#state.socket, Text).
 
 
--spec send_element(state(), jlib:xmlel()|mongoose_acc:t()) -> 'ok'.
+-spec send_element(state(), exml:element()|mongoose_acc:t()) -> 'ok'.
 send_element(StateData, #xmlel{} = El) ->
     send_text(StateData, exml:to_binary(El)).
 
--spec send_element(state(), mongoose_acc:t(), jlib:xmlel()) -> mongoose_acc:t().
+-spec send_element(state(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 send_element(StateData, Acc, El) ->
     send_text(StateData, exml:to_binary(El)),
     Acc.
@@ -870,7 +870,7 @@ send_queue(StateData, Q) ->
 
 
 %% @doc Bounce a single message (xmlel)
--spec bounce_element(Acc :: mongoose_acc:t(), El :: xmlel(), Error :: xmlel()) -> 'ok'.
+-spec bounce_element(Acc :: mongoose_acc:t(), El :: exml:element(), Error :: exml:element()) -> 'ok'.
 bounce_element(Acc, El, Error) ->
     case mongoose_acc:get(type, Acc) of
         <<"error">> -> ok;
@@ -883,7 +883,7 @@ bounce_element(Acc, El, Error) ->
     end.
 
 
--spec bounce_queue(Q :: element_queue(), Error :: jlib:xmlel()) -> 'ok'.
+-spec bounce_queue(Q :: element_queue(), Error :: exml:element()) -> 'ok'.
 bounce_queue(Q, Error) ->
     case queue:out(Q) of
         {{value, {Acc, El}}, Q1} ->
@@ -910,7 +910,7 @@ cancel_timer(Timer) ->
     end.
 
 
--spec bounce_messages(jlib:xmlel()) -> 'ok'.
+-spec bounce_messages(exml:element()) -> 'ok'.
 bounce_messages(Error) ->
     receive
         {send_element, Acc, El} ->
@@ -964,7 +964,7 @@ send_db_request(StateData) ->
     end.
 
 
--spec is_verify_res(jlib:xmlel()) -> 'false' | {'result', _, _, _, _} | {'verify', _, _, _, _}.
+-spec is_verify_res(exml:element()) -> 'false' | {'result', _, _, _, _} | {'verify', _, _, _, _}.
 is_verify_res(#xmlel{name = Name,
                      attrs = Attrs}) when Name == <<"db:result">> ->
     {result,

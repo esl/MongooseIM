@@ -256,7 +256,7 @@ xopt_to_bool(_) -> {error, mongoose_xmpp_errors:not_acceptable()}.
           Lang :: binary(),
           Key  :: atom(),
           Options :: mod_pubsub:subOptions())
-        -> xmlel().
+        -> exml:element().
 
 %% Return a field for an XForm for Key, with data filled in, if
 %% applicable, from Options.

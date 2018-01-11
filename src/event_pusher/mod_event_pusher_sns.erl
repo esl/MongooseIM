@@ -13,7 +13,7 @@
                              IsOnline :: boolean()) -> attributes().
 -callback message_attributes(TopicARN :: topic_arn(), From :: ejabberd:jid(),
                              To :: ejabberd:jid(), MessageType :: pm | muc,
-                             Packet :: jlib:xmlel()) -> attributes().
+                             Packet :: exml:element()) -> attributes().
 
 %%%===================================================================
 %%% Types and definitions
@@ -94,7 +94,7 @@ user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
 
 %% @doc Handles the packet and if needed publishes an SNS notification
 -spec handle_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                    Packet :: jlib:xmlel()) -> ok | skip.
+                    Packet :: exml:element()) -> ok | skip.
 handle_packet(From = #jid{lserver = Host}, To, Packet) ->
     ?DEBUG("SNS Packet handle~n    from ~p ~n    to ~p~n    packet ~p.", [From, To, Packet]),
 
@@ -166,7 +166,7 @@ aws_handle(Host) ->
     erlcloud_sns:new(AccessKeyId, SecretKey, SNSHost).
 
 %% @doc Returns notification topic based on packet type and module configuration
--spec get_topic(Host :: ejabberd:lserver(), Packet :: jlib:xmlel()) -> topic() | undefined.
+-spec get_topic(Host :: ejabberd:lserver(), Packet :: exml:element()) -> topic() | undefined.
 get_topic(Host, Packet) ->
     case message_type(Packet) of
         pm ->
@@ -187,7 +187,7 @@ make_topic_arn(Host, Topic) ->
     string:join(?TOPIC_BASE ++ [AWSRegion, AWSAccountId, Topic], ":").
 
 %% @doc Returns message type
--spec message_type(Packet :: jlib:xmlel()) -> pm | muc | undefined.
+-spec message_type(Packet :: exml:element()) -> pm | muc | undefined.
 message_type(Packet) ->
     case exml_query:attr(Packet, <<"type">>) of
         <<"chat">> -> pm;
@@ -223,7 +223,7 @@ message_attributes(Host, TopicARN, UserJID, IsOnline) ->
 
 -spec message_attributes(Host :: ejabberd:lserver(), TopicARN :: topic_arn(),
                          From :: ejabberd:jid(), To :: ejabberd:jid(), MessageType :: pm | muc,
-                         Packet :: jlib:xmlel()) -> attributes().
+                         Packet :: exml:element()) -> attributes().
 message_attributes(Host, TopicARN, From, To, MessageType, Packet) ->
     PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:message_attributes(TopicARN, From, To, MessageType, Packet).

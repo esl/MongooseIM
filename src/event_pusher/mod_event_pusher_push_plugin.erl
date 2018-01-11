@@ -20,21 +20,21 @@
 -export([should_publish/4, sender_id/3]).
 
 
--callback should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) ->
+-callback should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: exml:element()) ->
     boolean().
--callback sender_id(From :: ejabberd:jid(), Packet :: jlib:xmlel()) -> SenderId :: binary().
+-callback sender_id(From :: ejabberd:jid(), Packet :: exml:element()) -> SenderId :: binary().
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
 -spec should_publish(Host :: ejabberd:server(), From :: ejabberd:jid(),
-                     To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> boolean().
+                     To :: ejabberd:jid(), Packet :: exml:element()) -> boolean().
 should_publish(Host, From, To, Packet) ->
     PluginModule = plugin_module(Host),
     PluginModule:should_publish(From, To, Packet).
 
--spec sender_id(Host :: ejabberd:server(), From :: ejabberd:jid(), Packet :: jlib:xmlel()) ->
+-spec sender_id(Host :: ejabberd:server(), From :: ejabberd:jid(), Packet :: exml:element()) ->
     SenderId :: binary().
 sender_id(Host, From, Packet) ->
     PluginModule = plugin_module(Host),

@@ -263,7 +263,7 @@ code_change(_OldVsn, State, _Extra) ->
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
                Acc :: mongoose_acc:t(),
-               Packet :: xmlel()) ->
+               Packet :: exml:element()) ->
         done. % this is the 'last resort' router, it always returns 'done'.
 do_route(From, To, Acc, Packet) ->
     ?DEBUG("s2s manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
@@ -479,8 +479,8 @@ parent_domains(<<$., Rest/binary>>, Acc) ->
 parent_domains(<<_, Rest/binary>>, Acc) ->
     parent_domains(Rest, Acc).
 
--spec send_element(pid(), mongoose_acc:t(), xmlel()) ->
-    {'send_element', mongoose_acc:t(), xmlel()}.
+-spec send_element(pid(), mongoose_acc:t(), exml:element()) ->
+    {'send_element', mongoose_acc:t(), exml:element()}.
 send_element(Pid, Acc, El) ->
     Pid ! {send_element, Acc, El}.
 

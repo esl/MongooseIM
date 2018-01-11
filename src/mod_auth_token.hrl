@@ -2,6 +2,6 @@
                   expiry_datetime   :: calendar:datetime(),
                   user_jid          :: ejabberd:jid(),
                   sequence_no       :: mod_auth_token:sequence_no() | undefined,
-                  vcard             :: jlib:xmlel() | undefined,
+                  vcard             :: exml:element() | undefined,
                   mac_signature     :: binary() | undefined,
                   token_body        :: binary() | undefined }).

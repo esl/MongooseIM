@@ -100,7 +100,7 @@ start_link() ->
 %% the next module in sequence.
 -spec route(From   :: ejabberd:jid(),
     To     :: ejabberd:jid(),
-    Packet :: mongoose_acc:t()|jlib:xmlel()) -> mongoose_acc:t().
+    Packet :: mongoose_acc:t()|exml:element()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     % ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
     % (called by broadcasting)
@@ -121,7 +121,7 @@ route(From, To, Acc, El) ->
 -spec route_error(From   :: ejabberd:jid(),
                   To     :: ejabberd:jid(),
                   Acc :: mongoose_acc:t(),
-                  ErrPacket :: jlib:xmlel()) -> mongoose_acc:t().
+                  ErrPacket :: exml:element()) -> mongoose_acc:t().
 route_error(From, To, Acc, ErrPacket) ->
     case <<"error">> == mongoose_acc:get(type, Acc) of
         false ->
@@ -448,7 +448,7 @@ make_routing_module_source(Mods) ->
 -spec route(From   :: ejabberd:jid(),
             To     :: ejabberd:jid(),
             Acc    :: mongoose_acc:t(),
-            Packet :: jlib:xmlel(),
+            Packet :: exml:element(),
             [atom()]) -> mongoose_acc:t().
 route(From, To, Acc, Packet, []) ->
     ?ERROR_MSG("error routing from=~ts to=~ts, packet=~ts, reason: no more routing modules",

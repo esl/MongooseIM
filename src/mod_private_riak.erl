@@ -30,7 +30,7 @@
 init(_Host, _Opts) ->
     ok.
 
--spec multi_set_data(ejabberd:luser(), ejabberd:lserver(), [{binary(), jlib:xmlel()}]) ->
+-spec multi_set_data(ejabberd:luser(), ejabberd:lserver(), [{binary(), exml:element()}]) ->
     ok | {error, term()}.
 multi_set_data(LUser, LServer, NS2XML) ->
     R = [set_private_data(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],

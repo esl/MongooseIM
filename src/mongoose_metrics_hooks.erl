@@ -101,7 +101,7 @@ user_send_packet(Acc, #jid{server = Server}, _, Packet) ->
     Acc.
 
 -spec user_send_packet_type(Server :: ejabberd:server(),
-                            Packet :: jlib:xmlel()) -> ok | {error, not_found}.
+                            Packet :: exml:element()) -> ok | {error, not_found}.
 user_send_packet_type(Server, #xmlel{name = <<"message">>}) ->
     mongoose_metrics:update(Server, xmppMessageSent, 1);
 user_send_packet_type(Server, #xmlel{name = <<"iq">>}) ->
@@ -116,7 +116,7 @@ user_receive_packet(Acc, #jid{server = Server}, _, _, Packet) ->
     Acc.
 
 -spec user_receive_packet_type(Server :: ejabberd:server(),
-                               Packet :: jlib:xmlel()) -> ok | {error, not_found}.
+                               Packet :: exml:element()) -> ok | {error, not_found}.
 user_receive_packet_type(Server, #xmlel{name = <<"message">>}) ->
     mongoose_metrics:update(Server, xmppMessageReceived, 1);
 user_receive_packet_type(Server, #xmlel{name = <<"iq">>}) ->
@@ -130,7 +130,7 @@ xmpp_bounce_message(Acc) ->
     mongoose_metrics:update(Server, xmppMessageBounced, 1),
     Acc.
 
--spec xmpp_stanza_dropped(mongoose_acc:t(), ejabberd:jid(), ejabberd:jid(), xmlel()) ->
+-spec xmpp_stanza_dropped(mongoose_acc:t(), ejabberd:jid(), ejabberd:jid(), exml:element()) ->
     metrics_notify_return().
 xmpp_stanza_dropped(Acc, #jid{server = Server} , _, _) ->
     mongoose_metrics:update(Server, xmppStanzaDropped, 1),
@@ -207,7 +207,7 @@ privacy_iq_get(Acc, #jid{server  = Server}, _, _, _) ->
 -spec privacy_iq_set(Acc :: term(),
                      From :: ejabberd:jid(),
                      _To :: ejabberd:jid(),
-                     _IQ :: ejabberd:iq()) -> ok | metrics_notify_return() | term().
+                     _IQ :: jlib:iq()) -> ok | metrics_notify_return() | term().
 privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of

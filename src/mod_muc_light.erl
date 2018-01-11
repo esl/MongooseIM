@@ -220,14 +220,14 @@ hooks(Host, MUCHost) ->
 %%====================================================================
 
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
-                     El :: xmlel(), Extra :: any()) -> any().
+                     El :: exml:element(), Extra :: any()) -> any().
 process_packet(Acc, From, To, El, _Extra) ->
     process_decoded_packet(From, To, mod_muc_light_codec_backend:decode(From, To, El), Acc, El).
 
 -spec process_decoded_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
                      DecodedPacket :: mod_muc_light_codec:decode_result(),
                      Acc :: mongoose_acc:t(),
-                     OrigPacket :: jlib:xmlel()) -> any().
+                     OrigPacket :: exml:element()) -> any().
 process_decoded_packet(From, To, {ok, {set, #create{} = Create}}, _Acc, OrigPacket) ->
     FromUS = jid:to_lus(From),
     case not mod_muc_light_utils:room_limit_reached(FromUS, To#jid.lserver) of
@@ -284,15 +284,15 @@ process_decoded_packet(From, To, _InvalidReq, _Acc, OrigPacket) ->
 %%====================================================================
 
 -spec prevent_service_unavailable(Acc :: map(), From :: jid(), To :: jid(),
-                                  Packet :: jlib:xmlel()) -> map() | {stop, map()}.
+                                  Packet :: exml:element()) -> map() | {stop, map()}.
 prevent_service_unavailable(Acc, _From, _To, Packet) ->
     case xml:get_tag_attr_s(<<"type">>, Packet) of
         <<"groupchat">> -> {stop, Acc};
         _Type -> Acc
     end.
 
--spec get_muc_service(Acc :: {result, [jlib:xmlel()]}, From :: ejabberd:jid(), To :: ejabberd:jid(),
-                      NS :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]}.
+-spec get_muc_service(Acc :: {result, [exml:element()]}, From :: ejabberd:jid(), To :: ejabberd:jid(),
+                      NS :: binary(), ejabberd:lang()) -> {result, [exml:element()]}.
 get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
     XMLNS = case gen_mod:get_module_opt_by_subhost(
                    LServer, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
@@ -344,7 +344,7 @@ add_rooms_to_roster(Acc, UserUS) ->
     mongoose_acc:put(roster, NewItems, Acc).
 
 -spec process_iq_get(Acc :: mongoose_acc:t(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                     IQ :: ejabberd:iq(), ActiveList :: binary()) ->
+                     IQ :: jlib:iq(), ActiveList :: binary()) ->
     {stop, mongoose_acc:t()} | mongoose_acc:t().
 process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
     MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
@@ -367,7 +367,7 @@ process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList)
     end.
 
 -spec process_iq_set(Acc :: mongoose_acc:t(), From :: ejabberd:jid(),
-                     To :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
+                     To :: ejabberd:jid(), IQ :: jlib:iq()) ->
     {stop, mongoose_acc:t()} | mongoose_acc:t().
 process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
     MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
@@ -427,8 +427,8 @@ get_affiliation(Room, User) ->
     end.
 
 -spec create_room(From :: ejabberd:jid(), FromUS :: ejabberd:simple_bare_jid(),
-                  To :: ejabberd:jid(), Create :: create_req_props(), OrigPacket :: jlib:xmlel()) ->
-    jlib:xmlel().
+                  To :: ejabberd:jid(), Create :: create_req_props(), OrigPacket :: exml:element()) ->
+    exml:element().
 create_room(From, FromUS, To, Create0, OrigPacket) ->
     case try_to_create_room(FromUS, To, Create0) of
         {ok, FinalRoomUS, Details} ->
@@ -480,7 +480,7 @@ handle_disco_info_get(From, To, DiscoInfo) ->
                                        fun ejabberd_router:route/3).
 
 -spec handle_disco_items_get(From :: jid(), To :: jid(), DiscoItems :: disco_items_req_props(),
-                             OrigPacket :: jlib:xmlel()) -> ok.
+                             OrigPacket :: exml:element()) -> ok.
 handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
     case catch mod_muc_light_db_backend:get_user_rooms(jid:to_lus(From), To#jid.lserver) of
         {error, Error} ->

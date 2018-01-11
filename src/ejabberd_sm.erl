@@ -127,7 +127,7 @@ start_link() ->
 -spec route(From, To, Packet) -> Acc when
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
-      Packet :: jlib:xmlel() | mongoose_acc:t()| ejabberd_c2s:broadcast(),
+      Packet :: exml:element() | mongoose_acc:t()| ejabberd_c2s:broadcast(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     ?DEPRECATED, % used by MAM
@@ -245,7 +245,7 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
       Acc :: map(),
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
-      Packet :: jlib:xmlel().
+      Packet :: exml:element().
 bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
     Acc1 = ejabberd_hooks:run_fold(xmpp_bounce_message,
                             Server,
@@ -579,7 +579,7 @@ do_filter(From, To, Packet) ->
     Acc :: mongoose_acc:t(),
     From :: ejabberd:jid(),
     To :: ejabberd:jid(),
-    Payload :: jlib:xmlel() | ejabberd_c2s:broadcast().
+    Payload :: exml:element() | ejabberd_c2s:broadcast().
 do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
     ?DEBUG("from=~p, to=~p, broadcast=~p", [From, To, Broadcast]),
     #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
@@ -632,7 +632,7 @@ do_route(Acc, From, To, El) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel(),
+      Packet :: exml:element(),
       Type :: 'subscribe' | 'subscribed' | 'unsubscribe' | 'unsubscribed',
       Reason :: any().
 do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
@@ -653,7 +653,7 @@ do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel().
+      Packet :: exml:element().
 do_route_no_resource_presence(<<"subscribe">>, From, To, Acc, Packet) ->
     Reason = xml:get_path_s(Packet, [{elem, <<"status">>}, cdata]),
     do_route_no_resource_presence_prv(From, To, Acc, Packet, subscribe, Reason);
@@ -673,7 +673,7 @@ do_route_no_resource_presence(_, _, _, _, _) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t(),
-      El :: xmlel(),
+      El :: exml:element(),
       Result ::ok | stop | todo | pid() | {error, lager_not_running} | {process_iq, _, _, _}.
 do_route_no_resource(<<"presence">>, Type, From, To, Acc, El) ->
     case do_route_no_resource_presence(Type, From, To, Acc, El) of
@@ -703,7 +703,7 @@ do_route_no_resource(_, _, _, _, _, _) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel().
+      Packet :: exml:element().
 do_route_offline(<<"message">>, _, From, To, Acc, Packet)  ->
     Drop = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
                    false, [From, To, Packet]),
@@ -729,7 +729,7 @@ do_route_offline(_, _, _, _, _, _) ->
 -spec broadcast_packet(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
                        Acc :: mongoose_acc:t(),
-                       El :: xmlel()) -> ok.
+                       El :: exml:element()) -> ok.
 broadcast_packet(From, To, Acc, El) ->
     #jid{user = User, server = Server} = To,
     lists:foreach(
@@ -748,7 +748,7 @@ broadcast_packet(From, To, Acc, El) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel() | mongoose_acc:t().
+      Packet :: exml:element() | mongoose_acc:t().
 is_privacy_allow(From, To, Acc, Packet) ->
     User = To#jid.user,
     Server = To#jid.server,
@@ -763,7 +763,7 @@ is_privacy_allow(From, To, Acc, Packet) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel(),
+      Packet :: exml:element(),
       PrivacyList :: mongoose_privacy:userlist().
 is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
     User = To#jid.user,
@@ -777,7 +777,7 @@ is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: xmlel(),
+      Packet :: exml:element(),
       Res :: ok | stop | mongoose_acc:t() | {stop, mongoose_acc:t()}.
 route_message(From, To, Acc, Packet) ->
     LUser = To#jid.luser,
@@ -956,7 +956,7 @@ get_max_user_sessions(LUser, Host) ->
       From :: ejabberd:jid(),
       To :: ejabberd:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel(),
+      Packet :: exml:element(),
       Result :: ok | todo | pid() | {error, lager_not_running} | {process_iq, _, _, _}.
 process_iq(From, To, Acc0, Packet) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),

@@ -22,7 +22,7 @@
 %%====================================================================
 
 -spec decode(From :: ejabberd:jid(), To :: ejabberd:jid(),
-             Stanza :: ejabberd:iq() | jlib:xmlel()) -> mod_muc_light_codec:decode_result().
+             Stanza :: jlib:iq() | exml:element()) -> mod_muc_light_codec:decode_result().
 decode(_From, #jid{ luser = ToU } = _To, #xmlel{ name = <<"presence">> } = Stanza)
   when ToU =/= <<>> ->
     case {exml_query:path(Stanza, [{element, <<"x">>}, {attr, <<"xmlns">>}]),
@@ -84,7 +84,7 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
 
 -spec encode_error(
         ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
-        OrigPacket :: jlib:xmlel(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
+        OrigPacket :: exml:element(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
     any().
 encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, HandleFun) ->
     %% The only error case for valid presence is registration-required for room creation
@@ -98,7 +98,7 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
 %% Message decoding
 %%====================================================================
 
--spec decode_message(Packet :: jlib:xmlel()) ->
+-spec decode_message(Packet :: exml:element()) ->
     {ok, muc_light_packet()} | {error, bad_request} | ignore.
 decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
     decode_message_by_type(lists:keyfind(<<"type">>, 1, Attrs),
@@ -125,8 +125,8 @@ ensure_id({_, Id}) -> Id.
 %% IQ decoding
 %%====================================================================
 
--spec decode_iq(From :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
-    {ok, muc_light_packet() | muc_light_disco() | ejabberd:iq()} | {error, bad_request} | ignore.
+-spec decode_iq(From :: ejabberd:jid(), IQ :: jlib:iq()) ->
+    {ok, muc_light_packet() | muc_light_disco() | jlib:iq()} | {error, bad_request} | ignore.
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_OWNER, type = get, sub_el = _QueryEl, id = ID }) ->
     {ok, {get, #config{ id = ID }}};
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_OWNER, type = set, sub_el = QueryEl, id = ID }) ->
@@ -340,7 +340,7 @@ encode_meta({set, #config{} = Config, AffUsers}, RoomJID, _SenderJID, HandleFun)
 
 %% --------------------------- Helpers ---------------------------
 
--spec aff_user_to_item(aff_user()) -> jlib:xmlel().
+-spec aff_user_to_item(aff_user()) -> exml:element().
 aff_user_to_item({User, Aff}) ->
     UserBin = jid:to_binary(User),
     {RoleBin, NickEl} = case Aff of
@@ -353,7 +353,7 @@ aff_user_to_item({User, Aff}) ->
                      {<<"jid">>, UserBin},
                      {<<"role">>, RoleBin} | NickEl] }.
 
--spec blocking_to_el(BlockingItem :: blocking_item(), Service :: binary()) -> jlib:xmlel().
+-spec blocking_to_el(BlockingItem :: blocking_item(), Service :: binary()) -> exml:element().
 blocking_to_el({What, Action, {WhoU, WhoS}}, Service) ->
     WhoBin = jid:to_binary({WhoU, WhoS, <<>>}),
     Value = case What of
@@ -368,7 +368,7 @@ blocking_to_el({What, Action, {WhoU, WhoS}}, Service) ->
                      {<<"order">>, <<"1">>}
                     ] }.
 
--spec kv_to_el(binary(), binary()) -> jlib:xmlel().
+-spec kv_to_el(binary(), binary()) -> exml:element().
 kv_to_el(Key, Value) ->
     #xmlel{ name = Key, children = [#xmlcdata{ content = Value }] }.
 
@@ -447,7 +447,7 @@ jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),
-                     XMLNS :: binary(), Els :: [jlib:xmlch()] | undefined) -> jlib:xmlel().
+                     XMLNS :: binary(), Els :: [jlib:xmlch()] | undefined) -> exml:element().
 make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Attrs = [
              {<<"from">>, FromBin},
@@ -458,13 +458,13 @@ make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Query = make_query_el(XMLNS, Els),
     #xmlel{ name = <<"iq">>, attrs = Attrs, children = Query }.
 
--spec make_query_el(binary(), [jlib:xmlch()] | undefined) -> [jlib:xmlel()].
+-spec make_query_el(binary(), [jlib:xmlch()] | undefined) -> [exml:element()].
 make_query_el(_, undefined) ->
     [];
 make_query_el(XMLNS, Els) ->
     [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, XMLNS}], children = Els }].
 
--spec status(Code :: binary()) -> xmlel().
+-spec status(Code :: binary()) -> exml:element().
 status(Code) -> #xmlel{ name = <<"status">>, attrs = [{<<"code">>, Code}] }.
 
 %%====================================================================

@@ -417,7 +417,7 @@ stream_established(timeout, StateData) ->
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
 
--spec route_incoming_stanza(From :: jid(), To :: jid(), El :: xmlel(), StateData :: state()) ->
+-spec route_incoming_stanza(From :: jid(), To :: jid(), El :: exml:element(), StateData :: state()) ->
     mongoose_acc:t() | error.
 route_incoming_stanza(From, To, El, StateData) ->
     LFrom = From#jid.lserver,
@@ -588,7 +588,7 @@ send_text(StateData, Text) ->
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 
--spec send_element(state(), jlib:xmlel()) -> binary().
+-spec send_element(state(), exml:element()) -> binary().
 send_element(StateData, El) ->
     send_text(StateData, exml:to_binary(El)).
 
@@ -615,7 +615,7 @@ cancel_timer(Timer) ->
     end.
 
 
--spec is_key_packet(jlib:xmlel()) -> 'false' | {'key', _, _, _, binary()}
+-spec is_key_packet(exml:element()) -> 'false' | {'key', _, _, _, binary()}
                                   | {'verify', _, _, _, binary()}.
 is_key_packet(#xmlel{name = Name, attrs = Attrs,
                      children = Els}) when Name == <<"db:result">> ->

@@ -85,7 +85,7 @@ from_json(Req, #{user := User, jid := JID, room := Room} = State) ->
     {true, Req3, State}.
 
 -spec build_message(From :: binary(), To :: ejabberd:jid(), ID :: binary(), Body :: binary()) ->
-    jlib:xmlel().
+    exml:element().
 build_message(From, To, ID, Body) ->
     Attrs = [{<<"from">>, From},
              {<<"to">>, jid:to_binary(To)},

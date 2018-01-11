@@ -89,7 +89,7 @@ start_link() ->
 -spec process_iq(Acc :: mongoose_acc:t(),
                  From :: ejabberd:jid(),
                  To :: ejabberd:jid(),
-                 El :: xmlel()
+                 El :: exml:element()
                  ) -> 'nothing' | 'ok' | 'todo' | pid()
                     | {'error', 'lager_not_running'} | {'process_iq', _, _, _}.
 process_iq(Acc0, From, To, El) ->
@@ -122,7 +122,7 @@ process_iq(_, Acc, From, To, El) ->
 -spec process_iq_reply(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
                        mongoose_acc:t(),
-                       IQ :: ejabberd:iq() ) -> 'nothing' | 'ok'.
+                       IQ :: jlib:iq() ) -> 'nothing' | 'ok'.
 process_iq_reply(From, To, _Acc, #iq{id = ID} = IQ) ->
     % this is used only by mod_ping, doesn't make sense to rewrite it further
     case get_iq_callback(ID) of
@@ -137,7 +137,7 @@ process_iq_reply(From, To, _Acc, #iq{id = ID} = IQ) ->
     end.
 
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(), El :: xmlel(),
+-spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(), El :: exml:element(),
                      Extra :: any()) ->
     ok | {error, lager_not_running}.
 process_packet(Acc, From, To, El, _Extra) ->
@@ -154,7 +154,7 @@ process_packet(Acc, From, To, El, _Extra) ->
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
                Acc :: mongoose_acc:t(),
-               IQ :: ejabberd:iq(),
+               IQ :: jlib:iq(),
                F :: fun()) -> mongoose_acc:t().
 route_iq(From, To, Acc, IQ, F) ->
     route_iq(From, To, Acc, IQ, F, undefined).
@@ -163,7 +163,7 @@ route_iq(From, To, Acc, IQ, F) ->
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
                Acc :: mongoose_acc:t(),
-               IQ :: ejabberd:iq(),
+               IQ :: jlib:iq(),
                F :: fun(),
                Timeout :: undefined | integer()) -> mongoose_acc:t().
 route_iq(From, To, Acc, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
@@ -231,7 +231,7 @@ refresh_iq_handlers() ->
 -spec bounce_resource_packet(Acc:: mongoose_acc:t(),
                              From :: ejabberd:jid(),
                              To :: ejabberd:jid(),
-                             El :: jlib:xmlel()) -> {'stop', mongoose_acc:t()}.
+                             El :: exml:element()) -> {'stop', mongoose_acc:t()}.
 bounce_resource_packet(Acc, From, To, El) ->
     Err = jlib:make_error_reply(El, mongoose_xmpp_errors:item_not_found()),
     ejabberd_router:route(To, From, Err),

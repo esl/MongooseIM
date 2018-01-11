@@ -85,7 +85,7 @@ These options will only have effect when the `odbc` backend is used:
 
 ```erlang
 -spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
-                          Packet :: jlib:xmlel()) -> boolean().
+                          Packet :: exml:element()) -> boolean().
 ```
 
 Servers SHOULD NOT archive messages that do not have a `<body/>` child tag. Servers SHOULD NOT archive delayed messages.

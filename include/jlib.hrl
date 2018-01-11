@@ -40,7 +40,6 @@
              sub_el       :: [exml:element()] | exml:element()
             }).
 
--type iq() :: #iq{}.
 -type jid() :: #jid{}.
 -type ljid() :: {ejabberd:luser(), ejabberd:lserver(), ejabberd:lresource()}.
 

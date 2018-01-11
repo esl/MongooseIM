@@ -109,7 +109,7 @@ mam_lookup_messages(Result = {error, _}, _Host, _Params) ->
 -spec mam_archive_message(Result :: any(), Host :: ejabberd:server(),
     _MessId :: mod_mam:message_id(), _ArcID :: mod_mam:archive_id(),
     _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
-    _SrcJID :: ejabberd:jid(), _Dir :: atom(), _Packet :: jlib:xmlel()) -> any().
+    _SrcJID :: ejabberd:jid(), _Dir :: atom(), _Packet :: exml:element()) -> any().
 mam_archive_message(Result, Host,
     _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
     mongoose_metrics:update(Host, modMamArchived, 1),
@@ -130,7 +130,7 @@ mam_drop_message(Acc, Host) ->
 
 %% #rh
 -spec mam_drop_iq(Acc :: map(), Host :: ejabberd:server(), _To :: ejabberd:jid(),
-    _IQ :: ejabberd:iq(), _Action :: any(), _Reason :: any()) -> metrics_notify_return().
+    _IQ :: jlib:iq(), _Action :: any(), _Reason :: any()) -> metrics_notify_return().
 mam_drop_iq(Acc, Host, _To, _IQ, _Action, _Reason) ->
     mongoose_metrics:update(Host, modMamDroppedIQ, 1),
     Acc.

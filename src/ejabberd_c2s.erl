@@ -70,7 +70,7 @@
 
 -export_type([broadcast/0]).
 
--type packet() :: {ejabberd:jid(), ejabberd:jid(), xmlel()}.
+-type packet() :: {ejabberd:jid(), ejabberd:jid(), exml:element()}.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -268,7 +268,7 @@ stream_start_error(Error, StateData) ->
     c2s_stream_error(Error, StateData).
 
 -spec c2s_stream_error(Error, State) -> Result when
-      Error :: jlib:xmlel(),
+      Error :: exml:element(),
       State :: state(),
       Result :: {stop, normal, state()}.
 c2s_stream_error(Error, StateData) ->
@@ -1291,7 +1291,7 @@ process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
 -spec preprocess_and_ship(Acc :: mongoose_acc:t(),
                           From :: ejabberd:jid(),
                           To :: ejabberd:jid(),
-                          El :: xmlel(),
+                          El :: exml:element(),
                           StateData :: state()) -> {ok | resume, mongoose_acc:t(), state()}.
 preprocess_and_ship(Acc, From, To, El, StateData) ->
     #xmlel{attrs = Attrs} = El,
@@ -1356,7 +1356,7 @@ handle_routed_iq(From, To, Acc, StateData) ->
 -spec handle_routed_iq(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
                        Acc :: mongoose_acc:t(),
-                       IQ :: invalid | not_iq | reply | ejabberd:iq(),
+                       IQ :: invalid | not_iq | reply | jlib:iq(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST }, StateData) ->
     %% TODO: Support for mod_last / XEP-0012. Can we move it to the respective module?
@@ -1664,7 +1664,7 @@ send_text(StateData, Text) ->
     mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], Size),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
--spec maybe_send_element_safe(state(), El :: jlib:xmlel()) -> any().
+-spec maybe_send_element_safe(state(), El :: exml:element()) -> any().
 maybe_send_element_safe(#state{stream_mgmt = false} = State, El) ->
     send_element(State, El);
 maybe_send_element_safe(State, El) ->
@@ -1673,7 +1673,7 @@ maybe_send_element_safe(State, El) ->
         _ -> error
     end.
 
--spec send_element(state(), xmlel()) -> any().
+-spec send_element(state(), exml:element()) -> any().
 send_element(#state{server = Server} = StateData, #xmlel{} = El) ->
     % used mostly in states other then session_established
     Acc = mongoose_acc:from_element(El),
@@ -1681,7 +1681,7 @@ send_element(#state{server = Server} = StateData, #xmlel{} = El) ->
     mongoose_acc:get(send_result, Acc1).
 
 %% @doc This is the termination point - from here stanza is sent to the user
--spec send_element(mongoose_acc:t(), xmlel(), state()) -> mongoose_acc:t().
+-spec send_element(mongoose_acc:t(), exml:element(), state()) -> mongoose_acc:t().
 send_element(Acc, El,  #state{server = Server} = StateData) ->
     Acc1 = ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [El]),
     Res = do_send_element(El, StateData),
@@ -1784,7 +1784,7 @@ new_id() ->
     iolist_to_binary(randoms:get_string()).
 
 
--spec is_auth_packet(El :: jlib:xmlel()) -> boolean().
+-spec is_auth_packet(El :: exml:element()) -> boolean().
 is_auth_packet(El) ->
     case jlib:iq_query_info(El) of
         #iq{id = ID, type = Type, xmlns = ?NS_AUTH, sub_el = SubEl} ->
@@ -1796,7 +1796,7 @@ is_auth_packet(El) ->
     end.
 
 
--spec get_auth_tags(Els :: [jlib:xmlel()], _, _, _, _) -> {_, _, _, _}.
+-spec get_auth_tags(Els :: [exml:element()], _, _, _, _) -> {_, _, _, _}.
 get_auth_tags([#xmlel{name = Name, children = Els}| L], U, P, D, R) ->
     CData = xml:get_cdata(Els),
     case Name of
@@ -2147,7 +2147,7 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
    end.
 
 
--spec privacy_check_packet(Packet :: jlib:xmlel(),
+-spec privacy_check_packet(Packet :: exml:element(),
                            From :: ejabberd:jid(),
                            To :: ejabberd:jid(),
                            Dir :: 'in' | 'out',
@@ -2172,7 +2172,7 @@ privacy_check_packet(Acc, To, Dir, StateData) ->
                                           Dir).
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
-                           Packet :: xmlel(),
+                           Packet :: exml:element(),
                            From :: ejabberd:jid(),
                            To :: ejabberd:jid(),
                            Dir :: 'in' | 'out',
@@ -2207,7 +2207,7 @@ presence_broadcast(Acc, JIDSet, StateData) ->
                                     From :: 'undefined' | ejabberd:jid(),
                                     T :: jid_set(),
                                     A :: jid_set(),
-                                    Packet :: jlib:xmlel()) -> mongoose_acc:t().
+                                    Packet :: exml:element()) -> mongoose_acc:t().
 presence_broadcast_to_trusted(Acc, StateData, From, T, A, Packet) ->
     lists:foldl(
       fun(JID, Ac) ->
@@ -2223,7 +2223,7 @@ presence_broadcast_to_trusted(Acc, StateData, From, T, A, Packet) ->
 -spec presence_broadcast_first(mongoose_acc:t(),
                                From :: 'undefined' | ejabberd:jid(),
                                State :: state(),
-                               Packet :: jlib:xmlel()) -> {mongoose_acc:t(), state()}.
+                               Packet :: exml:element()) -> {mongoose_acc:t(), state()}.
 presence_broadcast_first(Acc0, From, StateData, Packet) ->
     Stanza = #xmlel{name = <<"presence">>,
         attrs = [{<<"type">>, <<"probe">>}]},
@@ -2313,7 +2313,7 @@ roster_change(Acc, IJID, ISubscription, StateData) ->
 
 -spec update_priority(Acc :: mongoose_acc:t(),
                       Priority :: integer(),
-                      Packet :: jlib:xmlel(),
+                      Packet :: exml:element(),
                       State :: state()) -> mongoose_acc:t().
 update_priority(Acc, Priority, Packet, StateData) ->
     Info = [{ip, StateData#state.ip}, {conn, StateData#state.conn},
@@ -2328,7 +2328,7 @@ update_priority(Acc, Priority, Packet, StateData) ->
                              Info).
 
 
--spec get_priority_from_presence(Packet :: jlib:xmlel()) -> integer().
+-spec get_priority_from_presence(Packet :: exml:element()) -> integer().
 get_priority_from_presence(undefined) ->
     0;
 get_priority_from_presence(PresencePacket) ->
@@ -2473,7 +2473,7 @@ get_statustag(Presence) ->
 
 
 -spec process_unauthenticated_stanza(State :: state(),
-                                     El :: jlib:xmlel()) -> any().
+                                     El :: exml:element()) -> any().
 process_unauthenticated_stanza(StateData, El) ->
     NewEl = case xml:get_tag_attr_s(<<"xml:lang">>, El) of
                 <<>> ->
@@ -2564,8 +2564,8 @@ is_ip_blacklisted({IP, _Port}) ->
 
 %% @doc Check from attributes.
 -spec check_from(El, C2SJID) -> Result when
-      El :: jlib:xmlel(), C2SJID :: ejabberd:jid(),
-      Result :: 'invalid-from'  | jlib:xmlel().
+      El :: exml:element(), C2SJID :: ejabberd:jid(),
+      Result :: 'invalid-from'  | exml:element().
 check_from(El, #jid{ luser = C2SU, lserver = C2SS, lresource = C2SR }) ->
     case xml:get_tag_attr(<<"from">>, El) of
         false ->
@@ -3220,7 +3220,7 @@ defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undef
 defer_resource_constraint_check(State)->
     State.
 
--spec sasl_success_stanza(any()) -> xmlel().
+-spec sasl_success_stanza(any()) -> exml:element().
 sasl_success_stanza(ServerOut) ->
     C = case ServerOut of
             undefined -> [];
@@ -3230,7 +3230,7 @@ sasl_success_stanza(ServerOut) ->
            attrs = [{<<"xmlns">>, ?NS_SASL}],
            children = C}.
 
--spec sasl_failure_stanza(binary() | {binary(), iodata() | undefined}) -> xmlel().
+-spec sasl_failure_stanza(binary() | {binary(), iodata() | undefined}) -> exml:element().
 sasl_failure_stanza(Error) when is_binary(Error) ->
     sasl_failure_stanza({Error, undefined});
 sasl_failure_stanza({Error, Text}) ->
@@ -3243,7 +3243,7 @@ maybe_text_tag(Text) ->
     [#xmlel{name = <<"text">>,
             children = [#xmlcdata{content = Text}]}].
 
--spec sasl_challenge_stanza(any()) -> xmlel().
+-spec sasl_challenge_stanza(any()) -> exml:element().
 sasl_challenge_stanza(Challenge) ->
     #xmlel{name = <<"challenge">>,
            attrs = [{<<"xmlns">>, ?NS_SASL}],

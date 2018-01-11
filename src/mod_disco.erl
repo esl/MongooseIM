@@ -152,8 +152,8 @@ unregister_extra_domain(Host, Domain) ->
     ets:delete(disco_extra_domains, {Domain, Host}).
 
 
--spec process_local_iq_items(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
-    {mongoose_acc:t(), ejabberd:iq()}.
+-spec process_local_iq_items(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), jlib:iq()) ->
+    {mongoose_acc:t(), jlib:iq()}.
 process_local_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
@@ -174,8 +174,8 @@ process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubE
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
--spec process_local_iq_info(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
-    {mongoose_acc:t(), ejabberd:iq()}.
+-spec process_local_iq_info(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), jlib:iq()) ->
+    {mongoose_acc:t(), jlib:iq()}.
 process_local_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
@@ -203,11 +203,11 @@ process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
--spec get_local_identity(Acc :: [jlib:xmlel()],
+-spec get_local_identity(Acc :: [exml:element()],
                         From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
                         Node :: binary(),
-                        Lang :: ejabberd:lang()) -> [jlib:xmlel()].
+                        Lang :: ejabberd:lang()) -> [exml:element()].
 get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
     Acc ++ [#xmlel{name = <<"identity">>,
                    attrs = [{<<"category">>, <<"server">>},
@@ -242,7 +242,7 @@ get_local_features(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
 
 
 -spec features_to_xml(FeatureList :: [{feature(), ejabberd:server()}]
-                     ) -> [jlib:xmlel()].
+                     ) -> [exml:element()].
 features_to_xml(FeatureList) ->
     %% Avoid duplicating features
     [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, Feat}]} ||
@@ -255,7 +255,7 @@ features_to_xml(FeatureList) ->
                               end, FeatureList))].
 
 
--spec domain_to_xml(binary() | {binary()}) -> jlib:xmlel().
+-spec domain_to_xml(binary() | {binary()}) -> exml:element().
 domain_to_xml({Domain}) ->
     #xmlel{name = <<"item">>, attrs = [{<<"jid">>, Domain}]};
 domain_to_xml(Domain) ->
@@ -313,8 +313,8 @@ check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec process_sm_iq_items(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
-    {string(), ejabberd:iq()}.
+-spec process_sm_iq_items(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), jlib:iq()) ->
+    {string(), jlib:iq()}.
 process_sm_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
@@ -387,8 +387,8 @@ is_presence_subscribed(#jid{luser=User, lserver=Server}, #jid{luser=LUser, lserv
     orelse User == LUser andalso Server == LServer.
 
 
--spec process_sm_iq_info(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
-    {mongoose_acc:t(), ejabberd:iq()}.
+-spec process_sm_iq_info(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), jlib:iq()) ->
+    {mongoose_acc:t(), jlib:iq()}.
 process_sm_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
@@ -419,11 +419,11 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
     end.
 
 
--spec get_sm_identity(Acc :: [jlib:xmlel()],
+-spec get_sm_identity(Acc :: [exml:element()],
                       From :: ejabberd:jid(),
                       To :: ejabberd:jid(),
                       Node :: binary(),
-                      Lang :: ejabberd:lang()) -> [jlib:xmlel()].
+                      Lang :: ejabberd:lang()) -> [exml:element()].
 get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
     Acc ++  case ejabberd_auth:is_user_exists(LUser, LServer) of
         true ->
@@ -453,7 +453,7 @@ get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_user_resources(ejabberd:user(), ejabberd:server()) -> [jlib:xmlel()].
+-spec get_user_resources(ejabberd:user(), ejabberd:server()) -> [exml:element()].
 get_user_resources(User, Server) ->
     Rs = ejabberd_sm:get_user_resources(User, Server),
     lists:map(fun(R) ->
@@ -470,8 +470,8 @@ make_node_attr(Node) -> [{<<"node">>, Node}].
 
 %%% Support for: XEP-0157 Contact Addresses for XMPP Services
 
--spec get_info(Acc :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
-        Lang :: ejabberd:lang()) -> [jlib:xmlel()].
+-spec get_info(Acc :: [exml:element()], ejabberd:server(), module(), Node :: binary(),
+        Lang :: ejabberd:lang()) -> [exml:element()].
 get_info(Acc, Host, Mod, Node, _Lang) when Node == <<>> ->
     Module = case Mod of
                  undefined ->
@@ -491,7 +491,7 @@ get_info(Acc, _, _, _Node, _) ->
     Acc.
 
 
--spec get_fields_xml(ejabberd:server(), module()) -> [jlib:xmlel()].
+-spec get_fields_xml(ejabberd:server(), module()) -> [exml:element()].
 get_fields_xml(Host, Module) ->
     Fields = gen_mod:get_module_opt(Host, ?MODULE, server_info, []),
 
@@ -509,18 +509,18 @@ get_fields_xml(Host, Module) ->
 
 
 -spec fields_to_xml([{Modules :: [module()], Var :: string(), Values :: [string()]}]) ->
-    [jlib:xmlel()].
+    [exml:element()].
 fields_to_xml(Fields) ->
     [ field_to_xml(Field) || Field <- Fields].
 
 
--spec field_to_xml({Modules :: [module()], Var :: string(), Values :: [string()]}) -> jlib:xmlel().
+-spec field_to_xml({Modules :: [module()], Var :: string(), Values :: [string()]}) -> exml:element().
 field_to_xml({_Module, Var, Values}) ->
     #xmlel{name = <<"field">>, attrs = [{<<"var">>, list_to_binary(Var)}],
            children = values_to_xml(Values)}.
 
 
--spec values_to_xml([binary()]) -> [jlib:xmlel()].
+-spec values_to_xml([binary()]) -> [exml:element()].
 values_to_xml(Values) ->
     [ #xmlel{name = <<"value">>, children = [#xmlcdata{content = list_to_binary(Value)}]}
       || Value <- Values ].

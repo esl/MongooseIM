@@ -108,8 +108,8 @@ stop(Host) ->
 %%%
 %%% Uptime of ejabberd node
 %%%
--spec process_local_iq(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq())
-        -> {mongoose_acc:t(), ejabberd:iq()}.
+-spec process_local_iq(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), jlib:iq())
+        -> {mongoose_acc:t(), jlib:iq()}.
 process_local_iq(_From, _To, Acc,
     #iq{type = Type, sub_el = SubEl} = IQ) ->
     case Type of
@@ -143,8 +143,8 @@ now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
 %%%
 %%% Serve queries about user last online
 %%%
--spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), ejabberd:iq()) ->
-    {mongoose_acc:t(), ejabberd:iq()}.
+-spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), jlib:iq()) ->
+    {mongoose_acc:t(), jlib:iq()}.
 process_sm_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
@@ -170,8 +170,8 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}
     end.
 
--spec make_response(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],
-                    ejabberd:luser(), ejabberd:lserver(), allow | deny) -> ejabberd:iq().
+-spec make_response(jlib:iq(), SubEl :: 'undefined' | [exml:element()],
+                    ejabberd:luser(), ejabberd:lserver(), allow | deny) -> jlib:iq().
 make_response(IQ, SubEl, _, _, deny) ->
     IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]};
 make_response(IQ, SubEl, LUser, LServer, allow) ->

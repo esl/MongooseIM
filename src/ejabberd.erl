@@ -61,7 +61,7 @@
 %% Incoming event from XML stream. Used everywhere in xmlstream fsm modules
 -type xml_stream_item() :: 'closed'
                           | 'timeout'
-                          | {'xmlstreamelement', jlib:xmlel()}
+                          | {'xmlstreamelement', exml:element()}
                           | {'xmlstreamend', _}
                           | {'xmlstreamerror', _}
                           | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
@@ -69,7 +69,6 @@
 -export_type([lang/0,
               sockmod/0,
               jid/0, simple_jid/0, simple_bare_jid/0,
-              iq/0,
               xml_stream_item/0,
               user/0, server/0, resource/0,
               luser/0, lserver/0, lresource/0,

@@ -220,7 +220,7 @@ remove_config_parent(Node, [H | T], Acc) ->
         Key            :: mod_pubsub:hostPubsub(),
         Owners         :: [ljid(), ...],
         ParentNodes    :: [mod_pubsub:nodeId()])
-    -> true | {error, xmlel()}.
+    -> true | {error, exml:element()}.
 validate_parentage(_Key, _Owners, []) ->
     true;
 validate_parentage(Key, Owners, [[] | T]) ->

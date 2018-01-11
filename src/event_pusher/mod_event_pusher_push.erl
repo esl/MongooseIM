@@ -118,7 +118,7 @@ remove_user(Acc, LUser, LServer) ->
     Acc.
 
 -spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
-                 IQ :: ejabberd:iq()) -> {mongoose_acc:t(), ejabberd:iq()}.
+                 IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq()}.
 iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
@@ -142,7 +142,7 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
 %%--------------------------------------------------------------------
 
 -spec handle_publish_response(BareRecipient :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
-                              Node :: pubsub_node(), Result :: timeout | iq()) -> ok.
+                              Node :: pubsub_node(), Result :: timeout | jlib:iq()) -> ok.
 handle_publish_response(_BareRecipient, _PubsubJID, _Node, timeout) ->
     ok;
 handle_publish_response(_BareRecipient, _PubsubJID, _Node, #iq{type = result}) ->
@@ -157,7 +157,7 @@ handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error}) ->
 %% Module API
 %%--------------------------------------------------------------------
 
--spec publish_message(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> ok.
+-spec publish_message(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: exml:element()) -> ok.
 publish_message(From, To = #jid{lserver = Host}, Packet) ->
     ?DEBUG("Handle push notification ~p", [{From, To, Packet}]),
 
@@ -212,7 +212,7 @@ parse_request(#xmlel{name = <<"disable">>} = Request) ->
 parse_request(_) ->
     bad_request.
 
--spec parse_form(undefined | jlib:xmlel()) -> invalid_form | form().
+-spec parse_form(undefined | exml:element()) -> invalid_form | form().
 parse_form(undefined) ->
     [];
 parse_form(Form) ->
@@ -236,7 +236,7 @@ parse_form(Form) ->
     end.
 
 -spec push_notification_iq(Host :: ejabberd:server(), From :: ejabberd:jid(),
-                           Packet :: jlib:xmlel(), Node :: pubsub_node(), Form :: form()) -> iq().
+                           Packet :: exml:element(), Node :: pubsub_node(), Form :: form()) -> jlib:iq().
 push_notification_iq(Host, From, Packet, Node, Form) ->
     ContentFields =
         [
@@ -257,7 +257,7 @@ push_notification_iq(Host, From, Packet, Node, Form) ->
         ] ++ maybe_publish_options(Form)}
     ]}.
 
-    -spec maybe_publish_options(form()) -> [jlib:xmlel()].
+    -spec maybe_publish_options(form()) -> [exml:element()].
 maybe_publish_options([]) ->
     [];
 maybe_publish_options(FormFields) ->
@@ -266,12 +266,12 @@ maybe_publish_options(FormFields) ->
                         make_form([{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ FormFields)
                        ]}].
 
--spec make_form(form()) -> jlib:xmlel().
+-spec make_form(form()) -> exml:element().
 make_form(Fields) ->
     #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
            children = [make_form_field(Field) || Field <- Fields]}.
 
--spec make_form_field(form_field()) -> jlib:xmlel().
+-spec make_form_field(form_field()) -> exml:element().
 make_form_field({Name, Value}) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Name}],

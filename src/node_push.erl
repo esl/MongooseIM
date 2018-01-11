@@ -203,7 +203,7 @@ is_allowed_to_publish(PublishModel, Affiliation) ->
               or (Affiliation == publish_only)).
 
 
--spec parse_form(undefined | jlib:xmlel()) -> invalid_form | #{atom() => binary()}.
+-spec parse_form(undefined | exml:element()) -> invalid_form | #{atom() => binary()}.
 parse_form(undefined) ->
     #{};
 parse_form(Form) ->

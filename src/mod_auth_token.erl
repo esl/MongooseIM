@@ -243,7 +243,7 @@ is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
                true
     end.
 
--spec process_iq(jid(), mongoose_acc:t(), jid(), iq()) -> {mongoose_acc:t(), iq()} | error().
+-spec process_iq(jid(), mongoose_acc:t(), jid(), jlib:iq()) -> {mongoose_acc:t(), jlib:iq()} | error().
 process_iq(From, To, Acc, #iq{xmlns = ?NS_ESL_TOKEN_AUTH} = IQ) ->
     IQResp = case lists:member(From#jid.lserver, ?MYHOSTS) of
         true -> process_local_iq(From, To, IQ);

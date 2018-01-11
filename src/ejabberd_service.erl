@@ -138,7 +138,7 @@ socket_type() ->
 %%%----------------------------------------------------------------------
 
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
-    El :: xmlel(), Pid :: pid()) -> any().
+    El :: exml:element(), Pid :: pid()) -> any().
 process_packet(Acc, From, To, El, Pid) ->
     Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}.
 
@@ -413,7 +413,7 @@ send_text(StateData, Text) ->
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 
--spec send_element(state(), jlib:xmlel()) -> binary().
+-spec send_element(state(), exml:element()) -> binary().
 send_element(StateData, El) ->
     send_text(StateData, exml:to_binary(El)).
 

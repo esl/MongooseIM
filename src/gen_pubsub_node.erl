@@ -121,7 +121,7 @@
         }.
 
 -callback purge_node(NodeIdx :: nodeIdx(), Owner :: jid()) ->
-    {result, {default, broadcast}} | {error, xmlel()}.
+    {result, {default, broadcast}} | {error, exml:element()}.
 
 -callback subscribe_node(NodeIdx :: nodeIdx(),
         Sender :: jid(),
@@ -134,13 +134,13 @@
     {result, {default, subscribed, subId()}} |
     {result, {default, subscribed, subId(), send_last}} |
     {result, {default, pending, subId()}} |
-    {error, xmlel()}.
+    {error, exml:element()}.
 
 -callback unsubscribe_node(NodeIdx :: nodeIdx(),
         Sender :: jid(),
         Subscriber :: jid(),
         SubId :: subId()) ->
-    {result, default} | {error, xmlel()}.
+    {result, default} | {error, exml:element()}.
 
 -callback publish_item(ServerHost :: ejabberd:server(),
         NodeId :: nodeIdx(),
@@ -151,13 +151,13 @@
         ItemPublisher :: boolean(),
         Payload :: payload(),
         PublishOptions :: publishOptions()) ->
-    {result, {default, broadcast, [itemId()]}} | {error, xmlel()}.
+    {result, {default, broadcast, [itemId()]}} | {error, exml:element()}.
 
 -callback delete_item(NodeIdx :: nodeIdx(),
         Publisher :: jid(),
         PublishModel :: publishModel(),
         ItemId :: <<>> | itemId()) ->
-    {result, {default, broadcast}} | {error, xmlel()}.
+    {result, {default, broadcast}} | {error, exml:element()}.
 
 -callback remove_extra_items(NodeIdx :: nodeIdx(),
         MaxItems :: unlimited | non_neg_integer(),
@@ -172,7 +172,7 @@
 -callback get_affiliation(NodeIdx :: nodeIdx(), Owner :: jid()) -> {result, affiliation()}.
 
 -callback set_affiliation(NodeIdx :: nodeIdx(), Owner :: jid(), Affiliation :: affiliation()) ->
-    ok | {error, xmlel()}.
+    ok | {error, exml:element()}.
 
 -callback get_node_subscriptions(NodeIdx :: nodeIdx()) ->
     {result,
@@ -192,7 +192,7 @@
 
 -callback get_state(NodeIdx :: nodeIdx(), Key :: ljid()) -> pubsubState().
 
--callback set_state(State::pubsubState()) -> ok | {error, xmlel()}.
+-callback set_state(State::pubsubState()) -> ok | {error, exml:element()}.
 
 -callback get_items(NodeIdx :: nodeIdx(),
         JID :: jid(),
@@ -201,7 +201,7 @@
         RosterGroup :: boolean(),
         SubId :: subId(),
         RSM :: none | jlib:rsm_in()) ->
-    {result, {[pubsubItem()], none | jlib:rsm_out()}} | {error, xmlel()}.
+    {result, {[pubsubItem()], none | jlib:rsm_out()}} | {error, exml:element()}.
 
 -callback get_items(NodeIdx :: nodeIdx(), From :: jid(), RSM :: none | jlib:rsm_in()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}}.
@@ -213,10 +213,10 @@
         PresenceSubscription :: boolean(),
         RosterGroup :: boolean(),
         SubId :: subId()) ->
-    {result, pubsubItem()} | {error, xmlel()}.
+    {result, pubsubItem()} | {error, exml:element()}.
 
 -callback get_item(NodeIdx :: nodeIdx(), ItemId :: itemId()) ->
-    {result, pubsubItem()} | {error, xmlel()}.
+    {result, pubsubItem()} | {error, exml:element()}.
 
 -callback set_item(Item :: pubsubItem()) -> ok.
 

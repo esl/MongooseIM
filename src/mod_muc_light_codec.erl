@@ -15,9 +15,9 @@
 -export([encode_error/6]).
 
 -type encoded_packet_handler() ::
-    fun((From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> any()).
+    fun((From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: exml:element()) -> any()).
 
--type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | ejabberd:iq()}
+-type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | jlib:iq()}
                        | {error, bad_request} | ignore.
 
 -export_type([encoded_packet_handler/0, decode_result/0]).
@@ -26,7 +26,7 @@
 %% Behaviour callbacks
 %%====================================================================
 
--callback decode(From :: ejabberd:jid(), To :: ejabberd:jid(), Stanza :: jlib:xmlel()) ->
+-callback decode(From :: ejabberd:jid(), To :: ejabberd:jid(), Stanza :: exml:element()) ->
     decode_result().
 
 -callback encode(Request :: muc_light_encode_request(), OriginalSender :: ejabberd:jid(),
@@ -34,7 +34,7 @@
                  HandleFun :: encoded_packet_handler()) -> any().
 
 -callback encode_error(ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
-                       OrigPacket :: jlib:xmlel(), HandleFun :: encoded_packet_handler()) ->
+                       OrigPacket :: exml:element(), HandleFun :: encoded_packet_handler()) ->
     any().
 
 %%====================================================================
@@ -42,14 +42,14 @@
 %%====================================================================
 
 -spec encode_error(ErrMsg :: tuple(), ExtraChildren :: [jlib:xmlch()], OrigFrom :: ejabberd:jid(),
-                   OrigTo :: ejabberd:jid(), OrigPacket :: jlib:xmlel(),
+                   OrigTo :: ejabberd:jid(), OrigPacket :: exml:element(),
                    HandleFun :: encoded_packet_handler()) -> any().
 encode_error(ErrMsg, ExtraChildren, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
     ErrorElem = make_error_elem(ErrMsg),
     ErrorPacket = jlib:make_error_reply(OrigPacket#xmlel{ children = ExtraChildren }, ErrorElem),
     HandleFun(OrigTo, OrigFrom, ErrorPacket).
 
--spec make_error_elem(tuple()) -> jlib:xmlel().
+-spec make_error_elem(tuple()) -> exml:element().
 make_error_elem({error, not_allowed}) ->
     mongoose_xmpp_errors:not_allowed();
 make_error_elem({error, bad_request}) ->

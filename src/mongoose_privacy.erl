@@ -26,7 +26,7 @@
 %% the caller wants something different (e.g. mod_last which swaps addresses)
 %% the first arg can be accumulator, if we are checking its element, or a tuple
 %% {Acc, El} for cases where one acc triggers sending many messages which have to be checked
--spec privacy_check_packet(Acc :: mongoose_acc:t() | {mongoose_acc:t(), jlib:xmlel()},
+-spec privacy_check_packet(Acc :: mongoose_acc:t() | {mongoose_acc:t(), exml:element()},
                            Server :: binary(),
                            User :: binary(),
                            PrivacyList :: userlist(),
@@ -43,7 +43,7 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, To, Dir) ->
 %% @doc check packet, store result in accumulator, return acc and result for quick check
 %% Acc can be either a single argument (an Accumulator) or a tuple of {Acc, Stanza}
 %% in the latter case name and type to check against privacy lists are taken from the Stanza
--spec privacy_check_packet(Acc :: mongoose_acc:t() | {mongoose_acc:t(), jlib:xmlel()},
+-spec privacy_check_packet(Acc :: mongoose_acc:t() | {mongoose_acc:t(), exml:element()},
                            Server :: binary(),
                            User :: binary(),
                            PrivacyList :: userlist(),

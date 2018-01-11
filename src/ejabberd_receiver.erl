@@ -352,7 +352,7 @@ maybe_run_keep_alive_hook(_, _) ->
 %% When we receive directly xmlel tuple (from a socket module
 %% speaking directly Erlang XML), we wrap it inside the same
 %% xmlstreamelement coming from the XML parser.
--spec element_wrapper(jlib:xmlel() | tuple()) -> tuple().
+-spec element_wrapper(exml:element() | tuple()) -> tuple().
 element_wrapper(#xmlel{} = XMLElement) ->
     {xmlstreamelement, XMLElement};
 element_wrapper(Element) ->

@@ -108,7 +108,7 @@
 -type broadcast_result() :: {new_state, NewState :: state()}
                           | {exit, Reason :: binary()}
                           | {send_new, From :: ejabberd:jid(), To :: ejabberd:jid(),
-                             Packet :: jlib:xmlel(),
+                             Packet :: exml:element(),
                              NewState :: state()}.
 
 -type routing_result_atom() :: allow | deny | forbidden | ignore | block | invalid | probe.
@@ -116,7 +116,7 @@
 -type routing_result() :: {DoRoute :: routing_result_atom(), NewAcc :: mongoose_acc:t(),
                            NewState :: state()}
                         | {DoRoute :: routing_result_atom(), NewAcc :: mongoose_acc:t(),
-                           NewPacket :: jlib:xmlel(), NewState :: state()}.
+                           NewPacket :: exml:element(), NewState :: state()}.
 
 %-define(DBGFSM, true).
 -ifdef(DBGFSM).

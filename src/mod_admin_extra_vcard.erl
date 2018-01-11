@@ -196,7 +196,7 @@ get_vcard_content(Acc, User, Server, Data) ->
     end.
 
 
--spec get_vcard([binary()], jlib:xmlel()) -> [jlib:xmlel()].
+-spec get_vcard([binary()], exml:element()) -> [exml:element()].
 get_vcard([Data1, Data2], A1) ->
     A2List = exml_query:subelements(A1, Data1),
     lists:flatten([get_vcard([Data2], A2) || A2 <- A2List]);
@@ -229,8 +229,8 @@ set_vcard_content(Acc, User, Server, Data, ContentList) ->
 
 -spec update_vcard_els(Data :: [binary(), ...],
                        ContentList :: [binary() | string()],
-                       Els :: [jlib:xmlcdata() | jlib:xmlel()]
-                      ) -> [jlib:xmlcdata() | jlib:xmlel()].
+                       Els :: [jlib:xmlcdata() | exml:element()]
+                      ) -> [jlib:xmlcdata() | exml:element()].
 update_vcard_els(Data, ContentList, Els1) ->
     Els2 = lists:keysort(2, Els1),
     [Data1 | Data2] = Data,

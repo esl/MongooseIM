@@ -83,7 +83,7 @@
 -type room() :: binary().
 -type nick() :: binary().
 -type room_host() :: ejabberd:simple_bare_jid().
--type packet() :: jlib:xmlel().
+-type packet() :: exml:element().
 -type from_to_packet() ::
         {From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
          Packet :: packet()}.
@@ -236,7 +236,7 @@ forget_room(Host, Name) ->
 
 
 -spec process_iq_disco_items(Host :: ejabberd:server(), From :: ejabberd:jid(),
-        To :: ejabberd:jid(), ejabberd:iq()) -> mongoose_acc:t().
+        To :: ejabberd:jid(), jlib:iq()) -> mongoose_acc:t().
 process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
     Rsm = jlib:rsm_decode(IQ),
     Res = IQ#iq{type = result,
@@ -484,7 +484,7 @@ stop_supervisor(Host) ->
 -spec process_packet(Acc :: mongoose_acc:t(),
                      From :: jid(),
                      To :: ejabberd:simple_jid() | ejabberd:jid(),
-                     El :: xmlel(),
+                     El :: exml:element(),
                      State :: state()) -> ok | mongoose_acc:t().
 process_packet(Acc, From, To, El, #state{
                                     access = {AccessRoute, _, _, _},
@@ -782,7 +782,7 @@ room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
 -spec default_host() -> binary().
 default_host() -> <<"conference.@HOST@">>.
 
--spec iq_disco_info(ejabberd:lang()) -> [jlib:xmlel(), ...].
+-spec iq_disco_info(ejabberd:lang()) -> [exml:element(), ...].
 iq_disco_info(Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"conference">>},
@@ -898,7 +898,7 @@ flush() ->
 
 
 -spec xfield(Type :: binary(), Label :: binary(), Var :: binary(),
-             Val :: binary(), ejabberd:lang()) -> jlib:xmlel().
+             Val :: binary(), ejabberd:lang()) -> exml:element().
 xfield(Type, Label, Var, Val, Lang) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"type">>, Type},
@@ -923,7 +923,7 @@ iq_get_unique(From) ->
 
 -spec iq_get_register_info('undefined' | ejabberd:server(),
         ejabberd:simple_jid() | ejabberd:jid(), ejabberd:lang())
-            -> [jlib:xmlel(), ...].
+            -> [exml:element(), ...].
 iq_get_register_info(Host, From, Lang) ->
     {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
@@ -956,7 +956,7 @@ iq_get_register_info(Host, From, Lang) ->
 
 -spec iq_set_register_info(ejabberd:server(),
         ejabberd:simple_jid() | ejabberd:jid(), nick(), ejabberd:lang())
-            -> {'error', jlib:xmlel()} | {'result', []}.
+            -> {'error', exml:element()} | {'result', []}.
 iq_set_register_info(Host, From, Nick, Lang) ->
     {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
@@ -1035,7 +1035,7 @@ process_register(?NS_XDATA, <<"submit">>, Host, From, Lang, XEl) ->
 process_register(_, _, _Host, _From, _Lang, _XEl) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
--spec iq_get_vcard(ejabberd:lang()) -> [jlib:xmlel(), ...].
+-spec iq_get_vcard(ejabberd:lang()) -> [exml:element(), ...].
 iq_get_vcard(Lang) ->
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_muc">>}]},

@@ -41,7 +41,7 @@
 %%====================================================================
 
 -spec handle_request(From :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
-                     OrigPacket :: jlib:xmlel(), Request :: muc_light_packet()) -> ok.
+                     OrigPacket :: exml:element(), Request :: muc_light_packet()) -> ok.
 handle_request(From, To, OrigPacket, Request) ->
     RoomUS = jid:to_lus(To),
     AffUsersRes = mod_muc_light_db_backend:get_aff_users(RoomUS),
@@ -223,7 +223,7 @@ process_aff_set(_AffReq, _RoomUS, Error) ->
 %%====================================================================
 
 -spec send_response(From :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
-                    RoomUS :: ejabberd:simple_bare_jid(), OrigPacket :: jlib:xmlel(),
+                    RoomUS :: ejabberd:simple_bare_jid(), OrigPacket :: exml:element(),
                     Result :: packet_processing_result()) -> ok.
 send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err) ->
     mod_muc_light_codec_backend:encode_error(

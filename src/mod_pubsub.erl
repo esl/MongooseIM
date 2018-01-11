@@ -133,10 +133,10 @@
               publishModel/0
              ]).
 
-%% -type payload() defined here because the -type xmlel() is not accessible
+%% -type payload() defined here because the -type exml:element() is not accessible
 %% from pubsub.hrl
--type(payload() :: [] | [xmlel(), ...]).
--type(publishOptions() :: undefined | xmlel()).
+-type(payload() :: [] | [exml:element(), ...]).
+-type(publishOptions() :: undefined | exml:element()).
 
 -export_type([
               pubsubNode/0,
@@ -507,12 +507,12 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 %%
 
 -spec disco_local_identity(
-        Acc    :: [xmlel()],
+        Acc    :: [exml:element()],
           _From  :: jid(),
           To     :: jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
-        -> [xmlel()].
+        -> [exml:element()].
 disco_local_identity(Acc, _From, To, Node, Lang) ->
     LServer = To#jid.lserver,
     disco_local_identity(Acc, LServer, Node, Lang).
@@ -540,7 +540,7 @@ disco_local_identity(Acc, _Host, _Node, _Lang) ->
     Acc.
 
 -spec disco_local_features(
-        Acc    :: [xmlel()],
+        Acc    :: [exml:element()],
           _From  :: jid(),
           To     :: jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
@@ -560,12 +560,12 @@ disco_local_items(Acc, _From, _To, <<>>, _Lang) -> Acc;
 disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_sm_identity(
-        Acc  :: empty | [xmlel()],
+        Acc  :: empty | [exml:element()],
           From :: jid(),
           To   :: jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
-        -> [xmlel()].
+        -> [exml:element()].
 disco_sm_identity(empty, From, To, Node, Lang) ->
     disco_sm_identity([], From, To, Node, Lang);
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
@@ -637,11 +637,11 @@ disco_features(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_items(Acc :: empty | {result, [xmlel()]},
+-spec disco_sm_items(Acc :: empty | {result, [exml:element()]},
                      From :: jid(),
                      To :: jid(),
                      Node :: mod_pubsub:nodeId(),
-                     Lang :: binary()) -> {result, [xmlel()]}.
+                     Lang :: binary()) -> {result, [exml:element()]}.
 disco_sm_items(empty, From, To, Node, Lang) ->
     disco_sm_items({result, []}, From, To, Node, Lang);
 disco_sm_items({result, OtherItems}, From, To, Node, _Lang) ->
@@ -653,7 +653,7 @@ disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
         Host :: mod_pubsub:host(),
           Node :: mod_pubsub:nodeId(),
           From :: jid())
-        -> [xmlel()].
+        -> [exml:element()].
 disco_items(Host, <<>>, From) ->
     Action = fun (#pubsub_node{nodeid = {_, Node},
                                options = Options, type = Type, id = Nidx, owners = O},
@@ -872,7 +872,7 @@ handle_call(stop, _From, State) ->
 handle_cast(_Msg, State) -> {noreply, State}.
 
 -spec handle_info(
-        _     :: {route, From::jid(), To::jid(), Packet::xmlel()},
+        _     :: {route, From::jid(), To::jid(), Packet::exml:element()},
           State :: state())
         -> {noreply, state()}.
 
@@ -965,7 +965,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
           Host       :: mod_pubsub:hostPubsub(),
           From       :: jid(),
           To         :: jid(),
-          Packet     :: xmlel())
+          Packet     :: exml:element())
         -> ok.
 
 %%--------------------------------------------------------------------
@@ -1159,7 +1159,7 @@ iq_disco_info(Host, SNode, From, Lang) ->
           Node   :: <<>> | mod_pubsub:nodeId(),
           From   :: jid(),
           Rsm    :: none | jlib:rsm_in())
-        -> {result, [xmlel()]} | {error, term()}.
+        -> {result, [exml:element()]} | {error, term()}.
 iq_disco_items(Host, <<>>, From, _RSM) ->
     {result,
      lists:map(fun (#pubsub_node{nodeid = {_, SubNode}, options = Options}) ->
@@ -1230,8 +1230,8 @@ iq_disco_items_transaction(Host, From, Node, RSM,
 -spec iq_sm(From :: jid(),
             To   :: jid(),
             Acc :: mongoose_acc:t(),
-            IQ   :: iq())
-        -> {mongoose_acc:t(), iq()}.
+            IQ   :: jlib:iq())
+        -> {mongoose_acc:t(), jlib:iq()}.
 iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang} = IQ) ->
     ServerHost = To#jid.lserver,
     LOwner = jid:to_lower(jid:to_bare(To)),
@@ -1260,8 +1260,8 @@ iq_get_vcard(Lang) ->
                 ServerHost :: binary(),
                 From :: jid(),
                 IQType :: get | set,
-                QueryEl :: xmlel(),
-                Lang :: binary()) -> {result, [xmlel()]} | {error, xmlel()}.
+                QueryEl :: exml:element(),
+                Lang :: binary()) -> {result, [exml:element()]} | {error, exml:element()}.
 iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
     iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang, all, plugins(ServerHost)).
 
@@ -1269,10 +1269,10 @@ iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
                 ServerHost :: binary(),
                 From :: jid(),
                 IQType :: 'get' | 'set',
-                QueryEl :: xmlel(),
+                QueryEl :: exml:element(),
                 Lang :: binary(),
                 Access :: atom(),
-                Plugins :: [binary(), ...]) -> {result, [xmlel()]} | {error, xmlel()}.
+                Plugins :: [binary(), ...]) -> {result, [exml:element()]} | {error, exml:element()}.
 iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
           Lang, Access, Plugins) ->
     case xml:remove_cdata(SubEls) of
@@ -1395,9 +1395,9 @@ iq_pubsub_set_options(Host, Node, SetOptionsAttrs, SetOptionsSubEls) ->
           ServerHost :: binary(),
           From       :: jid(),
           IQType     :: 'get' | 'set',
-          SubEl      :: xmlel(),
+          SubEl      :: exml:element(),
           Lang       :: binary())
-        -> {result, [xmlel()]}
+        -> {result, [exml:element()]}
            | {error, exml:element() | [exml:element()] | {exml:element(), [exml:element()]}}.
 iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
     #xmlel{children = SubEls} = SubEl,
@@ -1813,10 +1813,10 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
           Owner         :: jid(),
           Type          :: binary(),
           Access        :: atom(),
-          Configuration :: [xmlel()])
-        -> {result, [xmlel(), ...]}
+          Configuration :: [exml:element()])
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 create_node(Host, ServerHost, Node, Owner, Type) ->
     create_node(Host, ServerHost, Node, Owner, Type, all, []).
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
@@ -1944,9 +1944,9 @@ create_node_make_reply(Node) ->
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
           Owner :: jid())
-        -> {result, [xmlel(), ...]}
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 delete_node(_Host, <<>>, _Owner) ->
     {error, mongoose_xmpp_errors:not_allowed()};
 delete_node(Host, Node, Owner) ->
@@ -2033,10 +2033,10 @@ delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx})
           Node          :: mod_pubsub:nodeId(),
           From          :: jid(),
           JID           :: binary(),
-          Configuration :: [xmlel()])
-        -> {result, [xmlel(), ...]}
+          Configuration :: [exml:element()])
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 subscribe_node(Host, Node, From, JID, Configuration) ->
     SubOpts = case pubsub_subscription:parse_options_xform(Configuration) of
                   {result, GoodSubOpts} -> GoodSubOpts;
@@ -2173,7 +2173,7 @@ subscribe_node_reply(Subscriber, SubAttrs) ->
           SubId :: mod_pubsub:subId())
         -> {result, []}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 unsubscribe_node(Host, Node, From, JID, SubId) when is_binary(JID) ->
     unsubscribe_node(Host, Node, From, string_to_ljid(JID), SubId);
 unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
@@ -2205,9 +2205,9 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
           Publisher  :: jid(),
           ItemId     :: <<>> | mod_pubsub:itemId(),
           Payload    :: mod_pubsub:payload())
-        -> {result, [xmlel(), ...]}
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload) ->
     publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, all).
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
@@ -2349,7 +2349,7 @@ autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
           ItemId    :: mod_pubsub:itemId())
         -> {result, []}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 delete_item(Host, Node, Publisher, ItemId) ->
     delete_item(Host, Node, Publisher, ItemId, false).
 delete_item(_, <<>>, _, _, _) ->
@@ -2410,7 +2410,7 @@ delete_item_transaction(Host, Publisher, ItemId,
           Owner :: jid())
         -> {result, []}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 purge_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> purge_node_transaction(Host, Owner, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
@@ -2460,7 +2460,7 @@ purge_node_transaction(Host, Owner, #pubsub_node{options = Options, type = Type,
                 SubId :: mod_pubsub:subId(),
                 SMaxItems :: binary(),
                 ItemIds :: [mod_pubsub:itemId()],
-                Rsm :: none | jlib:rsm_in()) -> {result, [xmlel(), ...]} | {error, xmlel()}.
+                Rsm :: none | jlib:rsm_in()) -> {result, [exml:element(), ...]} | {error, exml:element()}.
 get_items(Host, Node, From, SubId, <<>>, ItemIds, RSM) ->
     MaxItems = case get_max_items_node(Host) of
                    undefined -> ?MAXITEMS;
@@ -2617,9 +2617,9 @@ dispatch_items(From, To, _Node, Options, Stanza) ->
           Node    :: mod_pubsub:nodeId(),
           JID     :: jid(),
           Plugins :: [binary()])
-        -> {result, [xmlel(), ...]}
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
     Result = lists:foldl(
                fun(Type, {Status, Acc}) ->
@@ -2660,7 +2660,7 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
     end.
 
 -spec get_affiliations(Host :: mod_pubsub:host(), Node :: mod_pubsub:nodeId(), JID :: jid()) ->
-    {result, [xmlel(), ...]} | {error, xmlel()}.
+    {result, [exml:element(), ...]} | {error, exml:element()}.
 get_affiliations(Host, Node, JID) ->
     Action = fun (PubSubNode) -> get_affiliations_transaction(Host, JID, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
@@ -2704,10 +2704,10 @@ get_affiliations_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) ->
         Host        :: mod_pubsub:host(),
           Node        :: mod_pubsub:nodeId(),
           From        :: jid(),
-          EntitiesEls :: [xmlel()])
+          EntitiesEls :: [exml:element()])
         -> {result, []} | {error, exml:element() | {exml:element(), [exml:element()]}}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 set_affiliations(Host, Node, From, EntitiesEls) ->
     Owner = jid:to_lower(jid:to_bare(From)),
     Entities = lists:foldl(fun
@@ -4278,7 +4278,7 @@ items_els(Items) ->
     [#xmlel{name = <<"item">>, attrs = item_attr(ItemId, Publisher), children = Payload}
      || #pubsub_item{itemid = {ItemId, _}, publisher = Publisher, payload = Payload } <- Items].
 
--spec add_message_type(Message :: xmlel(), Type :: atom()) -> xmlel().
+-spec add_message_type(Message :: exml:element(), Type :: atom()) -> exml:element().
 add_message_type(Message, normal) -> Message;
 add_message_type(#xmlel{name = <<"message">>, attrs = Attrs, children = Els}, Type) ->
     #xmlel{name = <<"message">>,

@@ -76,8 +76,8 @@ stop(Host) ->
 
 
 -spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
-                 IQ :: ejabberd:iq()) ->
-    {mongoose_acc:t(), ejabberd:iq() | ignore}.
+                 IQ :: jlib:iq()) ->
+    {mongoose_acc:t(), jlib:iq() | ignore}.
 iq_handler(_From, _To, Acc, IQ = #iq{type = set, sub_el = SubEl}) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
@@ -108,7 +108,7 @@ iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_e
 
 
 -spec get_disco_identity(Acc :: term(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                         Node :: binary(), ejabberd:lang()) -> [jlib:xmlel()] | term().
+                         Node :: binary(), ejabberd:lang()) -> [exml:element()] | term().
 get_disco_identity(Acc, _From, _To, _Node = <<>>, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"store">>},
@@ -119,7 +119,7 @@ get_disco_identity(Acc, _From, _To, _Node, _Lang) ->
 
 
 -spec get_disco_items(Acc :: term(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                      Node :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]} | term().
+                      Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_items({result, Nodes}, _From, #jid{lserver = Host} = _To, <<"">>, Lang) ->
     Item = #xmlel{name  = <<"item">>,
                   attrs = [{<<"jid">>, subhost(Host)}, {<<"name">>, my_disco_name(Lang)}]},
@@ -131,7 +131,7 @@ get_disco_items(Acc, _From, _To, _Node, _Lang) ->
 
 
 -spec get_disco_features(Acc :: term(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                         Node :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]} | term().
+                         Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_features({result, Nodes}, _From, _To, _Node = <<>>, _Lang) ->
     {result, [?NS_HTTP_UPLOAD_025, ?NS_HTTP_UPLOAD_030 | Nodes]};
 get_disco_features(empty, From, To, Node, Lang) ->
@@ -140,8 +140,8 @@ get_disco_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_disco_info(Acc :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
-                     Lang :: ejabberd:lang()) -> [jlib:xmlel()].
+-spec get_disco_info(Acc :: [exml:element()], ejabberd:server(), module(), Node :: binary(),
+                     Lang :: ejabberd:lang()) -> [exml:element()].
 get_disco_info(Acc, SubHost, _Mod, _Node = <<>>, _Lang) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     case max_file_size(Host) of
@@ -168,10 +168,10 @@ my_disco_name(Lang) ->
     translate:translate(Lang, <<"HTTP File Upload">>).
 
 
--spec compose_iq_reply(IQ :: ejabberd:iq(), Namespace :: binary(),
+-spec compose_iq_reply(IQ :: jlib:iq(), Namespace :: binary(),
                        PutUrl :: binary(), GetUrl :: binary(),
                        Headers :: #{binary() => binary()}) ->
-                              Reply :: ejabberd:iq().
+                              Reply :: jlib:iq().
 compose_iq_reply(IQ, Namespace, PutUrl, GetUrl, Headers) ->
     Slot = #xmlel{
               name     = <<"slot">>,
@@ -209,7 +209,7 @@ generate_token(Host) ->
     base16:encode(crypto:strong_rand_bytes(token_bytes(Host))).
 
 
--spec file_too_large_error(MaxFileSize :: non_neg_integer(), Namespace :: binary()) -> jlib:exml().
+-spec file_too_large_error(MaxFileSize :: non_neg_integer(), Namespace :: binary()) -> exml:element().
 file_too_large_error(MaxFileSize, Namespace) ->
     MaxFileSizeBin = integer_to_binary(MaxFileSize),
     MaxSizeEl = #xmlel{name = <<"max-file-size">>,

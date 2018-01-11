@@ -15,25 +15,25 @@
 
 
 -callback route(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                   Acc :: mongoose_acc:t(), Packet :: xmlel()) ->
-    done | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), xmlel()}.
+                   Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
+    done | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), exml:element()}.
 
 -callback filter(From :: ejabberd:jid(), To :: ejabberd:jid(),
-    Acc :: mongoose_acc:t(), Packet :: xmlel()) ->
-    drop | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), xmlel()}.
+    Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
+    drop | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), exml:element()}.
 
 
 -export([call_route/5, call_filter/5]).
 
 -spec call_route(Module :: module(), From :: ejabberd:jid(),
-    To :: ejabberd:jid(), Acc :: mongoose_acc:t(), Packet :: xmlel()) ->
+    To :: ejabberd:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
     done | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t()}.
 call_route(Module, From, To, Acc, Packet) ->
     Module:route(From, To, Acc, Packet).
 
 
 -spec call_filter(Module :: module(), From :: ejabberd:jid(),
-    To :: ejabberd:jid(), Acc :: mongoose_acc:t(), Packet :: xmlel()) ->
+    To :: ejabberd:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
     drop | {ejabberd:jid(), ejabberd:jid(), mongoose_acc:t()}.
 call_filter(Module, From, To, Acc, Packet) ->
     Module:filter(From, To, Acc, Packet).

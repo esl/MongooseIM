@@ -318,7 +318,7 @@ unsafe_set_vcard(From, VCARD) ->
 -spec set_vcard(HandlerAcc, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
       From :: jid(),
-      VCARD :: jlib:xmlel(),
+      VCARD :: exml:element(),
       Result :: ok | error().
 set_vcard(ok, _From, _VCARD) ->
     ?DEBUG("hook call already handled - skipping", []),

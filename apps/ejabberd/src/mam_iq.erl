@@ -39,17 +39,17 @@ fix_rsm(RSM=#rsm_in{id = BExtMessID}) when is_binary(BExtMessID) ->
     RSM#rsm_in{id = MessID}.
 
 
--spec elem_to_start_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
+-spec elem_to_start_microseconds(exml:element()) -> 'undefined' | non_neg_integer().
 elem_to_start_microseconds(El) ->
     maybe_microseconds(exml_query:path(El, [{element, <<"start">>}, cdata], <<>>)).
 
 
--spec elem_to_end_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
+-spec elem_to_end_microseconds(exml:element()) -> 'undefined' | non_neg_integer().
 elem_to_end_microseconds(El) ->
     maybe_microseconds(exml_query:path(El, [{element, <<"end">>}, cdata], <<>>)).
 
 
--spec elem_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
+-spec elem_to_with_jid(exml:element()) -> 'error' | 'undefined' | ejabberd:jid().
 elem_to_with_jid(El) ->
     maybe_jid(exml_query:path(El, [{element, <<"with">>}, cdata], <<>>)).
 
@@ -72,7 +72,7 @@ form_to_end_microseconds(El) ->
     maybe_microseconds(form_field_value_s(El, <<"end">>)).
 
 
--spec form_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
+-spec form_to_with_jid(exml:element()) -> 'error' | 'undefined' | ejabberd:jid().
 form_to_with_jid(El) ->
     maybe_jid(form_field_value_s(El, <<"with">>)).
 
