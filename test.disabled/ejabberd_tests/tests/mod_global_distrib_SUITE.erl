@@ -115,7 +115,7 @@ end_per_suite(Config) ->
 init_per_group(start_checks, Config) ->
     Config;
 init_per_group(multi_connection, Config) ->
-    ExtraConfig = [{connections_per_endpoint, 100}],
+    ExtraConfig = [{resend_after_ms, 20000}, {connections_per_endpoint, 100}],
     init_per_group(multi_connection_generic, [{extra_config, ExtraConfig} | Config]);
 init_per_group(invalidation, Config) ->
     Config1 = init_per_group(invalidation_generic, Config),
@@ -133,15 +133,16 @@ init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
-                  Opts = [{local_host, LocalHost},
+                  Opts = ?config(extra_config, Config1) ++
+		         [{local_host, LocalHost},
                           {global_host, "localhost"},
                           {endpoints, [listen_endpoint(ReceiverPort)]},
                           {tls_opts, [
                                       {certfile, ?config(certfile, Config1)},
                                       {cafile, ?config(cafile, Config1)}
                                      ]},
-                          {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]}
-                          | ?config(extra_config, Config1)],
+                          {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
+                          {resend_after_ms, 500}],
 
                   OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
                   rpc(NodeName, gen_mod_deps, start_modules,
@@ -411,9 +412,9 @@ test_pm_with_disconnection_on_other_server(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
-              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
               escalus_connection:stop(Eve),
-              FromAliceBounce = escalus_client:wait_for_stanza(Alice),
+              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
+              FromAliceBounce = escalus_client:wait_for_stanza(Alice, 15000),
               escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], FromAliceBounce)
       end).
 
@@ -428,13 +429,14 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
               escalus_connection:stop(Eve),
 
+              FromEve = escalus_client:wait_for_stanza(Alice),
+
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
               NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe1!">>)),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi again from Asia!">>)),
 
-              FromEve = escalus_client:wait_for_stanza(Alice),
               FirstFromAlice = escalus_client:wait_for_stanza(NewEve),
               AgainFromEve = escalus_client:wait_for_stanza(Alice),
               SecondFromAlice = escalus_client:wait_for_stanza(NewEve),
@@ -468,6 +470,10 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
 
               NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
+              ct:sleep(timer:seconds(1)), % without it, on very slow systems (e.g. travis),
+                                          % global_distrib correctly routes "hi again from eu"
+                                          % message to local host, but it's rejected by some
+                                          % underlying mechanism (presence unavailable?)
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe1!">>)),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
