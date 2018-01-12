@@ -80,7 +80,8 @@ run_small_tests() {
   echo "############################"
   echo "Running small tests (test/)"
   echo "############################"
-  echo "Add option \"-s false\" to skip embeded common tests"
+  echo "Advice: "
+  echo "    Add option \"-s false\" to skip embeded common tests"
   echo "Example: "
   echo "    ./tools/travis-test.sh -s false"
   make ct
