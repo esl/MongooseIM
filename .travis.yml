@@ -10,7 +10,6 @@ addons:
         - slapd
         - ldap-utils
 before_install:
-        - tools/travis-generate-pass.sh
         - tools/configure $REL_CONFIG
 install:
         - ./rebar3 compile

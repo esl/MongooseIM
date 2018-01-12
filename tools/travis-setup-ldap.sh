@@ -1,6 +1,6 @@
 #!/bin/sh
 
-LDAP_ROOTPASS=`cat /tmp/travis_db_password`
+LDAP_ROOTPASS=mongooseim_secret
 
 LDAP_ROOT="cn=admin,dc=esl,dc=com"
 LDAP_DOMAIN="esl.com"
