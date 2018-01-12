@@ -105,9 +105,9 @@ process_args([Arg | Rest], Acc, Opts) ->
     process_args(Rest, [Arg | Acc], Opts).
 
 start_epmd() ->
-    EpmdPath = epmd_path(),
-    Port = open_port({spawn_executable, EpmdPath}, [exit_status, {args, ["-daemon"]}]),
-    wait_epmd(Port, []),
+    Port = open_port({spawn_executable, epmd_path()},
+                     [exit_status, stderr_to_stdout, {args, ["-daemon"]}]),
+    [] = wait_epmd(Port, []),
     catch port_close(Port),
     ok.
 
@@ -118,7 +118,6 @@ wait_epmd(Port, Data) ->
         {Port, {exit_status, 0}} ->
             Data;
         {Port, {exit_status, E}} ->
-            io:format("Could not start epmd.~n"),
             throw({badarg, E, Data})
     end.
 
