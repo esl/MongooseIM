@@ -238,12 +238,12 @@ wait_for_stream(timeout, StateData) ->
 %%       with XMPP level tests;
 %%       see github.com/esl/ejabberd_tests/tree/element-before-stream-start
 wait_for_stream({xmlstreamelement, _}, StateData) ->
-    c2s_stream_error(?INVALID_XML_ERR, StateData);
+    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 wait_for_stream({xmlstreamend, _}, StateData) ->
-    c2s_stream_error(?INVALID_XML_ERR, StateData);
+    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_header(StateData, ?MYNAME, << "1.0">>, <<"">>),
-    c2s_stream_error(?INVALID_XML_ERR, StateData);
+    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
@@ -258,9 +258,9 @@ handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
             Version = xml:get_attr_s(<<"version">>, Attrs),
             stream_start_by_protocol_version(Version, S);
         {?NS_STREAM, false} ->
-            stream_start_error(?HOST_UNKNOWN_ERR, S);
+            stream_start_error(mongoose_xmpp_errors:host_unknown(), S);
         {_InvalidNS, _} ->
-            stream_start_error(?INVALID_NS_ERR, S)
+            stream_start_error(mongoose_xmpp_errors:invalid_namespace(), S)
     end.
 
 stream_start_error(Error, StateData) ->
@@ -291,7 +291,7 @@ stream_start_by_protocol_version(_Pre10, #state{lang = Lang, server = Server} = 
         false ->
             wait_for_legacy_auth(S);
         true ->
-            c2s_stream_error(?POLICY_VIOLATION_ERR(Lang, <<"Use of STARTTLS required">>), S)
+            c2s_stream_error(mongoose_xmpp_errors:policy_violation(Lang, <<"Use of STARTTLS required">>), S)
     end.
 
 stream_start_negotiate_features(#state{} = S) ->
@@ -495,7 +495,7 @@ wait_for_auth({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_auth({xmlstreamerror, _}, StateData) ->
-    send_element(StateData, ?INVALID_XML_ERR),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_auth(closed, StateData) ->
@@ -615,7 +615,7 @@ wait_for_feature_before_auth({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_feature_before_auth({xmlstreamerror, _}, StateData) ->
-    send_element(StateData, ?INVALID_XML_ERR),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_feature_before_auth(closed, StateData) ->
@@ -662,7 +662,7 @@ wait_for_sasl_response({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_sasl_response({xmlstreamerror, _}, StateData) ->
-    send_element(StateData, ?INVALID_XML_ERR),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_sasl_response(closed, StateData) ->
@@ -716,7 +716,7 @@ wait_for_feature_after_auth({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 
 wait_for_feature_after_auth({xmlstreamerror, _}, StateData) ->
-    send_element(StateData, ?INVALID_XML_ERR),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 
@@ -763,7 +763,7 @@ wait_for_session_or_sm({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 
 wait_for_session_or_sm({xmlstreamerror, _}, StateData) ->
-    send_element(StateData, ?INVALID_XML_ERR),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 
@@ -921,7 +921,7 @@ session_established({xmlstreamelement, El}, StateData) ->
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
     case check_from(El, FromJID) of
         'invalid-from' ->
-            send_element(StateData, ?INVALID_FROM),
+            send_element(StateData, mongoose_xmpp_errors:invalid_from()),
             send_trailer(StateData),
             {stop, normal, StateData};
         _NewEl ->
@@ -965,11 +965,11 @@ session_established({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 
 session_established({xmlstreamerror, <<"child element too big">> = E}, StateData) ->
-    send_element(StateData, ?POLICY_VIOLATION_ERR(StateData#state.lang, E)),
+    send_element(StateData, mongoose_xmpp_errors:policy_violation(StateData#state.lang, E)),
     send_trailer(StateData),
     {stop, normal, StateData};
 session_established({xmlstreamerror, _}, StateData) ->
-    send_element(StateData, ?INVALID_XML_ERR),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 session_established(closed, StateData) ->
@@ -1052,7 +1052,7 @@ process_outgoing_stanza(_Acc, _ToJID, _Name, StateData) ->
 %% session may be terminated for exmaple by mod_ping there is still valid
 %% connection and resource want to send stanza.
 resume_session({xmlstreamelement, _}, StateData) ->
-    Err = ?POLICY_VIOLATION_ERR(StateData#state.lang,
+    Err = mongoose_xmpp_errors:policy_violation(StateData#state.lang,
                                 <<"session in resume state cannot accept incoming stanzas">>),
     maybe_send_element_safe(StateData, Err),
     maybe_send_trailer_safe(StateData),
@@ -1195,7 +1195,7 @@ handle_info(check_buffer_full, StateName, StateData) ->
     case is_buffer_full(StateData#state.stream_mgmt_buffer_size,
                         StateData#state.stream_mgmt_buffer_max) of
         true ->
-            Err = ?RESOURCE_CONSTRAINT_ERR((StateData#state.lang),
+            Err = mongoose_xmpp_errors:stream_resource_constraint((StateData#state.lang),
                                            <<"too many unacked stanzas">>),
             send_element(StateData, Err),
             send_trailer(StateData),
@@ -2852,7 +2852,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
             fsm_next_state(NextState, StateData);
         {_, _, _} ->
             %% invalid namespace
-            send_element(StateData, ?INVALID_NS_ERR),
+            send_element(StateData, mongoose_xmpp_errors:invalid_namespace()),
             send_trailer(StateData),
             {stop, normal, StateData}
     end.
@@ -2876,7 +2876,7 @@ maybe_unexpected_sm_request(NextState, El, StateData) ->
             send_element(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
             fsm_next_state(NextState, StateData);
         _ ->
-            send_element(StateData, ?INVALID_NS_ERR),
+            send_element(StateData, mongoose_xmpp_errors:invalid_namespace()),
             send_trailer(StateData),
             {stop, normal, StateData}
     end.
@@ -2893,11 +2893,11 @@ stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
         fsm_next_state(NextState, NSD)
     catch
         error:{badmatch, {ns, _}} ->
-            maybe_send_element_safe(SD, ?INVALID_NS_ERR),
+            maybe_send_element_safe(SD, mongoose_xmpp_errors:invalid_namespace()),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD};
         throw:{policy_violation, Reason} ->
-            maybe_send_element_safe(SD, ?POLICY_VIOLATION_ERR(SD#state.lang,
+            maybe_send_element_safe(SD, mongoose_xmpp_errors:policy_violation(SD#state.lang,
                                                               Reason)),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD}
@@ -2927,7 +2927,7 @@ maybe_send_sm_ack(?NS_STREAM_MGNT_3, true, NIncoming,
     send_element(StateData, stream_mgmt_ack(NIncoming)),
     fsm_next_state(NextState, StateData);
 maybe_send_sm_ack(_, _, _, _NextState, StateData) ->
-    send_element(StateData, ?INVALID_NS_ERR),
+    send_element(StateData, mongoose_xmpp_errors:invalid_namespace()),
     send_trailer(StateData),
     {stop, normal, StateData}.
 
@@ -3298,7 +3298,7 @@ open_session_allowed_hook(Server, JID) ->
 
 terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
     Lang = StateData#state.lang,
-    send_element(StateData, ?POLICY_VIOLATION_ERR(
+    send_element(StateData, mongoose_xmpp_errors:policy_violation(
                                Lang, <<"Use of STARTTLS required">>)),
     send_trailer(StateData),
     {stop, normal, StateData};

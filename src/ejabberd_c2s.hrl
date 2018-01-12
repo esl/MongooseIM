@@ -147,12 +147,3 @@
        ).
 
 -define(STREAM_TRAILER, <<"</stream:stream>">>).
-
--define(INVALID_NS_ERR, mongoose_xmpp_errors:invalid_namespace()).
--define(INVALID_XML_ERR, mongoose_xmpp_errors:xml_not_well_formed()).
--define(HOST_UNKNOWN_ERR, mongoose_xmpp_errors:host_unknown()).
--define(POLICY_VIOLATION_ERR(Lang, Text),
-        mongoose_xmpp_errors:policy_violation(Lang, Text)).
--define(INVALID_FROM, mongoose_xmpp_errors:invalid_from()).
--define(RESOURCE_CONSTRAINT_ERR(Lang, Text),
-	mongoose_xmpp_errors:stream_resource_constraint(Lang, Text)).
