@@ -120,6 +120,14 @@ run_test_preset() {
   return ${MAKE_RESULT}
 }
 
+print_running_nodes() {
+    echo "Running nodes:"
+    # Expand wildcard into a bash array
+    EPMDS=( "${BASE}"/_build/mim1/rel/mongooseim/erts-*/bin/epmd )
+    # Missing index expands into ${EPMDS[0]}
+    "$EPMDS" -names
+}
+
 run_tests() {
   maybe_run_small_tests
   SMALL_STATUS=$?
@@ -163,6 +171,7 @@ run_tests() {
     [ $BIG_STATUS_BY_SUMMARY -ne 0 ]   && echo "    big tests failed"
     [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites"
     [ $LOG_STATUS -ne 0 ]   && echo "    log contains errors"
+    print_running_nodes
   fi
 
   exit ${RESULT}
