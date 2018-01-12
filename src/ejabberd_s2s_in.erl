@@ -49,6 +49,7 @@
 -include("jlib.hrl").
 -include_lib("public_key/include/public_key.hrl").
 -include("XmppAddr.hrl").
+-include("ejabberd_s2s.hrl").
 
 -record(state, {socket,
                 sockmod               :: ejabberd:sockmod(),
@@ -98,20 +99,6 @@
          "xmlns:db='jabber:server:dialback' "
          "id='", (StateData#state.streamid)/binary, "'", Version/binary, ">">>)
        ).
-
--define(STREAM_TRAILER, <<"</stream:stream>">>).
-
--define(INVALID_NAMESPACE_ERR,
-        exml:to_binary(mongoose_xmpp_errors:invalid_namespace())).
-
--define(HOST_UNKNOWN_ERR,
-        exml:to_binary(mongoose_xmpp_errors:host_unknown())).
-
--define(INVALID_FROM_ERR,
-        exml:to_binary(mongoose_xmpp_errors:invalid_from())).
-
--define(INVALID_XML_ERR,
-        exml:to_binary(mongoose_xmpp_errors:xml_not_well_formed())).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -240,12 +227,12 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             send_text(StateData, ?STREAM_HEADER(<<"">>)),
             {next_state, stream_established, StateData};
         _ ->
-            send_text(StateData, ?INVALID_NAMESPACE_ERR),
+            send_text(StateData, ?INVALID_NS_ERR_TO_BIN),
             {stop, normal, StateData}
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?STREAM_HEADER(<<"">>))/binary, (?INVALID_XML_ERR)/binary,
+              <<(?STREAM_HEADER(<<"">>))/binary, (?INVALID_XML_ERR_TO_BIN)/binary,
                 (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(timeout, StateData) ->
@@ -314,7 +301,7 @@ wait_for_feature_request({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_feature_request({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
@@ -346,10 +333,10 @@ stream_established({xmlstreamelement, El}, StateData) ->
                      StateData#state{connections = Conns,
                                      timer = Timer}};
                 {_, false} ->
-                    send_text(StateData, ?HOST_UNKNOWN_ERR),
+                    send_text(StateData, ?HOST_UNKNOWN_ERR_TO_BIN),
                     {stop, normal, StateData};
                 {false, _} ->
-                    send_text(StateData, ?INVALID_FROM_ERR),
+                    send_text(StateData, ?INVALID_FROM_ERR_TO_BIN),
                     {stop, normal, StateData}
             end;
         {verify, To, From, Id, Key} ->
@@ -410,7 +397,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 stream_established(timeout, StateData) ->
     {stop, normal, StateData};

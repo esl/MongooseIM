@@ -55,6 +55,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("ejabberd_s2s.hrl").
 
 -record(state, {socket,
                 sockmod      :: ejabberd:sockmod(),
@@ -91,8 +92,6 @@
         "id='~s' from='~s'>">>
        ).
 
--define(STREAM_TRAILER, <<"</stream:stream>">>).
-
 -define(INVALID_HEADER_ERR,
         <<"<stream:stream "
         "xmlns:stream='http://etherx.jabber.org/streams'>"
@@ -108,13 +107,6 @@
         "</stream:error>"
         "</stream:stream>">>
        ).
-
--define(INVALID_XML_ERR,
-        exml:to_binary(mongoose_xmpp_errors:xml_not_well_formed())).
--define(INVALID_NS_ERR,
-        exml:to_binary(mongoose_xmpp_errors:invalid_namespace())).
--define(CONFLICT_ERR,
-        exml:to_binary(mongoose_xmpp_errors:stream_conflict())).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -214,7 +206,7 @@ wait_for_stream({xmlstreamerror, _}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
     send_text(StateData, <<(iolist_to_binary(Header))/binary,
-                           (?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+                           (?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
@@ -234,7 +226,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
                             {next_state, stream_established, StateData};
                         {error, Reason} ->
                             ?ERROR_MSG("Error in component handshake: ~p", [Reason]),
-                            send_text(StateData, ?CONFLICT_ERR),
+                            send_text(StateData, ?CONFLICT_ERR_TO_BIN),
                             {stop, normal, StateData}
                     end;
                 _ ->
@@ -247,7 +239,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
 wait_for_handshake({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_handshake(closed, StateData) ->
     {stop, normal, StateData}.
@@ -296,7 +288,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     % TODO ??
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 stream_established(closed, StateData) ->
     % TODO ??

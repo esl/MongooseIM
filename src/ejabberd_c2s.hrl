@@ -1,5 +1,9 @@
 -include("mod_privacy.hrl").
 
+%% Used to get ?STREAM_TRAILER instead of making separate header file for it
+%% It is used by ejabberd_c2s, s2s_out/in and service
+-include("ejabberd_s2s.hrl").
+
 -define(STREAM_MGMT_H_MAX, (1 bsl 32 - 1)).
 -define(STREAM_MGMT_CACHE_MAX, 100).
 -define(STREAM_MGMT_ACK_FREQ, 1). %% It's the *denominator* of the frequency
@@ -145,5 +149,3 @@
         "xmlns:stream='http://etherx.jabber.org/streams' "
         "id='~s' from='~s'~s~s>"
        ).
-
--define(STREAM_TRAILER, <<"</stream:stream>">>).
