@@ -102,7 +102,9 @@ maybe_run_small_tests() {
 start_services() {
     for env in ${BASE}/test.disabled/ejabberd_tests/services/*-compose.yml; do
         echo "Stating service" $(basename "${env}") "..."
-        docker-compose -f "${env}" up -d
+        time ${BASE}/tools/docker-compose.sh -f "${env}" up -d
+        echo "docker-compose execution time reported above"
+        echo ""
     done
 }
 
