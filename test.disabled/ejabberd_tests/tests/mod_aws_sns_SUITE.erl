@@ -6,7 +6,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
--include("assert_received_match.hrl").
+-include("assertions.hrl").
 
 -define(MUC_HOST, <<"muc.localhost">>).
 -define(NS_HTTP_UPLOAD, <<"urn:xmpp:http:upload">>).
