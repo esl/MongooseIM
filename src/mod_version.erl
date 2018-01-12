@@ -21,7 +21,7 @@ stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_VERSION),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_VERSION).
 
--spec process_iq(jid(), jid(), mongoose_acc:t(), jlib:iq()) -> {mongoose_acc:t(), jlib:iq()}.
+-spec process_iq(ejabberd:jid(),ejabberd:jid(), mongoose_acc:t(), jlib:iq()) -> {mongoose_acc:t(), jlib:iq()}.
 process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_iq(From, _To, Acc, #iq{type = get} = IQ) ->

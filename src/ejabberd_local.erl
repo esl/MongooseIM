@@ -137,7 +137,7 @@ process_iq_reply(From, To, _Acc, #iq{id = ID} = IQ) ->
     end.
 
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(), El :: exml:element(),
+-spec process_packet(Acc :: mongoose_acc:t(), From :: ejabberd:jid(), To ::ejabberd:jid(), El :: exml:element(),
                      Extra :: any()) ->
     ok | {error, lager_not_running}.
 process_packet(Acc, From, To, El, _Extra) ->
@@ -413,7 +413,7 @@ do_route(Acc, From, To, El) ->
             end
     end.
 
--spec directed_to(jid()) -> user | server | local_resource.
+-spec directed_to(ejabberd:jid()) -> user | server | local_resource.
 directed_to(To) ->
     directed_to(To#jid.luser, To#jid.lresource).
 

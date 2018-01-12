@@ -52,7 +52,7 @@ extract_requested_rules(#xmlel{} = Stanza) ->
         _    -> none
     end.
 
--spec make_response(amp_rule(), jid(), #xmlel{}) -> #xmlel{}.
+-spec make_response(amp_rule(), ejabberd:jid(), #xmlel{}) -> #xmlel{}.
 make_response(Rule, User, Packet) ->
     OriginalId = exml_query:attr(Packet, <<"id">>, <<"original-id-missing">>),
     OriginalSender = jid:to_binary(User),
@@ -69,7 +69,7 @@ make_response(Rule, User, Packet) ->
            children = [Amp]}.
 
 
--spec make_error_response([amp_error()], [amp_any_rule()], jid(), #xmlel{})
+-spec make_error_response([amp_error()], [amp_any_rule()], ejabberd:jid(), #xmlel{})
                          -> #xmlel{}.
 make_error_response([E|_] = Errors, [_|_] = Rules, User, Packet) ->
     OriginalId = exml_query:attr(Packet, <<"id">>, <<"original-id-missing">>),

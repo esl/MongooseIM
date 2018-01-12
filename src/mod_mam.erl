@@ -122,7 +122,7 @@
 -type borders()             :: #mam_borders{}.
 -type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
                           Offset :: non_neg_integer() | undefined,
-                          MessageRows :: [{message_id(), jid(), exml:element()}]}.
+                          MessageRows :: [{message_id(), ejabberd:jid(), exml:element()}]}.
 
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok', {_, _}}).

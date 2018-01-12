@@ -828,7 +828,7 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
             {wait, Acc2, StateData}
     end.
 
--spec do_open_session(mongoose_acc:t(), jid(), state()) ->
+-spec do_open_session(mongoose_acc:t(), ejabberd:jid(), state()) ->
     {stop | established, mongoose_acc:t(), state()}.
 do_open_session(Acc, JID, StateData) ->
     ?INFO_MSG("(~w) Opened session for ~s", [StateData#state.socket, jid:to_binary(JID)]),

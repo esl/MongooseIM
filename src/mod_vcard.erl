@@ -171,7 +171,7 @@ stop(VHost) ->
 %% mongoose_packet_handler callbacks
 %%--------------------------------------------------------------------
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
+-spec process_packet(Acc :: mongoose_acc:t(), From ::ejabberd:jid(), To ::ejabberd:jid(),
                      Packet :: exml:element(), Pid :: pid()) -> any().
 process_packet(Acc, From, To, Packet, Pid) ->
     Pid ! {route, From, To, Acc, Packet}.
@@ -317,7 +317,7 @@ unsafe_set_vcard(From, VCARD) ->
 
 -spec set_vcard(HandlerAcc, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
-      From :: jid(),
+      From ::ejabberd:jid(),
       VCARD :: exml:element(),
       Result :: ok | error().
 set_vcard(ok, _From, _VCARD) ->

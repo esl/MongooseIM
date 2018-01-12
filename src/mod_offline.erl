@@ -70,8 +70,8 @@
 -type msg() :: #offline_msg{us :: {ejabberd:luser(), ejabberd:lserver()},
                           timestamp :: erlang:timestamp(),
                           expire :: erlang:timestamp() | never,
-                          from :: jid(),
-                          to :: jid(),
+                          from ::ejabberd:jid(),
+                          to ::ejabberd:jid(),
                           packet :: exml:element()}.
 
 -export_type([msg/0]).

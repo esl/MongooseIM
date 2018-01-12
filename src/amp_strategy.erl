@@ -12,7 +12,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--spec determine_strategy(amp_strategy(), jid() | undefined, jid() | undefined, #xmlel{}, amp_event()) ->
+-spec determine_strategy(amp_strategy(), ejabberd:jid() | undefined, ejabberd:jid() | undefined, #xmlel{}, amp_event()) ->
                                 amp_strategy().
 determine_strategy(_, _, undefined, _, _) -> null_strategy();
 determine_strategy(_, _, To, _, Event) ->

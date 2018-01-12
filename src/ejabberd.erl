@@ -51,6 +51,9 @@
 -type lserver()   :: binary().
 -type lresource() :: binary().
 
+-type jid() :: #jid{}.
+-type ljid() :: {luser(), lserver(), lresource()}.
+
 %% A tuple-style JID
 -type simple_jid() :: {user(), server(), resource()}.
 
@@ -72,7 +75,8 @@
               xml_stream_item/0,
               user/0, server/0, resource/0,
               luser/0, lserver/0, lresource/0,
-              literal_jid/0
+              literal_jid/0,
+              ljid/0
              ]).
 
 start() ->

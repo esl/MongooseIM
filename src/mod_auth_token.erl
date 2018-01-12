@@ -124,7 +124,7 @@ token_with_mac(#token{mac_signature = undefined, token_body = undefined} = T) ->
     MAC = keyed_hash(Body, user_hmac_opts(T#token.type, T#token.user_jid)),
     T#token{token_body = Body, mac_signature = MAC}.
 
--spec user_hmac_opts(token_type(), jid()) -> [{any(), any()}].
+-spec user_hmac_opts(token_type(), ejabberd:jid()) -> [{any(), any()}].
 user_hmac_opts(TokenType, User) ->
     lists:keystore(key, 1, hmac_opts(),
                    {key, get_key_for_user(TokenType, User)}).
@@ -243,7 +243,7 @@ is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
                true
     end.
 
--spec process_iq(jid(), mongoose_acc:t(), jid(), jlib:iq()) -> {mongoose_acc:t(), jlib:iq()} | error().
+-spec process_iq(ejabberd:jid(), mongoose_acc:t(), ejabberd:jid(), jlib:iq()) -> {mongoose_acc:t(), jlib:iq()} | error().
 process_iq(From, To, Acc, #iq{xmlns = ?NS_ESL_TOKEN_AUTH} = IQ) ->
     IQResp = case lists:member(From#jid.lserver, ?MYHOSTS) of
         true -> process_local_iq(From, To, IQ);
@@ -364,7 +364,7 @@ get_token_as_record(BToken) ->
          end,
     T1#token{token_body = join_fields(T1)}.
 
--spec get_key_for_user(token_type(), jid()) -> binary().
+-spec get_key_for_user(token_type(), ejabberd:jid()) -> binary().
 get_key_for_user(TokenType, User) ->
     UsersHost = User#jid.lserver,
     KeyName = key_name(TokenType),

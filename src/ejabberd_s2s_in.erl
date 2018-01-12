@@ -417,7 +417,7 @@ stream_established(timeout, StateData) ->
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
 
--spec route_incoming_stanza(From :: jid(), To :: jid(), El :: exml:element(), StateData :: state()) ->
+-spec route_incoming_stanza(From :: ejabberd:jid(), To :: ejabberd:jid(), El :: exml:element(), StateData :: state()) ->
     mongoose_acc:t() | error.
 route_incoming_stanza(From, To, El, StateData) ->
     LFrom = From#jid.lserver,

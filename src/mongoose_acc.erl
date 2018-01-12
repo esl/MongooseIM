@@ -228,7 +228,7 @@ strip(Acc, El) ->
 -spec record_sending(t(), exml:element(), atom(), any()) -> t().
 record_sending(Acc, Stanza, Module, Result) ->
     record_sending(Acc, none, none, Stanza, Module, Result).
--spec record_sending(t(), jid()|none, jid()|none, exml:element(), atom(), any()) -> t().
+-spec record_sending(t(),ejabberd:jid()|none,ejabberd:jid()|none, exml:element(), atom(), any()) -> t().
 record_sending(Acc, _From, _To, _Stanza, _Module, Result) ->
     mongoose_acc:append(send_result, Result, Acc).
 

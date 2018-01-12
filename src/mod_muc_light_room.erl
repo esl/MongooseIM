@@ -87,7 +87,7 @@ process_request(From, RoomUS, Request, {ok, AffUsers, _Ver}) ->
     process_request(Request, From, UserUS, RoomUS, Auth, AffUsers).
 
 -spec process_request(Request :: muc_light_packet(),
-                      From :: jid(),
+                      From ::ejabberd:jid(),
                       UserUS :: ejabberd:simple_bare_jid(),
                       RoomUS :: ejabberd:simple_bare_jid(),
                       Auth :: false | aff_user(),

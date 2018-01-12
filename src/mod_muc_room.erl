@@ -2330,7 +2330,7 @@ send_existing_presences(ToJID, StateData) ->
         end, dict:to_list(StateData#state.users)).
 
 -spec send_existing_presence({ejabberd:simple_jid(), mod_muc_room_user()}, mod_muc:role(),
-                             jid(), state()) -> mongoose_acc:t().
+                             ejabberd:jid(), state()) -> mongoose_acc:t().
 send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
                                     role = FromRole, last_presence = Presence}},
                        Role, RealToJID, StateData) ->
@@ -2871,7 +2871,7 @@ find_changed_items(_UJID, _UAffiliation, _URole, _Items, _Lang, _StateData, _Res
 -spec get_affected_jid(Attrs :: [{binary(), binary()}],
                        Lang :: ejabberd:lang(),
                        StateData :: state()) ->
-    {value, jid()} | {error, exml:element()}.
+    {value,ejabberd:jid()} | {error, exml:element()}.
 get_affected_jid(Attrs, Lang, StateData) ->
     case {xml:get_attr(<<"jid">>, Attrs), xml:get_attr(<<"nick">>, Attrs)} of
         {{value, S}, _} ->
@@ -2897,7 +2897,7 @@ get_affected_jid(Attrs, Lang, StateData) ->
             {error, mongoose_xmpp_errors:bad_request()}
     end.
 
--spec check_changed_item(jid(), mod_muc:affiliation(), mod_muc:role(), jid(), exml:element(),
+-spec check_changed_item(ejabberd:jid(), mod_muc:affiliation(), mod_muc:role(),ejabberd:jid(), exml:element(),
                          [exml:element()], ejabberd:lang(), state(), [res_row()]) ->
     find_changed_items_res().
 check_changed_item(UJID, UAffiliation, URole, JID, #xmlel{ attrs = Attrs } = Item, Items,
@@ -2945,7 +2945,7 @@ check_changed_item(UJID, UAffiliation, URole, JID, #xmlel{ attrs = Attrs } = Ite
         Err -> Err
     end.
 
--spec is_owner(UJID :: jid(), StateData :: state()) -> boolean().
+-spec is_owner(UJID ::ejabberd:jid(), StateData :: state()) -> boolean().
 is_owner(UJID, StateData) ->
     case search_affiliation(owner, StateData) of
         [{OJID, _}] -> jid:to_bare(OJID) /= jid:to_lower(jid:to_bare(UJID));
@@ -3259,7 +3259,7 @@ process_authorized_iq_owner(From, get, Lang, SubEl, StateData) ->
             end
     end.
 
--spec process_authorized_submit_owner(From :: jid(), XEl :: exml:element(), StateData :: state()) ->
+-spec process_authorized_submit_owner(From ::ejabberd:jid(), XEl :: exml:element(), StateData :: state()) ->
     {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
 process_authorized_submit_owner(_From, #xmlel{ children = [] } = _XEl, StateData) ->
     %confrm an instant room
@@ -4110,9 +4110,9 @@ unsafe_check_invitation(FromJID, Els, Lang,
             {ok, JIDs}
     end.
 
--spec create_invite(FromJID :: jid(), InviteEl :: exml:element(),
+-spec create_invite(FromJID ::ejabberd:jid(), InviteEl :: exml:element(),
                     Lang :: ejabberd:lang(), StateData :: state()) ->
-    {JID :: jid(), Reason :: binary(), Msg :: exml:element()}.
+    {JID ::ejabberd:jid(), Reason :: binary(), Msg :: exml:element()}.
 create_invite(FromJID, InviteEl, Lang, StateData) ->
     JID = decode_destination_jid(InviteEl),
     %% Create an invitation message and send it to the user.

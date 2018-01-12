@@ -219,7 +219,7 @@ hooks(Host, MUCHost) ->
 %% Routing
 %%====================================================================
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
+-spec process_packet(Acc :: mongoose_acc:t(), From ::ejabberd:jid(), To ::ejabberd:jid(),
                      El :: exml:element(), Extra :: any()) -> any().
 process_packet(Acc, From, To, El, _Extra) ->
     process_decoded_packet(From, To, mod_muc_light_codec_backend:decode(From, To, El), Acc, El).
@@ -283,7 +283,7 @@ process_decoded_packet(From, To, _InvalidReq, _Acc, OrigPacket) ->
 %% Hook handlers
 %%====================================================================
 
--spec prevent_service_unavailable(Acc :: map(), From :: jid(), To :: jid(),
+-spec prevent_service_unavailable(Acc :: map(), From ::ejabberd:jid(), To ::ejabberd:jid(),
                                   Packet :: exml:element()) -> map() | {stop, map()}.
 prevent_service_unavailable(Acc, _From, _To, Packet) ->
     case xml:get_tag_attr_s(<<"type">>, Packet) of
@@ -474,12 +474,12 @@ process_create_aff_users(Creator, AffUsers, EqualOccupants) ->
 creator_aff(true) -> member;
 creator_aff(false) -> owner.
 
--spec handle_disco_info_get(From :: jid(), To :: jid(), DiscoInfo :: disco_info_req_props()) -> ok.
+-spec handle_disco_info_get(From ::ejabberd:jid(), To ::ejabberd:jid(), DiscoInfo :: disco_info_req_props()) -> ok.
 handle_disco_info_get(From, To, DiscoInfo) ->
     mod_muc_light_codec_backend:encode({get, DiscoInfo}, From, jid:to_lus(To),
                                        fun ejabberd_router:route/3).
 
--spec handle_disco_items_get(From :: jid(), To :: jid(), DiscoItems :: disco_items_req_props(),
+-spec handle_disco_items_get(From ::ejabberd:jid(), To ::ejabberd:jid(), DiscoItems :: disco_items_req_props(),
                              OrigPacket :: exml:element()) -> ok.
 handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
     case catch mod_muc_light_db_backend:get_user_rooms(jid:to_lus(From), To#jid.lserver) of

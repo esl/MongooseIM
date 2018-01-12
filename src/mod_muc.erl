@@ -482,7 +482,7 @@ stop_supervisor(Host) ->
 
 
 -spec process_packet(Acc :: mongoose_acc:t(),
-                     From :: jid(),
+                     From :: ejabberd:jid(),
                      To :: ejabberd:simple_jid() | ejabberd:jid(),
                      El :: exml:element(),
                      State :: state()) -> ok | mongoose_acc:t().
@@ -996,7 +996,7 @@ iq_set_register_info_t(Host, LUS, Nick) ->
             false
     end.
 
--spec process_iq_register_set(ejabberd:server(), jid(), exml:element(), ejabberd:lang()) ->
+-spec process_iq_register_set(ejabberd:server(),ejabberd:jid(), exml:element(), ejabberd:lang()) ->
     {error, exml:element()} | {result, []}.
 process_iq_register_set(Host, From, #xmlel{ children = Els } = SubEl, Lang) ->
     case xml:get_subtag(SubEl, <<"remove">>) of
@@ -1014,7 +1014,7 @@ process_iq_register_set(Host, From, #xmlel{ children = Els } = SubEl, Lang) ->
     end.
 
 -spec process_register(XMLNS :: binary(), Type :: binary(), Host :: ejabberd:server(),
-                       From :: jid(), Lang :: ejabberd:lang(), XEl :: exml:element()) ->
+                       From ::ejabberd:jid(), Lang :: ejabberd:lang(), XEl :: exml:element()) ->
     {error, exml:element()} | {result, []}.
 process_register(?NS_XDATA, <<"cancel">>, _Host, _From, _Lang, _XEl) ->
     {result, []};

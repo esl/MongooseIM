@@ -646,7 +646,7 @@ purge_multiple_messages(Host, ArcID, ArcJID, Borders,
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec message_row_to_xml(binary(), jid(), boolean(), boolean(), row(), binary() | undefined) ->
+-spec message_row_to_xml(binary(), ejabberd:jid(), boolean(), boolean(), row(), binary() | undefined) ->
                                 exml:element().
 message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID, SrcJID, Packet}, QueryID) ->
 
