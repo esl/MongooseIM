@@ -83,26 +83,27 @@ start(Module, SockMod, Socket, Opts) ->
             SocketData = #socket_state{sockmod = SockMod,
                                        socket = Socket,
                                        receiver = RecRef},
-            case Module:start({?MODULE, SocketData}, Opts) of
-                {ok, Pid} ->
-                    case SockMod:controlling_process(Socket, Receiver) of
-                        ok ->
-                            ok;
+            case SockMod:controlling_process(Socket, Receiver) of
+                ok ->
+                    case Module:start({?MODULE, SocketData}, Opts) of
+                        {ok, Pid} ->
+                            ReceiverMod:become_controller(Receiver, Pid);
                         {error, _Reason} ->
-                            SockMod:close(Socket)
-                    end,
-                    ReceiverMod:become_controller(Receiver, Pid);
+                            SockMod:close(Socket),
+                            case ReceiverMod of
+                                ejabberd_receiver ->
+                                    ReceiverMod:close(Receiver);
+                                _ ->
+                                    ok
+                            end
+                    end;
                 {error, _Reason} ->
-                    SockMod:close(Socket),
-                    case ReceiverMod of
-                        ejabberd_receiver ->
-                            ReceiverMod:close(Receiver);
-                        _ ->
-                            ok
-                    end
+                    SockMod:close(Socket)
             end;
+
         independent ->
             ok;
+
         raw ->
             case Module:start({SockMod, Socket}, Opts) of
                 {ok, Pid} ->
@@ -158,29 +159,35 @@ connect(Addr, Port, Opts, Timeout) ->
 
 
 -spec tcp_to_tls(inet:socket(), list()) -> ejabberd_tls:tls_socket().
-tcp_to_tls(InetSock, TLSOpts) ->
+tcp_to_tls(#socket_state{receiver = Receiver}, TLSOpts) ->
     SanitizedTLSOpts = case lists:keyfind(protocol_options, 1, TLSOpts) of
         false -> TLSOpts;
         {_, ProtoOpts} ->
             NewProtoOpts = {protocol_options, string:join(ProtoOpts, "|")},
             lists:keyreplace(protocol_options, 1, TLSOpts, NewProtoOpts)
     end,
-    ejabberd_tls:tcp_to_tls(InetSock, SanitizedTLSOpts).
+    ejabberd_receiver:starttls(Receiver, SanitizedTLSOpts).
+
+get_tls_socket(#socket_state{receiver = Receiver}) ->
+    case ejabberd_receiver:get_socket(Receiver) of
+        {ok, TLSSocket} -> TLSSocket;
+        _ -> invalid_socket
+    end.
 
 
 -spec starttls(socket_state(), list()) -> socket_state().
 starttls(SocketData, TLSOpts) ->
-    TLSSocket = tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
-    ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
-    SocketData#socket_state{socket = TLSSocket, sockmod = ejabberd_tls}.
+    tcp_to_tls(SocketData, TLSOpts),
+    NewSocket = get_tls_socket(SocketData),
+    SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}.
 
 
 -spec starttls(socket_state(), _, _) -> socket_state().
 starttls(SocketData, TLSOpts, Data) ->
-    TLSSocket = tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
-    ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
-    send(SocketData, Data),
-    SocketData#socket_state{socket = TLSSocket, sockmod = ejabberd_tls}.
+    tcp_to_tls(SocketData, TLSOpts),
+    send(SocketData, Data), %% send last negotiation chunk via tcp
+    NewSocket = get_tls_socket(SocketData),
+    SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}.
 
 -spec compress(socket_state(), integer(), _) -> socket_state().
 compress(SocketData, InflateSizeLimit, Data) ->
