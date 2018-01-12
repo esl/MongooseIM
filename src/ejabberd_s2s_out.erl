@@ -58,7 +58,6 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_s2s.hrl").
 
 -record(state, {socket,
                 streamid,
@@ -128,6 +127,8 @@
         "from='~s' "
         "to='~s'~s>">>
        ).
+
+-define(SOCKET_DEFAULT_RESULT, {error, badarg}).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -335,7 +336,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
         {<<"jabber:server">>, <<"">>, true} when StateData#state.use_v10 ->
             {next_state, wait_for_features, StateData#state{db_enabled = false}, ?FSMTIMEOUT};
         {NSProvided, DB, _} ->
-            send_text(StateData, ?INVALID_NS_ERR_TO_BIN),
+            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_namespace())),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (invalid namespace).~n"
                       "Namespace provided: ~p~nNamespace expected: \"jabber:server\"~n"
                       "xmlns:db provided: ~p~nAll attributes: ~p",
@@ -344,7 +345,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("Closing s2s connection: ~s -> ~s (invalid xml)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
@@ -415,7 +416,7 @@ wait_for_validation({xmlstreamerror, _}, StateData) ->
     ?INFO_MSG("wait for validation: ~s -> ~s (xmlstreamerror)",
               [StateData#state.myname, StateData#state.server]),
     send_text(StateData,
-              <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_validation(timeout, #state{verify = {VPid, VKey, SID}} = StateData)
   when is_pid(VPid) and is_binary(VKey) and is_binary(SID) ->
@@ -453,7 +454,7 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
             handle_parsed_features({SASLEXT, StartTLS, StartTLSRequired, StateData});
         _ ->
             send_text(StateData,
-                      <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
+                      <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                       (?STREAM_TRAILER)/binary>>),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                       [StateData#state.myname, StateData#state.server]),
@@ -464,7 +465,7 @@ wait_for_features({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_features({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("wait for features: xmlstreamerror", []),
     {stop, normal, StateData};
 wait_for_features(timeout, StateData) ->
@@ -494,7 +495,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                     }, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
+                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -510,7 +511,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
+                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -518,7 +519,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
             end;
         _ ->
             send_text(StateData,
-                      <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
+                      <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                       [StateData#state.myname, StateData#state.server]),
@@ -529,7 +530,7 @@ wait_for_auth_result({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_auth_result({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("wait for auth result: xmlstreamerror", []),
     {stop, normal, StateData};
 wait_for_auth_result(timeout, StateData) ->
@@ -565,7 +566,7 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                     {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(exml:to_binary(mongoose_xmpp_errors:bad_format()))/binary,
+                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -581,7 +582,7 @@ wait_for_starttls_proceed({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_starttls_proceed({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("wait for starttls proceed: xmlstreamerror", []),
     {stop, normal, StateData};
 wait_for_starttls_proceed(timeout, StateData) ->
@@ -646,7 +647,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("stream established: ~s -> ~s (xmlstreamerror)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};

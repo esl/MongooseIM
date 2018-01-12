@@ -31,8 +31,6 @@
 
 -define(MONGOOSE_URI, <<"https://www.erlang-solutions.com/products/mongooseim.html">>).
 
-%%-define(DBGFSM, true).
-
 %% ---------------------------------
 %% Logging mechanism
 -include("mongoose_logger.hrl").

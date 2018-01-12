@@ -319,5 +319,9 @@ unsupported_version(Lang, Text) ->
 xml_not_well_formed(Lang, Text) ->
     jlib:stream_errort(<<"xml-not-well-formed">>, Lang, Text).
 
+xml_not_well_formed_bin() ->
+    exml:to_binary(xml_not_well_formed()).
 
+bad_format_bin() ->
+    exml:to_binary(bad_format()).
 

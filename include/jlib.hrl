@@ -39,4 +39,7 @@
              lang = <<>>  :: ejabberd:lang(),
              sub_el       :: [exml:element()] | exml:element()
             }).
+
+-define(STREAM_TRAILER, <<"</stream:stream>">>).
+
 -endif.

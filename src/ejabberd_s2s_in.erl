@@ -49,7 +49,6 @@
 -include("jlib.hrl").
 -include_lib("public_key/include/public_key.hrl").
 -include("XmppAddr.hrl").
--include("ejabberd_s2s.hrl").
 
 -record(state, {socket,
                 sockmod               :: ejabberd:sockmod(),
@@ -227,12 +226,12 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             send_text(StateData, ?STREAM_HEADER(<<"">>)),
             {next_state, stream_established, StateData};
         _ ->
-            send_text(StateData, ?INVALID_NS_ERR_TO_BIN),
+            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_namespace())),
             {stop, normal, StateData}
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?STREAM_HEADER(<<"">>))/binary, (?INVALID_XML_ERR_TO_BIN)/binary,
+              <<(?STREAM_HEADER(<<"">>))/binary, (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary,
                 (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(timeout, StateData) ->
@@ -301,7 +300,7 @@ wait_for_feature_request({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_feature_request({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
@@ -333,10 +332,10 @@ stream_established({xmlstreamelement, El}, StateData) ->
                      StateData#state{connections = Conns,
                                      timer = Timer}};
                 {_, false} ->
-                    send_text(StateData, ?HOST_UNKNOWN_ERR_TO_BIN),
+                    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:host_unknown())),
                     {stop, normal, StateData};
                 {false, _} ->
-                    send_text(StateData, ?INVALID_FROM_ERR_TO_BIN),
+                    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_from())),
                     {stop, normal, StateData}
             end;
         {verify, To, From, Id, Key} ->
@@ -397,7 +396,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 stream_established(timeout, StateData) ->
     {stop, normal, StateData};

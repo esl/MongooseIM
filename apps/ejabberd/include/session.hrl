@@ -1,6 +1,7 @@
--record(session, {sid,
-    usr,
-    us,
-    priority,
-    info
-}).
+-record(session,
+    {sid,
+     usr,
+     us,
+     priority,
+     info
+    }).

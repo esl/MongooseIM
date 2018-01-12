@@ -55,7 +55,6 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_s2s.hrl").
 
 -record(state, {socket,
                 sockmod      :: ejabberd:sockmod(),
@@ -206,7 +205,7 @@ wait_for_stream({xmlstreamerror, _}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
     send_text(StateData, <<(iolist_to_binary(Header))/binary,
-                           (?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+                           (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
@@ -226,7 +225,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
                             {next_state, stream_established, StateData};
                         {error, Reason} ->
                             ?ERROR_MSG("Error in component handshake: ~p", [Reason]),
-                            send_text(StateData, ?CONFLICT_ERR_TO_BIN),
+                            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:stream_conflict())),
                             {stop, normal, StateData}
                     end;
                 _ ->
@@ -239,7 +238,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
 wait_for_handshake({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_handshake(closed, StateData) ->
     {stop, normal, StateData}.
@@ -288,7 +287,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     % TODO ??
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR_TO_BIN)/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 stream_established(closed, StateData) ->
     % TODO ??
