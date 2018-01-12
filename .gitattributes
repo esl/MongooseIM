@@ -1,0 +1,8 @@
+# These javascript libraries are minified
+# This produces ugly results of "git diff" and "git grep" commands
+# Treating them as binary would reduce noise
+# TODO consider moving such libraries into a separate branch/repo
+examples/websockets/jsjac/jsjac.js      binary
+doc/swagger/swagger-ui.min.js           binary
+doc/swagger/lib/*.js                    binary
+doc/open-extensions/prettify.js         binary
