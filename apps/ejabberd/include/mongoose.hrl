@@ -42,7 +42,3 @@
 %% so that parts of the code not yet rewritten still work. Eventually all those things
 %% will go away. This macro denotes a function called in a deprecated way.
 
--define(TEMPORARY, ok).
-%% just a marker - oftentimes we create a mongoose_acc just because we call a hook
-%% while the 'real' accumulator doesn't yet reach this point, so for compatibility
-%% we have to mock it. This macro is to mark such places in the code.

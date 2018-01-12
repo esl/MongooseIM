@@ -245,7 +245,6 @@ process_decoded_packet(From, To, {ok, {_, #blocking{}} = Blocking}, _Acc, OrigPa
     RouteFun = fun ejabberd_router:route/3,
     case gen_mod:get_module_opt_by_subhost(To#jid.lserver, ?MODULE, blocking, ?DEFAULT_BLOCKING) of
         true ->
-            ?TEMPORARY,
             Res = handle_blocking(From, To, Blocking),
             case (mongoose_acc:is_acc(Res) or (Res == ok)) of
                 true ->

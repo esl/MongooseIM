@@ -161,7 +161,7 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
         true ->
             UserListRecord = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
                                                      #userlist{}, [User, Server]),
-            ?TEMPORARY,
+            ok,
             {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
                                                              UserListRecord, To, From,
                                                              out),
